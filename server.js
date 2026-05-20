@@ -1,21 +1,24 @@
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const path = require("path");
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
+// =======================
 // 🔥 KẾT NỐI DATABASE
+// =======================
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
 // =======================
-// 🧱 TẠO TABLE (auto)
+// 🧱 TẠO TABLE
 // =======================
 async function initDB() {
   await pool.query(`
@@ -59,14 +62,11 @@ async function initDB() {
 // =======================
 // 📦 PRODUCTS
 // =======================
-
-// lấy danh sách sản phẩm
 app.get("/api/products", async (req, res) => {
   const result = await pool.query("SELECT * FROM products");
   res.json(result.rows);
 });
 
-// thêm sản phẩm
 app.post("/api/products", async (req, res) => {
   const { name, price, stock } = req.body;
   const result = await pool.query(
@@ -93,16 +93,11 @@ app.post("/api/import", async (req, res) => {
 // =======================
 // 🧾 ĐƠN HÀNG
 // =======================
-
-// tạo đơn hàng
 app.post("/api/orders", async (req, res) => {
   const { customer_id, staff_id, items } = req.body;
 
   let total = 0;
-
-  for (let item of items) {
-    total += item.price * item.quantity;
-  }
+  items.forEach(i => total += i.price * i.quantity);
 
   const order = await pool.query(
     "INSERT INTO orders (customer_id, staff_id, total) VALUES ($1,$2,$3) RETURNING *",
@@ -117,7 +112,6 @@ app.post("/api/orders", async (req, res) => {
       [orderId, item.product_id, item.quantity, item.price]
     );
 
-    // trừ tồn kho
     await pool.query(
       "UPDATE products SET stock = stock - $1 WHERE id = $2",
       [item.quantity, item.product_id]
@@ -127,7 +121,6 @@ app.post("/api/orders", async (req, res) => {
   res.json({ message: "Tạo đơn thành công" });
 });
 
-// lấy danh sách đơn
 app.get("/api/orders", async (req, res) => {
   const result = await pool.query("SELECT * FROM orders ORDER BY id DESC");
   res.json(result.rows);
@@ -165,6 +158,13 @@ app.post("/api/staff", async (req, res) => {
     [name]
   );
   res.json(result.rows[0]);
+});
+
+// =======================
+// 🌐 LOAD HTML
+// =======================
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // =======================
