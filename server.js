@@ -100,29 +100,43 @@ function rebuildMasterOrders(orders, masterOrders) {
   });
 }
 
-// ===== REBUILD CÔNG NỢ =====
+// ===== 🔥 REBUILD CÔNG NỢ (FIX CHUẨN) =====
 function rebuildDebts(data) {
   let debts = [];
 
-  data.masterOrders.forEach(master => {
-    const orders = data.orders.filter(o => o.masterId === master.id);
+  data.orders.forEach(o => {
 
-    orders.forEach(o => {
-      let total = Number(o.total) || 0;
-      let cash = Number(o.cashPaid) || 0;
-      let bank = Number(o.bankPaid) || 0;
+    // 🔥 Lấy NV giao hàng (ưu tiên master)
+    let deliveryName = '';
 
-      debts.push({
-        deliveryStaff: master.deliveryStaffName || '',
-        orderId: o.id,
-        customerCode: o.customerCode || '',
-        customerName: o.customer || '',
-        total,
-        cash,
-        bank,
-        debt: total - cash - bank,
-        date: o.date
-      });
+    if (o.masterId) {
+      const master = data.masterOrders.find(m => m.id === o.masterId);
+      if (master) {
+        deliveryName = master.deliveryStaffName || '';
+      }
+    }
+
+    // fallback nếu chưa gộp
+    if (!deliveryName) {
+      deliveryName = o.deliveryStaffName || '';
+    }
+
+    let total = Number(o.total) || 0;
+    let cash = Number(o.cashPaid) || 0;
+    let bank = Number(o.bankPaid) || 0;
+    let debt = total - cash - bank;
+
+    debts.push({
+      deliveryStaff: deliveryName,
+      orderId: o.id,
+      customerCode: o.customerCode || '',
+      customerName: o.customer || '',
+      total,
+      cash,
+      bank,
+      debt,
+      status: debt <= 0 ? 'Đã thanh toán' : 'Còn nợ',
+      date: o.date
     });
   });
 
