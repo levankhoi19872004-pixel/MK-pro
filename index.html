@@ -30,10 +30,26 @@
   display:inline-grid;place-items:center;color:#fff;vertical-align:middle;
 }
 
+
+.login-screen{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0f172a,#1d4ed8);display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{width:min(420px,94vw);background:#fff;border-radius:22px;padding:28px;box-shadow:0 25px 80px rgba(0,0,0,.25)}
+.login-card h1{margin:0 0 6px;font-size:24px}.login-card p{margin:0 0 18px;color:#667085}.login-card .field{margin-bottom:12px}.login-card .btn{width:100%;margin-top:8px}.login-note{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:10px;margin-top:14px;font-size:12px;color:#475467;line-height:1.6}.app.locked{display:none}.logout-btn{border:0;background:#fee2e2;color:#991b1b;border-radius:10px;padding:8px 10px;font-weight:700;cursor:pointer}
+
 </style>
 </head>
 <body>
-<div class="app">
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <h1>Đăng nhập Kho Minh Khai</h1>
+    <p>Vui lòng đăng nhập để sử dụng phần mềm kho.</p>
+    <div class="field"><label>Tài khoản</label><input id="loginUser" autocomplete="username" placeholder="admin hoặc nv01"></div>
+    <div class="field"><label>Mật khẩu</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="123456" onkeydown="if(event.key==='Enter')login()"></div>
+    <button class="btn green" onclick="login()">Đăng nhập</button>
+    <div class="login-note"><b>Tài khoản mẫu:</b><br>Admin: admin / 123456<br>Nhân viên: nv01 / 123456</div>
+  </div>
+</div>
+<div class="app locked" id="appRoot">
   <aside class="sidebar" id="sidebar">
     <div class="logo">
       <div class="brand-logo-mk">
@@ -71,7 +87,7 @@
       <div class="user">
         <button class="icon-btn" id="fontBtn" onclick="toggleSettings()">A</button>
         <button class="icon-btn" onclick="document.body.classList.toggle('compact')">☼</button>
-        <div class="avatar">●</div><div class="name"><b>Admin</b><br><span class="muted">Quản trị</span></div>
+        <div class="avatar">●</div><div class="name"><b id="currentUserName">Admin</b><br><span class="muted" id="currentUserRole">Quản trị</span></div><button class="logout-btn" onclick="logout()">Thoát</button>
       </div>
     </div>
     <div class="content">
@@ -216,6 +232,10 @@
 <script>
 const KEY='kho_pro_professional_v2';
 const API_URL='https://kho-api-2.onrender.com'; // API Render của anh
+const AUTH_KEY='kho_pro_auth_token';
+const USER_KEY='kho_pro_auth_user';
+let AUTH_TOKEN=localStorage.getItem(AUTH_KEY)||'';
+let CURRENT_USER=JSON.parse(localStorage.getItem(USER_KEY)||'null');
 let API_ONLINE=false;
 let API_READY=false;
 let API_SYNC_TIMER=null;
@@ -231,6 +251,54 @@ function normalizeDb(data){
   return base;
 }
 
+
+function authHeaders(extra={}){
+  return AUTH_TOKEN ? {...extra, Authorization:'Bearer '+AUTH_TOKEN} : extra;
+}
+function setLoginState(loggedIn){
+  const login=document.getElementById('loginScreen');
+  const app=document.getElementById('appRoot');
+  if(login) login.style.display=loggedIn?'none':'flex';
+  if(app) app.classList.toggle('locked',!loggedIn);
+  if(loggedIn && CURRENT_USER){
+    const n=document.getElementById('currentUserName');
+    const r=document.getElementById('currentUserRole');
+    if(n)n.textContent=CURRENT_USER.name||CURRENT_USER.username||'User';
+    if(r)r.textContent=CURRENT_USER.role==='admin'?'Quản trị':'Nhân viên';
+  }
+}
+async function login(){
+  const username=(document.getElementById('loginUser')?.value||'').trim();
+  const password=(document.getElementById('loginPass')?.value||'').trim();
+  if(!username||!password) return toast('Nhập tài khoản và mật khẩu');
+  try{
+    const res=await fetchWithTimeout(API_URL+'/api/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password})
+    },30000);
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Đăng nhập thất bại');
+    AUTH_TOKEN=data.token;
+    CURRENT_USER=data.user;
+    localStorage.setItem(AUTH_KEY,AUTH_TOKEN);
+    localStorage.setItem(USER_KEY,JSON.stringify(CURRENT_USER));
+    setLoginState(true);
+    toast('Đăng nhập thành công');
+    await loadDataFromAPI();
+  }catch(err){
+    console.warn(err);
+    toast(err.message||'Không đăng nhập được');
+  }
+}
+async function logout(){
+  try{ if(AUTH_TOKEN) await fetch(API_URL+'/api/logout',{method:'POST',headers:authHeaders()}); }catch(e){}
+  AUTH_TOKEN=''; CURRENT_USER=null;
+  localStorage.removeItem(AUTH_KEY); localStorage.removeItem(USER_KEY);
+  setLoginState(false);
+  toast('Đã đăng xuất');
+}
+
 async function fetchWithTimeout(url, options={}, timeout=25000){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(), timeout);
@@ -242,14 +310,14 @@ async function fetchWithTimeout(url, options={}, timeout=25000){
 }
 
 async function apiGetData(){
-  const res=await fetchWithTimeout(API_URL+'/api/data',{cache:'no-store'},30000);
+  const res=await fetchWithTimeout(API_URL+'/api/data',{cache:'no-store',headers:authHeaders()},30000);
   if(!res.ok) throw new Error('Không lấy được dữ liệu kho từ API: '+res.status);
   return normalizeDb(await res.json());
 }
 async function apiSaveData(data){
   const res=await fetchWithTimeout(API_URL+'/api/data',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:authHeaders({'Content-Type':'application/json'}),
     body:JSON.stringify(normalizeDb(data))
   },30000);
   if(!res.ok) throw new Error('Không lưu được dữ liệu kho lên API: '+res.status);
@@ -272,6 +340,8 @@ async function pushDataToAPI(){
   }
 }
 async function loadDataFromAPI(retry=0){
+  if(!AUTH_TOKEN){setLoginState(false);return;}
+  setLoginState(true);
   try{
     const onlineDb=await apiGetData();
     db=onlineDb;
@@ -837,7 +907,10 @@ function restoreData(e){let f=e.target.files[0];if(!f)return;let r=new FileReade
 function toggleSettings(){settings.classList.toggle('show');fontBtn.classList.toggle('active')}
 function applyFont(v){document.documentElement.style.setProperty('--font',v);localStorage.setItem('kho_font',v)}
 applyFont(localStorage.getItem('kho_font')||"'Noto Sans','Segoe UI',Arial,sans-serif");
-window.addEventListener('DOMContentLoaded',()=>loadDataFromAPI());
+window.addEventListener('DOMContentLoaded',()=>{
+  if(AUTH_TOKEN){setLoginState(true);loadDataFromAPI();}
+  else setLoginState(false);
+});
 </script>
 </body>
 </html>
