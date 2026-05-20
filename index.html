@@ -207,7 +207,7 @@
         </div>
       </section>
 
-      <section id="orders" class="section"><div class="card panel"><div class="panel-head"><h2>Đơn hàng</h2><div class="toolbar"><button class="btn light" onclick="page('mergeOrders')">Gộp đơn tổng</button><button class="btn" onclick="exportOrders()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Ngày</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th class="center">Số dòng</th><th class="center">Trạng thái gộp</th><th>Thao tác</th></tr></thead><tbody id="ordersBody"></tbody></table></div></div></section>
+      <section id="orders" class="section"><div class="card panel"><div class="panel-head"><h2>Đơn hàng</h2><div class="toolbar"><button class="btn green" onclick="printSelectedOrders()">In các đơn đã chọn</button><button class="btn light" onclick="page('mergeOrders')">Gộp đơn tổng</button><button class="btn" onclick="exportOrders()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" id="selectAllPrintOrders" onchange="toggleAllPrintOrders(this)"></th><th>Mã đơn</th><th>Ngày</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th class="center">Số dòng</th><th class="center">Trạng thái gộp</th><th>Thao tác</th></tr></thead><tbody id="ordersBody"></tbody></table></div></div></section>
 
       <section id="mergeOrders" class="section">
         <div class="card panel">
@@ -454,7 +454,7 @@ function render(){
  skuList.innerHTML=db.products.map(p=>`<option value="${p.sku}">${p.name}</option>`).join('');
  sCustomer.innerHTML=db.customers.map(c=>`<option>${c.name}</option>`).join('');sStaff.innerHTML=db.staff.map((n,i)=>`<option value="${staffCode(n,i)}" data-name="${staffName(n)}">${staffCode(n,i)} - ${staffName(n)}</option>`).join('');
  receiveBody.innerHTML=db.receipts.map((r,i)=>({r,i})).reverse().map(x=>`<tr><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có phiếu nhập</td></tr>';
- ordersBody.innerHTML=db.orders.slice().reverse().map(o=>{let merged=!!o.masterId;return `<tr><td>${o.id}</td><td>${o.date}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="8" class="center muted">Chưa có đơn hàng</td></tr>';
+ ordersBody.innerHTML=db.orders.slice().reverse().map(o=>{let merged=!!o.masterId;return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="9" class="center muted">Chưa có đơn hàng</td></tr>';
  customerBody.innerHTML=db.customers.map(c=>`<tr><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Chưa có khách hàng</td></tr>';
  staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="4" class="center muted">Chưa có nhân viên</td></tr>';
  const sr=buildStaffReportRows(); if(document.getElementById('staffReportBody')) staffReportBody.innerHTML=sr.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right">${r.lines}</td><td class="right">${money(r.revenue)}</td><td class="right">${money(r.cost)}</td><td class="right"><b>${money(r.profit)}</b></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu bán hàng theo nhân viên</td></tr>';
@@ -973,6 +973,37 @@ function invoiceHtmlForOrder(o){
 }
 
 function printInvoice(id){let o=db.orders.find(x=>x.id===id);if(!o)return toast('Không tìm thấy đơn hàng');let w=window.open('','_blank');w.document.open();w.document.write(invoiceHtmlForOrder(o));w.document.close();}
+
+function toggleAllPrintOrders(cb){
+  document.querySelectorAll('.print-order-check').forEach(x=>x.checked=cb.checked);
+}
+function getInvoicePagesOnly(html){
+  let bodyMatch=html.match(/<body[^>]*>([\s\S]*?)<script>window\.onload/);
+  if(!bodyMatch)return '';
+  return bodyMatch[1].replace(/<button[\s\S]*?<\/button>/,'');
+}
+function getInvoiceStyle(html){
+  let m=html.match(/<style>([\s\S]*?)<\/style>/);
+  return m?m[1]:'';
+}
+function printSelectedOrders(){
+  let ids=[...document.querySelectorAll('.print-order-check:checked')].map(x=>x.value);
+  if(!ids.length)return toast('Chưa chọn đơn nào để in');
+  let orders=ids.map(id=>db.orders.find(o=>String(o.id)===String(id))).filter(Boolean);
+  if(!orders.length)return toast('Không tìm thấy đơn đã chọn');
+  let firstHtml=invoiceHtmlForOrder(orders[0]);
+  let style=getInvoiceStyle(firstHtml);
+  let pages=orders.map(o=>getInvoicePagesOnly(invoiceHtmlForOrder(o))).join('');
+  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>In ${orders.length} đơn hàng</title><style>${style}
+    .batch-separator{page-break-after:always;height:0;overflow:hidden}
+    .invoice-page:nth-last-child(2){page-break-after:always}
+    @media print{.print-btn{display:none!important}}
+  </style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF ${orders.length} đơn</button>${pages}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
+  let w=window.open('','_blank');
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
 function printMasterOrder(id){
   let m=(db.masterOrders||[]).find(x=>x.id===id);if(!m)return toast('Không tìm thấy đơn tổng');
   let orders=db.orders.filter(o=>(m.childIds||[]).includes(o.id));
