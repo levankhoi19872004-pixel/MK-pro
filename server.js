@@ -35,8 +35,10 @@ async function initDB() {
         orders: [],
         customers: [],
         staff: [],
+        deliveryStaff: [],
         receipts: [],
         masterOrders: [],
+        debts: [],
         shortageReports: []
       })]
     );
@@ -44,7 +46,6 @@ async function initDB() {
 
   console.log("✅ DB READY");
 }
-
 initDB();
 
 // ===== AUTH =====
@@ -74,35 +75,118 @@ function auth(req, res, next) {
   }
 }
 
+// ===== REBUILD MASTER =====
+function rebuildMasterOrders(orders, masterOrders) {
+  return masterOrders.map(master => {
+    const child = orders.filter(o => o.masterId === master.id);
+
+    let map = {};
+    let total = 0;
+
+    child.forEach(o => {
+      (o.items || []).forEach(i => {
+        if (!map[i.sku]) map[i.sku] = { ...i };
+        else map[i.sku].qty += i.qty;
+      });
+
+      total += Number(o.total) || 0;
+    });
+
+    return {
+      ...master,
+      items: Object.values(map),
+      total
+    };
+  });
+}
+
+// ===== REBUILD CÔNG NỢ =====
+function rebuildDebts(data) {
+  let debts = [];
+
+  data.masterOrders.forEach(master => {
+    const orders = data.orders.filter(o => o.masterId === master.id);
+
+    orders.forEach(o => {
+      let total = Number(o.total) || 0;
+      let cash = Number(o.cashPaid) || 0;
+      let bank = Number(o.bankPaid) || 0;
+
+      debts.push({
+        deliveryStaff: master.deliveryStaffName || '',
+        orderId: o.id,
+        customerCode: o.customerCode || '',
+        customerName: o.customer || '',
+        total,
+        cash,
+        bank,
+        debt: total - cash - bank,
+        date: o.date
+      });
+    });
+  });
+
+  return debts;
+}
+
 // ===== GET DATA =====
 app.get('/api/data', auth, async (req, res) => {
-  try {
-    const result = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
-    res.json(result.rows[0].data);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Lỗi lấy dữ liệu' });
-  }
+  const result = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
+  res.json(result.rows[0].data);
 });
 
 // ===== SAVE DATA =====
 app.post('/api/data', auth, async (req, res) => {
-  try {
-    const data = req.body;
+  let data = req.body;
 
-    const sizeMB = JSON.stringify(data).length / 1024 / 1024;
-    if (sizeMB > 80) {
-      return res.status(400).json({ error: 'Dữ liệu quá lớn' });
-    }
+  data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
+  data.debts = rebuildDebts(data);
 
-    await pool.query(`UPDATE kho_data SET data=$1 WHERE id=1`, [data]);
+  await pool.query(`UPDATE kho_data SET data=$1 WHERE id=1`, [data]);
 
-    res.json({ success: true });
+  res.json({ success: true });
+});
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Lỗi lưu dữ liệu' });
-  }
+// ===== 🔥 THU TIỀN REALTIME =====
+app.post('/api/pay-order', auth, async (req, res) => {
+  const { orderId, cash, bank } = req.body;
+
+  const rs = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
+  const data = rs.rows[0].data;
+
+  const order = data.orders.find(o => String(o.id) === String(orderId));
+  if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn' });
+
+  order.cashPaid = Number(cash) || 0;
+  order.bankPaid = Number(bank) || 0;
+
+  data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
+  data.debts = rebuildDebts(data);
+
+  await pool.query(`UPDATE kho_data SET data=$1 WHERE id=1`, [data]);
+
+  res.json({ success: true, debts: data.debts });
+});
+
+// ===== REPORT =====
+app.get('/api/debt-report', auth, async (req, res) => {
+  const rs = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
+  const data = rs.rows[0].data;
+
+  let report = { byStaff: {}, byCustomer: {}, overdue: [] };
+
+  data.debts.forEach(d => {
+    if (!report.byStaff[d.deliveryStaff]) report.byStaff[d.deliveryStaff] = 0;
+    report.byStaff[d.deliveryStaff] += d.debt;
+
+    if (!report.byCustomer[d.customerCode]) report.byCustomer[d.customerCode] = 0;
+    report.byCustomer[d.customerCode] += d.debt;
+
+    let days = (Date.now() - new Date(d.date)) / 86400000;
+    if (days > 30 && d.debt > 0) report.overdue.push(d);
+  });
+
+  res.json(report);
 });
 
 // ===== HEALTH =====

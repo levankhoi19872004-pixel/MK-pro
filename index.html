@@ -73,6 +73,8 @@
       <button data-page="mergeOrders">▤ Gộp đơn tổng</button>
       <button data-page="customers">♙ Khách hàng</button>
       <button data-page="staff">♟ Nhân viên</button>
+      <button data-page="deliveryStaff">🚚 Nhân viên giao hàng</button>
+      <button data-page="debts">₫ Công nợ</button>
       <button data-page="reports">▥ Báo cáo</button>
     </div>
     <div class="nav-title">Tiện ích</div>
@@ -210,6 +212,9 @@
               <div class="field col2"><label>CK hiệu chỉnh</label><input id="adjustDiscount" type="number" value="0" oninput="renderCart()"></div>
               <div class="field col2"><label>Trạng thái giao</label><select id="deliveryStatus"><option>Giao thành công</option><option>Chưa giao</option><option>Đang giao</option><option>Hủy</option></select></div>
               <div class="field col2"><label>Phiếu XK</label><input id="xkCode" placeholder="Tự ghi nếu cần"></div>
+              <div class="field col3"><label>Nhân viên giao hàng</label><select id="deliveryStaffSelect"></select></div>
+              <div class="field col2"><label>Tiền mặt</label><input id="cashPaid" type="number" value="0" oninput="renderCart()"></div>
+              <div class="field col2"><label>Chuyển khoản</label><input id="bankPaid" type="number" value="0" oninput="renderCart()"></div>
             </div>
             <div class="sale-tools">
               <div class="field sale-search-wrap"><label>Tìm sản phẩm</label><input id="sSearch" oninput="searchSaleProducts()" placeholder="Nhập SKU hoặc tên sản phẩm"><div id="saleResults" class="sale-results-pro"></div></div>
@@ -235,7 +240,7 @@
             <div class="sum-line"><span>Tổng tiền hàng</span><b id="sumGoods">0</b></div>
             <div class="sum-line"><span>Tiền CK-KM</span><b id="sumDiscount">0</b></div>
             <div class="sum-line"><span>CK hiệu chỉnh</span><b id="sumAdjust">0</b></div>
-            <div class="sum-pay"><div class="sum-line" style="border:0"><span>Phải thanh toán</span><b id="cartTotal">0</b></div></div>
+            <div class="sum-pay"><div class="sum-line"><span>Phải thanh toán</span><b id="cartTotal">0</b></div><div class="sum-line"><span>Đã thu</span><b id="sumPaid">0</b></div><div class="sum-line" style="border:0"><span>Công nợ</span><b id="sumDebt">0</b></div></div>
             <div class="sale-setting"><b>Thiết lập</b><div class="sale-mini">Đơn bán sẽ tự trừ tồn khi chốt, lưu chi tiết từng dòng hàng, giá vốn, doanh thu, nhân viên và khách hàng để lên báo cáo.</div></div>
           </div>
         </div>
@@ -255,7 +260,7 @@
       <section id="mergeOrders" class="section">
         <div class="card panel">
           <div class="panel-head"><div><h2>Gộp đơn tổng</h2><div class="muted" style="margin-top:6px">Chọn các đơn con chưa gộp. Khi tạo đơn tổng, phần mềm sẽ <b>cộng gộp sản phẩm trùng SKU</b> thành một bảng hàng tổng hợp.</div></div><div class="toolbar"><button class="btn green" onclick="createMasterOrder()">Tạo đơn tổng</button><button class="btn light" onclick="render()">Làm mới</button></div></div>
-          <div class="form"><div class="field"><label>Mã đơn tổng</label><input id="masterId" placeholder="Tự sinh nếu bỏ trống"></div><div class="field"><label>Ghi chú đơn tổng</label><input id="masterNote" placeholder="VD: Gộp giao tuyến Kiến Xương"></div></div><br>
+          <div class="form"><div class="field"><label>Mã đơn tổng</label><input id="masterId" placeholder="Tự sinh nếu bỏ trống"></div><div class="field"><label>Nhân viên giao hàng</label><select id="masterDeliveryStaff"></select></div><div class="field"><label>Ghi chú đơn tổng</label><input id="masterNote" placeholder="VD: Gộp giao tuyến Kiến Xương"></div></div><br>
           <div class="filter-grid">
             <div class="field"><label>Từ ngày</label><input id="mergeFilterFrom" type="date" oninput="render()"></div>
             <div class="field"><label>Đến ngày</label><input id="mergeFilterTo" type="date" oninput="render()"></div>
@@ -275,12 +280,39 @@
             <div class="field wide"><label>SKU / tên hàng</label><input id="masterFilterProduct" placeholder="Tìm sản phẩm trong đơn tổng" oninput="render()"></div>
             <div class="filter-actions"><button class="btn light" onclick="clearMasterFilters()">Xóa lọc</button></div>
           </div>
-          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn tổng</th><th>Ngày tạo</th><th class="center">Số đơn con</th><th class="center">Số mặt hàng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền hàng</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="masterOrdersBody"></tbody></table></div></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn tổng</th><th>Ngày tạo</th><th class="center">Số đơn con</th><th class="center">Số mặt hàng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền hàng</th><th>Nhân viên GH</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="masterOrdersBody"></tbody></table></div></div>
       </section>
 
       <section id="customers" class="section"><div class="card panel"><div class="panel-head"><h2>Khách hàng</h2><div class="toolbar"><button class="btn light" onclick="downloadCustomerTemplate()">Tải mẫu KH</button><button class="btn green" onclick="document.getElementById('importCustomer').click()">Import KH</button><input id="importCustomer" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomers(event)"><button class="btn" onclick="exportCustomers()">Xuất Excel</button><button class="btn red" onclick="bulkDeleteCustomers()">Xóa KH đã chọn</button></div></div><div class="form"><div class="field"><label>Mã KH</label><input id="cCode"></div><div class="field"><label>Tên KH</label><input id="cName"></div><div class="field"><label>Địa chỉ</label><input id="cAddress"></div><div class="field"><label>SĐT</label><input id="cPhone"></div><div class="field"><label>MST</label><input id="cTax"></div></div><br><button class="btn" onclick="saveCustomer()">Lưu khách hàng</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('customer-delete-check',this.checked)"></th><th>Mã KH</th><th>Tên</th><th>Địa chỉ</th><th>SĐT</th><th>MST</th><th>Hành động</th></tr></thead><tbody id="customerBody"></tbody></table></div></div></section>
 
       <section id="staff" class="section"><div class="card panel"><div class="panel-head"><h2>Nhân viên</h2><div class="toolbar"><button class="btn light" onclick="downloadStaffTemplate()">Tải mẫu NV</button><button class="btn green" onclick="document.getElementById('importStaff').click()">Import NV</button><input id="importStaff" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importStaffExcel(event)"><button class="btn red" onclick="bulkDeleteStaff()">Xóa NV đã chọn</button></div></div><div class="form"><div class="field"><label>Mã NV</label><input id="nCode" placeholder="VD: NV001"></div><div class="field"><label>Tên nhân viên</label><input id="nName"></div><div class="field"><label>SĐT</label><input id="nPhone"></div></div><br><button class="btn" onclick="saveStaff()">Lưu nhân viên</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('staff-delete-check',this.checked)"></th><th>Mã NV</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="staffBody"></tbody></table></div></div></section>
+
+
+      <section id="deliveryStaff" class="section">
+        <div class="card panel">
+          <div class="panel-head"><h2>Nhân viên giao hàng</h2><div class="toolbar"><button class="btn red" onclick="bulkDeleteDeliveryStaff()">Xóa NVGH đã chọn</button></div></div>
+          <div class="form"><div class="field"><label>Mã NVGH</label><input id="dCode" placeholder="VD: GH001"></div><div class="field"><label>Tên nhân viên giao hàng</label><input id="dName"></div><div class="field"><label>SĐT</label><input id="dPhone"></div></div><br>
+          <button class="btn" onclick="saveDeliveryStaff()">Lưu nhân viên giao hàng</button>
+        </div>
+        <div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('delivery-delete-check',this.checked)"></th><th>Mã NVGH</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="deliveryStaffBody"></tbody></table></div></div>
+      </section>
+
+      <section id="debts" class="section">
+        <div class="card panel">
+          <div class="panel-head"><div><h2>Công nợ</h2><div class="muted" style="margin-top:6px">Theo dõi công nợ theo nhân viên giao hàng, đơn hàng, khách hàng và tuổi nợ.</div></div><div class="toolbar"><button class="btn" onclick="exportDebtReport()">Xuất Excel</button></div></div>
+          <div class="filter-grid">
+            <div class="field wide"><label>Nhân viên giao hàng</label><input id="debtFilterDelivery" placeholder="Tên hoặc mã NVGH" oninput="renderDebtReports()"></div>
+            <div class="field"><label>Mã KH</label><input id="debtFilterCustomerCode" placeholder="KH..." oninput="renderDebtReports()"></div>
+            <div class="field wide"><label>Tên khách hàng</label><input id="debtFilterCustomerName" placeholder="Tên khách" oninput="renderDebtReports()"></div>
+            <div class="field"><label>Công nợ quá ngày</label><input id="debtOverDays" type="number" value="7" oninput="renderDebtReports()"></div>
+            <div class="filter-actions"><button class="btn light" onclick="clearDebtFilters()">Xóa lọc</button></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Giá trị đơn hàng</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Công nợ</th><th>Ngày</th><th class="right">Tuổi nợ</th><th>Thao tác</th></tr></thead><tbody id="debtBody"></tbody></table></div>
+        </div>
+        <div class="card panel"><div class="panel-head"><h2>Báo cáo công nợ nhân viên giao hàng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtDeliveryBody"></tbody></table></div></div>
+        <div class="card panel"><div class="panel-head"><h2>Báo cáo công nợ khách hàng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtCustomerBody"></tbody></table></div></div>
+        <div class="card panel"><div class="panel-head"><h2>Công nợ quá lâu</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Công nợ</th><th>Ngày</th><th class="right">Tuổi nợ</th></tr></thead><tbody id="debtOldBody"></tbody></table></div></div>
+      </section>
       <section id="reports" class="section"><div class="stats"><div class="card stat"><div class="stat-icon blue">₫</div><div><div class="label">Doanh thu</div><div class="value" id="rpRevenue">0</div></div></div><div class="card stat"><div class="stat-icon green">✓</div><div><div class="label">Giá vốn</div><div class="value" id="rpCost">0</div></div></div><div class="card stat"><div class="stat-icon orange">★</div><div><div class="label">Lợi nhuận tạm tính</div><div class="value" id="rpProfit">0</div></div></div><div class="card stat"><div class="stat-icon purple">!</div><div><div class="label">Tồn thấp</div><div class="value" id="rpLow">0</div></div></div></div><div class="card panel"><div class="panel-head"><h2>Báo cáo doanh số nhân viên</h2><div class="toolbar"><input id="rpFrom" type="date" onchange="render()" style="width:auto"><input id="rpTo" type="date" onchange="render()" style="width:auto"><button class="btn light" onclick="clearReportFilter()">Tất cả</button><button class="btn" onclick="exportStaffReport()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã NV</th><th>Nhân viên</th><th class="center">Số đơn</th><th class="right">Số dòng hàng</th><th class="right">Doanh thu</th><th class="right">Giá vốn</th><th class="right">Lợi nhuận tạm tính</th></tr></thead><tbody id="staffReportBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><div><h2>Báo cáo hàng thiếu khi import đơn</h2><div class="muted" style="margin-top:6px">Tự lưu lại mỗi lần import nhiều đơn bị thiếu tồn kho, có thể xuất Excel để xử lý đặt hàng/bù hàng.</div></div><div class="toolbar"><button class="btn light" onclick="exportAllShortageReports()">Xuất tất cả</button><button class="btn red" onclick="clearShortageReports()">Xóa báo cáo thiếu</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã báo cáo</th><th>Ngày tạo</th><th>File import</th><th class="center">Số đơn</th><th class="center">Số SKU thiếu</th><th class="right">Tổng thiếu lẻ</th><th>Thao tác</th></tr></thead><tbody id="shortageReportBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><div><h2>Chi tiết hàng thiếu trực quan</h2><div class="muted" style="margin-top:6px">Xem ngay sản phẩm thiếu thuộc đơn nào, nhân viên nào, khách hàng nào; không cần xuất Excel.</div></div><div class="toolbar"><input id="shortageSearch" placeholder="Tìm mã đơn, NV, KH, SKU..." oninput="renderShortageReports()" style="width:260px"><button class="btn light" onclick="document.getElementById('shortageSearch').value='';renderShortageReports()">Xóa lọc</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã BC</th><th>Mã đơn</th><th>Mã NV</th><th>Nhân viên</th><th>Mã KH</th><th>Khách hàng</th><th>SKU</th><th>Tên hàng</th><th class="right">Cần</th><th class="right">Tồn</th><th class="right">Thiếu</th><th class="right">Sẽ import</th></tr></thead><tbody id="shortageVisualBody"></tbody></table></div></div></section>
@@ -334,13 +366,14 @@ let API_READY=false;
 let API_SYNC_TIMER=null;
 
 function emptyDb(){
-  return {products:[],receipts:[],orders:[],customers:[],staff:[],masterOrders:[],shortageReports:[]};
+  return {products:[],receipts:[],orders:[],customers:[],staff:[],deliveryStaff:[],masterOrders:[],shortageReports:[]};
 }
 function normalizeDb(data){
   const base=emptyDb();
   const src=(data&&typeof data==='object')?data:{};
   Object.keys(base).forEach(k=>{base[k]=Array.isArray(src[k])?src[k]:[]});
-  base.orders=base.orders.map(o=>{if(o.masterId===undefined)o.masterId='';return o});
+  base.orders=base.orders.map(o=>{if(o.masterId===undefined)o.masterId=''; if(o.cashPaid===undefined)o.cashPaid=0; if(o.bankPaid===undefined)o.bankPaid=0; if(o.debt===undefined)o.debt=Math.max(0,Number(o.total||0)-Number(o.cashPaid||0)-Number(o.bankPaid||0)); if(!o.deliveryStaffCode)o.deliveryStaffCode=''; if(!o.deliveryStaffName)o.deliveryStaffName=''; return o});
+  base.masterOrders=base.masterOrders.map(m=>{if(!m.deliveryStaffCode)m.deliveryStaffCode=''; if(!m.deliveryStaffName)m.deliveryStaffName=''; return m});
   return base;
 }
 
@@ -497,6 +530,7 @@ function save(){
 function ensureDefaultData(){
   if(!db.customers.length)db.customers.push({code:'KH001',name:'Khách lẻ',address:'',phone:'',tax:''});
   if(!db.staff.length)db.staff.push({code:'NV001',name:'Admin',phone:''});
+  if(!db.deliveryStaff.length)db.deliveryStaff.push({code:'GH001',name:'Chưa gán giao hàng',phone:''});
   db.staff.forEach((n,i)=>{if(!n.code&&!n.ma)n.code='NV'+String(i+1).padStart(3,'0'); if(!n.name&&n.ten)n.name=n.ten; if(!n.phone&&n.sdt)n.phone=n.sdt});
   db.products.forEach(p=>{if(!p.brand)p.brand=''; if(!p.category)p.category=''; if(!p.warehouse)p.warehouse='Kho chính';});
   localStorage.setItem(KEY,JSON.stringify(db));
@@ -534,7 +568,7 @@ function parseQtySlash(value,pack){
   return Number(s)||0;
 }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
-function page(id){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));pageTitle.textContent=document.querySelector('#nav button[data-page="'+id+'"]').textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥]/g,'').trim();sidebar.classList.remove('show');render()}
+function page(id){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));pageTitle.textContent=document.querySelector('#nav button[data-page="'+id+'"]').textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫]/g,'').trim();sidebar.classList.remove('show');render()}
 document.querySelectorAll('#nav button[data-page]').forEach(b=>b.onclick=()=>page(b.dataset.page));
 function findProduct(sku){return db.products.find(p=>String(p.sku).trim()===String(sku).trim())}
 function productBrand(p){return p.brand||p.nhanHang||p['Nhãn hàng']||''}
@@ -547,6 +581,10 @@ function receiptTotalMoney(r){return Number(r.total||receiptItems(r).reduce((a,b
 function receiptId(){return 'PN'+String(Date.now()).slice(-8)}
 function staffCode(n,i){return n.code||n.ma||('NV'+String(i+1).padStart(3,'0'))}
 function staffName(n){return n.name||n.ten||''}
+function deliveryCode(n,i){return n.code||n.ma||('GH'+String(i+1).padStart(3,'0'))}
+function deliveryName(n){return n.name||n.ten||''}
+function deliveryDisplay(code,name){return (name||code||'Chưa gán GH')}
+function orderDeliveryText(o){return deliveryDisplay(o.deliveryStaffCode,o.deliveryStaffName)}
 function staffDisplayOrder(o){return o.staffName||o.staff||''}
 function orderDateObj(o){
   if(o.isoDate) return new Date(o.isoDate);
@@ -731,10 +769,13 @@ function render(){
  ordersBody.innerHTML=filteredOrders().slice().reverse().map(o=>{let merged=!!o.masterId;let cCode=orderCustomerCode(o);return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${cCode||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="10" class="center muted">Chưa có đơn hàng phù hợp</td></tr>';
  customerBody.innerHTML=db.customers.map(c=>`<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có khách hàng</td></tr>';
  staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td class="center"><input type="checkbox" class="staff-delete-check" value="${i}"></td><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Chưa có nhân viên</td></tr>';
+ populateDeliveryStaffSelects();
  const sr=buildStaffReportRows(); if(document.getElementById('staffReportBody')) staffReportBody.innerHTML=sr.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right">${r.lines}</td><td class="right">${money(r.revenue)}</td><td class="right">${money(r.cost)}</td><td class="right"><b>${money(r.profit)}</b></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu bán hàng theo nhân viên</td></tr>';
  if(document.getElementById('shortageReportBody')) renderShortageReports();
  if(document.getElementById('mergeOrderBody')) renderMergeOrders();
  if(document.getElementById('masterOrdersBody')) renderMasterOrders();
+ if(document.getElementById('deliveryStaffBody')) renderDeliveryStaff();
+ if(document.getElementById('debtBody')) renderDebtReports();
  renderCart(); renderReceiveCart();
 }
 function saveProduct(){let sku=pSku.value.trim(); if(!sku||!pName.value.trim())return toast('Thiếu SKU hoặc tên sản phẩm'); let old=findProduct(sku); let data={sku,name:pName.value.trim(),brand:pBrand?.value||'',category:pCategory?.value||'',warehouse:pWarehouse?.value||'Kho chính',pack:Number(pPack.value)||1,sale:Number(pSale.value)||0}; if(!old){db.products.push({...data,qty:0,cost:0})} else {old.name=data.name;old.brand=data.brand;old.category=data.category;old.warehouse=data.warehouse;old.pack=data.pack;old.sale=data.sale} ['pSku','pName','pBrand','pCategory','pWarehouse','pSale'].forEach(id=>{let el=document.getElementById(id);if(el)el.value=''});pPack.value=12;save();render();toast('Đã lưu sản phẩm')}
@@ -913,6 +954,9 @@ function renderCart(){
   if(document.getElementById('sumDiscount'))sumDiscount.textContent=money(t.discount);
   if(document.getElementById('sumAdjust'))sumAdjust.textContent=money(t.adjust);
   if(document.getElementById('cartTotal'))cartTotal.textContent=money(t.pay);
+  let paid=(Number(document.getElementById('cashPaid')?.value||0)||0)+(Number(document.getElementById('bankPaid')?.value||0)||0);
+  if(document.getElementById('sumPaid'))sumPaid.textContent=money(paid);
+  if(document.getElementById('sumDebt'))sumDebt.textContent=money(Math.max(0,t.pay-paid));
 }
 async function createOrder(){
   if(!cart.length)return toast('Đơn hàng chưa có hàng');
@@ -920,7 +964,7 @@ async function createOrder(){
   if(!sStaff.value)return toast('Chưa chọn nhân viên');
 
   let oldOrder=editingOrderId?db.orders.find(o=>o.id===editingOrderId):null;
-  if(oldOrder && oldOrder.masterId)return toast('Đơn đã gộp đơn tổng, cần hủy gộp trước khi sửa');
+  let affectedMasterId=oldOrder?oldOrder.masterId:'';
 
   let oldQtyMap={};
   if(oldOrder && Array.isArray(oldOrder.items)){
@@ -946,7 +990,10 @@ async function createOrder(){
   let opt=sStaff.selectedOptions[0];let t=saleTotals();
   let selectedCustomerCode=sCustomer.value;
   let selectedCustomer=(db.customers||[]).find(c=>String(c.code)===String(selectedCustomerCode)) || (db.customers||[]).find(c=>String(c.name)===String(selectedCustomerCode)) || {code:selectedCustomerCode,name:selectedCustomerCode};
-  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:sStaff.value,staffName:opt?opt.dataset.name:sStaff.value,staff:opt?opt.textContent:sStaff.value,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',goods:t.goods,discount:t.discount,adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
+  let dOpt=document.getElementById('deliveryStaffSelect')?.selectedOptions?.[0];
+  let cash=Number(document.getElementById('cashPaid')?.value||0)||0;
+  let bank=Number(document.getElementById('bankPaid')?.value||0)||0;
+  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:sStaff.value,staffName:opt?opt.dataset.name:sStaff.value,staff:opt?opt.textContent:sStaff.value,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),goods:t.goods,discount:t.discount,adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
 
   if(oldOrder){
     Object.assign(oldOrder,orderData);
@@ -959,7 +1006,8 @@ async function createOrder(){
       console.warn(err);
       toast('Đã sửa đơn trên máy, nhưng chưa đồng bộ được API');
     }
-    toast('Đã cập nhật đơn '+oldOrder.id);
+    if(affectedMasterId) recalcMasterOrder(affectedMasterId);
+    toast('Đã cập nhật đơn '+oldOrder.id+(affectedMasterId?' và đơn tổng '+affectedMasterId:''));
   }else{
     db.orders.push(orderData);
     try{
@@ -980,7 +1028,6 @@ async function createOrder(){
 function editOrder(id){
   let o=db.orders.find(x=>x.id===id);
   if(!o)return toast('Không tìm thấy đơn hàng');
-  if(o.masterId)return toast('Đơn đã gộp đơn tổng, cần hủy gộp trước khi sửa');
   page('sale');
   editingOrderId=id;
   cart=(o.items||[]).map(x=>({...x}));
@@ -996,6 +1043,9 @@ function editOrder(id){
   if(document.getElementById('deliveryStatus')) deliveryStatus.value=o.delivery||'Giao thành công';
   if(document.getElementById('xkCode')) xkCode.value=o.xk||'';
   if(document.getElementById('adjustDiscount')) adjustDiscount.value=Number(o.adjust||0);
+  if(document.getElementById('deliveryStaffSelect')) deliveryStaffSelect.value=o.deliveryStaffCode||'';
+  if(document.getElementById('cashPaid')) cashPaid.value=Number(o.cashPaid||0);
+  if(document.getElementById('bankPaid')) bankPaid.value=Number(o.bankPaid||0);
   renderCart();
   toast('Đang chỉnh sửa đơn '+id);
 }
@@ -1024,7 +1074,7 @@ function renderMergeOrders(){
   mergeOrderBody.innerHTML=rows.map(o=>`<tr><td class="center"><input type="checkbox" class="merge-check" value="${o.id}"></td><td><b>${o.id}</b></td><td>${o.date}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center"><span class="pill">Chưa gộp đơn tổng</span></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Không còn đơn con phù hợp để gộp</td></tr>';
 }
 function renderMasterOrders(){
-  masterOrdersBody.innerHTML=filteredMasterOrders().slice().reverse().map(m=>{let items=m.items||[];let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);return `<tr><td><b>${m.id}</b></td><td>${m.date}</td><td class="center">${(m.childIds||[]).length}</td><td class="center">${items.length}</td><td class="right">${totalQty}</td><td class="right">${money(m.total)}</td><td>${m.note||''}</td><td><button class="btn small light" onclick="printMasterOrder('${m.id}')">In PDF</button> <button class="btn small red" onclick="unmergeMasterOrder('${m.id}')">Hủy gộp</button></td></tr>`}).join('')||'<tr><td colspan="8" class="center muted">Chưa có đơn tổng phù hợp</td></tr>';
+  masterOrdersBody.innerHTML=filteredMasterOrders().slice().reverse().map(m=>{let items=m.items||[];let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);return `<tr><td><b>${m.id}</b></td><td>${m.date}</td><td class="center">${(m.childIds||[]).length}</td><td class="center">${items.length}</td><td class="right">${totalQty}</td><td class="right">${money(m.total)}</td><td>${deliveryDisplay(m.deliveryStaffCode,m.deliveryStaffName)}</td><td>${m.note||''}</td><td><button class="btn small light" onclick="printMasterOrder('${m.id}')">In PDF</button> <button class="btn small red" onclick="unmergeMasterOrder('${m.id}')">Hủy gộp</button></td></tr>`}).join('')||'<tr><td colspan="9" class="center muted">Chưa có đơn tổng phù hợp</td></tr>';
 }
 function toggleAllMergeOrders(cb){document.querySelectorAll('.merge-check').forEach(x=>x.checked=cb.checked)}
 function createMasterOrder(){
@@ -1039,10 +1089,13 @@ function createMasterOrder(){
   let goods=items.reduce((a,b)=>a+Number(b.goods||0),0);
   let discount=items.reduce((a,b)=>a+Number(b.discount||0),0);
   let cost=orders.reduce((a,o)=>a+Number(o.cost||0),0);
-  let m={id,date:today(),isoDate:new Date().toISOString(),childIds:ids,items,goods,discount,total,cost,note:masterNote.value||''};
+  let mdOpt=document.getElementById('masterDeliveryStaff')?.selectedOptions?.[0];
+  let cashPaid=orders.reduce((a,o)=>a+Number(o.cashPaid||0),0);
+  let bankPaid=orders.reduce((a,o)=>a+Number(o.bankPaid||0),0);
+  let m={id,date:today(),isoDate:new Date().toISOString(),childIds:ids,items,goods,discount,total,cost,cashPaid,bankPaid,debt:Math.max(0,total-cashPaid-bankPaid),deliveryStaffCode:document.getElementById('masterDeliveryStaff')?.value||'',deliveryStaffName:mdOpt?mdOpt.dataset.name:'',note:masterNote.value||''};
   db.masterOrders.push(m);
   db.orders.forEach(o=>{if(ids.includes(o.id))o.masterId=id});
-  masterId.value='';masterNote.value='';save();render();toast('Đã tạo đơn tổng '+id+' với '+items.length+' mặt hàng');
+  masterId.value='';masterNote.value=''; if(document.getElementById('masterDeliveryStaff')) masterDeliveryStaff.value=''; save();render();toast('Đã tạo đơn tổng '+id+' với '+items.length+' mặt hàng');
 }
 function unmergeMasterOrder(id){
   if(!confirm('Hủy gộp đơn tổng '+id+'? Các đơn con sẽ chuyển về trạng thái chưa gộp.'))return;
@@ -1050,6 +1103,135 @@ function unmergeMasterOrder(id){
   db.masterOrders=db.masterOrders.filter(m=>m.id!==id);
   save();render();toast('Đã hủy gộp '+id);
 }
+
+
+function populateDeliveryStaffSelects(){
+  let options='<option value="">-- Chọn NV giao hàng --</option>'+db.deliveryStaff.map((n,i)=>`<option value="${deliveryCode(n,i)}" data-name="${deliveryName(n)}">${deliveryCode(n,i)} - ${deliveryName(n)}</option>`).join('');
+  ['deliveryStaffSelect','masterDeliveryStaff'].forEach(id=>{let el=document.getElementById(id); if(el){let old=el.value; el.innerHTML=options; el.value=old;}});
+}
+let editingDeliveryStaff=null;
+function renderDeliveryStaff(){
+  if(!document.getElementById('deliveryStaffBody')) return;
+  deliveryStaffBody.innerHTML=db.deliveryStaff.map((n,i)=>`<tr><td class="center"><input type="checkbox" class="delivery-delete-check" value="${i}"></td><td>${deliveryCode(n,i)}</td><td><b>${deliveryName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editDeliveryStaff(${i})">Sửa</button> <button class="btn small red" onclick="delDeliveryStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Chưa có nhân viên giao hàng</td></tr>';
+}
+function saveDeliveryStaff(){
+  let code=(dCode.value||'').trim()||('GH'+String(Date.now()).slice(-5));
+  let name=(dName.value||'').trim();
+  if(!name)return toast('Nhập tên nhân viên giao hàng');
+  let data={code,name,phone:(dPhone.value||'').trim()};
+  if(editingDeliveryStaff!==null) db.deliveryStaff[editingDeliveryStaff]=data; else db.deliveryStaff.push(data);
+  editingDeliveryStaff=null; dCode.value=''; dName.value=''; dPhone.value=''; save(); render(); toast('Đã lưu nhân viên giao hàng');
+}
+function editDeliveryStaff(i){let n=db.deliveryStaff[i]; if(!n)return; editingDeliveryStaff=i; dCode.value=deliveryCode(n,i); dName.value=deliveryName(n); dPhone.value=n.phone||n.sdt||'';}
+function delDeliveryStaff(i){if(!confirm('Xóa nhân viên giao hàng này?'))return; db.deliveryStaff.splice(i,1); save(); render();}
+function bulkDeleteDeliveryStaff(){let ids=[...document.querySelectorAll('.delivery-delete-check:checked')].map(x=>Number(x.value)).sort((a,b)=>b-a); if(!ids.length)return toast('Chưa chọn NVGH để xóa'); if(!confirm('Xóa '+ids.length+' nhân viên giao hàng?'))return; ids.forEach(i=>db.deliveryStaff.splice(i,1)); save(); render();}
+function recalcMasterOrder(masterId){
+  if(!masterId)return;
+  let m=(db.masterOrders||[]).find(x=>x.id===masterId); if(!m)return;
+  let orders=db.orders.filter(o=>(m.childIds||[]).includes(o.id));
+  let items=aggregateOrderItems(orders);
+  m.items=items; m.goods=items.reduce((a,b)=>a+Number(b.goods||0),0); m.discount=items.reduce((a,b)=>a+Number(b.discount||0),0);
+  m.total=items.reduce((a,b)=>a+Number(b.total||0),0); m.cost=orders.reduce((a,o)=>a+Number(o.cost||0),0);
+  m.cashPaid=orders.reduce((a,o)=>a+Number(o.cashPaid||0),0); m.bankPaid=orders.reduce((a,o)=>a+Number(o.bankPaid||0),0); m.debt=Math.max(0,Number(m.total||0)-Number(m.cashPaid||0)-Number(m.bankPaid||0));
+}
+function orderAgeDays(o){let d=orderDateObj(o); if(!d)return 0; return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
+function debtRows(){return (db.orders||[]).map(o=>{let total=Number(o.total||0), cash=Number(o.cashPaid||0), bank=Number(o.bankPaid||0), debt=Math.max(0,total-cash-bank); o.debt=debt; return {delivery:orderDeliveryText(o),deliveryCode:o.deliveryStaffCode||'',orderId:o.id,customerCode:orderCustomerCode(o)||'',customer:o.customer||'',total,cash,bank,debt,date:o.date||'',age:orderAgeDays(o)};}).filter(r=>r.debt>0);}
+function filteredDebtRows(){let rows=debtRows(); let fd=normText(document.getElementById('debtFilterDelivery')?.value||''), fc=normText(document.getElementById('debtFilterCustomerCode')?.value||''), fn=normText(document.getElementById('debtFilterCustomerName')?.value||''); return rows.filter(r=>(!fd||normText(r.delivery+' '+r.deliveryCode).includes(fd))&&(!fc||normText(r.customerCode).includes(fc))&&(!fn||normText(r.customer).includes(fn)));}
+async function payOrderRealtime(orderId, rowIndex){
+  let order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+  if(!order)return toast('Không tìm thấy đơn hàng');
+
+  let cash=Number(document.getElementById('debtCash_'+rowIndex)?.value||0)||0;
+  let bank=Number(document.getElementById('debtBank_'+rowIndex)?.value||0)||0;
+
+  if(cash<0||bank<0)return toast('Tiền thanh toán không được âm');
+
+  order.cashPaid=cash;
+  order.bankPaid=bank;
+  order.debt=Math.max(0,Number(order.total||0)-cash-bank);
+
+  if(order.masterId)recalcMasterOrder(order.masterId);
+
+  localStorage.setItem(KEY,JSON.stringify(normalizeDb(db)));
+
+  try{
+    const res=await fetchWithTimeout(API_URL+'/api/pay-order',{
+      method:'POST',
+      headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({orderId,cashPaid:cash,bankPaid:bank})
+    },120000);
+
+    if(!res.ok){
+      const detail=await readApiError(res);
+      throw new Error(detail);
+    }
+
+    const result=await res.json();
+    if(result.data){
+      db=normalizeDb(result.data);
+      localStorage.setItem(KEY,JSON.stringify(db));
+    }
+
+    API_ONLINE=true;
+    render();
+    toast('Đã cập nhật thanh toán đơn '+orderId);
+  }catch(err){
+    API_ONLINE=false;
+    console.warn(err);
+    save();
+    render();
+    toast('Đã lưu thanh toán trên máy. Chưa đồng bộ server: '+(err.message||'lỗi không rõ'));
+  }
+}
+
+function renderDebtReports(){
+  let rows=filteredDebtRows();
+
+  if(document.getElementById('debtBody')){
+    debtBody.innerHTML=rows.map((r,i)=>`<tr>
+      <td>${r.delivery}</td>
+      <td><b>${r.orderId}</b></td>
+      <td>${r.customerCode}</td>
+      <td>${r.customer}</td>
+      <td class="right">${money(r.total)}</td>
+      <td class="right"><input id="debtCash_${i}" type="number" value="${r.cash}" style="width:120px;text-align:right" onkeydown="if(event.key==='Enter')payOrderRealtime('${r.orderId}',${i})"></td>
+      <td class="right"><input id="debtBank_${i}" type="number" value="${r.bank}" style="width:120px;text-align:right" onkeydown="if(event.key==='Enter')payOrderRealtime('${r.orderId}',${i})"></td>
+      <td class="right"><b>${money(r.debt)}</b></td>
+      <td>${r.date}</td>
+      <td class="right">${r.age} ngày</td>
+      <td><button class="btn small green" onclick="payOrderRealtime('${r.orderId}',${i})">Thu tiền</button></td>
+    </tr>`).join('')||'<tr><td colspan="11" class="center muted">Không có công nợ phù hợp</td></tr>';
+  }
+
+  let byD={};
+  rows.forEach(r=>{
+    let k=r.delivery||'Chưa gán GH';
+    if(!byD[k])byD[k]={name:k,orders:0,total:0,paid:0,debt:0};
+    byD[k].orders++;
+    byD[k].total+=r.total;
+    byD[k].paid+=r.cash+r.bank;
+    byD[k].debt+=r.debt;
+  });
+  if(document.getElementById('debtDeliveryBody')) debtDeliveryBody.innerHTML=Object.values(byD).sort((a,b)=>b.debt-a.debt).map(r=>`<tr><td>${r.name}</td><td class="center">${r.orders}</td><td class="right">${money(r.total)}</td><td class="right">${money(r.paid)}</td><td class="right"><b>${money(r.debt)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ</td></tr>';
+
+  let byC={};
+  rows.forEach(r=>{
+    let k=(r.customerCode||'')+'|'+(r.customer||'');
+    if(!byC[k])byC[k]={code:r.customerCode,name:r.customer,orders:0,total:0,paid:0,debt:0};
+    byC[k].orders++;
+    byC[k].total+=r.total;
+    byC[k].paid+=r.cash+r.bank;
+    byC[k].debt+=r.debt;
+  });
+  if(document.getElementById('debtCustomerBody')) debtCustomerBody.innerHTML=Object.values(byC).sort((a,b)=>b.debt-a.debt).map(r=>`<tr><td>${r.code}</td><td>${r.name}</td><td class="center">${r.orders}</td><td class="right">${money(r.total)}</td><td class="right">${money(r.paid)}</td><td class="right"><b>${money(r.debt)}</b></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có công nợ</td></tr>';
+
+  let days=Number(document.getElementById('debtOverDays')?.value||7)||0;
+  let oldRows=rows.filter(r=>r.age>=days).sort((a,b)=>b.age-a.age);
+  if(document.getElementById('debtOldBody')) debtOldBody.innerHTML=oldRows.map(r=>`<tr><td>${r.delivery}</td><td><b>${r.orderId}</b></td><td>${r.customerCode}</td><td>${r.customer}</td><td class="right"><b>${money(r.debt)}</b></td><td>${r.date}</td><td class="right">${r.age} ngày</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Không có công nợ quá lâu</td></tr>';
+}
+
+function clearDebtFilters(){['debtFilterDelivery','debtFilterCustomerCode','debtFilterCustomerName'].forEach(id=>{let e=document.getElementById(id); if(e)e.value='';}); renderDebtReports();}
+function exportDebtReport(){let rows=filteredDebtRows().map(r=>({'Nhân viên giao hàng':r.delivery,'Đơn hàng':r.orderId,'Mã khách hàng':r.customerCode,'Tên khách hàng':r.customer,'Giá trị đơn hàng':r.total,'Tiền mặt thanh toán':r.cash,'Tiền chuyển khoản':r.bank,'Công nợ':r.debt,'Ngày':r.date,'Tuổi nợ':r.age})); if(!rows.length)return toast('Không có dữ liệu công nợ để xuất'); downloadExcel(rows,'bao_cao_cong_no.xlsx');}
 
 function numberToVietnameseWords(num){
   num=Math.round(Number(num)||0);
@@ -1393,6 +1575,7 @@ function findOrCreateStaff(code,name,phone=''){
   code=String(code||'').trim(); name=String(name||'').trim();
   if(!code && !name){
     if(!db.staff.length)db.staff.push({code:'NV001',name:'Admin',phone:''});
+  if(!db.deliveryStaff.length)db.deliveryStaff.push({code:'GH001',name:'Chưa gán giao hàng',phone:''});
     return db.staff[0];
   }
   let n=(code?db.staff.find((x,i)=>String(staffCode(x,i))===code):null) || db.staff.find(x=>normText(staffName(x))===normText(name));
