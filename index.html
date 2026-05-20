@@ -31,6 +31,8 @@
 }
 
 
+.filter-grid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin:10px 0 14px}.filter-grid .wide{grid-column:span 2}.filter-actions{display:flex;gap:8px;align-items:end}@media(max-width:1100px){.filter-grid{grid-template-columns:repeat(2,1fr)}.filter-grid .wide{grid-column:span 2}}@media(max-width:640px){.filter-grid{grid-template-columns:1fr}.filter-grid .wide{grid-column:span 1}}
+
 .login-screen{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0f172a,#1d4ed8);display:flex;align-items:center;justify-content:center;padding:20px}
 .login-card{width:min(420px,94vw);background:#fff;border-radius:22px;padding:28px;box-shadow:0 25px 80px rgba(0,0,0,.25)}
 .login-card h1{margin:0 0 6px;font-size:24px}.login-card p{margin:0 0 18px;color:#667085}.login-card .field{margin-bottom:12px}.login-card .btn{width:100%;margin-top:8px}.login-note{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:10px;margin-top:14px;font-size:12px;color:#475467;line-height:1.6}.app.locked{display:none}.logout-btn{border:0;background:#fee2e2;color:#991b1b;border-radius:10px;padding:8px 10px;font-weight:700;cursor:pointer}
@@ -149,7 +151,16 @@
             <p class="muted">Một phiếu nhập có thể chứa nhiều sản phẩm, giống quản lý theo từng đơn hàng/hóa đơn nhập.</p>
           </div>
         </div>
-        <div class="card panel"><h2>Lịch sử phiếu nhập kho</h2><div class="table-wrap"><table class="table"><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nhà cung cấp</th><th class="center">Số dòng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="receiveBody"></tbody></table></div></div>
+        <div class="card panel"><h2>Lịch sử phiếu nhập kho</h2>
+          <div class="filter-grid">
+            <div class="field"><label>Từ ngày</label><input id="receiveFilterFrom" type="date" oninput="render()"></div>
+            <div class="field"><label>Đến ngày</label><input id="receiveFilterTo" type="date" oninput="render()"></div>
+            <div class="field"><label>Mã phiếu</label><input id="receiveFilterId" placeholder="PN..." oninput="render()"></div>
+            <div class="field wide"><label>Nhà cung cấp</label><input id="receiveFilterSupplier" placeholder="VD: Unilever" oninput="render()"></div>
+            <div class="field wide"><label>SKU / tên hàng</label><input id="receiveFilterProduct" placeholder="Tìm hàng trong phiếu" oninput="render()"></div>
+            <div class="filter-actions"><button class="btn light" onclick="clearReceiveFilters()">Xóa lọc</button></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nhà cung cấp</th><th class="center">Số dòng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="receiveBody"></tbody></table></div></div>
       </section>
 
       <section id="sale" class="section">
@@ -207,17 +218,45 @@
         </div>
       </section>
 
-      <section id="orders" class="section"><div class="card panel"><div class="panel-head"><h2>Đơn hàng</h2><div class="toolbar"><button class="btn green" onclick="printSelectedOrders()">In các đơn đã chọn</button><button class="btn light" onclick="page('mergeOrders')">Gộp đơn tổng</button><button class="btn" onclick="exportOrders()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" id="selectAllPrintOrders" onchange="toggleAllPrintOrders(this)"></th><th>Mã đơn</th><th>Ngày</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th class="center">Số dòng</th><th class="center">Trạng thái gộp</th><th>Thao tác</th></tr></thead><tbody id="ordersBody"></tbody></table></div></div></section>
+      <section id="orders" class="section"><div class="card panel"><div class="panel-head"><h2>Đơn hàng</h2><div class="toolbar"><button class="btn green" onclick="printSelectedOrders()">In các đơn đã chọn</button><button class="btn light" onclick="page('mergeOrders')">Gộp đơn tổng</button><button class="btn" onclick="exportOrders()">Xuất Excel</button></div></div>
+        <div class="filter-grid">
+          <div class="field"><label>Từ ngày</label><input id="orderFilterFrom" type="date" oninput="render()"></div>
+          <div class="field"><label>Đến ngày</label><input id="orderFilterTo" type="date" oninput="render()"></div>
+          <div class="field wide"><label>Tên NVBH</label><input id="orderFilterStaff" placeholder="Nhập tên nhân viên" oninput="render()"></div>
+          <div class="field"><label>Mã khách hàng</label><input id="orderFilterCustomerCode" placeholder="VD: KH001" oninput="render()"></div>
+          <div class="field wide"><label>Tên khách hàng</label><input id="orderFilterCustomerName" placeholder="Nhập tên khách" oninput="render()"></div>
+          <div class="filter-actions"><button class="btn light" onclick="clearOrderFilters()">Xóa lọc</button></div>
+        </div>
+        <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" id="selectAllPrintOrders" onchange="toggleAllPrintOrders(this)"></th><th>Mã đơn</th><th>Ngày</th><th>Mã KH</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th class="center">Số dòng</th><th class="center">Trạng thái gộp</th><th>Thao tác</th></tr></thead><tbody id="ordersBody"></tbody></table></div></div></section>
 
+      <section id="mergeOrders"
       <section id="mergeOrders" class="section">
         <div class="card panel">
-          <div class="panel-head"><div><h2>Gộp đơn tổng</h2><div class="muted" style="margin-top:6px">Chọn các đơn con chưa gộp để tạo một đơn tổng. Sau khi gộp, đơn con sẽ hiển thị trạng thái <b>Đã gộp đơn tổng</b>.</div></div><div class="toolbar"><button class="btn green" onclick="createMasterOrder()">Tạo đơn tổng</button><button class="btn light" onclick="render()">Làm mới</button></div></div>
+          <div class="panel-head"><div><h2>Gộp đơn tổng</h2><div class="muted" style="margin-top:6px">Chọn các đơn con chưa gộp. Khi tạo đơn tổng, phần mềm sẽ <b>cộng gộp sản phẩm trùng SKU</b> thành một bảng hàng tổng hợp.</div></div><div class="toolbar"><button class="btn green" onclick="createMasterOrder()">Tạo đơn tổng</button><button class="btn light" onclick="render()">Làm mới</button></div></div>
           <div class="form"><div class="field"><label>Mã đơn tổng</label><input id="masterId" placeholder="Tự sinh nếu bỏ trống"></div><div class="field"><label>Ghi chú đơn tổng</label><input id="masterNote" placeholder="VD: Gộp giao tuyến Kiến Xương"></div></div><br>
-          <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllMergeOrders(this)"></th><th>Mã đơn con</th><th>Ngày</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th class="center">Trạng thái</th></tr></thead><tbody id="mergeOrderBody"></tbody></table></div>
+          <div class="filter-grid">
+            <div class="field"><label>Từ ngày</label><input id="mergeFilterFrom" type="date" oninput="render()"></div>
+            <div class="field"><label>Đến ngày</label><input id="mergeFilterTo" type="date" oninput="render()"></div>
+            <div class="field wide"><label>Nhân viên</label><input id="mergeFilterStaff" placeholder="Tên NVBH" oninput="render()"></div>
+            <div class="field"><label>Mã KH</label><input id="mergeFilterCustomerCode" placeholder="KH..." oninput="render()"></div>
+            <div class="field wide"><label>Tên KH</label><input id="mergeFilterCustomerName" placeholder="Tên khách" oninput="render()"></div>
+            <div class="filter-actions"><button class="btn light" onclick="clearMergeFilters()">Xóa lọc</button></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllMergeOrders(this)"></th><th>Mã đơn con</th><th>Ngày</th><th>Mã KH</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th class="center">Trạng thái</th></tr></thead><tbody id="mergeOrderBody"></tbody></table></div>
         </div>
-        <div class="card panel"><div class="panel-head"><h2>Danh sách đơn tổng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn tổng</th><th>Ngày tạo</th><th class="center">Số đơn con</th><th class="right">Tổng tiền</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="masterOrdersBody"></tbody></table></div></div>
+        <div class="card panel"><div class="panel-head"><h2>Danh sách đơn tổng</h2></div>
+          <div class="filter-grid">
+            <div class="field"><label>Từ ngày</label><input id="masterFilterFrom" type="date" oninput="render()"></div>
+            <div class="field"><label>Đến ngày</label><input id="masterFilterTo" type="date" oninput="render()"></div>
+            <div class="field"><label>Mã đơn tổng</label><input id="masterFilterId" placeholder="GT..." oninput="render()"></div>
+            <div class="field wide"><label>Ghi chú</label><input id="masterFilterNote" placeholder="Tìm ghi chú" oninput="render()"></div>
+            <div class="field wide"><label>SKU / tên hàng</label><input id="masterFilterProduct" placeholder="Tìm sản phẩm trong đơn tổng" oninput="render()"></div>
+            <div class="filter-actions"><button class="btn light" onclick="clearMasterFilters()">Xóa lọc</button></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn tổng</th><th>Ngày tạo</th><th class="center">Số đơn con</th><th class="center">Số mặt hàng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền hàng</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="masterOrdersBody"></tbody></table></div></div>
       </section>
 
+      <section id="customers"
       <section id="customers" class="section"><div class="card panel"><div class="panel-head"><h2>Khách hàng</h2><div class="toolbar"><button class="btn light" onclick="downloadCustomerTemplate()">Tải mẫu KH</button><button class="btn green" onclick="document.getElementById('importCustomer').click()">Import KH</button><input id="importCustomer" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomers(event)"><button class="btn" onclick="exportCustomers()">Xuất Excel</button></div></div><div class="form"><div class="field"><label>Mã KH</label><input id="cCode"></div><div class="field"><label>Tên KH</label><input id="cName"></div><div class="field"><label>Địa chỉ</label><input id="cAddress"></div><div class="field"><label>SĐT</label><input id="cPhone"></div><div class="field"><label>MST</label><input id="cTax"></div></div><br><button class="btn" onclick="saveCustomer()">Lưu khách hàng</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Tên</th><th>Địa chỉ</th><th>SĐT</th><th>MST</th><th>Hành động</th></tr></thead><tbody id="customerBody"></tbody></table></div></div></section>
 
       <section id="staff" class="section"><div class="card panel"><div class="panel-head"><h2>Nhân viên</h2><div class="toolbar"><button class="btn light" onclick="downloadStaffTemplate()">Tải mẫu NV</button><button class="btn green" onclick="document.getElementById('importStaff').click()">Import NV</button><input id="importStaff" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importStaffExcel(event)"></div></div><div class="form"><div class="field"><label>Mã NV</label><input id="nCode" placeholder="VD: NV001"></div><div class="field"><label>Tên nhân viên</label><input id="nName"></div><div class="field"><label>SĐT</label><input id="nPhone"></div></div><br><button class="btn" onclick="saveStaff()">Lưu nhân viên</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th>Mã NV</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="staffBody"></tbody></table></div></div></section>
@@ -445,6 +484,85 @@ function buildStaffReportRows(){
   });
   return Object.values(map).filter(r=>r.orders>0||r.revenue>0).sort((a,b)=>b.revenue-a.revenue);
 }
+
+function normText(v){return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();}
+function dateValue(v){
+  if(!v) return null;
+  let d=String(v);
+  if(/^\d{4}-\d{2}-\d{2}/.test(d)) return new Date(d.slice(0,10)+'T12:00:00');
+  let m=d.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return new Date(Number(m[3]),Number(m[2])-1,Number(m[1]),12,0,0);
+  let dt=new Date(d); return isNaN(dt)?null:dt;
+}
+function inDateRange(dateLike, fromId, toId){
+  let d=dateValue(dateLike);
+  let from=document.getElementById(fromId)?.value;
+  let to=document.getElementById(toId)?.value;
+  if(!from&&!to) return true;
+  if(!d) return false;
+  if(from && d<new Date(from+'T00:00:00')) return false;
+  if(to && d>new Date(to+'T23:59:59')) return false;
+  return true;
+}
+function customerByName(name){return db.customers.find(c=>normText(c.name)===normText(name))||{};}
+function orderCustomerCode(o){return o.customerCode||o.cCode||customerByName(o.customer).code||'';}
+function matchText(value, filterId){let q=normText(document.getElementById(filterId)?.value||''); return !q || normText(value).includes(q);}
+function filteredReceipts(){
+  return db.receipts.map((r,i)=>({r,i})).filter(x=>{
+    let items=receiptItems(x.r);
+    let productText=items.map(it=>`${it.sku||''} ${it.name||''}`).join(' ');
+    return inDateRange(x.r.date,'receiveFilterFrom','receiveFilterTo') &&
+      matchText(x.r.id,'receiveFilterId') &&
+      matchText(x.r.supplier,'receiveFilterSupplier') &&
+      matchText(productText,'receiveFilterProduct');
+  });
+}
+function filteredOrders(){
+  return db.orders.filter(o=>{
+    return inDateRange(o.isoDate||o.date,'orderFilterFrom','orderFilterTo') &&
+      matchText(staffDisplayOrder(o),'orderFilterStaff') &&
+      matchText(orderCustomerCode(o),'orderFilterCustomerCode') &&
+      matchText(o.customer,'orderFilterCustomerName');
+  });
+}
+function filteredMergeOrders(){
+  return db.orders.filter(o=>!o.masterId).filter(o=>{
+    return inDateRange(o.isoDate||o.date,'mergeFilterFrom','mergeFilterTo') &&
+      matchText(staffDisplayOrder(o),'mergeFilterStaff') &&
+      matchText(orderCustomerCode(o),'mergeFilterCustomerCode') &&
+      matchText(o.customer,'mergeFilterCustomerName');
+  });
+}
+function filteredMasterOrders(){
+  return (db.masterOrders||[]).filter(m=>{
+    let productText=(m.items||[]).map(it=>`${it.sku||''} ${it.name||''}`).join(' ');
+    return inDateRange(m.isoDate||m.date,'masterFilterFrom','masterFilterTo') &&
+      matchText(m.id,'masterFilterId') &&
+      matchText(m.note,'masterFilterNote') &&
+      matchText(productText,'masterFilterProduct');
+  });
+}
+function clearInputs(ids){ids.forEach(id=>{let el=document.getElementById(id); if(el)el.value='';});render();}
+function clearOrderFilters(){clearInputs(['orderFilterFrom','orderFilterTo','orderFilterStaff','orderFilterCustomerCode','orderFilterCustomerName']);}
+function clearReceiveFilters(){clearInputs(['receiveFilterFrom','receiveFilterTo','receiveFilterId','receiveFilterSupplier','receiveFilterProduct']);}
+function clearMergeFilters(){clearInputs(['mergeFilterFrom','mergeFilterTo','mergeFilterStaff','mergeFilterCustomerCode','mergeFilterCustomerName']);}
+function clearMasterFilters(){clearInputs(['masterFilterFrom','masterFilterTo','masterFilterId','masterFilterNote','masterFilterProduct']);}
+function aggregateOrderItems(orders){
+  let map={};
+  orders.forEach(o=>(o.items||[]).forEach(it=>{
+    let sku=String(it.sku||'').trim(); if(!sku)return;
+    if(!map[sku]) map[sku]={sku,name:it.name||sku,pack:Number(it.pack)||1,qty:0,sale:Number(it.sale)||0,cost:Number(it.cost)||0,goods:0,discount:0,total:0};
+    let q=Number(it.qty)||0, sale=Number(it.sale)||0, cost=Number(it.cost)||0, disc=Number(it.disc)||0;
+    map[sku].qty+=q;
+    map[sku].goods+=q*sale;
+    map[sku].discount+=q*sale*(disc/100);
+    map[sku].total+=q*sale-(q*sale*(disc/100));
+    if(sale) map[sku].sale=sale;
+    if(cost) map[sku].cost=cost;
+  }));
+  return Object.values(map).sort((a,b)=>String(a.sku).localeCompare(String(b.sku)));
+}
+
 function render(){
  let rev=db.orders.reduce((a,o)=>a+Number(o.total||0),0), cost=db.orders.reduce((a,o)=>a+Number(o.cost||0),0), low=db.products.filter(p=>Number(p.qty||0)<Number(p.pack||1));
  stProducts.textContent=db.products.length;stReceive.textContent=db.receipts.length;stOrders.textContent=db.orders.length;stRevenue.textContent=money(rev);lowCount.textContent=low.length;rpRevenue.textContent=money(rev);rpCost.textContent=money(cost);rpProfit.textContent=money(rev-cost);rpLow.textContent=low.length;
@@ -453,8 +571,8 @@ function render(){
  const q=(productSearch?.value||'').toLowerCase(); let ps=db.products.filter(p=>(p.sku+' '+p.name).toLowerCase().includes(q)); productBody.innerHTML=ps.map((p,i)=>`<tr><td>${p.sku}</td><td><b>${p.name}</b></td><td>${p.pack}</td><td class="right"><span class="pill ${p.qty<p.pack?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td class="right">${money(p.cost)}</td><td class="right">${money(p.sale)}</td><td><button class="btn small light" onclick="editProduct('${p.sku}')">Sửa</button> <button class="btn small red" onclick="delProduct('${p.sku}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có sản phẩm</td></tr>';
  skuList.innerHTML=db.products.map(p=>`<option value="${p.sku}">${p.name}</option>`).join('');
  sCustomer.innerHTML=db.customers.map(c=>`<option>${c.name}</option>`).join('');sStaff.innerHTML=db.staff.map((n,i)=>`<option value="${staffCode(n,i)}" data-name="${staffName(n)}">${staffCode(n,i)} - ${staffName(n)}</option>`).join('');
- receiveBody.innerHTML=db.receipts.map((r,i)=>({r,i})).reverse().map(x=>`<tr><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có phiếu nhập</td></tr>';
- ordersBody.innerHTML=db.orders.slice().reverse().map(o=>{let merged=!!o.masterId;return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="9" class="center muted">Chưa có đơn hàng</td></tr>';
+ receiveBody.innerHTML=filteredReceipts().reverse().map(x=>`<tr><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có phiếu nhập phù hợp</td></tr>';
+ ordersBody.innerHTML=filteredOrders().slice().reverse().map(o=>{let merged=!!o.masterId;let cCode=orderCustomerCode(o);return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${cCode||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="10" class="center muted">Chưa có đơn hàng phù hợp</td></tr>';
  customerBody.innerHTML=db.customers.map(c=>`<tr><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Chưa có khách hàng</td></tr>';
  staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="4" class="center muted">Chưa có nhân viên</td></tr>';
  const sr=buildStaffReportRows(); if(document.getElementById('staffReportBody')) staffReportBody.innerHTML=sr.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right">${r.lines}</td><td class="right">${money(r.revenue)}</td><td class="right">${money(r.cost)}</td><td class="right"><b>${money(r.profit)}</b></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu bán hàng theo nhân viên</td></tr>';
@@ -743,11 +861,11 @@ async function deleteOrder(id){
 function masterOrderId(){return 'GT'+String(Date.now()).slice(-8)}
 function orderMergedText(o){return o.masterId?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}
 function renderMergeOrders(){
-  let rows=db.orders.filter(o=>!o.masterId).slice().reverse();
-  mergeOrderBody.innerHTML=rows.map(o=>`<tr><td class="center"><input type="checkbox" class="merge-check" value="${o.id}"></td><td><b>${o.id}</b></td><td>${o.date}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center"><span class="pill">Chưa gộp đơn tổng</span></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Không còn đơn con chưa gộp</td></tr>';
+  let rows=filteredMergeOrders().slice().reverse();
+  mergeOrderBody.innerHTML=rows.map(o=>`<tr><td class="center"><input type="checkbox" class="merge-check" value="${o.id}"></td><td><b>${o.id}</b></td><td>${o.date}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center"><span class="pill">Chưa gộp đơn tổng</span></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Không còn đơn con phù hợp để gộp</td></tr>';
 }
 function renderMasterOrders(){
-  masterOrdersBody.innerHTML=(db.masterOrders||[]).slice().reverse().map(m=>`<tr><td><b>${m.id}</b></td><td>${m.date}</td><td class="center">${(m.childIds||[]).length}</td><td class="right">${money(m.total)}</td><td>${m.note||''}</td><td><button class="btn small light" onclick="printMasterOrder('${m.id}')">In PDF</button> <button class="btn small red" onclick="unmergeMasterOrder('${m.id}')">Hủy gộp</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Chưa có đơn tổng</td></tr>';
+  masterOrdersBody.innerHTML=filteredMasterOrders().slice().reverse().map(m=>{let items=m.items||[];let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);return `<tr><td><b>${m.id}</b></td><td>${m.date}</td><td class="center">${(m.childIds||[]).length}</td><td class="center">${items.length}</td><td class="right">${totalQty}</td><td class="right">${money(m.total)}</td><td>${m.note||''}</td><td><button class="btn small light" onclick="printMasterOrder('${m.id}')">In PDF</button> <button class="btn small red" onclick="unmergeMasterOrder('${m.id}')">Hủy gộp</button></td></tr>`}).join('')||'<tr><td colspan="8" class="center muted">Chưa có đơn tổng phù hợp</td></tr>';
 }
 function toggleAllMergeOrders(cb){document.querySelectorAll('.merge-check').forEach(x=>x.checked=cb.checked)}
 function createMasterOrder(){
@@ -757,12 +875,15 @@ function createMasterOrder(){
   if((db.masterOrders||[]).some(m=>m.id===id))return toast('Mã đơn tổng đã tồn tại');
   let orders=db.orders.filter(o=>ids.includes(o.id)&&!o.masterId);
   if(orders.length!==ids.length)return toast('Có đơn đã được gộp trước đó, vui lòng làm mới');
-  let total=orders.reduce((a,o)=>a+Number(o.total||0),0);
+  let items=aggregateOrderItems(orders);
+  let total=items.reduce((a,b)=>a+Number(b.total||0),0);
+  let goods=items.reduce((a,b)=>a+Number(b.goods||0),0);
+  let discount=items.reduce((a,b)=>a+Number(b.discount||0),0);
   let cost=orders.reduce((a,o)=>a+Number(o.cost||0),0);
-  let m={id,date:today(),isoDate:new Date().toISOString(),childIds:ids,total,cost,note:masterNote.value||''};
+  let m={id,date:today(),isoDate:new Date().toISOString(),childIds:ids,items,goods,discount,total,cost,note:masterNote.value||''};
   db.masterOrders.push(m);
   db.orders.forEach(o=>{if(ids.includes(o.id))o.masterId=id});
-  masterId.value='';masterNote.value='';save();render();toast('Đã tạo đơn tổng '+id);
+  masterId.value='';masterNote.value='';save();render();toast('Đã tạo đơn tổng '+id+' với '+items.length+' mặt hàng');
 }
 function unmergeMasterOrder(id){
   if(!confirm('Hủy gộp đơn tổng '+id+'? Các đơn con sẽ chuyển về trạng thái chưa gộp.'))return;
@@ -1007,10 +1128,18 @@ function printSelectedOrders(){
 function printMasterOrder(id){
   let m=(db.masterOrders||[]).find(x=>x.id===id);if(!m)return toast('Không tìm thấy đơn tổng');
   let orders=db.orders.filter(o=>(m.childIds||[]).includes(o.id));
-  let rows=orders.map((o,i)=>`<tr><td>${i+1}</td><td>${o.id}</td><td>${o.date}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="r">${money(o.total)}</td></tr>`).join('');
-  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Don tong ${m.id}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;margin:24px;color:#111}.top{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:12px}.brand{font-size:22px;font-weight:800}.invoice-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px}.invoice-mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#1d4ed8,#16a34a);display:inline-grid;place-items:center;color:#fff}.title{text-align:center;font-size:22px;font-weight:800;margin:18px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:8px;font-size:13px}th{background:#f3f4f6}.r{text-align:right}.sum{width:360px;margin-left:auto;margin-top:14px;display:flex;justify-content:space-between;border-top:2px solid #111;padding-top:10px}@media print{button{display:none}body{margin:12mm}}</style></head><body><button onclick="window.print()">In / Lưu PDF</button><div class="top"><div><div class="invoice-logo"><span class="invoice-mark">▣</span><span>Kho Minh Khai Thái Bình</span></div><div>Phiếu gộp đơn tổng</div></div><div><b>Mã đơn tổng:</b> ${m.id}<br><b>Ngày tạo:</b> ${m.date}</div></div><div class="title">PHIẾU GỘP ĐƠN TỔNG</div><p><b>Ghi chú:</b> ${m.note||''}</p><table><thead><tr><th>STT</th><th>Mã đơn con</th><th>Ngày</th><th>Khách hàng</th><th>Nhân viên</th><th>Tổng tiền</th></tr></thead><tbody>${rows}</tbody></table><div class="sum"><b>Tổng cộng</b><b>${money(m.total)}</b></div><script>window.onload=function(){setTimeout(()=>window.print(),300)}<\/script></body></html>`;
+  let items=(m.items&&m.items.length)?m.items:aggregateOrderItems(orders);
+  let rows=items.map((it,i)=>`<tr><td>${i+1}</td><td>${it.sku}</td><td>${it.name||''}</td><td class="r">${money(it.sale)}</td><td class="r">${qtyView(it.qty,it.pack)}</td><td class="r">${Number(it.qty)||0}</td><td class="r">${money(it.goods||0)}</td><td class="r">${money(it.discount||0)}</td><td class="r"><b>${money(it.total||0)}</b></td></tr>`).join('');
+  let childRows=orders.map((o,i)=>`<tr><td>${i+1}</td><td>${o.id}</td><td>${o.date}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td></tr>`).join('');
+  let total=items.reduce((a,b)=>a+Number(b.total||0),0);
+  let goods=items.reduce((a,b)=>a+Number(b.goods||0),0);
+  let discount=items.reduce((a,b)=>a+Number(b.discount||0),0);
+  let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);
+  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Don tong ${m.id}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;margin:24px;color:#111}.top{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:12px}.invoice-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px}.invoice-mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#1d4ed8,#16a34a);display:inline-grid;place-items:center;color:#fff}.title{text-align:center;font-size:22px;font-weight:800;margin:18px 0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #bbb;padding:7px;font-size:12px}th{background:#f3f4f6}.r{text-align:right}.sum{width:420px;margin-left:auto;margin-top:14px}.sum div{display:flex;justify-content:space-between;border-bottom:1px dashed #bbb;padding:6px 0}.small-title{font-weight:800;margin-top:18px}@media print{button{display:none}body{margin:10mm}}</style></head><body><button onclick="window.print()">In / Lưu PDF</button><div class="top"><div><div class="invoice-logo"><span class="invoice-mark">▣</span><span>Kho Minh Khai Thái Bình</span></div><div>Phiếu gộp đơn tổng theo sản phẩm</div></div><div><b>Mã đơn tổng:</b> ${m.id}<br><b>Ngày tạo:</b> ${m.date}</div></div><div class="title">ĐƠN TỔNG HÀNG HÓA</div><p><b>Ghi chú:</b> ${m.note||''}</p><div class="small-title">Danh sách đơn con</div><table><thead><tr><th>STT</th><th>Mã đơn</th><th>Ngày</th><th>Mã KH</th><th>Khách hàng</th><th>Nhân viên</th></tr></thead><tbody>${childRows}</tbody></table><div class="small-title">Bảng hàng gộp theo SKU</div><table><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Đơn giá</th><th>T/L</th><th>SL lẻ</th><th>Tiền hàng</th><th>CK</th><th>Thành tiền</th></tr></thead><tbody>${rows}</tbody></table><div class="sum"><div><span>Tổng số mặt hàng</span><b>${items.length}</b></div><div><span>Tổng SL lẻ</span><b>${totalQty}</b></div><div><span>Tổng tiền hàng</span><b>${money(goods)}</b></div><div><span>Tổng chiết khấu</span><b>${money(discount)}</b></div><div><span>Phải thanh toán</span><b>${money(total)}</b></div></div><script>window.onload=function(){setTimeout(()=>window.print(),300)}<\/script></body></html>`;
   let w=window.open('','_blank');w.document.open();w.document.write(html);w.document.close();
 }
+
+function saveCustomer
 
 function saveCustomer(){if(!cCode.value.trim()||!cName.value.trim())return toast('Thiếu mã hoặc tên khách hàng'); let c=db.customers.find(x=>x.code===cCode.value.trim()); if(!c){db.customers.push({code:cCode.value.trim(),name:cName.value.trim(),address:cAddress.value,phone:cPhone.value,tax:cTax.value})}else{c.name=cName.value.trim();c.address=cAddress.value;c.phone=cPhone.value;c.tax=cTax.value} ['cCode','cName','cAddress','cPhone','cTax'].forEach(id=>document.getElementById(id).value='');save();render();toast('Đã lưu khách hàng')}
 function editCustomer(code){let c=db.customers.find(x=>x.code===code);cCode.value=c.code;cName.value=c.name;cAddress.value=c.address||'';cPhone.value=c.phone||'';cTax.value=c.tax||'';page('customers')}
