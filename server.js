@@ -68,45 +68,7 @@ async function initDB() {
       price NUMERIC
     )
   `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS receipts (
-      id SERIAL PRIMARY KEY,
-      receipt_code TEXT,
-      date TIMESTAMP,
-      supplier TEXT
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS receipt_items (
-      id SERIAL PRIMARY KEY,
-      receipt_code TEXT,
-      sku TEXT,
-      qty INT,
-      cost NUMERIC
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS shortage_reports (
-      id SERIAL PRIMARY KEY,
-      report_code TEXT,
-      created_at TIMESTAMP
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS shortage_items (
-      id SERIAL PRIMARY KEY,
-      report_code TEXT,
-      order_code TEXT,
-      sku TEXT,
-      missing_qty INT
-    )
-  `);
 }
-
 initDB();
 
 // ===== USER =====
@@ -138,7 +100,83 @@ app.post('/api/login', (req, res) => {
   res.json({ token, user });
 });
 
-// ===== TẠO ĐƠN =====
+// ===== API CŨ (GIỮ LẠI CHO FRONTEND) =====
+app.get('/api/data', auth, async (req, res) => {
+  const products = await pool.query('SELECT * FROM products');
+  const customers = await pool.query('SELECT * FROM customers');
+  const staff = await pool.query('SELECT * FROM staff');
+  const orders = await pool.query('SELECT * FROM orders');
+
+  res.json({
+    products: products.rows,
+    customers: customers.rows,
+    staff: staff.rows,
+    orders: orders.rows
+  });
+});
+
+// ===== LƯU DẠNG CŨ (CHO FRONTEND HIỆN TẠI) =====
+app.post('/api/data', auth, async (req, res) => {
+  try {
+    const data = req.body;
+
+    // clear bảng
+    await pool.query('DELETE FROM products');
+    await pool.query('DELETE FROM customers');
+    await pool.query('DELETE FROM staff');
+    await pool.query('DELETE FROM orders');
+    await pool.query('DELETE FROM order_items');
+
+    // insert lại
+    for (let p of data.products || []) {
+      await pool.query(
+        `INSERT INTO products (sku,name,pack,qty,cost,sale)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [p.sku, p.name, p.pack, p.qty, p.cost, p.sale]
+      );
+    }
+
+    for (let c of data.customers || []) {
+      await pool.query(
+        `INSERT INTO customers (code,name)
+         VALUES ($1,$2)`,
+        [c.code, c.name]
+      );
+    }
+
+    for (let s of data.staff || []) {
+      await pool.query(
+        `INSERT INTO staff (code,name)
+         VALUES ($1,$2)`,
+        [s.code, s.name]
+      );
+    }
+
+    for (let o of data.orders || []) {
+      await pool.query(
+        `INSERT INTO orders (order_code,date,customer_code,staff_code,total)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [o.id, o.date, o.customerCode, o.staffCode, o.total]
+      );
+
+      for (let i of o.items || []) {
+        await pool.query(
+          `INSERT INTO order_items (order_code,sku,name,qty,price)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [o.id, i.sku, i.name, i.qty, i.price]
+        );
+      }
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Lỗi lưu dữ liệu' });
+  }
+});
+
+// ===== API MỚI (CHUẨN) =====
 app.post('/api/orders', auth, async (req, res) => {
   const { order, items } = req.body;
 
@@ -172,7 +210,7 @@ app.post('/api/orders', auth, async (req, res) => {
 
 // ===== TEST =====
 app.get('/', (req, res) => {
-  res.send('API kho TABLE đang chạy 🚀');
+  res.send('API kho TABLE + DATA đang chạy 🚀');
 });
 
 // ===== START =====
