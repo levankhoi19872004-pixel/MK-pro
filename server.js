@@ -4,83 +4,108 @@ const { Pool } = require("pg");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 
-// Kết nối database từ Render
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
-// Tạo bảng nếu chưa có
 async function initDB() {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id SERIAL PRIMARY KEY,
-      customer_name TEXT,
-      phone TEXT,
-      address TEXT,
-      items JSONB,
-      total INTEGER,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE IF NOT EXISTS kho_data (
+      id INTEGER PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await pool.query(`
+    INSERT INTO kho_data (id, data)
+    VALUES (1, '{"products":[],"receipts":[],"orders":[],"customers":[],"staff":[],"masterOrders":[]}')
+    ON CONFLICT (id) DO NOTHING
+  `);
+
   console.log("Database ready");
 }
 
 initDB();
 
-// Test API
 app.get("/", (req, res) => {
-  res.send("API kho Minh Khai (DB) đang chạy");
+  res.send("API Kho Minh Khai đang chạy với database");
 });
 
-// Lưu đơn hàng
-app.post("/api/orders", async (req, res) => {
-  const { customer_name, phone, address, items, total } = req.body;
+// Lấy toàn bộ dữ liệu kho
+app.get("/api/data", async (req, res) => {
+  const result = await pool.query("SELECT data FROM kho_data WHERE id = 1");
+  res.json(result.rows[0].data);
+});
 
-  const result = await pool.query(
-    `INSERT INTO orders (customer_name, phone, address, items, total)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [customer_name, phone, address, items, total]
+// Lưu toàn bộ dữ liệu kho
+app.post("/api/data", async (req, res) => {
+  await pool.query(
+    "UPDATE kho_data SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+    [req.body]
   );
-
-  res.json(result.rows[0]);
+  res.json({ success: true, message: "Đã lưu dữ liệu vào database" });
 });
 
-// Lấy danh sách đơn
+// Lấy đơn hàng
 app.get("/api/orders", async (req, res) => {
-  const result = await pool.query(
-    "SELECT * FROM orders ORDER BY created_at DESC"
-  );
-  res.json(result.rows);
+  const result = await pool.query("SELECT data FROM kho_data WHERE id = 1");
+  res.json(result.rows[0].data.orders || []);
 });
 
-// Xoá đơn
-app.delete("/api/orders/:id", async (req, res) => {
-  const { id } = req.params;
-  await pool.query("DELETE FROM orders WHERE id=$1", [id]);
-  res.json({ message: "Deleted" });
-});
+// Lưu đơn hàng mới
+app.post("/api/orders", async (req, res) => {
+  const result = await pool.query("SELECT data FROM kho_data WHERE id = 1");
+  const data = result.rows[0].data;
 
-// Sửa đơn
-app.put("/api/orders/:id", async (req, res) => {
-  const { id } = req.params;
-  const { customer_name, phone, address, items, total } = req.body;
+  data.orders = data.orders || [];
+  data.orders.push(req.body);
 
   await pool.query(
-    `UPDATE orders 
-     SET customer_name=$1, phone=$2, address=$3, items=$4, total=$5
-     WHERE id=$6`,
-    [customer_name, phone, address, items, total, id]
+    "UPDATE kho_data SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+    [data]
   );
 
-  res.json({ message: "Updated" });
+  res.json({ success: true, order: req.body });
 });
 
-// chạy server
+// Sửa đơn hàng
+app.put("/api/orders/:id", async (req, res) => {
+  const result = await pool.query("SELECT data FROM kho_data WHERE id = 1");
+  const data = result.rows[0].data;
+
+  data.orders = (data.orders || []).map(order =>
+    String(order.id) === String(req.params.id) ? req.body : order
+  );
+
+  await pool.query(
+    "UPDATE kho_data SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+    [data]
+  );
+
+  res.json({ success: true });
+});
+
+// Xoá đơn hàng
+app.delete("/api/orders/:id", async (req, res) => {
+  const result = await pool.query("SELECT data FROM kho_data WHERE id = 1");
+  const data = result.rows[0].data;
+
+  data.orders = (data.orders || []).filter(
+    order => String(order.id) !== String(req.params.id)
+  );
+
+  await pool.query(
+    "UPDATE kho_data SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+    [data]
+  );
+
+  res.json({ success: true });
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("Server chạy cổng " + PORT);
