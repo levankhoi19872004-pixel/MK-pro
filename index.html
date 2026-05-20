@@ -38,6 +38,16 @@
 .login-card{width:min(420px,94vw);background:#fff;border-radius:22px;padding:28px;box-shadow:0 25px 80px rgba(0,0,0,.25)}
 .login-card h1{margin:0 0 6px;font-size:24px}.login-card p{margin:0 0 18px;color:#667085}.login-card .field{margin-bottom:12px}.login-card .btn{width:100%;margin-top:8px}.login-note{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:10px;margin-top:14px;font-size:12px;color:#475467;line-height:1.6}.app.locked{display:none}.logout-btn{border:0;background:#fee2e2;color:#991b1b;border-radius:10px;padding:8px 10px;font-weight:700;cursor:pointer}
 
+.debt-status-paid{background:#ecfdf3!important;color:#027a48!important;border:1px solid #bbf7d0!important}
+.debt-status-unpaid{background:#fff1f1!important;color:#b42318!important;border:1px solid #fecaca!important}
+.debt-status-overpaid{background:#eff6ff!important;color:#1d4ed8!important;border:1px solid #bfdbfe!important}
+.debt-row-paid td{background:#f7fff9!important}
+.debt-row-unpaid td{background:#fffafa!important}
+.debt-row-overpaid td{background:#f8fbff!important}
+.debt-money-paid{color:#16a34a;font-weight:800}
+.debt-money-unpaid{color:#ef4444;font-weight:800}
+.debt-money-overpaid{color:#2563eb;font-weight:800}
+
 </style>
 </head>
 <body>
@@ -1147,7 +1157,19 @@ function recalcMasterOrder(masterId){
 }
 function orderAgeDays(o){let d=orderDateObj(o); if(!d)return 0; return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
 function debtRows(){return (db.orders||[]).map(o=>{let total=Number(o.total||0), cash=Number(o.cashPaid||0), bank=Number(o.bankPaid||0), debt=Math.max(0,total-cash-bank); o.debt=debt; return {delivery:orderDeliveryText(o),deliveryCode:orderDeliveryCode(o),orderId:o.id,customerCode:orderCustomerCode(o)||'',customer:o.customer||'',total,cash,bank,debt,status:orderPaymentStatusText(total,cash,bank),date:o.date||'',age:orderAgeDays(o)};});}
-function filteredDebtRows(){let rows=debtRows(); let fd=normText(document.getElementById('debtFilterDelivery')?.value||''), fc=normText(document.getElementById('debtFilterCustomerCode')?.value||''), fn=normText(document.getElementById('debtFilterCustomerName')?.value||''); return rows.filter(r=>(!fd||normText(r.delivery+' '+r.deliveryCode).includes(fd))&&(!fc||normText(r.customerCode).includes(fc))&&(!fn||normText(r.customer).includes(fn)));}
+function filteredDebtRows(){
+  let rows=debtRows();
+  let fd=normText(document.getElementById('debtFilterDelivery')?.value||'');
+  let fc=normText(document.getElementById('debtFilterCustomerCode')?.value||'');
+  let fn=normText(document.getElementById('debtFilterCustomerName')?.value||'');
+  return rows.filter(r=>(!fd||normText(r.delivery+' '+r.deliveryCode).includes(fd))&&(!fc||normText(r.customerCode).includes(fc))&&(!fn||normText(r.customer).includes(fn)));
+}
+function debtStatusInfo(r){
+  let debt=Number(r.debt)||0;
+  if(debt<0) return {text:'Thanh toán dư', pill:'debt-status-overpaid', row:'debt-row-overpaid', money:'debt-money-overpaid', btn:'Sửa thanh toán'};
+  if(debt===0) return {text:'Đã thanh toán', pill:'debt-status-paid', row:'debt-row-paid', money:'debt-money-paid', btn:'Sửa thanh toán'};
+  return {text:'Còn nợ', pill:'debt-status-unpaid', row:'debt-row-unpaid', money:'debt-money-unpaid', btn:'Thu tiền'};
+}
 async function payOrderRealtime(orderId, rowIndex){
   let order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
   if(!order)return toast('Không tìm thấy đơn hàng');
@@ -1169,7 +1191,7 @@ async function payOrderRealtime(orderId, rowIndex){
     const res=await fetchWithTimeout(API_URL+'/api/pay-order',{
       method:'POST',
       headers:authHeaders({'Content-Type':'application/json'}),
-      body:JSON.stringify({orderId,cashPaid:cash,bankPaid:bank})
+      body:JSON.stringify({orderId,cash,bank,cashPaid:cash,bankPaid:bank})
     },120000);
 
     if(!res.ok){
@@ -1199,20 +1221,23 @@ function renderDebtReports(){
   let rows=filteredDebtRows();
 
   if(document.getElementById('debtBody')){
-    debtBody.innerHTML=rows.map((r,i)=>`<tr>
-      <td>${r.delivery}</td>
-      <td><b>${r.orderId}</b></td>
-      <td>${r.customerCode}</td>
-      <td>${r.customer}</td>
-      <td class="right">${money(r.total)}</td>
-      <td class="right"><input id="debtCash_${i}" type="number" value="${r.cash}" style="width:120px;text-align:right" onkeydown="if(event.key==='Enter')payOrderRealtime('${r.orderId}',${i})"></td>
-      <td class="right"><input id="debtBank_${i}" type="number" value="${r.bank}" style="width:120px;text-align:right" onkeydown="if(event.key==='Enter')payOrderRealtime('${r.orderId}',${i})"></td>
-      <td class="right"><b style="color:${r.debt>0?'#ef4444':'#16a34a'}">${money(r.debt)}</b></td>
-      <td><span class="pill ${r.debt>0?'warn':''}">${r.status}</span></td>
-      <td>${r.date}</td>
-      <td class="right">${r.age} ngày</td>
-      <td><button class="btn small green" onclick="payOrderRealtime('${r.orderId}',${i})">${r.debt>0?'Thu tiền':'Sửa thanh toán'}</button></td>
-    </tr>`).join('')||'<tr><td colspan="12" class="center muted">Không có đơn phù hợp</td></tr>';
+    debtBody.innerHTML=rows.map((r,i)=>{
+      const st=debtStatusInfo(r);
+      return `<tr class="${st.row}">
+        <td>${r.delivery||'<span class="muted">Chưa gán GH</span>'}</td>
+        <td><b>${r.orderId}</b></td>
+        <td>${r.customerCode}</td>
+        <td>${r.customer}</td>
+        <td class="right">${money(r.total)}</td>
+        <td class="right"><input id="debtCash_${i}" type="number" value="${r.cash}" style="width:120px;text-align:right" onkeydown="if(event.key==='Enter')payOrderRealtime('${r.orderId}',${i})"></td>
+        <td class="right"><input id="debtBank_${i}" type="number" value="${r.bank}" style="width:120px;text-align:right" onkeydown="if(event.key==='Enter')payOrderRealtime('${r.orderId}',${i})"></td>
+        <td class="right"><b class="${st.money}">${money(r.debt)}</b></td>
+        <td><span class="pill ${st.pill}">${st.text}</span></td>
+        <td>${r.date}</td>
+        <td class="right">${r.age} ngày</td>
+        <td><button class="btn small ${r.debt>0?'green':'light'}" onclick="payOrderRealtime('${r.orderId}',${i})">${st.btn}</button></td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="12" class="center muted">Không có đơn phù hợp</td></tr>';
   }
 
   let byD={};
@@ -1224,7 +1249,7 @@ function renderDebtReports(){
     byD[k].paid+=r.cash+r.bank;
     byD[k].debt+=r.debt;
   });
-  if(document.getElementById('debtDeliveryBody')) debtDeliveryBody.innerHTML=Object.values(byD).sort((a,b)=>b.debt-a.debt).map(r=>`<tr><td>${r.name}</td><td class="center">${r.orders}</td><td class="right">${money(r.total)}</td><td class="right">${money(r.paid)}</td><td class="right"><b>${money(r.debt)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ</td></tr>';
+  if(document.getElementById('debtDeliveryBody')) debtDeliveryBody.innerHTML=Object.values(byD).sort((a,b)=>b.debt-a.debt).map(r=>`<tr><td>${r.name}</td><td class="center">${r.orders}</td><td class="right">${money(r.total)}</td><td class="right">${money(r.paid)}</td><td class="right"><b class="${r.debt>0?'debt-money-unpaid':'debt-money-paid'}">${money(r.debt)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ</td></tr>';
 
   let byC={};
   rows.forEach(r=>{
@@ -1235,11 +1260,11 @@ function renderDebtReports(){
     byC[k].paid+=r.cash+r.bank;
     byC[k].debt+=r.debt;
   });
-  if(document.getElementById('debtCustomerBody')) debtCustomerBody.innerHTML=Object.values(byC).sort((a,b)=>b.debt-a.debt).map(r=>`<tr><td>${r.code}</td><td>${r.name}</td><td class="center">${r.orders}</td><td class="right">${money(r.total)}</td><td class="right">${money(r.paid)}</td><td class="right"><b>${money(r.debt)}</b></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có công nợ</td></tr>';
+  if(document.getElementById('debtCustomerBody')) debtCustomerBody.innerHTML=Object.values(byC).sort((a,b)=>b.debt-a.debt).map(r=>`<tr><td>${r.code}</td><td>${r.name}</td><td class="center">${r.orders}</td><td class="right">${money(r.total)}</td><td class="right">${money(r.paid)}</td><td class="right"><b class="${r.debt>0?'debt-money-unpaid':'debt-money-paid'}">${money(r.debt)}</b></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có công nợ</td></tr>';
 
   let days=Number(document.getElementById('debtOverDays')?.value||7)||0;
-  let oldRows=rows.filter(r=>r.age>=days).sort((a,b)=>b.age-a.age);
-  if(document.getElementById('debtOldBody')) debtOldBody.innerHTML=oldRows.map(r=>`<tr><td>${r.delivery}</td><td><b>${r.orderId}</b></td><td>${r.customerCode}</td><td>${r.customer}</td><td class="right"><b>${money(r.debt)}</b></td><td>${r.date}</td><td class="right">${r.age} ngày</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Không có công nợ quá lâu</td></tr>';
+  let oldRows=rows.filter(r=>r.debt>0 && r.age>=days).sort((a,b)=>b.age-a.age);
+  if(document.getElementById('debtOldBody')) debtOldBody.innerHTML=oldRows.map(r=>`<tr><td>${r.delivery||'Chưa gán GH'}</td><td><b>${r.orderId}</b></td><td>${r.customerCode}</td><td>${r.customer}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td>${r.date}</td><td class="right">${r.age} ngày</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Không có công nợ quá lâu</td></tr>';
 }
 
 function clearDebtFilters(){['debtFilterDelivery','debtFilterCustomerCode','debtFilterCustomerName'].forEach(id=>{let e=document.getElementById(id); if(e)e.value='';}); renderDebtReports();}

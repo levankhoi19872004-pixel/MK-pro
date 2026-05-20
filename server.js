@@ -100,15 +100,14 @@ function rebuildMasterOrders(orders, masterOrders) {
   });
 }
 
-// ===== 🔥 REBUILD CÔNG NỢ (FIX CHUẨN) =====
+// ===== 🔥 REBUILD CÔNG NỢ + STATUS =====
 function rebuildDebts(data) {
   let debts = [];
 
   data.orders.forEach(o => {
-
-    // 🔥 Lấy NV giao hàng (ưu tiên master)
     let deliveryName = '';
 
+    // ưu tiên đơn tổng
     if (o.masterId) {
       const master = data.masterOrders.find(m => m.id === o.masterId);
       if (master) {
@@ -116,7 +115,7 @@ function rebuildDebts(data) {
       }
     }
 
-    // fallback nếu chưa gộp
+    // fallback đơn lẻ
     if (!deliveryName) {
       deliveryName = o.deliveryStaffName || '';
     }
@@ -163,7 +162,7 @@ app.post('/api/data', auth, async (req, res) => {
 
 // ===== 🔥 THU TIỀN REALTIME =====
 app.post('/api/pay-order', auth, async (req, res) => {
-  const { orderId, cash, bank } = req.body;
+  const { orderId, cashPaid, bankPaid } = req.body;
 
   const rs = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
   const data = rs.rows[0].data;
@@ -171,8 +170,8 @@ app.post('/api/pay-order', auth, async (req, res) => {
   const order = data.orders.find(o => String(o.id) === String(orderId));
   if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn' });
 
-  order.cashPaid = Number(cash) || 0;
-  order.bankPaid = Number(bank) || 0;
+  order.cashPaid = Number(cashPaid) || 0;
+  order.bankPaid = Number(bankPaid) || 0;
 
   data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
   data.debts = rebuildDebts(data);
