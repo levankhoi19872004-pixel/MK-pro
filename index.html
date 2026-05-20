@@ -1443,60 +1443,147 @@ function lineMoneyFromExcel(row,qtySell,sale,disc){
 }
 function buildBulkOrderPreview(rows,fileName){
   let groups={}, fail=0, errors=[];
-  rows.forEach((r,idx)=>{
-    let sku=String(cell(r,['Mã hàng hóa','Ma hang hoa','SKU','sku','Mã hàng','Ma hang','Mã SP','Ma SP'],'')).trim();
-    if(!sku){fail++;errors.push('Dòng '+(idx+2)+': thiếu mã hàng hóa/SKU');return;}
-    let p=findProduct(sku);
-    if(!p){fail++;errors.push('Dòng '+(idx+2)+': không có SKU '+sku+' trong kho');return;}
-    let pack=Number(cell(r,['Đóng gói','Dong goi','Quy cách','Quy cach'],p.pack))||Number(p.pack)||1;
+  const firstCols=rows && rows[0] ? Object.keys(rows[0]).join(', ') : '';
 
-    // Mẫu Unilever: SL bán và SL khuyến mại là 2 phần riêng.
-    // Kho trừ cả 2, nhưng doanh thu chỉ tính SL bán.
-    let qtySell=excelQtyFromBoxEach(r,pack,['Số lượng thùng','So luong thung','SL thùng','SL thung','Thùng','Thung'],['Số lượng SU','So luong SU','SL SU','Số lượng lẻ','So luong le','Lẻ','Le']);
-    let qtyKM=excelQtyFromBoxEach(r,pack,['SL khuyến mãi theo thùng','SL khuyen mai theo thung','SL khuyến mại theo thùng','SL khuyen mai theo thung','KM thùng','KM thung'],['SL khuyến mãi theo SU','SL khuyen mai theo SU','SL khuyến mại theo SU','KM SU','KM lẻ','KM le']);
+  rows.forEach((r,idx)=>{
+    const rowNo=idx+2;
+
+    // ===== MAP CỘT CHUẨN THEO FILE UNILEVER =====
+    let id=String(cell(r,[
+      'Số hóa đơn','So hoa don','Số HĐ','So HD','Số HD','So HD',
+      'Mã đơn','Ma don','Mã HĐ','Ma HD','Invoice No','Invoice'
+    ], '')).trim();
+
+    let sku=String(cell(r,[
+      'Mã hàng hóa','Ma hang hoa','Mã hàng hoá','Ma hang hoa','SKU','sku',
+      'Mã hàng','Ma hang','Mã SP','Ma SP','Item Code','Product Code'
+    ], '')).trim();
+
+    let nameFromFile=String(cell(r,[
+      'Mô tả mặt hàng','Mo ta mat hang','Tên hàng','Ten hang','Tên hàng hóa','Ten hang hoa',
+      'Tên sản phẩm','Ten san pham','Product Name','Item Name'
+    ], '')).trim();
+
+    if(!id){fail++;errors.push('Dòng '+rowNo+': thiếu Số hóa đơn');return;}
+    if(!sku){fail++;errors.push('Dòng '+rowNo+': thiếu Mã hàng hóa/SKU');return;}
+
+    if(db.orders.some(o=>String(o.id)===id)){
+      fail++;errors.push('Dòng '+rowNo+': mã đơn đã tồn tại '+id);return;
+    }
+
+    // Nếu SKU chưa có trong kho vẫn cho vào preview để lập báo cáo hàng thiếu.
+    // Không còn chặn ngay từ đầu nữa, tránh lỗi "không có đơn hợp lệ để import".
+    let p=findProduct(sku);
+    let pack=Number(cell(r,['Đóng gói','Dong goi','Quy cách','Quy cach','T/L','TL','Pack','Quy cach thung'],p?p.pack:1))||Number(p&&p.pack)||1;
+
+    // SL bán: tính tiền. SL KM: chỉ trừ kho, không tính tiền.
+    let qtySell=excelQtyFromBoxEach(
+      r,pack,
+      ['Số lượng thùng','So luong thung','SL thùng','SL thung','Thùng','Thung','SL bán thùng','SL ban thung'],
+      ['Số lượng SU','So luong SU','SL SU','Số lượng lẻ','So luong le','Lẻ','Le','SL bán lẻ','SL ban le']
+    );
+
+    let qtyKM=excelQtyFromBoxEach(
+      r,pack,
+      ['SL khuyến mãi theo thùng','SL khuyen mai theo thung','SL khuyến mại theo thùng','SL khuyen mại theo thung','KM thùng','KM thung','Khuyến mại thùng','Khuyen mai thung'],
+      ['SL khuyến mãi theo SU','SL khuyen mai theo SU','SL khuyến mại theo SU','SL khuyen mại theo SU','KM SU','KM lẻ','KM le','Khuyến mại lẻ','Khuyen mai le']
+    );
+
     if(qtySell<=0 && qtyKM<=0){
-      // Vẫn hỗ trợ mẫu cũ có cột SL dạng 1/0
-      qtySell=parseQtySlash(cell(r,['SL','Số lượng','So luong','sl'],''),pack);
+      // Hỗ trợ thêm mẫu cũ có cột SL dạng 1/0
+      qtySell=parseQtySlash(cell(r,['SL','Số lượng','So luong','Quantity','Qty','sl'],''),pack);
       qtyKM=0;
     }
-    let qty=qtySell+qtyKM;
-    if(qty<=0){fail++;errors.push('Dòng '+(idx+2)+': số lượng bán/KM không hợp lệ');return;}
 
-    let id=String(cell(r,['Số hóa đơn','So hoa don','Số HĐ','So HD','Mã đơn','Ma don','Mã HĐ','Ma HD'], '')).trim();
-    if(!id) id='DHIMP'+String(Date.now()).slice(-7)+'-'+idx;
-    if(db.orders.some(o=>String(o.id)===id)){
-      fail++;errors.push('Dòng '+(idx+2)+': mã đơn đã tồn tại '+id);return;
-    }
-    let date=excelDateToInput(cell(r,['Ngày lập hóa đơn','Ngay lap hoa don','Ngày','Ngay','Ngày bán','Ngay ban','Ngày đơn','Ngay don'], new Date().toISOString().slice(0,10)));
-    let cCode=String(cell(r,['Mã cửa hàng','Ma cua hang','Mã KH','Ma KH','Mã khách hàng','Ma khach hang'],'')).trim();
-    let rawCustomerName=String(cell(r,['Họ','Họ','Ho','Tên KH','Ten KH','Tên khách hàng','Ten khach hang','Khách hàng','Khach hang','Tên cửa hàng','Ten cua hang'], '')).trim();
+    let qty=qtySell+qtyKM;
+    if(qty<=0){fail++;errors.push('Dòng '+rowNo+': số lượng bán/KM không hợp lệ');return;}
+
+    let date=excelDateToInput(cell(r,['Ngày lập hóa đơn','Ngay lap hoa don','Ngày','Ngay','Ngày bán','Ngay ban','Ngày đơn','Ngay don','Invoice Date'], new Date().toISOString().slice(0,10)));
+    let cCode=String(cell(r,['Mã cửa hàng','Ma cua hang','Mã KH','Ma KH','Mã khách hàng','Ma khach hang','Customer Code','Shop Code'],'')).trim();
+    let rawCustomerName=String(cell(r,['Họ','Họ','Ho','Tên KH','Ten KH','Tên khách hàng','Ten khach hang','Khách hàng','Khach hang','Tên cửa hàng','Ten cua hang','Customer Name','Shop Name'], '')).trim();
     let cName=normalizeCustomerNameFromUpload(cCode,rawCustomerName);
-    let cAddress=String(cell(r,['Địa chỉ','Dia chi'],'')).trim();
-    let cPhone=String(cell(r,['SĐT','SDT','Điện thoại','Dien thoai'],'')).trim();
-    let cTax=String(cell(r,['MST','Mã số thuế','Ma so thue'],'')).trim();
-    let staffCodeValue=String(cell(r,['Mã nhân viên','Ma nhan vien','Mã NV','Ma NV','Mã NVBH','Ma NVBH'],'')).trim();
-    let staffNameFromFile=String(cell(r,['Tên NVTT','Ten NVTT','Tên NV','Ten NV','Tên nhân viên','Ten nhan vien','NVBH','Nhân viên'],'')).trim();
+    let cAddress=String(cell(r,['Địa chỉ','Dia chi','Address'],'')).trim();
+    let cPhone=String(cell(r,['SĐT','SDT','Điện thoại','Dien thoai','Phone'],'')).trim();
+    let cTax=String(cell(r,['MST','Mã số thuế','Ma so thue','Tax Code'],'')).trim();
+    let staffCodeValue=String(cell(r,['Mã nhân viên','Ma nhan vien','Mã NV','Ma NV','Mã NVBH','Ma NVBH','Staff Code','Salesman Code'],'')).trim();
+    let staffNameFromFile=String(cell(r,['Tên NVTT','Ten NVTT','Tên NV','Ten NV','Tên nhân viên','Ten nhan vien','NVBH','Nhân viên','Staff Name','Salesman'], '')).trim();
     let staffNameValue=getStaffNameByCode(staffCodeValue,staffNameFromFile||staffCodeValue||'Nhân viên');
-    let route=String(cell(r,['Tuyến bán hàng','Tuyen ban hang','Tuyến','Tuyen'], '')).trim();
-    let invoiceType=String(cell(r,['Loại hóa đơn','Loai hoa don'], '')).trim();
-    if(!groups[id])groups[id]={id,date,customer:cName,customerCode:cCode,customerAddress:cAddress,customerPhone:cPhone,customerTax:cTax,staffCode:staffCodeValue,staffName:staffNameValue,warehouse:String(cell(r,['Kho'], 'KHOCHINH')),route,invoiceType,note:String(cell(r,['Ghi chú','Ghi chu'],'')),delivery:String(cell(r,['Trạng thái giao','Trang thai giao'],'Giao thành công')),xk:String(cell(r,['Phiếu XK','Phieu XK'],'')),adjust:Number(cell(r,['CK hiệu chỉnh','CK hieu chinh','Điều chỉnh','Dieu chinh'],0))||0,items:[],selected:true};
-    let sale=Number(cell(r,['Đơn giá','Don gia','Giá bán','Gia ban'],p.sale))||Number(p.sale)||0;
-    let disc=Number(cell(r,['%CK','CK','Chiết khấu','Chiet khau'],0))||0;
+    let route=String(cell(r,['Tuyến bán hàng','Tuyen ban hang','Tuyến','Tuyen','Route'], '')).trim();
+    let invoiceType=String(cell(r,['Loại hóa đơn','Loai hoa don','Invoice Type'], '')).trim();
+
+    if(!groups[id]){
+      groups[id]={
+        id,date,customer:cName,customerCode:cCode,customerAddress:cAddress,customerPhone:cPhone,customerTax:cTax,
+        staffCode:staffCodeValue,staffName:staffNameValue,
+        warehouse:String(cell(r,['Kho','Kho hàng','Kho hang','Warehouse'], 'KHOCHINH')),
+        route,invoiceType,note:String(cell(r,['Ghi chú','Ghi chu','Note'],'')),
+        delivery:String(cell(r,['Trạng thái giao','Trang thai giao'],'Giao thành công')),
+        xk:String(cell(r,['Phiếu XK','Phieu XK'],'')),
+        adjust:Number(cell(r,['CK hiệu chỉnh','CK hieu chinh','Điều chỉnh','Dieu chinh'],0))||0,
+        items:[],selected:true
+      };
+    }
+
+    // Nếu dòng sau cùng đơn có đủ tên KH/NV hơn dòng trước thì cập nhật lại.
+    if(cCode)groups[id].customerCode=cCode;
+    if(rawCustomerName)groups[id].customer=cName;
+    if(staffCodeValue)groups[id].staffCode=staffCodeValue;
+    if(staffNameFromFile)groups[id].staffName=staffNameValue;
+    if(route)groups[id].route=route;
+    if(invoiceType)groups[id].invoiceType=invoiceType;
+
+    let sale=Number(cell(r,['Đơn giá','Don gia','Giá bán','Gia ban','Price','Unit Price'],p?p.sale:0))||Number(p&&p.sale)||0;
+    let disc=Number(cell(r,['%CK','CK','Chiết khấu','Chiet khau','Discount'],0))||0;
     let tax=Number(cell(r,['Thuế','Thue','VAT'],0))||0;
     let lineTotal=lineMoneyFromExcel(r,qtySell,sale,disc);
-    groups[id].items.push({sku:p.sku,name:p.name||String(cell(r,['Mô tả mặt hàng','Mo ta mat hang'],'')).trim()||sku,pack:Number(pack)||1,qty,sellQty:qtySell,kmQty:qtyKM,sale,cost:Number(p.cost)||0,disc,tax,lineTotal,route,invoiceType,originalQty:qty,originalSellQty:qtySell,originalKmQty:qtyKM});
+    let finalName=(p&&p.name)||nameFromFile||sku;
+
+    // Nếu SKU chưa tồn tại, tạo sản phẩm tạm tồn 0 để báo thiếu rõ ràng và có tên hàng.
+    if(!p){
+      p={sku,name:finalName,pack,qty:0,cost:0,sale,brand:'',category:'',warehouse:groups[id].warehouse};
+    }
+
+    groups[id].items.push({
+      sku:String(p.sku||sku),
+      name:finalName,
+      pack:Number(pack)||1,
+      qty,
+      sellQty:qtySell,
+      kmQty:qtyKM,
+      sale,
+      cost:Number(p.cost)||0,
+      disc,
+      tax,
+      lineTotal,
+      route,
+      invoiceType,
+      originalQty:qty,
+      originalSellQty:qtySell,
+      originalKmQty:qtyKM,
+      productMissing:!findProduct(sku)
+    });
   });
-  let orders=Object.values(groups);
+
+  let orders=Object.values(groups).filter(o=>(o.items||[]).length>0);
   orders.forEach(o=>{
     let goods=o.items.reduce((a,b)=>a+(Number(b.sellQty)||0)*(Number(b.sale)||0),0);
     let discount=o.items.reduce((a,b)=>a+((Number(b.sellQty)||0)*(Number(b.sale)||0)*(Number(b.disc||0)/100)),0);
     let lineTotal=o.items.reduce((a,b)=>a+Number(b.lineTotal||0),0);
     o.previewTotal=lineTotal || (goods-discount-Number(o.adjust||0));
   });
+
+  if(!orders.length && firstCols){
+    errors.unshift('Không tạo được đơn nào. Các cột đọc được trong file: '+firstCols);
+  }
+
   return {fileName:fileName||'',orders,errors,fail};
 }
 function showBulkImportPreview(){
-  if(!BULK_IMPORT_PREVIEW || !BULK_IMPORT_PREVIEW.orders.length){toast('Không có đơn hợp lệ để import');return;}
+  if(!BULK_IMPORT_PREVIEW || !BULK_IMPORT_PREVIEW.orders.length){
+    console.warn('Import errors:',BULK_IMPORT_PREVIEW&&BULK_IMPORT_PREVIEW.errors);
+    toast('Không có đơn hợp lệ. Xem lỗi ở Console hoặc kiểm tra tên cột Excel');
+    return;
+  }
   let m=document.getElementById('bulkImportPreviewModal');
   if(m)m.classList.add('show');
   renderBulkImportPreview();
@@ -1600,7 +1687,14 @@ function confirmBulkOrderImport(){
     let lineTotal=o.items.reduce((a,b)=>a+Number(b.lineTotal||0),0);
     let cost=o.items.reduce((a,b)=>a+Number(b.qty||0)*Number(b.cost||0),0);
     let finalOrder={id:o.id,date:o.date,customer:c.name,customerCode:c.code,staffCode:nvc,staffName:nvn,staff:nvc+' - '+nvn,warehouse:o.warehouse,route:o.route,invoiceType:o.invoiceType,note:o.note,delivery:o.delivery,xk:o.xk,adjust:Number(o.adjust||0),items:o.items,goods,discount,tax,total:(lineTotal||goods-discount)-Number(o.adjust||0),cost,masterId:'',isoDate:new Date(o.date+'T12:00:00').toISOString()};
-    finalOrder.items.forEach(it=>{let p=findProduct(it.sku); if(p)p.qty-=Number(it.qty||0);});
+    finalOrder.items.forEach(it=>{
+      let p=findProduct(it.sku);
+      if(!p){
+        p={sku:it.sku,name:it.name,pack:Number(it.pack)||1,qty:0,cost:Number(it.cost)||0,sale:Number(it.sale)||0,brand:'',category:'',warehouse:finalOrder.warehouse||'Kho chính'};
+        db.products.push(p);
+      }
+      p.qty-=Number(it.qty||0);
+    });
     db.orders.push(finalOrder);
   });
   save();render();closeBulkImportPreview();
