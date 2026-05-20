@@ -1,3 +1,124 @@
-{
-"server.js": "const express = require('express');\nconst cors = require('cors');\nconst { Pool } = require('pg');\nconst jwt = require('jsonwebtoken');\n\nconst app = express();\n\n// 🚀 TĂNG GIỚI HẠN DỮ LIỆU (FIX LỖI PAYLOAD TOO LARGE)\napp.use(cors());\napp.use(express.json({ limit: '200mb' }));\napp.use(express.urlencoded({ limit: '200mb', extended: true }));\n\nconst PORT = process.env.PORT || 10000;\nconst SECRET = 'kho_pro_secret_key';\n\n// ===== KẾT NỐI DATABASE =====\nconst pool = new Pool({\n  connectionString: process.env.DATABASE_URL,\n  ssl: { rejectUnauthorized: false }\n});\n\n// ===== TẠO TABLE =====\nasync function initDB() {\n  await pool.query(`\n    CREATE TABLE IF NOT EXISTS kho_data (\n      id SERIAL PRIMARY KEY,\n      data JSONB\n    )\n  `);\n\n  const res = await pool.query('SELECT * FROM kho_data LIMIT 1');\n  if (res.rows.length === 0) {\n    await pool.query(\n      'INSERT INTO kho_data (data) VALUES ($1)',\n      [JSON.stringify({\n        products: [],\n        receipts: [],\n        orders: [],\n        customers: [],\n        staff: [],\n        masterOrders: [],\n        shortageReports: []\n      })]\n    );\n  }\n}\ninitDB();\n\n// ===== USER DEMO =====\nconst users = [\n  { username: 'admin', password: '123456', role: 'admin', name: 'Admin' },\n  { username: 'nv01', password: '123456', role: 'staff', name: 'Nhân viên 1' }\n];\n\n// ===== AUTH =====\nfunction auth(req, res, next) {\n  const token = req.headers.authorization?.split(' ')[1];\n  if (!token) return res.status(401).json({ error: 'No token' });\n\n  try {\n    const decoded = jwt.verify(token, SECRET);\n    req.user = decoded;\n    next();\n  } catch {\n    res.status(401).json({ error: 'Token lỗi' });\n  }\n}\n\n// ===== LOGIN =====\napp.post('/api/login', (req, res) => {\n  const { username, password } = req.body;\n\n  const user = users.find(\n    u => u.username === username && u.password === password\n  );\n\n  if (!user) return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });\n\n  const token = jwt.sign(user, SECRET, { expiresIn: '7d' });\n\n  res.json({ token, user });\n});\n\n// ===== LOGOUT =====\napp.post('/api/logout', (req, res) => {\n  res.json({ success: true });\n});\n\n// ===== GET DATA =====\napp.get('/api/data', auth, async (req, res) => {\n  const result = await pool.query('SELECT data FROM kho_data LIMIT 1');\n  res.json(result.rows[0].data);\n});\n\n// ===== SAVE DATA (ANTI LỖI LỚN) =====\napp.post('/api/data', auth, async (req, res) => {\n  try {\n    const data = req.body;\n\n    // 🚀 NÉ JSON QUÁ NẶNG\n    const sizeMB = Buffer.byteLength(JSON.stringify(data)) / (1024 * 1024);\n\n    if (sizeMB > 150) {\n      return res.status(400).json({ error: 'Dữ liệu quá lớn (>150MB)' });\n    }\n\n    await pool.query('UPDATE kho_data SET data=$1 WHERE id=1', [data]);\n\n    res.json({ success: true });\n  } catch (err) {\n    console.error(err);\n    res.status(500).json({ error: 'Lỗi lưu dữ liệu' });\n  }\n});\n\n// ===== TEST =====\napp.get('/', (req, res) => {\n  res.send('API kho PRO đang chạy 🚀');\n});\n\n// ===== START =====\napp.listen(PORT, () => {\n  console.log('Server chạy cổng ' + PORT);\n});"
+const express = require('express');
+const cors = require('cors');
+const { Pool } = require('pg');
+const jwt = require('jsonwebtoken');
+
+const app = express();
+
+// 🚀 FIX LỖI DỮ LIỆU LỚN
+app.use(cors());
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
+
+const PORT = process.env.PORT || 10000;
+const SECRET = 'kho_pro_secret_key';
+
+// ===== KẾT NỐI DATABASE =====
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// ===== TẠO TABLE =====
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS kho_data (
+      id SERIAL PRIMARY KEY,
+      data JSONB
+    )
+  `);
+
+  const res = await pool.query('SELECT * FROM kho_data LIMIT 1');
+  if (res.rows.length === 0) {
+    await pool.query(
+      'INSERT INTO kho_data (data) VALUES ($1)',
+      [JSON.stringify({
+        products: [],
+        receipts: [],
+        orders: [],
+        customers: [],
+        staff: [],
+        masterOrders: [],
+        shortageReports: []
+      })]
+    );
+  }
 }
+initDB();
+
+// ===== USER DEMO =====
+const users = [
+  { username: 'admin', password: '123456', role: 'admin', name: 'Admin' },
+  { username: 'nv01', password: '123456', role: 'staff', name: 'Nhân viên 1' }
+];
+
+// ===== AUTH =====
+function auth(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const decoded = jwt.verify(token, SECRET);
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token lỗi' });
+  }
+}
+
+// ===== LOGIN =====
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+
+  const user = users.find(
+    u => u.username === username && u.password === password
+  );
+
+  if (!user) return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
+
+  const token = jwt.sign(user, SECRET, { expiresIn: '7d' });
+
+  res.json({ token, user });
+});
+
+// ===== LOGOUT =====
+app.post('/api/logout', (req, res) => {
+  res.json({ success: true });
+});
+
+// ===== GET DATA =====
+app.get('/api/data', auth, async (req, res) => {
+  const result = await pool.query('SELECT data FROM kho_data LIMIT 1');
+  res.json(result.rows[0].data);
+});
+
+// ===== SAVE DATA =====
+app.post('/api/data', auth, async (req, res) => {
+  try {
+    const data = req.body;
+
+    // 🚀 CHẶN DỮ LIỆU QUÁ LỚN
+    const sizeMB = Buffer.byteLength(JSON.stringify(data)) / (1024 * 1024);
+
+    if (sizeMB > 150) {
+      return res.status(400).json({ error: 'Dữ liệu quá lớn (>150MB)' });
+    }
+
+    await pool.query('UPDATE kho_data SET data=$1 WHERE id=1', [data]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Lỗi lưu dữ liệu' });
+  }
+});
+
+// ===== TEST =====
+app.get('/', (req, res) => {
+  res.send('API kho PRO đang chạy 🚀');
+});
+
+// ===== START =====
+app.listen(PORT, () => {
+  console.log('Server chạy cổng ' + PORT);
+});
