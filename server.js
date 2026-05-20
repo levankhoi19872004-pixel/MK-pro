@@ -100,14 +100,13 @@ function rebuildMasterOrders(orders, masterOrders) {
   });
 }
 
-// ===== 🔥 REBUILD CÔNG NỢ + STATUS =====
+// ===== REBUILD CÔNG NỢ + STATUS =====
 function rebuildDebts(data) {
   let debts = [];
 
   data.orders.forEach(o => {
     let deliveryName = '';
 
-    // ưu tiên đơn tổng
     if (o.masterId) {
       const master = data.masterOrders.find(m => m.id === o.masterId);
       if (master) {
@@ -115,7 +114,6 @@ function rebuildDebts(data) {
       }
     }
 
-    // fallback đơn lẻ
     if (!deliveryName) {
       deliveryName = o.deliveryStaffName || '';
     }
@@ -160,7 +158,7 @@ app.post('/api/data', auth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ===== 🔥 THU TIỀN REALTIME =====
+// ===== THU TIỀN REALTIME =====
 app.post('/api/pay-order', auth, async (req, res) => {
   const { orderId, cashPaid, bankPaid } = req.body;
 

@@ -48,6 +48,14 @@
 .debt-money-unpaid{color:#ef4444;font-weight:800}
 .debt-money-overpaid{color:#2563eb;font-weight:800}
 
+
+.product-catalog-actions{display:flex;gap:8px;flex-wrap:wrap}
+.debt-search-note{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;padding:16px;color:#475467;line-height:1.6}
+.search-modal-box{background:#fff;border-radius:18px;width:min(1280px,98vw);max-height:90vh;overflow:auto;padding:18px}
+.promo-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.promo-tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700}
+.promo-tabs button.active{background:#2563eb;color:#fff;border-color:#2563eb}
+
 </style>
 </head>
 <body>
@@ -76,7 +84,8 @@
     </div>
     <div class="nav" id="nav">
       <button class="active" data-page="dashboard">⌂ Tổng quan</button>
-      <button data-page="products">▧ Sản phẩm / Tồn kho</button>
+      <button data-page="productCatalog">📦 Danh mục sản phẩm</button>
+      <button data-page="products">▧ Tồn kho</button>
       <button data-page="receive">⇩ Nhập kho</button>
       <button data-page="sale">⇧ Xuất bán</button>
       <button data-page="orders">☷ Đơn hàng</button>
@@ -85,6 +94,7 @@
       <button data-page="staff">♟ Nhân viên</button>
       <button data-page="deliveryStaff">🚚 Nhân viên giao hàng</button>
       <button data-page="debts">₫ Công nợ</button>
+      <button data-page="promotions">🎁 Khuyến mại</button>
       <button data-page="reports">▥ Báo cáo</button>
     </div>
     <div class="nav-title">Tiện ích</div>
@@ -115,6 +125,45 @@
         </div>
         <div class="card panel"><div class="panel-head"><h2>Tồn kho thấp <span class="badge" id="lowCount">0</span></h2></div><div class="table-wrap"><table class="table"><thead><tr><th>SKU</th><th>Tên sản phẩm</th><th>Quy cách</th><th class="right">Tồn thùng/lẻ</th></tr></thead><tbody id="lowStockBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><h2>Đơn hàng mới nhất</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Nhân viên</th><th class="right">Tổng tiền</th><th>Ngày</th><th>Trạng thái</th></tr></thead><tbody id="recentOrdersBody"></tbody></table></div></div>
+      </section>
+
+
+      <section id="productCatalog" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h2>Danh mục sản phẩm</h2>
+              <div class="muted" style="margin-top:6px">Quản lý thông tin chuẩn của sản phẩm. Dữ liệu này dùng khi nhập/import đơn hàng và cảnh báo mã hàng mới.</div>
+            </div>
+            <div class="toolbar">
+              <button class="btn light" onclick="downloadProductCatalogTemplate()">Tải mẫu Excel</button>
+              <button class="btn green" onclick="document.getElementById('importProductCatalog').click()">Import sản phẩm</button>
+              <input id="importProductCatalog" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductCatalogExcel(event)">
+              <button class="btn" onclick="exportProductCatalog()">Xuất Excel</button>
+            </div>
+          </div>
+          <div class="form">
+            <div class="field"><label>Mã sản phẩm</label><input id="pcSku"></div>
+            <div class="field"><label>Tên sản phẩm</label><input id="pcName"></div>
+            <div class="field"><label>Quy cách</label><input id="pcPack" type="number" value="12"></div>
+            <div class="field"><label>Giá bán</label><input id="pcSale" type="number" value="0"></div>
+            <div class="field"><label>Nhãn hàng</label><input id="pcBrand"></div>
+            <div class="field"><label>Ngành hàng</label><input id="pcCategory"></div>
+            <div class="field"><label>Kho hàng quản lý</label><input id="pcWarehouse" value="Kho chính"></div>
+          </div>
+          <br>
+          <button class="btn" onclick="saveProductCatalog()">Lưu sản phẩm</button>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách sản phẩm</h2></div>
+          <div class="filter-grid">
+            <div class="field wide"><label>Tìm mã / tên</label><input id="pcSearch" oninput="renderProductCatalog()" placeholder="Nhập mã hoặc tên sản phẩm"></div>
+            <div class="field"><label>Nhãn hàng</label><input id="pcBrandFilter" oninput="renderProductCatalog()"></div>
+            <div class="field"><label>Ngành hàng</label><input id="pcCategoryFilter" oninput="renderProductCatalog()"></div>
+            <div class="field"><label>Kho hàng</label><input id="pcWarehouseFilter" oninput="renderProductCatalog()"></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Quy cách</th><th class="right">Giá bán</th><th>Nhãn hàng</th><th>Ngành hàng</th><th>Kho hàng quản lý</th><th>Thao tác</th></tr></thead><tbody id="productCatalogBody"></tbody></table></div>
+        </div>
       </section>
 
       <section id="products" class="section">
@@ -307,22 +356,60 @@
         <div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('delivery-delete-check',this.checked)"></th><th>Mã NVGH</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="deliveryStaffBody"></tbody></table></div></div>
       </section>
 
+
       <section id="debts" class="section">
         <div class="card panel">
-          <div class="panel-head"><div><h2>Công nợ</h2><div class="muted" style="margin-top:6px">Theo dõi công nợ theo nhân viên giao hàng, đơn hàng, khách hàng và tuổi nợ.</div></div><div class="toolbar"><button class="btn" onclick="exportDebtReport()">Xuất Excel</button></div></div>
-          <div class="filter-grid">
-            <div class="field wide"><label>Nhân viên giao hàng</label><input id="debtFilterDelivery" placeholder="Tên hoặc mã NVGH" oninput="renderDebtReports()"></div>
-            <div class="field"><label>Mã KH</label><input id="debtFilterCustomerCode" placeholder="KH..." oninput="renderDebtReports()"></div>
-            <div class="field wide"><label>Tên khách hàng</label><input id="debtFilterCustomerName" placeholder="Tên khách" oninput="renderDebtReports()"></div>
-            <div class="field"><label>Công nợ quá ngày</label><input id="debtOverDays" type="number" value="7" oninput="renderDebtReports()"></div>
-            <div class="filter-actions"><button class="btn light" onclick="clearDebtFilters()">Xóa lọc</button></div>
+          <div class="panel-head">
+            <div>
+              <h2>Tra cứu công nợ</h2>
+              <div class="muted" style="margin-top:6px">Chỉ hiển thị kết quả khi tìm kiếm để màn hình gọn hơn. Đơn đã thanh toán vẫn có trong kết quả để sửa lại khi cần.</div>
+            </div>
+            <div class="toolbar">
+              <button class="btn" onclick="openDebtSearchResults()">Tìm công nợ</button>
+              <button class="btn light" onclick="clearDebtFilters()">Xóa lọc</button>
+              <button class="btn" onclick="exportDebtReport()">Xuất Excel</button>
+            </div>
           </div>
-          <div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Giá trị đơn hàng</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Công nợ</th><th>Trạng thái</th><th>Ngày</th><th class="right">Tuổi nợ</th><th>Thao tác</th></tr></thead><tbody id="debtBody"></tbody></table></div>
+          <div class="filter-grid">
+            <div class="field wide"><label>Nhân viên giao hàng</label><input id="debtFilterDelivery" placeholder="Tên hoặc mã NVGH" onkeydown="if(event.key==='Enter')openDebtSearchResults()"></div>
+            <div class="field"><label>Mã KH</label><input id="debtFilterCustomerCode" placeholder="KH..." onkeydown="if(event.key==='Enter')openDebtSearchResults()"></div>
+            <div class="field wide"><label>Tên khách hàng</label><input id="debtFilterCustomerName" placeholder="Tên khách" onkeydown="if(event.key==='Enter')openDebtSearchResults()"></div>
+            <div class="field"><label>Công nợ quá ngày</label><input id="debtOverDays" type="number" placeholder="VD: 7, 15, 30" onkeydown="if(event.key==='Enter')openDebtSearchResults()"></div>
+          </div>
+          <div class="debt-search-note">
+            Nhập một hoặc nhiều điều kiện rồi bấm <b>Tìm công nợ</b>. Kết quả chi tiết, báo cáo theo nhân viên giao hàng, khách hàng và công nợ quá lâu sẽ mở trong cửa sổ riêng.
+          </div>
         </div>
-        <div class="card panel"><div class="panel-head"><h2>Báo cáo công nợ nhân viên giao hàng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtDeliveryBody"></tbody></table></div></div>
-        <div class="card panel"><div class="panel-head"><h2>Báo cáo công nợ khách hàng</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtCustomerBody"></tbody></table></div></div>
-        <div class="card panel"><div class="panel-head"><h2>Công nợ quá lâu</h2></div><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Công nợ</th><th>Ngày</th><th class="right">Tuổi nợ</th></tr></thead><tbody id="debtOldBody"></tbody></table></div></div>
       </section>
+
+      <section id="promotions" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div><h2>Khuyến mại</h2><div class="muted" style="margin-top:6px">Thiết lập chiết khấu theo sản phẩm, ngành hàng, nhóm ngành hàng và nhóm sản phẩm.</div></div>
+            <div class="toolbar"><button class="btn" onclick="savePromotion()">Lưu khuyến mại</button></div>
+          </div>
+          <div class="promo-tabs">
+            <button class="active" data-promo-type="product" onclick="setPromoType('product')">Theo sản phẩm</button>
+            <button data-promo-type="category" onclick="setPromoType('category')">Theo ngành hàng</button>
+            <button data-promo-type="categoryGroup" onclick="setPromoType('categoryGroup')">Theo nhóm ngành hàng</button>
+            <button data-promo-type="productGroup" onclick="setPromoType('productGroup')">Theo nhóm sản phẩm</button>
+          </div>
+          <div class="form">
+            <div class="field"><label>Loại chiết khấu</label><input id="promoTypeText" value="Theo sản phẩm" readonly></div>
+            <div class="field"><label>Mã/nhóm áp dụng</label><input id="promoTarget" placeholder="VD: SKU, ngành hàng hoặc tên nhóm"></div>
+            <div class="field"><label>Tên chương trình</label><input id="promoName" placeholder="VD: CK tháng này"></div>
+            <div class="field"><label>% chiết khấu</label><input id="promoDiscount" type="number" value="0"></div>
+            <div class="field"><label>Từ ngày</label><input id="promoFrom" type="date"></div>
+            <div class="field"><label>Đến ngày</label><input id="promoTo" type="date"></div>
+            <div class="field wide"><label>Ghi chú</label><input id="promoNote"></div>
+          </div>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách khuyến mại</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Loại</th><th>Mã/nhóm áp dụng</th><th>Tên CTKM</th><th class="right">% CK</th><th>Từ ngày</th><th>Đến ngày</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="promotionBody"></tbody></table></div>
+        </div>
+      </section>
+
       <section id="reports" class="section"><div class="stats"><div class="card stat"><div class="stat-icon blue">₫</div><div><div class="label">Doanh thu</div><div class="value" id="rpRevenue">0</div></div></div><div class="card stat"><div class="stat-icon green">✓</div><div><div class="label">Giá vốn</div><div class="value" id="rpCost">0</div></div></div><div class="card stat"><div class="stat-icon orange">★</div><div><div class="label">Lợi nhuận tạm tính</div><div class="value" id="rpProfit">0</div></div></div><div class="card stat"><div class="stat-icon purple">!</div><div><div class="label">Tồn thấp</div><div class="value" id="rpLow">0</div></div></div></div><div class="card panel"><div class="panel-head"><h2>Báo cáo doanh số nhân viên</h2><div class="toolbar"><input id="rpFrom" type="date" onchange="render()" style="width:auto"><input id="rpTo" type="date" onchange="render()" style="width:auto"><button class="btn light" onclick="clearReportFilter()">Tất cả</button><button class="btn" onclick="exportStaffReport()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã NV</th><th>Nhân viên</th><th class="center">Số đơn</th><th class="right">Số dòng hàng</th><th class="right">Doanh thu</th><th class="right">Giá vốn</th><th class="right">Lợi nhuận tạm tính</th></tr></thead><tbody id="staffReportBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><div><h2>Báo cáo hàng thiếu khi import đơn</h2><div class="muted" style="margin-top:6px">Tự lưu lại mỗi lần import nhiều đơn bị thiếu tồn kho, có thể xuất Excel để xử lý đặt hàng/bù hàng.</div></div><div class="toolbar"><button class="btn light" onclick="exportAllShortageReports()">Xuất tất cả</button><button class="btn red" onclick="clearShortageReports()">Xóa báo cáo thiếu</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã báo cáo</th><th>Ngày tạo</th><th>File import</th><th class="center">Số đơn</th><th class="center">Số SKU thiếu</th><th class="right">Tổng thiếu lẻ</th><th>Thao tác</th></tr></thead><tbody id="shortageReportBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><div><h2>Chi tiết hàng thiếu trực quan</h2><div class="muted" style="margin-top:6px">Xem ngay sản phẩm thiếu thuộc đơn nào, nhân viên nào, khách hàng nào; không cần xuất Excel.</div></div><div class="toolbar"><input id="shortageSearch" placeholder="Tìm mã đơn, NV, KH, SKU..." oninput="renderShortageReports()" style="width:260px"><button class="btn light" onclick="document.getElementById('shortageSearch').value='';renderShortageReports()">Xóa lọc</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã BC</th><th>Mã đơn</th><th>Mã NV</th><th>Nhân viên</th><th>Mã KH</th><th>Khách hàng</th><th>SKU</th><th>Tên hàng</th><th class="right">Cần</th><th class="right">Tồn</th><th class="right">Thiếu</th><th class="right">Sẽ import</th></tr></thead><tbody id="shortageVisualBody"></tbody></table></div></div></section>
@@ -362,6 +449,23 @@
   </div>
 </div>
 
+
+<div class="modal" id="debtSearchModal">
+  <div class="search-modal-box">
+    <div class="panel-head">
+      <div><h2>Kết quả tra cứu công nợ</h2><div class="muted" id="debtSearchSummary"></div></div>
+      <div class="toolbar"><button class="btn light" onclick="closeDebtSearchModal()">Đóng</button></div>
+    </div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Giá trị đơn hàng</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Công nợ</th><th>Trạng thái</th><th>Ngày</th><th class="right">Tuổi nợ</th><th>Thao tác</th></tr></thead><tbody id="debtBody"></tbody></table></div>
+    <br>
+    <div class="layout2">
+      <div class="card panel"><h2>Báo cáo theo nhân viên giao hàng</h2><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtDeliveryBody"></tbody></table></div></div>
+      <div class="card panel"><h2>Báo cáo theo khách hàng</h2><div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Tên khách hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtCustomerBody"></tbody></table></div></div>
+    </div>
+    <div class="card panel"><h2>Công nợ quá lâu</h2><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Công nợ</th><th>Ngày</th><th class="right">Tuổi nợ</th></tr></thead><tbody id="debtOldBody"></tbody></table></div></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <datalist id="skuList"></datalist>
 <script>
@@ -376,7 +480,7 @@ let API_READY=false;
 let API_SYNC_TIMER=null;
 
 function emptyDb(){
-  return {products:[],receipts:[],orders:[],customers:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],shortageReports:[]};
+  return {products:[],receipts:[],orders:[],customers:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],promotions:[],shortageReports:[]};
 }
 function normalizeDb(data){
   const base=emptyDb();
@@ -797,6 +901,8 @@ function render(){
  if(document.getElementById('masterOrdersBody')) renderMasterOrders();
  if(document.getElementById('deliveryStaffBody')) renderDeliveryStaff();
  if(document.getElementById('debtBody')) renderDebtReports();
+ if(document.getElementById('productCatalogBody')) renderProductCatalog();
+ if(document.getElementById('promotionBody')) renderPromotions();
  renderCart(); renderReceiveCart();
 }
 function saveProduct(){let sku=pSku.value.trim(); if(!sku||!pName.value.trim())return toast('Thiếu SKU hoặc tên sản phẩm'); let old=findProduct(sku); let data={sku,name:pName.value.trim(),brand:pBrand?.value||'',category:pCategory?.value||'',warehouse:pWarehouse?.value||'Kho chính',pack:Number(pPack.value)||1,sale:Number(pSale.value)||0}; if(!old){db.products.push({...data,qty:0,cost:0})} else {old.name=data.name;old.brand=data.brand;old.category=data.category;old.warehouse=data.warehouse;old.pack=data.pack;old.sale=data.sale} ['pSku','pName','pBrand','pCategory','pWarehouse','pSale'].forEach(id=>{let el=document.getElementById(id);if(el)el.value=''});pPack.value=12;save();render();toast('Đã lưu sản phẩm')}
@@ -1162,7 +1268,15 @@ function filteredDebtRows(){
   let fd=normText(document.getElementById('debtFilterDelivery')?.value||'');
   let fc=normText(document.getElementById('debtFilterCustomerCode')?.value||'');
   let fn=normText(document.getElementById('debtFilterCustomerName')?.value||'');
-  return rows.filter(r=>(!fd||normText(r.delivery+' '+r.deliveryCode).includes(fd))&&(!fc||normText(r.customerCode).includes(fc))&&(!fn||normText(r.customer).includes(fn)));
+  let overRaw=(document.getElementById('debtOverDays')?.value||'').trim();
+  let overDays=overRaw===''?null:(Number(overRaw)||0);
+  return rows.filter(r=>{
+    if(fd && !normText((r.delivery||'')+' '+(r.deliveryCode||'')).includes(fd)) return false;
+    if(fc && !normText(r.customerCode).includes(fc)) return false;
+    if(fn && !normText(r.customer).includes(fn)) return false;
+    if(overDays!==null && !(Number(r.debt)>0 && Number(r.age)>=overDays)) return false;
+    return true;
+  });
 }
 function debtStatusInfo(r){
   let debt=Number(r.debt)||0;
@@ -1217,8 +1331,25 @@ async function payOrderRealtime(orderId, rowIndex){
   }
 }
 
+function openDebtSearchResults(){
+  renderDebtReports();
+  const modal=document.getElementById('debtSearchModal');
+  if(modal) modal.classList.add('show');
+}
+function closeDebtSearchModal(){
+  const modal=document.getElementById('debtSearchModal');
+  if(modal) modal.classList.remove('show');
+}
+
 function renderDebtReports(){
   let rows=filteredDebtRows();
+  const sum=document.getElementById('debtSearchSummary');
+  if(sum){
+    const total=rows.reduce((a,b)=>a+Number(b.total||0),0);
+    const paid=rows.reduce((a,b)=>a+Number(b.cash||0)+Number(b.bank||0),0);
+    const debt=rows.reduce((a,b)=>a+Number(b.debt||0),0);
+    sum.textContent=`${rows.length} đơn · Giá trị ${money(total)} · Đã thu ${money(paid)} · Công nợ ${money(debt)}`;
+  }
 
   if(document.getElementById('debtBody')){
     debtBody.innerHTML=rows.map((r,i)=>{
@@ -1267,7 +1398,7 @@ function renderDebtReports(){
   if(document.getElementById('debtOldBody')) debtOldBody.innerHTML=oldRows.map(r=>`<tr><td>${r.delivery||'Chưa gán GH'}</td><td><b>${r.orderId}</b></td><td>${r.customerCode}</td><td>${r.customer}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td>${r.date}</td><td class="right">${r.age} ngày</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Không có công nợ quá lâu</td></tr>';
 }
 
-function clearDebtFilters(){['debtFilterDelivery','debtFilterCustomerCode','debtFilterCustomerName'].forEach(id=>{let e=document.getElementById(id); if(e)e.value='';}); renderDebtReports();}
+function clearDebtFilters(){['debtFilterDelivery','debtFilterCustomerCode','debtFilterCustomerName','debtOverDays'].forEach(id=>{let e=document.getElementById(id); if(e)e.value='';}); renderDebtReports();}
 function exportDebtReport(){let rows=filteredDebtRows().map(r=>({'Nhân viên giao hàng':r.delivery,'Đơn hàng':r.orderId,'Mã khách hàng':r.customerCode,'Tên khách hàng':r.customer,'Giá trị đơn hàng':r.total,'Tiền mặt thanh toán':r.cash,'Tiền chuyển khoản':r.bank,'Công nợ':r.debt,'Ngày':r.date,'Tuổi nợ':r.age})); if(!rows.length)return toast('Không có dữ liệu công nợ để xuất'); downloadExcel(rows,'bao_cao_cong_no.xlsx');}
 
 function numberToVietnameseWords(num){
@@ -1649,6 +1780,11 @@ let BULK_IMPORT_PREVIEW=null;
 function importBulkOrdersExcel(e){
   let f=e.target.files[0]; if(!f)return;
   readExcel(f,rows=>{
+    const unknown=detectUnknownProductCodesFromRows(rows);
+    if(unknown.length){
+      openNewProductCodeModal(unknown);
+      toast('Phát hiện '+unknown.length+' code hàng mới. Hãy bổ sung thông tin sản phẩm.');
+    }
     BULK_IMPORT_PREVIEW=buildBulkOrderPreview(rows,f.name);
     showBulkImportPreview();
   });
@@ -2064,6 +2200,209 @@ window.addEventListener('DOMContentLoaded',()=>{
   if(AUTH_TOKEN){setLoginState(true);loadDataFromAPI();}
   else setLoginState(false);
 });
+
+// ===== DANH MỤC SẢN PHẨM RIÊNG =====
+let editingCatalogSku = null;
+function productCatalogRows(){
+  const q=normText(document.getElementById('pcSearch')?.value||'');
+  const b=normText(document.getElementById('pcBrandFilter')?.value||'');
+  const c=normText(document.getElementById('pcCategoryFilter')?.value||'');
+  const w=normText(document.getElementById('pcWarehouseFilter')?.value||'');
+  return (db.products||[]).filter(p=>{
+    if(q && !normText((p.sku||'')+' '+(p.name||'')).includes(q)) return false;
+    if(b && !normText(productBrand(p)).includes(b)) return false;
+    if(c && !normText(productCategory(p)).includes(c)) return false;
+    if(w && !normText(productWarehouse(p)).includes(w)) return false;
+    return true;
+  });
+}
+function renderProductCatalog(){
+  const body=document.getElementById('productCatalogBody');
+  if(!body) return;
+  body.innerHTML=productCatalogRows().map(p=>`<tr>
+    <td><b>${p.sku||''}</b></td>
+    <td>${p.name||''}</td>
+    <td>${Number(p.pack)||1}</td>
+    <td class="right">${money(p.sale||0)}</td>
+    <td>${productBrand(p)||''}</td>
+    <td>${productCategory(p)||''}</td>
+    <td>${productWarehouse(p)||''}</td>
+    <td><button class="btn small light" onclick="editProductCatalog('${safeAttr(p.sku)}')">Sửa</button> <button class="btn small red" onclick="deleteProductCatalog('${safeAttr(p.sku)}')">Xóa</button></td>
+  </tr>`).join('') || '<tr><td colspan="8" class="center muted">Chưa có sản phẩm</td></tr>';
+}
+function saveProductCatalog(){
+  const sku=(document.getElementById('pcSku')?.value||'').trim();
+  const name=(document.getElementById('pcName')?.value||'').trim();
+  if(!sku || !name) return toast('Thiếu mã sản phẩm hoặc tên sản phẩm');
+  let old=findProduct(editingCatalogSku || sku);
+  const data={
+    sku,
+    name,
+    pack:Number(document.getElementById('pcPack')?.value||1)||1,
+    sale:Number(document.getElementById('pcSale')?.value||0)||0,
+    brand:(document.getElementById('pcBrand')?.value||'').trim(),
+    category:(document.getElementById('pcCategory')?.value||'').trim(),
+    warehouse:(document.getElementById('pcWarehouse')?.value||'Kho chính').trim()||'Kho chính'
+  };
+  if(old){
+    old.sku=data.sku; old.name=data.name; old.pack=data.pack; old.sale=data.sale;
+    old.brand=data.brand; old.category=data.category; old.warehouse=data.warehouse;
+  }else{
+    db.products.push({...data,qty:0,cost:0});
+  }
+  editingCatalogSku=null;
+  ['pcSku','pcName','pcSale','pcBrand','pcCategory'].forEach(id=>{const e=document.getElementById(id); if(e)e.value='';});
+  if(document.getElementById('pcPack')) pcPack.value=12;
+  if(document.getElementById('pcWarehouse')) pcWarehouse.value='Kho chính';
+  save(); render(); toast('Đã lưu danh mục sản phẩm');
+}
+function editProductCatalog(sku){
+  const p=findProduct(sku); if(!p)return;
+  editingCatalogSku=sku;
+  pcSku.value=p.sku||''; pcName.value=p.name||''; pcPack.value=Number(p.pack)||1; pcSale.value=Number(p.sale)||0;
+  pcBrand.value=productBrand(p); pcCategory.value=productCategory(p); pcWarehouse.value=productWarehouse(p);
+  page('productCatalog');
+}
+function deleteProductCatalog(sku){
+  if(!confirm('Xóa sản phẩm này?')) return;
+  db.products=db.products.filter(p=>String(p.sku)!==String(sku));
+  save(); render();
+}
+function downloadProductCatalogTemplate(){
+  downloadExcel([{ma_san_pham:'SKU001',ten_san_pham:'Tên sản phẩm',quy_cach:12,gia_ban:100000,nhan_hang:'OMO',nganh_hang:'Giặt giũ',kho_hang_quan_ly:'Kho chính'}],'mau_danh_muc_san_pham.xlsx');
+}
+function importProductCatalogExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    let count=0;
+    rows.forEach(r=>{
+      const sku=String(r.ma_san_pham||r['Mã sản phẩm']||r.SKU||r.sku||r.Code||'').trim();
+      if(!sku) return;
+      let p=findProduct(sku);
+      const data={
+        sku,
+        name:String(r.ten_san_pham||r['Tên sản phẩm']||r.name||r['Tên hàng']||'').trim(),
+        pack:Number(r.quy_cach||r['Quy cách']||r.pack||1)||1,
+        sale:Number(r.gia_ban||r['Giá bán']||r.sale||0)||0,
+        brand:String(r.nhan_hang||r['Nhãn hàng']||r.brand||'').trim(),
+        category:String(r.nganh_hang||r['Ngành hàng']||r.category||'').trim(),
+        warehouse:String(r.kho_hang_quan_ly||r['Kho hàng quản lý']||r['Kho hàng']||r.warehouse||'Kho chính').trim()||'Kho chính'
+      };
+      if(!p) db.products.push({...data,qty:0,cost:0});
+      else Object.assign(p,data);
+      count++;
+    });
+    save(); render(); toast('Đã import '+count+' sản phẩm');
+    ev.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function exportProductCatalog(){
+  const rows=(db.products||[]).map(p=>({'Mã sản phẩm':p.sku,'Tên sản phẩm':p.name,'Quy cách':p.pack,'Giá bán':p.sale,'Nhãn hàng':productBrand(p),'Ngành hàng':productCategory(p),'Kho hàng quản lý':productWarehouse(p)}));
+  if(!rows.length)return toast('Chưa có sản phẩm để xuất');
+  downloadExcel(rows,'danh_muc_san_pham.xlsx');
+}
+
+// ===== CẢNH BÁO CODE HÀNG MỚI KHI IMPORT ĐƠN =====
+let pendingNewProductCodes=[];
+function detectUnknownProductCodesFromRows(rows){
+  const found=[];
+  rows.forEach(r=>{
+    const sku=String(r.SKU||r.sku||r['Mã hàng']||r['Mã sản phẩm']||r.ma_san_pham||r.code||'').trim();
+    if(sku && !findProduct(sku) && !found.includes(sku)) found.push(sku);
+  });
+  return found;
+}
+function openNewProductCodeModal(codes){
+  pendingNewProductCodes=codes.map(sku=>({sku,name:'',pack:12,sale:0,brand:'',category:'',warehouse:'Kho chính'}));
+  let old=document.getElementById('newProductCodeModal');
+  if(old) old.remove();
+  const div=document.createElement('div');
+  div.className='modal show';
+  div.id='newProductCodeModal';
+  div.innerHTML=`<div class="search-modal-box">
+    <div class="panel-head"><div><h2>Phát hiện code hàng mới</h2><div class="muted">Điền thông tin cần thiết cho từng mã rồi bấm lưu. Sau đó có thể import lại đơn.</div></div><button class="btn light" onclick="closeNewProductCodeModal()">Đóng</button></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Quy cách</th><th>Giá bán</th><th>Nhãn hàng</th><th>Ngành hàng</th><th>Kho hàng</th></tr></thead><tbody>
+    ${pendingNewProductCodes.map((p,i)=>`<tr>
+      <td><b>${p.sku}</b></td>
+      <td><input id="np_name_${i}" placeholder="Tên sản phẩm"></td>
+      <td><input id="np_pack_${i}" type="number" value="12"></td>
+      <td><input id="np_sale_${i}" type="number" value="0"></td>
+      <td><input id="np_brand_${i}"></td>
+      <td><input id="np_category_${i}"></td>
+      <td><input id="np_warehouse_${i}" value="Kho chính"></td>
+    </tr>`).join('')}
+    </tbody></table></div><br>
+    <button class="btn green" onclick="saveNewProductCodes()">Lưu các code mới</button>
+  </div>`;
+  document.body.appendChild(div);
+}
+function closeNewProductCodeModal(){const m=document.getElementById('newProductCodeModal'); if(m)m.remove();}
+function saveNewProductCodes(){
+  pendingNewProductCodes.forEach((p,i)=>{
+    if(findProduct(p.sku)) return;
+    db.products.push({
+      sku:p.sku,
+      name:(document.getElementById('np_name_'+i)?.value||p.sku).trim(),
+      pack:Number(document.getElementById('np_pack_'+i)?.value||12)||12,
+      sale:Number(document.getElementById('np_sale_'+i)?.value||0)||0,
+      brand:(document.getElementById('np_brand_'+i)?.value||'').trim(),
+      category:(document.getElementById('np_category_'+i)?.value||'').trim(),
+      warehouse:(document.getElementById('np_warehouse_'+i)?.value||'Kho chính').trim()||'Kho chính',
+      qty:0,
+      cost:0
+    });
+  });
+  save(); render(); closeNewProductCodeModal(); toast('Đã lưu code hàng mới');
+}
+
+// ===== KHUYẾN MẠI =====
+let currentPromoType='product';
+function promoTypeText(t){
+  return {product:'Theo sản phẩm',category:'Theo ngành hàng',categoryGroup:'Theo nhóm ngành hàng',productGroup:'Theo nhóm sản phẩm'}[t]||t;
+}
+function setPromoType(t){
+  currentPromoType=t;
+  document.querySelectorAll('[data-promo-type]').forEach(b=>b.classList.toggle('active',b.dataset.promoType===t));
+  const e=document.getElementById('promoTypeText'); if(e)e.value=promoTypeText(t);
+}
+function savePromotion(){
+  db.promotions=Array.isArray(db.promotions)?db.promotions:[];
+  const target=(document.getElementById('promoTarget')?.value||'').trim();
+  const name=(document.getElementById('promoName')?.value||'').trim();
+  if(!target || !name) return toast('Thiếu mã/nhóm áp dụng hoặc tên CTKM');
+  db.promotions.push({
+    id:'KM'+Date.now(),
+    type:currentPromoType,
+    target,
+    name,
+    discount:Number(document.getElementById('promoDiscount')?.value||0)||0,
+    from:document.getElementById('promoFrom')?.value||'',
+    to:document.getElementById('promoTo')?.value||'',
+    note:document.getElementById('promoNote')?.value||''
+  });
+  ['promoTarget','promoName','promoDiscount','promoFrom','promoTo','promoNote'].forEach(id=>{const e=document.getElementById(id); if(e)e.value='';});
+  if(document.getElementById('promoDiscount')) promoDiscount.value=0;
+  save(); render(); toast('Đã lưu khuyến mại');
+}
+function renderPromotions(){
+  const body=document.getElementById('promotionBody'); if(!body)return;
+  db.promotions=Array.isArray(db.promotions)?db.promotions:[];
+  body.innerHTML=db.promotions.map(k=>`<tr>
+    <td>${promoTypeText(k.type)}</td><td><b>${k.target||''}</b></td><td>${k.name||''}</td>
+    <td class="right">${Number(k.discount)||0}%</td><td>${k.from||''}</td><td>${k.to||''}</td><td>${k.note||''}</td>
+    <td><button class="btn small red" onclick="deletePromotion('${k.id}')">Xóa</button></td>
+  </tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có chương trình khuyến mại</td></tr>';
+}
+function deletePromotion(id){
+  if(!confirm('Xóa khuyến mại này?'))return;
+  db.promotions=(db.promotions||[]).filter(k=>k.id!==id);
+  save(); render();
+}
+
 </script>
 </body>
 </html>
