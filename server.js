@@ -1,131 +1,178 @@
 const express = require("express");
 const cors = require("cors");
-const app = express();
+const { Pool } = require("pg");
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+// 🔥 KẾT NỐI DATABASE
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+});
 
-/* =========================
-   DATA GIẢ LẬP (sau sẽ nối DB)
-========================= */
-let db = {
-  staff: [],
-  orders: [],
-  products: [],
-  receipts: [],
-  customers: [],
-  masterOrder: []
-};
+// =======================
+// 🧱 TẠO TABLE (auto)
+// =======================
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      name TEXT,
+      price NUMERIC,
+      stock INTEGER DEFAULT 0
+    );
 
-/* =========================
-   USER + TOKEN
-========================= */
-const users = [
-  { username: "admin", password: "123456", role: "admin" },
-  { username: "nv01", password: "123456", role: "staff" }
-];
+    CREATE TABLE IF NOT EXISTS customers (
+      id SERIAL PRIMARY KEY,
+      name TEXT
+    );
 
-let tokens = {}; // lưu token tạm
+    CREATE TABLE IF NOT EXISTS staff (
+      id SERIAL PRIMARY KEY,
+      name TEXT
+    );
 
-function generateToken(username) {
-  const token = Math.random().toString(36).substring(2);
-  tokens[token] = username;
-  return token;
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      customer_id INTEGER,
+      staff_id INTEGER,
+      total NUMERIC,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INTEGER,
+      product_id INTEGER,
+      quantity INTEGER,
+      price NUMERIC
+    );
+  `);
+
+  console.log("✅ Database ready");
 }
 
-function authMiddleware(req, res, next) {
-  const token = req.headers["authorization"];
-  if (!token || !tokens[token]) {
-    return res.status(401).json({ error: "Chưa đăng nhập" });
-  }
+// =======================
+// 📦 PRODUCTS
+// =======================
 
-  const username = tokens[token];
-  req.user = users.find(u => u.username === username);
+// lấy danh sách sản phẩm
+app.get("/api/products", async (req, res) => {
+  const result = await pool.query("SELECT * FROM products");
+  res.json(result.rows);
+});
 
-  next();
-}
+// thêm sản phẩm
+app.post("/api/products", async (req, res) => {
+  const { name, price, stock } = req.body;
+  const result = await pool.query(
+    "INSERT INTO products (name, price, stock) VALUES ($1,$2,$3) RETURNING *",
+    [name, price, stock]
+  );
+  res.json(result.rows[0]);
+});
 
-function isAdmin(req, res, next) {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ error: "Không có quyền" });
-  }
-  next();
-}
+// =======================
+// 📥 NHẬP KHO
+// =======================
+app.post("/api/import", async (req, res) => {
+  const { product_id, quantity } = req.body;
 
-/* =========================
-   LOGIN
-========================= */
-app.post("/api/login", (req, res) => {
-  const { username, password } = req.body;
-
-  const user = users.find(
-    u => u.username === username && u.password === password
+  await pool.query(
+    "UPDATE products SET stock = stock + $1 WHERE id = $2",
+    [quantity, product_id]
   );
 
-  if (!user) {
-    return res.status(401).json({ error: "Sai tài khoản" });
+  res.json({ message: "Nhập kho thành công" });
+});
+
+// =======================
+// 🧾 ĐƠN HÀNG
+// =======================
+
+// tạo đơn hàng
+app.post("/api/orders", async (req, res) => {
+  const { customer_id, staff_id, items } = req.body;
+
+  let total = 0;
+
+  for (let item of items) {
+    total += item.price * item.quantity;
   }
 
-  const token = generateToken(user.username);
+  const order = await pool.query(
+    "INSERT INTO orders (customer_id, staff_id, total) VALUES ($1,$2,$3) RETURNING *",
+    [customer_id, staff_id, total]
+  );
 
-  res.json({
-    token,
-    role: user.role,
-    username: user.username
-  });
-});
+  const orderId = order.rows[0].id;
 
-/* =========================
-   LẤY THÔNG TIN USER
-========================= */
-app.get("/api/me", authMiddleware, (req, res) => {
-  res.json(req.user);
-});
+  for (let item of items) {
+    await pool.query(
+      "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES ($1,$2,$3,$4)",
+      [orderId, item.product_id, item.quantity, item.price]
+    );
 
-/* =========================
-   GET DATA (ai cũng xem được)
-========================= */
-app.get("/api/data", authMiddleware, (req, res) => {
-  res.json(db);
-});
-
-/* =========================
-   SAVE DATA
-========================= */
-app.post("/api/data", authMiddleware, (req, res) => {
-
-  // staff KHÔNG được sửa sản phẩm
-  if (req.user.role === "staff") {
-    const newData = req.body;
-
-    db.orders = newData.orders || db.orders;
-    db.receipts = newData.receipts || db.receipts;
-
-    return res.json({ success: true, msg: "Nhân viên đã lưu đơn" });
+    // trừ tồn kho
+    await pool.query(
+      "UPDATE products SET stock = stock - $1 WHERE id = $2",
+      [item.quantity, item.product_id]
+    );
   }
 
-  // admin được full quyền
-  db = req.body;
-
-  res.json({ success: true, msg: "Admin đã lưu dữ liệu" });
+  res.json({ message: "Tạo đơn thành công" });
 });
 
-/* =========================
-   DELETE ORDER (chỉ admin)
-========================= */
-app.delete("/api/orders/:id", authMiddleware, isAdmin, (req, res) => {
-  const id = req.params.id;
-
-  db.orders = db.orders.filter(o => o.id != id);
-
-  res.json({ success: true });
+// lấy danh sách đơn
+app.get("/api/orders", async (req, res) => {
+  const result = await pool.query("SELECT * FROM orders ORDER BY id DESC");
+  res.json(result.rows);
 });
 
-/* =========================
-   SERVER START
-========================= */
-app.listen(PORT, () => {
-  console.log("Server chạy cổng", PORT);
+// =======================
+// 👥 KHÁCH HÀNG
+// =======================
+app.get("/api/customers", async (req, res) => {
+  const result = await pool.query("SELECT * FROM customers");
+  res.json(result.rows);
+});
+
+app.post("/api/customers", async (req, res) => {
+  const { name } = req.body;
+  const result = await pool.query(
+    "INSERT INTO customers (name) VALUES ($1) RETURNING *",
+    [name]
+  );
+  res.json(result.rows[0]);
+});
+
+// =======================
+// 👨‍💼 NHÂN VIÊN
+// =======================
+app.get("/api/staff", async (req, res) => {
+  const result = await pool.query("SELECT * FROM staff");
+  res.json(result.rows);
+});
+
+app.post("/api/staff", async (req, res) => {
+  const { name } = req.body;
+  const result = await pool.query(
+    "INSERT INTO staff (name) VALUES ($1) RETURNING *",
+    [name]
+  );
+  res.json(result.rows[0]);
+});
+
+// =======================
+// 🚀 START SERVER
+// =======================
+const PORT = process.env.PORT || 10000;
+
+app.listen(PORT, async () => {
+  console.log("🚀 Server chạy cổng", PORT);
+  await initDB();
 });
