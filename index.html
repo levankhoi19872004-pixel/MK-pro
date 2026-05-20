@@ -140,7 +140,7 @@
             </div>
             <br>
             <button class="btn light" onclick="addReceiveItem()">Thêm vào phiếu</button>
-            <button class="btn green" onclick="createReceipt()">Chốt phiếu nhập</button>
+            <button class="btn green" onclick="createReceipt()">Chốt phiếu nhập</button> <button class="btn light" onclick="cancelEditReceipt()">Hủy sửa</button>
           </div>
           <div class="card panel">
             <h2>Chi tiết phiếu đang nhập</h2>
@@ -149,7 +149,7 @@
             <p class="muted">Một phiếu nhập có thể chứa nhiều sản phẩm, giống quản lý theo từng đơn hàng/hóa đơn nhập.</p>
           </div>
         </div>
-        <div class="card panel"><h2>Lịch sử phiếu nhập kho</h2><div class="table-wrap"><table class="table"><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nhà cung cấp</th><th class="center">Số dòng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền</th><th>Ghi chú</th></tr></thead><tbody id="receiveBody"></tbody></table></div></div>
+        <div class="card panel"><h2>Lịch sử phiếu nhập kho</h2><div class="table-wrap"><table class="table"><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nhà cung cấp</th><th class="center">Số dòng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền</th><th>Ghi chú</th><th>Hành động</th></tr></thead><tbody id="receiveBody"></tbody></table></div></div>
       </section>
 
       <section id="sale" class="section">
@@ -380,7 +380,7 @@ async function syncOrdersFromAPI(){
 const BUSINESS_NAME='Kho Minh Khai Thái Bình';
 const BUSINESS_SUB='Quản lý kho & phân phối hàng hóa';
 let db=normalizeDb(JSON.parse(localStorage.getItem(KEY)||'null'));
-let editingProduct=null, editingCustomer=null, editingStaff=null, editingOrderId=null, cart=[], receiveCart=[];
+let editingProduct=null, editingCustomer=null, editingStaff=null, editingOrderId=null, editingReceiptIndex=null, cart=[], receiveCart=[];
 function save(){
   db=normalizeDb(db);
   localStorage.setItem(KEY,JSON.stringify(db));
@@ -453,7 +453,7 @@ function render(){
  const q=(productSearch?.value||'').toLowerCase(); let ps=db.products.filter(p=>(p.sku+' '+p.name).toLowerCase().includes(q)); productBody.innerHTML=ps.map((p,i)=>`<tr><td>${p.sku}</td><td><b>${p.name}</b></td><td>${p.pack}</td><td class="right"><span class="pill ${p.qty<p.pack?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td class="right">${money(p.cost)}</td><td class="right">${money(p.sale)}</td><td><button class="btn small light" onclick="editProduct('${p.sku}')">Sửa</button> <button class="btn small red" onclick="delProduct('${p.sku}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có sản phẩm</td></tr>';
  skuList.innerHTML=db.products.map(p=>`<option value="${p.sku}">${p.name}</option>`).join('');
  sCustomer.innerHTML=db.customers.map(c=>`<option>${c.name}</option>`).join('');sStaff.innerHTML=db.staff.map((n,i)=>`<option value="${staffCode(n,i)}" data-name="${staffName(n)}">${staffCode(n,i)} - ${staffName(n)}</option>`).join('');
- receiveBody.innerHTML=db.receipts.slice().reverse().map(r=>`<tr><td><b>${r.id||'PN cũ'}</b></td><td>${r.date||''}</td><td>${r.supplier||''}</td><td class="center">${receiptItems(r).length}</td><td class="right">${receiptTotalQty(r)}</td><td class="right">${money(receiptTotalMoney(r))}</td><td>${r.note||''}</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có phiếu nhập</td></tr>';
+ receiveBody.innerHTML=db.receipts.map((r,i)=>({...r,_i:i})).reverse().map(r=>`<tr><td><b>${r.id||'PN cũ'}</b></td><td>${r.date||''}</td><td>${r.supplier||''}</td><td class="center">${receiptItems(r).length}</td><td class="right">${receiptTotalQty(r)}</td><td class="right">${money(receiptTotalMoney(r))}</td><td>${r.note||''}</td><td><button class="btn small green" onclick="editReceipt(${r._i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${r._i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có phiếu nhập</td></tr>';
  ordersBody.innerHTML=db.orders.slice().reverse().map(o=>{let merged=!!o.masterId;return `<tr><td>${o.id}</td><td>${o.date}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="8" class="center muted">Chưa có đơn hàng</td></tr>';
  customerBody.innerHTML=db.customers.map(c=>`<tr><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Chưa có khách hàng</td></tr>';
  staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="4" class="center muted">Chưa có nhân viên</td></tr>';
@@ -467,7 +467,56 @@ function editProduct(sku){let p=findProduct(sku); pSku.value=p.sku;pName.value=p
 function delProduct(sku){if(confirm('Xóa sản phẩm này?')){db.products=db.products.filter(p=>p.sku!==sku);save();render()}}
 function addReceiveItem(){let qty=totalQty(rBox.value,rEach.value,rPack.value); if(!rSku.value.trim()||qty<=0)return toast('Thiếu SKU hoặc số lượng'); let item={sku:rSku.value.trim(),name:rName.value.trim(),pack:Number(rPack.value)||1,qty,cost:Number(rCost.value)||0}; let old=receiveCart.find(x=>x.sku===item.sku&&Number(x.cost)===Number(item.cost)); if(old){old.qty+=item.qty}else receiveCart.push(item); ['rSku','rName','rCost'].forEach(id=>document.getElementById(id).value='');rBox.value=0;rEach.value=0;renderReceiveCart();toast('Đã thêm hàng vào phiếu')}
 function renderReceiveCart(){if(!document.getElementById('receiveCartBody'))return; receiveCartBody.innerHTML=receiveCart.map((c,i)=>`<div class="cart-item"><div><b>${c.name||c.sku}</b><br><span class="muted">${c.sku} · ${qtyView(c.qty,c.pack)} · Giá nhập ${money(c.cost)}</span></div><button class="btn small red" onclick="receiveCart.splice(${i},1);renderReceiveCart()">Xóa</button></div>`).join('')||'<div class="muted">Chưa có hàng trong phiếu</div>'; receiveCartTotal.textContent=money(receiveCart.reduce((a,b)=>a+b.qty*b.cost,0))}
-function createReceipt(){if(!receiveCart.length)return toast('Phiếu nhập chưa có hàng'); let id=(rId.value||receiptId()).trim(); let date=rDate.value||today(); receiveCart.forEach(c=>{let p=upsertProduct({sku:c.sku,name:c.name,pack:c.pack,cost:c.cost});p.qty+=c.qty;p.cost=Number(c.cost)||p.cost}); db.receipts.push({id,date,supplier:rSupplier.value||'Unilever',note:rNote.value,total:receiveCart.reduce((a,b)=>a+b.qty*b.cost,0),items:receiveCart.map(x=>({...x}))}); receiveCart=[]; ['rId','rSupplier','rNote'].forEach(id=>document.getElementById(id).value='');rDate.value='';save();render();toast('Đã chốt phiếu nhập '+id)}
+function canRemoveReceiptItems(items){
+  return items.every(it=>{let p=findProduct(it.sku); return p && Number(p.qty||0)>=Number(it.qty||0)});
+}
+function applyReceiptItems(items,sign){
+  items.forEach(c=>{
+    if(sign>0){let p=upsertProduct({sku:c.sku,name:c.name,pack:c.pack,cost:c.cost});p.qty+=Number(c.qty||0);p.cost=Number(c.cost)||p.cost;}
+    else{let p=findProduct(c.sku); if(p)p.qty-=Number(c.qty||0);}
+  });
+}
+function resetReceiptForm(){
+  receiveCart=[]; editingReceiptIndex=null;
+  ['rId','rSupplier','rNote','rSku','rName','rCost'].forEach(id=>{let el=document.getElementById(id); if(el)el.value=''});
+  if(document.getElementById('rDate'))rDate.value='';
+  if(document.getElementById('rBox'))rBox.value=0;
+  if(document.getElementById('rEach'))rEach.value=0;
+  if(document.getElementById('rPack'))rPack.value=12;
+}
+function cancelEditReceipt(){resetReceiptForm();renderReceiveCart();toast('Đã hủy sửa phiếu nhập')}
+function createReceipt(){
+  if(!receiveCart.length)return toast('Phiếu nhập chưa có hàng');
+  let id=(rId.value||receiptId()).trim(); let date=rDate.value||today();
+  let oldReceipt=editingReceiptIndex!==null?db.receipts[editingReceiptIndex]:null;
+  if(oldReceipt){
+    let oldItems=receiptItems(oldReceipt);
+    if(!canRemoveReceiptItems(oldItems))return toast('Không thể sửa phiếu: một phần hàng đã được xuất bán');
+    applyReceiptItems(oldItems,-1);
+  }
+  applyReceiptItems(receiveCart,1);
+  let receipt={id,date,supplier:rSupplier.value||'Unilever',note:rNote.value,total:receiveCart.reduce((a,b)=>a+b.qty*b.cost,0),items:receiveCart.map(x=>({...x}))};
+  if(oldReceipt){db.receipts[editingReceiptIndex]=receipt;toast('Đã cập nhật phiếu nhập '+id)}
+  else{db.receipts.push(receipt);toast('Đã chốt phiếu nhập '+id)}
+  resetReceiptForm();save();render();
+}
+function editReceipt(index){
+  let r=db.receipts[index]; if(!r)return toast('Không tìm thấy phiếu nhập');
+  editingReceiptIndex=index;
+  rId.value=r.id||''; rSupplier.value=r.supplier||''; rDate.value=r.date||''; rNote.value=r.note||'';
+  receiveCart=receiptItems(r).map(x=>({...x}));
+  page('receive'); renderReceiveCart(); toast('Đang sửa phiếu nhập '+(r.id||''));
+}
+function deleteReceipt(index){
+  let r=db.receipts[index]; if(!r)return toast('Không tìm thấy phiếu nhập');
+  if(!confirm('Xóa phiếu nhập '+(r.id||'')+'? Tồn kho sẽ bị trừ lại theo phiếu này.'))return;
+  let items=receiptItems(r);
+  if(!canRemoveReceiptItems(items))return toast('Không thể xóa phiếu: một phần hàng đã được xuất bán');
+  applyReceiptItems(items,-1);
+  db.receipts.splice(index,1);
+  if(editingReceiptIndex===index)resetReceiptForm();
+  save();render();toast('Đã xóa phiếu nhập '+(r.id||''));
+}
 function receiveStock(){addReceiveItem();createReceipt()}
 rSku.onchange=()=>{let p=findProduct(rSku.value); if(p){rName.value=p.name;rPack.value=p.pack;rCost.value=p.cost}}
 let selectedSaleSku=null;
