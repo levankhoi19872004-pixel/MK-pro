@@ -231,18 +231,28 @@ function normalizeDb(data){
   return base;
 }
 
+async function fetchWithTimeout(url, options={}, timeout=25000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(), timeout);
+  try{
+    return await fetch(url,{...options, signal:controller.signal});
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 async function apiGetData(){
-  const res=await fetch(API_URL+'/api/data',{cache:'no-store'});
-  if(!res.ok) throw new Error('Không lấy được dữ liệu kho từ API');
+  const res=await fetchWithTimeout(API_URL+'/api/data',{cache:'no-store'},30000);
+  if(!res.ok) throw new Error('Không lấy được dữ liệu kho từ API: '+res.status);
   return normalizeDb(await res.json());
 }
 async function apiSaveData(data){
-  const res=await fetch(API_URL+'/api/data',{
+  const res=await fetchWithTimeout(API_URL+'/api/data',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(normalizeDb(data))
-  });
-  if(!res.ok) throw new Error('Không lưu được dữ liệu kho lên API');
+  },30000);
+  if(!res.ok) throw new Error('Không lưu được dữ liệu kho lên API: '+res.status);
   return await res.json();
 }
 function scheduleApiSync(){
@@ -258,9 +268,10 @@ async function pushDataToAPI(){
   }catch(err){
     API_ONLINE=false;
     console.warn('Chưa đồng bộ được API:',err);
+    toast('Chưa đồng bộ được server, sẽ lưu tạm trên máy');
   }
 }
-async function loadDataFromAPI(){
+async function loadDataFromAPI(retry=0){
   try{
     const onlineDb=await apiGetData();
     db=onlineDb;
@@ -271,7 +282,10 @@ async function loadDataFromAPI(){
     API_ONLINE=false;
     console.warn('API offline hoặc đang ngủ:',err);
     db=normalizeDb(JSON.parse(localStorage.getItem(KEY)||'null'));
-    toast('API đang ngủ/offline, tạm dùng dữ liệu trên máy');
+    toast(retry<3?'Server đang thức dậy, thử lại lần '+(retry+1):'API chưa phản hồi, tạm dùng dữ liệu trên máy');
+    if(retry<3){
+      setTimeout(()=>loadDataFromAPI(retry+1),5000);
+    }
   }
   API_READY=true;
   ensureDefaultData();
@@ -823,7 +837,7 @@ function restoreData(e){let f=e.target.files[0];if(!f)return;let r=new FileReade
 function toggleSettings(){settings.classList.toggle('show');fontBtn.classList.toggle('active')}
 function applyFont(v){document.documentElement.style.setProperty('--font',v);localStorage.setItem('kho_font',v)}
 applyFont(localStorage.getItem('kho_font')||"'Noto Sans','Segoe UI',Arial,sans-serif");
-loadDataFromAPI();
+window.addEventListener('DOMContentLoaded',()=>loadDataFromAPI());
 </script>
 </body>
 </html>
