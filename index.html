@@ -466,7 +466,29 @@ function saveProduct(){let sku=pSku.value.trim(); if(!sku||!pName.value.trim())r
 function editProduct(sku){let p=findProduct(sku); pSku.value=p.sku;pName.value=p.name;pPack.value=p.pack;pSale.value=p.sale;page('products')}
 function delProduct(sku){if(confirm('Xóa sản phẩm này?')){db.products=db.products.filter(p=>p.sku!==sku);save();render()}}
 function addReceiveItem(){let qty=totalQty(rBox.value,rEach.value,rPack.value); if(!rSku.value.trim()||qty<=0)return toast('Thiếu SKU hoặc số lượng'); let item={sku:rSku.value.trim(),name:rName.value.trim(),pack:Number(rPack.value)||1,qty,cost:Number(rCost.value)||0}; let old=receiveCart.find(x=>x.sku===item.sku&&Number(x.cost)===Number(item.cost)); if(old){old.qty+=item.qty}else receiveCart.push(item); ['rSku','rName','rCost'].forEach(id=>document.getElementById(id).value='');rBox.value=0;rEach.value=0;renderReceiveCart();toast('Đã thêm hàng vào phiếu')}
-function renderReceiveCart(){if(!document.getElementById('receiveCartBody'))return; receiveCartBody.innerHTML=receiveCart.map((c,i)=>`<div class="cart-item"><div><b>${c.name||c.sku}</b><br><span class="muted">${c.sku} · ${qtyView(c.qty,c.pack)} · Giá nhập ${money(c.cost)}</span></div><button class="btn small red" onclick="receiveCart.splice(${i},1);renderReceiveCart()">Xóa</button></div>`).join('')||'<div class="muted">Chưa có hàng trong phiếu</div>'; receiveCartTotal.textContent=money(receiveCart.reduce((a,b)=>a+b.qty*b.cost,0))}
+function renderReceiveCart(){
+  if(!document.getElementById('receiveCartBody'))return;
+  receiveCartBody.innerHTML=receiveCart.map((c,i)=>`<div class="cart-item" style="align-items:center">
+    <div style="flex:1"><b>${c.name||c.sku}</b><br><span class="muted">${c.sku} · Quy cách ${c.pack}</span></div>
+    <div style="width:110px"><label class="muted" style="font-size:11px">SL thùng/lẻ</label><input value="${qtyView(c.qty,c.pack)}" onchange="updateReceiveCartQty(${i},this.value)" style="padding:7px"></div>
+    <div style="width:120px"><label class="muted" style="font-size:11px">Giá nhập</label><input type="number" value="${Number(c.cost||0)}" onchange="updateReceiveCartCost(${i},this.value)" style="padding:7px"></div>
+    <div class="right" style="width:120px"><span class="muted">Thành tiền</span><br><b>${money(Number(c.qty||0)*Number(c.cost||0))}</b></div>
+    <button class="btn small red" onclick="receiveCart.splice(${i},1);renderReceiveCart()">Xóa</button>
+  </div>`).join('')||'<div class="muted">Chưa có hàng trong phiếu</div>';
+  receiveCartTotal.textContent=money(receiveCart.reduce((a,b)=>a+Number(b.qty||0)*Number(b.cost||0),0));
+}
+function updateReceiveCartQty(i,value){
+  let item=receiveCart[i]; if(!item)return;
+  let qty=parseQtySlash(value,item.pack);
+  if(qty<=0){toast('Số lượng phải lớn hơn 0');renderReceiveCart();return;}
+  item.qty=qty;
+  renderReceiveCart();
+}
+function updateReceiveCartCost(i,value){
+  let item=receiveCart[i]; if(!item)return;
+  item.cost=Number(value)||0;
+  renderReceiveCart();
+}
 function canRemoveReceiptItems(items){
   return items.every(it=>{let p=findProduct(it.sku); return p && Number(p.qty||0)>=Number(it.qty||0)});
 }
