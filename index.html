@@ -603,30 +603,56 @@
 <datalist id="skuList"></datalist>
 <script>
 const KEY='kho_pro_professional_v2';
-const DEFAULT_API_URL='https://kho-api-2.onrender.com'; // API Render mặc định
+
+// Link API Render đang chạy OK.
+// Không dùng location.origin nữa để tránh web HTML gọi nhầm sang domain giao diện.
+const DEFAULT_API_URL='https://kho-api-2.onrender.com';
 let API_URL=DEFAULT_API_URL;
+
+function cleanApiUrl(url){
+  return String(url || '').trim().replace(/\/+$/,'');
+}
+
 function getApiCandidates(){
-  const saved=(localStorage.getItem('KHO_API_URL')||'').trim().replace(/\/$/,'');
-  const sameOrigin=(location.protocol==='http:'||location.protocol==='https:') ? location.origin.replace(/\/$/,'') : '';
-  const list=[saved,sameOrigin,DEFAULT_API_URL,'http://localhost:10000']
+  const saved=cleanApiUrl(localStorage.getItem('KHO_API_URL') || '');
+  const list=[
+    DEFAULT_API_URL,
+    saved,
+    'http://localhost:10000'
+  ]
     .filter(Boolean)
-    .map(u=>u.replace(/\/$/,''));
+    .map(cleanApiUrl);
+
   return [...new Set(list)];
 }
+
 async function apiFetch(path, options={}, timeout=25000){
   let lastErr=null;
+
   for(const base of getApiCandidates()){
     try{
       const res=await fetchWithTimeout(base+path, options, timeout);
-      // Nếu cùng domain không có API thì thử backend Render/local tiếp theo
-      if(res.status===404 || res.status===405){ lastErr=new Error('API không đúng tại '+base); continue; }
+
+      // Nếu gọi nhầm API/domain thì bỏ qua và thử link tiếp theo.
+      if(res.status===404 || res.status===405){
+        lastErr=new Error('API không đúng tại '+base);
+        if(cleanApiUrl(localStorage.getItem('KHO_API_URL'))===base){
+          localStorage.removeItem('KHO_API_URL');
+        }
+        continue;
+      }
+
       API_URL=base;
       localStorage.setItem('KHO_API_URL',base);
       return res;
     }catch(err){
       lastErr=err;
+      if(cleanApiUrl(localStorage.getItem('KHO_API_URL'))===base){
+        localStorage.removeItem('KHO_API_URL');
+      }
     }
   }
+
   throw lastErr || new Error('Không kết nối được API');
 }
 const AUTH_KEY='kho_pro_auth_token';
