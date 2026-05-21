@@ -596,7 +596,7 @@
                 <div class="card panel" style="box-shadow:none">
                   <div class="panel-head"><h2>Danh sách hàng hóa</h2></div>
                   <div class="field"><label>Tìm sản phẩm</label><input id="salesProductSearch" placeholder="Mã / tên sản phẩm" oninput="renderSalesProductList()"></div><br>
-                  <div class="table-wrap"><table class="table sales-product-table"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th class="right">Giá bán chưa KM</th><th class="right">Tồn thực tế</th><th>SL 1/0</th><th>Chấm</th></tr></thead><tbody id="salesProductList"></tbody></table></div>
+                  <div class="table-wrap"><table class="table sales-product-table"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th class="right">Giá bán chưa KM</th><th class="right">Tồn thực tế</th><th>SL thùng/lẻ</th><th>Chấm nhanh</th></tr></thead><tbody id="salesProductList"></tbody></table></div>
                 </div>
                 <div class="card panel sales-cart-box" style="box-shadow:none">
                   <div class="panel-head"><h2>Đơn đang chấm</h2></div>
@@ -1399,20 +1399,64 @@ function salesSelectCustomer(code){
   renderSalesCustomerList();renderSalesProductList();renderSalesDebt();
   if(window.innerWidth<=780)setTimeout(()=>document.getElementById('salesSelectedCustomerInfo')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
 }
-function salesAddProduct(sku){
+function salesReadQtySplit(sku){
+  const safe=cssSafeId(sku);
+  const p=findProduct(sku) || {};
+  const pack=Number(p.pack)||1;
+  const box=Number(document.getElementById('salesBox_'+safe)?.value||0)||0;
+  const each=Number(document.getElementById('salesEach_'+safe)?.value||0)||0;
+  return {box,each,qty:box*pack+each,pack};
+}
+function salesResetQtySplit(sku){
+  const safe=cssSafeId(sku);
+  const b=document.getElementById('salesBox_'+safe);
+  const e=document.getElementById('salesEach_'+safe);
+  if(b)b.value='0';
+  if(e)e.value='0';
+}
+function salesAddProduct(sku, quickBox, quickEach){
   const p=findProduct(sku); if(!p)return toast('Không tìm thấy sản phẩm');
-  const qty=parseQtySlash(document.getElementById('salesQty_'+cssSafeId(sku))?.value||'1/0',p.pack||1);
-  if(qty<=0)return toast('Nhập số lượng cần chấm');
+  const pack=Number(p.pack)||1;
+  let qty=0;
+  if(quickBox!==undefined || quickEach!==undefined){
+    qty=(Number(quickBox)||0)*pack+(Number(quickEach)||0);
+  }else{
+    qty=salesReadQtySplit(sku).qty;
+  }
+  if(qty<=0)return toast('Nhập số lượng thùng hoặc lẻ cần chấm');
   if(qty>Number(p.qty||0))return toast('Không đủ tồn thực tế: '+p.name+' còn '+qtyView(p.qty,p.pack));
   let old=salesCart.find(x=>String(x.sku)===String(sku));
   if(old)old.qty+=qty; else salesCart.push({sku:p.sku,name:p.name,pack:Number(p.pack)||1,qty,sale:Number(p.sale)||0,cost:Number(p.cost)||0,disc:0});
+  salesResetQtySplit(sku);
   renderSalesCart();
+  toast('Đã chấm '+qtyView(qty,pack)+' - '+(p.name||p.sku));
 }
 function renderSalesProductList(){
   const body=document.getElementById('salesProductList'); if(!body)return;
   const q=normText(document.getElementById('salesProductSearch')?.value||'');
   const rows=(db.products||[]).filter(p=>!q || normText([p.sku,p.name,productBrand(p),productCategory(p)].join(' ')).includes(q));
-  body.innerHTML=rows.map(p=>`<tr><td><b>${p.sku}</b></td><td>${p.name}</td><td class="right">${money(p.sale)}</td><td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td><input id="salesQty_${cssSafeId(p.sku)}" placeholder="1/0" style="width:90px"></td><td><button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
+  body.innerHTML=rows.map(p=>{
+    const safe=cssSafeId(p.sku);
+    return `<tr>
+      <td><b>${p.sku}</b></td>
+      <td>${escapeHtml(p.name||'')}</td>
+      <td class="right">${money(p.sale)}</td>
+      <td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td>
+      <td>
+        <div class="sales-qty-split">
+          <div class="sales-qty-mini"><label>Thùng</label><input id="salesBox_${safe}" type="number" min="0" value="0" inputmode="numeric" onfocus="this.select()"></div>
+          <div class="sales-qty-mini"><label>Lẻ</label><input id="salesEach_${safe}" type="number" min="0" value="0" inputmode="numeric" onfocus="this.select()"></div>
+        </div>
+      </td>
+      <td>
+        <div class="sales-quick-actions">
+          <button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}',1,0)">+1 thùng</button>
+          <button class="btn small light" onclick="salesAddProduct('${safeAttr(p.sku)}',0,1)">+1 lẻ</button>
+          <button class="btn small custom" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm SL nhập</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
 }
 function renderSalesCart(){
   const box=document.getElementById('salesCartBody'); if(!box)return;
