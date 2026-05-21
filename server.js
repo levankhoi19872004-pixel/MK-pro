@@ -39,7 +39,9 @@ async function initDB() {
         receipts: [],
         masterOrders: [],
         debts: [],
-        shortageReports: []
+        promotions: [], // 🔥 thêm khuyến mại
+        productGroups: [], // 🔥 nhóm sản phẩm
+        categoryGroups: [] // 🔥 nhóm ngành
       })]
     );
   }
@@ -100,7 +102,7 @@ function rebuildMasterOrders(orders, masterOrders) {
   });
 }
 
-// ===== REBUILD CÔNG NỢ + STATUS =====
+// ===== REBUILD CÔNG NỢ =====
 function rebuildDebts(data) {
   let debts = [];
 
@@ -109,14 +111,10 @@ function rebuildDebts(data) {
 
     if (o.masterId) {
       const master = data.masterOrders.find(m => m.id === o.masterId);
-      if (master) {
-        deliveryName = master.deliveryStaffName || '';
-      }
+      if (master) deliveryName = master.deliveryStaffName || '';
     }
 
-    if (!deliveryName) {
-      deliveryName = o.deliveryStaffName || '';
-    }
+    if (!deliveryName) deliveryName = o.deliveryStaffName || '';
 
     let total = Number(o.total) || 0;
     let cash = Number(o.cashPaid) || 0;
@@ -158,7 +156,7 @@ app.post('/api/data', auth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ===== THU TIỀN REALTIME =====
+// ===== THU TIỀN =====
 app.post('/api/pay-order', auth, async (req, res) => {
   const { orderId, cashPaid, bankPaid } = req.body;
 

@@ -167,6 +167,9 @@
           </div>
           <br>
           <button class="btn green" onclick="saveProductGroup()">Lưu nhóm sản phẩm</button>
+          <button class="btn light" onclick="downloadProductGroupTemplate()">Tải mẫu nhóm SP</button>
+          <button class="btn orange" onclick="document.getElementById('importProductGroupFile').click()">Import nhóm SP</button>
+          <input id="importProductGroupFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductGroupExcel(event)">
           <button class="btn" onclick="saveCategoryGroup()">Lưu nhóm ngành hàng</button>
         </div>
 
@@ -407,41 +410,67 @@
       <section id="promotions" class="section">
         <div class="card panel">
           <div class="panel-head">
-            <div><h2>Khuyến mại</h2><div class="muted" style="margin-top:6px">Cấu trúc: lấy bất kỳ trong danh sách được chiết khấu %, đạt giá tiền áp dụng thì được ontop thêm %.</div></div>
-            <div class="toolbar"><button class="btn" onclick="savePromotion()">Lưu khuyến mại</button></div>
+            <div>
+              <h2>Khuyến mại</h2>
+              <div class="muted" style="margin-top:6px">Quản lý đúng 2 cấu trúc: khuyến mại theo sản phẩm và khuyến mại theo nhóm sản phẩm. Mỗi mục có import Excel riêng.</div>
+            </div>
+            <div class="toolbar">
+              <button class="btn light" onclick="downloadProductPromotionTemplate()">Mẫu KM sản phẩm</button>
+              <button class="btn green" onclick="document.getElementById('importProductPromotionFile').click()">Import KM sản phẩm</button>
+              <input id="importProductPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductPromotionExcel(event)">
+              <button class="btn light" onclick="downloadGroupPromotionTemplate()">Mẫu KM nhóm SP</button>
+              <button class="btn orange" onclick="document.getElementById('importGroupPromotionFile').click()">Import KM nhóm SP</button>
+              <input id="importGroupPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importGroupPromotionExcel(event)">
+            </div>
           </div>
+
           <div class="promo-tabs">
-            <button class="active" data-promo-type="product" onclick="setPromoType('product')">Theo sản phẩm</button>
-            <button data-promo-type="brand" onclick="setPromoType('brand')">Theo nhãn hàng</button>
-            <button data-promo-type="category" onclick="setPromoType('category')">Theo ngành hàng</button>
-            <button data-promo-type="categoryGroup" onclick="setPromoType('categoryGroup')">Theo nhóm ngành hàng</button>
-            <button data-promo-type="productGroup" onclick="setPromoType('productGroup')">Theo nhóm sản phẩm</button>
+            <button class="active" data-promo-type="product" onclick="setPromoType('product')">Khuyến mại theo sản phẩm</button>
+            <button data-promo-type="productGroup" onclick="setPromoType('productGroup')">Khuyến mại theo nhóm sản phẩm</button>
           </div>
-          <div class="form">
-            <div class="field"><label>Loại áp dụng</label><input id="promoTypeText" value="Theo sản phẩm" readonly></div>
-            <div class="field wide"><label>Danh sách áp dụng</label><input id="promoTarget" list="promoTargetList" placeholder="Chọn/nhập sản phẩm, nhãn hàng, ngành hàng hoặc nhóm"></div>
-            <div class="field"><label>Tên chương trình</label><input id="promoName" placeholder="VD: CTKM tháng này"></div>
-            <div class="field"><label>Giá tiền áp dụng</label><input id="promoApplyAmount" type="number" value="0" placeholder="VD: 1000000"></div>
-            <div class="field"><label>Lấy bất kỳ CK %</label><input id="promoAnyDiscount" type="number" value="0"></div>
-            <div class="field"><label>Ontop thêm %</label><input id="promoOntopDiscount" type="number" value="0"></div>
-            <div class="field"><label>Từ ngày</label><input id="promoFrom" type="date"></div>
-            <div class="field"><label>Đến ngày</label><input id="promoTo" type="date"></div>
-            <div class="field wide"><label>Ghi chú</label><input id="promoNote" placeholder="VD: Lấy bất kỳ được CK 5%, đạt 1.000.000 ontop thêm 2%"></div>
+
+          <div id="promoProductForm">
+            <div class="form">
+              <div class="field"><label>Mã khuyến mại</label><input id="promoProductCode" placeholder="VD: KM001"></div>
+              <div class="field wide"><label>Nội dung khuyến mại</label><input id="promoProductContent" placeholder="VD: CK sản phẩm tháng này"></div>
+              <div class="field"><label>Mã sản phẩm được khuyến mại</label><input id="promoProductSku" list="productSkuList" placeholder="Chọn/nhập mã sản phẩm"></div>
+              <div class="field"><label>% chiết khấu</label><input id="promoProductDiscount" type="number" value="0"></div>
+            </div>
+            <br>
+            <button class="btn" onclick="saveProductPromotion()">Lưu KM sản phẩm</button>
           </div>
-          <datalist id="promoTargetList"></datalist>
+
+          <div id="promoGroupForm" class="hidden">
+            <div class="form">
+              <div class="field"><label>Mã khuyến mại</label><input id="promoGroupCode" placeholder="VD: KMG001"></div>
+              <div class="field wide"><label>Nội dung khuyến mại</label><input id="promoGroupContent" placeholder="VD: Lấy nhóm OMO đạt giá trị sẽ giảm"></div>
+              <div class="field"><label>Nhóm hàng được khuyến mại</label><input id="promoGroupName" list="productGroupList" placeholder="Chọn/nhập nhóm sản phẩm"></div>
+              <div class="field"><label>Giá trị cần mua</label><input id="promoGroupApplyAmount" type="number" value="0" placeholder="Tính theo giá bán sản phẩm"></div>
+              <div class="field"><label>% chiết khấu</label><input id="promoGroupDiscountPercent" type="number" value="0"></div>
+              <div class="field"><label>Giá trị giảm giá</label><input id="promoGroupDiscountAmount" type="number" value="0"></div>
+            </div>
+            <div class="muted" style="margin-top:8px">Lưu ý: % chiết khấu và giá trị giảm giá hoạt động độc lập, có thể nhập một trong hai hoặc cả hai.</div>
+            <br>
+            <button class="btn" onclick="saveGroupPromotion()">Lưu KM nhóm sản phẩm</button>
+          </div>
           <datalist id="productSkuList"></datalist>
-          <datalist id="brandList"></datalist>
-          <datalist id="categoryList"></datalist>
           <datalist id="productGroupList"></datalist>
+          <datalist id="categoryList"></datalist>
           <datalist id="categoryGroupList"></datalist>
         </div>
+
         <div class="card panel">
-          <div class="panel-head"><h2>Danh sách khuyến mại</h2></div>
-          <div class="table-wrap"><table class="table"><thead><tr><th>Loại</th><th>Danh sách áp dụng</th><th>Tên CTKM</th><th class="right">Giá tiền áp dụng</th><th class="right">Lấy bất kỳ CK</th><th class="right">Ontop</th><th>Từ ngày</th><th>Đến ngày</th><th>Diễn giải</th><th>Thao tác</th></tr></thead><tbody id="promotionBody"></tbody></table></div>
+          <div class="panel-head"><h2>Danh sách khuyến mại theo sản phẩm</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th class="right">% chiết khấu</th><th>Thao tác</th></tr></thead><tbody id="productPromotionBody"></tbody></table></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách khuyến mại theo nhóm sản phẩm</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Nhóm hàng</th><th class="right">Giá trị cần mua</th><th class="right">% chiết khấu</th><th class="right">Giá trị giảm giá</th><th>Diễn giải</th><th>Thao tác</th></tr></thead><tbody id="groupPromotionBody"></tbody></table></div>
         </div>
       </section>
 
-            <section id="reports" class="section"><div class="stats"><div class="card stat"><div class="stat-icon blue">₫</div><div><div class="label">Doanh thu</div><div class="value" id="rpRevenue">0</div></div></div><div class="card stat"><div class="stat-icon green">✓</div><div><div class="label">Giá vốn</div><div class="value" id="rpCost">0</div></div></div><div class="card stat"><div class="stat-icon orange">★</div><div><div class="label">Lợi nhuận tạm tính</div><div class="value" id="rpProfit">0</div></div></div><div class="card stat"><div class="stat-icon purple">!</div><div><div class="label">Tồn thấp</div><div class="value" id="rpLow">0</div></div></div></div><div class="card panel"><div class="panel-head"><h2>Báo cáo doanh số nhân viên</h2><div class="toolbar"><input id="rpFrom" type="date" onchange="render()" style="width:auto"><input id="rpTo" type="date" onchange="render()" style="width:auto"><button class="btn light" onclick="clearReportFilter()">Tất cả</button><button class="btn" onclick="exportStaffReport()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã NV</th><th>Nhân viên</th><th class="center">Số đơn</th><th class="right">Số dòng hàng</th><th class="right">Doanh thu</th><th class="right">Giá vốn</th><th class="right">Lợi nhuận tạm tính</th></tr></thead><tbody id="staffReportBody"></tbody></table></div></div>
+      <section id="reports" class="section"><div class="stats"><div class="card stat"><div class="stat-icon blue">₫</div><div><div class="label">Doanh thu</div><div class="value" id="rpRevenue">0</div></div></div><div class="card stat"><div class="stat-icon green">✓</div><div><div class="label">Giá vốn</div><div class="value" id="rpCost">0</div></div></div><div class="card stat"><div class="stat-icon orange">★</div><div><div class="label">Lợi nhuận tạm tính</div><div class="value" id="rpProfit">0</div></div></div><div class="card stat"><div class="stat-icon purple">!</div><div><div class="label">Tồn thấp</div><div class="value" id="rpLow">0</div></div></div></div><div class="card panel"><div class="panel-head"><h2>Báo cáo doanh số nhân viên</h2><div class="toolbar"><input id="rpFrom" type="date" onchange="render()" style="width:auto"><input id="rpTo" type="date" onchange="render()" style="width:auto"><button class="btn light" onclick="clearReportFilter()">Tất cả</button><button class="btn" onclick="exportStaffReport()">Xuất Excel</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã NV</th><th>Nhân viên</th><th class="center">Số đơn</th><th class="right">Số dòng hàng</th><th class="right">Doanh thu</th><th class="right">Giá vốn</th><th class="right">Lợi nhuận tạm tính</th></tr></thead><tbody id="staffReportBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><div><h2>Báo cáo hàng thiếu khi import đơn</h2><div class="muted" style="margin-top:6px">Tự lưu lại mỗi lần import nhiều đơn bị thiếu tồn kho, có thể xuất Excel để xử lý đặt hàng/bù hàng.</div></div><div class="toolbar"><button class="btn light" onclick="exportAllShortageReports()">Xuất tất cả</button><button class="btn red" onclick="clearShortageReports()">Xóa báo cáo thiếu</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã báo cáo</th><th>Ngày tạo</th><th>File import</th><th class="center">Số đơn</th><th class="center">Số SKU thiếu</th><th class="right">Tổng thiếu lẻ</th><th>Thao tác</th></tr></thead><tbody id="shortageReportBody"></tbody></table></div></div>
         <div class="card panel"><div class="panel-head"><div><h2>Chi tiết hàng thiếu trực quan</h2><div class="muted" style="margin-top:6px">Xem ngay sản phẩm thiếu thuộc đơn nào, nhân viên nào, khách hàng nào; không cần xuất Excel.</div></div><div class="toolbar"><input id="shortageSearch" placeholder="Tìm mã đơn, NV, KH, SKU..." oninput="renderShortageReports()" style="width:260px"><button class="btn light" onclick="document.getElementById('shortageSearch').value='';renderShortageReports()">Xóa lọc</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã BC</th><th>Mã đơn</th><th>Mã NV</th><th>Nhân viên</th><th>Mã KH</th><th>Khách hàng</th><th>SKU</th><th>Tên hàng</th><th class="right">Cần</th><th class="right">Tồn</th><th class="right">Thiếu</th><th class="right">Sẽ import</th></tr></thead><tbody id="shortageVisualBody"></tbody></table></div></div></section>
     </div>
@@ -2441,15 +2470,17 @@ function saveNewProductCodes(){
   save(); render(); closeNewProductCodeModal(); toast('Đã lưu code hàng mới');
 }
 
+
 // ===== KHUYẾN MẠI =====
 let currentPromoType='product';
-function promoTypeText(t){
-  return {product:'Theo sản phẩm',brand:'Theo nhãn hàng',category:'Theo ngành hàng',categoryGroup:'Theo nhóm ngành hàng',productGroup:'Theo nhóm sản phẩm'}[t]||t;
-}
+function promoTypeText(t){return {product:'Khuyến mại theo sản phẩm',productGroup:'Khuyến mại theo nhóm sản phẩm'}[t]||t;}
 function setPromoType(t){
   currentPromoType=t;
   document.querySelectorAll('[data-promo-type]').forEach(b=>b.classList.toggle('active',b.dataset.promoType===t));
-  const e=document.getElementById('promoTypeText'); if(e)e.value=promoTypeText(t);
+  const productForm=document.getElementById('promoProductForm');
+  const groupForm=document.getElementById('promoGroupForm');
+  if(productForm) productForm.classList.toggle('hidden',t!=='product');
+  if(groupForm) groupForm.classList.toggle('hidden',t!=='productGroup');
   renderLinkedProductLists();
 }
 function uniqueList(arr){return [...new Set(arr.map(x=>String(x||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'))}
@@ -2464,69 +2495,181 @@ function renderLinkedProductLists(){
   fillDatalist('categoryList',uniqueList(products.map(p=>productCategory(p))));
   fillDatalist('productGroupList',uniqueList([...(products.map(p=>p.productGroup||'')),...((db.productGroups||[]).map(g=>g.name))]));
   fillDatalist('categoryGroupList',uniqueList((db.categoryGroups||[]).map(g=>g.name)));
-  let list=[];
-  if(currentPromoType==='product') list=products.map(p=>({value:p.sku,label:(p.sku||'')+' - '+(p.name||'')}));
-  if(currentPromoType==='brand') list=uniqueList(products.map(p=>productBrand(p))).map(x=>({value:x,label:x}));
-  if(currentPromoType==='category') list=uniqueList(products.map(p=>productCategory(p))).map(x=>({value:x,label:x}));
-  if(currentPromoType==='categoryGroup') list=uniqueList((db.categoryGroups||[]).map(g=>g.name)).map(x=>({value:x,label:x}));
-  if(currentPromoType==='productGroup') list=uniqueList([...(products.map(p=>p.productGroup||'')),...((db.productGroups||[]).map(g=>g.name))]).map(x=>({value:x,label:x}));
-  fillDatalist('promoTargetList',list,x=>safeAttr(x.label));
 }
-function savePromotion(){
+function getProductNameBySku(sku){
+  const p=findProduct(sku);
+  return p ? (p.name||'') : '';
+}
+function ensurePromotionArrays(){
+  db.productPromotions=Array.isArray(db.productPromotions)?db.productPromotions:[];
+  db.groupPromotions=Array.isArray(db.groupPromotions)?db.groupPromotions:[];
   db.promotions=Array.isArray(db.promotions)?db.promotions:[];
-  const target=(document.getElementById('promoTarget')?.value||'').trim();
-  const name=(document.getElementById('promoName')?.value||'').trim();
-  if(!target || !name) return toast('Thiếu danh sách áp dụng hoặc tên CTKM');
-  const applyAmount=Number(document.getElementById('promoApplyAmount')?.value||0)||0;
-  const anyDiscount=Number(document.getElementById('promoAnyDiscount')?.value||0)||0;
-  const ontopDiscount=Number(document.getElementById('promoOntopDiscount')?.value||0)||0;
-  db.promotions.push({
-    id:'KM'+Date.now(),
-    type:currentPromoType,
-    target,
-    name,
-    applyAmount,
-    anyDiscount,
-    ontopDiscount,
-    discount:anyDiscount,
-    from:document.getElementById('promoFrom')?.value||'',
-    to:document.getElementById('promoTo')?.value||'',
-    note:document.getElementById('promoNote')?.value||''
-  });
-  ['promoTarget','promoName','promoApplyAmount','promoAnyDiscount','promoOntopDiscount','promoFrom','promoTo','promoNote'].forEach(id=>{const e=document.getElementById(id); if(e)e.value='';});
-  if(document.getElementById('promoApplyAmount')) promoApplyAmount.value=0;
-  if(document.getElementById('promoAnyDiscount')) promoAnyDiscount.value=0;
-  if(document.getElementById('promoOntopDiscount')) promoOntopDiscount.value=0;
-  save(); render(); toast('Đã lưu khuyến mại');
 }
-function promoDescription(k){
-  const amount=Number(k.applyAmount||0);
-  const any=Number(k.anyDiscount!==undefined?k.anyDiscount:k.discount)||0;
-  const ontop=Number(k.ontopDiscount||0)||0;
-  return `Lấy bất kỳ trong danh sách được chiết khấu ${any}%, lấy đạt ${money(amount)} được ontop thêm ${ontop}%`;
+function rebuildLegacyPromotions(){
+  ensurePromotionArrays();
+  db.promotions=[
+    ...db.productPromotions.map(k=>({id:k.id,kind:'product',code:k.code,content:k.content,target:k.sku,discount:k.discount})),
+    ...db.groupPromotions.map(k=>({id:k.id,kind:'productGroup',code:k.code,content:k.content,target:k.groupName,applyAmount:k.applyAmount,discountPercent:k.discountPercent,discountAmount:k.discountAmount}))
+  ];
+}
+function saveProductPromotion(){
+  ensurePromotionArrays();
+  const code=(document.getElementById('promoProductCode')?.value||'').trim();
+  const content=(document.getElementById('promoProductContent')?.value||'').trim();
+  const sku=(document.getElementById('promoProductSku')?.value||'').trim();
+  const discount=Number(document.getElementById('promoProductDiscount')?.value||0)||0;
+  if(!code || !content || !sku) return toast('Thiếu mã KM, nội dung KM hoặc mã sản phẩm');
+  const old=db.productPromotions.find(k=>String(k.code)===code && String(k.sku)===String(sku));
+  const data={id:old?.id||('KMSP'+Date.now()),code,content,sku,discount};
+  if(old) Object.assign(old,data); else db.productPromotions.push(data);
+  ['promoProductCode','promoProductContent','promoProductSku'].forEach(id=>{const e=document.getElementById(id); if(e)e.value='';});
+  if(document.getElementById('promoProductDiscount')) promoProductDiscount.value=0;
+  rebuildLegacyPromotions(); save(); render(); toast('Đã lưu khuyến mại sản phẩm');
+}
+function saveGroupPromotion(){
+  ensurePromotionArrays();
+  const code=(document.getElementById('promoGroupCode')?.value||'').trim();
+  const content=(document.getElementById('promoGroupContent')?.value||'').trim();
+  const groupName=(document.getElementById('promoGroupName')?.value||'').trim();
+  const applyAmount=Number(document.getElementById('promoGroupApplyAmount')?.value||0)||0;
+  const discountPercent=Number(document.getElementById('promoGroupDiscountPercent')?.value||0)||0;
+  const discountAmount=Number(document.getElementById('promoGroupDiscountAmount')?.value||0)||0;
+  if(!code || !content || !groupName) return toast('Thiếu mã KM, nội dung KM hoặc nhóm hàng');
+  const old=db.groupPromotions.find(k=>String(k.code)===code && normText(k.groupName)===normText(groupName));
+  const data={id:old?.id||('KMN'+Date.now()),code,content,groupName,applyAmount,discountPercent,discountAmount};
+  if(old) Object.assign(old,data); else db.groupPromotions.push(data);
+  ['promoGroupCode','promoGroupContent','promoGroupName'].forEach(id=>{const e=document.getElementById(id); if(e)e.value='';});
+  if(document.getElementById('promoGroupApplyAmount')) promoGroupApplyAmount.value=0;
+  if(document.getElementById('promoGroupDiscountPercent')) promoGroupDiscountPercent.value=0;
+  if(document.getElementById('promoGroupDiscountAmount')) promoGroupDiscountAmount.value=0;
+  rebuildLegacyPromotions(); save(); render(); toast('Đã lưu khuyến mại nhóm sản phẩm');
+}
+function groupPromoDescription(k){
+  const percent=Number(k.discountPercent||0)||0;
+  const amount=Number(k.discountAmount||0)||0;
+  let parts=[];
+  if(percent>0) parts.push(`chiết khấu ${percent}%`);
+  if(amount>0) parts.push(`giảm ${money(amount)}`);
+  return `Mua nhóm ${k.groupName||''} đạt ${money(k.applyAmount||0)} sẽ được ${parts.join(' và ')||'khuyến mại'}`;
 }
 function renderPromotions(){
-  const body=document.getElementById('promotionBody'); if(!body)return;
-  db.promotions=Array.isArray(db.promotions)?db.promotions:[];
-  body.innerHTML=db.promotions.map(k=>`<tr>
-    <td>${promoTypeText(k.type)}</td>
-    <td><b>${k.target||''}</b></td>
-    <td>${k.name||''}</td>
-    <td class="right">${money(k.applyAmount||0)}</td>
-    <td class="right">${Number(k.anyDiscount!==undefined?k.anyDiscount:k.discount)||0}%</td>
-    <td class="right">${Number(k.ontopDiscount||0)}%</td>
-    <td>${k.from||''}</td>
-    <td>${k.to||''}</td>
-    <td>${k.note||promoDescription(k)}</td>
-    <td><button class="btn small red" onclick="deletePromotion('${k.id}')">Xóa</button></td>
-  </tr>`).join('')||'<tr><td colspan="10" class="center muted">Chưa có chương trình khuyến mại</td></tr>';
+  ensurePromotionArrays();
+  const productBody=document.getElementById('productPromotionBody');
+  if(productBody){
+    productBody.innerHTML=db.productPromotions.map(k=>`<tr>
+      <td><b>${k.code||''}</b></td>
+      <td>${k.content||''}</td>
+      <td>${k.sku||''}</td>
+      <td>${getProductNameBySku(k.sku)||''}</td>
+      <td class="right">${Number(k.discount||0)}%</td>
+      <td><button class="btn small red" onclick="deleteProductPromotion('${k.id}')">Xóa</button></td>
+    </tr>`).join('')||'<tr><td colspan="6" class="center muted">Chưa có khuyến mại sản phẩm</td></tr>';
+  }
+  const groupBody=document.getElementById('groupPromotionBody');
+  if(groupBody){
+    groupBody.innerHTML=db.groupPromotions.map(k=>`<tr>
+      <td><b>${k.code||''}</b></td>
+      <td>${k.content||''}</td>
+      <td>${k.groupName||''}</td>
+      <td class="right">${money(k.applyAmount||0)}</td>
+      <td class="right">${Number(k.discountPercent||0)}%</td>
+      <td class="right">${money(k.discountAmount||0)}</td>
+      <td>${groupPromoDescription(k)}</td>
+      <td><button class="btn small red" onclick="deleteGroupPromotion('${k.id}')">Xóa</button></td>
+    </tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khuyến mại nhóm sản phẩm</td></tr>';
+  }
+  const legacyBody=document.getElementById('promotionBody');
+  if(legacyBody) legacyBody.innerHTML='';
   renderLinkedProductLists();
 }
-function deletePromotion(id){
-  if(!confirm('Xóa khuyến mại này?'))return;
-  db.promotions=(db.promotions||[]).filter(k=>k.id!==id);
-  save(); render();
+function deleteProductPromotion(id){
+  if(!confirm('Xóa khuyến mại sản phẩm này?'))return;
+  db.productPromotions=(db.productPromotions||[]).filter(k=>k.id!==id);
+  rebuildLegacyPromotions(); save(); render();
 }
+function deleteGroupPromotion(id){
+  if(!confirm('Xóa khuyến mại nhóm sản phẩm này?'))return;
+  db.groupPromotions=(db.groupPromotions||[]).filter(k=>k.id!==id);
+  rebuildLegacyPromotions(); save(); render();
+}
+function downloadProductPromotionTemplate(){
+  downloadExcel([{'Mã khuyến mại':'KM001','Nội dung khuyến mại':'Chiết khấu sản phẩm OMO','Mã sản phẩm':'SKU001','% chiết khấu':5}],'mau_khuyen_mai_theo_san_pham.xlsx');
+}
+function downloadGroupPromotionTemplate(){
+  downloadExcel([{'Mã khuyến mại':'KMG001','Nội dung khuyến mại':'Mua nhóm OMO đạt giá trị','Nhóm hàng được khuyến mại':'Nhóm OMO','Giá trị cần mua':1000000,'% chiết khấu':3,'Giá trị giảm giá':50000}],'mau_khuyen_mai_theo_nhom_san_pham.xlsx');
+}
+function importProductPromotionExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    ensurePromotionArrays(); let count=0;
+    rows.forEach(r=>{
+      const code=String(r.ma_khuyen_mai||r['Mã khuyến mại']||r.code||'').trim();
+      const content=String(r.noi_dung_khuyen_mai||r['Nội dung khuyến mại']||r.content||'').trim();
+      const sku=String(r.ma_san_pham||r['Mã sản phẩm']||r.sku||r.SKU||'').trim();
+      const discount=Number(r['% chiết khấu']||r.chiet_khau||r.discount||0)||0;
+      if(!code || !content || !sku) return;
+      const old=db.productPromotions.find(k=>String(k.code)===code && String(k.sku)===String(sku));
+      const data={id:old?.id||('KMSP'+Date.now()+count),code,content,sku,discount};
+      if(old) Object.assign(old,data); else db.productPromotions.push(data);
+      count++;
+    });
+    rebuildLegacyPromotions(); save(); render(); toast('Đã import '+count+' dòng KM sản phẩm'); ev.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function importGroupPromotionExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    ensurePromotionArrays(); let count=0;
+    rows.forEach(r=>{
+      const code=String(r.ma_khuyen_mai||r['Mã khuyến mại']||r.code||'').trim();
+      const content=String(r.noi_dung_khuyen_mai||r['Nội dung khuyến mại']||r.content||'').trim();
+      const groupName=String(r.nhom_hang_duoc_khuyen_mai||r['Nhóm hàng được khuyến mại']||r.groupName||'').trim();
+      const applyAmount=Number(r.gia_tri_can_mua||r['Giá trị cần mua']||r.applyAmount||0)||0;
+      const discountPercent=Number(r['% chiết khấu']||r.chiet_khau||r.discountPercent||0)||0;
+      const discountAmount=Number(r.gia_tri_giam_gia||r['Giá trị giảm giá']||r.discountAmount||0)||0;
+      if(!code || !content || !groupName) return;
+      const old=db.groupPromotions.find(k=>String(k.code)===code && normText(k.groupName)===normText(groupName));
+      const data={id:old?.id||('KMN'+Date.now()+count),code,content,groupName,applyAmount,discountPercent,discountAmount};
+      if(old) Object.assign(old,data); else db.groupPromotions.push(data);
+      count++;
+    });
+    rebuildLegacyPromotions(); save(); render(); toast('Đã import '+count+' dòng KM nhóm sản phẩm'); ev.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+function downloadProductGroupTemplate(){
+  downloadExcel([{'Tên nhóm sản phẩm':'Nhóm OMO','Danh sách mã sản phẩm':'SKU001,SKU002,SKU003'}],'mau_nhom_san_pham.xlsx');
+}
+function importProductGroupExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    db.productGroups=Array.isArray(db.productGroups)?db.productGroups:[];
+    let count=0;
+    rows.forEach(r=>{
+      const name=String(r.ten_nhom_san_pham||r['Tên nhóm sản phẩm']||r.name||'').trim();
+      const raw=String(r.danh_sach_ma_san_pham||r['Danh sách mã sản phẩm']||r.skus||'').trim();
+      const skus=raw.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+      if(!name || !skus.length) return;
+      const old=db.productGroups.find(g=>normText(g.name)===normText(name));
+      if(old) old.skus=skus; else db.productGroups.push({id:'PG'+Date.now()+count,name,skus});
+      db.products.forEach(p=>{if(skus.includes(String(p.sku))) p.productGroup=name;});
+      count++;
+    });
+    save(); render(); toast('Đã import '+count+' nhóm sản phẩm'); ev.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 
 </script>
 </body>
