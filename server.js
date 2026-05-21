@@ -85,8 +85,53 @@ async function initDB() {
 }
 
 const users = [
-  { username: 'admin', password: '123456', role: 'admin', name: 'Admin' },
-  { username: 'nv01', password: '123456', role: 'staff', name: 'Nhân viên 01' }
+  {
+    username: 'admin',
+    password: '123456',
+    role: 'admin',
+    name: 'Admin'
+  },
+  {
+    username: 'bh01',
+    password: '123456',
+    role: 'sales',
+    name: 'Nhân viên bán hàng 01',
+    staffCode: 'NV01'
+  },
+  {
+    username: 'bh02',
+    password: '123456',
+    role: 'sales',
+    name: 'Nhân viên bán hàng 02',
+    staffCode: 'NV02'
+  },
+  {
+    username: 'gh01',
+    password: '123456',
+    role: 'delivery',
+    name: 'Nhân viên giao hàng 01',
+    deliveryCode: 'GH01'
+  },
+  {
+    username: 'gh02',
+    password: '123456',
+    role: 'delivery',
+    name: 'Nhân viên giao hàng 02',
+    deliveryCode: 'GH02'
+  },
+  {
+    username: 'kt01',
+    password: '123456',
+    role: 'accountant',
+    name: 'Kế toán công nợ'
+  },
+  {
+    username: 'nv01',
+    password: '123456',
+    role: 'staff',
+    name: 'Nhân viên 01',
+    staffCode: 'NV01'
+  }
 ];
 
 app.get('/', (req, res) => {
@@ -135,7 +180,9 @@ app.post('/api/login', (req, res) => {
   const safeUser = {
     username: user.username,
     role: user.role,
-    name: user.name
+    name: user.name,
+    staffCode: user.staffCode || '',
+    deliveryCode: user.deliveryCode || ''
   };
 
   const token = jwt.sign(safeUser, SECRET, { expiresIn: '7d' });
@@ -274,6 +321,14 @@ function rebuildDebts(data) {
   return debts;
 }
 
+function getCollectorFromOrder(order) {
+  return {
+    collectedBy: order.collectedBy || order.salesName || order.staffName || order.deliveryStaffName || '',
+    collectedByRole: order.collectedByRole || '',
+    collectedByCode: order.collectedByCode || order.staffCode || order.deliveryStaffCode || ''
+  };
+}
+
 function rebuildPaymentsFromOrders(data) {
   const payments = Array.isArray(data.payments) ? data.payments : [];
   const existed = new Set(
@@ -285,6 +340,7 @@ function rebuildPaymentsFromOrders(data) {
   (data.orders || []).forEach(order => {
     const cash = Number(order.cashPaid) || 0;
     const bank = Number(order.bankPaid) || 0;
+    const collector = getCollectorFromOrder(order);
 
     if (cash > 0) {
       const id = `AUTO-CASH-${order.id}`;
@@ -298,7 +354,10 @@ function rebuildPaymentsFromOrders(data) {
           type: 'cash',
           method: 'Tiền mặt',
           date: order.date || new Date().toISOString().slice(0, 10),
-          note: 'Tự tạo từ tiền mặt trên đơn'
+          note: 'Tự tạo từ tiền mặt trên đơn',
+          collectedBy: collector.collectedBy,
+          collectedByRole: collector.collectedByRole,
+          collectedByCode: collector.collectedByCode
         });
       }
     }
@@ -315,13 +374,26 @@ function rebuildPaymentsFromOrders(data) {
           type: 'bank',
           method: 'Chuyển khoản',
           date: order.date || new Date().toISOString().slice(0, 10),
-          note: 'Tự tạo từ chuyển khoản trên đơn'
+          note: 'Tự tạo từ chuyển khoản trên đơn',
+          collectedBy: collector.collectedBy,
+          collectedByRole: collector.collectedByRole,
+          collectedByCode: collector.collectedByCode
         });
       }
     }
   });
 
   return newPayments;
+}
+
+function getCollectorFromRequest(req) {
+  const user = req.user || {};
+
+  return {
+    collectedBy: user.name || '',
+    collectedByRole: user.role || '',
+    collectedByCode: user.staffCode || user.deliveryCode || ''
+  };
 }
 
 app.get('/api/data', auth, async (req, res) => {
@@ -432,6 +504,12 @@ app.post('/api/pay-order', auth, async (req, res) => {
       order.dueDate = dueDate || '';
     }
 
+    const collector = getCollectorFromRequest(req);
+
+    order.lastCollectedBy = collector.collectedBy;
+    order.lastCollectedByRole = collector.collectedByRole;
+    order.lastCollectedByCode = collector.collectedByCode;
+
     const total = Number(order.total) || 0;
     const paid = getOrderPaid(order);
     order.debt = total - paid;
@@ -453,7 +531,10 @@ app.post('/api/pay-order', auth, async (req, res) => {
         type: 'cash',
         method: 'Tiền mặt',
         date: new Date().toISOString(),
-        note: note || 'Cập nhật thanh toán đơn hàng'
+        note: note || 'Cập nhật thanh toán đơn hàng',
+        collectedBy: collector.collectedBy,
+        collectedByRole: collector.collectedByRole,
+        collectedByCode: collector.collectedByCode
       });
     }
 
@@ -467,7 +548,10 @@ app.post('/api/pay-order', auth, async (req, res) => {
         type: 'bank',
         method: 'Chuyển khoản',
         date: new Date().toISOString(),
-        note: note || 'Cập nhật thanh toán đơn hàng'
+        note: note || 'Cập nhật thanh toán đơn hàng',
+        collectedBy: collector.collectedBy,
+        collectedByRole: collector.collectedByRole,
+        collectedByCode: collector.collectedByCode
       });
     }
 
@@ -506,6 +590,8 @@ app.get('/api/debt-report', auth, async (req, res) => {
         overdueDebt: 0,
         byStaff: {},
         byCustomer: {},
+        byCollector: {},
+        paymentsByCollector: {},
         overdue: [],
         payments: []
       });
@@ -520,6 +606,8 @@ app.get('/api/debt-report', auth, async (req, res) => {
       overdueDebt: 0,
       byStaff: {},
       byCustomer: {},
+      byCollector: {},
+      paymentsByCollector: {},
       overdue: [],
       payments: data.payments || []
     };
@@ -558,6 +646,42 @@ app.get('/api/debt-report', auth, async (req, res) => {
           ...debt,
           days
         });
+      }
+    });
+
+    (data.payments || []).forEach(payment => {
+      const collectorKey =
+        payment.collectedBy ||
+        payment.collector ||
+        payment.staffName ||
+        payment.deliveryStaffName ||
+        'Chưa rõ người thu';
+
+      if (!report.byCollector[collectorKey]) {
+        report.byCollector[collectorKey] = 0;
+      }
+
+      if (!report.paymentsByCollector[collectorKey]) {
+        report.paymentsByCollector[collectorKey] = {
+          collector: collectorKey,
+          role: payment.collectedByRole || '',
+          code: payment.collectedByCode || '',
+          cash: 0,
+          bank: 0,
+          total: 0,
+          count: 0
+        };
+      }
+
+      const amount = Number(payment.amount) || 0;
+      report.byCollector[collectorKey] += amount;
+      report.paymentsByCollector[collectorKey].total += amount;
+      report.paymentsByCollector[collectorKey].count += 1;
+
+      if (payment.type === 'bank' || payment.method === 'Chuyển khoản') {
+        report.paymentsByCollector[collectorKey].bank += amount;
+      } else {
+        report.paymentsByCollector[collectorKey].cash += amount;
       }
     });
 
