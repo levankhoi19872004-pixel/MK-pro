@@ -1765,6 +1765,7 @@ function escapeHtml(v){
 
 function invoiceHtmlForOrder(o){
   const VAT_RATE=0.08;
+  const moneyInt=(n)=>Math.round(Number(n)||0).toLocaleString('vi-VN',{maximumFractionDigits:0});
   const items=o.items||[];
   const customerObj=(db.customers||[]).find(c=>c.name===o.customer||c.code===o.customer)||{};
   const staffText=staffDisplayOrder(o)||'';
@@ -1781,9 +1782,7 @@ function invoiceHtmlForOrder(o){
   let promoTotal=discount+adjust;
   let taxTotal=0;
   const invoicePromoDetails=Array.isArray(o.promoDetails)?o.promoDetails:[];
-  function money3(n){
-    return (Number(n)||0).toLocaleString('vi-VN',{minimumFractionDigits:3,maximumFractionDigits:3});
-  }
+  function money3(n){ return moneyInt(n); }
   function lineBase(it){
     return Number(it.qty||0)*Number(it.sale||0);
   }
@@ -1836,20 +1835,21 @@ function invoiceHtmlForOrder(o){
         <td class="c">${escapeHtml(it.sku)}</td>
         <td class="prod">${escapeHtml(it.name)}</td>
         <td class="c">${escapeHtml(qtyView(qty,it.pack))}</td>
-        <td class="r">${money(qty)}</td>
-        <td class="r">${money(beforeTaxKm)}</td>
-        <td class="r">${money(priceSell)}</td>
-        <td class="r">${money(afterKmCk)}</td>
+        <td class="r">${moneyInt(qty)}</td>
+        <td class="r">${moneyInt(beforeTaxKm)}</td>
+        <td class="r">${moneyInt(priceSell)}</td>
+        <td class="r">${moneyInt(afterKmCk)}</td>
         <td class="r">${money3(taxValue)}</td>
-        <td class="r b">${money(amount)}</td>
+        <td class="r b">${moneyInt(amount)}</td>
       </tr>`;
     }).join('');
     return body || '<tr><td colspan="10" class="c">Không có hàng</td></tr>';
   }
   const rows = mainRows();
   const totalAfterKm = items.reduce((a,it)=>a+Number(it.qty||0)*unitAfterDiscount(it),0);
-  const nppDiscount = discount;
-  const kmRate = beforeKmTotal ? ((promoTotal+nppDiscount)/beforeKmTotal*100) : 0;
+  const nppDiscount = Number(o.nppDiscount||o.nppDiscountAmount||o.nppCk||o.nppCK||0);
+  const hasNppDiscount = nppDiscount > 0;
+  const kmRate = beforeKmTotal ? ((promoTotal+(hasNppDiscount?nppDiscount:0))/beforeKmTotal*100) : 0;
   function promoRows(){
     let savedDetails=Array.isArray(o.promoDetails)?o.promoDetails:[];
     if(savedDetails.length){
@@ -1860,14 +1860,14 @@ function invoiceHtmlForOrder(o){
         return `<tr>
           <td class="c">${escapeHtml(d.code||('KM'+String(i+1).padStart(3,'0')))}</td>
           <td>${escapeHtml(d.content||'Khuyến mại')}</td>
-          <td class="r">${money(base)}</td>
+          <td class="r">${moneyInt(base)}</td>
           <td class="c">${percent?String(percent.toFixed(2)).replace('.',','):''}</td>
-          <td class="r">${money(amount/(1+VAT_RATE))}</td>
-          <td class="r">${money(amount)}</td>
+          <td class="r">${moneyInt(amount/(1+VAT_RATE))}</td>
+          <td class="r">${moneyInt(amount)}</td>
         </tr>`;
       }).join('');
       if(adjust>0){
-        rows += `<tr><td class="c">CKHC</td><td>Chiết khấu hiệu chỉnh trên đơn hàng</td><td class="r">${money(beforeKmTotal)}</td><td class="c"></td><td class="r">${money(adjust/(1+VAT_RATE))}</td><td class="r">${money(adjust)}</td></tr>`;
+        rows += `<tr><td class="c">CKHC</td><td>Chiết khấu hiệu chỉnh trên đơn hàng</td><td class="r">${moneyInt(beforeKmTotal)}</td><td class="c"></td><td class="r">${moneyInt(adjust/(1+VAT_RATE))}</td><td class="r">${moneyInt(adjust)}</td></tr>`;
       }
       return rows;
     }
@@ -1878,14 +1878,14 @@ function invoiceHtmlForOrder(o){
       return `<tr>
         <td class="c">CK${String(i+1).padStart(3,'0')}</td>
         <td>Chiết khấu ${Number(it.disc||0).toFixed(2)}% cho mặt hàng ${escapeHtml(it.name)}</td>
-        <td class="r">${money(base)}</td>
+        <td class="r">${moneyInt(base)}</td>
         <td class="c">${Number(it.disc||0).toFixed(2).replace('.',',')}</td>
-        <td class="r">${money(ckBefore)}</td>
-        <td class="r">${money(ckAfter)}</td>
+        <td class="r">${moneyInt(ckBefore)}</td>
+        <td class="r">${moneyInt(ckAfter)}</td>
       </tr>`;
     }).join('');
     if(adjust>0){
-      rows += `<tr><td class="c">CKHC</td><td>Chiết khấu hiệu chỉnh trên đơn hàng</td><td class="r">${money(beforeKmTotal)}</td><td class="c"></td><td class="r">${money(adjust/(1+VAT_RATE))}</td><td class="r">${money(adjust)}</td></tr>`;
+      rows += `<tr><td class="c">CKHC</td><td>Chiết khấu hiệu chỉnh trên đơn hàng</td><td class="r">${moneyInt(beforeKmTotal)}</td><td class="c"></td><td class="r">${moneyInt(adjust/(1+VAT_RATE))}</td><td class="r">${moneyInt(adjust)}</td></tr>`;
     }
     return rows || '<tr><td colspan="6" class="c">Không có chi tiết khuyến mãi</td></tr>';
   }
@@ -1940,19 +1940,19 @@ function invoiceHtmlForOrder(o){
         </thead>
         <tbody>
           ${rows}
-          <tr class="total-row"><td></td><td></td><td class="c b">Tổng cộng (A)</td><td></td><td class="r b">${money(totalQty)}</td><td></td><td></td><td></td><td></td><td class="r b">${money(pay)}</td></tr>
+          <tr class="total-row"><td></td><td></td><td class="c b">Tổng cộng (A)</td><td></td><td class="r b">${moneyInt(totalQty)}</td><td></td><td></td><td></td><td></td><td class="r b">${moneyInt(pay)}</td></tr>
         </tbody>
       </table>
 
       <div class="inv-summary">
         <div class="amount-words"><b>Số tiền viết bằng chữ :</b> ${numberToVietnameseWords(pay)}</div>
         <div class="calc-box">
-          <div class="pay-row"><span><b>Số tiền phải thanh toán (A7-D-E-H)</b></span><b>${money(pay)}</b></div>
-          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><span>${money(beforeKmTotal)}</span></div>
-          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><span>${money(promoTotal)}</span></div>
-          <div><span>Cấn trừ tiền (D+E+H):</span><span>${money(adjust)}</span></div>
-          <div><span>Tổng tiền CK của NPP (F)=(G-C)* 2,00% :</span><span>${money(nppDiscount)}</span></div>
-          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><span>${kmRate.toFixed(2).replace('.',',')}%</span></div>
+          <div class="pay-row"><span><b>Số tiền phải thanh toán (A7-D-E-H)</b></span><b>${moneyInt(pay)}</b></div>
+          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><span>${moneyInt(beforeKmTotal)}</span></div>
+          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><span>${moneyInt(promoTotal)}</span></div>
+          <div><span>Cấn trừ tiền (D+E+H):</span><span>${moneyInt(adjust)}</span></div>
+          ${hasNppDiscount ? `<div><span>Tổng tiền CK của NPP (F)=(G-C)* 2,00% :</span><span>${moneyInt(nppDiscount)}</span></div>` : ''}
+          <div><span>${hasNppDiscount ? 'Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:' : 'Tỉ lệ KM của đơn hàng [(B+C)/G]*100%:'}</span><span>${kmRate.toFixed(2).replace('.',',')}%</span></div>
         </div>
       </div>
 
@@ -1968,7 +1968,7 @@ function invoiceHtmlForOrder(o){
         <colgroup><col style="width:15%"><col style="width:46%"><col style="width:10%"><col style="width:9%"><col style="width:10%"><col style="width:10%"></colgroup>
         <thead><tr><th>Mã CTKM Tiền</th><th>Khuyến mãi bằng tiền</th><th>Giá trị hàng<br>hóa mua</th><th>% chiết<br>khấu</th><th>Tiền CK trước<br>thuế</th><th>Tiền CK sau<br>thuế</th></tr></thead>
         <tbody>${promoRows()}</tbody>
-        <tfoot><tr><td colspan="5" class="c b">Tổng giá trị khuyến mãi tiền (C)</td><td class="r b">${money(promoTotal)}</td></tr></tfoot>
+        <tfoot><tr><td colspan="5" class="c b">Tổng giá trị khuyến mãi tiền (C)</td><td class="r b">${moneyInt(promoTotal)}</td></tr></tfoot>
       </table>
       <div class="promo-explain"><b>Diễn giải khuyến mại:</b><br>${promoExplanationHtml(Array.isArray(o.promoDetails)?o.promoDetails:[])}</div>
     </div>`;
