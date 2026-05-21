@@ -93,6 +93,65 @@
 .driver-order-card h3{margin:0 0 8px;font-size:16px}
 @media(max-width:1000px){.role-app-grid{grid-template-columns:1fr}.sales-cart-box{position:static}.role-kpi{grid-template-columns:repeat(2,1fr)}}
 
+
+
+/* ===== Mobile chuẩn app cho App bán hàng / App giao hàng ===== */
+.mobile-app-tabs{display:none}
+.mobile-back-btn{display:none}
+.mobile-app-title{display:none}
+@media(max-width:780px){
+  body.mobile-role-app{background:#f3f4f6;overflow:hidden}
+  body.mobile-role-app .sidebar, body.mobile-role-app .topbar{display:none!important}
+  body.mobile-role-app .app{display:block;min-height:100vh}
+  body.mobile-role-app .main{width:100%;height:100vh;overflow:hidden}
+  body.mobile-role-app .content{padding:0;height:100vh;overflow:hidden;background:#f3f4f6}
+  body.mobile-role-app .section.active{position:fixed;inset:0;z-index:80;display:block!important;background:#f3f4f6;overflow:auto;padding:10px 10px 82px;-webkit-overflow-scrolling:touch}
+  body.mobile-role-app .section.active>.card.panel{border:0;border-radius:0;box-shadow:none;background:transparent;padding:0;margin:0}
+  body.mobile-role-app .section.active>.card.panel>.panel-head{position:sticky;top:0;z-index:12;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app .section.active>.card.panel>.panel-head h2{font-size:18px}
+  body.mobile-role-app .section.active>.card.panel>.panel-head .muted{display:none}
+  body.mobile-role-app .section.active>.card.panel>.panel-head .toolbar{margin:8px 0 0;width:100%}
+  body.mobile-role-app .section.active>.card.panel>.panel-head .toolbar .btn{flex:1;padding:11px 10px}
+  body.mobile-role-app .panel{border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 6px 18px rgba(15,23,42,.06)}
+  body.mobile-role-app .card{box-shadow:0 6px 18px rgba(15,23,42,.06)}
+  body.mobile-role-app .form{grid-template-columns:1fr!important;gap:10px}
+  body.mobile-role-app input, body.mobile-role-app select, body.mobile-role-app textarea{font-size:16px;min-height:44px}
+  body.mobile-role-app .btn{min-height:42px;border-radius:12px}
+  body.mobile-role-app .table{min-width:760px}
+  body.mobile-role-app .table-wrap{border-radius:14px}
+  body.mobile-role-app .role-app-grid{display:block}
+  body.mobile-role-app .role-kpi{grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+  body.mobile-role-app .role-kpi .mini-card{border-radius:14px;padding:10px}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:17px}
+  body.mobile-role-app .role-list{max-height:none;border:0;background:transparent;overflow:visible}
+  body.mobile-role-app .role-list-row{background:#fff;border:1px solid var(--line);border-radius:16px;margin-bottom:9px;padding:13px;box-shadow:0 6px 16px rgba(15,23,42,.05)}
+  body.mobile-role-app .role-list-row.active{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  body.mobile-role-app #salesApp .role-app-grid>div:first-child{display:block}
+  body.mobile-role-app #salesApp .role-app-grid>div:nth-child(2){display:none}
+  body.mobile-role-app.sales-customer-selected #salesApp .role-app-grid>div:first-child{display:none}
+  body.mobile-role-app.sales-customer-selected #salesApp .role-app-grid>div:nth-child(2){display:block}
+  body.mobile-role-app #salesSelectedCustomerInfo{position:sticky;top:0;z-index:15;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 22px rgba(15,23,42,.08);padding:12px;margin-bottom:10px}
+  .mobile-back-btn{display:inline-flex!important;margin-right:8px;margin-bottom:8px;align-items:center;justify-content:center;gap:6px}
+  .mobile-app-title{display:block;font-size:12px;color:#667085;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+  body.mobile-role-app .layout2{display:block}
+  body.mobile-role-app .sales-product-table{min-width:720px}
+  body.mobile-role-app .sales-cart-box{position:relative!important;top:auto!important;border:2px solid #bfdbfe!important;background:#fff!important;margin-top:10px;box-shadow:0 10px 28px rgba(37,99,235,.12)!important}
+  body.mobile-role-app .sales-cart-box .panel-head{margin-bottom:8px}
+  body.mobile-role-app #salesOrdersBody tr, body.mobile-role-app #salesDebtBody tr, body.mobile-role-app #driverDebtBody tr{background:#fff}
+  body.mobile-role-app .customer-pay-box{background:#fff;border-radius:16px;padding:12px}
+  body.mobile-role-app .driver-order-card{border-radius:18px;padding:13px;margin-bottom:12px;box-shadow:0 8px 20px rgba(15,23,42,.07)}
+  body.mobile-role-app .driver-order-card .table{min-width:680px}
+  body.mobile-role-app .driver-collect-box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 6px 16px rgba(15,23,42,.05)}
+  body.mobile-role-app .driver-collect-box .form{grid-template-columns:1fr!important}
+  .mobile-app-tabs{display:flex;position:fixed;left:8px;right:8px;bottom:8px;z-index:120;background:rgba(255,255,255,.96);border:1px solid #dbe4f0;border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:7px;gap:6px;backdrop-filter:blur(12px)}
+  .mobile-app-tabs button{flex:1;border:0;background:transparent;border-radius:15px;padding:8px 4px;font-size:12px;font-weight:800;color:#475467;line-height:1.2}
+  .mobile-app-tabs button.active{background:#2563eb;color:white}
+  .mobile-app-tabs button span{display:block;font-size:18px;margin-bottom:2px}
+  body:not(.mobile-role-app) .mobile-app-tabs{display:none!important}
+  body.mobile-role-app #salesApp~.card{display:none}
+  body.mobile-role-app #toast{bottom:78px;max-width:92vw;text-align:center}
+}
+
 </style>
 </head>
 <body>
@@ -515,7 +574,7 @@
 
 
       <section id="salesApp" class="section">
-        <div class="card panel">
+        <div class="card panel" id="salesCustomerPanel">
           <div class="panel-head">
             <div><h2>App bán hàng theo nhân viên</h2><div class="muted" style="margin-top:6px">Nhân viên vào danh sách khách hàng → chọn khách → xem hàng hóa, giá bán chưa khuyến mại, tồn thực tế → chấm đơn → xác nhận gửi về hệ thống.</div></div>
             <div class="toolbar"><button class="btn light" onclick="renderSalesApp()">Làm mới</button><button class="btn green" onclick="salesConfirmOrder()">Xác nhận đơn</button></div>
@@ -556,11 +615,11 @@
             </div>
           </div>
         </div>
-        <div class="card panel">
+        <div class="card panel" id="salesOrdersPanel">
           <div class="panel-head"><h2>Danh sách đơn đã chấm của tôi</h2><div class="toolbar"><button class="btn light" onclick="renderSalesOrders()">Làm mới</button></div></div>
           <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Ngày</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Đã thu</th><th class="right">Còn nợ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="salesOrdersBody"></tbody></table></div>
         </div>
-        <div class="card panel">
+        <div class="card panel" id="salesDebtPanel">
           <div class="panel-head"><h2>Theo dõi công nợ khách hàng của tôi</h2></div>
           <div class="form">
             <div class="field"><label>Mã KH</label><input id="salesPayCustomerCode" placeholder="Chọn khách sẽ tự điền"></div>
@@ -575,7 +634,7 @@
       </section>
 
       <section id="deliveryApp" class="section">
-        <div class="card panel">
+        <div class="card panel" id="driverOrdersPanel">
           <div class="panel-head"><div><h2>App nhân viên giao hàng</h2><div class="muted" style="margin-top:6px">Hiển thị đơn tổng mang tên mình, danh sách đơn con cần giao và công nợ khách hàng mình quản lý.</div></div><div class="toolbar"><button class="btn light" onclick="renderDeliveryApp()">Làm mới</button></div></div>
           <div class="role-kpi">
             <div class="mini-card"><span>Đơn tổng được giao</span><b id="driverMasterCount">0</b></div>
@@ -585,7 +644,7 @@
           </div>
           <div id="driverMasterList"></div>
         </div>
-        <div class="card panel">
+        <div class="card panel" id="driverDebtPanel">
           <div class="panel-head"><h2>Công nợ khách hàng mình quản lý</h2></div>
           <div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Khách hàng</th><th class="center">Số đơn nợ</th><th class="right">Tổng nợ</th><th>Thao tác</th></tr></thead><tbody id="driverDebtBody"></tbody></table></div>
         </div>
@@ -682,6 +741,14 @@
         <div class="card panel"><div class="panel-head"><div><h2>Chi tiết hàng thiếu trực quan</h2><div class="muted" style="margin-top:6px">Xem ngay sản phẩm thiếu thuộc đơn nào, nhân viên nào, khách hàng nào; không cần xuất Excel.</div></div><div class="toolbar"><input id="shortageSearch" placeholder="Tìm mã đơn, NV, KH, SKU..." oninput="renderShortageReports()" style="width:260px"><button class="btn light" onclick="document.getElementById('shortageSearch').value='';renderShortageReports()">Xóa lọc</button></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Mã BC</th><th>Mã đơn</th><th>Mã NV</th><th>Nhân viên</th><th>Mã KH</th><th>Khách hàng</th><th>SKU</th><th>Tên hàng</th><th class="right">Cần</th><th class="right">Tồn</th><th class="right">Thiếu</th><th class="right">Sẽ import</th></tr></thead><tbody id="shortageVisualBody"></tbody></table></div></div></section>
     </div>
   </main>
+</div>
+<div class="mobile-app-tabs" id="mobileAppTabs">
+  <button data-app-tab="sales-customers" onclick="mobileAppGo('sales-customers')"><span>👥</span>Khách</button>
+  <button data-app-tab="sales-products" onclick="mobileAppGo('sales-products')"><span>🛒</span>Bán</button>
+  <button data-app-tab="sales-orders" onclick="mobileAppGo('sales-orders')"><span>🧾</span>Đơn</button>
+  <button data-app-tab="sales-debt" onclick="mobileAppGo('sales-debt')"><span>₫</span>Công nợ</button>
+  <button data-app-tab="driver-orders" onclick="mobileAppGo('driver-orders')"><span>🚚</span>Đơn giao</button>
+  <button data-app-tab="driver-debt" onclick="mobileAppGo('driver-debt')"><span>₫</span>Thu tiền</button>
 </div>
 
 <aside class="drawer" id="settings"><div class="drawer-head"><h2>Cài đặt hiển thị</h2><button class="close" onclick="toggleSettings()">×</button></div><h3>Chọn phông chữ</h3><select id="fontSelect" onchange="applyFont(this.value)"><option value="'Noto Sans','Segoe UI',Arial,sans-serif">Noto Sans - khuyến nghị</option><option value="'Segoe UI',Arial,sans-serif">Segoe UI</option><option value="Arial,sans-serif">Arial</option><option value="Tahoma,sans-serif">Tahoma</option><option value="'Times New Roman',serif">Times New Roman</option></select><div class="preview"><h4>Xem trước</h4><div>64811767 &nbsp; SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 1kg/12 chai<br>CIF khử mùi hương cam chai 780ml/12 chai</div></div><br><button class="btn" style="width:100%" onclick="toast('Đã áp dụng phông chữ')">Áp dụng</button></aside>
@@ -1035,8 +1102,61 @@ function parseQtySlash(value,pack){
   return Number(s)||0;
 }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
-function page(id){if(!isAllowedPage(id)){id=defaultPageForRole();}document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));let sec=document.getElementById(id);if(sec)sec.classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));let btn=document.querySelector('#nav button[data-page="'+id+'"]');pageTitle.textContent=btn?btn.textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫🛒]/g,'').trim():'Kho Minh Khai';sidebar.classList.remove('show');render()}
+function page(id){if(!isAllowedPage(id)){id=defaultPageForRole();}document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));let sec=document.getElementById(id);if(sec)sec.classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));let btn=document.querySelector('#nav button[data-page="'+id+'"]');pageTitle.textContent=btn?btn.textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫🛒]/g,'').trim():'Kho Minh Khai';sidebar.classList.remove('show');updateMobileAppMode(id);render()}
 document.querySelectorAll('#nav button[data-page]').forEach(b=>b.onclick=()=>page(b.dataset.page));
+
+function currentActivePage(){return document.querySelector('.section.active')?.id||defaultPageForRole();}
+function updateMobileAppMode(activeId){
+  activeId=activeId||currentActivePage();
+  const mobile=window.innerWidth<=780;
+  const isApp=(activeId==='salesApp'||activeId==='deliveryApp');
+  document.body.classList.toggle('mobile-role-app', mobile && isApp);
+  if(activeId!=='salesApp')document.body.classList.remove('sales-customer-selected');
+  updateMobileAppTabs(activeId);
+}
+function updateMobileAppTabs(activeId){
+  const box=document.getElementById('mobileAppTabs'); if(!box)return;
+  const sales=activeId==='salesApp'; const driver=activeId==='deliveryApp';
+  box.querySelectorAll('button').forEach(b=>{
+    const tab=b.dataset.appTab||'';
+    b.style.display=(sales&&tab.startsWith('sales-'))||(driver&&tab.startsWith('driver-'))?'block':'none';
+    b.classList.remove('active');
+  });
+  if(sales){
+    const active=document.body.classList.contains('sales-customer-selected')?'sales-products':'sales-customers';
+    box.querySelector(`[data-app-tab="${active}"]`)?.classList.add('active');
+  }
+  if(driver)box.querySelector('[data-app-tab="driver-orders"]')?.classList.add('active');
+}
+function mobileBackToSalesCustomers(){
+  document.body.classList.remove('sales-customer-selected');
+  updateMobileAppTabs('salesApp');
+  setTimeout(()=>document.getElementById('salesCustomerPanel')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
+}
+function mobileAppGo(tab){
+  if(tab.startsWith('sales-')){
+    if(currentActivePage()!=='salesApp')page('salesApp');
+    if(tab==='sales-customers'){
+      mobileBackToSalesCustomers();
+    }else{
+      if(tab==='sales-products'){
+        if(salesSelectedCustomerCode)document.body.classList.add('sales-customer-selected');
+        document.getElementById('salesSelectedCustomerInfo')?.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+      if(tab==='sales-orders')document.getElementById('salesOrdersPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+      if(tab==='sales-debt')document.getElementById('salesDebtPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    updateMobileAppTabs('salesApp');
+  }
+  if(tab.startsWith('driver-')){
+    if(currentActivePage()!=='deliveryApp')page('deliveryApp');
+    if(tab==='driver-orders')document.getElementById('driverOrdersPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+    if(tab==='driver-debt')document.getElementById('driverDebtPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+    updateMobileAppTabs('deliveryApp');
+  }
+}
+window.addEventListener('resize',()=>updateMobileAppMode(currentActivePage()));
+
 function findProduct(sku){return db.products.find(p=>String(p.sku).trim()===String(sku).trim())}
 function productBrand(p){return p.brand||p.nhanHang||p['Nhãn hàng']||''}
 function productCategory(p){return p.category||p.nganhHang||p['Ngành hàng']||''}
@@ -1259,7 +1379,7 @@ function salesCustomerDebtInfo(code,name){
   const debtRows=rows.filter(o=>orderDebtRemaining(o)>0);
   return {debt:debtRows.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0), orders:debtRows.length, rows:debtRows};
 }
-function renderSalesApp(){renderSalesCustomerList();renderSalesProductList();renderSalesCart();renderSalesOrders();renderSalesDebt();}
+function renderSalesApp(){renderSalesCustomerList();renderSalesProductList();renderSalesCart();renderSalesOrders();renderSalesDebt();updateMobileAppMode('salesApp');}
 function renderSalesCustomerList(){
   const box=document.getElementById('salesCustomerList'); if(!box)return;
   const q=normText(document.getElementById('salesCustomerSearch')?.value||'');
@@ -1269,13 +1389,15 @@ function renderSalesCustomerList(){
 function salesSelectCustomer(code){
   const c=(db.customers||[]).find(x=>String(x.code)===String(code)); if(!c)return;
   salesSelectedCustomerCode=c.code;
+  document.body.classList.add('sales-customer-selected');
   const info=salesCustomerDebtInfo(c.code,c.name);
-  if(document.getElementById('salesSelectedCustomerInfo'))salesSelectedCustomerInfo.innerHTML=`<b>Khách đang bán:</b> ${escapeHtml(c.code||'')} - ${escapeHtml(c.name||'')}<br><span class="muted">${escapeHtml(c.phone||'')} · ${escapeHtml(c.address||'')}</span>`;
+  if(document.getElementById('salesSelectedCustomerInfo'))salesSelectedCustomerInfo.innerHTML=`<button class="btn light mobile-back-btn" onclick="mobileBackToSalesCustomers()">← Khách hàng</button><span class="mobile-app-title">Khách đang thao tác</span><b>${escapeHtml(c.code||'')} - ${escapeHtml(c.name||'')}</b><br><span class="muted">${escapeHtml(c.phone||'')} · ${escapeHtml(c.address||'')}</span>`;
   if(document.getElementById('salesCustomerDebt'))salesCustomerDebt.textContent=money(info.debt);
   if(document.getElementById('salesCustomerDebtOrders'))salesCustomerDebtOrders.textContent=info.orders;
   if(document.getElementById('salesPayCustomerCode'))salesPayCustomerCode.value=c.code||'';
   if(document.getElementById('salesPayCustomerName'))salesPayCustomerName.value=c.name||'';
   renderSalesCustomerList();renderSalesProductList();renderSalesDebt();
+  if(window.innerWidth<=780)setTimeout(()=>document.getElementById('salesSelectedCustomerInfo')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
 }
 function salesAddProduct(sku){
   const p=findProduct(sku); if(!p)return toast('Không tìm thấy sản phẩm');
@@ -1335,12 +1457,23 @@ function salesCollectDebt(){
 function driverMatchCodeName(code,name){const u=normText(currentUserCode()); const n=normText(currentUserDisplayName()); return (code&&normText(code)===u)||(name&&normText(name).includes(n))||(n&&normText(name)===n);}
 function driverMasters(){if(isAdmin())return db.masterOrders||[]; return (db.masterOrders||[]).filter(m=>driverMatchCodeName(m.deliveryStaffCode,m.deliveryStaffName));}
 function driverChildOrders(){const ids=new Set(driverMasters().flatMap(m=>m.childIds||[])); return (db.orders||[]).filter(o=>ids.has(o.id)||driverMatchCodeName(o.deliveryStaffCode,o.deliveryStaffName));}
+function driverCollectDebt(code,name){
+  const cash=Number(document.getElementById('driverCash_'+cssSafeId(code||name))?.value||0)||0;
+  const bank=Number(document.getElementById('driverBank_'+cssSafeId(code||name))?.value||0)||0;
+  const note=(document.getElementById('driverNote_'+cssSafeId(code||name))?.value||'Nhân viên giao hàng thu tiền').trim();
+  if(cash+bank<=0)return toast('Nhập tiền mặt hoặc chuyển khoản cần thu');
+  const orders=driverChildOrders().filter(o=>{const c=String(orderCustomerCode(o)||''); const n=normText(o.customer||''); return ((code&&c===String(code))||(!code&&name&&n.includes(normText(name)))) && orderDebtRemaining(o)>0;}).sort((a,b)=>debtPaymentSortDate(a)-debtPaymentSortDate(b));
+  if(!orders.length)return toast('Khách này không còn công nợ trong đơn giao');
+  const rs=applyCustomerPaymentToOrders(orders,cash,bank,note+' - Người thu: '+currentUserDisplayName());
+  save();render();toast('Đã ghi nhận thu '+money(rs.paidTotal)+' bởi '+currentUserDisplayName());
+}
 function renderDeliveryApp(){
+  updateMobileAppMode('deliveryApp');
   const masters=driverMasters(); const child=driverChildOrders(); const debts=child.filter(o=>orderDebtRemaining(o)>0); const debtTotal=debts.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
   if(document.getElementById('driverMasterCount'))driverMasterCount.textContent=masters.length; if(document.getElementById('driverChildCount'))driverChildCount.textContent=child.length; if(document.getElementById('driverDebtTotal'))driverDebtTotal.textContent=money(debtTotal);
   const map={}; debts.forEach(o=>{const k=orderCustomerCode(o)||o.customer; if(!map[k])map[k]={code:orderCustomerCode(o)||'',name:o.customer||'',orders:0,debt:0}; map[k].orders++; map[k].debt+=Math.max(0,orderDebtRemaining(o));}); if(document.getElementById('driverDebtCustomerCount'))driverDebtCustomerCount.textContent=Object.keys(map).length;
   const list=document.getElementById('driverMasterList'); if(list)list.innerHTML=masters.map(m=>{const orders=(db.orders||[]).filter(o=>(m.childIds||[]).includes(o.id));return `<div class="driver-order-card"><h3>Đơn tổng ${m.id}</h3><div class="muted">Ngày: ${m.date||''} · Tổng tiền: ${money(m.total||0)} · Ghi chú: ${m.note||''}</div><div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Đơn con</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Còn nợ</th></tr></thead><tbody>${orders.map(o=>`<tr><td>${o.id}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer||''}</td><td class="right">${money(o.total||0)}</td><td class="right"><b class="${orderDebtRemaining(o)>0?'debt-money-unpaid':'debt-money-paid'}">${money(orderDebtRemaining(o))}</b></td></tr>`).join('')}</tbody></table></div></div>`}).join('')||'<div class="debt-search-note">Chưa có đơn tổng nào mang tên nhân viên giao hàng này.</div>';
-  const body=document.getElementById('driverDebtBody'); if(body)body.innerHTML=Object.values(map).map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Xem chi tiết</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
+  const body=document.getElementById('driverDebtBody'); if(body)body.innerHTML=Object.values(map).map(r=>{const sid=cssSafeId(r.code||r.name);return `<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><div class="driver-collect-box"><div class="form"><div class="field"><label>Tiền mặt</label><input id="driverCash_${sid}" type="number" value="0"></div><div class="field"><label>Chuyển khoản</label><input id="driverBank_${sid}" type="number" value="0"></div><div class="field"><label>Ghi chú</label><input id="driverNote_${sid}" value="Nhân viên giao hàng thu tiền"></div></div><div class="toolbar" style="margin:8px 0 0"><button class="btn small green" onclick="driverCollectDebt('${safeAttr(r.code)}','${safeAttr(r.name)}')">Xác nhận thu</button><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Chi tiết</button></div></div></td></tr>`}).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
 }
 function cssSafeId(v){return String(v).replace(/[^a-zA-Z0-9_-]/g,'_');}
 
