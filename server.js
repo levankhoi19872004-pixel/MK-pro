@@ -27,6 +27,7 @@ function defaultData() {
     receipts: [],
     masterOrders: [],
     debts: [],
+    payments: [],
     promotions: [],
     productPromotions: [],
     groupPromotions: [],
@@ -70,6 +71,10 @@ async function initDB() {
     );
   } else {
     const fixed = normalizeData(check.rows[0].data);
+
+    fixed.masterOrders = rebuildMasterOrders(fixed.orders, fixed.masterOrders);
+    fixed.debts = rebuildDebts(fixed);
+
     await pool.query(`UPDATE kho_data SET data=$1 WHERE id=$2`, [
       JSON.stringify(fixed),
       check.rows[0].id
@@ -196,6 +201,32 @@ function rebuildMasterOrders(orders, masterOrders) {
   });
 }
 
+function getOrderPaid(order) {
+  return (Number(order.cashPaid) || 0) + (Number(order.bankPaid) || 0);
+}
+
+function getDebtStatus(total, paid, dueDate) {
+  const debt = total - paid;
+
+  if (debt < 0) return 'Thu thừa';
+  if (debt === 0) return 'Đã thanh toán';
+
+  if (dueDate) {
+    const d = new Date(dueDate);
+    if (!Number.isNaN(d.getTime())) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      d.setHours(0, 0, 0, 0);
+
+      if (d.getTime() < today.getTime()) {
+        return 'Quá hạn';
+      }
+    }
+  }
+
+  return 'Còn nợ';
+}
+
 function rebuildDebts(data) {
   const orders = Array.isArray(data.orders) ? data.orders : [];
   const masterOrders = Array.isArray(data.masterOrders) ? data.masterOrders : [];
@@ -218,7 +249,9 @@ function rebuildDebts(data) {
     const total = Number(order.total) || 0;
     const cash = Number(order.cashPaid) || 0;
     const bank = Number(order.bankPaid) || 0;
-    const debt = total - cash - bank;
+    const paid = cash + bank;
+    const debt = total - paid;
+    const dueDate = order.dueDate || order.paymentDueDate || '';
 
     debts.push({
       deliveryStaff,
@@ -229,13 +262,66 @@ function rebuildDebts(data) {
       total,
       cash,
       bank,
+      paid,
       debt,
-      status: debt < 0 ? 'Thu thừa' : debt === 0 ? 'Đã thanh toán' : 'Còn nợ',
+      dueDate,
+      status: getDebtStatus(total, paid, dueDate),
+      paymentStatus: getDebtStatus(total, paid, dueDate),
       date: order.date || ''
     });
   });
 
   return debts;
+}
+
+function rebuildPaymentsFromOrders(data) {
+  const payments = Array.isArray(data.payments) ? data.payments : [];
+  const existed = new Set(
+    payments.map(p => String(p.id || ''))
+  );
+
+  const newPayments = [...payments];
+
+  (data.orders || []).forEach(order => {
+    const cash = Number(order.cashPaid) || 0;
+    const bank = Number(order.bankPaid) || 0;
+
+    if (cash > 0) {
+      const id = `AUTO-CASH-${order.id}`;
+      if (!existed.has(id)) {
+        newPayments.push({
+          id,
+          orderId: order.id || '',
+          customerCode: order.customerCode || '',
+          customerName: order.customer || order.customerName || '',
+          amount: cash,
+          type: 'cash',
+          method: 'Tiền mặt',
+          date: order.date || new Date().toISOString().slice(0, 10),
+          note: 'Tự tạo từ tiền mặt trên đơn'
+        });
+      }
+    }
+
+    if (bank > 0) {
+      const id = `AUTO-BANK-${order.id}`;
+      if (!existed.has(id)) {
+        newPayments.push({
+          id,
+          orderId: order.id || '',
+          customerCode: order.customerCode || '',
+          customerName: order.customer || order.customerName || '',
+          amount: bank,
+          type: 'bank',
+          method: 'Chuyển khoản',
+          date: order.date || new Date().toISOString().slice(0, 10),
+          note: 'Tự tạo từ chuyển khoản trên đơn'
+        });
+      }
+    }
+  });
+
+  return newPayments;
 }
 
 app.get('/api/data', auth, async (req, res) => {
@@ -253,7 +339,11 @@ app.get('/api/data', auth, async (req, res) => {
       return res.json(data);
     }
 
-    res.json(normalizeData(result.rows[0].data));
+    const data = normalizeData(result.rows[0].data);
+    data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
+    data.debts = rebuildDebts(data);
+
+    res.json(data);
   } catch (err) {
     console.error('GET /api/data error:', err);
     res.status(500).json({
@@ -268,6 +358,7 @@ app.post('/api/data', auth, async (req, res) => {
     const data = normalizeData(req.body);
 
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
+    data.payments = rebuildPaymentsFromOrders(data);
     data.debts = rebuildDebts(data);
 
     const existing = await pool.query(`SELECT id FROM kho_data ORDER BY id ASC LIMIT 1`);
@@ -296,7 +387,15 @@ app.post('/api/data', auth, async (req, res) => {
 
 app.post('/api/pay-order', auth, async (req, res) => {
   try {
-    const { orderId, cashPaid, bankPaid } = req.body || {};
+    const {
+      orderId,
+      cashPaid,
+      bankPaid,
+      amount,
+      type,
+      dueDate,
+      note
+    } = req.body || {};
 
     const result = await pool.query(`SELECT id, data FROM kho_data ORDER BY id ASC LIMIT 1`);
 
@@ -313,9 +412,64 @@ app.post('/api/pay-order', auth, async (req, res) => {
       return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
     }
 
-    order.cashPaid = Number(cashPaid) || 0;
-    order.bankPaid = Number(bankPaid) || 0;
-    order.debt = (Number(order.total) || 0) - order.cashPaid - order.bankPaid;
+    const oldCash = Number(order.cashPaid) || 0;
+    const oldBank = Number(order.bankPaid) || 0;
+
+    if (amount !== undefined && amount !== null && amount !== '') {
+      const payAmount = Number(amount) || 0;
+
+      if (type === 'bank' || type === 'Chuyển khoản') {
+        order.bankPaid = oldBank + payAmount;
+      } else {
+        order.cashPaid = oldCash + payAmount;
+      }
+    } else {
+      order.cashPaid = Number(cashPaid) || 0;
+      order.bankPaid = Number(bankPaid) || 0;
+    }
+
+    if (dueDate !== undefined) {
+      order.dueDate = dueDate || '';
+    }
+
+    const total = Number(order.total) || 0;
+    const paid = getOrderPaid(order);
+    order.debt = total - paid;
+    order.paymentStatus = getDebtStatus(total, paid, order.dueDate || '');
+
+    const newCash = Number(order.cashPaid) || 0;
+    const newBank = Number(order.bankPaid) || 0;
+
+    const cashDelta = newCash - oldCash;
+    const bankDelta = newBank - oldBank;
+
+    if (cashDelta !== 0) {
+      data.payments.push({
+        id: `PAY-${Date.now()}-CASH`,
+        orderId: order.id || '',
+        customerCode: order.customerCode || '',
+        customerName: order.customer || order.customerName || '',
+        amount: cashDelta,
+        type: 'cash',
+        method: 'Tiền mặt',
+        date: new Date().toISOString(),
+        note: note || 'Cập nhật thanh toán đơn hàng'
+      });
+    }
+
+    if (bankDelta !== 0) {
+      data.payments.push({
+        id: `PAY-${Date.now()}-BANK`,
+        orderId: order.id || '',
+        customerCode: order.customerCode || '',
+        customerName: order.customer || order.customerName || '',
+        amount: bankDelta,
+        type: 'bank',
+        method: 'Chuyển khoản',
+        date: new Date().toISOString(),
+        note: note || 'Cập nhật thanh toán đơn hàng'
+      });
+    }
 
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
     data.debts = rebuildDebts(data);
@@ -327,8 +481,10 @@ app.post('/api/pay-order', auth, async (req, res) => {
 
     res.json({
       success: true,
+      data,
       order,
-      debts: data.debts
+      debts: data.debts,
+      payments: data.payments
     });
   } catch (err) {
     console.error('POST /api/pay-order error:', err);
@@ -344,16 +500,28 @@ app.get('/api/debt-report', auth, async (req, res) => {
     const result = await pool.query(`SELECT data FROM kho_data ORDER BY id ASC LIMIT 1`);
 
     if (result.rows.length === 0) {
-      return res.json({ byStaff: {}, byCustomer: {}, overdue: [] });
+      return res.json({
+        totalDebt: 0,
+        totalPaid: 0,
+        overdueDebt: 0,
+        byStaff: {},
+        byCustomer: {},
+        overdue: [],
+        payments: []
+      });
     }
 
     const data = normalizeData(result.rows[0].data);
     data.debts = rebuildDebts(data);
 
     const report = {
+      totalDebt: 0,
+      totalPaid: 0,
+      overdueDebt: 0,
       byStaff: {},
       byCustomer: {},
-      overdue: []
+      overdue: [],
+      payments: data.payments || []
     };
 
     data.debts.forEach(debt => {
@@ -368,21 +536,28 @@ app.get('/api/debt-report', auth, async (req, res) => {
         report.byCustomer[customerKey] = 0;
       }
 
-      report.byStaff[staffKey] += Number(debt.debt) || 0;
-      report.byCustomer[customerKey] += Number(debt.debt) || 0;
+      if (Number(debt.debt) > 0) {
+        report.totalDebt += Number(debt.debt) || 0;
+        report.byStaff[staffKey] += Number(debt.debt) || 0;
+        report.byCustomer[customerKey] += Number(debt.debt) || 0;
+      }
 
-      const date = debt.date ? new Date(debt.date) : null;
-      const validDate = date && !Number.isNaN(date.getTime());
+      report.totalPaid += Number(debt.paid) || 0;
 
-      if (validDate) {
-        const days = (Date.now() - date.getTime()) / 86400000;
+      if (debt.status === 'Quá hạn') {
+        report.overdueDebt += Number(debt.debt) || 0;
 
-        if (days > 30 && Number(debt.debt) > 0) {
-          report.overdue.push({
-            ...debt,
-            days: Math.floor(days)
-          });
+        const due = debt.dueDate ? new Date(debt.dueDate) : null;
+        let days = 0;
+
+        if (due && !Number.isNaN(due.getTime())) {
+          days = Math.floor((Date.now() - due.getTime()) / 86400000);
         }
+
+        report.overdue.push({
+          ...debt,
+          days
+        });
       }
     });
 
