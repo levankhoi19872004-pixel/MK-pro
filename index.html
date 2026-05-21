@@ -356,6 +356,33 @@
   body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
 }
 
+
+/* ===== Fix nhập số lượng App bán hàng trên điện thoại ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-product-card input.sales-qty-input{
+    display:block!important;
+    width:100%!important;
+    min-height:58px!important;
+    font-size:22px!important;
+    font-weight:800!important;
+    text-align:center!important;
+    background:#fff!important;
+    color:#0f172a!important;
+    border:2px solid #cbd5e1!important;
+    border-radius:18px!important;
+    pointer-events:auto!important;
+    touch-action:manipulation!important;
+    -webkit-user-select:text!important;
+    user-select:text!important;
+    position:relative!important;
+    z-index:5!important;
+  }
+  body.mobile-role-app .mobile-product-card input.sales-qty-input:focus{
+    border-color:#2563eb!important;
+    box-shadow:0 0 0 4px rgba(37,99,235,.16)!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -5403,7 +5430,7 @@ renderSalesProductList=function(){
       <div class="sku">${escapeHtml(p.sku||'')}</div>
       <div class="name">${escapeHtml(p.name||'')}</div>
       <div class="meta"><div><span>Giá bán chưa KM</span><b>${money(p.sale)}</b></div><div><span>Tồn thực tế</span><b class="${low?'debt-money-unpaid':'debt-money-paid'}">${qtyView(p.qty,p.pack)}</b></div></div>
-      <div class="qty-grid"><div class="field"><label>Thùng</label><input id="salesBox_${id}" type="number" inputmode="numeric" value="0" min="0"></div><div class="field"><label>Lẻ</label><input id="salesEach_${id}" type="number" inputmode="numeric" value="0" min="0"></div></div>
+      <div class="qty-grid"><div class="field"><label>Thùng</label><input class="sales-qty-input" id="salesBox_${id}" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div><div class="field"><label>Lẻ</label><input class="sales-qty-input" id="salesEach_${id}" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div></div>
       <div class="quick-grid"><button class="btn light" onclick="salesQuickAdd('${safeAttr(p.sku)}',1,0)">+1 thùng</button><button class="btn light" onclick="salesQuickAdd('${safeAttr(p.sku)}',0,1)">+1 lẻ</button><button class="btn green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></div>
     </div></td></tr>`}).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
   }else{
