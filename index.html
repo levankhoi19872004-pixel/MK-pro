@@ -1122,14 +1122,28 @@ function normalizeDb(data){
     };
   }).filter(r=>r.orderId && r.amount!==0);
 
+  // Chống trùng bản ghi returns nếu trước đó bị lưu lặp id/source.
+  const uniqueReturns=[];
+  const seenReturnIds=new Set();
+  base.returns.forEach(r=>{
+    const key=String(r.id||'') || [r.orderId,r.source,r.amount,r.date].join('|');
+    if(seenReturnIds.has(key)) return;
+    seenReturnIds.add(key);
+    uniqueReturns.push(r);
+  });
+  base.returns=uniqueReturns;
+
   // Tự chuyển dữ liệu hàng trả về kiểu cũ trong đơn sang sổ returns riêng.
-  const existedReturnKeys=new Set(base.returns.map(r=>String(r.orderId)+'|'+String(r.source)));
+  // Chỉ chuyển 1 lần nếu đơn CHƯA có bất kỳ bản ghi returns nào.
+  // Tránh lỗi nhân đôi hàng trả về/công nợ khi dữ liệu được load-save nhiều lần.
+  const existedReturnOrderIds=new Set(base.returns.map(r=>String(r.orderId||'')));
   (base.orders||[]).forEach(o=>{
+    const orderId=String(o.id||'');
     const legacyReturn=(Number(o.returnGoodsAmount||0)||0) || (Number(o.returnedGoodsAmount||0)||0) || (Number(o.returnAmount||0)||0) || (Number(o.goodsReturn||0)||0);
-    if(legacyReturn>0 && o.id && !existedReturnKeys.has(String(o.id)+'|legacy-order-field')){
+    if(legacyReturn>0 && orderId && !existedReturnOrderIds.has(orderId)){
       base.returns.push({
-        id:'RT-LEGACY-'+String(o.id),
-        orderId:String(o.id),
+        id:'RT-LEGACY-'+orderId,
+        orderId,
         customerCode:String(o.customerCode||''),
         customerName:String(o.customer||o.customerName||''),
         amount:legacyReturn,
@@ -1140,6 +1154,7 @@ function normalizeDb(data){
         createdByCode:'',
         source:'legacy-order-field'
       });
+      existedReturnOrderIds.add(orderId);
     }
   });
 
@@ -2897,8 +2912,9 @@ function applyCustomerPaymentToOrders(orders, cashAmount, bankAmount, note){
 
     const total=Number(order.total||0)||0;
     const paid=(Number(order.cashPaid||0)||0)+(Number(order.bankPaid||0)||0);
-    order.debt=total-paid;
-    order.paymentStatus=getPaymentStatusText(total,paid,order.dueDate||'');
+    const returned=orderReturnAmount(order);
+    order.debt=total-paid-returned;
+    order.paymentStatus=getPaymentStatusText(total,paid+returned,order.dueDate||'');
     if(order.masterId) touchedMasters.add(order.masterId);
   });
 
