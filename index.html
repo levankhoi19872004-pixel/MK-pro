@@ -91,6 +91,12 @@
 .sales-cart-box{position:sticky;top:92px}
 .driver-order-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff}
 .driver-order-card h3{margin:0 0 8px;font-size:16px}
+.driver-report-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.driver-report-card{border:1px solid var(--line);border-radius:16px;background:#fff;padding:14px;box-shadow:0 6px 18px rgba(15,23,42,.05)}
+.driver-report-card span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.driver-report-card b{font-size:22px}
+.driver-return-input{max-width:130px;text-align:right}
+@media(max-width:900px){.driver-report-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.driver-report-grid{grid-template-columns:1fr}}
 @media(max-width:1000px){.role-app-grid{grid-template-columns:1fr}.sales-cart-box{position:static}.role-kpi{grid-template-columns:repeat(2,1fr)}}
 
 
@@ -257,9 +263,11 @@
 
   /* Driver wizard visibility */
   body.mobile-role-app #deliveryApp #driverOrdersPanel,
-  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app #deliveryApp #driverDebtPanel,
+  body.mobile-role-app #deliveryApp #driverReportPanel{display:none!important}
   body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
   body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app.driver-step-report #deliveryApp #driverReportPanel{display:block!important}
   body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
   body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
   body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
@@ -842,12 +850,32 @@
             <div class="mini-card"><span>Đơn con</span><b id="driverChildCount">0</b></div>
             <div class="mini-card"><span>Tiền phải thu</span><b id="driverDebtTotal">0</b></div>
             <div class="mini-card"><span>Số khách còn nợ</span><b id="driverDebtCustomerCount">0</b></div>
+            <div class="mini-card"><span>Tiền mặt đã nộp</span><b id="driverCashTotal">0</b></div>
+            <div class="mini-card"><span>Chuyển khoản</span><b id="driverBankTotal">0</b></div>
+            <div class="mini-card"><span>Tiền hàng trả về</span><b id="driverReturnTotal">0</b></div>
+            <div class="mini-card"><span>Tổng phải đối soát</span><b id="driverReconcileTotal">0</b></div>
           </div>
           <div id="driverMasterList"></div>
         </div>
         <div class="card panel" id="driverDebtPanel">
           <div class="panel-head"><h2>Công nợ khách hàng mình quản lý</h2></div>
           <div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Khách hàng</th><th class="center">Số đơn nợ</th><th class="right">Tổng nợ</th><th>Thao tác</th></tr></thead><tbody id="driverDebtBody"></tbody></table></div>
+        </div>
+        <div class="card panel" id="driverReportPanel">
+          <div class="panel-head">
+            <div>
+              <h2>Báo cáo tiền giao hàng</h2>
+              <div class="muted" style="margin-top:6px">Tổng hợp theo các đơn đang thuộc nhân viên giao hàng: tiền nộp, chuyển khoản, công nợ và tiền hàng trả về.</div>
+            </div>
+            <div class="toolbar"><button class="btn light" onclick="renderDeliveryApp()">Làm mới báo cáo</button></div>
+          </div>
+          <div class="driver-report-grid">
+            <div class="driver-report-card"><span>Tiền mặt đã nộp</span><b id="driverReportCash">0</b></div>
+            <div class="driver-report-card"><span>Chuyển khoản</span><b id="driverReportBank">0</b></div>
+            <div class="driver-report-card"><span>Công nợ còn lại</span><b id="driverReportDebt">0</b></div>
+            <div class="driver-report-card"><span>Tiền hàng trả về</span><b id="driverReportReturn">0</b></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Hàng trả về</th><th class="right">Công nợ</th></tr></thead><tbody id="driverReportBody"></tbody></table></div>
         </div>
       </section>
 
@@ -952,6 +980,7 @@
   <button data-app-tab="sales-orders" onclick="mobileAppGo('sales-orders')"><span>🧾</span>Đơn</button>
   <button data-app-tab="driver-orders" onclick="mobileAppGo('driver-orders')"><span>🚚</span>Đơn giao</button>
   <button data-app-tab="driver-debt" onclick="mobileAppGo('driver-debt')"><span>₫</span>Thu tiền</button>
+  <button data-app-tab="driver-report" onclick="mobileAppGo('driver-report')"><span>📊</span>Báo cáo</button>
 </div>
 
 <aside class="drawer" id="settings"><div class="drawer-head"><h2>Cài đặt hiển thị</h2><button class="close" onclick="toggleSettings()">×</button></div><h3>Chọn phông chữ</h3><select id="fontSelect" onchange="applyFont(this.value)"><option value="'Noto Sans','Segoe UI',Arial,sans-serif">Noto Sans - khuyến nghị</option><option value="'Segoe UI',Arial,sans-serif">Segoe UI</option><option value="Arial,sans-serif">Arial</option><option value="Tahoma,sans-serif">Tahoma</option><option value="'Times New Roman',serif">Times New Roman</option></select><div class="preview"><h4>Xem trước</h4><div>64811767 &nbsp; SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 1kg/12 chai<br>CIF khử mùi hương cam chai 780ml/12 chai</div></div><br><button class="btn" style="width:100%" onclick="toast('Đã áp dụng phông chữ')">Áp dụng</button></aside>
@@ -1804,13 +1833,79 @@ function driverCollectDebt(code,name){
   const rs=applyCustomerPaymentToOrders(orders,cash,bank,note+' - Người thu: '+currentUserDisplayName());
   save();render();toast('Đã ghi nhận thu '+money(rs.paidTotal)+' bởi '+currentUserDisplayName());
 }
+function driverSaveOrderReturn(orderId){
+  const order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+  if(!order)return toast('Không tìm thấy đơn giao hàng');
+  const input=document.getElementById('driverReturn_'+cssSafeId(orderId));
+  const amount=Number(input?.value||0)||0;
+  if(amount<0)return toast('Tiền hàng trả về không được âm');
+  const total=Number(order.total||0)||0;
+  const paid=(Number(order.cashPaid||0)||0)+(Number(order.bankPaid||0)||0);
+  if(amount>total) return toast('Tiền hàng trả về không được lớn hơn tổng đơn');
+  order.returnGoodsAmount=amount;
+  order.returnedGoodsAmount=amount;
+  order.debt=total-paid-amount;
+  order.paymentStatus=getPaymentStatusText(total,paid+amount,order.dueDate||'');
+  if(order.masterId)recalcMasterOrder(order.masterId);
+  save();
+  renderDeliveryApp();
+  renderDebtReports?.();
+  toast('Đã lưu tiền hàng trả về cho đơn '+orderId);
+}
+function driverDeliveryReportRows(){
+  return driverChildOrders().slice().sort((a,b)=>String(a.id||'').localeCompare(String(b.id||'')));
+}
 function renderDeliveryApp(){
   updateMobileAppMode('deliveryApp');
-  const masters=driverMasters(); const child=driverChildOrders(); const debts=child.filter(o=>orderDebtRemaining(o)>0); const debtTotal=debts.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
-  if(document.getElementById('driverMasterCount'))driverMasterCount.textContent=masters.length; if(document.getElementById('driverChildCount'))driverChildCount.textContent=child.length; if(document.getElementById('driverDebtTotal'))driverDebtTotal.textContent=money(debtTotal);
-  const map={}; debts.forEach(o=>{const k=orderCustomerCode(o)||o.customer; if(!map[k])map[k]={code:orderCustomerCode(o)||'',name:o.customer||'',orders:0,debt:0}; map[k].orders++; map[k].debt+=Math.max(0,orderDebtRemaining(o));}); if(document.getElementById('driverDebtCustomerCount'))driverDebtCustomerCount.textContent=Object.keys(map).length;
-  const list=document.getElementById('driverMasterList'); if(list)list.innerHTML=masters.map(m=>{const orders=(db.orders||[]).filter(o=>(m.childIds||[]).includes(o.id));return `<div class="driver-order-card"><h3>Đơn tổng ${m.id}</h3><div class="muted">Ngày: ${m.date||''} · Tổng tiền: ${money(m.total||0)} · Ghi chú: ${m.note||''}</div><div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Đơn con</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Còn nợ</th></tr></thead><tbody>${orders.map(o=>`<tr><td>${o.id}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer||''}</td><td class="right">${money(o.total||0)}</td><td class="right"><b class="${orderDebtRemaining(o)>0?'debt-money-unpaid':'debt-money-paid'}">${money(orderDebtRemaining(o))}</b></td></tr>`).join('')}</tbody></table></div></div>`}).join('')||'<div class="debt-search-note">Chưa có đơn tổng nào mang tên nhân viên giao hàng này.</div>';
-  const body=document.getElementById('driverDebtBody'); if(body)body.innerHTML=Object.values(map).map(r=>{const sid=cssSafeId(r.code||r.name);return `<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><div class="driver-collect-box"><div class="form"><div class="field"><label>Tiền mặt</label><input id="driverCash_${sid}" type="number" value="0"></div><div class="field"><label>Chuyển khoản</label><input id="driverBank_${sid}" type="number" value="0"></div><div class="field"><label>Ghi chú</label><input id="driverNote_${sid}" value="Nhân viên giao hàng thu tiền"></div></div><div class="toolbar" style="margin:8px 0 0"><button class="btn small green" onclick="driverCollectDebt('${safeAttr(r.code)}','${safeAttr(r.name)}')">Xác nhận thu</button><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Chi tiết</button></div></div></td></tr>`}).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
+  const masters=driverMasters();
+  const child=driverChildOrders();
+  const debts=child.filter(o=>orderDebtRemaining(o)>0);
+  const debtTotal=debts.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
+  const cashTotal=child.reduce((a,o)=>a+(Number(o.cashPaid||0)||0),0);
+  const bankTotal=child.reduce((a,o)=>a+(Number(o.bankPaid||0)||0),0);
+  const returnTotal=child.reduce((a,o)=>a+orderReturnAmount(o),0);
+  const reconcileTotal=cashTotal+bankTotal+returnTotal+Math.max(0,debtTotal);
+
+  if(document.getElementById('driverMasterCount'))driverMasterCount.textContent=masters.length;
+  if(document.getElementById('driverChildCount'))driverChildCount.textContent=child.length;
+  if(document.getElementById('driverDebtTotal'))driverDebtTotal.textContent=money(debtTotal);
+  if(document.getElementById('driverCashTotal'))driverCashTotal.textContent=money(cashTotal);
+  if(document.getElementById('driverBankTotal'))driverBankTotal.textContent=money(bankTotal);
+  if(document.getElementById('driverReturnTotal'))driverReturnTotal.textContent=money(returnTotal);
+  if(document.getElementById('driverReconcileTotal'))driverReconcileTotal.textContent=money(reconcileTotal);
+
+  const map={};
+  debts.forEach(o=>{
+    const k=orderCustomerCode(o)||o.customer;
+    if(!map[k])map[k]={code:orderCustomerCode(o)||'',name:o.customer||'',orders:0,debt:0};
+    map[k].orders++;
+    map[k].debt+=Math.max(0,orderDebtRemaining(o));
+  });
+  if(document.getElementById('driverDebtCustomerCount'))driverDebtCustomerCount.textContent=Object.keys(map).length;
+
+  const list=document.getElementById('driverMasterList');
+  if(list)list.innerHTML=masters.map(m=>{
+    const orders=(db.orders||[]).filter(o=>(m.childIds||[]).includes(o.id));
+    const masterReturn=orders.reduce((a,o)=>a+orderReturnAmount(o),0);
+    const masterCash=orders.reduce((a,o)=>a+(Number(o.cashPaid||0)||0),0);
+    const masterBank=orders.reduce((a,o)=>a+(Number(o.bankPaid||0)||0),0);
+    const masterDebt=orders.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
+    return `<div class="driver-order-card"><h3>Đơn tổng ${escapeHtml(m.id||'')}</h3><div class="muted">Ngày: ${escapeHtml(m.date||'')} · Tổng tiền: ${money(m.total||0)} · Tiền mặt: ${money(masterCash)} · Chuyển khoản: ${money(masterBank)} · Hàng trả về: ${money(masterReturn)} · Công nợ: ${money(masterDebt)} · Ghi chú: ${escapeHtml(m.note||'')}</div><div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Đơn con</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Hàng trả về</th><th class="right">Còn nợ</th><th>Thao tác</th></tr></thead><tbody>${orders.map(o=>{const rid=cssSafeId(o.id);return `<tr><td>${escapeHtml(o.id||'')}</td><td>${escapeHtml(orderCustomerCode(o)||'')}</td><td>${escapeHtml(o.customer||'')}</td><td class="right">${money(o.total||0)}</td><td class="right">${money(o.cashPaid||0)}</td><td class="right">${money(o.bankPaid||0)}</td><td class="right"><input class="driver-return-input" id="driverReturn_${rid}" type="number" inputmode="numeric" value="${orderReturnAmount(o)}" min="0"></td><td class="right"><b class="${orderDebtRemaining(o)>0?'debt-money-unpaid':'debt-money-paid'}">${money(orderDebtRemaining(o))}</b></td><td><button class="btn small orange" onclick="driverSaveOrderReturn('${safeAttr(o.id)}')">Lưu hàng trả</button></td></tr>`}).join('')}</tbody></table></div></div>`;
+  }).join('')||'<div class="debt-search-note">Chưa có đơn tổng nào mang tên nhân viên giao hàng này.</div>';
+
+  const body=document.getElementById('driverDebtBody');
+  if(body)body.innerHTML=Object.values(map).map(r=>{
+    const sid=cssSafeId(r.code||r.name);
+    return `<tr><td>${escapeHtml(r.code)}</td><td><b>${escapeHtml(r.name)}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><div class="driver-collect-box"><div class="form"><div class="field"><label>Tiền mặt</label><input id="driverCash_${sid}" type="number" value="0"></div><div class="field"><label>Chuyển khoản</label><input id="driverBank_${sid}" type="number" value="0"></div><div class="field"><label>Ghi chú</label><input id="driverNote_${sid}" value="Nhân viên giao hàng thu tiền"></div></div><div class="toolbar" style="margin:8px 0 0"><button class="btn small green" onclick="driverCollectDebt('${safeAttr(r.code)}','${safeAttr(r.name)}')">Xác nhận thu</button><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Chi tiết</button></div></div></td></tr>`;
+  }).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
+
+  const reportRows=driverDeliveryReportRows();
+  if(document.getElementById('driverReportCash'))driverReportCash.textContent=money(cashTotal);
+  if(document.getElementById('driverReportBank'))driverReportBank.textContent=money(bankTotal);
+  if(document.getElementById('driverReportDebt'))driverReportDebt.textContent=money(debtTotal);
+  if(document.getElementById('driverReportReturn'))driverReportReturn.textContent=money(returnTotal);
+  const reportBody=document.getElementById('driverReportBody');
+  if(reportBody)reportBody.innerHTML=reportRows.map(o=>`<tr><td>${escapeHtml(o.id||'')}</td><td>${escapeHtml(orderCustomerCode(o)||'')}</td><td>${escapeHtml(o.customer||'')}</td><td class="right">${money(o.total||0)}</td><td class="right">${money(o.cashPaid||0)}</td><td class="right">${money(o.bankPaid||0)}</td><td class="right">${money(orderReturnAmount(o))}</td><td class="right"><b class="${orderDebtRemaining(o)>0?'debt-money-unpaid':'debt-money-paid'}">${money(orderDebtRemaining(o))}</b></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có đơn giao hàng để báo cáo</td></tr>';
 }
 function cssSafeId(v){return String(v).replace(/[^a-zA-Z0-9_-]/g,'_');}
 
@@ -2619,10 +2714,19 @@ function fillPayCustomerFromDebtFilter(){
   if(document.getElementById('debtPayCustomerName')) debtPayCustomerName.value=name;
   if(!code && !name) toast('Bạn chưa nhập mã hoặc tên khách ở bộ lọc công nợ');
 }
+function orderReturnAmount(o){
+  return Math.max(0,
+    (Number(o?.returnGoodsAmount||0)||0) ||
+    (Number(o?.returnedGoodsAmount||0)||0) ||
+    (Number(o?.returnAmount||0)||0) ||
+    (Number(o?.goodsReturn||0)||0)
+  );
+}
 function orderDebtRemaining(o){
   const total=Number(o?.total||0)||0;
   const paid=(Number(o?.cashPaid||0)||0)+(Number(o?.bankPaid||0)||0);
-  return total-paid;
+  const returned=orderReturnAmount(o);
+  return total-paid-returned;
 }
 function debtPaymentSortDate(o){
   const raw=o.dueDate||o.date||o.isoDate||'';
@@ -2930,9 +3034,11 @@ function printPaymentReceipt(paymentId){
 
   /* Driver wizard visibility */
   body.mobile-role-app #deliveryApp #driverOrdersPanel,
-  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app #deliveryApp #driverDebtPanel,
+  body.mobile-role-app #deliveryApp #driverReportPanel{display:none!important}
   body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
   body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app.driver-step-report #deliveryApp #driverReportPanel{display:block!important}
   body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
   body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
   body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
@@ -3355,9 +3461,11 @@ function invoiceHtmlForOrder(o){
 
   /* Driver wizard visibility */
   body.mobile-role-app #deliveryApp #driverOrdersPanel,
-  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app #deliveryApp #driverDebtPanel,
+  body.mobile-role-app #deliveryApp #driverReportPanel{display:none!important}
   body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
   body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app.driver-step-report #deliveryApp #driverReportPanel{display:block!important}
   body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
   body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
   body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
@@ -3505,9 +3613,11 @@ function printSelectedOrders(){
 
   /* Driver wizard visibility */
   body.mobile-role-app #deliveryApp #driverOrdersPanel,
-  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app #deliveryApp #driverDebtPanel,
+  body.mobile-role-app #deliveryApp #driverReportPanel{display:none!important}
   body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
   body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app.driver-step-report #deliveryApp #driverReportPanel{display:block!important}
   body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
   body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
   body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
@@ -3642,9 +3752,11 @@ function printMasterOrder(id){
 
   /* Driver wizard visibility */
   body.mobile-role-app #deliveryApp #driverOrdersPanel,
-  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app #deliveryApp #driverDebtPanel,
+  body.mobile-role-app #deliveryApp #driverReportPanel{display:none!important}
   body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
   body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app.driver-step-report #deliveryApp #driverReportPanel{display:block!important}
   body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
   body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
   body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
