@@ -2684,8 +2684,7 @@ function collectGroupedRows(rows, nameKeys, itemKeys){
     const name=String(nameKeys.map(k=>r[k]).find(v=>v!==undefined && v!==null && String(v).trim()!=='')||'').trim();
     const raw=String(itemKeys.map(k=>r[k]).find(v=>v!==undefined && v!==null && String(v).trim()!=='')||'').trim();
     if(!name || !raw) return;
-    const parts=raw.split(/[,;
-]/).map(x=>x.trim()).filter(Boolean);
+    const parts=raw.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
     if(!grouped[name]) grouped[name]=[];
     parts.forEach(x=>{ if(!grouped[name].includes(x)) grouped[name].push(x); });
   });
