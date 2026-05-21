@@ -65,6 +65,10 @@
 .sale-auto-row .muted{font-size:12px;line-height:1.45}
 .sale-auto-empty{padding:12px;color:var(--muted)}
 
+.debt-history-list{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:10px;margin-top:10px;max-height:220px;overflow:auto}
+.debt-history-row{display:grid;grid-template-columns:110px 1fr 120px;gap:8px;border-bottom:1px dashed #d0d5dd;padding:7px 0;font-size:12px}
+.debt-history-row:last-child{border-bottom:0}
+
 </style>
 </head>
 <body>
@@ -300,6 +304,7 @@
             <div class="sale-head">
               <div class="field col2"><label>Số HĐ</label><input id="oId" readonly></div>
               <div class="field col2"><label>Ngày</label><input id="oDate" type="date"></div>
+              <div class="field col2"><label>Hạn thanh toán</label><input id="dueDate" type="date"></div>
               <div class="field col3 sale-auto-wrap"><label>NVBH</label><input id="sStaff" autocomplete="off" placeholder="Tìm mã / tên / SĐT NVBH" oninput="searchSaleStaff()" onfocus="searchSaleStaff()" onkeydown="saleAutoKey(event,'staff')"><input type="hidden" id="sStaffCode"><div id="saleStaffResults" class="sale-auto-box"></div></div>
               <div class="field col3 sale-auto-wrap"><label>Khách</label><input id="sCustomer" autocomplete="off" placeholder="Tìm mã / tên / SĐT khách hàng" oninput="searchSaleCustomer()" onfocus="searchSaleCustomer()" onkeydown="saleAutoKey(event,'customer')"><input type="hidden" id="sCustomerCode"><div id="saleCustomerResults" class="sale-auto-box"></div></div>
               <div class="field col2"><label>Kho</label><input id="sWarehouse" value="KHOCHINH"></div>
@@ -598,7 +603,7 @@
       <div><h2>Kết quả tra cứu công nợ</h2><div class="muted" id="debtSearchSummary"></div></div>
       <div class="toolbar"><button class="btn light" onclick="closeDebtSearchModal()">Đóng</button></div>
     </div>
-    <div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Giá trị đơn hàng</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Công nợ</th><th>Trạng thái</th><th>Ngày</th><th class="right">Tuổi nợ</th><th>Thao tác</th></tr></thead><tbody id="debtBody"></tbody></table></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th>Đơn hàng</th><th>Mã KH</th><th>Tên khách hàng</th><th class="right">Giá trị đơn hàng</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Công nợ</th><th>Trạng thái</th><th>Ngày bán</th><th>Hạn TT</th><th class="right">Quá hạn</th><th>Thao tác</th></tr></thead><tbody id="debtBody"></tbody></table></div>
     <br>
     <div class="layout2">
       <div class="card panel"><h2>Báo cáo theo nhân viên giao hàng</h2><div class="table-wrap"><table class="table"><thead><tr><th>NV giao hàng</th><th class="center">Số đơn</th><th class="right">Giá trị đơn</th><th class="right">Đã thu</th><th class="right">Công nợ</th></tr></thead><tbody id="debtDeliveryBody"></tbody></table></div></div>
@@ -673,13 +678,13 @@ let API_READY=false;
 let API_SYNC_TIMER=null;
 
 function emptyDb(){
-  return {products:[],receipts:[],orders:[],customers:[],customerGroups:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],promotions:[],productPromotions:[],groupPromotions:[],customerGroupPromotions:[],productGroups:[],categoryGroups:[],shortageReports:[]};
+  return {products:[],receipts:[],orders:[],customers:[],customerGroups:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],promotions:[],productPromotions:[],groupPromotions:[],customerGroupPromotions:[],productGroups:[],categoryGroups:[],shortageReports:[],payments:[]};
 }
 function normalizeDb(data){
   const base=emptyDb();
   const src=(data&&typeof data==='object')?data:{};
   Object.keys(base).forEach(k=>{base[k]=Array.isArray(src[k])?src[k]:[]});
-  base.orders=base.orders.map(o=>{if(o.masterId===undefined)o.masterId=''; if(o.cashPaid===undefined)o.cashPaid=0; if(o.bankPaid===undefined)o.bankPaid=0; if(o.debt===undefined)o.debt=Math.max(0,Number(o.total||0)-Number(o.cashPaid||0)-Number(o.bankPaid||0)); if(!o.deliveryStaffCode)o.deliveryStaffCode=''; if(!o.deliveryStaffName)o.deliveryStaffName=''; return o});
+  base.orders=base.orders.map(o=>{if(o.masterId===undefined)o.masterId=''; if(o.cashPaid===undefined)o.cashPaid=0; if(o.bankPaid===undefined)o.bankPaid=0; if(o.debt===undefined)o.debt=Math.max(0,Number(o.total||0)-Number(o.cashPaid||0)-Number(o.bankPaid||0)); if(!o.deliveryStaffCode)o.deliveryStaffCode=''; if(!o.deliveryStaffName)o.deliveryStaffName=''; if(o.dueDate===undefined)o.dueDate=''; if(o.paymentStatus===undefined)o.paymentStatus=''; return o});
   base.masterOrders=base.masterOrders.map(m=>{if(!m.deliveryStaffCode)m.deliveryStaffCode=''; if(!m.deliveryStaffName)m.deliveryStaffName=''; return m});
   base.customers=base.customers.map(c=>{if(!c.customerGroup)c.customerGroup=''; return c});
   return base;
@@ -1610,7 +1615,7 @@ async function createOrder(){
   let dOpt=document.getElementById('deliveryStaffSelect')?.selectedOptions?.[0];
   let cash=Number(document.getElementById('cashPaid')?.value||0)||0;
   let bank=Number(document.getElementById('bankPaid')?.value||0)||0;
-  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name||selectedCustomerCode,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:selectedStaff.code,staffName:selectedStaff.name,staff:selectedStaff.display||selectedStaff.name||selectedStaff.code,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),goods:t.goods,discount:t.discount,lineDiscount:t.lineDiscount,promoDiscount:t.promoDiscount,promoDetails:t.promoDetails,promoExplanation:(t.promoDetails||[]).map(d=>`${d.code||'KM'}: ${d.content||''} - giảm ${money(d.amount||0)}`).join('\n'),adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
+  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name||selectedCustomerCode,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:selectedStaff.code,staffName:selectedStaff.name,staff:selectedStaff.display||selectedStaff.name||selectedStaff.code,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',dueDate:document.getElementById('dueDate')?.value||'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),paymentStatus:(t.pay-cash-bank)<=0?'Đã thanh toán':'Còn nợ',goods:t.goods,discount:t.discount,lineDiscount:t.lineDiscount,promoDiscount:t.promoDiscount,promoDetails:t.promoDetails,promoExplanation:(t.promoDetails||[]).map(d=>`${d.code||'KM'}: ${d.content||''} - giảm ${money(d.amount||0)}`).join('\n'),adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
 
   if(oldOrder){
     Object.assign(oldOrder,orderData);
@@ -1657,6 +1662,7 @@ function editOrder(id){
   setSaleStaffByCode(o.staffCode||'',o.staffName||o.staff||'');
   if(document.getElementById('sWarehouse')) sWarehouse.value=o.warehouse||'KHOCHINH';
   if(document.getElementById('sNote')) sNote.value=o.note||'';
+  if(document.getElementById('dueDate')) dueDate.value=o.dueDate||'';
   if(document.getElementById('deliveryStatus')) deliveryStatus.value=o.delivery||'Giao thành công';
   if(document.getElementById('xkCode')) xkCode.value=o.xk||'';
   if(document.getElementById('adjustDiscount')) adjustDiscount.value=Number(o.adjust||0);
@@ -1752,7 +1758,12 @@ function recalcMasterOrder(masterId){
   m.cashPaid=orders.reduce((a,o)=>a+Number(o.cashPaid||0),0); m.bankPaid=orders.reduce((a,o)=>a+Number(o.bankPaid||0),0); m.debt=Math.max(0,Number(m.total||0)-Number(m.cashPaid||0)-Number(m.bankPaid||0));
 }
 function orderAgeDays(o){let d=orderDateObj(o); if(!d)return 0; return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));}
-function debtRows(){return (db.orders||[]).map(o=>{let total=Number(o.total||0), cash=Number(o.cashPaid||0), bank=Number(o.bankPaid||0), debt=Math.max(0,total-cash-bank); o.debt=debt; return {delivery:orderDeliveryText(o),deliveryCode:orderDeliveryCode(o),orderId:o.id,customerCode:orderCustomerCode(o)||'',customer:o.customer||'',total,cash,bank,debt,status:orderPaymentStatusText(total,cash,bank),date:o.date||'',age:orderAgeDays(o)};});}
+function debtDueAge(o){
+  const d=o.dueDate?new Date(o.dueDate+'T12:00:00'):orderDateObj(o);
+  if(!d||isNaN(d))return 0;
+  return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+}
+function debtRows(){return (db.orders||[]).map(o=>{let total=Number(o.total||0), cash=Number(o.cashPaid||0), bank=Number(o.bankPaid||0), debt=Math.max(0,total-cash-bank); o.debt=debt; o.paymentStatus=debt<=0?'Đã thanh toán':'Còn nợ'; return {delivery:orderDeliveryText(o),deliveryCode:orderDeliveryCode(o),orderId:o.id,customerCode:orderCustomerCode(o)||'',customer:o.customer||'',total,cash,bank,debt,status:orderPaymentStatusText(total,cash,bank),date:o.date||'',dueDate:o.dueDate||'',age:debtDueAge(o)};});}
 function filteredDebtRows(){
   let rows=debtRows();
   let fd=normText(document.getElementById('debtFilterDelivery')?.value||'');
@@ -1783,9 +1794,18 @@ async function payOrderRealtime(orderId, rowIndex){
 
   if(cash<0||bank<0)return toast('Tiền thanh toán không được âm');
 
+  const oldCash=Number(order.cashPaid||0)||0;
+  const oldBank=Number(order.bankPaid||0)||0;
+  const addCash=cash-oldCash;
+  const addBank=bank-oldBank;
   order.cashPaid=cash;
   order.bankPaid=bank;
   order.debt=Math.max(0,Number(order.total||0)-cash-bank);
+  order.paymentStatus=order.debt<=0?'Đã thanh toán':'Còn nợ';
+  if(addCash!==0 || addBank!==0){
+    db.payments=db.payments||[];
+    db.payments.push({id:'PT'+Date.now(),orderId,date:today(),customerCode:orderCustomerCode(order)||'',customerName:order.customer||'',cash:addCash,bank:addBank,total:addCash+addBank,note:'Cập nhật từ màn hình công nợ'});
+  }
 
   if(order.masterId)recalcMasterOrder(order.masterId);
 
@@ -1855,8 +1875,9 @@ function renderDebtReports(){
         <td class="right"><b class="${st.money}">${money(r.debt)}</b></td>
         <td><span class="pill ${st.pill}">${st.text}</span></td>
         <td>${r.date}</td>
-        <td class="right">${r.age} ngày</td>
-        <td><button class="btn small ${r.debt>0?'green':'light'}" onclick="payOrderRealtime('${r.orderId}',${i})">${st.btn}</button></td>
+        <td>${r.dueDate||'-'}</td>
+        <td class="right">${r.debt>0?r.age+' ngày':'-'}</td>
+        <td><button class="btn small ${r.debt>0?'green':'light'}" onclick="payOrderRealtime('${r.orderId}',${i})">${st.btn}</button> <button class="btn small light" onclick="showPaymentHistory('${r.orderId}')">Lịch sử</button></td>
       </tr>`;
     }).join('')||'<tr><td colspan="12" class="center muted">Không có đơn phù hợp</td></tr>';
   }
@@ -1888,8 +1909,23 @@ function renderDebtReports(){
   if(document.getElementById('debtOldBody')) debtOldBody.innerHTML=oldRows.map(r=>`<tr><td>${r.delivery||'Chưa gán GH'}</td><td><b>${r.orderId}</b></td><td>${r.customerCode}</td><td>${r.customer}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td>${r.date}</td><td class="right">${r.age} ngày</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Không có công nợ quá lâu</td></tr>';
 }
 
+
+function showPaymentHistory(orderId){
+  const pays=(db.payments||[]).filter(p=>String(p.orderId)===String(orderId));
+  const o=(db.orders||[]).find(x=>String(x.id)===String(orderId));
+  const html=pays.slice().reverse().map(p=>`<div class="debt-history-row"><b>${p.date||''}</b><span>${p.note||'Thu tiền'}</span><b class="right">${money(Number(p.cash||0)+Number(p.bank||0))}</b></div>`).join('')||'<div class="muted">Chưa có lịch sử thu tiền riêng cho đơn này.</div>';
+  const msg=`Đơn ${orderId} - ${o?.customer||''}
+Tổng đơn: ${money(o?.total||0)}
+Đã thu: ${money((Number(o?.cashPaid||0)||0)+(Number(o?.bankPaid||0)||0))}
+Còn nợ: ${money(o?.debt||0)}
+
+Chi tiết lịch sử xem trong khung công nợ.`;
+  toast(msg);
+  const holder=document.getElementById('debtSearchSummary');
+  if(holder){holder.innerHTML=`<b>Lịch sử thu tiền đơn ${orderId}</b><div class="debt-history-list">${html}</div>`;}
+}
 function clearDebtFilters(){['debtFilterDelivery','debtFilterCustomerCode','debtFilterCustomerName','debtOverDays'].forEach(id=>{let e=document.getElementById(id); if(e)e.value='';}); renderDebtReports();}
-function exportDebtReport(){let rows=filteredDebtRows().map(r=>({'Nhân viên giao hàng':r.delivery,'Đơn hàng':r.orderId,'Mã khách hàng':r.customerCode,'Tên khách hàng':r.customer,'Giá trị đơn hàng':r.total,'Tiền mặt thanh toán':r.cash,'Tiền chuyển khoản':r.bank,'Công nợ':r.debt,'Ngày':r.date,'Tuổi nợ':r.age})); if(!rows.length)return toast('Không có dữ liệu công nợ để xuất'); downloadExcel(rows,'bao_cao_cong_no.xlsx');}
+function exportDebtReport(){let rows=filteredDebtRows().map(r=>({'Nhân viên giao hàng':r.delivery,'Đơn hàng':r.orderId,'Mã khách hàng':r.customerCode,'Tên khách hàng':r.customer,'Giá trị đơn hàng':r.total,'Tiền mặt thanh toán':r.cash,'Tiền chuyển khoản':r.bank,'Công nợ':r.debt,'Ngày bán':r.date,'Hạn thanh toán':r.dueDate,'Quá hạn ngày':r.age})); if(!rows.length)return toast('Không có dữ liệu công nợ để xuất'); downloadExcel(rows,'bao_cao_cong_no.xlsx');}
 
 function numberToVietnameseWords(num){
   num=Math.round(Number(num)||0);
