@@ -16,7 +16,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// ===== INIT DATABASE =====
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS kho_data (
@@ -34,14 +33,15 @@ async function initDB() {
         products: [],
         orders: [],
         customers: [],
+        customerGroups: [],
         staff: [],
         deliveryStaff: [],
         receipts: [],
         masterOrders: [],
         debts: [],
-        promotions: [], // 🔥 thêm khuyến mại
-        productGroups: [], // 🔥 nhóm sản phẩm
-        categoryGroups: [] // 🔥 nhóm ngành
+        promotions: [],
+        productGroups: [],
+        categoryGroups: []
       })]
     );
   }
@@ -50,14 +50,12 @@ async function initDB() {
 }
 initDB();
 
-// ===== AUTH =====
 const users = [
   { username: 'admin', password: '123456', role: 'admin', name: 'Admin' }
 ];
 
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
-
   const user = users.find(u => u.username === username && u.password === password);
   if (!user) return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
 
@@ -77,11 +75,9 @@ function auth(req, res, next) {
   }
 }
 
-// ===== REBUILD MASTER =====
 function rebuildMasterOrders(orders, masterOrders) {
   return masterOrders.map(master => {
     const child = orders.filter(o => o.masterId === master.id);
-
     let map = {};
     let total = 0;
 
@@ -90,19 +86,13 @@ function rebuildMasterOrders(orders, masterOrders) {
         if (!map[i.sku]) map[i.sku] = { ...i };
         else map[i.sku].qty += i.qty;
       });
-
       total += Number(o.total) || 0;
     });
 
-    return {
-      ...master,
-      items: Object.values(map),
-      total
-    };
+    return { ...master, items: Object.values(map), total };
   });
 }
 
-// ===== REBUILD CÔNG NỢ =====
 function rebuildDebts(data) {
   let debts = [];
 
@@ -138,17 +128,20 @@ function rebuildDebts(data) {
   return debts;
 }
 
-// ===== GET DATA =====
 app.get('/api/data', auth, async (req, res) => {
   const result = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
   res.json(result.rows[0].data);
 });
 
-// ===== SAVE DATA =====
 app.post('/api/data', auth, async (req, res) => {
   let data = req.body;
 
-  data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
+  data.customerGroups = data.customerGroups || [];
+  data.promotions = data.promotions || [];
+  data.productGroups = data.productGroups || [];
+  data.categoryGroups = data.categoryGroups || [];
+
+  data.masterOrders = rebuildMasterOrders(data.orders || [], data.masterOrders || []);
   data.debts = rebuildDebts(data);
 
   await pool.query(`UPDATE kho_data SET data=$1 WHERE id=1`, [data]);
@@ -156,7 +149,6 @@ app.post('/api/data', auth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ===== THU TIỀN =====
 app.post('/api/pay-order', auth, async (req, res) => {
   const { orderId, cashPaid, bankPaid } = req.body;
 
@@ -177,7 +169,6 @@ app.post('/api/pay-order', auth, async (req, res) => {
   res.json({ success: true, debts: data.debts });
 });
 
-// ===== REPORT =====
 app.get('/api/debt-report', auth, async (req, res) => {
   const rs = await pool.query(`SELECT data FROM kho_data LIMIT 1`);
   const data = rs.rows[0].data;
@@ -198,12 +189,10 @@ app.get('/api/debt-report', auth, async (req, res) => {
   res.json(report);
 });
 
-// ===== HEALTH =====
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
-// ===== START =====
 app.listen(PORT, () => {
   console.log('🚀 Server chạy cổng ' + PORT);
 });

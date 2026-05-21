@@ -171,6 +171,9 @@
           <button class="btn orange" onclick="document.getElementById('importProductGroupFile').click()">Import nhóm SP</button>
           <input id="importProductGroupFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductGroupExcel(event)">
           <button class="btn" onclick="saveCategoryGroup()">Lưu nhóm ngành hàng</button>
+          <button class="btn light" onclick="downloadCategoryGroupTemplate()">Tải mẫu nhóm ngành</button>
+          <button class="btn orange" onclick="document.getElementById('importCategoryGroupFile').click()">Import nhóm ngành</button>
+          <input id="importCategoryGroupFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCategoryGroupExcel(event)">
         </div>
 
         <div class="card panel">
@@ -2616,19 +2619,41 @@ function deleteCustomerGroup(id){
   save(); render();
 }
 function downloadCustomerGroupTemplate(){
-  downloadExcel([{'Tên nhóm khách hàng':'Khách sỉ','Danh sách mã KH':'KH001,KH002,KH003'}],'mau_nhom_khach_hang.xlsx');
+  downloadExcel([
+    {'Tên nhóm khách hàng':'Khách sỉ','Danh sách mã KH':'KH001'},
+    {'Tên nhóm khách hàng':'Khách sỉ','Danh sách mã KH':'KH002'},
+    {'Tên nhóm khách hàng':'Khách sỉ','Danh sách mã KH':'KH003'},
+    {'Tên nhóm khách hàng':'Khách tuyến 1','Danh sách mã KH':'KH101'},
+    {'Tên nhóm khách hàng':'Khách tuyến 1','Danh sách mã KH':'KH102'}
+  ],'mau_nhom_khach_hang.xlsx');
+}
+function collectGroupedRows(rows, nameKeys, itemKeys){
+  const grouped={};
+  rows.forEach(r=>{
+    const name=String(nameKeys.map(k=>r[k]).find(v=>v!==undefined && v!==null && String(v).trim()!=='')||'').trim();
+    const raw=String(itemKeys.map(k=>r[k]).find(v=>v!==undefined && v!==null && String(v).trim()!=='')||'').trim();
+    if(!name || !raw) return;
+    const parts=raw.split(/[,;
+]/).map(x=>x.trim()).filter(Boolean);
+    if(!grouped[name]) grouped[name]=[];
+    parts.forEach(x=>{ if(!grouped[name].includes(x)) grouped[name].push(x); });
+  });
+  return grouped;
 }
 function importCustomerGroupExcel(ev){
   const file=ev.target.files[0]; if(!file)return;
   readExcel(file,rows=>{
-    ensureCustomerGroups(); let count=0;
-    rows.forEach(r=>{
-      const name=String(r['Tên nhóm khách hàng']||r.ten_nhom_khach_hang||r.name||'').trim();
-      const raw=String(r['Danh sách mã KH']||r.danh_sach_ma_kh||r.codes||'').trim();
-      const codes=raw.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+    ensureCustomerGroups();
+    const grouped=collectGroupedRows(rows,['Tên nhóm khách hàng','ten_nhom_khach_hang','name'],['Danh sách mã KH','Mã khách hàng','ma_khach_hang','danh_sach_ma_kh','codes']);
+    let count=0;
+    Object.entries(grouped).forEach(([name,codes])=>{
       if(!name||!codes.length)return;
       const old=db.customerGroups.find(g=>normText(g.name)===normText(name));
-      if(old) old.codes=codes; else db.customerGroups.push({id:'CGKH'+Date.now()+count,name,codes});
+      if(old){
+        old.codes=[...new Set([...(old.codes||[]),...codes])];
+      }else{
+        db.customerGroups.push({id:'CGKH'+Date.now()+count,name,codes});
+      }
       db.customers.forEach(c=>{if(codes.includes(String(c.code))) c.customerGroup=name;});
       count++;
     });
@@ -2879,29 +2904,61 @@ function importGroupPromotionExcel(ev){
   reader.readAsArrayBuffer(file);
 }
 function downloadProductGroupTemplate(){
-  downloadExcel([{'Tên nhóm sản phẩm':'Nhóm OMO','Danh sách mã sản phẩm':'SKU001,SKU002,SKU003'}],'mau_nhom_san_pham.xlsx');
+  downloadExcel([
+    {'Tên nhóm sản phẩm':'Nhóm OMO','Danh sách mã sản phẩm':'SKU001'},
+    {'Tên nhóm sản phẩm':'Nhóm OMO','Danh sách mã sản phẩm':'SKU002'},
+    {'Tên nhóm sản phẩm':'Nhóm OMO','Danh sách mã sản phẩm':'SKU003'},
+    {'Tên nhóm sản phẩm':'Nhóm PS','Danh sách mã sản phẩm':'PS1'},
+    {'Tên nhóm sản phẩm':'Nhóm PS','Danh sách mã sản phẩm':'PS2'},
+    {'Tên nhóm sản phẩm':'Nhóm PS','Danh sách mã sản phẩm':'PS3'}
+  ],'mau_nhom_san_pham.xlsx');
 }
 function importProductGroupExcel(ev){
   const file=ev.target.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+  readExcel(file,rows=>{
     db.productGroups=Array.isArray(db.productGroups)?db.productGroups:[];
+    const grouped=collectGroupedRows(rows,['Tên nhóm sản phẩm','ten_nhom_san_pham','name'],['Danh sách mã sản phẩm','Mã sản phẩm','ma_san_pham','danh_sach_ma_san_pham','skus']);
     let count=0;
-    rows.forEach(r=>{
-      const name=String(r.ten_nhom_san_pham||r['Tên nhóm sản phẩm']||r.name||'').trim();
-      const raw=String(r.danh_sach_ma_san_pham||r['Danh sách mã sản phẩm']||r.skus||'').trim();
-      const skus=raw.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+    Object.entries(grouped).forEach(([name,skus])=>{
       if(!name || !skus.length) return;
       const old=db.productGroups.find(g=>normText(g.name)===normText(name));
-      if(old) old.skus=skus; else db.productGroups.push({id:'PG'+Date.now()+count,name,skus});
+      if(old){
+        old.skus=[...new Set([...(old.skus||[]),...skus])];
+      }else{
+        db.productGroups.push({id:'PG'+Date.now()+count,name,skus});
+      }
       db.products.forEach(p=>{if(skus.includes(String(p.sku))) p.productGroup=name;});
       count++;
     });
     save(); render(); toast('Đã import '+count+' nhóm sản phẩm'); ev.target.value='';
-  };
-  reader.readAsArrayBuffer(file);
+  });
+}
+function downloadCategoryGroupTemplate(){
+  downloadExcel([
+    {'Tên nhóm ngành hàng':'Chăm sóc gia đình','Danh sách ngành hàng':'Giặt giũ'},
+    {'Tên nhóm ngành hàng':'Chăm sóc gia đình','Danh sách ngành hàng':'Nước rửa chén'},
+    {'Tên nhóm ngành hàng':'Chăm sóc cá nhân','Danh sách ngành hàng':'Dầu gội'},
+    {'Tên nhóm ngành hàng':'Chăm sóc cá nhân','Danh sách ngành hàng':'Sữa tắm'}
+  ],'mau_nhom_nganh_hang.xlsx');
+}
+function importCategoryGroupExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  readExcel(file,rows=>{
+    db.categoryGroups=Array.isArray(db.categoryGroups)?db.categoryGroups:[];
+    const grouped=collectGroupedRows(rows,['Tên nhóm ngành hàng','ten_nhom_nganh_hang','name'],['Danh sách ngành hàng','Ngành hàng','nganh_hang','danh_sach_nganh_hang','categories']);
+    let count=0;
+    Object.entries(grouped).forEach(([name,categories])=>{
+      if(!name || !categories.length) return;
+      const old=db.categoryGroups.find(g=>normText(g.name)===normText(name));
+      if(old){
+        old.categories=[...new Set([...(old.categories||[]),...categories])];
+      }else{
+        db.categoryGroups.push({id:'CG'+Date.now()+count,name,categories});
+      }
+      count++;
+    });
+    save(); render(); toast('Đã import '+count+' nhóm ngành hàng'); ev.target.value='';
+  });
 }
 
 
