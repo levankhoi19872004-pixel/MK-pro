@@ -334,6 +334,32 @@ app.get('/api/debt-report', auth, async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    message: 'Kho Minh Khai API đang chạy',
+    health: '/api/health',
+    login: '/api/login',
+    data: '/api/data'
+  });
+});
+
+app.get('/api', (req, res) => {
+  res.json({
+    ok: true,
+    message: 'API hợp lệ',
+    routes: [
+      'POST /api/login',
+      'POST /api/logout',
+      'GET /api/data',
+      'POST /api/data',
+      'POST /api/pay-order',
+      'GET /api/debt-report',
+      'GET /api/health'
+    ]
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
@@ -346,8 +372,4 @@ app.use((req, res) => {
     error: 'Không tìm thấy API',
     path: req.path
   });
-});
-
-app.listen(PORT, () => {
-  console.log('🚀 Server chạy cổng ' + PORT);
 });
