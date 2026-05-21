@@ -1823,15 +1823,43 @@ function salesCollectDebt(){
 function driverMatchCodeName(code,name){const u=normText(currentUserCode()); const n=normText(currentUserDisplayName()); return (code&&normText(code)===u)||(name&&normText(name).includes(n))||(n&&normText(name)===n);}
 function driverMasters(){if(isAdmin())return db.masterOrders||[]; return (db.masterOrders||[]).filter(m=>driverMatchCodeName(m.deliveryStaffCode,m.deliveryStaffName));}
 function driverChildOrders(){const ids=new Set(driverMasters().flatMap(m=>m.childIds||[])); return (db.orders||[]).filter(o=>ids.has(o.id)||driverMatchCodeName(o.deliveryStaffCode,o.deliveryStaffName));}
+function applyCustomerReturnToOrders(orders, returnAmount, note){
+  let returnLeft=Number(returnAmount)||0;
+  let returnTotal=0;
+  const touchedMasters=new Set();
+  orders.forEach(order=>{
+    if(returnLeft<=0) return;
+    const remain=Math.max(0,orderDebtRemaining(order));
+    if(remain<=0) return;
+    const amount=Math.min(remain,returnLeft);
+    const oldReturn=orderReturnAmount(order);
+    order.returnGoodsAmount=oldReturn+amount;
+    order.returnedGoodsAmount=order.returnGoodsAmount;
+    order.returnNote=note||order.returnNote||'Nhân viên giao hàng ghi nhận hàng trả về';
+    const total=Number(order.total||0)||0;
+    const paid=(Number(order.cashPaid||0)||0)+(Number(order.bankPaid||0)||0);
+    order.debt=total-paid-order.returnGoodsAmount;
+    order.paymentStatus=getPaymentStatusText(total,paid+order.returnGoodsAmount,order.dueDate||'');
+    returnLeft-=amount;
+    returnTotal+=amount;
+    if(order.masterId) touchedMasters.add(order.masterId);
+  });
+  touchedMasters.forEach(id=>recalcMasterOrder(id));
+  return {returnTotal,returnLeft};
+}
 function driverCollectDebt(code,name){
-  const cash=Number(document.getElementById('driverCash_'+cssSafeId(code||name))?.value||0)||0;
-  const bank=Number(document.getElementById('driverBank_'+cssSafeId(code||name))?.value||0)||0;
-  const note=(document.getElementById('driverNote_'+cssSafeId(code||name))?.value||'Nhân viên giao hàng thu tiền').trim();
-  if(cash+bank<=0)return toast('Nhập tiền mặt hoặc chuyển khoản cần thu');
+  const sid=cssSafeId(code||name);
+  const cash=Number(document.getElementById('driverCash_'+sid)?.value||0)||0;
+  const bank=Number(document.getElementById('driverBank_'+sid)?.value||0)||0;
+  const returned=Number(document.getElementById('driverReturnDebt_'+sid)?.value||0)||0;
+  const note=(document.getElementById('driverNote_'+sid)?.value||'Nhân viên giao hàng thu tiền').trim();
+  if(cash<0||bank<0||returned<0)return toast('Số tiền không được âm');
+  if(cash+bank+returned<=0)return toast('Nhập tiền mặt, chuyển khoản hoặc giá trị hàng trả về');
   const orders=driverChildOrders().filter(o=>{const c=String(orderCustomerCode(o)||''); const n=normText(o.customer||''); return ((code&&c===String(code))||(!code&&name&&n.includes(normText(name)))) && orderDebtRemaining(o)>0;}).sort((a,b)=>debtPaymentSortDate(a)-debtPaymentSortDate(b));
   if(!orders.length)return toast('Khách này không còn công nợ trong đơn giao');
+  const returnRs=applyCustomerReturnToOrders(orders,returned,note+' - Hàng trả về bởi: '+currentUserDisplayName());
   const rs=applyCustomerPaymentToOrders(orders,cash,bank,note+' - Người thu: '+currentUserDisplayName());
-  save();render();toast('Đã ghi nhận thu '+money(rs.paidTotal)+' bởi '+currentUserDisplayName());
+  save();render();toast('Đã ghi nhận: tiền thu '+money(rs.paidTotal)+' · hàng trả về '+money(returnRs.returnTotal)+' bởi '+currentUserDisplayName());
 }
 function driverSaveOrderReturn(orderId){
   const order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
@@ -1896,7 +1924,7 @@ function renderDeliveryApp(){
   const body=document.getElementById('driverDebtBody');
   if(body)body.innerHTML=Object.values(map).map(r=>{
     const sid=cssSafeId(r.code||r.name);
-    return `<tr><td>${escapeHtml(r.code)}</td><td><b>${escapeHtml(r.name)}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><div class="driver-collect-box"><div class="form"><div class="field"><label>Tiền mặt</label><input id="driverCash_${sid}" type="number" value="0"></div><div class="field"><label>Chuyển khoản</label><input id="driverBank_${sid}" type="number" value="0"></div><div class="field"><label>Ghi chú</label><input id="driverNote_${sid}" value="Nhân viên giao hàng thu tiền"></div></div><div class="toolbar" style="margin:8px 0 0"><button class="btn small green" onclick="driverCollectDebt('${safeAttr(r.code)}','${safeAttr(r.name)}')">Xác nhận thu</button><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Chi tiết</button></div></div></td></tr>`;
+    return `<tr><td>${escapeHtml(r.code)}</td><td><b>${escapeHtml(r.name)}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><div class="driver-collect-box"><div class="form"><div class="field"><label>Tiền mặt</label><input id="driverCash_${sid}" type="number" value="0"></div><div class="field"><label>Chuyển khoản</label><input id="driverBank_${sid}" type="number" value="0"></div><div class="field"><label>Giá trị hàng trả về</label><input id="driverReturnDebt_${sid}" type="number" value="0"></div><div class="field"><label>Ghi chú</label><input id="driverNote_${sid}" value="Nhân viên giao hàng thu tiền"></div></div><div class="toolbar" style="margin:8px 0 0"><button class="btn small green" onclick="driverCollectDebt('${safeAttr(r.code)}','${safeAttr(r.name)}')">Xác nhận thu</button><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Chi tiết</button></div></div></td></tr>`;
   }).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
 
   const reportRows=driverDeliveryReportRows();
