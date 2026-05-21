@@ -273,6 +273,43 @@
   body.mobile-role-app .driver-collect-box .btn{width:100%!important}
 }
 
+
+
+/* ===== V14: Mobile bán hàng đơn giản 4 màn hình, chữ lớn, dễ nhìn ===== */
+@media(max-width:780px){
+  body.mobile-role-app{font-size:16px!important;background:#eef2f7!important}
+  body.mobile-role-app .section.active{padding:10px 10px 96px!important}
+  body.mobile-role-app #salesApp .panel-head h2{font-size:22px!important}
+  body.mobile-role-app #salesApp .panel-head{padding:14px!important;border-radius:20px!important}
+  body.mobile-role-app .mobile-app-tabs{grid-template-columns:repeat(4,1fr);display:grid!important;gap:6px;left:8px;right:8px;bottom:8px;padding:7px;border-radius:22px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:12px!important;min-height:58px;border-radius:16px!important}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:20px!important}
+  body.mobile-role-app .mobile-app-tabs button[data-app-tab="sales-debt"],
+  body.mobile-role-app .mobile-app-tabs button[data-app-tab="sales-confirm"]{display:none!important}
+  body.mobile-role-app .role-list-row{font-size:17px!important;padding:17px!important;border-radius:22px!important}
+  body.mobile-role-app .role-list-row b{font-size:18px!important}
+  body.mobile-role-app .role-list-row .muted{font-size:14px!important}
+  body.mobile-role-app .field label{font-size:13px!important;margin-bottom:7px!important}
+  body.mobile-role-app input,body.mobile-role-app select,body.mobile-role-app textarea{font-size:17px!important;min-height:52px!important;border-radius:16px!important}
+  body.mobile-role-app .mobile-product-card{padding:17px!important;border-radius:24px!important}
+  body.mobile-role-app .mobile-product-card .sku{font-size:14px!important}
+  body.mobile-role-app .mobile-product-card .name{font-size:19px!important}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:20px!important}
+  body.mobile-role-app .mobile-product-card .quick-grid{grid-template-columns:1fr 1fr!important}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn.green{grid-column:1/3;min-height:54px!important;font-size:17px!important}
+  body.mobile-role-app .mobile-cart-float{position:fixed;left:10px;right:10px;bottom:78px;z-index:119;background:#0f172a;color:#fff;border-radius:20px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 14px 32px rgba(15,23,42,.24)}
+  body.mobile-role-app .mobile-cart-float b{font-size:18px}
+  body.mobile-role-app .mobile-cart-float button{border:0;background:#22c55e;color:#fff;border-radius:14px;padding:10px 14px;font-weight:900;font-size:15px}
+  body.mobile-role-app .sales-cart-box .btn.green{width:100%;min-height:56px!important;font-size:18px!important}
+  body.mobile-role-app .sales-cart-box .btn.light{width:100%;margin-top:8px}
+  body.mobile-role-app .cart-item{display:block!important}
+  body.mobile-role-app .cart-item>div:last-child{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  body.mobile-role-app .sum-line{font-size:17px}
+  body.mobile-role-app .sum-line b{font-size:24px!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box{display:block!important}
+}
+
 </style>
 </head>
 <body>
@@ -4902,6 +4939,73 @@ renderDeliveryApp=function(){
   }
 };
 window.addEventListener('resize',()=>{if(currentActivePage()==='salesApp'){renderSalesProductList();setSalesStep(mobileSalesStep||'customers')} if(currentActivePage()==='deliveryApp'){setDriverStep(mobileDriverStep||'orders')}});
+
+
+/* ===== V14: Đơn giản hóa App bán hàng trên điện thoại ===== */
+(function(){
+  function mobile(){return window.innerWidth<=780;}
+  function updateTabLabels(){
+    const labels={
+      'sales-customers':['👥','Khách'],
+      'sales-products':['📦','Hàng'],
+      'sales-cart':['🛒','Giỏ'],
+      'sales-orders':['🧾','Đơn']
+    };
+    const box=document.getElementById('mobileAppTabs'); if(!box)return;
+    Object.keys(labels).forEach(k=>{const b=box.querySelector(`[data-app-tab="${k}"]`); if(b)b.innerHTML=`<span>${labels[k][0]}</span>${labels[k][1]}`;});
+  }
+  const oldTabs=updateMobileAppTabs;
+  updateMobileAppTabs=function(activeId){
+    updateTabLabels();
+    if(oldTabs)oldTabs(activeId);
+    const box=document.getElementById('mobileAppTabs'); if(!box)return;
+    if(activeId==='salesApp' && mobile()){
+      box.querySelectorAll('button').forEach(b=>{
+        const tab=b.dataset.appTab||'';
+        b.style.display=['sales-customers','sales-products','sales-cart','sales-orders'].includes(tab)?'block':'none';
+        b.classList.toggle('active',tab==='sales-'+(mobileSalesStep||'customers'));
+      });
+    }
+  };
+  const oldSetSalesStep=setSalesStep;
+  setSalesStep=function(step){
+    if(step==='confirm')step='cart';
+    if(step==='debt')step='cart';
+    oldSetSalesStep(step);
+    renderMobileCartFloat();
+  };
+  function renderMobileCartFloat(){
+    document.querySelectorAll('.mobile-cart-float').forEach(x=>x.remove());
+    if(!mobile() || currentActivePage()!=='salesApp')return;
+    if(!['products'].includes(mobileSalesStep||''))return;
+    if(!salesCart || !salesCart.length)return;
+    const total=salesCart.reduce((a,x)=>a+Number(x.qty||0)*Number(x.sale||0),0);
+    document.body.insertAdjacentHTML('beforeend',`<div class="mobile-cart-float"><div><b>${salesCart.length} dòng hàng</b><br><span>Tổng: ${money(total)}</span></div><button onclick="setSalesStep('cart')">Xem giỏ</button></div>`);
+  }
+  const oldRenderSalesCart=renderSalesCart;
+  renderSalesCart=function(){
+    oldRenderSalesCart();
+    renderMobileCartFloat();
+  };
+  const oldSalesAddProduct=salesAddProduct;
+  salesAddProduct=function(sku){
+    oldSalesAddProduct(sku);
+    renderMobileCartFloat();
+  };
+  const oldSalesSelect=salesSelectCustomer;
+  salesSelectCustomer=function(code){
+    oldSalesSelect(code);
+    if(mobile())setSalesStep('products');
+  };
+  const oldMobileGo=mobileAppGo;
+  mobileAppGo=function(tab){
+    if(tab==='sales-debt'||tab==='sales-confirm')tab='sales-cart';
+    oldMobileGo(tab);
+    renderMobileCartFloat();
+  };
+  window.addEventListener('resize',renderMobileCartFloat);
+  document.addEventListener('DOMContentLoaded',()=>{updateTabLabels();renderMobileCartFloat();});
+})();
 
 </script>
 </body>
