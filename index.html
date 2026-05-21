@@ -603,7 +603,32 @@
 <datalist id="skuList"></datalist>
 <script>
 const KEY='kho_pro_professional_v2';
-const API_URL='https://kho-api-2.onrender.com'; // API Render lưu dữ liệu an toàn qua /api/data
+const DEFAULT_API_URL='https://kho-api-2.onrender.com'; // API Render mặc định
+let API_URL=DEFAULT_API_URL;
+function getApiCandidates(){
+  const saved=(localStorage.getItem('KHO_API_URL')||'').trim().replace(/\/$/,'');
+  const sameOrigin=(location.protocol==='http:'||location.protocol==='https:') ? location.origin.replace(/\/$/,'') : '';
+  const list=[saved,sameOrigin,DEFAULT_API_URL,'http://localhost:10000']
+    .filter(Boolean)
+    .map(u=>u.replace(/\/$/,''));
+  return [...new Set(list)];
+}
+async function apiFetch(path, options={}, timeout=25000){
+  let lastErr=null;
+  for(const base of getApiCandidates()){
+    try{
+      const res=await fetchWithTimeout(base+path, options, timeout);
+      // Nếu cùng domain không có API thì thử backend Render/local tiếp theo
+      if(res.status===404 || res.status===405){ lastErr=new Error('API không đúng tại '+base); continue; }
+      API_URL=base;
+      localStorage.setItem('KHO_API_URL',base);
+      return res;
+    }catch(err){
+      lastErr=err;
+    }
+  }
+  throw lastErr || new Error('Không kết nối được API');
+}
 const AUTH_KEY='kho_pro_auth_token';
 const USER_KEY='kho_pro_auth_user';
 let AUTH_TOKEN=localStorage.getItem(AUTH_KEY)||'';
@@ -646,7 +671,7 @@ async function login(){
   const password=(document.getElementById('loginPass')?.value||'').trim();
   if(!username||!password) return toast('Nhập tài khoản và mật khẩu');
   try{
-    const res=await fetchWithTimeout(API_URL+'/api/login',{
+    const res=await apiFetch('/api/login',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({username,password})
@@ -666,7 +691,7 @@ async function login(){
   }
 }
 async function logout(){
-  try{ if(AUTH_TOKEN) await fetch(API_URL+'/api/logout',{method:'POST',headers:authHeaders()}); }catch(e){}
+  try{ if(AUTH_TOKEN) await apiFetch('/api/logout',{method:'POST',headers:authHeaders()}); }catch(e){}
   AUTH_TOKEN=''; CURRENT_USER=null;
   localStorage.removeItem(AUTH_KEY); localStorage.removeItem(USER_KEY);
   setLoginState(false);
@@ -692,7 +717,7 @@ async function readApiError(res){
   }
 }
 async function apiGetData(){
-  const res=await fetchWithTimeout(API_URL+'/api/data',{cache:'no-store',headers:authHeaders()},120000);
+  const res=await apiFetch('/api/data',{cache:'no-store',headers:authHeaders()},120000);
   if(!res.ok){
     const detail=await readApiError(res);
     throw new Error('Không lấy được dữ liệu kho từ server: '+detail);
@@ -701,7 +726,7 @@ async function apiGetData(){
 }
 async function apiSaveData(data){
   const payload=normalizeDb(data);
-  const res=await fetchWithTimeout(API_URL+'/api/data',{
+  const res=await apiFetch('/api/data',{
     method:'POST',
     headers:authHeaders({'Content-Type':'application/json'}),
     body:JSON.stringify(payload)
@@ -1436,7 +1461,7 @@ async function payOrderRealtime(orderId, rowIndex){
   localStorage.setItem(KEY,JSON.stringify(normalizeDb(db)));
 
   try{
-    const res=await fetchWithTimeout(API_URL+'/api/pay-order',{
+    const res=await apiFetch('/api/pay-order',{
       method:'POST',
       headers:authHeaders({'Content-Type':'application/json'}),
       body:JSON.stringify({orderId,cash,bank,cashPaid:cash,bankPaid:bank})
