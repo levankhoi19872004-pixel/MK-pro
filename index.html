@@ -2879,79 +2879,132 @@ function deleteCustomerGroupPromotion(id){
   rebuildLegacyPromotions(); save(); render();
 }
 function downloadCustomerGroupPromotionTemplate(){
-  downloadExcel([{'Mã khuyến mại':'KMKH001','Nội dung khuyến mại':'Khách sỉ đạt giá trị được giảm','Nhóm khách hàng được khuyến mại':'Khách sỉ','Giá trị cần mua':1000000,'% chiết khấu':2,'Giá trị giảm giá':30000}],'mau_khuyen_mai_theo_nhom_khach_hang.xlsx');
-}
-function importCustomerGroupPromotionExcel(ev){
-  const file=ev.target.files[0]; if(!file)return;
-  readExcel(file,rows=>{
-    ensurePromotionArrays(); let count=0;
-    rows.forEach(r=>{
-      const code=String(r.ma_khuyen_mai||r['Mã khuyến mại']||r.code||'').trim();
-      const content=String(r.noi_dung_khuyen_mai||r['Nội dung khuyến mại']||r.content||'').trim();
-      const customerGroupName=String(r.nhom_khach_hang_duoc_khuyen_mai||r['Nhóm khách hàng được khuyến mại']||r.customerGroupName||'').trim();
-      const applyAmount=Number(r.gia_tri_can_mua||r['Giá trị cần mua']||r.applyAmount||0)||0;
-      const discountPercent=Number(r['% chiết khấu']||r.chiet_khau||r.discountPercent||0)||0;
-      const discountAmount=Number(r.gia_tri_giam_gia||r['Giá trị giảm giá']||r.discountAmount||0)||0;
-      if(!code || !content || !customerGroupName)return;
-      const old=db.customerGroupPromotions.find(k=>String(k.code)===code && normText(k.customerGroupName)===normText(customerGroupName));
-      const data={id:old?.id||('KMKH'+Date.now()+count),code,content,customerGroupName,applyAmount,discountPercent,discountAmount};
-      if(old) Object.assign(old,data); else db.customerGroupPromotions.push(data);
-      count++;
-    });
-    rebuildLegacyPromotions(); save(); render(); toast('Đã import '+count+' dòng KM nhóm khách hàng'); ev.target.value='';
-  });
+  downloadExcel([
+    {'Mã khuyến mại':'KMKH001','Nội dung khuyến mại':'Khách sỉ đạt giá trị được giảm','Nhóm khách hàng được khuyến mại':'Khách sỉ','Giá trị cần mua':1000000,'% chiết khấu':2,'Giá trị giảm giá':30000}
+  ],'mau_khuyen_mai_theo_nhom_khach_hang.xlsx');
 }
 function downloadProductPromotionTemplate(){
-  downloadExcel([{'Mã khuyến mại':'KM001','Nội dung khuyến mại':'Chiết khấu sản phẩm OMO','Mã sản phẩm':'SKU001','% chiết khấu':5}],'mau_khuyen_mai_theo_san_pham.xlsx');
+  downloadExcel([
+    {'Mã khuyến mại':'KM001','Nội dung khuyến mại':'Chiết khấu sản phẩm OMO','Mã sản phẩm':'SKU001','% chiết khấu':5}
+  ],'mau_khuyen_mai_theo_san_pham.xlsx');
 }
 function downloadGroupPromotionTemplate(){
-  downloadExcel([{'Mã khuyến mại':'KMG001','Nội dung khuyến mại':'Mua nhóm OMO đạt giá trị','Nhóm hàng được khuyến mại':'Nhóm OMO','Giá trị cần mua':1000000,'% chiết khấu':3,'Giá trị giảm giá':50000}],'mau_khuyen_mai_theo_nhom_san_pham.xlsx');
+  downloadExcel([
+    {'Mã khuyến mại':'KMG001','Nội dung khuyến mại':'Mua nhóm OMO đạt giá trị','Nhóm hàng được khuyến mại':'Nhóm OMO','Giá trị cần mua':1000000,'% chiết khấu':3,'Giá trị giảm giá':50000}
+  ],'mau_khuyen_mai_theo_nhom_san_pham.xlsx');
+}
+
+function normalizeExcelKeyName(v){
+  return String(v||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/đ/g,'d').replace(/Đ/g,'D')
+    .toLowerCase()
+    .replace(/[^a-z0-9%]+/g,'')
+    .trim();
+}
+function promoCell(row, aliases, fallback=''){
+  if(!row || typeof row!=='object') return fallback;
+  const map={};
+  Object.keys(row).forEach(k=>{map[normalizeExcelKeyName(k)]=row[k];});
+  for(const a of aliases){
+    const key=normalizeExcelKeyName(a);
+    if(Object.prototype.hasOwnProperty.call(map,key) && map[key]!==undefined && map[key]!==null && String(map[key]).trim()!=='') return map[key];
+  }
+  return fallback;
+}
+function promoText(row, aliases, fallback=''){
+  return String(promoCell(row,aliases,fallback)||'').trim();
+}
+function promoNumber(row, aliases, fallback=0){
+  let v=promoCell(row,aliases,fallback);
+  if(v===undefined || v===null || v==='') return Number(fallback)||0;
+  if(typeof v==='string'){
+    v=v.trim().replace(/%/g,'').replace(/\s/g,'');
+    if(v.includes(',') && !v.includes('.')) v=v.replace(',','.');
+    v=v.replace(/,/g,'');
+  }
+  const n=Number(v);
+  return Number.isFinite(n) ? n : (Number(fallback)||0);
+}
+function promoAutoCode(prefix,count){
+  return prefix + Date.now() + String(count).padStart(3,'0');
+}
+function importPromotionRows(file, handler, done){
+  if(!file) return;
+  readExcel(file, rows=>{
+    ensurePromotionArrays();
+    let count=0, skip=0;
+    (rows||[]).forEach((r,idx)=>{
+      try{
+        const ok=handler(r,idx,count);
+        if(ok) count++; else skip++;
+      }catch(err){
+        console.error('Lỗi import KM dòng',idx+2,err,r);
+        skip++;
+      }
+    });
+    rebuildLegacyPromotions();
+    save();
+    render();
+    done(count,skip,rows||[]);
+  });
 }
 function importProductPromotionExcel(ev){
-  const file=ev.target.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
-    ensurePromotionArrays(); let count=0;
-    rows.forEach(r=>{
-      const code=String(r.ma_khuyen_mai||r['Mã khuyến mại']||r.code||'').trim();
-      const content=String(r.noi_dung_khuyen_mai||r['Nội dung khuyến mại']||r.content||'').trim();
-      const sku=String(r.ma_san_pham||r['Mã sản phẩm']||r.sku||r.SKU||'').trim();
-      const discount=Number(r['% chiết khấu']||r.chiet_khau||r.discount||0)||0;
-      if(!code || !content || !sku) return;
-      const old=db.productPromotions.find(k=>String(k.code)===code && String(k.sku)===String(sku));
-      const data={id:old?.id||('KMSP'+Date.now()+count),code,content,sku,discount};
-      if(old) Object.assign(old,data); else db.productPromotions.push(data);
-      count++;
-    });
-    rebuildLegacyPromotions(); save(); render(); toast('Đã import '+count+' dòng KM sản phẩm'); ev.target.value='';
-  };
-  reader.readAsArrayBuffer(file);
+  const file=ev.target.files[0];
+  importPromotionRows(file,(r,idx,count)=>{
+    const sku=promoText(r,['Mã sản phẩm','Ma san pham','Mã SP','Ma SP','SKU','Mã hàng','Ma hang','Mã hàng hóa','Ma hang hoa','Product Code','ProductCode','Item Code','ItemCode']);
+    if(!sku) return false;
+    const code=promoText(r,['Mã khuyến mại','Ma khuyen mai','Mã KM','Ma KM','Mã CTKM','Ma CTKM','CTKM','Code','Promotion Code','PromotionCode','Campaign Code'],promoAutoCode('KMSP',count));
+    const content=promoText(r,['Nội dung khuyến mại','Noi dung khuyen mai','Nội dung KM','Noi dung KM','Tên khuyến mại','Ten khuyen mai','Tên KM','Ten KM','Mô tả','Mo ta','Content','Description'],`Khuyến mại sản phẩm ${sku}`);
+    const discount=promoNumber(r,['% chiết khấu','% chiet khau','Chiết khấu %','Chiet khau %','CK %','%CK','CK','Discount','DiscountPercent','discountPercent'],0);
+    const old=db.productPromotions.find(k=>String(k.code)===String(code) && String(k.sku)===String(sku));
+    const data={id:old?.id||('KMSP'+Date.now()+count),code,content,sku,discount};
+    if(old) Object.assign(old,data); else db.productPromotions.push(data);
+    return true;
+  },(count,skip)=>{
+    toast(count>0 ? `✅ Đã import ${count} dòng KM sản phẩm${skip?`, bỏ qua ${skip} dòng lỗi`:''}` : '❌ Không import được KM sản phẩm. Kiểm tra cột SKU/Mã sản phẩm');
+    ev.target.value='';
+  });
 }
 function importGroupPromotionExcel(ev){
-  const file=ev.target.files[0]; if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
-    ensurePromotionArrays(); let count=0;
-    rows.forEach(r=>{
-      const code=String(r.ma_khuyen_mai||r['Mã khuyến mại']||r.code||'').trim();
-      const content=String(r.noi_dung_khuyen_mai||r['Nội dung khuyến mại']||r.content||'').trim();
-      const groupName=String(r.nhom_hang_duoc_khuyen_mai||r['Nhóm hàng được khuyến mại']||r.groupName||'').trim();
-      const applyAmount=Number(r.gia_tri_can_mua||r['Giá trị cần mua']||r.applyAmount||0)||0;
-      const discountPercent=Number(r['% chiết khấu']||r.chiet_khau||r.discountPercent||0)||0;
-      const discountAmount=Number(r.gia_tri_giam_gia||r['Giá trị giảm giá']||r.discountAmount||0)||0;
-      if(!code || !content || !groupName) return;
-      const old=db.groupPromotions.find(k=>String(k.code)===code && normText(k.groupName)===normText(groupName));
-      const data={id:old?.id||('KMN'+Date.now()+count),code,content,groupName,applyAmount,discountPercent,discountAmount};
-      if(old) Object.assign(old,data); else db.groupPromotions.push(data);
-      count++;
-    });
-    rebuildLegacyPromotions(); save(); render(); toast('Đã import '+count+' dòng KM nhóm sản phẩm'); ev.target.value='';
-  };
-  reader.readAsArrayBuffer(file);
+  const file=ev.target.files[0];
+  importPromotionRows(file,(r,idx,count)=>{
+    const groupName=promoText(r,['Nhóm hàng được khuyến mại','Nhom hang duoc khuyen mai','Nhóm sản phẩm','Nhom san pham','Nhóm hàng','Nhom hang','Product Group','ProductGroup','Group Name','GroupName']);
+    if(!groupName) return false;
+    const code=promoText(r,['Mã khuyến mại','Ma khuyen mai','Mã KM','Ma KM','Mã CTKM','Ma CTKM','CTKM','Code','Promotion Code','PromotionCode','Campaign Code'],promoAutoCode('KMN',count));
+    const content=promoText(r,['Nội dung khuyến mại','Noi dung khuyen mai','Nội dung KM','Noi dung KM','Tên khuyến mại','Ten khuyen mai','Tên KM','Ten KM','Mô tả','Mo ta','Content','Description'],`Khuyến mại nhóm ${groupName}`);
+    const applyAmount=promoNumber(r,['Giá trị cần mua','Gia tri can mua','Giá trị áp dụng','Gia tri ap dung','Mức mua','Muc mua','Doanh số','Doanh so','Apply Amount','ApplyAmount','Min Amount','MinAmount'],0);
+    const discountPercent=promoNumber(r,['% chiết khấu','% chiet khau','Chiết khấu %','Chiet khau %','CK %','%CK','CK','Discount Percent','DiscountPercent','discountPercent'],0);
+    const discountAmount=promoNumber(r,['Giá trị giảm giá','Gia tri giam gia','Số tiền giảm','So tien giam','Tiền giảm','Tien giam','Giảm tiền','Giam tien','Discount Amount','DiscountAmount','Amount'],0);
+    const old=db.groupPromotions.find(k=>String(k.code)===String(code) && normText(k.groupName)===normText(groupName));
+    const data={id:old?.id||('KMN'+Date.now()+count),code,content,groupName,applyAmount,discountPercent,discountAmount};
+    if(old) Object.assign(old,data); else db.groupPromotions.push(data);
+    if(!db.productGroups.find(g=>normText(g.name)===normText(groupName))) db.productGroups.push({name:groupName,skus:[]});
+    return true;
+  },(count,skip)=>{
+    toast(count>0 ? `✅ Đã import ${count} dòng KM nhóm sản phẩm${skip?`, bỏ qua ${skip} dòng lỗi`:''}` : '❌ Không import được KM nhóm sản phẩm. Kiểm tra cột Nhóm hàng/Nhóm sản phẩm');
+    ev.target.value='';
+  });
+}
+function importCustomerGroupPromotionExcel(ev){
+  const file=ev.target.files[0];
+  importPromotionRows(file,(r,idx,count)=>{
+    const customerGroupName=promoText(r,['Nhóm khách hàng được khuyến mại','Nhom khach hang duoc khuyen mai','Nhóm khách hàng','Nhom khach hang','Nhóm KH','Nhom KH','Customer Group','CustomerGroup','Group Name','GroupName']);
+    if(!customerGroupName) return false;
+    const code=promoText(r,['Mã khuyến mại','Ma khuyen mai','Mã KM','Ma KM','Mã CTKM','Ma CTKM','CTKM','Code','Promotion Code','PromotionCode','Campaign Code'],promoAutoCode('KMKH',count));
+    const content=promoText(r,['Nội dung khuyến mại','Noi dung khuyen mai','Nội dung KM','Noi dung KM','Tên khuyến mại','Ten khuyen mai','Tên KM','Ten KM','Mô tả','Mo ta','Content','Description'],`Khuyến mại nhóm khách hàng ${customerGroupName}`);
+    const applyAmount=promoNumber(r,['Giá trị cần mua','Gia tri can mua','Giá trị áp dụng','Gia tri ap dung','Mức mua','Muc mua','Doanh số','Doanh so','Apply Amount','ApplyAmount','Min Amount','MinAmount'],0);
+    const discountPercent=promoNumber(r,['% chiết khấu','% chiet khau','Chiết khấu %','Chiet khau %','CK %','%CK','CK','Discount Percent','DiscountPercent','discountPercent'],0);
+    const discountAmount=promoNumber(r,['Giá trị giảm giá','Gia tri giam gia','Số tiền giảm','So tien giam','Tiền giảm','Tien giam','Giảm tiền','Giam tien','Discount Amount','DiscountAmount','Amount'],0);
+    const old=db.customerGroupPromotions.find(k=>String(k.code)===String(code) && normText(k.customerGroupName)===normText(customerGroupName));
+    const data={id:old?.id||('KMKH'+Date.now()+count),code,content,customerGroupName,applyAmount,discountPercent,discountAmount};
+    if(old) Object.assign(old,data); else db.customerGroupPromotions.push(data);
+    if(!db.customerGroups.find(g=>normText(g.name)===normText(customerGroupName))) db.customerGroups.push({name:customerGroupName,codes:[]});
+    return true;
+  },(count,skip)=>{
+    toast(count>0 ? `✅ Đã import ${count} dòng KM nhóm khách hàng${skip?`, bỏ qua ${skip} dòng lỗi`:''}` : '❌ Không import được KM nhóm khách hàng. Kiểm tra cột Nhóm khách hàng');
+    ev.target.value='';
+  });
 }
 function downloadProductGroupTemplate(){
   downloadExcel([

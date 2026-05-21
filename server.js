@@ -28,6 +28,9 @@ function defaultData() {
     masterOrders: [],
     debts: [],
     promotions: [],
+    productPromotions: [],
+    groupPromotions: [],
+    customerGroupPromotions: [],
     productGroups: [],
     categoryGroups: [],
     shortageReports: []
