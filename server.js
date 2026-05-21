@@ -13,7 +13,7 @@ const SECRET = process.env.JWT_SECRET || 'kho_pro_secret_key';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
 function defaultData() {
@@ -46,6 +46,11 @@ function normalizeData(data) {
 }
 
 async function initDB() {
+  if (!process.env.DATABASE_URL) {
+    console.warn('⚠️ Chưa có DATABASE_URL');
+    return;
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS kho_data (
       id SERIAL PRIMARY KEY,
@@ -71,14 +76,42 @@ async function initDB() {
   console.log('✅ DB READY');
 }
 
-initDB().catch(err => {
-  console.error('❌ INIT DB ERROR:', err);
-});
-
 const users = [
   { username: 'admin', password: '123456', role: 'admin', name: 'Admin' },
   { username: 'nv01', password: '123456', role: 'staff', name: 'Nhân viên 01' }
 ];
+
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    message: 'Kho Minh Khai API đang chạy',
+    routes: [
+      'GET /',
+      'GET /api',
+      'GET /api/health',
+      'POST /api/login',
+      'POST /api/logout',
+      'GET /api/data',
+      'POST /api/data',
+      'POST /api/pay-order',
+      'GET /api/debt-report'
+    ]
+  });
+});
+
+app.get('/api', (req, res) => {
+  res.json({
+    ok: true,
+    message: 'API hoạt động bình thường'
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    time: new Date().toISOString()
+  });
+});
 
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body || {};
@@ -130,7 +163,9 @@ function rebuildMasterOrders(orders, masterOrders) {
   masterOrders = Array.isArray(masterOrders) ? masterOrders : [];
 
   return masterOrders.map(master => {
-    const childOrders = orders.filter(o => String(o.masterId || '') === String(master.id || ''));
+    const childOrders = orders.filter(
+      o => String(o.masterId || '') === String(master.id || '')
+    );
 
     const itemMap = {};
     let total = 0;
@@ -168,7 +203,10 @@ function rebuildDebts(data) {
     let deliveryStaff = order.deliveryStaffName || '';
 
     if (order.masterId) {
-      const master = masterOrders.find(m => String(m.id) === String(order.masterId));
+      const master = masterOrders.find(
+        m => String(m.id) === String(order.masterId)
+      );
+
       if (master && master.deliveryStaffName) {
         deliveryStaff = master.deliveryStaffName;
       }
@@ -203,14 +241,22 @@ app.get('/api/data', auth, async (req, res) => {
 
     if (result.rows.length === 0) {
       const data = defaultData();
-      await pool.query(`INSERT INTO kho_data (data) VALUES ($1)`, [JSON.stringify(data)]);
+
+      await pool.query(
+        `INSERT INTO kho_data (data) VALUES ($1)`,
+        [JSON.stringify(data)]
+      );
+
       return res.json(data);
     }
 
     res.json(normalizeData(result.rows[0].data));
   } catch (err) {
     console.error('GET /api/data error:', err);
-    res.status(500).json({ error: 'Không lấy được dữ liệu', detail: err.message });
+    res.status(500).json({
+      error: 'Không lấy được dữ liệu',
+      detail: err.message
+    });
   }
 });
 
@@ -224,18 +270,24 @@ app.post('/api/data', auth, async (req, res) => {
     const existing = await pool.query(`SELECT id FROM kho_data ORDER BY id ASC LIMIT 1`);
 
     if (existing.rows.length === 0) {
-      await pool.query(`INSERT INTO kho_data (data) VALUES ($1)`, [JSON.stringify(data)]);
+      await pool.query(
+        `INSERT INTO kho_data (data) VALUES ($1)`,
+        [JSON.stringify(data)]
+      );
     } else {
-      await pool.query(`UPDATE kho_data SET data=$1 WHERE id=$2`, [
-        JSON.stringify(data),
-        existing.rows[0].id
-      ]);
+      await pool.query(
+        `UPDATE kho_data SET data=$1 WHERE id=$2`,
+        [JSON.stringify(data), existing.rows[0].id]
+      );
     }
 
     res.json({ success: true, data });
   } catch (err) {
     console.error('POST /api/data error:', err);
-    res.status(500).json({ error: 'Không lưu được dữ liệu', detail: err.message });
+    res.status(500).json({
+      error: 'Không lưu được dữ liệu',
+      detail: err.message
+    });
   }
 });
 
@@ -265,10 +317,10 @@ app.post('/api/pay-order', auth, async (req, res) => {
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
     data.debts = rebuildDebts(data);
 
-    await pool.query(`UPDATE kho_data SET data=$1 WHERE id=$2`, [
-      JSON.stringify(data),
-      dbId
-    ]);
+    await pool.query(
+      `UPDATE kho_data SET data=$1 WHERE id=$2`,
+      [JSON.stringify(data), dbId]
+    );
 
     res.json({
       success: true,
@@ -277,7 +329,10 @@ app.post('/api/pay-order', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('POST /api/pay-order error:', err);
-    res.status(500).json({ error: 'Không cập nhật được thanh toán', detail: err.message });
+    res.status(500).json({
+      error: 'Không cập nhật được thanh toán',
+      detail: err.message
+    });
   }
 });
 
@@ -318,6 +373,7 @@ app.get('/api/debt-report', auth, async (req, res) => {
 
       if (validDate) {
         const days = (Date.now() - date.getTime()) / 86400000;
+
         if (days > 30 && Number(debt.debt) > 0) {
           report.overdue.push({
             ...debt,
@@ -330,41 +386,11 @@ app.get('/api/debt-report', auth, async (req, res) => {
     res.json(report);
   } catch (err) {
     console.error('GET /api/debt-report error:', err);
-    res.status(500).json({ error: 'Không lấy được báo cáo công nợ', detail: err.message });
+    res.status(500).json({
+      error: 'Không lấy được báo cáo công nợ',
+      detail: err.message
+    });
   }
-});
-
-app.get('/', (req, res) => {
-  res.json({
-    ok: true,
-    message: 'Kho Minh Khai API đang chạy',
-    health: '/api/health',
-    login: '/api/login',
-    data: '/api/data'
-  });
-});
-
-app.get('/api', (req, res) => {
-  res.json({
-    ok: true,
-    message: 'API hợp lệ',
-    routes: [
-      'POST /api/login',
-      'POST /api/logout',
-      'GET /api/data',
-      'POST /api/data',
-      'POST /api/pay-order',
-      'GET /api/debt-report',
-      'GET /api/health'
-    ]
-  });
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    ok: true,
-    time: new Date().toISOString()
-  });
 });
 
 app.use((req, res) => {
@@ -373,3 +399,16 @@ app.use((req, res) => {
     path: req.path
   });
 });
+
+initDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log('🚀 Server chạy cổng ' + PORT);
+    });
+  })
+  .catch(err => {
+    console.error('❌ INIT DB ERROR:', err);
+    app.listen(PORT, () => {
+      console.log('🚀 Server vẫn chạy cổng ' + PORT);
+    });
+  });
