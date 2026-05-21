@@ -56,6 +56,15 @@
 .promo-tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700}
 .promo-tabs button.active{background:#2563eb;color:#fff;border-color:#2563eb}
 
+/* ===== Autocomplete xịn cho mục Xuất bán: NVBH / Khách hàng ===== */
+.sale-auto-wrap{position:relative}
+.sale-auto-box{position:absolute;left:0;right:0;top:68px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 35px rgba(15,23,42,.16);max-height:320px;overflow:auto;z-index:35;display:none}
+.sale-auto-row{display:flex;justify-content:space-between;gap:12px;padding:11px 12px;border-bottom:1px dashed rgba(0,0,0,.12);cursor:pointer}
+.sale-auto-row:hover{background:#eff6ff}
+.sale-auto-row b{color:#101828}
+.sale-auto-row .muted{font-size:12px;line-height:1.45}
+.sale-auto-empty{padding:12px;color:var(--muted)}
+
 </style>
 </head>
 <body>
@@ -291,8 +300,8 @@
             <div class="sale-head">
               <div class="field col2"><label>Số HĐ</label><input id="oId" readonly></div>
               <div class="field col2"><label>Ngày</label><input id="oDate" type="date"></div>
-              <div class="field col3"><label>NVBH</label><select id="sStaff"></select></div>
-              <div class="field col3"><label>Khách</label><select id="sCustomer"></select></div>
+              <div class="field col3 sale-auto-wrap"><label>NVBH</label><input id="sStaff" autocomplete="off" placeholder="Tìm mã / tên / SĐT NVBH" oninput="searchSaleStaff()" onfocus="searchSaleStaff()" onkeydown="saleAutoKey(event,'staff')"><input type="hidden" id="sStaffCode"><div id="saleStaffResults" class="sale-auto-box"></div></div>
+              <div class="field col3 sale-auto-wrap"><label>Khách</label><input id="sCustomer" autocomplete="off" placeholder="Tìm mã / tên / SĐT khách hàng" oninput="searchSaleCustomer()" onfocus="searchSaleCustomer()" onkeydown="saleAutoKey(event,'customer')"><input type="hidden" id="sCustomerCode"><div id="saleCustomerResults" class="sale-auto-box"></div></div>
               <div class="field col2"><label>Kho</label><input id="sWarehouse" value="KHOCHINH"></div>
               <div class="field col4"><label>Ghi chú</label><input id="sNote" placeholder="Ghi chú đơn hàng"></div>
               <div class="field col2"><label>CK dòng mặc định %</label><input id="lineDiscount" type="number" value="0" min="0"></div>
@@ -1074,7 +1083,7 @@ function render(){
  let ps=filteredProducts(); productBody.innerHTML=ps.map((p,i)=>`<tr><td class="center"><input type="checkbox" class="product-delete-check" value="${safeAttr(p.sku)}"></td><td>${p.sku}</td><td><b>${p.name}</b></td><td>${productBrand(p)||''}</td><td>${productCategory(p)||''}</td><td>${productWarehouse(p)||''}</td><td>${p.pack}</td><td class="right"><span class="pill ${p.qty<p.pack?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td class="right">${money(p.cost)}</td><td class="right">${money(p.sale)}</td><td><button class="btn small light" onclick="editProduct('${p.sku}')">Sửa</button> <button class="btn small red" onclick="delProduct('${p.sku}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="11" class="center muted">Chưa có sản phẩm phù hợp</td></tr>';
  if(document.getElementById('productLevelBody'))productLevelBody.innerHTML=productLevelRows(ps).map(r=>`<tr><td>${r.warehouse}</td><td>${r.category}</td><td>${r.brand}</td><td class="center">${r.skuCount}</td><td class="right">${money(r.qty)}</td><td class="right">${money(r.costValue)}</td><td class="right">${money(r.saleValue)}</td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu tổng hợp</td></tr>';
  skuList.innerHTML=db.products.map(p=>`<option value="${p.sku}">${p.name}</option>`).join('');
- sCustomer.innerHTML=db.customers.map(c=>`<option value="${c.code||c.name}">${c.code?c.code+' - ':''}${c.name}</option>`).join('');sStaff.innerHTML=db.staff.map((n,i)=>`<option value="${staffCode(n,i)}" data-name="${staffName(n)}">${staffCode(n,i)} - ${staffName(n)}</option>`).join('');
+ renderSaleAutocompleteOptions();
  receiveBody.innerHTML=filteredReceipts().reverse().map(x=>`<tr><td class="center"><input type="checkbox" class="receipt-delete-check" value="${x.i}"></td><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="9" class="center muted">Chưa có phiếu nhập phù hợp</td></tr>';
  ordersBody.innerHTML=filteredOrders().slice().reverse().map(o=>{let merged=!!o.masterId;let cCode=orderCustomerCode(o);return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${cCode||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="10" class="center muted">Chưa có đơn hàng phù hợp</td></tr>';
  customerBody.innerHTML=db.customers.map(c=>`<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td>${c.customerGroup||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khách hàng</td></tr>';
@@ -1226,6 +1235,10 @@ function newSaleOrder(){
   if(document.getElementById('sNote')) sNote.value='';
   if(document.getElementById('adjustDiscount')) adjustDiscount.value=0;
   if(document.getElementById('lineDiscount')) lineDiscount.value=0;
+  if(document.getElementById('sStaff')) sStaff.value='';
+  if(document.getElementById('sStaffCode')) sStaffCode.value='';
+  if(document.getElementById('sCustomer')) sCustomer.value='';
+  if(document.getElementById('sCustomerCode')) sCustomerCode.value='';
   if(document.getElementById('saleLineDisc')) saleLineDisc.value=0;
   if(document.getElementById('deliveryStatus')) deliveryStatus.value='Giao thành công';
   cart=[];selectedSaleSku=null;renderCart();
@@ -1261,11 +1274,155 @@ function productInPromoGroup(sku, groupName){
   const g=(db.productGroups||[]).find(x=>normText(x.name)===normText(groupName));
   return !!(g && Array.isArray(g.skus) && g.skus.map(String).includes(String(sku)));
 }
+
+/* ===== Autocomplete xịn cho mục Xuất bán: NVBH / Khách hàng ===== */
+function saleAutoText(v){return normText(String(v||''));}
+function saleStaffLabel(s,i){
+  const code=staffCode(s,i);
+  const name=staffName(s);
+  const phone=s.phone||s.sdt||'';
+  return `${code} - ${name}${phone?' - '+phone:''}`;
+}
+function saleCustomerLabel(c){
+  const code=c.code||'';
+  const name=c.name||'';
+  const phone=c.phone||c.sdt||'';
+  return `${code?code+' - ':''}${name}${phone?' - '+phone:''}`;
+}
+function renderSaleAutocompleteOptions(){
+  const staffInput=document.getElementById('sStaff');
+  const staffCodeInput=document.getElementById('sStaffCode');
+  const customerInput=document.getElementById('sCustomer');
+  const customerCodeInput=document.getElementById('sCustomerCode');
+  if(staffInput && staffCodeInput && !staffInput.value && db.staff && db.staff.length){
+    // giữ trống để người dùng chủ động chọn, không tự ép chọn
+  }
+  if(customerInput && customerCodeInput && !customerInput.value && db.customers && db.customers.length){
+    // giữ trống để người dùng chủ động chọn, không tự ép chọn
+  }
+}
+function chooseSaleStaff(code){
+  const i=(db.staff||[]).findIndex(s=>String(staffCode(s,0))===String(code) || saleAutoText(staffCode(s,0))===saleAutoText(code));
+  let s=(db.staff||[]).find((x,idx)=>String(staffCode(x,idx))===String(code));
+  if(!s) s=(db.staff||[]).find((x,idx)=>saleAutoText(staffCode(x,idx))===saleAutoText(code));
+  if(!s) return;
+  const idx=(db.staff||[]).indexOf(s);
+  document.getElementById('sStaff').value=saleStaffLabel(s,idx);
+  document.getElementById('sStaffCode').value=staffCode(s,idx);
+  const box=document.getElementById('saleStaffResults');
+  if(box) box.style.display='none';
+}
+function chooseSaleCustomer(code){
+  let c=(db.customers||[]).find(x=>String(x.code||'')===String(code));
+  if(!c) c=(db.customers||[]).find(x=>saleAutoText(x.code||'')===saleAutoText(code));
+  if(!c) return;
+  document.getElementById('sCustomer').value=saleCustomerLabel(c);
+  document.getElementById('sCustomerCode').value=c.code||c.name||'';
+  const box=document.getElementById('saleCustomerResults');
+  if(box) box.style.display='none';
+  renderCart();
+}
+function searchSaleStaff(){
+  const input=document.getElementById('sStaff');
+  const box=document.getElementById('saleStaffResults');
+  const hidden=document.getElementById('sStaffCode');
+  if(!input||!box) return;
+  if(hidden && input.value && hidden.value){
+    const s=(db.staff||[]).find((x,i)=>String(staffCode(x,i))===String(hidden.value));
+    if(s && saleAutoText(input.value)!==saleAutoText(saleStaffLabel(s,(db.staff||[]).indexOf(s)))) hidden.value='';
+  }
+  const q=saleAutoText(input.value);
+  let rs=(db.staff||[]).map((s,i)=>({s,i,code:staffCode(s,i),name:staffName(s),phone:s.phone||s.sdt||''}))
+    .filter(x=>!q || saleAutoText(`${x.code} ${x.name} ${x.phone}`).includes(q))
+    .slice(0,30);
+  box.innerHTML=rs.length?rs.map(x=>`<div class="sale-auto-row" onclick="chooseSaleStaff('${safeAttr(x.code)}')"><div><b>${escapeHtml(x.code)}</b> - ${escapeHtml(x.name||'')}</div><div class="muted">${escapeHtml(x.phone||'')}</div></div>`).join(''):'<div class="sale-auto-empty">Không tìm thấy nhân viên</div>';
+  box.style.display='block';
+}
+function searchSaleCustomer(){
+  const input=document.getElementById('sCustomer');
+  const box=document.getElementById('saleCustomerResults');
+  const hidden=document.getElementById('sCustomerCode');
+  if(!input||!box) return;
+  if(hidden && input.value && hidden.value){
+    const c=(db.customers||[]).find(x=>String(x.code||'')===String(hidden.value));
+    if(c && saleAutoText(input.value)!==saleAutoText(saleCustomerLabel(c))) hidden.value='';
+  }
+  const q=saleAutoText(input.value);
+  let rs=(db.customers||[]).map(c=>({c,code:c.code||'',name:c.name||'',phone:c.phone||c.sdt||'',address:c.address||''}))
+    .filter(x=>!q || saleAutoText(`${x.code} ${x.name} ${x.phone} ${x.address}`).includes(q))
+    .slice(0,30);
+  box.innerHTML=rs.length?rs.map(x=>`<div class="sale-auto-row" onclick="chooseSaleCustomer('${safeAttr(x.code||x.name)}')"><div><b>${escapeHtml(x.code||'')}</b> - ${escapeHtml(x.name||'')}<br><span class="muted">${escapeHtml(x.address||'')}</span></div><div class="muted">${escapeHtml(x.phone||'')}</div></div>`).join(''):'<div class="sale-auto-empty">Không tìm thấy khách hàng</div>';
+  box.style.display='block';
+}
+function saleAutoKey(ev,type){
+  if(ev.key==='Escape'){
+    const box=document.getElementById(type==='staff'?'saleStaffResults':'saleCustomerResults');
+    if(box) box.style.display='none';
+  }
+  if(ev.key==='Enter'){
+    ev.preventDefault();
+    if(type==='staff'){
+      const first=document.querySelector('#saleStaffResults .sale-auto-row');
+      if(first) first.click();
+    }else{
+      const first=document.querySelector('#saleCustomerResults .sale-auto-row');
+      if(first) first.click();
+    }
+  }
+}
+document.addEventListener('click',function(ev){
+  if(!ev.target.closest('.sale-auto-wrap')){
+    const a=document.getElementById('saleStaffResults'); if(a) a.style.display='none';
+    const b=document.getElementById('saleCustomerResults'); if(b) b.style.display='none';
+  }
+});
+function getSelectedSaleStaff(){
+  const hidden=document.getElementById('sStaffCode')?.value||'';
+  const raw=document.getElementById('sStaff')?.value||'';
+  let s=(db.staff||[]).find((x,i)=>String(staffCode(x,i))===String(hidden));
+  if(!s) s=(db.staff||[]).find((x,i)=>saleAutoText(staffCode(x,i))===saleAutoText(raw) || saleAutoText(staffName(x))===saleAutoText(raw) || saleAutoText(saleStaffLabel(x,i))===saleAutoText(raw));
+  if(!s) return {code:hidden||raw,name:raw};
+  const idx=(db.staff||[]).indexOf(s);
+  return {code:staffCode(s,idx),name:staffName(s),display:saleStaffLabel(s,idx)};
+}
+function getSelectedSaleCustomer(){
+  const hidden=document.getElementById('sCustomerCode')?.value||'';
+  const raw=document.getElementById('sCustomer')?.value||'';
+  let c=(db.customers||[]).find(x=>String(x.code||'')===String(hidden));
+  if(!c) c=(db.customers||[]).find(x=>saleAutoText(x.code||'')===saleAutoText(raw) || saleAutoText(x.name||'')===saleAutoText(raw) || saleAutoText(saleCustomerLabel(x))===saleAutoText(raw));
+  if(!c) return {code:hidden||raw,name:raw,customerGroup:''};
+  return c;
+}
+function setSaleStaffByCode(code,name){
+  const input=document.getElementById('sStaff');
+  const hidden=document.getElementById('sStaffCode');
+  let s=(db.staff||[]).find((x,i)=>String(staffCode(x,i))===String(code));
+  if(!s && name) s=(db.staff||[]).find(x=>saleAutoText(staffName(x))===saleAutoText(name));
+  if(s){
+    const idx=(db.staff||[]).indexOf(s);
+    if(input) input.value=saleStaffLabel(s,idx);
+    if(hidden) hidden.value=staffCode(s,idx);
+  }else{
+    if(input) input.value=name||code||'';
+    if(hidden) hidden.value=code||'';
+  }
+}
+function setSaleCustomerByCode(code,name){
+  const input=document.getElementById('sCustomer');
+  const hidden=document.getElementById('sCustomerCode');
+  let c=(db.customers||[]).find(x=>String(x.code||'')===String(code));
+  if(!c && name) c=(db.customers||[]).find(x=>saleAutoText(x.name||'')===saleAutoText(name));
+  if(c){
+    if(input) input.value=saleCustomerLabel(c);
+    if(hidden) hidden.value=c.code||c.name||'';
+  }else{
+    if(input) input.value=name||code||'';
+    if(hidden) hidden.value=code||'';
+  }
+}
+
 function currentSaleCustomer(){
-  const code=String(document.getElementById('sCustomer')?.value||'').trim();
-  return (db.customers||[]).find(c=>String(c.code)===code) ||
-         (db.customers||[]).find(c=>String(c.name)===code) ||
-         {code:code,name:code,customerGroup:''};
+  return getSelectedSaleCustomer();
 }
 function customerInPromoGroup(customer, groupName){
   groupName=String(groupName||'').trim();
@@ -1447,13 +1604,13 @@ async function createOrder(){
   }
   cart.forEach(c=>findProduct(c.sku).qty-=Number(c.qty||0));
 
-  let opt=sStaff.selectedOptions[0];let t=saleTotals();
-  let selectedCustomerCode=sCustomer.value;
-  let selectedCustomer=(db.customers||[]).find(c=>String(c.code)===String(selectedCustomerCode)) || (db.customers||[]).find(c=>String(c.name)===String(selectedCustomerCode)) || {code:selectedCustomerCode,name:selectedCustomerCode};
+  let selectedStaff=getSelectedSaleStaff();let t=saleTotals();
+  let selectedCustomer=getSelectedSaleCustomer();
+  let selectedCustomerCode=selectedCustomer.code||selectedCustomer.name||'';
   let dOpt=document.getElementById('deliveryStaffSelect')?.selectedOptions?.[0];
   let cash=Number(document.getElementById('cashPaid')?.value||0)||0;
   let bank=Number(document.getElementById('bankPaid')?.value||0)||0;
-  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:sStaff.value,staffName:opt?opt.dataset.name:sStaff.value,staff:opt?opt.textContent:sStaff.value,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),goods:t.goods,discount:t.discount,lineDiscount:t.lineDiscount,promoDiscount:t.promoDiscount,promoDetails:t.promoDetails,promoExplanation:(t.promoDetails||[]).map(d=>`${d.code||'KM'}: ${d.content||''} - giảm ${money(d.amount||0)}`).join('\n'),adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
+  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name||selectedCustomerCode,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:selectedStaff.code,staffName:selectedStaff.name,staff:selectedStaff.display||selectedStaff.name||selectedStaff.code,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),goods:t.goods,discount:t.discount,lineDiscount:t.lineDiscount,promoDiscount:t.promoDiscount,promoDetails:t.promoDetails,promoExplanation:(t.promoDetails||[]).map(d=>`${d.code||'KM'}: ${d.content||''} - giảm ${money(d.amount||0)}`).join('\n'),adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
 
   if(oldOrder){
     Object.assign(oldOrder,orderData);
@@ -1496,8 +1653,8 @@ function editOrder(id){
     let d=orderDateObj(o);
     oDate.value=d&&!isNaN(d)?d.toISOString().slice(0,10):(o.isoDate?String(o.isoDate).slice(0,10):'');
   }
-  if(document.getElementById('sCustomer')) sCustomer.value=o.customerCode||o.customer||'';
-  if(document.getElementById('sStaff')) sStaff.value=o.staffCode||'';
+  setSaleCustomerByCode(o.customerCode||'',o.customer||'');
+  setSaleStaffByCode(o.staffCode||'',o.staffName||o.staff||'');
   if(document.getElementById('sWarehouse')) sWarehouse.value=o.warehouse||'KHOCHINH';
   if(document.getElementById('sNote')) sNote.value=o.note||'';
   if(document.getElementById('deliveryStatus')) deliveryStatus.value=o.delivery||'Giao thành công';
