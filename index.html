@@ -152,6 +152,127 @@
   body.mobile-role-app #toast{bottom:78px;max-width:92vw;text-align:center}
 }
 
+
+
+/* ===== V13: Mobile chia màn hình App bán hàng / giao hàng theo từng bước ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs{left:6px;right:6px;bottom:6px;border-radius:18px;padding:5px;gap:3px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:10px;padding:7px 2px;border-radius:13px;white-space:nowrap}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:17px;margin-bottom:1px}
+  body.mobile-role-app .section.active{padding:8px 8px 78px!important}
+  body.mobile-role-app #salesApp .card.panel,
+  body.mobile-role-app #deliveryApp .card.panel{border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important}
+  body.mobile-role-app #salesApp .panel-head,
+  body.mobile-role-app #deliveryApp .panel-head{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:0 0 10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app #salesApp .panel-head h2,
+  body.mobile-role-app #deliveryApp .panel-head h2{font-size:20px;line-height:1.2}
+  body.mobile-role-app #salesApp .panel-head .toolbar,
+  body.mobile-role-app #deliveryApp .panel-head .toolbar{display:none!important}
+  body.mobile-role-app .mobile-step-title{display:block;background:#0f172a;color:#fff;border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 10px 26px rgba(15,23,42,.16)}
+  body.mobile-role-app .mobile-step-title b{display:block;font-size:20px;margin-bottom:3px}
+  body.mobile-role-app .mobile-step-title span{font-size:13px;color:#cbd5e1}
+  body.mobile-role-app .mobile-step-actions{display:flex;gap:8px;margin:10px 0;position:sticky;bottom:76px;z-index:25;background:rgba(243,244,246,.92);padding:6px 0;backdrop-filter:blur(10px)}
+  body.mobile-role-app .mobile-step-actions .btn{flex:1;font-size:15px;min-height:48px}
+  body.mobile-role-app .role-kpi{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:8px 0 10px!important}
+  body.mobile-role-app .role-kpi .mini-card{padding:13px!important;border-radius:18px!important;background:#fff!important;box-shadow:0 6px 16px rgba(15,23,42,.05)!important}
+  body.mobile-role-app .role-kpi .mini-card span{font-size:12px!important}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:22px!important;line-height:1.25!important}
+  body.mobile-role-app .role-list-row{padding:16px!important;border-radius:20px!important;font-size:16px!important}
+  body.mobile-role-app .role-list-row b{font-size:17px!important;line-height:1.35!important}
+  body.mobile-role-app .role-list-row .muted{font-size:13px!important;line-height:1.5!important}
+  body.mobile-role-app input{font-size:17px!important;min-height:50px!important;border-radius:14px!important}
+  body.mobile-role-app .btn{font-size:15px!important;min-height:48px!important;border-radius:14px!important}
+
+  /* Sales wizard visibility */
+  body.mobile-role-app #salesCustomerPanel,
+  body.mobile-role-app #salesOrdersPanel,
+  body.mobile-role-app #salesDebtPanel{display:none!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel,
+  body.mobile-role-app.sales-step-products #salesCustomerPanel,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel{display:block!important}
+  body.mobile-role-app.sales-step-debt #salesDebtPanel{display:block!important}
+  body.mobile-role-app.sales-step-orders #salesOrdersPanel{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:nth-child(2){display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:nth-child(2){display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .sales-cart-box{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-kpi{display:none!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{border:2px solid #16a34a!important;background:#f7fff9!important}
+
+  /* Mobile product cards */
+  body.mobile-role-app .sales-product-table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+  body.mobile-role-app .sales-product-table thead{display:none!important}
+  body.mobile-role-app .sales-product-table tr{display:block!important;background:transparent!important}
+  body.mobile-role-app .sales-product-table td.mobile-product-cell{display:block!important;padding:0!important;border:0!important}
+  body.mobile-role-app .mobile-product-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:15px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .sku{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}
+  body.mobile-role-app .mobile-product-card .name{font-size:17px;line-height:1.35;font-weight:800;color:#111827;margin-bottom:10px}
+  body.mobile-role-app .mobile-product-card .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .meta div{background:#f8fafc;border:1px solid #eef2f7;border-radius:15px;padding:10px}
+  body.mobile-role-app .mobile-product-card .meta span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:18px}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn{min-height:48px!important}
+  body.mobile-role-app .mobile-product-card .btn.green{font-size:16px!important;font-weight:900!important}
+
+  /* Cart as full screen card list */
+  body.mobile-role-app .sales-cart-box{border-radius:22px!important;padding:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important}
+  body.mobile-role-app .cart-item{border-radius:18px!important;background:#fff!important;border:1px solid #e5e7eb!important;padding:14px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important}
+  body.mobile-role-app .sum-line b{font-size:22px!important}
+
+  /* Debt screen: cards instead of table */
+  body.mobile-role-app #salesDebtPanel .table-wrap,
+  body.mobile-role-app #driverDebtPanel .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesDebtPanel table,
+  body.mobile-role-app #driverDebtPanel table{display:block!important;min-width:0!important;width:100%!important}
+  body.mobile-role-app #salesDebtPanel thead,
+  body.mobile-role-app #driverDebtPanel thead{display:none!important}
+  body.mobile-role-app #salesDebtPanel tbody,
+  body.mobile-role-app #driverDebtPanel tbody{display:block!important}
+  body.mobile-role-app #salesDebtPanel tr,
+  body.mobile-role-app #driverDebtPanel tr{display:block!important;background:#fff!important;border:1px solid #e5e7eb!important;border-radius:22px!important;margin-bottom:12px!important;padding:14px!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+  body.mobile-role-app #salesDebtPanel td,
+  body.mobile-role-app #driverDebtPanel td{display:block!important;border:0!important;padding:4px 0!important;font-size:15px!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(2) b,
+  body.mobile-role-app #driverDebtPanel td:nth-child(2) b{font-size:18px!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(4),
+  body.mobile-role-app #driverDebtPanel td:nth-child(4){font-size:24px!important;font-weight:900!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(5) .btn,
+  body.mobile-role-app #driverDebtPanel td:nth-child(5) .btn{width:100%;margin-top:8px}
+
+  /* Driver wizard visibility */
+  body.mobile-role-app #deliveryApp #driverOrdersPanel,
+  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
+  body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
+  body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
+  body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
+  body.mobile-role-app .driver-order-card table{min-width:0!important;width:100%!important;display:block!important}
+  body.mobile-role-app .driver-order-card thead{display:none!important}
+  body.mobile-role-app .driver-order-card tbody{display:block!important}
+  body.mobile-role-app .driver-order-card tr{display:block!important;background:#f8fafc!important;border:1px solid #eef2f7!important;border-radius:16px!important;margin-top:8px!important;padding:10px!important}
+  body.mobile-role-app .driver-order-card td{display:block!important;border:0!important;padding:3px 0!important;text-align:left!important;font-size:14px!important}
+  body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
+  body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
 </style>
 </head>
 <body>
@@ -596,7 +717,7 @@
                 <div class="card panel" style="box-shadow:none">
                   <div class="panel-head"><h2>Danh sách hàng hóa</h2></div>
                   <div class="field"><label>Tìm sản phẩm</label><input id="salesProductSearch" placeholder="Mã / tên sản phẩm" oninput="renderSalesProductList()"></div><br>
-                  <div class="table-wrap"><table class="table sales-product-table"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th class="right">Giá bán chưa KM</th><th class="right">Tồn thực tế</th><th>SL thùng/lẻ</th><th>Chấm nhanh</th></tr></thead><tbody id="salesProductList"></tbody></table></div>
+                  <div class="table-wrap"><table class="table sales-product-table"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th class="right">Giá bán chưa KM</th><th class="right">Tồn thực tế</th><th>SL 1/0</th><th>Chấm</th></tr></thead><tbody id="salesProductList"></tbody></table></div>
                 </div>
                 <div class="card panel sales-cart-box" style="box-shadow:none">
                   <div class="panel-head"><h2>Đơn đang chấm</h2></div>
@@ -744,9 +865,11 @@
 </div>
 <div class="mobile-app-tabs" id="mobileAppTabs">
   <button data-app-tab="sales-customers" onclick="mobileAppGo('sales-customers')"><span>👥</span>Khách</button>
-  <button data-app-tab="sales-products" onclick="mobileAppGo('sales-products')"><span>🛒</span>Bán</button>
+  <button data-app-tab="sales-products" onclick="mobileAppGo('sales-products')"><span>📦</span>Hàng</button>
+  <button data-app-tab="sales-cart" onclick="mobileAppGo('sales-cart')"><span>🛒</span>Giỏ</button>
+  <button data-app-tab="sales-debt" onclick="mobileAppGo('sales-debt')"><span>₫</span>Nợ</button>
+  <button data-app-tab="sales-confirm" onclick="mobileAppGo('sales-confirm')"><span>✅</span>Xác nhận</button>
   <button data-app-tab="sales-orders" onclick="mobileAppGo('sales-orders')"><span>🧾</span>Đơn</button>
-  <button data-app-tab="sales-debt" onclick="mobileAppGo('sales-debt')"><span>₫</span>Công nợ</button>
   <button data-app-tab="driver-orders" onclick="mobileAppGo('driver-orders')"><span>🚚</span>Đơn giao</button>
   <button data-app-tab="driver-debt" onclick="mobileAppGo('driver-debt')"><span>₫</span>Thu tiền</button>
 </div>
@@ -1399,64 +1522,20 @@ function salesSelectCustomer(code){
   renderSalesCustomerList();renderSalesProductList();renderSalesDebt();
   if(window.innerWidth<=780)setTimeout(()=>document.getElementById('salesSelectedCustomerInfo')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
 }
-function salesReadQtySplit(sku){
-  const safe=cssSafeId(sku);
-  const p=findProduct(sku) || {};
-  const pack=Number(p.pack)||1;
-  const box=Number(document.getElementById('salesBox_'+safe)?.value||0)||0;
-  const each=Number(document.getElementById('salesEach_'+safe)?.value||0)||0;
-  return {box,each,qty:box*pack+each,pack};
-}
-function salesResetQtySplit(sku){
-  const safe=cssSafeId(sku);
-  const b=document.getElementById('salesBox_'+safe);
-  const e=document.getElementById('salesEach_'+safe);
-  if(b)b.value='0';
-  if(e)e.value='0';
-}
-function salesAddProduct(sku, quickBox, quickEach){
+function salesAddProduct(sku){
   const p=findProduct(sku); if(!p)return toast('Không tìm thấy sản phẩm');
-  const pack=Number(p.pack)||1;
-  let qty=0;
-  if(quickBox!==undefined || quickEach!==undefined){
-    qty=(Number(quickBox)||0)*pack+(Number(quickEach)||0);
-  }else{
-    qty=salesReadQtySplit(sku).qty;
-  }
-  if(qty<=0)return toast('Nhập số lượng thùng hoặc lẻ cần chấm');
+  const qty=parseQtySlash(document.getElementById('salesQty_'+cssSafeId(sku))?.value||'1/0',p.pack||1);
+  if(qty<=0)return toast('Nhập số lượng cần chấm');
   if(qty>Number(p.qty||0))return toast('Không đủ tồn thực tế: '+p.name+' còn '+qtyView(p.qty,p.pack));
   let old=salesCart.find(x=>String(x.sku)===String(sku));
   if(old)old.qty+=qty; else salesCart.push({sku:p.sku,name:p.name,pack:Number(p.pack)||1,qty,sale:Number(p.sale)||0,cost:Number(p.cost)||0,disc:0});
-  salesResetQtySplit(sku);
   renderSalesCart();
-  toast('Đã chấm '+qtyView(qty,pack)+' - '+(p.name||p.sku));
 }
 function renderSalesProductList(){
   const body=document.getElementById('salesProductList'); if(!body)return;
   const q=normText(document.getElementById('salesProductSearch')?.value||'');
   const rows=(db.products||[]).filter(p=>!q || normText([p.sku,p.name,productBrand(p),productCategory(p)].join(' ')).includes(q));
-  body.innerHTML=rows.map(p=>{
-    const safe=cssSafeId(p.sku);
-    return `<tr>
-      <td><b>${p.sku}</b></td>
-      <td>${escapeHtml(p.name||'')}</td>
-      <td class="right">${money(p.sale)}</td>
-      <td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td>
-      <td>
-        <div class="sales-qty-split">
-          <div class="sales-qty-mini"><label>Thùng</label><input id="salesBox_${safe}" type="number" min="0" value="0" inputmode="numeric" onfocus="this.select()"></div>
-          <div class="sales-qty-mini"><label>Lẻ</label><input id="salesEach_${safe}" type="number" min="0" value="0" inputmode="numeric" onfocus="this.select()"></div>
-        </div>
-      </td>
-      <td>
-        <div class="sales-quick-actions">
-          <button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}',1,0)">+1 thùng</button>
-          <button class="btn small light" onclick="salesAddProduct('${safeAttr(p.sku)}',0,1)">+1 lẻ</button>
-          <button class="btn small custom" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm SL nhập</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
+  body.innerHTML=rows.map(p=>`<tr><td><b>${p.sku}</b></td><td>${p.name}</td><td class="right">${money(p.sale)}</td><td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td><input id="salesQty_${cssSafeId(p.sku)}" placeholder="1/0" style="width:90px"></td><td><button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
 }
 function renderSalesCart(){
   const box=document.getElementById('salesCartBody'); if(!box)return;
@@ -2527,7 +2606,128 @@ function printPaymentReceipt(paymentId){
   const amount=paymentAmount(p);
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Phiếu thu ${escapePrintText(paymentReceiptNo(p))}</title><style>
     body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#111;font-size:14px} .wrap{max-width:760px;margin:0 auto}.top{display:flex;justify-content:space-between;gap:20px}.company{font-weight:800;font-size:18px}.muted{color:#555}.title{text-align:center;font-size:26px;font-weight:800;margin:22px 0 8px}.sub{text-align:center;margin-bottom:20px}.grid{display:grid;grid-template-columns:170px 1fr;gap:8px 12px;margin:18px 0}.line{border-top:1px dashed #999;margin:18px 0}.amount{font-size:20px;font-weight:800}.sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;text-align:center;margin-top:42px}.sign b{display:block;margin-bottom:60px}.note{line-height:1.6}
-  </style></head><body><div class="wrap">
+  
+
+/* ===== V13: Mobile chia màn hình App bán hàng / giao hàng theo từng bước ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs{left:6px;right:6px;bottom:6px;border-radius:18px;padding:5px;gap:3px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:10px;padding:7px 2px;border-radius:13px;white-space:nowrap}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:17px;margin-bottom:1px}
+  body.mobile-role-app .section.active{padding:8px 8px 78px!important}
+  body.mobile-role-app #salesApp .card.panel,
+  body.mobile-role-app #deliveryApp .card.panel{border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important}
+  body.mobile-role-app #salesApp .panel-head,
+  body.mobile-role-app #deliveryApp .panel-head{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:0 0 10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app #salesApp .panel-head h2,
+  body.mobile-role-app #deliveryApp .panel-head h2{font-size:20px;line-height:1.2}
+  body.mobile-role-app #salesApp .panel-head .toolbar,
+  body.mobile-role-app #deliveryApp .panel-head .toolbar{display:none!important}
+  body.mobile-role-app .mobile-step-title{display:block;background:#0f172a;color:#fff;border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 10px 26px rgba(15,23,42,.16)}
+  body.mobile-role-app .mobile-step-title b{display:block;font-size:20px;margin-bottom:3px}
+  body.mobile-role-app .mobile-step-title span{font-size:13px;color:#cbd5e1}
+  body.mobile-role-app .mobile-step-actions{display:flex;gap:8px;margin:10px 0;position:sticky;bottom:76px;z-index:25;background:rgba(243,244,246,.92);padding:6px 0;backdrop-filter:blur(10px)}
+  body.mobile-role-app .mobile-step-actions .btn{flex:1;font-size:15px;min-height:48px}
+  body.mobile-role-app .role-kpi{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:8px 0 10px!important}
+  body.mobile-role-app .role-kpi .mini-card{padding:13px!important;border-radius:18px!important;background:#fff!important;box-shadow:0 6px 16px rgba(15,23,42,.05)!important}
+  body.mobile-role-app .role-kpi .mini-card span{font-size:12px!important}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:22px!important;line-height:1.25!important}
+  body.mobile-role-app .role-list-row{padding:16px!important;border-radius:20px!important;font-size:16px!important}
+  body.mobile-role-app .role-list-row b{font-size:17px!important;line-height:1.35!important}
+  body.mobile-role-app .role-list-row .muted{font-size:13px!important;line-height:1.5!important}
+  body.mobile-role-app input{font-size:17px!important;min-height:50px!important;border-radius:14px!important}
+  body.mobile-role-app .btn{font-size:15px!important;min-height:48px!important;border-radius:14px!important}
+
+  /* Sales wizard visibility */
+  body.mobile-role-app #salesCustomerPanel,
+  body.mobile-role-app #salesOrdersPanel,
+  body.mobile-role-app #salesDebtPanel{display:none!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel,
+  body.mobile-role-app.sales-step-products #salesCustomerPanel,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel{display:block!important}
+  body.mobile-role-app.sales-step-debt #salesDebtPanel{display:block!important}
+  body.mobile-role-app.sales-step-orders #salesOrdersPanel{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:nth-child(2){display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:nth-child(2){display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .sales-cart-box{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-kpi{display:none!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{border:2px solid #16a34a!important;background:#f7fff9!important}
+
+  /* Mobile product cards */
+  body.mobile-role-app .sales-product-table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+  body.mobile-role-app .sales-product-table thead{display:none!important}
+  body.mobile-role-app .sales-product-table tr{display:block!important;background:transparent!important}
+  body.mobile-role-app .sales-product-table td.mobile-product-cell{display:block!important;padding:0!important;border:0!important}
+  body.mobile-role-app .mobile-product-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:15px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .sku{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}
+  body.mobile-role-app .mobile-product-card .name{font-size:17px;line-height:1.35;font-weight:800;color:#111827;margin-bottom:10px}
+  body.mobile-role-app .mobile-product-card .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .meta div{background:#f8fafc;border:1px solid #eef2f7;border-radius:15px;padding:10px}
+  body.mobile-role-app .mobile-product-card .meta span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:18px}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn{min-height:48px!important}
+  body.mobile-role-app .mobile-product-card .btn.green{font-size:16px!important;font-weight:900!important}
+
+  /* Cart as full screen card list */
+  body.mobile-role-app .sales-cart-box{border-radius:22px!important;padding:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important}
+  body.mobile-role-app .cart-item{border-radius:18px!important;background:#fff!important;border:1px solid #e5e7eb!important;padding:14px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important}
+  body.mobile-role-app .sum-line b{font-size:22px!important}
+
+  /* Debt screen: cards instead of table */
+  body.mobile-role-app #salesDebtPanel .table-wrap,
+  body.mobile-role-app #driverDebtPanel .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesDebtPanel table,
+  body.mobile-role-app #driverDebtPanel table{display:block!important;min-width:0!important;width:100%!important}
+  body.mobile-role-app #salesDebtPanel thead,
+  body.mobile-role-app #driverDebtPanel thead{display:none!important}
+  body.mobile-role-app #salesDebtPanel tbody,
+  body.mobile-role-app #driverDebtPanel tbody{display:block!important}
+  body.mobile-role-app #salesDebtPanel tr,
+  body.mobile-role-app #driverDebtPanel tr{display:block!important;background:#fff!important;border:1px solid #e5e7eb!important;border-radius:22px!important;margin-bottom:12px!important;padding:14px!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+  body.mobile-role-app #salesDebtPanel td,
+  body.mobile-role-app #driverDebtPanel td{display:block!important;border:0!important;padding:4px 0!important;font-size:15px!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(2) b,
+  body.mobile-role-app #driverDebtPanel td:nth-child(2) b{font-size:18px!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(4),
+  body.mobile-role-app #driverDebtPanel td:nth-child(4){font-size:24px!important;font-weight:900!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(5) .btn,
+  body.mobile-role-app #driverDebtPanel td:nth-child(5) .btn{width:100%;margin-top:8px}
+
+  /* Driver wizard visibility */
+  body.mobile-role-app #deliveryApp #driverOrdersPanel,
+  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
+  body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
+  body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
+  body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
+  body.mobile-role-app .driver-order-card table{min-width:0!important;width:100%!important;display:block!important}
+  body.mobile-role-app .driver-order-card thead{display:none!important}
+  body.mobile-role-app .driver-order-card tbody{display:block!important}
+  body.mobile-role-app .driver-order-card tr{display:block!important;background:#f8fafc!important;border:1px solid #eef2f7!important;border-radius:16px!important;margin-top:8px!important;padding:10px!important}
+  body.mobile-role-app .driver-order-card td{display:block!important;border:0!important;padding:3px 0!important;text-align:left!important;font-size:14px!important}
+  body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
+  body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
+</style></head><body><div class="wrap">
     <div class="top"><div><div class="company">KHO MINH KHAI THÁI BÌNH</div><div class="muted">Phiếu thu công nợ khách hàng</div></div><div><b>Số phiếu:</b> ${escapePrintText(paymentReceiptNo(p))}<br><b>Ngày:</b> ${escapePrintText(paymentDateText(p.date))}</div></div>
     <div class="title">PHIẾU THU</div><div class="sub">Liên lưu nội bộ / giao khách khi cần</div>
     <div class="grid">
@@ -2831,7 +3031,128 @@ function invoiceHtmlForOrder(o){
     .sign-row{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #111;margin-top:3.8mm;height:22mm}.sign-row div{text-align:center;font-weight:800;border-right:1px solid #111;padding-top:1.4mm}.sign-row div:last-child{border-right:0}.sign-row span{font-weight:700}
     .promo-title{font-weight:800;text-decoration:underline;margin:8mm 0 3mm .6mm}.promo-table{border:1px solid #111}.promo-table th{font-size:9.6px;line-height:1.12}.promo-table td{font-size:9.2px;line-height:1.13;padding:2.6px 3px}.promo-table tfoot td{font-size:9.6px;border-top:1px solid #111}.promo-explain{display:none}
     @media print{.print-btn{display:none}.invoice-page{min-height:auto;margin:0;width:198mm}}
-  </style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF</button>${pageHtml('Liên 1')}${pageHtml('Liên 2')}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
+  
+
+/* ===== V13: Mobile chia màn hình App bán hàng / giao hàng theo từng bước ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs{left:6px;right:6px;bottom:6px;border-radius:18px;padding:5px;gap:3px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:10px;padding:7px 2px;border-radius:13px;white-space:nowrap}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:17px;margin-bottom:1px}
+  body.mobile-role-app .section.active{padding:8px 8px 78px!important}
+  body.mobile-role-app #salesApp .card.panel,
+  body.mobile-role-app #deliveryApp .card.panel{border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important}
+  body.mobile-role-app #salesApp .panel-head,
+  body.mobile-role-app #deliveryApp .panel-head{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:0 0 10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app #salesApp .panel-head h2,
+  body.mobile-role-app #deliveryApp .panel-head h2{font-size:20px;line-height:1.2}
+  body.mobile-role-app #salesApp .panel-head .toolbar,
+  body.mobile-role-app #deliveryApp .panel-head .toolbar{display:none!important}
+  body.mobile-role-app .mobile-step-title{display:block;background:#0f172a;color:#fff;border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 10px 26px rgba(15,23,42,.16)}
+  body.mobile-role-app .mobile-step-title b{display:block;font-size:20px;margin-bottom:3px}
+  body.mobile-role-app .mobile-step-title span{font-size:13px;color:#cbd5e1}
+  body.mobile-role-app .mobile-step-actions{display:flex;gap:8px;margin:10px 0;position:sticky;bottom:76px;z-index:25;background:rgba(243,244,246,.92);padding:6px 0;backdrop-filter:blur(10px)}
+  body.mobile-role-app .mobile-step-actions .btn{flex:1;font-size:15px;min-height:48px}
+  body.mobile-role-app .role-kpi{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:8px 0 10px!important}
+  body.mobile-role-app .role-kpi .mini-card{padding:13px!important;border-radius:18px!important;background:#fff!important;box-shadow:0 6px 16px rgba(15,23,42,.05)!important}
+  body.mobile-role-app .role-kpi .mini-card span{font-size:12px!important}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:22px!important;line-height:1.25!important}
+  body.mobile-role-app .role-list-row{padding:16px!important;border-radius:20px!important;font-size:16px!important}
+  body.mobile-role-app .role-list-row b{font-size:17px!important;line-height:1.35!important}
+  body.mobile-role-app .role-list-row .muted{font-size:13px!important;line-height:1.5!important}
+  body.mobile-role-app input{font-size:17px!important;min-height:50px!important;border-radius:14px!important}
+  body.mobile-role-app .btn{font-size:15px!important;min-height:48px!important;border-radius:14px!important}
+
+  /* Sales wizard visibility */
+  body.mobile-role-app #salesCustomerPanel,
+  body.mobile-role-app #salesOrdersPanel,
+  body.mobile-role-app #salesDebtPanel{display:none!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel,
+  body.mobile-role-app.sales-step-products #salesCustomerPanel,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel{display:block!important}
+  body.mobile-role-app.sales-step-debt #salesDebtPanel{display:block!important}
+  body.mobile-role-app.sales-step-orders #salesOrdersPanel{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:nth-child(2){display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:nth-child(2){display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .sales-cart-box{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-kpi{display:none!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{border:2px solid #16a34a!important;background:#f7fff9!important}
+
+  /* Mobile product cards */
+  body.mobile-role-app .sales-product-table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+  body.mobile-role-app .sales-product-table thead{display:none!important}
+  body.mobile-role-app .sales-product-table tr{display:block!important;background:transparent!important}
+  body.mobile-role-app .sales-product-table td.mobile-product-cell{display:block!important;padding:0!important;border:0!important}
+  body.mobile-role-app .mobile-product-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:15px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .sku{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}
+  body.mobile-role-app .mobile-product-card .name{font-size:17px;line-height:1.35;font-weight:800;color:#111827;margin-bottom:10px}
+  body.mobile-role-app .mobile-product-card .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .meta div{background:#f8fafc;border:1px solid #eef2f7;border-radius:15px;padding:10px}
+  body.mobile-role-app .mobile-product-card .meta span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:18px}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn{min-height:48px!important}
+  body.mobile-role-app .mobile-product-card .btn.green{font-size:16px!important;font-weight:900!important}
+
+  /* Cart as full screen card list */
+  body.mobile-role-app .sales-cart-box{border-radius:22px!important;padding:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important}
+  body.mobile-role-app .cart-item{border-radius:18px!important;background:#fff!important;border:1px solid #e5e7eb!important;padding:14px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important}
+  body.mobile-role-app .sum-line b{font-size:22px!important}
+
+  /* Debt screen: cards instead of table */
+  body.mobile-role-app #salesDebtPanel .table-wrap,
+  body.mobile-role-app #driverDebtPanel .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesDebtPanel table,
+  body.mobile-role-app #driverDebtPanel table{display:block!important;min-width:0!important;width:100%!important}
+  body.mobile-role-app #salesDebtPanel thead,
+  body.mobile-role-app #driverDebtPanel thead{display:none!important}
+  body.mobile-role-app #salesDebtPanel tbody,
+  body.mobile-role-app #driverDebtPanel tbody{display:block!important}
+  body.mobile-role-app #salesDebtPanel tr,
+  body.mobile-role-app #driverDebtPanel tr{display:block!important;background:#fff!important;border:1px solid #e5e7eb!important;border-radius:22px!important;margin-bottom:12px!important;padding:14px!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+  body.mobile-role-app #salesDebtPanel td,
+  body.mobile-role-app #driverDebtPanel td{display:block!important;border:0!important;padding:4px 0!important;font-size:15px!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(2) b,
+  body.mobile-role-app #driverDebtPanel td:nth-child(2) b{font-size:18px!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(4),
+  body.mobile-role-app #driverDebtPanel td:nth-child(4){font-size:24px!important;font-weight:900!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(5) .btn,
+  body.mobile-role-app #driverDebtPanel td:nth-child(5) .btn{width:100%;margin-top:8px}
+
+  /* Driver wizard visibility */
+  body.mobile-role-app #deliveryApp #driverOrdersPanel,
+  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
+  body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
+  body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
+  body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
+  body.mobile-role-app .driver-order-card table{min-width:0!important;width:100%!important;display:block!important}
+  body.mobile-role-app .driver-order-card thead{display:none!important}
+  body.mobile-role-app .driver-order-card tbody{display:block!important}
+  body.mobile-role-app .driver-order-card tr{display:block!important;background:#f8fafc!important;border:1px solid #eef2f7!important;border-radius:16px!important;margin-top:8px!important;padding:10px!important}
+  body.mobile-role-app .driver-order-card td{display:block!important;border:0!important;padding:3px 0!important;text-align:left!important;font-size:14px!important}
+  body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
+  body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
+</style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF</button>${pageHtml('Liên 1')}${pageHtml('Liên 2')}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
 }
 
 function printInvoice(id){let o=db.orders.find(x=>x.id===id);if(!o)return toast('Không tìm thấy đơn hàng');let w=window.open('','_blank');w.document.open();w.document.write(invoiceHtmlForOrder(o));w.document.close();}
@@ -2860,7 +3181,128 @@ function printSelectedOrders(){
     .batch-separator{page-break-after:always;height:0;overflow:hidden}
     .invoice-page:nth-last-child(2){page-break-after:always}
     @media print{.print-btn{display:none!important}}
-  </style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF ${orders.length} đơn</button>${pages}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
+  
+
+/* ===== V13: Mobile chia màn hình App bán hàng / giao hàng theo từng bước ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs{left:6px;right:6px;bottom:6px;border-radius:18px;padding:5px;gap:3px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:10px;padding:7px 2px;border-radius:13px;white-space:nowrap}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:17px;margin-bottom:1px}
+  body.mobile-role-app .section.active{padding:8px 8px 78px!important}
+  body.mobile-role-app #salesApp .card.panel,
+  body.mobile-role-app #deliveryApp .card.panel{border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important}
+  body.mobile-role-app #salesApp .panel-head,
+  body.mobile-role-app #deliveryApp .panel-head{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:0 0 10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app #salesApp .panel-head h2,
+  body.mobile-role-app #deliveryApp .panel-head h2{font-size:20px;line-height:1.2}
+  body.mobile-role-app #salesApp .panel-head .toolbar,
+  body.mobile-role-app #deliveryApp .panel-head .toolbar{display:none!important}
+  body.mobile-role-app .mobile-step-title{display:block;background:#0f172a;color:#fff;border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 10px 26px rgba(15,23,42,.16)}
+  body.mobile-role-app .mobile-step-title b{display:block;font-size:20px;margin-bottom:3px}
+  body.mobile-role-app .mobile-step-title span{font-size:13px;color:#cbd5e1}
+  body.mobile-role-app .mobile-step-actions{display:flex;gap:8px;margin:10px 0;position:sticky;bottom:76px;z-index:25;background:rgba(243,244,246,.92);padding:6px 0;backdrop-filter:blur(10px)}
+  body.mobile-role-app .mobile-step-actions .btn{flex:1;font-size:15px;min-height:48px}
+  body.mobile-role-app .role-kpi{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:8px 0 10px!important}
+  body.mobile-role-app .role-kpi .mini-card{padding:13px!important;border-radius:18px!important;background:#fff!important;box-shadow:0 6px 16px rgba(15,23,42,.05)!important}
+  body.mobile-role-app .role-kpi .mini-card span{font-size:12px!important}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:22px!important;line-height:1.25!important}
+  body.mobile-role-app .role-list-row{padding:16px!important;border-radius:20px!important;font-size:16px!important}
+  body.mobile-role-app .role-list-row b{font-size:17px!important;line-height:1.35!important}
+  body.mobile-role-app .role-list-row .muted{font-size:13px!important;line-height:1.5!important}
+  body.mobile-role-app input{font-size:17px!important;min-height:50px!important;border-radius:14px!important}
+  body.mobile-role-app .btn{font-size:15px!important;min-height:48px!important;border-radius:14px!important}
+
+  /* Sales wizard visibility */
+  body.mobile-role-app #salesCustomerPanel,
+  body.mobile-role-app #salesOrdersPanel,
+  body.mobile-role-app #salesDebtPanel{display:none!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel,
+  body.mobile-role-app.sales-step-products #salesCustomerPanel,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel{display:block!important}
+  body.mobile-role-app.sales-step-debt #salesDebtPanel{display:block!important}
+  body.mobile-role-app.sales-step-orders #salesOrdersPanel{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:nth-child(2){display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:nth-child(2){display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .sales-cart-box{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-kpi{display:none!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{border:2px solid #16a34a!important;background:#f7fff9!important}
+
+  /* Mobile product cards */
+  body.mobile-role-app .sales-product-table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+  body.mobile-role-app .sales-product-table thead{display:none!important}
+  body.mobile-role-app .sales-product-table tr{display:block!important;background:transparent!important}
+  body.mobile-role-app .sales-product-table td.mobile-product-cell{display:block!important;padding:0!important;border:0!important}
+  body.mobile-role-app .mobile-product-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:15px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .sku{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}
+  body.mobile-role-app .mobile-product-card .name{font-size:17px;line-height:1.35;font-weight:800;color:#111827;margin-bottom:10px}
+  body.mobile-role-app .mobile-product-card .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .meta div{background:#f8fafc;border:1px solid #eef2f7;border-radius:15px;padding:10px}
+  body.mobile-role-app .mobile-product-card .meta span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:18px}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn{min-height:48px!important}
+  body.mobile-role-app .mobile-product-card .btn.green{font-size:16px!important;font-weight:900!important}
+
+  /* Cart as full screen card list */
+  body.mobile-role-app .sales-cart-box{border-radius:22px!important;padding:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important}
+  body.mobile-role-app .cart-item{border-radius:18px!important;background:#fff!important;border:1px solid #e5e7eb!important;padding:14px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important}
+  body.mobile-role-app .sum-line b{font-size:22px!important}
+
+  /* Debt screen: cards instead of table */
+  body.mobile-role-app #salesDebtPanel .table-wrap,
+  body.mobile-role-app #driverDebtPanel .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesDebtPanel table,
+  body.mobile-role-app #driverDebtPanel table{display:block!important;min-width:0!important;width:100%!important}
+  body.mobile-role-app #salesDebtPanel thead,
+  body.mobile-role-app #driverDebtPanel thead{display:none!important}
+  body.mobile-role-app #salesDebtPanel tbody,
+  body.mobile-role-app #driverDebtPanel tbody{display:block!important}
+  body.mobile-role-app #salesDebtPanel tr,
+  body.mobile-role-app #driverDebtPanel tr{display:block!important;background:#fff!important;border:1px solid #e5e7eb!important;border-radius:22px!important;margin-bottom:12px!important;padding:14px!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+  body.mobile-role-app #salesDebtPanel td,
+  body.mobile-role-app #driverDebtPanel td{display:block!important;border:0!important;padding:4px 0!important;font-size:15px!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(2) b,
+  body.mobile-role-app #driverDebtPanel td:nth-child(2) b{font-size:18px!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(4),
+  body.mobile-role-app #driverDebtPanel td:nth-child(4){font-size:24px!important;font-weight:900!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(5) .btn,
+  body.mobile-role-app #driverDebtPanel td:nth-child(5) .btn{width:100%;margin-top:8px}
+
+  /* Driver wizard visibility */
+  body.mobile-role-app #deliveryApp #driverOrdersPanel,
+  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
+  body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
+  body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
+  body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
+  body.mobile-role-app .driver-order-card table{min-width:0!important;width:100%!important;display:block!important}
+  body.mobile-role-app .driver-order-card thead{display:none!important}
+  body.mobile-role-app .driver-order-card tbody{display:block!important}
+  body.mobile-role-app .driver-order-card tr{display:block!important;background:#f8fafc!important;border:1px solid #eef2f7!important;border-radius:16px!important;margin-top:8px!important;padding:10px!important}
+  body.mobile-role-app .driver-order-card td{display:block!important;border:0!important;padding:3px 0!important;text-align:left!important;font-size:14px!important}
+  body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
+  body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
+</style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF ${orders.length} đơn</button>${pages}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
   let w=window.open('','_blank');
   w.document.open();
   w.document.write(html);
@@ -2876,7 +3318,128 @@ function printMasterOrder(id){
   let goods=items.reduce((a,b)=>a+Number(b.goods||0),0);
   let discount=items.reduce((a,b)=>a+Number(b.discount||0),0);
   let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);
-  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Don tong ${m.id}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;margin:24px;color:#111}.top{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:12px}.invoice-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px}.invoice-mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#1d4ed8,#16a34a);display:inline-grid;place-items:center;color:#fff}.title{text-align:center;font-size:22px;font-weight:800;margin:18px 0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #bbb;padding:7px;font-size:12px}th{background:#f3f4f6}.r{text-align:right}.sum{width:420px;margin-left:auto;margin-top:14px}.sum div{display:flex;justify-content:space-between;border-bottom:1px dashed #bbb;padding:6px 0}.small-title{font-weight:800;margin-top:18px}@media print{button{display:none}body{margin:10mm}}</style></head><body><button onclick="window.print()">In / Lưu PDF</button><div class="top"><div><div class="invoice-logo"><span class="invoice-mark">▣</span><span>Kho Minh Khai Thái Bình</span></div><div>Phiếu gộp đơn tổng theo sản phẩm</div></div><div><b>Mã đơn tổng:</b> ${m.id}<br><b>Ngày tạo:</b> ${m.date}</div></div><div class="title">ĐƠN TỔNG HÀNG HÓA</div><p><b>Ghi chú:</b> ${m.note||''}</p><div class="small-title">Danh sách đơn con</div><table><thead><tr><th>STT</th><th>Mã đơn</th><th>Ngày</th><th>Mã KH</th><th>Khách hàng</th><th>Nhân viên</th></tr></thead><tbody>${childRows}</tbody></table><div class="small-title">Bảng hàng gộp theo SKU</div><table><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Đơn giá</th><th>T/L</th><th>SL lẻ</th><th>Tiền hàng</th><th>CK</th><th>Thành tiền</th></tr></thead><tbody>${rows}</tbody></table><div class="sum"><div><span>Tổng số mặt hàng</span><b>${items.length}</b></div><div><span>Tổng SL lẻ</span><b>${totalQty}</b></div><div><span>Tổng tiền hàng</span><b>${money(goods)}</b></div><div><span>Tổng chiết khấu</span><b>${money(discount)}</b></div><div><span>Phải thanh toán</span><b>${money(total)}</b></div></div><script>window.onload=function(){setTimeout(()=>window.print(),300)}<\/script></body></html>`;
+  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Don tong ${m.id}</title><style>body{font-family:'Segoe UI',Arial,sans-serif;margin:24px;color:#111}.top{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:12px}.invoice-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px}.invoice-mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#1d4ed8,#16a34a);display:inline-grid;place-items:center;color:#fff}.title{text-align:center;font-size:22px;font-weight:800;margin:18px 0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #bbb;padding:7px;font-size:12px}th{background:#f3f4f6}.r{text-align:right}.sum{width:420px;margin-left:auto;margin-top:14px}.sum div{display:flex;justify-content:space-between;border-bottom:1px dashed #bbb;padding:6px 0}.small-title{font-weight:800;margin-top:18px}@media print{button{display:none}body{margin:10mm}}
+
+/* ===== V13: Mobile chia màn hình App bán hàng / giao hàng theo từng bước ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs{left:6px;right:6px;bottom:6px;border-radius:18px;padding:5px;gap:3px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:10px;padding:7px 2px;border-radius:13px;white-space:nowrap}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:17px;margin-bottom:1px}
+  body.mobile-role-app .section.active{padding:8px 8px 78px!important}
+  body.mobile-role-app #salesApp .card.panel,
+  body.mobile-role-app #deliveryApp .card.panel{border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important}
+  body.mobile-role-app #salesApp .panel-head,
+  body.mobile-role-app #deliveryApp .panel-head{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:0 0 10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app #salesApp .panel-head h2,
+  body.mobile-role-app #deliveryApp .panel-head h2{font-size:20px;line-height:1.2}
+  body.mobile-role-app #salesApp .panel-head .toolbar,
+  body.mobile-role-app #deliveryApp .panel-head .toolbar{display:none!important}
+  body.mobile-role-app .mobile-step-title{display:block;background:#0f172a;color:#fff;border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 10px 26px rgba(15,23,42,.16)}
+  body.mobile-role-app .mobile-step-title b{display:block;font-size:20px;margin-bottom:3px}
+  body.mobile-role-app .mobile-step-title span{font-size:13px;color:#cbd5e1}
+  body.mobile-role-app .mobile-step-actions{display:flex;gap:8px;margin:10px 0;position:sticky;bottom:76px;z-index:25;background:rgba(243,244,246,.92);padding:6px 0;backdrop-filter:blur(10px)}
+  body.mobile-role-app .mobile-step-actions .btn{flex:1;font-size:15px;min-height:48px}
+  body.mobile-role-app .role-kpi{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:8px 0 10px!important}
+  body.mobile-role-app .role-kpi .mini-card{padding:13px!important;border-radius:18px!important;background:#fff!important;box-shadow:0 6px 16px rgba(15,23,42,.05)!important}
+  body.mobile-role-app .role-kpi .mini-card span{font-size:12px!important}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:22px!important;line-height:1.25!important}
+  body.mobile-role-app .role-list-row{padding:16px!important;border-radius:20px!important;font-size:16px!important}
+  body.mobile-role-app .role-list-row b{font-size:17px!important;line-height:1.35!important}
+  body.mobile-role-app .role-list-row .muted{font-size:13px!important;line-height:1.5!important}
+  body.mobile-role-app input{font-size:17px!important;min-height:50px!important;border-radius:14px!important}
+  body.mobile-role-app .btn{font-size:15px!important;min-height:48px!important;border-radius:14px!important}
+
+  /* Sales wizard visibility */
+  body.mobile-role-app #salesCustomerPanel,
+  body.mobile-role-app #salesOrdersPanel,
+  body.mobile-role-app #salesDebtPanel{display:none!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel,
+  body.mobile-role-app.sales-step-products #salesCustomerPanel,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel{display:block!important}
+  body.mobile-role-app.sales-step-debt #salesDebtPanel{display:block!important}
+  body.mobile-role-app.sales-step-orders #salesOrdersPanel{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:nth-child(2){display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:nth-child(2){display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .sales-cart-box{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-kpi{display:none!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{border:2px solid #16a34a!important;background:#f7fff9!important}
+
+  /* Mobile product cards */
+  body.mobile-role-app .sales-product-table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+  body.mobile-role-app .sales-product-table thead{display:none!important}
+  body.mobile-role-app .sales-product-table tr{display:block!important;background:transparent!important}
+  body.mobile-role-app .sales-product-table td.mobile-product-cell{display:block!important;padding:0!important;border:0!important}
+  body.mobile-role-app .mobile-product-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:15px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .sku{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}
+  body.mobile-role-app .mobile-product-card .name{font-size:17px;line-height:1.35;font-weight:800;color:#111827;margin-bottom:10px}
+  body.mobile-role-app .mobile-product-card .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .meta div{background:#f8fafc;border:1px solid #eef2f7;border-radius:15px;padding:10px}
+  body.mobile-role-app .mobile-product-card .meta span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:18px}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn{min-height:48px!important}
+  body.mobile-role-app .mobile-product-card .btn.green{font-size:16px!important;font-weight:900!important}
+
+  /* Cart as full screen card list */
+  body.mobile-role-app .sales-cart-box{border-radius:22px!important;padding:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important}
+  body.mobile-role-app .cart-item{border-radius:18px!important;background:#fff!important;border:1px solid #e5e7eb!important;padding:14px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important}
+  body.mobile-role-app .sum-line b{font-size:22px!important}
+
+  /* Debt screen: cards instead of table */
+  body.mobile-role-app #salesDebtPanel .table-wrap,
+  body.mobile-role-app #driverDebtPanel .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesDebtPanel table,
+  body.mobile-role-app #driverDebtPanel table{display:block!important;min-width:0!important;width:100%!important}
+  body.mobile-role-app #salesDebtPanel thead,
+  body.mobile-role-app #driverDebtPanel thead{display:none!important}
+  body.mobile-role-app #salesDebtPanel tbody,
+  body.mobile-role-app #driverDebtPanel tbody{display:block!important}
+  body.mobile-role-app #salesDebtPanel tr,
+  body.mobile-role-app #driverDebtPanel tr{display:block!important;background:#fff!important;border:1px solid #e5e7eb!important;border-radius:22px!important;margin-bottom:12px!important;padding:14px!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+  body.mobile-role-app #salesDebtPanel td,
+  body.mobile-role-app #driverDebtPanel td{display:block!important;border:0!important;padding:4px 0!important;font-size:15px!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(2) b,
+  body.mobile-role-app #driverDebtPanel td:nth-child(2) b{font-size:18px!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(4),
+  body.mobile-role-app #driverDebtPanel td:nth-child(4){font-size:24px!important;font-weight:900!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(5) .btn,
+  body.mobile-role-app #driverDebtPanel td:nth-child(5) .btn{width:100%;margin-top:8px}
+
+  /* Driver wizard visibility */
+  body.mobile-role-app #deliveryApp #driverOrdersPanel,
+  body.mobile-role-app #deliveryApp #driverDebtPanel{display:none!important}
+  body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
+  body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
+  body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
+  body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
+  body.mobile-role-app .driver-order-card table{min-width:0!important;width:100%!important;display:block!important}
+  body.mobile-role-app .driver-order-card thead{display:none!important}
+  body.mobile-role-app .driver-order-card tbody{display:block!important}
+  body.mobile-role-app .driver-order-card tr{display:block!important;background:#f8fafc!important;border:1px solid #eef2f7!important;border-radius:16px!important;margin-top:8px!important;padding:10px!important}
+  body.mobile-role-app .driver-order-card td{display:block!important;border:0!important;padding:3px 0!important;text-align:left!important;font-size:14px!important}
+  body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
+  body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
+</style></head><body><button onclick="window.print()">In / Lưu PDF</button><div class="top"><div><div class="invoice-logo"><span class="invoice-mark">▣</span><span>Kho Minh Khai Thái Bình</span></div><div>Phiếu gộp đơn tổng theo sản phẩm</div></div><div><b>Mã đơn tổng:</b> ${m.id}<br><b>Ngày tạo:</b> ${m.date}</div></div><div class="title">ĐƠN TỔNG HÀNG HÓA</div><p><b>Ghi chú:</b> ${m.note||''}</p><div class="small-title">Danh sách đơn con</div><table><thead><tr><th>STT</th><th>Mã đơn</th><th>Ngày</th><th>Mã KH</th><th>Khách hàng</th><th>Nhân viên</th></tr></thead><tbody>${childRows}</tbody></table><div class="small-title">Bảng hàng gộp theo SKU</div><table><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Đơn giá</th><th>T/L</th><th>SL lẻ</th><th>Tiền hàng</th><th>CK</th><th>Thành tiền</th></tr></thead><tbody>${rows}</tbody></table><div class="sum"><div><span>Tổng số mặt hàng</span><b>${items.length}</b></div><div><span>Tổng SL lẻ</span><b>${totalQty}</b></div><div><span>Tổng tiền hàng</span><b>${money(goods)}</b></div><div><span>Tổng chiết khấu</span><b>${money(discount)}</b></div><div><span>Phải thanh toán</span><b>${money(total)}</b></div></div><script>window.onload=function(){setTimeout(()=>window.print(),300)}<\/script></body></html>`;
   let w=window.open('','_blank');w.document.open();w.document.write(html);w.document.close();
 }
 
@@ -4167,6 +4730,178 @@ function importCategoryGroupExcel(ev){
   });
 }
 
+
+
+
+/* ===== V13: App mobile theo từng màn hình, thẻ lớn dễ thao tác ===== */
+let mobileSalesStep = 'customers';
+let mobileDriverStep = 'orders';
+function isMobileAppView(){return window.innerWidth<=780 && (currentActivePage()==='salesApp'||currentActivePage()==='deliveryApp');}
+function clearMobileStepClasses(){
+  document.body.classList.remove('sales-step-customers','sales-step-products','sales-step-cart','sales-step-debt','sales-step-confirm','sales-step-orders','driver-step-orders','driver-step-debt');
+}
+function setSalesStep(step){
+  mobileSalesStep=step||'customers';
+  clearMobileStepClasses();
+  document.body.classList.add('sales-step-'+mobileSalesStep);
+  if(mobileSalesStep!=='customers' && salesSelectedCustomerCode)document.body.classList.add('sales-customer-selected');
+  if(mobileSalesStep==='customers')document.body.classList.remove('sales-customer-selected');
+  updateMobileAppTabs('salesApp');
+  setTimeout(()=>{document.getElementById('salesApp')?.scrollTo?.({top:0,behavior:'smooth'});},20);
+}
+function setDriverStep(step){
+  mobileDriverStep=step||'orders';
+  clearMobileStepClasses();
+  document.body.classList.add('driver-step-'+mobileDriverStep);
+  updateMobileAppTabs('deliveryApp');
+  setTimeout(()=>{document.getElementById('deliveryApp')?.scrollTo?.({top:0,behavior:'smooth'});},20);
+}
+function stepTitle(title,sub){return `<div class="mobile-step-title"><b>${title}</b><span>${sub||''}</span></div>`;}
+const _oldUpdateMobileAppMode=updateMobileAppMode;
+updateMobileAppMode=function(activeId){
+  activeId=activeId||currentActivePage();
+  _oldUpdateMobileAppMode(activeId);
+  if(window.innerWidth<=780 && activeId==='salesApp'){
+    clearMobileStepClasses();
+    document.body.classList.add('sales-step-'+(mobileSalesStep||'customers'));
+    if(mobileSalesStep!=='customers' && salesSelectedCustomerCode)document.body.classList.add('sales-customer-selected');
+  }
+  if(window.innerWidth<=780 && activeId==='deliveryApp'){
+    clearMobileStepClasses();
+    document.body.classList.add('driver-step-'+(mobileDriverStep||'orders'));
+  }
+  updateMobileAppTabs(activeId);
+};
+updateMobileAppTabs=function(activeId){
+  const box=document.getElementById('mobileAppTabs'); if(!box)return;
+  const sales=activeId==='salesApp'; const driver=activeId==='deliveryApp';
+  box.querySelectorAll('button').forEach(b=>{
+    const tab=b.dataset.appTab||'';
+    const show=(sales&&tab.startsWith('sales-'))||(driver&&tab.startsWith('driver-'));
+    b.style.display=show?'block':'none';
+    b.classList.remove('active');
+  });
+  if(sales) box.querySelector(`[data-app-tab="sales-${mobileSalesStep||'customers'}"]`)?.classList.add('active');
+  if(driver) box.querySelector(`[data-app-tab="driver-${mobileDriverStep||'orders'}"]`)?.classList.add('active');
+};
+mobileBackToSalesCustomers=function(){setSalesStep('customers');};
+mobileAppGo=function(tab){
+  if(tab.startsWith('sales-')){
+    if(currentActivePage()!=='salesApp')page('salesApp');
+    const step=tab.replace('sales-','');
+    if(step!=='customers' && !salesSelectedCustomerCode){toast('Chọn khách hàng trước'); return setSalesStep('customers');}
+    setSalesStep(step);
+  }
+  if(tab.startsWith('driver-')){
+    if(currentActivePage()!=='deliveryApp')page('deliveryApp');
+    setDriverStep(tab.replace('driver-',''));
+  }
+};
+
+const _oldSalesSelectCustomer=salesSelectCustomer;
+salesSelectCustomer=function(code){
+  _oldSalesSelectCustomer(code);
+  if(window.innerWidth<=780)setSalesStep('products');
+};
+function salesQtyBox(sku){return Number(document.getElementById('salesBox_'+cssSafeId(sku))?.value||0)||0;}
+function salesQtyEach(sku){return Number(document.getElementById('salesEach_'+cssSafeId(sku))?.value||0)||0;}
+function salesQtyFromInputs(sku,pack){return totalQty(salesQtyBox(sku),salesQtyEach(sku),pack||1);}
+function setSalesQtyInputs(sku,box,each){
+  const id=cssSafeId(sku);
+  const b=document.getElementById('salesBox_'+id); if(b)b.value=box;
+  const e=document.getElementById('salesEach_'+id); if(e)e.value=each;
+}
+function salesQuickAdd(sku,box,each){
+  const p=findProduct(sku); if(!p)return;
+  setSalesQtyInputs(sku,box,each);
+  salesAddProduct(sku);
+}
+salesAddProduct=function(sku){
+  const p=findProduct(sku); if(!p)return toast('Không tìm thấy sản phẩm');
+  let qty=salesQtyFromInputs(sku,p.pack||1);
+  if(qty<=0){qty=Number(p.pack)||1; setSalesQtyInputs(sku,1,0);}
+  if(qty>Number(p.qty||0))return toast('Không đủ tồn: '+p.name+' còn '+qtyView(p.qty,p.pack));
+  let old=salesCart.find(x=>String(x.sku)===String(sku));
+  if(old)old.qty+=qty; else salesCart.push({sku:p.sku,name:p.name,pack:Number(p.pack)||1,qty,sale:Number(p.sale)||0,cost:Number(p.cost)||0,disc:0});
+  renderSalesCart();
+  toast('Đã chấm '+qtyView(qty,p.pack)+' · '+p.name);
+  if(window.innerWidth<=780){setSalesQtyInputs(sku,0,0);}
+};
+renderSalesProductList=function(){
+  const body=document.getElementById('salesProductList'); if(!body)return;
+  const q=normText(document.getElementById('salesProductSearch')?.value||'');
+  const rows=(db.products||[]).filter(p=>!q || normText([p.sku,p.name,productBrand(p),productCategory(p)].join(' ')).includes(q));
+  const mobile=window.innerWidth<=780;
+  if(mobile){
+    body.innerHTML=rows.map(p=>{const id=cssSafeId(p.sku);const low=Number(p.qty||0)<Number(p.pack||1);return `<tr><td colspan="6" class="mobile-product-cell"><div class="mobile-product-card">
+      <div class="sku">${escapeHtml(p.sku||'')}</div>
+      <div class="name">${escapeHtml(p.name||'')}</div>
+      <div class="meta"><div><span>Giá bán chưa KM</span><b>${money(p.sale)}</b></div><div><span>Tồn thực tế</span><b class="${low?'debt-money-unpaid':'debt-money-paid'}">${qtyView(p.qty,p.pack)}</b></div></div>
+      <div class="qty-grid"><div class="field"><label>Thùng</label><input id="salesBox_${id}" type="number" inputmode="numeric" value="0" min="0"></div><div class="field"><label>Lẻ</label><input id="salesEach_${id}" type="number" inputmode="numeric" value="0" min="0"></div></div>
+      <div class="quick-grid"><button class="btn light" onclick="salesQuickAdd('${safeAttr(p.sku)}',1,0)">+1 thùng</button><button class="btn light" onclick="salesQuickAdd('${safeAttr(p.sku)}',0,1)">+1 lẻ</button><button class="btn green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></div>
+    </div></td></tr>`}).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
+  }else{
+    body.innerHTML=rows.map(p=>{const id=cssSafeId(p.sku);return `<tr><td><b>${p.sku}</b></td><td>${p.name}</td><td class="right">${money(p.sale)}</td><td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td><div style="display:flex;gap:6px"><input id="salesBox_${id}" type="number" placeholder="Thùng" style="width:70px"><input id="salesEach_${id}" type="number" placeholder="Lẻ" style="width:70px"></div></td><td><button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></td></tr>`}).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
+  }
+};
+const _oldRenderSalesCart=renderSalesCart;
+renderSalesCart=function(){
+  _oldRenderSalesCart();
+  const box=document.getElementById('salesCartBody'); if(!box)return;
+  if(window.innerWidth<=780 && salesCart.length){
+    box.insertAdjacentHTML('afterbegin', stepTitle('Giỏ hàng đang chấm','Kiểm tra lại số lượng trước khi sang công nợ hoặc xác nhận.'));
+    box.insertAdjacentHTML('beforeend', `<div class="mobile-step-actions"><button class="btn light" onclick="setSalesStep('products')">← Thêm hàng</button><button class="btn green" onclick="setSalesStep('debt')">Tiếp tục công nợ →</button></div>`);
+  }
+};
+const _oldSalesConfirmOrder=salesConfirmOrder;
+salesConfirmOrder=async function(){
+  await _oldSalesConfirmOrder();
+  if(window.innerWidth<=780)setSalesStep('orders');
+};
+
+const _oldRenderSalesCustomerList=renderSalesCustomerList;
+renderSalesCustomerList=function(){
+  _oldRenderSalesCustomerList();
+  const panel=document.getElementById('salesCustomerPanel');
+  if(panel && window.innerWidth<=780 && !panel.querySelector('.mobile-customer-title')){
+    panel.insertAdjacentHTML('afterbegin', `<div class="mobile-step-title mobile-customer-title"><b>1. Chọn khách hàng</b><span>Chỉ hiển thị danh sách khách. Bấm vào khách để chuyển sang màn hình hàng hóa.</span></div>`);
+  }
+};
+const _oldRenderSalesDebt=renderSalesDebt;
+renderSalesDebt=function(){
+  _oldRenderSalesDebt();
+  const panel=document.getElementById('salesDebtPanel');
+  if(panel && window.innerWidth<=780 && !panel.querySelector('.mobile-debt-title')){
+    panel.insertAdjacentHTML('afterbegin', `<div class="mobile-step-title mobile-debt-title"><b>4. Công nợ khách hàng</b><span>Thu công nợ nếu cần, sau đó chuyển sang xác nhận đơn.</span></div><div class="mobile-step-actions"><button class="btn light" onclick="setSalesStep('cart')">← Giỏ hàng</button><button class="btn green" onclick="setSalesStep('confirm')">Sang xác nhận →</button></div>`);
+  }
+};
+const _oldRenderSalesOrders=renderSalesOrders;
+renderSalesOrders=function(){
+  _oldRenderSalesOrders();
+  const panel=document.getElementById('salesOrdersPanel');
+  if(panel && window.innerWidth<=780 && !panel.querySelector('.mobile-orders-title')){
+    panel.insertAdjacentHTML('afterbegin', `<div class="mobile-step-title mobile-orders-title"><b>Danh sách đơn đã chấm</b><span>Có thể sửa hoặc xóa đơn đã gửi về hệ thống.</span></div>`);
+  }
+};
+
+renderDeliveryApp=function(){
+  setTimeout(()=>{},0);
+  updateMobileAppMode('deliveryApp');
+  const masters=driverMasters(); const child=driverChildOrders(); const debts=child.filter(o=>orderDebtRemaining(o)>0); const debtTotal=debts.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
+  if(document.getElementById('driverMasterCount'))driverMasterCount.textContent=masters.length;
+  if(document.getElementById('driverChildCount'))driverChildCount.textContent=child.length;
+  if(document.getElementById('driverDebtTotal'))driverDebtTotal.textContent=money(debtTotal);
+  const map={}; debts.forEach(o=>{const k=orderCustomerCode(o)||o.customer; if(!map[k])map[k]={code:orderCustomerCode(o)||'',name:o.customer||'',orders:0,debt:0}; map[k].orders++; map[k].debt+=Math.max(0,orderDebtRemaining(o));});
+  if(document.getElementById('driverDebtCustomerCount'))driverDebtCustomerCount.textContent=Object.keys(map).length;
+  const list=document.getElementById('driverMasterList');
+  if(list){list.innerHTML=(window.innerWidth<=780?stepTitle('1. Đơn cần giao','Mỗi đơn tổng/đơn con hiển thị dạng thẻ lớn dễ đọc.'):'')+ (masters.map(m=>{const orders=(db.orders||[]).filter(o=>(m.childIds||[]).includes(o.id));return `<div class="driver-order-card"><h3>Đơn tổng ${escapeHtml(m.id||'')}</h3><div class="muted">Ngày: ${escapeHtml(m.date||'')} · Tổng tiền: ${money(m.total||0)} · Ghi chú: ${escapeHtml(m.note||'')}</div><div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Đơn con</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Còn nợ</th></tr></thead><tbody>${orders.map(o=>`<tr><td><b>${escapeHtml(o.id||'')}</b></td><td>${escapeHtml(orderCustomerCode(o)||'')}</td><td>${escapeHtml(o.customer||'')}</td><td class="right">${money(o.total||0)}</td><td class="right"><b class="${orderDebtRemaining(o)>0?'debt-money-unpaid':'debt-money-paid'}">${money(orderDebtRemaining(o))}</b></td></tr>`).join('')}</tbody></table></div></div>`}).join('')||'<div class="debt-search-note">Chưa có đơn tổng nào mang tên nhân viên giao hàng này.</div>');}
+  const body=document.getElementById('driverDebtBody');
+  if(body){body.innerHTML=Object.values(map).map(r=>{const sid=cssSafeId(r.code||r.name);return `<tr><td>${escapeHtml(r.code)}</td><td><b>${escapeHtml(r.name)}</b></td><td class="center">${r.orders} đơn còn nợ</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><div class="driver-collect-box"><div class="form"><div class="field"><label>Tiền mặt</label><input id="driverCash_${sid}" type="number" inputmode="numeric" value="0"></div><div class="field"><label>Chuyển khoản</label><input id="driverBank_${sid}" type="number" inputmode="numeric" value="0"></div><div class="field"><label>Ghi chú</label><input id="driverNote_${sid}" value="Nhân viên giao hàng thu tiền"></div></div><div class="toolbar" style="margin:8px 0 0"><button class="btn small green" onclick="driverCollectDebt('${safeAttr(r.code)}','${safeAttr(r.name)}')">Xác nhận thu</button><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Chi tiết</button></div></div></td></tr>`}).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
+    const panel=document.getElementById('driverDebtPanel');
+    if(panel && window.innerWidth<=780 && !panel.querySelector('.mobile-driver-debt-title')) panel.insertAdjacentHTML('afterbegin', `<div class="mobile-step-title mobile-driver-debt-title"><b>2. Thu tiền khách giao</b><span>Mỗi khách một thẻ riêng, nhập tiền mặt/chuyển khoản rồi xác nhận thu.</span></div>`);
+  }
+};
+window.addEventListener('resize',()=>{if(currentActivePage()==='salesApp'){renderSalesProductList();setSalesStep(mobileSalesStep||'customers')} if(currentActivePage()==='deliveryApp'){setDriverStep(mobileDriverStep||'orders')}});
 
 </script>
 </body>
