@@ -2744,6 +2744,57 @@ function ensurePromotionArrays(){
   db.groupPromotions=Array.isArray(db.groupPromotions)?db.groupPromotions:[];
   db.customerGroupPromotions=Array.isArray(db.customerGroupPromotions)?db.customerGroupPromotions:[];
   db.promotions=Array.isArray(db.promotions)?db.promotions:[];
+
+  // Tự chuyển dữ liệu khuyến mại kiểu cũ trong db.promotions sang 3 danh sách mới
+  // để import xong luôn hiện ở bảng bên dưới, kể cả khi server cũ chỉ lưu mảng promotions.
+  db.promotions.forEach((p,idx)=>{
+    const kind=String(p.kind||p.type||p.promoType||'').trim();
+    const code=String(p.code||p.maKhuyenMai||p['Mã khuyến mại']||p.id||('KM'+idx)).trim();
+    const content=String(p.content||p.noiDung||p.description||p['Nội dung khuyến mại']||'').trim();
+
+    if(kind==='product' || p.sku || p.productCode || p.targetSku || p.maSanPham){
+      const sku=String(p.sku||p.productCode||p.targetSku||p.maSanPham||p.target||'').trim();
+      if(sku && !db.productPromotions.some(x=>String(x.code)===code && String(x.sku)===sku)){
+        db.productPromotions.push({
+          id:p.id||('KMSP_MIG_'+idx),
+          code,
+          content:content||('Khuyến mại sản phẩm '+sku),
+          sku,
+          discount:Number(p.discount||p.discountPercent||p.chietKhau||p['% chiết khấu']||0)||0
+        });
+      }
+    }
+
+    if(kind==='productGroup' || kind==='group' || p.groupName || p.productGroupName || p.nhomHang){
+      const groupName=String(p.groupName||p.productGroupName||p.nhomHang||p.target||'').trim();
+      if(groupName && !db.groupPromotions.some(x=>String(x.code)===code && normText(x.groupName)===normText(groupName))){
+        db.groupPromotions.push({
+          id:p.id||('KMN_MIG_'+idx),
+          code,
+          content:content||('Khuyến mại nhóm '+groupName),
+          groupName,
+          applyAmount:Number(p.applyAmount||p.minAmount||p.giaTriCanMua||0)||0,
+          discountPercent:Number(p.discountPercent||p.discount||p.chietKhau||0)||0,
+          discountAmount:Number(p.discountAmount||p.amount||p.giaTriGiamGia||0)||0
+        });
+      }
+    }
+
+    if(kind==='customerGroup' || p.customerGroupName || p.nhomKhachHang){
+      const customerGroupName=String(p.customerGroupName||p.nhomKhachHang||p.target||'').trim();
+      if(customerGroupName && !db.customerGroupPromotions.some(x=>String(x.code)===code && normText(x.customerGroupName)===normText(customerGroupName))){
+        db.customerGroupPromotions.push({
+          id:p.id||('KMKH_MIG_'+idx),
+          code,
+          content:content||('Khuyến mại nhóm khách hàng '+customerGroupName),
+          customerGroupName,
+          applyAmount:Number(p.applyAmount||p.minAmount||p.giaTriCanMua||0)||0,
+          discountPercent:Number(p.discountPercent||p.discount||p.chietKhau||0)||0,
+          discountAmount:Number(p.discountAmount||p.amount||p.giaTriGiamGia||0)||0
+        });
+      }
+    }
+  });
 }
 function rebuildLegacyPromotions(){
   ensurePromotionArrays();
@@ -2943,10 +2994,15 @@ function importPromotionRows(file, handler, done){
         skip++;
       }
     });
+
+    // Sau khi import: dựng lại mảng legacy, lưu, render lại ngay bảng KM.
     rebuildLegacyPromotions();
     save();
     render();
-    done(count,skip,rows||[]);
+    renderPromotions();
+    page('promotions');
+
+    if(typeof done==='function') done(count,skip,rows||[]);
   });
 }
 function importProductPromotionExcel(ev){
