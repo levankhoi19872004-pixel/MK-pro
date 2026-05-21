@@ -1251,17 +1251,152 @@ function addCart(sku, qtySlash=null, discount=null){
   if(document.getElementById('sSearch'))sSearch.value='';
   selectedSaleSku=null;renderCart();
 }
+
+function productInPromoGroup(sku, groupName){
+  sku=String(sku||'').trim();
+  groupName=String(groupName||'').trim();
+  if(!sku || !groupName) return false;
+  const p=findProduct(sku)||{};
+  if(normText(p.productGroup||'')===normText(groupName)) return true;
+  const g=(db.productGroups||[]).find(x=>normText(x.name)===normText(groupName));
+  return !!(g && Array.isArray(g.skus) && g.skus.map(String).includes(String(sku)));
+}
+function currentSaleCustomer(){
+  const code=String(document.getElementById('sCustomer')?.value||'').trim();
+  return (db.customers||[]).find(c=>String(c.code)===code) ||
+         (db.customers||[]).find(c=>String(c.name)===code) ||
+         {code:code,name:code,customerGroup:''};
+}
+function customerInPromoGroup(customer, groupName){
+  groupName=String(groupName||'').trim();
+  if(!groupName) return false;
+  if(normText(customer?.customerGroup||'')===normText(groupName)) return true;
+  const g=(db.customerGroups||[]).find(x=>normText(x.name)===normText(groupName));
+  return !!(g && Array.isArray(g.codes) && g.codes.map(String).includes(String(customer?.code||'')));
+}
+function appliedPromotionsForCart(){
+  ensurePromotionArrays();
+  const customer=currentSaleCustomer();
+  const details=[];
+  const lineDiscountBySku={};
+
+  cart.forEach(c=>{
+    const sku=String(c.sku||'').trim();
+    const base=Number(c.qty||0)*Number(c.sale||0);
+    const manualPercent=Number(c.disc||0)||0;
+    const promos=(db.productPromotions||[]).filter(k=>String(k.sku||'').trim()===sku && Number(k.discount||0)>0);
+    const best=promos.sort((a,b)=>(Number(b.discount)||0)-(Number(a.discount)||0))[0];
+    const autoPercent=best ? Number(best.discount||0)||0 : 0;
+    const finalPercent=Math.max(manualPercent, autoPercent);
+    const amount=base*finalPercent/100;
+    lineDiscountBySku[sku]=(lineDiscountBySku[sku]||0)+amount;
+    if(best && autoPercent>=manualPercent && autoPercent>0){
+      details.push({
+        code:best.code||'KMSP',
+        type:'product',
+        content:best.content||('Chiết khấu sản phẩm '+sku),
+        base,
+        percent:autoPercent,
+        amount,
+        sku,
+        name:c.name||sku
+      });
+    }else if(manualPercent>0){
+      details.push({
+        code:'CKDONG',
+        type:'manualLine',
+        content:'Chiết khấu dòng '+(c.name||sku),
+        base,
+        percent:manualPercent,
+        amount,
+        sku,
+        name:c.name||sku
+      });
+    }
+  });
+
+  let extraAmount=0;
+
+  (db.groupPromotions||[]).forEach(k=>{
+    const groupName=String(k.groupName||'').trim();
+    if(!groupName) return;
+    const eligible=cart.filter(c=>productInPromoGroup(c.sku, groupName));
+    const base=eligible.reduce((a,c)=>a+Number(c.qty||0)*Number(c.sale||0),0);
+    const applyAmount=Number(k.applyAmount||0)||0;
+    if(!eligible.length || base<=0 || base<applyAmount) return;
+    const percent=Number(k.discountPercent||0)||0;
+    const fixed=Number(k.discountAmount||0)||0;
+    const amount=base*percent/100+fixed;
+    if(amount>0){
+      extraAmount+=amount;
+      details.push({
+        code:k.code||'KMNHOM',
+        type:'productGroup',
+        content:k.content||groupPromoDescription(k),
+        base,
+        percent,
+        amount,
+        groupName
+      });
+    }
+  });
+
+  (db.customerGroupPromotions||[]).forEach(k=>{
+    const groupName=String(k.customerGroupName||'').trim();
+    if(!customerInPromoGroup(customer, groupName)) return;
+    const base=cart.reduce((a,c)=>a+Number(c.qty||0)*Number(c.sale||0),0);
+    const applyAmount=Number(k.applyAmount||0)||0;
+    if(base<=0 || base<applyAmount) return;
+    const percent=Number(k.discountPercent||0)||0;
+    const fixed=Number(k.discountAmount||0)||0;
+    const amount=base*percent/100+fixed;
+    if(amount>0){
+      extraAmount+=amount;
+      details.push({
+        code:k.code||'KMKH',
+        type:'customerGroup',
+        content:k.content||customerGroupPromoDescription(k),
+        base,
+        percent,
+        amount,
+        customerGroupName:groupName
+      });
+    }
+  });
+
+  return {details,lineDiscountBySku,extraAmount};
+}
+function promoExplanationHtml(details){
+  if(!details || !details.length) return '<div class="muted">Chưa áp dụng khuyến mại nào cho đơn này.</div>';
+  return '<div style="line-height:1.6">'+details.map(d=>`<div>• <b>${escapeHtml(d.code||'KM')}</b>: ${escapeHtml(d.content||'Khuyến mại')} - Giá trị tính KM ${money(d.base||0)}${Number(d.percent||0)>0?' - CK '+Number(d.percent||0)+'%':''} - Giảm <b>${money(d.amount||0)}</b></div>`).join('')+'</div>';
+}
+
 function saleTotals(){
+  const promo=appliedPromotionsForCart();
   let goods=cart.reduce((a,b)=>a+b.qty*Number(b.sale||0),0);
-  let discount=cart.reduce((a,b)=>a+(b.qty*Number(b.sale||0)*(Number(b.disc||0)/100)),0);
+  let lineDiscount=Object.values(promo.lineDiscountBySku||{}).reduce((a,b)=>a+Number(b||0),0);
+  let promoDiscount=Number(promo.extraAmount||0)||0;
+  let discount=lineDiscount+promoDiscount;
   let adjust=Number(document.getElementById('adjustDiscount')?.value||0)||0;
   let cost=cart.reduce((a,b)=>a+b.qty*Number(b.cost||0),0);
-  return {goods,discount,adjust,pay:goods-discount-adjust,cost};
+  let pay=Math.max(0, goods-discount-adjust);
+  return {goods,lineDiscount,promoDiscount,discount,adjust,pay,cost,promoDetails:promo.details||[]};
 }
 function renderCart(){
   if(!document.getElementById('cartBody'))return;
-  cartBody.innerHTML=cart.map((c,i)=>{let p=findProduct(c.sku)||{};let lineGoods=c.qty*c.sale;let d=lineGoods*(Number(c.disc||0)/100);let line=lineGoods-d;let warn=c.qty>Number(p.qty||0)?'stock-warn':'';return `<tr><td>${i+1}</td><td>${c.sku}</td><td><b>${c.name}</b></td><td class="right">${money(c.sale)}</td><td>${qtyView(c.qty,c.pack)}</td><td class="right">${c.qty}</td><td class="right"><input type="number" value="${c.disc||0}" style="width:82px" onchange="cart[${i}].disc=Number(this.value)||0;renderCart()"></td><td class="right">${money(d)}</td><td class="right"><b>${money(line)}</b></td><td class="${warn}">${qtyView(p.qty||0,c.pack)}</td><td><button class="btn small red" onclick="cart.splice(${i},1);renderCart()">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="11" class="center muted">Chưa có hàng trong đơn</td></tr>';
-  let t=saleTotals();
+  const t=saleTotals();
+  const lineDiscountBySku={};
+  (t.promoDetails||[]).forEach(d=>{
+    if(d.sku) lineDiscountBySku[String(d.sku)]=(lineDiscountBySku[String(d.sku)]||0)+Number(d.amount||0);
+  });
+  cartBody.innerHTML=cart.map((c,i)=>{
+    let p=findProduct(c.sku)||{};
+    let lineGoods=c.qty*c.sale;
+    let d=lineDiscountBySku[String(c.sku)] ?? (lineGoods*(Number(c.disc||0)/100));
+    let line=lineGoods-d;
+    let warn=c.qty>Number(p.qty||0)?'stock-warn':'';
+    return `<tr><td>${i+1}</td><td>${c.sku}</td><td><b>${c.name}</b></td><td class="right">${money(c.sale)}</td><td>${qtyView(c.qty,c.pack)}</td><td class="right">${c.qty}</td><td class="right"><input type="number" value="${c.disc||0}" style="width:82px" onchange="cart[${i}].disc=Number(this.value)||0;renderCart()"></td><td class="right">${money(d)}</td><td class="right"><b>${money(line)}</b></td><td class="${warn}">${qtyView(p.qty||0,c.pack)}</td><td><button class="btn small red" onclick="cart.splice(${i},1);renderCart()">Xóa</button></td></tr>`;
+  }).join('')||'<tr><td colspan="11" class="center muted">Chưa có hàng trong đơn</td></tr>';
   if(document.getElementById('sumGoods'))sumGoods.textContent=money(t.goods);
   if(document.getElementById('sumDiscount'))sumDiscount.textContent=money(t.discount);
   if(document.getElementById('sumAdjust'))sumAdjust.textContent=money(t.adjust);
@@ -1269,6 +1404,19 @@ function renderCart(){
   let paid=(Number(document.getElementById('cashPaid')?.value||0)||0)+(Number(document.getElementById('bankPaid')?.value||0)||0);
   if(document.getElementById('sumPaid'))sumPaid.textContent=money(paid);
   if(document.getElementById('sumDebt'))sumDebt.textContent=money(Math.max(0,t.pay-paid));
+
+  let box=document.getElementById('salePromoExplainBox');
+  const holder=document.querySelector('.sale-summary');
+  if(!box && holder){
+    box=document.createElement('div');
+    box.id='salePromoExplainBox';
+    box.className='sale-setting';
+    const before=holder.querySelector('.sale-setting');
+    holder.insertBefore(box,before||null);
+  }
+  if(box){
+    box.innerHTML='<b>Diễn giải khuyến mại áp dụng</b>'+promoExplanationHtml(t.promoDetails);
+  }
 }
 async function createOrder(){
   if(!cart.length)return toast('Đơn hàng chưa có hàng');
@@ -1305,7 +1453,7 @@ async function createOrder(){
   let dOpt=document.getElementById('deliveryStaffSelect')?.selectedOptions?.[0];
   let cash=Number(document.getElementById('cashPaid')?.value||0)||0;
   let bank=Number(document.getElementById('bankPaid')?.value||0)||0;
-  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:sStaff.value,staffName:opt?opt.dataset.name:sStaff.value,staff:opt?opt.textContent:sStaff.value,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),goods:t.goods,discount:t.discount,adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
+  let orderData={id:oId?.value||orderId(),date:oDate?.value||today(),isoDate:oDate?.value?new Date(oDate.value+'T12:00:00').toISOString():new Date().toISOString(),customer:selectedCustomer.name,customerCode:selectedCustomer.code||selectedCustomerCode,staffCode:sStaff.value,staffName:opt?opt.dataset.name:sStaff.value,staff:opt?opt.textContent:sStaff.value,warehouse:sWarehouse?.value||'',note:sNote?.value||'',delivery:deliveryStatus?.value||'Giao thành công',xk:xkCode?.value||'',deliveryStaffCode:document.getElementById('deliveryStaffSelect')?.value||'',deliveryStaffName:dOpt?dOpt.dataset.name:'',cashPaid:cash,bankPaid:bank,debt:Math.max(0,t.pay-cash-bank),goods:t.goods,discount:t.discount,lineDiscount:t.lineDiscount,promoDiscount:t.promoDiscount,promoDetails:t.promoDetails,promoExplanation:(t.promoDetails||[]).map(d=>`${d.code||'KM'}: ${d.content||''} - giảm ${money(d.amount||0)}`).join('\n'),adjust:t.adjust,total:t.pay,cost:t.cost,masterId:oldOrder?oldOrder.masterId:'',items:cart.map(x=>({...x}))};
 
   if(oldOrder){
     Object.assign(oldOrder,orderData);
@@ -1662,6 +1810,26 @@ function invoiceHtmlForOrder(o){
   const nppDiscount = discount;
   const kmRate = beforeKmTotal ? ((promoTotal+nppDiscount)/beforeKmTotal*100) : 0;
   function promoRows(){
+    let savedDetails=Array.isArray(o.promoDetails)?o.promoDetails:[];
+    if(savedDetails.length){
+      let rows=savedDetails.map((d,i)=>{
+        let amount=Number(d.amount||0)||0;
+        let base=Number(d.base||0)||0;
+        let percent=Number(d.percent||0)||0;
+        return `<tr>
+          <td class="c">${escapeHtml(d.code||('KM'+String(i+1).padStart(3,'0')))}</td>
+          <td>${escapeHtml(d.content||'Khuyến mại')}</td>
+          <td class="r">${money(base)}</td>
+          <td class="c">${percent?String(percent.toFixed(2)).replace('.',','):''}</td>
+          <td class="r">${money(amount/(1+VAT_RATE))}</td>
+          <td class="r">${money(amount)}</td>
+        </tr>`;
+      }).join('');
+      if(adjust>0){
+        rows += `<tr><td class="c">CKHC</td><td>Chiết khấu hiệu chỉnh trên đơn hàng</td><td class="r">${money(beforeKmTotal)}</td><td class="c"></td><td class="r">${money(adjust/(1+VAT_RATE))}</td><td class="r">${money(adjust)}</td></tr>`;
+      }
+      return rows;
+    }
     let rows=items.filter(it=>Number(it.disc||0)>0).map((it,i)=>{
       let base=Number(it.qty||0)*Number(it.sale||0);
       let ckBefore=base*(Number(it.disc||0)/100)/(1+VAT_RATE);
@@ -1761,6 +1929,7 @@ function invoiceHtmlForOrder(o){
         <tbody>${promoRows()}</tbody>
         <tfoot><tr><td colspan="5" class="c b">Tổng giá trị khuyến mãi tiền (C)</td><td class="r b">${money(promoTotal)}</td></tr></tfoot>
       </table>
+      <div class="promo-explain"><b>Diễn giải khuyến mại:</b><br>${promoExplanationHtml(Array.isArray(o.promoDetails)?o.promoDetails:[])}</div>
     </div>`;
   }
 
