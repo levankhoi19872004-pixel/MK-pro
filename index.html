@@ -367,9 +367,56 @@
           <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn tổng</th><th>Ngày tạo</th><th class="center">Số đơn con</th><th class="center">Số mặt hàng</th><th class="right">Tổng SL</th><th class="right">Tổng tiền hàng</th><th>Nhân viên GH</th><th>Ghi chú</th><th>Thao tác</th></tr></thead><tbody id="masterOrdersBody"></tbody></table></div></div>
       </section>
 
-      <section id="customers" class="section"><div class="card panel"><div class="panel-head"><h2>Khách hàng</h2><div class="toolbar"><button class="btn light" onclick="downloadCustomerTemplate()">Tải mẫu KH</button><button class="btn green" onclick="document.getElementById('importCustomer').click()">Import KH</button><input id="importCustomer" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomers(event)"><button class="btn" onclick="exportCustomers()">Xuất Excel</button><button class="btn red" onclick="bulkDeleteCustomers()">Xóa KH đã chọn</button></div></div><div class="form"><div class="field"><label>Mã KH</label><input id="cCode"></div><div class="field"><label>Tên KH</label><input id="cName"></div><div class="field"><label>Địa chỉ</label><input id="cAddress"></div><div class="field"><label>SĐT</label><input id="cPhone"></div><div class="field"><label>MST</label><input id="cTax"></div></div><br><button class="btn" onclick="saveCustomer()">Lưu khách hàng</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('customer-delete-check',this.checked)"></th><th>Mã KH</th><th>Tên</th><th>Địa chỉ</th><th>SĐT</th><th>MST</th><th>Hành động</th></tr></thead><tbody id="customerBody"></tbody></table></div></div></section>
+      
+<section id="customers" class="section">
+  <div class="card panel">
+    <div class="panel-head">
+      <h2>Khách hàng</h2>
+      <div class="toolbar">
+        <button class="btn light" onclick="downloadCustomerTemplate()">Tải mẫu KH</button>
+        <button class="btn green" onclick="document.getElementById('importCustomer').click()">Import KH</button>
+        <input id="importCustomer" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomers(event)">
+        <button class="btn" onclick="exportCustomers()">Xuất Excel</button>
+        <button class="btn red" onclick="bulkDeleteCustomers()">Xóa KH đã chọn</button>
+      </div>
+    </div>
+    <div class="form">
+      <div class="field"><label>Mã KH</label><input id="cCode"></div>
+      <div class="field"><label>Tên KH</label><input id="cName"></div>
+      <div class="field"><label>Địa chỉ</label><input id="cAddress"></div>
+      <div class="field"><label>SĐT</label><input id="cPhone"></div>
+      <div class="field"><label>MST</label><input id="cTax"></div>
+      <div class="field"><label>Nhóm khách hàng</label><input id="cGroup" list="customerGroupList" placeholder="VD: Tạp hóa tuyến 1"></div>
+    </div><br>
+    <button class="btn" onclick="saveCustomer()">Lưu khách hàng</button>
+  </div>
 
-      <section id="staff" class="section"><div class="card panel"><div class="panel-head"><h2>Nhân viên</h2><div class="toolbar"><button class="btn light" onclick="downloadStaffTemplate()">Tải mẫu NV</button><button class="btn green" onclick="document.getElementById('importStaff').click()">Import NV</button><input id="importStaff" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importStaffExcel(event)"><button class="btn red" onclick="bulkDeleteStaff()">Xóa NV đã chọn</button></div></div><div class="form"><div class="field"><label>Mã NV</label><input id="nCode" placeholder="VD: NV001"></div><div class="field"><label>Tên nhân viên</label><input id="nName"></div><div class="field"><label>SĐT</label><input id="nPhone"></div></div><br><button class="btn" onclick="saveStaff()">Lưu nhân viên</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('staff-delete-check',this.checked)"></th><th>Mã NV</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="staffBody"></tbody></table></div></div></section>
+  <div class="card panel">
+    <div class="panel-head"><h2>Tạo nhóm khách hàng</h2>
+      <div class="toolbar">
+        <button class="btn light" onclick="downloadCustomerGroupTemplate()">Tải mẫu nhóm KH</button>
+        <button class="btn orange" onclick="document.getElementById('importCustomerGroupFile').click()">Import nhóm KH</button>
+        <input id="importCustomerGroupFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomerGroupExcel(event)">
+      </div>
+    </div>
+    <div class="form">
+      <div class="field"><label>Tên nhóm khách hàng</label><input id="customerGroupName" placeholder="VD: Khách sỉ"></div>
+      <div class="field wide"><label>Danh sách mã KH</label><input id="customerGroupCodes" placeholder="Nhập mã KH, cách nhau bằng dấu phẩy"></div>
+    </div><br>
+    <button class="btn green" onclick="saveCustomerGroup()">Lưu nhóm khách hàng</button>
+  </div>
+
+  <div class="card panel">
+    <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('customer-delete-check',this.checked)"></th><th>Mã KH</th><th>Tên</th><th>Địa chỉ</th><th>SĐT</th><th>MST</th><th>Nhóm KH</th><th>Hành động</th></tr></thead><tbody id="customerBody"></tbody></table></div>
+  </div>
+
+  <div class="card panel">
+    <div class="panel-head"><h2>Danh sách nhóm khách hàng</h2></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>Tên nhóm</th><th>Danh sách mã KH</th><th>Thao tác</th></tr></thead><tbody id="customerGroupBody"></tbody></table></div>
+  </div>
+  <datalist id="customerGroupList"></datalist>
+</section>
+<section id="staff" class="section"><div class="card panel"><div class="panel-head"><h2>Nhân viên</h2><div class="toolbar"><button class="btn light" onclick="downloadStaffTemplate()">Tải mẫu NV</button><button class="btn green" onclick="document.getElementById('importStaff').click()">Import NV</button><input id="importStaff" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importStaffExcel(event)"><button class="btn red" onclick="bulkDeleteStaff()">Xóa NV đã chọn</button></div></div><div class="form"><div class="field"><label>Mã NV</label><input id="nCode" placeholder="VD: NV001"></div><div class="field"><label>Tên nhân viên</label><input id="nName"></div><div class="field"><label>SĐT</label><input id="nPhone"></div></div><br><button class="btn" onclick="saveStaff()">Lưu nhân viên</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('staff-delete-check',this.checked)"></th><th>Mã NV</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="staffBody"></tbody></table></div></div></section>
 
 
       <section id="deliveryStaff" class="section">
@@ -421,12 +468,16 @@
               <button class="btn light" onclick="downloadGroupPromotionTemplate()">Mẫu KM nhóm SP</button>
               <button class="btn orange" onclick="document.getElementById('importGroupPromotionFile').click()">Import KM nhóm SP</button>
               <input id="importGroupPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importGroupPromotionExcel(event)">
+              <button class="btn light" onclick="downloadCustomerGroupPromotionTemplate()">Mẫu KM nhóm KH</button>
+              <button class="btn green" onclick="document.getElementById('importCustomerGroupPromotionFile').click()">Import KM nhóm KH</button>
+              <input id="importCustomerGroupPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomerGroupPromotionExcel(event)">
             </div>
           </div>
 
           <div class="promo-tabs">
             <button class="active" data-promo-type="product" onclick="setPromoType('product')">Khuyến mại theo sản phẩm</button>
             <button data-promo-type="productGroup" onclick="setPromoType('productGroup')">Khuyến mại theo nhóm sản phẩm</button>
+            <button data-promo-type="customerGroup" onclick="setPromoType('customerGroup')">Khuyến mại theo nhóm khách hàng</button>
           </div>
 
           <div id="promoProductForm">
@@ -453,8 +504,22 @@
             <br>
             <button class="btn" onclick="saveGroupPromotion()">Lưu KM nhóm sản phẩm</button>
           </div>
+          <div id="promoCustomerGroupForm" class="hidden">
+            <div class="form">
+              <div class="field"><label>Mã khuyến mại</label><input id="promoCustomerGroupCode" placeholder="VD: KMKH001"></div>
+              <div class="field wide"><label>Nội dung khuyến mại</label><input id="promoCustomerGroupContent" placeholder="VD: Khách nhóm sỉ đạt giá trị được giảm"></div>
+              <div class="field"><label>Nhóm khách hàng được khuyến mại</label><input id="promoCustomerGroupName" list="customerGroupList" placeholder="Chọn/nhập nhóm khách hàng"></div>
+              <div class="field"><label>Giá trị cần mua</label><input id="promoCustomerGroupApplyAmount" type="number" value="0"></div>
+              <div class="field"><label>% chiết khấu</label><input id="promoCustomerGroupDiscountPercent" type="number" value="0"></div>
+              <div class="field"><label>Giá trị giảm giá</label><input id="promoCustomerGroupDiscountAmount" type="number" value="0"></div>
+            </div>
+            <div class="muted" style="margin-top:8px">% chiết khấu và giá trị giảm giá hoạt động độc lập, có thể nhập một trong hai hoặc cả hai.</div>
+            <br>
+            <button class="btn" onclick="saveCustomerGroupPromotion()">Lưu KM nhóm khách hàng</button>
+          </div>
           <datalist id="productSkuList"></datalist>
           <datalist id="productGroupList"></datalist>
+          <datalist id="customerGroupList"></datalist>
           <datalist id="categoryList"></datalist>
           <datalist id="categoryGroupList"></datalist>
         </div>
@@ -467,6 +532,11 @@
         <div class="card panel">
           <div class="panel-head"><h2>Danh sách khuyến mại theo nhóm sản phẩm</h2></div>
           <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Nhóm hàng</th><th class="right">Giá trị cần mua</th><th class="right">% chiết khấu</th><th class="right">Giá trị giảm giá</th><th>Diễn giải</th><th>Thao tác</th></tr></thead><tbody id="groupPromotionBody"></tbody></table></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách khuyến mại theo nhóm khách hàng</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Nhóm khách hàng</th><th class="right">Giá trị cần mua</th><th class="right">% chiết khấu</th><th class="right">Giá trị giảm giá</th><th>Diễn giải</th><th>Thao tác</th></tr></thead><tbody id="customerGroupPromotionBody"></tbody></table></div>
         </div>
       </section>
 
@@ -540,7 +610,7 @@ let API_READY=false;
 let API_SYNC_TIMER=null;
 
 function emptyDb(){
-  return {products:[],receipts:[],orders:[],customers:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],promotions:[],productGroups:[],categoryGroups:[],shortageReports:[]};
+  return {products:[],receipts:[],orders:[],customers:[],customerGroups:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],promotions:[],productPromotions:[],groupPromotions:[],customerGroupPromotions:[],productGroups:[],categoryGroups:[],shortageReports:[]};
 }
 function normalizeDb(data){
   const base=emptyDb();
@@ -548,6 +618,7 @@ function normalizeDb(data){
   Object.keys(base).forEach(k=>{base[k]=Array.isArray(src[k])?src[k]:[]});
   base.orders=base.orders.map(o=>{if(o.masterId===undefined)o.masterId=''; if(o.cashPaid===undefined)o.cashPaid=0; if(o.bankPaid===undefined)o.bankPaid=0; if(o.debt===undefined)o.debt=Math.max(0,Number(o.total||0)-Number(o.cashPaid||0)-Number(o.bankPaid||0)); if(!o.deliveryStaffCode)o.deliveryStaffCode=''; if(!o.deliveryStaffName)o.deliveryStaffName=''; return o});
   base.masterOrders=base.masterOrders.map(m=>{if(!m.deliveryStaffCode)m.deliveryStaffCode=''; if(!m.deliveryStaffName)m.deliveryStaffName=''; return m});
+  base.customers=base.customers.map(c=>{if(!c.customerGroup)c.customerGroup=''; return c});
   return base;
 }
 
@@ -952,7 +1023,7 @@ function render(){
  sCustomer.innerHTML=db.customers.map(c=>`<option value="${c.code||c.name}">${c.code?c.code+' - ':''}${c.name}</option>`).join('');sStaff.innerHTML=db.staff.map((n,i)=>`<option value="${staffCode(n,i)}" data-name="${staffName(n)}">${staffCode(n,i)} - ${staffName(n)}</option>`).join('');
  receiveBody.innerHTML=filteredReceipts().reverse().map(x=>`<tr><td class="center"><input type="checkbox" class="receipt-delete-check" value="${x.i}"></td><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="9" class="center muted">Chưa có phiếu nhập phù hợp</td></tr>';
  ordersBody.innerHTML=filteredOrders().slice().reverse().map(o=>{let merged=!!o.masterId;let cCode=orderCustomerCode(o);return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${cCode||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="10" class="center muted">Chưa có đơn hàng phù hợp</td></tr>';
- customerBody.innerHTML=db.customers.map(c=>`<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có khách hàng</td></tr>';
+ customerBody.innerHTML=db.customers.map(c=>`<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td>${c.customerGroup||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khách hàng</td></tr>';
  staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td class="center"><input type="checkbox" class="staff-delete-check" value="${i}"></td><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Chưa có nhân viên</td></tr>';
  populateDeliveryStaffSelects();
  const sr=buildStaffReportRows(); if(document.getElementById('staffReportBody')) staffReportBody.innerHTML=sr.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right">${r.lines}</td><td class="right">${money(r.revenue)}</td><td class="right">${money(r.cost)}</td><td class="right"><b>${money(r.profit)}</b></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu bán hàng theo nhân viên</td></tr>';
@@ -1708,8 +1779,8 @@ function printMasterOrder(id){
   let w=window.open('','_blank');w.document.open();w.document.write(html);w.document.close();
 }
 
-function saveCustomer(){if(!cCode.value.trim()||!cName.value.trim())return toast('Thiếu mã hoặc tên khách hàng'); let c=db.customers.find(x=>x.code===cCode.value.trim()); if(!c){db.customers.push({code:cCode.value.trim(),name:cName.value.trim(),address:cAddress.value,phone:cPhone.value,tax:cTax.value})}else{c.name=cName.value.trim();c.address=cAddress.value;c.phone=cPhone.value;c.tax=cTax.value} ['cCode','cName','cAddress','cPhone','cTax'].forEach(id=>document.getElementById(id).value='');save();render();toast('Đã lưu khách hàng')}
-function editCustomer(code){let c=db.customers.find(x=>x.code===code);cCode.value=c.code;cName.value=c.name;cAddress.value=c.address||'';cPhone.value=c.phone||'';cTax.value=c.tax||'';page('customers')}
+function saveCustomer(){if(!cCode.value.trim()||!cName.value.trim())return toast('Thiếu mã hoặc tên khách hàng'); let c=db.customers.find(x=>x.code===cCode.value.trim()); const data={code:cCode.value.trim(),name:cName.value.trim(),address:cAddress.value,phone:cPhone.value,tax:cTax.value,customerGroup:(document.getElementById('cGroup')?.value||'').trim()}; if(!c){db.customers.push(data)}else{Object.assign(c,data)} ['cCode','cName','cAddress','cPhone','cTax','cGroup'].forEach(id=>{let el=document.getElementById(id);if(el)el.value=''});save();render();toast('Đã lưu khách hàng')}
+function editCustomer(code){let c=db.customers.find(x=>x.code===code);cCode.value=c.code;cName.value=c.name;cAddress.value=c.address||'';cPhone.value=c.phone||'';cTax.value=c.tax||'';if(document.getElementById('cGroup'))cGroup.value=c.customerGroup||'';page('customers')}
 function delCustomer(code){if(confirm('Xóa khách hàng?')){db.customers=db.customers.filter(c=>c.code!==code);save();render()}}
 function downloadStaffTemplate(){rowsToSheet([{'Mã NV':'NV001','Tên nhân viên':'Nguyễn Văn A','SĐT':'0900000000'}], 'Mau_nhan_vien')}
 function importStaffExcel(e){
@@ -1732,7 +1803,39 @@ function importStaffExcel(e){
 function saveStaff(){if(!nCode.value.trim()||!nName.value.trim())return toast('Thiếu mã hoặc tên nhân viên');let code=nCode.value.trim();let existed=db.staff.find((x,i)=>staffCode(x,i)===code);let data={code,name:nName.value.trim(),phone:nPhone.value};if(existed)Object.assign(existed,data);else db.staff.push(data);nCode.value=nName.value=nPhone.value='';save();render();toast('Đã lưu nhân viên')}
 function editStaff(i){let n=db.staff[i];nCode.value=staffCode(n,i);nName.value=staffName(n);nPhone.value=n.phone||n.sdt||'';page('staff')}
 function delStaff(i){if(confirm('Xóa nhân viên?')){db.staff.splice(i,1);save();render()}}
-function rowsToSheet(rows,name){let ws=XLSX.utils.json_to_sheet(rows);let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,name);XLSX.writeFile(wb,name+'.xlsx')}
+function safeFileName(name){
+  name=String(name||'mau_excel').trim();
+  name=name.replace(/[\\/:*?"<>|]+/g,'_');
+  return name.toLowerCase().endsWith('.xlsx') ? name : name+'.xlsx';
+}
+function downloadBlobFile(blob,fileName){
+  const a=document.createElement('a');
+  const url=URL.createObjectURL(blob);
+  a.href=url; a.download=fileName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function rowsToSheet(rows,name){
+  const fileName=safeFileName(name);
+  try{
+    if(!window.XLSX || !XLSX.utils || !XLSX.write){
+      throw new Error('Thư viện Excel chưa tải xong');
+    }
+    const ws=XLSX.utils.json_to_sheet(rows||[]);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Mau');
+    const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    downloadBlobFile(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),fileName);
+  }catch(err){
+    console.warn('Không tạo được XLSX, chuyển sang CSV:',err);
+    const arr=rows||[];
+    const headers=[...new Set(arr.flatMap(r=>Object.keys(r||{})))];
+    const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const csv='\ufeff'+headers.join(',')+'\n'+arr.map(r=>headers.map(h=>esc(r[h])).join(',')).join('\n');
+    downloadBlobFile(new Blob([csv],{type:'text/csv;charset=utf-8'}),fileName.replace(/\.xlsx$/i,'.csv'));
+  }
+}
+function downloadExcel(rows,fileName){rowsToSheet(rows,fileName)}
 
 function excelDateToInput(v){
   if(!v)return '';
@@ -2241,13 +2344,13 @@ function downloadSaleTemplate(){rowsToSheet([{SKU:'64811767','SL':'1/0','%CK':0,
 function importSaleExcel(e){let f=e.target.files[0];if(!f)return;readExcel(f,rows=>{let ok=0,fail=0;rows.forEach(r=>{let sku=String(r.SKU||r.sku||r['Mã hàng']||'').trim();if(!sku){fail++;return}let p=findProduct(sku);if(!p){fail++;return}let qty=parseQtySlash(r['SL']||r['Số lượng']||r['So luong']||r.sl,p.pack);if(qty<=0||qty>Number(p.qty||0)){fail++;return}cart.push({sku:p.sku,name:p.name,pack:p.pack,qty,sale:Number(p.sale)||0,cost:Number(p.cost)||0,disc:Number(r['%CK']||r['CK']||0)||0});ok++});renderCart();toast('Import đơn bán: '+ok+' dòng hợp lệ, '+fail+' dòng lỗi')})}
 function downloadProductTemplate(){rowsToSheet([{SKU:'64811767','Tên sản phẩm':'SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 1kg/12 chai','Nhãn hàng':'Sunlight','Ngành hàng':'Chăm sóc nhà cửa','Kho hàng':'Kho chính','Quy cách':12,'Giá nhập':0,'Giá bán':0}], 'Mau_san_pham_theo_cap')}
 function downloadReceiveTemplate(){rowsToSheet([{'Mã phiếu':'PN001','Ngày nhập':'2026-05-20','Nhà cung cấp':'Unilever',SKU:'64811767','Tên sản phẩm':'SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 1kg/12 chai','Quy cách':12,'SL':'10/0','Giá nhập':0,'Ghi chú':'SL nhập dạng thùng/lẻ. Ví dụ 10/0 = 10 thùng, 0 lẻ'}, {'Mã phiếu':'PN001','Ngày nhập':'2026-05-20','Nhà cung cấp':'Unilever',SKU:'64811768','Tên sản phẩm':'SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 3.6kg/3 can','Quy cách':3,'SL':'5/0','Giá nhập':0,'Ghi chú':'Có thể nhập 0/5 nếu chỉ có 5 lẻ'}], 'Mau_don_nhap_kho_1_0')}
-function downloadCustomerTemplate(){rowsToSheet([{'Mã KH':'KH001','Tên KH':'Cửa hàng Minh Anh','Địa chỉ':'Thái Bình','SĐT':'','MST':''}], 'Mau_khach_hang')}
+function downloadCustomerTemplate(){downloadExcel([{'Mã KH':'KH001','Tên KH':'Cửa hàng Minh Anh','Địa chỉ':'Thái Bình','SĐT':'','MST':'','Nhóm khách hàng':'Khách sỉ'}], 'Mau_khach_hang.xlsx')}
 function readExcel(file,cb){let reader=new FileReader();reader.onload=e=>{let data=e.target.result, wb;if(file.name.toLowerCase().endsWith('.csv')){wb=XLSX.read(data,{type:'string',codepage:65001})}else{wb=XLSX.read(data,{type:'array'})}let rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});cb(rows)}; if(file.name.toLowerCase().endsWith('.csv'))reader.readAsText(file,'UTF-8');else reader.readAsArrayBuffer(file)}
 function importProducts(e){let f=e.target.files[0];if(!f)return;readExcel(f,rows=>{let n=0;rows.forEach(r=>{let sku=r.SKU||r.sku||r['Mã SP'];if(!sku)return;upsertProduct({sku,name:r['Tên sản phẩm']||r.Ten||r['Tên']||r.name,brand:r['Nhãn hàng']||r['Nhan hang']||r.brand||r.nhanHang,category:r['Ngành hàng']||r['Nganh hang']||r.category||r.nganhHang,warehouse:r['Kho hàng']||r['Kho hang']||r.warehouse||r.khoHang,pack:r['Quy cách']||r.pack,cost:r['Giá nhập']||r.cost,sale:r['Giá bán']||r.sale});n++});save();render();toast('Đã import '+n+' sản phẩm')})}
 function importReceive(e){let f=e.target.files[0];if(!f)return;readExcel(f,rows=>{let groups={};rows.forEach(r=>{let sku=r.SKU||r.sku;if(!sku)return;let pack=Number(r['Quy cách']||r.pack)||1;let qty=0;let sl=r['SL']||r['Số lượng']||r['So luong']||r['sl']; if(sl!==undefined&&sl!=='') qty=parseQtySlash(sl,pack); else qty=totalQty(r['Thùng']||r.thung,r['Lẻ']||r.le,pack);if(qty<=0)return;let id=String(r['Mã phiếu']||r['Mã đơn']||r['Số phiếu']||receiptId()).trim(); if(!groups[id])groups[id]={id,date:r['Ngày nhập']||r['Ngày']||today(),supplier:r['Nhà cung cấp']||r.NCC||'Unilever',note:r['Ghi chú']||'',items:[]}; groups[id].items.push({sku:String(sku),name:r['Tên sản phẩm']||r['Tên']||r.name,brand:r['Nhãn hàng']||r['Nhan hang']||r.brand||'',category:r['Ngành hàng']||r['Nganh hang']||r.category||'',warehouse:r['Kho hàng']||r['Kho hang']||r.warehouse||'Kho chính',pack,qty,cost:Number(r['Giá nhập']||0)})}); let n=0;Object.values(groups).forEach(g=>{g.items.forEach(it=>{let p=upsertProduct({sku:it.sku,name:it.name,brand:it.brand,category:it.category,warehouse:it.warehouse,pack:it.pack,cost:it.cost});p.qty+=it.qty;p.cost=Number(it.cost)||p.cost});g.total=g.items.reduce((a,b)=>a+b.qty*b.cost,0);db.receipts.push(g);n++});save();render();toast('Đã import '+n+' phiếu nhập theo mẫu 1/0')})}
-function importCustomers(e){let f=e.target.files[0];if(!f)return;readExcel(f,rows=>{let n=0;rows.forEach(r=>{let code=r['Mã KH']||r.ma||r.code;if(!code)return;let c=db.customers.find(x=>x.code==code);let data={code:String(code),name:r['Tên KH']||r['Tên']||r.name,address:r['Địa chỉ']||r.address,phone:r['SĐT']||r.phone,tax:r.MST||r.tax};if(c)Object.assign(c,data);else db.customers.push(data);n++});save();render();toast('Đã import '+n+' khách hàng')})}
+function importCustomers(e){let f=e.target.files[0];if(!f)return;readExcel(f,rows=>{let n=0;rows.forEach(r=>{let code=r['Mã KH']||r.ma||r.code;if(!code)return;let c=db.customers.find(x=>x.code==code);let data={code:String(code),name:r['Tên KH']||r['Tên']||r.name,address:r['Địa chỉ']||r.address,phone:r['SĐT']||r.phone,tax:r.MST||r.tax,customerGroup:String(r['Nhóm khách hàng']||r.customerGroup||r.group||'').trim()};if(c)Object.assign(c,data);else db.customers.push(data);n++});save();render();toast('Đã import '+n+' khách hàng')})}
 function exportProducts(){rowsToSheet(db.products.map(p=>({SKU:p.sku,'Tên sản phẩm':p.name,'Nhãn hàng':productBrand(p),'Ngành hàng':productCategory(p),'Kho hàng':productWarehouse(p),'Quy cách':p.pack,'Tồn':p.qty,'Tồn thùng/lẻ':qtyView(p.qty,p.pack),'Giá nhập':p.cost,'Giá bán':p.sale})),'Danh_sach_san_pham_theo_cap')}
-function exportCustomers(){rowsToSheet(db.customers.map(c=>({'Mã KH':c.code,'Tên KH':c.name,'Địa chỉ':c.address,'SĐT':c.phone,MST:c.tax})),'Danh_sach_khach_hang')}
+function exportCustomers(){rowsToSheet(db.customers.map(c=>({'Mã KH':c.code,'Tên KH':c.name,'Địa chỉ':c.address,'SĐT':c.phone,MST:c.tax,'Nhóm khách hàng':c.customerGroup||''})),'Danh_sach_khach_hang')}
 function exportOrders(){rowsToSheet(db.orders.map(o=>({'Mã đơn':o.id,Ngày:o.date,'Khách hàng':o.customer,'Mã NV':o.staffCode||'','Nhân viên':staffDisplayOrder(o),'Tổng tiền':o.total,'Giá vốn':o.cost,'Lợi nhuận':o.total-o.cost,'Trạng thái gộp':orderMergedText(o),'Mã đơn tổng':o.masterId||''})),'Don_hang')}
 function exportStaffReport(){rowsToSheet(buildStaffReportRows().map(r=>({'Mã NV':r.code,'Nhân viên':r.name,'Số đơn':r.orders,'Số dòng hàng':r.lines,'Doanh thu':r.revenue,'Giá vốn':r.cost,'Lợi nhuận tạm tính':r.profit})),'Bao_cao_doanh_so_nhan_vien')}
 function clearReportFilter(){rpFrom.value='';rpTo.value='';render()}
@@ -2474,13 +2577,73 @@ function saveNewProductCodes(){
 // ===== KHUYẾN MẠI =====
 let currentPromoType='product';
 function promoTypeText(t){return {product:'Khuyến mại theo sản phẩm',productGroup:'Khuyến mại theo nhóm sản phẩm'}[t]||t;}
+
+function ensureCustomerGroups(){
+  db.customerGroups=Array.isArray(db.customerGroups)?db.customerGroups:[];
+  db.customers=Array.isArray(db.customers)?db.customers:[];
+}
+function customerGroupNames(){
+  ensureCustomerGroups();
+  return uniqueList([...(db.customerGroups||[]).map(g=>g.name),...(db.customers||[]).map(c=>c.customerGroup||'')]);
+}
+function renderCustomerGroups(){
+  ensureCustomerGroups();
+  const body=document.getElementById('customerGroupBody');
+  if(body){
+    body.innerHTML=db.customerGroups.map(g=>`<tr><td><b>${g.name||''}</b></td><td>${(g.codes||[]).join(', ')}</td><td><button class="btn small light" onclick="editCustomerGroup('${safeAttr(g.id)}')">Sửa</button> <button class="btn small red" onclick="deleteCustomerGroup('${safeAttr(g.id)}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="3" class="center muted">Chưa có nhóm khách hàng</td></tr>';
+  }
+  fillDatalist('customerGroupList',customerGroupNames());
+}
+function saveCustomerGroup(){
+  ensureCustomerGroups();
+  const name=(document.getElementById('customerGroupName')?.value||'').trim();
+  const codes=String(document.getElementById('customerGroupCodes')?.value||'').split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+  if(!name || !codes.length) return toast('Thiếu tên nhóm hoặc danh sách mã KH');
+  let old=db.customerGroups.find(g=>normText(g.name)===normText(name));
+  if(old) old.codes=codes; else db.customerGroups.push({id:'CGKH'+Date.now(),name,codes});
+  db.customers.forEach(c=>{if(codes.includes(String(c.code))) c.customerGroup=name;});
+  customerGroupName.value=''; customerGroupCodes.value=''; save(); render(); toast('Đã lưu nhóm khách hàng');
+}
+function editCustomerGroup(id){
+  ensureCustomerGroups(); const g=db.customerGroups.find(x=>x.id===id); if(!g)return;
+  customerGroupName.value=g.name||''; customerGroupCodes.value=(g.codes||[]).join(', '); page('customers');
+}
+function deleteCustomerGroup(id){
+  if(!confirm('Xóa nhóm khách hàng này?'))return;
+  ensureCustomerGroups(); const g=db.customerGroups.find(x=>x.id===id);
+  db.customerGroups=db.customerGroups.filter(x=>x.id!==id);
+  if(g) db.customers.forEach(c=>{if(c.customerGroup===g.name)c.customerGroup='';});
+  save(); render();
+}
+function downloadCustomerGroupTemplate(){
+  downloadExcel([{'Tên nhóm khách hàng':'Khách sỉ','Danh sách mã KH':'KH001,KH002,KH003'}],'mau_nhom_khach_hang.xlsx');
+}
+function importCustomerGroupExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  readExcel(file,rows=>{
+    ensureCustomerGroups(); let count=0;
+    rows.forEach(r=>{
+      const name=String(r['Tên nhóm khách hàng']||r.ten_nhom_khach_hang||r.name||'').trim();
+      const raw=String(r['Danh sách mã KH']||r.danh_sach_ma_kh||r.codes||'').trim();
+      const codes=raw.split(/[,;\n]/).map(x=>x.trim()).filter(Boolean);
+      if(!name||!codes.length)return;
+      const old=db.customerGroups.find(g=>normText(g.name)===normText(name));
+      if(old) old.codes=codes; else db.customerGroups.push({id:'CGKH'+Date.now()+count,name,codes});
+      db.customers.forEach(c=>{if(codes.includes(String(c.code))) c.customerGroup=name;});
+      count++;
+    });
+    save(); render(); toast('Đã import '+count+' nhóm khách hàng'); ev.target.value='';
+  });
+}
 function setPromoType(t){
   currentPromoType=t;
   document.querySelectorAll('[data-promo-type]').forEach(b=>b.classList.toggle('active',b.dataset.promoType===t));
   const productForm=document.getElementById('promoProductForm');
   const groupForm=document.getElementById('promoGroupForm');
+  const customerGroupForm=document.getElementById('promoCustomerGroupForm');
   if(productForm) productForm.classList.toggle('hidden',t!=='product');
   if(groupForm) groupForm.classList.toggle('hidden',t!=='productGroup');
+  if(customerGroupForm) customerGroupForm.classList.toggle('hidden',t!=='customerGroup');
   renderLinkedProductLists();
 }
 function uniqueList(arr){return [...new Set(arr.map(x=>String(x||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'))}
@@ -2495,6 +2658,7 @@ function renderLinkedProductLists(){
   fillDatalist('categoryList',uniqueList(products.map(p=>productCategory(p))));
   fillDatalist('productGroupList',uniqueList([...(products.map(p=>p.productGroup||'')),...((db.productGroups||[]).map(g=>g.name))]));
   fillDatalist('categoryGroupList',uniqueList((db.categoryGroups||[]).map(g=>g.name)));
+  fillDatalist('customerGroupList',customerGroupNames());
 }
 function getProductNameBySku(sku){
   const p=findProduct(sku);
@@ -2503,13 +2667,15 @@ function getProductNameBySku(sku){
 function ensurePromotionArrays(){
   db.productPromotions=Array.isArray(db.productPromotions)?db.productPromotions:[];
   db.groupPromotions=Array.isArray(db.groupPromotions)?db.groupPromotions:[];
+  db.customerGroupPromotions=Array.isArray(db.customerGroupPromotions)?db.customerGroupPromotions:[];
   db.promotions=Array.isArray(db.promotions)?db.promotions:[];
 }
 function rebuildLegacyPromotions(){
   ensurePromotionArrays();
   db.promotions=[
     ...db.productPromotions.map(k=>({id:k.id,kind:'product',code:k.code,content:k.content,target:k.sku,discount:k.discount})),
-    ...db.groupPromotions.map(k=>({id:k.id,kind:'productGroup',code:k.code,content:k.content,target:k.groupName,applyAmount:k.applyAmount,discountPercent:k.discountPercent,discountAmount:k.discountAmount}))
+    ...db.groupPromotions.map(k=>({id:k.id,kind:'productGroup',code:k.code,content:k.content,target:k.groupName,applyAmount:k.applyAmount,discountPercent:k.discountPercent,discountAmount:k.discountAmount})),
+    ...db.customerGroupPromotions.map(k=>({id:k.id,kind:'customerGroup',code:k.code,content:k.content,target:k.customerGroupName,applyAmount:k.applyAmount,discountPercent:k.discountPercent,discountAmount:k.discountAmount}))
   ];
 }
 function saveProductPromotion(){
@@ -2578,6 +2744,19 @@ function renderPromotions(){
       <td><button class="btn small red" onclick="deleteGroupPromotion('${k.id}')">Xóa</button></td>
     </tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khuyến mại nhóm sản phẩm</td></tr>';
   }
+  const customerGroupBody=document.getElementById('customerGroupPromotionBody');
+  if(customerGroupBody){
+    customerGroupBody.innerHTML=(db.customerGroupPromotions||[]).map(k=>`<tr>
+      <td><b>${k.code||''}</b></td>
+      <td>${k.content||''}</td>
+      <td>${k.customerGroupName||''}</td>
+      <td class="right">${money(k.applyAmount||0)}</td>
+      <td class="right">${Number(k.discountPercent||0)}%</td>
+      <td class="right">${money(k.discountAmount||0)}</td>
+      <td>${customerGroupPromoDescription(k)}</td>
+      <td><button class="btn small red" onclick="deleteCustomerGroupPromotion('${k.id}')">Xóa</button></td>
+    </tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khuyến mại nhóm khách hàng</td></tr>';
+  }
   const legacyBody=document.getElementById('promotionBody');
   if(legacyBody) legacyBody.innerHTML='';
   renderLinkedProductLists();
@@ -2591,6 +2770,61 @@ function deleteGroupPromotion(id){
   if(!confirm('Xóa khuyến mại nhóm sản phẩm này?'))return;
   db.groupPromotions=(db.groupPromotions||[]).filter(k=>k.id!==id);
   rebuildLegacyPromotions(); save(); render();
+}
+
+function saveCustomerGroupPromotion(){
+  ensurePromotionArrays();
+  const code=(document.getElementById('promoCustomerGroupCode')?.value||'').trim();
+  const content=(document.getElementById('promoCustomerGroupContent')?.value||'').trim();
+  const customerGroupName=(document.getElementById('promoCustomerGroupName')?.value||'').trim();
+  const applyAmount=Number(document.getElementById('promoCustomerGroupApplyAmount')?.value||0)||0;
+  const discountPercent=Number(document.getElementById('promoCustomerGroupDiscountPercent')?.value||0)||0;
+  const discountAmount=Number(document.getElementById('promoCustomerGroupDiscountAmount')?.value||0)||0;
+  if(!code || !content || !customerGroupName) return toast('Thiếu mã KM, nội dung KM hoặc nhóm khách hàng');
+  const old=db.customerGroupPromotions.find(k=>String(k.code)===code && normText(k.customerGroupName)===normText(customerGroupName));
+  const data={id:old?.id||('KMKH'+Date.now()),code,content,customerGroupName,applyAmount,discountPercent,discountAmount};
+  if(old) Object.assign(old,data); else db.customerGroupPromotions.push(data);
+  ['promoCustomerGroupCode','promoCustomerGroupContent','promoCustomerGroupName'].forEach(id=>{const e=document.getElementById(id); if(e)e.value='';});
+  if(document.getElementById('promoCustomerGroupApplyAmount')) promoCustomerGroupApplyAmount.value=0;
+  if(document.getElementById('promoCustomerGroupDiscountPercent')) promoCustomerGroupDiscountPercent.value=0;
+  if(document.getElementById('promoCustomerGroupDiscountAmount')) promoCustomerGroupDiscountAmount.value=0;
+  rebuildLegacyPromotions(); save(); render(); toast('Đã lưu khuyến mại nhóm khách hàng');
+}
+function customerGroupPromoDescription(k){
+  const percent=Number(k.discountPercent||0)||0;
+  const amount=Number(k.discountAmount||0)||0;
+  let parts=[];
+  if(percent>0) parts.push(`chiết khấu ${percent}%`);
+  if(amount>0) parts.push(`giảm ${money(amount)}`);
+  return `Khách thuộc nhóm ${k.customerGroupName||''} mua đạt ${money(k.applyAmount||0)} sẽ được ${parts.join(' và ')||'khuyến mại'}`;
+}
+function deleteCustomerGroupPromotion(id){
+  if(!confirm('Xóa khuyến mại nhóm khách hàng này?'))return;
+  db.customerGroupPromotions=(db.customerGroupPromotions||[]).filter(k=>k.id!==id);
+  rebuildLegacyPromotions(); save(); render();
+}
+function downloadCustomerGroupPromotionTemplate(){
+  downloadExcel([{'Mã khuyến mại':'KMKH001','Nội dung khuyến mại':'Khách sỉ đạt giá trị được giảm','Nhóm khách hàng được khuyến mại':'Khách sỉ','Giá trị cần mua':1000000,'% chiết khấu':2,'Giá trị giảm giá':30000}],'mau_khuyen_mai_theo_nhom_khach_hang.xlsx');
+}
+function importCustomerGroupPromotionExcel(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  readExcel(file,rows=>{
+    ensurePromotionArrays(); let count=0;
+    rows.forEach(r=>{
+      const code=String(r.ma_khuyen_mai||r['Mã khuyến mại']||r.code||'').trim();
+      const content=String(r.noi_dung_khuyen_mai||r['Nội dung khuyến mại']||r.content||'').trim();
+      const customerGroupName=String(r.nhom_khach_hang_duoc_khuyen_mai||r['Nhóm khách hàng được khuyến mại']||r.customerGroupName||'').trim();
+      const applyAmount=Number(r.gia_tri_can_mua||r['Giá trị cần mua']||r.applyAmount||0)||0;
+      const discountPercent=Number(r['% chiết khấu']||r.chiet_khau||r.discountPercent||0)||0;
+      const discountAmount=Number(r.gia_tri_giam_gia||r['Giá trị giảm giá']||r.discountAmount||0)||0;
+      if(!code || !content || !customerGroupName)return;
+      const old=db.customerGroupPromotions.find(k=>String(k.code)===code && normText(k.customerGroupName)===normText(customerGroupName));
+      const data={id:old?.id||('KMKH'+Date.now()+count),code,content,customerGroupName,applyAmount,discountPercent,discountAmount};
+      if(old) Object.assign(old,data); else db.customerGroupPromotions.push(data);
+      count++;
+    });
+    rebuildLegacyPromotions(); save(); render(); toast('Đã import '+count+' dòng KM nhóm khách hàng'); ev.target.value='';
+  });
 }
 function downloadProductPromotionTemplate(){
   downloadExcel([{'Mã khuyến mại':'KM001','Nội dung khuyến mại':'Chiết khấu sản phẩm OMO','Mã sản phẩm':'SKU001','% chiết khấu':5}],'mau_khuyen_mai_theo_san_pham.xlsx');
