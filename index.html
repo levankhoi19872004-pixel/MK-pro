@@ -151,6 +151,8 @@
   body.mobile-role-app .driver-collect-box .form{grid-template-columns:1fr!important}
   .mobile-app-tabs{display:flex;position:fixed;left:8px;right:8px;bottom:8px;z-index:120;background:rgba(255,255,255,.96);border:1px solid #dbe4f0;border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:7px;gap:6px;backdrop-filter:blur(12px)}
   .mobile-app-tabs button{flex:1;border:0;background:transparent;border-radius:15px;padding:8px 4px;font-size:12px;font-weight:800;color:#475467;line-height:1.2}
+  .mobile-app-tabs button.mobile-logout-tab{background:#fee2e2;color:#991b1b}
+  .mobile-app-tabs button.mobile-logout-tab:hover{filter:brightness(.98)}
   .mobile-app-tabs button.active{background:#2563eb;color:white}
   .mobile-app-tabs button span{display:block;font-size:18px;margin-bottom:2px}
   body:not(.mobile-role-app) .mobile-app-tabs{display:none!important}
@@ -981,6 +983,7 @@
   <button data-app-tab="driver-orders" onclick="mobileAppGo('driver-orders')"><span>🚚</span>Đơn giao</button>
   <button data-app-tab="driver-debt" onclick="mobileAppGo('driver-debt')"><span>₫</span>Thu tiền</button>
   <button data-app-tab="driver-report" onclick="mobileAppGo('driver-report')"><span>📊</span>Báo cáo</button>
+  <button type="button" class="mobile-logout-tab" data-app-tab="logout" onclick="logout()"><span>🚪</span>Thoát</button>
 </div>
 
 <aside class="drawer" id="settings"><div class="drawer-head"><h2>Cài đặt hiển thị</h2><button class="close" onclick="toggleSettings()">×</button></div><h3>Chọn phông chữ</h3><select id="fontSelect" onchange="applyFont(this.value)"><option value="'Noto Sans','Segoe UI',Arial,sans-serif">Noto Sans - khuyến nghị</option><option value="'Segoe UI',Arial,sans-serif">Segoe UI</option><option value="Arial,sans-serif">Arial</option><option value="Tahoma,sans-serif">Tahoma</option><option value="'Times New Roman',serif">Times New Roman</option></select><div class="preview"><h4>Xem trước</h4><div>64811767 &nbsp; SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 1kg/12 chai<br>CIF khử mùi hương cam chai 780ml/12 chai</div></div><br><button class="btn" style="width:100%" onclick="toast('Đã áp dụng phông chữ')">Áp dụng</button></aside>
@@ -1247,8 +1250,17 @@ async function login(){
 async function logout(){
   try{ if(AUTH_TOKEN) await apiFetch('/api/logout',{method:'POST',headers:authHeaders()}); }catch(e){}
   AUTH_TOKEN=''; CURRENT_USER=null;
-  localStorage.removeItem(AUTH_KEY); localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  document.body.classList.remove('mobile-role-app','sales-customer-selected','sales-step-customers','sales-step-products','sales-step-cart','sales-step-debt','sales-step-confirm','sales-step-orders','driver-step-orders','driver-step-debt','driver-step-report');
   setLoginState(false);
+  const u=document.getElementById('loginUser');
+  const p=document.getElementById('loginPass');
+  if(u)u.value='';
+  if(p)p.value='';
+  setTimeout(()=>{u?.focus?.();},80);
   toast('Đã đăng xuất');
 }
 
@@ -5235,7 +5247,7 @@ updateMobileAppTabs=function(activeId){
   const sales=activeId==='salesApp'; const driver=activeId==='deliveryApp';
   box.querySelectorAll('button').forEach(b=>{
     const tab=b.dataset.appTab||'';
-    const show=(sales&&tab.startsWith('sales-'))||(driver&&tab.startsWith('driver-'));
+    const show=tab==='logout'||(sales&&tab.startsWith('sales-'))||(driver&&tab.startsWith('driver-'));
     b.style.display=show?'block':'none';
     b.classList.remove('active');
   });
