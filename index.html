@@ -337,6 +337,25 @@
   body.mobile-role-app .mobile-product-card{width:100%!important}
 }
 
+
+/* ===== Nút thoát cố định cho bản app điện thoại ===== */
+.mobile-logout-fixed{display:none}
+@media(max-width:780px){
+  body.mobile-role-app .mobile-logout-fixed{
+    display:flex!important;position:fixed;right:12px;top:12px;z-index:150;
+    align-items:center;justify-content:center;gap:6px;
+    border:0;border-radius:999px;background:#fee2e2;color:#991b1b;
+    padding:10px 13px;font-size:14px;font-weight:900;
+    box-shadow:0 10px 24px rgba(153,27,27,.18);
+  }
+  body:not(.mobile-role-app) .mobile-logout-fixed{display:none!important}
+}
+
+
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
+}
+
 </style>
 </head>
 <body>
@@ -986,6 +1005,7 @@
   <button type="button" class="mobile-logout-tab" data-app-tab="logout" onclick="logout()"><span>🚪</span>Thoát</button>
 </div>
 
+<button type="button" class="mobile-logout-fixed" id="mobileLogoutFixed" onclick="logout()">🚪 Thoát</button>
 <aside class="drawer" id="settings"><div class="drawer-head"><h2>Cài đặt hiển thị</h2><button class="close" onclick="toggleSettings()">×</button></div><h3>Chọn phông chữ</h3><select id="fontSelect" onchange="applyFont(this.value)"><option value="'Noto Sans','Segoe UI',Arial,sans-serif">Noto Sans - khuyến nghị</option><option value="'Segoe UI',Arial,sans-serif">Segoe UI</option><option value="Arial,sans-serif">Arial</option><option value="Tahoma,sans-serif">Tahoma</option><option value="'Times New Roman',serif">Times New Roman</option></select><div class="preview"><h4>Xem trước</h4><div>64811767 &nbsp; SUNLIGHT NLS TD Thơm Mát Hương Lily & Bách Trà 1kg/12 chai<br>CIF khử mùi hương cam chai 780ml/12 chai</div></div><br><button class="btn" style="width:100%" onclick="toast('Đã áp dụng phông chữ')">Áp dụng</button></aside>
 
 <div class="modal" id="bulkImportPreviewModal">
@@ -3191,6 +3211,25 @@ function printPaymentReceipt(paymentId){
   body.mobile-role-app .driver-collect-box .btn{width:100%!important}
 }
 
+
+/* ===== Nút thoát cố định cho bản app điện thoại ===== */
+.mobile-logout-fixed{display:none}
+@media(max-width:780px){
+  body.mobile-role-app .mobile-logout-fixed{
+    display:flex!important;position:fixed;right:12px;top:12px;z-index:150;
+    align-items:center;justify-content:center;gap:6px;
+    border:0;border-radius:999px;background:#fee2e2;color:#991b1b;
+    padding:10px 13px;font-size:14px;font-weight:900;
+    box-shadow:0 10px 24px rgba(153,27,27,.18);
+  }
+  body:not(.mobile-role-app) .mobile-logout-fixed{display:none!important}
+}
+
+
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
+}
+
 </style></head><body><div class="wrap">
     <div class="top"><div><div class="company">KHO MINH KHAI THÁI BÌNH</div><div class="muted">Phiếu thu công nợ khách hàng</div></div><div><b>Số phiếu:</b> ${escapePrintText(paymentReceiptNo(p))}<br><b>Ngày:</b> ${escapePrintText(paymentDateText(p.date))}</div></div>
     <div class="title">PHIẾU THU</div><div class="sub">Liên lưu nội bộ / giao khách khi cần</div>
@@ -3618,6 +3657,25 @@ function invoiceHtmlForOrder(o){
   body.mobile-role-app .driver-collect-box .btn{width:100%!important}
 }
 
+
+/* ===== Nút thoát cố định cho bản app điện thoại ===== */
+.mobile-logout-fixed{display:none}
+@media(max-width:780px){
+  body.mobile-role-app .mobile-logout-fixed{
+    display:flex!important;position:fixed;right:12px;top:12px;z-index:150;
+    align-items:center;justify-content:center;gap:6px;
+    border:0;border-radius:999px;background:#fee2e2;color:#991b1b;
+    padding:10px 13px;font-size:14px;font-weight:900;
+    box-shadow:0 10px 24px rgba(153,27,27,.18);
+  }
+  body:not(.mobile-role-app) .mobile-logout-fixed{display:none!important}
+}
+
+
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
+}
+
 </style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF</button>${pageHtml('Liên 1')}${pageHtml('Liên 2')}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
 }
 
@@ -3770,6 +3828,25 @@ function printSelectedOrders(){
   body.mobile-role-app .driver-collect-box .btn{width:100%!important}
 }
 
+
+/* ===== Nút thoát cố định cho bản app điện thoại ===== */
+.mobile-logout-fixed{display:none}
+@media(max-width:780px){
+  body.mobile-role-app .mobile-logout-fixed{
+    display:flex!important;position:fixed;right:12px;top:12px;z-index:150;
+    align-items:center;justify-content:center;gap:6px;
+    border:0;border-radius:999px;background:#fee2e2;color:#991b1b;
+    padding:10px 13px;font-size:14px;font-weight:900;
+    box-shadow:0 10px 24px rgba(153,27,27,.18);
+  }
+  body:not(.mobile-role-app) .mobile-logout-fixed{display:none!important}
+}
+
+
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
+}
+
 </style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF ${orders.length} đơn</button>${pages}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
   let w=window.open('','_blank');
   w.document.open();
@@ -3907,6 +3984,25 @@ function printMasterOrder(id){
   body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
   body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
   body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
+
+/* ===== Nút thoát cố định cho bản app điện thoại ===== */
+.mobile-logout-fixed{display:none}
+@media(max-width:780px){
+  body.mobile-role-app .mobile-logout-fixed{
+    display:flex!important;position:fixed;right:12px;top:12px;z-index:150;
+    align-items:center;justify-content:center;gap:6px;
+    border:0;border-radius:999px;background:#fee2e2;color:#991b1b;
+    padding:10px 13px;font-size:14px;font-weight:900;
+    box-shadow:0 10px 24px rgba(153,27,27,.18);
+  }
+  body:not(.mobile-role-app) .mobile-logout-fixed{display:none!important}
+}
+
+
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
 }
 
 </style></head><body><button onclick="window.print()">In / Lưu PDF</button><div class="top"><div><div class="invoice-logo"><span class="invoice-mark">▣</span><span>Kho Minh Khai Thái Bình</span></div><div>Phiếu gộp đơn tổng theo sản phẩm</div></div><div><b>Mã đơn tổng:</b> ${m.id}<br><b>Ngày tạo:</b> ${m.date}</div></div><div class="title">ĐƠN TỔNG HÀNG HÓA</div><p><b>Ghi chú:</b> ${m.note||''}</p><div class="small-title">Danh sách đơn con</div><table><thead><tr><th>STT</th><th>Mã đơn</th><th>Ngày</th><th>Mã KH</th><th>Khách hàng</th><th>Nhân viên</th></tr></thead><tbody>${childRows}</tbody></table><div class="small-title">Bảng hàng gộp theo SKU</div><table><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>Đơn giá</th><th>T/L</th><th>SL lẻ</th><th>Tiền hàng</th><th>CK</th><th>Thành tiền</th></tr></thead><tbody>${rows}</tbody></table><div class="sum"><div><span>Tổng số mặt hàng</span><b>${items.length}</b></div><div><span>Tổng SL lẻ</span><b>${totalQty}</b></div><div><span>Tổng tiền hàng</span><b>${money(goods)}</b></div><div><span>Tổng chiết khấu</span><b>${money(discount)}</b></div><div><span>Phải thanh toán</span><b>${money(total)}</b></div></div><script>window.onload=function(){setTimeout(()=>window.print(),300)}<\/script></body></html>`;
