@@ -77,11 +77,21 @@
 .receipt-print-box .receipt-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
 .receipt-print-box .receipt-line{border-top:1px dashed #999;margin:12px 0}
 
-.customer-debt-link{color:#2563eb;font-weight:800;text-decoration:none;cursor:pointer}
-.customer-debt-link:hover{text-decoration:underline}
-.customer-debt-now{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:10px 12px;margin-top:10px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
-.customer-debt-now b{font-size:18px;color:#ef4444}
-.customer-debt-now .ok{color:#16a34a}
+/* ===== Phân quyền app bán hàng / giao hàng ===== */
+.role-hidden{display:none!important}
+.role-app-grid{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+.role-list{max-height:620px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+.role-list-row{padding:11px 12px;border-bottom:1px dashed rgba(0,0,0,.12);cursor:pointer}
+.role-list-row:hover,.role-list-row.active{background:#eff6ff}
+.role-list-row b{display:block;color:#101828}
+.role-kpi{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:10px 0}
+.role-kpi .mini-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px}
+.role-kpi .mini-card span{display:block;color:var(--muted);font-size:12px}.role-kpi .mini-card b{font-size:19px}
+.sales-product-table{min-width:980px}
+.sales-cart-box{position:sticky;top:92px}
+.driver-order-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff}
+.driver-order-card h3{margin:0 0 8px;font-size:16px}
+@media(max-width:1000px){.role-app-grid{grid-template-columns:1fr}.sales-cart-box{position:static}.role-kpi{grid-template-columns:repeat(2,1fr)}}
 
 </style>
 </head>
@@ -115,6 +125,8 @@
       <button data-page="products">▧ Tồn kho</button>
       <button data-page="receive">⇩ Nhập kho</button>
       <button data-page="sale">⇧ Xuất bán</button>
+      <button data-page="salesApp">🛒 App bán hàng</button>
+      <button data-page="deliveryApp">🚚 App giao hàng</button>
       <button data-page="orders">☷ Đơn hàng</button>
       <button data-page="mergeOrders">▤ Gộp đơn tổng</button>
       <button data-page="customers">♙ Khách hàng</button>
@@ -438,7 +450,7 @@
   </div>
 
   <div class="card panel">
-    <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('customer-delete-check',this.checked)"></th><th>Mã KH</th><th>Tên</th><th class="right">Công nợ hiện tại</th><th>Địa chỉ</th><th>SĐT</th><th>MST</th><th>Nhóm KH</th><th>Hành động</th></tr></thead><tbody id="customerBody"></tbody></table></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('customer-delete-check',this.checked)"></th><th>Mã KH</th><th>Tên</th><th>Địa chỉ</th><th>SĐT</th><th>MST</th><th>Nhóm KH</th><th>Hành động</th></tr></thead><tbody id="customerBody"></tbody></table></div>
   </div>
 
   <div class="card panel">
@@ -482,8 +494,8 @@
           <div class="customer-pay-box">
             <h3>Thu tiền nhanh theo khách hàng</h3>
             <div class="form">
-              <div class="field"><label>Mã KH</label><input id="debtPayCustomerCode" placeholder="VD: KH001" oninput="updatePayCustomerDebtPreview()" onkeydown="if(event.key==='Enter')openPayCustomerDebtList()"></div>
-              <div class="field"><label>Tên khách hàng</label><input id="debtPayCustomerName" placeholder="Có thể nhập một phần tên" oninput="updatePayCustomerDebtPreview()" onkeydown="if(event.key==='Enter')openPayCustomerDebtList()"></div>
+              <div class="field"><label>Mã KH</label><input id="debtPayCustomerCode" placeholder="VD: KH001"></div>
+              <div class="field"><label>Tên khách hàng</label><input id="debtPayCustomerName" placeholder="Có thể nhập một phần tên"></div>
               <div class="field"><label>Tiền mặt thu thêm</label><input id="debtPayCash" type="number" value="0"></div>
               <div class="field"><label>Chuyển khoản thu thêm</label><input id="debtPayBank" type="number" value="0"></div>
               <div class="field wide"><label>Ghi chú phiếu thu</label><input id="debtPayNote" placeholder="VD: Thu công nợ khách hàng"></div>
@@ -491,14 +503,91 @@
             <div class="toolbar" style="margin-top:10px;margin-bottom:0">
               <button class="btn green" onclick="payCustomerDebt()">Phân bổ thu tiền</button>
               <button class="btn light" onclick="fillPayCustomerFromDebtFilter()">Lấy theo bộ lọc đang nhập</button>
-              <button class="btn light" onclick="openPayCustomerDebtList()">Xem công nợ khách này</button>
             </div>
-            <div id="payCustomerDebtPreview" class="customer-debt-now"><span>Nhập/chọn khách hàng để xem công nợ hiện tại</span><b>0</b></div>
             <div class="muted" style="margin-top:8px">Tiền thu sẽ tự phân bổ vào các đơn còn nợ cũ nhất của khách hàng, đồng thời ghi lịch sử thu tiền.</div>
           </div>
           <div class="debt-search-note">
             Nhập một hoặc nhiều điều kiện rồi bấm <b>Tìm công nợ</b>. Kết quả chi tiết, báo cáo theo nhân viên giao hàng, khách hàng và công nợ quá lâu sẽ mở trong cửa sổ riêng.
           </div>
+        </div>
+      </section>
+
+
+
+      <section id="salesApp" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div><h2>App bán hàng theo nhân viên</h2><div class="muted" style="margin-top:6px">Nhân viên vào danh sách khách hàng → chọn khách → xem hàng hóa, giá bán chưa khuyến mại, tồn thực tế → chấm đơn → xác nhận gửi về hệ thống.</div></div>
+            <div class="toolbar"><button class="btn light" onclick="renderSalesApp()">Làm mới</button><button class="btn green" onclick="salesConfirmOrder()">Xác nhận đơn</button></div>
+          </div>
+          <div class="role-app-grid">
+            <div>
+              <div class="field"><label>Tìm khách hàng</label><input id="salesCustomerSearch" placeholder="Mã / tên / SĐT khách" oninput="renderSalesCustomerList()"></div>
+              <div id="salesCustomerList" class="role-list" style="margin-top:10px"></div>
+            </div>
+            <div>
+              <div id="salesSelectedCustomerInfo" class="debt-search-note">Chọn khách hàng ở danh sách bên trái để bắt đầu chấm đơn.</div>
+              <div class="role-kpi">
+                <div class="mini-card"><span>Công nợ hiện tại</span><b id="salesCustomerDebt">0</b></div>
+                <div class="mini-card"><span>Số đơn còn nợ</span><b id="salesCustomerDebtOrders">0</b></div>
+                <div class="mini-card"><span>Giá trị giỏ hàng</span><b id="salesCartTotal">0</b></div>
+                <div class="mini-card"><span>Số dòng</span><b id="salesCartLines">0</b></div>
+              </div>
+              <div class="layout2">
+                <div class="card panel" style="box-shadow:none">
+                  <div class="panel-head"><h2>Danh sách hàng hóa</h2></div>
+                  <div class="field"><label>Tìm sản phẩm</label><input id="salesProductSearch" placeholder="Mã / tên sản phẩm" oninput="renderSalesProductList()"></div><br>
+                  <div class="table-wrap"><table class="table sales-product-table"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th class="right">Giá bán chưa KM</th><th class="right">Tồn thực tế</th><th>SL 1/0</th><th>Chấm</th></tr></thead><tbody id="salesProductList"></tbody></table></div>
+                </div>
+                <div class="card panel sales-cart-box" style="box-shadow:none">
+                  <div class="panel-head"><h2>Đơn đang chấm</h2></div>
+                  <div id="salesCartBody"></div>
+                  <div class="sum-line"><span>Tổng hàng</span><b id="salesCartGoods">0</b></div>
+                  <div class="form" style="grid-template-columns:1fr 1fr">
+                    <div class="field"><label>Tiền mặt</label><input id="salesCashPaid" type="number" value="0" oninput="renderSalesCart()"></div>
+                    <div class="field"><label>Chuyển khoản</label><input id="salesBankPaid" type="number" value="0" oninput="renderSalesCart()"></div>
+                    <div class="field"><label>Hạn thanh toán</label><input id="salesDueDate" type="date"></div>
+                    <div class="field"><label>Ghi chú</label><input id="salesNote" placeholder="Ghi chú đơn"></div>
+                  </div><br>
+                  <button class="btn green" onclick="salesConfirmOrder()">Xác nhận gửi hệ thống</button>
+                  <button class="btn light" onclick="salesCart=[];renderSalesCart()">Xóa giỏ</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách đơn đã chấm của tôi</h2><div class="toolbar"><button class="btn light" onclick="renderSalesOrders()">Làm mới</button></div></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Ngày</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Đã thu</th><th class="right">Còn nợ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="salesOrdersBody"></tbody></table></div>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Theo dõi công nợ khách hàng của tôi</h2></div>
+          <div class="form">
+            <div class="field"><label>Mã KH</label><input id="salesPayCustomerCode" placeholder="Chọn khách sẽ tự điền"></div>
+            <div class="field"><label>Tên KH</label><input id="salesPayCustomerName"></div>
+            <div class="field"><label>Tiền mặt thu</label><input id="salesPayCash" type="number" value="0"></div>
+            <div class="field"><label>Chuyển khoản thu</label><input id="salesPayBank" type="number" value="0"></div>
+            <div class="field wide"><label>Ghi chú</label><input id="salesPayNote" value="Nhân viên bán hàng thu công nợ"></div>
+          </div><br>
+          <button class="btn green" onclick="salesCollectDebt()">Ghi nhận thu tiền</button>
+          <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Mã KH</th><th>Khách hàng</th><th class="center">Số đơn nợ</th><th class="right">Tổng nợ</th><th>Thao tác</th></tr></thead><tbody id="salesDebtBody"></tbody></table></div>
+        </div>
+      </section>
+
+      <section id="deliveryApp" class="section">
+        <div class="card panel">
+          <div class="panel-head"><div><h2>App nhân viên giao hàng</h2><div class="muted" style="margin-top:6px">Hiển thị đơn tổng mang tên mình, danh sách đơn con cần giao và công nợ khách hàng mình quản lý.</div></div><div class="toolbar"><button class="btn light" onclick="renderDeliveryApp()">Làm mới</button></div></div>
+          <div class="role-kpi">
+            <div class="mini-card"><span>Đơn tổng được giao</span><b id="driverMasterCount">0</b></div>
+            <div class="mini-card"><span>Đơn con</span><b id="driverChildCount">0</b></div>
+            <div class="mini-card"><span>Tiền phải thu</span><b id="driverDebtTotal">0</b></div>
+            <div class="mini-card"><span>Số khách còn nợ</span><b id="driverDebtCustomerCount">0</b></div>
+          </div>
+          <div id="driverMasterList"></div>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Công nợ khách hàng mình quản lý</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Khách hàng</th><th class="center">Số đơn nợ</th><th class="right">Tổng nợ</th><th>Thao tác</th></tr></thead><tbody id="driverDebtBody"></tbody></table></div>
         </div>
       </section>
 
@@ -766,9 +855,11 @@ function setLoginState(loggedIn){
     const n=document.getElementById('currentUserName');
     const r=document.getElementById('currentUserRole');
     if(n)n.textContent=CURRENT_USER.name||CURRENT_USER.username||'User';
-    if(r)r.textContent=CURRENT_USER.role==='admin'?'Quản trị':'Nhân viên';
+    if(r)r.textContent=roleLabel();
+    applyRoleAccess();
   }
 }
+
 async function login(){
   const username=(document.getElementById('loginUser')?.value||'').trim();
   const password=(document.getElementById('loginPass')?.value||'').trim();
@@ -944,7 +1035,7 @@ function parseQtySlash(value,pack){
   return Number(s)||0;
 }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
-function page(id){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));pageTitle.textContent=document.querySelector('#nav button[data-page="'+id+'"]').textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫]/g,'').trim();sidebar.classList.remove('show');render()}
+function page(id){if(!isAllowedPage(id)){id=defaultPageForRole();}document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));let sec=document.getElementById(id);if(sec)sec.classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));let btn=document.querySelector('#nav button[data-page="'+id+'"]');pageTitle.textContent=btn?btn.textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫🛒]/g,'').trim():'Kho Minh Khai';sidebar.classList.remove('show');render()}
 document.querySelectorAll('#nav button[data-page]').forEach(b=>b.onclick=()=>page(b.dataset.page));
 function findProduct(sku){return db.products.find(p=>String(p.sku).trim()===String(sku).trim())}
 function productBrand(p){return p.brand||p.nhanHang||p['Nhãn hàng']||''}
@@ -1143,6 +1234,116 @@ function bulkDeleteStaff(){
   indexes.forEach(i=>{if(db.staff[i])db.staff.splice(i,1)});
   save();render();toast('Đã xóa '+indexes.length+' nhân viên');
 }
+
+
+/* ===== Phân quyền và app bán hàng/giao hàng ===== */
+let salesSelectedCustomerCode='';
+let salesCart=[];
+function currentRole(){return String(CURRENT_USER?.role||'admin').toLowerCase();}
+function roleLabel(){const r=currentRole(); if(r==='admin')return 'Quản trị'; if(['delivery','driver','giaohang'].includes(r))return 'Nhân viên giao hàng'; return 'Nhân viên bán hàng';}
+function isAdmin(){return currentRole()==='admin';}
+function isSales(){return ['staff','sales','sale','banhang','nhanvien'].includes(currentRole());}
+function isDriver(){return ['delivery','driver','giaohang'].includes(currentRole());}
+function currentUserDisplayName(){return CURRENT_USER?.name||CURRENT_USER?.username||'';}
+function currentUserCode(){return CURRENT_USER?.code||CURRENT_USER?.username||'';}
+function defaultPageForRole(){return isDriver()?'deliveryApp':(isSales()?'salesApp':'dashboard');}
+function allowedPagesForRole(){if(isAdmin())return null; if(isDriver())return ['deliveryApp']; return ['salesApp'];}
+function isAllowedPage(id){const a=allowedPagesForRole(); return !a || a.includes(id);}
+function applyRoleAccess(){
+  const allowed=allowedPagesForRole();
+  document.querySelectorAll('#nav button[data-page]').forEach(b=>{b.classList.toggle('role-hidden', !!allowed && !allowed.includes(b.dataset.page));});
+  if(!isAdmin()){page(defaultPageForRole());}
+}
+function salesCustomerDebtInfo(code,name){
+  const rows=(db.orders||[]).filter(o=>{const c=String(orderCustomerCode(o)||''); const n=normText(o.customer||''); return (code&&c===String(code)) || (!code&&name&&n.includes(normText(name)));});
+  const debtRows=rows.filter(o=>orderDebtRemaining(o)>0);
+  return {debt:debtRows.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0), orders:debtRows.length, rows:debtRows};
+}
+function renderSalesApp(){renderSalesCustomerList();renderSalesProductList();renderSalesCart();renderSalesOrders();renderSalesDebt();}
+function renderSalesCustomerList(){
+  const box=document.getElementById('salesCustomerList'); if(!box)return;
+  const q=normText(document.getElementById('salesCustomerSearch')?.value||'');
+  const rows=(db.customers||[]).filter(c=>!q || normText([c.code,c.name,c.phone,c.address].join(' ')).includes(q));
+  box.innerHTML=rows.map(c=>{const info=salesCustomerDebtInfo(c.code,c.name);return `<div class="role-list-row ${String(c.code)===String(salesSelectedCustomerCode)?'active':''}" onclick="salesSelectCustomer('${safeAttr(c.code)}')"><b>${c.code||''} - ${c.name||''}</b><span class="muted">${c.phone||''} · ${c.address||''}</span><div>Công nợ: <b class="${info.debt>0?'debt-money-unpaid':'debt-money-paid'}">${money(info.debt)}</b></div></div>`}).join('')||'<div class="sale-auto-empty">Chưa có khách hàng phù hợp</div>';
+}
+function salesSelectCustomer(code){
+  const c=(db.customers||[]).find(x=>String(x.code)===String(code)); if(!c)return;
+  salesSelectedCustomerCode=c.code;
+  const info=salesCustomerDebtInfo(c.code,c.name);
+  if(document.getElementById('salesSelectedCustomerInfo'))salesSelectedCustomerInfo.innerHTML=`<b>Khách đang bán:</b> ${escapeHtml(c.code||'')} - ${escapeHtml(c.name||'')}<br><span class="muted">${escapeHtml(c.phone||'')} · ${escapeHtml(c.address||'')}</span>`;
+  if(document.getElementById('salesCustomerDebt'))salesCustomerDebt.textContent=money(info.debt);
+  if(document.getElementById('salesCustomerDebtOrders'))salesCustomerDebtOrders.textContent=info.orders;
+  if(document.getElementById('salesPayCustomerCode'))salesPayCustomerCode.value=c.code||'';
+  if(document.getElementById('salesPayCustomerName'))salesPayCustomerName.value=c.name||'';
+  renderSalesCustomerList();renderSalesProductList();renderSalesDebt();
+}
+function salesAddProduct(sku){
+  const p=findProduct(sku); if(!p)return toast('Không tìm thấy sản phẩm');
+  const qty=parseQtySlash(document.getElementById('salesQty_'+cssSafeId(sku))?.value||'1/0',p.pack||1);
+  if(qty<=0)return toast('Nhập số lượng cần chấm');
+  if(qty>Number(p.qty||0))return toast('Không đủ tồn thực tế: '+p.name+' còn '+qtyView(p.qty,p.pack));
+  let old=salesCart.find(x=>String(x.sku)===String(sku));
+  if(old)old.qty+=qty; else salesCart.push({sku:p.sku,name:p.name,pack:Number(p.pack)||1,qty,sale:Number(p.sale)||0,cost:Number(p.cost)||0,disc:0});
+  renderSalesCart();
+}
+function renderSalesProductList(){
+  const body=document.getElementById('salesProductList'); if(!body)return;
+  const q=normText(document.getElementById('salesProductSearch')?.value||'');
+  const rows=(db.products||[]).filter(p=>!q || normText([p.sku,p.name,productBrand(p),productCategory(p)].join(' ')).includes(q));
+  body.innerHTML=rows.map(p=>`<tr><td><b>${p.sku}</b></td><td>${p.name}</td><td class="right">${money(p.sale)}</td><td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td><input id="salesQty_${cssSafeId(p.sku)}" placeholder="1/0" style="width:90px"></td><td><button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
+}
+function renderSalesCart(){
+  const box=document.getElementById('salesCartBody'); if(!box)return;
+  let total=salesCart.reduce((a,x)=>a+Number(x.qty||0)*Number(x.sale||0),0);
+  box.innerHTML=salesCart.map((x,i)=>`<div class="cart-item"><div><b>${x.sku} - ${x.name}</b><br><span class="muted">SL: ${qtyView(x.qty,x.pack)} · Giá: ${money(x.sale)}</span></div><div><b>${money(x.qty*x.sale)}</b><br><button class="btn small red" onclick="salesCart.splice(${i},1);renderSalesCart()">Xóa</button></div></div>`).join('')||'<div class="muted">Chưa chấm hàng.</div>';
+  if(document.getElementById('salesCartGoods'))salesCartGoods.textContent=money(total);
+  if(document.getElementById('salesCartTotal'))salesCartTotal.textContent=money(total);
+  if(document.getElementById('salesCartLines'))salesCartLines.textContent=salesCart.length;
+}
+async function salesConfirmOrder(){
+  const c=(db.customers||[]).find(x=>String(x.code)===String(salesSelectedCustomerCode));
+  if(!c)return toast('Chọn khách hàng cần bán');
+  if(!salesCart.length)return toast('Chưa chấm sản phẩm nào');
+  for(const it of salesCart){const p=findProduct(it.sku); if(!p||Number(it.qty)>Number(p.qty||0))return toast('Không đủ tồn: '+(p?.name||it.sku));}
+  const cash=Number(document.getElementById('salesCashPaid')?.value||0)||0; const bank=Number(document.getElementById('salesBankPaid')?.value||0)||0;
+  const goods=salesCart.reduce((a,x)=>a+Number(x.qty||0)*Number(x.sale||0),0); const cost=salesCart.reduce((a,x)=>a+Number(x.qty||0)*Number(x.cost||0),0);
+  salesCart.forEach(it=>{const p=findProduct(it.sku); if(p)p.qty-=Number(it.qty||0);});
+  const id=orderId();
+  const o={id,date:today(),isoDate:new Date().toISOString(),customer:c.name,customerCode:c.code,staffCode:currentUserCode(),staffName:currentUserDisplayName(),staff:currentUserDisplayName(),warehouse:'',note:document.getElementById('salesNote')?.value||'',delivery:'Chưa giao',xk:'',dueDate:document.getElementById('salesDueDate')?.value||'',cashPaid:cash,bankPaid:bank,debt:goods-cash-bank,paymentStatus:(goods-cash-bank)<=0?'Đã thanh toán':'Còn nợ',goods,discount:0,adjust:0,total:goods,cost,masterId:'',items:salesCart.map(x=>({...x}))};
+  db.orders.push(o);
+  save();
+  salesCart=[]; if(document.getElementById('salesCashPaid'))salesCashPaid.value=0; if(document.getElementById('salesBankPaid'))salesBankPaid.value=0;
+  render(); toast('Đã gửi đơn '+id+' về hệ thống');
+}
+function mySalesOrders(){if(isAdmin())return db.orders||[]; const name=normText(currentUserDisplayName()); const code=normText(currentUserCode()); return (db.orders||[]).filter(o=>normText(o.staffName||o.staff||'').includes(name)||normText(o.staffCode||'')===code);}
+function renderSalesOrders(){const body=document.getElementById('salesOrdersBody'); if(!body)return; body.innerHTML=mySalesOrders().slice().reverse().map(o=>{const p=orderPaymentInfo(o);return `<tr><td><b>${o.id}</b></td><td>${o.date}</td><td>${o.customer}</td><td class="right">${money(p.total)}</td><td class="right">${money(p.paid)}</td><td class="right"><b class="${p.debt>0?'debt-money-unpaid':'debt-money-paid'}">${money(p.debt)}</b></td><td><span class="pill ${orderPaymentPillClass(p.status,p.debt)}">${p.status}</span></td><td><button class="btn small green" onclick="editOrder('${safeAttr(o.id)}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${safeAttr(o.id)}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="8" class="center muted">Chưa có đơn đã chấm</td></tr>';}
+function renderSalesDebt(){
+  const body=document.getElementById('salesDebtBody'); if(!body)return;
+  const map={}; mySalesOrders().forEach(o=>{const debt=Math.max(0,orderDebtRemaining(o)); if(debt<=0)return; const k=orderCustomerCode(o)||o.customer; if(!map[k])map[k]={code:orderCustomerCode(o)||'',name:o.customer||'',orders:0,debt:0}; map[k].orders++; map[k].debt+=debt;});
+  const rows=Object.values(map); body.innerHTML=rows.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><button class="btn small light" onclick="salesSelectCustomer('${safeAttr(r.code)}')">Chọn thu</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ khách hàng</td></tr>';
+}
+function salesCollectDebt(){
+  const code=document.getElementById('salesPayCustomerCode')?.value||''; const name=document.getElementById('salesPayCustomerName')?.value||'';
+  const cash=Number(document.getElementById('salesPayCash')?.value||0)||0; const bank=Number(document.getElementById('salesPayBank')?.value||0)||0;
+  const note=(document.getElementById('salesPayNote')?.value||'Nhân viên bán hàng thu công nợ').trim();
+  if(cash+bank<=0)return toast('Nhập số tiền cần thu');
+  const orders=mySalesOrders().filter(o=>{const c=String(orderCustomerCode(o)||''); const n=normText(o.customer||''); return ((code&&c===String(code))||(!code&&name&&n.includes(normText(name)))) && orderDebtRemaining(o)>0;}).sort((a,b)=>debtPaymentSortDate(a)-debtPaymentSortDate(b));
+  if(!orders.length)return toast('Không tìm thấy đơn còn nợ của khách này');
+  const rs=applyCustomerPaymentToOrders(orders,cash,bank,note+' - Người thu: '+currentUserDisplayName());
+  save();render(); if(document.getElementById('salesPayCash'))salesPayCash.value=0; if(document.getElementById('salesPayBank'))salesPayBank.value=0; toast('Đã ghi nhận thu '+money(rs.paidTotal)+' bởi '+currentUserDisplayName());
+}
+function driverMatchCodeName(code,name){const u=normText(currentUserCode()); const n=normText(currentUserDisplayName()); return (code&&normText(code)===u)||(name&&normText(name).includes(n))||(n&&normText(name)===n);}
+function driverMasters(){if(isAdmin())return db.masterOrders||[]; return (db.masterOrders||[]).filter(m=>driverMatchCodeName(m.deliveryStaffCode,m.deliveryStaffName));}
+function driverChildOrders(){const ids=new Set(driverMasters().flatMap(m=>m.childIds||[])); return (db.orders||[]).filter(o=>ids.has(o.id)||driverMatchCodeName(o.deliveryStaffCode,o.deliveryStaffName));}
+function renderDeliveryApp(){
+  const masters=driverMasters(); const child=driverChildOrders(); const debts=child.filter(o=>orderDebtRemaining(o)>0); const debtTotal=debts.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
+  if(document.getElementById('driverMasterCount'))driverMasterCount.textContent=masters.length; if(document.getElementById('driverChildCount'))driverChildCount.textContent=child.length; if(document.getElementById('driverDebtTotal'))driverDebtTotal.textContent=money(debtTotal);
+  const map={}; debts.forEach(o=>{const k=orderCustomerCode(o)||o.customer; if(!map[k])map[k]={code:orderCustomerCode(o)||'',name:o.customer||'',orders:0,debt:0}; map[k].orders++; map[k].debt+=Math.max(0,orderDebtRemaining(o));}); if(document.getElementById('driverDebtCustomerCount'))driverDebtCustomerCount.textContent=Object.keys(map).length;
+  const list=document.getElementById('driverMasterList'); if(list)list.innerHTML=masters.map(m=>{const orders=(db.orders||[]).filter(o=>(m.childIds||[]).includes(o.id));return `<div class="driver-order-card"><h3>Đơn tổng ${m.id}</h3><div class="muted">Ngày: ${m.date||''} · Tổng tiền: ${money(m.total||0)} · Ghi chú: ${m.note||''}</div><div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Đơn con</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Còn nợ</th></tr></thead><tbody>${orders.map(o=>`<tr><td>${o.id}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer||''}</td><td class="right">${money(o.total||0)}</td><td class="right"><b class="${orderDebtRemaining(o)>0?'debt-money-unpaid':'debt-money-paid'}">${money(orderDebtRemaining(o))}</b></td></tr>`).join('')}</tbody></table></div></div>`}).join('')||'<div class="debt-search-note">Chưa có đơn tổng nào mang tên nhân viên giao hàng này.</div>';
+  const body=document.getElementById('driverDebtBody'); if(body)body.innerHTML=Object.values(map).map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right"><b class="debt-money-unpaid">${money(r.debt)}</b></td><td><button class="btn small light" onclick="page('debts');debtFilterCustomerCode.value='${safeAttr(r.code)}';openDebtSearchResults()">Xem chi tiết</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Không có công nợ thuộc đơn giao</td></tr>';
+}
+function cssSafeId(v){return String(v).replace(/[^a-zA-Z0-9_-]/g,'_');}
+
 function render(){
  ensureCustomersFromOrders();
  let rev=db.orders.reduce((a,o)=>a+Number(o.total||0),0), cost=db.orders.reduce((a,o)=>a+Number(o.cost||0),0), low=db.products.filter(p=>Number(p.qty||0)<Number(p.pack||1));
@@ -1155,7 +1356,7 @@ function render(){
  renderSaleAutocompleteOptions();
  receiveBody.innerHTML=filteredReceipts().reverse().map(x=>`<tr><td class="center"><input type="checkbox" class="receipt-delete-check" value="${x.i}"></td><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="9" class="center muted">Chưa có phiếu nhập phù hợp</td></tr>';
  ordersBody.innerHTML=filteredOrders().slice().reverse().map(o=>{let merged=!!o.masterId;let cCode=orderCustomerCode(o);let pay=orderPaymentInfo(o);let pill=orderPaymentPillClass(pay.status,pay.debt);return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${cCode||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(pay.total)}</td><td class="right">${money(pay.paid)}</td><td class="right"><b class="${pay.debt>0?'debt-money-unpaid':(pay.debt<0?'debt-money-overpaid':'debt-money-paid')}">${money(pay.debt)}</b></td><td><span class="pill ${pill}">${pay.status}</span>${o.dueDate?`<div class="muted" style="font-size:12px;margin-top:4px">Hạn: ${o.dueDate}</div>`:''}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="13" class="center muted">Chưa có đơn hàng phù hợp</td></tr>';
- customerBody.innerHTML=db.customers.map(c=>{const cd=customerDebtSummary(c.code,c.name);const debtCls=cd.debt>0?'debt-money-unpaid':(cd.debt<0?'debt-money-overpaid':'debt-money-paid');return `<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td><a class="customer-debt-link" onclick="openCustomerDebtList('${safeAttr(c.code)}','${safeAttr(c.name)}')">${c.code}</a></td><td><a class="customer-debt-link" onclick="openCustomerDebtList('${safeAttr(c.code)}','${safeAttr(c.name)}')">${c.name}</a></td><td class="right"><a class="customer-debt-link ${debtCls}" onclick="openCustomerDebtList('${safeAttr(c.code)}','${safeAttr(c.name)}')">${money(cd.debt)}</a></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td>${c.customerGroup||''}</td><td><button class="btn small light" onclick="editCustomer('${safeAttr(c.code)}')">Sửa</button> <button class="btn small green" onclick="openCustomerDebtList('${safeAttr(c.code)}','${safeAttr(c.name)}')">Công nợ</button> <button class="btn small red" onclick="delCustomer('${safeAttr(c.code)}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="9" class="center muted">Chưa có khách hàng</td></tr>';
+ customerBody.innerHTML=db.customers.map(c=>`<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td>${c.customerGroup||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khách hàng</td></tr>';
  staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td class="center"><input type="checkbox" class="staff-delete-check" value="${i}"></td><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Chưa có nhân viên</td></tr>';
  populateDeliveryStaffSelects();
  const sr=buildStaffReportRows(); if(document.getElementById('staffReportBody')) staffReportBody.innerHTML=sr.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right">${r.lines}</td><td class="right">${money(r.revenue)}</td><td class="right">${money(r.cost)}</td><td class="right"><b>${money(r.profit)}</b></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu bán hàng theo nhân viên</td></tr>';
@@ -1163,10 +1364,10 @@ function render(){
  if(document.getElementById('mergeOrderBody')) renderMergeOrders();
  if(document.getElementById('masterOrdersBody')) renderMasterOrders();
  if(document.getElementById('deliveryStaffBody')) renderDeliveryStaff();
- updatePayCustomerDebtPreview();
  if(document.getElementById('debtBody')) renderDebtReports();
  if(document.getElementById('productCatalogBody')) renderProductCatalog();
  if(document.getElementById('promotionBody')) renderPromotions();
+ renderSalesApp(); renderDeliveryApp();
  renderCart(); renderReceiveCart();
 }
 function saveProduct(){let sku=pSku.value.trim(); if(!sku||!pName.value.trim())return toast('Thiếu SKU hoặc tên sản phẩm'); let old=findProduct(sku); let data={sku,name:pName.value.trim(),brand:pBrand?.value||'',category:pCategory?.value||'',warehouse:pWarehouse?.value||'Kho chính',pack:Number(pPack.value)||1,sale:Number(pSale.value)||0}; if(!old){db.products.push({...data,qty:0,cost:0})} else {old.name=data.name;old.brand=data.brand;old.category=data.category;old.warehouse=data.warehouse;old.pack=data.pack;old.sale=data.sale} ['pSku','pName','pBrand','pCategory','pWarehouse','pSale'].forEach(id=>{let el=document.getElementById(id);if(el)el.value=''});pPack.value=12;save();render();toast('Đã lưu sản phẩm')}
@@ -1936,57 +2137,12 @@ async function payOrderRealtime(orderId, rowIndex){
   }
 }
 
-
-function customerDebtSummary(code,name){
-  const nc=normText(code||'');
-  const nn=normText(name||'');
-  let rows=(typeof debtRows==='function'?debtRows():[]).filter(r=>{
-    const rc=normText(r.customerCode||'');
-    const rn=normText(r.customer||r.customerName||'');
-    if(nc && rc===nc) return true;
-    if(nc && rc.includes(nc)) return true;
-    if(nn && rn===nn) return true;
-    return false;
-  });
-  const total=rows.reduce((a,r)=>a+Number(r.total||0),0);
-  const paid=rows.reduce((a,r)=>a+(Number(r.cash||0)+Number(r.bank||0)),0);
-  const debt=rows.reduce((a,r)=>a+Number(r.debt||0),0);
-  return {total,paid,debt,orders:rows.length,rows};
-}
-function updatePayCustomerDebtPreview(){
-  const box=document.getElementById('payCustomerDebtPreview');
-  if(!box) return;
-  const code=document.getElementById('debtPayCustomerCode')?.value||'';
-  const name=document.getElementById('debtPayCustomerName')?.value||'';
-  if(!String(code+name).trim()){
-    box.innerHTML='<span>Nhập/chọn khách hàng để xem công nợ hiện tại</span><b>0</b>';
-    return;
-  }
-  const s=customerDebtSummary(code,name);
-  const cls=s.debt>0?'':'ok';
-  box.innerHTML=`<span>${s.orders} đơn · Giá trị ${money(s.total)} · Đã thu ${money(s.paid)}</span><b class="${cls}">Công nợ: ${money(s.debt)}</b>`;
-}
-function openCustomerDebtList(code,name){
-  const codeEl=document.getElementById('debtFilterCustomerCode');
-  const nameEl=document.getElementById('debtFilterCustomerName');
-  if(codeEl) codeEl.value=code||'';
-  if(nameEl) nameEl.value=name||'';
-  page('debts');
-  setTimeout(()=>openDebtSearchResults(),80);
-}
-function openPayCustomerDebtList(){
-  const code=document.getElementById('debtPayCustomerCode')?.value||'';
-  const name=document.getElementById('debtPayCustomerName')?.value||'';
-  if(!String(code+name).trim()) return toast('Nhập mã hoặc tên khách hàng để xem công nợ');
-  openCustomerDebtList(code,name);
-}
 function fillPayCustomerFromDebtFilter(){
   const code=document.getElementById('debtFilterCustomerCode')?.value||'';
   const name=document.getElementById('debtFilterCustomerName')?.value||'';
   if(document.getElementById('debtPayCustomerCode')) debtPayCustomerCode.value=code;
   if(document.getElementById('debtPayCustomerName')) debtPayCustomerName.value=name;
   if(!code && !name) toast('Bạn chưa nhập mã hoặc tên khách ở bộ lọc công nợ');
-  updatePayCustomerDebtPreview();
 }
 function orderDebtRemaining(o){
   const total=Number(o?.total||0)||0;
@@ -2015,7 +2171,10 @@ function addPaymentHistoryForOrder(order, amount, type, note){
     cash:type==='cash'?Number(amount)||0:0,
     bank:type==='bank'?Number(amount)||0:0,
     total:Number(amount)||0,
-    note:note||'Thu công nợ khách hàng'
+    note:note||'Thu công nợ khách hàng',
+    collectedByCode: currentUserCode(),
+    collectedByName: currentUserDisplayName(),
+    collectedByRole: currentRole()
   });
 }
 function applyCustomerPaymentToOrders(orders, cashAmount, bankAmount, note){
@@ -2087,7 +2246,6 @@ function payCustomerDebt(){
 
   if(document.getElementById('debtPayCash')) debtPayCash.value=0;
   if(document.getElementById('debtPayBank')) debtPayBank.value=0;
-  updatePayCustomerDebtPreview();
 
   const left=result.cashLeft+result.bankLeft;
   let msg='Đã thu '+money(result.paidTotal)+' / công nợ trước thu '+money(beforeDebt);
@@ -2227,11 +2385,11 @@ function renderPaymentHistoryAll(){
   const body=document.getElementById('paymentHistoryBody');
   if(!body)return;
   const rows=(db.payments||[]).slice().reverse();
-  body.innerHTML=rows.map(p=>`<tr><td>${paymentDateText(p.date)}</td><td><b>${p.orderId||''}</b><div class="muted" style="font-size:12px">${paymentReceiptNo(p)||''}</div></td><td>${p.customerCode||''}</td><td>${p.customerName||''}</td><td>${paymentMethodText(p)}</td><td class="right"><b>${money(paymentAmount(p))}</b></td><td>${p.note||''}</td><td><button class="btn small light" onclick="printPaymentReceipt('${safeAttr(p.id)}')">In phiếu thu</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có lịch sử thu tiền</td></tr>';
+  body.innerHTML=rows.map(p=>`<tr><td>${paymentDateText(p.date)}</td><td><b>${p.orderId||''}</b><div class="muted" style="font-size:12px">${paymentReceiptNo(p)||''}</div></td><td>${p.customerCode||''}</td><td>${p.customerName||''}</td><td>${paymentMethodText(p)}</td><td class="right"><b>${money(paymentAmount(p))}</b></td><td>${p.note||''}<div class="muted" style="font-size:12px">Người thu: ${p.collectedByName||''}</div></td><td><button class="btn small light" onclick="printPaymentReceipt('${safeAttr(p.id)}')">In phiếu thu</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có lịch sử thu tiền</td></tr>';
 }
 function clearDebtFilters(){['debtFilterDelivery','debtFilterCustomerCode','debtFilterCustomerName','debtOverDays'].forEach(id=>{let e=document.getElementById(id); if(e)e.value='';}); renderDebtReports();}
 function exportDebtReport(){let rows=filteredDebtRows().map(r=>({'Nhân viên giao hàng':r.delivery,'Đơn hàng':r.orderId,'Mã khách hàng':r.customerCode,'Tên khách hàng':r.customer,'Giá trị đơn hàng':r.total,'Tiền mặt thanh toán':r.cash,'Tiền chuyển khoản':r.bank,'Đã thu':r.paid,'Công nợ':r.debt,'Trạng thái':r.status,'Ngày bán':r.date,'Hạn thanh toán':r.dueDate,'Quá hạn ngày':r.age})); if(!rows.length)return toast('Không có dữ liệu công nợ để xuất'); downloadExcel(rows,'bao_cao_cong_no.xlsx');}
-function exportPaymentHistory(){let rows=(db.payments||[]).map(p=>({'Số phiếu':paymentReceiptNo(p),'Ngày thu':paymentDateText(p.date),'Đơn hàng':p.orderId||'','Mã khách hàng':p.customerCode||'','Tên khách hàng':p.customerName||'','Hình thức':paymentMethodText(p),'Số tiền':paymentAmount(p),'Ghi chú':p.note||''})); if(!rows.length)return toast('Chưa có lịch sử thu tiền để xuất'); downloadExcel(rows,'lich_su_thu_tien.xlsx');}
+function exportPaymentHistory(){let rows=(db.payments||[]).map(p=>({'Số phiếu':paymentReceiptNo(p),'Ngày thu':paymentDateText(p.date),'Đơn hàng':p.orderId||'','Mã khách hàng':p.customerCode||'','Tên khách hàng':p.customerName||'','Hình thức':paymentMethodText(p),'Số tiền':paymentAmount(p),'Ghi chú':p.note||'','Người thu':p.collectedByName||'','Vai trò thu':p.collectedByRole||''})); if(!rows.length)return toast('Chưa có lịch sử thu tiền để xuất'); downloadExcel(rows,'lich_su_thu_tien.xlsx');}
 
 
 function numberToVietnameseWords(num){
