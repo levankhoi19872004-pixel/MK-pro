@@ -1920,7 +1920,7 @@ function invoiceHtmlForOrder(o){
 
       <table class="main-inv-table">
         <colgroup>
-          <col style="width:4%"><col style="width:8%"><col style="width:36%"><col style="width:7%"><col style="width:6%"><col style="width:9%"><col style="width:10%"><col style="width:9%"><col style="width:8%"><col style="width:10%">
+          <col style="width:3.8%"><col style="width:7.7%"><col style="width:37%"><col style="width:6.4%"><col style="width:5.7%"><col style="width:8.7%"><col style="width:9.6%"><col style="width:8.6%"><col style="width:8%"><col style="width:10.5%">
         </colgroup>
         <thead>
           <tr>
@@ -1975,25 +1975,27 @@ function invoiceHtmlForOrder(o){
   }
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Phiếu giao nhận ${invoiceNo}</title><style>
-    @page{size:A4 portrait;margin:8mm 7mm 8mm 7mm}
+    @page{size:A4 portrait;margin:6mm 6mm 6mm 6mm}
     *{box-sizing:border-box}
-    body{font-family:Arial,'Times New Roman',sans-serif;color:#000;margin:0;background:#fff;font-size:10.2px;line-height:1.24}
+    body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0;background:#fff;font-size:9.6px;line-height:1.18}
     .print-btn{position:fixed;top:8px;right:8px;z-index:9;background:#2563eb;color:#fff;border:0;border-radius:6px;padding:8px 12px;font-weight:700}
-    .invoice-page{width:100%;min-height:281mm;page-break-after:always;padding:0 0 3mm 0}
+    .invoice-page{width:198mm;min-height:285mm;margin:0 auto;page-break-after:always;padding:0 0 2mm 0;background:#fff}
     .invoice-page:last-child{page-break-after:auto}
-    .inv-head{display:grid;grid-template-columns:32% 36% 32%;align-items:start;margin:2mm 0 2.5mm}
-    .inv-title{text-align:center;font-size:12px;font-weight:800;text-transform:uppercase;padding-top:1mm}
-    .inv-copy{text-align:right;font-weight:700;font-size:10.2px}.copy-line{margin-top:3mm}
-    .inv-info{display:grid;grid-template-columns:32% 21% 47%;gap:0;margin-bottom:14mm;min-height:35mm}
-    .inv-info p{margin:0 0 2.3mm 0}.info-mid{text-align:left;padding-top:0}.info-right{padding-left:3mm}
-    table{width:100%;border-collapse:collapse;table-layout:fixed}.main-inv-table{margin-top:0}
-    th,td{border:1px dashed rgba(0,0,0,.38);padding:2.2px 3px;vertical-align:middle;word-wrap:break-word}
-    th{font-weight:800;text-align:center}.main-inv-table th{font-size:9.5px;line-height:1.13}.main-inv-table td{font-size:10px;line-height:1.16}
-    .code-row th{font-size:9.5px;padding:2px}.prod{font-size:9.8px}.c{text-align:center}.r{text-align:right}.b{font-weight:800}.total-row td{font-weight:800}
-    .inv-summary{display:grid;grid-template-columns:48% 52%;margin-top:1mm}.amount-words{padding:11mm 4mm 0 2mm;line-height:1.25}.calc-box{font-size:10.2px}.calc-box div{display:grid;grid-template-columns:72% 28%;gap:2mm;padding:2.2mm 0}.calc-box div span:last-child,.calc-box div b:last-child{text-align:right}.pay-row{font-size:12px}.pay-row b:last-child{font-size:15px}
-    .sign-row{display:grid;grid-template-columns:repeat(4,1fr);border:1px dashed rgba(0,0,0,.38);margin-top:5mm;height:22mm}.sign-row div{text-align:center;font-weight:800;border-right:1px dashed rgba(0,0,0,.38);padding-top:1.5mm}.sign-row div:last-child{border-right:0}.sign-row span{font-weight:700}
-    .promo-title{font-weight:800;text-decoration:underline;margin:9mm 0 3mm 2mm}.promo-table th{font-size:10px}.promo-table td{font-size:9.6px;line-height:1.16;padding:3px}.promo-table tfoot td{font-size:10px}
-    @media print{.print-btn{display:none}.invoice-page{min-height:auto}}
+    .inv-head{display:grid;grid-template-columns:33% 34% 33%;align-items:start;margin:0 0 3mm 0;height:11mm}
+    .inv-title{text-align:center;font-size:11.5px;font-weight:800;text-transform:uppercase;padding-top:2.2mm;letter-spacing:.1px}
+    .inv-copy{text-align:right;font-weight:700;font-size:9.8px;line-height:1.25}.copy-line{margin-top:2.2mm}
+    .inv-info{display:grid;grid-template-columns:33% 21% 46%;gap:0;margin-bottom:18mm;min-height:38mm}
+    .inv-info p{margin:0 0 2.1mm 0;white-space:normal}.info-left{padding-left:0}.info-mid{text-align:left;padding-top:12.5mm}.info-right{padding-left:2mm;padding-top:12.5mm}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}.main-inv-table{margin-top:0;border:1px solid #111}
+    th,td{border:1px solid #111;padding:2.1px 3px;vertical-align:middle;word-wrap:break-word}
+    th{font-weight:800;text-align:center}.main-inv-table th{font-size:9.3px;line-height:1.12}.main-inv-table td{font-size:9.6px;line-height:1.13}
+    .main-inv-table tbody tr:not(.total-row) td{border-top:1px dotted #777;border-bottom:1px dotted #777}
+    .main-inv-table tbody tr:first-child td{border-top:1px solid #111}.main-inv-table tbody tr.total-row td{border-top:1px solid #111;border-bottom:1px solid #111;font-weight:800}
+    .code-row th{font-size:9.2px;padding:1.8px}.prod{font-size:9.5px}.c{text-align:center}.r{text-align:right}.b{font-weight:800}.total-row td{font-weight:800}
+    .inv-summary{display:grid;grid-template-columns:48% 52%;margin-top:1mm}.amount-words{padding:10.5mm 3mm 0 1.5mm;line-height:1.2}.calc-box{font-size:9.8px}.calc-box div{display:grid;grid-template-columns:72% 28%;gap:2mm;padding:2.05mm 0}.calc-box div span:last-child,.calc-box div b:last-child{text-align:right}.pay-row{font-size:11.5px}.pay-row b:last-child{font-size:14px}
+    .sign-row{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #111;margin-top:3.8mm;height:22mm}.sign-row div{text-align:center;font-weight:800;border-right:1px solid #111;padding-top:1.4mm}.sign-row div:last-child{border-right:0}.sign-row span{font-weight:700}
+    .promo-title{font-weight:800;text-decoration:underline;margin:8mm 0 3mm .6mm}.promo-table{border:1px solid #111}.promo-table th{font-size:9.6px;line-height:1.12}.promo-table td{font-size:9.2px;line-height:1.13;padding:2.6px 3px}.promo-table tfoot td{font-size:9.6px;border-top:1px solid #111}.promo-explain{display:none}
+    @media print{.print-btn{display:none}.invoice-page{min-height:auto;margin:0;width:198mm}}
   </style></head><body><button class="print-btn" onclick="window.print()">In / Lưu PDF</button>${pageHtml('Liên 1')}${pageHtml('Liên 2')}<script>window.onload=function(){setTimeout(()=>window.print(),350)}<\/script></body></html>`;
 }
 
