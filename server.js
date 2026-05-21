@@ -24,6 +24,7 @@ function defaultData() {
     customerGroups: [],
     staff: [],
     deliveryStaff: [],
+    users: [],
     receipts: [],
     masterOrders: [],
     debts: [],
@@ -49,6 +50,241 @@ function normalizeData(data) {
   return base;
 }
 
+const users = [
+  { username: 'admin', password: '123456', role: 'admin', name: 'Admin' },
+  { username: 'bh01', password: '123456', role: 'sales', name: 'Nhân viên bán hàng 01', staffCode: 'NV01' },
+  { username: 'bh02', password: '123456', role: 'sales', name: 'Nhân viên bán hàng 02', staffCode: 'NV02' },
+  { username: 'gh01', password: '123456', role: 'delivery', name: 'Nhân viên giao hàng 01', deliveryCode: 'GH01' },
+  { username: 'gh02', password: '123456', role: 'delivery', name: 'Nhân viên giao hàng 02', deliveryCode: 'GH02' },
+  { username: 'kt01', password: '123456', role: 'accountant', name: 'Kế toán công nợ' },
+  { username: 'nv01', password: '123456', role: 'staff', name: 'Nhân viên 01', staffCode: 'NV01' }
+];
+
+function accountUsernameFromCode(code) {
+  return String(code || '').trim().toLowerCase();
+}
+
+function normText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function sameCode(a, b) {
+  return normText(a) === normText(b);
+}
+
+function staffCode(item, index) {
+  return item.code || item.ma || item.staffCode || ('NV' + String(index + 1).padStart(3, '0'));
+}
+
+function staffName(item) {
+  return item.name || item.ten || '';
+}
+
+function deliveryCode(item, index) {
+  return item.code || item.ma || item.deliveryCode || ('GH' + String(index + 1).padStart(3, '0'));
+}
+
+function deliveryName(item) {
+  return item.name || item.ten || '';
+}
+
+function normalizeLoginUser(user) {
+  const role = String(user.role || 'sales').toLowerCase();
+  const code = String(user.code || user.staffCode || user.deliveryCode || '').trim();
+
+  return {
+    username: String(user.username || accountUsernameFromCode(code)).trim(),
+    password: String(user.password || '123456').trim() || '123456',
+    role,
+    name: String(user.name || '').trim(),
+    code,
+    staffCode: role === 'sales' || role === 'staff' ? String(user.staffCode || code).trim() : '',
+    deliveryCode: role === 'delivery' ? String(user.deliveryCode || code).trim() : '',
+    phone: String(user.phone || user.sdt || '').trim(),
+    active: user.active !== false
+  };
+}
+
+function buildLoginUsers(data) {
+  const map = new Map();
+
+  function add(user) {
+    const fixed = normalizeLoginUser(user);
+    if (!fixed.username || !fixed.active) return;
+    map.set(normText(fixed.username), fixed);
+  }
+
+  users.forEach(add);
+  (data.users || []).forEach(add);
+
+  (data.staff || []).forEach((item, index) => {
+    const code = staffCode(item, index);
+    add({
+      username: item.username || accountUsernameFromCode(code),
+      password: item.password || '123456',
+      role: item.role || 'sales',
+      name: staffName(item),
+      code,
+      staffCode: code,
+      phone: item.phone || item.sdt || '',
+      active: item.active !== false
+    });
+  });
+
+  (data.deliveryStaff || []).forEach((item, index) => {
+    const code = deliveryCode(item, index);
+    add({
+      username: item.username || accountUsernameFromCode(code),
+      password: item.password || '123456',
+      role: item.role || 'delivery',
+      name: deliveryName(item),
+      code,
+      deliveryCode: code,
+      phone: item.phone || item.sdt || '',
+      active: item.active !== false
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function syncAccountsToStaff(data) {
+  data.users = Array.isArray(data.users) ? data.users : [];
+  data.staff = Array.isArray(data.staff) ? data.staff : [];
+  data.deliveryStaff = Array.isArray(data.deliveryStaff) ? data.deliveryStaff : [];
+
+  data.users = data.users
+    .map(user => normalizeLoginUser(user))
+    .filter(user => user.username);
+
+  data.users.forEach(user => {
+    const role = String(user.role || '').toLowerCase();
+    const code = String(user.code || user.staffCode || user.deliveryCode || user.username || '').trim();
+
+    if (!code) return;
+
+    if (role === 'sales' || role === 'staff') {
+      const found = data.staff.find(item => sameCode(item.code || item.ma || item.staffCode, code));
+
+      if (found) {
+        found.code = found.code || found.ma || found.staffCode || code;
+        found.staffCode = found.staffCode || found.code || code;
+        found.name = found.name || found.ten || user.name || '';
+        found.phone = found.phone || found.sdt || user.phone || '';
+        found.username = found.username || user.username;
+        found.password = found.password || user.password || '123456';
+        found.role = found.role || 'sales';
+        if (found.active === undefined) found.active = true;
+      } else {
+        data.staff.push({
+          code,
+          staffCode: code,
+          name: user.name || '',
+          phone: user.phone || '',
+          username: user.username || accountUsernameFromCode(code),
+          password: user.password || '123456',
+          role: 'sales',
+          active: true
+        });
+      }
+    }
+
+    if (role === 'delivery') {
+      const found = data.deliveryStaff.find(item => sameCode(item.code || item.ma || item.deliveryCode, code));
+
+      if (found) {
+        found.code = found.code || found.ma || found.deliveryCode || code;
+        found.deliveryCode = found.deliveryCode || found.code || code;
+        found.name = found.name || found.ten || user.name || '';
+        found.phone = found.phone || found.sdt || user.phone || '';
+        found.username = found.username || user.username;
+        found.password = found.password || user.password || '123456';
+        found.role = found.role || 'delivery';
+        if (found.active === undefined) found.active = true;
+      } else {
+        data.deliveryStaff.push({
+          code,
+          deliveryCode: code,
+          name: user.name || '',
+          phone: user.phone || '',
+          username: user.username || accountUsernameFromCode(code),
+          password: user.password || '123456',
+          role: 'delivery',
+          active: true
+        });
+      }
+    }
+  });
+
+  data.staff.forEach((item, index) => {
+    const code = String(staffCode(item, index)).trim();
+    if (!code) return;
+
+    const exists = data.users.some(user =>
+      sameCode(user.username, item.username || accountUsernameFromCode(code)) ||
+      sameCode(user.code || user.staffCode, code)
+    );
+
+    if (!exists) {
+      data.users.push(normalizeLoginUser({
+        username: item.username || accountUsernameFromCode(code),
+        password: item.password || '123456',
+        role: item.role || 'sales',
+        name: staffName(item),
+        code,
+        staffCode: code,
+        phone: item.phone || item.sdt || '',
+        active: item.active !== false
+      }));
+    }
+  });
+
+  data.deliveryStaff.forEach((item, index) => {
+    const code = String(deliveryCode(item, index)).trim();
+    if (!code) return;
+
+    const exists = data.users.some(user =>
+      sameCode(user.username, item.username || accountUsernameFromCode(code)) ||
+      sameCode(user.code || user.deliveryCode, code)
+    );
+
+    if (!exists) {
+      data.users.push(normalizeLoginUser({
+        username: item.username || accountUsernameFromCode(code),
+        password: item.password || '123456',
+        role: item.role || 'delivery',
+        name: deliveryName(item),
+        code,
+        deliveryCode: code,
+        phone: item.phone || item.sdt || '',
+        active: item.active !== false
+      }));
+    }
+  });
+
+  const uniqueUsers = new Map();
+
+  data.users.forEach(user => {
+    const fixed = normalizeLoginUser(user);
+    if (!fixed.username) return;
+    uniqueUsers.set(normText(fixed.username), fixed);
+  });
+
+  data.users = Array.from(uniqueUsers.values());
+
+  return data;
+}
+
+async function readKhoData() {
+  const result = await pool.query(`SELECT data FROM kho_data ORDER BY id ASC LIMIT 1`);
+  if (result.rows.length === 0) return defaultData();
+  return normalizeData(result.rows[0].data);
+}
+
 async function initDB() {
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ Chưa có DATABASE_URL');
@@ -65,13 +301,11 @@ async function initDB() {
   const check = await pool.query(`SELECT id, data FROM kho_data ORDER BY id ASC LIMIT 1`);
 
   if (check.rows.length === 0) {
-    await pool.query(
-      `INSERT INTO kho_data (data) VALUES ($1)`,
-      [JSON.stringify(defaultData())]
-    );
+    await pool.query(`INSERT INTO kho_data (data) VALUES ($1)`, [JSON.stringify(defaultData())]);
   } else {
     const fixed = normalizeData(check.rows[0].data);
 
+    syncAccountsToStaff(fixed);
     fixed.masterOrders = rebuildMasterOrders(fixed.orders, fixed.masterOrders);
     fixed.debts = rebuildDebts(fixed);
 
@@ -83,56 +317,6 @@ async function initDB() {
 
   console.log('✅ DB READY');
 }
-
-const users = [
-  {
-    username: 'admin',
-    password: '123456',
-    role: 'admin',
-    name: 'Admin'
-  },
-  {
-    username: 'bh01',
-    password: '123456',
-    role: 'sales',
-    name: 'Nhân viên bán hàng 01',
-    staffCode: 'NV01'
-  },
-  {
-    username: 'bh02',
-    password: '123456',
-    role: 'sales',
-    name: 'Nhân viên bán hàng 02',
-    staffCode: 'NV02'
-  },
-  {
-    username: 'gh01',
-    password: '123456',
-    role: 'delivery',
-    name: 'Nhân viên giao hàng 01',
-    deliveryCode: 'GH01'
-  },
-  {
-    username: 'gh02',
-    password: '123456',
-    role: 'delivery',
-    name: 'Nhân viên giao hàng 02',
-    deliveryCode: 'GH02'
-  },
-  {
-    username: 'kt01',
-    password: '123456',
-    role: 'accountant',
-    name: 'Kế toán công nợ'
-  },
-  {
-    username: 'nv01',
-    password: '123456',
-    role: 'staff',
-    name: 'Nhân viên 01',
-    staffCode: 'NV01'
-  }
-];
 
 app.get('/', (req, res) => {
   res.json({
@@ -166,31 +350,45 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body || {};
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const data = await readKhoData();
+    syncAccountsToStaff(data);
 
-  const user = users.find(
-    u => u.username === username && u.password === password
-  );
+    const loginUsers = buildLoginUsers(data);
 
-  if (!user) {
-    return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
+    const user = loginUsers.find(
+      u => normText(u.username) === normText(username) && String(u.password) === String(password)
+    );
+
+    if (!user) {
+      return res.status(401).json({ error: 'Sai tài khoản hoặc mật khẩu' });
+    }
+
+    const safeUser = {
+      username: user.username,
+      role: user.role,
+      name: user.name,
+      code: user.code || user.staffCode || user.deliveryCode || '',
+      staffCode: user.staffCode || '',
+      deliveryCode: user.deliveryCode || '',
+      phone: user.phone || ''
+    };
+
+    const token = jwt.sign(safeUser, SECRET, { expiresIn: '7d' });
+
+    res.json({
+      token,
+      user: safeUser
+    });
+  } catch (err) {
+    console.error('POST /api/login error:', err);
+    res.status(500).json({
+      error: 'Không đăng nhập được',
+      detail: err.message
+    });
   }
-
-  const safeUser = {
-    username: user.username,
-    role: user.role,
-    name: user.name,
-    staffCode: user.staffCode || '',
-    deliveryCode: user.deliveryCode || ''
-  };
-
-  const token = jwt.sign(safeUser, SECRET, { expiresIn: '7d' });
-
-  res.json({
-    token,
-    user: safeUser
-  });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -412,6 +610,8 @@ app.get('/api/data', auth, async (req, res) => {
     }
 
     const data = normalizeData(result.rows[0].data);
+
+    syncAccountsToStaff(data);
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
     data.debts = rebuildDebts(data);
 
@@ -429,6 +629,7 @@ app.post('/api/data', auth, async (req, res) => {
   try {
     const data = normalizeData(req.body);
 
+    syncAccountsToStaff(data);
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
     data.payments = rebuildPaymentsFromOrders(data);
     data.debts = rebuildDebts(data);
@@ -477,7 +678,6 @@ app.post('/api/pay-order', auth, async (req, res) => {
 
     const dbId = result.rows[0].id;
     const data = normalizeData(result.rows[0].data);
-
     const order = data.orders.find(o => String(o.id) === String(orderId));
 
     if (!order) {
@@ -489,7 +689,6 @@ app.post('/api/pay-order', auth, async (req, res) => {
 
     if (amount !== undefined && amount !== null && amount !== '') {
       const payAmount = Number(amount) || 0;
-
       if (type === 'bank' || type === 'Chuyển khoản') {
         order.bankPaid = oldBank + payAmount;
       } else {
@@ -512,12 +711,12 @@ app.post('/api/pay-order', auth, async (req, res) => {
 
     const total = Number(order.total) || 0;
     const paid = getOrderPaid(order);
+
     order.debt = total - paid;
     order.paymentStatus = getDebtStatus(total, paid, order.dueDate || '');
 
     const newCash = Number(order.cashPaid) || 0;
     const newBank = Number(order.bankPaid) || 0;
-
     const cashDelta = newCash - oldCash;
     const bankDelta = newBank - oldBank;
 
@@ -558,10 +757,10 @@ app.post('/api/pay-order', auth, async (req, res) => {
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
     data.debts = rebuildDebts(data);
 
-    await pool.query(
-      `UPDATE kho_data SET data=$1 WHERE id=$2`,
-      [JSON.stringify(data), dbId]
-    );
+    await pool.query(`UPDATE kho_data SET data=$1 WHERE id=$2`, [
+      JSON.stringify(data),
+      dbId
+    ]);
 
     res.json({
       success: true,
@@ -616,13 +815,8 @@ app.get('/api/debt-report', auth, async (req, res) => {
       const staffKey = debt.deliveryStaff || 'Chưa gán NV giao';
       const customerKey = debt.customerCode || debt.customerName || 'Chưa có khách';
 
-      if (!report.byStaff[staffKey]) {
-        report.byStaff[staffKey] = 0;
-      }
-
-      if (!report.byCustomer[customerKey]) {
-        report.byCustomer[customerKey] = 0;
-      }
+      if (!report.byStaff[staffKey]) report.byStaff[staffKey] = 0;
+      if (!report.byCustomer[customerKey]) report.byCustomer[customerKey] = 0;
 
       if (Number(debt.debt) > 0) {
         report.totalDebt += Number(debt.debt) || 0;
@@ -642,10 +836,7 @@ app.get('/api/debt-report', auth, async (req, res) => {
           days = Math.floor((Date.now() - due.getTime()) / 86400000);
         }
 
-        report.overdue.push({
-          ...debt,
-          days
-        });
+        report.overdue.push({ ...debt, days });
       }
     });
 
@@ -674,6 +865,7 @@ app.get('/api/debt-report', auth, async (req, res) => {
       }
 
       const amount = Number(payment.amount) || 0;
+
       report.byCollector[collectorKey] += amount;
       report.paymentsByCollector[collectorKey].total += amount;
       report.paymentsByCollector[collectorKey].count += 1;

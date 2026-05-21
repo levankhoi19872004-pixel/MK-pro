@@ -310,6 +310,23 @@
   body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box{display:block!important}
 }
 
+
+/* ===== V15: tài khoản theo mã NV + mobile app bán hàng to rõ ===== */
+.account-badge{display:inline-block;background:#f8fafc;border:1px solid #dbe4f0;border-radius:12px;padding:7px 9px;margin-right:6px;line-height:1.45}
+.account-badge b{color:#0f172a}
+.account-badge span{color:#475467;font-size:12px}
+@media(max-width:780px){
+  html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
+  body.mobile-role-app .main,body.mobile-role-app .content,body.mobile-role-app .section.active{width:100vw!important;max-width:100vw!important}
+  body.mobile-role-app #salesApp .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesApp table.sales-product-table{display:block!important;width:100%!important;min-width:0!important}
+  body.mobile-role-app #salesApp table.sales-product-table tbody{display:block!important;width:100%!important}
+  body.mobile-role-app #salesApp table.sales-product-table tr{display:block!important;width:100%!important}
+  body.mobile-role-app #salesApp table.sales-product-table td.mobile-product-cell{display:block!important;width:100%!important}
+  body.mobile-role-app #salesProductSearch{font-size:18px!important;height:56px!important}
+  body.mobile-role-app .mobile-product-card{width:100%!important}
+}
+
 </style>
 </head>
 <body>
@@ -349,6 +366,7 @@
       <button data-page="customers">♙ Khách hàng</button>
       <button data-page="staff">♟ Nhân viên</button>
       <button data-page="deliveryStaff">🚚 Nhân viên giao hàng</button>
+      <button data-page="accounts">🔐 Tài khoản</button>
       <button data-page="debts">₫ Công nợ</button>
       <button data-page="promotions">🎁 Khuyến mại</button>
       <button data-page="reports">▥ Báo cáo</button>
@@ -676,7 +694,7 @@
   </div>
   <datalist id="customerGroupList"></datalist>
 </section>
-<section id="staff" class="section"><div class="card panel"><div class="panel-head"><h2>Nhân viên</h2><div class="toolbar"><button class="btn light" onclick="downloadStaffTemplate()">Tải mẫu NV</button><button class="btn green" onclick="document.getElementById('importStaff').click()">Import NV</button><input id="importStaff" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importStaffExcel(event)"><button class="btn red" onclick="bulkDeleteStaff()">Xóa NV đã chọn</button></div></div><div class="form"><div class="field"><label>Mã NV</label><input id="nCode" placeholder="VD: NV001"></div><div class="field"><label>Tên nhân viên</label><input id="nName"></div><div class="field"><label>SĐT</label><input id="nPhone"></div></div><br><button class="btn" onclick="saveStaff()">Lưu nhân viên</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('staff-delete-check',this.checked)"></th><th>Mã NV</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="staffBody"></tbody></table></div></div></section>
+<section id="staff" class="section"><div class="card panel"><div class="panel-head"><h2>Nhân viên</h2><div class="toolbar"><button class="btn light" onclick="downloadStaffTemplate()">Tải mẫu NV</button><button class="btn green" onclick="document.getElementById('importStaff').click()">Import NV</button><input id="importStaff" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importStaffExcel(event)"><button class="btn red" onclick="bulkDeleteStaff()">Xóa NV đã chọn</button></div></div><div class="form"><div class="field"><label>Mã NV</label><input id="nCode" placeholder="VD: NV001"></div><div class="field"><label>Tên nhân viên</label><input id="nName"></div><div class="field"><label>SĐT</label><input id="nPhone"></div></div><br><button class="btn" onclick="saveStaff()">Lưu nhân viên</button></div><div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('staff-delete-check',this.checked)"></th><th>Mã NV</th><th>Tên</th><th>SĐT</th><th>Tài khoản</th><th>Hành động</th></tr></thead><tbody id="staffBody"></tbody></table></div></div></section>
 
 
       <section id="deliveryStaff" class="section">
@@ -685,7 +703,32 @@
           <div class="form"><div class="field"><label>Mã NVGH</label><input id="dCode" placeholder="VD: GH001"></div><div class="field"><label>Tên nhân viên giao hàng</label><input id="dName"></div><div class="field"><label>SĐT</label><input id="dPhone"></div></div><br>
           <button class="btn" onclick="saveDeliveryStaff()">Lưu nhân viên giao hàng</button>
         </div>
-        <div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('delivery-delete-check',this.checked)"></th><th>Mã NVGH</th><th>Tên</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody id="deliveryStaffBody"></tbody></table></div></div>
+        <div class="card panel"><div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('delivery-delete-check',this.checked)"></th><th>Mã NVGH</th><th>Tên</th><th>SĐT</th><th>Tài khoản</th><th>Hành động</th></tr></thead><tbody id="deliveryStaffBody"></tbody></table></div></div>
+      </section>
+
+      <section id="accounts" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h2>Tạo tài khoản đăng nhập</h2>
+              <div class="muted" style="margin-top:6px">Tạo tài khoản tại đây sẽ tự đồng bộ sang danh sách Nhân viên bán hàng hoặc Nhân viên giao hàng theo vai trò. Nếu mã đã có sẵn, hệ thống sẽ cập nhật, không tạo trùng.</div>
+            </div>
+          </div>
+          <div class="form">
+            <div class="field"><label>Vai trò</label><select id="aRole" onchange="updateAccountRoleHint()"><option value="sales">Nhân viên bán hàng</option><option value="delivery">Nhân viên giao hàng</option><option value="admin">Quản trị</option></select></div>
+            <div class="field"><label>Mã nhân viên / mã giao hàng</label><input id="aCode" placeholder="VD: NV001 hoặc GH001"></div>
+            <div class="field"><label>Tên người dùng</label><input id="aName" placeholder="VD: Nguyễn Văn A"></div>
+            <div class="field"><label>SĐT</label><input id="aPhone"></div>
+            <div class="field"><label>Tài khoản đăng nhập</label><input id="aUsername" placeholder="Tự lấy theo mã nếu bỏ trống"></div>
+            <div class="field"><label>Mật khẩu</label><input id="aPassword" value="123456"></div>
+          </div><br>
+          <button class="btn green" onclick="saveAccount()">Tạo / cập nhật tài khoản</button>
+          <button class="btn light" onclick="clearAccountForm()">Nhập mới</button>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách tài khoản</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Vai trò</th><th>Mã</th><th>Họ tên</th><th>SĐT</th><th>Tài khoản</th><th>Mật khẩu</th><th>Nguồn đồng bộ</th><th>Hành động</th></tr></thead><tbody id="accountBody"></tbody></table></div>
+        </div>
       </section>
 
 
@@ -1026,7 +1069,7 @@ let API_READY=false;
 let API_SYNC_TIMER=null;
 
 function emptyDb(){
-  return {products:[],receipts:[],orders:[],customers:[],customerGroups:[],staff:[],deliveryStaff:[],masterOrders:[],debts:[],promotions:[],productPromotions:[],groupPromotions:[],customerGroupPromotions:[],productGroups:[],categoryGroups:[],shortageReports:[],payments:[]};
+  return {products:[],receipts:[],orders:[],customers:[],customerGroups:[],staff:[],deliveryStaff:[],users:[],masterOrders:[],debts:[],promotions:[],productPromotions:[],groupPromotions:[],customerGroupPromotions:[],productGroups:[],categoryGroups:[],shortageReports:[],payments:[]};
 }
 function normalizeDb(data){
   const base=emptyDb();
@@ -1226,6 +1269,7 @@ function ensureDefaultData(){
   if(!db.staff.length)db.staff.push({code:'NV001',name:'Admin',phone:''});
   if(!db.deliveryStaff.length)db.deliveryStaff.push({code:'GH001',name:'Chưa gán giao hàng',phone:''});
   db.staff.forEach((n,i)=>{if(!n.code&&!n.ma)n.code='NV'+String(i+1).padStart(3,'0'); if(!n.name&&n.ten)n.name=n.ten; if(!n.phone&&n.sdt)n.phone=n.sdt});
+  ensureStaffAccounts();
   db.products.forEach(p=>{if(!p.brand)p.brand=''; if(!p.category)p.category=''; if(!p.warehouse)p.warehouse='Kho chính';});
   localStorage.setItem(KEY,JSON.stringify(db));
   if(API_READY) scheduleApiSync();
@@ -1262,7 +1306,7 @@ function parseQtySlash(value,pack){
   return Number(s)||0;
 }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
-function page(id){if(!isAllowedPage(id)){id=defaultPageForRole();}document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));let sec=document.getElementById(id);if(sec)sec.classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));let btn=document.querySelector('#nav button[data-page="'+id+'"]');pageTitle.textContent=btn?btn.textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫🛒]/g,'').trim():'Kho Minh Khai';sidebar.classList.remove('show');updateMobileAppMode(id);render()}
+function page(id){if(!isAllowedPage(id)){id=defaultPageForRole();}document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));let sec=document.getElementById(id);if(sec)sec.classList.add('active');document.querySelectorAll('#nav button[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));let btn=document.querySelector('#nav button[data-page="'+id+'"]');pageTitle.textContent=btn?btn.textContent.replace(/[⌂▧⇩⇧☷▤♙♟▥🚚₫🛒🔐]/g,'').trim():'Kho Minh Khai';sidebar.classList.remove('show');updateMobileAppMode(id);render()}
 document.querySelectorAll('#nav button[data-page]').forEach(b=>b.onclick=()=>page(b.dataset.page));
 
 function currentActivePage(){return document.querySelector('.section.active')?.id||defaultPageForRole();}
@@ -1534,6 +1578,123 @@ function applyRoleAccess(){
   document.querySelectorAll('#nav button[data-page]').forEach(b=>{b.classList.toggle('role-hidden', !!allowed && !allowed.includes(b.dataset.page));});
   if(!isAdmin()){page(defaultPageForRole());}
 }
+function accountUsernameFromCode(code){return String(code||'').trim().toLowerCase();}
+function accountPasswordOf(item){return String(item?.password||'123456').trim()||'123456';}
+function accountRoleText(role){role=String(role||'').toLowerCase(); if(role==='admin')return 'Quản trị'; if(role==='delivery')return 'Giao hàng'; return 'Bán hàng';}
+function upsertUserAccount(acc){
+  db.users=db.users||[];
+  const username=String(acc.username||'').trim();
+  if(!username)return null;
+  let old=db.users.find(u=>String(u.username||'').toLowerCase()===username.toLowerCase());
+  const fixed={
+    username,
+    password:String(acc.password||'123456').trim()||'123456',
+    role:String(acc.role||'sales').trim()||'sales',
+    name:String(acc.name||'').trim(),
+    code:String(acc.code||acc.staffCode||acc.deliveryCode||'').trim(),
+    staffCode:String(acc.staffCode||acc.code||'').trim(),
+    deliveryCode:String(acc.deliveryCode||acc.code||'').trim(),
+    phone:String(acc.phone||acc.sdt||'').trim(),
+    active:acc.active!==false
+  };
+  if(fixed.role==='sales') fixed.deliveryCode='';
+  if(fixed.role==='delivery') fixed.staffCode='';
+  if(old)Object.assign(old,fixed); else db.users.push(fixed);
+  return old||fixed;
+}
+function syncUserToStaff(acc){
+  const role=String(acc.role||'').toLowerCase();
+  const code=String(acc.code||acc.staffCode||acc.deliveryCode||acc.username||'').trim();
+  const name=String(acc.name||acc.username||code).trim();
+  const phone=String(acc.phone||'').trim();
+  if(!code || !name)return;
+  if(role==='sales'){
+    let old=(db.staff||[]).find((x,i)=>normText(staffCode(x,i))===normText(code));
+    const data={code,name,phone,username:acc.username,password:acc.password,role:'sales'};
+    if(old)Object.assign(old,data); else db.staff.push(data);
+  }else if(role==='delivery'){
+    let old=(db.deliveryStaff||[]).find((x,i)=>normText(deliveryCode(x,i))===normText(code));
+    const data={code,name,phone,username:acc.username,password:acc.password,role:'delivery'};
+    if(old)Object.assign(old,data); else db.deliveryStaff.push(data);
+  }
+}
+function ensureStaffAccounts(){
+  db.users=db.users||[];
+  (db.staff||[]).forEach((n,i)=>{
+    const code=staffCode(n,i);
+    if(code){
+      n.code=code;
+      if(!n.username)n.username=accountUsernameFromCode(code);
+      if(!n.password)n.password='123456';
+      n.role='sales';
+      upsertUserAccount({username:n.username,password:n.password,role:'sales',name:staffName(n),code,staffCode:code,phone:n.phone||n.sdt||'',active:n.active!==false});
+    }
+  });
+  (db.deliveryStaff||[]).forEach((n,i)=>{
+    const code=deliveryCode(n,i);
+    if(code){
+      n.code=code;
+      if(!n.username)n.username=accountUsernameFromCode(code);
+      if(!n.password)n.password='123456';
+      n.role='delivery';
+      upsertUserAccount({username:n.username,password:n.password,role:'delivery',name:deliveryName(n),code,deliveryCode:code,phone:n.phone||n.sdt||'',active:n.active!==false});
+    }
+  });
+}
+function accountBadge(username,password){
+  return `<div class="account-badge"><b>TK: ${escapeHtml(username||'')}</b><br><span>MK: ${escapeHtml(password||'123456')}</span></div>`;
+}
+function copyAccount(username,password){
+  const text=`Tài khoản: ${username}\nMật khẩu: ${password}`;
+  if(navigator.clipboard) navigator.clipboard.writeText(text).then(()=>toast('Đã copy tài khoản')).catch(()=>toast(text));
+  else toast(text);
+}
+function clearAccountForm(){['aCode','aName','aPhone','aUsername'].forEach(id=>{let el=document.getElementById(id);if(el)el.value=''}); if(document.getElementById('aPassword'))aPassword.value='123456'; if(document.getElementById('aRole'))aRole.value='sales';}
+function updateAccountRoleHint(){
+  const role=document.getElementById('aRole')?.value||'sales';
+  const code=document.getElementById('aCode');
+  if(code)code.placeholder=role==='delivery'?'VD: GH001':(role==='admin'?'VD: ADMIN2':'VD: NV001');
+}
+function saveAccount(){
+  const role=(document.getElementById('aRole')?.value||'sales').trim();
+  const code=(document.getElementById('aCode')?.value||'').trim();
+  const name=(document.getElementById('aName')?.value||'').trim();
+  const phone=(document.getElementById('aPhone')?.value||'').trim();
+  const username=((document.getElementById('aUsername')?.value||'').trim() || accountUsernameFromCode(code));
+  const password=(document.getElementById('aPassword')?.value||'123456').trim()||'123456';
+  if(!username)return toast('Thiếu tài khoản đăng nhập hoặc mã nhân viên');
+  if(role!=='admin' && (!code||!name))return toast('Nhập đủ mã và tên nhân viên');
+  const acc=upsertUserAccount({username,password,role,name:name||username,code,staffCode:role==='sales'?code:'',deliveryCode:role==='delivery'?code:'',phone,active:true});
+  syncUserToStaff(acc);
+  clearAccountForm();
+  save(); render();
+  toast(role==='delivery'?'Đã tạo tài khoản và đồng bộ sang nhân viên giao hàng':(role==='sales'?'Đã tạo tài khoản và đồng bộ sang nhân viên bán hàng':'Đã tạo tài khoản quản trị'));
+}
+function editAccount(username){
+  const u=(db.users||[]).find(x=>String(x.username||'')===String(username)); if(!u)return;
+  if(document.getElementById('aRole'))aRole.value=u.role||'sales';
+  if(document.getElementById('aCode'))aCode.value=u.code||u.staffCode||u.deliveryCode||'';
+  if(document.getElementById('aName'))aName.value=u.name||'';
+  if(document.getElementById('aPhone'))aPhone.value=u.phone||'';
+  if(document.getElementById('aUsername'))aUsername.value=u.username||'';
+  if(document.getElementById('aPassword'))aPassword.value=u.password||'123456';
+  page('accounts');
+}
+function deleteAccount(username){
+  if(!confirm('Xóa tài khoản này? Danh sách nhân viên vẫn được giữ lại.'))return;
+  db.users=(db.users||[]).filter(u=>String(u.username||'')!==String(username));
+  save();render();toast('Đã xóa tài khoản');
+}
+function renderAccounts(){
+  if(!document.getElementById('accountBody'))return;
+  ensureStaffAccounts();
+  const rows=(db.users||[]).slice().sort((a,b)=>String(a.role).localeCompare(String(b.role))||String(a.username).localeCompare(String(b.username)));
+  accountBody.innerHTML=rows.map(u=>{
+    const code=u.code||u.staffCode||u.deliveryCode||'';
+    const source=u.role==='sales'?'NVBH':(u.role==='delivery'?'Giao hàng':'Tài khoản riêng');
+    return `<tr><td>${accountRoleText(u.role)}</td><td>${escapeHtml(code)}</td><td><b>${escapeHtml(u.name||'')}</b></td><td>${escapeHtml(u.phone||'')}</td><td>${escapeHtml(u.username||'')}</td><td>${escapeHtml(u.password||'123456')}</td><td><span class="pill">${source}</span></td><td><button class="btn small light" onclick="copyAccount('${safeAttr(u.username)}','${safeAttr(u.password||'123456')}')">Copy</button> <button class="btn small green" onclick="editAccount('${safeAttr(u.username)}')">Sửa</button> <button class="btn small red" onclick="deleteAccount('${safeAttr(u.username)}')">Xóa</button></td></tr>`;
+  }).join('')||'<tr><td colspan="8" class="center muted">Chưa có tài khoản</td></tr>';
+}
 function salesCustomerDebtInfo(code,name){
   const rows=(db.orders||[]).filter(o=>{const c=String(orderCustomerCode(o)||''); const n=normText(o.customer||''); return (code&&c===String(code)) || (!code&&name&&n.includes(normText(name)));});
   const debtRows=rows.filter(o=>orderDebtRemaining(o)>0);
@@ -1572,6 +1733,22 @@ function renderSalesProductList(){
   const body=document.getElementById('salesProductList'); if(!body)return;
   const q=normText(document.getElementById('salesProductSearch')?.value||'');
   const rows=(db.products||[]).filter(p=>!q || normText([p.sku,p.name,productBrand(p),productCategory(p)].join(' ')).includes(q));
+  const isMobile=window.innerWidth<=780 || document.body.classList.contains('mobile-role-app');
+  if(isMobile){
+    body.innerHTML=rows.map(p=>`<tr><td colspan="6" class="mobile-product-cell"><div class="mobile-product-card">
+      <div class="sku">Mã: ${escapeHtml(p.sku||'')}</div>
+      <div class="name">${escapeHtml(p.name||'')}</div>
+      <div class="meta">
+        <div><span>Giá bán</span><b>${money(p.sale)}</b></div>
+        <div><span>Tồn thực tế</span><b class="${Number(p.qty||0)<Number(p.pack||1)?'stock-warn':''}">${qtyView(p.qty,p.pack)}</b></div>
+      </div>
+      <div class="qty-grid">
+        <input id="salesQty_${cssSafeId(p.sku)}" placeholder="SL dạng 1/0" value="1/0">
+        <button class="btn green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm hàng</button>
+      </div>
+    </div></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
+    return;
+  }
   body.innerHTML=rows.map(p=>`<tr><td><b>${p.sku}</b></td><td>${p.name}</td><td class="right">${money(p.sale)}</td><td class="right"><span class="pill ${Number(p.qty||0)<Number(p.pack||1)?'low':''}">${qtyView(p.qty,p.pack)}</span></td><td><input id="salesQty_${cssSafeId(p.sku)}" placeholder="1/0" style="width:90px"></td><td><button class="btn small green" onclick="salesAddProduct('${safeAttr(p.sku)}')">Chấm</button></td></tr>`).join('')||'<tr><td colspan="6" class="center muted">Không có hàng hóa phù hợp</td></tr>';
 }
 function renderSalesCart(){
@@ -1639,6 +1816,7 @@ function cssSafeId(v){return String(v).replace(/[^a-zA-Z0-9_-]/g,'_');}
 
 function render(){
  ensureCustomersFromOrders();
+ ensureStaffAccounts();
  let rev=db.orders.reduce((a,o)=>a+Number(o.total||0),0), cost=db.orders.reduce((a,o)=>a+Number(o.cost||0),0), low=db.products.filter(p=>Number(p.qty||0)<Number(p.pack||1));
  stProducts.textContent=db.products.length;stReceive.textContent=db.receipts.length;stOrders.textContent=db.orders.length;stRevenue.textContent=money(rev);lowCount.textContent=low.length;rpRevenue.textContent=money(rev);rpCost.textContent=money(cost);rpProfit.textContent=money(rev-cost);rpLow.textContent=low.length;
  lowStockBody.innerHTML=(low.slice(0,8).map(p=>`<tr><td>${p.sku}</td><td><b>${p.name}</b></td><td>${p.pack}</td><td class="right"><span class="pill low">${qtyView(p.qty,p.pack)}</span></td></tr>`).join(''))||'<tr><td colspan="4" class="center muted">Không có hàng tồn thấp</td></tr>';
@@ -1650,13 +1828,14 @@ function render(){
  receiveBody.innerHTML=filteredReceipts().reverse().map(x=>`<tr><td class="center"><input type="checkbox" class="receipt-delete-check" value="${x.i}"></td><td><b>${x.r.id||'PN cũ'}</b></td><td>${x.r.date||''}</td><td>${x.r.supplier||''}</td><td class="center">${receiptItems(x.r).length}</td><td class="right">${receiptTotalQty(x.r)}</td><td class="right">${money(receiptTotalMoney(x.r))}</td><td>${x.r.note||''}</td><td><button class="btn small light" onclick="editReceipt(${x.i})">Sửa</button> <button class="btn small red" onclick="deleteReceipt(${x.i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="9" class="center muted">Chưa có phiếu nhập phù hợp</td></tr>';
  ordersBody.innerHTML=filteredOrders().slice().reverse().map(o=>{let merged=!!o.masterId;let cCode=orderCustomerCode(o);let pay=orderPaymentInfo(o);let pill=orderPaymentPillClass(pay.status,pay.debt);return `<tr><td class="center"><input type="checkbox" class="print-order-check" value="${escapeHtml(o.id)}"></td><td>${o.id}</td><td>${o.date}</td><td>${cCode||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(pay.total)}</td><td class="right">${money(pay.paid)}</td><td class="right"><b class="${pay.debt>0?'debt-money-unpaid':(pay.debt<0?'debt-money-overpaid':'debt-money-paid')}">${money(pay.debt)}</b></td><td><span class="pill ${pill}">${pay.status}</span>${o.dueDate?`<div class="muted" style="font-size:12px;margin-top:4px">Hạn: ${o.dueDate}</div>`:''}</td><td class="center">${(o.items||[]).length}</td><td class="center"><span class="pill ${merged?'warn':''}">${merged?'Đã gộp đơn tổng: '+o.masterId:'Chưa gộp đơn tổng'}</span></td><td><button class="btn small light" onclick="printInvoice('${o.id}')">In PDF</button> <button class="btn small green" onclick="editOrder('${o.id}')">Sửa</button> <button class="btn small red" onclick="deleteOrder('${o.id}')">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="13" class="center muted">Chưa có đơn hàng phù hợp</td></tr>';
  customerBody.innerHTML=db.customers.map(c=>`<tr><td class="center"><input type="checkbox" class="customer-delete-check" value="${safeAttr(c.code)}"></td><td>${c.code}</td><td><b>${c.name}</b></td><td>${c.address||''}</td><td>${c.phone||''}</td><td>${c.tax||''}</td><td>${c.customerGroup||''}</td><td><button class="btn small light" onclick="editCustomer('${c.code}')">Sửa</button> <button class="btn small red" onclick="delCustomer('${c.code}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có khách hàng</td></tr>';
- staffBody.innerHTML=db.staff.map((n,i)=>`<tr><td class="center"><input type="checkbox" class="staff-delete-check" value="${i}"></td><td>${staffCode(n,i)}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Chưa có nhân viên</td></tr>';
+ staffBody.innerHTML=db.staff.map((n,i)=>{const code=staffCode(n,i);const user=accountUsernameFromCode(n.username||code);const pass=accountPasswordOf(n);return `<tr><td class="center"><input type="checkbox" class="staff-delete-check" value="${i}"></td><td>${code}</td><td><b>${staffName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td>${accountBadge(user,pass)}<button class="btn small light" onclick="copyAccount('${safeAttr(user)}','${safeAttr(pass)}')">Copy</button></td><td><button class="btn small light" onclick="editStaff(${i})">Sửa</button> <button class="btn small red" onclick="delStaff(${i})">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="6" class="center muted">Chưa có nhân viên</td></tr>';
  populateDeliveryStaffSelects();
  const sr=buildStaffReportRows(); if(document.getElementById('staffReportBody')) staffReportBody.innerHTML=sr.map(r=>`<tr><td>${r.code}</td><td><b>${r.name}</b></td><td class="center">${r.orders}</td><td class="right">${r.lines}</td><td class="right">${money(r.revenue)}</td><td class="right">${money(r.cost)}</td><td class="right"><b>${money(r.profit)}</b></td></tr>`).join('')||'<tr><td colspan="7" class="center muted">Chưa có dữ liệu bán hàng theo nhân viên</td></tr>';
  if(document.getElementById('shortageReportBody')) renderShortageReports();
  if(document.getElementById('mergeOrderBody')) renderMergeOrders();
  if(document.getElementById('masterOrdersBody')) renderMasterOrders();
  if(document.getElementById('deliveryStaffBody')) renderDeliveryStaff();
+ if(document.getElementById('accountBody')) renderAccounts();
  if(document.getElementById('debtBody')) renderDebtReports();
  if(document.getElementById('productCatalogBody')) renderProductCatalog();
  if(document.getElementById('promotionBody')) renderPromotions();
@@ -2295,15 +2474,18 @@ function populateDeliveryStaffSelects(){
 let editingDeliveryStaff=null;
 function renderDeliveryStaff(){
   if(!document.getElementById('deliveryStaffBody')) return;
-  deliveryStaffBody.innerHTML=db.deliveryStaff.map((n,i)=>`<tr><td class="center"><input type="checkbox" class="delivery-delete-check" value="${i}"></td><td>${deliveryCode(n,i)}</td><td><b>${deliveryName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td><button class="btn small light" onclick="editDeliveryStaff(${i})">Sửa</button> <button class="btn small red" onclick="delDeliveryStaff(${i})">Xóa</button></td></tr>`).join('')||'<tr><td colspan="5" class="center muted">Chưa có nhân viên giao hàng</td></tr>';
+  deliveryStaffBody.innerHTML=db.deliveryStaff.map((n,i)=>{const code=deliveryCode(n,i);const user=accountUsernameFromCode(n.username||code);const pass=accountPasswordOf(n);return `<tr><td class="center"><input type="checkbox" class="delivery-delete-check" value="${i}"></td><td>${code}</td><td><b>${deliveryName(n)}</b></td><td>${n.phone||n.sdt||''}</td><td>${accountBadge(user,pass)}<button class="btn small light" onclick="copyAccount('${safeAttr(user)}','${safeAttr(pass)}')">Copy</button></td><td><button class="btn small light" onclick="editDeliveryStaff(${i})">Sửa</button> <button class="btn small red" onclick="delDeliveryStaff(${i})">Xóa</button></td></tr>`}).join('')||'<tr><td colspan="6" class="center muted">Chưa có nhân viên giao hàng</td></tr>';
 }
 function saveDeliveryStaff(){
   let code=(dCode.value||'').trim()||('GH'+String(Date.now()).slice(-5));
   let name=(dName.value||'').trim();
   if(!name)return toast('Nhập tên nhân viên giao hàng');
-  let data={code,name,phone:(dPhone.value||'').trim()};
-  if(editingDeliveryStaff!==null) db.deliveryStaff[editingDeliveryStaff]=data; else db.deliveryStaff.push(data);
-  editingDeliveryStaff=null; dCode.value=''; dName.value=''; dPhone.value=''; save(); render(); toast('Đã lưu nhân viên giao hàng');
+  let old=editingDeliveryStaff!==null?db.deliveryStaff[editingDeliveryStaff]:null;
+  if(!old) old=(db.deliveryStaff||[]).find((x,i)=>normText(deliveryCode(x,i))===normText(code));
+  let data={code,name,phone:(dPhone.value||'').trim(),username:(old&&old.username)||accountUsernameFromCode(code),password:(old&&old.password)||'123456',role:'delivery'};
+  if(editingDeliveryStaff!==null) db.deliveryStaff[editingDeliveryStaff]=data; else if(old) Object.assign(old,data); else db.deliveryStaff.push(data);
+  upsertUserAccount({username:data.username,password:data.password,role:'delivery',name:data.name,code,deliveryCode:code,phone:data.phone,active:true});
+  editingDeliveryStaff=null; dCode.value=''; dName.value=''; dPhone.value=''; save(); render(); toast('Đã lưu nhân viên giao hàng và tài khoản');
 }
 function editDeliveryStaff(i){let n=db.deliveryStaff[i]; if(!n)return; editingDeliveryStaff=i; dCode.value=deliveryCode(n,i); dName.value=deliveryName(n); dPhone.value=n.phone||n.sdt||'';}
 function delDeliveryStaff(i){if(!confirm('Xóa nhân viên giao hàng này?'))return; db.deliveryStaff.splice(i,1); save(); render();}
@@ -3501,7 +3683,7 @@ function importStaffExcel(e){
     save();render();toast('Đã import '+n+' nhân viên'+(skip?`, bỏ qua ${skip} dòng lỗi`:''));
   });
 }
-function saveStaff(){if(!nCode.value.trim()||!nName.value.trim())return toast('Thiếu mã hoặc tên nhân viên');let code=nCode.value.trim();let existed=db.staff.find((x,i)=>staffCode(x,i)===code);let data={code,name:nName.value.trim(),phone:nPhone.value};if(existed)Object.assign(existed,data);else db.staff.push(data);nCode.value=nName.value=nPhone.value='';save();render();toast('Đã lưu nhân viên')}
+function saveStaff(){if(!nCode.value.trim()||!nName.value.trim())return toast('Thiếu mã hoặc tên nhân viên');let code=nCode.value.trim();let existed=db.staff.find((x,i)=>normText(staffCode(x,i))===normText(code));let data={code,name:nName.value.trim(),phone:nPhone.value,username:(existed&&existed.username)||accountUsernameFromCode(code),password:(existed&&existed.password)||'123456',role:'sales'};if(existed)Object.assign(existed,data);else db.staff.push(data);upsertUserAccount({username:data.username,password:data.password,role:'sales',name:data.name,code,staffCode:code,phone:data.phone,active:true});nCode.value=nName.value=nPhone.value='';save();render();toast('Đã lưu nhân viên và tài khoản bán hàng')}
 function editStaff(i){let n=db.staff[i];nCode.value=staffCode(n,i);nName.value=staffName(n);nPhone.value=n.phone||n.sdt||'';page('staff')}
 function delStaff(i){if(confirm('Xóa nhân viên?')){db.staff.splice(i,1);save();render()}}
 function safeFileName(name){
