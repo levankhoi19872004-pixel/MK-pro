@@ -1,0 +1,29 @@
+BỘ TÁCH APP MOBILE - KHO MINH KHAI
+
+Các file trong gói:
+1. sales-app.html
+   - App bán hàng riêng cho điện thoại.
+   - Chỉ hiển thị khách hàng, sản phẩm mở bán, giỏ hàng.
+   - Tạo đơn nguồn NVBH.
+
+2. delivery-app.html
+   - App giao hàng riêng cho điện thoại.
+   - Chỉ hiển thị đơn hôm nay, công nợ, báo cáo nộp tiền.
+   - Có tiền mặt, chuyển khoản, hàng trả về.
+
+3. mobile-common.js
+   - Dùng chung đăng nhập, gọi API Render, tải/lưu dữ liệu.
+
+4. mobile.css
+   - Giao diện điện thoại riêng, nhẹ hơn file index chính.
+
+Cách dùng:
+- Upload 4 file này lên cùng thư mục với index.html trên GitHub/Netlify.
+- Truy cập:
+  /sales-app.html
+  /delivery-app.html
+
+Lưu ý:
+- Bộ này dùng API hiện tại: https://kho-api-2.onrender.com
+- Chưa xóa App bán hàng/App giao hàng trong index.html. Đây là cách an toàn để chạy thử trước.
+- Khi chạy ổn, bước sau mới ẩn hoặc bỏ 2 mục App mobile trong index chính.

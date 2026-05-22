@@ -1,0 +1,125 @@
+<!DOCTYPE html><html lang="vi"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>App bán hàng - Kho Minh Khai</title>
+<link rel="stylesheet" href="mobile.css">
+<script src="mobile-common.js"></script>
+</head><body>
+<div id="loginScreen" class="login">
+  <div class="login-card">
+    <h1>Đăng nhập App bán hàng</h1>
+    <div class="field"><label>Tài khoản</label><input id="loginUser" autocomplete="username"></div>
+    <div class="field"><label>Mật khẩu</label><input id="loginPass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()"></div>
+    <button class="btn green full" onclick="login()">Đăng nhập</button>
+  </div>
+</div>
+<div id="appShell" class="app-shell hidden">
+  <div class="top-card">
+    <div class="top-row"><div><h1>App bán hàng</h1><div class="muted" id="currentUserName"></div></div><button class="btn red" onclick="logout()">Thoát</button></div>
+  </div>
+  <section data-view="customers">
+    <div class="search"><input id="customerSearch" placeholder="Tìm khách hàng..." oninput="renderCustomers()"></div>
+    <div id="customerList" class="list"></div>
+  </section>
+  <section data-view="products" class="hidden">
+    <div class="top-card"><b id="selectedCustomerText">Chưa chọn khách</b></div>
+    <div class="search"><input id="productSearch" placeholder="Tìm sản phẩm..." oninput="renderProducts()"></div>
+    <div id="productList" class="list"></div>
+  </section>
+  <section data-view="cart" class="hidden">
+    <div class="card"><h1>Giỏ hàng</h1><div id="cartList"></div></div>
+    <div class="total-box">
+      <div class="top-row"><b>Tổng tiền</b><b id="cartTotal">0</b></div>
+      <button class="btn green full" onclick="submitOrder()">Gửi đơn</button>
+    </div>
+  </section>
+</div>
+<div class="tabs">
+  <button class="tab active" data-tab="customers" onclick="showTab('customers')">Khách</button>
+  <button class="tab" data-tab="products" onclick="showTab('products')">Sản phẩm</button>
+  <button class="tab" data-tab="cart" onclick="showTab('cart')">Giỏ</button>
+</div>
+<script>
+let selectedCustomer=null;
+let cart=[];
+
+function afterLoad(){renderCustomers();renderProducts();renderCart();}
+
+function myStaffCode(){
+  return String(CURRENT_USER?.staffCode||CURRENT_USER?.code||CURRENT_USER?.username||'').toLowerCase();
+}
+function renderCustomers(){
+  const q=norm(document.getElementById('customerSearch')?.value||'');
+  const code=myStaffCode();
+  let rows=db.customers||[];
+  rows=rows.filter(c=>{
+    const belongs=!code || norm(c.staffCode||c.salesCode||c.salesmanCode||c.nvbh||'').includes(code) || !c.staffCode;
+    const hit=!q || norm([c.code,c.customerCode,c.name,c.customerName,c.address].join(' ')).includes(q);
+    return belongs && hit;
+  }).slice(0,80);
+  document.getElementById('customerList').innerHTML=rows.map(c=>`
+    <div class="customer-card" onclick='selectCustomer(${JSON.stringify(c).replace(/'/g,"&#39;")})'>
+      <div class="sku">${esc(c.code||c.customerCode||'')}</div>
+      <div class="name">${esc(c.name||c.customerName||'')}</div>
+      <div class="muted">${esc(c.address||'')}</div>
+    </div>`).join('') || '<div class="card muted">Không có khách hàng</div>';
+}
+function selectCustomer(c){
+  selectedCustomer=c;
+  document.getElementById('selectedCustomerText').textContent=(c.code||c.customerCode||'')+' - '+(c.name||c.customerName||'');
+  showTab('products');
+}
+function productOpenQty(p){ return Math.max(0,Number(p.openQty ?? p.allowQty ?? p.dmsAllowQty ?? p.qty ?? 0)||0); }
+function inputId(sku,type){return `${type}_${String(sku).replace(/[^a-zA-Z0-9_-]/g,'_')}`}
+function stepQty(sku,type,delta){
+  const el=document.getElementById(inputId(sku,type)); if(!el)return;
+  el.value=Math.max(0,(Number(el.value)||0)+Number(delta||0))||'';
+}
+function renderProducts(){
+  const q=norm(document.getElementById('productSearch')?.value||'');
+  let rows=(db.products||[]).filter(p=>productOpenQty(p)>0);
+  rows=rows.filter(p=>!q || norm([p.sku,p.code,p.name,p.productName,p.brand,p.category].join(' ')).includes(q)).slice(0,60);
+  document.getElementById('productList').innerHTML=rows.map(p=>{
+    const sku=String(p.sku||p.code||''); const pack=Number(p.pack)||1;
+    return `<div class="product-card">
+      <div class="sku">${esc(sku)}</div><div class="name">${esc(p.name||p.productName||'')}</div>
+      <div class="meta"><div><span>Giá bán</span><b>${money(p.sale||p.price||0)}</b></div><div><span>Tồn mở bán</span><b>${qtyView(productOpenQty(p),pack)}</b></div></div>
+      <div class="qty-grid">
+        <div><label>Thùng</label><div class="qty-stepper"><button onclick="stepQty('${esc(sku)}','box',-1)">−</button><input id="${inputId(sku,'box')}" inputmode="numeric" type="tel"><button onclick="stepQty('${esc(sku)}','box',1)">+</button></div></div>
+        <div><label>Lẻ</label><div class="qty-stepper"><button onclick="stepQty('${esc(sku)}','each',-1)">−</button><input id="${inputId(sku,'each')}" inputmode="numeric" type="tel"><button onclick="stepQty('${esc(sku)}','each',1)">+</button></div></div>
+      </div>
+      <button class="btn green full" style="margin-top:10px" onclick="addProduct('${esc(sku)}')">Chấm hàng</button>
+    </div>`;
+  }).join('') || '<div class="card muted">Không có sản phẩm mở bán</div>';
+}
+function addProduct(sku){
+  if(!selectedCustomer) return toast('Chọn khách hàng trước');
+  const p=(db.products||[]).find(x=>String(x.sku||x.code||'')===String(sku)); if(!p)return;
+  const pack=Number(p.pack)||1;
+  const qty=totalQty(document.getElementById(inputId(sku,'box'))?.value,document.getElementById(inputId(sku,'each'))?.value,pack);
+  if(qty<=0) return toast('Nhập số lượng');
+  if(qty>productOpenQty(p)) return toast('Vượt tồn mở bán');
+  const old=cart.find(x=>x.sku===sku);
+  if(old) old.qty+=qty; else cart.push({sku,name:p.name||p.productName||'',pack,qty,price:Number(p.sale||p.price||0)});
+  renderCart(); toast('Đã thêm vào giỏ');
+}
+function renderCart(){
+  let total=0;
+  document.getElementById('cartList').innerHTML=cart.map((x,i)=>{const amount=x.qty*x.price; total+=amount; return `
+    <div class="cart-line"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.sku)} · ${qtyView(x.qty,x.pack)}</div></div>
+    <div><b>${money(amount)}</b><br><button class="btn light" onclick="cart.splice(${i},1);renderCart()">Xóa</button></div></div>`}).join('') || '<div class="muted">Chưa có hàng</div>';
+  document.getElementById('cartTotal').textContent=money(total);
+  document.querySelector('[data-tab="cart"]').textContent='Giỏ '+(cart.length?`(${cart.length})`:'');
+}
+async function submitOrder(){
+  if(!selectedCustomer) return toast('Chưa chọn khách');
+  if(!cart.length) return toast('Chưa có hàng');
+  const total=cart.reduce((s,x)=>s+x.qty*x.price,0);
+  db.orders.push({
+    id:'NVBH-'+Date.now(), source:'NVBH', date:new Date().toISOString(), customer:selectedCustomer.name||selectedCustomer.customerName||'',
+    customerCode:selectedCustomer.code||selectedCustomer.customerCode||'', staffCode:CURRENT_USER?.staffCode||CURRENT_USER?.username||'', staff:CURRENT_USER?.name||CURRENT_USER?.username||'',
+    items:cart.map(x=>({...x,total:x.qty*x.price})), total, cashPaid:0, bankPaid:0, debt:total, status:'Mới tạo từ App bán hàng'
+  });
+  try{await saveData(); cart=[]; renderCart(); toast('Đã gửi đơn'); showTab('customers')}catch(e){toast(e.message||'Không gửi được đơn')}
+}
+</script>
+</body></html>
