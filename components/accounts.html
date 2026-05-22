@@ -1,0 +1,24 @@
+<section id="accounts" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h2>Tạo tài khoản đăng nhập</h2>
+              <div class="muted" style="margin-top:6px">Tạo tài khoản tại đây sẽ tự đồng bộ sang danh sách Nhân viên bán hàng hoặc Nhân viên giao hàng theo vai trò. Nếu mã đã có sẵn, hệ thống sẽ cập nhật, không tạo trùng.</div>
+            </div>
+          </div>
+          <div class="form">
+            <div class="field"><label>Vai trò</label><select id="aRole" onchange="updateAccountRoleHint()"><option value="sales">Nhân viên bán hàng</option><option value="delivery">Nhân viên giao hàng</option><option value="admin">Quản trị</option></select></div>
+            <div class="field"><label>Mã nhân viên / mã giao hàng</label><input id="aCode" placeholder="VD: NV001 hoặc GH001"></div>
+            <div class="field"><label>Tên người dùng</label><input id="aName" placeholder="VD: Nguyễn Văn A"></div>
+            <div class="field"><label>SĐT</label><input id="aPhone"></div>
+            <div class="field"><label>Tài khoản đăng nhập</label><input id="aUsername" placeholder="Tự lấy theo mã nếu bỏ trống"></div>
+            <div class="field"><label>Mật khẩu</label><input id="aPassword" value="123456"></div>
+          </div><br>
+          <button class="btn green" onclick="saveAccount()">Tạo / cập nhật tài khoản</button>
+          <button class="btn light" onclick="clearAccountForm()">Nhập mới</button>
+        </div>
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách tài khoản</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Vai trò</th><th>Mã</th><th>Họ tên</th><th>SĐT</th><th>Tài khoản</th><th>Mật khẩu</th><th>Nguồn đồng bộ</th><th>Hành động</th></tr></thead><tbody id="accountBody"></tbody></table></div>
+        </div>
+      </section>

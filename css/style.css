@@ -1,0 +1,371 @@
+:root{--bg:#f5f7fb;--card:#fff;--text:#101828;--muted:#667085;--line:#e4e7ec;--blue:#2563eb;--green:#16a34a;--orange:#f97316;--purple:#7c3aed;--red:#ef4444;--side1:#0f172a;--side2:#1e293b;--shadow:0 10px 30px rgba(15,23,42,.08);--font:'Noto Sans','Segoe UI',Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px}.app{display:flex;min-height:100vh}.sidebar{width:260px;min-width:260px;background:linear-gradient(180deg,#111827,#1e293b);color:#fff;padding:20px 18px;position:sticky;top:0;height:100vh}.logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}.logo-icon{width:42px;height:42px;border-radius:14px;background:#f59e0b;display:grid;place-items:center;font-size:24px}.logo h2{margin:0;font-size:22px;line-height:1.05}.logo span{color:#cbd5e1;font-size:13px}.nav-title{color:#94a3b8;font-size:12px;text-transform:uppercase;margin:22px 6px 8px}.nav button{width:100%;border:0;background:transparent;color:#dbeafe;text-align:left;padding:13px 14px;border-radius:10px;margin:4px 0;cursor:pointer;font-size:15px;display:flex;gap:10px;align-items:center}.nav button:hover,.nav button.active{background:#2563eb;color:#fff}.side-foot{position:absolute;bottom:20px;color:#94a3b8;font-size:12px;line-height:1.7}.main{flex:1;min-width:0}.topbar{height:74px;background:rgba(255,255,255,.92);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:10;backdrop-filter:blur(12px)}.title{display:flex;align-items:center;gap:18px}.hamb{font-size:22px;color:#475467}.title h1{font-size:22px;margin:0}.user{display:flex;align-items:center;gap:14px}.icon-btn{border:1px solid var(--line);background:#fff;border-radius:12px;width:44px;height:44px;display:grid;place-items:center;font-size:19px;cursor:pointer}.icon-btn.active{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}.avatar{width:42px;height:42px;border-radius:50%;background:#dbeafe;display:grid;place-items:center;color:#2563eb;font-size:22px}.content{padding:24px}.section{display:none}.section.active{display:block}.stats{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:16px;margin-bottom:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}.stat{padding:22px;display:flex;align-items:center;gap:18px}.stat-icon{width:52px;height:52px;border-radius:12px;color:white;display:grid;place-items:center;font-size:26px}.stat .label{color:#475467}.stat .value{font-size:24px;font-weight:800;margin-top:4px}.blue{background:linear-gradient(135deg,#3b82f6,#2563eb)}.green{background:linear-gradient(135deg,#22c55e,#16a34a)}.orange{background:linear-gradient(135deg,#fb923c,#f97316)}.purple{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}.panel{padding:18px;margin-bottom:18px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel h2{margin:0;font-size:19px}.badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 7px;border-radius:999px;background:#ef4444;color:white;font-size:12px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}.btn{border:0;border-radius:11px;background:#2563eb;color:white;padding:10px 14px;font-weight:700;cursor:pointer}.btn:hover{filter:brightness(.95)}.btn.light{background:#eef4ff;color:#2563eb}.btn.gray{background:#475467}.btn.green{background:#16a34a}.btn.orange{background:#f97316}.btn.red{background:#ef4444}.btn.small{padding:7px 9px;font-size:12px}input,select,textarea{width:100%;border:1px solid #d0d5dd;border-radius:10px;padding:10px 11px;background:#fff;font-family:var(--font);font-size:14px}input:focus,select:focus,textarea:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}.form{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px}.field label{display:block;color:#475467;font-weight:600;font-size:12px;margin:0 0 5px 2px}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}.table{width:100%;border-collapse:collapse;min-width:880px}.table th,.table td{padding:13px 16px;border-bottom:1px dashed rgba(0,0,0,.15);text-align:left;vertical-align:middle}.table th{background:#f9fafb;font-size:13px;color:#344054}.table tr:hover td{background:#fbfdff}.right{text-align:right!important}.center{text-align:center!important}.muted{color:var(--muted)}.pill{display:inline-block;border-radius:999px;padding:4px 10px;font-weight:700;font-size:12px;background:#ecfdf3;color:#027a48}.pill.low{background:#fff1f1;color:#ef4444;border:1px solid #fecaca}.pill.warn{background:#fff7ed;color:#c2410c}.layout2{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}.cart-item{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--line);background:#f9fafb;padding:11px;border-radius:12px;margin-bottom:8px}.drawer{position:fixed;right:-390px;top:0;width:390px;max-width:92vw;height:100vh;background:#fff;box-shadow:-10px 0 30px rgba(15,23,42,.16);z-index:30;transition:.25s;padding:20px;overflow:auto}.drawer.show{right:0}.drawer-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:16px}.close{border:0;background:#f2f4f7;border-radius:9px;width:34px;height:34px;font-size:20px;cursor:pointer}.font-option{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid transparent;border-radius:12px;cursor:pointer}.font-option:hover,.font-option.active{background:#f8fbff;border-color:#bfdbfe}.preview{border:1px solid var(--line);border-radius:12px;margin-top:16px;overflow:hidden}.preview h4{margin:0;padding:12px;background:#f9fafb}.preview div{padding:12px;line-height:1.75}.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1f2937;color:white;padding:14px 18px;border-radius:13px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none;z-index:60}.toast.show{display:block}.hidden{display:none!important}.modal{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;display:none;align-items:center;justify-content:center;padding:20px}.modal.show{display:flex}.modal-box{background:#fff;border-radius:18px;width:min(1000px,96vw);max-height:90vh;overflow:auto;padding:18px}
+.sale-pro{display:grid;grid-template-columns:1fr 390px;gap:18px;align-items:start}.sale-head{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}.sale-head .col2{grid-column:span 2}.sale-head .col3{grid-column:span 3}.sale-head .col4{grid-column:span 4}.sale-tools{display:grid;grid-template-columns:1fr 120px 120px auto auto;gap:10px;align-items:end;margin:14px 0}.sale-search-wrap{position:relative}.sale-results-pro{position:absolute;left:0;right:0;top:68px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 35px rgba(15,23,42,.16);max-height:320px;overflow:auto;z-index:25;display:none}.sale-result-row{display:flex;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}.sale-result-row:hover{background:#eff6ff}.sale-summary{position:sticky;top:92px}.sum-line{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px dashed var(--line)}.sum-line b{font-size:18px}.sum-pay{background:#fef9c3;border:1px solid #fde68a;border-radius:14px;padding:12px;margin-top:10px}.stock-warn{color:#ef4444;font-weight:800}.sale-table{min-width:1180px}.sale-mini{font-size:12px;color:var(--muted);line-height:1.5}.sale-setting{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:12px;margin-top:12px}@media(max-width:1200px){.sale-pro{grid-template-columns:1fr}.sale-summary{position:static}.sale-tools{grid-template-columns:1fr 1fr}.sale-head .col2,.sale-head .col3,.sale-head .col4{grid-column:span 6}}@media(max-width:700px){.sale-head .col2,.sale-head .col3,.sale-head .col4{grid-column:span 12}.sale-tools{grid-template-columns:1fr}}
+@media(max-width:1100px){.stats{grid-template-columns:repeat(2,1fr)}.layout2,.form{grid-template-columns:1fr}.sidebar{position:fixed;left:-260px;z-index:40;transition:.25s}.sidebar.show{left:0}.main{width:100%}}@media(max-width:640px){.stats{grid-template-columns:1fr}.content{padding:14px}.topbar{padding:0 14px}.user .name{display:none}}@media print{.sidebar,.topbar,.toolbar,.btn,.drawer{display:none!important}.content{padding:0}.section:not(.active){display:none}.card{box-shadow:none}}
+
+.brand-logo-mk{
+  width:52px;height:52px;border-radius:18px;
+  background:linear-gradient(135deg,#1d4ed8 0%,#2563eb 45%,#16a34a 100%);
+  display:grid;place-items:center;box-shadow:0 12px 28px rgba(37,99,235,.34);
+  border:1px solid rgba(255,255,255,.22);position:relative;overflow:hidden;
+}
+.brand-logo-mk:after{
+  content:"";position:absolute;inset:-18px;background:radial-gradient(circle at 30% 20%,rgba(255,255,255,.35),transparent 36%);
+}
+.brand-logo-mk svg{position:relative;z-index:1}
+.brand-text-mk h2{margin:0;font-size:20px;line-height:1.05;letter-spacing:.2px}
+.brand-text-mk span{display:block;color:#bfdbfe;font-size:12px;text-transform:uppercase;letter-spacing:1.4px;margin-top:4px}
+.invoice-logo{
+  display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;color:#0f172a
+}
+.invoice-mark{
+  width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#1d4ed8,#16a34a);
+  display:inline-grid;place-items:center;color:#fff;vertical-align:middle;
+}
+
+
+.filter-grid{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;margin:10px 0 14px}.filter-grid .wide{grid-column:span 2}.filter-actions{display:flex;gap:8px;align-items:end}@media(max-width:1100px){.filter-grid{grid-template-columns:repeat(2,1fr)}.filter-grid .wide{grid-column:span 2}}@media(max-width:640px){.filter-grid{grid-template-columns:1fr}.filter-grid .wide{grid-column:span 1}}
+
+.login-screen{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0f172a,#1d4ed8);display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{width:min(420px,94vw);background:#fff;border-radius:22px;padding:28px;box-shadow:0 25px 80px rgba(0,0,0,.25)}
+.login-card h1{margin:0 0 6px;font-size:24px}.login-card p{margin:0 0 18px;color:#667085}.login-card .field{margin-bottom:12px}.login-card .btn{width:100%;margin-top:8px}.login-note{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:10px;margin-top:14px;font-size:12px;color:#475467;line-height:1.6}.app.locked{display:none}.logout-btn{border:0;background:#fee2e2;color:#991b1b;border-radius:10px;padding:8px 10px;font-weight:700;cursor:pointer}
+
+.debt-status-paid{background:#ecfdf3!important;color:#027a48!important;border:1px solid #bbf7d0!important}
+.debt-status-unpaid{background:#fff1f1!important;color:#b42318!important;border:1px solid #fecaca!important}
+.debt-status-overpaid{background:#eff6ff!important;color:#1d4ed8!important;border:1px solid #bfdbfe!important}
+.debt-row-paid td{background:#f7fff9!important}
+.debt-row-unpaid td{background:#fffafa!important}
+.debt-row-overpaid td{background:#f8fbff!important}
+.debt-money-paid{color:#16a34a;font-weight:800}
+.debt-money-unpaid{color:#ef4444;font-weight:800}
+.debt-money-overpaid{color:#2563eb;font-weight:800}
+
+
+.product-catalog-actions{display:flex;gap:8px;flex-wrap:wrap}
+.debt-search-note{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;padding:16px;color:#475467;line-height:1.6}
+.search-modal-box{background:#fff;border-radius:18px;width:min(1280px,98vw);max-height:90vh;overflow:auto;padding:18px}
+.promo-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.promo-tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;font-weight:700}
+.promo-tabs button.active{background:#2563eb;color:#fff;border-color:#2563eb}
+
+/* ===== Autocomplete xịn cho mục Xuất bán: NVBH / Khách hàng ===== */
+.sale-auto-wrap{position:relative}
+.sale-auto-box{position:absolute;left:0;right:0;top:68px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 35px rgba(15,23,42,.16);max-height:320px;overflow:auto;z-index:35;display:none}
+.sale-auto-row{display:flex;justify-content:space-between;gap:12px;padding:11px 12px;border-bottom:1px dashed rgba(0,0,0,.12);cursor:pointer}
+.sale-auto-row:hover{background:#eff6ff}
+.sale-auto-row b{color:#101828}
+.sale-auto-row .muted{font-size:12px;line-height:1.45}
+.sale-auto-empty{padding:12px;color:var(--muted)}
+
+.debt-history-list{background:#f8fafc;border:1px solid #e4e7ec;border-radius:12px;padding:10px;margin-top:10px;max-height:220px;overflow:auto}
+.debt-history-row{display:grid;grid-template-columns:110px 1fr 120px;gap:8px;border-bottom:1px dashed #d0d5dd;padding:7px 0;font-size:12px}
+.debt-history-row:last-child{border-bottom:0}
+
+.customer-pay-box{background:#f8fafc;border:1px solid #e4e7ec;border-radius:14px;padding:14px;margin:12px 0}
+.customer-pay-box h3{margin:0 0 10px;font-size:16px}
+
+.receipt-print-box{font-family:Arial,sans-serif;color:#111;line-height:1.5}
+.receipt-print-box .receipt-title{text-align:center;font-size:22px;font-weight:800;margin:10px 0 6px}
+.receipt-print-box .receipt-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.receipt-print-box .receipt-line{border-top:1px dashed #999;margin:12px 0}
+
+/* ===== Phân quyền app bán hàng / giao hàng ===== */
+.role-hidden{display:none!important}
+.role-app-grid{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+.role-list{max-height:620px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+.role-list-row{padding:11px 12px;border-bottom:1px dashed rgba(0,0,0,.12);cursor:pointer}
+.role-list-row:hover,.role-list-row.active{background:#eff6ff}
+.role-list-row b{display:block;color:#101828}
+.role-kpi{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:10px;margin:10px 0}
+.role-kpi .mini-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px}
+.role-kpi .mini-card span{display:block;color:var(--muted);font-size:12px}.role-kpi .mini-card b{font-size:19px}
+.sales-product-table{min-width:980px}
+.sales-cart-box{position:sticky;top:92px}
+.driver-order-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:#fff}
+.driver-order-card h3{margin:0 0 8px;font-size:16px}
+.driver-report-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.driver-report-card{border:1px solid var(--line);border-radius:16px;background:#fff;padding:14px;box-shadow:0 6px 18px rgba(15,23,42,.05)}
+.driver-report-card span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.driver-report-card b{font-size:22px}
+.driver-return-input{max-width:130px;text-align:right}
+@media(max-width:900px){.driver-report-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.driver-report-grid{grid-template-columns:1fr}}
+@media(max-width:1000px){.role-app-grid{grid-template-columns:1fr}.sales-cart-box{position:static}.role-kpi{grid-template-columns:repeat(2,1fr)}}
+
+
+
+/* ===== Mobile chuẩn app cho App bán hàng / App giao hàng ===== */
+.mobile-app-tabs{display:none}
+.mobile-back-btn{display:none}
+.mobile-app-title{display:none}
+@media(max-width:780px){
+  body.mobile-role-app{background:#f3f4f6;overflow:hidden}
+  body.mobile-role-app .sidebar, body.mobile-role-app .topbar{display:none!important}
+  body.mobile-role-app .app{display:block;min-height:100vh}
+  body.mobile-role-app .main{width:100%;height:100vh;overflow:hidden}
+  body.mobile-role-app .content{padding:0;height:100vh;overflow:hidden;background:#f3f4f6}
+  body.mobile-role-app .section.active{position:fixed;inset:0;z-index:80;display:block!important;background:#f3f4f6;overflow:auto;padding:10px 10px 82px;-webkit-overflow-scrolling:touch}
+  body.mobile-role-app .section.active>.card.panel{border:0;border-radius:0;box-shadow:none;background:transparent;padding:0;margin:0}
+  body.mobile-role-app .section.active>.card.panel>.panel-head{position:sticky;top:0;z-index:12;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app .section.active>.card.panel>.panel-head h2{font-size:18px}
+  body.mobile-role-app .section.active>.card.panel>.panel-head .muted{display:none}
+  body.mobile-role-app .section.active>.card.panel>.panel-head .toolbar{margin:8px 0 0;width:100%}
+  body.mobile-role-app .section.active>.card.panel>.panel-head .toolbar .btn{flex:1;padding:11px 10px}
+  body.mobile-role-app .panel{border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:0 6px 18px rgba(15,23,42,.06)}
+  body.mobile-role-app .card{box-shadow:0 6px 18px rgba(15,23,42,.06)}
+  body.mobile-role-app .form{grid-template-columns:1fr!important;gap:10px}
+  body.mobile-role-app input, body.mobile-role-app select, body.mobile-role-app textarea{font-size:16px;min-height:44px}
+  body.mobile-role-app .btn{min-height:42px;border-radius:12px}
+  body.mobile-role-app .table{min-width:760px}
+  body.mobile-role-app .table-wrap{border-radius:14px}
+  body.mobile-role-app .role-app-grid{display:block}
+  body.mobile-role-app .role-kpi{grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+  body.mobile-role-app .role-kpi .mini-card{border-radius:14px;padding:10px}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:17px}
+  body.mobile-role-app .role-list{max-height:none;border:0;background:transparent;overflow:visible}
+  body.mobile-role-app .role-list-row{background:#fff;border:1px solid var(--line);border-radius:16px;margin-bottom:9px;padding:13px;box-shadow:0 6px 16px rgba(15,23,42,.05)}
+  body.mobile-role-app .role-list-row.active{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+  body.mobile-role-app #salesApp .role-app-grid>div:first-child{display:block}
+  body.mobile-role-app #salesApp .role-app-grid>div:nth-child(2){display:none}
+  body.mobile-role-app.sales-customer-selected #salesApp .role-app-grid>div:first-child{display:none}
+  body.mobile-role-app.sales-customer-selected #salesApp .role-app-grid>div:nth-child(2){display:block}
+  body.mobile-role-app #salesSelectedCustomerInfo{position:sticky;top:0;z-index:15;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 22px rgba(15,23,42,.08);padding:12px;margin-bottom:10px}
+  .mobile-back-btn{display:inline-flex!important;margin-right:8px;margin-bottom:8px;align-items:center;justify-content:center;gap:6px}
+  .mobile-app-title{display:block;font-size:12px;color:#667085;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+  body.mobile-role-app .layout2{display:block}
+  body.mobile-role-app .sales-product-table{min-width:720px}
+  body.mobile-role-app .sales-cart-box{position:relative!important;top:auto!important;border:2px solid #bfdbfe!important;background:#fff!important;margin-top:10px;box-shadow:0 10px 28px rgba(37,99,235,.12)!important}
+  body.mobile-role-app .sales-cart-box .panel-head{margin-bottom:8px}
+  body.mobile-role-app #salesOrdersBody tr, body.mobile-role-app #salesDebtBody tr, body.mobile-role-app #driverDebtBody tr{background:#fff}
+  body.mobile-role-app .customer-pay-box{background:#fff;border-radius:16px;padding:12px}
+  body.mobile-role-app .driver-order-card{border-radius:18px;padding:13px;margin-bottom:12px;box-shadow:0 8px 20px rgba(15,23,42,.07)}
+  body.mobile-role-app .driver-order-card .table{min-width:680px}
+  body.mobile-role-app .driver-collect-box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 6px 16px rgba(15,23,42,.05)}
+  body.mobile-role-app .driver-collect-box .form{grid-template-columns:1fr!important}
+  .mobile-app-tabs{display:flex;position:fixed;left:8px;right:8px;bottom:8px;z-index:120;background:rgba(255,255,255,.96);border:1px solid #dbe4f0;border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:7px;gap:6px;backdrop-filter:blur(12px)}
+  .mobile-app-tabs button{flex:1;border:0;background:transparent;border-radius:15px;padding:8px 4px;font-size:12px;font-weight:800;color:#475467;line-height:1.2}
+  .mobile-app-tabs button.mobile-logout-tab{background:#fee2e2;color:#991b1b}
+  .mobile-app-tabs button.mobile-logout-tab:hover{filter:brightness(.98)}
+  .mobile-app-tabs button.active{background:#2563eb;color:white}
+  .mobile-app-tabs button span{display:block;font-size:18px;margin-bottom:2px}
+  body:not(.mobile-role-app) .mobile-app-tabs{display:none!important}
+  body.mobile-role-app #salesApp~.card{display:none}
+  body.mobile-role-app #toast{bottom:78px;max-width:92vw;text-align:center}
+}
+
+
+
+/* ===== V13: Mobile chia màn hình App bán hàng / giao hàng theo từng bước ===== */
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs{left:6px;right:6px;bottom:6px;border-radius:18px;padding:5px;gap:3px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:10px;padding:7px 2px;border-radius:13px;white-space:nowrap}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:17px;margin-bottom:1px}
+  body.mobile-role-app .section.active{padding:8px 8px 78px!important}
+  body.mobile-role-app #salesApp .card.panel,
+  body.mobile-role-app #deliveryApp .card.panel{border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent!important;padding:0!important;margin:0!important}
+  body.mobile-role-app #salesApp .panel-head,
+  body.mobile-role-app #deliveryApp .panel-head{position:sticky;top:0;z-index:30;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:12px;margin:0 0 10px;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  body.mobile-role-app #salesApp .panel-head h2,
+  body.mobile-role-app #deliveryApp .panel-head h2{font-size:20px;line-height:1.2}
+  body.mobile-role-app #salesApp .panel-head .toolbar,
+  body.mobile-role-app #deliveryApp .panel-head .toolbar{display:none!important}
+  body.mobile-role-app .mobile-step-title{display:block;background:#0f172a;color:#fff;border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 10px 26px rgba(15,23,42,.16)}
+  body.mobile-role-app .mobile-step-title b{display:block;font-size:20px;margin-bottom:3px}
+  body.mobile-role-app .mobile-step-title span{font-size:13px;color:#cbd5e1}
+  body.mobile-role-app .mobile-step-actions{display:flex;gap:8px;margin:10px 0;position:sticky;bottom:76px;z-index:25;background:rgba(243,244,246,.92);padding:6px 0;backdrop-filter:blur(10px)}
+  body.mobile-role-app .mobile-step-actions .btn{flex:1;font-size:15px;min-height:48px}
+  body.mobile-role-app .role-kpi{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;margin:8px 0 10px!important}
+  body.mobile-role-app .role-kpi .mini-card{padding:13px!important;border-radius:18px!important;background:#fff!important;box-shadow:0 6px 16px rgba(15,23,42,.05)!important}
+  body.mobile-role-app .role-kpi .mini-card span{font-size:12px!important}
+  body.mobile-role-app .role-kpi .mini-card b{font-size:22px!important;line-height:1.25!important}
+  body.mobile-role-app .role-list-row{padding:16px!important;border-radius:20px!important;font-size:16px!important}
+  body.mobile-role-app .role-list-row b{font-size:17px!important;line-height:1.35!important}
+  body.mobile-role-app .role-list-row .muted{font-size:13px!important;line-height:1.5!important}
+  body.mobile-role-app input{font-size:17px!important;min-height:50px!important;border-radius:14px!important}
+  body.mobile-role-app .btn{font-size:15px!important;min-height:48px!important;border-radius:14px!important}
+
+  /* Sales wizard visibility */
+  body.mobile-role-app #salesCustomerPanel,
+  body.mobile-role-app #salesOrdersPanel,
+  body.mobile-role-app #salesDebtPanel{display:none!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel,
+  body.mobile-role-app.sales-step-products #salesCustomerPanel,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel{display:block!important}
+  body.mobile-role-app.sales-step-debt #salesDebtPanel{display:block!important}
+  body.mobile-role-app.sales-step-orders #salesOrdersPanel{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-customers #salesCustomerPanel .role-app-grid>div:nth-child(2){display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .role-app-grid>div:nth-child(2),
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .role-app-grid>div:nth-child(2){display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .layout2>div:first-child{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .sales-cart-box{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .layout2>div:first-child,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .layout2>div:first-child{display:none!important}
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{display:block!important}
+  body.mobile-role-app.sales-step-products #salesCustomerPanel .role-kpi{display:none!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box{border:2px solid #16a34a!important;background:#f7fff9!important}
+
+  /* Mobile product cards */
+  body.mobile-role-app .sales-product-table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+  body.mobile-role-app .sales-product-table thead{display:none!important}
+  body.mobile-role-app .sales-product-table tr{display:block!important;background:transparent!important}
+  body.mobile-role-app .sales-product-table td.mobile-product-cell{display:block!important;padding:0!important;border:0!important}
+  body.mobile-role-app .mobile-product-card{background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:15px;box-shadow:0 8px 20px rgba(15,23,42,.06);margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .sku{font-size:13px;color:#64748b;font-weight:800;margin-bottom:6px}
+  body.mobile-role-app .mobile-product-card .name{font-size:17px;line-height:1.35;font-weight:800;color:#111827;margin-bottom:10px}
+  body.mobile-role-app .mobile-product-card .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  body.mobile-role-app .mobile-product-card .meta div{background:#f8fafc;border:1px solid #eef2f7;border-radius:15px;padding:10px}
+  body.mobile-role-app .mobile-product-card .meta span{display:block;font-size:12px;color:#64748b;margin-bottom:3px}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:18px}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn{min-height:48px!important}
+  body.mobile-role-app .mobile-product-card .btn.green{font-size:16px!important;font-weight:900!important}
+
+  /* Cart as full screen card list */
+  body.mobile-role-app .sales-cart-box{border-radius:22px!important;padding:14px!important;background:#fff!important;box-shadow:0 8px 22px rgba(15,23,42,.08)!important}
+  body.mobile-role-app .cart-item{border-radius:18px!important;background:#fff!important;border:1px solid #e5e7eb!important;padding:14px!important;font-size:16px!important;box-shadow:0 4px 12px rgba(15,23,42,.04)!important}
+  body.mobile-role-app .sum-line b{font-size:22px!important}
+
+  /* Debt screen: cards instead of table */
+  body.mobile-role-app #salesDebtPanel .table-wrap,
+  body.mobile-role-app #driverDebtPanel .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesDebtPanel table,
+  body.mobile-role-app #driverDebtPanel table{display:block!important;min-width:0!important;width:100%!important}
+  body.mobile-role-app #salesDebtPanel thead,
+  body.mobile-role-app #driverDebtPanel thead{display:none!important}
+  body.mobile-role-app #salesDebtPanel tbody,
+  body.mobile-role-app #driverDebtPanel tbody{display:block!important}
+  body.mobile-role-app #salesDebtPanel tr,
+  body.mobile-role-app #driverDebtPanel tr{display:block!important;background:#fff!important;border:1px solid #e5e7eb!important;border-radius:22px!important;margin-bottom:12px!important;padding:14px!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important}
+  body.mobile-role-app #salesDebtPanel td,
+  body.mobile-role-app #driverDebtPanel td{display:block!important;border:0!important;padding:4px 0!important;font-size:15px!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(2) b,
+  body.mobile-role-app #driverDebtPanel td:nth-child(2) b{font-size:18px!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(4),
+  body.mobile-role-app #driverDebtPanel td:nth-child(4){font-size:24px!important;font-weight:900!important;text-align:left!important}
+  body.mobile-role-app #salesDebtPanel td:nth-child(5) .btn,
+  body.mobile-role-app #driverDebtPanel td:nth-child(5) .btn{width:100%;margin-top:8px}
+
+  /* Driver wizard visibility */
+  body.mobile-role-app #deliveryApp #driverOrdersPanel,
+  body.mobile-role-app #deliveryApp #driverDebtPanel,
+  body.mobile-role-app #deliveryApp #driverReportPanel{display:none!important}
+  body.mobile-role-app.driver-step-orders #deliveryApp #driverOrdersPanel{display:block!important}
+  body.mobile-role-app.driver-step-debt #deliveryApp #driverDebtPanel{display:block!important}
+  body.mobile-role-app.driver-step-report #deliveryApp #driverReportPanel{display:block!important}
+  body.mobile-role-app .driver-order-card{border-radius:22px!important;padding:16px!important;background:#fff!important;box-shadow:0 8px 20px rgba(15,23,42,.06)!important;margin-bottom:12px!important}
+  body.mobile-role-app .driver-order-card h3{font-size:20px!important;margin-bottom:8px!important}
+  body.mobile-role-app .driver-order-card .table-wrap{border:0!important;overflow:visible!important}
+  body.mobile-role-app .driver-order-card table{min-width:0!important;width:100%!important;display:block!important}
+  body.mobile-role-app .driver-order-card thead{display:none!important}
+  body.mobile-role-app .driver-order-card tbody{display:block!important}
+  body.mobile-role-app .driver-order-card tr{display:block!important;background:#f8fafc!important;border:1px solid #eef2f7!important;border-radius:16px!important;margin-top:8px!important;padding:10px!important}
+  body.mobile-role-app .driver-order-card td{display:block!important;border:0!important;padding:3px 0!important;text-align:left!important;font-size:14px!important}
+  body.mobile-role-app .driver-collect-box{padding:12px!important;border-radius:18px!important;background:#f8fafc!important;border:1px solid #e5e7eb!important}
+  body.mobile-role-app .driver-collect-box .toolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  body.mobile-role-app .driver-collect-box .btn{width:100%!important}
+}
+
+
+
+/* ===== V14: Mobile bán hàng đơn giản 4 màn hình, chữ lớn, dễ nhìn ===== */
+@media(max-width:780px){
+  body.mobile-role-app{font-size:16px!important;background:#eef2f7!important}
+  body.mobile-role-app .section.active{padding:10px 10px 96px!important}
+  body.mobile-role-app #salesApp .panel-head h2{font-size:22px!important}
+  body.mobile-role-app #salesApp .panel-head{padding:14px!important;border-radius:20px!important}
+  body.mobile-role-app .mobile-app-tabs{grid-template-columns:repeat(4,1fr);display:grid!important;gap:6px;left:8px;right:8px;bottom:8px;padding:7px;border-radius:22px}
+  body.mobile-role-app .mobile-app-tabs button{font-size:12px!important;min-height:58px;border-radius:16px!important}
+  body.mobile-role-app .mobile-app-tabs button span{font-size:20px!important}
+  body.mobile-role-app .mobile-app-tabs button[data-app-tab="sales-debt"],
+  body.mobile-role-app .mobile-app-tabs button[data-app-tab="sales-confirm"]{display:none!important}
+  body.mobile-role-app .role-list-row{font-size:17px!important;padding:17px!important;border-radius:22px!important}
+  body.mobile-role-app .role-list-row b{font-size:18px!important}
+  body.mobile-role-app .role-list-row .muted{font-size:14px!important}
+  body.mobile-role-app .field label{font-size:13px!important;margin-bottom:7px!important}
+  body.mobile-role-app input,body.mobile-role-app select,body.mobile-role-app textarea{font-size:17px!important;min-height:52px!important;border-radius:16px!important}
+  body.mobile-role-app .mobile-product-card{padding:17px!important;border-radius:24px!important}
+  body.mobile-role-app .mobile-product-card .sku{font-size:14px!important}
+  body.mobile-role-app .mobile-product-card .name{font-size:19px!important}
+  body.mobile-role-app .mobile-product-card .meta b{font-size:20px!important}
+  body.mobile-role-app .mobile-product-card .quick-grid{grid-template-columns:1fr 1fr!important}
+  body.mobile-role-app .mobile-product-card .quick-grid .btn.green{grid-column:1/3;min-height:54px!important;font-size:17px!important}
+  body.mobile-role-app .mobile-cart-float{position:fixed;left:10px;right:10px;bottom:78px;z-index:119;background:#0f172a;color:#fff;border-radius:20px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 14px 32px rgba(15,23,42,.24)}
+  body.mobile-role-app .mobile-cart-float b{font-size:18px}
+  body.mobile-role-app .mobile-cart-float button{border:0;background:#22c55e;color:#fff;border-radius:14px;padding:10px 14px;font-weight:900;font-size:15px}
+  body.mobile-role-app .sales-cart-box .btn.green{width:100%;min-height:56px!important;font-size:18px!important}
+  body.mobile-role-app .sales-cart-box .btn.light{width:100%;margin-top:8px}
+  body.mobile-role-app .cart-item{display:block!important}
+  body.mobile-role-app .cart-item>div:last-child{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  body.mobile-role-app .sum-line{font-size:17px}
+  body.mobile-role-app .sum-line b{font-size:24px!important}
+  body.mobile-role-app.sales-step-confirm #salesCustomerPanel .sales-cart-box,
+  body.mobile-role-app.sales-step-cart #salesCustomerPanel .sales-cart-box{display:block!important}
+}
+
+
+/* ===== V15: tài khoản theo mã NV + mobile app bán hàng to rõ ===== */
+.account-badge{display:inline-block;background:#f8fafc;border:1px solid #dbe4f0;border-radius:12px;padding:7px 9px;margin-right:6px;line-height:1.45}
+.account-badge b{color:#0f172a}
+.account-badge span{color:#475467;font-size:12px}
+@media(max-width:780px){
+  html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
+  body.mobile-role-app .main,body.mobile-role-app .content,body.mobile-role-app .section.active{width:100vw!important;max-width:100vw!important}
+  body.mobile-role-app #salesApp .table-wrap{border:0!important;background:transparent!important;overflow:visible!important}
+  body.mobile-role-app #salesApp table.sales-product-table{display:block!important;width:100%!important;min-width:0!important}
+  body.mobile-role-app #salesApp table.sales-product-table tbody{display:block!important;width:100%!important}
+  body.mobile-role-app #salesApp table.sales-product-table tr{display:block!important;width:100%!important}
+  body.mobile-role-app #salesApp table.sales-product-table td.mobile-product-cell{display:block!important;width:100%!important}
+  body.mobile-role-app #salesProductSearch{font-size:18px!important;height:56px!important}
+  body.mobile-role-app .mobile-product-card{width:100%!important}
+}
+
+
+/* ===== Nút thoát cố định cho bản app điện thoại ===== */
+.mobile-logout-fixed{display:none}
+@media(max-width:780px){
+  body.mobile-role-app .mobile-logout-fixed{
+    display:flex!important;position:fixed;right:12px;top:12px;z-index:150;
+    align-items:center;justify-content:center;gap:6px;
+    border:0;border-radius:999px;background:#fee2e2;color:#991b1b;
+    padding:10px 13px;font-size:14px;font-weight:900;
+    box-shadow:0 10px 24px rgba(153,27,27,.18);
+  }
+  body:not(.mobile-role-app) .mobile-logout-fixed{display:none!important}
+}
+
+
+@media(max-width:780px){
+  body.mobile-role-app .mobile-app-tabs button.mobile-logout-tab{display:block!important;background:#fee2e2!important;color:#991b1b!important}
+}
+
+
+
+/* ===== FIX V2: App bán hàng mobile nhập số lượng không bị thanh dưới che ===== */
+@media(max-width:780px){
+  body.mobile-role-app .section.active{padding-bottom:190px!important;}
+  body.mobile-role-app #salesProductList{padding-bottom:160px!important;}
+  body.mobile-role-app .mobile-product-card{position:relative!important;z-index:1!important;margin-bottom:24px!important;padding-bottom:18px!important;}
+  body.mobile-role-app .mobile-product-card .qty-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;margin:12px 0!important;position:relative!important;z-index:200!important;}
+  body.mobile-role-app .mobile-product-card .qty-stepper{display:grid!important;grid-template-columns:48px 1fr 48px!important;gap:6px!important;align-items:center!important;}
+  body.mobile-role-app .mobile-product-card .qty-stepper button{height:54px!important;border:0!important;border-radius:16px!important;background:#e0edff!important;color:#1d4ed8!important;font-size:24px!important;font-weight:900!important;}
+  body.mobile-role-app .mobile-product-card input.sales-qty-input{
+    display:block!important;width:100%!important;height:54px!important;min-height:54px!important;
+    font-size:22px!important;font-weight:900!important;text-align:center!important;background:#fff!important;color:#0f172a!important;
+    border:2px solid #94a3b8!important;border-radius:16px!important;box-shadow:none!important;
+    pointer-events:auto!important;touch-action:manipulation!important;-webkit-user-select:text!important;user-select:text!important;
+    position:relative!important;z-index:210!important;opacity:1!important;
+  }
+  body.mobile-role-app .mobile-product-card input.sales-qty-input:focus{border-color:#2563eb!important;box-shadow:0 0 0 4px rgba(37,99,235,.18)!important;}
+  body.mobile-role-app .mobile-product-card .quick-grid{position:relative!important;z-index:190!important;margin-top:10px!important;}
+  body.mobile-role-app .mobile-app-tabs{z-index:120!important;}
+  body.mobile-role-app .mobile-cart-float{z-index:118!important;}
+}

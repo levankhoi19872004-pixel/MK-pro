@@ -1,0 +1,36 @@
+<section id="deliveryApp" class="section">
+        <div class="card panel" id="driverOrdersPanel">
+          <div class="panel-head"><div><h2>App nhân viên giao hàng</h2><div class="muted" style="margin-top:6px">Hiển thị đơn tổng mang tên mình, danh sách đơn con cần giao và công nợ khách hàng mình quản lý.</div></div><div class="toolbar"><button class="btn light" onclick="renderDeliveryApp()">Làm mới</button></div></div>
+          <div class="role-kpi">
+            <div class="mini-card"><span>Đơn tổng được giao</span><b id="driverMasterCount">0</b></div>
+            <div class="mini-card"><span>Đơn con</span><b id="driverChildCount">0</b></div>
+            <div class="mini-card"><span>Tiền phải thu</span><b id="driverDebtTotal">0</b></div>
+            <div class="mini-card"><span>Số khách còn nợ</span><b id="driverDebtCustomerCount">0</b></div>
+            <div class="mini-card"><span>Tiền mặt đã nộp</span><b id="driverCashTotal">0</b></div>
+            <div class="mini-card"><span>Chuyển khoản</span><b id="driverBankTotal">0</b></div>
+            <div class="mini-card"><span>Tiền hàng trả về</span><b id="driverReturnTotal">0</b></div>
+            <div class="mini-card"><span>Tổng phải đối soát</span><b id="driverReconcileTotal">0</b></div>
+          </div>
+          <div id="driverMasterList"></div>
+        </div>
+        <div class="card panel" id="driverDebtPanel">
+          <div class="panel-head"><h2>Công nợ khách hàng mình quản lý</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KH</th><th>Khách hàng</th><th class="center">Số đơn nợ</th><th class="right">Tổng nợ</th><th>Thao tác</th></tr></thead><tbody id="driverDebtBody"></tbody></table></div>
+        </div>
+        <div class="card panel" id="driverReportPanel">
+          <div class="panel-head">
+            <div>
+              <h2>Báo cáo tiền giao hàng</h2>
+              <div class="muted" style="margin-top:6px">Tổng hợp theo các đơn đang thuộc nhân viên giao hàng: tiền nộp, chuyển khoản, công nợ và tiền hàng trả về.</div>
+            </div>
+            <div class="toolbar"><button class="btn light" onclick="renderDeliveryApp()">Làm mới báo cáo</button></div>
+          </div>
+          <div class="driver-report-grid">
+            <div class="driver-report-card"><span>Tiền mặt đã nộp</span><b id="driverReportCash">0</b></div>
+            <div class="driver-report-card"><span>Chuyển khoản</span><b id="driverReportBank">0</b></div>
+            <div class="driver-report-card"><span>Công nợ còn lại</span><b id="driverReportDebt">0</b></div>
+            <div class="driver-report-card"><span>Tiền hàng trả về</span><b id="driverReportReturn">0</b></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Mã KH</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Tiền mặt</th><th class="right">Chuyển khoản</th><th class="right">Hàng trả về</th><th class="right">Công nợ</th></tr></thead><tbody id="driverReportBody"></tbody></table></div>
+        </div>
+      </section>

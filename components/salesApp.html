@@ -1,0 +1,59 @@
+<section id="salesApp" class="section">
+        <div class="card panel" id="salesCustomerPanel">
+          <div class="panel-head">
+            <div><h2>App bán hàng theo nhân viên</h2><div class="muted" style="margin-top:6px">Nhân viên vào danh sách khách hàng → chọn khách → xem hàng hóa, giá bán chưa khuyến mại, tồn thực tế → chấm đơn → xác nhận gửi về hệ thống.</div></div>
+            <div class="toolbar"><button class="btn light" onclick="renderSalesApp()">Làm mới</button><button class="btn green" onclick="salesConfirmOrder()">Xác nhận đơn</button></div>
+          </div>
+          <div class="role-app-grid">
+            <div>
+              <div class="field"><label>Tìm khách hàng</label><input id="salesCustomerSearch" placeholder="Mã / tên / SĐT khách" oninput="renderSalesCustomerList()"></div>
+              <div id="salesCustomerList" class="role-list" style="margin-top:10px"></div>
+            </div>
+            <div>
+              <div id="salesSelectedCustomerInfo" class="debt-search-note">Chọn khách hàng ở danh sách bên trái để bắt đầu chấm đơn.</div>
+              <div class="role-kpi">
+                <div class="mini-card"><span>Công nợ hiện tại</span><b id="salesCustomerDebt">0</b></div>
+                <div class="mini-card"><span>Số đơn còn nợ</span><b id="salesCustomerDebtOrders">0</b></div>
+                <div class="mini-card"><span>Giá trị giỏ hàng</span><b id="salesCartTotal">0</b></div>
+                <div class="mini-card"><span>Số dòng</span><b id="salesCartLines">0</b></div>
+              </div>
+              <div class="layout2">
+                <div class="card panel" style="box-shadow:none">
+                  <div class="panel-head"><h2>Danh sách hàng hóa</h2></div>
+                  <div class="field"><label>Tìm sản phẩm</label><input id="salesProductSearch" placeholder="Mã / tên sản phẩm" oninput="renderSalesProductList()"></div><br>
+                  <div class="table-wrap"><table class="table sales-product-table"><thead><tr><th>Mã hàng</th><th>Tên hàng</th><th class="right">Giá bán chưa KM</th><th class="right">Tồn thực tế</th><th>SL 1/0</th><th>Chấm</th></tr></thead><tbody id="salesProductList"></tbody></table></div>
+                </div>
+                <div class="card panel sales-cart-box" style="box-shadow:none">
+                  <div class="panel-head"><h2>Đơn đang chấm</h2></div>
+                  <div id="salesCartBody"></div>
+                  <div class="sum-line"><span>Tổng hàng</span><b id="salesCartGoods">0</b></div>
+                  <div class="form" style="grid-template-columns:1fr 1fr">
+                    <div class="field"><label>Tiền mặt</label><input id="salesCashPaid" type="number" value="0" oninput="renderSalesCart()"></div>
+                    <div class="field"><label>Chuyển khoản</label><input id="salesBankPaid" type="number" value="0" oninput="renderSalesCart()"></div>
+                    <div class="field"><label>Hạn thanh toán</label><input id="salesDueDate" type="date"></div>
+                    <div class="field"><label>Ghi chú</label><input id="salesNote" placeholder="Ghi chú đơn"></div>
+                  </div><br>
+                  <button class="btn green" onclick="salesConfirmOrder()">Xác nhận gửi hệ thống</button>
+                  <button class="btn light" onclick="salesCart=[];renderSalesCart()">Xóa giỏ</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card panel" id="salesOrdersPanel">
+          <div class="panel-head"><h2>Danh sách đơn đã chấm của tôi</h2><div class="toolbar"><button class="btn light" onclick="renderSalesOrders()">Làm mới</button></div></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã đơn</th><th>Ngày</th><th>Khách hàng</th><th class="right">Tổng tiền</th><th class="right">Đã thu</th><th class="right">Còn nợ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="salesOrdersBody"></tbody></table></div>
+        </div>
+        <div class="card panel" id="salesDebtPanel">
+          <div class="panel-head"><h2>Theo dõi công nợ khách hàng của tôi</h2></div>
+          <div class="form">
+            <div class="field"><label>Mã KH</label><input id="salesPayCustomerCode" placeholder="Chọn khách sẽ tự điền"></div>
+            <div class="field"><label>Tên KH</label><input id="salesPayCustomerName"></div>
+            <div class="field"><label>Tiền mặt thu</label><input id="salesPayCash" type="number" value="0"></div>
+            <div class="field"><label>Chuyển khoản thu</label><input id="salesPayBank" type="number" value="0"></div>
+            <div class="field wide"><label>Ghi chú</label><input id="salesPayNote" value="Nhân viên bán hàng thu công nợ"></div>
+          </div><br>
+          <button class="btn green" onclick="salesCollectDebt()">Ghi nhận thu tiền</button>
+          <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Mã KH</th><th>Khách hàng</th><th class="center">Số đơn nợ</th><th class="right">Tổng nợ</th><th>Thao tác</th></tr></thead><tbody id="salesDebtBody"></tbody></table></div>
+        </div>
+      </section>

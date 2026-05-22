@@ -1,0 +1,58 @@
+<section id="sale" class="section">
+        <div class="sale-pro">
+          <div class="card panel">
+            <div class="panel-head">
+              <div>
+                <h2>Tạo đơn bán hàng</h2>
+                <div class="muted" style="margin-top:6px">Giao diện xuất bán theo kiểu đơn hàng: số HĐ, khách, NVBH, chiết khấu, tổng tiền và chặn tồn âm.</div>
+              </div>
+              <div class="toolbar">
+                <button class="btn light" onclick="newSaleOrder()">Tạo mới</button>
+                <button class="btn green" onclick="createOrder()">Ghi / Chốt đơn</button>
+              </div>
+            </div>
+            <div class="sale-head">
+              <div class="field col2"><label>Số HĐ</label><input id="oId" readonly></div>
+              <div class="field col2"><label>Ngày</label><input id="oDate" type="date"></div>
+              <div class="field col2"><label>Hạn thanh toán</label><input id="dueDate" type="date"></div>
+              <div class="field col3 sale-auto-wrap"><label>NVBH</label><input id="sStaff" autocomplete="off" placeholder="Tìm mã / tên / SĐT NVBH" oninput="searchSaleStaff()" onfocus="searchSaleStaff()" onkeydown="saleAutoKey(event,'staff')"><input type="hidden" id="sStaffCode"><div id="saleStaffResults" class="sale-auto-box"></div></div>
+              <div class="field col3 sale-auto-wrap"><label>Khách</label><input id="sCustomer" autocomplete="off" placeholder="Tìm mã / tên / SĐT khách hàng" oninput="searchSaleCustomer()" onfocus="searchSaleCustomer()" onkeydown="saleAutoKey(event,'customer')"><input type="hidden" id="sCustomerCode"><div id="saleCustomerResults" class="sale-auto-box"></div></div>
+              <div class="field col2"><label>Kho</label><input id="sWarehouse" value="KHOCHINH"></div>
+              <div class="field col4"><label>Ghi chú</label><input id="sNote" placeholder="Ghi chú đơn hàng"></div>
+              <div class="field col2"><label>CK dòng mặc định %</label><input id="lineDiscount" type="number" value="0" min="0"></div>
+              <div class="field col2"><label>CK hiệu chỉnh</label><input id="adjustDiscount" type="number" value="0" oninput="renderCart()"></div>
+              <div class="field col2"><label>Trạng thái giao</label><select id="deliveryStatus"><option>Giao thành công</option><option>Chưa giao</option><option>Đang giao</option><option>Hủy</option></select></div>
+              <div class="field col2"><label>Phiếu XK</label><input id="xkCode" placeholder="Tự ghi nếu cần"></div>
+              <div class="field col3"><label>Nhân viên giao hàng</label><select id="deliveryStaffSelect"></select></div>
+              <div class="field col2"><label>Tiền mặt</label><input id="cashPaid" type="number" value="0" oninput="renderCart()"></div>
+              <div class="field col2"><label>Chuyển khoản</label><input id="bankPaid" type="number" value="0" oninput="renderCart()"></div>
+            </div>
+            <div class="sale-tools">
+              <div class="field sale-search-wrap"><label>Tìm sản phẩm</label><input id="sSearch" oninput="searchSaleProducts()" placeholder="Nhập SKU hoặc tên sản phẩm"><div id="saleResults" class="sale-results-pro"></div></div>
+              <div class="field"><label>SL 1/0</label><input id="saleQtySlash" placeholder="1/0"></div>
+              <div class="field"><label>% CK</label><input id="saleLineDisc" type="number" value="0"></div>
+              <button class="btn" onclick="addSelectedSaleItem()">Nhập ngay</button>
+              <button class="btn light" onclick="downloadSaleTemplate()">Mẫu import</button>
+            </div>
+            <div class="toolbar">
+              <button class="btn green" onclick="document.getElementById('importSaleFile').click()">Import đơn bán Excel</button>
+              <input id="importSaleFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importSaleExcel(event)">
+              <span class="muted">Mẫu import dùng cột <b>SKU</b>, <b>SL</b> dạng 1/0 và <b>%CK</b>.</span>
+            </div>
+            <div class="table-wrap">
+              <table class="table sale-table">
+                <thead><tr><th>Stt</th><th>Mã hàng</th><th>Tên hàng</th><th class="right">Đơn giá</th><th>T/L</th><th class="right">SL</th><th class="right">%CK</th><th class="right">Tiền CK</th><th class="right">Thành tiền</th><th>Tồn kho</th><th>Hành động</th></tr></thead>
+                <tbody id="cartBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card panel sale-summary">
+            <div class="panel-head"><h2>Thông tin thanh toán</h2></div>
+            <div class="sum-line"><span>Tổng tiền hàng</span><b id="sumGoods">0</b></div>
+            <div class="sum-line"><span>Tiền CK-KM</span><b id="sumDiscount">0</b></div>
+            <div class="sum-line"><span>CK hiệu chỉnh</span><b id="sumAdjust">0</b></div>
+            <div class="sum-pay"><div class="sum-line"><span>Phải thanh toán</span><b id="cartTotal">0</b></div><div class="sum-line"><span>Đã thu</span><b id="sumPaid">0</b></div><div class="sum-line" style="border:0"><span>Công nợ</span><b id="sumDebt">0</b></div></div>
+            <div class="sale-setting"><b>Thiết lập</b><div class="sale-mini">Đơn bán sẽ tự trừ tồn khi chốt, lưu chi tiết từng dòng hàng, giá vốn, doanh thu, nhân viên và khách hàng để lên báo cáo.</div></div>
+          </div>
+        </div>
+      </section>

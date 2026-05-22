@@ -1,0 +1,85 @@
+<section id="promotions" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h2>Khuyến mại</h2>
+              <div class="muted" style="margin-top:6px">Quản lý đúng 2 cấu trúc: khuyến mại theo sản phẩm và khuyến mại theo nhóm sản phẩm. Mỗi mục có import Excel riêng.</div>
+            </div>
+            <div class="toolbar">
+              <button class="btn light" onclick="downloadProductPromotionTemplate()">Mẫu KM sản phẩm</button>
+              <button class="btn green" onclick="document.getElementById('importProductPromotionFile').click()">Import KM sản phẩm</button>
+              <input id="importProductPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductPromotionExcel(event)">
+              <button class="btn light" onclick="downloadGroupPromotionTemplate()">Mẫu KM nhóm SP</button>
+              <button class="btn orange" onclick="document.getElementById('importGroupPromotionFile').click()">Import KM nhóm SP</button>
+              <input id="importGroupPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importGroupPromotionExcel(event)">
+              <button class="btn light" onclick="downloadCustomerGroupPromotionTemplate()">Mẫu KM nhóm KH</button>
+              <button class="btn green" onclick="document.getElementById('importCustomerGroupPromotionFile').click()">Import KM nhóm KH</button>
+              <input id="importCustomerGroupPromotionFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCustomerGroupPromotionExcel(event)">
+            </div>
+          </div>
+
+          <div class="promo-tabs">
+            <button class="active" data-promo-type="product" onclick="setPromoType('product')">Khuyến mại theo sản phẩm</button>
+            <button data-promo-type="productGroup" onclick="setPromoType('productGroup')">Khuyến mại theo nhóm sản phẩm</button>
+            <button data-promo-type="customerGroup" onclick="setPromoType('customerGroup')">Khuyến mại theo nhóm khách hàng</button>
+          </div>
+
+          <div id="promoProductForm">
+            <div class="form">
+              <div class="field"><label>Mã khuyến mại</label><input id="promoProductCode" placeholder="VD: KM001"></div>
+              <div class="field wide"><label>Nội dung khuyến mại</label><input id="promoProductContent" placeholder="VD: CK sản phẩm tháng này"></div>
+              <div class="field"><label>Mã sản phẩm được khuyến mại</label><input id="promoProductSku" list="productSkuList" placeholder="Chọn/nhập mã sản phẩm"></div>
+              <div class="field"><label>% chiết khấu</label><input id="promoProductDiscount" type="number" value="0"></div>
+            </div>
+            <br>
+            <button class="btn" onclick="saveProductPromotion()">Lưu KM sản phẩm</button>
+          </div>
+
+          <div id="promoGroupForm" class="hidden">
+            <div class="form">
+              <div class="field"><label>Mã khuyến mại</label><input id="promoGroupCode" placeholder="VD: KMG001"></div>
+              <div class="field wide"><label>Nội dung khuyến mại</label><input id="promoGroupContent" placeholder="VD: Lấy nhóm OMO đạt giá trị sẽ giảm"></div>
+              <div class="field"><label>Nhóm hàng được khuyến mại</label><input id="promoGroupName" list="productGroupList" placeholder="Chọn/nhập nhóm sản phẩm"></div>
+              <div class="field"><label>Giá trị cần mua</label><input id="promoGroupApplyAmount" type="number" value="0" placeholder="Tính theo giá bán sản phẩm"></div>
+              <div class="field"><label>% chiết khấu</label><input id="promoGroupDiscountPercent" type="number" value="0"></div>
+              <div class="field"><label>Giá trị giảm giá</label><input id="promoGroupDiscountAmount" type="number" value="0"></div>
+            </div>
+            <div class="muted" style="margin-top:8px">Lưu ý: % chiết khấu và giá trị giảm giá hoạt động độc lập, có thể nhập một trong hai hoặc cả hai.</div>
+            <br>
+            <button class="btn" onclick="saveGroupPromotion()">Lưu KM nhóm sản phẩm</button>
+          </div>
+          <div id="promoCustomerGroupForm" class="hidden">
+            <div class="form">
+              <div class="field"><label>Mã khuyến mại</label><input id="promoCustomerGroupCode" placeholder="VD: KMKH001"></div>
+              <div class="field wide"><label>Nội dung khuyến mại</label><input id="promoCustomerGroupContent" placeholder="VD: Khách nhóm sỉ đạt giá trị được giảm"></div>
+              <div class="field"><label>Nhóm khách hàng được khuyến mại</label><input id="promoCustomerGroupName" list="customerGroupList" placeholder="Chọn/nhập nhóm khách hàng"></div>
+              <div class="field"><label>Giá trị cần mua</label><input id="promoCustomerGroupApplyAmount" type="number" value="0"></div>
+              <div class="field"><label>% chiết khấu</label><input id="promoCustomerGroupDiscountPercent" type="number" value="0"></div>
+              <div class="field"><label>Giá trị giảm giá</label><input id="promoCustomerGroupDiscountAmount" type="number" value="0"></div>
+            </div>
+            <div class="muted" style="margin-top:8px">% chiết khấu và giá trị giảm giá hoạt động độc lập, có thể nhập một trong hai hoặc cả hai.</div>
+            <br>
+            <button class="btn" onclick="saveCustomerGroupPromotion()">Lưu KM nhóm khách hàng</button>
+          </div>
+          <datalist id="productSkuList"></datalist>
+          <datalist id="productGroupList"></datalist>
+          <datalist id="customerGroupList"></datalist>
+          <datalist id="categoryList"></datalist>
+          <datalist id="categoryGroupList"></datalist>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách khuyến mại theo sản phẩm</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th class="right">% chiết khấu</th><th>Thao tác</th></tr></thead><tbody id="productPromotionBody"></tbody></table></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách khuyến mại theo nhóm sản phẩm</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Nhóm hàng</th><th class="right">Giá trị cần mua</th><th class="right">% chiết khấu</th><th class="right">Giá trị giảm giá</th><th>Diễn giải</th><th>Thao tác</th></tr></thead><tbody id="groupPromotionBody"></tbody></table></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách khuyến mại theo nhóm khách hàng</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Mã KM</th><th>Nội dung KM</th><th>Nhóm khách hàng</th><th class="right">Giá trị cần mua</th><th class="right">% chiết khấu</th><th class="right">Giá trị giảm giá</th><th>Diễn giải</th><th>Thao tác</th></tr></thead><tbody id="customerGroupPromotionBody"></tbody></table></div>
+        </div>
+      </section>

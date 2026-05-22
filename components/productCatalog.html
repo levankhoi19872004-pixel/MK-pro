@@ -1,0 +1,65 @@
+<section id="productCatalog" class="section">
+        <div class="card panel">
+          <div class="panel-head">
+            <div>
+              <h2>Danh mục sản phẩm</h2>
+              <div class="muted" style="margin-top:6px">Quản lý mã sản phẩm, tên, quy cách, giá bán, nhãn hàng, ngành hàng, kho hàng và nhóm sản phẩm.</div>
+            </div>
+            <div class="toolbar">
+              <button class="btn light" onclick="downloadProductCatalogTemplate()">Tải mẫu Excel</button>
+              <button class="btn green" onclick="document.getElementById('importProductCatalog').click()">Import sản phẩm</button>
+              <input id="importProductCatalog" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductCatalogExcel(event)">
+              <button class="btn" onclick="exportProductCatalog()">Xuất Excel</button>
+              <button class="btn red" onclick="bulkDeleteProductCatalog()">Xóa số lượng lớn</button>
+            </div>
+          </div>
+          <div class="form">
+            <div class="field"><label>Mã sản phẩm</label><input id="pcSku"></div>
+            <div class="field"><label>Tên sản phẩm</label><input id="pcName"></div>
+            <div class="field"><label>Quy cách</label><input id="pcPack" type="number" value="12"></div>
+            <div class="field"><label>Giá bán</label><input id="pcSale" type="number" value="0"></div>
+            <div class="field"><label>Nhãn hàng</label><input id="pcBrand"></div>
+            <div class="field"><label>Ngành hàng</label><input id="pcCategory"></div>
+            <div class="field"><label>Kho hàng quản lý</label><input id="pcWarehouse" value="Kho chính"></div>
+            <div class="field"><label>Nhóm sản phẩm</label><input id="pcProductGroup" list="productGroupList" placeholder="VD: OMO gói lớn"></div>
+          </div>
+          <br>
+          <button class="btn" onclick="saveProductCatalog()">Lưu sản phẩm</button>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Tạo nhóm sản phẩm / nhóm ngành hàng</h2></div>
+          <div class="form">
+            <div class="field"><label>Tên nhóm sản phẩm</label><input id="pgName" placeholder="VD: Nhóm OMO bán chạy"></div>
+            <div class="field wide"><label>Danh sách mã sản phẩm</label><input id="pgSkus" list="productSkuList" placeholder="Nhập mã sản phẩm, cách nhau bằng dấu phẩy"></div>
+            <div class="field"><label>Tên nhóm ngành hàng</label><input id="cgName" placeholder="VD: Chăm sóc gia đình"></div>
+            <div class="field wide"><label>Danh sách ngành hàng</label><input id="cgCategories" list="categoryList" placeholder="Nhập ngành hàng, cách nhau bằng dấu phẩy"></div>
+          </div>
+          <br>
+          <button class="btn green" onclick="saveProductGroup()">Lưu nhóm sản phẩm</button>
+          <button class="btn light" onclick="downloadProductGroupTemplate()">Tải mẫu nhóm SP</button>
+          <button class="btn orange" onclick="document.getElementById('importProductGroupFile').click()">Import nhóm SP</button>
+          <input id="importProductGroupFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importProductGroupExcel(event)">
+          <button class="btn" onclick="saveCategoryGroup()">Lưu nhóm ngành hàng</button>
+          <button class="btn light" onclick="downloadCategoryGroupTemplate()">Tải mẫu nhóm ngành</button>
+          <button class="btn orange" onclick="document.getElementById('importCategoryGroupFile').click()">Import nhóm ngành</button>
+          <input id="importCategoryGroupFile" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importCategoryGroupExcel(event)">
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách sản phẩm</h2></div>
+          <div class="filter-grid">
+            <div class="field wide"><label>Tìm mã / tên</label><input id="pcSearch" oninput="renderProductCatalog()" placeholder="Nhập mã hoặc tên sản phẩm"></div>
+            <div class="field"><label>Nhãn hàng</label><input id="pcBrandFilter" oninput="renderProductCatalog()"></div>
+            <div class="field"><label>Ngành hàng</label><input id="pcCategoryFilter" oninput="renderProductCatalog()"></div>
+            <div class="field"><label>Kho hàng</label><input id="pcWarehouseFilter" oninput="renderProductCatalog()"></div>
+            <div class="field"><label>Nhóm sản phẩm</label><input id="pcGroupFilter" oninput="renderProductCatalog()"></div>
+          </div>
+          <div class="table-wrap"><table class="table"><thead><tr><th class="center"><input type="checkbox" onchange="toggleAllByClass('catalog-delete-check',this.checked)"></th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Quy cách</th><th class="right">Giá bán</th><th>Nhãn hàng</th><th>Ngành hàng</th><th>Kho hàng quản lý</th><th>Nhóm SP</th><th>Thao tác</th></tr></thead><tbody id="productCatalogBody"></tbody></table></div>
+        </div>
+
+        <div class="card panel">
+          <div class="panel-head"><h2>Danh sách nhóm</h2></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Loại nhóm</th><th>Tên nhóm</th><th>Danh sách</th><th>Thao tác</th></tr></thead><tbody id="groupCatalogBody"></tbody></table></div>
+        </div>
+      </section>
