@@ -3396,7 +3396,318 @@ function printPaymentReceipt(paymentId){
       <b>Còn nợ hiện tại:</b><span>${money(orderDebtRemaining(o))}</span>
     </div>
     <div class="sign"><div><b>Người lập phiếu</b><span>________________</span></div><div><b>Người nộp tiền</b><span>________________</span></div><div><b>Thủ quỹ</b><span>________________</span></div></div>
-  </div><script>window.print()<\/script></body></html>`;
+  </div><script>window.print()<\/script>
+
+<script>
+/* ===== MK PATCH 53: sửa các phần yêu cầu, giữ nguyên logic cũ =====
+   1) Giá bán import danh mục sản phẩm ép số nguyên.
+   2) Bổ sung nút Thoát cố định cho App bán hàng/App giao hàng mobile.
+   3) Ẩn chức năng thu nợ khỏi App nhân viên bán hàng.
+   4) Gia cố input số lượng mobile để luôn bật bàn phím số.
+   5) App giao hàng thêm Giá trị trả thưởng trưng bày.
+   6) Bọc render từng mảng bằng safe-wrapper để lỗi 1 mảng không kéo sập toàn bộ.
+   7) Thêm thanh trượt ngang cho các mục/menu/bảng trên màn hình nhỏ. */
+(function(){
+  'use strict';
+
+  function mkInt(v){
+    if(typeof parseImportNumber === 'function'){
+      try{ return Math.trunc(Number(parseImportNumber(v)) || 0); }catch(e){}
+    }
+    let s = String(v == null ? '' : v).trim();
+    if(!s) return 0;
+    s = s.replace(/[₫đĐ\s]/g,'');
+    if(s.includes(',') && s.includes('.')){
+      const lastComma=s.lastIndexOf(','), lastDot=s.lastIndexOf('.');
+      if(lastComma>lastDot) s=s.replace(/\./g,'').replace(',', '.');
+      else s=s.replace(/,/g,'');
+    }else if(s.includes(',')){
+      const parts=s.split(',');
+      if(parts[parts.length-1].length<=2) s=s.replace(/\./g,'').replace(',', '.');
+      else s=s.replace(/,/g,'');
+    }else if(s.includes('.')){
+      const parts=s.split('.');
+      if(parts.length>1 && parts[parts.length-1].length===3) s=s.replace(/\./g,'');
+    }
+    return Math.trunc(Number(s.replace(/[^0-9.-]/g,'')) || 0);
+  }
+  window.mkImportInteger = mkInt;
+
+  function mkPick(row, keys){
+    if(typeof pickImportValue === 'function') return pickImportValue(row, keys);
+    for(const k of keys){ if(Object.prototype.hasOwnProperty.call(row,k)) return row[k]; }
+    const norm = x => String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+    const map={}; Object.keys(row||{}).forEach(k=>map[norm(k)]=row[k]);
+    for(const k of keys){ const nk=norm(k); if(Object.prototype.hasOwnProperty.call(map,nk)) return map[nk]; }
+    return '';
+  }
+
+  // 1) Import danh mục sản phẩm: giá bán luôn là số nguyên, không lưu thập phân.
+  window.importProductCatalogExcel = function(ev){
+    const file=ev?.target?.files?.[0]; if(!file)return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+      let count=0, priceCount=0;
+      rows.forEach(r=>{
+        const sku=String(mkPick(r,['ma_san_pham','Mã sản phẩm','Mã SP','SKU','sku','Code','Mã hàng','Ma hang'])||'').trim();
+        if(!sku) return;
+        let p=typeof findProduct==='function'?findProduct(sku):(db.products||[]).find(x=>String(x.sku)===sku);
+        const rawSale=mkPick(r,['gia_ban','Giá bán','Gia ban','Giá bán chưa KM','Gia ban chua KM','Đơn giá bán','Don gia ban','Giá','Gia','sale','price']);
+        const rawPack=mkPick(r,['quy_cach','Quy cách','Quy cach','pack']);
+        const sale=mkInt(rawSale);
+        if(String(rawSale ?? '').trim()!=='' && sale>=0) priceCount++;
+        const data={
+          sku,
+          name:String(mkPick(r,['ten_san_pham','Tên sản phẩm','Ten san pham','name','Tên hàng','Ten hang'])||'').trim(),
+          pack:mkInt(rawPack)||1,
+          sale,
+          brand:String(mkPick(r,['nhan_hang','Nhãn hàng','Nhan hang','brand'])||'').trim(),
+          category:String(mkPick(r,['nganh_hang','Ngành hàng','Nganh hang','category'])||'').trim(),
+          warehouse:String(mkPick(r,['kho_hang_quan_ly','Kho hàng quản lý','Kho hang quan ly','Kho hàng','Kho hang','warehouse'])||'Kho chính').trim()||'Kho chính',
+          productGroup:String(mkPick(r,['nhom_san_pham','Nhóm sản phẩm','Nhom san pham','productGroup'])||'').trim()
+        };
+        db.products=Array.isArray(db.products)?db.products:[];
+        if(!p) db.products.push({...data,qty:0,cost:0});
+        else Object.assign(p,data);
+        count++;
+      });
+      if(typeof save==='function') save();
+      if(typeof render==='function') render();
+      if(typeof toast==='function') toast('Đã import '+count+' sản phẩm · giá bán đã làm tròn số nguyên '+priceCount+' dòng');
+      ev.target.value='';
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // 2) Nút thoát mobile luôn hiện ở App bán hàng/App giao hàng.
+  function ensureMobileLogout(){
+    let btn=document.getElementById('mobileLogoutFixed');
+    if(!btn){
+      btn=document.createElement('button');
+      btn.type='button'; btn.id='mobileLogoutFixed'; btn.className='mobile-logout-fixed';
+      btn.innerHTML='🚪 Thoát'; btn.onclick=function(){ if(typeof logout==='function') logout(); };
+      document.body.appendChild(btn);
+    }
+    const pageId = typeof currentActivePage==='function' ? currentActivePage() : '';
+    const show = window.innerWidth<=780 && document.body.classList.contains('mobile-role-app') && (pageId==='salesApp' || pageId==='deliveryApp');
+    btn.style.display = show ? 'flex' : 'none';
+  }
+
+  // 3) Bỏ phần thu nợ khỏi App nhân viên bán hàng: chỉ ẩn ở App bán hàng, không xóa module công nợ chính.
+  function hideSalesDebtInApp(){
+    const panel=document.getElementById('salesDebtPanel');
+    if(panel) panel.style.display='none';
+    document.querySelectorAll('[data-app-tab="sales-debt"]').forEach(x=>x.style.display='none');
+    document.querySelectorAll('#salesApp .customer-pay-box, #salesApp [onclick*="salesCollectDebt"]').forEach(x=>{
+      const box=x.closest('.customer-pay-box') || x;
+      box.style.display='none';
+    });
+  }
+
+  // 4) Gia cố input số lượng mobile để hiện bàn phím số và không bị lớp phủ ăn click.
+  function hardenSalesQtyInputs(){
+    document.querySelectorAll('#salesApp input.sales-qty-input, #salesProductList input[id^="salesBox_"], #salesProductList input[id^="salesEach_"]').forEach(inp=>{
+      inp.removeAttribute('readonly'); inp.removeAttribute('disabled');
+      inp.type='tel'; inp.inputMode='numeric'; inp.pattern='[0-9]*'; inp.autocomplete='off'; inp.enterKeyHint='done';
+      inp.style.pointerEvents='auto'; inp.style.userSelect='text'; inp.style.webkitUserSelect='text'; inp.style.touchAction='manipulation'; inp.style.opacity='1';
+    });
+  }
+  document.addEventListener('touchstart', function(e){
+    const inp=e.target.closest && e.target.closest('#salesApp input.sales-qty-input');
+    if(inp){ setTimeout(()=>{ try{ inp.focus({preventScroll:true}); }catch(_){ inp.focus(); } }, 0); }
+  }, true);
+  document.addEventListener('click', function(e){
+    const inp=e.target.closest && e.target.closest('#salesApp input.sales-qty-input');
+    if(inp){ try{ inp.focus({preventScroll:true}); }catch(_){ inp.focus(); } }
+  }, true);
+
+  // 5) Giá trị trả thưởng trưng bày cho App giao hàng.
+  function displayRewardAmount(o){
+    const orderId=String(o?.id||'');
+    const fromLedger=(db.displayRewards||[]).filter(r=>String(r.orderId||'')===orderId).reduce((s,r)=>s+(Number(r.amount)||0),0);
+    if(fromLedger!==0) return Math.max(0,fromLedger);
+    return Math.max(0, Number(o?.displayRewardAmount||o?.displayReward||o?.displayBonus||0)||0);
+  }
+  window.orderDisplayRewardAmount=displayRewardAmount;
+  window.setOrderDisplayRewardAmount=function(order, desiredAmount, note){
+    if(!order || !order.id) return;
+    db.displayRewards=Array.isArray(db.displayRewards)?db.displayRewards:[];
+    const desired=Math.max(0,Math.trunc(Number(desiredAmount)||0));
+    const current=displayRewardAmount(order);
+    const delta=desired-current;
+    if(delta!==0){
+      db.displayRewards.push({
+        id:'DR-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),
+        orderId:String(order.id), customerCode:orderCustomerCode(order)||'', customerName:order.customer||order.customerName||'',
+        amount:delta, date:new Date().toISOString(), note:note||'Trả thưởng trưng bày', source:'driver-display-reward'
+      });
+    }
+    order.displayRewardAmount=desired;
+    if(order.masterId && typeof recalcMasterOrder==='function') recalcMasterOrder(order.masterId);
+  };
+  window.driverSaveDisplayReward=function(orderId){
+    const order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+    if(!order) return toast('Không tìm thấy đơn');
+    const id=cssSafeId(orderId);
+    const val=mkInt(document.getElementById('driverDisplayReward_'+id)?.value||0);
+    setOrderDisplayRewardAmount(order,val,'Nhân viên giao hàng cập nhật trả thưởng trưng bày');
+    if(typeof save==='function') save();
+    if(typeof renderDeliveryApp==='function') renderDeliveryApp();
+    if(typeof toast==='function') toast('Đã lưu trả thưởng trưng bày '+money(val));
+  };
+
+  function augmentDriverDisplayRewards(){
+    if(!document.getElementById('deliveryApp')) return;
+    const child=(typeof driverDeliveryReportRows==='function'?driverDeliveryReportRows():(db.orders||[])) || [];
+    const rewardTotal=child.reduce((a,o)=>a+displayRewardAmount(o),0);
+
+    const kpiBox=document.querySelector('#driverOrdersPanel .role-kpi');
+    if(kpiBox && !document.getElementById('driverDisplayRewardTotal')){
+      kpiBox.insertAdjacentHTML('beforeend','<div class="mini-card"><span>Trả thưởng trưng bày</span><b id="driverDisplayRewardTotal">0</b></div>');
+    }
+    const kpi=document.getElementById('driverDisplayRewardTotal'); if(kpi) kpi.textContent=money(rewardTotal);
+
+    const reportGrid=document.querySelector('#driverReportPanel .driver-report-grid');
+    if(reportGrid && !document.getElementById('driverReportDisplayReward')){
+      reportGrid.insertAdjacentHTML('beforeend','<div class="driver-report-card"><span>Trả thưởng trưng bày</span><b id="driverReportDisplayReward">0</b></div>');
+    }
+    const reportKpi=document.getElementById('driverReportDisplayReward'); if(reportKpi) reportKpi.textContent=money(rewardTotal);
+
+    // Thêm cột nhập trả thưởng ở danh sách đơn giao.
+    document.querySelectorAll('#driverMasterList table').forEach(table=>{
+      const head=table.querySelector('thead tr');
+      if(head && !head.querySelector('.mk-display-reward-th')){
+        const th=document.createElement('th'); th.className='right mk-display-reward-th'; th.textContent='Trả thưởng trưng bày';
+        const debtTh=[...head.children].find(x=>String(x.textContent||'').includes('Còn nợ'));
+        head.insertBefore(th, debtTh || head.lastElementChild);
+      }
+      table.querySelectorAll('tbody tr').forEach(tr=>{
+        if(tr.querySelector('.mk-display-reward-td')) return;
+        const orderId=tr.children[0]?.textContent?.trim();
+        const order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+        if(!order) return;
+        const td=document.createElement('td'); td.className='right mk-display-reward-td';
+        const rid=cssSafeId(order.id);
+        td.innerHTML='<input class="driver-return-input" id="driverDisplayReward_'+rid+'" type="number" inputmode="numeric" value="'+displayRewardAmount(order)+'" min="0">';
+        const debtTd=[...tr.children].find(x=>x.textContent && x.textContent.includes(money(typeof orderDebtRemaining==='function'?orderDebtRemaining(order):0)));
+        tr.insertBefore(td, debtTd || tr.lastElementChild);
+        const btnCell=tr.lastElementChild;
+        if(btnCell && !btnCell.querySelector('.mk-save-display-reward')){
+          btnCell.insertAdjacentHTML('beforeend',' <button class="btn small purple mk-save-display-reward" onclick="driverSaveDisplayReward(\''+safeAttr(order.id)+'\')">Lưu thưởng</button>');
+        }
+      });
+    });
+
+    // Thêm cột báo cáo trả thưởng.
+    const reportTable=document.querySelector('#driverReportPanel table');
+    if(reportTable){
+      const hr=reportTable.querySelector('thead tr');
+      if(hr && !hr.querySelector('.mk-report-display-reward-th')){
+        const th=document.createElement('th'); th.className='right mk-report-display-reward-th'; th.textContent='Trả thưởng trưng bày';
+        const debtTh=[...hr.children].find(x=>String(x.textContent||'').includes('Công nợ'));
+        hr.insertBefore(th, debtTh || hr.lastElementChild);
+      }
+      reportTable.querySelectorAll('tbody tr').forEach(tr=>{
+        if(tr.querySelector('.mk-report-display-reward-td')) return;
+        const orderId=tr.children[0]?.textContent?.trim();
+        const order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+        if(!order) return;
+        const td=document.createElement('td'); td.className='right mk-report-display-reward-td'; td.textContent=money(displayRewardAmount(order));
+        tr.insertBefore(td, tr.lastElementChild);
+      });
+    }
+  }
+
+  // Gộp lưu hàng trả về + thưởng nếu người dùng bấm nút lưu hàng trả cũ.
+  const oldDriverSaveOrderReturn = window.driverSaveOrderReturn;
+  if(typeof oldDriverSaveOrderReturn==='function'){
+    window.driverSaveOrderReturn=function(orderId){
+      const res=oldDriverSaveOrderReturn.apply(this, arguments);
+      const input=document.getElementById('driverDisplayReward_'+cssSafeId(orderId));
+      const order=(db.orders||[]).find(o=>String(o.id)===String(orderId));
+      if(input && order) setOrderDisplayRewardAmount(order, mkInt(input.value||0), 'Cập nhật kèm khi lưu hàng trả');
+      if(typeof save==='function') save();
+      setTimeout(augmentDriverDisplayRewards,50);
+      return res;
+    };
+  }
+
+  // 6) Chia mảng quản lý theo nhóm + safe wrapper render để 1 lỗi không làm hỏng toàn bộ màn hình.
+  window.MK_MODULES = window.MK_MODULES || {
+    catalog:['products','productGroups','categoryGroups'],
+    stock:['products','receipts'],
+    sales:['orders','customers','staff','promotions','returns','payments'],
+    delivery:['masterOrders','orders','deliveryStaff','returns','displayRewards'],
+    debt:['orders','payments','returns']
+  };
+  function ensureModuleArrays(){
+    Object.values(window.MK_MODULES).flat().forEach(k=>{ if(!Array.isArray(db[k])) db[k]=[]; });
+  }
+  window.ensureModuleArrays = ensureModuleArrays;
+  ['renderSalesApp','renderDeliveryApp','renderProductCatalog','renderPromotions','renderDebtReports'].forEach(fn=>{
+    const old=window[fn];
+    if(typeof old==='function' && !old.__mkSafeWrapped){
+      const wrapped=function(){
+        try{ ensureModuleArrays(); return old.apply(this, arguments); }
+        catch(err){ console.error('Lỗi mảng '+fn, err); if(typeof toast==='function') toast('Một mảng bị lỗi: '+fn+'. Các phần khác vẫn dùng được.'); }
+        finally{ afterUiPatch(); }
+      };
+      wrapped.__mkSafeWrapped=true;
+      window[fn]=wrapped;
+    }
+  });
+
+  // 7) Thanh trượt ngang cho các mục/menu/bảng.
+  function injectCss(){
+    if(document.getElementById('mkPatch53Css')) return;
+    const st=document.createElement('style'); st.id='mkPatch53Css';
+    st.textContent=`
+      .nav{max-height:calc(100vh - 220px);overflow-y:auto;scrollbar-width:thin;padding-right:4px;}
+      .toolbar,.promo-tabs,.filter-grid{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+      .toolbar{flex-wrap:nowrap!important;padding-bottom:4px;}
+      .toolbar>*{flex:0 0 auto;}
+      .table-wrap{overflow:auto!important;-webkit-overflow-scrolling:touch;}
+      @media(max-width:780px){
+        body.mobile-role-app .mobile-logout-fixed{display:flex!important;position:fixed!important;right:10px!important;top:10px!important;z-index:9999!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:999px!important;background:#fee2e2!important;color:#991b1b!important;padding:10px 13px!important;font-size:14px!important;font-weight:900!important;box-shadow:0 10px 24px rgba(153,27,27,.18)!important;}
+        body.mobile-role-app #salesDebtPanel{display:none!important;}
+        body.mobile-role-app .mobile-app-tabs{overflow-x:auto!important;display:flex!important;white-space:nowrap!important;scrollbar-width:thin!important;}
+        body.mobile-role-app .mobile-app-tabs button{min-width:76px!important;flex:0 0 auto!important;}
+        body.mobile-role-app .mobile-app-tabs button[data-app-tab="sales-debt"],body.mobile-role-app .mobile-app-tabs button[data-app-tab="sales-confirm"]{display:none!important;}
+        body.mobile-role-app #salesApp input.sales-qty-input{pointer-events:auto!important;touch-action:manipulation!important;-webkit-user-select:text!important;user-select:text!important;position:relative!important;z-index:999!important;}
+        body.mobile-role-app #salesApp .qty-stepper,body.mobile-role-app #salesApp .qty-grid{position:relative!important;z-index:998!important;}
+        body.mobile-role-app .driver-return-input{max-width:160px!important;min-width:120px!important;}
+      }`;
+    document.head.appendChild(st);
+  }
+
+  function afterUiPatch(){
+    injectCss(); ensureModuleArrays(); ensureMobileLogout(); hideSalesDebtInApp(); hardenSalesQtyInputs(); augmentDriverDisplayRewards();
+  }
+
+  const oldRenderProductList = window.renderSalesProductList;
+  if(typeof oldRenderProductList==='function' && !oldRenderProductList.__mkPatch53){
+    window.renderSalesProductList=function(){ const r=oldRenderProductList.apply(this, arguments); hardenSalesQtyInputs(); return r; };
+    window.renderSalesProductList.__mkPatch53=true;
+  }
+  const oldUpdateMobileMode=window.updateMobileAppMode;
+  if(typeof oldUpdateMobileMode==='function'){
+    window.updateMobileAppMode=function(){ const r=oldUpdateMobileMode.apply(this, arguments); afterUiPatch(); return r; };
+  }
+  const oldPage=window.page;
+  if(typeof oldPage==='function'){
+    window.page=function(){ const r=oldPage.apply(this, arguments); setTimeout(afterUiPatch,20); return r; };
+  }
+
+  document.addEventListener('DOMContentLoaded', afterUiPatch);
+  window.addEventListener('resize', afterUiPatch);
+  setInterval(ensureMobileLogout, 1000);
+  setTimeout(afterUiPatch, 250);
+})();
+</script>
+
+</body></html>`;
   const w=window.open('','_blank');
   if(!w) return toast('Trình duyệt đang chặn cửa sổ in phiếu thu');
   w.document.write(html); w.document.close();
