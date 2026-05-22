@@ -321,7 +321,7 @@ async function readKhoData() {
 
 async function initDB() {
   if (!process.env.DATABASE_URL) {
-    console.warn(⚠️ Chưa có DATABASE_URL');
+    console.warn('Chua co DATABASE_URL');
     return;
   }
 
