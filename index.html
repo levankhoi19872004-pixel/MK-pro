@@ -1156,8 +1156,9 @@
 <script>
 const KEY='kho_pro_professional_v2';
 
-// Link API Render đang chạy OK.
-// Không dùng location.origin nữa để tránh web HTML gọi nhầm sang domain giao diện.
+// ===== API ổn định cho Netlify + Render =====
+// Khi đưa web lên Netlify, HTML luôn gọi sang API Render cố định này.
+// Có thể đổi nhanh bằng cách đặt localStorage.KHO_API_URL hoặc window.KHO_API_URL.
 const DEFAULT_API_URL='https://kho-api-2.onrender.com';
 let API_URL=DEFAULT_API_URL;
 
@@ -1167,27 +1168,41 @@ function cleanApiUrl(url){
 
 function getApiCandidates(){
   const saved=cleanApiUrl(localStorage.getItem('KHO_API_URL') || '');
-  const list=[
-    DEFAULT_API_URL,
-    saved,
-    'http://localhost:10000'
-  ]
-    .filter(Boolean)
-    .map(cleanApiUrl);
+  const runtime=cleanApiUrl(window.KHO_API_URL || '');
+  const list=[];
 
-  return [...new Set(list)];
+  // Ưu tiên link người dùng đã lưu, sau đó đến link Render mặc định.
+  if(saved) list.push(saved);
+  if(runtime) list.push(runtime);
+  list.push(DEFAULT_API_URL);
+
+  // Chỉ dùng localhost khi đang chạy file/web trên máy tính. Không dùng location.origin trên Netlify để tránh gọi nhầm frontend.
+  if(location.hostname==='localhost' || location.hostname==='127.0.0.1'){
+    list.push('http://localhost:10000');
+    list.push('http://localhost:3000');
+  }
+
+  return [...new Set(list.filter(Boolean).map(cleanApiUrl))];
 }
 
-async function apiFetch(path, options={}, timeout=25000){
+async function apiFetch(path, options={}, timeout=30000){
   let lastErr=null;
+  const requestOptions={
+    ...options,
+    headers:{
+      Accept:'application/json',
+      ...(options.headers||{})
+    },
+    cache: options.cache || 'no-store'
+  };
 
   for(const base of getApiCandidates()){
     try{
-      const res=await fetchWithTimeout(base+path, options, timeout);
+      const res=await fetchWithTimeout(base+path, requestOptions, timeout);
 
-      // Nếu gọi nhầm API/domain thì bỏ qua và thử link tiếp theo.
+      // Nếu gọi nhầm domain frontend hoặc route không có, thử link kế tiếp.
       if(res.status===404 || res.status===405){
-        lastErr=new Error('API không đúng tại '+base);
+        lastErr=new Error('API không đúng hoặc thiếu route tại '+base);
         if(cleanApiUrl(localStorage.getItem('KHO_API_URL'))===base){
           localStorage.removeItem('KHO_API_URL');
         }
@@ -1205,7 +1220,7 @@ async function apiFetch(path, options={}, timeout=25000){
     }
   }
 
-  throw lastErr || new Error('Không kết nối được API');
+  throw lastErr || new Error('Không kết nối được API Render');
 }
 const AUTH_KEY='kho_pro_auth_token';
 const USER_KEY='kho_pro_auth_user';
@@ -1349,9 +1364,14 @@ async function login(){
       body:JSON.stringify({username,password})
     },30000);
     const data=await res.json();
-    if(!res.ok) throw new Error(data.error||'Đăng nhập thất bại');
+    if(!res.ok) throw new Error(data.error||data.detail||'Đăng nhập thất bại');
+    if(!data.token && data.success && data.user){
+      // Tương thích server cũ nếu trả success nhưng chưa trả token.
+      data.token=data.user.token || '';
+    }
+    if(!data.token) throw new Error('Server đăng nhập chưa trả token. Cần dùng server.js bản ổn định mới.');
     AUTH_TOKEN=data.token;
-    CURRENT_USER=data.user;
+    CURRENT_USER=data.user || {username};
     localStorage.setItem(AUTH_KEY,AUTH_TOKEN);
     localStorage.setItem(USER_KEY,JSON.stringify(CURRENT_USER));
     setLoginState(true);

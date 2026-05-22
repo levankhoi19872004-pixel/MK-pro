@@ -5,7 +5,33 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 
-app.use(cors());
+// ===== FIX NETLIFY + RENDER CORS =====
+// Cho phép Netlify, localhost và domain cấu hình trong CORS_ORIGINS gọi API ổn định.
+// Không hard-code 1 domain để tránh đổi link Netlify/Render lại hỏng đăng nhập.
+const corsOptions = {
+  origin(origin, callback) {
+    const configured = String(process.env.CORS_ORIGINS || '')
+      .split(',')
+      .map(x => x.trim())
+      .filter(Boolean);
+
+    const allowAll = configured.length === 0 || configured.includes('*');
+    const isLocal = !origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    const isNetlify = !!origin && /^https:\/\/[^/]+\.netlify\.app$/.test(origin);
+    const isConfigured = !!origin && configured.includes(origin);
+
+    if (allowAll || isLocal || isNetlify || isConfigured) {
+      return callback(null, true);
+    }
+
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '200mb' }));
 
 const PORT = process.env.PORT || 10000;
@@ -35,7 +61,8 @@ function defaultData() {
     customerGroupPromotions: [],
     productGroups: [],
     categoryGroups: [],
-    shortageReports: []
+    shortageReports: [],
+    returns: []
   };
 }
 
@@ -49,6 +76,9 @@ function normalizeData(data) {
 
   return base;
 }
+
+// Dự phòng khi chạy local/chưa gắn DATABASE_URL: API vẫn sống để kiểm tra login/health.
+let memoryData = defaultData();
 
 const users = [
   { username: 'admin', password: '123456', role: 'admin', name: 'Admin' },
@@ -280,6 +310,10 @@ function syncAccountsToStaff(data) {
 }
 
 async function readKhoData() {
+  if (!process.env.DATABASE_URL) {
+    return normalizeData(memoryData);
+  }
+
   const result = await pool.query(`SELECT data FROM kho_data ORDER BY id ASC LIMIT 1`);
   if (result.rows.length === 0) return defaultData();
   return normalizeData(result.rows[0].data);
@@ -287,7 +321,7 @@ async function readKhoData() {
 
 async function initDB() {
   if (!process.env.DATABASE_URL) {
-    console.warn('⚠️ Chưa có DATABASE_URL');
+    console.warn(⚠️ Chưa có DATABASE_URL');
     return;
   }
 
@@ -379,6 +413,7 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign(safeUser, SECRET, { expiresIn: '7d' });
 
     res.json({
+      success: true,
       token,
       user: safeUser
     });
@@ -596,6 +631,15 @@ function getCollectorFromRequest(req) {
 
 app.get('/api/data', auth, async (req, res) => {
   try {
+    if (!process.env.DATABASE_URL) {
+      const data = normalizeData(memoryData);
+      syncAccountsToStaff(data);
+      data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
+      data.debts = rebuildDebts(data);
+      memoryData = data;
+      return res.json(data);
+    }
+
     const result = await pool.query(`SELECT data FROM kho_data ORDER BY id ASC LIMIT 1`);
 
     if (result.rows.length === 0) {
@@ -633,6 +677,11 @@ app.post('/api/data', auth, async (req, res) => {
     data.masterOrders = rebuildMasterOrders(data.orders, data.masterOrders);
     data.payments = rebuildPaymentsFromOrders(data);
     data.debts = rebuildDebts(data);
+
+    if (!process.env.DATABASE_URL) {
+      memoryData = data;
+      return res.json({ success: true, data });
+    }
 
     const existing = await pool.query(`SELECT id FROM kho_data ORDER BY id ASC LIMIT 1`);
 
@@ -780,6 +829,22 @@ app.post('/api/pay-order', auth, async (req, res) => {
 
 app.get('/api/debt-report', auth, async (req, res) => {
   try {
+    if (!process.env.DATABASE_URL) {
+      const data = normalizeData(memoryData);
+      data.debts = rebuildDebts(data);
+      return res.json({
+        totalDebt: data.debts.reduce((s, d) => s + Math.max(0, Number(d.debt) || 0), 0),
+        totalPaid: data.debts.reduce((s, d) => s + (Number(d.paid) || 0), 0),
+        overdueDebt: data.debts.filter(d => d.status === 'Quá hạn').reduce((s, d) => s + Math.max(0, Number(d.debt) || 0), 0),
+        byStaff: {},
+        byCustomer: {},
+        byCollector: {},
+        paymentsByCollector: {},
+        overdue: [],
+        payments: data.payments || []
+      });
+    }
+
     const result = await pool.query(`SELECT data FROM kho_data ORDER BY id ASC LIMIT 1`);
 
     if (result.rows.length === 0) {
