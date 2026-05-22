@@ -2214,12 +2214,28 @@ function clearReceiptForm(){
   receiveCart=[]; editingReceiptIndex=null;
   ['rId','rSupplier','rNote'].forEach(id=>{let el=document.getElementById(id); if(el)el.value='';});
   if(document.getElementById('rDate'))rDate.value='';
+  const backBtn=document.getElementById('receiveEditBackBtn'); if(backBtn) backBtn.remove();
   renderReceiveCart();
+}
+function focusReceiveHistory(){
+  setTimeout(()=>{
+    const body=document.getElementById('receiveBody');
+    const panel=body ? body.closest('.card.panel') : null;
+    if(panel){
+      try{ panel.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ panel.scrollIntoView(); }
+    }
+  },80);
+}
+function cancelEditReceipt(){
+  clearReceiptForm();
+  focusReceiveHistory();
+  toast('Đã quay lại danh sách phiếu nhập');
 }
 function createReceipt(){
   if(!receiveCart.length)return toast('Phiếu nhập chưa có hàng');
   let id=(rId.value||receiptId()).trim();
   let date=rDate.value||today();
+  let wasEditing=editingReceiptIndex!==null;
   let newItems=receiveCart.map(x=>({...x,qty:Number(x.qty)||0,cost:Number(x.cost)||0,pack:Number(x.pack)||1}));
   let oldReceipt=editingReceiptIndex!==null?db.receipts[editingReceiptIndex]:null;
   let oldItems=oldReceipt?receiptItems(oldReceipt).map(x=>({...x})):[];
@@ -2238,6 +2254,7 @@ function createReceipt(){
   }
   clearReceiptForm();
   save();render();
+  if(wasEditing) focusReceiveHistory();
 }
 function editReceipt(index){
   let r=db.receipts[index];
@@ -2250,6 +2267,18 @@ function editReceipt(index){
   receiveCart=receiptItems(r).map(x=>({...x,pack:Number(x.pack)||1,qty:Number(x.qty)||0,cost:Number(x.cost)||0}));
   page('receive');
   renderReceiveCart();
+  const formPanel=document.querySelector('#receive .layout2 .card.panel');
+  if(formPanel && !document.getElementById('receiveEditBackBtn')){
+    const btn=document.createElement('button');
+    btn.id='receiveEditBackBtn';
+    btn.className='btn light';
+    btn.type='button';
+    btn.style.marginLeft='8px';
+    btn.textContent='Quay lại danh sách phiếu nhập';
+    btn.onclick=cancelEditReceipt;
+    const submitBtn=[...formPanel.querySelectorAll('button')].find(b=>String(b.textContent||'').includes('Chốt phiếu nhập'));
+    if(submitBtn) submitBtn.insertAdjacentElement('afterend',btn);
+  }
   toast('Đang sửa phiếu nhập '+(r.id||''));
 }
 function deleteReceipt(index){
@@ -4866,32 +4895,72 @@ function bulkDeleteProductCatalog(){
 function downloadProductCatalogTemplate(){
   downloadExcel([{'Mã sản phẩm':'SKU001','Tên sản phẩm':'Tên hàng mẫu','Quy cách':12,'Giá bán':100000,'Nhãn hàng':'OMO','Ngành hàng':'Giặt giũ','Kho hàng quản lý':'Kho chính','Nhóm sản phẩm':'Nhóm bán chạy'}],'mau_danh_muc_san_pham.xlsx');
 }
+function parseImportNumber(v){
+  if(v===null || v===undefined) return 0;
+  if(typeof v === 'number') return isFinite(v) ? v : 0;
+  let s=String(v).trim();
+  if(!s) return 0;
+  s=s.replace(/\s+/g,'').replace(/[₫đĐVNĐvnd]/g,'');
+  const hasComma=s.includes(','), hasDot=s.includes('.');
+  if(hasComma && hasDot){
+    // Hỗ trợ cả 1,234.56 và 1.234,56
+    if(s.lastIndexOf(',') > s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
+    else s=s.replace(/,/g,'');
+  }else if(hasComma){
+    const parts=s.split(',');
+    if(parts.length>1 && parts[parts.length-1].length===3) s=parts.join('');
+    else s=s.replace(',','.');
+  }else if(hasDot){
+    const parts=s.split('.');
+    if(parts.length>1 && parts[parts.length-1].length===3) s=parts.join('');
+  }
+  s=s.replace(/[^0-9.-]/g,'');
+  const n=Number(s);
+  return isFinite(n) ? n : 0;
+}
+function pickImportValue(row, keys){
+  for(const k of keys){
+    if(Object.prototype.hasOwnProperty.call(row,k) && row[k]!=='' && row[k]!==null && row[k]!==undefined) return row[k];
+  }
+  const normKey=s=>normText(String(s||'')).replace(/\s+/g,'_');
+  const map={};
+  Object.keys(row||{}).forEach(k=>map[normKey(k)]=row[k]);
+  for(const k of keys){
+    const nk=normKey(k);
+    if(Object.prototype.hasOwnProperty.call(map,nk) && map[nk]!=='' && map[nk]!==null && map[nk]!==undefined) return map[nk];
+  }
+  return '';
+}
 function importProductCatalogExcel(ev){
   const file=ev.target.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
     const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
-    let count=0;
+    let count=0, priceCount=0;
     rows.forEach(r=>{
-      const sku=String(r.ma_san_pham||r['Mã sản phẩm']||r.SKU||r.sku||r.Code||'').trim();
+      const sku=String(pickImportValue(r,['ma_san_pham','Mã sản phẩm','Mã SP','SKU','sku','Code','Mã hàng','Ma hang'])||'').trim();
       if(!sku) return;
       let p=findProduct(sku);
+      const rawSale=pickImportValue(r,['gia_ban','Giá bán','Gia ban','Giá bán chưa KM','Gia ban chua KM','Đơn giá bán','Don gia ban','Giá','Gia','sale','price']);
+      const rawPack=pickImportValue(r,['quy_cach','Quy cách','Quy cach','pack']);
+      const sale=parseImportNumber(rawSale);
+      if(rawSale!=='' && sale>0) priceCount++;
       const data={
         sku,
-        name:String(r.ten_san_pham||r['Tên sản phẩm']||r.name||r['Tên hàng']||'').trim(),
-        pack:Number(r.quy_cach||r['Quy cách']||r.pack||1)||1,
-        sale:Number(r.gia_ban||r['Giá bán']||r.sale||0)||0,
-        brand:String(r.nhan_hang||r['Nhãn hàng']||r.brand||'').trim(),
-        category:String(r.nganh_hang||r['Ngành hàng']||r.category||'').trim(),
-        warehouse:String(r.kho_hang_quan_ly||r['Kho hàng quản lý']||r['Kho hàng']||r.warehouse||'Kho chính').trim()||'Kho chính',
-        productGroup:String(r.nhom_san_pham||r['Nhóm sản phẩm']||r.productGroup||'').trim()
+        name:String(pickImportValue(r,['ten_san_pham','Tên sản phẩm','Ten san pham','name','Tên hàng','Ten hang'])||'').trim(),
+        pack:parseImportNumber(rawPack)||1,
+        sale,
+        brand:String(pickImportValue(r,['nhan_hang','Nhãn hàng','Nhan hang','brand'])||'').trim(),
+        category:String(pickImportValue(r,['nganh_hang','Ngành hàng','Nganh hang','category'])||'').trim(),
+        warehouse:String(pickImportValue(r,['kho_hang_quan_ly','Kho hàng quản lý','Kho hang quan ly','Kho hàng','Kho hang','warehouse'])||'Kho chính').trim()||'Kho chính',
+        productGroup:String(pickImportValue(r,['nhom_san_pham','Nhóm sản phẩm','Nhom san pham','productGroup'])||'').trim()
       };
       if(!p) db.products.push({...data,qty:0,cost:0});
       else Object.assign(p,data);
       count++;
     });
-    save(); render(); toast('Đã import '+count+' sản phẩm');
+    save(); render(); toast('Đã import '+count+' sản phẩm · nhận giá bán '+priceCount+' dòng');
     ev.target.value='';
   };
   reader.readAsArrayBuffer(file);
