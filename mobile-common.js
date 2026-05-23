@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'https://kho-api-1.onrender.com';
+const DEFAULT_API_URL = (window.KHO_CONFIG && window.KHO_CONFIG.API_BASE) || window.KHO_API_URL || window.WAREHOUSE_API_BASE || 'https://kho-api-2.onrender.com';
 const AUTH_KEY='kho_pro_auth_token';
 const USER_KEY='kho_pro_auth_user';
 let AUTH_TOKEN=localStorage.getItem(AUTH_KEY)||'';

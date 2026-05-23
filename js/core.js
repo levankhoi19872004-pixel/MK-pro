@@ -3,7 +3,7 @@ const KEY='kho_pro_professional_v2';
 // ===== API ổn định cho Netlify + Render =====
 // Khi đưa web lên Netlify, HTML luôn gọi sang API Render cố định này.
 // Có thể đổi nhanh bằng cách đặt localStorage.KHO_API_URL hoặc window.KHO_API_URL.
-const DEFAULT_API_URL='https://kho-api-1.onrender.com';
+const DEFAULT_API_URL=(window.KHO_CONFIG&&window.KHO_CONFIG.API_BASE)||window.KHO_API_URL||window.WAREHOUSE_API_BASE||'https://kho-api-2.onrender.com';
 let API_URL=DEFAULT_API_URL;
 
 function cleanApiUrl(url){
@@ -22,8 +22,7 @@ function getApiCandidates(){
 
   // Chỉ dùng localhost khi đang chạy file/web trên máy tính. Không dùng location.origin trên Netlify để tránh gọi nhầm frontend.
   if(location.hostname==='localhost' || location.hostname==='127.0.0.1'){
-    list.push('https://kho-api-1.onrender.com');
-    list.push('https://kho-api-1.onrender.com');
+    list.push(DEFAULT_API_URL);
   }
 
   return [...new Set(list.filter(Boolean).map(cleanApiUrl))];

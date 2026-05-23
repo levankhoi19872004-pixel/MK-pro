@@ -56,7 +56,10 @@ async function getCollection() {
   client = new MongoClient(MONGO_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 10000 });
   await client.connect();
   collection = client.db(DB_NAME).collection(COLLECTION_NAME);
-  await collection.createIndex({ _id: 1 }, { unique: true });
+
+  // ❌ ĐÃ XOÁ DÒNG GÂY LỖI
+  // await collection.createIndex({ _id: 1 }, { unique: true });
+
   return collection;
 }
 
