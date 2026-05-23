@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const auth = require('../middleware/auth');
+const auth = require('../middlewares/auth');
 const { defaultData, normalizeData } = require('../data/defaultData');
 const { pool, saveKhoData, getMemoryData, setMemoryData } = require('../config/db');
 const { syncAccountsToStaff } = require('../utils/accounts');

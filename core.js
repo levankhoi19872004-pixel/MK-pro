@@ -542,10 +542,20 @@ function filteredMergeOrders(){
       matchText(o.customer,'mergeFilterCustomerName');
   });
 }
+function masterOrderCreatedAt(m){
+  return m?.createdAt || m?.masterCreatedAt || m?.createdIsoDate || m?.isoDate || m?.date || '';
+}
+function formatMasterCreatedAt(m){
+  const v=masterOrderCreatedAt(m);
+  const d=new Date(v);
+  if(!isNaN(d)) return d.toLocaleString('vi-VN');
+  return v || '';
+}
 function filteredMasterOrders(){
   return (db.masterOrders||[]).filter(m=>{
     let productText=(m.items||[]).map(it=>`${it.sku||''} ${it.name||''}`).join(' ');
-    return inDateRange(m.isoDate||m.date,'masterFilterFrom','masterFilterTo') &&
+    // Danh sách đơn tổng phải lọc theo thời điểm ấn tạo đơn tổng, không lấy ngày của đơn con.
+    return inDateRange(masterOrderCreatedAt(m),'masterFilterFrom','masterFilterTo') &&
       matchText(m.id,'masterFilterId') &&
       matchText(m.note,'masterFilterNote') &&
       matchText(productText,'masterFilterProduct');
@@ -1629,7 +1639,7 @@ function renderMergeOrders(){
   mergeOrderBody.innerHTML=rows.map(o=>`<tr><td class="center"><input type="checkbox" class="merge-check" value="${o.id}"></td><td><b>${o.id}</b></td><td>${o.date}</td><td>${orderCustomerCode(o)||''}</td><td>${o.customer}</td><td>${staffDisplayOrder(o)}</td><td class="right">${money(o.total)}</td><td class="center"><span class="pill">Chưa gộp đơn tổng</span></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Không còn đơn con phù hợp để gộp</td></tr>';
 }
 function renderMasterOrders(){
-  masterOrdersBody.innerHTML=filteredMasterOrders().slice().reverse().map(m=>{let items=m.items||[];let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);return `<tr><td><b>${m.id}</b></td><td>${m.date}</td><td class="center">${(m.childIds||[]).length}</td><td class="center">${items.length}</td><td class="right">${totalQty}</td><td class="right">${money(m.total)}</td><td>${deliveryDisplay(m.deliveryStaffCode,m.deliveryStaffName)}</td><td>${m.note||''}</td><td><button class="btn small light" onclick="printMasterOrder('${m.id}')">In PDF</button> <button class="btn small red" onclick="unmergeMasterOrder('${m.id}')">Hủy gộp</button></td></tr>`}).join('')||'<tr><td colspan="9" class="center muted">Chưa có đơn tổng phù hợp</td></tr>';
+  masterOrdersBody.innerHTML=filteredMasterOrders().slice().reverse().map(m=>{let items=m.items||[];let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);return `<tr><td><b>${m.id}</b></td><td>${formatMasterCreatedAt(m)}</td><td class="center">${(m.childIds||[]).length}</td><td class="center">${items.length}</td><td class="right">${totalQty}</td><td class="right">${money(m.total)}</td><td>${deliveryDisplay(m.deliveryStaffCode,m.deliveryStaffName)}</td><td>${m.note||''}</td><td><button class="btn small light" onclick="printMasterOrder('${m.id}')">In PDF</button> <button class="btn small red" onclick="unmergeMasterOrder('${m.id}')">Hủy gộp</button></td></tr>`}).join('')||'<tr><td colspan="9" class="center muted">Chưa có đơn tổng phù hợp</td></tr>';
 }
 function toggleAllMergeOrders(cb){document.querySelectorAll('.merge-check').forEach(x=>x.checked=cb.checked)}
 function createMasterOrder(){
@@ -1647,7 +1657,8 @@ function createMasterOrder(){
   let mdOpt=document.getElementById('masterDeliveryStaff')?.selectedOptions?.[0];
   let cashPaid=orders.reduce((a,o)=>a+Number(o.cashPaid||0),0);
   let bankPaid=orders.reduce((a,o)=>a+Number(o.bankPaid||0),0);
-  let m={id,date:today(),isoDate:new Date().toISOString(),childIds:ids,items,goods,discount,total,cost,cashPaid,bankPaid,debt:Math.max(0,total-cashPaid-bankPaid),deliveryStaffCode:document.getElementById('masterDeliveryStaff')?.value||'',deliveryStaffName:mdOpt?mdOpt.dataset.name:'',note:masterNote.value||''};
+  let createdAt=new Date().toISOString();
+  let m={id,date:today(),isoDate:createdAt,createdAt,masterCreatedAt:createdAt,childIds:ids,items,goods,discount,total,cost,cashPaid,bankPaid,debt:Math.max(0,total-cashPaid-bankPaid),deliveryStaffCode:document.getElementById('masterDeliveryStaff')?.value||'',deliveryStaffName:mdOpt?mdOpt.dataset.name:'',note:masterNote.value||''};
   db.masterOrders.push(m);
   db.orders.forEach(o=>{if(ids.includes(o.id)){o.masterId=id; if(m.deliveryStaffCode){o.deliveryStaffCode=m.deliveryStaffCode; o.deliveryStaffName=m.deliveryStaffName;}}});
   masterId.value='';masterNote.value=''; if(document.getElementById('masterDeliveryStaff')) masterDeliveryStaff.value=''; save();render();toast('Đã tạo đơn tổng '+id+' với '+items.length+' mặt hàng');
@@ -7404,7 +7415,7 @@ renderMasterOrders=function(){
     let totalQty=items.reduce((a,b)=>a+Number(b.qty||0),0);
     return `<tr>
       <td><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="master-print-check" value="${safeAttr(m.id)}"><b>${escapeHtml(m.id||'')}</b></label></td>
-      <td>${escapeHtml(m.date||'')}</td>
+      <td>${escapeHtml(formatMasterCreatedAt(m))}</td>
       <td class="center">${(m.childIds||[]).length}</td>
       <td class="center">${items.length}</td>
       <td class="right">${totalQty}</td>
@@ -7432,7 +7443,8 @@ createMasterOrder=function(){
   let mdOpt=document.getElementById('masterDeliveryStaff')?.selectedOptions?.[0];
   let cashPaid=orders.reduce((a,o)=>a+Number(o.cashPaid||0),0);
   let bankPaid=orders.reduce((a,o)=>a+Number(o.bankPaid||0),0);
-  let m={id,date:today(),isoDate:new Date().toISOString(),childIds:ids,items,goods,discount,total,cost,cashPaid,bankPaid,debt:Math.max(0,total-cashPaid-bankPaid),deliveryStaffCode:document.getElementById('masterDeliveryStaff')?.value||'',deliveryStaffName:mdOpt?mdOpt.dataset.name:'',note:document.getElementById('masterNote')?.value||''};
+  let createdAt=new Date().toISOString();
+  let m={id,date:today(),isoDate:createdAt,createdAt,masterCreatedAt:createdAt,childIds:ids,items,goods,discount,total,cost,cashPaid,bankPaid,debt:Math.max(0,total-cashPaid-bankPaid),deliveryStaffCode:document.getElementById('masterDeliveryStaff')?.value||'',deliveryStaffName:mdOpt?mdOpt.dataset.name:'',note:document.getElementById('masterNote')?.value||''};
   db.masterOrders.push(m);
   db.orders.forEach(o=>{if(ids.includes(o.id)){o.masterId=id; if(m.deliveryStaffCode){o.deliveryStaffCode=m.deliveryStaffCode; o.deliveryStaffName=m.deliveryStaffName;}}});
   if(document.getElementById('masterId'))masterId.value='';

@@ -12,41 +12,79 @@
     <button class="btn green full" onclick="login()">Đăng nhập</button>
   </div>
 </div>
+
 <div id="appShell" class="app-shell hidden">
   <div class="top-card">
-    <div class="top-row"><div><h1>App bán hàng</h1><div class="muted" id="currentUserName"></div></div><button class="btn red" onclick="logout()">Thoát</button></div>
+    <div class="top-row"><div><h1>App bán hàng</h1><div class="muted" id="currentUserName"></div></div><button class="btn red small" onclick="logout()">Thoát</button></div>
   </div>
+
   <section data-view="customers">
     <div class="search"><input id="customerSearch" placeholder="Tìm khách hàng..." oninput="renderCustomers()"></div>
     <div id="customerList" class="list"></div>
   </section>
+
   <section data-view="products" class="hidden">
     <div class="top-card"><b id="selectedCustomerText">Chưa chọn khách</b></div>
     <div class="search"><input id="productSearch" placeholder="Tìm sản phẩm..." oninput="renderProducts()"></div>
     <div id="productList" class="list"></div>
   </section>
+
   <section data-view="cart" class="hidden">
-    <div class="card"><h1>Giỏ hàng</h1><div id="cartList"></div></div>
+    <div class="card"><h2>Giỏ hàng</h2><div id="cartList"></div></div>
     <div class="total-box">
       <div class="top-row"><b>Tổng tiền</b><b id="cartTotal">0</b></div>
       <button class="btn green full" onclick="submitOrder()">Gửi đơn</button>
     </div>
   </section>
+
+  <section data-view="report" class="hidden">
+    <div class="card">
+      <h2>Báo cáo tháng</h2>
+      <div class="muted" id="monthReportTitle"></div>
+      <div class="kpi" style="margin-top:9px">
+        <div><span>Doanh số tháng</span><b id="monthSalesTotal">0</b></div>
+        <div><span>Số đơn trong tháng</span><b id="monthOrderCount">0</b></div>
+      </div>
+      <div class="kpi">
+        <div><span>CH bao phủ</span><b id="monthCoveredStores">0</b></div>
+        <div><span>TB/đơn</span><b id="monthAvgOrder">0</b></div>
+      </div>
+      <div class="muted">CH bao phủ = số khách hàng khác nhau đã phát sinh đơn trong tháng.</div>
+    </div>
+    <div class="card" style="margin-top:9px">
+      <h2>Khách hàng còn nợ</h2>
+      <div class="muted">Chỉ hiện công nợ của khách hàng thuộc nhân viên đang đăng nhập.</div>
+      <div id="monthDebtCustomers" class="list" style="margin-top:9px"></div>
+    </div>
+  </section>
+
+  <section data-view="checked" class="hidden">
+    <div class="search"><input id="checkedSearch" placeholder="Tìm đơn đã chấm..." oninput="renderCheckedOrders()"></div>
+    <div id="checkedOrders" class="list"></div>
+  </section>
 </div>
-<div class="tabs">
+
+<div class="tabs sales">
   <button class="tab active" data-tab="customers" onclick="showTab('customers')">Khách</button>
   <button class="tab" data-tab="products" onclick="showTab('products')">Sản phẩm</button>
   <button class="tab" data-tab="cart" onclick="showTab('cart')">Giỏ</button>
+  <button class="tab" data-tab="checked" onclick="showTab('checked');renderCheckedOrders()">Đã chấm</button>
+  <button class="tab" data-tab="report" onclick="showTab('report');renderMonthReport()">Tháng</button>
 </div>
+
 <script>
 let selectedCustomer=null;
 let cart=[];
+let editingOrderId='';
 
-function afterLoad(){renderCustomers();renderProducts();renderCart();}
+function afterLoad(){renderCustomers();renderProducts();renderCart();renderCheckedOrders();renderMonthReport();}
 
 function myStaffCode(){
   return String(CURRENT_USER?.staffCode||CURRENT_USER?.code||CURRENT_USER?.username||'').toLowerCase();
 }
+function getCustomerName(c){return c.name||c.customerName||''}
+function getCustomerCode(c){return c.code||c.customerCode||''}
+
 function renderCustomers(){
   const q=norm(document.getElementById('customerSearch')?.value||'');
   const code=myStaffCode();
@@ -55,20 +93,21 @@ function renderCustomers(){
     const belongs=!code || norm(c.staffCode||c.salesCode||c.salesmanCode||c.nvbh||'').includes(code) || !c.staffCode;
     const hit=!q || norm([c.code,c.customerCode,c.name,c.customerName,c.address].join(' ')).includes(q);
     return belongs && hit;
-  }).slice(0,80);
+  }).slice(0,70);
   document.getElementById('customerList').innerHTML=rows.map(c=>`
-    <div class="customer-card" onclick='selectCustomer(${JSON.stringify(c).replace(/'/g,"&#39;")})'>
-      <div class="sku">${esc(c.code||c.customerCode||'')}</div>
-      <div class="name">${esc(c.name||c.customerName||'')}</div>
+    <div class="customer-card" onclick='selectCustomerByCode("${esc(getCustomerCode(c))}")'>
+      <div class="sku">${esc(getCustomerCode(c))}</div>
+      <div class="name">${esc(getCustomerName(c))}</div>
       <div class="muted">${esc(c.address||'')}</div>
     </div>`).join('') || '<div class="card muted">Không có khách hàng</div>';
 }
-function selectCustomer(c){
-  selectedCustomer=c;
-  document.getElementById('selectedCustomerText').textContent=(c.code||c.customerCode||'')+' - '+(c.name||c.customerName||'');
+function selectCustomerByCode(code){
+  selectedCustomer=(db.customers||[]).find(c=>String(getCustomerCode(c))===String(code));
+  if(!selectedCustomer)return;
+  document.getElementById('selectedCustomerText').textContent=getCustomerCode(selectedCustomer)+' - '+getCustomerName(selectedCustomer);
   showTab('products');
 }
-function productOpenQty(p){ return Math.max(0,Number(p.openQty ?? p.allowQty ?? p.dmsAllowQty ?? p.qty ?? 0)||0); }
+function productOpenQty(p){ return Math.max(0,Number(p.openQty ?? p.allowQty ?? p.dmsAllowQty ?? p.qty ?? p.stock ?? 0)||0); }
 function inputId(sku,type){return `${type}_${String(sku).replace(/[^a-zA-Z0-9_-]/g,'_')}`}
 function stepQty(sku,type,delta){
   const el=document.getElementById(inputId(sku,type)); if(!el)return;
@@ -77,17 +116,17 @@ function stepQty(sku,type,delta){
 function renderProducts(){
   const q=norm(document.getElementById('productSearch')?.value||'');
   let rows=(db.products||[]).filter(p=>productOpenQty(p)>0);
-  rows=rows.filter(p=>!q || norm([p.sku,p.code,p.name,p.productName,p.brand,p.category].join(' ')).includes(q)).slice(0,60);
+  rows=rows.filter(p=>!q || norm([p.sku,p.code,p.name,p.productName,p.brand,p.category].join(' ')).includes(q)).slice(0,45);
   document.getElementById('productList').innerHTML=rows.map(p=>{
     const sku=String(p.sku||p.code||''); const pack=Number(p.pack)||1;
     return `<div class="product-card">
       <div class="sku">${esc(sku)}</div><div class="name">${esc(p.name||p.productName||'')}</div>
-      <div class="meta"><div><span>Giá bán</span><b>${money(p.sale||p.price||0)}</b></div><div><span>Tồn mở bán</span><b>${qtyView(productOpenQty(p),pack)}</b></div></div>
+      <div class="meta"><div><span>Giá bán</span><b>${money(p.sale||p.price||0)}</b></div><div><span>Tồn</span><b>${qtyView(productOpenQty(p),pack)}</b></div></div>
       <div class="qty-grid">
         <div><label>Thùng</label><div class="qty-stepper"><button onclick="stepQty('${esc(sku)}','box',-1)">−</button><input id="${inputId(sku,'box')}" inputmode="numeric" type="tel"><button onclick="stepQty('${esc(sku)}','box',1)">+</button></div></div>
         <div><label>Lẻ</label><div class="qty-stepper"><button onclick="stepQty('${esc(sku)}','each',-1)">−</button><input id="${inputId(sku,'each')}" inputmode="numeric" type="tel"><button onclick="stepQty('${esc(sku)}','each',1)">+</button></div></div>
       </div>
-      <button class="btn green full" style="margin-top:10px" onclick="addProduct('${esc(sku)}')">Chấm hàng</button>
+      <button class="btn green full" style="margin-top:9px" onclick="addProduct('${esc(sku)}')">Chấm hàng</button>
     </div>`;
   }).join('') || '<div class="card muted">Không có sản phẩm mở bán</div>';
 }
@@ -97,16 +136,33 @@ function addProduct(sku){
   const pack=Number(p.pack)||1;
   const qty=totalQty(document.getElementById(inputId(sku,'box'))?.value,document.getElementById(inputId(sku,'each'))?.value,pack);
   if(qty<=0) return toast('Nhập số lượng');
-  if(qty>productOpenQty(p)) return toast('Vượt tồn mở bán');
   const old=cart.find(x=>x.sku===sku);
-  if(old) old.qty+=qty; else cart.push({sku,name:p.name||p.productName||'',pack,qty,price:Number(p.sale||p.price||0)});
+  const totalAfter=(old?old.qty:0)+qty;
+  if(totalAfter>productOpenQty(p)) return toast('Vượt tồn mở bán');
+  if(old) old.qty=totalAfter; else cart.push({sku,name:p.name||p.productName||'',pack,qty,price:Number(p.sale||p.price||0)});
   renderCart(); toast('Đã thêm vào giỏ');
+}
+function editCartLine(i){
+  const x=cart[i]; if(!x)return;
+  const s=splitQty(x.qty,x.pack);
+  openModal(`<h2>Sửa sản phẩm trong giỏ</h2>
+    <div class="name">${esc(x.name)}</div><div class="muted">${esc(x.sku)}</div>
+    <div class="qty-grid"><div><label>Thùng</label><input id="editBox" type="tel" inputmode="numeric" value="${s.box}"></div><div><label>Lẻ</label><input id="editEach" type="tel" inputmode="numeric" value="${s.each}"></div></div>
+    <div class="actions"><button class="btn green" onclick="saveCartLine(${i})">Lưu</button><button class="btn red" onclick="cart.splice(${i},1);closeModal();renderCart()">Xóa</button><button class="btn" onclick="closeModal()">Đóng</button></div>`);
+}
+function saveCartLine(i){
+  const x=cart[i]; if(!x)return;
+  const p=(db.products||[]).find(y=>String(y.sku||y.code||'')===String(x.sku));
+  const q=totalQty(editBox.value,editEach.value,x.pack);
+  if(q<=0)return toast('Số lượng không hợp lệ');
+  if(p && q>productOpenQty(p))return toast('Vượt tồn mở bán');
+  x.qty=q; closeModal(); renderCart(); toast('Đã sửa giỏ');
 }
 function renderCart(){
   let total=0;
   document.getElementById('cartList').innerHTML=cart.map((x,i)=>{const amount=x.qty*x.price; total+=amount; return `
-    <div class="cart-line"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.sku)} · ${qtyView(x.qty,x.pack)}</div></div>
-    <div><b>${money(amount)}</b><br><button class="btn light" onclick="cart.splice(${i},1);renderCart()">Xóa</button></div></div>`}).join('') || '<div class="muted">Chưa có hàng</div>';
+    <div class="cart-line"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.sku)} · SL ${qtyView(x.qty,x.pack)}</div></div>
+    <div><b>${money(amount)}</b><br><button class="btn light small" onclick="editCartLine(${i})">Sửa</button></div></div>`}).join('') || '<div class="muted">Chưa có hàng</div>';
   document.getElementById('cartTotal').textContent=money(total);
   document.querySelector('[data-tab="cart"]').textContent='Giỏ '+(cart.length?`(${cart.length})`:'');
 }
@@ -114,12 +170,268 @@ async function submitOrder(){
   if(!selectedCustomer) return toast('Chưa chọn khách');
   if(!cart.length) return toast('Chưa có hàng');
   const total=cart.reduce((s,x)=>s+x.qty*x.price,0);
-  db.orders.push({
-    id:'NVBH-'+Date.now(), source:'NVBH', date:new Date().toISOString(), customer:selectedCustomer.name||selectedCustomer.customerName||'',
-    customerCode:selectedCustomer.code||selectedCustomer.customerCode||'', staffCode:CURRENT_USER?.staffCode||CURRENT_USER?.username||'', staff:CURRENT_USER?.name||CURRENT_USER?.username||'',
+  const payload={
+    id:editingOrderId || 'NVBH-'+Date.now(), source:'NVBH', date:nowIso(), customer:getCustomerName(selectedCustomer),
+    customerCode:getCustomerCode(selectedCustomer),
+    staffCode:CURRENT_USER?.staffCode||CURRENT_USER?.code||CURRENT_USER?.username||'',
+    salesCode:CURRENT_USER?.staffCode||CURRENT_USER?.code||CURRENT_USER?.username||'',
+    userId:CURRENT_USER?.id||CURRENT_USER?.userId||CURRENT_USER?.username||'',
+    createdBy:CURRENT_USER?.username||'',
+    staff:CURRENT_USER?.name||CURRENT_USER?.fullName||CURRENT_USER?.username||'',
     items:cart.map(x=>({...x,total:x.qty*x.price})), total, cashPaid:0, bankPaid:0, debt:total, status:'Mới tạo từ App bán hàng'
-  });
-  try{await saveData(); cart=[]; renderCart(); toast('Đã gửi đơn'); showTab('customers')}catch(e){toast(e.message||'Không gửi được đơn')}
+  };
+  const idx=(db.orders||[]).findIndex(o=>String(o.id)===String(payload.id));
+  if(idx>=0) db.orders[idx]={...db.orders[idx],...payload}; else db.orders.push(payload);
+  try{
+    await saveData(); editingOrderId=''; cart=[]; renderCart(); renderCheckedOrders(); renderMonthReport(); toast('Đã lưu đơn'); showTab('checked');
+  }catch(e){toast(e.message||'Không gửi được đơn')}
 }
+
+function orderKey(o){
+  return String(o?.id||o?.code||o?.orderId||o?.maDon||o?.orderCode||'').trim();
+}
+function safeText(v){
+  try{return norm(JSON.stringify(v||{}));}catch(e){return norm(String(v||''));}
+}
+function simpleKey(v){
+  return norm(v).replace(/[^a-z0-9]/g,'');
+}
+function extractChildOrderIds(v){
+  const out=[];
+  if(!v) return out;
+  if(Array.isArray(v)){
+    v.forEach(x=>{
+      if(typeof x==='string' || typeof x==='number') out.push(String(x).trim());
+      else if(x && typeof x==='object'){
+        const k=orderKey(x);
+        if(k) out.push(k);
+        ['id','code','orderId','orderCode','maDon','ma_don','donId','soDon','invoiceNo'].forEach(f=>{
+          if(x[f]) out.push(String(x[f]).trim());
+        });
+      }
+    });
+  }else if(typeof v==='string'){
+    v.split(/[,\n;|]+/).forEach(x=>{ if(x.trim()) out.push(x.trim()); });
+  }else if(typeof v==='object'){
+    const k=orderKey(v);
+    if(k) out.push(k);
+  }
+  return out.filter(Boolean);
+}
+function orderLooksLikeMaster(o){
+  const id=norm(orderKey(o));
+  const txt=safeText({
+    status:o.status, trangThai:o.trangThai, type:o.type, orderType:o.orderType, kind:o.kind, loaiDon:o.loaiDon,
+    source:o.source, nguonDon:o.nguonDon, note:o.note, ghiChu:o.ghiChu, title:o.title, name:o.name
+  });
+  if(id.startsWith('dt-') || id.startsWith('tong-') || id.startsWith('gop-') || id.includes('don-tong')) return true;
+  if(txt.includes('don tong') || txt.includes('tong don') || txt.includes('gop don') || txt.includes('da gop') || txt.includes('gop')) return true;
+  const childFields=['childOrders','childOrderIds','children','orders','mergedOrders','mergedOrderIds','subOrders','subOrderIds','orderIds','sourceOrderIds','donConIds','don_con_ids','donCon','ordersMerged','mergedList','selectedOrders'];
+  return childFields.some(f=>Array.isArray(o[f]) ? o[f].length>0 : !!o[f]);
+}
+function mergedChildIdSet(){
+  const set=new Set();
+  const childFields=['childOrders','childOrderIds','children','orders','mergedOrders','mergedOrderIds','subOrders','subOrderIds','orderIds','sourceOrderIds','donConIds','don_con_ids','donCon','ordersMerged','mergedList','selectedOrders'];
+  (db.orders||[]).forEach(m=>{
+    if(!orderLooksLikeMaster(m)) return;
+    childFields.forEach(f=>extractChildOrderIds(m[f]).forEach(id=>{
+      set.add(String(id));
+      set.add(simpleKey(id));
+    }));
+  });
+  return set;
+}
+function appearsInsideAnyMasterOrder(o){
+  const id=orderKey(o);
+  if(!id) return false;
+  const idSimple=simpleKey(id);
+  return (db.orders||[]).some(m=>{
+    if(m===o) return false;
+    if(!orderLooksLikeMaster(m)) return false;
+    const masterId=orderKey(m);
+    if(masterId && simpleKey(masterId)===idSimple) return false;
+    const text=safeText(m);
+    const compact=simpleKey(text);
+    return text.includes(norm(id)) || compact.includes(idSimple);
+  });
+}
+function isMergedOrMasterOrder(o){
+  const id=orderKey(o);
+  const idSimple=simpleKey(id);
+  const mergedSet=mergedChildIdSet();
+
+  // Ẩn chính đơn tổng/đơn gộp
+  if(orderLooksLikeMaster(o)) return true;
+
+  // Ẩn đơn con có mã nằm trong đơn tổng
+  if(id && (mergedSet.has(id) || mergedSet.has(idSimple))) return true;
+  if(appearsInsideAnyMasterOrder(o)) return true;
+
+  // Ẩn đơn con đã được đánh dấu là đã gộp vào đơn tổng
+  const status=safeText({status:o.status,trangThai:o.trangThai,note:o.note,ghiChu:o.ghiChu});
+  if(status.includes('da gop') || status.includes('gop vao don tong') || status.includes('da vao don tong') || status.includes('thuoc don tong')) return true;
+
+  if(String(o.masterId||'').trim()) return true;
+  if(o.parentOrderId || o.masterOrderId || o.aggregateOrderId || o.totalOrderId || o.mergedToOrderId || o.gopVaoDonTongId || o.donTongId || o.groupId || o.batchOrderId) return true;
+  if(o.isMerged || o.merged || o.daGop || o.isGrouped || o.grouped || o.inMasterOrder || o.inTotalOrder) return true;
+
+  return false;
+}
+
+function mySalesOrdersInMonth(){
+  const ym=new Date().toISOString().slice(0,7);
+  return (db.orders||[]).filter(o=>{
+    const inMonth=String(o.date||'').slice(0,7)===ym;
+    const mine=orderBelongsToCurrentSales(o);
+    const isSales=String(o.source||'').toUpperCase().includes('NVBH') || mine;
+    return inMonth && mine && isSales && !isMergedOrMasterOrder(o);
+  });
+}
+function myCheckedOrders(){
+  return mySalesOrdersInMonth().filter(o=>String(o.date||'').slice(0,10)===todayStr())
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+}
+function renderCheckedOrders(){
+  const q=norm(document.getElementById('checkedSearch')?.value||'');
+  const rows=myCheckedOrders().filter(o=>!q||norm([o.id,o.customer,o.customerCode].join(' ')).includes(q));
+  document.getElementById('checkedOrders').innerHTML=rows.map(o=>`
+    <div class="order-card">
+      <div class="top-row"><div><div class="sku">${esc(o.id)}</div><div class="name">${esc(o.customer)}</div></div><span class="badge">${esc(o.status||'Đã chấm')}</span></div>
+      <div class="meta"><div><span>Số dòng</span><b>${(o.items||[]).length}</b></div><div><span>Tổng tiền</span><b>${money(o.total)}</b></div></div>
+      <div class="actions"><button class="btn blue small" onclick="editCheckedOrder('${esc(o.id)}')">Sửa đơn</button><button class="btn red small" onclick="deleteCheckedOrder('${esc(o.id)}')">Xóa</button></div>
+    </div>`).join('') || '<div class="card muted">Chưa có đơn đã chấm hôm nay</div>';
+}
+function editCheckedOrder(id){
+  const o=(db.orders||[]).find(x=>String(x.id)===String(id)); if(!o)return;
+  editingOrderId=id;
+  selectedCustomer=(db.customers||[]).find(c=>String(getCustomerCode(c))===String(o.customerCode)) || {code:o.customerCode,name:o.customer};
+  document.getElementById('selectedCustomerText').textContent=(o.customerCode||'')+' - '+(o.customer||'');
+  cart=(o.items||[]).map(x=>({sku:x.sku||x.code,name:x.name||x.productName||'',pack:Number(x.pack)||1,qty:Number(x.qty)||0,price:Number(x.price)||0}));
+  renderCart(); showTab('cart'); toast('Đang sửa đơn đã chấm');
+}
+async function deleteCheckedOrder(id){
+  if(!confirm('Xóa đơn đã chấm này?'))return;
+  db.orders=(db.orders||[]).filter(o=>String(o.id)!==String(id));
+  try{await saveData();renderCheckedOrders();renderMonthReport();toast('Đã xóa đơn')}catch(e){toast('Không xóa được')}
+}
+
+function salesOrderDebt(o){
+  const total=Number(o.total||0);
+  const paid=(Number(o.cashPaid)||0)+(Number(o.bankPaid)||0)+(Number(o.paid)||0)+(Number(o.amountPaid)||0);
+  const returned=(Number(o.returnGoodsAmount)||0)+(Number(o.returnedGoodsAmount)||0)+(Number(o.returnAmount)||0);
+  const debtField=Number(o.debt||0);
+  const calc=Math.max(0,total-paid-returned);
+  return debtField>0 ? debtField : calc;
+}
+function salesDebtCustomerRows(){
+  const map={};
+  (db.orders||[]).forEach(o=>{
+    if(!orderBelongsToCurrentSales(o)) return;
+    const debt=salesOrderDebt(o);
+    if(debt<=0) return;
+    const code=String(o.customerCode||o.cCode||'').trim();
+    const name=String(o.customer||o.customerName||'').trim() || code || 'Khách hàng';
+    const key=code || norm(name);
+    if(!map[key]) map[key]={code,name,debt:0,orders:0};
+    map[key].debt+=debt;
+    map[key].orders+=1;
+  });
+  return Object.values(map).sort((a,b)=>b.debt-a.debt);
+}
+function renderDebtCustomerList(){
+  const box=document.getElementById('monthDebtCustomers');
+  if(!box) return;
+  const rows=salesDebtCustomerRows();
+  box.innerHTML=rows.map(r=>`<div class="order-card">
+    <div class="sku">${esc(r.code||'')}</div>
+    <div class="name">${esc(r.name||'')}</div>
+    <div class="meta"><div><span>Số đơn nợ</span><b>${r.orders}</b></div><div><span>Còn nợ</span><b>${money(r.debt)}</b></div></div>
+  </div>`).join('') || '<div class="muted">Không có khách hàng còn nợ</div>';
+}
+
+function orderDateText(o){
+  const raw=String(o.isoDate||o.date||o.createdAt||o.orderDate||'');
+  if(!raw) return '';
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw)){
+    const p=raw.slice(0,10).split('-');
+    return `${p[2]}/${p[1]}/${p[0]}`;
+  }
+  const m=raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`;
+  return raw.slice(0,10);
+}
+function orderDebtAmount(o){
+  const paid=(Number(o.cashPaid)||0)+(Number(o.bankPaid)||0);
+  const returned=(Number(o.returnGoodsAmount)||0)+(Number(o.returnedGoodsAmount)||0);
+  return Math.max(0,(Number(o.total)||0)-paid-returned);
+}
+function mySalesDebtOrders(){
+  const ym=new Date().toISOString().slice(0,7);
+  return (db.orders||[]).filter(o=>{
+    const inMonth=String(o.isoDate||o.date||o.createdAt||'').slice(0,7)===ym;
+    const mine=typeof orderBelongsToCurrentSales==='function' ? orderBelongsToCurrentSales(o) : true;
+    const notMerged=typeof isMergedOrMasterOrder==='function' ? !isMergedOrMasterOrder(o) : !String(o.masterId||'').trim();
+    return inMonth && mine && notMerged && orderDebtAmount(o)>0;
+  });
+}
+function groupedSalesDebtCustomers(){
+  const map={};
+  mySalesDebtOrders().forEach(o=>{
+    const key=String(o.customerCode||o.cCode||o.customer||o.customerName||'KHACH').trim();
+    if(!map[key]){
+      map[key]={key,code:o.customerCode||o.cCode||'',name:o.customer||o.customerName||'Khách chưa tên',debt:0,orders:[]};
+    }
+    map[key].debt+=orderDebtAmount(o);
+    map[key].orders.push(o);
+  });
+  return Object.values(map).sort((a,b)=>b.debt-a.debt);
+}
+function viewSalesDebtCustomer(key){
+  const c=groupedSalesDebtCustomers().find(x=>String(x.key)===String(key));
+  if(!c)return;
+  const rows=c.orders.slice().sort((a,b)=>String(a.isoDate||a.date||'').localeCompare(String(b.isoDate||b.date||'')));
+  openModal(`<h2>Chi tiết công nợ</h2>
+    <div class="sku">${esc(c.code||'')}</div>
+    <div class="name">${esc(c.name||'')}</div>
+    <div class="meta"><div><span>Tổng nợ</span><b>${money(c.debt)}</b></div><div><span>Số đơn</span><b>${rows.length}</b></div></div>
+    ${rows.map(o=>`
+      <div class="order-card" style="box-shadow:none;margin-bottom:8px">
+        <div class="top-row"><div><div class="sku">${esc(o.id||'')}</div><b>Ngày ghi đơn: ${esc(orderDateText(o))}</b></div><span class="badge">${money(orderDebtAmount(o))}</span></div>
+        <div class="muted">Tổng đơn: ${money(o.total)} · Đã thu: ${money((Number(o.cashPaid)||0)+(Number(o.bankPaid)||0))}</div>
+      </div>`).join('')}
+    <div class="actions"><button class="btn full" onclick="closeModal()">Đóng</button></div>`);
+}
+function renderSalesDebtReport(){
+  const rows=groupedSalesDebtCustomers();
+  const total=rows.reduce((s,c)=>s+c.debt,0);
+  const summary=document.getElementById('salesDebtSummary');
+  const list=document.getElementById('salesDebtCustomerList');
+  if(summary) summary.textContent=`${rows.length} khách đang nợ · Tổng nợ ${money(total)}`;
+  if(list){
+    list.innerHTML=rows.map(c=>`
+      <div class="order-card" onclick="viewSalesDebtCustomer('${esc(c.key)}')">
+        <div class="top-row"><div><div class="sku">${esc(c.code||'')}</div><div class="name">${esc(c.name||'')}</div></div><span class="badge">${c.orders.length} đơn</span></div>
+        <div class="meta"><div><span>Công nợ</span><b>${money(c.debt)}</b></div><div><span>Ngày nợ cũ nhất</span><b>${esc(orderDateText(c.orders.slice().sort((a,b)=>String(a.isoDate||a.date||'').localeCompare(String(b.isoDate||b.date||'')))[0]||{}))}</b></div></div>
+        <div class="muted">Chỉ xem công nợ, không thu tiền trên app bán hàng</div>
+      </div>`).join('') || '<div class="muted">Không có khách hàng đang nợ trong tháng</div>';
+  }
+}
+
+function renderMonthReport(){
+  const rows=mySalesOrdersInMonth();
+  const total=rows.reduce((s,o)=>s+(Number(o.total)||0),0);
+  const customers=new Set(rows.map(o=>String(o.customerCode||o.customer||'').trim()).filter(Boolean));
+  const avg=rows.length?Math.round(total/rows.length):0;
+  const d=new Date();
+  const title=document.getElementById('monthReportTitle');
+  if(title) title.textContent='Tháng '+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+  document.getElementById('monthSalesTotal').textContent=money(total);
+  document.getElementById('monthOrderCount').textContent=rows.length;
+  document.getElementById('monthCoveredStores').textContent=customers.size;
+  document.getElementById('monthAvgOrder').textContent=money(avg);
+  renderSalesDebtReport();
+  renderDebtCustomerList();
+}
+
 </script>
 </body></html>

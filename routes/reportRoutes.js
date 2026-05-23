@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const auth = require('../middleware/auth');
+const auth = require('../middlewares/auth');
 const { normalizeData } = require('../data/defaultData');
 const { pool, getMemoryData } = require('../config/db');
 const { rebuildDebts } = require('../services/orderDebtService');

@@ -38,7 +38,7 @@
     if(qty > Number(p.qty || 0)) return toast('Không đủ tồn: '+p.name+' còn '+qtyView(p.qty,p.pack));
     let old=salesCart.find(x=>String(x.sku)===String(sku));
     if(old) old.qty += qty;
-    else salesCart.push({sku:p.sku,name:p.name,pack:Number(p.pack)||1,qty,sale:Number(p.sale)||0,cost:Number(p.cost)||0,disc:0});
+    else { const base=Number(p.sale)||0; salesCart.push({sku:p.sku,name:p.name,pack:Number(p.pack)||1,qty,sale:base,originalPrice:base,salePrice:base,finalUnitPrice:base,cost:Number(p.cost)||0,disc:0,source:'NVBH',orderSource:'NVBH'}); }
     renderSalesCart();
     toast('Đã chấm '+qtyView(qty,p.pack)+' · '+p.name);
     if(mobile()) setSalesQtyInputs(sku,0,0);

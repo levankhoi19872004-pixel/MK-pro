@@ -12,85 +12,249 @@
     <button class="btn green full" onclick="login()">Đăng nhập</button>
   </div>
 </div>
+
 <div id="appShell" class="app-shell hidden">
   <div class="top-card">
-    <div class="top-row"><div><h1>App giao hàng</h1><div class="muted" id="currentUserName"></div></div><button class="btn red" onclick="logout()">Thoát</button></div>
+    <div class="top-row"><div><h1>App giao hàng</h1><div class="muted" id="currentUserName"></div></div><button class="btn red small" onclick="logout()">Thoát</button></div>
   </div>
+
   <section data-view="orders">
-    <div class="kpi"><div><span>Tổng đơn hôm nay</span><b id="kpiOrders">0</b></div><div><span>Còn phải thu</span><b id="kpiDebt">0</b></div></div>
-    <div class="search"><input id="orderSearch" placeholder="Tìm đơn/khách..." oninput="renderOrders()"></div>
+    <div class="kpi">
+      <div><span>Đơn nay giao</span><b id="kpiTodayOrders">0</b></div>
+      <div><span>Tiền cần thu</span><b id="kpiTodayDebt">0</b></div>
+    </div>
+    <div class="search"><input id="orderSearch" placeholder="Tìm đơn/khách hôm nay..." oninput="renderTodayOrders()"></div>
     <div id="orderList" class="list"></div>
   </section>
-  <section data-view="debt" class="hidden">
+
+  <section data-view="debt">
+    <div class="kpi">
+      <div><span>Khách đang nợ</span><b id="kpiDebtCustomers">0</b></div>
+      <div><span>Tổng công nợ</span><b id="kpiDebtTotal">0</b></div>
+    </div>
+    <div class="search"><input id="debtSearch" placeholder="Tìm khách nợ..." oninput="renderDebtCustomers()"></div>
     <div id="debtList" class="list"></div>
   </section>
+
+  <section data-view="payment" class="hidden">
+    <div id="paymentBox"></div>
+  </section>
+
   <section data-view="report" class="hidden">
     <div class="card">
-      <h1>Báo cáo nộp tiền</h1>
-      <div class="field"><label>Tiền mặt</label><input id="cashReport" inputmode="numeric" type="tel"></div>
-      <div class="field"><label>Chuyển khoản</label><input id="bankReport" inputmode="numeric" type="tel"></div>
-      <div class="field"><label>Tiền hàng trả về</label><input id="returnReport" inputmode="numeric" type="tel"></div>
-      <div class="field"><label>Ghi chú</label><textarea id="reportNote"></textarea></div>
+      <h2>Báo cáo cuối ngày</h2>
+      <div class="meta"><div><span>Tiền mặt đã thu</span><b id="sumCash">0</b></div><div><span>Chuyển khoản</span><b id="sumBank">0</b></div></div>
+      <div class="meta"><div><span>Công nợ còn lại</span><b id="sumDebt">0</b></div><div><span>Hàng trả về</span><b id="sumReturn">0</b></div></div>
+      <div class="meta"><div><span>Tiền trưng bày</span><b id="sumDisplayReward">0</b></div><div><span>Số đơn</span><b id="sumOrderCount">0</b></div></div>
+      <div class="field"><label>Ghi chú báo cáo</label><textarea id="reportNote"></textarea></div>
       <button class="btn green full" onclick="saveReport()">Lưu báo cáo</button>
     </div>
   </section>
 </div>
-<div class="tabs">
-  <button class="tab active" data-tab="orders" onclick="showTab('orders')">Đơn</button>
-  <button class="tab" data-tab="debt" onclick="showTab('debt')">Công nợ</button>
-  <button class="tab" data-tab="report" onclick="showTab('report')">Báo cáo</button>
+
+<div class="tabs delivery">
+  <button class="tab active" data-tab="orders" onclick="showTab('orders');renderTodayOrders()">Đơn nay giao</button>
+  <button class="tab" data-tab="debt" onclick="showTab('debt');renderDebtCustomers()">Đơn nợ</button>
+  <button class="tab" data-tab="report" onclick="showTab('report');renderReport()">Báo cáo</button>
 </div>
+
 <script>
-function afterLoad(){renderOrders();renderDebt();}
-function myCode(){return String(CURRENT_USER?.deliveryStaffCode||CURRENT_USER?.code||CURRENT_USER?.username||'').toLowerCase()}
+let selectedOrderId='';
+let paymentMode='today';
+
+function afterLoad(){
+  showTab('orders');
+  renderTodayOrders();
+  renderDebtCustomers();
+  renderReport();
+}
+
+function currentDriverCode(){
+  return String(CURRENT_USER?.deliveryStaffCode||CURRENT_USER?.deliveryCode||CURRENT_USER?.code||CURRENT_USER?.username||'').trim();
+}
+function currentDriverName(){
+  return String(CURRENT_USER?.name||CURRENT_USER?.fullName||CURRENT_USER?.username||'').trim();
+}
 function orderPaid(o){return (Number(o.cashPaid)||0)+(Number(o.bankPaid)||0)}
-function orderDebt(o){return Math.max(0,(Number(o.total)||0)-orderPaid(o)-(Number(o.returnGoodsAmount)||0))}
-function myOrders(){
-  const code=myCode();
+function orderDebt(o){return Math.max(0,(Number(o.total)||0)-orderPaid(o)-(Number(o.returnGoodsAmount)||Number(o.returnedGoodsAmount)||0))}
+function orderDateOnly(o){return String(o.isoDate||o.date||o.createdAt||o.orderDate||'').slice(0,10)}
+function displayOrderDate(o){
+  const raw=String(o.isoDate||o.date||o.createdAt||o.orderDate||'');
+  if(!raw) return '';
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw)){
+    const p=raw.slice(0,10).split('-');
+    return `${p[2]}/${p[1]}/${p[0]}`;
+  }
+  const m=raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`;
+  return raw.slice(0,10);
+}
+function orderCustomerKey(o){return String(o.customerCode||o.cCode||o.customer||o.customerName||'').trim()}
+function orderCustomerName(o){return String(o.customer||o.customerName||'').trim()}
+function driverOwnsOrder(o){
+  const hasDelivery=o.deliveryStaffCode||o.deliveryCode||o.shipperCode||o.driverCode||o.deliveryStaffName||o.deliveryName;
+  if(!hasDelivery) return true;
+  if(typeof orderBelongsToCurrentDelivery==='function') return orderBelongsToCurrentDelivery(o);
+  const code=norm(currentDriverCode()), name=norm(currentDriverName());
+  const fields=[o.deliveryStaffCode,o.deliveryCode,o.shipperCode,o.driverCode,o.deliveryStaffName,o.deliveryName,o.shipperName].map(x=>norm(x)).filter(Boolean);
+  return fields.some(f=>f===code || f===name || (code && f.includes(code)) || (name && f.includes(name)));
+}
+function todayOrders(){
   return (db.orders||[]).filter(o=>{
-    const d=String(o.date||'').slice(0,10)===todayStr();
-    const mine=!code || norm(o.deliveryStaffCode||o.deliveryCode||'').includes(code) || !o.deliveryStaffCode;
-    return d && mine;
+    const isToday=orderDateOnly(o)===todayStr();
+    const mine=driverOwnsOrder(o);
+    return isToday && mine;
   });
 }
-function renderOrders(){
-  const q=norm(document.getElementById('orderSearch')?.value||'');
-  let rows=myOrders().filter(o=>!q || norm([o.id,o.customer,o.customerCode,o.deliveryStaffName].join(' ')).includes(q));
-  document.getElementById('kpiOrders').textContent=rows.length;
-  document.getElementById('kpiDebt').textContent=money(rows.reduce((s,o)=>s+orderDebt(o),0));
-  document.getElementById('orderList').innerHTML=rows.map(o=>`
-    <div class="order-card">
-      <div class="sku">${esc(o.id||'')}</div><div class="name">${esc(o.customer||o.customerName||'')}</div>
-      <div class="meta"><div><span>Tổng đơn</span><b>${money(o.total)}</b></div><div><span>Còn nợ</span><b>${money(orderDebt(o))}</b></div></div>
-      <div class="qty-grid"><input id="cash_${esc(o.id)}" type="tel" inputmode="numeric" placeholder="Tiền mặt"><input id="bank_${esc(o.id)}" type="tel" inputmode="numeric" placeholder="Chuyển khoản"></div>
-      <div class="field"><input id="ret_${esc(o.id)}" type="tel" inputmode="numeric" placeholder="Giá trị hàng trả về"></div>
-      <button class="btn green full" onclick="confirmDelivery('${esc(o.id)}')">Cập nhật giao hàng</button>
-    </div>`).join('') || '<div class="card muted">Không có đơn hôm nay</div>';
+function todayNeedDeliveryOrders(){
+  return todayOrders().filter(o=>{
+    const st=norm(o.status||o.paymentStatus||'');
+    return orderDebt(o)>0 || !st.includes('da giao du') && !st.includes('da thanh toan');
+  });
 }
-async function confirmDelivery(id){
+function debtOrders(){
+  return (db.orders||[]).filter(o=>{
+    if(!driverOwnsOrder(o)) return false;
+    if(orderDebt(o)<=0) return false;
+    // Đơn hôm nay đã nằm bên "Đơn nay giao"; vẫn tính vào báo cáo nợ theo khách, nhưng không cần loại.
+    return true;
+  });
+}
+function groupedDebtCustomers(){
+  const map={};
+  debtOrders().forEach(o=>{
+    const key=orderCustomerKey(o)||orderCustomerName(o)||'KHACH_NO';
+    if(!map[key]){
+      map[key]={key,customerCode:o.customerCode||o.cCode||'',customer:orderCustomerName(o),phone:o.customerPhone||'',address:o.customerAddress||'',debt:0,orders:[]};
+    }
+    map[key].debt+=orderDebt(o);
+    map[key].orders.push(o);
+  });
+  return Object.values(map).sort((a,b)=>b.debt-a.debt);
+}
+function renderTodayOrders(){
+  const q=norm(document.getElementById('orderSearch')?.value||'');
+  let rows=todayNeedDeliveryOrders().filter(o=>!q || norm([o.id,o.customer,o.customerName,o.customerCode,o.cCode].join(' ')).includes(q));
+  document.getElementById('kpiTodayOrders').textContent=rows.length;
+  document.getElementById('kpiTodayDebt').textContent=money(rows.reduce((s,o)=>s+orderDebt(o),0));
+  document.getElementById('orderList').innerHTML=rows.map(o=>`
+    <div class="order-card" onclick="openPayment('${esc(o.id)}','today')">
+      <div class="top-row"><div><div class="sku">${esc(o.id||'')}</div><div class="name">${esc(orderCustomerName(o))}</div></div><span class="badge">Nay giao</span></div>
+      <div class="meta"><div><span>Tổng đơn</span><b>${money(o.total)}</b></div><div><span>Còn thu</span><b>${money(orderDebt(o))}</b></div></div>
+      <div class="muted">Bấm vào đơn để thanh toán</div>
+    </div>`).join('') || '<div class="card muted">Không có đơn cần giao hôm nay</div>';
+}
+function renderDebtCustomers(){
+  const q=norm(document.getElementById('debtSearch')?.value||'');
+  let rows=groupedDebtCustomers().filter(c=>!q || norm([c.customerCode,c.customer,c.phone,c.address].join(' ')).includes(q));
+  document.getElementById('kpiDebtCustomers').textContent=rows.length;
+  document.getElementById('kpiDebtTotal').textContent=money(rows.reduce((s,c)=>s+c.debt,0));
+  document.getElementById('debtList').innerHTML=rows.map(c=>`
+    <div class="order-card" onclick="openCustomerDebt('${esc(c.key)}')">
+      <div class="top-row"><div><div class="sku">${esc(c.customerCode||'')}</div><div class="name">${esc(c.customer||'Khách chưa tên')}</div></div><span class="badge">${c.orders.length} đơn</span></div>
+      <div class="meta"><div><span>Tổng nợ</span><b>${money(c.debt)}</b></div><div><span>Ngày nợ cũ nhất</span><b>${esc(displayOrderDate(c.orders.slice().sort((a,b)=>String(orderDateOnly(a)).localeCompare(String(orderDateOnly(b))))[0]||{}))}</b></div></div>
+      <div class="muted">Bấm để xem các đơn nợ và thu tiền</div>
+    </div>`).join('') || '<div class="card muted">Không có khách hàng đang nợ</div>';
+}
+function openCustomerDebt(key){
+  const c=groupedDebtCustomers().find(x=>String(x.key)===String(key));
+  if(!c)return;
+  const rows=c.orders.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  document.getElementById('paymentBox').innerHTML=`
+    <div class="card">
+      <h2>Đơn nợ</h2>
+      <div class="sku">${esc(c.customerCode||'')}</div>
+      <div class="name">${esc(c.customer||'Khách chưa tên')}</div>
+      <div class="meta"><div><span>Tổng nợ</span><b>${money(c.debt)}</b></div><div><span>Số đơn</span><b>${rows.length}</b></div></div>
+      ${rows.map(o=>`
+        <div class="order-card" style="box-shadow:none;margin-bottom:8px" onclick="openPayment('${esc(o.id)}','debt')">
+          <div class="top-row"><div><div class="sku">${esc(o.id||'')}</div><b>Ngày ghi đơn: ${esc(displayOrderDate(o))}</b></div><span class="badge">${money(orderDebt(o))}</span></div>
+          <div class="muted">Tổng đơn: ${money(o.total)} · Đã thu: ${money(orderPaid(o))}</div>
+        </div>`).join('')}
+      <button class="btn full" onclick="showTab('debt')">Quay lại đơn nợ</button>
+    </div>`;
+  showTab('payment');
+}
+function openPayment(id,mode='today'){
+  selectedOrderId=id;
+  paymentMode=mode;
   const o=(db.orders||[]).find(x=>String(x.id)===String(id)); if(!o)return;
-  const cash=Number(document.getElementById('cash_'+id)?.value)||0;
-  const bank=Number(document.getElementById('bank_'+id)?.value)||0;
-  const ret=Number(document.getElementById('ret_'+id)?.value)||0;
-  o.cashPaid=(Number(o.cashPaid)||0)+cash; o.bankPaid=(Number(o.bankPaid)||0)+bank;
+  const items=(o.items||[]).map(x=>`<div class="cart-line"><div><b>${esc(x.name||x.productName||'')}</b><div class="muted">${esc(x.sku||x.code||'')} · SL ${qtyView(x.qty,x.pack||1)}</div></div><b>${money((Number(x.qty)||0)*(Number(x.price||x.sale)||0))}</b></div>`).join('');
+  document.getElementById('paymentBox').innerHTML=`
+    <div class="card">
+      <div class="sku">${esc(o.id||'')}</div><h2>${esc(orderCustomerName(o))}</h2>
+      <div class="muted">Ngày ghi đơn: <b>${esc(displayOrderDate(o))}</b></div>
+      <div class="meta"><div><span>Tổng đơn</span><b>${money(o.total)}</b></div><div><span>Còn thu</span><b>${money(orderDebt(o))}</b></div></div>
+      ${items}
+      <div class="field"><label>Tiền mặt thu</label><input id="payCash" data-money="1" inputmode="numeric" type="tel"></div>
+      <div class="field"><label>Chuyển khoản</label><input id="payBank" data-money="1" inputmode="numeric" type="tel"></div>
+      <div class="field"><label>Giá trị hàng trả về</label><input id="payReturn" data-money="1" inputmode="numeric" type="tel"></div>
+      <div class="field"><label>Tiền trưng bày</label><input id="payDisplayReward" data-money="1" inputmode="numeric" type="tel"></div>
+      <div class="field"><label>Ghi chú</label><textarea id="payNote"></textarea></div>
+      <div class="actions">
+        <button class="btn green" onclick="confirmPayment()">Lưu thanh toán</button>
+        <button class="btn" onclick="showTab(paymentMode==='debt'?'debt':'orders')">Quay lại</button>
+      </div>
+    </div>`;
+  showTab('payment');
+  bindMoneyInputs(document.getElementById('paymentBox'));
+}
+async function confirmPayment(){
+  const o=(db.orders||[]).find(x=>String(x.id)===String(selectedOrderId)); if(!o)return;
+  const cash=parseMoneyInput(payCash.value), bank=parseMoneyInput(payBank.value), ret=parseMoneyInput(payReturn.value);
+  const displayReward=parseMoneyInput(payDisplayReward.value);
+  if(cash+bank+ret+displayReward<=0 && !String(payNote.value||'').trim()) return toast('Chưa nhập tiền hoặc ghi chú');
+  o.cashPaid=(Number(o.cashPaid)||0)+cash;
+  o.bankPaid=(Number(o.bankPaid)||0)+bank;
   if(ret>0){
     db.returns=db.returns||[];
-    db.returns.push({id:'RT-'+Date.now(),orderId:o.id,customerCode:o.customerCode||'',customerName:o.customer||'',amount:ret,date:new Date().toISOString(),source:'delivery-app'});
+    db.returns.push({id:'RT-'+Date.now(),orderId:o.id,customerCode:o.customerCode||o.cCode||'',customerName:orderCustomerName(o),amount:ret,date:nowIso(),source:'delivery-app',note:payNote.value||''});
     o.returnGoodsAmount=(Number(o.returnGoodsAmount)||0)+ret;
+    o.returnedGoodsAmount=(Number(o.returnedGoodsAmount)||0)+ret;
   }
-  o.debt=orderDebt(o); o.status=o.debt>0?'Đã giao còn nợ':'Đã giao đủ tiền';
-  try{await saveData(); await loadData(); renderOrders(); renderDebt(); toast('Đã cập nhật')}catch(e){toast(e.message||'Không lưu được')}
+  o.displayReward=(Number(o.displayReward)||0)+displayReward;
+  o.tienTrungBay=(Number(o.tienTrungBay)||0)+displayReward;
+  o.deliveryNote=payNote.value||o.deliveryNote||'';
+  o.debt=orderDebt(o);
+  o.status=o.debt>0?'Đã giao còn nợ':'Đã giao đủ tiền';
+  try{
+    await saveData();
+    await loadData();
+    renderTodayOrders();
+    renderDebtCustomers();
+    renderReport();
+    toast('Đã lưu thanh toán');
+    showTab(paymentMode==='debt'?'debt':'orders');
+  }catch(e){toast(e.message||'Không lưu được')}
 }
-function renderDebt(){
-  const rows=(db.orders||[]).filter(o=>orderDebt(o)>0);
-  document.getElementById('debtList').innerHTML=rows.map(o=>`
-    <div class="order-card"><div class="sku">${esc(o.id||'')}</div><div class="name">${esc(o.customer||'')}</div>
-    <div class="meta"><div><span>Tổng đơn</span><b>${money(o.total)}</b></div><div><span>Còn nợ</span><b>${money(orderDebt(o))}</b></div></div></div>`).join('') || '<div class="card muted">Không có công nợ</div>';
+function todayDeliveryOrders(){return (db.orders||[]).filter(o=>orderDateOnly(o)===todayStr() && driverOwnsOrder(o))}
+function renderReport(){
+  const rows=todayDeliveryOrders();
+  const cash=rows.reduce((s,o)=>s+(Number(o.cashPaid)||0),0);
+  const bank=rows.reduce((s,o)=>s+(Number(o.bankPaid)||0),0);
+  const debt=rows.reduce((s,o)=>s+orderDebt(o),0);
+  const ret=rows.reduce((s,o)=>s+(Number(o.returnGoodsAmount)||Number(o.returnedGoodsAmount)||0),0);
+  const displayReward=rows.reduce((s,o)=>s+(Number(o.displayReward)||Number(o.tienTrungBay)||0),0);
+  document.getElementById('sumCash').textContent=money(cash);
+  document.getElementById('sumBank').textContent=money(bank);
+  document.getElementById('sumDebt').textContent=money(debt);
+  document.getElementById('sumReturn').textContent=money(ret);
+  document.getElementById('sumDisplayReward').textContent=money(displayReward);
+  document.getElementById('sumOrderCount').textContent=rows.length;
 }
 async function saveReport(){
+  const rows=todayDeliveryOrders();
   db.deliveryReports=db.deliveryReports||[];
-  db.deliveryReports.push({id:'RP-'+Date.now(),date:new Date().toISOString(),deliveryCode:CURRENT_USER?.username||'',cash:Number(cashReport.value)||0,bank:Number(bankReport.value)||0,returnGoods:Number(returnReport.value)||0,note:reportNote.value||''});
-  try{await saveData(); toast('Đã lưu báo cáo')}catch(e){toast(e.message||'Không lưu được báo cáo')}
+  db.deliveryReports.push({
+    id:'RP-'+Date.now(),date:nowIso(),deliveryCode:CURRENT_USER?.username||'',deliveryName:CURRENT_USER?.name||'',
+    cash:rows.reduce((s,o)=>s+(Number(o.cashPaid)||0),0),
+    bank:rows.reduce((s,o)=>s+(Number(o.bankPaid)||0),0),
+    debt:rows.reduce((s,o)=>s+orderDebt(o),0),
+    returnGoods:rows.reduce((s,o)=>s+(Number(o.returnGoodsAmount)||Number(o.returnedGoodsAmount)||0),0),
+    displayReward:rows.reduce((s,o)=>s+(Number(o.displayReward)||Number(o.tienTrungBay)||0),0),
+    note:reportNote.value||''
+  });
+  try{await saveData();toast('Đã lưu báo cáo')}catch(e){toast(e.message||'Không lưu được báo cáo')}
 }
 </script>
 </body></html>
