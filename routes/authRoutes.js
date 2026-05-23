@@ -14,7 +14,12 @@ router.post('/api/login', async (req, res) => {
     const data = await readKhoData();
     syncAccountsToStaff(data);
 
-    const loginUsers = buildLoginUsers(data);
+    const loginUsers = buildLoginUsers(data);console.log('LOGIN_USERS:', loginUsers.map(u => ({
+  username: u.username,
+  password: u.password,
+  role: u.role,
+  name: u.name
+})));
 
     const user = loginUsers.find(
       u => normText(u.username) === normText(username) && String(u.password) === String(password)
