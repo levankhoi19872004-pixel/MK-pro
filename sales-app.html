@@ -171,19 +171,46 @@ async function submitOrder(){
   if(!cart.length) return toast('Chưa có hàng');
   const total=cart.reduce((s,x)=>s+x.qty*x.price,0);
   const payload={
-    id:editingOrderId || 'NVBH-'+Date.now(), source:'NVBH', date:nowIso(), customer:getCustomerName(selectedCustomer),
+    id:editingOrderId || 'NVBH-'+Date.now(),
+    orderId:editingOrderId || undefined,
+    source:'NVBH',
+    date:nowIso(),
+    isoDate:nowIso(),
+    customer:getCustomerName(selectedCustomer),
+    customerName:getCustomerName(selectedCustomer),
     customerCode:getCustomerCode(selectedCustomer),
     staffCode:CURRENT_USER?.staffCode||CURRENT_USER?.code||CURRENT_USER?.username||'',
     salesCode:CURRENT_USER?.staffCode||CURRENT_USER?.code||CURRENT_USER?.username||'',
     userId:CURRENT_USER?.id||CURRENT_USER?.userId||CURRENT_USER?.username||'',
     createdBy:CURRENT_USER?.username||'',
+    staffName:CURRENT_USER?.name||CURRENT_USER?.fullName||CURRENT_USER?.username||'',
     staff:CURRENT_USER?.name||CURRENT_USER?.fullName||CURRENT_USER?.username||'',
-    items:cart.map(x=>({...x,total:x.qty*x.price})), total, cashPaid:0, bankPaid:0, debt:total, status:'Mới tạo từ App bán hàng'
+    items:cart.map(x=>({...x,total:x.qty*x.price})),
+    total,
+    cashPaid:0,
+    bankPaid:0,
+    debt:total,
+    status:'confirmed',
+    note:'Đơn từ app bán hàng'
   };
-  const idx=(db.orders||[]).findIndex(o=>String(o.id)===String(payload.id));
-  if(idx>=0) db.orders[idx]={...db.orders[idx],...payload}; else db.orders.push(payload);
   try{
-    await saveData(); editingOrderId=''; cart=[]; renderCart(); renderCheckedOrders(); renderMonthReport(); toast('Đã lưu đơn'); showTab('checked');
+    const res=await apiFetch('/api/mobile/sales/orders',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    },120000);
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok || out.success===false) throw new Error(out.message||out.error||'Không gửi được đơn');
+    const saved=out.data||payload;
+    const idx=(db.orders||[]).findIndex(o=>String(o.id)===String(saved.id||payload.id));
+    if(idx>=0) db.orders[idx]={...db.orders[idx],...saved}; else db.orders.push(saved);
+    editingOrderId='';
+    cart=[];
+    renderCart();
+    renderCheckedOrders();
+    renderMonthReport();
+    toast(out.message||'Đã gửi đơn về phần mềm');
+    showTab('checked');
   }catch(e){toast(e.message||'Không gửi được đơn')}
 }
 
@@ -311,8 +338,15 @@ function editCheckedOrder(id){
 }
 async function deleteCheckedOrder(id){
   if(!confirm('Xóa đơn đã chấm này?'))return;
-  db.orders=(db.orders||[]).filter(o=>String(o.id)!==String(id));
-  try{await saveData();renderCheckedOrders();renderMonthReport();toast('Đã xóa đơn')}catch(e){toast('Không xóa được')}
+  try{
+    const res=await apiFetch('/api/mobile/sales/orders/'+encodeURIComponent(id),{method:'DELETE'},120000);
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok || out.success===false) throw new Error(out.message||out.error||'Không xóa được');
+    db.orders=(db.orders||[]).filter(o=>String(o.id)!==String(id));
+    renderCheckedOrders();
+    renderMonthReport();
+    toast('Đã xóa đơn');
+  }catch(e){toast(e.message||'Không xóa được')}
 }
 
 function salesOrderDebt(o){

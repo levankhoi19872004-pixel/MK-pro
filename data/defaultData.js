@@ -19,6 +19,11 @@ function defaultData() {
     categoryGroups: [],
     shortageReports: [],
     returns: [],
+    deliveryReports: [],
+    dmsStocks: [],
+    dmsAllocations: [],
+    dmsHistory: [],
+    dmsAllowSales: [],
     cashFunds: []
   };
 }

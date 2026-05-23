@@ -203,22 +203,27 @@ async function confirmPayment(){
   const o=(db.orders||[]).find(x=>String(x.id)===String(selectedOrderId)); if(!o)return;
   const cash=parseMoneyInput(payCash.value), bank=parseMoneyInput(payBank.value), ret=parseMoneyInput(payReturn.value);
   const displayReward=parseMoneyInput(payDisplayReward.value);
-  if(cash+bank+ret+displayReward<=0 && !String(payNote.value||'').trim()) return toast('Chưa nhập tiền hoặc ghi chú');
-  o.cashPaid=(Number(o.cashPaid)||0)+cash;
-  o.bankPaid=(Number(o.bankPaid)||0)+bank;
-  if(ret>0){
-    db.returns=db.returns||[];
-    db.returns.push({id:'RT-'+Date.now(),orderId:o.id,customerCode:o.customerCode||o.cCode||'',customerName:orderCustomerName(o),amount:ret,date:nowIso(),source:'delivery-app',note:payNote.value||''});
-    o.returnGoodsAmount=(Number(o.returnGoodsAmount)||0)+ret;
-    o.returnedGoodsAmount=(Number(o.returnedGoodsAmount)||0)+ret;
-  }
-  o.displayReward=(Number(o.displayReward)||0)+displayReward;
-  o.tienTrungBay=(Number(o.tienTrungBay)||0)+displayReward;
-  o.deliveryNote=payNote.value||o.deliveryNote||'';
-  o.debt=orderDebt(o);
-  o.status=o.debt>0?'Đã giao còn nợ':'Đã giao đủ tiền';
+  const note=payNote.value||'';
+  if(cash+bank+ret+displayReward<=0 && !String(note||'').trim()) return toast('Chưa nhập tiền hoặc ghi chú');
   try{
-    await saveData();
+    if(cash+bank>0){
+      const res=await apiFetch('/api/mobile/delivery/collect-debt',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({orderId:o.id,cash,bank,note})
+      },120000);
+      const out=await res.json().catch(()=>({}));
+      if(!res.ok || out.success===false) throw new Error(out.message||out.error||'Không lưu được tiền thu');
+    }
+    if(ret+displayReward>0 || String(note||'').trim()){
+      const res=await apiFetch('/api/mobile/delivery/confirm',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({orderId:o.id,returnedAmount:ret,displayReward,note,status:'delivered'})
+      },120000);
+      const out=await res.json().catch(()=>({}));
+      if(!res.ok || out.success===false) throw new Error(out.message||out.error||'Không lưu được giao hàng');
+    }
     await loadData();
     renderTodayOrders();
     renderDebtCustomers();
@@ -244,8 +249,7 @@ function renderReport(){
 }
 async function saveReport(){
   const rows=todayDeliveryOrders();
-  db.deliveryReports=db.deliveryReports||[];
-  db.deliveryReports.push({
+  const report={
     id:'RP-'+Date.now(),date:nowIso(),deliveryCode:CURRENT_USER?.username||'',deliveryName:CURRENT_USER?.name||'',
     cash:rows.reduce((s,o)=>s+(Number(o.cashPaid)||0),0),
     bank:rows.reduce((s,o)=>s+(Number(o.bankPaid)||0),0),
@@ -253,8 +257,17 @@ async function saveReport(){
     returnGoods:rows.reduce((s,o)=>s+(Number(o.returnGoodsAmount)||Number(o.returnedGoodsAmount)||0),0),
     displayReward:rows.reduce((s,o)=>s+(Number(o.displayReward)||Number(o.tienTrungBay)||0),0),
     note:reportNote.value||''
-  });
-  try{await saveData();toast('Đã lưu báo cáo')}catch(e){toast(e.message||'Không lưu được báo cáo')}
+  };
+  try{
+    const res=await apiFetch('/api/mobile/delivery/reports',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(report)
+    },120000);
+    const out=await res.json().catch(()=>({}));
+    if(!res.ok || out.success===false) throw new Error(out.message||out.error||'Không lưu được báo cáo');
+    toast('Đã lưu báo cáo');
+  }catch(e){toast(e.message||'Không lưu được báo cáo')}
 }
 </script>
 </body></html>

@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'https://kho-api-2.onrender.com';
+const DEFAULT_API_URL = 'https://kho-api-1.onrender.com';
 const AUTH_KEY='kho_pro_auth_token';
 const USER_KEY='kho_pro_auth_user';
 let AUTH_TOKEN=localStorage.getItem(AUTH_KEY)||'';
@@ -103,6 +103,7 @@ async function logout(){
   location.href='../login.html';
 }
 function normalizeData(data){
+  // Mobile chỉ cần đọc các mảng phục vụ hiển thị. Không dùng dữ liệu mobile này để ghi đè toàn bộ DB.
   const base={products:[],orders:[],customers:[],staff:[],deliveryStaff:[],returns:[],payments:[],deliveryReports:[]};
   data=data&&typeof data==='object'?data:{};
   Object.keys(base).forEach(k=>base[k]=Array.isArray(data[k])?data[k]:[]);
@@ -114,8 +115,8 @@ async function loadData(){
   db=normalizeData(await res.json());
 }
 async function saveData(){
-  const res=await apiFetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(db)},120000);
-  if(!res.ok) throw new Error('Không lưu được dữ liệu');
+  // Chặn lỗi nguy hiểm: mobile không được POST toàn bộ /api/data vì có thể làm mất receipts/promotions/debts...
+  throw new Error('Mobile không được ghi đè toàn bộ dữ liệu. Hãy dùng API nghiệp vụ riêng.');
 }
 function showTab(name){
   document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('hidden',x.dataset.view!==name));

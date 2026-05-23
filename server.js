@@ -3,13 +3,15 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const requestLogger = require('./middlewares/requestLogger');
+const { fail } = require('./utils/http');
 
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const dataRoutes = require('./routes/dataRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
-const { initDB } = require('./config/db');
+const { initDB, closeDB } = require('./config/db');
 
 const mobileAuthRoutes = require('./routes/mobile/mobileAuthRoutes');
 const mobileSalesRoutes = require('./routes/mobile/mobileSalesRoutes');
@@ -19,6 +21,7 @@ const mobileReportRoutes = require('./routes/mobile/mobileReportRoutes');
 const app = express();
 
 app.use(cors());
+app.use(requestLogger);
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
@@ -47,21 +50,44 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('SERVER_ERROR:', err);
-  res.status(500).json({
-    success: false,
-    message: err.message || 'Lỗi server'
+  console.error('SERVER_ERROR:', {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.originalUrl,
+    message: err.message,
+    code: err.code,
+    details: err.details,
+    stack: err.stack
   });
+  return fail(res, err);
 });
 
 const PORT = process.env.PORT || 10000;
+
+let server = null;
 
 initDB()
   .catch(err => {
     console.error('DB_INIT_ERROR:', err);
   })
   .finally(() => {
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       console.log(`KHO API running on port ${PORT}`);
     });
   });
+
+async function shutdown(signal) {
+  console.log(`${signal} received. Closing server...`);
+  if (server) {
+    server.close(async () => {
+      await closeDB();
+      process.exit(0);
+    });
+  } else {
+    await closeDB();
+    process.exit(0);
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

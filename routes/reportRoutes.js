@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const auth = require('../middlewares/auth');
-const { normalizeData } = require('../data/defaultData');
-const { pool, getMemoryData } = require('../config/db');
+const { readKhoData } = require('../config/db');
 const { rebuildDebts } = require('../services/orderDebtService');
 
 function emptyReport(data) {
@@ -22,31 +21,7 @@ function emptyReport(data) {
 
 router.get('/api/debt-report', auth, async (req, res) => {
   try {
-    let data;
-
-    if (!process.env.DATABASE_URL) {
-      data = normalizeData(getMemoryData());
-      data.debts = rebuildDebts(data);
-      return res.json(emptyReport(data));
-    }
-
-    const result = await pool.query(`SELECT data FROM kho_data ORDER BY id ASC LIMIT 1`);
-
-    if (result.rows.length === 0) {
-      return res.json({
-        totalDebt: 0,
-        totalPaid: 0,
-        overdueDebt: 0,
-        byStaff: {},
-        byCustomer: {},
-        byCollector: {},
-        paymentsByCollector: {},
-        overdue: [],
-        payments: []
-      });
-    }
-
-    data = normalizeData(result.rows[0].data);
+    const data = await readKhoData();
     data.debts = rebuildDebts(data);
 
     const report = {
