@@ -1,0 +1,31 @@
+<section id="cashFund" class="section">
+  <div class="card panel">
+    <div class="panel-head">
+      <div>
+        <h2>Quỹ tiền thủ quỹ</h2>
+        <div class="muted" style="margin-top:6px">Theo dõi thu tiền nhân viên giao hàng nộp, các khoản chi trong ngày và số tiền nộp vào tài khoản công ty.</div>
+      </div>
+      <div class="toolbar">
+        <button class="btn green" onclick="saveCashFundEntry('income')">Ghi khoản thu</button>
+        <button class="btn orange" onclick="saveCashFundEntry('expense')">Ghi khoản chi</button>
+        <button class="btn blue" onclick="saveCashFundEntry('deposit')">Ghi nộp TK công ty</button>
+      </div>
+    </div>
+    <div class="stats" style="grid-template-columns:repeat(4,minmax(150px,1fr));margin-bottom:14px">
+      <div class="card stat"><div class="stat-icon green">＋</div><div><div class="label">Thu hôm nay</div><div class="value" id="cashFundIncomeToday">0</div></div></div>
+      <div class="card stat"><div class="stat-icon orange">－</div><div><div class="label">Chi hôm nay</div><div class="value" id="cashFundExpenseToday">0</div></div></div>
+      <div class="card stat"><div class="stat-icon blue">⇧</div><div><div class="label">Đã nộp TK</div><div class="value" id="cashFundDepositToday">0</div></div></div>
+      <div class="card stat"><div class="stat-icon purple">₫</div><div><div class="label">Còn tại quỹ</div><div class="value" id="cashFundBalanceToday">0</div></div></div>
+    </div>
+    <div class="form">
+      <div class="field"><label>Ngày</label><input id="cashFundDate" type="date"></div>
+      <div class="field"><label>Số tiền</label><input id="cashFundAmount" type="number" placeholder="0"></div>
+      <div class="field wide"><label>Người nộp / người nhận</label><input id="cashFundPerson" placeholder="VD: NV giao hàng A"></div>
+      <div class="field wide"><label>Nội dung</label><input id="cashFundNote" placeholder="VD: Nộp tiền đơn giao trong ngày"></div>
+    </div>
+  </div>
+  <div class="card panel">
+    <div class="panel-head"><h2>Sổ quỹ trong ngày</h2><div class="toolbar"><button class="btn light" onclick="renderCashFund()">Làm mới</button></div></div>
+    <div class="table-wrap"><table class="table"><thead><tr><th>Thời gian</th><th>Loại</th><th>Người liên quan</th><th>Nội dung</th><th class="right">Thu</th><th class="right">Chi</th><th class="right">Nộp TK</th><th>Thao tác</th></tr></thead><tbody id="cashFundBody"></tbody></table></div>
+  </div>
+</section>

@@ -1,7 +1,7 @@
 // Loader đồng bộ để các component có mặt trong DOM trước khi core.js chạy.
 // Giữ nguyên id/class/function inline trong HTML gốc.
 (function(){
-  const pages = ["dashboard", "productCatalog", "products", "receive", "sale", "orders", "mergeOrders", "customers", "staff", "deliveryStaff", "accounts", "debts", "salesApp", "deliveryApp", "promotions", "reports"];
+  const pages = ["dashboard", "productCatalog", "products", "receive", "sale", "orders", "mergeOrders", "customers", "staff", "deliveryStaff", "accounts", "debts", "cashFund", "salesApp", "deliveryApp", "promotions", "reports"];
   const root = document.getElementById('sectionsRoot');
   if(!root) return;
   let html = '';

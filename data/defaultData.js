@@ -18,7 +18,8 @@ function defaultData() {
     productGroups: [],
     categoryGroups: [],
     shortageReports: [],
-    returns: []
+    returns: [],
+    cashFunds: []
   };
 }
 

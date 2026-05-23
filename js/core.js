@@ -8829,3 +8829,129 @@ printSelectedMasterOrdersTemporary=function(){
   setTimeout(mkDmsFinalDecorateSalesProductList,100);
   document.addEventListener('DOMContentLoaded',function(){setTimeout(mkDmsFinalDecorateSalesProductList,300);});
 })();
+
+
+/* ===== MK FINAL PATCH 2026-05-23: nhập kho, preview import, công nợ hôm nay, quỹ tiền ===== */
+(function(){
+  function arr(name){ db[name]=Array.isArray(db[name])?db[name]:[]; return db[name]; }
+  function ymd(v){
+    if(!v) return new Date().toISOString().slice(0,10);
+    const s=String(v);
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    const m=s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    return new Date().toISOString().slice(0,10);
+  }
+  function num(v){
+    if(typeof parseImportNumber==='function') return Number(parseImportNumber(v))||0;
+    let s=String(v??'').replace(/[₫đĐ\s]/g,'');
+    if(s.includes(',')&&s.includes('.')){ const c=s.lastIndexOf(','), d=s.lastIndexOf('.'); s=c>d?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,''); }
+    else if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+    else if((s.match(/\./g)||[]).length===1 && s.split('.').pop().length===3) s=s.replace('.','');
+    return Number(s.replace(/[^0-9.-]/g,''))||0;
+  }
+  function pick(r,keys){
+    if(typeof pickImportValue==='function') return pickImportValue(r,keys);
+    const norm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+    const map={}; Object.keys(r||{}).forEach(k=>map[norm(k)]=r[k]);
+    for(const k of keys){ if(Object.prototype.hasOwnProperty.call(r,k)) return r[k]; const nk=norm(k); if(Object.prototype.hasOwnProperty.call(map,nk)) return map[nk]; }
+    return '';
+  }
+  function showImportConfirm(title, columns, rows, onOk){
+    const old=document.getElementById('mkImportConfirmModal'); if(old) old.remove();
+    const modal=document.createElement('div'); modal.id='mkImportConfirmModal'; modal.className='modal';
+    modal.innerHTML=`<div class="modal-box" style="width:min(1200px,98vw)"><div class="panel-head"><div><h2>${escapeHtml(title)}</h2><div class="muted">Tích chọn dòng muốn nhập. Bỏ tích để loại bỏ trước khi ghi vào phần mềm.</div></div><div class="toolbar"><button class="btn light" id="mkImpAll">Chọn tất cả</button><button class="btn light" id="mkImpNone">Bỏ chọn</button><button class="btn green" id="mkImpOk">Xác nhận import</button><button class="btn gray" id="mkImpClose">Đóng</button></div></div><div class="table-wrap" style="max-height:70vh"><table class="table"><thead><tr><th class="center"><input type="checkbox" id="mkImpCheckAll" checked></th>${columns.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr><td class="center"><input class="mk-imp-check" type="checkbox" value="${i}" ${r.__ok===false?'':'checked'}></td>${columns.map(c=>`<td class="${c.right?'right':''}">${escapeHtml(c.format?c.format(r[c.key],r):r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+    document.body.appendChild(modal);
+    const checks=()=>[...modal.querySelectorAll('.mk-imp-check')];
+    modal.querySelector('#mkImpAll').onclick=()=>{checks().forEach(x=>x.checked=true); modal.querySelector('#mkImpCheckAll').checked=true;};
+    modal.querySelector('#mkImpNone').onclick=()=>{checks().forEach(x=>x.checked=false); modal.querySelector('#mkImpCheckAll').checked=false;};
+    modal.querySelector('#mkImpCheckAll').onchange=e=>checks().forEach(x=>x.checked=e.target.checked);
+    modal.querySelector('#mkImpClose').onclick=()=>modal.remove();
+    modal.querySelector('#mkImpOk').onclick=()=>{ const selected=checks().filter(x=>x.checked).map(x=>rows[Number(x.value)]); if(!selected.length) return toast('Chưa chọn dòng nào để import'); onOk(selected); modal.remove(); };
+  }
+  window.mkShowImportConfirm=showImportConfirm;
+
+  // Nhập kho thủ công chắc chắn ghi được phiếu và hiện lịch sử.
+  const oldCreateReceipt=window.createReceipt;
+  window.createReceipt=function(){
+    try{
+      if(!Array.isArray(receiveCart) || !receiveCart.length) return toast('Phiếu nhập chưa có hàng');
+      arr('receipts'); arr('products');
+      const id=(document.getElementById('rId')?.value||receiptId()).trim()||receiptId();
+      const date=document.getElementById('rDate')?.value || ymd(new Date());
+      const supplier=document.getElementById('rSupplier')?.value || 'Unilever';
+      const note=document.getElementById('rNote')?.value || '';
+      const items=receiveCart.map(x=>({sku:String(x.sku||'').trim(),name:String(x.name||x.sku||'').trim(),pack:Number(x.pack)||1,qty:Number(x.qty)||0,cost:num(x.cost)})).filter(x=>x.sku&&x.qty>0);
+      if(!items.length) return toast('Phiếu nhập chưa có dòng hợp lệ');
+      const old=editingReceiptIndex!==null && db.receipts[editingReceiptIndex] ? receiptItems(db.receipts[editingReceiptIndex]).map(x=>({...x})) : [];
+      const check=receiptUpdateCheck(old,items); if(!check.ok) return toast('Không thể lưu phiếu vì tồn sau sửa sẽ âm: '+check.name);
+      applyReceiptStockChange(old,items);
+      const receipt={id,date,supplier,note,total:items.reduce((a,b)=>a+b.qty*b.cost,0),items};
+      if(editingReceiptIndex!==null && db.receipts[editingReceiptIndex]) db.receipts[editingReceiptIndex]=receipt; else db.receipts.push(receipt);
+      receiveCart=[]; editingReceiptIndex=null; clearReceiptForm(); save(); render(); page('receive');
+      toast('Đã lưu và hiển thị phiếu nhập '+id);
+    }catch(e){ console.error(e); if(oldCreateReceipt) return oldCreateReceipt(); toast('Lỗi lưu phiếu nhập: '+(e.message||e)); }
+  };
+
+  // Import phiếu nhập có cửa sổ xác nhận trước khi ghi.
+  window.importReceive=function(e){
+    const f=e?.target?.files?.[0]; if(!f) return;
+    readExcel(f, rows=>{
+      const parsed=[];
+      rows.forEach((r,idx)=>{
+        const sku=String(pick(r,['SKU','sku','Mã SP','Mã sản phẩm','Mã hàng','Code'])||'').trim();
+        const pack=Number(pick(r,['Quy cách','Quy cach','pack']))||1;
+        const rawQty=pick(r,['SL','Số lượng','So luong','sl','Số lượng nhập']);
+        const qty=rawQty!==''&&rawQty!==undefined ? parseQtySlash(rawQty,pack) : totalQty(pick(r,['Thùng','Thung','thung']),pick(r,['Lẻ','Le','le']),pack);
+        const id=String(pick(r,['Mã phiếu','Mã đơn','Số phiếu','Ma phieu'])||receiptId()).trim();
+        if(!sku || qty<=0) return;
+        parsed.push({__row:idx+2,id,date:ymd(pick(r,['Ngày nhập','Ngày','Ngay'])),supplier:String(pick(r,['Nhà cung cấp','NCC','Supplier'])||'Unilever'),note:String(pick(r,['Ghi chú','Ghi chu'])||''),sku,name:String(pick(r,['Tên sản phẩm','Tên','Ten','name'])||sku),pack,qty,cost:num(pick(r,['Giá nhập','Gia nhap','cost']))});
+      });
+      if(!parsed.length){ e.target.value=''; return toast('File nhập kho không có dòng hợp lệ'); }
+      showImportConfirm('Xác nhận import phiếu nhập kho',[
+        {key:'id',label:'Mã phiếu'},{key:'date',label:'Ngày'},{key:'supplier',label:'NCC'},{key:'sku',label:'SKU'},{key:'name',label:'Tên hàng'},{key:'qty',label:'SL',right:true,format:(v,r)=>qtyView(v,r.pack)},{key:'cost',label:'Giá nhập',right:true,format:v=>money(v)}
+      ], parsed, selected=>{
+        const groups={}; selected.forEach(it=>{ if(!groups[it.id]) groups[it.id]={id:it.id,date:it.date,supplier:it.supplier,note:it.note,items:[]}; groups[it.id].items.push({sku:it.sku,name:it.name,pack:it.pack,qty:it.qty,cost:it.cost}); });
+        Object.values(groups).forEach(g=>{ g.items.forEach(it=>{ const p=upsertProduct({sku:it.sku,name:it.name,pack:it.pack,cost:it.cost}); p.qty=Number(p.qty||0)+Number(it.qty||0); p.cost=Number(it.cost)||Number(p.cost)||0; }); g.total=g.items.reduce((a,b)=>a+b.qty*b.cost,0); db.receipts.push(g); });
+        save(); render(); page('receive'); toast('Đã import '+Object.keys(groups).length+' phiếu nhập kho');
+      });
+      e.target.value='';
+    });
+  };
+
+  // Công nợ: thêm các ô trực quan của ngày hôm nay ngay trên màn công nợ.
+  function todayDebtSummary(){
+    const t=new Date().toISOString().slice(0,10);
+    const orders=(db.orders||[]).filter(o=>String(o.isoDate||o.date||'').slice(0,10)===t);
+    const total=orders.reduce((a,o)=>a+Number(o.total||0),0);
+    const paid=orders.reduce((a,o)=>a+(Number(o.cashPaid||0)||0)+(Number(o.bankPaid||0)||0),0);
+    const debt=orders.reduce((a,o)=>a+Math.max(0,orderDebtRemaining(o)),0);
+    const customers=new Set(orders.map(o=>orderCustomerCode(o)||o.customer).filter(Boolean)).size;
+    return {orders:orders.length,total,paid,debt,customers};
+  }
+  window.renderTodayDebtCards=function(){
+    const sec=document.getElementById('debts'); if(!sec) return;
+    let box=document.getElementById('todayDebtCards');
+    if(!box){ box=document.createElement('div'); box.id='todayDebtCards'; box.className='stats'; box.style.cssText='grid-template-columns:repeat(5,minmax(130px,1fr));margin-bottom:14px'; const panel=sec.querySelector('.card.panel'); panel?.insertBefore(box,panel.firstChild); }
+    const s=todayDebtSummary();
+    box.innerHTML=`<div class="card stat"><div class="stat-icon blue">🧾</div><div><div class="label">Đơn hôm nay</div><div class="value">${s.orders}</div></div></div><div class="card stat"><div class="stat-icon green">₫</div><div><div class="label">Doanh số hôm nay</div><div class="value">${money(s.total)}</div></div></div><div class="card stat"><div class="stat-icon purple">✓</div><div><div class="label">Đã thu</div><div class="value">${money(s.paid)}</div></div></div><div class="card stat"><div class="stat-icon orange">!</div><div><div class="label">Công nợ hôm nay</div><div class="value">${money(s.debt)}</div></div></div><div class="card stat"><div class="stat-icon blue">♙</div><div><div class="label">Khách phát sinh</div><div class="value">${s.customers}</div></div></div>`;
+  };
+
+  // Quỹ tiền thủ quỹ.
+  window.saveCashFundEntry=function(type){
+    arr('cashFunds'); const amount=num(document.getElementById('cashFundAmount')?.value); if(amount<=0) return toast('Nhập số tiền hợp lệ');
+    const entry={id:'Q-'+Date.now(),type,date:document.getElementById('cashFundDate')?.value||new Date().toISOString().slice(0,10),time:new Date().toLocaleTimeString('vi-VN'),amount,person:document.getElementById('cashFundPerson')?.value||'',note:document.getElementById('cashFundNote')?.value||'',createdBy:currentUserDisplayName?.()||''};
+    db.cashFunds.push(entry); ['cashFundAmount','cashFundPerson','cashFundNote'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); save(); renderCashFund(); toast('Đã ghi sổ quỹ');
+  };
+  window.deleteCashFundEntry=function(id){ if(!confirm('Xóa dòng sổ quỹ này?')) return; db.cashFunds=arr('cashFunds').filter(x=>String(x.id)!==String(id)); save(); renderCashFund(); };
+  window.renderCashFund=function(){
+    arr('cashFunds'); const date=document.getElementById('cashFundDate')?.value || new Date().toISOString().slice(0,10); const rows=db.cashFunds.filter(x=>String(x.date).slice(0,10)===date);
+    const sum=t=>rows.filter(x=>x.type===t).reduce((a,b)=>a+Number(b.amount||0),0); const inc=sum('income'), exp=sum('expense'), dep=sum('deposit');
+    const set=(id,v)=>{const el=document.getElementById(id); if(el) el.textContent=money(v);}; set('cashFundIncomeToday',inc); set('cashFundExpenseToday',exp); set('cashFundDepositToday',dep); set('cashFundBalanceToday',inc-exp-dep);
+    const body=document.getElementById('cashFundBody'); if(body) body.innerHTML=rows.slice().reverse().map(r=>`<tr><td>${escapeHtml(r.date||'')} ${escapeHtml(r.time||'')}</td><td>${r.type==='income'?'Thu':r.type==='expense'?'Chi':'Nộp TK công ty'}</td><td>${escapeHtml(r.person||'')}</td><td>${escapeHtml(r.note||'')}</td><td class="right">${r.type==='income'?money(r.amount):''}</td><td class="right">${r.type==='expense'?money(r.amount):''}</td><td class="right">${r.type==='deposit'?money(r.amount):''}</td><td><button class="btn small red" onclick="deleteCashFundEntry('${safeAttr(r.id)}')">Xóa</button></td></tr>`).join('')||'<tr><td colspan="8" class="center muted">Chưa có phát sinh quỹ trong ngày</td></tr>';
+  };
+
+  const oldRender=window.render;
+  window.render=function(){ oldRender&&oldRender(); renderTodayDebtCards(); renderCashFund(); };
+  document.addEventListener('DOMContentLoaded',()=>{ const d=document.getElementById('cashFundDate'); if(d&&!d.value)d.value=new Date().toISOString().slice(0,10); });
+})();

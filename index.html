@@ -47,6 +47,7 @@
       <button data-page="deliveryStaff">🚚 Nhân viên giao hàng</button>
       <button data-page="accounts">🔐 Tài khoản</button>
       <button data-page="debts">₫ Công nợ</button>
+      <button data-page="cashFund">💰 Quỹ tiền</button>
       <button data-page="promotions">🎁 Khuyến mại</button>
       <button data-page="reports">▥ Báo cáo</button>
     </div>
@@ -142,6 +143,277 @@
 <script src="js/components-loader.js"></script>
 <script src="js/mobile-sales-fix.js"></script>
 <script src="js/core.js"></script>
+
+<script>
+/* ===== MK PATCH FULL: FIX NHẬP KHO HIỆN PHIẾU + APP BÁN HÀNG GỬI VỀ SERVER ===== */
+(function(){
+  function mkNum(v){
+    var n = Number(String(v || '').replace(/,/g, '.'));
+    return isFinite(n) ? n : 0;
+  }
+
+  function mkVal(id){
+    var el = document.getElementById(id);
+    return el ? el.value : '';
+  }
+
+  function mkSet(id, value){
+    var el = document.getElementById(id);
+    if(el) el.value = value;
+  }
+
+  function mkTodayISO(){
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function mkReceiptDate(){
+    return mkVal('rDate') || mkVal('receiveDate') || mkTodayISO();
+  }
+
+  function mkReceiptId(){
+    return (mkVal('rId') || mkVal('receiveId') || (typeof receiptId === 'function' ? receiptId() : ('PN' + String(Date.now()).slice(-8)))).trim();
+  }
+
+  function mkSupplier(){
+    return mkVal('rSupplier') || mkVal('receiveSupplier') || 'Unilever';
+  }
+
+  function mkNote(){
+    return mkVal('rNote') || mkVal('receiveNote') || '';
+  }
+
+  function mkCurrentReceiptItem(){
+    var sku = (mkVal('rSku') || mkVal('receiveSku') || '').trim();
+    var name = (mkVal('rName') || mkVal('receiveName') || '').trim();
+    var pack = mkNum(mkVal('rPack') || mkVal('receivePack')) || 1;
+    var box = mkNum(mkVal('rBox') || mkVal('receiveBox') || mkVal('rThung') || mkVal('receiveThung'));
+    var each = mkNum(mkVal('rEach') || mkVal('receiveEach') || mkVal('rLe') || mkVal('receiveLe'));
+    var cost = mkNum(mkVal('rCost') || mkVal('receiveCost'));
+    var qty = box * pack + each;
+
+    if(!sku || qty <= 0) return null;
+
+    if(!name && typeof findProduct === 'function'){
+      var p = findProduct(sku);
+      if(p) name = p.name || sku;
+    }
+
+    return {
+      sku: sku,
+      name: name || sku,
+      pack: pack,
+      qty: qty,
+      cost: cost,
+      sale: 0,
+      note: ''
+    };
+  }
+
+  function mkAddCurrentLineIfNeeded(){
+    if(!Array.isArray(receiveCart)) receiveCart = [];
+
+    var item = mkCurrentReceiptItem();
+    if(!item) return false;
+
+    var existed = receiveCart.some(function(x){
+      return String(x.sku || '').trim() === String(item.sku || '').trim()
+        && Number(x.qty || 0) === Number(item.qty || 0)
+        && Number(x.cost || 0) === Number(item.cost || 0);
+    });
+
+    if(!existed){
+      receiveCart.push(item);
+      if(typeof renderReceiveCart === 'function') renderReceiveCart();
+    }
+
+    return true;
+  }
+
+  window.addReceiveItem = function(){
+    var item = mkCurrentReceiptItem();
+    if(!item){
+      if(typeof toast === 'function') toast('Nhập SKU và số lượng thùng/lẻ');
+      return;
+    }
+
+    if(!Array.isArray(receiveCart)) receiveCart = [];
+    receiveCart.push(item);
+
+    mkSet('rSku', '');
+    mkSet('rName', '');
+    mkSet('rBox', 0);
+    mkSet('rEach', 0);
+    mkSet('rCost', '');
+    mkSet('receiveSku', '');
+    mkSet('receiveName', '');
+    mkSet('receiveBox', 0);
+    mkSet('receiveEach', 0);
+    mkSet('receiveCost', '');
+
+    if(typeof renderReceiveCart === 'function') renderReceiveCart();
+    if(typeof toast === 'function') toast('Đã thêm hàng vào phiếu');
+  };
+
+  window.createReceipt = async function(){
+    if(!Array.isArray(receiveCart)) receiveCart = [];
+
+    if(receiveCart.length === 0){
+      mkAddCurrentLineIfNeeded();
+    }
+
+    if(receiveCart.length === 0){
+      if(typeof toast === 'function') toast('Phiếu nhập chưa có hàng');
+      return;
+    }
+
+    if(!Array.isArray(db.receipts)) db.receipts = [];
+
+    var id = mkReceiptId();
+    var date = mkReceiptDate();
+    var supplier = mkSupplier();
+    var note = mkNote();
+
+    var newItems = receiveCart.map(function(x){
+      return {
+        sku: String(x.sku || '').trim(),
+        name: String(x.name || x.sku || '').trim(),
+        pack: Number(x.pack || 1) || 1,
+        qty: Number(x.qty || 0) || 0,
+        cost: Number(x.cost || 0) || 0,
+        sale: Number(x.sale || 0) || 0,
+        note: x.note || ''
+      };
+    }).filter(function(x){
+      return x.sku && x.qty > 0;
+    });
+
+    if(!newItems.length){
+      if(typeof toast === 'function') toast('Phiếu nhập chưa có dòng hàng hợp lệ');
+      return;
+    }
+
+    var oldReceipt = (typeof editingReceiptIndex !== 'undefined' && editingReceiptIndex !== null) ? db.receipts[editingReceiptIndex] : null;
+    var oldItems = oldReceipt && typeof receiptItems === 'function' ? receiptItems(oldReceipt).map(function(x){ return Object.assign({}, x); }) : [];
+
+    if(typeof receiptUpdateCheck === 'function'){
+      var check = receiptUpdateCheck(oldItems, newItems);
+      if(check && !check.ok){
+        if(typeof toast === 'function') toast('Không thể cập nhật phiếu nhập vì hàng đã xuất bán: ' + check.name);
+        return;
+      }
+    }
+
+    if(typeof applyReceiptStockChange === 'function'){
+      applyReceiptStockChange(oldItems, newItems);
+    }else{
+      newItems.forEach(function(it){
+        var p = typeof findProduct === 'function' ? findProduct(it.sku) : null;
+        if(!p && Array.isArray(db.products)){
+          p = { sku: it.sku, name: it.name, pack: it.pack, qty: 0, cost: it.cost, sale: it.sale || 0 };
+          db.products.push(p);
+        }
+        if(p){
+          p.qty = (Number(p.qty || 0) || 0) + it.qty;
+          p.pack = it.pack || p.pack || 1;
+          p.cost = it.cost || p.cost || 0;
+          if(!p.name) p.name = it.name;
+        }
+      });
+    }
+
+    var receipt = {
+      id: id,
+      date: date,
+      supplier: supplier,
+      note: note,
+      total: newItems.reduce(function(s, x){ return s + (Number(x.qty || 0) * Number(x.cost || 0)); }, 0),
+      items: newItems
+    };
+
+    if(oldReceipt && typeof editingReceiptIndex !== 'undefined' && editingReceiptIndex !== null){
+      db.receipts[editingReceiptIndex] = receipt;
+    }else{
+      db.receipts.push(receipt);
+    }
+
+    receiveCart = [];
+    if(typeof editingReceiptIndex !== 'undefined') editingReceiptIndex = null;
+
+    try{
+      if(typeof save === 'function') save();
+      if(typeof apiSaveData === 'function') await apiSaveData(db);
+    }catch(e){
+      console.error('Không đồng bộ được phiếu nhập:', e);
+    }
+
+    try{
+      var d = String(date || '').slice(0, 10);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(d)){
+        mkSet('receiveFilterFrom', d);
+        mkSet('receiveFilterTo', d);
+      }
+    }catch(e){}
+
+    if(typeof clearReceiptForm === 'function') clearReceiptForm();
+    if(typeof render === 'function') render();
+    if(typeof focusReceiveHistory === 'function') focusReceiveHistory();
+
+    if(typeof toast === 'function') toast('Đã lưu phiếu nhập ' + id);
+  };
+
+  window.receiveStock = function(){
+    return window.createReceipt();
+  };
+
+  function installSalesSubmitPatch(){
+    if(window.__MK_SALES_SUBMIT_FORCE_SYNC__) return;
+    if(typeof window.salesConfirmOrder !== 'function') return;
+
+    window.__MK_SALES_SUBMIT_FORCE_SYNC__ = true;
+    var oldSalesConfirmOrder = window.salesConfirmOrder;
+
+    window.salesConfirmOrder = async function(){
+      if(window.__MK_SALES_SUBMITTING__){
+        if(typeof toast === 'function') toast('Đang gửi đơn, vui lòng chờ...');
+        return;
+      }
+
+      window.__MK_SALES_SUBMITTING__ = true;
+      var beforeCount = Array.isArray(db.orders) ? db.orders.length : 0;
+
+      try{
+        await oldSalesConfirmOrder.apply(this, arguments);
+
+        var afterCount = Array.isArray(db.orders) ? db.orders.length : 0;
+        if(afterCount > beforeCount){
+          try{
+            if(typeof apiSaveData === 'function'){
+              await apiSaveData(db);
+              if(typeof toast === 'function') toast('Đã gửi đơn về phần mềm');
+            }else if(typeof pushDataToAPI === 'function'){
+              await pushDataToAPI();
+            }
+          }catch(syncErr){
+            console.error('Không gửi được đơn app bán hàng về server:', syncErr);
+            if(typeof toast === 'function') toast('Đơn đã lưu trên máy nhưng chưa gửi được server');
+          }
+
+          if(typeof render === 'function') render();
+        }
+      }catch(err){
+        console.error('Lỗi chốt đơn app bán hàng:', err);
+        if(typeof toast === 'function') toast('Không chốt được đơn: ' + (err.message || 'lỗi không rõ'));
+      }finally{
+        window.__MK_SALES_SUBMITTING__ = false;
+      }
+    };
+  }
+
+  setTimeout(installSalesSubmitPatch, 300);
+  setTimeout(installSalesSubmitPatch, 1000);
+})();
+</script>
+
 
 <!-- Cấu hình API Render cho Trợ lý AI kho hàng -->
 <script>

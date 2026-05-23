@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const dataRoutes = require('./routes/dataRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const { initDB } = require('./config/db');
 
 const mobileAuthRoutes = require('./routes/mobile/mobileAuthRoutes');
 const mobileSalesRoutes = require('./routes/mobile/mobileSalesRoutes');
@@ -55,6 +56,12 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 10000;
 
-app.listen(PORT, () => {
-  console.log(`KHO API running on port ${PORT}`);
-});
+initDB()
+  .catch(err => {
+    console.error('DB_INIT_ERROR:', err);
+  })
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`KHO API running on port ${PORT}`);
+    });
+  });
