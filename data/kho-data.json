@@ -1,0 +1,76 @@
+{
+  "products": [],
+  "customers": [],
+  "staff": [],
+  "warehouses": [],
+  "documents": [],
+  "postings": [],
+  "payments": [],
+  "meta": {
+    "version": "V43-step14-user-permission",
+    "createdAt": "2026-05-25T00:00:00.000Z",
+    "updatedAt": "2026-05-25T00:00:00.000Z"
+  },
+  "receivablePostings": [],
+  "cashLedger": [],
+  "reportSettings": {
+    "defaultFromDate": "",
+    "defaultToDate": "",
+    "createdAt": "2026-05-25T00:00:00.000Z"
+  },
+  "users": [
+    {
+      "id": "USR_ADMIN",
+      "username": "admin",
+      "password": "123456",
+      "name": "Quản trị hệ thống",
+      "role": "ADMIN",
+      "isActive": true,
+      "createdAt": "2026-05-25T00:00:00.000Z",
+      "updatedAt": "2026-05-25T00:00:00.000Z"
+    },
+    {
+      "id": "USR_KETOAN",
+      "username": "ketoan",
+      "password": "123456",
+      "name": "Kế toán",
+      "role": "ACCOUNTANT",
+      "isActive": true,
+      "createdAt": "2026-05-25T00:00:00.000Z",
+      "updatedAt": "2026-05-25T00:00:00.000Z"
+    },
+    {
+      "id": "USR_THUKHO",
+      "username": "thukho",
+      "password": "123456",
+      "name": "Thủ kho",
+      "role": "WAREHOUSE",
+      "isActive": true,
+      "createdAt": "2026-05-25T00:00:00.000Z",
+      "updatedAt": "2026-05-25T00:00:00.000Z"
+    },
+    {
+      "id": "USR_THUQUY",
+      "username": "thuquy",
+      "password": "123456",
+      "name": "Thủ quỹ",
+      "role": "CASHIER",
+      "isActive": true,
+      "createdAt": "2026-05-25T00:00:00.000Z",
+      "updatedAt": "2026-05-25T00:00:00.000Z"
+    },
+    {
+      "id": "USR_BANHANG",
+      "username": "banhang",
+      "password": "123456",
+      "name": "Nhân viên bán hàng",
+      "role": "SALES",
+      "isActive": true,
+      "createdAt": "2026-05-25T00:00:00.000Z",
+      "updatedAt": "2026-05-25T00:00:00.000Z"
+    }
+  ],
+  "system": {
+    "lockDate": null
+  }
+}

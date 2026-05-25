@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KHO PRO V43 - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --sidebar: #071b36;
+      --sidebar-soft: #0e2a52;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #f59e0b;
+      --purple: #7c3aed;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: linear-gradient(180deg, #06162d 0%, #08264a 100%);
+      color: white;
+      padding: 22px 18px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 8px 22px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: 18px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #38bdf8, #2563eb);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
+    }
+
+    .brand-name { font-size: 18px; font-weight: 800; }
+    .brand-sub { font-size: 12px; color: #93c5fd; margin-top: 2px; }
+
+    .menu-section {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #93a4bb;
+      font-weight: 700;
+      letter-spacing: .08em;
+      padding: 0 10px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 6px 0;
+      padding: 12px 13px;
+      border-radius: 14px;
+      color: #dbeafe;
+      cursor: pointer;
+      transition: .2s;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .menu-item:hover, .menu-item.active {
+      background: rgba(37, 99, 235, 0.95);
+      color: white;
+      transform: translateX(2px);
+    }
+
+    .main {
+      min-width: 0;
+    }
+
+    .topbar {
+      height: 76px;
+      background: rgba(255,255,255,0.86);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .global-search {
+      position: relative;
+      width: min(620px, 52vw);
+    }
+
+    .global-search input {
+      width: 100%;
+      height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 0 16px 0 44px;
+      font-size: 14px;
+      outline: none;
+      background: #f8fafc;
+    }
+
+    .global-search span {
+      position: absolute;
+      left: 16px;
+      top: 12px;
+      color: var(--muted);
+    }
+
+    .user-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .bell, .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: white;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    }
+
+    .avatar {
+      background: #2563eb;
+      color: white;
+      font-weight: 800;
+    }
+
+    .content {
+      padding: 28px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 22px;
+      gap: 20px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: -0.03em;
+    }
+
+    .title p {
+      margin: 8px 0 0;
+      color: var(--muted);
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    }
+
+    .btn.primary { background: var(--primary); color: white; }
+    .btn.light { background: white; color: var(--text); border: 1px solid var(--line); }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .kpi {
+      padding: 18px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .kpi::after {
+      content: '';
+      position: absolute;
+      right: -28px;
+      top: -28px;
+      width: 86px;
+      height: 86px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.08);
+    }
+
+    .kpi-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .kpi-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: #eff6ff;
+      color: var(--primary);
+      font-size: 18px;
+    }
+
+    .kpi-label { color: var(--muted); font-size: 13px; font-weight: 700; }
+    .kpi-value { font-size: 23px; font-weight: 800; margin-top: 12px; letter-spacing: -0.03em; }
+    .trend { margin-top: 8px; font-size: 12px; font-weight: 700; }
+    .trend.up { color: var(--green); }
+    .trend.down { color: var(--red); }
+    .trend.neutral { color: var(--muted); }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.45fr .9fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 20px 0;
+    }
+
+    .card-header h3 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: -0.02em;
+    }
+
+    .card-header small { color: var(--muted); font-weight: 700; }
+
+    .chart-wrap { padding: 12px 18px 18px; height: 315px; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      background: #f8fafc;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .badge.green { background: #dcfce7; color: #166534; }
+    .badge.orange { background: #fef3c7; color: #92400e; }
+    .badge.red { background: #fee2e2; color: #991b1b; }
+    .badge.blue { background: #dbeafe; color: #1e40af; }
+
+    .product-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .product-thumb {
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+
+    .name-main { font-weight: 800; }
+    .name-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+    .alert-list { padding: 12px 18px 18px; }
+
+    .alert-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .alert-item:last-child { border-bottom: 0; }
+
+    .alert-left { display: flex; align-items: center; gap: 12px; }
+    .dot { width: 10px; height: 10px; border-radius: 999px; }
+    .dot.red { background: var(--red); }
+    .dot.orange { background: var(--orange); }
+    .dot.green { background: var(--green); }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 18px 0 4px;
+    }
+
+    @media (max-width: 1300px) {
+      .kpis { grid-template-columns: repeat(3, 1fr); }
+      .dashboard-grid, .two-col { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 860px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: relative; height: auto; }
+      .topbar { position: relative; height: auto; padding: 16px; gap: 12px; flex-direction: column; align-items: stretch; }
+      .global-search { width: 100%; }
+      .hero { flex-direction: column; align-items: stretch; }
+      .kpis { grid-template-columns: 1fr; }
+      .content { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">MK</div>
+        <div>
+          <div class="brand-name">KHO PRO V43</div>
+          <div class="brand-sub">Kho · Bán hàng · Kế toán</div>
+        </div>
+      </div>
+
+      <div class="menu-section">TỔNG QUAN</div>
+      <div class="menu-item active">📊 Dashboard</div>
+
+      <div class="menu-section">DANH MỤC</div>
+      <div class="menu-item">📦 Sản phẩm</div>
+      <div class="menu-item">👥 Khách hàng</div>
+      <div class="menu-item">🧑‍💼 Nhân viên</div>
+
+      <div class="menu-section">NGHIỆP VỤ</div>
+      <div class="menu-item">⬇️ Nhập kho</div>
+      <div class="menu-item">🛒 Bán hàng</div>
+      <div class="menu-item">💵 Thu tiền</div>
+      <div class="menu-item">🔁 Điều chỉnh tồn</div>
+
+      <div class="menu-section">THEO DÕI</div>
+      <div class="menu-item">🏬 Tồn kho</div>
+      <div class="menu-item">📌 Công nợ</div>
+      <div class="menu-item">🏦 Quỹ tiền</div>
+      <div class="menu-item">🧾 Chứng từ</div>
+
+      <div class="menu-section">BÁO CÁO</div>
+      <div class="menu-item">📈 Báo cáo nhanh</div>
+      <div class="menu-item">📚 Báo cáo chi tiết</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="global-search">
+          <span>🔍</span>
+          <input placeholder="Tìm nhanh: mã hàng, khách hàng, phiếu nhập, đơn bán..." />
+        </div>
+        <div class="user-box">
+          <div class="bell">🔔</div>
+          <div>
+            <div style="font-weight:800">Admin</div>
+            <div style="font-size:12px;color:#64748b">Quản trị hệ thống</div>
+          </div>
+          <div class="avatar">A</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="hero">
+          <div class="title">
+            <h1>Tổng quan vận hành</h1>
+            <p>Theo dõi nhanh bán hàng, tồn kho, công nợ và quỹ tiền trong ngày.</p>
+          </div>
+          <div class="quick-actions">
+            <button class="btn primary">+ Tạo phiếu nhập</button>
+            <button class="btn primary">+ Tạo đơn bán</button>
+            <button class="btn light">Thu tiền</button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="card kpi">
+            <div class="kpi-head"><div class="kpi-label">Doanh số hôm nay</div><div class="kpi-icon">₫</div></div>
+            <div class="kpi-value" id="kpi-sales">0</div>
+            <div class="trend neutral" id="trend-sales">Dữ liệu từ API</div>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-head"><div class="kpi-label">Đơn hàng</div><div class="kpi-icon">🧾</div></div>
+            <div class="kpi-value" id="kpi-orders">0</div>
+            <div class="trend neutral" id="trend-orders">Đơn đã ghi sổ</div>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-head"><div class="kpi-label">Nhập kho</div><div class="kpi-icon">⬇️</div></div>
+            <div class="kpi-value" id="kpi-purchases">0 phiếu</div>
+            <div class="trend neutral" id="trend-purchases">Phiếu nhập đã ghi sổ</div>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-head"><div class="kpi-label">Tổng tồn</div><div class="kpi-icon">📦</div></div>
+            <div class="kpi-value" id="kpi-stock">0</div>
+            <div class="trend neutral" id="trend-stock">Tính từ sổ kho</div>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-head"><div class="kpi-label">Công nợ phải thu</div><div class="kpi-icon">📌</div></div>
+            <div class="kpi-value" id="kpi-debt">0</div>
+            <div class="trend neutral" id="trend-debt">Tính từ sổ công nợ</div>
+          </div>
+          <div class="card kpi">
+            <div class="kpi-head"><div class="kpi-label">Quỹ tiền mặt</div><div class="kpi-icon">🏦</div></div>
+            <div class="kpi-value" id="kpi-cash">0</div>
+            <div class="trend neutral" id="trend-cash">Tính từ sổ quỹ</div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Doanh số 7 ngày gần nhất</h3>
+                <small>Đơn vị: triệu đồng</small>
+              </div>
+              <span class="badge blue">Realtime</span>
+            </div>
+            <div class="chart-wrap"><canvas id="salesChart"></canvas></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Cơ cấu công nợ</h3>
+                <small>Theo nhóm tuổi nợ</small>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="debtChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Top sản phẩm bán chạy</h3>
+                <small>Dựa trên đơn đã ghi sổ</small>
+              </div>
+              <span class="badge green">Bán tốt</span>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Sản phẩm</th><th>Đã bán</th><th>Tồn mở bán</th><th>Doanh thu</th></tr>
+              </thead>
+              <tbody id="topProductsBody"><tr><td colspan="4">Đang tải dữ liệu...</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Cảnh báo vận hành</h3>
+                <small>Cần xử lý trong hôm nay</small>
+              </div>
+              <span class="badge red">5 cảnh báo</span>
+            </div>
+            <div class="alert-list">
+              <div class="alert-item">
+                <div class="alert-left"><span class="dot red"></span><div><b>Hàng sắp hết</b><div class="name-sub">Sunlight Chanh còn 34 thùng</div></div></div>
+                <span class="badge red">Gấp</span>
+              </div>
+              <div class="alert-item">
+                <div class="alert-left"><span class="dot orange"></span><div><b>Phiếu nhập nháp</b><div class="name-sub">NK000128 chưa ghi sổ</div></div></div>
+                <span class="badge orange">Chờ</span>
+              </div>
+              <div class="alert-item">
+                <div class="alert-left"><span class="dot orange"></span><div><b>Công nợ quá hạn</b><div class="name-sub">12 khách hàng quá 7 ngày</div></div></div>
+                <span class="badge orange">Theo dõi</span>
+              </div>
+              <div class="alert-item">
+                <div class="alert-left"><span class="dot green"></span><div><b>Quỹ đã đối soát</b><div class="name-sub">Tiền nhân viên nộp đã khớp</div></div></div>
+                <span class="badge green">OK</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h3>Chứng từ mới nhất</h3>
+              <small>Nhập kho · Bán hàng · Thu tiền · Điều chỉnh</small>
+            </div>
+            <button class="btn light">Xem tất cả</button>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Loại</th><th>Số chứng từ</th><th>Đối tượng</th><th>Người tạo</th><th>Số tiền</th><th>Trạng thái</th></tr>
+            </thead>
+            <tbody id="documentsBody"><tr><td colspan="6">Đang tải dữ liệu...</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="footer-note">KHO PRO V43 · Core sạch: Danh mục → Chứng từ → Ghi sổ → Báo cáo</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = window.API_BASE || '';
+    const money = value => Number(value || 0).toLocaleString('vi-VN');
+    const number = value => Number(value || 0).toLocaleString('vi-VN');
+
+    async function api(path) {
+      const response = await fetch(API_BASE + path);
+      const json = await response.json();
+      if (!json.success) throw new Error(json.message || 'API lỗi');
+      return json.data;
+    }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    }
+
+    function badge(status) {
+      const key = String(status || '').toUpperCase();
+      if (key === 'POSTED') return '<span class="badge green">Đã ghi sổ</span>';
+      if (key === 'DRAFT') return '<span class="badge orange">Nháp</span>';
+      if (key === 'CANCELLED') return '<span class="badge red">Đã hủy</span>';
+      return `<span class="badge blue">${status || 'Không rõ'}</span>`;
+    }
+
+    function documentTypeName(type) {
+      const map = {
+        WAREHOUSE_RECEIPT: 'Nhập kho',
+        SALES_ORDER: 'Bán hàng',
+        CUSTOMER_PAYMENT: 'Thu tiền',
+        STOCK_ADJUSTMENT: 'Điều chỉnh'
+      };
+      return map[type] || type || '';
+    }
+
+    function getDocumentDate(doc) {
+      return doc.orderDate || doc.receiptDate || doc.paymentDate || doc.createdAt || '';
+    }
+
+    let salesChart;
+    let debtChart;
+
+    function initCharts() {
+      const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
+          y: { grid: { color: '#e2e8f0' }, ticks: { font: { family: 'Inter' } } }
+        }
+      };
+
+      salesChart = new Chart(document.getElementById('salesChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Doanh số', data: [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)', fill: true, tension: .42, pointRadius: 4, pointHoverRadius: 6 }] },
+        options: commonOptions
+      });
+
+      debtChart = new Chart(document.getElementById('debtChart'), {
+        type: 'doughnut',
+        data: { labels: ['Đã thu', 'Còn nợ'], datasets: [{ data: [0, 0], backgroundColor: ['#16a34a', '#dc2626'], borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { family: 'Inter' } } } }, cutout: '68%' }
+      });
+    }
+
+    function renderTopProducts(rows = [], stockRows = []) {
+      const stockMap = new Map(stockRows.map(row => [String(row.productCode || '').toUpperCase(), row.stock || 0]));
+      const body = document.getElementById('topProductsBody');
+      const top = rows.slice(0, 6);
+      if (!top.length) {
+        body.innerHTML = '<tr><td colspan="4">Chưa có đơn bán đã ghi sổ</td></tr>';
+        return;
+      }
+      body.innerHTML = top.map(item => {
+        const code = item.productCode || '';
+        const stock = stockMap.get(String(code).toUpperCase()) || 0;
+        const first = String(item.productName || code || '?').charAt(0).toUpperCase();
+        return `<tr>
+          <td><div class="product-row"><div class="product-thumb">${first}</div><div><div class="name-main">${item.productName || code}</div><div class="name-sub">SKU: ${code} · ${item.unit || ''}</div></div></div></td>
+          <td>${number(item.totalQuantity)}</td>
+          <td><span class="badge ${stock > 0 ? 'green' : 'red'}">${number(stock)}</span></td>
+          <td>${money(item.totalAmount)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderDocuments(salesRows = [], purchaseRows = [], cashRows = []) {
+      const docs = [
+        ...purchaseRows.map(d => ({ ...d, type: 'WAREHOUSE_RECEIPT', amount: d.totalAmount })),
+        ...salesRows.map(d => ({ ...d, type: 'SALES_ORDER', amount: d.totalAmount })),
+        ...cashRows.map(d => ({ ...d, type: d.refType || 'CUSTOMER_PAYMENT', amount: d.amount, documentNo: d.refCode || d.id, customerName: d.content, staffName: d.createdBy || '' }))
+      ].sort((a, b) => new Date(getDocumentDate(b)) - new Date(getDocumentDate(a))).slice(0, 8);
+      const body = document.getElementById('documentsBody');
+      if (!docs.length) {
+        body.innerHTML = '<tr><td colspan="6">Chưa có chứng từ</td></tr>';
+        return;
+      }
+      body.innerHTML = docs.map(doc => `<tr>
+        <td>${documentTypeName(doc.type)}</td>
+        <td>${doc.documentNo || doc.id || ''}</td>
+        <td>${doc.customerName || doc.supplierName || doc.content || ''}</td>
+        <td>${doc.staffName || doc.createdBy || ''}</td>
+        <td>${doc.amount === undefined ? '-' : money(doc.amount)}</td>
+        <td>${badge(doc.status || 'POSTED')}</td>
+      </tr>`).join('');
+    }
+
+    async function loadDashboard() {
+      try {
+        const [dashboard, sales, stock, purchases, cash] = await Promise.all([
+          api('/api/reports/dashboard'),
+          api('/api/reports/sales'),
+          api('/api/reports/stock'),
+          api('/api/reports/purchases'),
+          api('/api/reports/cash')
+        ]);
+
+        setText('kpi-sales', money(dashboard.sales.totalAmount));
+        setText('kpi-orders', number(dashboard.sales.totalOrders));
+        setText('kpi-purchases', `${number(dashboard.purchases.totalReceipts)} phiếu`);
+        setText('kpi-stock', number(dashboard.stock.totalStock));
+        setText('kpi-debt', money(dashboard.receivables.totalBalance));
+        setText('kpi-cash', money(dashboard.cash.currentBalance));
+
+        salesChart.data.labels = ['Tổng doanh số'];
+        salesChart.data.datasets[0].data = [dashboard.sales.totalAmount || 0];
+        salesChart.update();
+
+        debtChart.data.datasets[0].data = [dashboard.receivables.totalCreditAmount || 0, dashboard.receivables.totalBalance || 0];
+        debtChart.update();
+
+        renderTopProducts(sales.byProduct || [], stock.rows || []);
+        renderDocuments(sales.rows || [], purchases.rows || [], cash.rows || []);
+      } catch (error) {
+        console.error(error);
+        setText('trend-sales', 'Không tải được API báo cáo');
+        document.getElementById('topProductsBody').innerHTML = '<tr><td colspan="4">Không tải được dữ liệu</td></tr>';
+        document.getElementById('documentsBody').innerHTML = '<tr><td colspan="6">Không tải được dữ liệu</td></tr>';
+      }
+    }
+
+    initCharts();
+    loadDashboard();
+  </script>
+</body>
+</html>
