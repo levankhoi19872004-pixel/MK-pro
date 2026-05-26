@@ -3,730 +3,586 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KHO PRO V43 - Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    :root {
-      --bg: #f3f6fb;
-      --panel: #ffffff;
-      --text: #0f172a;
-      --muted: #64748b;
-      --line: #e2e8f0;
-      --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --sidebar: #071b36;
-      --sidebar-soft: #0e2a52;
-      --green: #16a34a;
-      --red: #dc2626;
-      --orange: #f59e0b;
-      --purple: #7c3aed;
-      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
-      --radius: 18px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: Inter, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    .app {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      min-height: 100vh;
-    }
-
-    .sidebar {
-      background: linear-gradient(180deg, #06162d 0%, #08264a 100%);
-      color: white;
-      padding: 22px 18px;
-      position: sticky;
-      top: 0;
-      height: 100vh;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 8px 22px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      margin-bottom: 18px;
-    }
-
-    .brand-logo {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #38bdf8, #2563eb);
-      display: grid;
-      place-items: center;
-      font-weight: 800;
-      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
-    }
-
-    .brand-name { font-size: 18px; font-weight: 800; }
-    .brand-sub { font-size: 12px; color: #93c5fd; margin-top: 2px; }
-
-    .menu-section {
-      margin-top: 20px;
-      font-size: 11px;
-      color: #93a4bb;
-      font-weight: 700;
-      letter-spacing: .08em;
-      padding: 0 10px;
-    }
-
-    .menu-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 6px 0;
-      padding: 12px 13px;
-      border-radius: 14px;
-      color: #dbeafe;
-      cursor: pointer;
-      transition: .2s;
-      font-weight: 600;
-      font-size: 14px;
-    }
-
-    .menu-item:hover, .menu-item.active {
-      background: rgba(37, 99, 235, 0.95);
-      color: white;
-      transform: translateX(2px);
-    }
-
-    .main {
-      min-width: 0;
-    }
-
-    .topbar {
-      height: 76px;
-      background: rgba(255,255,255,0.86);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 28px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-
-    .global-search {
-      position: relative;
-      width: min(620px, 52vw);
-    }
-
-    .global-search input {
-      width: 100%;
-      height: 46px;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 0 16px 0 44px;
-      font-size: 14px;
-      outline: none;
-      background: #f8fafc;
-    }
-
-    .global-search span {
-      position: absolute;
-      left: 16px;
-      top: 12px;
-      color: var(--muted);
-    }
-
-    .user-box {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .bell, .avatar {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      background: white;
-      border: 1px solid var(--line);
-      display: grid;
-      place-items: center;
-      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-    }
-
-    .avatar {
-      background: #2563eb;
-      color: white;
-      font-weight: 800;
-    }
-
-    .content {
-      padding: 28px;
-    }
-
-    .hero {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      margin-bottom: 22px;
-      gap: 20px;
-    }
-
-    .title h1 {
-      margin: 0;
-      font-size: 30px;
-      letter-spacing: -0.03em;
-    }
-
-    .title p {
-      margin: 8px 0 0;
-      color: var(--muted);
-    }
-
-    .quick-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 15px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-    }
-
-    .btn.primary { background: var(--primary); color: white; }
-    .btn.light { background: white; color: var(--text); border: 1px solid var(--line); }
-
-    .kpis {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid rgba(226, 232, 240, 0.8);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-
-    .kpi {
-      padding: 18px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .kpi::after {
-      content: '';
-      position: absolute;
-      right: -28px;
-      top: -28px;
-      width: 86px;
-      height: 86px;
-      border-radius: 999px;
-      background: rgba(37, 99, 235, 0.08);
-    }
-
-    .kpi-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .kpi-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      background: #eff6ff;
-      color: var(--primary);
-      font-size: 18px;
-    }
-
-    .kpi-label { color: var(--muted); font-size: 13px; font-weight: 700; }
-    .kpi-value { font-size: 23px; font-weight: 800; margin-top: 12px; letter-spacing: -0.03em; }
-    .trend { margin-top: 8px; font-size: 12px; font-weight: 700; }
-    .trend.up { color: var(--green); }
-    .trend.down { color: var(--red); }
-    .trend.neutral { color: var(--muted); }
-
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: 1.45fr .9fr;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 18px 20px 0;
-    }
-
-    .card-header h3 {
-      margin: 0;
-      font-size: 17px;
-      letter-spacing: -0.02em;
-    }
-
-    .card-header small { color: var(--muted); font-weight: 700; }
-
-    .chart-wrap { padding: 12px 18px 18px; height: 315px; }
-
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      font-size: 13px;
-    }
-
-    th {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      background: #f8fafc;
-    }
-
-    tr:last-child td { border-bottom: 0; }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 800;
-    }
-
-    .badge.green { background: #dcfce7; color: #166534; }
-    .badge.orange { background: #fef3c7; color: #92400e; }
-    .badge.red { background: #fee2e2; color: #991b1b; }
-    .badge.blue { background: #dbeafe; color: #1e40af; }
-
-    .product-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .product-thumb {
-      width: 38px;
-      height: 38px;
-      border-radius: 13px;
-      background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-      display: grid;
-      place-items: center;
-      font-weight: 800;
-      color: var(--primary-dark);
-    }
-
-    .name-main { font-weight: 800; }
-    .name-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
-
-    .alert-list { padding: 12px 18px 18px; }
-
-    .alert-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 13px 0;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .alert-item:last-child { border-bottom: 0; }
-
-    .alert-left { display: flex; align-items: center; gap: 12px; }
-    .dot { width: 10px; height: 10px; border-radius: 999px; }
-    .dot.red { background: var(--red); }
-    .dot.orange { background: var(--orange); }
-    .dot.green { background: var(--green); }
-
-    .footer-note {
-      color: var(--muted);
-      font-size: 12px;
-      text-align: center;
-      padding: 18px 0 4px;
-    }
-
-    @media (max-width: 1300px) {
-      .kpis { grid-template-columns: repeat(3, 1fr); }
-      .dashboard-grid, .two-col { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 860px) {
-      .app { grid-template-columns: 1fr; }
-      .sidebar { position: relative; height: auto; }
-      .topbar { position: relative; height: auto; padding: 16px; gap: 12px; flex-direction: column; align-items: stretch; }
-      .global-search { width: 100%; }
-      .hero { flex-direction: column; align-items: stretch; }
-      .kpis { grid-template-columns: 1fr; }
-      .content { padding: 16px; }
-    }
-  </style>
+  <title>KHO Minh Khai Pro V44</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-logo">MK</div>
-        <div>
-          <div class="brand-name">KHO PRO V43</div>
-          <div class="brand-sub">Kho · Bán hàng · Kế toán</div>
-        </div>
+    <header class="header">
+      <div>
+        <h1>KHO Minh Khai Pro V44</h1>
+        <p>Step 6: Sản phẩm + khách hàng + nhập kho + bán hàng + công nợ + quỹ tiền</p>
       </div>
+      <span id="serverStatus" class="status">Đang kiểm tra server...</span>
+    </header>
 
-      <div class="menu-section">TỔNG QUAN</div>
-      <div class="menu-item active">📊 Dashboard</div>
+    <nav class="tabs">
+      <button class="tab-button active" data-tab="productsTab">Sản phẩm</button>
+      <button class="tab-button" data-tab="customersTab">Khách hàng</button>
+      <button class="tab-button" data-tab="importTab">Nhập kho</button>
+      <button class="tab-button" data-tab="salesTab">Bán hàng</button>
+      <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
+      <button class="tab-button" data-tab="stockTab">Tồn kho</button>
+      <button class="tab-button" data-tab="importHistoryTab">Lịch sử nhập</button>
+      <button class="tab-button" data-tab="salesHistoryTab">Lịch sử bán</button>
+      <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
+      <button class="tab-button" data-tab="debtTab">Công nợ</button>
+      <button class="tab-button" data-tab="debtCollectionTab">Thu công nợ</button>
+      <button class="tab-button" data-tab="cashbookTab">Quỹ tiền</button>
+      <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
+      <button class="tab-button" data-tab="importDataTab">Import dữ liệu</button>
+    </nav>
 
-      <div class="menu-section">DANH MỤC</div>
-      <div class="menu-item">📦 Sản phẩm</div>
-      <div class="menu-item">👥 Khách hàng</div>
-      <div class="menu-item">🧑‍💼 Nhân viên</div>
-
-      <div class="menu-section">NGHIỆP VỤ</div>
-      <div class="menu-item">⬇️ Nhập kho</div>
-      <div class="menu-item">🛒 Bán hàng</div>
-      <div class="menu-item">💵 Thu tiền</div>
-      <div class="menu-item">🔁 Điều chỉnh tồn</div>
-
-      <div class="menu-section">THEO DÕI</div>
-      <div class="menu-item">🏬 Tồn kho</div>
-      <div class="menu-item">📌 Công nợ</div>
-      <div class="menu-item">🏦 Quỹ tiền</div>
-      <div class="menu-item">🧾 Chứng từ</div>
-
-      <div class="menu-section">BÁO CÁO</div>
-      <div class="menu-item">📈 Báo cáo nhanh</div>
-      <div class="menu-item">📚 Báo cáo chi tiết</div>
-    </aside>
-
-    <main class="main">
-      <header class="topbar">
-        <div class="global-search">
-          <span>🔍</span>
-          <input placeholder="Tìm nhanh: mã hàng, khách hàng, phiếu nhập, đơn bán..." />
-        </div>
-        <div class="user-box">
-          <div class="bell">🔔</div>
-          <div>
-            <div style="font-weight:800">Admin</div>
-            <div style="font-size:12px;color:#64748b">Quản trị hệ thống</div>
-          </div>
-          <div class="avatar">A</div>
-        </div>
-      </header>
-
-      <section class="content">
-        <div class="hero">
-          <div class="title">
-            <h1>Tổng quan vận hành</h1>
-            <p>Theo dõi nhanh bán hàng, tồn kho, công nợ và quỹ tiền trong ngày.</p>
-          </div>
-          <div class="quick-actions">
-            <button class="btn primary">+ Tạo phiếu nhập</button>
-            <button class="btn primary">+ Tạo đơn bán</button>
-            <button class="btn light">Thu tiền</button>
-          </div>
-        </div>
-
-        <div class="kpis">
-          <div class="card kpi">
-            <div class="kpi-head"><div class="kpi-label">Doanh số hôm nay</div><div class="kpi-icon">₫</div></div>
-            <div class="kpi-value" id="kpi-sales">0</div>
-            <div class="trend neutral" id="trend-sales">Dữ liệu từ API</div>
-          </div>
-          <div class="card kpi">
-            <div class="kpi-head"><div class="kpi-label">Đơn hàng</div><div class="kpi-icon">🧾</div></div>
-            <div class="kpi-value" id="kpi-orders">0</div>
-            <div class="trend neutral" id="trend-orders">Đơn đã ghi sổ</div>
-          </div>
-          <div class="card kpi">
-            <div class="kpi-head"><div class="kpi-label">Nhập kho</div><div class="kpi-icon">⬇️</div></div>
-            <div class="kpi-value" id="kpi-purchases">0 phiếu</div>
-            <div class="trend neutral" id="trend-purchases">Phiếu nhập đã ghi sổ</div>
-          </div>
-          <div class="card kpi">
-            <div class="kpi-head"><div class="kpi-label">Tổng tồn</div><div class="kpi-icon">📦</div></div>
-            <div class="kpi-value" id="kpi-stock">0</div>
-            <div class="trend neutral" id="trend-stock">Tính từ sổ kho</div>
-          </div>
-          <div class="card kpi">
-            <div class="kpi-head"><div class="kpi-label">Công nợ phải thu</div><div class="kpi-icon">📌</div></div>
-            <div class="kpi-value" id="kpi-debt">0</div>
-            <div class="trend neutral" id="trend-debt">Tính từ sổ công nợ</div>
-          </div>
-          <div class="card kpi">
-            <div class="kpi-head"><div class="kpi-label">Quỹ tiền mặt</div><div class="kpi-icon">🏦</div></div>
-            <div class="kpi-value" id="kpi-cash">0</div>
-            <div class="trend neutral" id="trend-cash">Tính từ sổ quỹ</div>
-          </div>
-        </div>
-
-        <div class="dashboard-grid">
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h3>Doanh số 7 ngày gần nhất</h3>
-                <small>Đơn vị: triệu đồng</small>
-              </div>
-              <span class="badge blue">Realtime</span>
+    <section id="productsTab" class="tab-content active">
+      <main class="grid">
+        <section class="card">
+          <h2 id="formTitle">Thêm sản phẩm</h2>
+          <form id="productForm" class="form">
+            <input type="hidden" name="id" />
+            <label>Mã sản phẩm *<input name="code" placeholder="VD: SP003" required /></label>
+            <label>Tên sản phẩm *<input name="name" placeholder="VD: OMO 800g" required /></label>
+            <div class="two-cols">
+              <label>Đơn vị tính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
+              <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
             </div>
-            <div class="chart-wrap"><canvas id="salesChart"></canvas></div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h3>Cơ cấu công nợ</h3>
-                <small>Theo nhóm tuổi nợ</small>
-              </div>
+            <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
+            <div class="two-cols">
+              <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
+              <label>Giá bán<input name="salePrice" type="number" min="0" placeholder="0" /></label>
             </div>
-            <div class="chart-wrap"><canvas id="debtChart"></canvas></div>
-          </div>
-        </div>
-
-        <div class="two-col">
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h3>Top sản phẩm bán chạy</h3>
-                <small>Dựa trên đơn đã ghi sổ</small>
-              </div>
-              <span class="badge green">Bán tốt</span>
+            <div class="two-cols">
+              <label>Tồn tối thiểu<input name="minStock" type="number" min="0" placeholder="0" /></label>
+              <label>Tồn tối đa<input name="maxStock" type="number" min="0" placeholder="0" /></label>
             </div>
-            <table>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang mở bán</label>
+            <div class="button-row">
+              <button type="submit">Lưu sản phẩm</button>
+              <button type="button" id="resetButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="formMessage" class="message"></p>
+        </section>
+
+        <section class="card product-card">
+          <div class="toolbar">
+            <div><h2>Danh sách sản phẩm</h2><p id="productCount" class="muted">Đang tải...</p></div>
+            <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." />
+          </div>
+          <div id="productBulkActions" class="bulk-actions" hidden>
+            <div class="bulk-info">
+              <strong id="productSelectedCount">0</strong>
+              <span>sản phẩm được chọn</span>
+            </div>
+            <div class="bulk-buttons">
+              <button type="button" id="bulkEditProductButton" class="small">Sửa</button>
+              <button type="button" id="bulkOpenProductButton" class="small success">Mở bán</button>
+              <button type="button" id="bulkStopProductButton" class="small danger">Ngừng bán</button>
+            </div>
+          </div>
+          <div class="table-wrap product-list-wrap">
+            <table class="product-table">
               <thead>
-                <tr><th>Sản phẩm</th><th>Đã bán</th><th>Tồn mở bán</th><th>Doanh thu</th></tr>
+                <tr>
+                  <th class="col-select"><input type="checkbox" id="productCheckAll" aria-label="Chọn tất cả sản phẩm" /></th>
+                  <th class="col-code">Mã</th>
+                  <th class="col-product">Thông tin sản phẩm</th>
+                  <th class="col-unit">ĐVT</th>
+                  <th class="col-price">Giá nhập</th>
+                  <th class="col-price">Giá bán</th>
+                  <th class="col-status">Trạng thái</th>
+                </tr>
               </thead>
-              <tbody id="topProductsBody"><tr><td colspan="4">Đang tải dữ liệu...</td></tr></tbody>
+              <tbody id="productTable"><tr><td colspan="7">Đang tải dữ liệu...</td></tr></tbody>
             </table>
           </div>
+        </section>
+      </main>
+    </section>
 
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <h3>Cảnh báo vận hành</h3>
-                <small>Cần xử lý trong hôm nay</small>
-              </div>
-              <span class="badge red">5 cảnh báo</span>
+    <section id="customersTab" class="tab-content">
+      <main class="grid">
+        <section class="card">
+          <h2>Thêm khách hàng</h2>
+          <form id="customerForm" class="form">
+            <label>Mã khách hàng *<input name="code" placeholder="VD: KH001" required /></label>
+            <label>Tên khách hàng *<input name="name" placeholder="VD: Cửa hàng Minh Anh" required /></label>
+            <div class="two-cols">
+              <label>Số điện thoại<input name="phone" placeholder="098..." /></label>
+              <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
             </div>
-            <div class="alert-list">
-              <div class="alert-item">
-                <div class="alert-left"><span class="dot red"></span><div><b>Hàng sắp hết</b><div class="name-sub">Sunlight Chanh còn 34 thùng</div></div></div>
-                <span class="badge red">Gấp</span>
-              </div>
-              <div class="alert-item">
-                <div class="alert-left"><span class="dot orange"></span><div><b>Phiếu nhập nháp</b><div class="name-sub">NK000128 chưa ghi sổ</div></div></div>
-                <span class="badge orange">Chờ</span>
-              </div>
-              <div class="alert-item">
-                <div class="alert-left"><span class="dot orange"></span><div><b>Công nợ quá hạn</b><div class="name-sub">12 khách hàng quá 7 ngày</div></div></div>
-                <span class="badge orange">Theo dõi</span>
-              </div>
-              <div class="alert-item">
-                <div class="alert-left"><span class="dot green"></span><div><b>Quỹ đã đối soát</b><div class="name-sub">Tiền nhân viên nộp đã khớp</div></div></div>
-                <span class="badge green">OK</span>
-              </div>
+            <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
+            <label>Nhân viên phụ trách<input name="staffName" placeholder="Tên nhân viên" /></label>
+            <button type="submit">Lưu khách hàng</button>
+          </form>
+          <p id="customerMessage" class="message"></p>
+        </section>
+
+        <section class="card">
+          <div class="toolbar">
+            <div><h2>Danh sách khách hàng</h2><p id="customerCount" class="muted">Đang tải...</p></div>
+            <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, địa chỉ..." />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Mã</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Khu vực</th><th>NV phụ trách</th></tr></thead>
+              <tbody id="customerTable"><tr><td colspan="6">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section id="importTab" class="tab-content">
+      <main class="grid import-grid">
+        <section class="card">
+          <h2>Tạo phiếu nhập kho</h2>
+          <form id="importForm" class="form">
+            <div class="two-cols">
+              <label>Ngày nhập<input name="date" type="date" /></label>
+              <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
             </div>
+            <label>Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
+            <div class="import-line-box">
+              <h3>Thêm dòng hàng</h3>
+              <label>Sản phẩm<select id="importProductSelect"></select></label>
+              <div class="two-cols">
+                <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
+                <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" /></label>
+              </div>
+              <button type="button" id="addImportItemButton" class="secondary">Thêm vào phiếu</button>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
+                <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
+              </table>
+            </div>
+            <div class="summary-box"><span>Tổng SL: <strong id="importTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="importTotalAmount">0</strong></span></div>
+            <button type="submit">Tạo phiếu nhập & cộng tồn</button>
+          </form>
+          <p id="importMessage" class="message"></p>
+        </section>
+        <section class="card"><h2>Nguyên tắc nhập kho</h2><div class="note-box"><p><strong>Không sửa tồn kho trực tiếp.</strong></p><p>Muốn tăng tồn kho phải tạo phiếu nhập.</p></div></section>
+      </main>
+    </section>
+
+    <section id="salesTab" class="tab-content">
+      <main class="grid import-grid">
+        <section class="card">
+          <h2>Tạo đơn bán hàng</h2>
+          <form id="salesForm" class="form">
+            <div class="two-cols">
+              <label>Ngày bán<input name="date" type="date" /></label>
+              <label>Khách hàng<select name="customerId" id="salesCustomerSelect"></select></label>
+            </div>
+            <label>Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
+            <div class="import-line-box">
+              <h3>Thêm dòng bán</h3>
+              <label>Sản phẩm<select id="salesProductSelect"></select></label>
+              <div class="two-cols">
+                <label>Số lượng<input id="salesQuantity" type="number" min="1" value="1" /></label>
+                <label>Giá bán<input id="salesPrice" type="number" min="0" value="0" /></label>
+              </div>
+              <button type="button" id="addSalesItemButton" class="secondary">Thêm vào đơn</button>
+            </div>
+            <div class="table-wrap compact">
+              <table><thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead><tbody id="salesItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody></table>
+            </div>
+            <div class="summary-box"><span>Tổng SL: <strong id="salesTotalQuantity">0</strong></span><span>Tổng tiền trước KM: <strong id="salesTotalAmount">0</strong></span></div>
+            <div id="salesPromotionBox" class="promotion-preview">Chưa có khuyến mại áp dụng.</div>
+            <label>Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
+            <button type="submit">Tạo đơn bán & trừ tồn</button>
+          </form>
+          <p id="salesMessage" class="message"></p>
+        </section>
+        <section class="card"><h2>Nguyên tắc bán hàng</h2><div class="note-box"><p><strong>Không cho bán âm kho.</strong></p><p>Đơn bán sẽ tự kiểm tồn, trừ kho, lưu lịch sử và ghi công nợ/quỹ.</p></div></section>
+      </main>
+    </section>
+
+
+    <section id="promotionsTab" class="tab-content">
+      <main class="grid import-grid">
+        <section class="card">
+          <h2 id="promotionFormTitle">Thêm chương trình khuyến mại</h2>
+          <form id="promotionForm" class="form">
+            <input type="hidden" name="id" />
+            <div class="two-cols">
+              <label>Mã CTKM *<input name="code" placeholder="VD: KM_OMO_01" required /></label>
+              <label>Tên CTKM *<input name="name" placeholder="VD: Mua OMO giảm 5%" required /></label>
+            </div>
+            <label>Loại khuyến mại
+              <select name="type">
+                <option value="discount_percent">Giảm theo %</option>
+                <option value="discount_amount">Giảm tiền trực tiếp</option>
+              </select>
+            </label>
+            <label>Mã sản phẩm áp dụng *
+              <textarea name="productCodes" rows="4" placeholder="Mỗi dòng 1 mã sản phẩm. Ví dụ:
+OMO001
+SURF001" required></textarea>
+            </label>
+            <div class="two-cols">
+              <label>Số lượng tối thiểu<input name="minQty" type="number" min="1" value="1" /></label>
+              <label>% giảm<input name="discountPercent" type="number" min="0" max="100" value="0" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Số tiền giảm<input name="discountAmount" type="number" min="0" value="0" /></label>
+              <label>Trạng thái<label class="check-row"><input name="isActive" type="checkbox" checked />Đang áp dụng</label></label>
+            </div>
+            <div class="two-cols">
+              <label>Ngày bắt đầu<input name="startDate" type="date" /></label>
+              <label>Ngày kết thúc<input name="endDate" type="date" /></label>
+            </div>
+            <label>Ghi chú<input name="note" placeholder="VD: chỉ áp dụng trong tháng" /></label>
+            <div class="button-row">
+              <button type="submit">Lưu CTKM</button>
+              <button type="button" id="resetPromotionButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="promotionMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar">
+            <div><h2>Danh sách khuyến mại</h2><p id="promotionCount" class="muted">Đang tải...</p></div>
+            <input id="promotionSearchInput" placeholder="Tìm mã CTKM, tên, mã sản phẩm..." />
+          </div>
+          <div id="promotionList" class="order-list">Đang tải khuyến mại...</div>
+        </section>
+      </main>
+    </section>
+
+    <section id="stockTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar"><div><h2>Tồn kho hiện tại</h2><p id="stockCount" class="muted">Đang tải...</p></div><input id="stockSearchInput" placeholder="Tìm mã / tên sản phẩm..." /></div>
+        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="5">Đang tải tồn kho...</td></tr></tbody></table></div>
+      </section>
+    </section>
+
+    <section id="importHistoryTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar"><div><h2>Lịch sử phiếu nhập</h2><p id="importOrderCount" class="muted">Đang tải...</p></div><button id="reloadImportOrdersButton" class="secondary">Tải lại</button></div>
+        <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
+      </section>
+    </section>
+
+    <section id="salesHistoryTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar sales-history-toolbar">
+          <div><h2>Lịch sử đơn bán</h2><p id="salesOrderCount" class="muted">Đang tải...</p></div>
+          <div class="sales-history-filters">
+            <input id="salesOrderSearchInput" placeholder="Tìm mã đơn, khách hàng..." />
+            <select id="salesOrderSourceFilter">
+              <option value="">Tất cả nguồn</option>
+              <option value="NVBH">Từ NVBH</option>
+              <option value="DMS">Từ DMS</option>
+            </select>
+            <button id="reloadSalesOrdersButton" class="secondary">Tải lại</button>
+          </div>
+        </div>
+        <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
+      </section>
+    </section>
+
+    <section id="masterOrdersTab" class="tab-content">
+      <main class="grid master-order-grid">
+        <section class="card master-create-card">
+          <div class="toolbar">
+            <div>
+              <h2>Gộp đơn tổng</h2>
+              <p id="unmergedOrderCount" class="muted">Đang tải đơn con chưa gộp...</p>
+            </div>
+            <button id="reloadMasterOrdersButton" class="secondary" type="button">Tải lại</button>
+          </div>
+
+          <form id="masterOrderForm" class="form master-order-form">
+            <div class="two-cols">
+              <label>Ngày đơn tổng<input name="date" type="date" /></label>
+              <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
+            </div>
+            <div class="two-cols">
+              <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
+              <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
+            </div>
+            <label>Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
+
+            <div class="master-selection-summary">
+              <span>Đã chọn: <strong id="selectedChildOrderCount">0</strong> đơn</span>
+              <span>Tổng tiền: <strong id="selectedChildOrderAmount">0</strong></span>
+              <span>Còn phải thu: <strong id="selectedChildOrderDebt">0</strong></span>
+            </div>
+
+            <button type="submit">Tạo đơn tổng</button>
+          </form>
+          <p id="masterOrderMessage" class="message"></p>
+        </section>
+
+        <section class="card master-filter-card">
+          <div class="toolbar">
+            <div><h2>Đơn con chưa gộp</h2><p class="muted">Chọn các đơn con để gom thành đơn tổng</p></div>
+          </div>
+          <div class="master-filter-row">
+            <input id="unmergedOrderSearch" placeholder="Tìm mã đơn, khách, địa chỉ..." />
+            <select id="unmergedSourceFilter">
+              <option value="">Tất cả nguồn</option>
+              <option value="NVBH">Từ NVBH</option>
+              <option value="DMS">Từ DMS</option>
+            </select>
+            <input id="unmergedDateFilter" type="date" />
+          </div>
+          <div id="unmergedOrderList" class="order-list compact-order-list">Đang tải...</div>
+        </section>
+
+        <section class="card master-list-card">
+          <div class="toolbar">
+            <div><h2>Danh sách đơn tổng</h2><p id="masterOrderCount" class="muted">Đang tải...</p></div>
+            <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, tuyến, nhân viên..." />
+          </div>
+          <div id="masterOrderList" class="order-list">Đang tải đơn tổng...</div>
+        </section>
+      </main>
+    </section>
+
+    <section id="debtTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar"><div><h2>Công nợ khách hàng</h2><p id="debtCount" class="muted">Đang tải...</p></div><input id="debtSearchInput" placeholder="Tìm khách hàng..." /></div>
+        <div class="table-wrap"><table><thead><tr><th>Mã khách</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Phải thu</th><th>Đã thu</th><th>Còn nợ</th></tr></thead><tbody id="debtTable"><tr><td colspan="7">Đang tải công nợ...</td></tr></tbody></table></div>
+      </section>
+    </section>
+
+    <section id="debtCollectionTab" class="tab-content">
+      <main class="grid import-grid">
+        <section class="card">
+          <h2>Thu công nợ khách hàng</h2>
+          <form id="debtCollectionForm" class="form">
+            <div class="two-cols">
+              <label>Ngày thu<input name="date" type="date" /></label>
+              <label>Khách hàng<select name="customerId" id="collectionCustomerSelect"></select></label>
+            </div>
+            <div class="summary-box">
+              <span>Nợ hiện tại: <strong id="selectedCustomerDebt">0</strong></span>
+            </div>
+            <div class="two-cols">
+              <label>Số tiền thu<input name="amount" type="number" min="1" value="0" /></label>
+              <label>Người thu<input name="staffName" placeholder="VD: NV giao hàng" /></label>
+            </div>
+            <label>Ghi chú<input name="note" placeholder="VD: khách thanh toán công nợ" /></label>
+            <button type="submit">Thu công nợ & ghi quỹ</button>
+          </form>
+          <p id="collectionMessage" class="message"></p>
+        </section>
+        <section class="card"><h2>Nguyên tắc thu công nợ</h2><div class="note-box"><p>Thu công nợ sẽ ghi giảm nợ khách hàng và ghi tăng quỹ tiền.</p><p>Không cho thu lớn hơn số nợ hiện tại.</p></div></section>
+      </main>
+    </section>
+
+    <section id="cashbookTab" class="tab-content">
+      <main class="grid import-grid">
+        <section class="card">
+          <h2>Phiếu thu / chi quỹ</h2>
+          <form id="cashbookForm" class="form">
+            <div class="two-cols">
+              <label>Ngày<input name="date" type="date" /></label>
+              <label>Loại phiếu<select name="type"><option value="in">Phiếu thu</option><option value="out">Phiếu chi</option></select></label>
+            </div>
+            <div class="two-cols">
+              <label>Số tiền<input name="amount" type="number" min="1" value="0" /></label>
+              <label>Người nộp/nhận<input name="staffName" placeholder="Tên người liên quan" /></label>
+            </div>
+            <label>Nguồn / nhóm tiền<input name="source" placeholder="VD: nộp về công ty, chi phí, thu khác" /></label>
+            <label>Ghi chú<input name="note" placeholder="Nội dung phiếu thu/chi" /></label>
+            <button type="submit">Ghi quỹ tiền</button>
+          </form>
+          <p id="cashbookMessage" class="message"></p>
+        </section>
+
+        <section class="card">
+          <div class="toolbar">
+            <div><h2>Sổ quỹ tiền</h2><p id="cashSummary" class="muted">Đang tải...</p></div>
+            <input id="cashbookSearchInput" placeholder="Tìm mã phiếu, khách, ghi chú..." />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Loại</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead>
+              <tbody id="cashbookTable"><tr><td colspan="8">Đang tải sổ quỹ...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
+
+
+    <section id="reportsTab" class="tab-content">
+      <section class="card report-hero">
+        <div class="toolbar report-toolbar">
+          <div>
+            <h2>Báo cáo quản trị</h2>
+            <p class="muted">Tổng hợp nhanh bán hàng, tồn kho, công nợ, quỹ tiền và giao hàng.</p>
+          </div>
+          <div class="report-filter">
+            <label>Từ ngày<input id="reportFromDate" type="date" /></label>
+            <label>Đến ngày<input id="reportToDate" type="date" /></label>
+            <button id="reloadReportsButton" class="secondary" type="button">Tải báo cáo</button>
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <h3>Chứng từ mới nhất</h3>
-              <small>Nhập kho · Bán hàng · Thu tiền · Điều chỉnh</small>
-            </div>
-            <button class="btn light">Xem tất cả</button>
+        <div class="report-kpis">
+          <div class="kpi-card"><span>Doanh thu</span><strong id="reportRevenue">0</strong><small id="reportOrderCount">0 đơn bán</small></div>
+          <div class="kpi-card"><span>Đã thu</span><strong id="reportCollected">0</strong><small>Tiền đã thu theo đơn</small></div>
+          <div class="kpi-card"><span>Công nợ còn lại</span><strong id="reportDebt">0</strong><small>Khách còn nợ</small></div>
+          <div class="kpi-card"><span>Tồn quỹ</span><strong id="reportCashBalance">0</strong><small>Thu - chi</small></div>
+        </div>
+      </section>
+
+      <main class="grid report-grid">
+        <section class="card">
+          <div class="toolbar"><div><h2>Báo cáo bán hàng</h2><p id="reportSalesSummary" class="muted">Đang tải...</p></div></div>
+          <div class="table-wrap report-table-wrap">
+            <table>
+              <thead><tr><th>Mã đơn</th><th>Nguồn</th><th>Ngày</th><th>Khách hàng</th><th>SL</th><th>Tổng tiền</th><th>Đã thu</th><th>Còn nợ</th><th>Giao hàng</th></tr></thead>
+              <tbody id="reportSalesTable"><tr><td colspan="9">Đang tải báo cáo bán hàng...</td></tr></tbody>
+            </table>
           </div>
+        </section>
+
+        <section class="card">
+          <div class="toolbar"><div><h2>Tồn kho cần chú ý</h2><p id="reportStockSummary" class="muted">Đang tải...</p></div></div>
+          <div class="table-wrap report-table-wrap">
+            <table>
+              <thead><tr><th>Mã</th><th>Sản phẩm</th><th>ĐVT</th><th>Tồn</th><th>Cảnh báo</th></tr></thead>
+              <tbody id="reportStockTable"><tr><td colspan="5">Đang tải tồn kho...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="toolbar"><div><h2>Công nợ lớn</h2><p id="reportDebtSummary" class="muted">Đang tải...</p></div></div>
+          <div class="table-wrap report-table-wrap">
+            <table>
+              <thead><tr><th>Mã khách</th><th>Khách hàng</th><th>SĐT</th><th>Phải thu</th><th>Đã thu</th><th>Còn nợ</th></tr></thead>
+              <tbody id="reportDebtTable"><tr><td colspan="6">Đang tải công nợ...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="toolbar"><div><h2>Quỹ tiền</h2><p id="reportCashSummary" class="muted">Đang tải...</p></div></div>
+          <div class="table-wrap report-table-wrap">
+            <table>
+              <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Loại</th><th>Nguồn</th><th>Người liên quan</th><th>Số tiền</th></tr></thead>
+              <tbody id="reportCashTable"><tr><td colspan="6">Đang tải quỹ tiền...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section id="importDataTab" class="tab-content">
+      <section class="import-v43-shell">
+        <div class="import-v43-hero">
+          <div>
+            <span class="eyebrow">IMPORT CENTER V43</span>
+            <h2>Import dữ liệu Excel</h2>
+            <p>Quy trình chuẩn: tải đúng mẫu → điền vào sheet Import → xem trước & kiểm tra lỗi → tick dòng hợp lệ → xác nhận ghi vào hệ thống.</p>
+          </div>
+          <div class="import-v43-hero-actions">
+            <button type="button" id="downloadImportTemplateButton" class="excel-primary-btn">📥 Tải mẫu đang chọn</button>
+            <button type="button" id="clearImportPreviewButton" class="excel-ghost-btn">Làm mới</button>
+          </div>
+        </div>
+
+        <div class="import-workflow-grid">
+          <div class="workflow-card active"><span>01</span><strong>Tải mẫu Excel</strong><p>Mẫu có sẵn cột chuẩn và dữ liệu ví dụ.</p></div>
+          <div class="workflow-card"><span>02</span><strong>Điền dữ liệu</strong><p>Điền vào sheet Import, không đổi tên cột.</p></div>
+          <div class="workflow-card"><span>03</span><strong>Xem trước</strong><p>Hệ thống kiểm tra lỗi trước khi ghi dữ liệu.</p></div>
+          <div class="workflow-card"><span>04</span><strong>Xác nhận</strong><p>Chỉ các dòng được tick hợp lệ mới được import.</p></div>
+        </div>
+
+        <div class="import-layout-v43">
+          <section class="card import-form-card-v43">
+            <div class="section-title-row">
+              <div>
+                <h3>Thực hiện import</h3>
+                <p class="muted">Chọn nghiệp vụ, tải mẫu hoặc chọn file Excel để preview.</p>
+              </div>
+            </div>
+
+            <div class="import-form-grid-v43">
+              <label>Loại import
+                <select id="importDataType">
+                  <option value="products">Sản phẩm</option>
+                  <option value="customers">Khách hàng</option>
+                  <option value="openingStock">Tồn kho ban đầu</option>
+                  <option value="importOrders">Phiếu nhập kho</option>
+                  <option value="salesOrders">Đơn bán hàng</option>
+                  <option value="openingDebt">Công nợ ban đầu</option>
+                  <option value="debtCollections">Thu công nợ</option>
+                  <option value="cashbook">Quỹ tiền</option>
+                </select>
+              </label>
+              <label>File Excel
+                <input id="importExcelFile" type="file" accept=".xlsx,.xls" />
+              </label>
+            </div>
+
+            <div id="selectedTemplateInfo" class="selected-template-info">
+              <div class="template-icon">XL</div>
+              <div>
+                <strong>Mẫu import sản phẩm</strong>
+                <p>Cột bắt buộc: mã sản phẩm, tên sản phẩm. Có thể nhập thêm đơn vị, barcode, nhóm hàng, giá nhập, giá bán.</p>
+              </div>
+            </div>
+
+            <div class="button-row import-actions-v43">
+              <button type="button" id="previewImportButton" class="excel-blue-btn">🔍 Xem trước dữ liệu</button>
+              <button type="button" id="commitImportButton" class="success excel-green-btn" disabled>✅ Xác nhận import</button>
+            </div>
+            <p id="importDataMessage" class="message"></p>
+          </section>
+
+          <section class="card import-template-card-v43">
+            <div class="section-title-row">
+              <div>
+                <h3>Kho mẫu Excel</h3>
+                <p class="muted">Bấm tải nhanh theo từng nghiệp vụ.</p>
+              </div>
+            </div>
+            <div id="importTemplateGrid" class="template-grid-v43">
+              <button type="button" class="template-download-card active" data-template="products"><b>📦 Sản phẩm</b><span>Danh mục hàng hóa</span></button>
+              <button type="button" class="template-download-card" data-template="customers"><b>🏪 Khách hàng</b><span>Mã, tên, SĐT, địa chỉ</span></button>
+              <button type="button" class="template-download-card" data-template="openingStock"><b>📊 Tồn đầu</b><span>Tồn kho ban đầu</span></button>
+              <button type="button" class="template-download-card" data-template="importOrders"><b>📥 Phiếu nhập</b><span>Nhập kho từ Excel</span></button>
+              <button type="button" class="template-download-card" data-template="salesOrders"><b>🧾 Đơn bán</b><span>Đơn con / bán hàng</span></button>
+              <button type="button" class="template-download-card" data-template="openingDebt"><b>💳 Công nợ đầu</b><span>Số dư công nợ</span></button>
+              <button type="button" class="template-download-card" data-template="debtCollections"><b>💵 Thu công nợ</b><span>Tiền NV giao nộp</span></button>
+              <button type="button" class="template-download-card" data-template="cashbook"><b>🏦 Quỹ tiền</b><span>Thu / chi trong ngày</span></button>
+            </div>
+          </section>
+        </div>
+
+        <div class="note-box import-guide-v43">
+          <strong>Nguyên tắc import an toàn:</strong>
+          <span>Không ghi thẳng vào tồn kho, công nợ, quỹ tiền nếu chưa qua preview.</span>
+          <span>Không đổi tên cột trong Excel.</span>
+          <span>Sản phẩm và khách hàng nên import trước các chứng từ phát sinh.</span>
+        </div>
+
+        <div id="importPreviewSummary" class="summary-box import-preview-summary import-summary-v43">
+          <span>Tổng dòng: <strong>0</strong></span>
+          <span>Hợp lệ: <strong>0</strong></span>
+          <span>Lỗi: <strong>0</strong></span>
+        </div>
+
+        <div class="table-wrap import-preview-wrap import-preview-v43">
           <table>
-            <thead>
-              <tr><th>Loại</th><th>Số chứng từ</th><th>Đối tượng</th><th>Người tạo</th><th>Số tiền</th><th>Trạng thái</th></tr>
-            </thead>
-            <tbody id="documentsBody"><tr><td colspan="6">Đang tải dữ liệu...</td></tr></tbody>
+            <thead id="importPreviewHead"><tr><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr></thead>
+            <tbody id="importPreviewTable"><tr><td colspan="3">Chưa có dữ liệu preview.</td></tr></tbody>
           </table>
         </div>
-
-        <div class="footer-note">KHO PRO V43 · Core sạch: Danh mục → Chứng từ → Ghi sổ → Báo cáo</div>
       </section>
-    </main>
+    </section>
+
+
   </div>
 
-  <script>
-    const API_BASE = window.API_BASE || '';
-    const money = value => Number(value || 0).toLocaleString('vi-VN');
-    const number = value => Number(value || 0).toLocaleString('vi-VN');
-
-    async function api(path) {
-      const response = await fetch(API_BASE + path);
-      const json = await response.json();
-      if (!json.success) throw new Error(json.message || 'API lỗi');
-      return json.data;
-    }
-
-    function setText(id, value) {
-      const el = document.getElementById(id);
-      if (el) el.textContent = value;
-    }
-
-    function badge(status) {
-      const key = String(status || '').toUpperCase();
-      if (key === 'POSTED') return '<span class="badge green">Đã ghi sổ</span>';
-      if (key === 'DRAFT') return '<span class="badge orange">Nháp</span>';
-      if (key === 'CANCELLED') return '<span class="badge red">Đã hủy</span>';
-      return `<span class="badge blue">${status || 'Không rõ'}</span>`;
-    }
-
-    function documentTypeName(type) {
-      const map = {
-        WAREHOUSE_RECEIPT: 'Nhập kho',
-        SALES_ORDER: 'Bán hàng',
-        CUSTOMER_PAYMENT: 'Thu tiền',
-        STOCK_ADJUSTMENT: 'Điều chỉnh'
-      };
-      return map[type] || type || '';
-    }
-
-    function getDocumentDate(doc) {
-      return doc.orderDate || doc.receiptDate || doc.paymentDate || doc.createdAt || '';
-    }
-
-    let salesChart;
-    let debtChart;
-
-    function initCharts() {
-      const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } } }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
-          y: { grid: { color: '#e2e8f0' }, ticks: { font: { family: 'Inter' } } }
-        }
-      };
-
-      salesChart = new Chart(document.getElementById('salesChart'), {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'Doanh số', data: [], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)', fill: true, tension: .42, pointRadius: 4, pointHoverRadius: 6 }] },
-        options: commonOptions
-      });
-
-      debtChart = new Chart(document.getElementById('debtChart'), {
-        type: 'doughnut',
-        data: { labels: ['Đã thu', 'Còn nợ'], datasets: [{ data: [0, 0], backgroundColor: ['#16a34a', '#dc2626'], borderWidth: 0 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { family: 'Inter' } } } }, cutout: '68%' }
-      });
-    }
-
-    function renderTopProducts(rows = [], stockRows = []) {
-      const stockMap = new Map(stockRows.map(row => [String(row.productCode || '').toUpperCase(), row.stock || 0]));
-      const body = document.getElementById('topProductsBody');
-      const top = rows.slice(0, 6);
-      if (!top.length) {
-        body.innerHTML = '<tr><td colspan="4">Chưa có đơn bán đã ghi sổ</td></tr>';
-        return;
-      }
-      body.innerHTML = top.map(item => {
-        const code = item.productCode || '';
-        const stock = stockMap.get(String(code).toUpperCase()) || 0;
-        const first = String(item.productName || code || '?').charAt(0).toUpperCase();
-        return `<tr>
-          <td><div class="product-row"><div class="product-thumb">${first}</div><div><div class="name-main">${item.productName || code}</div><div class="name-sub">SKU: ${code} · ${item.unit || ''}</div></div></div></td>
-          <td>${number(item.totalQuantity)}</td>
-          <td><span class="badge ${stock > 0 ? 'green' : 'red'}">${number(stock)}</span></td>
-          <td>${money(item.totalAmount)}</td>
-        </tr>`;
-      }).join('');
-    }
-
-    function renderDocuments(salesRows = [], purchaseRows = [], cashRows = []) {
-      const docs = [
-        ...purchaseRows.map(d => ({ ...d, type: 'WAREHOUSE_RECEIPT', amount: d.totalAmount })),
-        ...salesRows.map(d => ({ ...d, type: 'SALES_ORDER', amount: d.totalAmount })),
-        ...cashRows.map(d => ({ ...d, type: d.refType || 'CUSTOMER_PAYMENT', amount: d.amount, documentNo: d.refCode || d.id, customerName: d.content, staffName: d.createdBy || '' }))
-      ].sort((a, b) => new Date(getDocumentDate(b)) - new Date(getDocumentDate(a))).slice(0, 8);
-      const body = document.getElementById('documentsBody');
-      if (!docs.length) {
-        body.innerHTML = '<tr><td colspan="6">Chưa có chứng từ</td></tr>';
-        return;
-      }
-      body.innerHTML = docs.map(doc => `<tr>
-        <td>${documentTypeName(doc.type)}</td>
-        <td>${doc.documentNo || doc.id || ''}</td>
-        <td>${doc.customerName || doc.supplierName || doc.content || ''}</td>
-        <td>${doc.staffName || doc.createdBy || ''}</td>
-        <td>${doc.amount === undefined ? '-' : money(doc.amount)}</td>
-        <td>${badge(doc.status || 'POSTED')}</td>
-      </tr>`).join('');
-    }
-
-    async function loadDashboard() {
-      try {
-        const [dashboard, sales, stock, purchases, cash] = await Promise.all([
-          api('/api/reports/dashboard'),
-          api('/api/reports/sales'),
-          api('/api/reports/stock'),
-          api('/api/reports/purchases'),
-          api('/api/reports/cash')
-        ]);
-
-        setText('kpi-sales', money(dashboard.sales.totalAmount));
-        setText('kpi-orders', number(dashboard.sales.totalOrders));
-        setText('kpi-purchases', `${number(dashboard.purchases.totalReceipts)} phiếu`);
-        setText('kpi-stock', number(dashboard.stock.totalStock));
-        setText('kpi-debt', money(dashboard.receivables.totalBalance));
-        setText('kpi-cash', money(dashboard.cash.currentBalance));
-
-        salesChart.data.labels = ['Tổng doanh số'];
-        salesChart.data.datasets[0].data = [dashboard.sales.totalAmount || 0];
-        salesChart.update();
-
-        debtChart.data.datasets[0].data = [dashboard.receivables.totalCreditAmount || 0, dashboard.receivables.totalBalance || 0];
-        debtChart.update();
-
-        renderTopProducts(sales.byProduct || [], stock.rows || []);
-        renderDocuments(sales.rows || [], purchases.rows || [], cash.rows || []);
-      } catch (error) {
-        console.error(error);
-        setText('trend-sales', 'Không tải được API báo cáo');
-        document.getElementById('topProductsBody').innerHTML = '<tr><td colspan="4">Không tải được dữ liệu</td></tr>';
-        document.getElementById('documentsBody').innerHTML = '<tr><td colspan="6">Không tải được dữ liệu</td></tr>';
-      }
-    }
-
-    initCharts();
-    loadDashboard();
-  </script>
+  <script src="/app.js"></script>
 </body>
 </html>
