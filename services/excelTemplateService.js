@@ -4,11 +4,11 @@ const TEMPLATE_DEFINITIONS = {
   products: {
     title: 'Mẫu import sản phẩm',
     fileName: 'mau-import-san-pham.xlsx',
-    columns: ['code', 'name', 'unit', 'barcode', 'category', 'costPrice', 'salePrice', 'minStock', 'maxStock'],
-    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị', 'Barcode', 'Nhóm hàng', 'Giá nhập', 'Giá bán', 'Tồn tối thiểu', 'Tồn tối đa'],
+    columns: ['code', 'name', 'unit', 'packing', 'barcode', 'category', 'costPrice', 'salePrice', 'minStock', 'maxStock'],
+    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị', 'Quy cách đóng gói', 'Barcode', 'Nhóm hàng', 'Giá nhập', 'Giá bán', 'Tồn tối thiểu', 'Tồn tối đa'],
     sample: [
-      ['SP001', 'OMO Bột giặt 5.5kg', 'Túi', '893000000001', 'Giặt tẩy', 145000, 169000, 10, 200],
-      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Chai', '893000000002', 'Nước xả', 115000, 139000, 10, 150]
+      ['SP001', 'OMO Bột giặt 5.5kg', 'Túi', '6 túi/thùng', '893000000001', 'Giặt tẩy', 145000, 169000, 10, 200],
+      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Chai', '4 chai/thùng', '893000000002', 'Nước xả', 115000, 139000, 10, 150]
     ],
     notes: ['Bắt buộc: code, name.', 'Mã sản phẩm không được trùng với danh mục hiện có.']
   },
@@ -54,7 +54,7 @@ const TEMPLATE_DEFINITIONS = {
       ['BH-EXCEL-001', '2026-05-26', 'KH001', 'SP001', 2, 169000, 200000, 'Đơn từ NVBH'],
       ['BH-EXCEL-001', '2026-05-26', 'KH001', 'SP002', 1, 139000, 0, 'Cùng đơn bán']
     ],
-    notes: ['Các dòng có cùng mã đơn/ngày/mã khách sẽ được gộp thành một đơn con.', 'Hệ thống sẽ kiểm tra tồn kho trước khi import.']
+    notes: ['Các dòng có cùng mã đơn/ngày/mã khách sẽ được gộp thành một đơn con.', 'Nếu thiếu tồn, hệ thống tự cắt phần thiếu, chỉ import số lượng còn đủ và ghi phần thiếu vào báo cáo hàng thiếu.']
   },
   openingDebt: {
     title: 'Mẫu import công nợ ban đầu',

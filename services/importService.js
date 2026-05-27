@@ -98,6 +98,7 @@ function previewProducts(rows, data) {
       code: text(row, ['code', 'mã', 'mã sản phẩm', 'ma san pham', 'productCode']),
       name: text(row, ['name', 'tên', 'tên sản phẩm', 'ten san pham', 'productName']),
       unit: text(row, ['unit', 'đvt', 'đơn vị', 'đơn vị tính']) || 'Cái',
+      packing: text(row, ['packing', 'quy cách', 'quy cách đóng gói', 'quy cach', 'quy cach dong goi']),
       barcode: text(row, ['barcode', 'mã vạch', 'ma vach']),
       category: text(row, ['category', 'nhóm', 'nhóm hàng', 'nganh hang']),
       costPrice: number(row, ['costPrice', 'giá nhập', 'gia nhap']),
@@ -206,7 +207,16 @@ function previewSalesOrders(rows, data) {
     if (!product) item.errors.push('Không tìm thấy sản phẩm');
     if (quantity <= 0) item.errors.push('Số lượng bán phải lớn hơn 0');
     if (salePrice < 0) item.errors.push('Giá bán không được âm');
-    if (product && stockQty < quantity) item.errors.push(`Không đủ tồn kho: còn ${stockQty}`);
+    if (product && quantity > 0 && stockQty < quantity) {
+      item.availableQuantity = stockQty;
+      item.shortageQuantity = quantity - stockQty;
+      item.importQuantity = Math.max(0, stockQty);
+      item.warning = `Thiếu tồn kho: yêu cầu ${quantity}, còn ${stockQty}. Khi import sẽ chỉ lấy ${Math.max(0, stockQty)} và ghi thiếu ${quantity - stockQty}.`;
+    } else {
+      item.availableQuantity = stockQty;
+      item.shortageQuantity = 0;
+      item.importQuantity = quantity;
+    }
     return { ...item, valid: item.errors.length === 0 };
   });
 }
@@ -269,7 +279,7 @@ function addImportLog(data, type, summary) {
 }
 
 function commitProducts(rows, data) {
-  rows.forEach((r) => data.products.push({ id: makeId('P'), code: r.code, name: r.name, unit: r.unit || 'Cái', barcode: r.barcode || '', category: r.category || '', costPrice: toNumber(r.costPrice), salePrice: toNumber(r.salePrice), minStock: toNumber(r.minStock), maxStock: toNumber(r.maxStock), isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
+  rows.forEach((r) => data.products.push({ id: makeId('P'), code: r.code, name: r.name, unit: r.unit || 'Cái', packing: r.packing || '', barcode: r.barcode || '', category: r.category || '', costPrice: toNumber(r.costPrice), salePrice: toNumber(r.salePrice), minStock: toNumber(r.minStock), maxStock: toNumber(r.maxStock), isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
   return rows.length;
 }
 
@@ -316,17 +326,55 @@ function commitImportOrders(rows, data) {
   return count;
 }
 
+
+function addImportShortage(data, shortage) {
+  if (!Array.isArray(data.importShortages)) data.importShortages = [];
+  data.importShortages.unshift({
+    id: makeId('SH'),
+    source: 'salesOrdersImport',
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    ...shortage
+  });
+}
+
 function commitSalesOrders(rows, data) {
   let count = 0;
+  let shortageCount = 0;
   groupRows(rows).forEach((group) => {
     const first = group[0];
     const customer = findCustomer(data, first.customerCode);
-    const items = group.map((r) => {
+    const items = [];
+    group.forEach((r) => {
       const product = findProduct(data, r.productCode);
-      const quantity = toNumber(r.quantity);
+      const requestedQuantity = toNumber(r.quantity);
       const salePrice = toNumber(r.salePrice);
-      return { productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, quantity, salePrice, amount: quantity * salePrice };
+      const stockRow = product ? findStockRow(data, product) : null;
+      const availableQuantity = stockRow ? Math.max(0, toNumber(stockRow.quantity)) : 0;
+      const importQuantity = Math.min(requestedQuantity, availableQuantity);
+      const shortageQuantity = Math.max(0, requestedQuantity - importQuantity);
+      if (shortageQuantity > 0) {
+        shortageCount += 1;
+        addImportShortage(data, {
+          documentCode: r.documentCode || 'AUTO',
+          date: r.date || today(),
+          customerCode: customer ? customer.code : r.customerCode,
+          customerName: customer ? customer.name : '',
+          productCode: product ? product.code : r.productCode,
+          productName: product ? product.name : '',
+          requestedQuantity,
+          importedQuantity: importQuantity,
+          shortageQuantity,
+          availableQuantity,
+          salePrice,
+          note: r.note || 'Thiếu tồn khi import đơn bán Excel'
+        });
+      }
+      if (importQuantity > 0) {
+        items.push({ productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, quantity: importQuantity, requestedQuantity, shortageQuantity, salePrice, amount: importQuantity * salePrice });
+      }
     });
+    if (!items.length) return;
     const totalQuantity = items.reduce((s, i) => s + i.quantity, 0);
     const totalAmount = items.reduce((s, i) => s + i.amount, 0);
     const paidAmount = Math.min(toNumber(first.paidAmount), totalAmount);
@@ -360,7 +408,7 @@ function commitSalesOrders(rows, data) {
     if (paidAmount > 0) data.cashbook.push({ id: makeId('CB'), code: buildCashCode(data, 'in'), date: order.date, type: 'in', source: 'sales_payment_import', refType: 'salesOrder', refId: order.id, refCode: order.code, customerId: customer.id, customerCode: customer.code, customerName: customer.name, staffName: '', amount: paidAmount, note: `Thu tiền import từ đơn bán ${order.code}`, createdAt: new Date().toISOString() });
     count += 1;
   });
-  return count;
+  return { count, shortageCount };
 }
 
 function commitOpeningDebt(rows, data) {
@@ -388,6 +436,7 @@ function commitCashbook(rows, data) {
 }
 
 function commitImport(type, selectedRows, data) {
+  const extra = {};
   const rows = (Array.isArray(selectedRows) ? selectedRows : []).filter((r) => r && r.valid !== false && (!r.errors || r.errors.length === 0));
   if (!rows.length) return { ok: false, imported: 0, message: 'Không có dòng hợp lệ để import' };
   let imported = 0;
@@ -395,13 +444,14 @@ function commitImport(type, selectedRows, data) {
   else if (type === 'customers') imported = commitCustomers(rows, data);
   else if (type === 'openingStock') imported = commitOpeningStock(rows, data);
   else if (type === 'importOrders') imported = commitImportOrders(rows, data);
-  else if (type === 'salesOrders') imported = commitSalesOrders(rows, data);
+  else if (type === 'salesOrders') { const result = commitSalesOrders(rows, data); imported = result.count; extra.shortageCount = result.shortageCount; }
   else if (type === 'openingDebt') imported = commitOpeningDebt(rows, data);
   else if (type === 'debtCollections') imported = commitDebtCollections(rows, data);
   else if (type === 'cashbook') imported = commitCashbook(rows, data);
   else throw new Error('Loại import không hợp lệ');
-  addImportLog(data, type, { imported, totalRows: selectedRows.length });
-  return { ok: true, imported, message: `Đã import thành công ${imported} dòng/chứng từ` };
+  addImportLog(data, type, { imported, totalRows: selectedRows.length, ...extra });
+  const shortageMsg = extra.shortageCount ? `, đã ghi ${extra.shortageCount} dòng thiếu tồn vào báo cáo hàng thiếu` : '';
+  return { ok: true, imported, ...extra, message: `Đã import thành công ${imported} dòng/chứng từ${shortageMsg}` };
 }
 
 module.exports = { previewImport, commitImport };

@@ -21,7 +21,6 @@
       <button class="tab-button" data-tab="customersTab">Khách hàng</button>
       <button class="tab-button" data-tab="importTab">Nhập kho</button>
       <button class="tab-button" data-tab="salesTab">Bán hàng</button>
-      <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
       <button class="tab-button" data-tab="stockTab">Tồn kho</button>
       <button class="tab-button" data-tab="importHistoryTab">Lịch sử nhập</button>
       <button class="tab-button" data-tab="salesHistoryTab">Lịch sử bán</button>
@@ -45,7 +44,10 @@
               <label>Đơn vị tính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
               <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
             </div>
-            <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
+            <div class="two-cols">
+              <label>Quy cách đóng gói<input name="packing" placeholder="VD: 6 chai/thùng" /></label>
+              <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
+            </div>
             <div class="two-cols">
               <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
               <label>Giá bán<input name="salePrice" type="number" min="0" placeholder="0" /></label>
@@ -188,66 +190,13 @@
             <div class="table-wrap compact">
               <table><thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead><tbody id="salesItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody></table>
             </div>
-            <div class="summary-box"><span>Tổng SL: <strong id="salesTotalQuantity">0</strong></span><span>Tổng tiền trước KM: <strong id="salesTotalAmount">0</strong></span></div>
-            <div id="salesPromotionBox" class="promotion-preview">Chưa có khuyến mại áp dụng.</div>
+            <div class="summary-box"><span>Tổng SL: <strong id="salesTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="salesTotalAmount">0</strong></span></div>
             <label>Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
             <button type="submit">Tạo đơn bán & trừ tồn</button>
           </form>
           <p id="salesMessage" class="message"></p>
         </section>
         <section class="card"><h2>Nguyên tắc bán hàng</h2><div class="note-box"><p><strong>Không cho bán âm kho.</strong></p><p>Đơn bán sẽ tự kiểm tồn, trừ kho, lưu lịch sử và ghi công nợ/quỹ.</p></div></section>
-      </main>
-    </section>
-
-
-    <section id="promotionsTab" class="tab-content">
-      <main class="grid import-grid">
-        <section class="card">
-          <h2 id="promotionFormTitle">Thêm chương trình khuyến mại</h2>
-          <form id="promotionForm" class="form">
-            <input type="hidden" name="id" />
-            <div class="two-cols">
-              <label>Mã CTKM *<input name="code" placeholder="VD: KM_OMO_01" required /></label>
-              <label>Tên CTKM *<input name="name" placeholder="VD: Mua OMO giảm 5%" required /></label>
-            </div>
-            <label>Loại khuyến mại
-              <select name="type">
-                <option value="discount_percent">Giảm theo %</option>
-                <option value="discount_amount">Giảm tiền trực tiếp</option>
-              </select>
-            </label>
-            <label>Mã sản phẩm áp dụng *
-              <textarea name="productCodes" rows="4" placeholder="Mỗi dòng 1 mã sản phẩm. Ví dụ:
-OMO001
-SURF001" required></textarea>
-            </label>
-            <div class="two-cols">
-              <label>Số lượng tối thiểu<input name="minQty" type="number" min="1" value="1" /></label>
-              <label>% giảm<input name="discountPercent" type="number" min="0" max="100" value="0" /></label>
-            </div>
-            <div class="two-cols">
-              <label>Số tiền giảm<input name="discountAmount" type="number" min="0" value="0" /></label>
-              <label>Trạng thái<label class="check-row"><input name="isActive" type="checkbox" checked />Đang áp dụng</label></label>
-            </div>
-            <div class="two-cols">
-              <label>Ngày bắt đầu<input name="startDate" type="date" /></label>
-              <label>Ngày kết thúc<input name="endDate" type="date" /></label>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="VD: chỉ áp dụng trong tháng" /></label>
-            <div class="button-row">
-              <button type="submit">Lưu CTKM</button>
-              <button type="button" id="resetPromotionButton" class="secondary">Nhập mới</button>
-            </div>
-          </form>
-          <p id="promotionMessage" class="message"></p>
-        </section>
-        <section class="card">
-          <div class="toolbar">
-            <div><h2>Danh sách khuyến mại</h2><p id="promotionCount" class="muted">Đang tải...</p></div>
-            <input id="promotionSearchInput" placeholder="Tìm mã CTKM, tên, mã sản phẩm..." />
-          </div>
-          <div id="promotionList" class="order-list">Đang tải khuyến mại...</div>
-        </section>
       </main>
     </section>
 
@@ -476,102 +425,51 @@ SURF001" required></textarea>
     </section>
 
     <section id="importDataTab" class="tab-content">
-      <section class="import-v43-shell">
-        <div class="import-v43-hero">
+      <section class="card import-data-card">
+        <div class="toolbar">
           <div>
-            <span class="eyebrow">IMPORT CENTER V43</span>
             <h2>Import dữ liệu Excel</h2>
-            <p>Quy trình chuẩn: tải đúng mẫu → điền vào sheet Import → xem trước & kiểm tra lỗi → tick dòng hợp lệ → xác nhận ghi vào hệ thống.</p>
-          </div>
-          <div class="import-v43-hero-actions">
-            <button type="button" id="downloadImportTemplateButton" class="excel-primary-btn">📥 Tải mẫu đang chọn</button>
-            <button type="button" id="clearImportPreviewButton" class="excel-ghost-btn">Làm mới</button>
+            <p class="muted">Xem trước dữ liệu, kiểm tra lỗi, tick chọn dòng hợp lệ rồi mới ghi vào hệ thống.</p>
           </div>
         </div>
 
-        <div class="import-workflow-grid">
-          <div class="workflow-card active"><span>01</span><strong>Tải mẫu Excel</strong><p>Mẫu có sẵn cột chuẩn và dữ liệu ví dụ.</p></div>
-          <div class="workflow-card"><span>02</span><strong>Điền dữ liệu</strong><p>Điền vào sheet Import, không đổi tên cột.</p></div>
-          <div class="workflow-card"><span>03</span><strong>Xem trước</strong><p>Hệ thống kiểm tra lỗi trước khi ghi dữ liệu.</p></div>
-          <div class="workflow-card"><span>04</span><strong>Xác nhận</strong><p>Chỉ các dòng được tick hợp lệ mới được import.</p></div>
+        <div class="import-panel">
+          <label>Loại import
+            <select id="importDataType">
+              <option value="products">Sản phẩm</option>
+              <option value="customers">Khách hàng</option>
+              <option value="openingStock">Tồn kho ban đầu</option>
+              <option value="importOrders">Phiếu nhập kho</option>
+              <option value="salesOrders">Đơn bán hàng</option>
+              <option value="openingDebt">Công nợ ban đầu</option>
+              <option value="debtCollections">Thu công nợ</option>
+              <option value="cashbook">Quỹ tiền</option>
+            </select>
+          </label>
+          <label>File Excel
+            <input id="importExcelFile" type="file" accept=".xlsx,.xls" />
+          </label>
+          <div class="button-row import-actions">
+            <button type="button" id="downloadImportTemplateButton" class="secondary">Tải mẫu Excel</button>
+            <button type="button" id="previewImportButton">Xem trước</button>
+            <button type="button" id="commitImportButton" class="success" disabled>Xác nhận import</button>
+          </div>
         </div>
 
-        <div class="import-layout-v43">
-          <section class="card import-form-card-v43">
-            <div class="section-title-row">
-              <div>
-                <h3>Thực hiện import</h3>
-                <p class="muted">Chọn nghiệp vụ, tải mẫu hoặc chọn file Excel để preview.</p>
-              </div>
-            </div>
-
-            <div class="import-form-grid-v43">
-              <label>Loại import
-                <select id="importDataType">
-                  <option value="products">Sản phẩm</option>
-                  <option value="customers">Khách hàng</option>
-                  <option value="openingStock">Tồn kho ban đầu</option>
-                  <option value="importOrders">Phiếu nhập kho</option>
-                  <option value="salesOrders">Đơn bán hàng</option>
-                  <option value="openingDebt">Công nợ ban đầu</option>
-                  <option value="debtCollections">Thu công nợ</option>
-                  <option value="cashbook">Quỹ tiền</option>
-                </select>
-              </label>
-              <label>File Excel
-                <input id="importExcelFile" type="file" accept=".xlsx,.xls" />
-              </label>
-            </div>
-
-            <div id="selectedTemplateInfo" class="selected-template-info">
-              <div class="template-icon">XL</div>
-              <div>
-                <strong>Mẫu import sản phẩm</strong>
-                <p>Cột bắt buộc: mã sản phẩm, tên sản phẩm. Có thể nhập thêm đơn vị, barcode, nhóm hàng, giá nhập, giá bán.</p>
-              </div>
-            </div>
-
-            <div class="button-row import-actions-v43">
-              <button type="button" id="previewImportButton" class="excel-blue-btn">🔍 Xem trước dữ liệu</button>
-              <button type="button" id="commitImportButton" class="success excel-green-btn" disabled>✅ Xác nhận import</button>
-            </div>
-            <p id="importDataMessage" class="message"></p>
-          </section>
-
-          <section class="card import-template-card-v43">
-            <div class="section-title-row">
-              <div>
-                <h3>Kho mẫu Excel</h3>
-                <p class="muted">Bấm tải nhanh theo từng nghiệp vụ.</p>
-              </div>
-            </div>
-            <div id="importTemplateGrid" class="template-grid-v43">
-              <button type="button" class="template-download-card active" data-template="products"><b>📦 Sản phẩm</b><span>Danh mục hàng hóa</span></button>
-              <button type="button" class="template-download-card" data-template="customers"><b>🏪 Khách hàng</b><span>Mã, tên, SĐT, địa chỉ</span></button>
-              <button type="button" class="template-download-card" data-template="openingStock"><b>📊 Tồn đầu</b><span>Tồn kho ban đầu</span></button>
-              <button type="button" class="template-download-card" data-template="importOrders"><b>📥 Phiếu nhập</b><span>Nhập kho từ Excel</span></button>
-              <button type="button" class="template-download-card" data-template="salesOrders"><b>🧾 Đơn bán</b><span>Đơn con / bán hàng</span></button>
-              <button type="button" class="template-download-card" data-template="openingDebt"><b>💳 Công nợ đầu</b><span>Số dư công nợ</span></button>
-              <button type="button" class="template-download-card" data-template="debtCollections"><b>💵 Thu công nợ</b><span>Tiền NV giao nộp</span></button>
-              <button type="button" class="template-download-card" data-template="cashbook"><b>🏦 Quỹ tiền</b><span>Thu / chi trong ngày</span></button>
-            </div>
-          </section>
+        <div class="note-box import-guide">
+          <strong>Mẫu Excel chuẩn:</strong>
+          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Mỗi file có 3 sheet: HuongDan, DuLieuMau và Import.</p>
+          <p>Khi nhập dữ liệu thật, điền vào sheet <b>Import</b> và giữ nguyên dòng tiêu đề để hệ thống nhận đúng cột.</p>
+          <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
         </div>
 
-        <div class="note-box import-guide-v43">
-          <strong>Nguyên tắc import an toàn:</strong>
-          <span>Không ghi thẳng vào tồn kho, công nợ, quỹ tiền nếu chưa qua preview.</span>
-          <span>Không đổi tên cột trong Excel.</span>
-          <span>Sản phẩm và khách hàng nên import trước các chứng từ phát sinh.</span>
-        </div>
-
-        <div id="importPreviewSummary" class="summary-box import-preview-summary import-summary-v43">
+        <p id="importDataMessage" class="message"></p>
+        <div id="importPreviewSummary" class="summary-box import-preview-summary">
           <span>Tổng dòng: <strong>0</strong></span>
           <span>Hợp lệ: <strong>0</strong></span>
           <span>Lỗi: <strong>0</strong></span>
         </div>
-
-        <div class="table-wrap import-preview-wrap import-preview-v43">
+        <div class="table-wrap import-preview-wrap">
           <table>
             <thead id="importPreviewHead"><tr><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr></thead>
             <tbody id="importPreviewTable"><tr><td colspan="3">Chưa có dữ liệu preview.</td></tr></tbody>
@@ -580,9 +478,15 @@ SURF001" required></textarea>
       </section>
     </section>
 
-
   </div>
 
-  <script src="/app.js"></script>
+  
+  <script src="/js/app-core.js"></script>
+  <script src="/js/products.js"></script>
+  <script src="/js/orders.js"></script>
+  <script src="/js/cashbook.js"></script>
+  <script src="/js/reports.js"></script>
+  <script src="/js/imports.js"></script>
+  <script src="/js/bootstrap.js"></script>
 </body>
 </html>
