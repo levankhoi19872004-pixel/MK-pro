@@ -46,6 +46,12 @@ function formatShortDate(value) {
 tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
 productSearch.addEventListener('input', debounce(searchProducts, 250));
+productSearch.addEventListener('focus', () => {
+  if (productSearch.value.trim()) searchProducts();
+});
+productSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') productSuggestions.innerHTML = '';
+});
 document.getElementById('reloadCustomersBtn')?.addEventListener('click', () => loadCustomers(customerSearch.value.trim()));
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
 document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
@@ -106,20 +112,37 @@ function selectCustomer(customer) {
 
 async function searchProducts() {
   const q = productSearch.value.trim();
+  selectedProduct = null;
+  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
+  selectedProductBox.classList.add('muted');
+
   if (!q) {
     productSuggestions.innerHTML = '';
     return;
   }
 
   try {
+    productSuggestions.innerHTML = '<div class="suggestion-empty">Đang tìm sản phẩm...</div>';
     const data = await mobileApi.getProducts(q);
+    const items = Array.isArray(data.items) ? data.items : [];
+
+    if (!items.length) {
+      productSuggestions.innerHTML = '<div class="suggestion-empty">Không tìm thấy sản phẩm phù hợp hoặc sản phẩm không còn tồn mở bán</div>';
+      return;
+    }
+
     renderSuggestions(
       productSuggestions,
-      (data.items || []).filter((p) => Number(p.availableQty || p.stockQuantity || 0) > 0),
-      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || '0/0'} · Giá: ${money(p.salePrice)}</span>`,
+      items,
+      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || p.availableQty || p.stockQuantity || '0/0'} · Giá: ${money(p.salePrice || p.price || 0)}</span>`,
       (p) => {
-        selectedProduct = p;
-        selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || p.availableQty || '0/0'} | Giá: ${money(p.salePrice)}`;
+        selectedProduct = {
+          ...p,
+          salePrice: Number(p.salePrice || p.price || 0),
+          availableQty: Number(p.availableQty || p.stockQuantity || 0),
+          conversionRate: Number(p.conversionRate || p.unitsPerCase || 1)
+        };
+        selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || p.availableQty || p.stockQuantity || '0/0'} | Giá: ${money(p.salePrice || p.price || 0)}`;
         selectedProductBox.classList.remove('muted');
         productSuggestions.innerHTML = '';
         productSearch.value = p.name || p.code || '';
@@ -127,6 +150,7 @@ async function searchProducts() {
       }
     );
   } catch (err) {
+    productSuggestions.innerHTML = `<div class="suggestion-empty">${err.message || 'Không tải được sản phẩm'}</div>`;
     setMessage(message, err.message, 'error');
   }
 }

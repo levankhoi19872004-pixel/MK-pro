@@ -119,19 +119,13 @@ function createMobileService(ctx) {
   async function products({ query = {} }) {
     const q = normalizeText(query.q);
     const filter = { isActive: { $ne: false } };
-    if (q) {
-      filter.$or = [
-        { code: { $regex: q, $options: 'i' } },
-        { sku: { $regex: q, $options: 'i' } },
-        { productCode: { $regex: q, $options: 'i' } },
-        { name: { $regex: q, $options: 'i' } },
-        { barcode: { $regex: q, $options: 'i' } },
-        { category: { $regex: q, $options: 'i' } }
-      ];
-    }
-    const rows = await Product.find(filter).sort({ code: 1 }).limit(200).lean();
+
+    // Không dùng regex trực tiếp với chuỗi đã normalize vì tên tiếng Việt có dấu
+    // như "Dầu gội" sẽ không khớp với từ khóa "dau". Lấy tập sản phẩm
+    // đủ rộng rồi lọc bằng normalizeText để hàm gợi ý trên app bán hàng chạy ổn định.
+    const rows = await Product.find(filter).sort({ code: 1 }).limit(q ? 1000 : 200).lean();
     const data = await getPrimaryDataSnapshot();
-    const items = rows.map(productMongoToClient).map((product) => {
+    let items = rows.map(productMongoToClient).map((product) => {
       const availableQty = getProductAvailableQty(data, product);
       return {
         id: product.id,
@@ -144,13 +138,29 @@ function createMobileService(ctx) {
         units: product.units || [],
         barcode: product.barcode,
         category: product.category,
-        price: toNumber(product.salePrice),
-        salePrice: toNumber(product.salePrice),
+        price: toNumber(product.salePrice || product.price || 0),
+        salePrice: toNumber(product.salePrice || product.price || 0),
         availableQty,
         stockQuantity: availableQty,
         stockDisplay: formatCaseLooseQty(availableQty, product.conversionRate || 1)
       };
-    }).filter((item) => toNumber(item.availableQty) > 0).slice(0, 30);
+    });
+
+    if (q) {
+      items = items.filter((item) => [
+        item.code,
+        item.sku,
+        item.productCode,
+        item.name,
+        item.barcode,
+        item.category
+      ].some((value) => normalizeText(value).includes(q)));
+    }
+
+    items = items
+      .filter((item) => toNumber(item.availableQty) > 0)
+      .slice(0, 30);
+
     return { body: { ok: true, source: 'mongo-route', items } };
   }
 
