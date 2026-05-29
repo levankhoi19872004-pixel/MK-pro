@@ -1,5 +1,32 @@
 // Products
 let productListRequestSeq = 0;
+
+function normalizeProductTableSearch(value){
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .replace(/đ/g,'d')
+    .trim();
+}
+function productMatchesTableQuery(product = {}, keyword = ''){
+  const q = normalizeProductTableSearch(keyword);
+  if(!q) return true;
+  const fields = [
+    product.code,
+    product.sku,
+    product.productCode,
+    product.barcode,
+    product.name,
+    product.category,
+    product.brand,
+    product.packing,
+    product.unit,
+    product.baseUnit,
+    product.searchText
+  ];
+  return fields.some(value => normalizeProductTableSearch(value).includes(q));
+}
 function getFormPayload(){
   const formData=new FormData(productForm);const payload=Object.fromEntries(formData.entries());
   payload.costPrice=Number(payload.costPrice||0);payload.salePrice=Number(payload.salePrice||0);
@@ -35,9 +62,15 @@ async function loadProducts(options = {}){
       ? await window.CatalogCache.listProducts({page:productPage,limit,q})
       : await fetch(`/api/products?page=${productPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');return {rows:json.products||[],meta:json.meta||null}});
     if(requestSeq !== productListRequestSeq) return;
-    productsCache = Array.isArray(result.rows) ? result.rows : [];
+    const rawRows = Array.isArray(result.rows) ? result.rows : [];
+    // Chốt chặn frontend: nếu backend/proxy trả nhầm trang mặc định khi có q,
+    // không để bảng sản phẩm hiển thị dữ liệu cũ hoặc dữ liệu không khớp từ khóa.
+    productsCache = q ? rawRows.filter(row => productMatchesTableQuery(row, q)) : rawRows;
     if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
     productTotal = Number(result.meta?.total ?? productsCache.length);
+    if(q && rawRows.length !== productsCache.length){
+      productTotal = productsCache.length;
+    }
     productTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(productTotal/limit) ?? 1));
     if(productPage>productTotalPages && productTotalPages>0){
       productPage=productTotalPages;
@@ -82,7 +115,8 @@ function renderProductTable(){
   if(!productTable)return;
   if(!productsCache.length){
     selectedProductIds.clear();
-    productTable.innerHTML='<tr><td colspan="3" class="empty-cell">Chưa có sản phẩm</td></tr>';
+    const q = searchInput ? searchInput.value.trim() : '';
+    productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${q ? 'Không tìm thấy sản phẩm phù hợp' : 'Chưa có sản phẩm'}</td></tr>`;
     updateProductBulkUI();
     return;
   }

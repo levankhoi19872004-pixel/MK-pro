@@ -34,38 +34,70 @@ function baseProductQty() {
   return 0;
 }
 
+function cleanKey(value) {
+  return String(value || '').trim();
+}
+
 function buildInventoryMap(products = [], inventories = []) {
-  const keysByCode = new Map();
+  const productKeysByCode = new Map();
+
   for (const product of products) {
     const code = productCodeOf(product);
     if (!code) continue;
-    const keys = [product.code, product.sku, product.productCode, product.id, product._id]
-      .map((value) => String(value || '').trim())
+
+    const keys = [
+      product.code,
+      product.sku,
+      product.productCode,
+      product.id,
+      product._id,
+      product._id ? String(product._id) : ''
+    ]
+      .map(cleanKey)
       .filter(Boolean);
-    keysByCode.set(code, keys);
+
+    productKeysByCode.set(code, [...new Set(keys)]);
   }
 
-  const qtyByKey = new Map();
+  const inventoryQtyByKey = new Map();
   for (const row of inventories || []) {
-    const qty = toNumber(row.availableQty ?? row.qty ?? row.quantity ?? row.stockQuantity ?? row.onHand);
-    for (const key of [row.productCode, row.productId, row.code]) {
-      const clean = String(key || '').trim();
+    // Phase 3.4+: tồn hiển thị lấy từ inventorySnapshots/inventories.
+    // Ưu tiên availableQty; nếu snapshot cũ chưa có availableQty thì tính từ onHand - reservedQty.
+    const onHand = toNumber(row.onHand ?? row.qty ?? row.quantity ?? row.stockQuantity);
+    const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
+    const qty = row.availableQty !== undefined && row.availableQty !== null
+      ? toNumber(row.availableQty)
+      : Math.max(0, onHand - reserved);
+
+    for (const key of [
+      row.productCode,
+      row.productId,
+      row.code,
+      row.sku,
+      row.product?.code,
+      row.product?._id,
+      row._id ? String(row._id) : ''
+    ]) {
+      const clean = cleanKey(key);
       if (!clean) continue;
-      qtyByKey.set(clean, toNumber(qtyByKey.get(clean)) + qty);
+      inventoryQtyByKey.set(clean, toNumber(inventoryQtyByKey.get(clean)) + qty);
     }
   }
 
   const result = new Map();
-  for (const [code, keys] of keysByCode.entries()) {
+  for (const [code, keys] of productKeysByCode.entries()) {
     let matched = false;
     let qty = 0;
+
     for (const key of keys) {
-      if (!qtyByKey.has(key)) continue;
+      if (!inventoryQtyByKey.has(key)) continue;
       matched = true;
-      qty += toNumber(qtyByKey.get(key));
+      qty += toNumber(inventoryQtyByKey.get(key));
     }
+
     result.set(code, { matched, qty });
   }
+
   return result;
 }
 

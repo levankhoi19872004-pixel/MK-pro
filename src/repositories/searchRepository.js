@@ -5,6 +5,7 @@ const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
 const SalesOrder = require('../models/SalesOrder');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const { escapeRegex } = require('../utils/query.util');
 
 const SEARCH_RETURN_MAX = 50;
@@ -197,19 +198,38 @@ async function findProducts(query = {}) {
 async function findInventoriesForProducts(products = []) {
   const ids = [];
   for (const product of products) {
-    for (const value of [product.code, product.sku, product.productCode, product.id, product._id]) {
+    for (const value of [
+      product.code,
+      product.sku,
+      product.productCode,
+      product.id,
+      product._id,
+      product._id ? String(product._id) : ''
+    ]) {
       const key = String(value || '').trim();
       if (key && !ids.includes(key)) ids.push(key);
     }
   }
   if (!ids.length) return [];
-  return Inventory.find({
+
+  const filter = {
     $or: [
       { productCode: { $in: ids } },
       { productId: { $in: ids } },
-      { code: { $in: ids } }
+      { code: { $in: ids } },
+      { sku: { $in: ids } }
     ]
-  }).lean();
+  };
+
+  // Phase 3.4 chuẩn: inventorySnapshots.
+  // Tương thích dữ liệu cũ: inventories.
+  // Gộp cả hai collection, ưu tiên dữ liệu snapshot mới khi trùng khóa.
+  const [snapshots, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean().catch(() => [])
+  ]);
+
+  return [...(legacyRows || []), ...(snapshots || [])];
 }
 
 async function findCustomers(query = {}) {

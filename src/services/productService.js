@@ -3,6 +3,7 @@
 const productRepository = require('../repositories/productRepository');
 const searchService = require('./searchService');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 
 function normalizeSearchText(value) {
   return String(value || '')
@@ -80,25 +81,42 @@ function toClient(product, snapshot = null) {
 async function snapshotMapForProducts(products = []) {
   const keys = [];
   for (const product of products) {
-    for (const value of [product.code, product.sku, product.productCode, product.id, product._id]) {
+    for (const value of [product.code, product.sku, product.productCode, product.id, product._id, product._id ? String(product._id) : '']) {
       const key = String(value || '').trim();
       if (key && !keys.includes(key)) keys.push(key);
     }
   }
   if (!keys.length) return new Map();
-  const rows = await Inventory.find({
+
+  const filter = {
     $or: [
       { productCode: { $in: keys } },
-      { productId: { $in: keys } }
+      { productId: { $in: keys } },
+      { code: { $in: keys } },
+      { sku: { $in: keys } }
     ]
-  }).lean();
+  };
+
+  // Phase 3.4 chuẩn đọc inventorySnapshots, đồng thời đọc inventories để tương thích dữ liệu cũ.
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean().catch(() => [])
+  ]);
+  const rows = [...(legacyRows || []), ...(snapshotRows || [])];
+
   const map = new Map();
   for (const row of rows) {
-    for (const key of [row.productCode, row.productId]) {
+    const onHand = toNumber(row.onHand ?? row.qty ?? row.quantity ?? row.stockQuantity);
+    const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
+    const rowQty = row.availableQty !== undefined && row.availableQty !== null
+      ? toNumber(row.availableQty)
+      : Math.max(0, onHand - reserved);
+
+    for (const key of [row.productCode, row.productId, row.code, row.sku]) {
       const clean = String(key || '').trim();
       if (!clean) continue;
       const old = map.get(clean) || {};
-      const qty = toNumber(old.availableQty ?? old.onHand ?? 0) + toNumber(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty);
+      const qty = toNumber(old.availableQty ?? old.onHand ?? 0) + rowQty;
       map.set(clean, { ...row, availableQty: qty, onHand: qty });
     }
   }

@@ -4,7 +4,6 @@ const Product = require('../models/Product');
 const { buildIdentityFilter } = require('../utils/identity.util');
 const { getPagination, wantsPagination, buildPageMeta, escapeRegex } = require('../utils/query.util');
 
-
 function normalizeSearchText(value) {
   return String(value || '')
     .normalize('NFD')
@@ -19,11 +18,20 @@ function buildMongoFilter(idOrCode) {
   return buildIdentityFilter(idOrCode, ['code']);
 }
 
-function buildQueryFilter(query = {}) {
-  const q = String(query.q || query.search || '').trim();
+function baseFilter(query = {}) {
   const activeOnly = String(query.activeOnly || '') === '1';
   const filter = {};
   if (activeOnly) filter.isActive = { $ne: false };
+  return filter;
+}
+
+function searchKeyword(query = {}) {
+  return String(query.q || query.search || '').trim();
+}
+
+function buildQueryFilter(query = {}) {
+  const filter = baseFilter(query);
+  const q = searchKeyword(query);
   if (q) {
     const rawRegex = escapeRegex(q);
     const normalizedRegex = escapeRegex(normalizeSearchText(q));
@@ -31,19 +39,81 @@ function buildQueryFilter(query = {}) {
       { code: { $regex: rawRegex, $options: 'i' } },
       { sku: { $regex: rawRegex, $options: 'i' } },
       { productCode: { $regex: rawRegex, $options: 'i' } },
-      { name: { $regex: rawRegex, $options: 'i' } },
       { barcode: { $regex: rawRegex, $options: 'i' } },
+      { name: { $regex: rawRegex, $options: 'i' } },
       { category: { $regex: rawRegex, $options: 'i' } },
       { brand: { $regex: rawRegex, $options: 'i' } },
+      { packing: { $regex: rawRegex, $options: 'i' } },
+      { unit: { $regex: rawRegex, $options: 'i' } },
+      { baseUnit: { $regex: rawRegex, $options: 'i' } },
       { searchText: { $regex: normalizedRegex, $options: 'i' } }
     ];
   }
   return filter;
 }
 
+function productSearchRank(product = {}, keyword = '') {
+  const qRaw = String(keyword || '').trim();
+  const q = normalizeSearchText(qRaw);
+  if (!q) return 0;
+
+  const code = normalizeSearchText(product.code || product.sku || product.productCode || '');
+  const sku = normalizeSearchText(product.sku || '');
+  const productCode = normalizeSearchText(product.productCode || '');
+  const barcode = normalizeSearchText(product.barcode || '');
+  const name = normalizeSearchText(product.name || '');
+  const category = normalizeSearchText(product.category || '');
+  const brand = normalizeSearchText(product.brand || '');
+  const packing = normalizeSearchText(product.packing || '');
+  const searchText = normalizeSearchText(product.searchText || '');
+
+  const codes = [code, sku, productCode].filter(Boolean);
+
+  // Điểm càng nhỏ càng ưu tiên cao.
+  if (codes.some(v => v === q)) return 10;
+  if (barcode && barcode === q) return 12;
+  if (codes.some(v => v.startsWith(q))) return 20;
+  if (barcode && barcode.startsWith(q)) return 25;
+  if (codes.some(v => v.includes(q))) return 30;
+  if (barcode && barcode.includes(q)) return 35;
+  if (name.startsWith(q)) return 40;
+  if (name.includes(q)) return 50;
+  if (category.includes(q) || brand.includes(q) || packing.includes(q)) return 60;
+  if (searchText.includes(q)) return 70;
+  return 0;
+}
+
+function sortRankedProducts(rows = [], keyword = '') {
+  return (rows || [])
+    .map(row => ({ row, rank: productSearchRank(row, keyword) }))
+    .filter(item => item.rank > 0)
+    .sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return String(a.row.code || a.row.name || '').localeCompare(String(b.row.code || b.row.name || ''), 'vi', { numeric: true });
+    })
+    .map(item => item.row);
+}
+
 async function findAll(query = {}) {
-  const filter = buildQueryFilter(query);
+  const q = searchKeyword(query);
+
+  // Khi có từ khóa, không được lấy trang đầu rồi lọc ở frontend.
+  // Server tìm trên toàn bộ Mongo, xếp hạng kết quả, sau đó mới phân trang.
+  if (q) {
+    const filter = buildQueryFilter(query);
+    const candidates = await Product.find(filter).sort({ code: 1 }).lean();
+    const ranked = sortRankedProducts(candidates, q);
+
+    if (!wantsPagination(query)) return ranked;
+
+    const page = getPagination(query);
+    const rows = ranked.slice(page.skip, page.skip + page.limit);
+    return { rows, meta: buildPageMeta({ ...page, total: ranked.length }) };
+  }
+
+  const filter = baseFilter(query);
   if (!wantsPagination(query)) return Product.find(filter).sort({ code: 1 }).lean();
+
   const page = getPagination(query);
   const [rows, total] = await Promise.all([
     Product.find(filter).sort({ code: 1 }).skip(page.skip).limit(page.limit).lean(),
@@ -53,13 +123,18 @@ async function findAll(query = {}) {
 }
 
 async function search(query = {}) {
-  const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
+  const q = searchKeyword(query);
   const limit = Math.min(Number.parseInt(query.limit, 10) || 20, 50);
-  return Product.find(filter)
-    .select('code name unit baseUnit conversionRate packing barcode category brand salePrice minStock maxStock isActive')
+
+  if (!q) return [];
+
+  const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
+  const candidates = await Product.find(filter)
+    .select('code name unit baseUnit conversionRate packing barcode category brand salePrice costPrice minStock maxStock isActive searchText')
     .sort({ code: 1 })
-    .limit(limit)
     .lean();
+
+  return sortRankedProducts(candidates, q).slice(0, limit);
 }
 
 async function findByIdOrCode(idOrCode) {
@@ -96,5 +171,7 @@ module.exports = {
   findDuplicateCode,
   findDuplicateBarcode,
   create,
-  save
+  save,
+  normalizeSearchText,
+  productSearchRank
 };

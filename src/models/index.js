@@ -7,6 +7,7 @@ module.exports = {
   stock: require('./Inventory'),
   inventories: require('./Inventory'),
   inventorySnapshots: require('./Inventory'),
+  inventoriesLegacy: require('./InventoryLegacy'),
   stockTransactions: require('./StockTransaction'),
   importOrders: require('./ImportOrder'),
   salesOrders: require('./SalesOrder'),
