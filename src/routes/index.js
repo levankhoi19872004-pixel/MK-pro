@@ -16,6 +16,7 @@ const systemRoutes = require('./systemRoutes');
 const printRoutes = require('./printRoutes');
 const { importRouter, exportRouter } = require('./importExportRoutes');
 const swaggerRoutes = require('./swaggerRoutes');
+const mobileRoutes = require('./mobileRoutes');
 
 function registerApiRoutes(app) {
   // API docs must be mounted before legacy guard.
@@ -23,6 +24,9 @@ function registerApiRoutes(app) {
 
   // Core system routes must be mounted before legacy guard.
   app.use('/api', systemRoutes);
+
+  // Mobile app routes (sales + delivery). Must be before /api fallback.
+  app.use('/api/mobile', mobileRoutes);
 
   // Step 1: Products / Customers / Users
   app.use('/api/products', productRoutes);
