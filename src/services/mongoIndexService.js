@@ -79,6 +79,11 @@ const INDEX_DEFINITIONS = {
     [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventory_product_warehouse' }],
     [{ warehouseCode: 1 }, { name: 'idx_inventory_warehouse' }]
   ],
+  stockTransactions: [
+    [{ date: 1, productCode: 1, warehouseCode: 1 }, { name: 'idx_stock_tx_date_product_warehouse' }],
+    [{ refType: 1, refId: 1 }, { name: 'idx_stock_tx_ref' }],
+    [{ productCode: 1, date: 1 }, { name: 'idx_stock_tx_product_date' }]
+  ],
   warehouses: [[{ code: 1 }, { name: 'idx_warehouses_code' }]],
   promotions: [
     [{ code: 1 }, { name: 'idx_promotions_code' }],

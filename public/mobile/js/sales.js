@@ -125,6 +125,7 @@ async function searchProducts() {
     productSuggestions.innerHTML = '<div class="suggestion-empty">Đang tìm sản phẩm...</div>';
     const data = await mobileApi.getProducts(q);
     const items = Array.isArray(data.items) ? data.items : [];
+    if (data.inventoryWarning) setMessage(message, data.inventoryWarning, 'error');
 
     if (!items.length) {
       productSuggestions.innerHTML = '<div class="suggestion-empty">Không tìm thấy sản phẩm phù hợp hoặc sản phẩm không còn tồn mở bán</div>';
@@ -134,7 +135,7 @@ async function searchProducts() {
     renderSuggestions(
       productSuggestions,
       items,
-      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} · Giá: ${money(p.salePrice || p.price || 0)}</span>`,
+      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} · Giá: ${money(p.salePrice || p.price || 0)}${Number(p.availableQty || p.stockQuantity || 0) <= 0 ? ' · Cần rebuild tồn' : ''}</span>`,
       (p) => {
         selectedProduct = {
           ...p,

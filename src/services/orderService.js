@@ -7,6 +7,7 @@ const customerRepository = require('../repositories/customerRepository');
 const userRepository = require('../repositories/userRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const inventoryService = require('./inventoryService');
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -76,20 +77,17 @@ async function hydrateItemNames(items) {
 }
 
 
+
 async function applySalesOrderPosting(order, options = {}) {
-  const items = Array.isArray(order.items) ? order.items : [];
-  for (const item of items) {
-    const productKey = item.productCode || item.productId || item.code || item.id;
-    if (!productKey) continue;
-    const product = await productRepository.findByIdOrCode(productKey);
-    if (!product) continue;
-    const currentStock = toNumber(product.availableStock ?? product.stockQuantity ?? product.availableQty ?? product.openingStock);
-    const nextStock = currentStock - toNumber(item.quantity);
-    product.availableStock = nextStock;
-    product.stockQuantity = nextStock;
-    product.availableQty = nextStock;
-    await productRepository.save(product, options);
-  }
+  await inventoryService.postStockMovement(order, {
+    type: 'SALE',
+    direction: 'OUT',
+    refType: 'SALES_ORDER',
+    refId: order.id || order._id || order.code,
+    refCode: order.code || order.id,
+    date: order.date || order.orderDate || order.createdAt,
+    note: 'Xuất kho theo đơn bán'
+  }, options);
 
   const customerKey = order.customerCode || order.customerId || order.customerName;
   if (!customerKey) return;
@@ -103,19 +101,16 @@ async function applySalesOrderPosting(order, options = {}) {
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
-  const items = Array.isArray(order.items) ? order.items : [];
-  for (const item of items) {
-    const productKey = item.productCode || item.productId || item.code || item.id;
-    if (!productKey) continue;
-    const product = await productRepository.findByIdOrCode(productKey);
-    if (!product) continue;
-    const currentStock = toNumber(product.availableStock ?? product.stockQuantity ?? product.availableQty ?? product.openingStock);
-    const nextStock = currentStock + toNumber(item.quantity);
-    product.availableStock = nextStock;
-    product.stockQuantity = nextStock;
-    product.availableQty = nextStock;
-    await productRepository.save(product, options);
-  }
+  await inventoryService.reverseStockMovement(order, {
+    type: 'SALE',
+    reverseType: 'SALE_REVERSAL',
+    direction: 'OUT',
+    refType: 'SALES_ORDER',
+    refId: order.id || order._id || order.code,
+    refCode: order.code || order.id,
+    date: new Date().toISOString().slice(0, 10),
+    note: 'Đảo xuất kho đơn bán'
+  }, options);
 
   const customerKey = order.customerCode || order.customerId || order.customerName;
   if (!customerKey) return;
@@ -218,7 +213,9 @@ async function updateOrder(id, body = {}) {
     updatedAt: nowIso()
   };
   await withMongoTransaction(async (session) => {
+    await reverseSalesOrderPosting(current, { session });
     await orderRepository.upsert(updated, { session });
+    await applySalesOrderPosting(updated, { session });
   });
   return { salesOrder: toClient(updated) };
 }

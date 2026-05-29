@@ -24,6 +24,7 @@ const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const Inventory = require('../models/Inventory');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
+const inventoryService = require('../services/inventoryService');
 
 const router = express.Router();
 
@@ -42,7 +43,13 @@ function jwtSecret() {
 }
 
 function normalizeText(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .trim()
+    .toLowerCase();
 }
 
 function getDocId(doc) {
@@ -127,6 +134,7 @@ async function getOpenSaleQty(product) {
   const code = productCodeOf(product);
   const ids = [code, String(product?.id || '').trim(), String(product?._id || '').trim()].filter(Boolean);
   let inventoryQty = 0;
+  let hasInventorySnapshot = false;
   if (ids.length) {
     const rows = await Inventory.find({
       $or: [
@@ -135,12 +143,24 @@ async function getOpenSaleQty(product) {
         { code: { $in: ids } }
       ]
     }).lean();
-    inventoryQty = rows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.qty ?? row.quantity ?? row.stockQuantity), 0);
+    hasInventorySnapshot = rows.length > 0;
+    inventoryQty = rows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.qty ?? row.quantity ?? row.stockQuantity ?? row.onHand), 0);
   }
 
-  const productQty = toNumber(product?.availableStock ?? product?.stockQuantity ?? product?.availableQty ?? product?.openingStock);
-  // Ưu tiên bảng inventories nếu có phát sinh tồn thật; fallback về tồn trên product khi chưa có inventories.
-  return inventoryQty > 0 ? inventoryQty : productQty;
+  const productQty = toNumber(
+    product?.availableStock ??
+    product?.stockQuantity ??
+    product?.availableQty ??
+    product?.openingStock ??
+    product?.stock ??
+    product?.quantity ??
+    product?.qty ??
+    product?.tonKho ??
+    product?.tonDau
+  );
+  // Nếu đã có snapshot tồn thì dùng snapshot kể cả bằng 0.
+  // Nếu chưa khởi tạo inventories thì fallback về tồn cũ trên products để app không trắng danh sách.
+  return hasInventorySnapshot ? inventoryQty : productQty;
 }
 
 function formatOpenSaleQty(quantity, conversionRate = 1) {
@@ -405,8 +425,16 @@ router.get('/products', requireMobileLogin, requireMobileRole(['accountant', 'sa
       items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
         .some((value) => normalizeText(value).includes(q)));
     }
-    items = items.filter((p) => toNumber(p.availableQty) > 0).slice(0, 80);
-    return ok(res, { source: 'mobile-mongo-route', items });
+    let positiveItems = items.filter((p) => toNumber(p.availableQty) > 0);
+    const hasPositiveStock = positiveItems.length > 0;
+    // Khi vừa nâng cấp sang sổ kho, inventories có thể chưa rebuild nên tất cả tồn = 0.
+    // Vẫn trả danh sách sản phẩm để nhân viên chọn/tìm thủ công, đồng thời báo cần rebuild tồn.
+    items = (hasPositiveStock ? positiveItems : items).slice(0, 80);
+    return ok(res, {
+      source: 'mobile-mongo-route',
+      items,
+      inventoryWarning: hasPositiveStock ? '' : 'Chưa có tồn mở bán dương. Cần chạy rebuild tồn kho từ chứng từ để hiển thị tồn chính xác.'
+    });
   } catch (err) {
     return fail(res, 500, err.message || 'Không tải được sản phẩm mobile');
   }
@@ -421,10 +449,32 @@ router.get('/stock', requireMobileLogin, requireMobileRole(['accountant', 'sales
       items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
         .some((value) => normalizeText(value).includes(q)));
     }
-    items = items.filter((p) => toNumber(p.availableQty) > 0).slice(0, 150);
-    return ok(res, { source: 'mobile-mongo-route', items });
+    const positiveItems = items.filter((p) => toNumber(p.availableQty) > 0);
+    const hasPositiveStock = positiveItems.length > 0;
+    items = (hasPositiveStock ? positiveItems : items).slice(0, 150);
+    return ok(res, {
+      source: 'mobile-mongo-route',
+      items,
+      inventoryWarning: hasPositiveStock ? '' : 'Chưa có tồn mở bán dương. Cần chạy rebuild tồn kho từ chứng từ để hiển thị tồn chính xác.'
+    });
   } catch (err) {
     return fail(res, 500, err.message || 'Không tải được tồn kho mobile');
+  }
+});
+
+
+router.post('/inventory/rebuild', requireMobileLogin, requireMobileRole(['admin', 'accountant']), async (req, res) => {
+  try {
+    const result = await inventoryService.rebuildStockLedgerFromDocuments({
+      resetTransactions: ['1', 'true', 'yes'].includes(String(req.body?.resetTransactions || req.query.resetTransactions || '1').toLowerCase())
+    });
+    return ok(res, {
+      source: 'mobile-mongo-route',
+      message: 'Đã rebuild tồn kho từ chứng từ nhập/bán/trả hàng và tồn đầu sản phẩm',
+      ...result
+    });
+  } catch (err) {
+    return fail(res, 500, err.message || 'Không rebuild được tồn kho');
   }
 });
 
@@ -511,6 +561,15 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
+    await inventoryService.postStockMovement(order.toObject(), {
+      type: 'SALE',
+      direction: 'OUT',
+      refType: 'MOBILE_SALES_ORDER',
+      refId: order.id || order.code,
+      refCode: order.code || order.id,
+      date: order.date || order.orderDate,
+      note: 'Xuất kho theo đơn app bán hàng'
+    });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
     return ok(res, { message: 'Đã tạo đơn bán mobile', order: savedOrder, salesOrder: savedOrder }, 201);
@@ -548,7 +607,26 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
       note: body.note || raw.note || '',
       updatedAt: new Date().toISOString()
     });
+    await inventoryService.reverseStockMovement(raw, {
+      type: 'SALE',
+      reverseType: 'SALE_REVERSAL',
+      direction: 'OUT',
+      refType: 'MOBILE_SALES_ORDER',
+      refId: raw.id || raw.code,
+      refCode: raw.code || raw.id,
+      date: new Date().toISOString().slice(0, 10),
+      note: 'Đảo xuất kho trước khi sửa đơn app bán hàng'
+    });
     await order.save();
+    await inventoryService.postStockMovement(order.toObject(), {
+      type: 'SALE',
+      direction: 'OUT',
+      refType: 'MOBILE_SALES_ORDER',
+      refId: order.id || order.code,
+      refCode: order.code || order.id,
+      date: order.date || order.orderDate,
+      note: 'Xuất kho sau khi sửa đơn app bán hàng'
+    });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
     return ok(res, { message: 'Đã cập nhật đơn mobile', order: savedOrder, salesOrder: savedOrder });
@@ -570,6 +648,16 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
     order.deletedAt = new Date().toISOString();
     order.deleteReason = 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng';
     order.updatedAt = new Date().toISOString();
+    await inventoryService.reverseStockMovement(raw, {
+      type: 'SALE',
+      reverseType: 'SALE_REVERSAL',
+      direction: 'OUT',
+      refType: 'MOBILE_SALES_ORDER',
+      refId: raw.id || raw.code,
+      refCode: raw.code || raw.id,
+      date: new Date().toISOString().slice(0, 10),
+      note: 'Đảo xuất kho khi xóa đơn app bán hàng'
+    });
     await order.save();
     const savedOrder = stripMongoFields(order.toObject());
     return ok(res, { message: `Đã xóa đơn ${savedOrder.code || ''}`, order: savedOrder, salesOrder: savedOrder });

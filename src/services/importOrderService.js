@@ -4,6 +4,7 @@ const importOrderRepository = require('../repositories/importOrderRepository');
 const productRepository = require('../repositories/productRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const inventoryService = require('./inventoryService');
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowIso() { return new Date().toISOString(); }
@@ -84,6 +85,15 @@ async function createImportOrder(body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await importOrderRepository.upsert(importOrder, { session });
+    await inventoryService.postStockMovement(importOrder, {
+      type: 'IMPORT',
+      direction: 'IN',
+      refType: 'IMPORT_ORDER',
+      refId: importOrder.id || importOrder.code,
+      refCode: importOrder.code || importOrder.id,
+      date: importOrder.date,
+      note: 'Nhập kho theo phiếu nhập'
+    }, { session });
   });
   return { importOrder: toClient(importOrder) };
 }
@@ -108,7 +118,26 @@ async function updateImportOrder(id, body = {}) {
     updatedAt: nowIso()
   };
   await withMongoTransaction(async (session) => {
+    await inventoryService.reverseStockMovement(current, {
+      type: 'IMPORT',
+      reverseType: 'IMPORT_REVERSAL',
+      direction: 'IN',
+      refType: 'IMPORT_ORDER',
+      refId: current.id || current.code,
+      refCode: current.code || current.id,
+      date: today(),
+      note: 'Đảo nhập kho phiếu nhập cũ'
+    }, { session });
     await importOrderRepository.upsert(updated, { session });
+    await inventoryService.postStockMovement(updated, {
+      type: 'IMPORT',
+      direction: 'IN',
+      refType: 'IMPORT_ORDER',
+      refId: updated.id || updated.code,
+      refCode: updated.code || updated.id,
+      date: updated.date,
+      note: 'Nhập kho theo phiếu nhập cập nhật'
+    }, { session });
   });
   return { importOrder: toClient(updated) };
 }

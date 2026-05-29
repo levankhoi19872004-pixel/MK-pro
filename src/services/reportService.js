@@ -2,6 +2,7 @@
 
 const Product = require('../models/Product');
 const Inventory = require('../models/Inventory');
+const StockTransaction = require('../models/StockTransaction');
 const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
@@ -53,8 +54,102 @@ function filterByQuery(rows = [], query = {}, fields = []) {
   return rows.filter((row) => fields.some((field) => normalizeText(row[field]).includes(q)));
 }
 
+function buildStockTxFilter(query = {}) {
+  const filter = {};
+  if (query.productCode) filter.productCode = String(query.productCode).trim();
+  if (query.warehouseCode) filter.warehouseCode = String(query.warehouseCode).trim();
+  if (query.date || query.dateFrom || query.dateTo) {
+    filter.date = {};
+    if (query.dateFrom) filter.date.$gte = String(query.dateFrom).slice(0, 10);
+    if (query.dateTo) filter.date.$lte = String(query.dateTo).slice(0, 10);
+    if (query.date) filter.date = String(query.date).slice(0, 10);
+  }
+  return filter;
+}
+
+function isInType(row = {}) {
+  const direction = String(row.direction || '').toUpperCase();
+  if (direction) return direction === 'IN';
+  return toNumber(row.quantity ?? row.qty) >= 0;
+}
+
+function stockQty(row = {}) {
+  return toNumber(row.quantity ?? row.qty ?? 0);
+}
+
+
 async function stockReport(query = {}) {
   const q = normalizeText(query.q);
+  const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
+
+  if (hasPeriod) {
+    const dateFrom = String(query.dateFrom || '0000-01-01').slice(0, 10);
+    const dateTo = String(query.dateTo || query.asOfDate || today()).slice(0, 10);
+    const [transactions, products] = await Promise.all([
+      StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
+      Product.find({}).lean()
+    ]);
+    const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
+    const byKey = new Map();
+
+    transactions.forEach((tx) => {
+      const txDate = toDateOnly(tx.date || tx.createdAt);
+      if (txDate > dateTo) return;
+      const productCode = String(tx.productCode || tx.productId || '').trim();
+      const warehouseCode = String(tx.warehouseCode || 'MAIN').trim();
+      const key = `${productCode}@@${warehouseCode}`;
+      const product = productMap.get(productCode) || {};
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          productId: tx.productId || product.id || String(product._id || ''),
+          productCode,
+          productName: tx.productName || product.name || '',
+          warehouseCode,
+          warehouseName: tx.warehouseName || 'Kho chính',
+          unit: product.unit || tx.unit || '',
+          openingQty: 0,
+          importQty: 0,
+          exportQty: 0,
+          returnQty: 0,
+          adjustmentQty: 0,
+          endingQty: 0
+        });
+      }
+      const row = byKey.get(key);
+      const qty = stockQty(tx);
+      if (txDate < dateFrom) {
+        row.openingQty += qty;
+      } else {
+        const type = String(tx.type || '').toUpperCase();
+        if (type.includes('RETURN')) row.returnQty += Math.abs(qty);
+        else if (type.includes('IMPORT') || isInType(tx)) row.importQty += Math.abs(qty);
+        else if (type.includes('SALE') || !isInType(tx)) row.exportQty += Math.abs(qty);
+        else row.adjustmentQty += qty;
+      }
+      row.endingQty += qty;
+    });
+
+    let stock = Array.from(byKey.values()).map((row) => ({
+      ...row,
+      inQty: row.importQty + row.returnQty + Math.max(0, row.adjustmentQty),
+      outQty: row.exportQty + Math.abs(Math.min(0, row.adjustmentQty)),
+      quantity: row.endingQty,
+      qty: row.endingQty,
+      availableQty: row.endingQty
+    }));
+    if (q) stock = stock.filter((row) => [row.productCode, row.productName, row.warehouseCode, row.warehouseName].some((value) => normalizeText(value).includes(q)));
+    const summary = stock.reduce((acc, row) => {
+      acc.totalRows += 1;
+      acc.openingQty += toNumber(row.openingQty);
+      acc.importQty += toNumber(row.importQty);
+      acc.exportQty += toNumber(row.exportQty);
+      acc.returnQty += toNumber(row.returnQty);
+      acc.endingQty += toNumber(row.endingQty);
+      return acc;
+    }, { totalRows: 0, openingQty: 0, importQty: 0, exportQty: 0, returnQty: 0, endingQty: 0 });
+    return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary };
+  }
+
   const [stockRows, products] = await Promise.all([
     Inventory.find({}).sort({ productCode: 1, warehouseCode: 1 }).lean(),
     Product.find({}).lean()
@@ -63,7 +158,7 @@ async function stockReport(query = {}) {
   const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
   let stock = stockRows.map((row) => {
     const product = productMap.get(String(row.productCode || row.productId || '')) || {};
-    const quantity = toNumber(row.quantity ?? row.qty ?? row.availableQty);
+    const quantity = toNumber(row.quantity ?? row.qty ?? row.onHand ?? row.availableQty);
     return {
       id: row.id || String(row._id || ''),
       productId: row.productId || product.id || String(product._id || ''),
@@ -75,7 +170,9 @@ async function stockReport(query = {}) {
       unit: row.unit || product.unit || '',
       quantity,
       qty: quantity,
-      availableQty: toNumber(row.availableQty || quantity),
+      onHand: quantity,
+      reservedQty: toNumber(row.reservedQty),
+      availableQty: toNumber(row.availableQty ?? quantity),
       minStock: toNumber(product.minStock),
       maxStock: toNumber(product.maxStock),
       updatedAt: row.updatedAt || row.createdAt || ''
@@ -95,7 +192,40 @@ async function stockReport(query = {}) {
     return acc;
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0 });
 
-  return { source: 'mongo', stock, summary };
+  return { source: 'mongo_inventory_snapshots', stock, summary };
+}
+
+async function stockCardReport(query = {}) {
+  let rows = await StockTransaction.find(buildStockTxFilter(query)).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();
+  rows = filterByQuery(rows, query, ['productCode', 'productName', 'warehouseCode', 'refCode', 'refType', 'type']);
+  let runningByKey = new Map();
+  const transactions = rows.map((tx) => {
+    const key = `${tx.productCode || ''}@@${tx.warehouseCode || 'MAIN'}`;
+    const running = toNumber(runningByKey.get(key)) + stockQty(tx);
+    runningByKey.set(key, running);
+    return {
+      id: tx.id || String(tx._id || ''),
+      date: toDateOnly(tx.date || tx.createdAt),
+      productCode: tx.productCode || '',
+      productName: tx.productName || '',
+      warehouseCode: tx.warehouseCode || 'MAIN',
+      type: tx.type || '',
+      refType: tx.refType || '',
+      refCode: tx.refCode || '',
+      inQty: toNumber(tx.inQty || (stockQty(tx) > 0 ? stockQty(tx) : 0)),
+      outQty: toNumber(tx.outQty || (stockQty(tx) < 0 ? Math.abs(stockQty(tx)) : 0)),
+      quantity: stockQty(tx),
+      balanceQty: toNumber(tx.balanceQty || running),
+      note: tx.note || ''
+    };
+  });
+  const summary = transactions.reduce((acc, row) => {
+    acc.transactionCount += 1;
+    acc.inQty += toNumber(row.inQty);
+    acc.outQty += toNumber(row.outQty);
+    return acc;
+  }, { transactionCount: 0, inQty: 0, outQty: 0 });
+  return { source: 'mongo_stock_transactions', transactions, summary };
 }
 
 async function debtReport(query = {}) {
@@ -358,6 +488,7 @@ async function dashboardReport(query = {}) {
 
 module.exports = {
   stockReport,
+  stockCardReport,
   debtReport,
   dashboardReport,
   salesReport,

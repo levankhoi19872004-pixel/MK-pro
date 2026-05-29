@@ -8,6 +8,11 @@ const stock = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+const stockCard = asyncHandler(async (req, res) => {
+  const result = await reportService.stockCardReport(req.query);
+  res.json({ ok: true, ...result });
+});
+
 const debts = asyncHandler(async (req, res) => {
   const result = await reportService.debtReport(req.query);
   res.json({ ok: true, ...result });
@@ -35,6 +40,7 @@ const delivery = asyncHandler(async (req, res) => {
 
 module.exports = {
   stock,
+  stockCard,
   debts,
   dashboard,
   sales,
