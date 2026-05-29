@@ -126,6 +126,26 @@ function masterChildIds(master) {
   return Array.isArray(raw) ? raw.map((item) => String(item?.id || item?.code || item?._id || item).trim()).filter(Boolean) : [];
 }
 
+function masterCode(master) {
+  return String(master?.code || master?.masterOrderNo || master?.orderNo || master?.id || master?._id || '').trim();
+}
+
+function masterKeys(master) {
+  return [getDocId(master), masterCode(master), master?.masterOrderNo, master?.orderNo, master?._id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function isActiveMasterOrder(master) {
+  if (!master) return false;
+  const inactiveStatuses = [
+    'cancelled', 'canceled', 'void', 'deleted', 'inactive', 'archived',
+    'da huy', 'dahuy', 'huy', 'đã hủy', 'đã huỷ', 'hủy', 'huỷ'
+  ];
+  const status = normalizeText(master.status || master.masterStatus || master.state);
+  return !inactiveStatuses.includes(status);
+}
+
 function orderAssignedToUser(order, master, user) {
   if (!user || user.role === 'admin') return true;
   const candidates = [
@@ -386,17 +406,35 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     const q = normalizeText(req.query.q);
     const status = normalizeText(req.query.status);
 
-    const masters = await MasterOrder.find({ deliveryDate: targetDate }).lean();
+    // Siết API giao hàng: app chỉ được hiện đơn con thuộc đơn tổng CÒN HIỆU LỰC.
+    // Không lấy đơn con trôi nổi chỉ vì còn deliveryDate/driverId cũ sau khi đơn tổng đã hủy.
+    const masters = (await MasterOrder.find({ deliveryDate: targetDate }).lean()).filter(isActiveMasterOrder);
     const masterByChild = new Map();
     for (const master of masters) {
-      for (const childId of masterChildIds(master)) masterByChild.set(childId, master);
+      for (const childId of masterChildIds(master)) {
+        masterByChild.set(String(childId), master);
+      }
     }
 
     const childKeys = Array.from(masterByChild.keys());
+    if (!childKeys.length) {
+      return ok(res, {
+        source: 'mobile-delivery-mongo-route',
+        date: targetDate,
+        user: req.mobileUser,
+        formula: 'Chỉ lấy đơn con thuộc masterOrders còn hiệu lực của ngày giao và đúng nhân viên giao hàng đang đăng nhập.',
+        items: []
+      });
+    }
+
+    const objectIdKeys = childKeys.filter((key) => /^[a-f\d]{24}$/i.test(key));
     const orderFilter = {
       $or: [
-        { deliveryDate: targetDate },
-        ...(childKeys.length ? [{ id: { $in: childKeys } }, { code: { $in: childKeys } }] : [])
+        { id: { $in: childKeys } },
+        { code: { $in: childKeys } },
+        { orderNo: { $in: childKeys } },
+        { orderCode: { $in: childKeys } },
+        ...(objectIdKeys.length ? [{ _id: { $in: objectIdKeys } }] : [])
       ]
     };
 
@@ -407,11 +445,14 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
 
     let items = orders
       .map((order) => {
-        const master = masterByChild.get(getDocId(order)) || masterByChild.get(orderCode(order)) || null;
+        const possibleOrderKeys = [getDocId(order), orderCode(order), order.orderNo, order.orderCode, order._id]
+          .map((value) => String(value || '').trim())
+          .filter(Boolean);
+        const master = possibleOrderKeys.map((key) => masterByChild.get(key)).find(Boolean) || null;
         return { order, master };
       })
+      .filter(({ master }) => isActiveMasterOrder(master))
       .filter(({ order, master }) => isApprovedForDelivery(order, master))
-      .filter(({ order, master }) => orderDeliveryDate(order) === targetDate || !!master)
       .filter(({ order, master }) => orderAssignedToUser(order, master, req.mobileUser))
       .map(({ order, master }) => buildDeliveryRow(order, customerByCode.get(String(order.customerCode)), master, targetDate))
       .filter((row) => includeCompleted || isActiveDeliveryStatus(row));
@@ -432,7 +473,7 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       source: 'mobile-delivery-mongo-route',
       date: targetDate,
       user: req.mobileUser,
-      formula: 'Lấy đơn con trong salesOrders theo deliveryDate hoặc nằm trong masterOrders của ngày giao, rồi lọc theo nhân viên giao hàng đang đăng nhập.',
+      formula: 'Chỉ lấy đơn con thuộc masterOrders còn hiệu lực của ngày giao, rồi lọc theo nhân viên giao hàng đang đăng nhập. Đơn tổng đã hủy/void sẽ không còn hiện trên app.',
       items
     });
   } catch (err) {
