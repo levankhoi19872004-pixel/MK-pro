@@ -134,7 +134,7 @@ async function searchProducts() {
     renderSuggestions(
       productSuggestions,
       items,
-      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || p.availableQty || p.stockQuantity || '0/0'} · Giá: ${money(p.salePrice || p.price || 0)}</span>`,
+      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} · Giá: ${money(p.salePrice || p.price || 0)}</span>`,
       (p) => {
         selectedProduct = {
           ...p,
@@ -142,7 +142,7 @@ async function searchProducts() {
           availableQty: Number(p.availableQty || p.stockQuantity || 0),
           conversionRate: Number(p.conversionRate || p.unitsPerCase || 1)
         };
-        selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || p.availableQty || p.stockQuantity || '0/0'} | Giá: ${money(p.salePrice || p.price || 0)}`;
+        selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} | Giá: ${money(p.salePrice || p.price || 0)}`;
         selectedProductBox.classList.remove('muted');
         productSuggestions.innerHTML = '';
         productSearch.value = p.name || p.code || '';

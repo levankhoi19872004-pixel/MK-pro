@@ -13,7 +13,8 @@ export function renderSuggestions(container, items, renderItem, onSelect) {
   container.innerHTML = '';
   if (!items || !items.length) return;
 
-  items.slice(0, 10).forEach(item => {
+  container.classList.toggle('has-many', items.length > 6);
+  items.slice(0, 80).forEach(item => {
     const div = document.createElement('button');
     div.type = 'button';
     div.className = 'suggestion-item';

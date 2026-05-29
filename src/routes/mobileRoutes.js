@@ -22,6 +22,7 @@ const Receipt = require('../models/Receipt');
 const ReturnOrder = require('../models/ReturnOrder');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
+const Inventory = require('../models/Inventory');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 
 const router = express.Router();
@@ -111,6 +112,89 @@ function buildRegexFilter(q, fields, base = { isActive: { $ne: false } }) {
   const filter = { ...base };
   if (keyword) filter.$or = fields.map((field) => ({ [field]: { $regex: keyword, $options: 'i' } }));
   return filter;
+}
+
+
+function productCodeOf(product) {
+  return String(product?.code || product?.sku || product?.productCode || product?.id || product?._id || '').trim();
+}
+
+function productNameOf(product) {
+  return String(product?.name || product?.productName || '').trim();
+}
+
+async function getOpenSaleQty(product) {
+  const code = productCodeOf(product);
+  const ids = [code, String(product?.id || '').trim(), String(product?._id || '').trim()].filter(Boolean);
+  let inventoryQty = 0;
+  if (ids.length) {
+    const rows = await Inventory.find({
+      $or: [
+        { productCode: { $in: ids } },
+        { productId: { $in: ids } },
+        { code: { $in: ids } }
+      ]
+    }).lean();
+    inventoryQty = rows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.qty ?? row.quantity ?? row.stockQuantity), 0);
+  }
+
+  const productQty = toNumber(product?.availableStock ?? product?.stockQuantity ?? product?.availableQty ?? product?.openingStock);
+  // Ưu tiên bảng inventories nếu có phát sinh tồn thật; fallback về tồn trên product khi chưa có inventories.
+  return inventoryQty > 0 ? inventoryQty : productQty;
+}
+
+function formatOpenSaleQty(quantity, conversionRate = 1) {
+  const qty = Math.max(0, toNumber(quantity));
+  const rate = Math.max(1, toNumber(conversionRate) || 1);
+  const cases = Math.floor(qty / rate);
+  const loose = qty % rate;
+  if (cases > 0 && loose > 0) return `${cases} thùng ${loose} lẻ`;
+  if (cases > 0) return `${cases} thùng`;
+  return `${loose} lẻ`;
+}
+
+async function buildMobileProductRow(product) {
+  const availableQty = await getOpenSaleQty(product);
+  const conversionRate = Math.max(1, toNumber(product.conversionRate || product.qtyPerCase || product.packingQty || 1));
+  return {
+    ...stripMongoFields(product),
+    id: productCodeOf(product),
+    code: productCodeOf(product),
+    name: productNameOf(product),
+    price: toNumber(product.salePrice || product.price),
+    salePrice: toNumber(product.salePrice || product.price),
+    conversionRate,
+    availableQty,
+    stockQuantity: availableQty,
+    stockDisplay: formatOpenSaleQty(availableQty, conversionRate)
+  };
+}
+
+async function assertItemsWithinOpenStock(items = [], oldItems = []) {
+  const oldQtyByCode = new Map();
+  for (const item of oldItems || []) {
+    const code = String(item.productCode || item.code || item.productId || '').trim();
+    if (!code) continue;
+    oldQtyByCode.set(code, toNumber(oldQtyByCode.get(code)) + toNumber(item.quantity || item.qty));
+  }
+
+  for (const item of items || []) {
+    const code = String(item.productCode || item.code || item.productId || '').trim();
+    if (!code) return 'Có dòng sản phẩm thiếu mã sản phẩm';
+    const product = await Product.findOne({
+      isActive: { $ne: false },
+      $or: [{ code }, { sku: code }, { productCode: code }, { id: code }, ...(code.match(/^[a-f\d]{24}$/i) ? [{ _id: code }] : [])]
+    }).lean();
+    if (!product) return `Không tìm thấy sản phẩm: ${code}`;
+    const qty = toNumber(item.quantity || item.qty);
+    if (qty <= 0) return `Số lượng phải lớn hơn 0: ${code}`;
+    const availableQty = await getOpenSaleQty(product);
+    const ownOldQty = toNumber(oldQtyByCode.get(code));
+    if (qty > availableQty + ownOldQty) {
+      return `Số lượng vượt tồn mở bán: ${code}. Tồn ${formatOpenSaleQty(availableQty + ownOldQty, product.conversionRate || 1)}, cần ${formatOpenSaleQty(qty, product.conversionRate || 1)}`;
+    }
+  }
+  return '';
 }
 
 function orderCode(order) {
@@ -312,32 +396,35 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
 
 router.get('/products', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
-    const rows = await Product.find(buildRegexFilter(req.query.q, ['code', 'sku', 'productCode', 'name', 'barcode', 'category']))
-      .sort({ code: 1 }).limit(100).lean();
-    const items = rows.map(stripMongoFields).map((p) => ({
-      ...p,
-      price: toNumber(p.salePrice || p.price),
-      salePrice: toNumber(p.salePrice || p.price),
-      availableQty: toNumber(p.availableStock ?? p.stockQuantity ?? p.availableQty ?? p.openingStock)
-    }));
+    const q = normalizeText(req.query.q);
+    // Lấy rộng rồi lọc bằng normalizeText để tìm được cả khi nhân viên gõ không dấu.
+    // Tồn mở bán được tính từ inventories trước, fallback về Product.availableStock khi chưa có bảng tồn.
+    const rows = await Product.find({ isActive: { $ne: false } }).sort({ code: 1 }).limit(q ? 1200 : 300).lean();
+    let items = await Promise.all(rows.map(buildMobileProductRow));
+    if (q) {
+      items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
+        .some((value) => normalizeText(value).includes(q)));
+    }
+    items = items.filter((p) => toNumber(p.availableQty) > 0).slice(0, 80);
     return ok(res, { source: 'mobile-mongo-route', items });
   } catch (err) {
-    return fail(res, 500, 'Không tải được sản phẩm mobile');
+    return fail(res, 500, err.message || 'Không tải được sản phẩm mobile');
   }
 });
 
 router.get('/stock', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
-    const rows = await Product.find(buildRegexFilter(req.query.q, ['code', 'sku', 'productCode', 'name', 'barcode', 'category']))
-      .sort({ code: 1 }).limit(150).lean();
-    const items = rows.map(stripMongoFields).map((p) => ({
-      ...p,
-      availableQty: toNumber(p.availableStock ?? p.stockQuantity ?? p.availableQty ?? p.openingStock),
-      stockQuantity: toNumber(p.availableStock ?? p.stockQuantity ?? p.availableQty ?? p.openingStock)
-    })).filter((p) => p.availableQty > 0);
+    const q = normalizeText(req.query.q);
+    const rows = await Product.find({ isActive: { $ne: false } }).sort({ code: 1 }).limit(q ? 1200 : 300).lean();
+    let items = await Promise.all(rows.map(buildMobileProductRow));
+    if (q) {
+      items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
+        .some((value) => normalizeText(value).includes(q)));
+    }
+    items = items.filter((p) => toNumber(p.availableQty) > 0).slice(0, 150);
     return ok(res, { source: 'mobile-mongo-route', items });
   } catch (err) {
-    return fail(res, 500, 'Không tải được tồn kho mobile');
+    return fail(res, 500, err.message || 'Không tải được tồn kho mobile');
   }
 });
 
@@ -389,6 +476,8 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
     const customer = body.customer || {};
     const items = Array.isArray(body.items) ? body.items : [];
     if (!items.length) return fail(res, 400, 'Đơn bán chưa có sản phẩm');
+    const stockError = await assertItemsWithinOpenStock(items);
+    if (stockError) return fail(res, 400, stockError);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount || item.total || toNumber(item.quantity || item.qty) * toNumber(item.salePrice || item.price)), 0);
     const paidAmount = Math.min(toNumber(body.paidAmount), totalAmount);
     const order = await SalesOrder.create({
@@ -441,6 +530,8 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
     const body = req.body || {};
     const customer = body.customer || {};
     const items = Array.isArray(body.items) ? body.items : raw.items || [];
+    const stockError = await assertItemsWithinOpenStock(items, raw.items || []);
+    if (stockError) return fail(res, 400, stockError);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount || item.total || toNumber(item.quantity || item.qty) * toNumber(item.salePrice || item.price)), 0);
     const paidAmount = Math.min(toNumber(body.paidAmount), totalAmount);
 
