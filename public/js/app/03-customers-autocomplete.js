@@ -8,11 +8,15 @@ async function loadCustomers(options = {}){
   const limit=Number(customerPageSize||50);
   try{
     if(customerTable) customerTable.innerHTML='<tr><td colspan="8">Đang tải khách hàng...</td></tr>';
-    // Phase 3.6 fixed: danh sách chính dùng server-side pagination thật.
-    // limit chỉ là số dòng hiển thị/trang, không giới hạn nguồn dữ liệu.
-    const result = window.CatalogCache
-      ? await window.CatalogCache.listCustomers({page:customerPage,limit,q})
-      : await fetch(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return {rows:json.customers||[],meta:json.meta||null}});
+    // Phase 3.6 clean separation:
+    // Bảng danh sách khách hàng PHẢI gọi thẳng API /api/customers để lấy Mongo + phân trang thật.
+    // Không đi qua CatalogCache vì CatalogCache chỉ dùng cho autocomplete/lazy search.
+    const result = await fetch(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`)
+      .then(async res=>{
+        const json=await res.json();
+        if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');
+        return {rows:json.customers||[],meta:json.meta||null};
+      });
     if(requestSeq !== customerListRequestSeq) return;
     customersCache = Array.isArray(result.rows) ? result.rows : [];
     customerTotal = Number(result.meta?.total ?? customersCache.length);
