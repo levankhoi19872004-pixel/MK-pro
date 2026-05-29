@@ -4,6 +4,17 @@ const Customer = require('../models/Customer');
 const { buildIdentityFilter } = require('../utils/identity.util');
 const { getPagination, wantsPagination, buildPageMeta, escapeRegex } = require('../utils/query.util');
 
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
 function buildMongoFilter(idOrCode) {
   return buildIdentityFilter(idOrCode, ['code']);
 }
@@ -14,15 +25,20 @@ function buildQueryFilter(query = {}) {
   const filter = {};
   if (activeOnly) filter.isActive = { $ne: false };
   if (q) {
+    const rawRegex = escapeRegex(q);
+    const normalizedRegex = escapeRegex(normalizeSearchText(q));
     filter.$or = [
-      { code: { $regex: escapeRegex(q), $options: 'i' } },
-      { name: { $regex: escapeRegex(q), $options: 'i' } },
-      { phone: { $regex: escapeRegex(q), $options: 'i' } },
-      { address: { $regex: escapeRegex(q), $options: 'i' } },
-      { area: { $regex: escapeRegex(q), $options: 'i' } },
-      { route: { $regex: escapeRegex(q), $options: 'i' } },
-      { staffCode: { $regex: escapeRegex(q), $options: 'i' } },
-      { staffName: { $regex: escapeRegex(q), $options: 'i' } }
+      { code: { $regex: rawRegex, $options: 'i' } },
+      { customerCode: { $regex: rawRegex, $options: 'i' } },
+      { name: { $regex: rawRegex, $options: 'i' } },
+      { customerName: { $regex: rawRegex, $options: 'i' } },
+      { phone: { $regex: rawRegex, $options: 'i' } },
+      { address: { $regex: rawRegex, $options: 'i' } },
+      { area: { $regex: rawRegex, $options: 'i' } },
+      { route: { $regex: rawRegex, $options: 'i' } },
+      { staffCode: { $regex: rawRegex, $options: 'i' } },
+      { staffName: { $regex: rawRegex, $options: 'i' } },
+      { searchText: { $regex: normalizedRegex, $options: 'i' } }
     ];
   }
   return filter;

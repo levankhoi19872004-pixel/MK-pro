@@ -1,16 +1,20 @@
+let customerListRequestSeq = 0;
 async function loadCustomers(options = {}){
+  const requestSeq = ++customerListRequestSeq;
   const q=customerSearchInput?customerSearchInput.value.trim():'';
   const resetPage=options.resetPage===true;
   if(resetPage) customerPage=1;
   if(customerPage<1) customerPage=1;
   const limit=Number(customerPageSize||50);
   try{
+    if(customerTable) customerTable.innerHTML='<tr><td colspan="8">Đang tải khách hàng...</td></tr>';
     // Phase 3.6 fixed: danh sách chính dùng server-side pagination thật.
     // limit chỉ là số dòng hiển thị/trang, không giới hạn nguồn dữ liệu.
     const result = window.CatalogCache
       ? await window.CatalogCache.listCustomers({page:customerPage,limit,q})
       : await fetch(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return {rows:json.customers||[],meta:json.meta||null}});
-    customersCache = result.rows || [];
+    if(requestSeq !== customerListRequestSeq) return;
+    customersCache = Array.isArray(result.rows) ? result.rows : [];
     customerTotal = Number(result.meta?.total ?? customersCache.length);
     customerTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(customerTotal/limit) ?? 1));
     if(customerPage>customerTotalPages && customerTotalPages>0){
@@ -53,7 +57,8 @@ function renderCustomerTable(){
   if(!customerTable)return;
   if(!customersCache.length){
     selectedCustomerIds.clear();
-    customerTable.innerHTML='<tr><td colspan="8">Chưa có khách hàng</td></tr>';
+    const q=customerSearchInput?customerSearchInput.value.trim():'';
+    customerTable.innerHTML=`<tr><td colspan="8">${q?'Không tìm thấy khách hàng phù hợp':'Chưa có khách hàng'}</td></tr>`;
     updateCustomerBulkUI();
     return;
   }

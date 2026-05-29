@@ -1,4 +1,5 @@
 // Products
+let productListRequestSeq = 0;
 function getFormPayload(){
   const formData=new FormData(productForm);const payload=Object.fromEntries(formData.entries());
   payload.costPrice=Number(payload.costPrice||0);payload.salePrice=Number(payload.salePrice||0);
@@ -20,18 +21,21 @@ function fillForm(p){
   showMessage(formMessage,'Đang sửa sản phẩm. Bấm "Nhập mới" nếu muốn thêm sản phẩm khác.');window.scrollTo({top:0,behavior:'smooth'});
 }
 async function loadProducts(options = {}){
+  const requestSeq = ++productListRequestSeq;
   const q=searchInput?searchInput.value.trim():'';
   const resetPage=options.resetPage===true;
   if(resetPage) productPage=1;
   if(productPage<1) productPage=1;
   const limit=Number(productPageSize||50);
   try{
+    if(productTable) productTable.innerHTML='<tr><td colspan="3" class="empty-cell">Đang tải sản phẩm...</td></tr>';
     // Phase 3.6 fixed: danh sách chính dùng server-side pagination thật.
     // limit chỉ là số dòng hiển thị/trang, không giới hạn nguồn dữ liệu.
     const result = window.CatalogCache
       ? await window.CatalogCache.listProducts({page:productPage,limit,q})
       : await fetch(`/api/products?page=${productPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');return {rows:json.products||[],meta:json.meta||null}});
-    productsCache = result.rows || [];
+    if(requestSeq !== productListRequestSeq) return;
+    productsCache = Array.isArray(result.rows) ? result.rows : [];
     if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
     productTotal = Number(result.meta?.total ?? productsCache.length);
     productTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(productTotal/limit) ?? 1));

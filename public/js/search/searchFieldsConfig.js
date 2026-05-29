@@ -6,30 +6,8 @@
   'use strict';
 
   window.SEARCH_FIELD_CONFIGS = [
-    {
-      key: 'productListSearch',
-      type: 'product',
-      inputId: 'searchInput',
-      source: 'products',
-      searchKeys: ['code','name','barcode','category','packing','unit','baseUnit'],
-      onlyActive: true,
-      limit: 10,
-      fill: [{ targetId: 'searchInput', value: 'code' }],
-      afterSelect: 'reloadProducts',
-      emptyText: 'Không tìm thấy sản phẩm phù hợp'
-    },
-    {
-      key: 'customerListSearch',
-      type: 'customer',
-      inputId: 'customerSearchInput',
-      source: 'customers',
-      searchKeys: ['code','name','phone','address','area','route','staffName'],
-      onlyActive: true,
-      limit: 10,
-      fill: [{ targetId: 'customerSearchInput', value: 'code' }],
-      afterSelect: 'reloadCustomers',
-      emptyText: 'Không tìm thấy khách hàng'
-    },
+    // Danh sách sản phẩm/khách hàng KHÔNG dùng popup autocomplete.
+    // Hai ô này lọc trực tiếp bảng qua /api/products và /api/customers.
     {
       key: 'importProduct',
       type: 'product',
