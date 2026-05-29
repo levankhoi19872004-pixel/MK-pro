@@ -94,14 +94,17 @@
     const cache=catalogCache();
     if(cache && typeof cache.searchProducts === 'function'){
       const rows = await cache.searchProducts(q, { limit, mode: options.mode || 'sales' });
-      return sync(rows || []).filter(p => p.isActive !== false).slice(0, limit);
+      sync(rows || []);
+      return (rows || []).filter(p => p.isActive !== false).slice(0, limit);
     }
     // Fallback nếu CatalogCache chưa nhúng.
     if(q || !getCatalog().length){
       const res = await fetch(`/api/catalog/products/search?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1&_t=${Date.now()}`);
       const json = await res.json();
       if(!json.ok) throw new Error(json.message || 'Không tìm được sản phẩm');
-      return sync(json.products || json.items || []).slice(0, limit);
+      const rows = json.products || json.items || [];
+      sync(rows);
+      return rows.slice(0, limit);
     }
     return searchLocal(q, { limit });
   }

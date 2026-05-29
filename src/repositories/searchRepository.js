@@ -62,6 +62,106 @@ function customerSearchText(row = {}) {
   ].filter(Boolean).join(' '));
 }
 
+
+function codeCandidates(row = {}) {
+  return [row.code, row.sku, row.productCode, row.id, row._id]
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+}
+
+function customerCodeCandidates(row = {}) {
+  return [row.code, row.customerCode, row.id, row._id]
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+}
+
+function barcodeCandidates(row = {}) {
+  return [row.barcode]
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+}
+
+function bestFieldScore(values = [], q = '', scores = {}) {
+  if (!q) return 0;
+  let best = -1;
+  for (const value of values || []) {
+    const text = normalizeText(value);
+    if (!text) continue;
+    if (text === q) best = Math.max(best, scores.exact ?? 1000);
+    else if (text.startsWith(q)) best = Math.max(best, scores.startsWith ?? 800);
+    else if (text.includes(q)) best = Math.max(best, scores.includes ?? 500);
+  }
+  return best;
+}
+
+function productSearchScore(row = {}, nq = '') {
+  if (!nq) return 0;
+
+  const codeScore = bestFieldScore(codeCandidates(row), nq, {
+    exact: 10000,
+    startsWith: 9000,
+    includes: 7000
+  });
+  const barcodeScore = bestFieldScore(barcodeCandidates(row), nq, {
+    exact: 9500,
+    startsWith: 8500,
+    includes: 6500
+  });
+  const nameScore = bestFieldScore([row.name, row.productName], nq, {
+    exact: 6000,
+    startsWith: 5000,
+    includes: 3000
+  });
+  const metaScore = bestFieldScore([row.category, row.brand, row.packing, row.unit, row.baseUnit, row.searchText], nq, {
+    exact: 2000,
+    startsWith: 1500,
+    includes: 1000
+  });
+
+  return Math.max(codeScore, barcodeScore, nameScore, metaScore);
+}
+
+function customerSearchScore(row = {}, nq = '') {
+  if (!nq) return 0;
+
+  const codeScore = bestFieldScore(customerCodeCandidates(row), nq, {
+    exact: 10000,
+    startsWith: 9000,
+    includes: 7000
+  });
+  const phoneScore = bestFieldScore([row.phone], nq, {
+    exact: 9500,
+    startsWith: 8500,
+    includes: 6500
+  });
+  const nameScore = bestFieldScore([row.name, row.customerName], nq, {
+    exact: 6000,
+    startsWith: 5000,
+    includes: 3000
+  });
+  const metaScore = bestFieldScore([row.address, row.area, row.route, row.staffCode, row.staffName, row.searchText], nq, {
+    exact: 2000,
+    startsWith: 1500,
+    includes: 1000
+  });
+
+  return Math.max(codeScore, phoneScore, nameScore, metaScore);
+}
+
+function sortScoredRows(rows = [], scoreFn, nq = '', limit = SEARCH_RETURN_MAX, codeFields = []) {
+  return (rows || [])
+    .map((row) => ({ row, score: scoreFn(row, nq) }))
+    .filter((item) => item.score >= 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const aCode = codeFields.map((field) => String(a.row?.[field] || '').trim()).find(Boolean) || '';
+      const bCode = codeFields.map((field) => String(b.row?.[field] || '').trim()).find(Boolean) || '';
+      return aCode.localeCompare(bCode, 'vi', { numeric: true });
+    })
+    .map((item) => item.row)
+    .slice(0, limit);
+}
+
 async function findProducts(query = {}) {
   const q = String(query.q || query.search || query.keyword || '').trim();
   const nq = normalizeText(q);
@@ -77,30 +177,21 @@ async function findProducts(query = {}) {
       .lean();
   }
 
-  // Phase 3.6 fixed: trả tối đa 50 kết quả nhưng nguồn tìm kiếm là TOÀN BỘ Mongo,
-  // không phải 50/100 sản phẩm đầu tiên. Ưu tiên query bằng index/regex trước.
-  const mongoFilter = { ...baseFilter };
-  const ors = regexOr(q, ['code', 'sku', 'productCode', 'name', 'productName', 'barcode', 'category', 'brand', 'packing', 'unit', 'baseUnit', 'searchText']);
-  if (nq && nq !== q.toLowerCase()) ors.push({ searchText: { $regex: escapeRegex(nq), $options: 'i' } });
-  if (ors.length) mongoFilter.$or = ors;
-
-  const directRows = await Product.find(mongoFilter)
-    .select(select)
-    .sort({ code: 1 })
-    .limit(limit)
-    .lean();
-
-  if (directRows.length >= limit) return directRows;
-
-  // Fallback bắt buộc cho dữ liệu cũ chưa có searchText hoặc tên có dấu.
-  // Không giới hạn nguồn 100 dòng đầu; quét toàn bộ catalog active trên server rồi chỉ trả limit kết quả.
+  // Phase 3.6 search ranking fix:
+  // - Không fallback về danh sách đầu tiên khi không khớp.
+  // - Server tìm trên toàn bộ catalog active, rồi xếp hạng theo:
+  //   mã chính xác → mã bắt đầu bằng → mã chứa → barcode → tên → metadata.
+  // - Vì products chỉ là danh mục và số SKU hiện tại không quá lớn, quét catalog active
+  //   giúp tìm không dấu ổn định cho cả dữ liệu cũ chưa có searchText.
   const scanned = await Product.find(baseFilter)
     .select(select)
     .sort({ code: 1 })
     .lean();
 
-  const matched = scanned.filter((row) => productSearchText(row).includes(nq)).slice(0, limit);
-  return uniqueBy([...directRows, ...matched], ['code', 'productCode', 'sku']).slice(0, limit);
+  return uniqueBy(
+    sortScoredRows(scanned, productSearchScore, nq, limit, ['code', 'productCode', 'sku']),
+    ['code', 'productCode', 'sku']
+  ).slice(0, limit);
 }
 
 async function findInventoriesForProducts(products = []) {
@@ -136,26 +227,17 @@ async function findCustomers(query = {}) {
       .lean();
   }
 
-  const mongoFilter = { ...baseFilter };
-  const ors = regexOr(q, ['code', 'customerCode', 'name', 'customerName', 'phone', 'address', 'area', 'route', 'staffCode', 'staffName', 'searchText']);
-  if (nq && nq !== q.toLowerCase()) ors.push({ searchText: { $regex: escapeRegex(nq), $options: 'i' } });
-  if (ors.length) mongoFilter.$or = ors;
-
-  const directRows = await Customer.find(mongoFilter)
-    .select(select)
-    .sort({ code: 1 })
-    .limit(limit)
-    .lean();
-
-  if (directRows.length >= limit) return directRows;
-
+  // Tương tự sản phẩm: không fallback về 50 khách đầu tiên khi không khớp.
+  // Ưu tiên: mã KH chính xác → bắt đầu bằng → chứa → SĐT → tên → địa chỉ/khu vực.
   const scanned = await Customer.find(baseFilter)
     .select(select)
     .sort({ code: 1 })
     .lean();
 
-  const matched = scanned.filter((row) => customerSearchText(row).includes(nq)).slice(0, limit);
-  return uniqueBy([...directRows, ...matched], ['code', 'customerCode']).slice(0, limit);
+  return uniqueBy(
+    sortScoredRows(scanned, customerSearchScore, nq, limit, ['code', 'customerCode']),
+    ['code', 'customerCode']
+  ).slice(0, limit);
 }
 
 async function findMonthOrdersForCustomers(customerCodes = [], monthPrefix = '') {
