@@ -108,6 +108,25 @@ async function ensureMongoIndexes({ logger = console } = {}) {
     if (!Model || !Model.collection) continue;
     for (const [fields, options] of definitions) {
       try {
+        const existingIndexes = await Model.collection.indexes();
+        const hasEquivalentIndex = existingIndexes.some((idx) => {
+          try {
+            return JSON.stringify(idx.key) === JSON.stringify(fields);
+          } catch {
+            return false;
+          }
+        });
+
+        if (hasEquivalentIndex) {
+          results.push({
+            collectionKey,
+            collection: Model.collection.name,
+            indexName: options?.name,
+            skipped: true
+          });
+          continue;
+        }
+
         const indexName = await Model.collection.createIndex(fields, { background: true, ...options });
         results.push({ collectionKey, collection: Model.collection.name, indexName });
       } catch (err) {
