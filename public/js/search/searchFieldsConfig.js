@@ -35,10 +35,10 @@
       type: 'product',
       inputId: 'importProductSearch',
       boxId: 'importProductSuggestions',
-      source: 'products',
-      searchKeys: ['code','name','barcode','category','packing','unit','baseUnit'],
+      source: 'unifiedProducts',
+      searchKeys: ['code','name','barcode','category','brand','sku','productCode','packing','unit','baseUnit'],
       onlyActive: true,
-      limit: 20,
+      limit: 50,
       fill: [
         { targetId: 'importProductSelect', value: 'idOrCode' },
         { targetId: 'importProductSearch', value: 'label' }
@@ -83,10 +83,10 @@
       type: 'product',
       inputId: 'salesProductSearch',
       boxId: 'salesProductSuggestions',
-      source: 'products',
-      searchKeys: ['code','name','barcode','category','packing','unit','baseUnit'],
+      source: 'unifiedProducts',
+      searchKeys: ['code','name','barcode','category','brand','sku','productCode','packing','unit','baseUnit'],
       onlyActive: true,
-      limit: 100,
+      limit: 50,
       fill: [
         { targetId: 'salesProductSelect', value: 'idOrCode' },
         { targetId: 'salesProductSearch', value: 'label' }

@@ -1,12 +1,18 @@
 let editingSalesOrderId = '';
 
 function getSalesProductCatalog(){
+  if(window.UnifiedProductSearch) return window.UnifiedProductSearch.getCatalog();
   const catalog = Array.isArray(salesProductsCache) && salesProductsCache.length ? salesProductsCache : productsCache;
   return Array.isArray(catalog) ? catalog : [];
 }
 async function loadSalesProductCatalog(){
   try{
-    const res = await fetch(`/api/products?page=1&limit=5000&_t=${Date.now()}`);
+    if(window.UnifiedProductSearch){
+      salesProductsCache = await window.UnifiedProductSearch.preload({force:false});
+      renderSalesProductSelect();
+      return salesProductsCache;
+    }
+    const res = await fetch(`/api/products?page=1&limit=5000&activeOnly=1&_t=${Date.now()}`);
     const json = await res.json();
     if(!json.ok) throw new Error(json.message || 'Không tải được danh mục sản phẩm bán hàng');
     salesProductsCache = (json.products || []).map(p => ({...p}));
@@ -65,10 +71,11 @@ function renderSalesStaffSelect(){
 }
 function getSalesProductMatches(){
   const q=salesProductSearch?salesProductSearch.value.trim():'';
+  if(window.UnifiedProductSearch) return window.UnifiedProductSearch.search(q,{limit:50,mode:'sales'});
   return getSalesProductCatalog()
     .filter(p=>p.isActive!==false)
     .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.brand,p.sku,p.productCode,p.packing,p.unit,p.baseUnit]))
-    .slice(0,100);
+    .slice(0,50);
 }
 function selectSalesProduct(p){
   if(!p)return;

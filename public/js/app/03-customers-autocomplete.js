@@ -182,18 +182,25 @@ function getSuggestElement(rule, propId='targetId', propSelector='targetSelector
   return null;
 }
 function getConfiguredSource(config){
+  const input=getSuggestElement(config,'inputId','inputSelector');
+  const q=input?input.value.trim():'';
+
+  // Sản phẩm dùng chung một engine cache cho Nhập kho + Bán hàng.
+  // Không gọi API theo từng phím gõ, không lọc mất sản phẩm hết tồn ở bước gợi ý.
+  if(config.type==='product' && window.UnifiedProductSearch){
+    const mode=config.key==='importProduct'?'import':'sales';
+    return window.UnifiedProductSearch.search(q,{limit:Number(config.limit||50),mode});
+  }
+
   const map={products:productsCache,customers:customersCache,users:usersCache,debts:debtsCache};
   let rows=Array.isArray(map[config.source])?map[config.source]:[];
-  if(config.key==='salesProduct' && typeof getSalesProductCatalog==='function') rows=getSalesProductCatalog();
   if(config.onlyActive) rows=rows.filter(item=>item.isActive!==false);
   if(config.roles && config.roles.length){
     const roles=config.roles.map(r=>String(r).toLowerCase());
     rows=rows.filter(item=>roles.includes(String(item.role||'').toLowerCase()));
   }
-  if(config.onlyInStock && config.key!=='salesProduct') rows=rows.filter(item=>productHasStock(item));
+  if(config.onlyInStock) rows=rows.filter(item=>productHasStock(item));
   if(config.source==='debts') rows=rows.filter(item=>Number(item.debt||0)>0);
-  const input=getSuggestElement(config,'inputId','inputSelector');
-  const q=input?input.value.trim():'';
   rows=rows.filter(item=>matchSearch(q,(config.searchKeys||[]).map(key=>item[key])));
   return rows.slice(0, Number(config.limit||10));
 }
@@ -208,6 +215,7 @@ function getSuggestValue(item, valueType, config){
 }
 function getConfiguredLabel(item, config){
   if(!item) return '';
+  if(config.type==='product' && window.UnifiedProductSearch) return window.UnifiedProductSearch.label(item, config.key==='importProduct'?'import':'sales');
   if(config.type==='product') return productSuggestionLabel(item);
   if(config.type==='customer') return customerSuggestionLabel(item);
   if(config.type==='staff') return staffSuggestionLabel(item);
@@ -260,6 +268,14 @@ function initConfiguredAutocomplete(){
       select:item=>applyConfiguredSelect(config,item),
       emptyText:config.emptyText||'Không tìm thấy dữ liệu'
     });
+    if(config.type==='product' && window.UnifiedProductSearch){
+      input.addEventListener('focus', async()=>{
+        try{
+          await window.UnifiedProductSearch.preload({force:false});
+          input.dispatchEvent(new Event('input',{bubbles:true}));
+        }catch(err){console.warn('Không preload được sản phẩm:',err.message||err)}
+      });
+    }
   });
 }
 

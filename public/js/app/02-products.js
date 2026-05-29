@@ -24,7 +24,9 @@ async function loadProducts(){
   const url=`/api/products?page=1&limit=100${q?`&q=${encodeURIComponent(q)}`:''}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');
-    productsCache=json.products||[];const total=json.meta?.total||productsCache.length;if(productCount)productCount.textContent=`${productsCache.length}/${total} sản phẩm`;
+    productsCache=json.products||[];
+    if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
+    const total=json.meta?.total||productsCache.length;if(productCount)productCount.textContent=`${productsCache.length}/${total} sản phẩm`;
     renderProductTable();renderImportProductSelect();renderSalesProductSelect();
   }catch(err){if(productCount)productCount.textContent='Lỗi tải dữ liệu';if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${err.message}</td></tr>`}
 }

@@ -1,8 +1,10 @@
 function getImportProductMatches(){
   const q=importProductSearch?importProductSearch.value.trim():'';
+  if(window.UnifiedProductSearch) return window.UnifiedProductSearch.search(q,{limit:50,mode:'import'});
   return productsCache
     .filter(p=>p.isActive!==false)
-    .filter(p=>matchSearch(q,[p.code,p.name,p.barcode,p.category,p.packing,p.unit,p.baseUnit]));
+    .filter(p=>matchSearch(q,[p.code,p.name,p.barcode,p.category,p.brand,p.sku,p.productCode,p.packing,p.unit,p.baseUnit]))
+    .slice(0,50);
 }
 function selectImportProduct(p){
   if(!p)return;
@@ -17,13 +19,10 @@ function selectImportProduct(p){
 }
 function renderImportProductSelect(){
   if(!importProductSearch)return;
-  if(!productsCache.some(p=>p.isActive!==false)){
-    importProductSearch.placeholder='Chưa có sản phẩm mở bán';
-    importProductSearch.disabled=true;
-    return;
-  }
+  const catalog = window.UnifiedProductSearch ? window.UnifiedProductSearch.getCatalog() : productsCache;
+  const has=(catalog||[]).some(p=>p.isActive!==false);
   importProductSearch.disabled=false;
-  importProductSearch.placeholder='Gõ mã/tên/barcode sản phẩm...';
+  importProductSearch.placeholder=has?'Gõ mã/tên/barcode sản phẩm...':'Đang tải sản phẩm, bấm vào để tải lại...';
 }
 function syncImportCostPrice(){
   const p=findProductByKey(importProductSelect.value);

@@ -12,10 +12,11 @@ function getProductKey(p){return String(p?.code||p?.id||'')}
 function findProductByKey(key){
   const value=String(key||'');
   const pools=[];
+  if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.getCatalog==='function') pools.push(window.UnifiedProductSearch.getCatalog());
   if(Array.isArray(salesProductsCache))pools.push(salesProductsCache);
   if(Array.isArray(productsCache))pools.push(productsCache);
   for(const pool of pools){
-    const found=pool.find(x=>String(x.code||'')===value||String(x.id||'')===value||String(x._id||'')===value||String(x.productCode||'')===value);
+    const found=pool.find(x=>String(x.code||'')===value||String(x.id||'')===value||String(x._id||'')===value||String(x.productCode||'')===value||String(x.sku||'')===value);
     if(found)return found;
   }
   return null;

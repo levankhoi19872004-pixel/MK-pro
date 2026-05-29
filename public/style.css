@@ -3274,3 +3274,17 @@ button.danger:hover{background:#fecaca}
   line-height:1.35!important;
   min-height:38px;
 }
+
+/* V45 unified product autocomplete: dùng chung cho Nhập kho + Bán hàng */
+#importProductSuggestions.suggestions,
+#salesProductSuggestions.suggestions{
+  max-height:360px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+#importProductSuggestions .suggestion-item,
+#salesProductSuggestions .suggestion-item{
+  white-space:normal!important;
+  line-height:1.35!important;
+  min-height:38px;
+}
