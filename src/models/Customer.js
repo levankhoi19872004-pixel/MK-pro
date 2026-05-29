@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const customerSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, trim: true },
+  code: { type: String, default: '', trim: true },
   name: { type: String, required: true, trim: true },
   phone: { type: String, default: '', trim: true },
   address: { type: String, default: '', trim: true },
@@ -12,6 +12,6 @@ const customerSchema = new mongoose.Schema({
   openingDebt: { type: Number, default: 0 },
   debtLimit: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true }
-}, { timestamps: true });
+}, { timestamps: true, strict: false, versionKey: false });
 
 module.exports = mongoose.model('Customer', customerSchema);

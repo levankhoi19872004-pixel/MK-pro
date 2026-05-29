@@ -1,0 +1,23 @@
+module.exports = {
+  products: require('./Product'),
+  customers: require('./Customer'),
+  staffs: require('./Staff'),
+  warehouses: require('./Warehouse'),
+  suppliers: require('./Supplier'),
+  stock: require('./Inventory'),
+  importOrders: require('./ImportOrder'),
+  salesOrders: require('./SalesOrder'),
+  masterOrders: require('./MasterOrder'),
+  payments: require('./Payment'),
+  receipts: require('./Receipt'),
+  returnOrders: require('./ReturnOrder'),
+  cashbooks: require('./Cashbook'),
+  bankbooks: require('./Bankbook'),
+  cashbook: require('./Cashbook'),
+  importLogs: require('./ImportLog'),
+  mobileLogs: require('./MobileLog'),
+  auditLogs: require('./AuditLog'),
+  settings: require('./Setting'),
+  promotions: require('./Promotion'),
+  importTemplates: require('./ImportTemplate')
+};

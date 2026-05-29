@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, trim: true },
-  name: { type: String, required: true, trim: true },
+  code: { type: String, default: '', trim: true },
+  name: { type: String, default: '', trim: true },
   unit: { type: String, default: 'Thùng', trim: true },
   baseUnit: { type: String, default: '', trim: true },
   conversionRate: { type: Number, default: 1 },
@@ -23,6 +23,6 @@ const productSchema = new mongoose.Schema({
   openingStock: { type: Number, default: 0 },
   availableStock: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true }
-}, { timestamps: true });
+}, { timestamps: true, strict: false, versionKey: false });
 
 module.exports = mongoose.model('Product', productSchema);
