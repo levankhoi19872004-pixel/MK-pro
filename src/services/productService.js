@@ -3,6 +3,17 @@
 const productRepository = require('../repositories/productRepository');
 const searchService = require('./searchService');
 const Inventory = require('../models/Inventory');
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
 
 function pickProductPayload(body = {}) {
@@ -112,6 +123,7 @@ async function searchProducts(query) {
 
 async function createProduct(body) {
   const payload = pickProductPayload(body);
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
@@ -124,10 +136,12 @@ async function updateProduct(id, body) {
   const current = await productRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy sản phẩm trong MongoDB', status: 404 };
   const payload = pickProductPayload(body);
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code, current._id)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
   if (payload.barcode && await productRepository.findDuplicateBarcode(payload.barcode, current._id)) return { error: 'Mã vạch đã tồn tại trong MongoDB', status: 409 };
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   Object.assign(current, payload);
   // Xóa các field tồn cũ nếu còn sót trên document vì products chỉ là danh mục.
   for (const field of ['openingStock', 'availableStock', 'stockQuantity', 'availableQty', 'stock', 'quantity', 'qty', 'tonKho', 'tonDau']) {

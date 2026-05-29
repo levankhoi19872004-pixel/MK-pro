@@ -2,6 +2,17 @@
 
 const customerRepository = require('../repositories/customerRepository');
 const searchService = require('./searchService');
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
 const { toNumber } = require('../utils/common.util');
 
 function pickCustomerPayload(body = {}) {
@@ -55,6 +66,7 @@ async function searchCustomers(query) {
 
 async function createCustomer(body) {
   const payload = pickCustomerPayload(body);
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.phone, payload.address, payload.area, payload.route, payload.staffCode, payload.staffName].filter(Boolean).join(' '));
   const error = validateCustomer(payload);
   if (error) return { error, status: 400 };
   if (await customerRepository.findDuplicateCode(payload.code)) return { error: 'Mã khách hàng đã tồn tại trong MongoDB', status: 409 };
@@ -66,9 +78,11 @@ async function updateCustomer(id, body) {
   const current = await customerRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy khách hàng trong MongoDB', status: 404 };
   const payload = pickCustomerPayload(body);
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.phone, payload.address, payload.area, payload.route, payload.staffCode, payload.staffName].filter(Boolean).join(' '));
   const error = validateCustomer(payload);
   if (error) return { error, status: 400 };
   if (await customerRepository.findDuplicateCode(payload.code, current._id)) return { error: 'Mã khách hàng đã tồn tại trong MongoDB', status: 409 };
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.phone, payload.address, payload.area, payload.route, payload.staffCode, payload.staffName].filter(Boolean).join(' '));
   Object.assign(current, payload);
   await customerRepository.save(current);
   return { customer: toClient(current) };

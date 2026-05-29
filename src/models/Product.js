@@ -1,5 +1,16 @@
 const mongoose = require('mongoose');
 
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+
 const productSchema = new mongoose.Schema({
   code: { type: String, default: '', trim: true },
   name: { type: String, default: '', trim: true },
@@ -22,7 +33,8 @@ const productSchema = new mongoose.Schema({
   // minStock/maxStock chỉ là ngưỡng cảnh báo, không phải số tồn.
   minStock: { type: Number, default: 0 },
   maxStock: { type: Number, default: 0 },
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  searchText: { type: String, default: '', trim: true }
 }, { timestamps: true, strict: false, versionKey: false });
 
 // Phase 2.6: index cho danh sách, tìm kiếm và autocomplete Mongo.
@@ -31,5 +43,12 @@ productSchema.index({ name: 1 });
 productSchema.index({ barcode: 1 }, { sparse: true });
 productSchema.index({ category: 1 });
 productSchema.index({ isActive: 1, code: 1 });
+productSchema.index({ searchText: 1 });
+
+
+productSchema.pre('validate', function buildSearchText(next) {
+  this.searchText = normalizeSearchText([this.code, this.sku, this.productCode, this.name, this.productName, this.barcode, this.category, this.brand, this.packing, this.unit, this.baseUnit].filter(Boolean).join(' '));
+  next();
+});
 
 module.exports = mongoose.model('Product', productSchema);
