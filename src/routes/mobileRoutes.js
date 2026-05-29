@@ -25,6 +25,7 @@ const Bankbook = require('../models/Bankbook');
 const Inventory = require('../models/Inventory');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
+const searchService = require('../services/searchService');
 
 const router = express.Router();
 
@@ -384,52 +385,29 @@ router.get('/roles', requireMobileLogin, (req, res) => ok(res, { roles: ROLE_LAB
 
 router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
-    const rows = await Customer.find(buildRegexFilter(req.query.q, ['code', 'name', 'phone', 'address', 'area', 'route', 'staffName']))
-      .sort({ code: 1 }).limit(100).lean();
-
-    const now = new Date();
-    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const customerCodes = rows.map((c) => String(c.code || '').trim()).filter(Boolean);
-    const orderRows = customerCodes.length ? await SalesOrder.find({
-      customerCode: { $in: customerCodes },
-      status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
-    }).lean() : [];
-    const monthRevenueByCustomer = new Map();
-    for (const order of orderRows) {
-      const orderDate = String(order.date || order.orderDate || order.createdAt || '').slice(0, 7);
-      if (orderDate !== monthPrefix) continue;
-      const key = String(order.customerCode || '').trim();
-      monthRevenueByCustomer.set(key, toNumber(monthRevenueByCustomer.get(key)) + toNumber(order.totalAmount));
-    }
-
-    const items = rows.map(stripMongoFields).map((customer) => ({
-      ...customer,
-      debtAmount: toNumber(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.balance ?? 0),
-      currentDebt: toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.debt ?? customer.balance ?? 0),
-      monthRevenue: toNumber(monthRevenueByCustomer.get(String(customer.code || '').trim()))
-    }));
-    return ok(res, { source: 'mobile-mongo-route', items });
+    const items = await searchService.searchCustomers({
+      ...req.query,
+      includeMetrics: '1',
+      mobile: '1',
+      limit: req.query.limit || 100
+    });
+    return ok(res, { source: 'unified-search-mobile', items });
   } catch (err) {
-    return fail(res, 500, 'Không tải được khách hàng mobile');
+    return fail(res, 500, err.message || 'Không tải được khách hàng mobile');
   }
 });
 
 router.get('/products', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
-    const q = normalizeText(req.query.q);
-    // Lấy rộng rồi lọc bằng normalizeText để tìm được cả khi nhân viên gõ không dấu.
-    // Tồn mở bán được tính từ inventories trước, fallback về Product.availableStock khi chưa có bảng tồn.
-    const rows = await Product.find({ isActive: { $ne: false } }).sort({ code: 1 }).limit(q ? 1200 : 300).lean();
-    let items = await Promise.all(rows.map(buildMobileProductRow));
-    if (q) {
-      items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
-        .some((value) => normalizeText(value).includes(q)));
-    }
+    const items = await searchService.searchProducts({
+      ...req.query,
+      includeStock: '1',
+      mobile: '1',
+      limit: req.query.limit || (req.query.q ? 120 : 300)
+    });
     const hasPositiveStock = items.some((p) => toNumber(p.availableQty) > 0);
-    // Chuẩn ERP/DMS: gợi ý hiển thị tất cả sản phẩm active, tồn chỉ dùng để cảnh báo/chặn khi thêm dòng.
-    items = items.slice(0, 120);
     return ok(res, {
-      source: 'mobile-mongo-route',
+      source: 'unified-search-mobile',
       items,
       inventoryWarning: hasPositiveStock ? '' : 'Chưa có tồn mở bán dương. Cần chạy rebuild tồn kho từ chứng từ để hiển thị tồn chính xác.'
     });
@@ -440,17 +418,15 @@ router.get('/products', requireMobileLogin, requireMobileRole(['accountant', 'sa
 
 router.get('/stock', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
-    const q = normalizeText(req.query.q);
-    const rows = await Product.find({ isActive: { $ne: false } }).sort({ code: 1 }).limit(q ? 1200 : 300).lean();
-    let items = await Promise.all(rows.map(buildMobileProductRow));
-    if (q) {
-      items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
-        .some((value) => normalizeText(value).includes(q)));
-    }
+    const items = await searchService.searchProducts({
+      ...req.query,
+      includeStock: '1',
+      mobile: '1',
+      limit: req.query.limit || (req.query.q ? 150 : 300)
+    });
     const hasPositiveStock = items.some((p) => toNumber(p.availableQty) > 0);
-    items = items.slice(0, 150);
     return ok(res, {
-      source: 'mobile-mongo-route',
+      source: 'unified-search-mobile',
       items,
       inventoryWarning: hasPositiveStock ? '' : 'Chưa có tồn mở bán dương. Cần chạy rebuild tồn kho từ chứng từ để hiển thị tồn chính xác.'
     });

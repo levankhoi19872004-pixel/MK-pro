@@ -118,18 +118,21 @@ function createMobileService(ctx) {
 
   async function products({ query = {} }) {
     const q = normalizeText(query.q);
+    const requestedLimit = Math.min(Math.max(toNumber(query.limit || (q ? 1000 : 5000)), 1), 10000);
     const filter = { isActive: { $ne: false } };
 
-    // Không dùng regex trực tiếp với chuỗi đã normalize vì tên tiếng Việt có dấu
-    // như "Dầu gội" sẽ không khớp với từ khóa "dau". Lấy tập sản phẩm
-    // đủ rộng rồi lọc bằng normalizeText để hàm gợi ý trên app bán hàng chạy ổn định.
-    const rows = await Product.find(filter).sort({ code: 1 }).limit(q ? 1000 : 200).lean();
+    // App bán hàng cần tìm nhanh bằng cache phía trình duyệt.
+    // Vì vậy API này trả catalog sản phẩm active, KHÔNG lọc mất sản phẩm hết tồn.
+    // Tồn mở bán chỉ dùng để hiển thị và chỉ chặn khi thêm vào đơn.
+    const rows = await Product.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
     const data = await getPrimaryDataSnapshot();
     let items = rows.map(productMongoToClient).map((product) => {
       const availableQty = getProductAvailableQty(data, product);
       return {
         id: product.id,
         code: product.code,
+        sku: product.sku || product.code,
+        productCode: product.productCode || product.code,
         name: product.name,
         unit: product.unit,
         baseUnit: product.baseUnit || '',
@@ -142,7 +145,9 @@ function createMobileService(ctx) {
         salePrice: toNumber(product.salePrice || product.price || 0),
         availableQty,
         stockQuantity: availableQty,
-        stockDisplay: formatCaseLooseQty(availableQty, product.conversionRate || 1)
+        availableStock: availableQty,
+        stockDisplay: formatCaseLooseQty(availableQty, product.conversionRate || 1),
+        isOutOfStock: toNumber(availableQty) <= 0
       };
     });
 
@@ -157,11 +162,9 @@ function createMobileService(ctx) {
       ].some((value) => normalizeText(value).includes(q)));
     }
 
-    items = items
-      .filter((item) => toNumber(item.availableQty) > 0)
-      .slice(0, 30);
+    items = items.slice(0, q ? 80 : requestedLimit);
 
-    return { body: { ok: true, source: 'mongo-route', items } };
+    return { body: { ok: true, source: 'mongo-route', items, total: items.length, cachedCatalog: !q } };
   }
 
   async function stock({ query = {} }) {

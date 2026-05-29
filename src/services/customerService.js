@@ -1,6 +1,7 @@
 'use strict';
 
 const customerRepository = require('../repositories/customerRepository');
+const searchService = require('./searchService');
 const { toNumber } = require('../utils/common.util');
 
 function pickCustomerPayload(body = {}) {
@@ -49,8 +50,7 @@ async function listCustomers(query) {
 }
 
 async function searchCustomers(query) {
-  const customers = await customerRepository.search(query);
-  return customers.map(toClient);
+  return searchService.searchCustomers(query);
 }
 
 async function createCustomer(body) {

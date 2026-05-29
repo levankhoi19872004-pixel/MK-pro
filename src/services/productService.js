@@ -1,6 +1,7 @@
 'use strict';
 
 const productRepository = require('../repositories/productRepository');
+const searchService = require('./searchService');
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
 
 function pickProductPayload(body = {}) {
@@ -59,8 +60,7 @@ async function listProducts(query) {
 }
 
 async function searchProducts(query) {
-  const products = await productRepository.search(query);
-  return products.map(toClient);
+  return searchService.searchProducts(query);
 }
 
 async function createProduct(body) {

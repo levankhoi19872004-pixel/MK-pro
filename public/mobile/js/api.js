@@ -91,8 +91,13 @@ export const mobileApi = {
   getCustomers(q = '') {
     return apiRequest(`${MOBILE_ROUTES.customers}?q=${encodeURIComponent(q)}`);
   },
-  getProducts(q = '') {
-    return apiRequest(`${MOBILE_ROUTES.products}?q=${encodeURIComponent(q)}`);
+  getProducts(q = '', options = {}) {
+    const query = new URLSearchParams();
+    if (q) query.set('q', q);
+    if (options.limit) query.set('limit', String(options.limit));
+    if (options.all) query.set('all', '1');
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.products}${suffix}`);
   },
   getStock(q = '') {
     return apiRequest(`${MOBILE_ROUTES.stock}?q=${encodeURIComponent(q)}`);

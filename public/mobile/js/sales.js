@@ -13,6 +13,11 @@ let selectedProduct = null;
 let cart = [];
 let editingOrderId = '';
 let lastCustomers = [];
+let productCache = [];
+let productCacheLoadedAt = 0;
+let productCacheLoading = null;
+const PRODUCT_CACHE_TTL = 5 * 60 * 1000;
+const PRODUCT_RESULT_LIMIT = 50;
 
 const tabs = document.querySelectorAll('.tab-btn');
 const panels = document.querySelectorAll('.tab-panel');
@@ -64,6 +69,7 @@ document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderFo
 
 loadCustomers('');
 loadTodayOrders();
+preloadProducts(false);
 renderCart();
 
 async function loadCustomers(q = '') {
@@ -116,6 +122,118 @@ function selectCustomer(customer) {
   setTimeout(() => productSearch.focus(), 200);
 }
 
+
+function normalizeProductText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+function productSearchKey(product) {
+  return normalizeProductText([
+    product.code,
+    product.sku,
+    product.productCode,
+    product.name,
+    product.barcode,
+    product.category,
+    product.packing
+  ].filter(Boolean).join(' '));
+}
+
+function toMobileProduct(product = {}) {
+  const availableQty = Number(
+    product.availableQty ??
+    product.availableStock ??
+    product.stockQuantity ??
+    product.stock ??
+    0
+  );
+  return {
+    ...product,
+    id: product.id || product._id || product.code,
+    code: product.code || product.productCode || product.sku || '',
+    name: product.name || product.productName || '',
+    salePrice: Number(product.salePrice || product.price || 0),
+    availableQty,
+    stockQuantity: availableQty,
+    conversionRate: Number(product.conversionRate || product.unitsPerCase || 1),
+    stockDisplay: product.stockDisplay || availableQty.toLocaleString('vi-VN'),
+    _searchKey: productSearchKey(product)
+  };
+}
+
+async function preloadProducts(force = false) {
+  const now = Date.now();
+  if (!force && productCache.length && now - productCacheLoadedAt < PRODUCT_CACHE_TTL) return productCache;
+  if (productCacheLoading) return productCacheLoading;
+
+  productCacheLoading = mobileApi.getProducts('', { all: true, limit: 5000 })
+    .then((data) => {
+      const items = Array.isArray(data.items) ? data.items : [];
+      productCache = items
+        .map(toMobileProduct)
+        .filter((product) => product.code || product.name);
+      productCacheLoadedAt = Date.now();
+      return productCache;
+    })
+    .catch((err) => {
+      if (!productCache.length) throw err;
+      setMessage(message, `Không tải mới được sản phẩm, đang dùng cache cũ. ${err.message || ''}`, 'error');
+      return productCache;
+    })
+    .finally(() => {
+      productCacheLoading = null;
+    });
+
+  return productCacheLoading;
+}
+
+function filterProductsFromCache(keyword, showAllWhenEmpty = false) {
+  const q = normalizeProductText(keyword);
+  if (!q && !showAllWhenEmpty) return [];
+  const source = productCache || [];
+  const matched = q
+    ? source.filter((product) => product._searchKey.includes(q))
+    : source;
+  return matched.slice(0, PRODUCT_RESULT_LIMIT);
+}
+
+function renderProductSuggestionItems(items, keyword = '') {
+  if (!items.length) {
+    productSuggestions.classList.remove('has-many');
+    productSuggestions.innerHTML = `<div class="suggestion-empty">${keyword ? 'Không tìm thấy sản phẩm phù hợp' : 'Chưa có sản phẩm trong danh mục'}</div>`;
+    return;
+  }
+
+  renderSuggestions(
+    productSuggestions,
+    items,
+    (p) => {
+      const stock = Number(p.availableQty || 0);
+      return `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || stock.toLocaleString('vi-VN')} · Giá: ${money(p.salePrice || p.price || 0)}${stock <= 0 ? ' · Hết tồn' : ''}</span>`;
+    },
+    (p) => {
+      selectedProduct = {
+        ...p,
+        salePrice: Number(p.salePrice || p.price || 0),
+        availableQty: Number(p.availableQty || p.stockQuantity || 0),
+        conversionRate: Number(p.conversionRate || p.unitsPerCase || 1)
+      };
+      selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} | Giá: ${money(p.salePrice || p.price || 0)}`;
+      selectedProductBox.classList.remove('muted');
+      productSuggestions.innerHTML = '';
+      productSuggestions.classList.remove('has-many');
+      productSearch.value = p.name || p.code || '';
+      looseQtyInput.focus();
+    }
+  );
+}
+
 async function searchProducts(showAllWhenEmpty = false) {
   const q = productSearch.value.trim();
   selectedProduct = null;
@@ -129,37 +247,16 @@ async function searchProducts(showAllWhenEmpty = false) {
   }
 
   try {
-    productSuggestions.classList.remove('has-many');
-    productSuggestions.innerHTML = `<div class="suggestion-empty">${q ? 'Đang tìm sản phẩm...' : 'Đang tải danh sách sản phẩm còn bán...'}</div>`;
-    const data = await mobileApi.getProducts(q);
-    const items = Array.isArray(data.items) ? data.items : [];
-    if (data.inventoryWarning) setMessage(message, data.inventoryWarning, 'error');
-
-    if (!items.length) {
+    // Lần đầu chỉ tải catalog 1 lần. Các lần gõ tiếp theo lọc trực tiếp trên cache,
+    // không gọi API liên tục nên ô gợi ý phản hồi nhanh hơn nhiều.
+    if (!productCache.length) {
       productSuggestions.classList.remove('has-many');
-      productSuggestions.innerHTML = '<div class="suggestion-empty">Không tìm thấy sản phẩm phù hợp</div>';
-      return;
+      productSuggestions.innerHTML = `<div class="suggestion-empty">Đang tải catalog sản phẩm lần đầu...</div>`;
+      await preloadProducts(false);
     }
 
-    renderSuggestions(
-      productSuggestions,
-      items,
-      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} · Giá: ${money(p.salePrice || p.price || 0)}${Number(p.availableQty || p.stockQuantity || 0) <= 0 ? ' · Cần rebuild tồn' : ''}</span>`,
-      (p) => {
-        selectedProduct = {
-          ...p,
-          salePrice: Number(p.salePrice || p.price || 0),
-          availableQty: Number(p.availableQty || p.stockQuantity || 0),
-          conversionRate: Number(p.conversionRate || p.unitsPerCase || 1)
-        };
-        selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || p.stockQuantity || 0).toLocaleString('vi-VN')} | Giá: ${money(p.salePrice || p.price || 0)}`;
-        selectedProductBox.classList.remove('muted');
-        productSuggestions.innerHTML = '';
-        productSuggestions.classList.remove('has-many');
-        productSearch.value = p.name || p.code || '';
-        looseQtyInput.focus();
-      }
-    );
+    const items = filterProductsFromCache(q, showAllWhenEmpty);
+    renderProductSuggestionItems(items, q);
   } catch (err) {
     productSuggestions.classList.remove('has-many');
     productSuggestions.innerHTML = `<div class="suggestion-empty">${err.message || 'Không tải được sản phẩm'}</div>`;
