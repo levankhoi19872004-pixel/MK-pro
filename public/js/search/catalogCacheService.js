@@ -1,18 +1,21 @@
 /*
- * Phase 3.5 - Catalog Cache Service
- * Nạp catalog sản phẩm/khách hàng một lần, dùng chung cho bảng danh mục và autocomplete.
+ * Phase 3.6 - Catalog Lazy Search Service
+ * Không preload toàn bộ catalog. Gõ đến đâu gọi server tìm đến đó, trả tối đa 50 kết quả,
+ * cache theo từ khóa để lần gõ lại không gọi API nữa.
  */
 (function(){
   'use strict';
 
   const TTL = 5 * 60 * 1000;
+  const MAX_LIMIT = 50;
   const state = {
     products: [],
     customers: [],
     productLoadedAt: 0,
     customerLoadedAt: 0,
-    productPromise: null,
-    customerPromise: null
+    productSearchCache: new Map(),
+    customerSearchCache: new Map(),
+    pending: new Map()
   };
 
   function normalizeText(value){
@@ -22,6 +25,11 @@
       .replace(/[\u0300-\u036f]/g,'')
       .replace(/đ/g,'d')
       .trim();
+  }
+
+  function toNumber(value){
+    const n = Number(value || 0);
+    return Number.isFinite(n) ? n : 0;
   }
 
   function dedupe(rows, keys){
@@ -35,25 +43,17 @@
     return [...map.values()];
   }
 
-  function syncGlobals(type, rows){
-    try{
-      if(type === 'products'){
-        if(typeof productsCache !== 'undefined') productsCache = rows;
-        if(typeof salesProductsCache !== 'undefined') salesProductsCache = rows;
-        if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync(rows);
-      }
-      if(type === 'customers'){
-        if(typeof customersCache !== 'undefined') customersCache = rows;
-      }
-    }catch(err){
-      console.warn('CatalogCache syncGlobals:', err.message || err);
-    }
-  }
-
   function endpoint(type){
     const custom = window.CATALOG_CACHE_ENDPOINTS || {};
-    if(type === 'products') return custom.products || '/api/products?all=true';
-    if(type === 'customers') return custom.customers || '/api/customers?all=true';
+    if(type === 'products') return custom.productSearch || custom.productsSearch || '/api/catalog/products/search';
+    if(type === 'customers') return custom.customerSearch || custom.customersSearch || '/api/catalog/customers/search';
+    return '';
+  }
+
+  function listEndpoint(type){
+    const custom = window.CATALOG_CACHE_ENDPOINTS || {};
+    if(type === 'products') return custom.productsList || custom.products || '/api/products';
+    if(type === 'customers') return custom.customersList || custom.customers || '/api/customers';
     return '';
   }
 
@@ -63,91 +63,141 @@
   }
 
   async function fetchJson(url){
-    const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`, { headers: authHeaders() });
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(`${url}${sep}_t=${Date.now()}`, { headers: authHeaders() });
     const json = await res.json();
-    if(!json.ok) throw new Error(json.message || 'Không tải được catalog');
+    if(!json.ok) throw new Error(json.message || 'Không tải được dữ liệu');
     return json;
   }
 
-  async function preloadProducts(options = {}){
-    const force = options.force === true;
-    const maxAgeMs = Number(options.maxAgeMs || TTL);
-    if(!force && state.products.length && Date.now() - state.productLoadedAt < maxAgeMs) return state.products;
-    if(state.productPromise && !force) return state.productPromise;
+  function cacheKey(keyword, options = {}){
+    const q = normalizeText(keyword || '');
+    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || MAX_LIMIT)));
+    const extra = options.mobile ? 'mobile' : '';
+    return `${q}|${limit}|${extra}`;
+  }
 
-    state.productPromise = fetchJson(endpoint('products'))
-      .then(json => {
-        state.products = dedupe(json.products || json.items || [], ['code','productCode','sku','id']);
-        state.productLoadedAt = Date.now();
-        syncGlobals('products', state.products);
-        return state.products;
-      })
-      .finally(() => { state.productPromise = null; });
-    return state.productPromise;
+  function getCached(map, key){
+    const item = map.get(key);
+    if(!item) return null;
+    if(Date.now() - item.at > TTL){
+      map.delete(key);
+      return null;
+    }
+    return item.rows.slice();
+  }
+
+  function setCached(map, key, rows){
+    map.set(key, { at: Date.now(), rows: rows || [] });
+  }
+
+  function syncGlobals(type, rows){
+    try{
+      if(type === 'products'){
+        const merged = dedupe([...(state.products || []), ...(rows || [])], ['code','productCode','sku','id']);
+        state.products = merged;
+        if(typeof productsCache !== 'undefined') productsCache = merged;
+        if(typeof salesProductsCache !== 'undefined') salesProductsCache = merged;
+        if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync(rows || []);
+      }
+      if(type === 'customers'){
+        const merged = dedupe([...(state.customers || []), ...(rows || [])], ['code','customerCode','id']);
+        state.customers = merged;
+        if(typeof customersCache !== 'undefined') customersCache = merged;
+      }
+    }catch(err){
+      console.warn('CatalogLazyCache syncGlobals:', err.message || err);
+    }
+  }
+
+  async function searchProducts(keyword = '', options = {}){
+    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || MAX_LIMIT)));
+    const q = String(keyword || '').trim();
+    const key = cacheKey(q, { limit });
+    const cached = getCached(state.productSearchCache, key);
+    if(cached) return cached;
+    const pendingKey = `products:${key}`;
+    if(state.pending.has(pendingKey)) return state.pending.get(pendingKey);
+
+    const url = `${endpoint('products')}?q=${encodeURIComponent(q)}&limit=${limit}&includeStock=1&activeOnly=1`;
+    const promise = fetchJson(url).then(json => {
+      const rows = dedupe(json.products || json.items || [], ['code','productCode','sku','id']);
+      setCached(state.productSearchCache, key, rows);
+      syncGlobals('products', rows);
+      return rows;
+    }).finally(() => state.pending.delete(pendingKey));
+    state.pending.set(pendingKey, promise);
+    return promise;
+  }
+
+  async function searchCustomers(keyword = '', options = {}){
+    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || MAX_LIMIT)));
+    const q = String(keyword || '').trim();
+    const key = cacheKey(q, { limit, mobile: options.mobile });
+    const cached = getCached(state.customerSearchCache, key);
+    if(cached) return cached;
+    const pendingKey = `customers:${key}`;
+    if(state.pending.has(pendingKey)) return state.pending.get(pendingKey);
+
+    const mobile = options.mobile ? '&mobile=1&includeMetrics=1' : '';
+    const url = `${endpoint('customers')}?q=${encodeURIComponent(q)}&limit=${limit}&activeOnly=1${mobile}`;
+    const promise = fetchJson(url).then(json => {
+      const rows = dedupe(json.customers || json.items || [], ['code','customerCode','id']);
+      setCached(state.customerSearchCache, key, rows);
+      syncGlobals('customers', rows);
+      return rows;
+    }).finally(() => state.pending.delete(pendingKey));
+    state.pending.set(pendingKey, promise);
+    return promise;
+  }
+
+  // Giữ API cũ để không vỡ code, nhưng Phase 3.6 không preload toàn bộ nữa.
+  async function preloadProducts(options = {}){
+    return searchProducts(options.keyword || '', { limit: options.limit || MAX_LIMIT });
   }
 
   async function preloadCustomers(options = {}){
-    const force = options.force === true;
-    const maxAgeMs = Number(options.maxAgeMs || TTL);
-    if(!force && state.customers.length && Date.now() - state.customerLoadedAt < maxAgeMs) return state.customers;
-    if(state.customerPromise && !force) return state.customerPromise;
-
-    state.customerPromise = fetchJson(endpoint('customers'))
-      .then(json => {
-        state.customers = dedupe(json.customers || json.items || [], ['code','customerCode','id']);
-        state.customerLoadedAt = Date.now();
-        syncGlobals('customers', state.customers);
-        return state.customers;
-      })
-      .finally(() => { state.customerPromise = null; });
-    return state.customerPromise;
+    return searchCustomers(options.keyword || '', { limit: options.limit || MAX_LIMIT, mobile: options.mobile });
   }
 
-  function getProducts(){
-    return state.products.slice();
+  async function preloadAll(){
+    return { products: [], customers: [] };
   }
 
-  function getCustomers(){
-    return state.customers.slice();
+  async function listProducts(options = {}){
+    const limit = Math.max(1, Number(options.limit || 100));
+    const page = Math.max(1, Number(options.page || 1));
+    const q = String(options.q || options.search || '').trim();
+    const url = `${listEndpoint('products')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+    const json = await fetchJson(url);
+    const rows = dedupe(json.products || json.items || [], ['code','productCode','sku','id']);
+    syncGlobals('products', rows);
+    return { rows, meta: json.meta || null };
   }
 
-  function match(row, keyword, fields){
-    const q = normalizeText(keyword);
-    if(!q) return true;
-    return fields.some(field => normalizeText(row?.[field]).includes(q));
+  async function listCustomers(options = {}){
+    const limit = Math.max(1, Number(options.limit || 100));
+    const page = Math.max(1, Number(options.page || 1));
+    const q = String(options.q || options.search || '').trim();
+    const url = `${listEndpoint('customers')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+    const json = await fetchJson(url);
+    const rows = dedupe(json.customers || json.items || [], ['code','customerCode','id']);
+    syncGlobals('customers', rows);
+    return { rows, meta: json.meta || null };
   }
 
-  function searchProducts(keyword = '', options = {}){
-    const limit = Math.max(1, Number(options.limit || 50));
-    return state.products
-      .filter(p => p.isActive !== false)
-      .filter(p => match(p, keyword, ['code','productCode','sku','barcode','name','productName','category','brand','packing','unit','baseUnit']))
-      .slice(0, limit);
-  }
-
-  function searchCustomers(keyword = '', options = {}){
-    const limit = Math.max(1, Number(options.limit || 50));
-    return state.customers
-      .filter(c => c.isActive !== false)
-      .filter(c => match(c, keyword, ['code','customerCode','name','customerName','phone','address','area','route','staffCode','staffName']))
-      .slice(0, limit);
-  }
-
-  async function preloadAll(options = {}){
-    const [products, customers] = await Promise.all([
-      preloadProducts(options),
-      preloadCustomers(options)
-    ]);
-    return { products, customers };
-  }
+  function getProducts(){ return state.products.slice(); }
+  function getCustomers(){ return state.customers.slice(); }
 
   function invalidate(type){
     if(!type || type === 'products'){
       state.products = [];
+      state.productSearchCache.clear();
       state.productLoadedAt = 0;
     }
     if(!type || type === 'customers'){
       state.customers = [];
+      state.customerSearchCache.clear();
       state.customerLoadedAt = 0;
     }
   }
@@ -157,12 +207,14 @@
     preloadProducts,
     preloadCustomers,
     preloadAll,
+    listProducts,
+    listCustomers,
     getProducts,
     getCustomers,
     searchProducts,
     searchCustomers,
     invalidate,
-    syncProducts: rows => { state.products = dedupe(rows || [], ['code','productCode','sku','id']); syncGlobals('products', state.products); return state.products; },
-    syncCustomers: rows => { state.customers = dedupe(rows || [], ['code','customerCode','id']); syncGlobals('customers', state.customers); return state.customers; }
+    syncProducts: rows => { syncGlobals('products', rows || []); return state.products; },
+    syncCustomers: rows => { syncGlobals('customers', rows || []); return state.customers; }
   };
 })();

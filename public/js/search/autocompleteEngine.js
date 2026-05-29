@@ -1,6 +1,6 @@
 /*
  * Autocomplete Engine - module dùng chung cho toàn hệ thống.
- * Mục tiêu: chỉ có 1 nơi xử lý gợi ý để tránh hàm chồng chéo trong app.js.
+ * Phase 3.6: hỗ trợ getItems async để server-side search + lazy cache.
  */
 (function(){
   'use strict';
@@ -18,11 +18,7 @@
 
   function escapeHtml(value){
     return String(value ?? '').replace(/[&<>"']/g, char => ({
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      '"':'&quot;',
-      "'":'&#39;'
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
     }[char]));
   }
 
@@ -37,9 +33,7 @@
     const host = input.closest('.autocomplete') || input.parentElement;
     if(host){
       host.classList.add('autocomplete-host');
-      if(box.parentElement !== host){
-        input.insertAdjacentElement('afterend', box);
-      }
+      if(box.parentElement !== host) input.insertAdjacentElement('afterend', box);
     }
     box.classList.add('suggestions');
     box.setAttribute('role','listbox');
@@ -69,20 +63,17 @@
     }
   }
 
-  function render({input, box, items, label, onPick, emptyText='Không tìm thấy dữ liệu'}){
-    if(!input || !box) return [];
+  function render({box, items, label, onPick, emptyText='Không tìm thấy dữ liệu'}){
+    if(!box) return [];
     const list = (items || []).slice(0, 100);
     show(box);
-
     if(!list.length){
       box.innerHTML = `<div class="suggestion-item muted">${escapeHtml(emptyText)}</div>`;
       return list;
     }
-
     box.innerHTML = list.map((item, index) => (
       `<button type="button" class="suggestion-item" role="option" data-index="${index}">${escapeHtml(label(item))}</button>`
     )).join('');
-
     box.querySelectorAll('.suggestion-item[data-index]').forEach(button => {
       button.addEventListener('mousedown', event => {
         event.preventDefault();
@@ -90,8 +81,21 @@
         if(picked) onPick(picked);
       });
     });
-
     return list;
+  }
+
+  function renderStatus(box, text){
+    if(!box) return;
+    show(box);
+    box.innerHTML = `<div class="suggestion-item muted">${escapeHtml(text)}</div>`;
+  }
+
+  function debounce(fn, delay){
+    let timer = null;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
   }
 
   function wire(options){
@@ -102,14 +106,14 @@
       label,
       select,
       emptyText='Không tìm thấy dữ liệu',
+      loadingText='Đang tìm...',
+      minChars=0,
+      debounceMs=180,
       clearOnInput=true
     } = options || {};
 
-    if(!input || !box || typeof getItems !== 'function' || typeof label !== 'function' || typeof select !== 'function'){
-      return;
-    }
+    if(!input || !box || typeof getItems !== 'function' || typeof label !== 'function' || typeof select !== 'function') return;
 
-    // Nếu app.js bị load lại hoặc init lại, tháo listener cũ trước để không bị chồng chéo.
     const oldCleanup = wiredInputs.get(input);
     if(typeof oldCleanup === 'function') oldCleanup();
 
@@ -117,30 +121,43 @@
 
     let activeIndex = -1;
     let currentItems = [];
+    let requestSeq = 0;
 
-    const refresh = () => {
+    const doRefresh = async () => {
+      const seq = ++requestSeq;
+      const q = String(input.value || '').trim();
       activeIndex = -1;
-      currentItems = render({
-        input,
-        box,
-        items: getItems(),
-        label,
-        onPick: item => {
-          select(item);
-          hide(box);
-        },
-        emptyText
-      });
+      if(minChars > 0 && q.length < minChars){
+        renderStatus(box, `Gõ ít nhất ${minChars} ký tự để tìm`);
+        currentItems = [];
+        return;
+      }
+      try{
+        const result = getItems();
+        if(result && typeof result.then === 'function') renderStatus(box, loadingText);
+        const items = await Promise.resolve(result);
+        if(seq !== requestSeq) return;
+        currentItems = render({
+          box,
+          items,
+          label,
+          onPick: item => { select(item); hide(box); },
+          emptyText
+        });
+      }catch(err){
+        if(seq !== requestSeq) return;
+        currentItems = [];
+        renderStatus(box, err.message || emptyText);
+      }
     };
+
+    const refresh = debounceMs > 0 ? debounce(doRefresh, debounceMs) : doRefresh;
 
     const moveActive = step => {
       const buttons = [...box.querySelectorAll('.suggestion-item[data-index]')];
       if(!buttons.length) return;
       activeIndex = (activeIndex + step + buttons.length) % buttons.length;
-      buttons.forEach(btn => {
-        btn.classList.remove('active');
-        btn.setAttribute('aria-selected','false');
-      });
+      buttons.forEach(btn => { btn.classList.remove('active'); btn.setAttribute('aria-selected','false'); });
       buttons[activeIndex].classList.add('active');
       buttons[activeIndex].setAttribute('aria-selected','true');
       buttons[activeIndex].scrollIntoView({block:'nearest'});
@@ -150,9 +167,7 @@
       if(clearOnInput) clearSelected(input);
       refresh();
     };
-
     const onFocus = () => refresh();
-
     const onKeydown = event => {
       if(event.key === 'ArrowDown'){
         event.preventDefault();
@@ -160,14 +175,12 @@
         moveActive(1);
         return;
       }
-
       if(event.key === 'ArrowUp'){
         event.preventDefault();
         if(box.hidden) refresh();
         moveActive(-1);
         return;
       }
-
       if(event.key === 'Enter'){
         const picked = currentItems[activeIndex >= 0 ? activeIndex : 0];
         if(picked){
@@ -177,12 +190,8 @@
         }
         return;
       }
-
-      if(event.key === 'Escape'){
-        hide(box);
-      }
+      if(event.key === 'Escape') hide(box);
     };
-
     const onDocumentMouseDown = event => {
       if(event.target === input || box.contains(event.target)) return;
       hide(box);
@@ -195,22 +204,15 @@
     document.addEventListener('mousedown', onDocumentMouseDown);
 
     const cleanup = () => {
+      requestSeq++;
       input.removeEventListener('input', onInput);
       input.removeEventListener('focus', onFocus);
       input.removeEventListener('keydown', onKeydown);
       document.removeEventListener('mousedown', onDocumentMouseDown);
       hide(box);
     };
-
     wiredInputs.set(input, cleanup);
   }
 
-  window.SearchAutocomplete = {
-    normalizeText,
-    escapeHtml,
-    matchText,
-    show,
-    hide,
-    wire
-  };
+  window.SearchAutocomplete = { normalizeText, escapeHtml, matchText, show, hide, wire };
 })();

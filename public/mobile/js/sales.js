@@ -50,36 +50,29 @@ document.getElementById('reloadCustomersBtn')?.addEventListener('click', async (
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
 document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
 
-preloadCustomers(false).then(() => loadCustomers('')).catch(() => loadCustomers(''));
+loadCustomers('');
 loadTodayOrders();
 initProductAutocomplete();
 renderCart();
 
 async function preloadCustomers(force = false) {
-  if (window.CatalogCache) {
-    customerCatalog = await window.CatalogCache.preloadCustomers({ force, maxAgeMs: 5 * 60 * 1000 });
-    return customerCatalog;
-  }
-  const data = await mobileApi.getCustomers('', { all: true, limit: 10000 });
-  customerCatalog = data.items || [];
+  // Phase 3.6: không preload toàn bộ khách hàng. Chỉ giữ hàm này để nút Tải lại xóa cache.
+  customerCatalog = [];
+  if (force && window.CatalogCache) window.CatalogCache.invalidate('customers');
   return customerCatalog;
 }
 
-function filterCustomers(keyword = '') {
-  if (window.CatalogCache) return window.CatalogCache.searchCustomers(keyword, { limit: 200 });
-  const q = String(keyword || '').toLowerCase().trim();
-  return customerCatalog
-    .filter((customer) => customer.isActive !== false)
-    .filter((customer) => !q || [customer.code, customer.customerCode, customer.name, customer.customerName, customer.phone, customer.address, customer.area, customer.route, customer.staffName].some((value) => String(value || '').toLowerCase().includes(q)))
-    .slice(0, 200);
+async function filterCustomers(keyword = '') {
+  if (window.CatalogCache) return window.CatalogCache.searchCustomers(keyword, { limit: 50, mobile: true });
+  const data = await mobileApi.getCustomers(keyword, { limit: 50 });
+  return data.items || data.customers || [];
 }
 
 async function loadCustomers(q = '') {
   try {
     customerList.className = 'customer-list empty';
-    customerList.textContent = 'Đang tải khách hàng...';
-    if (!customerCatalog.length) await preloadCustomers(false);
-    lastCustomers = filterCustomers(q);
+    customerList.textContent = q ? 'Đang tìm khách hàng...' : 'Nhập từ khóa để tìm khách hàng...';
+    lastCustomers = await filterCustomers(q);
     renderCustomerList(lastCustomers);
   } catch (err) {
     customerList.className = 'customer-list empty';
@@ -170,8 +163,8 @@ function pickProduct(product) {
 
 async function preloadUnifiedProducts(force = false) {
   if (!window.UnifiedProductSearch) throw new Error('Thiếu UnifiedProductSearch. Kiểm tra sales.html đã nhúng productSearchBox.js chưa.');
-  productSuggestions.innerHTML = '<div class="suggestion-empty">Đang tải catalog sản phẩm...</div>';
-  return window.UnifiedProductSearch.preload({ force, maxAgeMs: 5 * 60 * 1000 });
+  if (force && window.CatalogCache) window.CatalogCache.invalidate('products');
+  return [];
 }
 
 function initProductAutocomplete() {
@@ -192,14 +185,8 @@ function initProductAutocomplete() {
   });
 
   productSearch.addEventListener('input', resetSelectedProduct);
-  productSearch.addEventListener('focus', async () => {
-    try {
-      await preloadUnifiedProducts(false);
-      productSearch.dispatchEvent(new Event('input', { bubbles: true }));
-    } catch (err) {
-      productSuggestions.innerHTML = `<div class="suggestion-empty">${err.message || 'Không tải được sản phẩm'}</div>`;
-      setMessage(message, err.message || 'Không tải được sản phẩm', 'error');
-    }
+  productSearch.addEventListener('focus', () => {
+    productSearch.dispatchEvent(new Event('input', { bubbles: true }));
   });
   productSearch.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
@@ -208,9 +195,6 @@ function initProductAutocomplete() {
     }
   });
 
-  preloadUnifiedProducts(false).catch((err) => {
-    console.warn('Không preload được sản phẩm app bán hàng:', err.message || err);
-  });
 }
 
 

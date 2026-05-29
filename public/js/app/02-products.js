@@ -22,13 +22,14 @@ function fillForm(p){
 async function loadProducts(){
   const q=searchInput?searchInput.value.trim():'';
   try{
-    const allProducts = window.CatalogCache
-      ? await window.CatalogCache.preloadProducts({force:false})
-      : await fetch(`/api/products?all=true&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');return json.products||[]});
-    const keyword = window.CatalogCache ? window.CatalogCache.normalizeText(q) : String(q||'').toLowerCase();
-    productsCache = !keyword ? allProducts : allProducts.filter(p=>matchSearch(q,[p.code,p.productCode,p.sku,p.barcode,p.name,p.productName,p.category,p.brand,p.packing,p.unit,p.baseUnit]));
-    if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(allProducts);
-    const total=allProducts.length;if(productCount)productCount.textContent=`${productsCache.length}/${total} sản phẩm`;
+    // Phase 3.6: danh sách sản phẩm không tải toàn bộ nữa, chỉ lấy trang nhẹ 100 dòng.
+    const result = window.CatalogCache
+      ? await window.CatalogCache.listProducts({page:1,limit:100,q})
+      : await fetch(`/api/products?page=1&limit=100${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');return {rows:json.products||[],meta:json.meta||null}});
+    productsCache = result.rows || [];
+    if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
+    const total=result.meta?.total ?? productsCache.length;
+    if(productCount)productCount.textContent=`${productsCache.length}/${total} sản phẩm`;
     renderProductTable();renderImportProductSelect();renderSalesProductSelect();
   }catch(err){if(productCount)productCount.textContent='Lỗi tải dữ liệu';if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${err.message}</td></tr>`}
 }

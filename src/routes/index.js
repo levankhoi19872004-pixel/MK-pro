@@ -18,6 +18,7 @@ const { importRouter, exportRouter } = require('./importExportRoutes');
 const swaggerRoutes = require('./swaggerRoutes');
 const mobileRoutes = require('./mobileRoutes');
 const searchRoutes = require('./searchRoutes');
+const catalogRoutes = require('./catalogRoutes');
 
 function registerApiRoutes(app) {
   // API docs must be mounted before legacy guard.
@@ -28,6 +29,9 @@ function registerApiRoutes(app) {
 
   // Unified search engine for web + mobile autocomplete.
   app.use('/api/search', searchRoutes);
+
+  // Phase 3.6: server-side catalog search + lazy cache.
+  app.use('/api/catalog', catalogRoutes);
 
   // Mobile app routes (sales + delivery). Must be before /api fallback.
   app.use('/api/mobile', mobileRoutes);

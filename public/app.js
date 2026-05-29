@@ -1,5 +1,4 @@
 // App bootstrap: module files are loaded before this file in index.html.
-if(window.CatalogCache) window.CatalogCache.preloadAll({force:false}).catch(err=>console.warn('Không preload được catalog:',err.message||err));
 if(customerSearchInput)customerSearchInput.addEventListener('input',loadCustomers);
 if(customerTable)customerTable.addEventListener('change',event=>{const check=event.target.closest('.customer-row-check');if(!check)return;if(check.checked)selectedCustomerIds.add(check.dataset.id);else selectedCustomerIds.delete(check.dataset.id);updateCustomerBulkUI();});
 if(customerCheckAll)customerCheckAll.addEventListener('change',()=>{getCustomerPageRows().forEach(c=>{if(!c.id)return;if(customerCheckAll.checked)selectedCustomerIds.add(c.id);else selectedCustomerIds.delete(c.id)});renderCustomerTable();});
@@ -77,7 +76,6 @@ loadImportFieldOptions();
 loadCustomImportTemplates();
 checkServer();
 loadProducts();
-loadSalesProductCatalog();
 loadCustomers();
 loadStock();
 loadImportOrders();

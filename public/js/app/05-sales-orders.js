@@ -12,10 +12,10 @@ async function loadSalesProductCatalog(){
       renderSalesProductSelect();
       return salesProductsCache;
     }
-    const res = await fetch(`/api/products?all=true&activeOnly=1&_t=${Date.now()}`);
+    const res = await fetch(`/api/catalog/products/search?q=&limit=50&includeStock=1&activeOnly=1&_t=${Date.now()}`);
     const json = await res.json();
     if(!json.ok) throw new Error(json.message || 'Không tải được danh mục sản phẩm bán hàng');
-    salesProductsCache = (json.products || []).map(p => ({...p}));
+    salesProductsCache = (json.products || json.items || []).map(p => ({...p}));
     renderSalesProductSelect();
     return salesProductsCache;
   }catch(err){

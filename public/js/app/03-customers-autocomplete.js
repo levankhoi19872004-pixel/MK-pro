@@ -1,12 +1,14 @@
 async function loadCustomers(){
   const q=customerSearchInput?customerSearchInput.value.trim():'';
   try{
-    const allCustomers = window.CatalogCache
-      ? await window.CatalogCache.preloadCustomers({force:false})
-      : await fetch(`/api/customers?all=true&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return json.customers||[]});
-    customersCache = q ? allCustomers.filter(c=>matchSearch(q,[c.code,c.customerCode,c.name,c.customerName,c.phone,c.address,c.area,c.route,c.staffCode,c.staffName])) : allCustomers;
+    // Phase 3.6: danh sách khách hàng không tải toàn bộ nữa, chỉ lấy trang nhẹ 100 dòng.
+    const result = window.CatalogCache
+      ? await window.CatalogCache.listCustomers({page:1,limit:100,q})
+      : await fetch(`/api/customers?page=1&limit=100${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return {rows:json.customers||[],meta:json.meta||null}});
+    customersCache = result.rows || [];
     customerPage=1;
-    const total=allCustomers.length;if(customerCount)customerCount.textContent=`${customersCache.length}/${total} khách hàng`;
+    const total=result.meta?.total ?? customersCache.length;
+    if(customerCount)customerCount.textContent=`${customersCache.length}/${total} khách hàng`;
     renderCustomerTable();renderSalesCustomerSelect();renderCollectionCustomerSelect();
   }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
 }
@@ -186,18 +188,17 @@ function getConfiguredSource(config){
   const input=getSuggestElement(config,'inputId','inputSelector');
   const q=input?input.value.trim():'';
 
-  // Sản phẩm dùng chung một engine cache cho Nhập kho + Bán hàng.
-  // Không gọi API theo từng phím gõ, không lọc mất sản phẩm hết tồn ở bước gợi ý.
+  // Phase 3.6: sản phẩm/khách hàng dùng server-side search + lazy cache, không preload toàn bộ.
   if(config.type==='product' && window.UnifiedProductSearch){
     const mode=config.key==='importProduct'?'import':'sales';
     return window.UnifiedProductSearch.search(q,{limit:Number(config.limit||50),mode});
   }
+  if(config.type==='customer' && window.CatalogCache){
+    return window.CatalogCache.searchCustomers(q,{limit:Number(config.limit||50)});
+  }
 
   const map={products:productsCache,customers:customersCache,users:usersCache,debts:debtsCache};
   let rows=Array.isArray(map[config.source])?map[config.source]:[];
-  if(config.source==='customers' && window.CatalogCache){
-    rows = window.CatalogCache.getCustomers();
-  }
   if(config.onlyActive) rows=rows.filter(item=>item.isActive!==false);
   if(config.roles && config.roles.length){
     const roles=config.roles.map(r=>String(r).toLowerCase());
@@ -272,22 +273,7 @@ function initConfiguredAutocomplete(){
       select:item=>applyConfiguredSelect(config,item),
       emptyText:config.emptyText||'Không tìm thấy dữ liệu'
     });
-    if(config.type==='product' && window.UnifiedProductSearch){
-      input.addEventListener('focus', async()=>{
-        try{
-          await window.UnifiedProductSearch.preload({force:false});
-          input.dispatchEvent(new Event('input',{bubbles:true}));
-        }catch(err){console.warn('Không preload được sản phẩm:',err.message||err)}
-      });
-    }
-    if(config.type==='customer' && window.CatalogCache){
-      input.addEventListener('focus', async()=>{
-        try{
-          await window.CatalogCache.preloadCustomers({force:false});
-          input.dispatchEvent(new Event('input',{bubbles:true}));
-        }catch(err){console.warn('Không preload được khách hàng:',err.message||err)}
-      });
-    }
+    // Phase 3.6: focus không preload toàn bộ. Autocomplete tự tìm server-side khi gõ/focus.
   });
 }
 
