@@ -76,6 +76,7 @@ loadImportFieldOptions();
 loadCustomImportTemplates();
 checkServer();
 loadProducts();
+loadSalesProductCatalog();
 loadCustomers();
 loadStock();
 loadImportOrders();

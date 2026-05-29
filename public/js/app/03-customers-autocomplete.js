@@ -184,12 +184,13 @@ function getSuggestElement(rule, propId='targetId', propSelector='targetSelector
 function getConfiguredSource(config){
   const map={products:productsCache,customers:customersCache,users:usersCache,debts:debtsCache};
   let rows=Array.isArray(map[config.source])?map[config.source]:[];
+  if(config.key==='salesProduct' && typeof getSalesProductCatalog==='function') rows=getSalesProductCatalog();
   if(config.onlyActive) rows=rows.filter(item=>item.isActive!==false);
   if(config.roles && config.roles.length){
     const roles=config.roles.map(r=>String(r).toLowerCase());
     rows=rows.filter(item=>roles.includes(String(item.role||'').toLowerCase()));
   }
-  if(config.onlyInStock) rows=rows.filter(item=>productHasStock(item));
+  if(config.onlyInStock && config.key!=='salesProduct') rows=rows.filter(item=>productHasStock(item));
   if(config.source==='debts') rows=rows.filter(item=>Number(item.debt||0)>0);
   const input=getSuggestElement(config,'inputId','inputSelector');
   const q=input?input.value.trim():'';

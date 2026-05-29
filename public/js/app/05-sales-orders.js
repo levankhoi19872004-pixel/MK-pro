@@ -1,4 +1,24 @@
 let editingSalesOrderId = '';
+
+function getSalesProductCatalog(){
+  const catalog = Array.isArray(salesProductsCache) && salesProductsCache.length ? salesProductsCache : productsCache;
+  return Array.isArray(catalog) ? catalog : [];
+}
+async function loadSalesProductCatalog(){
+  try{
+    const res = await fetch(`/api/products?page=1&limit=5000&_t=${Date.now()}`);
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.message || 'Không tải được danh mục sản phẩm bán hàng');
+    salesProductsCache = (json.products || []).map(p => ({...p}));
+    renderSalesProductSelect();
+    return salesProductsCache;
+  }catch(err){
+    console.warn('Không tải được catalog sản phẩm bán hàng:', err.message || err);
+    salesProductsCache = Array.isArray(productsCache) ? productsCache : [];
+    renderSalesProductSelect();
+    return salesProductsCache;
+  }
+}
 function getSalesCustomerMatches(){
   const q=salesCustomerSearch?salesCustomerSearch.value.trim():'';
   return customersCache
@@ -45,10 +65,10 @@ function renderSalesStaffSelect(){
 }
 function getSalesProductMatches(){
   const q=salesProductSearch?salesProductSearch.value.trim():'';
-  return productsCache
+  return getSalesProductCatalog()
     .filter(p=>p.isActive!==false)
-    .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.packing,p.unit,p.baseUnit]))
-    .slice(0,50);
+    .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.brand,p.sku,p.productCode,p.packing,p.unit,p.baseUnit]))
+    .slice(0,100);
 }
 function selectSalesProduct(p){
   if(!p)return;
@@ -63,9 +83,9 @@ function selectSalesProduct(p){
 }
 function renderSalesProductSelect(){
   if(!salesProductSearch)return;
-  const has=productsCache.some(p=>p.isActive!==false);
-  salesProductSearch.disabled=!has;
-  salesProductSearch.placeholder=has?'Gõ mã/tên/barcode sản phẩm...':'Chưa có sản phẩm đang hoạt động';
+  const has=getSalesProductCatalog().some(p=>p.isActive!==false);
+  salesProductSearch.disabled=false;
+  salesProductSearch.placeholder=has?'Gõ mã/tên/barcode sản phẩm...':'Đang tải sản phẩm, bấm vào để tải lại...';
 }
 function syncSalesPrice(){
   const p=findProductByKey(salesProductSelect.value);
@@ -306,4 +326,12 @@ async function loadSalesOrders(){
         </details>
       </article>`).join('');
   }catch(err){salesOrderCount.textContent='Lỗi tải lịch sử';salesOrderList.innerHTML=err.message}
+}
+
+
+// Bảo vệ riêng cho ô gợi ý sản phẩm bán hàng: catalog luôn được tải độc lập với bộ lọc tồn kho/danh sách sản phẩm.
+if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
+  salesProductSearch.addEventListener('focus', async()=>{
+    if(!getSalesProductCatalog().length) await loadSalesProductCatalog();
+  });
 }

@@ -425,11 +425,9 @@ router.get('/products', requireMobileLogin, requireMobileRole(['accountant', 'sa
       items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
         .some((value) => normalizeText(value).includes(q)));
     }
-    let positiveItems = items.filter((p) => toNumber(p.availableQty) > 0);
-    const hasPositiveStock = positiveItems.length > 0;
-    // Khi vừa nâng cấp sang sổ kho, inventories có thể chưa rebuild nên tất cả tồn = 0.
-    // Vẫn trả danh sách sản phẩm để nhân viên chọn/tìm thủ công, đồng thời báo cần rebuild tồn.
-    items = (hasPositiveStock ? positiveItems : items).slice(0, 80);
+    const hasPositiveStock = items.some((p) => toNumber(p.availableQty) > 0);
+    // Chuẩn ERP/DMS: gợi ý hiển thị tất cả sản phẩm active, tồn chỉ dùng để cảnh báo/chặn khi thêm dòng.
+    items = items.slice(0, 120);
     return ok(res, {
       source: 'mobile-mongo-route',
       items,
@@ -449,9 +447,8 @@ router.get('/stock', requireMobileLogin, requireMobileRole(['accountant', 'sales
       items = items.filter((p) => [p.code, p.sku, p.productCode, p.name, p.barcode, p.category, p.brand]
         .some((value) => normalizeText(value).includes(q)));
     }
-    const positiveItems = items.filter((p) => toNumber(p.availableQty) > 0);
-    const hasPositiveStock = positiveItems.length > 0;
-    items = (hasPositiveStock ? positiveItems : items).slice(0, 150);
+    const hasPositiveStock = items.some((p) => toNumber(p.availableQty) > 0);
+    items = items.slice(0, 150);
     return ok(res, {
       source: 'mobile-mongo-route',
       items,

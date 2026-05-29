@@ -196,6 +196,7 @@ const reportCashSummary=document.getElementById('reportCashSummary');
 const reportCashTable=document.getElementById('reportCashTable');
 
 let productsCache=[];
+let salesProductsCache=[]; // Catalog riêng cho ô gợi ý bán hàng, không phụ thuộc bộ lọc danh sách sản phẩm
 let customersCache=[];
 let debtsCache=[];
 let importItems=[];

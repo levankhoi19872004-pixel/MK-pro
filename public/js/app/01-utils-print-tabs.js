@@ -9,7 +9,17 @@ function productLineMeta(p){
   return {unit:p.unit||'',baseUnit:p.baseUnit||'',conversionRate:Number(p.conversionRate||1),packing:productPackingText(p),units:Array.isArray(p.units)?p.units:[]};
 }
 function getProductKey(p){return String(p?.code||p?.id||'')}
-function findProductByKey(key){const value=String(key||'');return productsCache.find(x=>String(x.code||'')===value||String(x.id||'')===value)}
+function findProductByKey(key){
+  const value=String(key||'');
+  const pools=[];
+  if(Array.isArray(salesProductsCache))pools.push(salesProductsCache);
+  if(Array.isArray(productsCache))pools.push(productsCache);
+  for(const pool of pools){
+    const found=pool.find(x=>String(x.code||'')===value||String(x.id||'')===value||String(x._id||'')===value||String(x.productCode||'')===value);
+    if(found)return found;
+  }
+  return null;
+}
 function formatCaseLooseStock(quantity, conversionRate){
   const qty=Math.max(0,Number(quantity||0));
   const rate=Math.max(1,Number(conversionRate||1));

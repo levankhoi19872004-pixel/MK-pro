@@ -137,7 +137,7 @@ async function searchProducts(showAllWhenEmpty = false) {
 
     if (!items.length) {
       productSuggestions.classList.remove('has-many');
-      productSuggestions.innerHTML = '<div class="suggestion-empty">Không tìm thấy sản phẩm phù hợp hoặc sản phẩm không còn tồn mở bán</div>';
+      productSuggestions.innerHTML = '<div class="suggestion-empty">Không tìm thấy sản phẩm phù hợp</div>';
       return;
     }
 

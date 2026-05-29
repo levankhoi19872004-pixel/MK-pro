@@ -16,7 +16,7 @@
       limit: 10,
       fill: [{ targetId: 'searchInput', value: 'code' }],
       afterSelect: 'reloadProducts',
-      emptyText: 'Không tìm thấy sản phẩm'
+      emptyText: 'Không tìm thấy sản phẩm phù hợp'
     },
     {
       key: 'customerListSearch',
@@ -86,13 +86,13 @@
       source: 'products',
       searchKeys: ['code','name','barcode','category','packing','unit','baseUnit'],
       onlyActive: true,
-      limit: 50,
+      limit: 100,
       fill: [
         { targetId: 'salesProductSelect', value: 'idOrCode' },
         { targetId: 'salesProductSearch', value: 'label' }
       ],
       afterSelect: 'setSalesPrice',
-      emptyText: 'Không tìm thấy sản phẩm'
+      emptyText: 'Không tìm thấy sản phẩm phù hợp. Kiểm tra /api/products hoặc dữ liệu sản phẩm.'
     },
     {
       key: 'collectionCustomer',

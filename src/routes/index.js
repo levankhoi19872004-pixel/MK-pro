@@ -30,6 +30,8 @@ function registerApiRoutes(app) {
 
   // Step 1: Products / Customers / Users
   app.use('/api/products', productRoutes);
+  // Alias cũ để các bản frontend/mobile-sales không bị lỗi API không tồn tại.
+  app.use('/api/mobile-sales/products', productRoutes);
   app.use('/api/customers', customerRoutes);
   app.use('/api', userRoutes);
 
