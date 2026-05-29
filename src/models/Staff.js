@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const staffSchema = new mongoose.Schema({
   id: { type: String, default: '', trim: true, index: true },
-  code: { type: String, default: '', trim: true, index: true },
-  username: { type: String, default: '', trim: true, index: true },
+  code: { type: String, default: '', trim: true },
+  username: { type: String, default: '', trim: true },
   password: { type: String, default: '' },
   name: { type: String, required: true, trim: true },
   fullName: { type: String, default: '', trim: true },

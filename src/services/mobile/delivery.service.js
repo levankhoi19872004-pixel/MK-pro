@@ -1,5 +1,6 @@
 'use strict';
 
+const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileDeliveryRepository } = require('../../repositories/mobile/delivery.repository');
 
 function createMobileDeliveryService(ctx) {
@@ -89,6 +90,7 @@ function createMobileDeliveryService(ctx) {
   }
 
   async function confirmDelivery({ body = {}, mobileUser }) {
+    return withMongoTransaction(async () => {
     const data = await repo.getPrimaryDataSnapshot();
     const orderId = String(body.orderId || '').trim();
     const status = String(body.status || '').trim();
@@ -138,10 +140,12 @@ function createMobileDeliveryService(ctx) {
     });
 
     await repo.persistPrimaryDataSnapshot(data);
-    return { statusCode: 200, body: { ok: true, message: 'Đã cập nhật trạng thái giao hàng', order } };
+    return { statusCode: 200, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã cập nhật trạng thái giao hàng', order } };
+    });
   }
 
   async function createReturnFromDelivery({ body = {}, mobileUser }) {
+    return withMongoTransaction(async () => {
     const data = await repo.getPrimaryDataSnapshot();
     const orderId = String(body.orderId || '').trim();
     const returnType = String(body.returnType || 'partial').trim() === 'full' ? 'full' : 'partial';
@@ -186,10 +190,12 @@ function createMobileDeliveryService(ctx) {
     });
 
     await repo.persistPrimaryDataSnapshot(data);
-    return { statusCode: 201, body: { ok: true, message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
+    return { statusCode: 201, body: { ok: true, source: 'mobile-delivery-route', message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
+    });
   }
 
   async function submitCash({ body = {}, mobileUser }) {
+    return withMongoTransaction(async () => {
     const data = await repo.getPrimaryDataSnapshot();
     const amount = toNumber(body.amount);
     const note = String(body.note || '').trim();
@@ -222,7 +228,8 @@ function createMobileDeliveryService(ctx) {
       note: `Nộp quỹ ${entry.code}`
     });
     await repo.persistPrimaryDataSnapshot(data);
-    return { statusCode: 201, body: { ok: true, message: 'Đã ghi nhận nộp tiền về quỹ', entry } };
+    return { statusCode: 201, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã ghi nhận nộp tiền về quỹ', entry } };
+    });
   }
 
   return { listDeliveryOrders, confirmDelivery, createReturnFromDelivery, submitCash };

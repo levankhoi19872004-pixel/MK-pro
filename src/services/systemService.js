@@ -1,10 +1,23 @@
 'use strict';
 
+const fs = require('fs/promises');
+const path = require('path');
 const mongoose = require('mongoose');
 const AppDataRepository = require('../repositories/appData.repository');
+const settingRepository = require('../repositories/settingRepository');
 const { APP_COLLECTION_KEYS } = require('../constants/collectionKeys');
 
 const repository = new AppDataRepository(APP_COLLECTION_KEYS);
+const BACKUP_DIR = path.join(__dirname, '..', '..', 'backups');
+
+function mongoState() {
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  return {
+    ok: mongoose.connection.readyState === 1,
+    state: states[mongoose.connection.readyState] || 'unknown',
+    readyState: mongoose.connection.readyState
+  };
+}
 
 async function getDataSnapshot() {
   return repository.loadAll();
@@ -25,7 +38,26 @@ async function getDataSourceStatus() {
     primaryDataSource: 'mongodb',
     jsonUsage: 'backup-only',
     mongoCounts,
-    mongoReadyState: mongoose.connection.readyState
+    mongoReadyState: mongoose.connection.readyState,
+    mongoState: mongoState().state
+  };
+}
+
+async function status() {
+  const [dataSource, settings] = await Promise.all([
+    getDataSourceStatus(),
+    settingRepository.findAll()
+  ]);
+  return {
+    ok: true,
+    app: 'KHO Minh Khai Pro V45',
+    time: new Date().toISOString(),
+    uptimeSeconds: Math.round(process.uptime()),
+    env: process.env.NODE_ENV || 'development',
+    legacyJsonEnabled: process.env.ENABLE_LEGACY_JSON === 'true',
+    resetEnabled: process.env.ALLOW_SYSTEM_RESET === 'true',
+    dataSource,
+    settingCount: settings.length
   };
 }
 
@@ -38,18 +70,60 @@ function health() {
 }
 
 function dbHealth() {
-  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-  return {
-    ok: mongoose.connection.readyState === 1,
-    state: states[mongoose.connection.readyState] || 'unknown',
-    readyState: mongoose.connection.readyState
-  };
+  return mongoState();
+}
+
+async function getSettings() {
+  return settingRepository.findAll();
+}
+
+async function getSetting(key) {
+  if (!key) throw new Error('Thiếu key cấu hình');
+  return settingRepository.findByKey(String(key));
+}
+
+async function saveSetting(key, value) {
+  if (!key) throw new Error('Thiếu key cấu hình');
+  return settingRepository.upsert(String(key), value || {});
+}
+
+async function createBackup() {
+  const data = await getDataSnapshot();
+  const counts = Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, Array.isArray(rows) ? rows.length : 0]));
+  await fs.mkdir(BACKUP_DIR, { recursive: true });
+  const fileName = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  const filePath = path.join(BACKUP_DIR, fileName);
+  await fs.writeFile(filePath, JSON.stringify({ createdAt: new Date().toISOString(), source: 'mongodb', counts, data }, null, 2), 'utf8');
+  return { fileName, filePath, counts };
+}
+
+async function resetOperationalData({ confirm } = {}) {
+  if (process.env.ALLOW_SYSTEM_RESET !== 'true') {
+    const err = new Error('Reset hệ thống đang bị khóa. Chỉ bật bằng ALLOW_SYSTEM_RESET=true khi thật sự cần.');
+    err.status = 403;
+    throw err;
+  }
+  if (confirm !== 'RESET_MONGO_DATA') {
+    const err = new Error('Thiếu mã xác nhận reset: RESET_MONGO_DATA');
+    err.status = 400;
+    throw err;
+  }
+  const backup = await createBackup();
+  const emptyData = Object.fromEntries(APP_COLLECTION_KEYS.map((key) => [key, []]));
+  await repository.replaceAll(emptyData);
+  return { ok: true, backup, clearedCollections: APP_COLLECTION_KEYS };
 }
 
 module.exports = {
   health,
   dbHealth,
+  status,
   getDataSnapshot,
   persistDataSnapshot,
-  getDataSourceStatus
+  getDataSourceStatus,
+  getSettings,
+  getSetting,
+  saveSetting,
+  createBackup,
+  resetOperationalData
 };

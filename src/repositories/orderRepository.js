@@ -30,4 +30,8 @@ async function replaceAll(orders) {
   return collectionRepository.replaceAll(ORDER_KEY, orders || []);
 }
 
-module.exports = { findAll, findByIdOrCode, upsert, replaceAll };
+async function remove(idOrCode, options = {}) {
+  return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code'], options);
+}
+
+module.exports = { findAll, findByIdOrCode, upsert, replaceAll, remove };

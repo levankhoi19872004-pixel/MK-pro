@@ -47,4 +47,13 @@ async function upsertByIdentity(collectionKey, row, identityFields = ['id', 'cod
   return row;
 }
 
-module.exports = { MongoStore, stripMongoFields, getModel, findAll, count, replaceAll, upsertByIdentity };
+
+async function deleteOneByIdentity(collectionKey, idOrCode, identityFields = ['id', 'code'], options = {}) {
+  const Model = getModel(collectionKey);
+  const value = String(idOrCode || '').trim();
+  if (!value) throw new Error(`Không có khóa định danh để xóa ${collectionKey}`);
+  const filter = { $or: identityFields.map((field) => ({ [field]: value })) };
+  return Model.deleteOne(filter, { session: options.session });
+}
+
+module.exports = { MongoStore, stripMongoFields, getModel, findAll, count, replaceAll, upsertByIdentity, deleteOneByIdentity };

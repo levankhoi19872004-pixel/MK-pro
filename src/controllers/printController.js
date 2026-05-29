@@ -7,6 +7,10 @@ function sendHtml(res, html) {
   return res.send(html);
 }
 
+async function listTypes(req, res) {
+  return res.json({ ok: true, printTypes: printDocumentService.listSupportedTypes() });
+}
+
 async function render(req, res) {
   try {
     const { type, document, options } = req.body || {};
@@ -20,7 +24,11 @@ async function render(req, res) {
 
 async function renderById(req, res) {
   try {
-    const result = await printDocumentService.renderById(String(req.params.type || '').trim(), String(req.params.id || '').trim());
+    const result = await printDocumentService.renderById(
+      String(req.params.type || '').trim(),
+      String(req.params.id || '').trim(),
+      req.query || {}
+    );
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     return sendHtml(res, result.html);
   } catch (err) {
@@ -28,4 +36,32 @@ async function renderById(req, res) {
   }
 }
 
-module.exports = { render, renderById };
+async function renderOrder(req, res) {
+  req.params.type = 'ORDER_SINGLE';
+  return renderById(req, res);
+}
+
+async function renderMasterOrder(req, res) {
+  req.params.type = 'ORDER_TOTAL';
+  return renderById(req, res);
+}
+
+async function renderImportOrder(req, res) {
+  req.params.type = 'IMPORT_ORDER';
+  return renderById(req, res);
+}
+
+async function renderPaymentReceipt(req, res) {
+  req.params.type = 'PAYMENT_RECEIPT';
+  return renderById(req, res);
+}
+
+module.exports = {
+  listTypes,
+  render,
+  renderById,
+  renderOrder,
+  renderMasterOrder,
+  renderImportOrder,
+  renderPaymentReceipt
+};

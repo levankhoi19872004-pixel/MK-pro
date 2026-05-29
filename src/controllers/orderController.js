@@ -2,6 +2,13 @@
 
 const orderService = require('../services/orderService');
 
+function handleServiceResult(res, result, successStatus = 200, successPayload = {}) {
+  if (result && result.error) {
+    return res.status(result.status || 400).json({ ok: false, message: result.error });
+  }
+  return res.status(successStatus).json({ ok: true, source: 'mongo-route', ...successPayload(result) });
+}
+
 async function list(req, res) {
   try {
     const salesOrders = await orderService.listOrders(req.query || {});
@@ -11,11 +18,19 @@ async function list(req, res) {
   }
 }
 
+async function get(req, res) {
+  try {
+    const result = await orderService.getOrder(req.params.id);
+    return handleServiceResult(res, result, 200, (r) => ({ salesOrder: r.salesOrder, order: r.salesOrder }));
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không tải được chi tiết đơn bán', error: err.message });
+  }
+}
+
 async function create(req, res) {
   try {
     const result = await orderService.createOrder(req.body || {});
-    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.status(201).json({ ok: true, source: 'mongo-route', message: `Đã tạo đơn bán ${result.salesOrder.code}`, salesOrder: result.salesOrder });
+    return handleServiceResult(res, result, 201, (r) => ({ message: `Đã tạo đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không tạo được đơn bán' });
   }
@@ -24,8 +39,7 @@ async function create(req, res) {
 async function update(req, res) {
   try {
     const result = await orderService.updateOrder(req.params.id, req.body || {});
-    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.json({ ok: true, source: 'mongo-route', message: `Đã cập nhật đơn bán ${result.salesOrder.code}`, salesOrder: result.salesOrder });
+    return handleServiceResult(res, result, 200, (r) => ({ message: `Đã cập nhật đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không sửa được đơn bán' });
   }
@@ -34,11 +48,19 @@ async function update(req, res) {
 async function cancel(req, res) {
   try {
     const result = await orderService.cancelOrder(req.params.id, req.body || {});
-    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.json({ ok: true, source: 'mongo-route', message: `Đã hủy đơn bán ${result.salesOrder.code}`, salesOrder: result.salesOrder });
+    return handleServiceResult(res, result, 200, (r) => ({ message: `Đã hủy đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không hủy được đơn bán' });
   }
 }
 
-module.exports = { list, create, update, cancel };
+async function remove(req, res) {
+  try {
+    const result = await orderService.deleteOrder(req.params.id, req.body || {});
+    return handleServiceResult(res, result, 200, (r) => ({ message: `Đã xóa mềm đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không xóa được đơn bán' });
+  }
+}
+
+module.exports = { list, get, create, update, cancel, remove };

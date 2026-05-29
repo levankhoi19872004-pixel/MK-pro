@@ -11,13 +11,16 @@ const receiptRoutes = require('./receiptRoutes');
 const cashbookRoutes = require('./cashbookRoutes');
 const bankbookRoutes = require('./bankbookRoutes');
 const promotionRoutes = require('./promotionRoutes');
-const importTemplateRoutes = require('./importTemplateRoutes');
 const reportRoutes = require('./reportRoutes');
 const systemRoutes = require('./systemRoutes');
-const excelImportRoutes = require('./excelImportRoutes');
 const printRoutes = require('./printRoutes');
+const { importRouter, exportRouter } = require('./importExportRoutes');
+const swaggerRoutes = require('./swaggerRoutes');
 
 function registerApiRoutes(app) {
+  // API docs must be mounted before legacy guard.
+  app.use('/api', swaggerRoutes);
+
   // Core system routes must be mounted before legacy guard.
   app.use('/api', systemRoutes);
 
@@ -43,8 +46,8 @@ function registerApiRoutes(app) {
 
   // Step 5: Promotions / Reports / Import Templates
   app.use('/api/promotions', promotionRoutes);
-  app.use('/api/import', importTemplateRoutes);
-  app.use('/api/import', excelImportRoutes);
+  app.use('/api/import', importRouter);
+  app.use('/api/export', exportRouter);
   app.use('/api/print', printRoutes);
   app.use('/api', reportRoutes);
 }

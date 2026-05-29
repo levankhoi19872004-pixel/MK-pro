@@ -75,6 +75,59 @@ async function hydrateItemNames(items) {
   });
 }
 
+
+async function applySalesOrderPosting(order, options = {}) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  for (const item of items) {
+    const productKey = item.productCode || item.productId || item.code || item.id;
+    if (!productKey) continue;
+    const product = await productRepository.findByIdOrCode(productKey);
+    if (!product) continue;
+    const currentStock = toNumber(product.availableStock ?? product.stockQuantity ?? product.availableQty ?? product.openingStock);
+    const nextStock = currentStock - toNumber(item.quantity);
+    product.availableStock = nextStock;
+    product.stockQuantity = nextStock;
+    product.availableQty = nextStock;
+    await productRepository.save(product, options);
+  }
+
+  const customerKey = order.customerCode || order.customerId || order.customerName;
+  if (!customerKey) return;
+  const customer = await customerRepository.findByIdOrCode(customerKey);
+  if (!customer) return;
+  const currentDebt = toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.openingDebt);
+  const nextDebt = currentDebt + toNumber(order.debtAmount);
+  customer.currentDebt = nextDebt;
+  customer.debtAmount = nextDebt;
+  await customerRepository.save(customer, options);
+}
+
+async function reverseSalesOrderPosting(order, options = {}) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  for (const item of items) {
+    const productKey = item.productCode || item.productId || item.code || item.id;
+    if (!productKey) continue;
+    const product = await productRepository.findByIdOrCode(productKey);
+    if (!product) continue;
+    const currentStock = toNumber(product.availableStock ?? product.stockQuantity ?? product.availableQty ?? product.openingStock);
+    const nextStock = currentStock + toNumber(item.quantity);
+    product.availableStock = nextStock;
+    product.stockQuantity = nextStock;
+    product.availableQty = nextStock;
+    await productRepository.save(product, options);
+  }
+
+  const customerKey = order.customerCode || order.customerId || order.customerName;
+  if (!customerKey) return;
+  const customer = await customerRepository.findByIdOrCode(customerKey);
+  if (!customer) return;
+  const currentDebt = toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.openingDebt);
+  const nextDebt = Math.max(0, currentDebt - toNumber(order.debtAmount));
+  customer.currentDebt = nextDebt;
+  customer.debtAmount = nextDebt;
+  await customerRepository.save(customer, options);
+}
+
 function toClient(order) {
   return {
     ...order,
@@ -85,6 +138,12 @@ function toClient(order) {
     paidAmount: toNumber(order.paidAmount),
     debtAmount: toNumber(order.debtAmount)
   };
+}
+
+async function getOrder(id) {
+  const order = await orderRepository.findByIdOrCode(id);
+  if (!order) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  return { salesOrder: toClient(order) };
 }
 
 async function listOrders(query = {}) {
@@ -137,6 +196,7 @@ async function createOrder(body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(order, { session });
+    await applySalesOrderPosting(order, { session });
   });
   return { salesOrder: toClient(order) };
 }
@@ -176,11 +236,34 @@ async function cancelOrder(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(cancelled, { session });
+    await reverseSalesOrderPosting(current, { session });
   });
   if (cancelled.masterOrderId || cancelled.masterOrderCode) {
     await syncMasterOrderSummary(cancelled.masterOrderId || cancelled.masterOrderCode);
   }
   return { salesOrder: toClient(cancelled) };
+}
+
+async function deleteOrder(id, body = {}) {
+  const current = await orderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  // ERP/DMS không xóa vật lý chứng từ đã phát sinh; DELETE chuyển sang void để còn audit và báo cáo.
+  const removed = {
+    ...current,
+    status: 'void',
+    deliveryStatus: 'void',
+    deletedAt: nowIso(),
+    deleteReason: String(body.reason || body.deleteReason || '').trim(),
+    updatedAt: nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    await orderRepository.upsert(removed, { session });
+    await reverseSalesOrderPosting(current, { session });
+  });
+  if (removed.masterOrderId || removed.masterOrderCode) {
+    await syncMasterOrderSummary(removed.masterOrderId || removed.masterOrderCode);
+  }
+  return { salesOrder: toClient(removed) };
 }
 
 async function getMasterChildren(masterOrder) {
@@ -210,11 +293,15 @@ async function syncMasterOrderSummary(masterIdOrCode, options = {}) {
 
 module.exports = {
   listOrders,
+  getOrder,
   createOrder,
   updateOrder,
   cancelOrder,
+  deleteOrder,
   getMasterChildren,
   summarizeOrders,
   syncMasterOrderSummary,
+  applySalesOrderPosting,
+  reverseSalesOrderPosting,
   toClient
 };

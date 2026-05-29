@@ -13,14 +13,13 @@ const pinoHttp = require('pino-http');
 const { body, validationResult } = require('express-validator');
 const { parseExcelBuffer } = require('../../utils/excelParser');
 const { previewImport, commitImport } = require('../../services/importService');
-const { renderPrintHtml } = require('../../services/printService');
 const { buildImportTemplate, getTemplateTypes, TEMPLATE_DEFINITIONS } = require('../../services/excelTemplateService');
 const connectDB = require('../config/db');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const { MongoStore } = require('../services/mongoSyncService');
 const { createAppDataService } = require('../services/appData.service');
-const { registerMobileDeliveryRoutes } = require('../routes/mobile/delivery.routes');
+const { registerMobileRoutes } = require('../routes/mobileRoutes');
 const { registerStaticRoutes } = require('../routes/static.routes');
 const { registerHealthRoutes } = require('../routes/health.routes');
 const { registerApiRoutes } = require('../routes');
@@ -87,11 +86,61 @@ app.use(responseFormatter);
 // Phase route split: mount routes-controller-service-repository trước legacy fallback.
 registerApiRoutes(app);
 
+// Phase 2.9: tách mobile API ra route/controller/service riêng và mount trước legacy fallback.
+const routeContext = {
+  authLimiter,
+  validateRequest,
+  requireMobileLogin,
+  requireMobileRole,
+  ROLE_LABELS,
+  VALID_ROLES,
+  ACCESS_TOKEN_EXPIRES_IN,
+  normalizeText,
+  toNumber,
+  verifyPasswordSync,
+  staffMongoToClient,
+  customerMongoToClient,
+  productMongoToClient,
+  stripMongoFields,
+  buildJwtPayload,
+  encodeMobileToken,
+  encodeMobileRefreshToken,
+  decodeMobileRefreshToken,
+  getPrimaryDataSnapshot,
+  persistPrimaryDataSnapshot,
+  saveOperationalData,
+  refreshOrderDocumentCacheFromMongo,
+  writeMobileLog,
+  findCustomer,
+  findProduct,
+  getProductAvailableQty,
+  formatCaseLooseQty,
+  buildProductLineMeta,
+  reduceStock,
+  makeId,
+  buildSalesCode,
+  buildCashCode,
+  updateSalesOrderWithRepost,
+  buildMobileProduct,
+  buildDebtLedgerRows,
+  getOrderDeliveryDate,
+  isOrderApprovedForDelivery,
+  getOrderDeliveryInfo,
+  isOrderAssignedToDeliveryUser,
+  buildDeliveryOrderRow,
+  isDeliveryOrderActive,
+  createReceiptDocument,
+  auditLog,
+  buildReturnItemsFromRequest,
+  createReturnOrderDocument
+};
+registerMobileRoutes(app, routeContext);
+
 
 // Phase 2.7: các API nghiệp vụ chính phải đi qua route/controller/service/repository Mongo.
 // Legacy JSON chỉ được bật lại tạm thời bằng ENABLE_LEGACY_JSON=true để cứu dữ liệu hoặc debug migration.
 const ENABLE_LEGACY_JSON = process.env.ENABLE_LEGACY_JSON === 'true';
-const ALLOWED_LEGACY_API_PREFIXES = ['/mobile'];
+const ALLOWED_LEGACY_API_PREFIXES = []; // Phase 2.10: không còn cho API nghiệp vụ rơi về legacy JSON.
 
 app.use('/api', (req, res, next) => {
   if (ENABLE_LEGACY_JSON) return next();
@@ -1883,387 +1932,34 @@ function buildDebtSummaryByCustomerFromRows(rows) {
   return Array.from(map.values()).filter((row) => row.debit !== 0 || row.credit !== 0 || row.debt !== 0);
 }
 
-// Health / data
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, message: 'KHO Minh Khai Pro V44 server is running', time: new Date().toISOString() });
-});
+// Phase 2.9.3: system endpoints đã tách sang src/routes/systemRoutes.js.
+// legacyApp.js không còn xử lý trực tiếp /api/health, /api/data, /api/system/*.
 
-app.get('/api/data', async (req, res) => {
-  try {
-    res.json({ ok: true, source: 'mongo', data: await getPrimaryDataSnapshot() });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đọc được dữ liệu', error: err.message });
-  }
-});
+// Phase 2.10.1: Legacy route handlers đã được dọn sạch.
+// Các API nghiệp vụ đã chuyển sang src/routes -> controllers -> services.
+// legacyApp.js chỉ còn helper/fallback nội bộ và bootstrap app.
 
-app.get('/api/system/data-source', async (req, res) => {
-  try {
-    const mongoCounts = await getAppDataService().getCounts();
-    const cacheCounts = APP_DATA_CACHE
-      ? Object.fromEntries(APP_COLLECTION_KEYS.map((key) => [key, (APP_DATA_CACHE[key] || []).length]))
-      : {};
-    res.json({
-      ok: true,
-      primaryDataSource: 'mongodb',
-      jsonUsage: 'backup-only',
-      mongoCounts,
-      cacheCounts
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không kiểm tra được nguồn dữ liệu', error: err.message });
-  }
-});
 
-// Products - MongoDB 100%
-app.get('/api/products', async (req, res) => {
-  try {
-    const q = normalizeText(req.query.q);
-    const activeOnly = String(req.query.activeOnly || '') === '1';
-    const filter = {};
 
-    if (activeOnly) filter.isActive = { $ne: false };
-    if (q) {
-      filter.$or = [
-        { code: { $regex: q, $options: 'i' } },
-        { name: { $regex: q, $options: 'i' } },
-        { barcode: { $regex: q, $options: 'i' } },
-        { category: { $regex: q, $options: 'i' } },
-        { unit: { $regex: q, $options: 'i' } },
-        { baseUnit: { $regex: q, $options: 'i' } },
-        { packing: { $regex: q, $options: 'i' } }
-      ];
-    }
 
-    const products = await Product.find(filter).sort({ code: 1 }).lean();
-    const data = await getPrimaryDataSnapshot();
-    const clientProducts = products.map((product) => {
-      const client = productMongoToClient(product);
-      const availableQty = getProductAvailableQty(data, client);
-      return {
-        ...client,
-        stockQuantity: availableQty,
-        availableQty,
-        stockDisplay: formatCaseLooseQty(availableQty, client.conversionRate || 1)
-      };
-    });
-    res.json({ ok: true, source: 'mongo', products: clientProducts });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được danh sách sản phẩm từ MongoDB', error: err.message });
-  }
-});
-
-app.post('/api/products', async (req, res) => {
-  try {
-    const payload = pickProductPayload(req.body || {});
-    const error = validateProduct(payload);
-    if (error) return res.status(400).json({ ok: false, message: error });
-
-    const existedCode = await Product.findOne({ code: payload.code }).select('_id').lean();
-    if (existedCode) return res.status(409).json({ ok: false, message: 'Mã sản phẩm đã tồn tại trong MongoDB' });
-
-    if (payload.barcode) {
-      const existedBarcode = await Product.findOne({ barcode: payload.barcode }).select('_id').lean();
-      if (existedBarcode) return res.status(409).json({ ok: false, message: 'Mã vạch đã tồn tại trong MongoDB' });
-    }
-
-    const product = await Product.create(payload);
-    await refreshProductCacheFromMongo();
-    console.log('✅ MongoDB products.create:', payload.code);
-    res.status(201).json({ ok: true, source: 'mongo', message: 'Đã tạo sản phẩm và lưu vào MongoDB', product: productMongoToClient(product) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tạo được sản phẩm trên MongoDB', error: err.message });
-  }
-});
-
-app.put('/api/products/:id', async (req, res) => {
-  try {
-    const productId = req.params.id;
-    const currentProduct = await Product.findOne(buildProductMongoFilter(productId));
-    if (!currentProduct) return res.status(404).json({ ok: false, message: 'Không tìm thấy sản phẩm trong MongoDB' });
-
-    const payload = pickProductPayload(req.body || {});
-    const error = validateProduct(payload);
-    if (error) return res.status(400).json({ ok: false, message: error });
-
-    const existedCode = await Product.findOne({ code: payload.code, _id: { $ne: currentProduct._id } }).select('_id').lean();
-    if (existedCode) return res.status(409).json({ ok: false, message: 'Mã sản phẩm đã tồn tại trong MongoDB' });
-
-    if (payload.barcode) {
-      const existedBarcode = await Product.findOne({ barcode: payload.barcode, _id: { $ne: currentProduct._id } }).select('_id').lean();
-      if (existedBarcode) return res.status(409).json({ ok: false, message: 'Mã vạch đã tồn tại trong MongoDB' });
-    }
-
-    Object.assign(currentProduct, payload);
-    await currentProduct.save();
-    await refreshProductCacheFromMongo();
-    console.log('✅ MongoDB products.update:', payload.code);
-    res.json({ ok: true, source: 'mongo', message: 'Đã cập nhật sản phẩm vào MongoDB', product: productMongoToClient(currentProduct) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không cập nhật được sản phẩm trên MongoDB', error: err.message });
-  }
-});
-
-app.patch('/api/products/:id/status', async (req, res) => {
-  try {
-    const product = await Product.findOne(buildProductMongoFilter(req.params.id));
-    if (!product) return res.status(404).json({ ok: false, message: 'Không tìm thấy sản phẩm trong MongoDB' });
-
-    product.isActive = req.body.isActive !== false;
-    await product.save();
-    await refreshProductCacheFromMongo();
-    console.log('✅ MongoDB products.status:', product.code, product.isActive);
-    res.json({ ok: true, source: 'mongo', message: product.isActive ? 'Đã mở bán sản phẩm trong MongoDB' : 'Đã ngừng bán sản phẩm trong MongoDB', product: productMongoToClient(product) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đổi được trạng thái sản phẩm trên MongoDB', error: err.message });
-  }
-});
 
 // Customers - MongoDB 100%
-app.get('/api/customers', async (req, res) => {
-  try {
-    const customers = await Customer.find(buildCustomerQueryFilter(req.query)).sort({ code: 1 }).lean();
-    res.json({ ok: true, source: 'mongo', customers: customers.map(customerMongoToClient) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được danh sách khách hàng từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/customers', async (req, res) => {
-  try {
-    const payload = pickCustomerPayload(req.body || {});
-    const error = validateCustomer(payload);
-    if (error) return res.status(400).json({ ok: false, message: error });
 
-    const existedCode = await Customer.findOne({ code: payload.code }).select('_id').lean();
-    if (existedCode) return res.status(409).json({ ok: false, message: 'Mã khách hàng đã tồn tại trong MongoDB' });
 
-    const customer = await Customer.create(payload);
-    await refreshCustomerCacheFromMongo();
-    console.log('✅ MongoDB customers.create:', payload.code);
-    res.status(201).json({ ok: true, source: 'mongo', message: 'Đã tạo khách hàng và lưu vào MongoDB', customer: customerMongoToClient(customer) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tạo được khách hàng trên MongoDB', error: err.message });
-  }
-});
 
-app.put('/api/customers/:id', async (req, res) => {
-  try {
-    const currentCustomer = await Customer.findOne(buildCustomerMongoFilter(req.params.id));
-    if (!currentCustomer) return res.status(404).json({ ok: false, message: 'Không tìm thấy khách hàng trong MongoDB' });
 
-    const payload = pickCustomerPayload(req.body || {});
-    const error = validateCustomer(payload);
-    if (error) return res.status(400).json({ ok: false, message: error });
-
-    const existedCode = await Customer.findOne({ code: payload.code, _id: { $ne: currentCustomer._id } }).select('_id').lean();
-    if (existedCode) return res.status(409).json({ ok: false, message: 'Mã khách hàng đã tồn tại trong MongoDB' });
-
-    Object.assign(currentCustomer, payload);
-    await currentCustomer.save();
-    await refreshCustomerCacheFromMongo();
-    console.log('✅ MongoDB customers.update:', payload.code);
-    res.json({ ok: true, source: 'mongo', message: 'Đã cập nhật khách hàng vào MongoDB', customer: customerMongoToClient(currentCustomer) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không cập nhật được khách hàng trên MongoDB', error: err.message });
-  }
-});
-
-app.patch('/api/customers/:id/status', async (req, res) => {
-  try {
-    const customer = await Customer.findOne(buildCustomerMongoFilter(req.params.id));
-    if (!customer) return res.status(404).json({ ok: false, message: 'Không tìm thấy khách hàng trong MongoDB' });
-
-    customer.isActive = req.body.isActive !== false;
-    await customer.save();
-    await refreshCustomerCacheFromMongo();
-    console.log('✅ MongoDB customers.status:', customer.code, customer.isActive);
-    res.json({ ok: true, source: 'mongo', message: customer.isActive ? 'Đã kích hoạt khách hàng trong MongoDB' : 'Đã ngừng hoạt động khách hàng trong MongoDB', customer: customerMongoToClient(customer) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đổi được trạng thái khách hàng trên MongoDB', error: err.message });
-  }
-});
-
-app.delete('/api/customers/:id', async (req, res) => {
-  try {
-    const customer = await Customer.findOneAndDelete(buildCustomerMongoFilter(req.params.id)).lean();
-    if (!customer) return res.status(404).json({ ok: false, message: 'Không tìm thấy khách hàng trong MongoDB' });
-    await refreshCustomerCacheFromMongo();
-    console.log('✅ MongoDB customers.delete:', customer.code);
-    res.json({ ok: true, source: 'mongo', message: 'Đã xóa khách hàng khỏi MongoDB', customer: customerMongoToClient(customer) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được khách hàng trên MongoDB', error: err.message });
-  }
-});
-
-app.post('/api/customers/bulk-delete', async (req, res) => {
-  try {
-    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String).map(v => v.trim()).filter(Boolean) : [];
-    if (!ids.length) return res.status(400).json({ ok: false, message: 'Chưa chọn khách hàng để xóa' });
-    const objectIds = ids.filter((id) => /^[a-f\d]{24}$/i.test(id));
-    const result = await Customer.deleteMany({ $or: [{ code: { $in: ids } }, { _id: { $in: objectIds } }] });
-    await refreshCustomerCacheFromMongo();
-    const deleted = result.deletedCount || 0;
-    console.log('✅ MongoDB customers.bulk-delete:', deleted);
-    res.json({ ok: true, source: 'mongo', message: `Đã xóa ${deleted} khách hàng khỏi MongoDB`, deleted });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa nhiều khách hàng trên MongoDB', error: err.message });
-  }
-});
 
 
 
 // Users / Staffs / Roles / Permissions - MongoDB 100%
-app.get('/api/users', async (req, res) => {
-  try {
-    const staffs = await MongoStore.staffs.find(buildStaffQueryFilter(req.query)).sort({ code: 1, username: 1 }).lean();
-    res.json({ ok: true, source: 'mongo', users: staffs.map(staffMongoToClient) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được danh sách tài khoản từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/users', async (req, res) => {
-  try {
-    const id = String(req.body?.id || '').trim();
-    const current = id ? await MongoStore.staffs.findOne(buildStaffMongoFilter(id)).lean() : null;
-    const payload = pickStaffPayload(req.body || {}, current);
-    const error = validateStaff(payload);
-    if (error) return res.status(400).json({ ok: false, message: error });
 
-    const duplicated = await MongoStore.staffs.findOne({
-      $or: [{ code: payload.code }, { username: payload.username }],
-      ...(current?._id ? { _id: { $ne: current._id } } : {})
-    }).select('_id code username').lean();
-    if (duplicated) return res.status(409).json({ ok: false, message: 'Mã nhân viên hoặc tên đăng nhập đã tồn tại trong MongoDB' });
 
-    const saved = current
-      ? await MongoStore.staffs.findOneAndUpdate(buildStaffMongoFilter(id), payload, { new: true, runValidators: false }).lean()
-      : await MongoStore.staffs.create(payload);
-    await refreshAccessCacheFromMongo();
-    res.status(current ? 200 : 201).json({ ok: true, source: 'mongo', message: current ? 'Đã cập nhật tài khoản vào MongoDB' : 'Đã tạo tài khoản trên MongoDB', user: staffMongoToClient(saved) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lưu được tài khoản trên MongoDB', error: err.message });
-  }
-});
 
-app.delete('/api/users/:id', async (req, res) => {
-  try {
-    const staff = await MongoStore.staffs.findOneAndDelete(buildStaffMongoFilter(req.params.id)).lean();
-    if (!staff) return res.status(404).json({ ok: false, message: 'Không tìm thấy tài khoản trong MongoDB' });
-    await refreshAccessCacheFromMongo();
-    res.json({ ok: true, source: 'mongo', message: 'Đã xóa tài khoản khỏi MongoDB', user: staffMongoToClient(staff) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được tài khoản trên MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/staffs', async (req, res) => {
-  try {
-    const staffs = await MongoStore.staffs.find(buildStaffQueryFilter(req.query)).sort({ code: 1, username: 1 }).lean();
-    res.json({ ok: true, source: 'mongo', staffs: staffs.map(staffMongoToClient) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được nhân viên từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/roles', async (req, res) => {
-  try {
-    const roles = await MongoStore.roles.find({ isActive: { $ne: false } }).sort({ code: 1 }).lean();
-    res.json({ ok: true, source: 'mongo', roles: roles.map(stripMongoFields) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được vai trò từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/permissions', async (req, res) => {
-  try {
-    const roleCode = String(req.query.roleCode || req.query.role || '').trim();
-    const filter = roleCode ? { roleCode } : {};
-    const permissions = await MongoStore.permissions.find(filter).sort({ roleCode: 1, module: 1 }).lean();
-    res.json({ ok: true, source: 'mongo', permissions: permissions.map(stripMongoFields) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được phân quyền từ MongoDB', error: err.message });
-  }
-});
-
-app.get('/api/import/custom-templates', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    res.json({ ok: true, templates: data.importTemplates || [] });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được mẫu import tự tạo', error: err.message });
-  }
-});
-
-app.post('/api/import/custom-templates', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const template = normalizeImportTemplatePayload(req.body || {});
-    if (!Array.isArray(data.importTemplates)) data.importTemplates = [];
-    const index = data.importTemplates.findIndex((item) => normalizeText(item.id) === normalizeText(template.id) || normalizeText(item.code) === normalizeText(template.code));
-    if (index >= 0) data.importTemplates[index] = { ...data.importTemplates[index], ...template, createdAt: data.importTemplates[index].createdAt || template.createdAt };
-    else data.importTemplates.unshift(template);
-    await persistPrimaryDataSnapshot(data);
-    res.json({ ok: true, message: 'Đã lưu mẫu import tự tạo', template });
-  } catch (err) {
-    res.status(err.statusCode || 500).json({ ok: false, message: err.message || 'Không lưu được mẫu import' });
-  }
-});
-
-app.delete('/api/import/custom-templates/:id', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const id = String(req.params.id || '').trim();
-    const before = (data.importTemplates || []).length;
-    data.importTemplates = (data.importTemplates || []).filter((template) => normalizeText(template.id) !== normalizeText(id));
-    if (data.importTemplates.length === before) return res.status(404).json({ ok: false, message: 'Không tìm thấy mẫu import' });
-    await persistPrimaryDataSnapshot(data);
-    res.json({ ok: true, message: 'Đã xóa mẫu import' });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được mẫu import', error: err.message });
-  }
-});
-
-app.get('/api/import/custom-template/:id/download', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const template = findImportTemplate(data, req.params.id);
-    if (!template) return res.status(404).json({ ok: false, message: 'Không tìm thấy mẫu import' });
-    const headers = template.fields.map((field) => field.excelHeader);
-    const XLSX = require('xlsx');
-    const workbook = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet([headers]);
-    sheet['!cols'] = headers.map((h) => ({ wch: Math.max(14, String(h).length + 6) }));
-    XLSX.utils.book_append_sheet(workbook, sheet, template.sheetName || 'Import');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    const safeName = String(template.name || 'mau-import-tu-tao').replace(/[\\/:*?"<>|]/g, '-');
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}.xlsx"`);
-    res.send(buffer);
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được file mẫu tự tạo', error: err.message });
-  }
-});
-
-app.get('/api/import/templates', (req, res) => {
-  try {
-    res.json({ ok: true, templates: getTemplateTypes() });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được danh sách mẫu import', error: err.message });
-  }
-});
-
-app.get('/api/import/template/:type', (req, res) => {
-  try {
-    const type = String(req.params.type || '').trim();
-    const { buffer, fileName } = buildImportTemplate(type);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-    res.send(buffer);
-  } catch (err) {
-    res.status(err.statusCode || 500).json({ ok: false, message: err.message || 'Không tạo được mẫu import Excel' });
-  }
-});
 
 
 async function upsertProductRowsToMongo(rows) {
@@ -2333,147 +2029,13 @@ async function upsertCustomerRowsToMongo(rows) {
 
 
 
-app.get('/api/stock', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const q = normalizeText(req.query.q);
-    const stock = ((await getPrimaryDataSnapshot()).stock || [])
-      .filter((row) => !q || [row.productCode, row.productName, row.unit, row.packing].join(' ').toLowerCase().includes(q))
-      .sort((a, b) => String(a.productCode || '').localeCompare(String(b.productCode || '')));
-    res.json({ ok: true, source: 'mongo', stock });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được tồn kho từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/debts', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    res.json({ ok: true, source: 'mongo', debts: buildCustomerDebtSummary(data), payments: data.payments || [] });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được công nợ từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/cashbook', async (req, res) => {
-  try {
-    await refreshFinancialDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const q = normalizeText(req.query.q);
-    let cashbooks = data.cashbooks || data.cashbook || [];
-    let bankbooks = data.bankbooks || [];
-    if (q) {
-      const match = (e) => [e.code, e.source, e.refCode, e.customerCode, e.customerName, e.staffName, e.note].some((value) => normalizeText(value).includes(q));
-      cashbooks = cashbooks.filter(match);
-      bankbooks = bankbooks.filter(match);
-    }
-    res.json({ ok: true, source: 'mongo', cashbook: cashbooks, cashbooks, bankbooks, summary: getCashSummary({ ...data, cashbooks }), bankSummary: getBankSummary({ ...data, bankbooks }) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được sổ quỹ từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/cashbook', async (req, res) => {
-  try {
-    await refreshFinancialDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const amount = toNumber(req.body.amount);
-    if (amount <= 0) return res.status(400).json({ ok: false, message: 'Số tiền phải lớn hơn 0' });
-    const type = String(req.body.type || 'in').toLowerCase() === 'out' ? 'out' : 'in';
-    const entry = {
-      id: makeId('CB'),
-      code: buildCashCode(data, type),
-      date: String(req.body.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
-      type,
-      source: String(req.body.source || 'manual_cashbook').trim(),
-      refType: 'manual_cashbook',
-      refId: '',
-      refCode: '',
-      customerId: '',
-      customerCode: String(req.body.customerCode || '').trim(),
-      customerName: String(req.body.customerName || '').trim(),
-      staffName: String(req.body.staffName || '').trim(),
-      method: 'cash',
-      amount,
-      note: String(req.body.note || '').trim(),
-      status: 'posted',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    data.cashbooks = data.cashbooks || data.cashbook || [];
-    data.cashbooks.push(entry);
-    data.cashbook = data.cashbooks;
-    auditLog(data, 'create_cashbook', 'cashbook', entry, null, entry, 'Ghi sổ tiền mặt thủ công', req.user?.name || '');
-    await saveOperationalData(data);
-    res.status(201).json({ ok: true, source: 'mongo', message: `Đã ghi sổ tiền mặt ${entry.code}`, entry, cashbook: entry });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không ghi được sổ tiền mặt' });
-  }
-});
 
-app.get('/api/bankbook', async (req, res) => {
-  try {
-    await refreshFinancialDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    res.json({ ok: true, source: 'mongo', bankbooks: data.bankbooks || [], summary: getBankSummary(data) });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được sổ chuyển khoản từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/receipts', async (req, res) => {
-  try {
-    await refreshFinancialDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const q = normalizeText(req.query.q);
-    let receipts = data.receipts || [];
-    if (q) receipts = receipts.filter((r) => [r.code, r.customerCode, r.customerName, r.staffName, r.refCode, r.note].some((value) => normalizeText(value).includes(q)));
-    res.json({ ok: true, source: 'mongo', receipts });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được phiếu thu từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/receipts', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const amount = toNumber(req.body.amount);
-    if (amount <= 0) return res.status(400).json({ ok: false, message: 'Số tiền thu phải lớn hơn 0' });
-    const customer = findCustomer(data, req.body.customerId || req.body.customerCode);
-    if (!customer) return res.status(404).json({ ok: false, message: 'Không tìm thấy khách hàng' });
-    const receipt = createReceiptDocument(data, { ...req.body, customer, amount });
-    auditLog(data, 'create_receipt', 'receipt', receipt, null, receipt, 'Tạo phiếu thu ghi Mongo', req.user?.name || '');
-    await saveOperationalData(data);
-    res.status(201).json({ ok: true, source: 'mongo', message: `Đã tạo phiếu thu ${receipt.code}`, receipt });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không tạo được phiếu thu' });
-  }
-});
 
-app.delete('/api/receipts/:id', async (req, res) => {
-  try {
-    await refreshFinancialDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const receipt = (data.receipts || []).find((r) => r.id === req.params.id || r.code === req.params.id);
-    if (!receipt) return res.status(404).json({ ok: false, message: 'Không tìm thấy phiếu thu' });
-    const before = { ...receipt };
-    receipt.status = 'void';
-    receipt.voidReason = String(req.query.reason || req.body?.reason || 'Hủy phiếu thu').trim();
-    receipt.voidedAt = new Date().toISOString();
-    receipt.updatedAt = new Date().toISOString();
-    const sameRef = (entry) => entry.refType === 'receipt' && (entry.refId === receipt.id || entry.refCode === receipt.code);
-    (data.payments || []).forEach((entry) => { if (sameRef(entry)) { entry.status = 'void'; entry.updatedAt = new Date().toISOString(); } });
-    (data.cashbooks || data.cashbook || []).forEach((entry) => { if (sameRef(entry)) { entry.status = 'void'; entry.updatedAt = new Date().toISOString(); } });
-    (data.bankbooks || []).forEach((entry) => { if (sameRef(entry)) { entry.status = 'void'; entry.updatedAt = new Date().toISOString(); } });
-    auditLog(data, 'void_receipt', 'receipt', receipt, before, receipt, receipt.voidReason, req.user?.name || '');
-    await saveOperationalData(data);
-    res.json({ ok: true, source: 'mongo', message: `Đã hủy phiếu thu ${receipt.code}`, receipt });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không hủy được phiếu thu' });
-  }
-});
 
 app.get(['/api/return-orders', '/api/returns'], async (req, res) => {
   try {
@@ -2507,343 +2069,30 @@ app.post(['/api/return-orders', '/api/returns'], async (req, res) => {
 });
 
 // PHASE 2.3: Sales Orders / Master Orders / Import Orders dùng MongoDB làm nguồn chính.
-app.get('/api/import-orders', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const orders = ((await getPrimaryDataSnapshot()).importOrders || []).sort((a, b) => String(b.createdAt || b.date).localeCompare(String(a.createdAt || a.date)));
-    res.json({ ok: true, source: 'mongo', importOrders: orders });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được phiếu nhập từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/import-orders', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const rawItems = Array.isArray(req.body.items) ? req.body.items : [];
-    if (!rawItems.length) return res.status(400).json({ ok: false, message: 'Phiếu nhập chưa có dòng hàng' });
-    const items = rawItems.map((raw) => {
-      const product = findProduct(data, raw.productCode || raw.code || raw.productId);
-      if (!product) throw new Error(`Không tìm thấy sản phẩm: ${raw.productCode || raw.code || raw.productId || ''}`);
-      const quantity = toNumber(raw.quantity || raw.qty);
-      const costPrice = toNumber(raw.costPrice || raw.price || product.costPrice);
-      if (quantity <= 0) throw new Error(`Số lượng nhập phải lớn hơn 0: ${product.code}`);
-      if (costPrice < 0) throw new Error(`Giá nhập không được âm: ${product.code}`);
-      return { productId: product.id, productCode: product.code, productName: product.name, ...buildProductLineMeta(product), quantity, costPrice, amount: quantity * costPrice };
-    });
-    const order = {
-      id: makeId('IM'), code: buildImportCode(data), date: String(req.body.date || new Date().toISOString().slice(0, 10)).slice(0, 10),
-      supplier: String(req.body.supplier || req.body.supplierName || '').trim(), note: String(req.body.note || '').trim(),
-      items, totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0), totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0),
-      status: 'posted', source: 'mongo_import_order', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-    };
-    data.importOrders.push(order);
-    items.forEach((item) => upsertStock(data, item));
-    await saveOperationalData(data);
-    res.status(201).json({ ok: true, source: 'mongo', message: `Đã tạo phiếu nhập ${order.code} trên MongoDB`, importOrder: order });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không tạo được phiếu nhập' });
-  }
-});
 
-app.put('/api/import-orders/:id', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const order = (data.importOrders || []).find((item) => item.id === req.params.id || item.code === req.params.id);
-    if (!order) return res.status(404).json({ ok: false, message: 'Không tìm thấy phiếu nhập' });
-    (order.items || []).forEach((item) => reduceStock(data, item));
-    const rawItems = Array.isArray(req.body.items) ? req.body.items : [];
-    if (!rawItems.length) throw new Error('Phiếu nhập chưa có dòng hàng');
-    const items = rawItems.map((raw) => {
-      const product = findProduct(data, raw.productCode || raw.code || raw.productId);
-      if (!product) throw new Error(`Không tìm thấy sản phẩm: ${raw.productCode || raw.code || raw.productId || ''}`);
-      const quantity = toNumber(raw.quantity || raw.qty);
-      const costPrice = toNumber(raw.costPrice || raw.price || product.costPrice);
-      if (quantity <= 0) throw new Error(`Số lượng nhập phải lớn hơn 0: ${product.code}`);
-      return { productId: product.id, productCode: product.code, productName: product.name, ...buildProductLineMeta(product), quantity, costPrice, amount: quantity * costPrice };
-    });
-    Object.assign(order, {
-      date: String(req.body.date || order.date || new Date().toISOString().slice(0, 10)).slice(0, 10), supplier: String(req.body.supplier || order.supplier || '').trim(), note: String(req.body.note ?? order.note ?? '').trim(),
-      items, totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0), totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0), updatedAt: new Date().toISOString()
-    });
-    items.forEach((item) => upsertStock(data, item));
-    await saveOperationalData(data);
-    res.json({ ok: true, source: 'mongo', message: `Đã cập nhật phiếu nhập ${order.code} trên MongoDB`, importOrder: order });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không sửa được phiếu nhập' });
-  }
-});
 
-app.get('/api/sales-orders', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const orders = ((await getPrimaryDataSnapshot()).salesOrders || []).sort((a, b) => String(b.createdAt || b.date).localeCompare(String(a.createdAt || a.date)));
-    res.json({ ok: true, source: 'mongo', salesOrders: orders });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn bán từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/sales-orders', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const patch = buildValidatedSalesOrderPatch(data, {}, req.body || {});
-    const order = {
-      id: makeId('SO'), code: buildSalesCode(data), ...patch,
-      source: 'web_sales_app', orderSource: req.body.orderSource || 'NVBH', orderSourceName: req.body.orderSourceName || (req.body.orderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH'),
-      isChildOrder: true, masterOrderId: '', masterOrderCode: '', mergeStatus: 'unmerged', deliveryStatus: 'pending', status: 'posted', createdAt: new Date().toISOString()
-    };
-    data.salesOrders.push(order);
-    order.items.forEach((item) => reduceStock(data, item));
-    addOrderFinancialEntries(data, order);
-    await saveOperationalData(data);
-    res.status(201).json({ ok: true, source: 'mongo', message: `Đã tạo đơn bán ${order.code} trên MongoDB`, salesOrder: order });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không tạo được đơn bán' });
-  }
-});
 
-app.put('/api/sales-orders/:id', async (req, res) => {
-  try {
-    if (!canAccountingEdit(req)) return res.status(403).json({ ok: false, message: 'Chỉ kế toán/admin được sửa đơn bán' });
-    const data = await getPrimaryDataSnapshot();
-    const order = (data.salesOrders || []).find((item) => item.id === req.params.id || item.code === req.params.id);
-    if (!order) return res.status(404).json({ ok: false, message: 'Không tìm thấy đơn bán' });
-    const before = cloneData(order);
-    const salesOrder = updateSalesOrderWithRepost(data, order, req.body || {});
-    auditLog(data, 'update_sales_order', 'salesOrder', salesOrder, before, salesOrder, `Sửa đơn bán ${salesOrder.code}`, req.body?.actorName || 'admin');
-    await saveOperationalData(data);
-    res.json({ ok: true, source: 'mongo', message: `Đã cập nhật đơn bán ${salesOrder.code} trên MongoDB`, salesOrder });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không sửa được đơn bán' });
-  }
-});
 
-app.post('/api/sales-orders/:id/cancel', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const order = (data.salesOrders || []).find((item) => item.id === req.params.id || item.code === req.params.id);
-    if (!order) return res.status(404).json({ ok: false, message: 'Không tìm thấy đơn bán' });
-    if (['cancelled', 'void'].includes(String(order.status || '').toLowerCase())) return res.json({ ok: true, source: 'mongo', message: 'Đơn đã ở trạng thái hủy', salesOrder: order });
-    const before = cloneData(order);
-    (order.items || []).forEach((item) => restoreStock(data, item));
-    removeOrderFinancialEntries(data, order);
-    Object.assign(order, { status: 'cancelled', deliveryStatus: 'cancelled', cancelledAt: new Date().toISOString(), cancelReason: String(req.body.reason || '').trim(), updatedAt: new Date().toISOString() });
-    syncMasterOrderAfterChildChange(data, order.masterOrderId || order.masterOrderCode);
-    auditLog(data, 'cancel_sales_order', 'salesOrder', order, before, order, order.cancelReason || `Hủy đơn ${order.code}`, req.body?.actorName || 'admin');
-    await saveOperationalData(data);
-    res.json({ ok: true, source: 'mongo', message: `Đã hủy đơn bán ${order.code} trên MongoDB`, salesOrder: order });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không hủy được đơn bán' });
-  }
-});
 
-app.get('/api/master-orders/unmerged-child-orders', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const q = normalizeText(req.query.q);
-    const source = normalizeText(req.query.source);
-    const date = String(req.query.date || '').slice(0, 10);
-    const salesStaff = normalizeText(req.query.salesStaff);
-    const orders = ((await getPrimaryDataSnapshot()).salesOrders || [])
-      .filter((order) => !['cancelled', 'void'].includes(String(order.status || '').toLowerCase()))
-      .filter((order) => (order.mergeStatus || 'unmerged') !== 'merged' && !order.masterOrderId && !order.masterOrderCode)
-      .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.customerPhone, order.customerAddress].join(' ').toLowerCase().includes(q))
-      .filter((order) => !source || normalizeText(order.orderSource || 'NVBH') === source)
-      .filter((order) => !date || String(order.deliveryDate || order.date || '').slice(0, 10) === date)
-      .filter((order) => !salesStaff || [order.staffCode, order.staffName, order.salesStaffCode, order.salesStaffName].join(' ').toLowerCase().includes(salesStaff));
-    res.json({ ok: true, source: 'mongo', orders });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn con chưa gộp từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/master-orders', async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const q = normalizeText(req.query.q);
-    const dateFrom = String(req.query.dateFrom || '').slice(0, 10);
-    const dateTo = String(req.query.dateTo || '').slice(0, 10);
-    const data = await getPrimaryDataSnapshot();
-    const masterOrders = (data.masterOrders || []).map((order) => ({ ...order, children: getMasterOrderChildren(data, order) }))
-      .filter((order) => !q || [order.code, order.routeName, order.deliveryStaffName, order.deliveryStaffCode].join(' ').toLowerCase().includes(q))
-      .filter((order) => { const d = String(order.deliveryDate || order.date || '').slice(0, 10); return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo); })
-      .sort((a, b) => String(b.createdAt || b.date).localeCompare(String(a.createdAt || a.date)));
-    res.json({ ok: true, source: 'mongo', masterOrders });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn tổng từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/master-orders', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const childIds = Array.isArray(req.body.childOrderIds) ? req.body.childOrderIds.map(String) : [];
-    if (!childIds.length) return res.status(400).json({ ok: false, message: 'Chưa chọn đơn con để gộp' });
-    const children = (data.salesOrders || []).filter((order) => childIds.includes(String(order.id)) || childIds.includes(String(order.code)));
-    if (children.length !== childIds.length) return res.status(400).json({ ok: false, message: 'Một số đơn con không tồn tại' });
-    if (children.some((order) => order.masterOrderId || (order.mergeStatus || 'unmerged') === 'merged')) return res.status(400).json({ ok: false, message: 'Có đơn con đã được gộp trước đó' });
-    const deliveryStaff = findStaff(data, req.body.deliveryStaffId || req.body.deliveryStaffCode || req.body.deliveryStaffName);
-    const salesStaff = findStaff(data, req.body.salesStaffId || req.body.salesStaffCode || req.body.salesStaffName);
-    const master = {
-      id: makeId('MO'), code: buildMasterOrderCode(data), date: String(req.body.date || req.body.deliveryDate || new Date().toISOString().slice(0, 10)).slice(0, 10),
-      deliveryDate: String(req.body.deliveryDate || req.body.date || new Date().toISOString().slice(0, 10)).slice(0, 10), routeName: String(req.body.routeName || '').trim(),
-      deliveryStaffId: deliveryStaff?.id || String(req.body.deliveryStaffId || '').trim(), deliveryStaffCode: deliveryStaff?.code || String(req.body.deliveryStaffCode || '').trim(), deliveryStaffName: deliveryStaff?.name || String(req.body.deliveryStaffName || '').trim(),
-      salesStaffId: salesStaff?.id || String(req.body.salesStaffId || '').trim(), salesStaffCode: salesStaff?.code || String(req.body.salesStaffCode || '').trim(), salesStaffName: salesStaff?.name || String(req.body.salesStaffName || '').trim(),
-      note: String(req.body.note || '').trim(), childOrderIds: children.map((order) => order.id), status: 'assigned', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-    };
-    Object.assign(master, summarizeMasterOrder(children));
-    children.forEach((order) => Object.assign(order, { masterOrderId: master.id, masterOrderCode: master.code, mergeStatus: 'merged', deliveryDate: master.deliveryDate, deliveryStaffId: master.deliveryStaffId, deliveryStaffCode: master.deliveryStaffCode, deliveryStaffName: master.deliveryStaffName, routeName: master.routeName, deliveryRoute: master.routeName, updatedAt: new Date().toISOString() }));
-    data.masterOrders.push(master);
-    auditLog(data, 'create_master_order', 'masterOrder', master, null, master, `Gộp ${children.length} đơn con vào ${master.code}`, req.body?.actorName || 'admin');
-    await saveOperationalData(data);
-    res.status(201).json({ ok: true, source: 'mongo', message: `Đã tạo đơn tổng ${master.code} trên MongoDB`, masterOrder: master });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không tạo được đơn tổng' });
-  }
-});
 
-app.post('/api/master-orders/:id/cancel', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const master = (data.masterOrders || []).find((order) => order.id === req.params.id || order.code === req.params.id);
-    if (!master) return res.status(404).json({ ok: false, message: 'Không tìm thấy đơn tổng' });
-    const before = cloneData(master);
-    getMasterOrderChildren(data, master).forEach((order) => Object.assign(order, { masterOrderId: '', masterOrderCode: '', mergeStatus: 'unmerged', deliveryStaffId: '', deliveryStaffCode: '', deliveryStaffName: '', routeName: '', deliveryRoute: '', updatedAt: new Date().toISOString() }));
-    Object.assign(master, { status: 'cancelled', cancelledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-    auditLog(data, 'cancel_master_order', 'masterOrder', master, before, master, `Hủy gộp đơn tổng ${master.code}`, req.body?.actorName || 'admin');
-    await saveOperationalData(data);
-    res.json({ ok: true, source: 'mongo', message: `Đã hủy gộp đơn tổng ${master.code} trên MongoDB`, masterOrder: master });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không hủy được đơn tổng' });
-  }
-});
 
 // Import Excel
-app.post('/api/import/preview', upload.single('file'), async (req, res) => {
-  try {
-    let type = String(req.body.type || '').trim();
-    const templateId = String(req.body.templateId || '').trim();
-    if (!type) return res.status(400).json({ ok: false, message: 'Thiếu loại import' });
-    if (!req.file || !req.file.buffer) return res.status(400).json({ ok: false, message: 'Chưa chọn file Excel' });
-
-    const rows = parseExcelBuffer(req.file.buffer);
-    if (!rows.length) return res.status(400).json({ ok: false, message: 'File Excel không có dữ liệu' });
-
-    if (type === 'products') await refreshProductCacheFromMongo();
-    if (type === 'customers') await refreshCustomerCacheFromMongo();
-    if (['cashbook', 'receipts', 'returnOrders', 'bankbooks'].includes(type)) await refreshFinancialDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const template = templateId ? findImportTemplate(data, templateId) : null;
-    if (template) type = template.type || type;
-    const mappedRows = template ? applyImportTemplateRows(rows, template) : rows;
-    const preview = previewImport(type, mappedRows, data);
-    preview.templateId = template ? template.id : '';
-    res.json({ ok: true, ...preview });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: err.message });
-  }
-});
-
-app.post('/api/import/commit', async (req, res) => {
-  try {
-    const type = String(req.body.type || '').trim();
-    const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
-    if (!type) return res.status(400).json({ ok: false, message: 'Thiếu loại import' });
-    if (!rows.length) return res.status(400).json({ ok: false, message: 'Chưa có dòng nào để import' });
-
-    // Riêng sản phẩm phải ghi trực tiếp MongoDB, không chỉ ghi vào data/kho-data.json.
-    if (type === 'products') {
-      const mongoResult = await upsertProductRowsToMongo(rows);
-      return res.json({
-        ok: true,
-        source: 'mongo',
-        message: `Đã import ${mongoResult.imported} sản phẩm vào MongoDB`,
-        imported: mongoResult.imported,
-        skipped: mongoResult.skipped,
-        errors: mongoResult.errors,
-        products: []
-      });
-    }
-
-    if (type === 'customers') {
-      const mongoResult = await upsertCustomerRowsToMongo(rows);
-      return res.json({
-        ok: true,
-        source: 'mongo',
-        message: `Đã import ${mongoResult.imported} khách hàng vào MongoDB`,
-        imported: mongoResult.imported,
-        skipped: mongoResult.skipped,
-        errors: mongoResult.errors,
-        customers: []
-      });
-    }
-
-    const data = await getPrimaryDataSnapshot();
-    const result = commitImport(type, rows, data);
-    if (!result.ok) return res.status(400).json(result);
-    if (['importOrders', 'salesOrders', 'cashbook', 'receipts', 'returnOrders', 'bankbooks'].includes(type)) {
-      await saveOperationalData(data);
-      return res.json({ ok: true, source: 'mongo', message: result.message || `Đã import ${type} vào MongoDB`, ...result, data: await getPrimaryDataSnapshot() });
-    }
-    await persistPrimaryDataSnapshot(data);
-    res.json({ ok: true, ...result, data });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message });
-  }
-});
-
-app.get('/api/import/logs', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    res.json({ ok: true, importLogs: data.importLogs || [] });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được lịch sử import', error: err.message });
-  }
-});
 
 
-// Print templates
-app.post('/api/print/render', (req, res) => {
-  try {
-    const { type, document, options } = req.body || {};
-    if (!type) return res.status(400).json({ ok: false, message: 'Thiếu loại mẫu in' });
-    if (!document) return res.status(400).json({ ok: false, message: 'Thiếu dữ liệu chứng từ để in' });
-    const html = renderPrintHtml(type, document, options || {});
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(html);
-  } catch (err) {
-    return res.status(500).json({ ok: false, message: 'Không render được mẫu in', error: err.message });
-  }
-});
 
-app.get('/api/print/:type/:id', async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const type = String(req.params.type || '').trim();
-    const id = String(req.params.id || '').trim();
-    let document = null;
-    let printType = type;
 
-    if (type === 'ORDER_SINGLE') document = data.salesOrders.find(order => order.id === id || order.code === id);
-    if (type === 'IMPORT_ORDER') document = data.importOrders.find(order => order.id === id || order.code === id);
-    if (type === 'PAYMENT_RECEIPT') document = (data.cashbooks || data.cashbook || []).find(entry => entry.id === id || entry.code === id);
 
-    if (!document) return res.status(404).json({ ok: false, message: 'Không tìm thấy chứng từ để in' });
-
-    const html = renderPrintHtml(printType, document, {});
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(html);
-  } catch (err) {
-    return res.status(500).json({ ok: false, message: 'Không in được chứng từ', error: err.message });
-  }
-});
+// Print templates đã được tách sang src/routes/printRoutes.js -> src/controllers/printController.js -> src/services/printDocumentService.js.
+// legacyApp.js không còn xử lý trực tiếp /api/print/*; nếu cần fallback, bật ENABLE_LEGACY_JSON và bổ sung route riêng có kiểm soát.
 
 
 // =========================
-// Mobile App API - V44
-// Chạy trực tiếp với cấu trúc server.js hiện tại, không cần thêm package.
-// Mobile UI nằm tại: /mobile/login.html
+// Mobile helper functions còn được dùng bởi src/routes/mobile/*.routes.js thông qua routeContext.
+// Không còn handler app.get/app.post mobile trong legacyApp.js.
 // =========================
 function writeMobileLog(data, user, action, payload = {}) {
   data.mobileLogs.push({
@@ -2938,390 +2187,19 @@ function buildMobileProduct(data, product) {
   };
 }
 
-app.post('/api/mobile/login', authLimiter, [body('username').isLength({ min: 2 }).withMessage('Tài khoản không hợp lệ'), body('password').isLength({ min: 4 }).withMessage('Mật khẩu không hợp lệ')], validateRequest, async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const username = String(req.body.username || '').trim();
-    const password = String(req.body.password || '').trim();
-    if (!username || !password) return res.status(400).json({ ok: false, message: 'Thiếu tài khoản hoặc mật khẩu' });
 
-    const staffDoc = await MongoStore.staffs.findOne({
-      isActive: { $ne: false },
-      $or: [{ username }, { code: username }, { phone: username }, { name: username }]
-    }).lean();
-    const staff = staffDoc && verifyPasswordSync(password, staffDoc.password || staffDoc.pass || staffDoc.pin || '123456') ? staffMongoToClient(staffDoc) : null;
-    if (!staff) return res.status(401).json({ ok: false, message: 'Sai tài khoản hoặc mật khẩu' });
 
-    const user = {
-      id: staff.id || staff.code || username,
-      code: staff.code || '',
-      username: staff.username || staff.code || username,
-      name: staff.name || staff.fullName || username,
-      role: VALID_ROLES.includes(staff.role || staff.type) ? (staff.role || staff.type) : 'sales',
-      roleLabel: ROLE_LABELS[VALID_ROLES.includes(staff.role || staff.type) ? (staff.role || staff.type) : 'sales']
-    };
 
-    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng Mongo staffs' });
-    await persistPrimaryDataSnapshot(data);
-    res.json({ ok: true, success: true, source: 'mongo', token: encodeMobileToken(user), refreshToken: encodeMobileRefreshToken(user), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đăng nhập được mobile app từ MongoDB', error: err.message });
-  }
-});
 
-app.post('/api/mobile/refresh', authLimiter, async (req, res) => {
-  try {
-    const refreshToken = String(req.body.refreshToken || '').trim();
-    const user = decodeMobileRefreshToken(refreshToken);
-    if (!user) return res.status(401).json({ ok: false, success: false, message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
-    const safeUser = buildJwtPayload(user);
-    return res.json({ ok: true, success: true, token: encodeMobileToken(safeUser), refreshToken: encodeMobileRefreshToken(safeUser), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user: safeUser });
-  } catch (err) {
-    return res.status(500).json({ ok: false, success: false, message: 'Không làm mới được phiên đăng nhập', error: err.message });
-  }
-});
 
-app.get('/api/mobile/me', requireMobileLogin, async (req, res) => {
-  res.json({ ok: true, user: req.mobileUser, roles: ROLE_LABELS });
-});
 
-app.get('/api/mobile/roles', requireMobileLogin, async (req, res) => {
-  try {
-    const roles = await MongoStore.roles.find({ isActive: { $ne: false } }).sort({ code: 1 }).lean();
-    res.json({ ok: true, source: 'mongo', roles: roles.map(stripMongoFields), roleLabels: ROLE_LABELS });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được vai trò mobile từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/mobile/customers', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
-  try {
-    const q = normalizeText(req.query.q);
-    const filter = { isActive: { $ne: false } };
-    if (q) {
-      filter.$or = [
-        { code: { $regex: q, $options: 'i' } },
-        { name: { $regex: q, $options: 'i' } },
-        { phone: { $regex: q, $options: 'i' } },
-        { address: { $regex: q, $options: 'i' } },
-        { area: { $regex: q, $options: 'i' } },
-        { route: { $regex: q, $options: 'i' } },
-        { staffName: { $regex: q, $options: 'i' } }
-      ];
-    }
-    const customers = await Customer.find(filter).sort({ code: 1 }).limit(30).lean();
-    const items = customers.map(customerMongoToClient).map(customer => ({
-      id: customer.id,
-      code: customer.code,
-      name: customer.name,
-      phone: customer.phone,
-      address: customer.address,
-      area: customer.area,
-      route: customer.route || '',
-      staffCode: customer.staffCode || '',
-      staffName: customer.staffName
-    }));
-    res.json({ ok: true, source: 'mongo', items });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được khách hàng mobile từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/mobile/products', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
-  try {
-    const q = normalizeText(req.query.q);
-    const filter = { isActive: { $ne: false } };
-    if (q) {
-      filter.$or = [
-        { code: { $regex: q, $options: 'i' } },
-        { sku: { $regex: q, $options: 'i' } },
-        { productCode: { $regex: q, $options: 'i' } },
-        { name: { $regex: q, $options: 'i' } },
-        { barcode: { $regex: q, $options: 'i' } },
-        { category: { $regex: q, $options: 'i' } }
-      ];
-    }
-    // Lấy dư hơn rồi lọc theo tồn thực tế, tránh autocomplete còn hiện dòng Tồn: 0/0.
-    const products = await Product.find(filter).sort({ code: 1 }).limit(200).lean();
-    const data = await getPrimaryDataSnapshot();
-    const items = products
-      .map(productMongoToClient)
-      .map(product => {
-        const availableQty = getProductAvailableQty(data, product);
-        const stockDisplay = formatCaseLooseQty(availableQty, product.conversionRate || 1);
-        return {
-          id: product.id,
-          code: product.code,
-          name: product.name,
-          unit: product.unit,
-          baseUnit: product.baseUnit || '',
-          conversionRate: toNumber(product.conversionRate || 1),
-          packing: product.packing || '',
-          units: product.units || [],
-          barcode: product.barcode,
-          category: product.category,
-          price: toNumber(product.salePrice),
-          salePrice: toNumber(product.salePrice),
-          availableQty,
-          stockQuantity: availableQty,
-          stockDisplay
-        };
-      })
-      .filter(item => toNumber(item.availableQty) > 0)
-      .slice(0, 30);
-    res.json({ ok: true, source: 'mongo', items });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được sản phẩm mobile từ MongoDB', error: err.message });
-  }
-});
 
-app.get('/api/mobile/stock', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const q = normalizeText(req.query.q);
-    const filter = { isActive: { $ne: false } };
-    if (q) {
-      filter.$or = [
-        { code: { $regex: q, $options: 'i' } },
-        { sku: { $regex: q, $options: 'i' } },
-        { productCode: { $regex: q, $options: 'i' } },
-        { name: { $regex: q, $options: 'i' } },
-        { barcode: { $regex: q, $options: 'i' } },
-        { category: { $regex: q, $options: 'i' } }
-      ];
-    }
-    const products = await Product.find(filter).sort({ code: 1 }).limit(200).lean();
-    const items = products
-      .map(productMongoToClient)
-      .map(product => buildMobileProduct(data, product))
-      .filter(item => toNumber(item.availableQty) > 0)
-      .slice(0, 100);
-    res.json({ ok: true, source: 'mongo', items });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được tồn kho mobile', error: err.message });
-  }
-});
 
-app.post('/api/mobile/sales/orders', requireMobileLogin, requireMobileRole(['sales']), async (req, res) => {
-  try {
-    const data = await getPrimaryDataSnapshot();
-    const body = req.body || {};
-    const customerPayload = body.customer || {};
-    const customer = findCustomer(data, customerPayload.id || customerPayload.code || body.customerId || body.customerCode);
-    const rawItems = Array.isArray(body.items) ? body.items : [];
-    const paidAmount = toNumber(body.paidAmount);
-    const date = new Date().toISOString().slice(0, 10);
 
-    if (!customer) return res.status(400).json({ ok: false, message: 'Không tìm thấy khách hàng' });
-    if (!rawItems.length) return res.status(400).json({ ok: false, message: 'Đơn mobile chưa có sản phẩm' });
+// Phase 2.9: mobile delivery routes đã được mount sớm bằng routeContext phía trên.
 
-    const items = [];
-    for (const rawItem of rawItems) {
-      const product = findProduct(data, rawItem.productCode || rawItem.code || rawItem.productId);
-      if (!product) return res.status(400).json({ ok: false, message: `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}` });
-      const quantity = toNumber(rawItem.quantity || rawItem.qty);
-      const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice);
-      if (quantity <= 0) return res.status(400).json({ ok: false, message: `Số lượng phải lớn hơn 0: ${product.code}` });
-      const availableQty = getProductAvailableQty(data, product);
-      if (availableQty < quantity) return res.status(400).json({ ok: false, message: `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}` });
-      items.push({ productId: product.id, productCode: product.code, productName: product.name, ...buildProductLineMeta(product), quantity, salePrice, amount: quantity * salePrice });
-    }
-
-    const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-    const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-    if (paidAmount > totalAmount) return res.status(400).json({ ok: false, message: 'Tiền thu không được lớn hơn tổng đơn' });
-
-    const salesOrder = {
-      id: makeId('SO'),
-      code: buildSalesCode(data),
-      date,
-      customerId: customer.id,
-      customerCode: customer.code,
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      customerAddress: customer.address,
-      staffCode: req.mobileUser.code || '',
-      staffName: req.mobileUser.name || '',
-      source: 'mobile_sales_app',
-      orderSource: 'NVBH',
-      orderSourceName: 'Từ NVBH',
-      isChildOrder: true,
-      masterOrderId: '',
-      mergeStatus: 'unmerged',
-      note: String(body.note || 'Tạo từ mobile app').trim(),
-      items,
-      totalQuantity,
-      totalAmount,
-      paidAmount,
-      debtAmount: totalAmount - paidAmount,
-      status: 'posted',
-      deliveryStatus: 'pending',
-      createdAt: new Date().toISOString()
-    };
-
-    data.salesOrders.push(salesOrder);
-    items.forEach(item => reduceStock(data, item));
-    data.payments.push({
-      id: makeId('PM'),
-      date,
-      type: 'sale_debt',
-      refType: 'salesOrder',
-      refId: salesOrder.id,
-      refCode: salesOrder.code,
-      customerId: customer.id,
-      customerCode: customer.code,
-      customerName: customer.name,
-      debit: totalAmount,
-      credit: paidAmount,
-      note: `Phát sinh từ đơn mobile ${salesOrder.code}`,
-      createdAt: new Date().toISOString()
-    });
-    if (paidAmount > 0) {
-      data.cashbooks.push({
-        id: makeId('CB'),
-        code: buildCashCode(data, 'in'),
-        date,
-        type: 'in',
-        source: 'mobile_sales_payment',
-        refType: 'salesOrder',
-        refId: salesOrder.id,
-        refCode: salesOrder.code,
-        customerId: customer.id,
-        customerCode: customer.code,
-        customerName: customer.name,
-        staffName: req.mobileUser.name || '',
-        amount: paidAmount,
-        note: `Thu tiền từ đơn mobile ${salesOrder.code}`,
-        createdAt: new Date().toISOString()
-      });
-    }
-
-    writeMobileLog(data, req.mobileUser, 'mobile_create_sales_order', {
-      refType: 'salesOrder',
-      refId: salesOrder.id,
-      refCode: salesOrder.code,
-      note: `Tạo đơn ${salesOrder.code} từ mobile`
-    });
-
-    await saveOperationalData(data);
-    res.status(201).json({ ok: true, source: 'mongo', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tạo được đơn mobile', error: err.message });
-  }
-});
-
-app.get('/api/mobile/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales']), async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const order = data.salesOrders.find((item) => item.id === req.params.id || item.code === req.params.id);
-    if (!order) return res.status(404).json({ ok: false, message: 'Không tìm thấy đơn bán' });
-    const mine = normalizeText(order.staffCode || order.salesStaffCode) === normalizeText(req.mobileUser.code) || normalizeText(order.staffName || order.salesStaffName) === normalizeText(req.mobileUser.name);
-    if (!mine) return res.status(403).json({ ok: false, message: 'Bạn chỉ được xem đơn của mình' });
-    res.json({ ok: true, order: { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' } });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đọc được đơn mobile', error: err.message });
-  }
-});
-
-app.put('/api/mobile/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales']), async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const order = data.salesOrders.find((item) => item.id === req.params.id || item.code === req.params.id);
-    if (!order) return res.status(404).json({ ok: false, message: 'Không tìm thấy đơn bán' });
-    const mine = normalizeText(order.staffCode || order.salesStaffCode) === normalizeText(req.mobileUser.code) || normalizeText(order.staffName || order.salesStaffName) === normalizeText(req.mobileUser.name);
-    if (!mine) return res.status(403).json({ ok: false, message: 'Bạn chỉ được sửa đơn của mình' });
-    if (order.masterOrderId || (order.mergeStatus || 'unmerged') === 'merged') {
-      return res.status(403).json({ ok: false, message: 'Đơn đã gộp đơn tổng, app bán hàng không được sửa. Vui lòng báo kế toán/admin sửa trong lịch sử bán hàng.' });
-    }
-
-    const body = req.body || {};
-    const customerPayload = body.customer || {};
-    const patchBody = {
-      ...body,
-      customerId: customerPayload.id || customerPayload.code || body.customerId || body.customerCode || order.customerId,
-      customerCode: customerPayload.code || body.customerCode || order.customerCode,
-      salesStaffCode: req.mobileUser.code || order.salesStaffCode || order.staffCode || '',
-      salesStaffName: req.mobileUser.name || order.salesStaffName || order.staffName || ''
-    };
-    const salesOrder = updateSalesOrderWithRepost(data, order, patchBody);
-    writeMobileLog(data, req.mobileUser, 'mobile_edit_sales_order', {
-      refType: 'salesOrder',
-      refId: salesOrder.id,
-      refCode: salesOrder.code,
-      note: `Sửa đơn ${salesOrder.code} từ mobile khi chưa gộp đơn tổng`
-    });
-    await saveOperationalData(data);
-    res.json({ ok: true, source: 'mongo', message: `Đã sửa đơn ${salesOrder.code}`, salesOrder });
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không sửa được đơn mobile' });
-  }
-});
-
-app.get('/api/mobile/sales/orders', requireMobileLogin, requireMobileRole(['sales']), async (req, res) => {
-  try {
-    await refreshOrderDocumentCacheFromMongo();
-    const data = await getPrimaryDataSnapshot();
-    const today = new Date().toISOString().slice(0, 10);
-    const onlyMine = String(req.query.mine || '1') !== '0';
-    const items = data.salesOrders
-      .filter(order => order.date === today)
-      .filter(order => !onlyMine || normalizeText(order.staffCode) === normalizeText(req.mobileUser.code) || normalizeText(order.staffName) === normalizeText(req.mobileUser.name))
-      .slice()
-      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
-      .slice(0, 50)
-      .map(order => ({
-        id: order.id,
-        code: order.code,
-        date: order.date,
-        customerName: order.customerName,
-        totalAmount: toNumber(order.totalAmount),
-        paidAmount: toNumber(order.paidAmount),
-        debtAmount: toNumber(order.debtAmount),
-        status: order.status,
-        deliveryStatus: order.deliveryStatus || 'pending',
-        masterOrderId: order.masterOrderId || '',
-        masterOrderCode: order.masterOrderCode || '',
-        mergeStatus: order.mergeStatus || 'unmerged',
-        canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged',
-        customerId: order.customerId,
-        customerCode: order.customerCode,
-        customerPhone: order.customerPhone,
-        customerAddress: order.customerAddress,
-        items: order.items || [],
-        note: order.note || '',
-        createdAt: order.createdAt
-      }));
-    res.json({ ok: true, items });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn đã chấm mobile', error: err.message });
-  }
-});
-
-registerMobileDeliveryRoutes(app, {
-  getPrimaryDataSnapshot,
-  persistPrimaryDataSnapshot,
-  requireMobileLogin,
-  requireMobileRole,
-  normalizeText,
-  toNumber,
-  buildDebtLedgerRows,
-  getOrderDeliveryDate,
-  isOrderApprovedForDelivery,
-  getOrderDeliveryInfo,
-  isOrderAssignedToDeliveryUser,
-  buildDeliveryOrderRow,
-  isDeliveryOrderActive,
-  findCustomer,
-  createReceiptDocument,
-  auditLog,
-  writeMobileLog,
-  buildReturnItemsFromRequest,
-  createReturnOrderDocument,
-  makeId,
-  buildCashCode
-});
 
 registerStaticRoutes(app);
 registerHealthRoutes(app);

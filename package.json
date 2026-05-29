@@ -10,7 +10,11 @@
     "migrate:json:replace": "node scripts/migrate-json-to-mongo-final.js --replace",
     "migrate:json:dry-run": "node scripts/migrate-json-to-mongo-final.js --dry-run",
     "mongo:indexes": "node scripts/ensure-mongo-indexes.js",
-    "migrate:json-to-mongo": "node scripts/migrate-json-to-mongo-final.js"
+    "migrate:json-to-mongo": "node scripts/migrate-json-to-mongo-final.js",
+    "test": "node --test",
+    "test:openapi": "node --test test/openapi.test.js",
+    "docs:generate": "node scripts/generate-openapi.js",
+    "docs:check": "node scripts/generate-openapi.js --check"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

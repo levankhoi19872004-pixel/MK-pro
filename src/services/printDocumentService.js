@@ -1,27 +1,42 @@
 'use strict';
 
 const { renderPrintHtml } = require('../../services/printService');
-const systemService = require('./systemService');
+const printRepository = require('../repositories/printRepository');
 
-function findDocument(data, type, id) {
-  if (type === 'ORDER_SINGLE') return (data.salesOrders || []).find(order => order.id === id || order.code === id);
-  if (type === 'IMPORT_ORDER') return (data.importOrders || []).find(order => order.id === id || order.code === id);
-  if (type === 'PAYMENT_RECEIPT') return (data.cashbooks || data.cashbook || []).find(entry => entry.id === id || entry.code === id);
-  return null;
+const SUPPORTED_PRINT_TYPES = [
+  { type: 'ORDER_SINGLE', name: 'Phiếu giao nhận và thanh toán', source: 'salesOrders' },
+  { type: 'ORDER_TOTAL', name: 'Phiếu gộp đơn tổng', source: 'masterOrders' },
+  { type: 'IMPORT_ORDER', name: 'Phiếu nhập kho', source: 'importOrders' },
+  { type: 'PAYMENT_RECEIPT', name: 'Phiếu thu tiền', source: 'receipts/cashbooks/bankbooks' }
+];
+
+function listSupportedTypes() {
+  return SUPPORTED_PRINT_TYPES;
 }
 
 function renderFromDocument(type, document, options = {}) {
-  if (!type) return { error: 'Thiếu loại mẫu in', status: 400 };
+  const printType = printRepository.normalizePrintType(type);
+  if (!printType) return { error: 'Thiếu loại mẫu in', status: 400 };
   if (!document) return { error: 'Thiếu dữ liệu chứng từ để in', status: 400 };
-  return { html: renderPrintHtml(type, document, options || {}) };
+  return { html: renderPrintHtml(printType, document, options || {}), printType };
 }
 
-async function renderById(type, id) {
-  if (!type || !id) return { error: 'Thiếu loại mẫu in hoặc mã chứng từ', status: 400 };
-  const data = await systemService.getDataSnapshot();
-  const document = findDocument(data, type, id);
-  if (!document) return { error: 'Không tìm thấy chứng từ để in', status: 404 };
-  return { html: renderPrintHtml(type, document, {}) };
+async function renderById(type, id, options = {}) {
+  const printType = printRepository.normalizePrintType(type);
+  if (!printType || !id) return { error: 'Thiếu loại mẫu in hoặc mã chứng từ', status: 400 };
+
+  const result = await printRepository.findDocumentByPrintType(printType, id);
+  if (!result.document) return { error: 'Không tìm thấy chứng từ để in', status: 404, printType: result.printType };
+
+  return {
+    html: renderPrintHtml(result.printType, result.document, options || {}),
+    printType: result.printType,
+    document: result.document
+  };
 }
 
-module.exports = { renderFromDocument, renderById };
+module.exports = {
+  listSupportedTypes,
+  renderFromDocument,
+  renderById
+};

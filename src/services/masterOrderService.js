@@ -39,6 +39,13 @@ function toClient(masterOrder, children = []) {
   };
 }
 
+async function getMasterOrder(id) {
+  const masterOrder = await masterOrderRepository.findByIdOrCode(id);
+  if (!masterOrder) return { error: 'Không tìm thấy đơn tổng', status: 404 };
+  const children = await orderService.getMasterChildren(masterOrder);
+  return { masterOrder: toClient(masterOrder, children) };
+}
+
 async function listUnmergedChildOrders(query = {}) {
   const q = normalizeText(query.q);
   const source = normalizeText(query.source);
@@ -126,13 +133,62 @@ async function createMasterOrder(body = {}) {
   return { masterOrder: toClient(masterOrder, updatedChildren) };
 }
 
-async function cancelMasterOrder(id) {
+async function updateMasterOrder(id, body = {}) {
+  const current = await masterOrderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn tổng', status: 404 };
+  if (['cancelled', 'void'].includes(String(current.status || '').toLowerCase())) {
+    return { error: 'Đơn tổng đã hủy/xóa, không thể cập nhật', status: 400 };
+  }
+
+  const deliveryStaff = await resolveStaff(body, 'delivery');
+  const salesStaff = await resolveStaff(body, 'sales');
+  const deliveryDate = String(body.deliveryDate || current.deliveryDate || body.date || current.date || today()).slice(0, 10);
+  const updated = {
+    ...current,
+    ...body,
+    date: String(body.date || current.date || deliveryDate).slice(0, 10),
+    deliveryDate,
+    routeName: String(body.routeName ?? current.routeName ?? '').trim(),
+    deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
+    deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
+    deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',
+    salesStaffId: salesStaff?.id || body.salesStaffId || current.salesStaffId || '',
+    salesStaffCode: salesStaff?.code || body.salesStaffCode || current.salesStaffCode || '',
+    salesStaffName: salesStaff?.name || body.salesStaffName || current.salesStaffName || '',
+    updatedAt: nowIso()
+  };
+
+  const children = await orderService.getMasterChildren(current);
+  const summary = orderService.summarizeOrders(children);
+  Object.assign(updated, summary);
+
+  await withMongoTransaction(async (session) => {
+    await masterOrderRepository.upsert(updated, { session });
+    for (const child of children) {
+      await orderRepository.upsert({
+        ...child,
+        deliveryDate: updated.deliveryDate,
+        deliveryStaffId: updated.deliveryStaffId,
+        deliveryStaffCode: updated.deliveryStaffCode,
+        deliveryStaffName: updated.deliveryStaffName,
+        routeName: updated.routeName,
+        deliveryRoute: updated.routeName,
+        updatedAt: nowIso()
+      }, { session });
+    }
+  });
+  const updatedChildren = await orderService.getMasterChildren(updated);
+  return { masterOrder: toClient(updated, updatedChildren) };
+}
+
+async function cancelMasterOrder(id, body = {}) {
   const masterOrder = await masterOrderRepository.findByIdOrCode(id);
   if (!masterOrder) return { error: 'Không tìm thấy đơn tổng', status: 404 };
   const children = await orderService.getMasterChildren(masterOrder);
   const cancelled = {
     ...masterOrder,
     status: 'cancelled',
+    cancelReason: String(body.reason || body.cancelReason || '').trim(),
     cancelledAt: nowIso(),
     updatedAt: nowIso()
   };
@@ -156,9 +212,43 @@ async function cancelMasterOrder(id) {
   return { masterOrder: toClient(cancelled, []) };
 }
 
+async function deleteMasterOrder(id, body = {}) {
+  const current = await masterOrderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn tổng', status: 404 };
+  const children = await orderService.getMasterChildren(current);
+  const removed = {
+    ...current,
+    status: 'void',
+    deletedAt: nowIso(),
+    deleteReason: String(body.reason || body.deleteReason || '').trim(),
+    updatedAt: nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    for (const child of children) {
+      await orderRepository.upsert({
+        ...child,
+        masterOrderId: '',
+        masterOrderCode: '',
+        mergeStatus: 'unmerged',
+        deliveryStaffId: '',
+        deliveryStaffCode: '',
+        deliveryStaffName: '',
+        routeName: '',
+        deliveryRoute: '',
+        updatedAt: nowIso()
+      }, { session });
+    }
+    await masterOrderRepository.upsert(removed, { session });
+  });
+  return { masterOrder: toClient(removed, []) };
+}
+
 module.exports = {
   listUnmergedChildOrders,
   listMasterOrders,
+  getMasterOrder,
   createMasterOrder,
-  cancelMasterOrder
+  updateMasterOrder,
+  cancelMasterOrder,
+  deleteMasterOrder
 };

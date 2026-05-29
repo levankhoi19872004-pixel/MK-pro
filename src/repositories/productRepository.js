@@ -67,8 +67,9 @@ async function create(payload) {
   return Product.create(payload);
 }
 
-async function save(document) {
-  return document.save();
+async function save(document, options = {}) {
+  if (document && typeof document.save === 'function') return document.save({ session: options.session });
+  return document;
 }
 
 module.exports = {
