@@ -71,7 +71,7 @@
 
   function render({input, box, items, label, onPick, emptyText='Không tìm thấy dữ liệu'}){
     if(!input || !box) return [];
-    const list = (items || []).slice(0, 10);
+    const list = (items || []).slice(0, 100);
     show(box);
 
     if(!list.length){

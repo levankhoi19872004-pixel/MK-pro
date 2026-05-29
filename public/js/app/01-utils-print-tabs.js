@@ -16,7 +16,8 @@ function formatCaseLooseStock(quantity, conversionRate){
   return `${Math.floor(qty/rate)}/${qty%rate}`;
 }
 function productAvailableQty(p){
-  const direct = Number(p?.stockQuantity ?? p?.availableQty ?? p?.availableStock ?? p?.quantity ?? 0);
+  // Tồn mở bán ưu tiên lấy từ inventory/snapshot. Không dùng hàm này để ẩn sản phẩm khỏi gợi ý.
+  const direct = Number(p?.availableQty ?? p?.availableStock ?? p?.available ?? p?.stockQuantity ?? p?.quantity ?? 0);
   if(Number.isFinite(direct) && direct > 0) return direct;
   const cases = Number(p?.stockCase ?? p?.caseQty ?? p?.cases ?? p?.thung ?? 0);
   const loose = Number(p?.stockLoose ?? p?.looseQty ?? p?.loose ?? p?.le ?? 0);
@@ -28,9 +29,14 @@ function productHasStock(p){
   return productAvailableQty(p) > 0;
 }
 function productStockDisplay(p){
-  if(productAvailableQty(p) <= 0) return '0/0';
-  if(p?.stockDisplay && String(p.stockDisplay).trim() !== '0/0') return p.stockDisplay;
-  return formatCaseLooseStock(productAvailableQty(p), Number(p?.conversionRate||1));
+  const rawDisplay = String(p?.stockDisplay ?? '').trim();
+  if(rawDisplay && rawDisplay !== '0/0') return rawDisplay;
+  const qty = productAvailableQty(p);
+  if(qty <= 0) return '0 lẻ';
+  return formatCaseLooseStock(qty, Number(p?.conversionRate||1));
+}
+function productStockStatusText(p){
+  return productHasStock(p) ? `Tồn: ${productStockDisplay(p)}` : `Hết tồn · Tồn: ${productStockDisplay(p)}`;
 }
 function today(){return new Date().toISOString().slice(0,10)}
 function showMessage(el,text,isError=false){if(!el)return;el.textContent=text;el.classList.toggle('error',isError)}

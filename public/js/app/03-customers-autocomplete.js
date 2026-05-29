@@ -104,7 +104,7 @@ function matchSearch(value, terms){
   return SearchAutocomplete.matchText(value, terms);
 }
 function productSuggestionLabel(p){
-  const stockText=` · Tồn: ${productStockDisplay(p)}`;
+  const stockText=` · ${productStockStatusText(p)}`;
   const packingText=p.packing?` · ${p.packing}`:(p.unit?` · ${p.unit}`:'');
   return `${p.code||''} - ${p.name||''}${packingText}${stockText}`;
 }
@@ -139,9 +139,9 @@ function debtPersonLabel(code,name){
 function getProductListMatches(){
   const q=searchInput?searchInput.value.trim():'';
   return productsCache
-    .filter(p=>p.isActive!==false && productHasStock(p))
+    .filter(p=>p.isActive!==false)
     .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.packing,p.unit,p.baseUnit]))
-    .slice(0,10);
+    .slice(0,20);
 }
 function selectProductFromListSuggestion(p){
   if(!p)return;

@@ -46,9 +46,9 @@ function renderSalesStaffSelect(){
 function getSalesProductMatches(){
   const q=salesProductSearch?salesProductSearch.value.trim():'';
   return productsCache
-    .filter(p=>p.isActive!==false && productHasStock(p))
+    .filter(p=>p.isActive!==false)
     .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.packing,p.unit,p.baseUnit]))
-    .slice(0,20);
+    .slice(0,50);
 }
 function selectSalesProduct(p){
   if(!p)return;
@@ -63,9 +63,9 @@ function selectSalesProduct(p){
 }
 function renderSalesProductSelect(){
   if(!salesProductSearch)return;
-  const has=productsCache.some(p=>p.isActive!==false && productHasStock(p));
+  const has=productsCache.some(p=>p.isActive!==false);
   salesProductSearch.disabled=!has;
-  salesProductSearch.placeholder=has?'Gõ mã/tên/barcode sản phẩm còn tồn...':'Chưa có sản phẩm còn tồn mở bán';
+  salesProductSearch.placeholder=has?'Gõ mã/tên/barcode sản phẩm...':'Chưa có sản phẩm đang hoạt động';
 }
 function syncSalesPrice(){
   const p=findProductByKey(salesProductSelect.value);
@@ -86,6 +86,9 @@ function addSalesItem(){
   const quantity=(caseQty>0&&packingRate>0?caseQty*packingRate:0)+looseQty+(salesQuantity&&!salesQuantityCase&&!salesQuantityLoose?Number(salesQuantity.value||0):0);
   const salePrice=Number(salesPrice.value||0);
   if(quantity<=0){showMessage(salesMessage,'Số lượng bán phải lớn hơn 0',true);return}
+  const availableQty=productAvailableQty(p);
+  if(availableQty<=0){showMessage(salesMessage,`Sản phẩm ${p.code||''} hiện hết tồn mở bán. Vui lòng nhập kho/rebuild tồn kho trước khi bán.`,true);return}
+  if(quantity>availableQty){showMessage(salesMessage,`Số lượng bán vượt tồn mở bán. Tồn mở bán hiện tại: ${money(availableQty)} lẻ.`,true);return}
   if(salePrice<0){showMessage(salesMessage,'Giá bán không được âm',true);return}
   const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice);
   if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,salePrice,amount:quantity*salePrice});

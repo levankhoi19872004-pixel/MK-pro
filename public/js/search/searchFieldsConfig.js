@@ -86,8 +86,7 @@
       source: 'products',
       searchKeys: ['code','name','barcode','category','packing','unit','baseUnit'],
       onlyActive: true,
-      onlyInStock: true,
-      limit: 20,
+      limit: 50,
       fill: [
         { targetId: 'salesProductSelect', value: 'idOrCode' },
         { targetId: 'salesProductSearch', value: 'label' }
