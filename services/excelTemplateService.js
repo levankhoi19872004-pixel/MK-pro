@@ -4,13 +4,13 @@ const TEMPLATE_DEFINITIONS = {
   products: {
     title: 'Mẫu import sản phẩm',
     fileName: 'mau-import-san-pham.xlsx',
-    columns: ['code', 'name', 'unit', 'barcode', 'category', 'costPrice', 'salePrice', 'minStock', 'maxStock'],
-    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị', 'Barcode', 'Nhóm hàng', 'Giá nhập', 'Giá bán', 'Tồn tối thiểu', 'Tồn tối đa'],
+    columns: ['code', 'name', 'unit', 'baseUnit', 'conversionRate', 'packing', 'barcode', 'category', 'costPrice', 'salePrice', 'minStock', 'maxStock'],
+    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị bán', 'Đơn vị gốc', 'Quy đổi', 'Quy cách', 'Barcode', 'Nhóm hàng', 'Giá nhập', 'Giá bán', 'Tồn tối thiểu', 'Tồn tối đa'],
     sample: [
-      ['SP001', 'OMO Bột giặt 5.5kg', 'Túi', '893000000001', 'Giặt tẩy', 145000, 169000, 10, 200],
-      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Chai', '893000000002', 'Nước xả', 115000, 139000, 10, 150]
+      ['SP001', 'OMO Bột giặt 5.5kg', 'Thùng', 'Túi', 6, '1 thùng = 6 túi', '893000000001', 'Giặt tẩy', 145000, 169000, 10, 200],
+      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Thùng', 'Chai', 4, '1 thùng = 4 chai', '893000000002', 'Nước xả', 115000, 139000, 10, 150]
     ],
-    notes: ['Bắt buộc: code, name.', 'Mã sản phẩm không được trùng với danh mục hiện có.']
+    notes: ['Bắt buộc: code, name.', 'Quy đổi là số đơn vị gốc trong 1 đơn vị bán, ví dụ 1 thùng = 12 chai thì nhập 12.', 'Mã sản phẩm không được trùng với danh mục hiện có.']
   },
   customers: {
     title: 'Mẫu import khách hàng',
@@ -26,13 +26,13 @@ const TEMPLATE_DEFINITIONS = {
   openingStock: {
     title: 'Mẫu import tồn kho ban đầu',
     fileName: 'mau-import-ton-kho-ban-dau.xlsx',
-    columns: ['productCode', 'quantity'],
-    headers: ['Mã sản phẩm', 'Số lượng tồn đầu'],
+    columns: ['productCode', 'productName', 'warehouse', 'unit', 'quantity', 'costPrice', 'openingDate', 'note'],
+    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Kho', 'ĐVT', 'Số lượng tồn đầu', 'Giá vốn đầu', 'Ngày tồn đầu', 'Ghi chú'],
     sample: [
-      ['SP001', 100],
-      ['SP002', 80]
+      ['SP001', 'OMO Bột giặt 5.5kg', 'Kho chính', 'Thùng', 100, 145000, '2026-05-26', 'Tồn đầu kỳ'],
+      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Kho chính', 'Thùng', 80, 115000, '2026-05-26', 'Tồn đầu kỳ']
     ],
-    notes: ['Mã sản phẩm phải tồn tại trong danh mục sản phẩm.', 'Import tồn kho ban đầu sẽ đặt lại số lượng tồn theo file.']
+    notes: ['Mã sản phẩm phải tồn tại trong danh mục sản phẩm.', 'Cột Số lượng tồn đầu là bắt buộc và sẽ được map về quantity.', 'Import tồn kho ban đầu sẽ đặt lại số lượng tồn theo file, chỉ dùng khi khởi tạo hoặc chốt tồn đầu kỳ.']
   },
   importOrders: {
     title: 'Mẫu import phiếu nhập kho',
@@ -137,4 +137,4 @@ function getTemplateTypes() {
   return Object.keys(TEMPLATE_DEFINITIONS).map((type) => ({ type, title: TEMPLATE_DEFINITIONS[type].title, fileName: TEMPLATE_DEFINITIONS[type].fileName }));
 }
 
-module.exports = { buildImportTemplate, getTemplateTypes };
+module.exports = { buildImportTemplate, getTemplateTypes, TEMPLATE_DEFINITIONS };

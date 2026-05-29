@@ -22,13 +22,12 @@
       <button class="tab-button" data-tab="importTab">Nhập kho</button>
       <button class="tab-button" data-tab="salesTab">Bán hàng</button>
       <button class="tab-button" data-tab="stockTab">Tồn kho</button>
-      <button class="tab-button" data-tab="importHistoryTab">Lịch sử nhập</button>
-      <button class="tab-button" data-tab="salesHistoryTab">Lịch sử bán</button>
       <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
+      <button class="tab-button" data-tab="deliveryTodayTab">Đơn đi giao hôm nay</button>
       <button class="tab-button" data-tab="debtTab">Công nợ</button>
-      <button class="tab-button" data-tab="debtCollectionTab">Thu công nợ</button>
-      <button class="tab-button" data-tab="cashbookTab">Quỹ tiền</button>
       <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
+      <button class="tab-button" data-tab="usersTab">Tài khoản</button>
+      <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
       <button class="tab-button" data-tab="importDataTab">Import dữ liệu</button>
     </nav>
 
@@ -41,9 +40,14 @@
             <label>Mã sản phẩm *<input name="code" placeholder="VD: SP003" required /></label>
             <label>Tên sản phẩm *<input name="name" placeholder="VD: OMO 800g" required /></label>
             <div class="two-cols">
-              <label>Đơn vị tính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
+              <label>Đơn vị bán chính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
               <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
             </div>
+            <div class="two-cols">
+              <label>Đơn vị gốc nhỏ nhất<input name="baseUnit" placeholder="Gói, Chai, Cái" /></label>
+              <label>Quy đổi / 1 ĐVT bán<input name="conversionRate" type="number" min="1" step="1" placeholder="VD: 12" /></label>
+            </div>
+            <label>Quy cách đóng gói<input name="packing" placeholder="VD: 1 thùng = 12 chai" /></label>
             <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
             <div class="two-cols">
               <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
@@ -80,18 +84,14 @@
           </div>
           <div class="table-wrap product-list-wrap">
             <table class="product-table">
-              <thead>
+              <thead class="sr-only-product-head">
                 <tr>
                   <th class="col-select"><input type="checkbox" id="productCheckAll" aria-label="Chọn tất cả sản phẩm" /></th>
-                  <th class="col-code">Mã</th>
-                  <th class="col-product">Thông tin sản phẩm</th>
-                  <th class="col-unit">ĐVT</th>
-                  <th class="col-price">Giá nhập</th>
-                  <th class="col-price">Giá bán</th>
+                  <th class="col-product">Sản phẩm</th>
                   <th class="col-status">Trạng thái</th>
                 </tr>
               </thead>
-              <tbody id="productTable"><tr><td colspan="7">Đang tải dữ liệu...</td></tr></tbody>
+              <tbody id="productTable"><tr><td colspan="3" class="empty-cell">Đang tải dữ liệu...</td></tr></tbody>
             </table>
           </div>
         </section>
@@ -121,11 +121,30 @@
             <div><h2>Danh sách khách hàng</h2><p id="customerCount" class="muted">Đang tải...</p></div>
             <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, địa chỉ..." />
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Mã</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Khu vực</th><th>NV phụ trách</th></tr></thead>
-              <tbody id="customerTable"><tr><td colspan="6">Đang tải...</td></tr></tbody>
+          <div id="customerBulkActions" class="bulk-actions" hidden>
+            <label><input id="customerCheckAll" type="checkbox" /> Chọn tất cả</label>
+            <span id="customerSelectedCount">0 khách đã chọn</span>
+            <button id="bulkDeleteCustomerButton" class="small danger" type="button">Xóa nhiều</button>
+          </div>
+          <div class="table-wrap customer-table-wrap">
+            <table class="customer-data-table">
+              <thead><tr><th></th><th>Mã</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Khu vực</th><th>NV phụ trách</th><th>Thao tác</th></tr></thead>
+              <tbody id="customerTable"><tr><td colspan="8">Đang tải...</td></tr></tbody>
             </table>
+          </div>
+          <div id="customerPagination" class="table-pagination">
+            <span id="customerPageInfo">Hiển thị 0-0 / 0 khách hàng</span>
+            <div class="pagination-controls">
+              <label>Số dòng
+                <select id="customerPageSize">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button id="customerPrevPage" type="button" class="small">Trước</button>
+              <button id="customerNextPage" type="button" class="small">Sau</button>
+            </div>
           </div>
         </section>
       </main>
@@ -143,7 +162,13 @@
             <label>Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
             <div class="import-line-box">
               <h3>Thêm dòng hàng</h3>
-              <label>Sản phẩm<select id="importProductSelect"></select></label>
+              <label>Sản phẩm
+                <div class="autocomplete">
+                  <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                  <input id="importProductSelect" type="hidden" />
+                  <div id="importProductSuggestions" class="suggestions" hidden></div>
+                </div>
+              </label>
               <div class="two-cols">
                 <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
                 <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" /></label>
@@ -161,7 +186,20 @@
           </form>
           <p id="importMessage" class="message"></p>
         </section>
-        <section class="card"><h2>Nguyên tắc nhập kho</h2><div class="note-box"><p><strong>Không sửa tồn kho trực tiếp.</strong></p><p>Muốn tăng tồn kho phải tạo phiếu nhập.</p></div></section>
+        <section class="card import-history-card">
+          <div class="toolbar">
+            <div>
+              <h2>Lịch sử phiếu nhập</h2>
+              <p id="importOrderCount" class="muted">Đang tải...</p>
+            </div>
+            <button id="reloadImportOrdersButton" class="secondary">Tải lại</button>
+          </div>
+          <div class="note-box import-edit-note">
+            <p><strong>Sửa phiếu nhập ngay trong mục Nhập kho.</strong></p>
+            <p>Bấm “Sửa phiếu” để đưa dữ liệu phiếu cũ lên form bên trái, chỉnh lại rồi lưu.</p>
+          </div>
+          <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
+        </section>
       </main>
     </section>
 
@@ -172,14 +210,35 @@
           <form id="salesForm" class="form">
             <div class="two-cols">
               <label>Ngày bán<input name="date" type="date" /></label>
-              <label>Khách hàng<select name="customerId" id="salesCustomerSelect"></select></label>
+              <label>Khách hàng
+                <div class="autocomplete">
+                  <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/địa chỉ khách hàng..." autocomplete="off" />
+                  <input name="customerId" id="salesCustomerSelect" type="hidden" />
+                  <div id="salesCustomerSuggestions" class="suggestions" hidden></div>
+                </div>
+              </label>
+              <label>Nhân viên bán hàng
+                <div class="autocomplete">
+                  <input id="salesStaffSearch" type="text" placeholder="Gõ mã/tên/tài khoản NV bán hàng..." autocomplete="off" />
+                  <input name="salesStaffCode" id="salesStaffSelect" type="hidden" />
+                  <input name="salesStaffName" id="salesStaffName" type="hidden" />
+                  <div id="salesStaffSuggestions" class="suggestions" hidden></div>
+                </div>
+              </label>
             </div>
             <label>Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
             <div class="import-line-box">
               <h3>Thêm dòng bán</h3>
-              <label>Sản phẩm<select id="salesProductSelect"></select></label>
-              <div class="two-cols">
-                <label>Số lượng<input id="salesQuantity" type="number" min="1" value="1" /></label>
+              <label>Sản phẩm
+                <div class="autocomplete">
+                  <input id="salesProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                  <input id="salesProductSelect" type="hidden" />
+                  <div id="salesProductSuggestions" class="suggestions" hidden></div>
+                </div>
+              </label>
+              <div class="three-cols quantity-split-row">
+                <label>Thùng<input id="salesQuantityCase" type="number" min="0" value="0" /></label>
+                <label>Lẻ<input id="salesQuantityLoose" type="number" min="0" value="1" /></label>
                 <label>Giá bán<input id="salesPrice" type="number" min="0" value="0" /></label>
               </div>
               <button type="button" id="addSalesItemButton" class="secondary">Thêm vào đơn</button>
@@ -193,39 +252,43 @@
           </form>
           <p id="salesMessage" class="message"></p>
         </section>
-        <section class="card"><h2>Nguyên tắc bán hàng</h2><div class="note-box"><p><strong>Không cho bán âm kho.</strong></p><p>Đơn bán sẽ tự kiểm tồn, trừ kho, lưu lịch sử và ghi công nợ/quỹ.</p></div></section>
+        <section class="card sales-history-card">
+          <div class="toolbar sales-history-toolbar">
+            <div>
+              <h2>Lịch sử đơn bán</h2>
+              <p id="salesOrderCount" class="muted">Đang tải...</p>
+            </div>
+            <div class="sales-history-filters sales-filter-two-rows">
+              <div class="sales-filter-row sales-filter-row-main">
+                <input id="salesOrderSearchInput" class="sales-filter-search" placeholder="Tìm mã đơn, khách hàng..." />
+                <input id="salesOrderStaffFilter" class="sales-filter-staff" placeholder="Tìm NV bán hàng..." />
+              </div>
+              <div class="sales-filter-row sales-filter-row-sub">
+                <input id="salesOrderDateFrom" class="sales-filter-date" type="date" title="Từ ngày" />
+                <input id="salesOrderDateTo" class="sales-filter-date" type="date" title="Đến ngày" />
+                <select id="salesOrderSourceFilter" class="sales-filter-source">
+                  <option value="">Tất cả nguồn</option>
+                  <option value="NVBH">Từ NVBH</option>
+                  <option value="DMS">Từ DMS</option>
+                </select>
+                <button id="printSelectedSalesOrdersButton" class="secondary compact-action" type="button">In nhiều đơn</button>
+                <button id="reloadSalesOrdersButton" class="secondary compact-action" type="button">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div class="note-box">
+            <p><strong>Sửa đơn bán ngay trong mục Bán hàng.</strong></p>
+            <p>Bấm “Sửa đơn” để đưa dữ liệu đơn cũ lên form bên trái, chỉnh lại rồi lưu.</p>
+          </div>
+          <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
+        </section>
       </main>
     </section>
 
     <section id="stockTab" class="tab-content">
       <section class="card">
         <div class="toolbar"><div><h2>Tồn kho hiện tại</h2><p id="stockCount" class="muted">Đang tải...</p></div><input id="stockSearchInput" placeholder="Tìm mã / tên sản phẩm..." /></div>
-        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="5">Đang tải tồn kho...</td></tr></tbody></table></div>
-      </section>
-    </section>
-
-    <section id="importHistoryTab" class="tab-content">
-      <section class="card">
-        <div class="toolbar"><div><h2>Lịch sử phiếu nhập</h2><p id="importOrderCount" class="muted">Đang tải...</p></div><button id="reloadImportOrdersButton" class="secondary">Tải lại</button></div>
-        <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
-      </section>
-    </section>
-
-    <section id="salesHistoryTab" class="tab-content">
-      <section class="card">
-        <div class="toolbar sales-history-toolbar">
-          <div><h2>Lịch sử đơn bán</h2><p id="salesOrderCount" class="muted">Đang tải...</p></div>
-          <div class="sales-history-filters">
-            <input id="salesOrderSearchInput" placeholder="Tìm mã đơn, khách hàng..." />
-            <select id="salesOrderSourceFilter">
-              <option value="">Tất cả nguồn</option>
-              <option value="NVBH">Từ NVBH</option>
-              <option value="DMS">Từ DMS</option>
-            </select>
-            <button id="reloadSalesOrdersButton" class="secondary">Tải lại</button>
-          </div>
-        </div>
-        <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
+        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Quy cách</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="6">Đang tải tồn kho...</td></tr></tbody></table></div>
       </section>
     </section>
 
@@ -242,7 +305,7 @@
 
           <form id="masterOrderForm" class="form master-order-form">
             <div class="two-cols">
-              <label>Ngày đơn tổng<input name="date" type="date" /></label>
+              <label>Ngày giao hàng<input name="deliveryDate" type="date" required /></label>
               <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
             </div>
             <div class="two-cols">
@@ -250,6 +313,7 @@
               <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
             </div>
             <label>Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
+            <label class="inline-check"><input name="groupBySalesStaff" type="checkbox" value="true" checked /> Gộp riêng theo từng nhân viên bán hàng</label>
 
             <div class="master-selection-summary">
               <span>Đã chọn: <strong id="selectedChildOrderCount">0</strong> đơn</span>
@@ -268,6 +332,7 @@
           </div>
           <div class="master-filter-row">
             <input id="unmergedOrderSearch" placeholder="Tìm mã đơn, khách, địa chỉ..." />
+            <input id="unmergedSalesStaffFilter" placeholder="Lọc NV bán hàng..." />
             <select id="unmergedSourceFilter">
               <option value="">Tất cả nguồn</option>
               <option value="NVBH">Từ NVBH</option>
@@ -281,80 +346,156 @@
         <section class="card master-list-card">
           <div class="toolbar">
             <div><h2>Danh sách đơn tổng</h2><p id="masterOrderCount" class="muted">Đang tải...</p></div>
-            <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, tuyến, nhân viên..." />
+            <div class="sales-history-filters">
+              <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, tuyến, nhân viên..." />
+              <input id="masterOrderDateFrom" type="date" title="Từ ngày" />
+              <input id="masterOrderDateTo" type="date" title="Đến ngày" />
+              <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In gộp đơn tổng</button>
+            </div>
           </div>
           <div id="masterOrderList" class="order-list">Đang tải đơn tổng...</div>
         </section>
       </main>
     </section>
 
-    <section id="debtTab" class="tab-content">
-      <section class="card">
-        <div class="toolbar"><div><h2>Công nợ khách hàng</h2><p id="debtCount" class="muted">Đang tải...</p></div><input id="debtSearchInput" placeholder="Tìm khách hàng..." /></div>
-        <div class="table-wrap"><table><thead><tr><th>Mã khách</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Phải thu</th><th>Đã thu</th><th>Còn nợ</th></tr></thead><tbody id="debtTable"><tr><td colspan="7">Đang tải công nợ...</td></tr></tbody></table></div>
+
+    <section id="deliveryTodayTab" class="tab-content">
+      <section class="card delivery-dashboard-card">
+        <div class="delivery-head">
+          <div>
+            <h2>Đơn đi giao hôm nay</h2>
+            <p class="muted">Dashboard vận hành giao hàng: biết ngay đơn nào đang giao, đã giao, chưa thu tiền và còn nợ.</p>
+          </div>
+          <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
+        </div>
+
+        <div class="delivery-kpi-grid">
+          <div class="delivery-kpi-card"><span>Tổng đơn</span><strong id="deliveryTotalKpi">0</strong><small>Đơn cần xử lý</small></div>
+          <div class="delivery-kpi-card status-delivering"><span>Đang giao</span><strong id="deliveryRunningKpi">0</strong><small>Đang trên tuyến</small></div>
+          <div class="delivery-kpi-card status-done"><span>Đã giao</span><strong id="deliveryDoneKpi">0</strong><small>Hoàn tất giao</small></div>
+          <div class="delivery-kpi-card status-collect"><span>Chưa thu tiền</span><strong id="deliveryUnpaidKpi">0</strong><small>Còn phải thu</small></div>
+          <div class="delivery-kpi-card status-late"><span>Quá giờ</span><strong id="deliveryLateKpi">0</strong><small>Cần kiểm tra</small></div>
+        </div>
+
+        <div class="delivery-filter-bar sticky-filter-bar">
+          <input id="deliveryDateFilter" type="date" title="Ngày giao" />
+          <input id="deliverySearchInput" placeholder="Tìm mã đơn, khách hàng, địa chỉ..." />
+          <input id="deliverySalesmanFilter" placeholder="Lọc NV bán" />
+          <input id="deliveryStaffFilter" placeholder="Lọc NV giao" />
+          <input id="deliveryRouteFilter" placeholder="Lọc tuyến giao" />
+          <select id="deliveryStatusFilter">
+            <option value="">Tất cả trạng thái</option>
+            <option value="waiting">Chờ giao</option>
+            <option value="delivering">Đang giao</option>
+            <option value="delivered">Đã giao</option>
+            <option value="unpaid">Chưa thu tiền</option>
+            <option value="late">Quá giờ</option>
+          </select>
+        </div>
+
+        <div id="deliveryRouteSummary" class="delivery-route-summary"></div>
+        <div id="deliveryTodayList" class="delivery-card-list"><div class="empty-state">Đang tải đơn đi giao...</div></div>
       </section>
     </section>
 
-    <section id="debtCollectionTab" class="tab-content">
-      <main class="grid import-grid">
-        <section class="card">
-          <h2>Thu công nợ khách hàng</h2>
-          <form id="debtCollectionForm" class="form">
+    <section id="debtTab" class="tab-content">
+      <main class="grid import-grid operation-compact-layout">
+        <section class="card sticky-form-card">
+          <div class="debt-module-head">
+            <h2>Công nợ</h2>
+            <small>ERP/DMS compact</small>
+          </div>
+          <div class="kpi-grid debt-kpis mini-finance-stats">
+            <div class="kpi-card finance-red"><span>Còn nợ</span><strong id="debtTotalKpi">0</strong><small>Phải thu</small></div>
+            <div class="kpi-card finance-green"><span>Đã thu TM</span><strong id="cashTotalKpi">0</strong><small>Tiền mặt</small></div>
+            <div class="kpi-card finance-green"><span>Đã CK</span><strong id="bankTotalKpi">0</strong><small>Ngân hàng</small></div>
+          </div>
+
+          <div class="debt-inner-tabs">
+            <button type="button" class="debt-inner-tab active" data-debt-panel="debtOverviewPanel">Tổng công nợ</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtReceiptPanel">Phiếu thu</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtCashPanel">Tiền mặt</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtBankPanel">Chuyển khoản</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtReturnPanel">Trả hàng</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtHistoryPanel">Lịch sử phiếu thu</button>
+          </div>
+
+          <form id="debtCollectionForm" class="form compact-form debt-panel active debt-entry-form" data-debt-panel-id="debtReceiptPanel">
+            <div class="compact-form-title">
+              <h3>Ghi chứng từ</h3>
+              <small>Nhập đồng thời tiền mặt, chuyển khoản và hàng trả về</small>
+            </div>
+            <div class="two-cols debt-date-customer-row">
+              <label>Ngày chứng từ<input name="date" type="date" /></label>
+              <label>Khách hàng / đơn hàng
+                <div class="autocomplete">
+                  <input id="collectionCustomerSearch" type="text" placeholder="Gõ mã/tên khách đang nợ..." autocomplete="off" />
+                  <input name="customerId" id="collectionCustomerSelect" type="hidden" />
+                  <div id="collectionCustomerSuggestions" class="suggestions" hidden></div>
+                </div>
+              </label>
+            </div>
+            <div class="inline-current-debt compact-summary"><span>Công nợ hiện tại</span><strong id="selectedCustomerDebt">0</strong></div>
+            <div class="payment-three-fields">
+              <label class="pay-box cash-box"><span>Tiền mặt</span><input name="cashAmount" type="number" min="0" value="0" inputmode="numeric" /></label>
+              <label class="pay-box bank-box"><span>Chuyển khoản</span><input name="transferAmount" type="number" min="0" value="0" inputmode="numeric" /></label>
+              <label class="pay-box return-box"><span>Hàng trả về</span><input name="returnAmount" type="number" min="0" value="0" inputmode="numeric" /></label>
+            </div>
             <div class="two-cols">
-              <label>Ngày thu<input name="date" type="date" /></label>
-              <label>Khách hàng<select name="customerId" id="collectionCustomerSelect"></select></label>
+              <label>Người thực hiện<input name="staffName" placeholder="VD: NV giao hàng / kế toán" /></label>
+              <label>Ghi chú<input name="note" placeholder="VD: khách thanh toán / trả hàng" /></label>
             </div>
-            <div class="summary-box">
-              <span>Nợ hiện tại: <strong id="selectedCustomerDebt">0</strong></span>
-            </div>
-            <div class="two-cols">
-              <label>Số tiền thu<input name="amount" type="number" min="1" value="0" /></label>
-              <label>Người thu<input name="staffName" placeholder="VD: NV giao hàng" /></label>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="VD: khách thanh toán công nợ" /></label>
-            <button type="submit">Thu công nợ & ghi quỹ</button>
+            <button type="submit">Ghi chứng từ thật</button>
           </form>
           <p id="collectionMessage" class="message"></p>
+          <div class="note-box compact-note"><p>ERP/DMS: receipts → cashbooks/bankbooks. Trả hàng → returnOrders. Hủy phiếu thu → void/cancel.</p></div>
         </section>
-        <section class="card"><h2>Nguyên tắc thu công nợ</h2><div class="note-box"><p>Thu công nợ sẽ ghi giảm nợ khách hàng và ghi tăng quỹ tiền.</p><p>Không cho thu lớn hơn số nợ hiện tại.</p></div></section>
+
+        <section class="card wide-history-card debt-workspace">
+          <div class="debt-panel active" data-debt-panel-id="debtOverviewPanel">
+            <div class="toolbar sticky-filter-bar debt-sticky-filter">
+              <div><h2>Tổng công nợ</h2><p id="debtCount" class="muted">Đang tải...</p></div>
+              <div class="debt-filter-grid">
+                <input id="debtSearchInput" placeholder="Tìm KH, đơn, NV..." />
+                <input id="debtSalesmanFilter" placeholder="Lọc NV bán" />
+                <input id="debtDeliveryFilter" placeholder="Lọc NV giao" />
+                <select id="debtStatusFilter">
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="open">Còn nợ</option>
+                  <option value="overdue">Quá hạn</option>
+                  <option value="paid">Đã tất toán</option>
+                </select>
+                <input id="debtDateFrom" type="date" title="Ngày bán từ" />
+                <input id="debtDateTo" type="date" title="Ngày bán đến" />
+              </div>
+            </div>
+            <div id="debtCardList" class="compact-debt-card-list"><div class="empty-state">Đang tải công nợ...</div></div>
+            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Đơn</th><th>Ngày</th><th>Khách</th><th>NV bán</th><th>NV giao</th><th>Hạn TT</th><th>Phải thu</th><th>Đã thu/giảm</th><th>Còn nợ</th></tr></thead><tbody id="debtTable"><tr><td colspan="9">Đang tải công nợ...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtHistoryPanel">
+            <div class="toolbar sticky-filter-bar"><div><h2>Lịch sử phiếu thu</h2><p class="muted">Sửa/hủy phiếu thu sẽ ghi audit log, không xóa dữ liệu.</p></div><input id="receiptSearchInput" placeholder="Tìm phiếu thu..." /></div>
+            <div id="receiptTimeline" class="receipt-timeline"><div class="empty-state">Đang tải phiếu thu...</div></div>
+            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>PTTT</th><th>Khách</th><th>NV bán</th><th>NV giao</th><th>Người thu</th><th>Số tiền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="receiptHistoryTable"><tr><td colspan="10">Đang tải phiếu thu...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtCashPanel">
+            <div class="toolbar sticky-filter-bar"><div><h2>Tiền mặt</h2><p id="cashSummary" class="muted">Đang tải...</p></div><input id="cashbookSearchInput" placeholder="Tìm mã phiếu, khách, ghi chú..." /></div>
+            <div class="table-wrap compact-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Loại</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead><tbody id="cashbookTable"><tr><td colspan="8">Đang tải sổ tiền...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtBankPanel">
+            <div class="toolbar sticky-filter-bar"><div><h2>Chuyển khoản</h2><p class="muted">Các chứng từ ghi vào bankbooks.</p></div></div>
+            <div class="table-wrap compact-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead><tbody id="bankbookTable"><tr><td colspan="7">Đang tải sổ chuyển khoản...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtReturnPanel">
+            <div class="toolbar sticky-filter-bar"><div><h2>Trả hàng</h2><p class="muted">Trả hàng tạo returnOrders, nhập lại tồn, giảm công nợ và giảm doanh thu.</p></div><input id="returnOrderSearchInput" placeholder="Tìm phiếu trả hàng..." /></div>
+            <div class="table-wrap compact-table"><table><thead><tr><th>Mã trả hàng</th><th>Ngày</th><th>Khách</th><th>Đơn bán</th><th>Số lượng</th><th>Giá trị</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="returnOrderTable"><tr><td colspan="8">Đang tải trả hàng...</td></tr></tbody></table></div>
+          </div>
+        </section>
       </main>
     </section>
-
-    <section id="cashbookTab" class="tab-content">
-      <main class="grid import-grid">
-        <section class="card">
-          <h2>Phiếu thu / chi quỹ</h2>
-          <form id="cashbookForm" class="form">
-            <div class="two-cols">
-              <label>Ngày<input name="date" type="date" /></label>
-              <label>Loại phiếu<select name="type"><option value="in">Phiếu thu</option><option value="out">Phiếu chi</option></select></label>
-            </div>
-            <div class="two-cols">
-              <label>Số tiền<input name="amount" type="number" min="1" value="0" /></label>
-              <label>Người nộp/nhận<input name="staffName" placeholder="Tên người liên quan" /></label>
-            </div>
-            <label>Nguồn / nhóm tiền<input name="source" placeholder="VD: nộp về công ty, chi phí, thu khác" /></label>
-            <label>Ghi chú<input name="note" placeholder="Nội dung phiếu thu/chi" /></label>
-            <button type="submit">Ghi quỹ tiền</button>
-          </form>
-          <p id="cashbookMessage" class="message"></p>
-        </section>
-
-        <section class="card">
-          <div class="toolbar">
-            <div><h2>Sổ quỹ tiền</h2><p id="cashSummary" class="muted">Đang tải...</p></div>
-            <input id="cashbookSearchInput" placeholder="Tìm mã phiếu, khách, ghi chú..." />
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Loại</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead>
-              <tbody id="cashbookTable"><tr><td colspan="8">Đang tải sổ quỹ...</td></tr></tbody>
-            </table>
-          </div>
-        </section>
-      </main>
-    </section>
-
 
     <section id="reportsTab" class="tab-content">
       <section class="card report-hero">
@@ -421,6 +562,78 @@
       </main>
     </section>
 
+
+    <section id="usersTab" class="tab-content">
+      <main class="grid">
+        <section class="card">
+          <h2>Thêm / sửa tài khoản</h2>
+          <form id="userForm" class="form">
+            <input type="hidden" name="id" />
+            <label>Mã NV / mã tài khoản<input name="code" placeholder="VD: BH01" /></label>
+            <label>Tên đăng nhập *<input name="username" placeholder="VD: banhang01" required /></label>
+            <label>Mật khẩu<input name="password" placeholder="Để trống sẽ dùng 123456" /></label>
+            <label>Họ tên *<input name="name" placeholder="Tên nhân viên" required /></label>
+            <label>SĐT<input name="phone" placeholder="Số điện thoại" /></label>
+            <label>Phân quyền
+              <select name="role">
+                <option value="sales">Bán hàng</option>
+                <option value="delivery">Giao hàng</option>
+                <option value="accountant">Kế toán</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang hoạt động</label>
+            <div class="button-row">
+              <button type="submit">Lưu tài khoản</button>
+              <button type="button" id="resetUserButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="userMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar"><div><h2>Danh sách tài khoản</h2><p id="userCount" class="muted">Đang tải...</p></div><input id="userSearchInput" placeholder="Tìm mã, tên, tài khoản, quyền..." /></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tài khoản</th><th>Họ tên</th><th>SĐT</th><th>Quyền</th><th>Trạng thái</th><th></th></tr></thead><tbody id="userTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </main>
+    </section>
+
+    <section id="promotionsTab" class="tab-content">
+      <main class="grid">
+        <section class="card">
+          <h2>Thêm / sửa khuyến mại</h2>
+          <form id="promotionForm" class="form">
+            <input type="hidden" name="id" />
+            <label>Mã CTKM *<input name="code" placeholder="VD: CTKM-OMO-01" required /></label>
+            <label>Tên chương trình *<input name="name" placeholder="Tên chương trình khuyến mại" required /></label>
+            <label>Loại chương trình
+              <select name="type">
+                <option value="discount">Chiết khấu</option>
+                <option value="display">Trưng bày</option>
+                <option value="coupon">Coupon</option>
+                <option value="ontop">Ontop</option>
+                <option value="combo">Combo / hỗn hợp</option>
+              </select>
+            </label>
+            <label>Mã sản phẩm áp dụng<textarea name="productCodes" rows="3" placeholder="Nhập mã sản phẩm, cách nhau bằng dấu phẩy hoặc xuống dòng"></textarea></label>
+            <label>Điều kiện mua hàng<textarea name="conditionText" rows="3" placeholder="VD: Mua đủ sản lượng / đủ ngành hàng / đủ SKU..."></textarea></label>
+            <label>Mức chiết khấu / thưởng<textarea name="discountText" rows="2" placeholder="VD: Chiết khấu %, tiền thưởng, quà tặng..."></textarea></label>
+            <label>Thưởng trưng bày<textarea name="displayReward" rows="2" placeholder="Thông tin trưng bày nếu có"></textarea></label>
+            <label>Coupon<textarea name="couponText" rows="2" placeholder="Thông tin coupon nếu có"></textarea></label>
+            <label>Ontop<textarea name="ontopText" rows="2" placeholder="Thông tin ontop nếu có"></textarea></label>
+            <div class="two-cols"><label>Ngày bắt đầu<input name="startDate" type="date" /></label><label>Ngày kết thúc<input name="endDate" type="date" /></label></div>
+            <label>Ghi chú<textarea name="note" rows="2"></textarea></label>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang áp dụng</label>
+            <div class="button-row"><button type="submit">Lưu khuyến mại</button><button type="button" id="resetPromotionButton" class="secondary">Nhập mới</button></div>
+          </form>
+          <p id="promotionMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar"><div><h2>Danh sách khuyến mại</h2><p id="promotionCount" class="muted">Đang tải...</p></div><input id="promotionSearchInput" placeholder="Tìm mã CTKM, sản phẩm, điều kiện..." /></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã CTKM</th><th>Nội dung</th><th>Sản phẩm</th><th>Thời gian</th><th>Trạng thái</th><th></th></tr></thead><tbody id="promotionTable"><tr><td colspan="6">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </main>
+    </section>
+
     <section id="importDataTab" class="tab-content">
       <section class="card import-data-card">
         <div class="toolbar">
@@ -439,7 +652,7 @@
               <option value="importOrders">Phiếu nhập kho</option>
               <option value="salesOrders">Đơn bán hàng</option>
               <option value="openingDebt">Công nợ ban đầu</option>
-              <option value="debtCollections">Thu công nợ</option>
+              <option value="debtCollections">Phiếu thu công nợ</option>
               <option value="cashbook">Quỹ tiền</option>
             </select>
           </label>
@@ -456,8 +669,40 @@
         <div class="note-box import-guide">
           <strong>Mẫu Excel chuẩn:</strong>
           <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Mỗi file có 3 sheet: HuongDan, DuLieuMau và Import.</p>
-          <p>Khi nhập dữ liệu thật, điền vào sheet <b>Import</b> và giữ nguyên dòng tiêu đề để hệ thống nhận đúng cột.</p>
+          <p>Nếu file Excel của bạn có tên cột riêng, dùng khu vực <b>Tự tạo mẫu import</b> bên dưới để map cột Excel về trường dữ liệu.</p>
           <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
+        </div>
+
+        <div class="custom-import-designer">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>Tự tạo mẫu import</h3>
+              <p class="muted">Tự đặt tên cột Excel, chọn trường database tương ứng rồi lưu thành mẫu dùng lại.</p>
+            </div>
+            <div class="button-row">
+              <button type="button" id="addImportMappingButton" class="secondary">+ Thêm dòng map</button>
+              <button type="button" id="saveCustomImportTemplateButton">Lưu mẫu</button>
+            </div>
+          </div>
+          <div class="import-panel custom-template-panel">
+            <label>Tên mẫu
+              <input id="customImportTemplateName" placeholder="VD: Mẫu đơn bán theo file Unilever" />
+            </label>
+            <label>Mẫu đã lưu
+              <select id="customImportTemplateSelect"><option value="">Không dùng mẫu tự tạo</option></select>
+            </label>
+            <div class="button-row import-actions">
+              <button type="button" id="loadCustomImportTemplateButton" class="secondary">Nạp mẫu</button>
+              <button type="button" id="downloadCustomImportTemplateButton" class="secondary">Tải file theo mẫu tự tạo</button>
+              <button type="button" id="deleteCustomImportTemplateButton" class="danger">Xóa mẫu</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cột Excel của bạn</th><th>Trường dữ liệu trong phần mềm</th><th>Bắt buộc</th><th>Giá trị mặc định</th><th></th></tr></thead>
+              <tbody id="customImportMappingTable"><tr><td colspan="5">Đang tải trường dữ liệu...</td></tr></tbody>
+            </table>
+          </div>
         </div>
 
         <p id="importDataMessage" class="message"></p>
@@ -477,6 +722,8 @@
 
   </div>
 
+  <script src="/js/search/autocompleteEngine.js"></script>
+  <script src="/js/search/searchFieldsConfig.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

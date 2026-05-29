@@ -21,13 +21,19 @@
         <h2>Đơn cần giao</h2>
         <button id="reloadOrdersBtn" class="ghost-btn small-btn">Tải lại</button>
       </div>
+      <div class="delivery-date-toolbar">
+        <label for="deliveryDateInput">Ngày giao</label>
+        <input id="deliveryDateInput" type="date" />
+        <button id="todayOrdersBtn" class="ghost-btn small-btn" type="button">Hôm nay</button>
+      </div>
+      <p id="deliveryFormula" class="formula-note">App lọc theo ngày giao + nhân viên giao đang đăng nhập.</p>
       <div id="deliveryOrders" class="order-list empty">Chưa có đơn</div>
       <p id="deliveryMessage" class="message"></p>
     </section>
 
     <section class="card">
-      <h2>Nộp tiền về quỹ</h2>
-      <input id="cashAmountInput" type="number" min="0" placeholder="Số tiền nộp về thủ quỹ" />
+      <h2>Nộp tiền mặt về quỹ</h2>
+      <input id="cashAmountInput" type="number" min="0" placeholder="Số tiền mặt nộp về thủ quỹ" />
       <textarea id="cashNoteInput" rows="2" placeholder="Ghi chú nếu có"></textarea>
       <button id="submitCashBtn" class="primary-btn full-btn">Ghi nhận nộp quỹ</button>
       <p id="cashMessage" class="message"></p>

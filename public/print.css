@@ -1,1 +1,368 @@
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:12px}.print-page{width:210mm;min-height:297mm;margin:0 auto;padding:12mm;background:#fff}.print-header{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:8px}.print-header h2{margin:0 0 4px;font-size:18px;text-transform:uppercase}.print-header p{margin:2px 0}.print-code{min-width:130px;border:1px solid #111;padding:8px;text-align:center}.print-code b,.print-code span{display:block}.print-code span{margin-top:6px;font-size:15px;font-weight:700}.print-title{text-align:center;font-size:22px;margin:18px 0;text-transform:uppercase}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:12px}.info-grid .full{grid-column:1/-1}.print-table{width:100%;border-collapse:collapse;margin-top:8px}.print-table th,.print-table td{border:1px solid #111;padding:5px;vertical-align:top}.print-table th{text-align:center;font-weight:700;background:#f2f2f2}.center{text-align:center}.right{text-align:right}.total-box{width:320px;margin-left:auto;margin-top:12px;border:1px solid #111}.total-box div{display:flex;justify-content:space-between;gap:12px;padding:6px 8px;border-bottom:1px solid #111}.total-box div:last-child{border-bottom:none}.receipt-money{margin:25px 0;padding:15px;border:2px solid #111;text-align:center;font-size:18px}.receipt-money b{margin-left:10px;font-size:22px}.note{margin-top:12px}.signature-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:38px;text-align:center}.signature-row div{min-height:90px}.signature-row b,.signature-row span{display:block}.signature-row span{margin-top:4px;font-size:11px;font-style:italic}.print-footer{margin-top:20px;font-size:11px;text-align:right}@media print{@page{size:A4;margin:0}body{margin:0}.print-page{margin:0;width:210mm;min-height:297mm;page-break-after:always}}
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5px;
+  line-height: 1.22;
+}
+
+.print-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 9mm 8mm;
+  background: #fff;
+}
+
+.compact-print {
+  padding: 6mm 7mm;
+  font-size: 9.8px;
+}
+
+.simple-print-header,
+.print-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1.5px solid #111;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.simple-print-header h2,
+.print-header h2 {
+  margin: 0 0 3px;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.simple-print-header p,
+.print-header p {
+  margin: 2px 0;
+}
+
+.print-code {
+  min-width: 32mm;
+  border: 1px solid #111;
+  padding: 5px;
+  text-align: center;
+}
+
+.print-code b,
+.print-code span {
+  display: block;
+}
+
+.print-code span {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.print-title {
+  text-align: center;
+  font-size: 18px;
+  margin: 12px 0;
+  text-transform: uppercase;
+}
+
+.document-top {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr 1fr;
+  gap: 7mm;
+  align-items: start;
+  margin-bottom: 7mm;
+}
+
+.document-top h1 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.1px;
+}
+
+.doc-left div,
+.doc-right div,
+.doc-title div {
+  margin-bottom: 2.3px;
+}
+
+.doc-title {
+  text-align: center;
+  padding-top: 2mm;
+}
+
+.doc-right {
+  text-align: left;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+}
+
+.info-grid .full {
+  grid-column: 1 / -1;
+}
+
+.info-strip {
+  display: grid;
+  grid-template-columns: 0.7fr 1.1fr 1fr 1fr;
+  gap: 7px;
+  border: 1px solid #111;
+  padding: 5px;
+  margin-bottom: 7px;
+}
+
+.print-table,
+.invoice-table,
+.promotion-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  page-break-inside: auto;
+}
+
+.print-table th,
+.print-table td,
+.invoice-table th,
+.invoice-table td,
+.promotion-table th,
+.promotion-table td {
+  border: 1px solid #000;
+  padding: 3px 3.5px;
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+.print-table th,
+.invoice-table th,
+.promotion-table th {
+  text-align: center;
+  font-weight: 700;
+  background: #f6f6f6;
+}
+
+.invoice-table {
+  font-size: 9.2px;
+}
+
+.invoice-table th {
+  font-size: 8.6px;
+  line-height: 1.12;
+}
+
+.invoice-table td {
+  height: 7.5mm;
+}
+
+.product-name {
+  font-weight: 600;
+  line-height: 1.18;
+}
+
+.invoice-total-row td {
+  font-weight: 700;
+  background: #fbfbfb;
+}
+
+.center {
+  text-align: center;
+}
+
+.right {
+  text-align: right;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.mono {
+  font-weight: 700;
+}
+
+.muted {
+  color: #555;
+  font-size: 9px;
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.invoice-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.98fr;
+  gap: 7mm;
+  margin-top: 5mm;
+  align-items: start;
+}
+
+.amount-in-words {
+  min-height: 22mm;
+  padding-top: 4mm;
+  font-size: 9.5px;
+}
+
+.calculation-box {
+  width: 100%;
+}
+
+.calculation-box div {
+  display: grid;
+  grid-template-columns: 1fr 28mm;
+  gap: 4mm;
+  padding: 1.5px 0;
+}
+
+.calculation-box span {
+  text-align: left;
+}
+
+.calculation-box b {
+  text-align: right;
+  font-size: 10.5px;
+}
+
+.total-box {
+  width: 76mm;
+  margin-left: auto;
+  margin-top: 6mm;
+  border: 1px solid #111;
+}
+
+.total-box div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px;
+  border-bottom: 1px solid #111;
+}
+
+.total-box div:last-child {
+  border-bottom: none;
+}
+
+.receipt-money {
+  margin: 18px 0;
+  padding: 12px;
+  border: 2px solid #111;
+  text-align: center;
+  font-size: 16px;
+}
+
+.receipt-money b {
+  margin-left: 8px;
+  font-size: 20px;
+}
+
+.note {
+  margin-top: 10px;
+}
+
+.signature-row,
+.invoice-signature {
+  display: grid;
+  gap: 0;
+  margin-top: 6mm;
+  text-align: center;
+  border: 1px solid #111;
+  border-right: none;
+}
+
+.signature-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.invoice-signature {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.signature-row div,
+.invoice-signature div {
+  min-height: 18mm;
+  padding-top: 2mm;
+  border-right: 1px solid #111;
+}
+
+.signature-row b,
+.signature-row span,
+.invoice-signature b,
+.invoice-signature span {
+  display: block;
+}
+
+.signature-row span,
+.invoice-signature span {
+  margin-top: 2px;
+  font-size: 9px;
+  font-style: italic;
+}
+
+.section-title {
+  margin-top: 6mm;
+  margin-bottom: 2mm;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.promotion-table {
+  font-size: 8.8px;
+}
+
+.promotion-table td {
+  min-height: 7mm;
+}
+
+.print-footer {
+  margin-top: 5mm;
+  font-size: 8.5px;
+  text-align: right;
+  color: #555;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm;
+    min-height: 297mm;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    page-break-after: always;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}

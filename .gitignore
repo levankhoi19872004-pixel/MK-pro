@@ -1,3 +1,25 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment secrets
 .env
-uploads
+.env.local
+.env.*.local
+
+# Runtime / upload files
+uploads/
+tmp/
+logs/
+*.log
+
+# Git / OS / editor
+.git/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build / cache
+.cache/
+dist/
+build/

@@ -26,7 +26,7 @@ form?.addEventListener('submit', async event => {
 
   try {
     const data = await mobileApi.login({ username, password });
-    setToken(data.token);
+    setToken(data.token, data.refreshToken);
     setUser(data.user);
 
     window.location.href = getRoleHome(data.user);

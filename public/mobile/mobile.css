@@ -257,3 +257,198 @@ textarea {
   line-height: 1.55;
   border: 1px solid #e2e8f0;
 }
+
+/* V43 ERP mobile density tuning */
+html{font-size:14px;}
+body{font-size:14px;line-height:1.42;-webkit-font-smoothing:antialiased;}
+.mobile-page{max-width:540px;padding:12px;}
+.auth-card,.card{border-radius:18px;padding:13px;margin-bottom:12px;box-shadow:0 8px 22px rgba(22,32,51,.065);}
+h1{font-size:20px;} h2{font-size:16px;margin-bottom:10px;} p{font-size:12.5px;}
+.mobile-header{padding:8px 0 12px;}
+.form-stack{gap:7px;} label{font-size:12.5px;}
+input,select,textarea{border-radius:12px;padding:10px 12px;font-size:14px;min-height:40px;}
+.primary-btn,.ghost-btn,.danger-btn{border-radius:12px;padding:10px 12px;font-size:14px;}
+.small-btn{padding:7px 9px;font-size:12px;border-radius:10px;}
+.suggestion-item,.cart-item,.order-item{border-radius:12px;padding:9px;background:#fff;}
+.suggestion-item strong,.cart-item strong,.order-item strong{font-size:13px;line-height:1.32;}
+.suggestion-item span,.cart-item span,.order-item span{font-size:11.8px;line-height:1.35;}
+.cart-list,.order-list{gap:7px;}
+.qty-row{grid-template-columns:1fr 104px;gap:7px;margin-top:8px;}
+.total-box{border-radius:14px;padding:10px;margin-top:10px;}
+.total-box strong{font-size:18px;}
+.selected-box{border-radius:12px;padding:9px;font-size:12.5px;}
+.pill{font-size:11.5px;padding:4px 8px;}
+.row-actions{gap:7px;margin-top:8px;}
+details summary{font-size:12.5px;}
+
+/* V44 mobile ERP/DMS density pass */
+:root{
+  --bg:#f3f6fb;
+  --card:#ffffff;
+  --text:#0f172a;
+  --muted:#64748b;
+  --border:#dfe7f1;
+  --primary:#1d4ed8;
+  --shadow:0 6px 16px rgba(15,23,42,.055);
+}
+body{font-size:14px;line-height:1.35;}
+.mobile-page{max-width:560px;padding:10px;}
+.mobile-header{padding:8px 0 10px;}
+.auth-card,.card{border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow);}
+h1{font-size:19px;letter-spacing:-.2px;}
+h2{font-size:15.5px;margin-bottom:9px;}
+p{font-size:12.5px;}
+.form-stack{gap:7px;}
+label,.field-label{font-size:12.5px;}
+input,select,textarea{min-height:38px;border-radius:11px;padding:9px 10px;font-size:13.5px;}
+.primary-btn,.ghost-btn,.danger-btn{min-height:38px;border-radius:11px;padding:9px 11px;font-size:13.5px;}
+.full-btn{margin-top:9px;}
+.suggestion-box{gap:6px;margin-top:6px;}
+.suggestion-item,.cart-item,.order-item{border-radius:12px;padding:9px;background:#fff;}
+.suggestion-item strong,.cart-item strong,.order-item strong{font-size:13px;line-height:1.3;}
+.suggestion-item span,.cart-item span,.order-item span{font-size:11.8px;line-height:1.3;}
+.qty-row{grid-template-columns:1fr 96px;gap:7px;margin-top:8px;}
+.pill{font-size:11.5px;padding:4px 8px;}
+.total-box{margin-top:9px;border-radius:13px;padding:10px;}
+.total-box span{font-size:12px;}
+.total-box strong{font-size:17px;}
+.row-actions{gap:7px;margin-top:8px;}
+.small-btn{padding:7px 9px;font-size:12px;border-radius:9px;}
+
+/* =========================================================
+   Mobile ERP/DMS synchronized density pass
+   ========================================================= */
+:root{
+  --bg:#f3f6fb;
+  --card:#ffffff;
+  --text:#0f172a;
+  --muted:#64748b;
+  --border:#dfe7f1;
+  --primary:#1d4ed8;
+  --danger:#b42318;
+  --shadow:0 5px 18px rgba(15,23,42,.06);
+}
+body{font-size:13.5px;line-height:1.35;background:var(--bg);}
+.mobile-page{max-width:540px;padding:10px;}
+.mobile-header{padding:8px 0 10px;background:rgba(243,246,251,.94);}
+.auth-card,.card{border-radius:16px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow);}
+h1{font-size:19px;line-height:1.15}h2{font-size:15.5px;margin-bottom:9px}p{font-size:12px}
+.form-stack{gap:7px}label{font-size:12px}.field-label{font-size:12px;margin:9px 0 5px}
+input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-size:13.5px;}
+.primary-btn,.ghost-btn,.danger-btn{min-height:36px;border-radius:10px;padding:8px 11px;font-size:13px;}
+.small-btn{min-height:30px;padding:6px 9px;font-size:12px;border-radius:8px;}
+.suggestion-box,.cart-list,.order-list{gap:7px}.suggestion-item,.cart-item,.order-item{border-radius:12px;padding:8px;background:#fbfdff;}
+.suggestion-item strong,.cart-item strong,.order-item strong{font-size:13px;line-height:1.25}.suggestion-item span,.cart-item span,.order-item span{font-size:11.5px}
+.selected-box{border-radius:11px;padding:8px;font-size:12px}.qty-row{grid-template-columns:1fr 96px;gap:7px;margin-top:8px}.row-actions{gap:7px;margin-top:8px}.total-box{border-radius:12px;padding:9px;margin-top:9px}.total-box span{font-size:12px}.total-box strong{font-size:17px}
+.pill{font-size:11.5px;padding:4px 8px}.message{font-size:12px;margin-top:8px;}
+
+.collection-tabs{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:6px;
+  margin:8px 0;
+}
+.collection-tabs label{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  min-height:34px;
+  padding:6px;
+  border:1px solid #dbe6f5;
+  border-radius:12px;
+  background:#f8fbff;
+  font-size:12px;
+  font-weight:700;
+  color:#23395d;
+}
+.collection-tabs input{
+  width:auto;
+  margin:0;
+}
+@media (max-width:420px){
+  .collection-tabs{grid-template-columns:1fr;}
+}
+
+
+/* Delivery app date picker: xem lại danh sách giao hàng theo ngày cũ/mới */
+.delivery-date-toolbar{
+  display:grid;
+  grid-template-columns:72px 1fr 86px;
+  align-items:center;
+  gap:7px;
+  padding:8px;
+  margin:2px 0 8px;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:#f8fbff;
+}
+.delivery-date-toolbar label{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+.delivery-date-toolbar input{min-height:34px;padding:7px 9px;}
+.formula-note{
+  margin:-2px 0 8px;
+  padding:7px 9px;
+  border-radius:11px;
+  background:#fff7ed;
+  color:#9a3412;
+  border:1px solid #fed7aa;
+  font-size:11.5px;
+  line-height:1.35;
+}
+@media (max-width:420px){
+  .delivery-date-toolbar{grid-template-columns:1fr;align-items:stretch;}
+}
+
+/* Return goods directly on delivery order */
+.return-panel {
+  margin-top: 10px;
+  border: 1px solid #d9e2ef;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f8fbff;
+}
+.return-panel summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #0f2f59;
+}
+.return-help {
+  margin: 8px 0 10px;
+  font-size: 12px;
+  color: #637083;
+}
+.return-grid {
+  display: grid;
+  gap: 8px;
+}
+.return-line {
+  display: grid;
+  grid-template-columns: 1fr 86px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #e5edf7;
+  border-radius: 10px;
+  background: #fff;
+}
+.return-product {
+  display: grid;
+  gap: 2px;
+}
+.return-product span,
+.return-product small {
+  color: #5f6b7a;
+}
+.return-qty-input,
+.return-reason-input {
+  min-height: 38px;
+}
+@media (max-width: 520px) {
+  .return-line {
+    grid-template-columns: 1fr;
+  }
+}

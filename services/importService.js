@@ -3,7 +3,14 @@ function makeId(prefix) {
 }
 
 function normalizeText(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function toNumber(value) {
@@ -97,7 +104,10 @@ function previewProducts(rows, data) {
       ...rowBase(row),
       code: text(row, ['code', 'mã', 'mã sản phẩm', 'ma san pham', 'productCode']),
       name: text(row, ['name', 'tên', 'tên sản phẩm', 'ten san pham', 'productName']),
-      unit: text(row, ['unit', 'đvt', 'đơn vị', 'đơn vị tính']) || 'Cái',
+      unit: text(row, ['unit', 'đvt', 'đơn vị', 'đơn vị tính', 'đơn vị bán', 'don vi ban']) || 'Cái',
+      baseUnit: text(row, ['baseUnit', 'base unit', 'đơn vị gốc', 'don vi goc', 'đơn vị nhỏ nhất', 'don vi nho nhat']),
+      conversionRate: number(row, ['conversionRate', 'conversion rate', 'quy đổi', 'quy doi', 'tỷ lệ', 'ty le', 'ratio']) || 1,
+      packing: text(row, ['packing', 'quy cách', 'quy cach', 'quy cách đóng gói', 'quy cach dong goi']),
       barcode: text(row, ['barcode', 'mã vạch', 'ma vach']),
       category: text(row, ['category', 'nhóm', 'nhóm hàng', 'nganh hang']),
       costPrice: number(row, ['costPrice', 'giá nhập', 'gia nhap']),
@@ -110,6 +120,8 @@ function previewProducts(rows, data) {
     if (!item.code) item.errors.push('Thiếu mã sản phẩm');
     if (!item.name) item.errors.push('Thiếu tên sản phẩm');
     if (item.code && existing.has(normalizeText(item.code))) item.errors.push('Mã sản phẩm đã tồn tại');
+    if (item.conversionRate < 1) item.errors.push('Quy đổi phải lớn hơn hoặc bằng 1');
+    if (!item.packing && item.baseUnit && item.conversionRate > 1) item.packing = `1 ${item.unit} = ${item.conversionRate} ${item.baseUnit}`;
     if (item.costPrice < 0 || item.salePrice < 0) item.errors.push('Giá không được âm');
     return { ...item, valid: item.errors.length === 0 };
   });
@@ -140,7 +152,7 @@ function previewOpeningStock(rows, data) {
   return rows.map((row) => {
     const productCode = text(row, ['productCode', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'code']);
     const product = findProduct(data, productCode);
-    const quantity = number(row, ['quantity', 'số lượng', 'so luong', 'tồn', 'ton', 'tồn đầu']);
+    const quantity = number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'số lượng tồn đầu', 'so luong ton dau', 'tồn kho ban đầu', 'ton kho ban dau', 'tồn đầu', 'ton dau', 'tồn', 'ton']);
     const item = { ...rowBase(row), productCode, productName: product ? product.name : '', quantity, errors: [] };
     if (!productCode) item.errors.push('Thiếu mã sản phẩm');
     if (!product) item.errors.push('Không tìm thấy sản phẩm');
@@ -269,7 +281,16 @@ function addImportLog(data, type, summary) {
 }
 
 function commitProducts(rows, data) {
-  rows.forEach((r) => data.products.push({ id: makeId('P'), code: r.code, name: r.name, unit: r.unit || 'Cái', barcode: r.barcode || '', category: r.category || '', costPrice: toNumber(r.costPrice), salePrice: toNumber(r.salePrice), minStock: toNumber(r.minStock), maxStock: toNumber(r.maxStock), isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
+  rows.forEach((r) => {
+    const unit = r.unit || 'Cái';
+    const baseUnit = r.baseUnit || '';
+    const conversionRate = Math.max(1, toNumber(r.conversionRate || 1));
+    const packing = r.packing || (baseUnit && conversionRate > 1 ? `1 ${unit} = ${conversionRate} ${baseUnit}` : '');
+    const units = [];
+    if (baseUnit) units.push({ name: baseUnit, ratio: 1, isBase: true, isDefaultSale: false });
+    units.push({ name: unit, ratio: conversionRate, isBase: false, isDefaultSale: true });
+    data.products.push({ id: makeId('P'), code: r.code, name: r.name, unit, baseUnit, conversionRate, packing, units, barcode: r.barcode || '', category: r.category || '', costPrice: toNumber(r.costPrice), salePrice: toNumber(r.salePrice), minStock: toNumber(r.minStock), maxStock: toNumber(r.maxStock), isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  });
   return rows.length;
 }
 
