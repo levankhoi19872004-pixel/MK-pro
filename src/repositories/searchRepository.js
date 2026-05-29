@@ -31,7 +31,7 @@ async function findProducts(query = {}) {
   if (ors.length) filter.$or = ors;
 
   return Product.find(filter)
-    .select('code sku productCode name productName unit baseUnit conversionRate packing barcode category brand salePrice price availableStock stockQuantity availableQty openingStock stock qty quantity isActive')
+    .select('id code sku productCode name productName unit baseUnit conversionRate packing barcode category brand salePrice price availableStock stockQuantity availableQty openingStock stock qty quantity isActive')
     .sort({ code: 1 })
     .limit(parseLimit(query, q ? 100 : 300, String(query.all) === '1' ? 5000 : 500))
     .lean();

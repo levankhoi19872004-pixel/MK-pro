@@ -82,7 +82,13 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
   const code = productCodeOf(product);
   const conversionRate = Math.max(1, toNumber(product.conversionRate || product.qtyPerCase || product.packingQty || 1));
   const inventory = inventoryMap.get(code);
+
+  // Phase 3.2 fix:
+  // Unified Search phải dùng cùng logic tồn mở bán với app mobile.
+  // Nếu collection inventories đã có snapshot cho sản phẩm thì dùng snapshot đó,
+  // kể cả snapshot bằng 0. Nếu chưa có snapshot thì mới fallback về tồn trên products.
   const availableQty = inventory?.matched ? toNumber(inventory.qty) : baseProductQty(product);
+  const stockDisplay = formatCaseLooseQty(availableQty, conversionRate);
   const salePrice = toNumber(product.salePrice || product.price);
   const row = {
     ...raw,
@@ -96,9 +102,19 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
     price: salePrice,
     salePrice,
     conversionRate,
+
+    // Đồng bộ field tồn cho cả web và mobile:
+    // frontend cũ có thể đọc availableStock/stockQuantity,
+    // frontend mới đọc availableQty/stockDisplay.
     availableQty,
+    availableStock: availableQty,
     stockQuantity: availableQty,
-    stockDisplay: formatCaseLooseQty(availableQty, conversionRate),
+    stock: availableQty,
+    quantity: availableQty,
+    openSaleQty: availableQty,
+    stockDisplay,
+    isOutOfStock: availableQty <= 0,
+
     label: `${code} - ${productNameOf(product)}`,
     value: code,
     searchText: normalizeSearchText([code, product.sku, product.productCode, productNameOf(product), product.barcode, product.category, product.brand, product.packing, product.unit, product.baseUnit].filter(Boolean).join(' '))
@@ -109,7 +125,12 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
 
 async function searchProducts(query = {}) {
   const products = await searchRepository.findProducts(query);
-  const includeStock = ['1', 'true', 'yes'].includes(String(query.includeStock ?? query.mobile ?? query.all ?? '').toLowerCase());
+
+  // Tồn mở bán là thông tin bắt buộc của gợi ý bán hàng.
+  // Trước đây web chỉ lấy product.availableStock nên có thể hiện 0,
+  // trong khi app mobile lấy inventories nên hiện đúng. Từ đây search chung luôn
+  // đọc inventories giống app, trừ khi client cố tình truyền includeStock=0.
+  const includeStock = String(query.includeStock ?? '1') !== '0';
   const inventories = includeStock ? await searchRepository.findInventoriesForProducts(products) : [];
   const inventoryMap = includeStock ? buildInventoryMap(products, inventories) : new Map();
   return products.map((product) => toProductSuggestion(product, inventoryMap, { compact: query.compact === '1' }));
