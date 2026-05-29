@@ -1,40 +1,6 @@
 // Products
 let productListRequestSeq = 0;
 
-function normalizeProductTableSearch(value){
-  return String(value ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g,'')
-    .replace(/đ/g,'d')
-    .trim();
-}
-function productTableSearchIsNumeric(value){
-  return /^\d+$/.test(String(value || '').trim());
-}
-function productMatchesTableQuery(product = {}, keyword = ''){
-  const q = normalizeProductTableSearch(keyword);
-  if(!q) return true;
-
-  // Nếu gõ toàn số thì chỉ lọc trên mã/barcode.
-  // Không được lọc vào tên, nhóm, quy cách hoặc giá vì sẽ gây hiện sai hàng loạt.
-  const fields = productTableSearchIsNumeric(q)
-    ? [product.code, product.sku, product.productCode, product.barcode]
-    : [
-        product.code,
-        product.sku,
-        product.productCode,
-        product.barcode,
-        product.name,
-        product.category,
-        product.brand,
-        product.packing,
-        product.unit,
-        product.baseUnit,
-        product.searchText
-      ];
-  return fields.some(value => normalizeProductTableSearch(value).includes(q));
-}
 function getFormPayload(){
   const formData=new FormData(productForm);const payload=Object.fromEntries(formData.entries());
   payload.costPrice=Number(payload.costPrice||0);payload.salePrice=Number(payload.salePrice||0);
@@ -75,14 +41,11 @@ async function loadProducts(options = {}){
       });
     if(requestSeq !== productListRequestSeq) return;
     const rawRows = Array.isArray(result.rows) ? result.rows : [];
-    // Chốt chặn frontend: nếu backend/proxy trả nhầm trang mặc định khi có q,
-    // không để bảng sản phẩm hiển thị dữ liệu cũ hoặc dữ liệu không khớp từ khóa.
-    productsCache = q ? rawRows.filter(row => productMatchesTableQuery(row, q)) : rawRows;
+    // Bảng sản phẩm giống bảng khách hàng: backend Mongo là nguồn lọc duy nhất.
+    // Frontend chỉ render dữ liệu server trả về, không tự filter/rank lại.
+    productsCache = rawRows;
     if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
     productTotal = Number(result.meta?.total ?? productsCache.length);
-    if(q && rawRows.length !== productsCache.length){
-      productTotal = productsCache.length;
-    }
     productTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(productTotal/limit) ?? 1));
     if(productPage>productTotalPages && productTotalPages>0){
       productPage=productTotalPages;

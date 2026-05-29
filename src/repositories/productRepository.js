@@ -114,23 +114,11 @@ function sortRankedProducts(rows = [], keyword = '') {
 }
 
 async function findAll(query = {}) {
-  const q = searchKeyword(query);
-
-  // Khi có từ khóa, không được lấy trang đầu rồi lọc ở frontend.
-  // Server tìm trên toàn bộ Mongo, xếp hạng kết quả, sau đó mới phân trang.
-  if (q) {
-    const filter = buildQueryFilter(query);
-    const candidates = await Product.find(filter).sort({ code: 1 }).lean();
-    const ranked = sortRankedProducts(candidates, q);
-
-    if (!wantsPagination(query)) return ranked;
-
-    const page = getPagination(query);
-    const rows = ranked.slice(page.skip, page.skip + page.limit);
-    return { rows, meta: buildPageMeta({ ...page, total: ranked.length }) };
-  }
-
-  const filter = baseFilter(query);
+  // Phase 3.6 table search clean:
+  // Danh sách sản phẩm chạy giống danh sách khách hàng:
+  // q -> buildQueryFilter -> Product.find(filter) -> countDocuments(filter) -> trả bảng.
+  // Không xếp hạng/lọc lại bằng JS trong repository, không fallback trang đầu.
+  const filter = buildQueryFilter(query);
   if (!wantsPagination(query)) return Product.find(filter).sort({ code: 1 }).lean();
 
   const page = getPagination(query);
