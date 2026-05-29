@@ -1,0 +1,220 @@
+'use strict';
+
+const orderRepository = require('../repositories/orderRepository');
+const masterOrderRepository = require('../repositories/masterOrderRepository');
+const productRepository = require('../repositories/productRepository');
+const customerRepository = require('../repositories/customerRepository');
+const userRepository = require('../repositories/userRepository');
+const { makeId, normalizeText, toNumber } = require('../utils/common.util');
+const { withMongoTransaction } = require('../utils/transaction.util');
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function buildOrderCode(existingOrders = []) {
+  const max = existingOrders.reduce((result, order) => {
+    const match = String(order.code || '').match(/(\d+)$/);
+    return Math.max(result, match ? Number(match[1]) : 0);
+  }, 0);
+  return `SO${String(max + 1).padStart(5, '0')}`;
+}
+
+function calculateItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => {
+      const quantity = toNumber(item.quantity ?? item.qty ?? item.totalQty);
+      const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice);
+      const amount = toNumber(item.amount ?? item.total ?? quantity * price);
+      return {
+        ...item,
+        productId: String(item.productId || item.id || item.productCode || item.code || '').trim(),
+        productCode: String(item.productCode || item.code || item.sku || item.productId || '').trim(),
+        productName: String(item.productName || item.name || '').trim(),
+        quantity,
+        qty: quantity,
+        price,
+        salePrice: price,
+        amount
+      };
+    })
+    .filter((item) => item.quantity > 0 || item.productCode || item.productName);
+}
+
+async function resolveCustomer(body = {}) {
+  const customerId = String(body.customerId || body.customerCode || body.customerName || '').trim();
+  if (!customerId) return null;
+  return customerRepository.findByIdOrCode(customerId);
+}
+
+async function resolveStaff(body = {}) {
+  const staffId = String(body.staffId || body.staffCode || body.staffName || body.salesStaffId || body.salesStaffCode || '').trim();
+  if (!staffId) return null;
+  return userRepository.findStaffByIdOrCode(staffId);
+}
+
+async function hydrateItemNames(items) {
+  const products = await productRepository.findAll({});
+  const byCode = new Map(products.map((p) => [String(p.code || p.sku || p.id || '').trim(), p]));
+  return items.map((item) => {
+    const product = byCode.get(String(item.productCode || item.productId || '').trim());
+    if (!product) return item;
+    return {
+      ...item,
+      productId: item.productId || product.id || product.code,
+      productCode: item.productCode || product.code,
+      productName: item.productName || product.name,
+      price: item.price || product.salePrice || 0,
+      salePrice: item.salePrice || product.salePrice || 0,
+      amount: item.amount || toNumber(item.quantity) * toNumber(item.price || product.salePrice)
+    };
+  });
+}
+
+function toClient(order) {
+  return {
+    ...order,
+    id: order.id || order.code,
+    code: order.code || order.id,
+    items: Array.isArray(order.items) ? order.items : [],
+    totalAmount: toNumber(order.totalAmount),
+    paidAmount: toNumber(order.paidAmount),
+    debtAmount: toNumber(order.debtAmount)
+  };
+}
+
+async function listOrders(query = {}) {
+  const q = normalizeText(query.q);
+  const orders = await orderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  return orders
+    .map(toClient)
+    .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.staffName, order.deliveryStaffName].some((value) => normalizeText(value).includes(q)));
+}
+
+async function createOrder(body = {}) {
+  const existingOrders = await orderRepository.findAll();
+  const customer = await resolveCustomer(body);
+  const staff = await resolveStaff(body);
+  const items = await hydrateItemNames(calculateItems(body.items));
+  if (!items.length) return { error: 'Đơn bán chưa có sản phẩm', status: 400 };
+  const totalAmount = toNumber(body.totalAmount || items.reduce((sum, item) => sum + toNumber(item.amount), 0));
+  const paidAmount = toNumber(body.paidAmount || body.paid || 0);
+  const order = {
+    ...body,
+    id: String(body.id || makeId('SO')).trim(),
+    code: String(body.code || buildOrderCode(existingOrders)).trim(),
+    date: String(body.date || today()).slice(0, 10),
+    deliveryDate: String(body.deliveryDate || body.date || today()).slice(0, 10),
+    customerId: customer?.id || body.customerId || body.customerCode || '',
+    customerCode: customer?.code || body.customerCode || '',
+    customerName: customer?.name || body.customerName || '',
+    customerPhone: customer?.phone || body.customerPhone || '',
+    customerAddress: customer?.address || body.customerAddress || '',
+    staffId: staff?.id || body.staffId || body.salesStaffId || '',
+    staffCode: staff?.code || body.staffCode || body.salesStaffCode || '',
+    staffName: staff?.name || body.staffName || body.salesStaffName || '',
+    salesStaffId: staff?.id || body.salesStaffId || body.staffId || '',
+    salesStaffCode: staff?.code || body.salesStaffCode || body.staffCode || '',
+    salesStaffName: staff?.name || body.salesStaffName || body.staffName || '',
+    items,
+    totalAmount,
+    paidAmount,
+    debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
+    isChildOrder: body.isChildOrder !== false,
+    masterOrderId: body.masterOrderId || '',
+    masterOrderCode: body.masterOrderCode || '',
+    mergeStatus: body.mergeStatus || 'unmerged',
+    deliveryStatus: body.deliveryStatus || 'pending',
+    status: body.status || 'posted',
+    orderSource: body.orderSource || body.source || 'NVBH',
+    source: body.source || body.orderSource || 'NVBH',
+    createdAt: body.createdAt || nowIso(),
+    updatedAt: nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    await orderRepository.upsert(order, { session });
+  });
+  return { salesOrder: toClient(order) };
+}
+
+async function updateOrder(id, body = {}) {
+  const current = await orderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  if (current.masterOrderId || current.mergeStatus === 'merged') return { error: 'Đơn đã gộp, không nên sửa trực tiếp đơn con', status: 400 };
+  const items = body.items ? await hydrateItemNames(calculateItems(body.items)) : current.items;
+  const totalAmount = toNumber(body.totalAmount ?? (items || []).reduce((sum, item) => sum + toNumber(item.amount), 0));
+  const paidAmount = toNumber(body.paidAmount ?? current.paidAmount ?? 0);
+  const updated = {
+    ...current,
+    ...body,
+    items,
+    totalAmount,
+    paidAmount,
+    debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
+    updatedAt: nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    await orderRepository.upsert(updated, { session });
+  });
+  return { salesOrder: toClient(updated) };
+}
+
+async function cancelOrder(id, body = {}) {
+  const current = await orderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  const cancelled = {
+    ...current,
+    status: 'cancelled',
+    deliveryStatus: 'cancelled',
+    cancelReason: String(body.reason || body.cancelReason || '').trim(),
+    cancelledAt: nowIso(),
+    updatedAt: nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    await orderRepository.upsert(cancelled, { session });
+  });
+  if (cancelled.masterOrderId || cancelled.masterOrderCode) {
+    await syncMasterOrderSummary(cancelled.masterOrderId || cancelled.masterOrderCode);
+  }
+  return { salesOrder: toClient(cancelled) };
+}
+
+async function getMasterChildren(masterOrder) {
+  const ids = new Set((masterOrder.childOrderIds || []).map(String));
+  const orders = await orderRepository.findAll();
+  return orders.filter((order) => ids.has(String(order.id)) || ids.has(String(order.code)) || String(order.masterOrderId || '') === String(masterOrder.id || '') || String(order.masterOrderCode || '') === String(masterOrder.code || ''));
+}
+
+function summarizeOrders(children = []) {
+  const active = children.filter((order) => !['cancelled', 'void'].includes(String(order.status || '').toLowerCase()));
+  return {
+    orderCount: active.length,
+    totalAmount: active.reduce((sum, order) => sum + toNumber(order.totalAmount), 0),
+    paidAmount: active.reduce((sum, order) => sum + toNumber(order.paidAmount), 0),
+    debtAmount: active.reduce((sum, order) => sum + toNumber(order.debtAmount), 0)
+  };
+}
+
+async function syncMasterOrderSummary(masterIdOrCode, options = {}) {
+  const master = await masterOrderRepository.findByIdOrCode(masterIdOrCode);
+  if (!master) return null;
+  const children = await getMasterChildren(master);
+  const updated = { ...master, ...summarizeOrders(children), updatedAt: nowIso() };
+  await masterOrderRepository.upsert(updated, options);
+  return updated;
+}
+
+module.exports = {
+  listOrders,
+  createOrder,
+  updateOrder,
+  cancelOrder,
+  getMasterChildren,
+  summarizeOrders,
+  syncMasterOrderSummary,
+  toClient
+};

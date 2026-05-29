@@ -1,6 +1,12 @@
-# Routes layer - Phase 2
+# Routes
 
-PHASE 2 đã chuẩn hóa thư mục routes/services/models để tách dần `server.js` theo Clean Architecture.
-Hiện server vẫn giữ API cũ để tránh vỡ frontend/mobile, nhưng dữ liệu nghiệp vụ đã được gom về Mongo models trong `src/models/index.js` và lớp đồng bộ ở `src/services/mongoSyncService.js`.
+Route chỉ khai báo endpoint và middleware.
 
-Lộ trình phase sau: tách từng nhóm API từ `server.js` sang router riêng: products, customers, orders, debts, mobile.
+Luồng chuẩn:
+`route -> controller -> service -> repository -> model/database`
+
+Ví dụ đã tách:
+- `src/routes/mobile/delivery.routes.js`
+- `src/controllers/mobile/delivery.controller.js`
+- `src/services/mobile/delivery.service.js`
+- `src/repositories/mobile/delivery.repository.js`

@@ -1,11 +1,16 @@
 {
-  "name": "kho-minh-khai-pro-v44",
+  "name": "kho-minh-khai-pro-v45-delivery-3tabs",
   "version": "1.0.0",
-  "description": "KHO Minh Khai Pro V44 - Clean Core",
+  "description": "KHO Minh Khai Pro V45 - Delivery App 3 Tabs",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "migrate:json": "node scripts/migrate-json-to-mongo-final.js",
+    "migrate:json:replace": "node scripts/migrate-json-to-mongo-final.js --replace",
+    "migrate:json:dry-run": "node scripts/migrate-json-to-mongo-final.js --dry-run",
+    "mongo:indexes": "node scripts/ensure-mongo-indexes.js",
+    "migrate:json-to-mongo": "node scripts/migrate-json-to-mongo-final.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

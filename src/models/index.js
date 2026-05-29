@@ -19,5 +19,7 @@ module.exports = {
   auditLogs: require('./AuditLog'),
   settings: require('./Setting'),
   promotions: require('./Promotion'),
-  importTemplates: require('./ImportTemplate')
+  importTemplates: require('./ImportTemplate'),
+  roles: require('./Role'),
+  permissions: require('./Permission')
 };

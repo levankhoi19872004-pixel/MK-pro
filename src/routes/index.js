@@ -1,11 +1,52 @@
-// V45 route entrypoint.
-// Giai đoạn này các route nghiệp vụ cũ vẫn được đăng ký trong src/legacy/legacyApp.js để giữ 100% tương thích API.
-// Khi tách sâu từng module, mount router tại đây rồi gọi từ src/app.js.
+'use strict';
 
-const express = require('express');
+const productRoutes = require('./productRoutes');
+const customerRoutes = require('./customerRoutes');
+const userRoutes = require('./userRoutes');
+const orderRoutes = require('./orderRoutes');
+const masterOrderRoutes = require('./masterOrderRoutes');
+const importOrderRoutes = require('./importOrderRoutes');
+const returnRoutes = require('./returnRoutes');
+const receiptRoutes = require('./receiptRoutes');
+const cashbookRoutes = require('./cashbookRoutes');
+const bankbookRoutes = require('./bankbookRoutes');
+const promotionRoutes = require('./promotionRoutes');
+const importTemplateRoutes = require('./importTemplateRoutes');
+const reportRoutes = require('./reportRoutes');
+const systemRoutes = require('./systemRoutes');
+const excelImportRoutes = require('./excelImportRoutes');
+const printRoutes = require('./printRoutes');
 
-function createRouter() {
-  return express.Router();
+function registerApiRoutes(app) {
+  // Core system routes must be mounted before legacy guard.
+  app.use('/api', systemRoutes);
+
+  // Step 1: Products / Customers / Users
+  app.use('/api/products', productRoutes);
+  app.use('/api/customers', customerRoutes);
+  app.use('/api', userRoutes);
+
+  // Step 2: Sales Orders / Master Orders
+  app.use('/api/sales-orders', orderRoutes);
+  app.use('/api/orders', orderRoutes);
+  app.use('/api/master-orders', masterOrderRoutes);
+
+  // Step 3: Import Orders / Return Orders
+  app.use('/api/import-orders', importOrderRoutes);
+  app.use('/api/return-orders', returnRoutes);
+  app.use('/api/returns', returnRoutes);
+
+  // Step 4: Receipts / Cashbook / Bankbook
+  app.use('/api/receipts', receiptRoutes);
+  app.use('/api/cashbook', cashbookRoutes);
+  app.use('/api/bankbook', bankbookRoutes);
+
+  // Step 5: Promotions / Reports / Import Templates
+  app.use('/api/promotions', promotionRoutes);
+  app.use('/api/import', importTemplateRoutes);
+  app.use('/api/import', excelImportRoutes);
+  app.use('/api/print', printRoutes);
+  app.use('/api', reportRoutes);
 }
 
-module.exports = { createRouter };
+module.exports = { registerApiRoutes };

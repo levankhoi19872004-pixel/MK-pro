@@ -1,6 +1,8 @@
-# controllers
+# Controllers
 
-Tầng nhận request/response. Controller không truy cập database trực tiếp.
-Luồng chuẩn: route -> controller -> service -> engine/model.
+Controller chỉ xử lý HTTP request/response:
+- đọc `req.query`, `req.body`, `req.mobileUser`
+- gọi service tương ứng
+- trả JSON/status code
 
-Các API cũ hiện vẫn nằm trong `src/legacy/legacyApp.js` để tránh vỡ frontend.
+Không viết nghiệp vụ, không đọc/ghi database trực tiếp trong controller.
