@@ -1,11 +1,4 @@
-function getImportProductMatches(){
-  const q=importProductSearch?importProductSearch.value.trim():'';
-  if(window.UnifiedProductSearch) return window.UnifiedProductSearch.search(q,{limit:50,mode:'import'});
-  return productsCache
-    .filter(p=>p.isActive!==false)
-    .filter(p=>matchSearch(q,[p.code,p.name,p.barcode,p.category,p.brand,p.sku,p.productCode,p.packing,p.unit,p.baseUnit]))
-    .slice(0,50);
-}
+// Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
 function selectImportProduct(p){
   if(!p)return;
   importProductSelect.value=getProductKey(p);

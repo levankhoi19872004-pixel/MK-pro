@@ -69,14 +69,7 @@ function renderSalesStaffSelect(){
   salesStaffSearch.disabled=!has;
   salesStaffSearch.placeholder=has?'Gõ mã/tên/tài khoản NV bán hàng...':'Chưa có tài khoản bán hàng';
 }
-function getSalesProductMatches(){
-  const q=salesProductSearch?salesProductSearch.value.trim():'';
-  if(window.UnifiedProductSearch) return window.UnifiedProductSearch.search(q,{limit:50,mode:'sales'});
-  return getSalesProductCatalog()
-    .filter(p=>p.isActive!==false)
-    .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.brand,p.sku,p.productCode,p.packing,p.unit,p.baseUnit]))
-    .slice(0,50);
-}
+// Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
 function selectSalesProduct(p){
   if(!p)return;
   salesProductSelect.value=getProductKey(p);
