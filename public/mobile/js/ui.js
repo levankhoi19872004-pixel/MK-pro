@@ -11,9 +11,16 @@ export function money(value) {
 export function renderSuggestions(container, items, renderItem, onSelect) {
   if (!container) return;
   container.innerHTML = '';
+  container.classList.remove('has-many');
   if (!items || !items.length) return;
 
   container.classList.toggle('has-many', items.length > 6);
+  if (items.length > 6) {
+    const title = document.createElement('div');
+    title.className = 'suggestion-empty';
+    title.textContent = `Có ${items.length} sản phẩm. Kéo thanh trượt để tìm thủ công.`;
+    container.appendChild(title);
+  }
   items.slice(0, 80).forEach(item => {
     const div = document.createElement('button');
     div.type = 'button';
