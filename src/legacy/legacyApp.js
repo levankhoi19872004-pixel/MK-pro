@@ -2225,7 +2225,7 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-async function bootstrapDataLayer() {
+async function startServer() {
   ensureDataFile();
   await connectDB();
   if (process.env.AUTO_ENSURE_MONGO_INDEXES !== 'false') {
@@ -2248,21 +2248,10 @@ async function bootstrapDataLayer() {
     await refreshAccessCacheFromMongo();
     console.log('⏭️ Bỏ qua nạp toàn bộ Mongo vào cache khi khởi động (LOAD_MONGO_CACHE_ON_START=false)');
   }
-}
 
-async function startServer() {
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server V45 đang chạy tại http://0.0.0.0:${PORT}`);
+  return app.listen(PORT, () => {
+    console.log(`Server V45 đang chạy tại http://localhost:${PORT}`);
   });
-
-  setImmediate(() => {
-    bootstrapDataLayer().catch((err) => {
-      logger.error({ err }, 'Không thể khởi tạo Mongo/cache sau khi mở port');
-      console.error('Không thể khởi tạo Mongo/cache sau khi mở port:', err);
-    });
-  });
-
-  return server;
 }
 
 module.exports = { app, startServer };
