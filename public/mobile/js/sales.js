@@ -12,14 +12,16 @@ let selectedCustomer = null;
 let selectedProduct = null;
 let cart = [];
 let editingOrderId = '';
+let lastCustomers = [];
 
+const tabs = document.querySelectorAll('.tab-btn');
+const panels = document.querySelectorAll('.tab-panel');
 const customerSearch = document.getElementById('customerSearch');
+const customerList = document.getElementById('customerList');
 const productSearch = document.getElementById('productSearch');
-const customerSuggestions = document.getElementById('customerSuggestions');
 const productSuggestions = document.getElementById('productSuggestions');
 const selectedCustomerBox = document.getElementById('selectedCustomer');
 const selectedProductBox = document.getElementById('selectedProduct');
-const qtyInput = document.getElementById('looseQtyInput');
 const caseQtyInput = document.getElementById('caseQtyInput');
 const looseQtyInput = document.getElementById('looseQtyInput');
 const paidAmountInput = document.getElementById('paidAmountInput');
@@ -28,37 +30,78 @@ const cartCount = document.getElementById('cartCount');
 const cartTotal = document.getElementById('cartTotal');
 const todayOrders = document.getElementById('todayOrders');
 const message = document.getElementById('salesMessage');
+const orderFormTitle = document.getElementById('orderFormTitle');
+const submitOrderBtn = document.getElementById('submitOrderBtn');
 
-customerSearch.addEventListener('input', debounce(searchCustomers));
-productSearch.addEventListener('input', debounce(searchProducts));
+function switchTab(tabId) {
+  tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabId));
+  panels.forEach((panel) => panel.classList.toggle('active', panel.id === tabId));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function formatShortDate(value) {
+  return String(value || new Date().toISOString().slice(0, 10)).slice(0, 10);
+}
+
+tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
+productSearch.addEventListener('input', debounce(searchProducts, 250));
+document.getElementById('reloadCustomersBtn')?.addEventListener('click', () => loadCustomers(customerSearch.value.trim()));
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
+document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
 
+loadCustomers('');
 loadTodayOrders();
+renderCart();
 
-async function searchCustomers() {
-  const q = customerSearch.value.trim();
-  if (!q) {
-    customerSuggestions.innerHTML = '';
+async function loadCustomers(q = '') {
+  try {
+    customerList.className = 'customer-list empty';
+    customerList.textContent = 'Đang tải khách hàng...';
+    const data = await mobileApi.getCustomers(q);
+    lastCustomers = data.items || [];
+    renderCustomerList(lastCustomers);
+  } catch (err) {
+    customerList.className = 'customer-list empty';
+    customerList.textContent = err.message;
+  }
+}
+
+function renderCustomerList(items) {
+  if (!items.length) {
+    customerList.className = 'customer-list empty';
+    customerList.textContent = 'Không có khách hàng phù hợp';
     return;
   }
 
-  try {
-    const data = await mobileApi.getCustomers(q);
-    renderSuggestions(
-      customerSuggestions,
-      data.items,
-      c => `<strong>${c.code || ''} - ${c.name || ''}</strong><span>${c.phone || ''} · ${c.address || ''}</span>`,
-      c => {
-        selectedCustomer = c;
-        selectedCustomerBox.textContent = `${c.code || ''} - ${c.name || ''} - ${c.phone || ''} - ${c.address || ''}`;
-        selectedCustomerBox.classList.remove('muted');
-        customerSuggestions.innerHTML = '';
-        customerSearch.value = c.name || c.code || '';
-      }
-    );
-  } catch (err) {
-    setMessage(message, err.message, 'error');
-  }
+  customerList.className = 'customer-list';
+  customerList.innerHTML = items.map((customer, index) => `
+    <button class="customer-card" data-customer-index="${index}">
+      <strong>${customer.code || ''} - ${customer.name || ''}</strong>
+      <span>${customer.phone || ''} · ${customer.address || ''}</span>
+      <div class="customer-metrics">
+        <em>Công nợ: ${money(customer.debtAmount || customer.currentDebt || customer.debt || 0)}</em>
+        <em>DS tháng: ${money(customer.monthRevenue || customer.monthSales || 0)}</em>
+      </div>
+    </button>
+  `).join('');
+
+  customerList.querySelectorAll('[data-customer-index]').forEach((btn) => {
+    btn.addEventListener('click', () => selectCustomer(lastCustomers[Number(btn.dataset.customerIndex)]));
+  });
+}
+
+function selectCustomer(customer) {
+  selectedCustomer = customer;
+  selectedCustomerBox.innerHTML = `
+    <strong>${customer.code || ''} - ${customer.name || ''}</strong><br />
+    <span>${customer.phone || ''} · ${customer.address || ''}</span><br />
+    <span>Công nợ: ${money(customer.debtAmount || customer.currentDebt || customer.debt || 0)} · DS tháng: ${money(customer.monthRevenue || customer.monthSales || 0)}</span>
+  `;
+  selectedCustomerBox.classList.remove('muted');
+  setMessage(message, 'Đã chọn khách hàng. Hãy thêm sản phẩm vào giỏ.', 'success');
+  switchTab('orderTab');
+  setTimeout(() => productSearch.focus(), 200);
 }
 
 async function searchProducts() {
@@ -72,9 +115,9 @@ async function searchProducts() {
     const data = await mobileApi.getProducts(q);
     renderSuggestions(
       productSuggestions,
-      (data.items || []).filter(p => Number(p.availableQty || p.stockQuantity || 0) > 0),
-      p => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || '0/0'} · Giá: ${money(p.salePrice)}</span>`,
-      p => {
+      (data.items || []).filter((p) => Number(p.availableQty || p.stockQuantity || 0) > 0),
+      (p) => `<strong>${p.code || ''} - ${p.name || ''}</strong><span>Tồn mở bán: ${p.stockDisplay || '0/0'} · Giá: ${money(p.salePrice)}</span>`,
+      (p) => {
         selectedProduct = p;
         selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || p.availableQty || '0/0'} | Giá: ${money(p.salePrice)}`;
         selectedProductBox.classList.remove('muted');
@@ -90,22 +133,20 @@ async function searchProducts() {
 
 document.getElementById('addItemBtn').addEventListener('click', () => {
   setMessage(message, '');
+  if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng ở tab 1', 'error');
+  if (!selectedProduct) return setMessage(message, 'Chưa chọn sản phẩm', 'error');
+
   const caseQty = Number(caseQtyInput?.value || 0);
   const looseQty = Number(looseQtyInput?.value || 0);
   const packingRate = Number(selectedProduct.conversionRate || selectedProduct.unitsPerCase || 0);
   const qty = (caseQty > 0 && packingRate > 0 ? caseQty * packingRate : 0) + looseQty;
-  if (!selectedProduct) return setMessage(message, 'Chưa chọn sản phẩm', 'error');
   if (qty <= 0) return setMessage(message, 'Số lượng phải lớn hơn 0', 'error');
-  if (qty > Number(selectedProduct.availableQty || 0)) {
-    return setMessage(message, 'Số lượng vượt tồn mở bán', 'error');
-  }
+  if (qty > Number(selectedProduct.availableQty || 0)) return setMessage(message, 'Số lượng vượt tồn mở bán', 'error');
 
-  const existed = cart.find(item => item.productCode === selectedProduct.code);
+  const existed = cart.find((item) => item.productCode === selectedProduct.code);
   if (existed) {
     const nextQty = existed.quantity + qty;
-    if (nextQty > Number(selectedProduct.availableQty || 0)) {
-      return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
-    }
+    if (nextQty > Number(selectedProduct.availableQty || 0)) return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
     existed.quantity = nextQty;
     existed.amount = existed.quantity * existed.salePrice;
   } else {
@@ -122,8 +163,8 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
 
   selectedProduct = null;
   productSearch.value = '';
-  if(caseQtyInput) caseQtyInput.value = '';
-  if(looseQtyInput) looseQtyInput.value = '';
+  caseQtyInput.value = '';
+  looseQtyInput.value = '';
   selectedProductBox.textContent = 'Chưa chọn sản phẩm';
   selectedProductBox.classList.add('muted');
   renderCart();
@@ -149,7 +190,7 @@ function renderCart() {
     </div>
   `).join('');
 
-  cartList.querySelectorAll('[data-remove]').forEach(btn => {
+  cartList.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
       cart.splice(Number(btn.dataset.remove), 1);
       renderCart();
@@ -157,7 +198,7 @@ function renderCart() {
   });
 }
 
-document.getElementById('submitOrderBtn').addEventListener('click', async () => {
+submitOrderBtn.addEventListener('click', async () => {
   setMessage(message, '');
   if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng', 'error');
   if (!cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
@@ -173,40 +214,58 @@ document.getElementById('submitOrderBtn').addEventListener('click', async () => 
     const data = editingOrderId
       ? await mobileApi.updateSalesOrder(editingOrderId, payload)
       : await mobileApi.createSalesOrder(payload);
-    cart = [];
-    editingOrderId = '';
-    selectedCustomer = null;
-    selectedCustomerBox.textContent = 'Chưa chọn khách hàng';
-    selectedCustomerBox.classList.add('muted');
-    customerSearch.value = '';
-    paidAmountInput.value = '';
-    document.getElementById('submitOrderBtn').textContent = 'Gửi đơn về hệ thống tổng';
-    renderCart();
-    setMessage(message, `${data.message || 'Đã lưu đơn'} ${data.salesOrder?.code || ''}`, 'success');
-    loadTodayOrders();
+
+    const code = data.salesOrder?.code || '';
+    clearOrderForm(false);
+    setMessage(message, `${data.message || 'Đã lưu đơn'} ${code}`, 'success');
+    await loadTodayOrders();
+    switchTab('reportTab');
   } catch (err) {
     setMessage(message, err.message, 'error');
   }
 });
 
+function clearOrderForm(clearCustomer = true) {
+  cart = [];
+  editingOrderId = '';
+  selectedProduct = null;
+  productSearch.value = '';
+  caseQtyInput.value = '';
+  looseQtyInput.value = '';
+  paidAmountInput.value = '';
+  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
+  selectedProductBox.classList.add('muted');
+  orderFormTitle.textContent = 'Đặt hàng';
+  submitOrderBtn.textContent = 'Xác nhận đơn';
+  if (clearCustomer) {
+    selectedCustomer = null;
+    selectedCustomerBox.textContent = 'Chưa chọn khách hàng. Hãy sang tab Khách hàng để chọn.';
+    selectedCustomerBox.classList.add('muted');
+    setMessage(message, 'Đã làm mới đơn. Hãy chọn khách hàng ở tab 1.', 'success');
+  }
+  renderCart();
+}
 
 async function editTodayOrder(orderId) {
   try {
     const data = await mobileApi.getSalesOrder(orderId);
     const order = data.order;
-    if (!order.canEdit) return setMessage(message, 'Đơn đã gộp tổng, app bán hàng không được sửa. Báo kế toán/admin sửa tại lịch sử bán hàng.', 'error');
+    if (!order.canEdit) return setMessage(message, 'Đơn đã gộp đơn tổng, app bán hàng không được sửa.', 'error');
+
     editingOrderId = order.id || order.code;
     selectedCustomer = {
       id: order.customerId,
       code: order.customerCode,
       name: order.customerName,
       phone: order.customerPhone,
-      address: order.customerAddress
+      address: order.customerAddress,
+      debtAmount: order.customerDebt || 0,
+      monthRevenue: order.customerMonthRevenue || 0
     };
-    selectedCustomerBox.textContent = `${order.customerCode || ''} - ${order.customerName || ''} - ${order.customerPhone || ''} - ${order.customerAddress || ''}`;
+    selectedCustomerBox.innerHTML = `<strong>${order.customerCode || ''} - ${order.customerName || ''}</strong><br /><span>${order.customerPhone || ''} · ${order.customerAddress || ''}</span>`;
     selectedCustomerBox.classList.remove('muted');
-    customerSearch.value = order.customerName || order.customerCode || '';
-    cart = (order.items || []).map(item => ({
+
+    cart = (order.items || []).map((item) => ({
       productId: item.productId || item.productCode,
       productCode: item.productCode,
       productName: item.productName,
@@ -217,20 +276,41 @@ async function editTodayOrder(orderId) {
       amount: Number(item.amount || Number(item.quantity || 0) * Number(item.salePrice || 0))
     }));
     paidAmountInput.value = Number(order.paidAmount || 0);
-    document.getElementById('submitOrderBtn').textContent = `Lưu sửa đơn ${order.code || ''}`;
+    orderFormTitle.textContent = `Sửa đơn ${order.code || ''}`;
+    submitOrderBtn.textContent = `Lưu sửa đơn ${order.code || ''}`;
     renderCart();
-    setMessage(message, `Đang sửa đơn ${order.code || ''}. Chỉ sửa được khi đơn chưa gộp tổng.`, 'success');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setMessage(message, `Đang sửa đơn ${order.code || ''}. Chỉ sửa được khi chưa gộp đơn tổng.`, 'success');
+    switchTab('orderTab');
   } catch (err) {
     setMessage(message, err.message, 'error');
   }
 }
-window.editTodayOrder = editTodayOrder;
+
+async function deleteTodayOrder(orderId, orderCode) {
+  const ok = window.confirm(`Xóa đơn ${orderCode || orderId}? Chỉ xóa được khi đơn chưa gộp đơn tổng.`);
+  if (!ok) return;
+  try {
+    const data = await mobileApi.deleteSalesOrder(orderId);
+    await loadTodayOrders();
+    setMessage(message, data.message || 'Đã xóa đơn', 'success');
+  } catch (err) {
+    setMessage(message, err.message, 'error');
+  }
+}
 
 async function loadTodayOrders() {
   try {
     const data = await mobileApi.getMySalesOrders();
     const items = data.items || [];
+    const totalAmount = items.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+    const paidAmount = items.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
+    const debtAmount = items.reduce((sum, order) => sum + Number(order.debtAmount || 0), 0);
+
+    document.getElementById('todayRevenue').textContent = money(totalAmount);
+    document.getElementById('todayOrderCount').textContent = String(items.length);
+    document.getElementById('todayPaid').textContent = money(paidAmount);
+    document.getElementById('todayDebt').textContent = money(debtAmount);
+
     if (!items.length) {
       todayOrders.className = 'order-list empty';
       todayOrders.textContent = 'Chưa có đơn';
@@ -238,14 +318,23 @@ async function loadTodayOrders() {
     }
 
     todayOrders.className = 'order-list';
-    todayOrders.innerHTML = items.map(order => `
+    todayOrders.innerHTML = items.map((order) => `
       <div class="order-item">
         <strong>${order.code} - ${order.customerName || ''}</strong>
-        <span>Tổng: ${money(order.totalAmount)} · Đã thu: ${money(order.paidAmount)} · Còn nợ: ${money(order.debtAmount)}</span>
-        <span>Trạng thái: ${order.status || ''} / ${order.deliveryStatus || ''} · ${order.canEdit ? 'Chưa gộp tổng' : 'Đã gộp tổng'}</span>
-        ${order.canEdit ? `<button class="ghost-btn small-btn" onclick="window.editTodayOrder('${order.id || order.code}')">Sửa đơn</button>` : '<span class="muted">Đã gộp tổng - không sửa trên app</span>'}
+        <span>Ngày: ${formatShortDate(order.date)} · Tổng: ${money(order.totalAmount)} · Đã thu: ${money(order.paidAmount)} · Còn nợ: ${money(order.debtAmount)}</span>
+        <span>Trạng thái: ${order.status || ''} / ${order.deliveryStatus || ''} · ${order.canEdit ? 'Chưa gộp đơn tổng' : 'Đã gộp đơn tổng'}</span>
+        <div class="row-actions">
+          ${order.canEdit ? `<button class="ghost-btn small-btn" data-edit-order="${order.id || order.code}">Chỉnh sửa</button><button class="danger-btn small-btn" data-delete-order="${order.id || order.code}" data-order-code="${order.code}">Xóa</button>` : '<span class="muted">Đã gộp đơn tổng - không sửa/xóa trên app</span>'}
+        </div>
       </div>
     `).join('');
+
+    todayOrders.querySelectorAll('[data-edit-order]').forEach((btn) => {
+      btn.addEventListener('click', () => editTodayOrder(btn.dataset.editOrder));
+    });
+    todayOrders.querySelectorAll('[data-delete-order]').forEach((btn) => {
+      btn.addEventListener('click', () => deleteTodayOrder(btn.dataset.deleteOrder, btn.dataset.orderCode));
+    });
   } catch (err) {
     todayOrders.className = 'order-list empty';
     todayOrders.textContent = err.message;

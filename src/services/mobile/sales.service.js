@@ -188,6 +188,33 @@ function createMobileSalesService(ctx) {
     });
   }
 
+  async function deleteSalesOrder({ params = {}, mobileUser }) {
+    return withMongoTransaction(async () => {
+      if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
+      const data = await repo.getPrimaryDataSnapshot();
+      const order = repo.findSalesOrder(data, params.id);
+      if (!order) return fail(404, 'Không tìm thấy đơn bán');
+      if (!isOwnedByMobileUser(order, mobileUser)) return fail(403, 'Bạn chỉ được xóa đơn của mình');
+      if (order.masterOrderId || order.masterOrderCode || order.masterOrderNo || (order.mergeStatus || 'unmerged') === 'merged') {
+        return fail(403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
+      }
+
+      order.status = 'void';
+      order.deliveryStatus = 'void';
+      order.deletedAt = new Date().toISOString();
+      order.deleteReason = 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng';
+      order.updatedAt = new Date().toISOString();
+      writeMobileLog(data, mobileUser, 'mobile_delete_sales_order', {
+        refType: 'salesOrder',
+        refId: order.id,
+        refCode: order.code,
+        note: `Xóa đơn ${order.code} từ mobile khi chưa gộp đơn tổng`
+      });
+      await repo.saveOperationalData(data);
+      return { body: { ok: true, source: 'mobile-sales-route', message: `Đã xóa đơn ${order.code || ''}`, salesOrder: order } };
+    });
+  }
+
   async function listSalesOrders({ query = {}, mobileUser }) {
     if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
     const data = await repo.getPrimaryDataSnapshot();
@@ -196,7 +223,8 @@ function createMobileSalesService(ctx) {
     const q = normalizeText(query.q);
 
     let items = (data.salesOrders || [])
-      .filter((order) => !date || order.date === date)
+      .filter((order) => !['void', 'cancelled', 'canceled', 'deleted'].includes(String(order.status || '').toLowerCase()))
+      .filter((order) => !date || String(order.date || order.orderDate || '').slice(0, 10) === date)
       .filter((order) => !onlyMine || isOwnedByMobileUser(order, mobileUser));
 
     if (q) {
@@ -220,7 +248,7 @@ function createMobileSalesService(ctx) {
         masterOrderId: order.masterOrderId || '',
         masterOrderCode: order.masterOrderCode || '',
         mergeStatus: order.mergeStatus || 'unmerged',
-        canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged',
+        canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && (order.mergeStatus || 'unmerged') !== 'merged',
         customerId: order.customerId,
         customerCode: order.customerCode,
         customerPhone: order.customerPhone,
@@ -233,7 +261,7 @@ function createMobileSalesService(ctx) {
     return { body: { ok: true, source: 'mobile-sales-route', date, items } };
   }
 
-  return { createSalesOrder, getSalesOrder, updateSalesOrder, listSalesOrders };
+  return { createSalesOrder, getSalesOrder, updateSalesOrder, deleteSalesOrder, listSalesOrders };
 }
 
 module.exports = { createMobileSalesService };

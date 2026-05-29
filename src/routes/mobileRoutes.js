@@ -281,8 +281,30 @@ router.get('/roles', requireMobileLogin, (req, res) => ok(res, { roles: ROLE_LAB
 router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
     const rows = await Customer.find(buildRegexFilter(req.query.q, ['code', 'name', 'phone', 'address', 'area', 'route', 'staffName']))
-      .sort({ code: 1 }).limit(50).lean();
-    return ok(res, { source: 'mobile-mongo-route', items: rows.map(stripMongoFields) });
+      .sort({ code: 1 }).limit(100).lean();
+
+    const now = new Date();
+    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const customerCodes = rows.map((c) => String(c.code || '').trim()).filter(Boolean);
+    const orderRows = customerCodes.length ? await SalesOrder.find({
+      customerCode: { $in: customerCodes },
+      status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
+    }).lean() : [];
+    const monthRevenueByCustomer = new Map();
+    for (const order of orderRows) {
+      const orderDate = String(order.date || order.orderDate || order.createdAt || '').slice(0, 7);
+      if (orderDate !== monthPrefix) continue;
+      const key = String(order.customerCode || '').trim();
+      monthRevenueByCustomer.set(key, toNumber(monthRevenueByCustomer.get(key)) + toNumber(order.totalAmount));
+    }
+
+    const items = rows.map(stripMongoFields).map((customer) => ({
+      ...customer,
+      debtAmount: toNumber(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.balance ?? 0),
+      currentDebt: toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.debt ?? customer.balance ?? 0),
+      monthRevenue: toNumber(monthRevenueByCustomer.get(String(customer.code || '').trim()))
+    }));
+    return ok(res, { source: 'mobile-mongo-route', items });
   } catch (err) {
     return fail(res, 500, 'Không tải được khách hàng mobile');
   }
@@ -324,19 +346,29 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
     const user = req.mobileUser || {};
     const mine = String(req.query.mine || '') === '1';
     const q = normalizeText(req.query.q);
-    const filter = {};
+    const targetDate = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const filter = {
+      status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] },
+      $or: [{ date: targetDate }, { orderDate: targetDate }]
+    };
     if (mine && user.role !== 'admin') {
-      filter.$or = [
-        { staffCode: user.code },
-        { salesStaffCode: user.code },
-        { staffName: user.name },
-        { salesStaffName: user.name }
-      ];
+      filter.$and = [{
+        $or: [
+          { staffCode: user.code },
+          { salesStaffCode: user.code },
+          { staffName: user.name },
+          { salesStaffName: user.name }
+        ]
+      }];
     }
     const rows = await SalesOrder.find(filter).sort({ createdAt: -1 }).limit(100).lean();
-    let items = rows.map(stripMongoFields);
+    let items = rows.map(stripMongoFields).map((order) => ({
+      ...order,
+      date: String(order.date || order.orderDate || '').slice(0, 10),
+      canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && String(order.mergeStatus || 'unmerged') !== 'merged'
+    }));
     if (q) items = items.filter((o) => [o.code, o.customerCode, o.customerName, o.customerPhone, o.customerAddress].some((v) => normalizeText(v).includes(q)));
-    return ok(res, { source: 'mobile-mongo-route', items });
+    return ok(res, { source: 'mobile-mongo-route', date: targetDate, items });
   } catch (err) {
     return fail(res, 500, 'Không tải được đơn mobile');
   }
@@ -345,7 +377,10 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
 router.get('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 'admin']), async (req, res) => {
   const order = await findOrderByIdOrCode(req.params.id);
   if (!order) return fail(res, 404, 'Không tìm thấy đơn mobile');
-  return ok(res, { order: stripMongoFields(order.toObject ? order.toObject() : order) });
+  const item = stripMongoFields(order.toObject ? order.toObject() : order);
+  item.date = String(item.date || item.orderDate || '').slice(0, 10);
+  item.canEdit = !item.masterOrderId && !item.masterOrderCode && !item.masterOrderNo && String(item.mergeStatus || 'unmerged') !== 'merged';
+  return ok(res, { order: item });
 });
 
 router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'admin']), async (req, res) => {
@@ -359,8 +394,8 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
     const order = await SalesOrder.create({
       id: makeId('SO'),
       code: buildCode('SO'),
-      source: 'mobile',
-      sourceType: 'mobile',
+      source: 'mobile_sales_app',
+      sourceType: 'mobile_sales',
       customerId: body.customerId || customer.id || '',
       customerCode: body.customerCode || customer.code || '',
       customerName: body.customerName || customer.name || '',
@@ -370,8 +405,14 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       staffName: req.mobileUser.name || '',
       salesStaffCode: req.mobileUser.code || '',
       salesStaffName: req.mobileUser.name || '',
+      date: body.orderDate || new Date().toISOString().slice(0, 10),
       orderDate: body.orderDate || new Date().toISOString().slice(0, 10),
       deliveryDate: body.deliveryDate || body.orderDate || new Date().toISOString().slice(0, 10),
+      isChildOrder: true,
+      masterOrderId: '',
+      masterOrderCode: '',
+      masterOrderNo: '',
+      mergeStatus: 'unmerged',
       status: 'pending',
       deliveryStatus: 'pending',
       items,
@@ -381,7 +422,9 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    return ok(res, { message: 'Đã tạo đơn bán mobile', order: stripMongoFields(order.toObject()) }, 201);
+    const savedOrder = stripMongoFields(order.toObject());
+    savedOrder.canEdit = true;
+    return ok(res, { message: 'Đã tạo đơn bán mobile', order: savedOrder, salesOrder: savedOrder }, 201);
   } catch (err) {
     return fail(res, 500, err.message || 'Không tạo được đơn mobile');
   }
@@ -391,11 +434,56 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
   try {
     const order = await findOrderByIdOrCode(req.params.id);
     if (!order) return fail(res, 404, 'Không tìm thấy đơn mobile');
-    Object.assign(order, req.body || {}, { updatedAt: new Date().toISOString() });
+    const raw = order.toObject ? order.toObject() : order;
+    const isMerged = raw.masterOrderId || raw.masterOrderCode || raw.masterOrderNo || String(raw.mergeStatus || 'unmerged') === 'merged';
+    if (isMerged) return fail(res, 403, 'Đơn đã gộp đơn tổng, app bán hàng không được sửa');
+
+    const body = req.body || {};
+    const customer = body.customer || {};
+    const items = Array.isArray(body.items) ? body.items : raw.items || [];
+    const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount || item.total || toNumber(item.quantity || item.qty) * toNumber(item.salePrice || item.price)), 0);
+    const paidAmount = Math.min(toNumber(body.paidAmount), totalAmount);
+
+    Object.assign(order, {
+      customerId: body.customerId || customer.id || raw.customerId || '',
+      customerCode: body.customerCode || customer.code || raw.customerCode || '',
+      customerName: body.customerName || customer.name || raw.customerName || '',
+      customerPhone: customer.phone || body.customerPhone || raw.customerPhone || '',
+      customerAddress: customer.address || body.customerAddress || raw.customerAddress || '',
+      items,
+      totalAmount,
+      paidAmount,
+      debtAmount: Math.max(0, totalAmount - paidAmount),
+      note: body.note || raw.note || '',
+      updatedAt: new Date().toISOString()
+    });
     await order.save();
-    return ok(res, { message: 'Đã cập nhật đơn mobile', order: stripMongoFields(order.toObject()) });
+    const savedOrder = stripMongoFields(order.toObject());
+    savedOrder.canEdit = true;
+    return ok(res, { message: 'Đã cập nhật đơn mobile', order: savedOrder, salesOrder: savedOrder });
   } catch (err) {
     return fail(res, 500, err.message || 'Không sửa được đơn mobile');
+  }
+});
+
+router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 'admin']), async (req, res) => {
+  try {
+    const order = await findOrderByIdOrCode(req.params.id);
+    if (!order) return fail(res, 404, 'Không tìm thấy đơn mobile');
+    const raw = order.toObject ? order.toObject() : order;
+    const isMerged = raw.masterOrderId || raw.masterOrderCode || raw.masterOrderNo || String(raw.mergeStatus || 'unmerged') === 'merged';
+    if (isMerged) return fail(res, 403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
+
+    order.status = 'void';
+    order.deliveryStatus = 'void';
+    order.deletedAt = new Date().toISOString();
+    order.deleteReason = 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng';
+    order.updatedAt = new Date().toISOString();
+    await order.save();
+    const savedOrder = stripMongoFields(order.toObject());
+    return ok(res, { message: `Đã xóa đơn ${savedOrder.code || ''}`, order: savedOrder, salesOrder: savedOrder });
+  } catch (err) {
+    return fail(res, 500, err.message || 'Không xóa được đơn mobile');
   }
 });
 

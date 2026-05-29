@@ -3,64 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>V44 Mobile - Bán hàng</title>
+  <title>V45 Mobile - Bán hàng</title>
   <link rel="stylesheet" href="./mobile.css" />
 </head>
 <body>
-  <main class="mobile-page">
+  <main class="mobile-page sales-app-page">
     <header class="mobile-header">
       <div>
-        <h1>Bán hàng mobile</h1>
+        <h1>App bán hàng</h1>
         <p id="staffInfo">Đang tải...</p>
       </div>
       <button id="logoutBtn" class="ghost-btn">Thoát</button>
     </header>
 
-    <section class="card">
-      <h2>1. Chọn khách hàng</h2>
-      <input id="customerSearch" type="search" placeholder="Gõ mã / tên / SĐT / địa chỉ khách hàng" />
-      <div id="customerSuggestions" class="suggestion-box"></div>
-      <div id="selectedCustomer" class="selected-box muted">Chưa chọn khách hàng</div>
+    <nav class="mobile-tabs" aria-label="Điều hướng app bán hàng">
+      <button class="tab-btn active" data-tab="customersTab">1. Khách hàng</button>
+      <button class="tab-btn" data-tab="orderTab">2. Đặt hàng</button>
+      <button class="tab-btn" data-tab="reportTab">3. Báo cáo</button>
+    </nav>
+
+    <section id="customersTab" class="tab-panel active">
+      <section class="card">
+        <div class="section-title-row">
+          <h2>Khách hàng phụ trách</h2>
+          <button id="reloadCustomersBtn" class="ghost-btn small-btn">Tải lại</button>
+        </div>
+        <input id="customerSearch" type="search" placeholder="Tìm mã / tên / SĐT / địa chỉ khách hàng" />
+        <p class="help-text">Bấm vào khách hàng để chuyển sang đặt hàng.</p>
+        <div id="customerList" class="customer-list empty">Đang tải khách hàng...</div>
+      </section>
     </section>
 
-    <section class="card">
-      <h2>2. Chọn sản phẩm</h2>
-      <input id="productSearch" type="search" placeholder="Gõ mã / tên sản phẩm" />
-      <div id="productSuggestions" class="suggestion-box"></div>
+    <section id="orderTab" class="tab-panel">
+      <section class="card">
+        <div class="section-title-row">
+          <h2 id="orderFormTitle">Đặt hàng</h2>
+          <button id="clearOrderBtn" class="ghost-btn small-btn">Làm mới</button>
+        </div>
+        <div id="selectedCustomer" class="selected-box muted">Chưa chọn khách hàng. Hãy sang tab Khách hàng để chọn.</div>
+      </section>
 
-      <div class="qty-row">
-        <input id="caseQtyInput" type="number" min="0" placeholder="Thùng" />
-        <input id="looseQtyInput" type="number" min="0" placeholder="Lẻ" />
-        <button id="addItemBtn" class="primary-btn">Thêm</button>
-      </div>
-      <div id="selectedProduct" class="selected-box muted">Chưa chọn sản phẩm</div>
+      <section class="card">
+        <h2>Chọn sản phẩm</h2>
+        <input id="productSearch" type="search" placeholder="Gõ mã / tên sản phẩm" />
+        <div id="productSuggestions" class="suggestion-box"></div>
+
+        <div class="qty-row three-cols">
+          <input id="caseQtyInput" type="number" min="0" placeholder="Thùng" />
+          <input id="looseQtyInput" type="number" min="0" placeholder="Lẻ" />
+          <button id="addItemBtn" class="primary-btn">Thêm</button>
+        </div>
+        <div id="selectedProduct" class="selected-box muted">Chưa chọn sản phẩm</div>
+      </section>
+
+      <section class="card sticky-cart-card">
+        <div class="section-title-row">
+          <h2>Giỏ hàng</h2>
+          <span id="cartCount" class="pill">0 dòng</span>
+        </div>
+        <div id="cartList" class="cart-list empty">Chưa có sản phẩm</div>
+
+        <div class="total-box">
+          <span>Tổng đơn</span>
+          <strong id="cartTotal">0</strong>
+        </div>
+
+        <label class="field-label">Tiền thu ngay nếu có</label>
+        <input id="paidAmountInput" type="number" min="0" placeholder="Nhập số tiền đã thu" />
+
+        <button id="submitOrderBtn" class="primary-btn full-btn">Xác nhận đơn</button>
+        <p id="salesMessage" class="message"></p>
+      </section>
     </section>
 
-    <section class="card">
-      <div class="section-title-row">
-        <h2>3. Giỏ hàng</h2>
-        <span id="cartCount" class="pill">0 dòng</span>
-      </div>
-      <div id="cartList" class="cart-list empty">Chưa có sản phẩm</div>
+    <section id="reportTab" class="tab-panel">
+      <section class="card">
+        <div class="section-title-row">
+          <h2>Báo cáo trong ngày</h2>
+          <button id="reloadOrdersBtn" class="ghost-btn small-btn">Tải lại</button>
+        </div>
+        <div class="mobile-kpi-grid">
+          <div class="kpi-card"><span>Doanh số</span><strong id="todayRevenue">0</strong></div>
+          <div class="kpi-card"><span>Số đơn</span><strong id="todayOrderCount">0</strong></div>
+          <div class="kpi-card"><span>Đã thu</span><strong id="todayPaid">0</strong></div>
+          <div class="kpi-card"><span>Còn nợ</span><strong id="todayDebt">0</strong></div>
+        </div>
+      </section>
 
-      <div class="total-box">
-        <span>Tổng đơn</span>
-        <strong id="cartTotal">0</strong>
-      </div>
-
-      <label class="field-label">Tiền thu ngay nếu có</label>
-      <input id="paidAmountInput" type="number" min="0" placeholder="Nhập số tiền đã thu" />
-
-      <button id="submitOrderBtn" class="primary-btn full-btn">Gửi đơn về hệ thống tổng</button>
-      <p id="salesMessage" class="message"></p>
-    </section>
-
-    <section class="card">
-      <div class="section-title-row">
-        <h2>Đơn đã chấm hôm nay</h2>
-        <button id="reloadOrdersBtn" class="ghost-btn small-btn">Tải lại</button>
-      </div>
-      <div id="todayOrders" class="order-list empty">Chưa có đơn</div>
+      <section class="card">
+        <h2>Đơn đã đặt hôm nay</h2>
+        <div id="todayOrders" class="order-list empty">Chưa có đơn</div>
+      </section>
     </section>
   </main>
 

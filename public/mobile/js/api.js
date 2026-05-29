@@ -106,6 +106,9 @@ export const mobileApi = {
   updateSalesOrder(id, payload) {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) });
   },
+  deleteSalesOrder(id) {
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
   getMySalesOrders() {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}?mine=1`);
   },
