@@ -1,33 +1,40 @@
-async function loadCustomers(){
+async function loadCustomers(options = {}){
   const q=customerSearchInput?customerSearchInput.value.trim():'';
+  const resetPage=options.resetPage===true;
+  if(resetPage) customerPage=1;
+  if(customerPage<1) customerPage=1;
+  const limit=Number(customerPageSize||50);
   try{
-    // Phase 3.6: danh sách khách hàng không tải toàn bộ nữa, chỉ lấy trang nhẹ 100 dòng.
+    // Phase 3.6 fixed: danh sách chính dùng server-side pagination thật.
+    // limit chỉ là số dòng hiển thị/trang, không giới hạn nguồn dữ liệu.
     const result = window.CatalogCache
-      ? await window.CatalogCache.listCustomers({page:1,limit:100,q})
-      : await fetch(`/api/customers?page=1&limit=100${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return {rows:json.customers||[],meta:json.meta||null}});
+      ? await window.CatalogCache.listCustomers({page:customerPage,limit,q})
+      : await fetch(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return {rows:json.customers||[],meta:json.meta||null}});
     customersCache = result.rows || [];
-    customerPage=1;
-    const total=result.meta?.total ?? customersCache.length;
-    if(customerCount)customerCount.textContent=`${customersCache.length}/${total} khách hàng`;
+    customerTotal = Number(result.meta?.total ?? customersCache.length);
+    customerTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(customerTotal/limit) ?? 1));
+    if(customerPage>customerTotalPages && customerTotalPages>0){
+      customerPage=customerTotalPages;
+      return loadCustomers();
+    }
+    if(customerCount)customerCount.textContent=`${customerTotal} khách hàng`;
     renderCustomerTable();renderSalesCustomerSelect();renderCollectionCustomerSelect();
-  }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
+  }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`}
 }
 function getCustomerTotalPages(){
-  return Math.max(1,Math.ceil(customersCache.length/customerPageSize));
+  return Math.max(1,Number(customerTotalPages||1));
 }
 function getCustomerPageRows(){
-  const totalPages=getCustomerTotalPages();
-  if(customerPage>totalPages)customerPage=totalPages;
   if(customerPage<1)customerPage=1;
-  const start=(customerPage-1)*customerPageSize;
-  return customersCache.slice(start,start+customerPageSize);
+  if(customerPage>getCustomerTotalPages())customerPage=getCustomerTotalPages();
+  return customersCache || [];
 }
 function renderCustomerPagination(){
   if(!customerPagination)return;
-  const total=customersCache.length;
+  const total=Number(customerTotal||customersCache.length||0);
   const totalPages=getCustomerTotalPages();
-  const start=total?((customerPage-1)*customerPageSize+1):0;
-  const end=Math.min(total,customerPage*customerPageSize);
+  const start=total && customersCache.length ? ((customerPage-1)*customerPageSize+1) : 0;
+  const end=Math.min(total,(customerPage-1)*customerPageSize+(customersCache?customersCache.length:0));
   if(customerPageInfo)customerPageInfo.textContent=`Hiển thị ${start}-${end} / ${total} khách hàng · Trang ${customerPage}/${totalPages}`;
   if(customerPrevPage)customerPrevPage.disabled=customerPage<=1;
   if(customerNextPage)customerNextPage.disabled=customerPage>=totalPages;

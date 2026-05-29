@@ -94,6 +94,20 @@
               <tbody id="productTable"><tr><td colspan="3" class="empty-cell">Đang tải dữ liệu...</td></tr></tbody>
             </table>
           </div>
+          <div id="productPagination" class="table-pagination">
+            <span id="productPageInfo">Hiển thị 0-0 / 0 sản phẩm</span>
+            <div class="pagination-controls">
+              <label>Số dòng
+                <select id="productPageSize">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button type="button" id="productPrevPage" class="ghost">Trước</button>
+              <button type="button" id="productNextPage">Sau</button>
+            </div>
+          </div>
         </section>
       </main>
     </section>

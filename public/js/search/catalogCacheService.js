@@ -165,7 +165,7 @@
   }
 
   async function listProducts(options = {}){
-    const limit = Math.max(1, Number(options.limit || 100));
+    const limit = Math.max(1, Number(options.limit || 50));
     const page = Math.max(1, Number(options.page || 1));
     const q = String(options.q || options.search || '').trim();
     const url = `${listEndpoint('products')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
@@ -176,7 +176,7 @@
   }
 
   async function listCustomers(options = {}){
-    const limit = Math.max(1, Number(options.limit || 100));
+    const limit = Math.max(1, Number(options.limit || 50));
     const page = Math.max(1, Number(options.page || 1));
     const q = String(options.q || options.search || '').trim();
     const url = `${listEndpoint('customers')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
