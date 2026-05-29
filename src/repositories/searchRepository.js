@@ -20,6 +20,10 @@ function normalizeText(value) {
     .trim();
 }
 
+function isNumericKeyword(value = '') {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
 function parseLimit(query = {}, fallback = SEARCH_RETURN_MAX, max = SEARCH_RETURN_MAX) {
   const requested = Number.parseInt(query.limit, 10) || fallback;
   return Math.max(1, Math.min(requested, max));
@@ -108,6 +112,13 @@ function productSearchScore(row = {}, nq = '') {
     startsWith: 8500,
     includes: 6500
   });
+
+  // Khi từ khóa toàn số, chỉ được dò mã sản phẩm / barcode.
+  // Không dò tên, nhóm, quy cách, searchText để tránh gõ mã mà hiện sai hàng loạt.
+  if (isNumericKeyword(nq)) {
+    return Math.max(codeScore, barcodeScore);
+  }
+
   const nameScore = bestFieldScore([row.name, row.productName], nq, {
     exact: 6000,
     startsWith: 5000,
@@ -152,7 +163,8 @@ function customerSearchScore(row = {}, nq = '') {
 function sortScoredRows(rows = [], scoreFn, nq = '', limit = SEARCH_RETURN_MAX, codeFields = []) {
   return (rows || [])
     .map((row) => ({ row, score: scoreFn(row, nq) }))
-    .filter((item) => item.score >= 0)
+    // score = 0 nghĩa là không khớp. Không được giữ lại, nếu không autocomplete sẽ fallback về danh sách đầu.
+    .filter((item) => item.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       const aCode = codeFields.map((field) => String(a.row?.[field] || '').trim()).find(Boolean) || '';

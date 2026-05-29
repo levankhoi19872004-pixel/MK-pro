@@ -29,12 +29,31 @@ function searchKeyword(query = {}) {
   return String(query.q || query.search || '').trim();
 }
 
+function isNumericKeyword(value = '') {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
 function buildQueryFilter(query = {}) {
   const filter = baseFilter(query);
   const q = searchKeyword(query);
   if (q) {
     const rawRegex = escapeRegex(q);
     const normalizedRegex = escapeRegex(normalizeSearchText(q));
+
+    // Danh sách sản phẩm và autocomplete phải xử lý mã số thật chặt:
+    // - Nếu người dùng gõ toàn số, chỉ dò trong các trường định danh sản phẩm.
+    // - Không dò tên/nhóm/quy cách/searchText vì rất dễ trả về hàng loạt sản phẩm không liên quan.
+    // Ví dụ gõ 62674330 phải ra đúng mã đó, gõ 4551 chỉ ra mã/barcode có chứa 4551.
+    if (isNumericKeyword(q)) {
+      filter.$or = [
+        { code: { $regex: rawRegex, $options: 'i' } },
+        { sku: { $regex: rawRegex, $options: 'i' } },
+        { productCode: { $regex: rawRegex, $options: 'i' } },
+        { barcode: { $regex: rawRegex, $options: 'i' } }
+      ];
+      return filter;
+    }
+
     filter.$or = [
       { code: { $regex: rawRegex, $options: 'i' } },
       { sku: { $regex: rawRegex, $options: 'i' } },
@@ -173,5 +192,6 @@ module.exports = {
   create,
   save,
   normalizeSearchText,
-  productSearchRank
+  productSearchRank,
+  isNumericKeyword
 };

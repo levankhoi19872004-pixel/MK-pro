@@ -9,22 +9,30 @@ function normalizeProductTableSearch(value){
     .replace(/đ/g,'d')
     .trim();
 }
+function productTableSearchIsNumeric(value){
+  return /^\d+$/.test(String(value || '').trim());
+}
 function productMatchesTableQuery(product = {}, keyword = ''){
   const q = normalizeProductTableSearch(keyword);
   if(!q) return true;
-  const fields = [
-    product.code,
-    product.sku,
-    product.productCode,
-    product.barcode,
-    product.name,
-    product.category,
-    product.brand,
-    product.packing,
-    product.unit,
-    product.baseUnit,
-    product.searchText
-  ];
+
+  // Nếu gõ toàn số thì chỉ lọc trên mã/barcode.
+  // Không được lọc vào tên, nhóm, quy cách hoặc giá vì sẽ gây hiện sai hàng loạt.
+  const fields = productTableSearchIsNumeric(q)
+    ? [product.code, product.sku, product.productCode, product.barcode]
+    : [
+        product.code,
+        product.sku,
+        product.productCode,
+        product.barcode,
+        product.name,
+        product.category,
+        product.brand,
+        product.packing,
+        product.unit,
+        product.baseUnit,
+        product.searchText
+      ];
   return fields.some(value => normalizeProductTableSearch(value).includes(q));
 }
 function getFormPayload(){
