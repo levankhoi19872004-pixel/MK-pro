@@ -18,10 +18,10 @@ const productSchema = new mongoose.Schema({
   brand: { type: String, default: '', trim: true },
   costPrice: { type: Number, default: 0 },
   salePrice: { type: Number, default: 0 },
+  // Products là danh mục: không lưu tồn thực tế tại đây.
+  // minStock/maxStock chỉ là ngưỡng cảnh báo, không phải số tồn.
   minStock: { type: Number, default: 0 },
   maxStock: { type: Number, default: 0 },
-  openingStock: { type: Number, default: 0 },
-  availableStock: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true, strict: false, versionKey: false });
 

@@ -2,6 +2,22 @@
 
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
+const Inventory = require('../../models/Inventory');
+
+
+async function getSnapshotQtyForProduct(product = {}) {
+  const keys = [product.code, product.sku, product.productCode, product.id, product._id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  if (!keys.length) return 0;
+  const rows = await Inventory.find({
+    $or: [
+      { productCode: { $in: keys } },
+      { productId: { $in: keys } }
+    ]
+  }).lean();
+  return rows.reduce((sum, row) => sum + Number(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty ?? 0), 0);
+}
 
 function fail(statusCode, message) {
   return { statusCode, body: { ok: false, success: false, message } };
@@ -12,7 +28,6 @@ function createMobileSalesService(ctx) {
   const {
     normalizeText,
     toNumber,
-    getProductAvailableQty,
     formatCaseLooseQty,
     buildProductLineMeta,
     reduceStock,
@@ -49,7 +64,7 @@ function createMobileSalesService(ctx) {
         const quantity = toNumber(rawItem.quantity || rawItem.qty);
         const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice);
         if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
-        const availableQty = getProductAvailableQty(data, product);
+        const availableQty = await getSnapshotQtyForProduct(product);
         if (availableQty < quantity) {
           return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
         }

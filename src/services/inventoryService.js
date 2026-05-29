@@ -106,12 +106,8 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
     snapshot.updatedAt = postedAt;
     await snapshot.save({ session });
 
-    if (product) {
-      product.availableStock = snapshot.availableQty;
-      product.stockQuantity = snapshot.quantity;
-      product.availableQty = snapshot.availableQty;
-      await product.save({ session });
-    }
+    // Phase 3.4: không ghi tồn ngược về products.
+    // Products chỉ là danh mục; tồn hiện tại nằm ở inventorySnapshots.
 
     const tx = await StockTransaction.create([{
       id: makeId('ST'),
@@ -267,9 +263,7 @@ async function rebuildSnapshotsFromTransactions() {
       updatedAt: nowIso()
     });
 
-    if (product) {
-      await Product.updateOne({ _id: product._id }, { $set: { availableStock: qty, stockQuantity: qty, availableQty: qty } });
-    }
+    // Không cập nhật tồn vào products.
   }
 
   if (docs.length) await Inventory.insertMany(docs, { ordered: false });
@@ -281,6 +275,8 @@ async function buildTransactionsFromDocuments() {
   const products = await Product.find({ isActive: { $ne: false } }).lean();
 
   for (const product of products) {
+    // Chỉ dùng các field tồn legacy để tạo bút toán OPENING khi migrate/rebuild.
+    // Sau rebuild, các field này sẽ bị unset khỏi products.
     const openingQty = toNumber(product.openingStock ?? product.availableStock ?? product.stockQuantity ?? product.availableQty ?? product.stock ?? product.quantity ?? product.qty ?? product.tonKho ?? product.tonDau);
     if (openingQty <= 0) continue;
     const productCode = String(product.code || product.sku || product.productCode || product.id || product._id || '').trim();
@@ -296,7 +292,7 @@ async function buildTransactionsFromDocuments() {
       refType: 'PRODUCT_OPENING_STOCK',
       refId: product.id || product._id || productCode,
       refCode: productCode,
-      note: 'Tồn đầu sản phẩm khi rebuild tồn kho'
+      note: 'Migrate tồn legacy từ products sang stockTransactions'
     }));
   }
 
@@ -402,6 +398,23 @@ async function rebuildStockLedgerFromDocuments(options = {}) {
   }
 
   const stock = await rebuildSnapshotsFromTransactions();
+
+  // Phase 3.4: sau khi đã chuyển tồn legacy thành OPENING transaction,
+  // xóa tồn khỏi products để products chỉ còn là danh mục.
+  await Product.updateMany({}, {
+    $unset: {
+      openingStock: 1,
+      availableStock: 1,
+      stockQuantity: 1,
+      availableQty: 1,
+      stock: 1,
+      quantity: 1,
+      qty: 1,
+      tonKho: 1,
+      tonDau: 1
+    }
+  });
+
   return {
     resetTransactions,
     transactionCount: await StockTransaction.countDocuments({}),

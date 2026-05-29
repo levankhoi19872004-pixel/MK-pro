@@ -11,6 +11,10 @@
     loadingPromise: null
   };
 
+  function catalogCache(){
+    return window.CatalogCache || null;
+  }
+
   function normalizeText(value){
     return String(value ?? '')
       .toLowerCase()
@@ -87,8 +91,12 @@
 
   function sync(rows){
     state.catalog = dedupe([...(state.catalog || []), ...(rows || [])]);
-    if(Array.isArray(window.productsCache)) window.productsCache = dedupe([...(window.productsCache || []), ...state.catalog]);
-    if(Array.isArray(window.salesProductsCache)) window.salesProductsCache = dedupe([...(window.salesProductsCache || []), ...state.catalog]);
+    const cache = catalogCache();
+    if(cache && typeof cache.syncProducts === 'function') cache.syncProducts(state.catalog);
+    try{
+      if(typeof productsCache !== 'undefined') productsCache = state.catalog;
+      if(typeof salesProductsCache !== 'undefined') salesProductsCache = state.catalog;
+    }catch(err){}
     return state.catalog;
   }
 
@@ -98,7 +106,19 @@
     if(!force && state.catalog.length && Date.now() - state.loadedAt < maxAgeMs) return state.catalog;
     if(state.loadingPromise && !force) return state.loadingPromise;
 
-    state.loadingPromise = fetch(`/api/products?page=1&limit=5000&activeOnly=1&_t=${Date.now()}`)
+    const cache = catalogCache();
+    if(cache && typeof cache.preloadProducts === 'function'){
+      state.loadingPromise = cache.preloadProducts({force, maxAgeMs})
+        .then(rows => {
+          state.loadedAt = Date.now();
+          state.catalog = dedupe(rows || []);
+          return state.catalog;
+        })
+        .finally(() => { state.loadingPromise = null; });
+      return state.loadingPromise;
+    }
+
+    state.loadingPromise = fetch(`/api/products?all=true&activeOnly=1&_t=${Date.now()}`)
       .then(async res => {
         const json = await res.json();
         if(!json.ok) throw new Error(json.message || 'Không tải được danh mục sản phẩm');
@@ -119,7 +139,17 @@
   }
 
   function getCatalog(){
-    return dedupe([...(state.catalog || []), ...(window.salesProductsCache || []), ...(window.productsCache || [])]);
+    const cache = catalogCache();
+    if(cache && typeof cache.getProducts === 'function'){
+      const rows = cache.getProducts();
+      if(rows.length) return dedupe(rows);
+    }
+    let legacy = [];
+    try{
+      if(typeof salesProductsCache !== 'undefined') legacy = legacy.concat(salesProductsCache || []);
+      if(typeof productsCache !== 'undefined') legacy = legacy.concat(productsCache || []);
+    }catch(err){}
+    return dedupe([...(state.catalog || []), ...legacy]);
   }
 
   function scoreProduct(product, q){

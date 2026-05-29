@@ -40,7 +40,7 @@ async function search(query = {}) {
   const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
   const limit = Math.min(Number.parseInt(query.limit, 10) || 20, 50);
   return Product.find(filter)
-    .select('code name unit baseUnit conversionRate packing barcode category brand salePrice availableStock stockQuantity isActive')
+    .select('code name unit baseUnit conversionRate packing barcode category brand salePrice minStock maxStock isActive')
     .sort({ code: 1 })
     .limit(limit)
     .lean();

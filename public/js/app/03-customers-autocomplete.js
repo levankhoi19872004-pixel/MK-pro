@@ -1,11 +1,12 @@
 async function loadCustomers(){
   const q=customerSearchInput?customerSearchInput.value.trim():'';
-  const url=`/api/customers?page=1&limit=100${q?`&q=${encodeURIComponent(q)}`:''}`;
   try{
-    const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');
-    customersCache=json.customers||[];
+    const allCustomers = window.CatalogCache
+      ? await window.CatalogCache.preloadCustomers({force:false})
+      : await fetch(`/api/customers?all=true&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');return json.customers||[]});
+    customersCache = q ? allCustomers.filter(c=>matchSearch(q,[c.code,c.customerCode,c.name,c.customerName,c.phone,c.address,c.area,c.route,c.staffCode,c.staffName])) : allCustomers;
     customerPage=1;
-    const total=json.meta?.total||customersCache.length;if(customerCount)customerCount.textContent=`${customersCache.length}/${total} khách hàng`;
+    const total=allCustomers.length;if(customerCount)customerCount.textContent=`${customersCache.length}/${total} khách hàng`;
     renderCustomerTable();renderSalesCustomerSelect();renderCollectionCustomerSelect();
   }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
 }
@@ -73,7 +74,7 @@ window.deleteCustomer=async id=>{
   try{
     const res=await fetch(`/api/customers/${encodeURIComponent(id)}`,{method:'DELETE'});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không xóa được khách hàng');
-    selectedCustomerIds.delete(id);showMessage(customerMessage,json.message||'Đã xóa khách hàng');await loadCustomers();
+    selectedCustomerIds.delete(id);showMessage(customerMessage,json.message||'Đã xóa khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
   }catch(err){showMessage(customerMessage,err.message,true)}
 };
 async function bulkDeleteCustomers(){
@@ -83,7 +84,7 @@ async function bulkDeleteCustomers(){
   try{
     const res=await fetch('/api/customers/bulk-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không xóa được khách hàng');
-    selectedCustomerIds.clear();showMessage(customerMessage,json.message||'Đã xóa khách hàng');await loadCustomers();
+    selectedCustomerIds.clear();showMessage(customerMessage,json.message||'Đã xóa khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
   }catch(err){showMessage(customerMessage,err.message,true)}
 }
 customerForm.addEventListener('submit',async event=>{
@@ -93,7 +94,7 @@ customerForm.addEventListener('submit',async event=>{
     const editingId=customerForm.dataset.editingId;
     const res=await fetch(editingId?`/api/customers/${encodeURIComponent(editingId)}`:'/api/customers',{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được khách hàng');
-    customerForm.reset();customerForm.dataset.editingId='';const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Lưu khách hàng';showMessage(customerMessage,json.message||'Đã lưu khách hàng');await loadCustomers();
+    customerForm.reset();customerForm.dataset.editingId='';const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Lưu khách hàng';showMessage(customerMessage,json.message||'Đã lưu khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
   }catch(err){showMessage(customerMessage,err.message,true)}
 });
 
@@ -194,6 +195,9 @@ function getConfiguredSource(config){
 
   const map={products:productsCache,customers:customersCache,users:usersCache,debts:debtsCache};
   let rows=Array.isArray(map[config.source])?map[config.source]:[];
+  if(config.source==='customers' && window.CatalogCache){
+    rows = window.CatalogCache.getCustomers();
+  }
   if(config.onlyActive) rows=rows.filter(item=>item.isActive!==false);
   if(config.roles && config.roles.length){
     const roles=config.roles.map(r=>String(r).toLowerCase());
@@ -274,6 +278,14 @@ function initConfiguredAutocomplete(){
           await window.UnifiedProductSearch.preload({force:false});
           input.dispatchEvent(new Event('input',{bubbles:true}));
         }catch(err){console.warn('Không preload được sản phẩm:',err.message||err)}
+      });
+    }
+    if(config.type==='customer' && window.CatalogCache){
+      input.addEventListener('focus', async()=>{
+        try{
+          await window.CatalogCache.preloadCustomers({force:false});
+          input.dispatchEvent(new Event('input',{bubbles:true}));
+        }catch(err){console.warn('Không preload được khách hàng:',err.message||err)}
       });
     }
   });

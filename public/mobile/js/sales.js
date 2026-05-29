@@ -13,6 +13,7 @@ let selectedProduct = null;
 let cart = [];
 let editingOrderId = '';
 let lastCustomers = [];
+let customerCatalog = [];
 
 const tabs = document.querySelectorAll('.tab-btn');
 const panels = document.querySelectorAll('.tab-panel');
@@ -45,21 +46,40 @@ function formatShortDate(value) {
 
 tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
-document.getElementById('reloadCustomersBtn')?.addEventListener('click', () => loadCustomers(customerSearch.value.trim()));
+document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); loadCustomers(customerSearch.value.trim()); });
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
 document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
 
-loadCustomers('');
+preloadCustomers(false).then(() => loadCustomers('')).catch(() => loadCustomers(''));
 loadTodayOrders();
 initProductAutocomplete();
 renderCart();
+
+async function preloadCustomers(force = false) {
+  if (window.CatalogCache) {
+    customerCatalog = await window.CatalogCache.preloadCustomers({ force, maxAgeMs: 5 * 60 * 1000 });
+    return customerCatalog;
+  }
+  const data = await mobileApi.getCustomers('', { all: true, limit: 10000 });
+  customerCatalog = data.items || [];
+  return customerCatalog;
+}
+
+function filterCustomers(keyword = '') {
+  if (window.CatalogCache) return window.CatalogCache.searchCustomers(keyword, { limit: 200 });
+  const q = String(keyword || '').toLowerCase().trim();
+  return customerCatalog
+    .filter((customer) => customer.isActive !== false)
+    .filter((customer) => !q || [customer.code, customer.customerCode, customer.name, customer.customerName, customer.phone, customer.address, customer.area, customer.route, customer.staffName].some((value) => String(value || '').toLowerCase().includes(q)))
+    .slice(0, 200);
+}
 
 async function loadCustomers(q = '') {
   try {
     customerList.className = 'customer-list empty';
     customerList.textContent = 'Đang tải khách hàng...';
-    const data = await mobileApi.getCustomers(q);
-    lastCustomers = data.items || [];
+    if (!customerCatalog.length) await preloadCustomers(false);
+    lastCustomers = filterCustomers(q);
     renderCustomerList(lastCustomers);
   } catch (err) {
     customerList.className = 'customer-list empty';

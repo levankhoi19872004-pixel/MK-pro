@@ -28,18 +28,10 @@ function productNameOf(product = {}) {
   return String(product.name || product.productName || '').trim();
 }
 
-function baseProductQty(product = {}) {
-  return toNumber(
-    product.availableStock ??
-    product.stockQuantity ??
-    product.availableQty ??
-    product.openingStock ??
-    product.stock ??
-    product.quantity ??
-    product.qty ??
-    product.tonKho ??
-    product.tonDau
-  );
+function baseProductQty() {
+  // Phase 3.4: products không còn là nguồn tồn.
+  // Nếu chưa có inventorySnapshots thì tồn hiển thị là 0 và cần rebuild từ stockTransactions/chứng từ.
+  return 0;
 }
 
 function buildInventoryMap(products = [], inventories = []) {
@@ -103,9 +95,7 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
     salePrice,
     conversionRate,
 
-    // Đồng bộ field tồn cho cả web và mobile:
-    // frontend cũ có thể đọc availableStock/stockQuantity,
-    // frontend mới đọc availableQty/stockDisplay.
+    // Các alias này chỉ để frontend cũ đọc được; giá trị vẫn sinh từ inventorySnapshots.
     availableQty,
     availableStock: availableQty,
     stockQuantity: availableQty,

@@ -2,7 +2,23 @@
 
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
+const Inventory = require('../models/Inventory');
 const { MongoStore } = require('./mongoSyncService');
+
+
+async function getSnapshotQtyForProduct(product = {}) {
+  const keys = [product.code, product.sku, product.productCode, product.id, product._id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  if (!keys.length) return 0;
+  const rows = await Inventory.find({
+    $or: [
+      { productCode: { $in: keys } },
+      { productId: { $in: keys } }
+    ]
+  }).lean();
+  return rows.reduce((sum, row) => sum + Number(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty ?? 0), 0);
+}
 
 function createMobileService(ctx) {
   const {
@@ -89,6 +105,8 @@ function createMobileService(ctx) {
 
   async function customers({ query = {} }) {
     const q = normalizeText(query.q);
+    const wantsAll = String(query.all || '').toLowerCase() === '1' || String(query.all || '').toLowerCase() === 'true';
+    const requestedLimit = Math.min(Math.max(toNumber(query.limit || (wantsAll ? 10000 : (q ? 200 : 5000))), 1), 10000);
     const filter = { isActive: { $ne: false } };
     if (q) {
       filter.$or = [
@@ -98,22 +116,31 @@ function createMobileService(ctx) {
         { address: { $regex: q, $options: 'i' } },
         { area: { $regex: q, $options: 'i' } },
         { route: { $regex: q, $options: 'i' } },
+        { staffCode: { $regex: q, $options: 'i' } },
         { staffName: { $regex: q, $options: 'i' } }
       ];
     }
-    const rows = await Customer.find(filter).sort({ code: 1 }).limit(30).lean();
-    const items = rows.map(customerMongoToClient).map((customer) => ({
+    const rows = await Customer.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
+    let items = rows.map(customerMongoToClient).map((customer) => ({
       id: customer.id,
       code: customer.code,
+      customerCode: customer.customerCode || customer.code,
       name: customer.name,
+      customerName: customer.customerName || customer.name,
       phone: customer.phone,
       address: customer.address,
       area: customer.area,
       route: customer.route || '',
       staffCode: customer.staffCode || '',
-      staffName: customer.staffName
+      staffName: customer.staffName,
+      debtAmount: customer.debtAmount || customer.currentDebt || customer.debt || customer.openingDebt || 0,
+      monthRevenue: customer.monthRevenue || customer.monthSales || 0,
+      isActive: customer.isActive !== false
     }));
-    return { body: { ok: true, source: 'mongo-route', items } };
+    if (q) {
+      items = items.filter((item) => [item.code, item.customerCode, item.name, item.customerName, item.phone, item.address, item.area, item.route, item.staffCode, item.staffName].some((value) => normalizeText(value).includes(q))).slice(0, 80);
+    }
+    return { body: { ok: true, source: 'mongo-route', items, total: items.length, cachedCatalog: !q || wantsAll } };
   }
 
   async function products({ query = {} }) {
@@ -126,8 +153,8 @@ function createMobileService(ctx) {
     // Tồn mở bán chỉ dùng để hiển thị và chỉ chặn khi thêm vào đơn.
     const rows = await Product.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
     const data = await getPrimaryDataSnapshot();
-    let items = rows.map(productMongoToClient).map((product) => {
-      const availableQty = getProductAvailableQty(data, product);
+    let items = await Promise.all(rows.map(productMongoToClient).map(async (product) => {
+      const availableQty = await getSnapshotQtyForProduct(product);
       return {
         id: product.id,
         code: product.code,
@@ -149,7 +176,7 @@ function createMobileService(ctx) {
         stockDisplay: formatCaseLooseQty(availableQty, product.conversionRate || 1),
         isOutOfStock: toNumber(availableQty) <= 0
       };
-    });
+    }));
 
     if (q) {
       items = items.filter((item) => [
@@ -204,7 +231,7 @@ function createMobileService(ctx) {
       const quantity = toNumber(rawItem.quantity || rawItem.qty);
       const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice);
       if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
-      const availableQty = getProductAvailableQty(data, product);
+      const availableQty = await getSnapshotQtyForProduct(product);
       if (availableQty < quantity) return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
       items.push({ productId: product.id, productCode: product.code, productName: product.name, ...buildProductLineMeta(product), quantity, salePrice, amount: quantity * salePrice });
     }

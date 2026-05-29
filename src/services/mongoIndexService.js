@@ -76,8 +76,8 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_bankbooks_created_at' }]
   ],
   stock: [
-    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventory_product_warehouse' }],
-    [{ warehouseCode: 1 }, { name: 'idx_inventory_warehouse' }]
+    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventory_snapshot_product_warehouse' }],
+    [{ warehouseCode: 1 }, { name: 'idx_inventory_snapshot_warehouse' }]
   ],
   stockTransactions: [
     [{ date: 1, productCode: 1, warehouseCode: 1 }, { name: 'idx_stock_tx_date_product_warehouse' }],

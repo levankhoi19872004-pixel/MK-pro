@@ -88,8 +88,13 @@ export const mobileApi = {
   me() {
     return apiRequest(MOBILE_ROUTES.me);
   },
-  getCustomers(q = '') {
-    return apiRequest(`${MOBILE_ROUTES.customers}?q=${encodeURIComponent(q)}`);
+  getCustomers(q = '', options = {}) {
+    const query = new URLSearchParams();
+    if (q) query.set('q', q);
+    if (options.limit) query.set('limit', String(options.limit));
+    if (options.all) query.set('all', '1');
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.customers}${suffix}`);
   },
   getProducts(q = '', options = {}) {
     const query = new URLSearchParams();

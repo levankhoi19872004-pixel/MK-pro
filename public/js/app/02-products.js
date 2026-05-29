@@ -21,12 +21,14 @@ function fillForm(p){
 }
 async function loadProducts(){
   const q=searchInput?searchInput.value.trim():'';
-  const url=`/api/products?page=1&limit=100${q?`&q=${encodeURIComponent(q)}`:''}`;
   try{
-    const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');
-    productsCache=json.products||[];
-    if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
-    const total=json.meta?.total||productsCache.length;if(productCount)productCount.textContent=`${productsCache.length}/${total} sản phẩm`;
+    const allProducts = window.CatalogCache
+      ? await window.CatalogCache.preloadProducts({force:false})
+      : await fetch(`/api/products?all=true&_t=${Date.now()}`).then(async res=>{const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');return json.products||[]});
+    const keyword = window.CatalogCache ? window.CatalogCache.normalizeText(q) : String(q||'').toLowerCase();
+    productsCache = !keyword ? allProducts : allProducts.filter(p=>matchSearch(q,[p.code,p.productCode,p.sku,p.barcode,p.name,p.productName,p.category,p.brand,p.packing,p.unit,p.baseUnit]));
+    if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(allProducts);
+    const total=allProducts.length;if(productCount)productCount.textContent=`${productsCache.length}/${total} sản phẩm`;
     renderProductTable();renderImportProductSelect();renderSalesProductSelect();
   }catch(err){if(productCount)productCount.textContent='Lỗi tải dữ liệu';if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${err.message}</td></tr>`}
 }
@@ -93,7 +95,7 @@ window.toggleProductStatus=async(id,nextStatus)=>{
   try{
     const res=await fetch(`/api/products/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:nextStatus})});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không đổi được trạng thái');
-    showMessage(formMessage,json.message);await loadProducts();await loadStock();
+    showMessage(formMessage,json.message);if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
   }catch(err){showMessage(formMessage,err.message,true)}
 };
 async function bulkToggleProductStatus(nextStatus){
@@ -108,7 +110,7 @@ async function bulkToggleProductStatus(nextStatus){
     }
     selectedProductIds.clear();
     showMessage(formMessage,`Đã ${actionText} ${ids.length} sản phẩm`);
-    await loadProducts();await loadStock();
+    if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
   }catch(err){showMessage(formMessage,err.message,true)}
 }
 if(productTable){
@@ -143,7 +145,7 @@ productForm.addEventListener('submit',async event=>{
   try{
     const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được sản phẩm');
-    resetForm();showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');await loadProducts();await loadStock();
+    resetForm();showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
   }catch(err){showMessage(formMessage,err.message,true)}
 });
 

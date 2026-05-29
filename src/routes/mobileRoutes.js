@@ -134,34 +134,17 @@ function productNameOf(product) {
 async function getOpenSaleQty(product) {
   const code = productCodeOf(product);
   const ids = [code, String(product?.id || '').trim(), String(product?._id || '').trim()].filter(Boolean);
-  let inventoryQty = 0;
-  let hasInventorySnapshot = false;
-  if (ids.length) {
-    const rows = await Inventory.find({
-      $or: [
-        { productCode: { $in: ids } },
-        { productId: { $in: ids } },
-        { code: { $in: ids } }
-      ]
-    }).lean();
-    hasInventorySnapshot = rows.length > 0;
-    inventoryQty = rows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.qty ?? row.quantity ?? row.stockQuantity ?? row.onHand), 0);
-  }
+  if (!ids.length) return 0;
+  const rows = await Inventory.find({
+    $or: [
+      { productCode: { $in: ids } },
+      { productId: { $in: ids } }
+    ]
+  }).lean();
 
-  const productQty = toNumber(
-    product?.availableStock ??
-    product?.stockQuantity ??
-    product?.availableQty ??
-    product?.openingStock ??
-    product?.stock ??
-    product?.quantity ??
-    product?.qty ??
-    product?.tonKho ??
-    product?.tonDau
-  );
-  // Nếu đã có snapshot tồn thì dùng snapshot kể cả bằng 0.
-  // Nếu chưa khởi tạo inventories thì fallback về tồn cũ trên products để app không trắng danh sách.
-  return hasInventorySnapshot ? inventoryQty : productQty;
+  // Phase 3.4: tồn mở bán chỉ đọc từ inventorySnapshots.
+  // Không fallback về products vì products chỉ là danh mục.
+  return rows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty), 0);
 }
 
 function formatOpenSaleQty(quantity, conversionRate = 1) {
@@ -443,7 +426,7 @@ router.post('/inventory/rebuild', requireMobileLogin, requireMobileRole(['admin'
     });
     return ok(res, {
       source: 'mobile-mongo-route',
-      message: 'Đã rebuild tồn kho từ chứng từ nhập/bán/trả hàng và tồn đầu sản phẩm',
+      message: 'Đã rebuild stockTransactions và inventorySnapshots. Products chỉ còn là danh mục, không lưu tồn.',
       ...result
     });
   } catch (err) {
