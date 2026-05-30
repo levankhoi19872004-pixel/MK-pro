@@ -27,6 +27,7 @@ const InventoryLegacy = require('../models/InventoryLegacy');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
+const returnOrderService = require('../services/returnOrderService');
 
 const router = express.Router();
 
@@ -417,6 +418,17 @@ function stableReturnIdForOrder(order = {}) {
 }
 
 async function upsertMobileReturnOrder(order, items, req, returnType = 'partial') {
+  const salesOrderId = String(getDocId(order) || '').trim();
+  const salesOrderCode = String(orderCode(order) || '').trim();
+
+  const dedupOr = [];
+  if (salesOrderId) dedupOr.push({ salesOrderId });
+  if (salesOrderCode) dedupOr.push({ salesOrderCode });
+
+  if (!dedupOr.length) {
+    throw new Error('Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả');
+  }
+
   const normalizedItems = (Array.isArray(items) ? items : [])
     .map((item) => {
       const code = returnLineCode(item);
@@ -440,30 +452,22 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
       };
     })
     .filter((item) => item.productCode && item.qtyReturn > 0);
+
   const totalAmount = normalizedItems.reduce((sum, item) => sum + toNumber(item.amount), 0);
   const stableId = stableReturnIdForOrder(order);
   const now = new Date().toISOString();
-  const existing = await ReturnOrder.findOne({
-    $or: [
-      { id: stableId },
-      { salesOrderId: getDocId(order) },
-      { salesOrderCode: orderCode(order) },
-      { orderId: getDocId(order) },
-      { orderCode: orderCode(order) }
-    ],
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] }
-  }).sort({ updatedAt: -1, createdAt: -1 });
-  const payload = {
-    id: existing?.id || stableId,
-    code: existing?.code || buildCode('THH'),
-    date: new Date().toISOString().slice(0, 10),
+
+  // V45 chuẩn: app và ERP đều ghi qua returnOrderService để dùng chung 1 nguồn returnOrders.
+  // Dedup chỉ theo salesOrderId/salesOrderCode hợp lệ; tuyệt đối không dùng orderId/orderCode mơ hồ.
+  const result = await returnOrderService.createPendingReturnOrder({
+    id: stableId,
+    date: now.slice(0, 10),
+    documentDate: now.slice(0, 10),
     customerId: order.customerId || '',
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
-    salesOrderId: getDocId(order),
-    salesOrderCode: orderCode(order),
-    orderId: getDocId(order),
-    orderCode: orderCode(order),
+    salesOrderId,
+    salesOrderCode,
     returnType,
     items: normalizedItems,
     totalQuantity: normalizedItems.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0),
@@ -471,31 +475,46 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
     amount: totalAmount,
     debtReduction: totalAmount,
     status: 'waiting_receive',
-    returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
-    warehouseReceiveStatus: existing?.warehouseReceiveStatus || 'waiting_receive',
+    returnMergeStatus: 'unmerged',
+    warehouseReceiveStatus: 'waiting_receive',
     source: 'returnOrders',
     refType: 'mobileDeliveryReturn',
     staffCode: req.mobileUser?.code || '',
     staffName: req.mobileUser?.name || '',
     deliveryStaffCode: req.mobileUser?.code || '',
     deliveryStaffName: req.mobileUser?.name || '',
-    note: String(req.body?.note || '').trim() || `App giao hàng trả hàng đơn ${orderCode(order)}`,
-    createdAt: existing?.createdAt || now,
+    note: String(req.body?.note || '').trim() || `App giao hàng trả hàng đơn ${salesOrderCode || salesOrderId}`,
     updatedAt: now
-  };
-  const saved = existing
-    ? await ReturnOrder.findOneAndUpdate({ _id: existing._id }, payload, { new: true })
-    : await ReturnOrder.create(payload);
+  });
 
-  // Hủy các phiếu mobile trùng cũ của cùng đơn để Đơn trả hàng không bị nhân đôi.
-  await ReturnOrder.updateMany({
-    _id: { $ne: saved._id },
+  if (result?.error) {
+    const err = new Error(result.error);
+    err.status = result.status || 400;
+    throw err;
+  }
+
+  const saved = result.returnOrder;
+
+  // Chỉ hủy phiếu trùng khi có khóa đơn bán rõ ràng.
+  // Không dùng orderId/orderCode và không chạy updateMany nếu dedupOr rỗng.
+  const duplicateFilter = {
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
     returnMergeStatus: { $ne: 'merged' },
     masterReturnOrderId: { $in: [null, '', undefined] },
     masterReturnOrderCode: { $in: [null, '', undefined] },
-    $or: [{ salesOrderId: getDocId(order) }, { salesOrderCode: orderCode(order) }, { orderId: getDocId(order) }, { orderCode: orderCode(order) }]
-  }, { $set: { status: 'cancelled', cancelReason: `Hủy phiếu trả trùng của đơn ${orderCode(order)}`, updatedAt: now } });
+    $or: dedupOr
+  };
+  if (saved?._id) {
+    duplicateFilter._id = { $ne: saved._id };
+  } else if (saved?.id || saved?.code) {
+    duplicateFilter.$and = [
+      ...(saved.id ? [{ id: { $ne: saved.id } }] : []),
+      ...(saved.code ? [{ code: { $ne: saved.code } }] : [])
+    ];
+  }
+
+  await ReturnOrder.updateMany(duplicateFilter, { $set: { status: 'cancelled', cancelReason: `Hủy phiếu trả trùng của đơn ${salesOrderCode || salesOrderId}`, updatedAt: now } });
+
   return saved;
 }
 
@@ -1084,7 +1103,7 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     order.status = returnType === 'full' ? 'returned' : 'partial_return';
     order.updatedAt = new Date().toISOString();
     await order.save();
-    return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject()), order: stripMongoFields(order.toObject()) }, 201);
+    return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject ? returnOrder.toObject() : returnOrder), order: stripMongoFields(order.toObject()) }, 201);
   } catch (err) {
     return fail(res, 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');
   }

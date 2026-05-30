@@ -101,18 +101,21 @@ async function findExistingReturnOrder(body = {}) {
   const candidates = await returnOrderRepository.findAll();
   const id = String(body.id || '').trim();
   const code = String(body.code || '').trim();
-  const erpKey = String(body.erpDeliveryReturnKey || '').trim();
-  const salesOrderId = String(body.salesOrderId || body.orderId || '').trim();
-  const salesOrderCode = String(body.salesOrderCode || body.orderCode || '').trim();
+  const salesOrderId = String(body.salesOrderId || '').trim();
+  const salesOrderCode = String(body.salesOrderCode || '').trim();
 
   return candidates.find((row) => {
     if (isInactiveStatus(row)) return false;
+
+    // Ưu tiên cập nhật đúng chứng từ khi có id/code phiếu trả.
     if (id && String(row.id || '').trim() === id) return true;
     if (code && String(row.code || '').trim() === code) return true;
-    if (erpKey && String(row.erpDeliveryReturnKey || '').trim() === erpKey) return true;
-    // V45 chuẩn: không phân biệt source cũ/mới. 1 salesOrderId hoặc 1 salesOrderCode chỉ có 1 phiếu trả hiệu lực.
-    if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
-    if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
+
+    // V45 chuẩn: app và ERP cùng 1 nguồn returnOrders.
+    // 1 đơn bán = 1 phiếu trả hiệu lực, chỉ dedup theo salesOrderId/salesOrderCode chuẩn.
+    if (salesOrderId && String(row.salesOrderId || '').trim() === salesOrderId) return true;
+    if (salesOrderCode && String(row.salesOrderCode || '').trim() === salesOrderCode) return true;
+
     return false;
   }) || null;
 }
@@ -133,6 +136,10 @@ async function buildReturnOrderDocument(body = {}) {
   if (!customer && !body.customerName && !salesOrder?.customerName) return { error: 'Không tìm thấy khách hàng', status: 404 };
   const items = normalizeItems(body.items, salesOrder).filter((item) => toNumber(item.quantity) > 0);
   if (!items.length) return { error: 'Phiếu trả hàng chưa có dòng hàng', status: 400 };
+  const requiresSalesKey = ['mobileDeliveryReturn', 'erpDeliveryReturn'].includes(String(body.refType || '')) || String(body.source || '') === 'returnOrders';
+  if (requiresSalesKey && !String(body.salesOrderId || '').trim() && !String(body.salesOrderCode || '').trim()) {
+    return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
+  }
 
   const existingOrders = await returnOrderRepository.findAll();
   const existing = await findExistingReturnOrder(body);
