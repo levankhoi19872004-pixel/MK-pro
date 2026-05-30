@@ -3,9 +3,20 @@
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileDeliveryRepository } = require('../../repositories/mobile/delivery.repository');
 const returnOrderService = require('../returnOrderService');
+const returnOrderRepository = require('../../repositories/returnOrderRepository');
 
 function createMobileDeliveryService(ctx) {
   const repo = createMobileDeliveryRepository(ctx);
+  async function persistDeliverySnapshotSafely(data = {}) {
+    // returnOrders is managed by returnOrderService/returnOrderRepository.
+    // Refresh it right before persisting the mobile delivery snapshot so an old
+    // snapshot from one order cannot overwrite/hide return orders created by another order.
+    if (data && Object.prototype.hasOwnProperty.call(data, 'returnOrders')) {
+      data.returnOrders = await returnOrderRepository.findAll();
+    }
+    return repo.persistPrimaryDataSnapshot(data);
+  }
+
   const {
     normalizeText,
     toNumber,
@@ -50,6 +61,21 @@ function createMobileDeliveryService(ctx) {
       const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
       return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
     });
+  }
+
+
+  function isReturnOrderLocked(row = {}) {
+    const mergeStatus = String(row.returnMergeStatus || '').toLowerCase();
+    const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
+    const status = String(row.status || '').toLowerCase();
+    return mergeStatus === 'merged'
+      || Boolean(row.masterReturnOrderId || row.masterReturnOrderCode)
+      || ['received', 'posted', 'completed'].includes(warehouseStatus)
+      || ['received', 'posted', 'completed'].includes(status);
+  }
+
+  function getLockedReturnOrderForSalesOrder(data = {}, order = {}) {
+    return getActiveReturnOrdersForSalesOrder(data, order).find(isReturnOrderLocked) || null;
   }
 
   function normalizeReturnLineCode(item = {}) {
@@ -145,6 +171,7 @@ function createMobileDeliveryService(ctx) {
       .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser))
       .map((order) => {
         const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
+        const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
         const row = buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate);
         row.returnAmount = toNumber(syncedReturn.total || order.returnAmount || 0);
         row.returnedAmount = row.returnAmount;
@@ -197,6 +224,12 @@ function createMobileDeliveryService(ctx) {
         rewardAmount: toNumber(order.rewardAmount),
         returnAmount: toNumber(order.returnAmount),
         returnedAmount: toNumber(order.returnAmount),
+        returnLocked: Boolean(lockedReturnOrder),
+        returnLockMessage: lockedReturnOrder ? `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả.` : '',
+        returnMergeStatus: lockedReturnOrder ? (lockedReturnOrder.returnMergeStatus || 'merged') : 'unmerged',
+        masterReturnOrderId: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '',
+        masterReturnOrderCode: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '',
+        warehouseReceiveStatus: lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '',
         returnItems: Array.isArray(order.returnItems) ? order.returnItems : [],
         deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : [],
         status: order.status,
@@ -244,6 +277,10 @@ function createMobileDeliveryService(ctx) {
     if (status === 'failed') order.status = 'delivery_failed';
 
     if (status === 'failed') {
+      const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
+      if (lockedReturnOrder) {
+        return { statusCode: 400, body: { ok: false, message: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả` } };
+      }
       const fullItems = buildReturnItemsFromRequest(order, [], 'full');
       if (fullItems.length) {
         const date = new Date().toISOString().slice(0, 10);
@@ -322,7 +359,7 @@ function createMobileDeliveryService(ctx) {
       note: `${status === 'success' ? 'Giao thành công' : 'Giao thất bại'} ${order.code}`
     });
 
-    await repo.persistPrimaryDataSnapshot(data);
+    await persistDeliverySnapshotSafely(data);
     return { statusCode: 200, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã cập nhật trạng thái giao hàng', order } };
     });
   }
@@ -337,6 +374,10 @@ function createMobileDeliveryService(ctx) {
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
     if (['returned', 'cancelled', 'void'].includes(String(order.status || '').toLowerCase())) {
       return { statusCode: 400, body: { ok: false, message: 'Đơn đã trả/hủy, không thể tạo thêm phiếu trả hàng' } };
+    }
+    const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
+    if (lockedReturnOrder) {
+      return { statusCode: 400, body: { ok: false, message: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả` } };
     }
 
     const items = buildReturnItemsFromRequest(order, body.items || [], returnType);
@@ -396,7 +437,7 @@ function createMobileDeliveryService(ctx) {
       note: `${returnType === 'full' ? 'Trả cả đơn' : 'Trả một phần'} ${order.code}`
     });
 
-    await repo.persistPrimaryDataSnapshot(data);
+    await persistDeliverySnapshotSafely(data);
     return { statusCode: 201, body: { ok: true, source: 'return-orders-main-route', message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
   }
 
@@ -433,7 +474,7 @@ function createMobileDeliveryService(ctx) {
       refCode: entry.code,
       note: `Nộp quỹ ${entry.code}`
     });
-    await repo.persistPrimaryDataSnapshot(data);
+    await persistDeliverySnapshotSafely(data);
     return { statusCode: 201, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã ghi nhận nộp tiền về quỹ', entry } };
     });
   }

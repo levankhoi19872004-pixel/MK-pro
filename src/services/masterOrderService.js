@@ -135,6 +135,32 @@ function returnOrdersForSalesOrder(returnOrders = [], order = {}) {
     });
 }
 
+
+function isReturnOrderLocked(row = {}) {
+  const mergeStatus = String(row.returnMergeStatus || '').toLowerCase();
+  const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
+  const status = String(row.status || '').toLowerCase();
+  return mergeStatus === 'merged'
+    || Boolean(row.masterReturnOrderId || row.masterReturnOrderCode)
+    || ['received', 'posted', 'completed'].includes(warehouseStatus)
+    || ['received', 'posted', 'completed'].includes(status);
+}
+
+function getLockedReturnOrderForSalesOrder(returnOrders = [], order = {}) {
+  return returnOrdersForSalesOrder(returnOrders, order).find(isReturnOrderLocked) || null;
+}
+
+function returnItemsSignature(items = []) {
+  return normalizeDeliveryReturnItems(items, { items: [] })
+    .map((item) => `${String(item.productCode || '').trim()}:${toNumber(item.quantity)}`)
+    .sort()
+    .join('|');
+}
+
+function hasReturnItemsChanged(nextItems = [], currentItems = []) {
+  return returnItemsSignature(nextItems) !== returnItemsSignature(currentItems);
+}
+
 function returnItemsForSalesOrder(returnOrders = [], order = {}) {
   const merged = new Map();
   for (const returnOrder of returnOrdersForSalesOrder(returnOrders, order)) {
@@ -306,9 +332,8 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
   };
 
   if (existing) {
-    if ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode) {
-      // Phiếu đã gộp/kho đang xử lý thì không ghi đè chứng từ cũ; chỉ giữ số liệu trên đơn giao.
-      return existing;
+    if (isReturnOrderLocked(existing)) {
+      throw new Error('Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả từ màn giao hàng');
     }
     const result = await returnOrderService.createPendingReturnOrder({
       ...payload,
@@ -372,6 +397,7 @@ async function listDeliveryToday(query = {}) {
 
       const syncedReturnAmount = returnAmountForSalesOrder(returnOrders, child);
       const syncedReturnItems = returnItemsForSalesOrder(returnOrders, child);
+      const lockedReturnOrder = getLockedReturnOrderForSalesOrder(returnOrders, child);
       child.returnAmount = syncedReturnAmount;
       child.returnedAmount = syncedReturnAmount;
       child.returnItems = syncedReturnItems;
@@ -403,6 +429,13 @@ async function listDeliveryToday(query = {}) {
         debtAmount: calculateDeliveryDebt(child),
         items: Array.isArray(child.items) ? child.items : [],
         returnItems: syncedReturnItems,
+        deliveryReturnItems: syncedReturnItems,
+        returnLocked: Boolean(lockedReturnOrder),
+        returnLockMessage: lockedReturnOrder ? `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả.` : '',
+        returnMergeStatus: lockedReturnOrder ? (lockedReturnOrder.returnMergeStatus || 'merged') : 'unmerged',
+        masterReturnOrderId: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '',
+        masterReturnOrderCode: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '',
+        warehouseReceiveStatus: lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '',
         isLate: Boolean(child.isLate)
       };
 
@@ -453,9 +486,17 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   const returnAmount = toNumber(body.returnAmount ?? current.returnAmount ?? 0);
   const rewardAmount = toNumber(body.rewardAmount ?? current.rewardAmount ?? current.displayRewardAmount ?? 0);
   const returnItems = Array.isArray(body.returnItems) ? body.returnItems : (Array.isArray(current.returnItems) ? current.returnItems : []);
+  const relatedReturnOrders = await returnOrderRepository.findAll();
+  const lockedReturnOrder = getLockedReturnOrderForSalesOrder(relatedReturnOrders, current);
+  const lockedReturnItems = lockedReturnOrder ? returnItemsForSalesOrder([lockedReturnOrder], current) : [];
+  if (lockedReturnOrder && Array.isArray(body.returnItems) && hasReturnItemsChanged(returnItems, lockedReturnItems)) {
+    return { error: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả`, status: 400 };
+  }
+  const effectiveReturnItems = lockedReturnOrder ? lockedReturnItems : returnItems;
+  const effectiveReturnAmount = lockedReturnOrder ? toNumber(lockedReturnOrder.totalAmount ?? lockedReturnOrder.amount ?? lockedReturnOrder.debtReduction ?? 0) : returnAmount;
   // Công thức chuẩn duy nhất cho toàn bộ luồng giao hàng:
   // Còn nợ = Phải thu - Tiền mặt - Chuyển khoản - Trả thưởng - Tổng tiền hàng trả
-  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
 
   const updated = {
@@ -473,10 +514,11 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     bankCollected,
     transferAmount: bankCollected,
     bankAmount: bankCollected,
-    returnAmount,
+    returnAmount: effectiveReturnAmount,
+    returnedAmount: effectiveReturnAmount,
     rewardAmount,
-    returnItems,
-    deliveryReturnItems: returnItems,
+    returnItems: effectiveReturnItems,
+    deliveryReturnItems: effectiveReturnItems,
     debtAmount,
     debt: debtAmount,
     deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),
@@ -489,7 +531,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
   // ERP Web cũng phải sinh/chỉnh phiếu trả hàng thật trong returnOrders.
   // Nếu không, màn Đơn trả hàng / Đơn tổng trả hàng sẽ không thấy hàng trả dù đơn giao đã có returnAmount.
-  await syncErpDeliveryReturnOrder(updated, returnItems);
+  if (!lockedReturnOrder) await syncErpDeliveryReturnOrder(updated, effectiveReturnItems);
 
   return { salesOrder: updated };
 }

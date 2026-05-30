@@ -248,7 +248,9 @@ function renderDeliveryReturnItems(row){
     if(deliveryEditReturn)deliveryEditReturn.value=0;
     return;
   }
-  deliveryReturnItems.innerHTML=`<div class="delivery-return-table">${items.map((item,index)=>{
+  const returnLocked=Boolean(row?.returnLocked || row?.masterReturnOrderId || row?.masterReturnOrderCode || String(row?.returnMergeStatus||'').toLowerCase()==='merged');
+  const lockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
+  deliveryReturnItems.innerHTML=`${returnLocked?`<div class="empty-state warning-state">${escapeHtml(lockMessage)}</div>`:''}<div class="delivery-return-table">${items.map((item,index)=>{
     const code=deliveryItemCode(item) || `SP${index+1}`;
     const name=deliveryItemName(item);
     const qty=deliveryItemQty(item);
@@ -256,7 +258,7 @@ function renderDeliveryReturnItems(row){
     const saved=savedReturns.get(code)||0;
     return `<div class="delivery-return-line">
       <div class="delivery-return-product"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span><small>SL đơn: ${qty} · Giá: ${money(price)}</small></div>
-      <input data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" type="number" min="0" max="${qty}" step="1" value="${saved}" placeholder="SL trả" />
+      <input data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" type="number" min="0" max="${qty}" step="1" value="${saved}" placeholder="SL trả" ${returnLocked?'disabled readonly':''} />
     </div>`;
   }).join('')}</div>`;
   getReturnInputRows().forEach(input=>{
@@ -336,7 +338,12 @@ async function submitDeliveryEdit(event){
   if(!deliveryEditOrderId?.value){showMessage(deliveryEditMessage,'Chưa chọn đơn để sửa',true);return;}
   const formData=new FormData(deliveryEditForm);
   const payload=Object.fromEntries(formData.entries());
-  payload.returnItems=getDeliveryReturnItemsPayload();
+  const selectedRow=deliveryRowsCache.find(item=>String(item.id)===String(payload.orderId));
+  if(selectedRow?.returnLocked){
+    delete payload.returnItems;
+  }else{
+    payload.returnItems=getDeliveryReturnItemsPayload();
+  }
   ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
     if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
   });

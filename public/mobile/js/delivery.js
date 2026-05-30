@@ -251,6 +251,8 @@ function renderActionForm(order) {
   const existingReward = deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
   const currentReturn = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
   const items = Array.isArray(order.items) ? order.items : [];
+  const returnLocked=Boolean(order.returnLocked || order.masterReturnOrderId || order.masterReturnOrderCode || String(order.returnMergeStatus||'').toLowerCase()==='merged');
+  const returnLockMessage=order.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
   deliveryActionBox.innerHTML = `
     <section class="delivery-block delivery-customer-block">
       <h3>Thông tin khách hàng</h3>
@@ -264,7 +266,7 @@ function renderActionForm(order) {
       <div class="block-title-row">
         <div>
           <h3>Danh sách hàng trả</h3>
-          <p class="return-help">Có SL đặt và giá bán. Nhập SL trả, hệ thống tự tính tiền hàng trả.</p>
+          <p class="return-help">${returnLocked ? escapeHtml(returnLockMessage) : 'Có SL đặt và giá bán. Nhập SL trả, hệ thống tự tính tiền hàng trả.'}</p>
         </div>
         <b data-return-total>${money(currentReturn)}</b>
       </div>
@@ -281,7 +283,7 @@ function renderActionForm(order) {
             </div>
             <label>
               <span>SL trả</span>
-              <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" data-return-price="${price}" type="number" min="0" max="${qty}" step="1" value="${lineReturnedQty(item)}" inputmode="numeric" />
+              <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" data-return-price="${price}" type="number" min="0" max="${qty}" step="1" value="${lineReturnedQty(item)}" inputmode="numeric" ${returnLocked?'disabled readonly':''} />
             </label>
           </div>`;
         }).join('') : '<div class="empty-line">Đơn này chưa có danh sách sản phẩm.</div>'}
@@ -412,7 +414,7 @@ async function saveDeliverySettlement(orderId) {
   const bankAmount = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${orderId}"]`)?.value || 0);
   const rewardAmount = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${orderId}"]`)?.value || 0);
   try {
-    if (items.length) {
+    if (items.length && !order.returnLocked) {
       await mobileApi.createDeliveryReturn({
         orderId,
         returnType: 'partial',
@@ -456,6 +458,11 @@ async function createReturn(orderId, returnType) {
   const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
   if (invalidItem) {
     setMessage(actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng trong đơn`, 'error');
+    return;
+  }
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (order?.returnLocked) {
+    setMessage(actionMessage, order.returnLockMessage || 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.', 'error');
     return;
   }
   if (returnType === 'partial' && !items.length) {
