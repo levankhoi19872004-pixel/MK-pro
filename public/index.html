@@ -23,6 +23,7 @@
       <button class="tab-button" data-tab="salesTab">Bán hàng</button>
       <button class="tab-button" data-tab="stockTab">Tồn kho</button>
       <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
+      <button class="tab-button" data-tab="returnOrdersTab">Đơn trả hàng</button>
       <button class="tab-button" data-tab="deliveryTodayTab">Đơn đi giao hôm nay</button>
       <button class="tab-button" data-tab="debtTab">Công nợ</button>
       <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
@@ -522,13 +523,53 @@
             <div class="toolbar sticky-filter-bar"><div><h2>Chuyển khoản</h2><p class="muted">Các chứng từ ghi vào bankbooks.</p></div></div>
             <div class="table-wrap compact-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead><tbody id="bankbookTable"><tr><td colspan="7">Đang tải sổ chuyển khoản...</td></tr></tbody></table></div>
           </div>
-
           <div class="debt-panel" data-debt-panel-id="debtReturnPanel">
-            <div class="toolbar sticky-filter-bar"><div><h2>Trả hàng</h2><p class="muted">Trả hàng tạo returnOrders, nhập lại tồn, giảm công nợ và giảm doanh thu.</p></div><input id="returnOrderSearchInput" placeholder="Tìm phiếu trả hàng..." /></div>
-            <div class="table-wrap compact-table"><table><thead><tr><th>Mã trả hàng</th><th>Ngày</th><th>Khách</th><th>Đơn bán</th><th>Số lượng</th><th>Giá trị</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="returnOrderTable"><tr><td colspan="8">Đang tải trả hàng...</td></tr></tbody></table></div>
+            <div class="toolbar sticky-filter-bar">
+              <div>
+                <h2>Đơn trả hàng</h2>
+                <p class="muted">Mục này đã được tách riêng ra menu ngoài để quản lý tập trung và phục vụ báo cáo.</p>
+              </div>
+              <button type="button" class="secondary" onclick="document.querySelector('[data-tab=returnOrdersTab]')?.click()">Mở Đơn trả hàng</button>
+            </div>
           </div>
+
         </section>
       </main>
+    </section>
+
+
+    <section id="returnOrdersTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar sticky-filter-bar">
+          <div>
+            <h2>Đơn trả hàng</h2>
+            <p id="returnOrderCount" class="muted">Quản lý riêng phiếu trả hàng từ app giao hàng và phần mềm. Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>.</p>
+          </div>
+          <input id="returnOrderSearchInput" placeholder="Tìm mã trả hàng, khách, đơn bán, NV giao..." />
+        </div>
+        <div class="summary-box">
+          <span>Luồng chuẩn: App giao hàng / phần mềm → returnOrders → nhập lại tồn → giảm công nợ → báo cáo công nợ.</span>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã trả hàng</th>
+                <th>Ngày</th>
+                <th>Khách</th>
+                <th>Đơn bán</th>
+                <th>NV liên quan</th>
+                <th>Số lượng</th>
+                <th>Giá trị giảm nợ</th>
+                <th>Nguồn</th>
+                <th>Trạng thái</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody id="returnOrderTable"><tr><td colspan="10">Đang tải đơn trả hàng...</td></tr></tbody>
+          </table>
+        </div>
+      </section>
     </section>
 
     <section id="reportsTab" class="tab-content">
@@ -756,19 +797,19 @@
 
   </div>
 
-  <script src="/js/search/autocompleteEngine.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/search/searchFieldsConfig.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/search/catalogCacheService.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/search/productSearchBox.js?v=20260530-compact-product-suggest-v1"></script>
-  <script src="/js/app/00-dom-state.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/app/01-utils-print-tabs.js?v=20260530-debt-staff-table-visible-fixed"></script>
+  <script src="/js/search/autocompleteEngine.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/search/searchFieldsConfig.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/search/catalogCacheService.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/search/productSearchBox.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/app/00-dom-state.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/app/01-utils-print-tabs.js?v=20260530-return-orders-main-menu-v1"></script>
   <script src="/js/app/02-products.js?v=20260530-table-direct-mongo-v2"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=20260530-table-direct-mongo-v2"></script>
-  <script src="/js/app/04-import-orders.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/app/05-sales-orders.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/app/06-master-delivery.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/app/07-debt-cashbook.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260530-debt-staff-table-visible-fixed"></script>
-  <script src="/app.js?v=20260530-debt-staff-table-visible-fixed"></script>
+  <script src="/js/app/04-import-orders.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/app/07-debt-cashbook.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260530-return-orders-main-menu-v1"></script>
+  <script src="/app.js?v=20260530-return-orders-main-menu-v1"></script>
 </body>
 </html>

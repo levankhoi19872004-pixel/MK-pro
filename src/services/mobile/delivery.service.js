@@ -2,6 +2,7 @@
 
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileDeliveryRepository } = require('../../repositories/mobile/delivery.repository');
+const returnOrderService = require('../returnOrderService');
 
 function createMobileDeliveryService(ctx) {
   const repo = createMobileDeliveryRepository(ctx);
@@ -145,7 +146,6 @@ function createMobileDeliveryService(ctx) {
   }
 
   async function createReturnFromDelivery({ body = {}, mobileUser }) {
-    return withMongoTransaction(async () => {
     const data = await repo.getPrimaryDataSnapshot();
     const orderId = String(body.orderId || '').trim();
     const returnType = String(body.returnType || 'partial').trim() === 'full' ? 'full' : 'partial';
@@ -162,20 +162,39 @@ function createMobileDeliveryService(ctx) {
 
     const date = new Date().toISOString().slice(0, 10);
     const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
-    const returnOrder = createReturnOrderDocument(data, {
-      customer,
+
+    // Đường dẫn một mối: mọi phiếu trả hàng, kể cả từ app giao hàng,
+    // đều đi qua returnOrderService.createReturnOrder() để ghi returnOrders,
+    // nhập lại tồn và giảm công nợ theo cùng một chuẩn báo cáo.
+    const result = await returnOrderService.createReturnOrder({
+      salesOrderId: order.id,
+      salesOrderCode: order.code,
+      orderId: order.id,
+      orderCode: order.code,
+      customerId: customer.id || order.customerId || '',
+      customerCode: customer.code || order.customerCode || '',
+      customerName: customer.name || order.customerName || '',
       date,
       items,
+      staffCode: mobileUser.code || '',
       staffName: mobileUser.name || '',
+      deliveryStaffCode: mobileUser.code || '',
+      deliveryStaffName: mobileUser.name || '',
       note: note || (returnType === 'full' ? `App giao hàng trả cả đơn ${order.code}` : `App giao hàng trả một phần đơn ${order.code}`),
-      salesOrder: order,
+      source: 'mobile_delivery_return',
       refType: returnType === 'full' ? 'mobileDeliveryFullReturn' : 'mobileDeliveryPartialReturn',
       returnType
     });
 
+    if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
+
+    const returnOrder = result.returnOrder;
     if (returnType === 'partial') {
       order.deliveryStatus = 'partial_return';
       order.status = order.debtAmount <= 0 ? 'delivered' : 'partial_return';
+    } else {
+      order.deliveryStatus = 'returned';
+      order.status = 'returned';
     }
     order.deliveryStaffName = mobileUser.name || order.deliveryStaffName || '';
     order.deliveryStaffCode = mobileUser.code || order.deliveryStaffCode || '';
@@ -190,8 +209,7 @@ function createMobileDeliveryService(ctx) {
     });
 
     await repo.persistPrimaryDataSnapshot(data);
-    return { statusCode: 201, body: { ok: true, source: 'mobile-delivery-route', message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
-    });
+    return { statusCode: 201, body: { ok: true, source: 'return-orders-main-route', message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
   }
 
   async function submitCash({ body = {}, mobileUser }) {

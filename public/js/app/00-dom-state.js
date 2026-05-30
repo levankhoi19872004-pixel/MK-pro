@@ -161,6 +161,7 @@ const debtPanels=[...document.querySelectorAll('.debt-panel[data-debt-panel-id]'
 const bankbookTable=document.getElementById('bankbookTable');
 const returnOrderTable=document.getElementById('returnOrderTable');
 const returnOrderSearchInput=document.getElementById('returnOrderSearchInput');
+const returnOrderCount=document.getElementById('returnOrderCount');
 
 const debtCollectionForm=document.getElementById('debtCollectionForm');
 const collectionCustomerSelect=document.getElementById('collectionCustomerSelect');

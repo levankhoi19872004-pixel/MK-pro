@@ -232,12 +232,38 @@ async function loadReturnOrders(){
   const q=returnOrderSearchInput?returnOrderSearchInput.value.trim():'';
   const url=q?`/api/return-orders?q=${encodeURIComponent(q)}`:'/api/return-orders';
   try{
-    const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được trả hàng');
-    const rows=json.returnOrders||[];
-    if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="8">Chưa có chứng từ trả hàng.</td></tr>';return}
-    returnOrderTable.innerHTML=rows.map(r=>`<tr><td><strong>${r.code||''}</strong></td><td>${r.date||''}</td><td>${r.customerCode||''} ${r.customerName||''}</td><td>${r.salesOrderCode||''}</td><td class="price">${money(r.totalQuantity)}</td><td class="price cash-in">${money(r.totalAmount)}</td><td><span class="badge in">Đã ghi</span></td><td>${r.note||''}</td></tr>`).join('');
-  }catch(err){returnOrderTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`}
+    const res=await fetch(url);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
+    const rows=json.returnOrders||json.returns||[];
+    const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
+    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · Tổng giảm nợ ${money(totalValue)} · Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>`;
+    if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="10">Chưa có đơn trả hàng.</td></tr>';return}
+    returnOrderTable.innerHTML=rows.map(r=>{
+      const staff=debtPersonLabel(r.staffCode||r.deliveryStaffCode||r.salesmanCode,r.staffName||r.deliveryStaffName||r.salesmanName);
+      const source=String(r.source||r.refType||'returnOrders');
+      const status=String(r.status||'posted');
+      const statusText=status==='posted'?'Đã ghi':(status==='void'?'Đã hủy':status);
+      const badgeClass=status==='void'?'out':'in';
+      return `<tr>
+        <td><strong>${escapeHtml(r.code||r.id||'')}</strong></td>
+        <td>${escapeHtml(r.date||r.documentDate||'')}</td>
+        <td>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</td>
+        <td>${escapeHtml(r.salesOrderCode||r.orderCode||'')}</td>
+        <td>${escapeHtml(staff)}</td>
+        <td class="price">${money(r.totalQuantity)}</td>
+        <td class="price cash-in">${money(r.debtReduction??r.totalAmount)}</td>
+        <td>${escapeHtml(source)}</td>
+        <td><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></td>
+        <td>${escapeHtml(r.note||'')}</td>
+      </tr>`;
+    }).join('');
+  }catch(err){
+    if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
+    returnOrderTable.innerHTML=`<tr><td colspan="10">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
+  }
 }
+
 
 
 function renderDebtMovement(rows){
