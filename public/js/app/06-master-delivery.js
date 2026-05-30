@@ -176,7 +176,7 @@ async function loadDeliveryToday(){
   if(route)params.set('route',route);
   if(status)params.set('status',status);
   try{
-    const res=await fetch(`/api/delivery-today?${params.toString()}`);
+    const res=await fetch(`/api/master-orders/delivery-today?${params.toString()}`);
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được đơn đi giao');
     const rows=json.orders||[];
