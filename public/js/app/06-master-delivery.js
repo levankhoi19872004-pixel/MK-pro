@@ -350,6 +350,11 @@ async function submitDeliveryEdit(event){
     if(!json.ok)throw new Error(json.message||'Không lưu được chỉnh sửa');
     showMessage(deliveryEditMessage,json.message||'Đã lưu chỉnh sửa');
     await loadDeliveryToday();
+    // Sau khi lưu hàng trả ở màn Đơn đi giao, phải tải lại ngay các màn chứng từ liên quan
+    // để người dùng thấy phiếu trả hàng xuất hiện ở Đơn trả hàng / Đơn tổng trả hàng.
+    if(typeof loadReturnOrders === 'function') await loadReturnOrders();
+    if(typeof loadUnmergedReturnOrders === 'function') await loadUnmergedReturnOrders();
+    if(typeof loadMasterReturnOrders === 'function') await loadMasterReturnOrders();
     if(payload.orderId)selectDeliveryOrder(payload.orderId);
   }catch(err){showMessage(deliveryEditMessage,err.message,true);}
 }

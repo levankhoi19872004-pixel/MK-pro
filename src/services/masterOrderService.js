@@ -175,7 +175,9 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
     return null;
   }
 
+  const stableReturnId = `RO-ERP-${String(updatedOrder.id || updatedOrder.code || updatedOrder.orderCode || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const payload = {
+    id: stableReturnId,
     erpDeliveryReturnKey: buildErpDeliveryReturnKey(updatedOrder),
     salesOrderId: updatedOrder.id || '',
     salesOrderCode: updatedOrder.code || updatedOrder.orderCode || '',

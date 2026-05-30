@@ -54,7 +54,8 @@ if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitM
 if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{selectedReturnOrderIdsForMaster.clear();loadUnmergedReturnOrders();});
 if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{const check=event.target.closest('.master-return-check');if(!check)return;if(check.checked)selectedReturnOrderIdsForMaster.add(check.dataset.id);else selectedReturnOrderIdsForMaster.delete(check.dataset.id);if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=unmergedReturnOrderSummary.textContent.replace(/Đã chọn \d+$/,'Đã chọn '+selectedReturnOrderIdsForMaster.size);});
 if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.addEventListener('input',loadUnmergedReturnOrders);
-if(masterReturnDate)masterReturnDate.addEventListener('change',loadUnmergedReturnOrders);
+// masterReturnDate là ngày tạo đơn tổng/kho nhận, không dùng để lọc phiếu chưa gộp.
+// if(masterReturnDate)masterReturnDate.addEventListener('change',loadUnmergedReturnOrders);
 if(reloadMasterReturnOrdersButton)reloadMasterReturnOrdersButton.addEventListener('click',loadMasterReturnOrders);
 if(masterReturnOrderSearchInput)masterReturnOrderSearchInput.addEventListener('input',loadMasterReturnOrders);
 if(masterReturnOrderDateFrom)masterReturnOrderDateFrom.addEventListener('change',loadMasterReturnOrders);

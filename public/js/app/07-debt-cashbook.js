@@ -384,10 +384,12 @@ async function loadUnmergedReturnOrders(){
   if(!unmergedReturnOrderTable)return;
   const params=new URLSearchParams();
   const q=masterReturnOrderSearchInput?masterReturnOrderSearchInput.value.trim():'';
-  const date=masterReturnDate?.value || today();
+  // Lưu ý nghiệp vụ: ngày trong form là NGÀY TẠO ĐƠN TỔNG/KHO NHẬN,
+  // không phải ngày lọc phiếu trả chưa gộp. Nếu dùng ngày này để lọc,
+  // phiếu trả phát sinh từ đơn giao ngày 29/05 sẽ bị ẩn khi kho tạo tổng trả ngày 30/05.
+  // Vì vậy danh sách chờ gộp chỉ lọc theo NVGH + ô tìm kiếm; ngày tạo tổng trả chỉ gửi khi bấm Tạo.
   const delivery=masterReturnDeliveryStaff?.value.trim() || '';
   if(q)params.set('q',q);
-  if(date)params.set('date',date);
   if(delivery)params.set('delivery',delivery);
   try{
     const res=await fetch(`/api/master-return-orders/unmerged-return-orders?${params.toString()}`);
