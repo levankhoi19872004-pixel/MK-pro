@@ -541,9 +541,8 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
     ];
   }
 
-  await ReturnOrder.updateMany(duplicateFilter, { $set: { status: 'cancelled', cancelReason: `Hủy phiếu trả trùng của đơn ${salesOrderCode || salesOrderId}`, updatedAt: now } });
-
-  return saved;
+  // duplicate cancellation removed; handled by returnOrderService upsert
+return saved;
 }
 
 function buildDeliveryRow(order, customer, master, date, returnOrders = [], masterChild = null) {
