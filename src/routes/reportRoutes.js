@@ -9,12 +9,16 @@ const router = express.Router();
 router.get('/stock', reportController.stock);
 router.get('/stock-card', reportController.stockCard);
 router.get('/debts', reportController.debts);
+router.get('/debts/by-salesman', reportController.debtsBySalesman);
+router.get('/debts/by-delivery', reportController.debtsByDelivery);
 router.get('/dashboard', reportController.dashboard);
 
 // Clean report namespace for new UI/API.
 router.get('/reports/stock', reportController.stock);
 router.get('/reports/stock-card', reportController.stockCard);
 router.get('/reports/debts', reportController.debts);
+router.get('/reports/debts/by-salesman', reportController.debtsBySalesman);
+router.get('/reports/debts/by-delivery', reportController.debtsByDelivery);
 router.get('/reports/dashboard', reportController.dashboard);
 router.get('/reports/sales', reportController.sales);
 router.get('/reports/finance', reportController.finance);

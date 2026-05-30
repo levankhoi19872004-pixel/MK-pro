@@ -18,6 +18,16 @@ const debts = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+const debtsBySalesman = asyncHandler(async (req, res) => {
+  const result = await reportService.debtBySalesmanReport(req.query);
+  res.json({ ok: true, ...result });
+});
+
+const debtsByDelivery = asyncHandler(async (req, res) => {
+  const result = await reportService.debtByDeliveryReport(req.query);
+  res.json({ ok: true, ...result });
+});
+
 const dashboard = asyncHandler(async (req, res) => {
   const result = await reportService.dashboardReport(req.query);
   res.json({ ok: true, ...result });
@@ -42,6 +52,8 @@ module.exports = {
   stock,
   stockCard,
   debts,
+  debtsBySalesman,
+  debtsByDelivery,
   dashboard,
   sales,
   finance,

@@ -5,6 +5,7 @@ const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
 const StockTransaction = require('../models/StockTransaction');
 const SalesOrder = require('../models/SalesOrder');
+const Customer = require('../models/Customer');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const Payment = require('../models/Payment');
@@ -418,11 +419,12 @@ function buildArLedgerDiagnostics(receipts = [], ledger = []) {
 }
 
 async function debtReport(query = {}) {
-  const [orders, journals, receipts, returns] = await Promise.all([
+  const [orders, journals, receipts, returns, customers] = await Promise.all([
     SalesOrder.find({}).sort({ date: 1, createdAt: 1 }).lean(),
     Payment.find({}).lean().catch(() => []),
     Receipt.find({}).lean(),
-    ReturnOrder.find({}).lean()
+    ReturnOrder.find({}).lean(),
+    Customer.find({}).lean().catch(() => [])
   ]);
 
   const activeOrders = orders.filter(isActive).filter((order) => matchDate(order, query));
@@ -456,24 +458,47 @@ async function debtReport(query = {}) {
     }
   });
 
+  const customerMeta = new Map();
+  customers.filter(isActive).forEach((customer) => {
+    const meta = {
+      customerId: String(customer.id || customer._id || '').trim(),
+      customerCode: String(customer.code || customer.customerCode || '').trim(),
+      customerName: customer.name || customer.customerName || '',
+      phone: customer.phone || customer.customerPhone || '',
+      address: customer.address || customer.customerAddress || '',
+      salesmanCode: customer.salesmanCode || customer.staffCode || customer.salesStaffCode || '',
+      salesmanName: customer.salesmanName || customer.staffName || customer.salesStaffName || '',
+      deliveryStaffCode: customer.deliveryStaffCode || customer.deliveryCode || customer.deliveryStaff || '',
+      deliveryStaffName: customer.deliveryStaffName || customer.deliveryName || ''
+    };
+    [meta.customerId, meta.customerCode, meta.customerName].forEach((key) => {
+      const cleanKey = String(key || '').trim();
+      if (cleanKey && !customerMeta.has(cleanKey)) customerMeta.set(cleanKey, meta);
+    });
+  });
+
   const orderMeta = new Map();
   activeOrders.forEach((order) => {
     const id = String(order.id || order._id || '').trim();
     const code = String(order.code || order.orderCode || '').trim();
+    const cmeta = customerMeta.get(String(order.customerId || '').trim())
+      || customerMeta.get(String(order.customerCode || '').trim())
+      || customerMeta.get(String(order.customerName || '').trim())
+      || {};
     const meta = {
       orderId: id || code,
       orderCode: code || id,
       documentDate: toDateOnly(order.date || order.orderDate || order.createdAt),
       dueDate: toDateOnly(order.dueDate || order.paymentDueDate || order.date || order.createdAt),
-      customerId: order.customerId || '',
-      customerCode: order.customerCode || '',
-      customerName: order.customerName || '',
-      phone: order.phone || order.customerPhone || '',
-      address: order.address || order.customerAddress || '',
-      salesmanCode: order.salesmanCode || order.staffCode || order.salesStaffCode || '',
-      salesmanName: order.salesmanName || order.staffName || order.salesStaffName || '',
-      deliveryStaffCode: order.deliveryStaffCode || '',
-      deliveryStaffName: order.deliveryStaffName || ''
+      customerId: order.customerId || cmeta.customerId || '',
+      customerCode: order.customerCode || cmeta.customerCode || '',
+      customerName: order.customerName || cmeta.customerName || '',
+      phone: order.phone || order.customerPhone || cmeta.phone || '',
+      address: order.address || order.customerAddress || cmeta.address || '',
+      salesmanCode: order.salesmanCode || order.staffCode || order.salesStaffCode || cmeta.salesmanCode || '',
+      salesmanName: order.salesmanName || order.staffName || order.salesStaffName || cmeta.salesmanName || '',
+      deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || cmeta.deliveryStaffCode || '',
+      deliveryStaffName: order.deliveryStaffName || order.deliveryName || cmeta.deliveryStaffName || ''
     };
     if (id) orderMeta.set(id, meta);
     if (code) orderMeta.set(code, meta);
@@ -585,50 +610,168 @@ async function debtReport(query = {}) {
   if (query.delivery) debts = debts.filter((row) => normalizeText(row.deliveryStaffName || row.deliveryStaffCode).includes(normalizeText(query.delivery)));
   if (query.status) debts = debts.filter((row) => row.status === query.status);
 
+  // Tab Tổng công nợ là báo cáo quản trị: mặc định chỉ hiển thị khách còn nợ > 0.
+  // Khách đã tất toán chỉ xuất hiện khi người dùng lọc trạng thái "Đã tất toán" hoặc truyền includePaid=1.
+  const includePaidCustomers = String(query.includePaid || '').trim() === '1' || String(query.status || '') === 'paid';
+  const reportDebtRows = includePaidCustomers ? debts : debts.filter((row) => toNumber(row.debt) > 0);
+
   const customerMap = new Map();
-  debts.forEach((row) => {
-    const key = row.customerId || row.customerCode || row.customerName;
+  reportDebtRows.forEach((row) => {
+    const key = String(row.customerCode || row.customerId || row.customerName || '').trim();
+    if (!key) return;
     if (!customerMap.has(key)) {
       customerMap.set(key, {
         customerId: row.customerId,
         customerCode: row.customerCode,
-        customerName: row.customerName,
+        customerName: row.customerName || 'Chưa rõ khách',
         phone: row.phone,
         address: row.address,
+        salesmanCode: row.salesmanCode || '',
+        salesmanName: row.salesmanName || '',
+        deliveryStaffCode: row.deliveryStaffCode || '',
+        deliveryStaffName: row.deliveryStaffName || '',
         debit: 0,
         credit: 0,
+        receiptAmount: 0,
+        returnAmount: 0,
         debt: 0,
         orderCount: 0,
-        overdueCount: 0
+        overdueCount: 0,
+        overdueDays: 0,
+        agingDays: 0
       });
     }
     const target = customerMap.get(key);
-    target.debit += row.debit;
-    target.credit += row.credit;
-    target.debt += row.debt;
+    target.debit += toNumber(row.debit);
+    target.credit += toNumber(row.credit);
+    target.receiptAmount += toNumber(row.receiptAmount);
+    target.returnAmount += toNumber(row.returnAmount);
+    target.debt += toNumber(row.debt);
     target.orderCount += 1;
+    target.overdueDays = Math.max(toNumber(target.overdueDays), toNumber(row.overdueDays));
+    target.agingDays = Math.max(toNumber(target.agingDays), toNumber(row.agingDays));
+    if (!target.salesmanCode && !target.salesmanName) {
+      target.salesmanCode = row.salesmanCode || '';
+      target.salesmanName = row.salesmanName || '';
+    }
+    if (!target.deliveryStaffCode && !target.deliveryStaffName) {
+      target.deliveryStaffCode = row.deliveryStaffCode || '';
+      target.deliveryStaffName = row.deliveryStaffName || '';
+    }
     if (row.status === 'overdue') target.overdueCount += 1;
   });
 
-  const customerSummary = Array.from(customerMap.values()).filter((row) => row.debit || row.credit || row.debt);
+  const customerSummary = Array.from(customerMap.values())
+    .map((row) => ({
+      ...row,
+      debt: Math.max(0, toNumber(row.debt)),
+      status: toNumber(row.debt) <= 0 ? 'paid' : (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open')
+    }))
+    .filter((row) => includePaidCustomers ? (row.debit || row.credit || row.debt) : row.debt > 0)
+    .sort((a, b) => b.debt - a.debt || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
+
+  const bySalesman = buildDebtPersonSummary(reportDebtRows, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
+  const byDelivery = buildDebtPersonSummary(reportDebtRows, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
   let arLedger = ledger.map(normalizeArLedgerEntry).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.code).localeCompare(String(a.code)));
   arLedger = filterByQuery(arLedger, query, ['code', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note']);
   const arDiagnostics = buildArLedgerDiagnostics(receipts, ledger);
 
   const summary = {
-    orderCount: debts.length,
+    orderCount: reportDebtRows.length,
     customerCount: customerSummary.length,
-    overdueCount: debts.filter((row) => row.status === 'overdue').length,
-    totalDebit: sum(debts, (row) => row.debit),
-    totalCredit: sum(debts, (row) => row.credit),
-    totalDebt: sum(debts, (row) => row.debt),
+    overdueCount: reportDebtRows.filter((row) => row.status === 'overdue').length,
+    totalDebit: sum(reportDebtRows, (row) => row.debit),
+    totalCredit: sum(reportDebtRows, (row) => row.credit),
+    totalDebt: sum(reportDebtRows, (row) => row.debt),
     journalCount: ledger.length,
     arLedgerCount: arLedger.length,
     arWarningCount: arDiagnostics.length,
     unappliedCredit: Array.from(unappliedByCustomer.values()).reduce((total, amount) => total + Math.max(0, toNumber(amount)), 0)
   };
 
-  return { source: 'mongo_ar_ledger', ledgerCollection: 'journals', debts, customerSummary, arLedger, arDiagnostics, summary };
+  return { source: 'mongo_ar_ledger', ledgerCollection: 'journals', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics, summary };
+}
+
+
+function buildDebtPersonSummary(rows = [], options = {}) {
+  const codeKey = options.codeKey || 'salesmanCode';
+  const nameKey = options.nameKey || 'salesmanName';
+  const role = options.role || 'person';
+  const map = new Map();
+
+  rows.forEach((row) => {
+    const code = String(row[codeKey] || '').trim();
+    const name = String(row[nameKey] || '').trim();
+    const key = code || name || 'UNASSIGNED';
+    if (!map.has(key)) {
+      map.set(key, {
+        role,
+        code,
+        name: name || (code ? '' : 'Chưa gán'),
+        label: code && name ? `${code} - ${name}` : (name || code || 'Chưa gán'),
+        customerKeys: new Set(),
+        customers: 0,
+        orders: 0,
+        paidOrders: 0,
+        overdueOrders: 0,
+        openOrders: 0,
+        debit: 0,
+        credit: 0,
+        receiptAmount: 0,
+        returnAmount: 0,
+        debt: 0,
+        maxOverdueDays: 0,
+        maxAgingDays: 0
+      });
+    }
+
+    const target = map.get(key);
+    const customerKey = row.customerId || row.customerCode || row.customerName;
+    if (customerKey) target.customerKeys.add(String(customerKey));
+    target.orders += 1;
+    if (row.status === 'paid') target.paidOrders += 1;
+    if (row.status === 'overdue') target.overdueOrders += 1;
+    if (row.status === 'open') target.openOrders += 1;
+    target.debit += toNumber(row.debit);
+    target.credit += toNumber(row.credit);
+    target.receiptAmount += toNumber(row.receiptAmount);
+    target.returnAmount += toNumber(row.returnAmount);
+    target.debt += toNumber(row.debt);
+    target.maxOverdueDays = Math.max(target.maxOverdueDays, toNumber(row.overdueDays));
+    target.maxAgingDays = Math.max(target.maxAgingDays, toNumber(row.agingDays));
+  });
+
+  return Array.from(map.values())
+    .map((row) => {
+      const { customerKeys, ...plain } = row;
+      return {
+        ...plain,
+        customers: customerKeys.size,
+        collectionRate: plain.debit > 0 ? Math.round((plain.credit / plain.debit) * 10000) / 100 : 0,
+        status: plain.debt <= 0 ? 'paid' : (plain.overdueOrders > 0 ? 'overdue' : 'open')
+      };
+    })
+    .sort((a, b) => b.debt - a.debt || b.overdueOrders - a.overdueOrders || String(a.label).localeCompare(String(b.label)));
+}
+
+async function debtBySalesmanReport(query = {}) {
+  const report = await debtReport(query);
+  return {
+    source: report.source,
+    ledgerCollection: report.ledgerCollection,
+    bySalesman: report.bySalesman,
+    summary: report.summary
+  };
+}
+
+async function debtByDeliveryReport(query = {}) {
+  const report = await debtReport(query);
+  return {
+    source: report.source,
+    ledgerCollection: report.ledgerCollection,
+    byDelivery: report.byDelivery,
+    summary: report.summary
+  };
 }
 
 async function salesReport(query = {}) {
@@ -783,6 +926,8 @@ module.exports = {
   stockReport,
   stockCardReport,
   debtReport,
+  debtBySalesmanReport,
+  debtByDeliveryReport,
   dashboardReport,
   salesReport,
   financeReport,

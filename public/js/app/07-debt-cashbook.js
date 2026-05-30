@@ -35,7 +35,10 @@ async function loadDebts(){
       <td>${escapeHtml(d.dueDate||'')}${Number(d.overdueDays||0)>0?` <span class="badge out">+${d.overdueDays} ngày</span>`:''}</td>
       <td class="price">${money(d.debit)}</td><td class="price cash-in">${money(d.credit)}</td>
       <td class="price ${Number(d.debt||0)>0?'debt-positive':'debt-zero'}">${money(d.debt)}</td></tr>`).join('');
-    if(debtCardList)debtCardList.innerHTML=buildCustomerDebtOverview(ledger).map(d=>{
+    const overviewRows=(Array.isArray(json.customerSummary)&&json.customerSummary.length)
+      ?json.customerSummary
+      :buildCustomerDebtOverview(ledger).filter(d=>Number(d.debt||0)>0);
+    if(debtCardList)debtCardList.innerHTML=overviewRows.length?overviewRows.map(d=>{
       const debt=Number(d.debt||0);
       const statusClass=debtFinanceClass(d);
       const statusText=debtStatusLabel(d.status);
@@ -56,7 +59,7 @@ async function loadDebts(){
         </div>
         <button type="button" class="debt-detail-btn" onclick="setDebtPanel('debtMovementPanel')">Chi tiết biến động</button>
       </article>`;
-    }).join('');
+    }).join(''):'<div class="empty-state">Không còn khách đang nợ. Muốn xem khách đã tất toán, chọn bộ lọc trạng thái Đã tất toán.</div>';
     renderDebtManagementReports(ledger, json);
     renderCollectionCustomerSelect();
   }catch(err){if(debtCount)debtCount.textContent='Lỗi tải công nợ';if(debtTable)debtTable.innerHTML=`<tr><td colspan="9">${err.message}</td></tr>`;if(debtCardList)debtCardList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`}
@@ -104,13 +107,22 @@ function groupDebtByPerson(rows, codeKey, nameKey){
 }
 
 function renderDebtManagementReports(rows, json={}){
-  const salesmanRows=groupDebtByPerson(rows,'salesmanCode','salesmanName');
-  const deliveryRows=groupDebtByPerson(rows,'deliveryStaffCode','deliveryStaffName');
+  // Báo cáo Theo NVBH/NVGH phải lấy số đã tổng hợp từ backend Mongo.
+  // Frontend chỉ fallback tự gom khi API cũ chưa trả bySalesman/byDelivery.
+  const salesmanRows=Array.isArray(json.bySalesman)?json.bySalesman:groupDebtByPerson(rows,'salesmanCode','salesmanName');
+  const deliveryRows=Array.isArray(json.byDelivery)?json.byDelivery:groupDebtByPerson(rows,'deliveryStaffCode','deliveryStaffName');
   if(debtSalesmanReportTable){
-    debtSalesmanReportTable.innerHTML=salesmanRows.length?salesmanRows.map(r=>`<tr><td><strong>${escapeHtml(debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${r.customers.size}</td><td class="price">${r.orders}</td><td class="price">${money(r.debit)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price ${r.debt>0?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVBH.</td></tr>';
+    debtSalesmanReportTable.innerHTML=salesmanRows.length?salesmanRows.map(r=>{
+      const customers=(r.customers&&typeof r.customers.size==='number')?r.customers.size:Number(r.customers||0);
+      return `<tr><td><strong>${escapeHtml(r.label||debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${customers}</td><td class="price">${Number(r.orders||0)}</td><td class="price">${money(r.debit)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price ${Number(r.debt||0)>0?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`;
+    }).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVBH.</td></tr>';
   }
   if(debtDeliveryReportTable){
-    debtDeliveryReportTable.innerHTML=deliveryRows.length?deliveryRows.map(r=>`<tr><td><strong>${escapeHtml(debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${r.customers.size}</td><td class="price">${r.orders}</td><td class="price cash-in">${money(r.credit)}</td><td class="price debt-positive">${money(Math.max(r.debt,0))}</td><td class="price ${r.debt>0?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVGH.</td></tr>';
+    debtDeliveryReportTable.innerHTML=deliveryRows.length?deliveryRows.map(r=>{
+      const customers=(r.customers&&typeof r.customers.size==='number')?r.customers.size:Number(r.customers||0);
+      const debt=Number(r.debt||0);
+      return `<tr><td><strong>${escapeHtml(r.label||debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${customers}</td><td class="price">${Number(r.orders||0)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price debt-positive">${money(Math.max(debt,0))}</td><td class="price ${debt>0?'debt-positive':'debt-zero'}">${money(debt)}</td></tr>`;
+    }).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVGH.</td></tr>';
   }
   renderDebtWarnings(rows, json.arDiagnostics||[]);
 }
