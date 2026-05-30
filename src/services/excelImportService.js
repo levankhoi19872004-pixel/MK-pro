@@ -158,10 +158,154 @@ function groupRows(rows = [], keyFn) {
   return Array.from(map.values());
 }
 
+
+const IMPORT_BATCH_SIZE = Number(process.env.IMPORT_BATCH_SIZE || 1000);
+
+function chunkArray(rows = [], size = IMPORT_BATCH_SIZE) {
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += size) chunks.push(rows.slice(i, i + size));
+  return chunks;
+}
+
+async function bulkWriteInBatches(Model, operations = [], options = {}) {
+  let ok = 0;
+  const errors = [];
+  for (const batch of chunkArray(operations, options.batchSize || IMPORT_BATCH_SIZE)) {
+    if (!batch.length) continue;
+    try {
+      const result = await Model.bulkWrite(batch, { ordered: false, ...options.bulkOptions });
+      ok += Number(result.upsertedCount || 0) + Number(result.modifiedCount || 0) + Number(result.insertedCount || 0) + Number(result.matchedCount || 0);
+    } catch (err) {
+      const writeErrors = err && Array.isArray(err.writeErrors) ? err.writeErrors : [];
+      ok += Number(err?.result?.result?.nUpserted || 0) + Number(err?.result?.result?.nModified || 0) + Number(err?.result?.result?.nInserted || 0);
+      if (writeErrors.length) {
+        for (const writeErr of writeErrors.slice(0, 30)) errors.push({ message: writeErr.errmsg || writeErr.message || String(writeErr) });
+      } else {
+        errors.push({ message: err.message || String(err) });
+      }
+    }
+  }
+  return { ok, errors };
+}
+
+async function insertManyInBatches(Model, docs = [], options = {}) {
+  let inserted = 0;
+  const errors = [];
+  for (const batch of chunkArray(docs, options.batchSize || IMPORT_BATCH_SIZE)) {
+    if (!batch.length) continue;
+    try {
+      const result = await Model.insertMany(batch, {
+        ordered: false,
+        lean: true,
+        rawResult: true,
+        ...options.insertOptions
+      });
+      const insertedCount = typeof result?.insertedCount === 'number'
+        ? result.insertedCount
+        : (Array.isArray(result) ? result.length : (Object.keys(result?.insertedIds || {}).length || batch.length));
+      inserted += insertedCount;
+    } catch (err) {
+      const insertedCount = Number(err?.result?.insertedCount || err?.insertedDocs?.length || 0);
+      inserted += insertedCount;
+      const writeErrors = err && Array.isArray(err.writeErrors) ? err.writeErrors : [];
+      if (writeErrors.length) {
+        for (const writeErr of writeErrors.slice(0, 30)) errors.push({ message: writeErr.errmsg || writeErr.message || String(writeErr) });
+      } else {
+        errors.push({ message: err.message || String(err) });
+      }
+    }
+  }
+  return { inserted, errors };
+}
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+}
+
+function productSearchText(payload = {}) {
+  return normalizeSearchText([
+    payload.code,
+    payload.sku,
+    payload.productCode,
+    payload.name,
+    payload.productName,
+    payload.barcode,
+    payload.category,
+    payload.brand,
+    payload.packing,
+    payload.unit,
+    payload.baseUnit
+  ].filter(Boolean).join(' '));
+}
+
+function customerSearchText(payload = {}) {
+  return normalizeSearchText([
+    payload.code,
+    payload.customerCode,
+    payload.name,
+    payload.customerName,
+    payload.phone,
+    payload.address,
+    payload.area,
+    payload.route,
+    payload.staffCode,
+    payload.staffName
+  ].filter(Boolean).join(' '));
+}
+
+async function buildRunningCodes(Model, prefix, count, field = 'code') {
+  if (!count) return [];
+  const rows = await Model.find({ [field]: new RegExp(`^${prefix}`) }).select(field).lean();
+  const max = rows.reduce((result, row) => {
+    const match = String(row[field] || '').match(/(\d+)$/);
+    return Math.max(result, match ? Number(match[1]) : 0);
+  }, 0);
+  return Array.from({ length: count }, (_, i) => `${prefix}${String(max + i + 1).padStart(5, '0')}`);
+}
+
+async function preloadProductsByCode(rows = []) {
+  const codes = Array.from(new Set(rows.map(getProductCodeFromRow).filter(Boolean)));
+  const products = codes.length ? await Product.find({ $or: [
+    { code: { $in: codes } },
+    { productCode: { $in: codes } },
+    { sku: { $in: codes } },
+    { barcode: { $in: codes } },
+    { id: { $in: codes } }
+  ] }).lean() : [];
+  const map = new Map();
+  for (const p of products) {
+    [p.code, p.productCode, p.sku, p.barcode, p.id, String(p._id || '')].filter(Boolean).forEach((k) => map.set(cleanText(k), p));
+  }
+  return map;
+}
+
+async function preloadCustomersByCode(rows = []) {
+  const codes = Array.from(new Set(rows.map(getCustomerCodeFromRow).filter(Boolean)));
+  const customers = codes.length ? await Customer.find({ $or: [
+    { code: { $in: codes } },
+    { customerCode: { $in: codes } },
+    { phone: { $in: codes } },
+    { id: { $in: codes } }
+  ] }).lean() : [];
+  const map = new Map();
+  for (const c of customers) {
+    [c.code, c.customerCode, c.phone, c.id, String(c._id || '')].filter(Boolean).forEach((k) => map.set(cleanText(k), c));
+  }
+  return map;
+}
+
 async function upsertProducts(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
+  const ops = [];
+  const seen = new Set();
+
   for (const row of rows) {
     const payload = pickProductPayload(row);
     if (!payload.code || !payload.name) {
@@ -169,11 +313,14 @@ async function upsertProducts(rows = []) {
       errors.push({ code: payload.code, message: 'Thiếu mã hoặc tên sản phẩm' });
       continue;
     }
-    try {
-      // Phase 3.7: products chỉ là danh mục, không lưu tồn tại đây.
-      await Product.findOneAndUpdate(
-        { code: payload.code },
-        {
+    const codeKey = normalizeText(payload.code);
+    if (seen.has(codeKey)) continue;
+    seen.add(codeKey);
+    payload.searchText = productSearchText(payload);
+    ops.push({
+      updateOne: {
+        filter: { code: payload.code },
+        update: {
           $set: payload,
           $unset: {
             openingStock: 1,
@@ -187,22 +334,25 @@ async function upsertProducts(rows = []) {
             tonDau: 1
           }
         },
-        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
-      );
-      imported += 1;
-    } catch (err) {
-      skipped += 1;
-      errors.push({ code: payload.code, message: err.message });
-    }
+        upsert: true
+      }
+    });
   }
-  await addImportLog('products', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const bulk = await bulkWriteInBatches(Product, ops);
+  skipped += bulk.errors.length;
+  errors.push(...bulk.errors.map((e) => ({ code: '', message: e.message })));
+  const imported = Math.max(0, ops.length - bulk.errors.length);
+  await addImportLog('products', { imported, skipped, errors: errors.slice(0, 30), mode: 'bulkWrite', batchSize: IMPORT_BATCH_SIZE });
   return { imported, skipped, errors };
 }
 
 async function upsertCustomers(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
+  const ops = [];
+  const seen = new Set();
+
   for (const row of rows) {
     const payload = pickCustomerPayload(row);
     if (!payload.code || !payload.name) {
@@ -210,19 +360,24 @@ async function upsertCustomers(rows = []) {
       errors.push({ code: payload.code, message: 'Thiếu mã hoặc tên khách hàng' });
       continue;
     }
-    try {
-      await Customer.findOneAndUpdate(
-        { code: payload.code },
-        { $set: payload },
-        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
-      );
-      imported += 1;
-    } catch (err) {
-      skipped += 1;
-      errors.push({ code: payload.code, message: err.message });
-    }
+    const codeKey = normalizeText(payload.code);
+    if (seen.has(codeKey)) continue;
+    seen.add(codeKey);
+    payload.searchText = customerSearchText(payload);
+    ops.push({
+      updateOne: {
+        filter: { code: payload.code },
+        update: { $set: payload },
+        upsert: true
+      }
+    });
   }
-  await addImportLog('customers', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const bulk = await bulkWriteInBatches(Customer, ops);
+  skipped += bulk.errors.length;
+  errors.push(...bulk.errors.map((e) => ({ code: '', message: e.message })));
+  const imported = Math.max(0, ops.length - bulk.errors.length);
+  await addImportLog('customers', { imported, skipped, errors: errors.slice(0, 30), mode: 'bulkWrite', batchSize: IMPORT_BATCH_SIZE });
   return { imported, skipped, errors };
 }
 
@@ -230,10 +385,11 @@ async function importOpeningStock(rows = []) {
   let imported = 0;
   let skipped = 0;
   const errors = [];
+  const productMap = await preloadProductsByCode(rows);
   for (const row of rows) {
     const productCode = getProductCodeFromRow(row);
     const quantity = getQtyFromRow(row);
-    const product = await findProductByAny(productCode);
+    const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
     if (!product || quantity < 0) {
       skipped += 1;
       errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Tồn đầu không được âm' });
@@ -274,6 +430,7 @@ async function importImportOrders(rows = []) {
   let imported = 0;
   let skipped = 0;
   const errors = [];
+  const productMap = await preloadProductsByCode(rows);
   const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã phiếu'] || r['Ma phieu']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${cleanText(r.supplier || r.supplierName || r['Nhà cung cấp'] || r['Nha cung cap']) || 'Import Excel'}`);
 
   for (const group of groups) {
@@ -281,7 +438,7 @@ async function importImportOrders(rows = []) {
     const items = [];
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
-      const product = await findProductByAny(productCode);
+      const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
       const quantity = getQtyFromRow(row);
       const costPrice = getCostFromRow(row);
       if (!product || quantity <= 0 || costPrice < 0) {
@@ -337,12 +494,20 @@ async function importSalesOrders(rows = []) {
   let imported = 0;
   let skipped = 0;
   const errors = [];
+  const customerMap = await preloadCustomersByCode(rows);
+  const productMap = await preloadProductsByCode(rows);
+  const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
+  const stockRows = await Inventory.find({
+    productCode: { $in: Array.from(new Set(rows.map(getProductCodeFromRow).filter(Boolean))) },
+    warehouseCode: { $in: warehouseCodes }
+  }).lean().catch(() => []);
+  const stockMap = new Map(stockRows.map((stock) => [`${cleanText(stock.productCode)}|${cleanText(stock.warehouseCode || 'MAIN')}`, stock]));
   const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${getCustomerCodeFromRow(r)}`);
 
   for (const group of groups) {
     const first = group[0] || {};
     const customerCode = getCustomerCodeFromRow(first);
-    const customer = await findCustomerByAny(customerCode);
+    const customer = customerMap.get(cleanText(customerCode)) || await findCustomerByAny(customerCode);
     if (!customer) {
       skipped += group.length;
       errors.push({ customerCode, message: 'Không tìm thấy khách hàng' });
@@ -352,10 +517,11 @@ async function importSalesOrders(rows = []) {
     let groupInvalid = false;
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
-      const product = await findProductByAny(productCode);
+      const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
       const quantity = getQtyFromRow(row);
       const salePrice = getSalePriceFromRow(row);
-      const stock = product ? await Inventory.findOne({ productCode: product.code, warehouseCode: cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse) || 'MAIN' }).lean() : null;
+      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse) || 'MAIN';
+      const stock = product ? stockMap.get(`${cleanText(product.code)}|${warehouseCode}`) : null;
       const availableQty = toNumber(stock?.availableQty ?? stock?.quantity ?? stock?.qty ?? stock?.onHand);
       if (!product || quantity <= 0 || salePrice < 0 || availableQty < quantity) {
         skipped += 1;
@@ -466,19 +632,22 @@ async function importSalesOrders(rows = []) {
 }
 
 async function importOpeningDebt(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
+  const customerMap = await preloadCustomersByCode(rows);
+  const docs = [];
+
   for (const row of rows) {
     const customerCode = getCustomerCodeFromRow(row);
-    const customer = await findCustomerByAny(customerCode);
+    const customer = customerMap.get(cleanText(customerCode)) || await findCustomerByAny(customerCode);
     const amount = toNumber(row.amount ?? row['Số tiền'] ?? row['So tien'] ?? row['Công nợ'] ?? row['Cong no'] ?? number(row, ['amount', 'số tiền', 'so tien', 'công nợ', 'cong no', 'nợ đầu']));
     if (!customer || amount < 0) {
       skipped += 1;
       errors.push({ customerCode, message: !customer ? 'Không tìm thấy khách hàng' : 'Công nợ đầu không được âm' });
       continue;
     }
-    await Payment.create({
+    const now = nowIso();
+    docs.push({
       id: makeId('PM'),
       date: dateOnly(row.date || today()),
       type: 'opening_debt',
@@ -493,22 +662,34 @@ async function importOpeningDebt(rows = []) {
       amount,
       note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Công nợ đầu kỳ import Excel',
       status: 'posted',
-      createdAt: nowIso(),
-      updatedAt: nowIso()
+      createdAt: now,
+      updatedAt: now
     });
-    imported += 1;
   }
-  await addImportLog('openingDebt', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const result = await insertManyInBatches(Payment, docs);
+  skipped += result.errors.length;
+  errors.push(...result.errors.map((e) => ({ customerCode: '', message: e.message })));
+  const imported = Math.max(0, docs.length - result.errors.length);
+  await addImportLog('openingDebt', { imported, skipped, errors: errors.slice(0, 30), mode: 'insertMany', batchSize: IMPORT_BATCH_SIZE });
   return { imported, skipped, errors };
 }
 
 async function importDebtCollections(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
+  const customerMap = await preloadCustomersByCode(rows);
+  const receiptDocs = [];
+  const paymentDocs = [];
+  const cashbookDocs = [];
+  const receiptCodes = await buildRunningCodes(Receipt, 'TH', rows.length);
+  const cashCodes = await buildRunningCodes(Cashbook, 'PT', rows.length);
+  let codeIdx = 0;
+  let cashCodeIdx = 0;
+
   for (const row of rows) {
     const customerCode = getCustomerCodeFromRow(row);
-    const customer = await findCustomerByAny(customerCode);
+    const customer = customerMap.get(cleanText(customerCode)) || await findCustomerByAny(customerCode);
     const amount = toNumber(row.amount ?? row['Số tiền'] ?? row['So tien'] ?? row['Tiền thu'] ?? row['Tien thu'] ?? number(row, ['amount', 'số tiền', 'so tien', 'tiền thu', 'tien thu']));
     if (!customer || amount <= 0) {
       skipped += 1;
@@ -516,7 +697,7 @@ async function importDebtCollections(rows = []) {
       continue;
     }
     const now = nowIso();
-    const code = await buildRunningCode(Receipt, 'TH');
+    const code = cleanText(row.code || row.receiptCode || row['Mã phiếu'] || row['Ma phieu']) || receiptCodes[codeIdx++] || `TH${Date.now()}${codeIdx}`;
     const receipt = {
       id: makeId('RC'),
       code,
@@ -535,8 +716,8 @@ async function importDebtCollections(rows = []) {
       createdAt: now,
       updatedAt: now
     };
-    await Receipt.create(receipt);
-    await Payment.create({
+    receiptDocs.push(receipt);
+    paymentDocs.push({
       id: makeId('PM'),
       date: receipt.date,
       type: 'debt',
@@ -554,9 +735,9 @@ async function importDebtCollections(rows = []) {
       createdAt: now,
       updatedAt: now
     });
-    await Cashbook.create({
+    cashbookDocs.push({
       id: makeId('CB'),
-      code: await buildRunningCode(Cashbook, 'PT'),
+      code: cashCodes[cashCodeIdx++] || `PT${Date.now()}${cashCodeIdx}`,
       date: receipt.date,
       type: 'in',
       source: 'debt_collection_import',
@@ -573,16 +754,33 @@ async function importDebtCollections(rows = []) {
       createdAt: now,
       updatedAt: now
     });
-    imported += 1;
   }
-  await addImportLog('debtCollections', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const receiptResult = await insertManyInBatches(Receipt, receiptDocs);
+  const paymentResult = await insertManyInBatches(Payment, paymentDocs);
+  const cashResult = await insertManyInBatches(Cashbook, cashbookDocs);
+  const insertErrors = [...receiptResult.errors, ...paymentResult.errors, ...cashResult.errors];
+  skipped += insertErrors.length;
+  errors.push(...insertErrors.map((e) => ({ customerCode: '', message: e.message })));
+  const imported = Math.max(0, receiptDocs.length - receiptResult.errors.length);
+  await addImportLog('debtCollections', { imported, skipped, errors: errors.slice(0, 30), mode: 'insertMany', batchSize: IMPORT_BATCH_SIZE });
   return { imported, skipped, errors };
 }
 
 async function importCashbook(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
+  const docs = [];
+  const inCount = rows.filter((row) => {
+    const typeRaw = normalizeText(row.type || row['Loại'] || row['Loai'] || row['Thu chi'] || 'in');
+    return !(typeRaw.includes('chi') || typeRaw === 'out');
+  }).length;
+  const outCount = rows.length - inCount;
+  const inCodes = await buildRunningCodes(Cashbook, 'PT', inCount);
+  const outCodes = await buildRunningCodes(Cashbook, 'PC', outCount);
+  let inIdx = 0;
+  let outIdx = 0;
+
   for (const row of rows) {
     const typeRaw = normalizeText(row.type || row['Loại'] || row['Loai'] || row['Thu chi'] || 'in');
     const type = typeRaw.includes('chi') || typeRaw === 'out' ? 'out' : 'in';
@@ -592,9 +790,10 @@ async function importCashbook(rows = []) {
       errors.push({ message: 'Số tiền phải lớn hơn 0' });
       continue;
     }
-    await Cashbook.create({
+    const now = nowIso();
+    docs.push({
       id: makeId('CB'),
-      code: cleanText(row.code || row['Mã phiếu'] || row['Ma phieu']) || await buildRunningCode(Cashbook, type === 'out' ? 'PC' : 'PT'),
+      code: cleanText(row.code || row['Mã phiếu'] || row['Ma phieu']) || (type === 'out' ? outCodes[outIdx++] : inCodes[inIdx++]),
       date: dateOnly(row.date || row['Ngày'] || row['Ngay'] || today()),
       type,
       source: cleanText(row.source || row['Nguồn'] || row['Nguon'] || row['Nhóm tiền']) || 'import_excel',
@@ -605,12 +804,16 @@ async function importCashbook(rows = []) {
       amount,
       note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import quỹ tiền Excel',
       status: 'posted',
-      createdAt: nowIso(),
-      updatedAt: nowIso()
+      createdAt: now,
+      updatedAt: now
     });
-    imported += 1;
   }
-  await addImportLog('cashbook', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const result = await insertManyInBatches(Cashbook, docs);
+  skipped += result.errors.length;
+  errors.push(...result.errors.map((e) => ({ message: e.message })));
+  const imported = Math.max(0, docs.length - result.errors.length);
+  await addImportLog('cashbook', { imported, skipped, errors: errors.slice(0, 30), mode: 'insertMany', batchSize: IMPORT_BATCH_SIZE });
   return { imported, skipped, errors };
 }
 
