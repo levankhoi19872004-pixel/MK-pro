@@ -2,8 +2,10 @@
 
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
+const returnOrderRepository = require('../repositories/returnOrderRepository');
 const userRepository = require('../repositories/userRepository');
 const orderService = require('./orderService');
+const returnOrderService = require('./returnOrderService');
 const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
@@ -102,6 +104,129 @@ function deliveryReturnAmount(order = {}) {
 
 function deliveryRewardAmount(order = {}) {
   return toNumber(order.rewardAmount ?? order.displayRewardAmount ?? order.bonusReturnAmount ?? 0);
+}
+
+
+function normalizeDeliveryReturnItems(rawItems = [], salesOrder = {}) {
+  const sourceItems = new Map((Array.isArray(salesOrder.items) ? salesOrder.items : []).map((item) => [
+    String(item.productCode || item.code || item.productId || '').trim(),
+    item
+  ]));
+  return (Array.isArray(rawItems) ? rawItems : [])
+    .map((raw) => {
+      const productCode = String(raw.productCode || raw.code || raw.productId || '').trim();
+      const original = sourceItems.get(productCode) || {};
+      const quantity = toNumber(raw.qtyReturn ?? raw.returnQuantity ?? raw.quantity ?? raw.qty);
+      const price = toNumber(raw.price ?? raw.salePrice ?? raw.unitPrice ?? original.price ?? original.salePrice ?? original.unitPrice ?? 0);
+      return {
+        ...original,
+        ...raw,
+        productId: raw.productId || original.productId || productCode,
+        productCode: productCode || original.productCode || original.code || '',
+        productName: raw.productName || raw.name || original.productName || original.name || '',
+        quantity,
+        qty: quantity,
+        qtyReturn: quantity,
+        returnQuantity: quantity,
+        price,
+        salePrice: price,
+        unitPrice: price,
+        amount: Math.round(toNumber(raw.amount ?? quantity * price))
+      };
+    })
+    .filter((item) => item.quantity > 0 && (item.productCode || item.productName));
+}
+
+function buildErpDeliveryReturnKey(order = {}) {
+  return `erp_delivery_return:${order.id || order.code || ''}`;
+}
+
+async function findErpDeliveryReturnOrder(order = {}) {
+  const key = buildErpDeliveryReturnKey(order);
+  const rows = await returnOrderRepository.findAll();
+  return rows.find((row) => (
+    row.erpDeliveryReturnKey === key
+    || (row.source === 'erp_delivery_return' && String(row.salesOrderId || row.orderId || '') === String(order.id || ''))
+    || (row.source === 'erp_delivery_return' && String(row.salesOrderCode || row.orderCode || '') === String(order.code || ''))
+  )) || null;
+}
+
+async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], options = {}) {
+  const items = normalizeDeliveryReturnItems(returnItems, updatedOrder);
+  const totalAmount = Math.round(items.reduce((sum, item) => sum + toNumber(item.amount), 0));
+  const existing = await findErpDeliveryReturnOrder(updatedOrder);
+
+  // Nếu người dùng xóa hết hàng trả trước khi gộp, hủy phiếu trả ERP đang chờ gộp để không còn hiện ở Đơn trả hàng.
+  if (!items.length || totalAmount <= 0) {
+    if (existing && (existing.returnMergeStatus || 'unmerged') !== 'merged' && !existing.masterReturnOrderId && !existing.masterReturnOrderCode) {
+      await returnOrderRepository.upsert({
+        ...existing,
+        status: 'cancelled',
+        cancelledAt: nowIso(),
+        cancelReason: 'ERP delivery return items cleared',
+        totalQuantity: 0,
+        totalAmount: 0,
+        amount: 0,
+        debtReduction: 0,
+        items: [],
+        updatedAt: nowIso()
+      }, options);
+    }
+    return null;
+  }
+
+  const payload = {
+    erpDeliveryReturnKey: buildErpDeliveryReturnKey(updatedOrder),
+    salesOrderId: updatedOrder.id || '',
+    salesOrderCode: updatedOrder.code || updatedOrder.orderCode || '',
+    orderId: updatedOrder.id || '',
+    orderCode: updatedOrder.code || updatedOrder.orderCode || '',
+    customerId: updatedOrder.customerId || '',
+    customerCode: updatedOrder.customerCode || '',
+    customerName: updatedOrder.customerName || '',
+    date: String(updatedOrder.deliveryDate || updatedOrder.date || today()).slice(0, 10),
+    documentDate: String(updatedOrder.deliveryDate || updatedOrder.date || today()).slice(0, 10),
+    items,
+    totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
+    totalAmount,
+    amount: totalAmount,
+    debtReduction: totalAmount,
+    status: 'posted',
+    returnMergeStatus: 'unmerged',
+    warehouseReceiveStatus: 'pending',
+    source: 'erp_delivery_return',
+    refType: 'erpDeliveryReturn',
+    deliveryStaffCode: updatedOrder.deliveryStaffCode || '',
+    deliveryStaffName: updatedOrder.deliveryStaffName || '',
+    staffCode: updatedOrder.deliveryStaffCode || '',
+    staffName: updatedOrder.deliveryStaffName || '',
+    routeName: updatedOrder.routeName || updatedOrder.deliveryRoute || '',
+    note: updatedOrder.deliveryNote || `ERP đơn giao trả hàng ${updatedOrder.code || updatedOrder.id || ''}`
+  };
+
+  if (existing) {
+    if ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode) {
+      // Phiếu đã gộp/kho đang xử lý thì không ghi đè chứng từ cũ; chỉ giữ số liệu trên đơn giao.
+      return existing;
+    }
+    const merged = {
+      ...existing,
+      ...payload,
+      id: existing.id,
+      code: existing.code,
+      createdAt: existing.createdAt || nowIso(),
+      updatedAt: nowIso()
+    };
+    await returnOrderRepository.upsert(merged, options);
+    return merged;
+  }
+
+  const result = await returnOrderService.createReturnOrder({
+    ...payload,
+    note: payload.note || `ERP tạo phiếu trả từ đơn giao ${updatedOrder.code || updatedOrder.id || ''}`
+  });
+  if (result.error) throw new Error(result.error);
+  return result.returnOrder;
 }
 
 function calculateDeliveryDebt(order = {}) {
@@ -251,6 +376,10 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(updated, { session });
   });
+
+  // ERP Web cũng phải sinh/chỉnh phiếu trả hàng thật trong returnOrders.
+  // Nếu không, màn Đơn trả hàng / Đơn tổng trả hàng sẽ không thấy hàng trả dù đơn giao đã có returnAmount.
+  await syncErpDeliveryReturnOrder(updated, returnItems);
 
   return { salesOrder: updated };
 }
