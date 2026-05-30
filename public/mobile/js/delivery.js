@@ -13,6 +13,29 @@ const state = {
   selectedOrderId: ''
 };
 
+function deliveryToNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function deliveryDebtBase(order = {}) {
+  return deliveryToNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? 0);
+}
+
+function calculateDeliveryDebt(order = {}) {
+  return Math.max(0, Math.round(
+    deliveryDebtBase(order)
+    - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
+    - deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+    - deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+    - deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0)
+  ));
+}
+
+function deliveryProcessedAmount(order = {}) {
+  return deliveryToNumber(order.cashCollected) + deliveryToNumber(order.bankCollected) + deliveryToNumber(order.rewardAmount) + deliveryToNumber(order.returnAmount);
+}
+
 const list = document.getElementById('deliveryOrders');
 const reportList = document.getElementById('deliveryReportList');
 const message = document.getElementById('deliveryMessage');
@@ -54,7 +77,7 @@ function isCompleted(order) {
 
 function isDelivered(order) {
   const status = String(order.deliveryStatus || order.visualStatus || order.status || '').toLowerCase();
-  return ['delivered', 'success'].includes(status) || Number(order.cashCollected || 0) + Number(order.bankCollected || 0) + Number(order.returnAmount || 0) > 0;
+  return ['delivered', 'success'].includes(status) || deliveryProcessedAmount(order) > 0;
 }
 
 function statusLabel(order) {
@@ -107,7 +130,7 @@ function renderKpis() {
   const total = state.orders.length;
   const done = state.orders.filter(isDelivered).length;
   const pending = state.orders.filter(order => !isCompleted(order)).length;
-  const debt = state.orders.reduce((sum, order) => sum + Number(order.debtAmount || order.amount || 0), 0);
+  const debt = state.orders.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
   if (kpiTotalOrders) kpiTotalOrders.textContent = total;
   if (kpiDoneOrders) kpiDoneOrders.textContent = done;
   if (kpiPendingOrders) kpiPendingOrders.textContent = pending;
@@ -133,7 +156,7 @@ function renderOrders(items, selectedDate = '') {
       </div>
       <div class="delivery-mini-money">
         <span>Tổng: ${money(order.totalAmount)}</span>
-        <span>Còn thu: ${money(order.amount || order.debtAmount)}</span>
+        <span>Còn thu: ${money(calculateDeliveryDebt(order))}</span>
       </div>
       <div class="delivery-mini-meta">
         <span>Ngày giao: ${escapeHtml(order.deliveryDate || selectedDate)}</span>
@@ -169,7 +192,7 @@ function renderSelectedOrder(order) {
     <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
     <span>${escapeHtml(order.phone || '')} · ${escapeHtml(order.address || '')}</span>
     <span>Ngày giao: ${escapeHtml(order.deliveryDate || '')} · Tuyến: ${escapeHtml(order.routeName || 'Chưa gán')}</span>
-    <span>Tổng tiền: ${money(order.totalAmount)} · Đã xử lý: ${money(Number(order.paidAmount || 0) + Number(order.cashCollected || 0) + Number(order.bankCollected || 0) + Number(order.returnAmount || 0))} · Còn thu: ${money(order.amount || order.debtAmount)}</span>
+    <span>Tổng tiền: ${money(order.totalAmount)} · Đã xử lý: ${money(deliveryProcessedAmount(order))} · Còn thu: ${money(calculateDeliveryDebt(order))}</span>
     <span>Trạng thái: <b>${statusLabel(order)}</b></span>
   `;
 }
@@ -179,8 +202,8 @@ function renderActionForm(order) {
     
     <div class="delivery-summary-box">
       <h3>Tổng kết giao hàng</h3>
-      <div>Phải thu: <b>${money(order.amount || order.debtAmount || 0)}</b></div>
-      <div>Còn nợ: <b>${money(order.debtAmount || 0)}</b></div>
+      <div>Phải thu: <b>${money(deliveryDebtBase(order))}</b></div>
+      <div>Còn nợ: <b>${money(calculateDeliveryDebt(order))}</b></div>
     </div>
     <details class="return-panel" open>
       <summary>Danh sách hàng trả (chọn đúng sản phẩm trả)</summary>
@@ -202,7 +225,7 @@ function renderActionForm(order) {
       <label><input type="radio" name="collectMethod-${escapeHtml(order.id)}" value="transfer" /> Chuyển khoản</label>
       <label><input type="radio" name="collectMethod-${escapeHtml(order.id)}" value="none" /> Chưa thu</label>
     </div>
-    <input class="collect-input" data-collect="${escapeHtml(order.id)}" type="number" min="0" value="${Number(order.amount || order.debtAmount || 0)}" placeholder="Tiền thực thu" />
+    <input class="collect-input" data-collect="${escapeHtml(order.id)}" type="number" min="0" value="${calculateDeliveryDebt(order)}" placeholder="Tiền thực thu" />
     <input class="note-input" data-note="${escapeHtml(order.id)}" type="text" placeholder="Ghi chú giao hàng / lý do trả hàng" />
     
     <div class="row-actions delivery-action-buttons">
@@ -224,7 +247,7 @@ function renderReport() {
   const cash = completed.reduce((sum, order) => sum + Number(order.cashCollected || 0), 0);
   const bank = completed.reduce((sum, order) => sum + Number(order.bankCollected || 0), 0);
   const returns = completed.reduce((sum, order) => sum + Number(order.returnAmount || 0), 0);
-  const debt = completed.reduce((sum, order) => sum + Number(order.debtAmount || order.amount || 0), 0);
+  const debt = completed.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
   if (reportCashAmount) reportCashAmount.textContent = money(cash);
   if (reportBankAmount) reportBankAmount.textContent = money(bank);
   if (reportReturnAmount) reportReturnAmount.textContent = money(returns);
@@ -240,8 +263,8 @@ function renderReport() {
     <article class="delivery-report-item">
       <div>
         <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
-        <span>${statusLabel(order)} · Còn nợ: ${money(order.debtAmount || order.amount)}</span>
-        <span>TM: ${money(order.cashCollected || 0)} · CK: ${money(order.bankCollected || 0)} · Trả: ${money(order.returnAmount || 0)}</span>
+        <span>${statusLabel(order)} · Còn nợ: ${money(calculateDeliveryDebt(order))}</span>
+        <span>TM: ${money(order.cashCollected || 0)} · CK: ${money(order.bankCollected || 0)} · Thưởng: ${money(order.rewardAmount || 0)} · Trả: ${money(order.returnAmount || 0)}</span>
       </div>
       <button class="ghost-btn small-btn" data-edit-report="${escapeHtml(order.id)}">Sửa</button>
     </article>

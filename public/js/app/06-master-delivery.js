@@ -145,8 +145,9 @@ function deliveryStatusLabel(status){
 }
 function deliveryStatusClass(row){
   if(row.isLate)return 'delivery-late';
-  if(row.deliveryStatus==='delivered' && Number(row.debt||0)<=0)return 'delivery-done';
-  if(Number(row.debt||0)>0)return 'delivery-unpaid';
+  const debt=calculateDeliveryDebt(row);
+  if(row.deliveryStatus==='delivered' && debt<=0)return 'delivery-done';
+  if(debt>0)return 'delivery-unpaid';
   if(row.deliveryStatus==='delivering')return 'delivery-running';
   return 'delivery-waiting';
 }
@@ -156,7 +157,7 @@ function deliveryTimelineHtml(row){
     ['stock','Xuất kho',true],
     ['delivering','Đang giao',row.deliveryStatus==='delivering'||row.deliveryStatus==='delivered'],
     ['delivered','Đã giao',row.deliveryStatus==='delivered'],
-    ['paid','Thu tiền',Number(row.debt||0)<=0]
+    ['paid','Thu tiền',calculateDeliveryDebt(row)<=0]
   ];
   return `<div class="delivery-timeline">${steps.map(step=>`<span class="${step[2]?'done':''}">${step[1]}</span>`).join('')}</div>`;
 }
@@ -168,8 +169,24 @@ function getSelectedDeliveryRow(){
   return deliveryRowsCache.find(row=>String(row.id)===String(selectedDeliveryOrderId));
 }
 
+function deliveryToNumber(value){
+  const n=Number(value);
+  return Number.isFinite(n)?n:0;
+}
+function deliveryDebtBase(row){
+  return deliveryToNumber(row?.debtBeforeCollection ?? row?.totalAmount ?? row?.amount ?? row?.debtAmount ?? row?.debt ?? 0);
+}
+function calculateDeliveryDebt(row){
+  return Math.max(0, Math.round(
+    deliveryDebtBase(row)
+    - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
+    - deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0)
+    - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
+    - deliveryToNumber(row?.returnAmount ?? row?.returnedAmount ?? 0)
+  ));
+}
 function deliveryRowPaid(row){
-  return Number(row?.cashCollected||0)+Number(row?.bankCollected||0)+Number(row?.returnAmount||0);
+  return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryToNumber(row?.returnAmount||0);
 }
 
 
@@ -217,7 +234,7 @@ function renderDeliveryEditTotal(){
   const bank=Number(deliveryEditBank?.value||0);
   const returned=Number(deliveryEditReturn?.value||0);
   const reward=Number(deliveryEditReward?.value||0);
-  const debt=Math.max(0, Math.round(before-cash-bank-returned));
+  const debt=calculateDeliveryDebt({debtBeforeCollection:before,cashCollected:cash,bankCollected:bank,returnAmount:returned,rewardAmount:reward});
   deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(before)}</b></div><div><span>Tiền mặt</span><b>${money(cash)}</b></div><div><span>Chuyển khoản</span><b>${money(bank)}</b></div><div><span>Hàng trả</span><b>${money(returned)}</b></div><div><span>Trả thưởng</span><b>${money(reward)}</b></div><div class="total-debt"><span>Còn nợ</span><b>${money(debt)}</b></div>`;
 }
 function renderDeliveryReturnItems(row){
@@ -277,16 +294,17 @@ function fillDeliveryEditPanel(row){
   if(deliveryEditStaffCode)deliveryEditStaffCode.value=row.deliveryStaffCode||'';
   if(deliveryEditStaffName)deliveryEditStaffName.value=row.deliveryStaffName||'';
   if(deliveryEditRouteName)deliveryEditRouteName.value=row.routeName||'';
-  if(deliveryEditDebtBefore)deliveryEditDebtBefore.value=Math.round(Number(row.debtBeforeCollection ?? row.totalAmount ?? 0));
+  if(deliveryEditDebtBefore)deliveryEditDebtBefore.value=Math.round(deliveryDebtBase(row));
   if(deliveryEditCash)deliveryEditCash.value=Math.round(Number(row.cashCollected||0));
   if(deliveryEditBank)deliveryEditBank.value=Math.round(Number(row.bankCollected||0));
   if(deliveryEditReturn)deliveryEditReturn.value=Math.round(Number(row.returnAmount||0));
   if(deliveryEditReward)deliveryEditReward.value=Math.round(Number(row.rewardAmount||0));
-  if(deliveryEditDebt)deliveryEditDebt.value=Math.round(Number(row.debt||0));
+  if(deliveryEditDebt)deliveryEditDebt.value=calculateDeliveryDebt(row);
   if(deliveryEditNote)deliveryEditNote.value=row.deliveryNote||'';
   if(deliveryEditStatus)deliveryEditStatus.textContent=deliveryStatusLabel(row.visualStatus||row.deliveryStatus);
   if(deliverySelectedSummary){
-    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(row.debtBeforeCollection ?? row.debt)}</b> · <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">Còn nợ: ${money(row.debt)}</b></span>`;
+    const calcDebt=calculateDeliveryDebt(row);
+    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(deliveryDebtBase(row))}</b> · <b class="${calcDebt>0?'debt-positive':'debt-zero'}">Còn nợ: ${money(calcDebt)}</b></span>`;
   }
   renderDeliveryReturnItems(row);
   renderDeliveryEditTotal();
@@ -307,7 +325,8 @@ function recalcDeliveryEditDebt(){
   const cash=Number(deliveryEditCash?.value||0);
   const bank=Number(deliveryEditBank?.value||0);
   const returned=Number(deliveryEditReturn?.value||0);
-  if(deliveryEditDebt)deliveryEditDebt.value=Math.max(0, Math.round(before-cash-bank-returned));
+  const reward=Number(deliveryEditReward?.value||0);
+  if(deliveryEditDebt)deliveryEditDebt.value=calculateDeliveryDebt({debtBeforeCollection:before,cashCollected:cash,bankCollected:bank,returnAmount:returned,rewardAmount:reward});
 }
 window.recalcDeliveryEditDebt=recalcDeliveryEditDebt;
 
@@ -388,12 +407,12 @@ async function loadDeliveryToday(){
           <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
         </div>
         <div class="delivery-customer-money">
-          <span title="Phải thu"><em>Phải thu</em><b>${money(row.debtBeforeCollection ?? row.debt)}</b></span>
+          <span title="Phải thu"><em>Phải thu</em><b>${money(deliveryDebtBase(row))}</b></span>
           <span title="Tiền mặt"><em>TM</em><b class="cash-in">${money(cash)}</b></span>
           <span title="Chuyển khoản"><em>CK</em><b class="cash-in">${money(bank)}</b></span>
           <span title="Trả thưởng"><em>Thưởng</em><b>${money(reward)}</b></span>
           <span title="Tổng tiền hàng trả"><em>Hàng trả</em><b>${money(returned)}</b></span>
-          <span title="Công nợ"><em>Công nợ</em><b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">${money(row.debt)}</b></span>
+          <span title="Công nợ"><em>Công nợ</em><b class="${calculateDeliveryDebt(row)>0?'debt-positive':'debt-zero'}">${money(calculateDeliveryDebt(row))}</b></span>
         </div>
       </article>`;
     }).join('');

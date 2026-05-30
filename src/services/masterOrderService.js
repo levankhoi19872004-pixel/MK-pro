@@ -87,9 +87,36 @@ async function listMasterOrders(query = {}) {
   return result;
 }
 
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function deliveryDebtBase(order = {}) {
+  return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? order.debt ?? 0);
+}
+
+function deliveryReturnAmount(order = {}) {
+  return toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+}
+
+function deliveryRewardAmount(order = {}) {
+  return toNumber(order.rewardAmount ?? order.displayRewardAmount ?? order.bonusReturnAmount ?? 0);
+}
+
+function calculateDeliveryDebt(order = {}) {
+  return Math.max(0, Math.round(
+    deliveryDebtBase(order)
+    - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
+    - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+    - deliveryRewardAmount(order)
+    - deliveryReturnAmount(order)
+  ));
+}
+
 function statusForDeliveryRow(order = {}) {
   const raw = String(order.deliveryStatus || order.status || 'pending').toLowerCase();
-  const debt = Number(order.debtAmount ?? order.debt ?? 0) || 0;
+  const debt = calculateDeliveryDebt(order);
   if (['delivered', 'done', 'completed', 'paid'].includes(raw)) return debt > 0 ? 'unpaid' : 'delivered';
   if (['delivering', 'shipping', 'on_route'].includes(raw)) return 'delivering';
   if (['returned', 'partial_return'].includes(raw)) return raw;
@@ -131,13 +158,14 @@ async function listDeliveryToday(query = {}) {
         deliveryDate,
         deliveryStatus: child.deliveryStatus || 'waiting',
         visualStatus: statusForDeliveryRow(child),
-        totalAmount: Number(child.totalAmount || 0),
-        debt: Number(child.debtAmount ?? child.debt ?? 0) || 0,
-        debtBeforeCollection: Number(child.debtBeforeCollection ?? child.totalAmount ?? child.debtAmount ?? 0) || 0,
-        cashCollected: Number(child.cashCollected || child.cashAmount || 0),
-        bankCollected: Number(child.bankCollected || child.transferAmount || child.bankAmount || 0),
-        returnAmount: Number(child.returnAmount || 0),
-        rewardAmount: Number(child.rewardAmount || 0),
+        totalAmount: toNumber(child.totalAmount || 0),
+        debtBeforeCollection: deliveryDebtBase(child),
+        cashCollected: toNumber(child.cashCollected ?? child.cashAmount ?? 0),
+        bankCollected: toNumber(child.bankCollected ?? child.transferAmount ?? child.bankAmount ?? 0),
+        returnAmount: deliveryReturnAmount(child),
+        rewardAmount: deliveryRewardAmount(child),
+        debt: calculateDeliveryDebt(child),
+        debtAmount: calculateDeliveryDebt(child),
         items: Array.isArray(child.items) ? child.items : [],
         returnItems: Array.isArray(child.returnItems || child.deliveryReturnItems) ? (child.returnItems || child.deliveryReturnItems) : [],
         isLate: Boolean(child.isLate)
@@ -184,14 +212,15 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   if (!current) return { error: 'Không tìm thấy đơn giao hàng', status: 404 };
   if (isInactiveStatus(current)) return { error: 'Đơn đã hủy/xóa, không thể chỉnh sửa giao hàng', status: 400 };
 
-  const debtBeforeCollection = Number(body.debtBeforeCollection ?? current.debtBeforeCollection ?? current.totalAmount ?? current.debtAmount ?? 0) || 0;
-  const cashCollected = Number(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0) || 0;
-  const bankCollected = Number(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0) || 0;
-  const returnAmount = Number(body.returnAmount ?? current.returnAmount ?? 0) || 0;
-  const rewardAmount = Number(body.rewardAmount ?? current.rewardAmount ?? 0) || 0;
+  const debtBeforeCollection = toNumber(body.debtBeforeCollection ?? current.debtBeforeCollection ?? current.totalAmount ?? current.debtAmount ?? 0);
+  const cashCollected = toNumber(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0);
+  const bankCollected = toNumber(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0);
+  const returnAmount = toNumber(body.returnAmount ?? current.returnAmount ?? 0);
+  const rewardAmount = toNumber(body.rewardAmount ?? current.rewardAmount ?? current.displayRewardAmount ?? 0);
   const returnItems = Array.isArray(body.returnItems) ? body.returnItems : (Array.isArray(current.returnItems) ? current.returnItems : []);
-  const calculatedDebt = Math.max(0, debtBeforeCollection - cashCollected - bankCollected - returnAmount);
-  const debtAmount = Number(body.debtAmount ?? calculatedDebt) || 0;
+  // Công thức chuẩn duy nhất cho toàn bộ luồng giao hàng:
+  // Còn nợ = Phải thu - Tiền mặt - Chuyển khoản - Trả thưởng - Tổng tiền hàng trả
+  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
 
   const updated = {

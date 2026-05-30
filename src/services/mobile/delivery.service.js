@@ -25,6 +25,20 @@ function createMobileDeliveryService(ctx) {
     buildCashCode
   } = ctx;
 
+  function deliveryDebtBase(order = {}) {
+    return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? 0);
+  }
+
+  function calculateDeliveryDebt(order = {}) {
+    return Math.max(0, Math.round(
+      deliveryDebtBase(order)
+      - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
+      - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+      - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+      - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
+    ));
+  }
+
   async function listDeliveryOrders({ query = {}, mobileUser }) {
     const data = await repo.getPrimaryDataSnapshot();
     const targetDate = String(query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
@@ -70,12 +84,14 @@ function createMobileDeliveryService(ctx) {
         salesmanCode: order.salesmanCode,
         deliveryStaffName: order.deliveryStaffName,
         deliveryStaffCode: order.deliveryStaffCode,
-        amount: toNumber(order.debtAmount),
+        amount: calculateDeliveryDebt(order),
         totalAmount: toNumber(order.totalAmount),
         paidAmount: toNumber(order.paidAmount),
-        debtAmount: toNumber(order.debtAmount),
+        debtBeforeCollection: deliveryDebtBase(order),
+        debtAmount: calculateDeliveryDebt(order),
         cashCollected: toNumber(order.cashCollected),
         bankCollected: toNumber(order.bankCollected),
+        rewardAmount: toNumber(order.rewardAmount),
         returnAmount: toNumber(order.returnAmount),
         status: order.status,
         items: order.items || []
@@ -104,7 +120,8 @@ function createMobileDeliveryService(ctx) {
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
     if (collectAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
-    if (status === 'success' && collectAmount > toNumber(order.debtAmount)) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn công nợ còn lại của đơn' } };
+    const currentDebt = calculateDeliveryDebt(order);
+    if (status === 'success' && collectAmount > currentDebt) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn công nợ còn lại của đơn' } };
 
     order.deliveryStatus = status === 'success' ? 'delivered' : 'failed';
     order.deliveryStaffName = mobileUser.name || '';
@@ -129,7 +146,11 @@ function createMobileDeliveryService(ctx) {
         refCode: order.code
       });
       order.paidAmount = toNumber(order.paidAmount) + collectAmount;
-      order.debtAmount = Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount) - toNumber(order.returnAmount));
+      if (collectionMethod === 'transfer') order.bankCollected = toNumber(order.bankCollected) + collectAmount;
+      else order.cashCollected = toNumber(order.cashCollected) + collectAmount;
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
       auditLog(data, 'mobile_delivery_receipt', 'receipt', receipt, null, receipt, 'App giao hàng sinh phiếu thu thật', mobileUser.name || '');
     }
 
@@ -189,6 +210,10 @@ function createMobileDeliveryService(ctx) {
     if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
 
     const returnOrder = result.returnOrder;
+    order.returnAmount = toNumber(order.returnAmount) + toNumber(returnOrder.totalAmount || returnOrder.amount);
+    order.debtBeforeCollection = deliveryDebtBase(order);
+    order.debtAmount = calculateDeliveryDebt(order);
+    order.debt = order.debtAmount;
     if (returnType === 'partial') {
       order.deliveryStatus = 'partial_return';
       order.status = order.debtAmount <= 0 ? 'delivered' : 'partial_return';

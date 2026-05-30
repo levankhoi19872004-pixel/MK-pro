@@ -297,13 +297,29 @@ function isActiveDeliveryStatus(order) {
   return !['delivered', 'success', 'returned', 'cancelled', 'void'].includes(status);
 }
 
+function deliveryDebtBase(order = {}) {
+  return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.payableAmount ?? order.debtAmount ?? 0);
+}
+
+function calculateDeliveryDebt(order = {}) {
+  return Math.max(0, Math.round(
+    deliveryDebtBase(order)
+    - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
+    - toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0)
+    - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+    - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
+  ));
+}
+
 function buildDeliveryRow(order, customer, master, date) {
   const totalAmount = toNumber(order.totalAmount || order.amount || order.grandTotal || order.payableAmount);
   const paidAmount = toNumber(order.paidAmount || order.paid || order.collectedAmount);
-  const returnAmount = toNumber(order.returnAmount || order.returnedAmount);
-  const debtAmount = Math.max(0, toNumber(order.debtAmount ?? (totalAmount - paidAmount - returnAmount)));
   const cashCollected = toNumber(order.cashCollected || order.cashAmount);
   const bankCollected = toNumber(order.bankCollected || order.bankAmount || order.transferAmount);
+  const returnAmount = toNumber(order.returnAmount || order.returnedAmount);
+  const rewardAmount = toNumber(order.rewardAmount || order.displayRewardAmount);
+  const debtBeforeCollection = deliveryDebtBase(order);
+  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
   return {
     id: getDocId(order),
     code: orderCode(order),
@@ -325,9 +341,11 @@ function buildDeliveryRow(order, customer, master, date) {
     totalAmount,
     paidAmount,
     debtAmount,
+    debtBeforeCollection,
     cashCollected,
     bankCollected,
     returnAmount,
+    rewardAmount,
     status: order.status || '',
     items: Array.isArray(order.items) ? order.items : []
   };
@@ -791,9 +809,11 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
         createdAt: new Date().toISOString()
       });
       order.paidAmount = toNumber(order.paidAmount) + collectAmount;
-      order.debtAmount = Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount) - toNumber(order.returnAmount));
       if (method === 'transfer') order.bankCollected = toNumber(order.bankCollected) + collectAmount;
       else order.cashCollected = toNumber(order.cashCollected) + collectAmount;
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
     }
 
     await order.save();
@@ -837,7 +857,9 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
       updatedAt: new Date().toISOString()
     });
     order.returnAmount = toNumber(order.returnAmount) + returnAmount;
-    order.debtAmount = Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount) - toNumber(order.returnAmount));
+    order.debtBeforeCollection = deliveryDebtBase(order);
+    order.debtAmount = calculateDeliveryDebt(order);
+    order.debt = order.debtAmount;
     order.deliveryStatus = returnType === 'full' ? 'returned' : 'partial_return';
     order.status = returnType === 'full' ? 'returned' : 'partial_return';
     order.updatedAt = new Date().toISOString();
