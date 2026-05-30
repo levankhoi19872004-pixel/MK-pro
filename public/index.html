@@ -468,9 +468,9 @@
           <div class="toolbar sticky-filter-bar debt-sticky-filter debt-report-head">
             <div><h2>Báo cáo công nợ</h2><p id="debtCount" class="muted">Đang tải...</p></div>
             <div class="debt-filter-grid">
-              <input id="debtSearchInput" placeholder="Tìm KH, đơn, NV..." />
-              <input id="debtSalesmanFilter" placeholder="Lọc NV bán" />
-              <input id="debtDeliveryFilter" placeholder="Lọc NV giao" />
+              <input id="debtSearchInput" placeholder="Tìm khách / đơn / nhân viên..." />
+              <input id="debtSalesmanFilter" placeholder="NV bán" />
+              <input id="debtDeliveryFilter" placeholder="NV giao" />
               <select id="debtStatusFilter">
                 <option value="">Tất cả trạng thái</option>
                 <option value="open">Còn nợ</option>
@@ -487,10 +487,10 @@
             <button type="button" class="debt-inner-tab" data-debt-panel="debtDeliveryPanel">Theo NVGH</button>
             <button type="button" class="debt-inner-tab" data-debt-panel="debtWarningPanel">Cảnh báo</button>
             <button type="button" class="debt-inner-tab" data-debt-panel="debtMovementPanel">Biến động</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtArLedgerPanel">AR Ledger</button>
+            
           </div>
           <div class="debt-panel active" data-debt-panel-id="debtOverviewPanel">
-            <div class="section-subhead"><h3>Tổng công nợ theo khách hàng</h3><p class="muted">Mặc định ưu tiên người quản lý: khách nào còn nợ, còn bao nhiêu, thuộc NVBH/NVGH nào.</p></div>
+            <div class="section-subhead"><h3>Tổng công nợ theo khách hàng</h3><p class="muted">Chỉ hiện thông tin quản lý cần nhìn ngay: khách nợ, số tiền, quá hạn và người phụ trách.</p></div>
             <div id="debtCardList" class="compact-debt-card-list"><div class="empty-state">Đang tải công nợ...</div></div>
             <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Đơn</th><th>Ngày</th><th>Khách</th><th>NV bán</th><th>NV giao</th><th>Hạn TT</th><th>Phải thu</th><th>Đã thu/giảm</th><th>Còn nợ</th></tr></thead><tbody id="debtTable"><tr><td colspan="9">Đang tải công nợ...</td></tr></tbody></table></div>
           </div>

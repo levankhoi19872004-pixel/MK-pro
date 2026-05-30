@@ -35,21 +35,26 @@ async function loadDebts(){
       <td>${escapeHtml(d.dueDate||'')}${Number(d.overdueDays||0)>0?` <span class="badge out">+${d.overdueDays} ngày</span>`:''}</td>
       <td class="price">${money(d.debit)}</td><td class="price cash-in">${money(d.credit)}</td>
       <td class="price ${Number(d.debt||0)>0?'debt-positive':'debt-zero'}">${money(d.debt)}</td></tr>`).join('');
-    if(debtCardList)debtCardList.innerHTML=ledger.map(d=>{
+    if(debtCardList)debtCardList.innerHTML=buildCustomerDebtOverview(ledger).map(d=>{
       const debt=Number(d.debt||0);
       const statusClass=debtFinanceClass(d);
       const statusText=debtStatusLabel(d.status);
       const overdue=Number(d.overdueDays||0);
-      const timeline=`SO ${escapeHtml(d.orderCode||'')} → Thu ${money(d.receiptAmount||0)} → Trả ${money(d.returnAmount||0)} → Còn ${money(d.debt||0)}`;
-      return `<article class="erp-debt-card ${statusClass}">
-        <div class="erp-debt-main">
-          <div><strong>${escapeHtml((d.customerCode||'')+' · '+(d.orderCode||''))}</strong><b>${escapeHtml(d.customerName||'')}</b><small>${escapeHtml(d.phone||'')} ${d.address?'· '+escapeHtml(d.address):''}</small></div>
+      return `<article class="erp-debt-card debt-card-slim ${statusClass}">
+        <div class="debt-slim-top">
+          <div class="debt-slim-name"><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'')}</b></div>
           <span class="debt-status-pill">${statusText}</span>
         </div>
-        <div class="debt-staff-line"><span>NV bán: <b>${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</b></span><span>NV giao: <b>${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</b></span></div>
-        <div class="debt-date-line"><span>Ngày bán: <b>${escapeHtml(d.documentDate||'')}</b></span><span>Hạn TT: <b>${escapeHtml(d.dueDate||'')}</b></span><span>${overdue>0?'Quá hạn':'Tuổi nợ'}: <b>${overdue>0?overdue:Number(d.agingDays||0)} ngày</b></span></div>
-        <div class="erp-debt-money"><span>Phải thu <b>${money(d.debit)}</b></span><span>Đã thu/giảm <b class="cash-in">${money(d.credit)}</b></span><span>Còn nợ <b class="${debt>0?'debt-positive':'debt-zero'}">${money(debt)}</b></span></div>
-        <div class="debt-mini-timeline">${timeline}</div>
+        <div class="debt-slim-money"><span>Còn nợ</span><strong class="${debt>0?'debt-positive':'debt-zero'}">${money(debt)}</strong></div>
+        <div class="debt-slim-meta">
+          <span>${overdue>0?'Quá hạn':'Tuổi nợ'}: <b>${overdue>0?overdue:Number(d.agingDays||0)} ngày</b></span>
+          <span>Số đơn: <b>${Number(d.orderCount||0)}</b></span>
+        </div>
+        <div class="debt-slim-staff">
+          <span>NVBH: <b>${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</b></span>
+          <span>NVGH: <b>${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</b></span>
+        </div>
+        <button type="button" class="debt-detail-btn" onclick="setDebtPanel('debtMovementPanel')">Chi tiết biến động</button>
       </article>`;
     }).join('');
     renderDebtManagementReports(ledger, json);
@@ -57,6 +62,29 @@ async function loadDebts(){
   }catch(err){if(debtCount)debtCount.textContent='Lỗi tải công nợ';if(debtTable)debtTable.innerHTML=`<tr><td colspan="9">${err.message}</td></tr>`;if(debtCardList)debtCardList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`}
 }
 
+
+
+function buildCustomerDebtOverview(rows){
+  const map=new Map();
+  rows.forEach(d=>{
+    const key=d.customerId||d.customerCode||d.customerName||d.orderCode||Math.random();
+    const item=map.get(key)||{
+      customerId:d.customerId||'', customerCode:d.customerCode||'', customerName:d.customerName||'Chưa rõ khách',
+      salesmanCode:'', salesmanName:'', deliveryStaffCode:'', deliveryStaffName:'',
+      debit:0, credit:0, debt:0, orderCount:0, overdueDays:0, agingDays:0, status:'paid'
+    };
+    item.debit+=Number(d.debit||0);
+    item.credit+=Number(d.credit||0);
+    item.debt+=Number(d.debt||0);
+    item.orderCount+=1;
+    item.overdueDays=Math.max(Number(item.overdueDays||0),Number(d.overdueDays||0));
+    item.agingDays=Math.max(Number(item.agingDays||0),Number(d.agingDays||0));
+    if(!item.salesmanCode&&!item.salesmanName){item.salesmanCode=d.salesmanCode||'';item.salesmanName=d.salesmanName||'';}
+    if(!item.deliveryStaffCode&&!item.deliveryStaffName){item.deliveryStaffCode=d.deliveryStaffCode||'';item.deliveryStaffName=d.deliveryStaffName||'';}
+    map.set(key,item);
+  });
+  return [...map.values()].map(d=>({...d,status:Number(d.debt||0)<=0?'paid':(Number(d.overdueDays||0)>0?'overdue':'open')})).sort((a,b)=>Number(b.debt||0)-Number(a.debt||0));
+}
 
 function groupDebtByPerson(rows, codeKey, nameKey){
   const map=new Map();
