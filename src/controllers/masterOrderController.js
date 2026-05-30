@@ -27,6 +27,15 @@ async function list(req, res) {
   }
 }
 
+async function listDeliveryToday(req, res) {
+  try {
+    const result = await masterOrderService.listDeliveryToday(req.query || {});
+    res.json({ ok: true, source: 'mongo-route', ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không tải được đơn đi giao hôm nay', error: err.message });
+  }
+}
+
 async function get(req, res) {
   try {
     const result = await masterOrderService.getMasterOrder(req.params.id);
@@ -72,4 +81,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { listUnmergedChildOrders, list, get, create, update, cancel, remove };
+module.exports = { listUnmergedChildOrders, listDeliveryToday, list, get, create, update, cancel, remove };

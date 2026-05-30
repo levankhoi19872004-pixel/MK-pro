@@ -79,6 +79,94 @@ async function listMasterOrders(query = {}) {
   return result;
 }
 
+function statusForDeliveryRow(order = {}) {
+  const raw = String(order.deliveryStatus || order.status || 'pending').toLowerCase();
+  const debt = Number(order.debtAmount ?? order.debt ?? 0) || 0;
+  if (['delivered', 'done', 'completed', 'paid'].includes(raw)) return debt > 0 ? 'unpaid' : 'delivered';
+  if (['delivering', 'shipping', 'on_route'].includes(raw)) return 'delivering';
+  if (['returned', 'partial_return'].includes(raw)) return raw;
+  return 'waiting';
+}
+
+async function listDeliveryToday(query = {}) {
+  const date = String(query.date || today()).slice(0, 10);
+  const q = normalizeText(query.q);
+  const salesman = normalizeText(query.salesman || query.salesStaff);
+  const delivery = normalizeText(query.delivery || query.deliveryStaff);
+  const route = normalizeText(query.route || query.routeName);
+  const status = normalizeText(query.status);
+
+  const masterOrders = await listMasterOrders({ dateFrom: date, dateTo: date });
+  const rows = [];
+
+  for (const master of masterOrders) {
+    if (['cancelled', 'void'].includes(String(master.status || '').toLowerCase())) continue;
+    const children = Array.isArray(master.children) ? master.children : [];
+    for (const child of children) {
+      if (['cancelled', 'void'].includes(String(child.status || '').toLowerCase())) continue;
+      const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
+      if (deliveryDate !== date) continue;
+
+      const row = {
+        id: child.id || child.code,
+        orderCode: child.code || child.id || '',
+        masterOrderCode: master.code || master.id || '',
+        customerCode: child.customerCode || '',
+        customerName: child.customerName || '',
+        customerPhone: child.customerPhone || '',
+        customerAddress: child.customerAddress || '',
+        salesmanCode: child.salesStaffCode || child.staffCode || master.salesStaffCode || '',
+        salesmanName: child.salesStaffName || child.staffName || master.salesStaffName || '',
+        deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
+        deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || '',
+        routeName: child.routeName || child.deliveryRoute || master.routeName || '',
+        deliveryDate,
+        deliveryStatus: child.deliveryStatus || 'waiting',
+        visualStatus: statusForDeliveryRow(child),
+        totalAmount: Number(child.totalAmount || 0),
+        debt: Number(child.debtAmount ?? child.debt ?? 0) || 0,
+        debtBeforeCollection: Number(child.debtBeforeCollection ?? child.totalAmount ?? child.debtAmount ?? 0) || 0,
+        cashCollected: Number(child.cashCollected || child.cashAmount || 0),
+        bankCollected: Number(child.bankCollected || child.transferAmount || child.bankAmount || 0),
+        returnAmount: Number(child.returnAmount || 0),
+        isLate: Boolean(child.isLate)
+      };
+
+      if (q && ![row.orderCode, row.masterOrderCode, row.customerCode, row.customerName, row.customerPhone, row.customerAddress].some((value) => normalizeText(value).includes(q))) continue;
+      if (salesman && ![row.salesmanCode, row.salesmanName].some((value) => normalizeText(value).includes(salesman))) continue;
+      if (delivery && ![row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(delivery))) continue;
+      if (route && !normalizeText(row.routeName).includes(route)) continue;
+      if (status && row.visualStatus !== status && normalizeText(row.deliveryStatus) !== status) continue;
+      rows.push(row);
+    }
+  }
+
+  const routeMap = new Map();
+  for (const row of rows) {
+    const key = row.routeName || 'Chưa có tuyến';
+    if (!routeMap.has(key)) routeMap.set(key, {
+      routeName: key,
+      orderCount: 0,
+      deliveryStaffCode: row.deliveryStaffCode,
+      deliveryStaffName: row.deliveryStaffName
+    });
+    routeMap.get(key).orderCount += 1;
+  }
+
+  return {
+    formula: 'Lấy đơn con đã gộp theo Ngày giao hàng trong đơn tổng/đơn con; không lấy theo ngày tạo đơn.',
+    orders: rows,
+    routes: Array.from(routeMap.values()),
+    kpi: {
+      totalOrders: rows.length,
+      delivering: rows.filter((row) => row.visualStatus === 'delivering').length,
+      delivered: rows.filter((row) => row.visualStatus === 'delivered').length,
+      unpaid: rows.filter((row) => Number(row.debt || 0) > 0).length,
+      late: rows.filter((row) => row.isLate).length
+    }
+  };
+}
+
 async function createMasterOrder(body = {}) {
   const childIds = Array.isArray(body.childOrderIds) ? body.childOrderIds.map(String) : [];
   if (!childIds.length) return { error: 'Chưa chọn đơn con để gộp', status: 400 };
@@ -246,6 +334,7 @@ async function deleteMasterOrder(id, body = {}) {
 module.exports = {
   listUnmergedChildOrders,
   listMasterOrders,
+  listDeliveryToday,
   getMasterOrder,
   createMasterOrder,
   updateMasterOrder,

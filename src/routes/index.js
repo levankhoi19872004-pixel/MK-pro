@@ -5,6 +5,7 @@ const customerRoutes = require('./customerRoutes');
 const userRoutes = require('./userRoutes');
 const orderRoutes = require('./orderRoutes');
 const masterOrderRoutes = require('./masterOrderRoutes');
+const masterOrderController = require('../controllers/masterOrderController');
 const importOrderRoutes = require('./importOrderRoutes');
 const returnRoutes = require('./returnRoutes');
 const receiptRoutes = require('./receiptRoutes');
@@ -47,6 +48,8 @@ function registerApiRoutes(app) {
   app.use('/api/sales-orders', orderRoutes);
   app.use('/api/orders', orderRoutes);
   app.use('/api/master-orders', masterOrderRoutes);
+  // Web dashboard alias for delivery operation UI.
+  app.get('/api/delivery-today', masterOrderController.listDeliveryToday);
 
   // Step 3: Import Orders / Return Orders
   app.use('/api/import-orders', importOrderRoutes);

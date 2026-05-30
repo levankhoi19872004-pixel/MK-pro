@@ -6,6 +6,7 @@ const masterOrderController = require('../controllers/masterOrderController');
 const router = express.Router();
 
 router.get('/unmerged-child-orders', masterOrderController.listUnmergedChildOrders);
+router.get('/delivery-today', masterOrderController.listDeliveryToday);
 router.get('/', masterOrderController.list);
 router.post('/', masterOrderController.create);
 router.get('/:id', masterOrderController.get);
