@@ -517,24 +517,22 @@
             <div class="form-grid two-cols">
               <label>Mã đơn<input id="deliveryEditOrderCode" name="orderCode" readonly /></label>
               <label>Khách hàng<input id="deliveryEditCustomerName" name="customerName" readonly /></label>
-              <label>Ngày giao<input id="deliveryEditDate" name="deliveryDate" type="date" /></label>
-              <label>Trạng thái
-                <select id="deliveryEditDeliveryStatus" name="deliveryStatus">
-                  <option value="waiting">Chờ giao</option>
-                  <option value="delivering">Đang giao</option>
-                  <option value="delivered">Đã giao</option>
-                  <option value="failed">Giao lỗi</option>
-                  <option value="returned">Trả hàng</option>
-                </select>
-              </label>
-              <label>NV giao<input id="deliveryEditStaffCode" name="deliveryStaffCode" placeholder="Mã hoặc tên NV giao" /></label>
-              <label>Tên NV giao<input id="deliveryEditStaffName" name="deliveryStaffName" placeholder="Tên NV giao" /></label>
-              <label>Tuyến giao<input id="deliveryEditRouteName" name="routeName" placeholder="Tuyến giao" /></label>
-              <label>Phải thu<input id="deliveryEditDebtBefore" name="debtBeforeCollection" type="number" min="0" step="1" /></label>
+              <label>NV giao<input id="deliveryEditStaffCode" name="deliveryStaffCode" readonly /></label>
+              <label>Tuyến giao<input id="deliveryEditRouteName" name="routeName" readonly /></label>
+              <label>Phải thu<input id="deliveryEditDebtBefore" name="debtBeforeCollection" type="number" readonly /></label>
+              <label>Còn nợ<input id="deliveryEditDebt" name="debtAmount" type="number" readonly /></label>
+
               <label>Tiền mặt<input id="deliveryEditCash" name="cashCollected" type="number" min="0" step="1" /></label>
               <label>Chuyển khoản<input id="deliveryEditBank" name="bankCollected" type="number" min="0" step="1" /></label>
-              <label>Hàng trả<input id="deliveryEditReturn" name="returnAmount" type="number" min="0" step="1" /></label>
-              <label>Còn nợ<input id="deliveryEditDebt" name="debtAmount" type="number" min="0" step="1" /></label>
+              <label>Tiền trả thưởng<input id="deliveryEditReward" name="rewardAmount" type="number" min="0" step="1" value="0" /></label>
+            </div>
+
+            <div class="card" style="margin-top:10px">
+              <h3>Danh sách hàng trả</h3>
+              <p class="muted">Chọn đúng sản phẩm khách trả. Không nhập tiền trả hàng tổng.</p>
+              <div id="deliveryReturnItems">
+                <div class="empty-state">Chọn đơn để hiển thị sản phẩm.</div>
+              </div>
             </div>
             <label>Ghi chú sai sót / ghi chú giao hàng
               <textarea id="deliveryEditNote" name="deliveryNote" rows="3" placeholder="Ví dụ: khách trả thiếu, sai NV giao, sai ngày giao..."></textarea>
