@@ -126,9 +126,44 @@ async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
 }
 
 
+function normalizeAllocations(doc = {}) {
+  const rows = Array.isArray(doc.allocations) ? doc.allocations : [];
+  return rows
+    .map((row) => ({
+      orderId: String(row.orderId || row.salesOrderId || row.id || '').trim(),
+      orderCode: String(row.orderCode || row.salesOrderCode || row.code || '').trim(),
+      amount: toNumber(row.amount ?? row.allocatedAmount ?? row.paymentAmount)
+    }))
+    .filter((row) => row.amount > 0);
+}
+
 async function postReceiptAR(receipt = {}, options = {}) {
   const amount = toNumber(receipt.amount ?? receipt.totalAmount ?? receipt.value);
   if (amount <= 0) return null;
+  const allocations = normalizeAllocations(receipt);
+  if (allocations.length) {
+    const entries = [];
+    for (let index = 0; index < allocations.length; index += 1) {
+      const allocation = allocations[index];
+      const entry = baseJournal(receipt, {
+        id: `AR-RECEIPT-${receipt.id || receipt.code}-${allocation.orderId || allocation.orderCode || index + 1}`,
+        code: `AR-RECEIPT-${receipt.code || receipt.id}-${index + 1}`,
+        type: 'ar_receipt',
+        refType: 'RECEIPT',
+        refId: receipt.id || receipt._id || receipt.code,
+        refCode: receipt.code || receipt.id,
+        orderId: allocation.orderId,
+        orderCode: allocation.orderCode,
+        debit: 0,
+        credit: allocation.amount,
+        amount: allocation.amount,
+        note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
+      });
+      await paymentRepository.upsert(entry, options);
+      entries.push(entry);
+    }
+    return entries;
+  }
   const entry = baseJournal(receipt, {
     id: `AR-RECEIPT-${receipt.id || receipt.code}`,
     code: `AR-RECEIPT-${receipt.code || receipt.id}`,
@@ -150,6 +185,31 @@ async function postReceiptAR(receipt = {}, options = {}) {
 async function reverseReceiptAR(receipt = {}, options = {}) {
   const amount = toNumber(receipt.amount ?? receipt.totalAmount ?? receipt.value);
   if (amount <= 0) return null;
+  const allocations = normalizeAllocations(receipt);
+  if (allocations.length) {
+    const entries = [];
+    for (let index = 0; index < allocations.length; index += 1) {
+      const allocation = allocations[index];
+      const entry = baseJournal(receipt, {
+        id: `AR-RECEIPT-VOID-${receipt.id || receipt.code}-${allocation.orderId || allocation.orderCode || index + 1}`,
+        code: `AR-RECEIPT-VOID-${receipt.code || receipt.id}-${index + 1}`,
+        type: 'receipt_void',
+        journalType: 'RECEIPT_VOID',
+        refType: 'receipt',
+        refId: receipt.id || receipt._id || receipt.code,
+        refCode: receipt.code || receipt.id,
+        orderId: allocation.orderId,
+        orderCode: allocation.orderCode,
+        debit: allocation.amount,
+        credit: 0,
+        amount: allocation.amount,
+        note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
+      });
+      await paymentRepository.upsert(entry, options);
+      entries.push(entry);
+    }
+    return entries;
+  }
   const entry = baseJournal(receipt, {
     id: `AR-RECEIPT-VOID-${receipt.id || receipt.code}`,
     code: `AR-RECEIPT-VOID-${receipt.code || receipt.id}`,

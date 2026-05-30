@@ -638,7 +638,8 @@ async function debtReport(query = {}) {
         orderCount: 0,
         overdueCount: 0,
         overdueDays: 0,
-        agingDays: 0
+        agingDays: 0,
+        orders: []
       });
     }
     const target = customerMap.get(key);
@@ -648,6 +649,24 @@ async function debtReport(query = {}) {
     target.returnAmount += toNumber(row.returnAmount);
     target.debt += toNumber(row.debt);
     target.orderCount += 1;
+    target.orders.push({
+      orderId: row.orderId,
+      orderCode: row.orderCode,
+      documentDate: row.documentDate,
+      dueDate: row.dueDate,
+      debit: toNumber(row.debit),
+      credit: toNumber(row.credit),
+      receiptAmount: toNumber(row.receiptAmount),
+      returnAmount: toNumber(row.returnAmount),
+      debt: toNumber(row.debt),
+      overdueDays: toNumber(row.overdueDays),
+      agingDays: toNumber(row.agingDays),
+      status: row.status,
+      salesmanCode: row.salesmanCode,
+      salesmanName: row.salesmanName,
+      deliveryStaffCode: row.deliveryStaffCode,
+      deliveryStaffName: row.deliveryStaffName
+    });
     target.overdueDays = Math.max(toNumber(target.overdueDays), toNumber(row.overdueDays));
     target.agingDays = Math.max(toNumber(target.agingDays), toNumber(row.agingDays));
     if (!target.salesmanCode && !target.salesmanName) {

@@ -3736,3 +3736,14 @@ button.danger:hover{background:#fecaca}
   #masterReturnOrdersTab .master-return-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
   #masterReturnOrdersTab .sales-history-filters{grid-template-columns:1fr;}
 }
+
+/* V45 AR theo từng đơn giao hàng */
+.order-allocation-box{margin:10px 0 12px;padding:10px;border:1px solid #dbe7f7;border-radius:14px;background:#f8fbff;max-height:260px;overflow:auto}
+.allocation-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px;color:#0f172a}
+.allocation-head small{color:#64748b;font-weight:600;text-align:right}
+.allocation-list{display:flex;flex-direction:column;gap:7px}
+.allocation-row{display:grid;grid-template-columns:22px 1fr 110px;gap:8px;align-items:center;padding:8px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.allocation-row span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.allocation-row small{color:#64748b;font-size:11px;white-space:normal}
+.allocation-row input[type="number"]{height:34px;text-align:right;font-weight:700}
+.allocation-row input[type="number"]:disabled{opacity:.45;background:#f1f5f9}

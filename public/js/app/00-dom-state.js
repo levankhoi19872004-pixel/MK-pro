@@ -214,6 +214,7 @@ const debtCollectionForm=document.getElementById('debtCollectionForm');
 const collectionCustomerSelect=document.getElementById('collectionCustomerSelect');
 const collectionCustomerSearch=document.getElementById('collectionCustomerSearch');
 const collectionCustomerSuggestions=document.getElementById('collectionCustomerSuggestions');
+const collectionOrderAllocationBox=document.getElementById('collectionOrderAllocationBox');
 const selectedCustomerDebt=document.getElementById('selectedCustomerDebt');
 const collectionMessage=document.getElementById('collectionMessage');
 
@@ -262,6 +263,7 @@ let productsCache=[];
 let salesProductsCache=[]; // Catalog riêng cho ô gợi ý bán hàng, không phụ thuộc bộ lọc danh sách sản phẩm
 let customersCache=[];
 let debtsCache=[];
+let selectedCollectionCustomerOrders=[];
 let importItems=[];
 let editingImportOrderId=null;
 let salesItems=[];

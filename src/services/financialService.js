@@ -40,6 +40,44 @@ async function buildBankCode() {
   return buildRunningCode('NH', rows);
 }
 
+
+function parseAllocations(value) {
+  let rows = value;
+  if (typeof rows === 'string') {
+    try { rows = JSON.parse(rows); } catch (_) { rows = []; }
+  }
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => ({
+      orderId: String(row.orderId || row.salesOrderId || row.id || '').trim(),
+      orderCode: String(row.orderCode || row.salesOrderCode || row.code || '').trim(),
+      amount: toNumber(row.amount ?? row.allocatedAmount ?? row.paymentAmount)
+    }))
+    .filter((row) => (row.orderId || row.orderCode) && row.amount > 0);
+}
+
+function splitAllocationsByAmount(allocations = [], amount = 0) {
+  let remain = toNumber(amount);
+  const result = [];
+  for (const row of parseAllocations(allocations)) {
+    if (remain <= 0) break;
+    const applied = Math.min(toNumber(row.amount), remain);
+    if (applied > 0) result.push({ ...row, amount: applied });
+    remain -= applied;
+  }
+  return result;
+}
+
+function allocationPrimary(allocations = []) {
+  const first = parseAllocations(allocations)[0] || {};
+  return {
+    orderId: first.orderId || '',
+    orderCode: first.orderCode || '',
+    salesOrderId: first.orderId || '',
+    salesOrderCode: first.orderCode || ''
+  };
+}
+
 async function buildReceiptCode() {
   const rows = await receiptRepository.findAll();
   return buildRunningCode('TH', rows);
@@ -132,6 +170,8 @@ async function createReceipt(body = {}) {
   const customer = await resolveCustomer(body);
   if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
   const method = ['transfer', 'bank'].includes(String(body.method || '').toLowerCase()) ? 'transfer' : 'cash';
+  const allocations = splitAllocationsByAmount(body.allocations, amount);
+  const primaryAllocation = allocationPrimary(allocations);
   const now = nowIso();
   const receipt = {
     ...body,
@@ -146,10 +186,13 @@ async function createReceipt(body = {}) {
     staffName: String(body.staffName || '').trim(),
     note: String(body.note || '').trim(),
     refType: body.refType || 'receipt',
-    refId: body.refId || body.orderId || body.salesOrderId || '',
-    refCode: body.refCode || body.orderCode || body.salesOrderCode || '',
-    orderId: body.orderId || body.salesOrderId || body.refId || '',
-    salesOrderId: body.salesOrderId || body.orderId || body.refId || '',
+    refId: body.refId || body.orderId || body.salesOrderId || primaryAllocation.orderId || '',
+    refCode: body.refCode || body.orderCode || body.salesOrderCode || primaryAllocation.orderCode || '',
+    orderId: body.orderId || body.salesOrderId || body.refId || primaryAllocation.orderId || '',
+    orderCode: body.orderCode || body.salesOrderCode || body.refCode || primaryAllocation.orderCode || '',
+    salesOrderId: body.salesOrderId || body.orderId || body.refId || primaryAllocation.orderId || '',
+    salesOrderCode: body.salesOrderCode || body.orderCode || body.refCode || primaryAllocation.orderCode || '',
+    allocations,
     status: body.status === 'void' || body.status === 'cancelled' ? 'void' : 'posted',
     voidReason: body.voidReason || '',
     voidedAt: body.voidedAt || '',
@@ -274,6 +317,23 @@ async function createDebtCollection(body = {}) {
   const date = String(body.date || today()).slice(0, 10);
   const staffName = String(body.staffName || '').trim();
   const note = String(body.note || '').trim();
+  const allAllocations = parseAllocations(body.allocations);
+  const allocatedTotal = allAllocations.reduce((total, row) => total + toNumber(row.amount), 0);
+  if (allAllocations.length && allocatedTotal + 0.0001 < totalAmount) {
+    return { error: 'Tổng tiền phân bổ theo đơn nhỏ hơn tổng tiền cần thu/trả.', status: 400 };
+  }
+  let allocationCursor = allAllocations.slice();
+  const takeAllocations = (amount) => {
+    const selected = splitAllocationsByAmount(allocationCursor, amount);
+    let remain = toNumber(amount);
+    allocationCursor = allocationCursor.map((row) => {
+      if (remain <= 0) return row;
+      const used = Math.min(toNumber(row.amount), remain);
+      remain -= used;
+      return { ...row, amount: toNumber(row.amount) - used };
+    }).filter((row) => toNumber(row.amount) > 0);
+    return selected;
+  };
   const docs = { receipts: [], returnOrder: null };
 
   if (cashAmount > 0) {
@@ -285,6 +345,7 @@ async function createDebtCollection(body = {}) {
       customerName: customer.name || '',
       method: 'cash',
       amount: cashAmount,
+      allocations: takeAllocations(cashAmount),
       staffName,
       note: note || 'Thu tiền mặt công nợ',
       refType: 'debt_collection'
@@ -302,6 +363,7 @@ async function createDebtCollection(body = {}) {
       customerName: customer.name || '',
       method: 'transfer',
       amount: transferAmount,
+      allocations: takeAllocations(transferAmount),
       staffName,
       note: note || 'Thu chuyển khoản công nợ',
       refType: 'debt_collection'
@@ -312,6 +374,8 @@ async function createDebtCollection(body = {}) {
 
   if (returnAmount > 0) {
     const now = nowIso();
+    const returnAllocations = takeAllocations(returnAmount);
+    const primaryReturnAllocation = allocationPrimary(returnAllocations);
     const returnOrder = {
       id: makeId('RO'),
       code: await buildManualReturnCode(),
@@ -319,8 +383,9 @@ async function createDebtCollection(body = {}) {
       customerId: customer.id || customer.code || '',
       customerCode: customer.code || '',
       customerName: customer.name || '',
-      salesOrderId: String(body.orderId || body.salesOrderId || '').trim(),
-      salesOrderCode: String(body.orderCode || body.salesOrderCode || '').trim(),
+      salesOrderId: primaryReturnAllocation.salesOrderId || String(body.orderId || body.salesOrderId || '').trim(),
+      salesOrderCode: primaryReturnAllocation.salesOrderCode || String(body.orderCode || body.salesOrderCode || '').trim(),
+      allocations: returnAllocations,
       items: [],
       totalQuantity: 0,
       totalAmount: returnAmount,
@@ -332,31 +397,33 @@ async function createDebtCollection(body = {}) {
       createdAt: now,
       updatedAt: now
     };
-    const payment = {
-      id: makeId('PM'),
-      date,
-      type: 'return_manual',
-      account: 'AR',
-      refType: 'RETURN_ORDER',
-      refId: returnOrder.id,
-      refCode: returnOrder.code,
-      orderId: returnOrder.salesOrderId,
-      orderCode: returnOrder.salesOrderCode,
-      customerId: returnOrder.customerId,
-      customerCode: returnOrder.customerCode,
-      customerName: returnOrder.customerName,
-      debit: 0,
-      credit: returnAmount,
-      amount: returnAmount,
-      note: returnOrder.note,
-      status: 'posted',
-      source: 'debt_collection_manual_return',
-      createdAt: now,
-      updatedAt: now
-    };
+    const payments = (returnAllocations.length ? returnAllocations : [{ orderId: returnOrder.salesOrderId, orderCode: returnOrder.salesOrderCode, amount: returnAmount }])
+      .map((allocation, index) => ({
+        id: `AR-RETURN-${returnOrder.id}-${allocation.orderId || allocation.orderCode || index + 1}`,
+        code: `AR-RETURN-${returnOrder.code}-${index + 1}`,
+        date,
+        type: 'return_manual',
+        account: 'AR',
+        refType: 'RETURN_ORDER',
+        refId: returnOrder.id,
+        refCode: returnOrder.code,
+        orderId: allocation.orderId || '',
+        orderCode: allocation.orderCode || '',
+        customerId: returnOrder.customerId,
+        customerCode: returnOrder.customerCode,
+        customerName: returnOrder.customerName,
+        debit: 0,
+        credit: toNumber(allocation.amount),
+        amount: toNumber(allocation.amount),
+        note: returnOrder.note,
+        status: 'posted',
+        source: 'debt_collection_manual_return',
+        createdAt: now,
+        updatedAt: now
+      }));
     await withMongoTransaction(async (session) => {
       await returnOrderRepository.upsert(returnOrder, { session });
-      await paymentRepository.upsert(payment, { session });
+      await Promise.all(payments.map((payment) => paymentRepository.upsert(payment, { session })));
     });
     docs.returnOrder = returnOrder;
   }

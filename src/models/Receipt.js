@@ -7,6 +7,11 @@ module.exports = flexModel('Receipt', 'receipts', {
   customerName: String,
   method: String,
   amount: Number,
+  allocations: Array,
+  orderId: String,
+  orderCode: String,
+  salesOrderId: String,
+  salesOrderCode: String,
   status: String,
   createdAt: String,
   updatedAt: String
