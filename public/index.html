@@ -471,20 +471,14 @@
             <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
           </div>
 
-          <div class="delivery-filter-bar sticky-filter-bar">
-            <input id="deliveryDateFilter" type="date" title="Ngày giao" />
-            <input id="deliveryStaffFilter" placeholder="Nhân viên giao hàng" />
-            <input id="deliverySearchInput" placeholder="Tìm mã đơn, khách hàng, địa chỉ..." />
-            <input id="deliverySalesmanFilter" placeholder="Lọc NV bán" />
-            <input id="deliveryRouteFilter" placeholder="Lọc tuyến giao" />
-            <select id="deliveryStatusFilter">
-              <option value="">Tất cả trạng thái</option>
-              <option value="waiting">Chờ giao</option>
-              <option value="delivering">Đang giao</option>
-              <option value="delivered">Đã giao</option>
-              <option value="unpaid">Chưa thu tiền</option>
-              <option value="late">Quá giờ</option>
-            </select>
+          <div class="delivery-filter-bar sticky-filter-bar delivery-simple-filter">
+            <label class="delivery-filter-field">Ngày giao hàng
+              <input id="deliveryDateFilter" type="date" title="Ngày giao" />
+            </label>
+            <label class="delivery-filter-field autocomplete">Nhân viên giao hàng
+              <input id="deliveryStaffFilter" placeholder="Gõ mã hoặc tên NV giao..." autocomplete="off" />
+              <div id="deliveryStaffFilterSuggestions" class="suggestions" hidden></div>
+            </label>
           </div>
 
           <div class="delivery-kpi-grid compact-delivery-kpis">

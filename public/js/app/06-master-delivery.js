@@ -369,8 +369,7 @@ async function loadDeliveryToday(){
     if(deliveryLateKpi)deliveryLateKpi.textContent=kpi.late||0;
     const routes=json.routes||[];
     if(deliveryRouteSummary){
-      const formulaNote=`<div class="route-pill formula-pill"><strong>Công thức app</strong><span>${escapeHtml(json.formula||'Ngày giao + nhân viên giao + trạng thái chưa hoàn tất')}</span><small>Không lấy theo ngày tạo đơn</small></div>`;
-      deliveryRouteSummary.innerHTML=formulaNote+(routes.length?routes.map(r=>`<div class="route-pill"><strong>${escapeHtml(r.routeName||'Chưa có tuyến')}</strong><span>${r.orderCount} đơn</span><small>NV giao: ${escapeHtml(r.deliveryStaffName||r.deliveryStaffCode||'Chưa gán')}</small></div>`).join(''):'');
+      deliveryRouteSummary.innerHTML=routes.length?routes.map(r=>`<div class="route-pill"><strong>${escapeHtml(r.routeName||'Chưa có tuyến')}</strong><span>${r.orderCount} đơn</span><small>NV giao: ${escapeHtml(r.deliveryStaffName||r.deliveryStaffCode||'Chưa gán')}</small></div>`).join(''):'';
     }
     if(!rows.length){
       deliveryTodayList.innerHTML='<div class="empty-state">Không có đơn đi giao theo bộ lọc hiện tại.</div>';
@@ -379,25 +378,22 @@ async function loadDeliveryToday(){
     }
     deliveryTodayList.innerHTML=rows.map(row=>{
       const cls=deliveryStatusClass(row);
-      const paid=Number(row.cashCollected||0)+Number(row.bankCollected||0)+Number(row.returnAmount||0);
-      return `<article class="delivery-card delivery-compact-card ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
-        <div class="delivery-card-top">
-          <div>
-            <strong>${escapeHtml(row.orderCode||'')}</strong>
-            <b>${escapeHtml(row.customerName||'')}</b>
-            <small>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</small>
-          </div>
-          <span class="delivery-badge">${deliveryStatusLabel(row.visualStatus||row.deliveryStatus)}</span>
+      const cash=Number(row.cashCollected||0);
+      const bank=Number(row.bankCollected||0);
+      const reward=Number(row.rewardAmount||0);
+      const returned=Number(row.returnAmount||0);
+      return `<article class="delivery-card delivery-compact-card delivery-customer-card ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
+        <div class="delivery-customer-head">
+          <b>${escapeHtml(row.customerName||'Chưa có tên khách')}</b>
+          <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
         </div>
-        <div class="delivery-compact-meta">
-          <span>NVGH: <b>${escapeHtml(debtPersonLabel(row.deliveryStaffCode,row.deliveryStaffName))}</b></span>
-          <span>Tuyến: <b>${escapeHtml(row.routeName||'Chưa gán')}</b></span>
-          <span>Ngày: <b>${escapeHtml(row.deliveryDate||'')}</b></span>
-        </div>
-        <div class="delivery-compact-money">
+        <div class="delivery-customer-money">
           <span>Phải thu <b>${money(row.debtBeforeCollection ?? row.debt)}</b></span>
-          <span>Đã xử lý <b class="cash-in">${money(paid)}</b></span>
-          <span>Còn nợ <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">${money(row.debt)}</b></span>
+          <span>Tiền mặt <b class="cash-in">${money(cash)}</b></span>
+          <span>Chuyển khoản <b class="cash-in">${money(bank)}</b></span>
+          <span>Trả thưởng <b>${money(reward)}</b></span>
+          <span>Tổng hàng trả <b>${money(returned)}</b></span>
+          <span>Công nợ <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">${money(row.debt)}</b></span>
         </div>
       </article>`;
     }).join('');

@@ -117,5 +117,21 @@
       ],
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
+    ,{
+      key: 'deliveryStaffFilter',
+      type: 'staff',
+      inputId: 'deliveryStaffFilter',
+      boxId: 'deliveryStaffFilterSuggestions',
+      source: 'users',
+      roles: ['delivery','admin'],
+      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'deliveryStaffFilter', value: 'codeOrUsernameOrId' }
+      ],
+      afterSelect: 'loadDeliveryToday',
+      emptyText: 'Không tìm thấy nhân viên giao hàng'
+    }
   ];
 })();

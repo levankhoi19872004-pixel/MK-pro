@@ -3484,3 +3484,62 @@ button.danger:hover{background:#fecaca}
   .delivery-edit-total-box{grid-template-columns:1fr}
   .delivery-return-line{grid-template-columns:1fr 78px}
 }
+
+/* V45 delivery list cleanup: chỉ lọc theo ngày giao + NV giao, danh sách hiển thị đúng các số tiền cần xử lý */
+#deliveryTodayTab .delivery-simple-filter,
+#deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{
+  grid-template-columns:180px minmax(220px, 1fr)!important;
+  max-width:620px;
+  align-items:end;
+}
+#deliveryTodayTab .delivery-filter-field{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  font-size:12px;
+  font-weight:800;
+  color:#64748b;
+  margin:0;
+}
+#deliveryTodayTab .delivery-filter-field input{
+  margin:0;
+  height:38px;
+}
+#deliveryTodayTab #deliveryStaffFilterSuggestions{
+  top:100%;
+  left:0;
+  right:0;
+}
+.delivery-customer-card{gap:10px!important;}
+.delivery-customer-head{display:grid;gap:4px;min-width:0;}
+.delivery-customer-head b{font-size:16px;color:#0f172a;line-height:1.2;}
+.delivery-customer-head small{font-size:12px;color:#64748b;line-height:1.35;}
+.delivery-customer-money{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;
+}
+.delivery-customer-money span{
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  padding:7px 8px;
+  font-size:11.5px;
+  color:#64748b;
+  min-width:0;
+}
+.delivery-customer-money b{
+  display:block;
+  margin-top:2px;
+  color:#0f172a;
+  font-size:13px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media(max-width:680px){
+  #deliveryTodayTab .delivery-simple-filter,
+  #deliveryTodayTab .delivery-filter-bar.delivery-simple-filter,
+  .delivery-customer-money{grid-template-columns:1fr!important;max-width:none;}
+}
+#deliveryTodayTab #deliveryRouteSummary{display:none!important;}
