@@ -106,6 +106,23 @@ function deliveryRewardAmount(order = {}) {
   return toNumber(order.rewardAmount ?? order.displayRewardAmount ?? order.bonusReturnAmount ?? 0);
 }
 
+function isActiveReturnOrder(row = {}) {
+  return !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase());
+}
+
+function returnAmountForSalesOrder(returnOrders = [], order = {}) {
+  const orderId = String(order.id || '').trim();
+  const orderCode = String(order.code || '').trim();
+  return returnOrders
+    .filter(isActiveReturnOrder)
+    .filter((row) => {
+      const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
+      const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
+      return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
+    })
+    .reduce((sum, row) => sum + toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0), 0);
+}
+
 
 function normalizeDeliveryReturnItems(rawItems = [], salesOrder = {}) {
   const sourceItems = new Map((Array.isArray(salesOrder.items) ? salesOrder.items : []).map((item) => [
@@ -289,6 +306,7 @@ async function listDeliveryToday(query = {}) {
   const status = normalizeText(query.status);
 
   const masterOrders = await listMasterOrders({ excludeInactive: 1 });
+  const returnOrders = await returnOrderRepository.findAll();
   const rows = [];
 
   for (const master of masterOrders) {
@@ -298,6 +316,12 @@ async function listDeliveryToday(query = {}) {
       if (isInactiveStatus(child)) continue;
       const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
       if (deliveryDate !== date) continue;
+
+      const syncedReturnAmount = returnAmountForSalesOrder(returnOrders, child);
+      if (syncedReturnAmount > 0 || deliveryReturnAmount(child) > 0) {
+        child.returnAmount = syncedReturnAmount;
+        child.returnedAmount = syncedReturnAmount;
+      }
 
       const row = {
         id: child.id || child.code,

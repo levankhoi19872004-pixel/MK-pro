@@ -39,6 +39,30 @@ function createMobileDeliveryService(ctx) {
     ));
   }
 
+
+  function getActiveReturnOrdersForSalesOrder(data = {}, order = {}) {
+    const orderId = String(order.id || '').trim();
+    const orderCode = String(order.code || '').trim();
+    return (Array.isArray(data.returnOrders) ? data.returnOrders : []).filter((row) => {
+      const status = String(row.status || '').toLowerCase();
+      if (['cancelled', 'canceled', 'void', 'deleted'].includes(status)) return false;
+      const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
+      const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
+      return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
+    });
+  }
+
+  function syncOrderReturnAmountFromReturnOrders(data = {}, order = {}) {
+    const total = getActiveReturnOrdersForSalesOrder(data, order)
+      .reduce((sum, row) => sum + toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0), 0);
+    order.returnAmount = total;
+    order.returnedAmount = total;
+    order.debtBeforeCollection = deliveryDebtBase(order);
+    order.debtAmount = calculateDeliveryDebt(order);
+    order.debt = order.debtAmount;
+    return total;
+  }
+
   async function listDeliveryOrders({ query = {}, mobileUser }) {
     const data = await repo.getPrimaryDataSnapshot();
     const targetDate = String(query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
@@ -52,7 +76,16 @@ function createMobileDeliveryService(ctx) {
       .filter((order) => isOrderApprovedForDelivery(order))
       .filter((order) => getOrderDeliveryDate(data, order) === targetDate)
       .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser))
-      .map((order) => buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate))
+      .map((order) => {
+        syncOrderReturnAmountFromReturnOrders(data, order);
+        const row = buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate);
+        row.returnAmount = toNumber(order.returnAmount || 0);
+        row.returnedAmount = row.returnAmount;
+        row.debtBeforeCollection = deliveryDebtBase(row);
+        row.debtAmount = calculateDeliveryDebt(row);
+        row.debt = row.debtAmount;
+        return row;
+      })
       .filter((order) => includeCompleted || isDeliveryOrderActive(order.deliveryStatus));
 
     if (q) {
@@ -123,6 +156,7 @@ function createMobileDeliveryService(ctx) {
     const order = repo.findSalesOrder(data, orderId);
 
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
+    syncOrderReturnAmountFromReturnOrders(data, order);
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
     if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
     const currentDebt = calculateDeliveryDebt(order);
@@ -135,6 +169,41 @@ function createMobileDeliveryService(ctx) {
     order.deliveredAt = new Date().toISOString();
     if (status === 'success') order.status = 'delivered';
     if (status === 'failed') order.status = 'delivery_failed';
+
+    if (status === 'failed') {
+      const fullItems = buildReturnItemsFromRequest(order, [], 'full');
+      if (fullItems.length) {
+        const date = new Date().toISOString().slice(0, 10);
+        const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
+        const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
+        const result = await returnOrderService.createPendingReturnOrder({
+          id: stableReturnId,
+          salesOrderId: order.id,
+          salesOrderCode: order.code,
+          orderId: order.id,
+          orderCode: order.code,
+          customerId: customer.id || order.customerId || '',
+          customerCode: customer.code || order.customerCode || '',
+          customerName: customer.name || order.customerName || '',
+          date,
+          items: fullItems,
+          staffCode: mobileUser.code || '',
+          staffName: mobileUser.name || '',
+          deliveryStaffCode: mobileUser.code || '',
+          deliveryStaffName: mobileUser.name || '',
+          note: note || `Không giao được - trả toàn bộ đơn ${order.code}`,
+          source: 'mobile_delivery_return',
+          refType: 'mobileDeliveryFullReturn',
+          returnType: 'full'
+        });
+        if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
+        order.returnAmount = toNumber(result.returnOrder.totalAmount || result.returnOrder.amount);
+        order.returnedAmount = order.returnAmount;
+      }
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
+    }
 
     if (status === 'success' && collectAmount > 0) {
       const date = new Date().toISOString().slice(0, 10);
@@ -205,7 +274,9 @@ function createMobileDeliveryService(ctx) {
 
     // App giao hàng chỉ lập phiếu trả ở trạng thái chờ kho nhận.
     // Chỉ khi Đơn tổng trả hàng được kho xác nhận mới nhập tồn và giảm công nợ/doanh thu.
+    const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
     const result = await returnOrderService.createPendingReturnOrder({
+      id: stableReturnId,
       salesOrderId: order.id,
       salesOrderCode: order.code,
       orderId: order.id,
@@ -228,7 +299,8 @@ function createMobileDeliveryService(ctx) {
     if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
 
     const returnOrder = result.returnOrder;
-    order.returnAmount = toNumber(order.returnAmount) + toNumber(returnOrder.totalAmount || returnOrder.amount);
+    order.returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount);
+    order.returnedAmount = order.returnAmount;
     order.debtBeforeCollection = deliveryDebtBase(order);
     order.debtAmount = calculateDeliveryDebt(order);
     order.debt = order.debtAmount;

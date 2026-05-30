@@ -110,7 +110,8 @@ async function findExistingReturnOrder(body = {}) {
     if (id && String(row.id || '').trim() === id) return true;
     if (code && String(row.code || '').trim() === code) return true;
     if (erpKey && String(row.erpDeliveryReturnKey || '').trim() === erpKey) return true;
-    if (source === 'erp_delivery_return' && String(row.source || '').trim() === 'erp_delivery_return') {
+    const deliveryReturnSources = ['erp_delivery_return', 'mobile_delivery_return'];
+    if (deliveryReturnSources.includes(source) && deliveryReturnSources.includes(String(row.source || '').trim())) {
       if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
       if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
     }
