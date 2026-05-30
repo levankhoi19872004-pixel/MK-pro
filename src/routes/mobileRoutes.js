@@ -446,11 +446,13 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
   const existing = await ReturnOrder.findOne({
     $or: [
       { id: stableId },
-      { salesOrderId: getDocId(order), source: { $in: ['mobile_delivery', 'mobile_delivery_return'] } },
-      { salesOrderCode: orderCode(order), source: { $in: ['mobile_delivery', 'mobile_delivery_return'] } }
+      { salesOrderId: getDocId(order) },
+      { salesOrderCode: orderCode(order) },
+      { orderId: getDocId(order) },
+      { orderCode: orderCode(order) }
     ],
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] }
-  });
+  }).sort({ updatedAt: -1, createdAt: -1 });
   const payload = {
     id: existing?.id || stableId,
     code: existing?.code || buildCode('THH'),
@@ -471,7 +473,7 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
     status: 'waiting_receive',
     returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
     warehouseReceiveStatus: existing?.warehouseReceiveStatus || 'waiting_receive',
-    source: 'mobile_delivery_return',
+    source: 'returnOrders',
     refType: 'mobileDeliveryReturn',
     staffCode: req.mobileUser?.code || '',
     staffName: req.mobileUser?.name || '',
@@ -488,10 +490,12 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
   // Hủy các phiếu mobile trùng cũ của cùng đơn để Đơn trả hàng không bị nhân đôi.
   await ReturnOrder.updateMany({
     _id: { $ne: saved._id },
-    source: { $in: ['mobile_delivery', 'mobile_delivery_return'] },
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    returnMergeStatus: { $ne: 'merged' },
+    masterReturnOrderId: { $in: [null, '', undefined] },
+    masterReturnOrderCode: { $in: [null, '', undefined] },
     $or: [{ salesOrderId: getDocId(order) }, { salesOrderCode: orderCode(order) }, { orderId: getDocId(order) }, { orderCode: orderCode(order) }]
-  }, { $set: { status: 'cancelled', cancelReason: `Hủy phiếu mobile trùng của đơn ${orderCode(order)}`, updatedAt: now } });
+  }, { $set: { status: 'cancelled', cancelReason: `Hủy phiếu trả trùng của đơn ${orderCode(order)}`, updatedAt: now } });
   return saved;
 }
 

@@ -240,7 +240,8 @@ function renderDeliveryEditTotal(){
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
   const items=Array.isArray(row?.items)?row.items:[];
-  const savedReturns=new Map((Array.isArray(row?.returnItems)?row.returnItems:[]).map(item=>[String(item.productCode||item.code||item.productId||''), Number(item.qtyReturn||item.quantity||item.qty||0)]));
+  const savedReturnItems=Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:[]);
+  const savedReturns=new Map(savedReturnItems.map(item=>[String(item.productCode||item.code||item.productId||''), Number(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)]));
   if(!items.length){
     deliveryReturnItems.innerHTML='<div class="empty-state">Đơn này chưa có danh sách sản phẩm nên chưa thể chọn hàng trả.</div>';
     if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';

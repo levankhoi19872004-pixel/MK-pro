@@ -41,7 +41,7 @@ async function listReturnOrders(query = {}) {
   const dateTo = String(query.dateTo || '').slice(0, 10);
   const excludeInactive = String(query.excludeInactive ?? '1') !== '0';
   const orders = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
-  const seenErpDeliveryReturns = new Set();
+  const seenSalesReturns = new Set();
   return orders
     .map(toClient)
     .filter((order) => !excludeInactive || !isInactiveStatus(order))
@@ -52,12 +52,12 @@ async function listReturnOrders(query = {}) {
       return true;
     })
     .filter((order) => {
-      // ERP delivery: 1 đơn giao chỉ được hiện 1 phiếu trả. Các bản trùng cũ nếu còn trong DB sẽ bị ẩn khỏi màn hình.
-      if (String(order.source || '') !== 'erp_delivery_return') return true;
-      const key = String(order.erpDeliveryReturnKey || order.salesOrderId || order.orderId || order.salesOrderCode || order.orderCode || order.code || '').trim();
-      if (!key) return true;
-      if (seenErpDeliveryReturns.has(key)) return false;
-      seenErpDeliveryReturns.add(key);
+      // V45 chuẩn: App giao hàng và ERP đều ghi chung collection returnOrders.
+      // Vì dữ liệu cũ có thể đã sinh trùng từ nhiều source, màn danh sách chỉ hiển thị 1 phiếu hiệu lực / 1 đơn bán.
+      const salesKey = String(order.salesOrderId || order.orderId || order.salesOrderCode || order.orderCode || '').trim();
+      if (!salesKey) return true;
+      if (seenSalesReturns.has(salesKey)) return false;
+      seenSalesReturns.add(salesKey);
       return true;
     })
     .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.salesOrderCode, order.staffName, order.deliveryStaffName, order.note].some((value) => normalizeText(value).includes(q)));
@@ -102,19 +102,17 @@ async function findExistingReturnOrder(body = {}) {
   const id = String(body.id || '').trim();
   const code = String(body.code || '').trim();
   const erpKey = String(body.erpDeliveryReturnKey || '').trim();
-  const source = String(body.source || '').trim();
   const salesOrderId = String(body.salesOrderId || body.orderId || '').trim();
   const salesOrderCode = String(body.salesOrderCode || body.orderCode || '').trim();
 
   return candidates.find((row) => {
+    if (isInactiveStatus(row)) return false;
     if (id && String(row.id || '').trim() === id) return true;
     if (code && String(row.code || '').trim() === code) return true;
     if (erpKey && String(row.erpDeliveryReturnKey || '').trim() === erpKey) return true;
-    const deliveryReturnSources = ['erp_delivery_return', 'mobile_delivery_return'];
-    if (deliveryReturnSources.includes(source) && deliveryReturnSources.includes(String(row.source || '').trim())) {
-      if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
-      if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
-    }
+    // V45 chuẩn: không phân biệt source cũ/mới. 1 salesOrderId hoặc 1 salesOrderCode chỉ có 1 phiếu trả hiệu lực.
+    if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
+    if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
     return false;
   }) || null;
 }
@@ -167,7 +165,7 @@ async function buildReturnOrderDocument(body = {}) {
     status: body.status || existing?.status || 'posted',
     returnMergeStatus: body.returnMergeStatus || existing?.returnMergeStatus || 'unmerged',
     warehouseReceiveStatus: body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || (isPostedReturnStatus(body.status) ? 'received' : 'waiting_receive'),
-    source: body.source || existing?.source || 'mongo_return_order_route',
+    source: 'returnOrders',
     createdAt: existing?.createdAt || body.createdAt || nowIso(),
     updatedAt: nowIso()
   };

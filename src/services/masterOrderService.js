@@ -205,17 +205,20 @@ function normalizeDeliveryReturnItems(rawItems = [], salesOrder = {}) {
 }
 
 function buildErpDeliveryReturnKey(order = {}) {
-  return `erp_delivery_return:${order.id || order.code || ''}`;
+  return `returnOrders:${order.id || order.code || ''}`;
 }
 
 async function findErpDeliveryReturnOrders(order = {}) {
   const key = buildErpDeliveryReturnKey(order);
   const rows = await returnOrderRepository.findAll();
-  return rows.filter((row) => (
-    row.erpDeliveryReturnKey === key
-    || (row.source === 'erp_delivery_return' && String(row.salesOrderId || row.orderId || '') === String(order.id || ''))
-    || (row.source === 'erp_delivery_return' && String(row.salesOrderCode || row.orderCode || '') === String(order.code || ''))
-  ));
+  return rows.filter((row) => {
+    if (!isActiveReturnOrder(row)) return false;
+    const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
+    const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
+    return row.erpDeliveryReturnKey === key
+      || (order.id && rowOrderId === String(order.id || '').trim())
+      || (order.code && rowOrderCode === String(order.code || '').trim());
+  });
 }
 
 async function findErpDeliveryReturnOrder(order = {}) {
@@ -292,7 +295,7 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
     status: 'waiting_receive',
     returnMergeStatus: 'unmerged',
     warehouseReceiveStatus: 'waiting_receive',
-    source: 'erp_delivery_return',
+    source: 'returnOrders',
     refType: 'erpDeliveryReturn',
     deliveryStaffCode: updatedOrder.deliveryStaffCode || '',
     deliveryStaffName: updatedOrder.deliveryStaffName || '',

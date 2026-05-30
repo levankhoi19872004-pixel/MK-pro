@@ -265,7 +265,7 @@ function createMobileDeliveryService(ctx) {
           deliveryStaffCode: mobileUser.code || '',
           deliveryStaffName: mobileUser.name || '',
           note: note || `Không giao được - trả toàn bộ đơn ${order.code}`,
-          source: 'mobile_delivery_return',
+          source: 'returnOrders',
           refType: 'mobileDeliveryFullReturn',
           returnType: 'full'
         });
@@ -364,7 +364,7 @@ function createMobileDeliveryService(ctx) {
       deliveryStaffCode: mobileUser.code || '',
       deliveryStaffName: mobileUser.name || '',
       note: note || (returnType === 'full' ? `App giao hàng trả cả đơn ${order.code}` : `App giao hàng trả một phần đơn ${order.code}`),
-      source: 'mobile_delivery_return',
+      source: 'returnOrders',
       refType: returnType === 'full' ? 'mobileDeliveryFullReturn' : 'mobileDeliveryPartialReturn',
       returnType
     });
@@ -389,7 +389,7 @@ function createMobileDeliveryService(ctx) {
     order.deliveryNote = note || order.deliveryNote || '';
     order.updatedAt = new Date().toISOString();
 
-    writeMobileLog(data, mobileUser, 'mobile_delivery_return', {
+    writeMobileLog(data, mobileUser, 'returnOrders', {
       refType: 'returnOrder',
       refId: returnOrder.id,
       refCode: returnOrder.code,
