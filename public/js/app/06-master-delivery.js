@@ -160,6 +160,94 @@ function deliveryTimelineHtml(row){
   ];
   return `<div class="delivery-timeline">${steps.map(step=>`<span class="${step[2]?'done':''}">${step[1]}</span>`).join('')}</div>`;
 }
+
+let deliveryRowsCache=[];
+let selectedDeliveryOrderId='';
+
+function getSelectedDeliveryRow(){
+  return deliveryRowsCache.find(row=>String(row.id)===String(selectedDeliveryOrderId));
+}
+
+function deliveryRowPaid(row){
+  return Number(row?.cashCollected||0)+Number(row?.bankCollected||0)+Number(row?.returnAmount||0);
+}
+
+function clearDeliveryEditPanel(){
+  selectedDeliveryOrderId='';
+  if(deliveryEditForm)deliveryEditForm.reset();
+  if(deliveryEditOrderId)deliveryEditOrderId.value='';
+  if(deliveryEditStatus)deliveryEditStatus.textContent='Chưa chọn đơn';
+  if(deliverySelectedSummary)deliverySelectedSummary.textContent='Chưa chọn đơn giao hàng.';
+  if(deliveryEditMessage)deliveryEditMessage.textContent='';
+  document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
+}
+window.clearDeliveryEditPanel=clearDeliveryEditPanel;
+
+function fillDeliveryEditPanel(row){
+  if(!row)return clearDeliveryEditPanel();
+  selectedDeliveryOrderId=String(row.id||'');
+  if(deliveryEditOrderId)deliveryEditOrderId.value=row.id||'';
+  if(deliveryEditOrderCode)deliveryEditOrderCode.value=row.orderCode||'';
+  if(deliveryEditCustomerName)deliveryEditCustomerName.value=row.customerName||'';
+  if(deliveryEditDate)deliveryEditDate.value=row.deliveryDate||'';
+  if(deliveryEditDeliveryStatus)deliveryEditDeliveryStatus.value=row.deliveryStatus||row.visualStatus||'waiting';
+  if(deliveryEditStaffCode)deliveryEditStaffCode.value=row.deliveryStaffCode||'';
+  if(deliveryEditStaffName)deliveryEditStaffName.value=row.deliveryStaffName||'';
+  if(deliveryEditRouteName)deliveryEditRouteName.value=row.routeName||'';
+  if(deliveryEditDebtBefore)deliveryEditDebtBefore.value=Math.round(Number(row.debtBeforeCollection ?? row.totalAmount ?? 0));
+  if(deliveryEditCash)deliveryEditCash.value=Math.round(Number(row.cashCollected||0));
+  if(deliveryEditBank)deliveryEditBank.value=Math.round(Number(row.bankCollected||0));
+  if(deliveryEditReturn)deliveryEditReturn.value=Math.round(Number(row.returnAmount||0));
+  if(deliveryEditDebt)deliveryEditDebt.value=Math.round(Number(row.debt||0));
+  if(deliveryEditNote)deliveryEditNote.value=row.deliveryNote||'';
+  if(deliveryEditStatus)deliveryEditStatus.textContent=deliveryStatusLabel(row.visualStatus||row.deliveryStatus);
+  if(deliverySelectedSummary){
+    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')}</strong> · ${escapeHtml(row.customerName||'')}<br><small>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</small><br><b>Phải thu: ${money(row.debtBeforeCollection ?? row.debt)}</b> · <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">Còn nợ: ${money(row.debt)}</b>`;
+  }
+  if(deliveryEditMessage)deliveryEditMessage.textContent='';
+  document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
+  const card=document.querySelector(`.delivery-card[data-id="${CSS.escape(String(row.id||''))}"]`);
+  if(card)card.classList.add('selected');
+}
+
+function selectDeliveryOrder(id){
+  const row=deliveryRowsCache.find(item=>String(item.id)===String(id));
+  if(row)fillDeliveryEditPanel(row);
+}
+window.selectDeliveryOrder=selectDeliveryOrder;
+
+function recalcDeliveryEditDebt(){
+  const before=Number(deliveryEditDebtBefore?.value||0);
+  const cash=Number(deliveryEditCash?.value||0);
+  const bank=Number(deliveryEditBank?.value||0);
+  const returned=Number(deliveryEditReturn?.value||0);
+  if(deliveryEditDebt)deliveryEditDebt.value=Math.max(0, Math.round(before-cash-bank-returned));
+}
+window.recalcDeliveryEditDebt=recalcDeliveryEditDebt;
+
+async function submitDeliveryEdit(event){
+  event.preventDefault();
+  if(!deliveryEditOrderId?.value){showMessage(deliveryEditMessage,'Chưa chọn đơn để sửa',true);return;}
+  const formData=new FormData(deliveryEditForm);
+  const payload=Object.fromEntries(formData.entries());
+  ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount'].forEach(key=>{
+    if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
+  });
+  try{
+    showMessage(deliveryEditMessage,'Đang lưu chỉnh sửa...');
+    const res=await fetch(`/api/master-orders/delivery-today/${encodeURIComponent(payload.orderId)}`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không lưu được chỉnh sửa');
+    showMessage(deliveryEditMessage,json.message||'Đã lưu chỉnh sửa');
+    await loadDeliveryToday();
+    if(payload.orderId)selectDeliveryOrder(payload.orderId);
+  }catch(err){showMessage(deliveryEditMessage,err.message,true);}
+}
+window.submitDeliveryEdit=submitDeliveryEdit;
 async function loadDeliveryToday(){
   if(!deliveryTodayList)return;
   const params=new URLSearchParams();
@@ -180,6 +268,7 @@ async function loadDeliveryToday(){
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được đơn đi giao');
     const rows=json.orders||[];
+    deliveryRowsCache=rows;
     if(deliveryTodayList && json.formula){ deliveryTodayList.dataset.formula=json.formula; }
     const kpi=json.kpi||{};
     if(deliveryTotalKpi)deliveryTotalKpi.textContent=kpi.totalOrders||0;
@@ -194,12 +283,13 @@ async function loadDeliveryToday(){
     }
     if(!rows.length){
       deliveryTodayList.innerHTML='<div class="empty-state">Không có đơn đi giao theo bộ lọc hiện tại.</div>';
+      clearDeliveryEditPanel();
       return;
     }
     deliveryTodayList.innerHTML=rows.map(row=>{
       const cls=deliveryStatusClass(row);
       const paid=Number(row.cashCollected||0)+Number(row.bankCollected||0)+Number(row.returnAmount||0);
-      return `<article class="delivery-card ${cls}">
+      return `<article class="delivery-card delivery-compact-card ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
         <div class="delivery-card-top">
           <div>
             <strong>${escapeHtml(row.orderCode||'')}</strong>
@@ -208,26 +298,19 @@ async function loadDeliveryToday(){
           </div>
           <span class="delivery-badge">${deliveryStatusLabel(row.visualStatus||row.deliveryStatus)}</span>
         </div>
-        <div class="delivery-info-grid">
-          <span>NV bán <b>${escapeHtml(debtPersonLabel(row.salesmanCode,row.salesmanName))}</b></span>
-          <span>NV giao <b>${escapeHtml(debtPersonLabel(row.deliveryStaffCode,row.deliveryStaffName))}</b></span>
-          <span>Tuyến <b>${escapeHtml(row.routeName||'Chưa gán')}</b></span>
-          <span>Ngày giao <b>${escapeHtml(row.deliveryDate||'')}</b></span>
+        <div class="delivery-compact-meta">
+          <span>NVGH: <b>${escapeHtml(debtPersonLabel(row.deliveryStaffCode,row.deliveryStaffName))}</b></span>
+          <span>Tuyến: <b>${escapeHtml(row.routeName||'Chưa gán')}</b></span>
+          <span>Ngày: <b>${escapeHtml(row.deliveryDate||'')}</b></span>
         </div>
-        <div class="delivery-money-grid">
-          <span>Tổng tiền <b>${money(row.totalAmount)}</b></span>
+        <div class="delivery-compact-money">
           <span>Phải thu <b>${money(row.debtBeforeCollection ?? row.debt)}</b></span>
           <span>Đã xử lý <b class="cash-in">${money(paid)}</b></span>
           <span>Còn nợ <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">${money(row.debt)}</b></span>
         </div>
-        <div class="delivery-collection-row">
-          <span>Tiền mặt: <b>${money(row.cashCollected||0)}</b></span>
-          <span>Chuyển khoản: <b>${money(row.bankCollected||0)}</b></span>
-          <span>Hàng trả về: <b>${money(row.returnAmount||0)}</b></span>
-        </div>
-        ${deliveryTimelineHtml(row)}
       </article>`;
     }).join('');
+    if(selectedDeliveryOrderId && !getSelectedDeliveryRow()) clearDeliveryEditPanel();
   }catch(err){
     deliveryTodayList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
   }

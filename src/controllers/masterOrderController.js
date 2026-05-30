@@ -36,6 +36,15 @@ async function listDeliveryToday(req, res) {
   }
 }
 
+async function updateDeliveryTodayOrder(req, res) {
+  try {
+    const result = await masterOrderService.updateDeliveryTodayOrder(req.params.id, req.body || {});
+    return handleServiceResult(res, result, 200, (r) => ({ message: `Đã cập nhật đơn giao ${r.salesOrder.code || r.salesOrder.id}`, order: r.salesOrder }));
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không cập nhật được đơn giao hàng' });
+  }
+}
+
 async function get(req, res) {
   try {
     const result = await masterOrderService.getMasterOrder(req.params.id);
@@ -81,4 +90,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { listUnmergedChildOrders, listDeliveryToday, list, get, create, update, cancel, remove };
+module.exports = { listUnmergedChildOrders, listDeliveryToday, updateDeliveryTodayOrder, list, get, create, update, cancel, remove };

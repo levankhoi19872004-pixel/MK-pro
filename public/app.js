@@ -87,6 +87,9 @@ if(deliverySalesmanFilter)deliverySalesmanFilter.addEventListener('input',loadDe
 if(deliveryStaffFilter)deliveryStaffFilter.addEventListener('input',loadDeliveryToday);
 if(deliveryRouteFilter)deliveryRouteFilter.addEventListener('input',loadDeliveryToday);
 if(deliveryStatusFilter)deliveryStatusFilter.addEventListener('change',loadDeliveryToday);
+if(deliveryEditForm)deliveryEditForm.addEventListener('submit',submitDeliveryEdit);
+if(deliveryEditResetButton)deliveryEditResetButton.addEventListener('click',clearDeliveryEditPanel);
+[deliveryEditDebtBefore,deliveryEditCash,deliveryEditBank,deliveryEditReturn].filter(Boolean).forEach(input=>input.addEventListener('input',recalcDeliveryEditDebt));
 if(reloadReportsButton)reloadReportsButton.addEventListener('click',loadReports);
 if(reportFromDate)reportFromDate.addEventListener('change',loadReports);
 if(reportToDate)reportToDate.addEventListener('change',loadReports);

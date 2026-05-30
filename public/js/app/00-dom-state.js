@@ -118,6 +118,26 @@ const deliveryDoneKpi=document.getElementById('deliveryDoneKpi');
 const deliveryUnpaidKpi=document.getElementById('deliveryUnpaidKpi');
 const deliveryLateKpi=document.getElementById('deliveryLateKpi');
 
+const deliveryEditForm=document.getElementById('deliveryEditForm');
+const deliveryEditStatus=document.getElementById('deliveryEditStatus');
+const deliveryEditMessage=document.getElementById('deliveryEditMessage');
+const deliverySelectedSummary=document.getElementById('deliverySelectedSummary');
+const deliveryEditResetButton=document.getElementById('deliveryEditResetButton');
+const deliveryEditOrderId=document.getElementById('deliveryEditOrderId');
+const deliveryEditOrderCode=document.getElementById('deliveryEditOrderCode');
+const deliveryEditCustomerName=document.getElementById('deliveryEditCustomerName');
+const deliveryEditDate=document.getElementById('deliveryEditDate');
+const deliveryEditDeliveryStatus=document.getElementById('deliveryEditDeliveryStatus');
+const deliveryEditStaffCode=document.getElementById('deliveryEditStaffCode');
+const deliveryEditStaffName=document.getElementById('deliveryEditStaffName');
+const deliveryEditRouteName=document.getElementById('deliveryEditRouteName');
+const deliveryEditDebtBefore=document.getElementById('deliveryEditDebtBefore');
+const deliveryEditCash=document.getElementById('deliveryEditCash');
+const deliveryEditBank=document.getElementById('deliveryEditBank');
+const deliveryEditReturn=document.getElementById('deliveryEditReturn');
+const deliveryEditDebt=document.getElementById('deliveryEditDebt');
+const deliveryEditNote=document.getElementById('deliveryEditNote');
+
 const masterOrderForm=document.getElementById('masterOrderForm');
 const unmergedOrderList=document.getElementById('unmergedOrderList');
 const unmergedOrderCount=document.getElementById('unmergedOrderCount');

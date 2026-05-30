@@ -104,7 +104,7 @@ async function listDeliveryToday(query = {}) {
   const route = normalizeText(query.route || query.routeName);
   const status = normalizeText(query.status);
 
-  const masterOrders = await listMasterOrders({ dateFrom: date, dateTo: date, excludeInactive: 1 });
+  const masterOrders = await listMasterOrders({ excludeInactive: 1 });
   const rows = [];
 
   for (const master of masterOrders) {
@@ -173,6 +173,49 @@ async function listDeliveryToday(query = {}) {
       late: rows.filter((row) => row.isLate).length
     }
   };
+}
+
+
+async function updateDeliveryTodayOrder(id, body = {}) {
+  const current = await orderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn giao hàng', status: 404 };
+  if (isInactiveStatus(current)) return { error: 'Đơn đã hủy/xóa, không thể chỉnh sửa giao hàng', status: 400 };
+
+  const debtBeforeCollection = Number(body.debtBeforeCollection ?? current.debtBeforeCollection ?? current.totalAmount ?? current.debtAmount ?? 0) || 0;
+  const cashCollected = Number(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0) || 0;
+  const bankCollected = Number(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0) || 0;
+  const returnAmount = Number(body.returnAmount ?? current.returnAmount ?? 0) || 0;
+  const calculatedDebt = Math.max(0, debtBeforeCollection - cashCollected - bankCollected - returnAmount);
+  const debtAmount = Number(body.debtAmount ?? calculatedDebt) || 0;
+  const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
+
+  const updated = {
+    ...current,
+    deliveryDate: String(body.deliveryDate || current.deliveryDate || current.date || today()).slice(0, 10),
+    deliveryStatus,
+    status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'posted'),
+    deliveryStaffCode: String(body.deliveryStaffCode ?? current.deliveryStaffCode ?? '').trim(),
+    deliveryStaffName: String(body.deliveryStaffName ?? current.deliveryStaffName ?? '').trim(),
+    routeName: String(body.routeName ?? current.routeName ?? current.deliveryRoute ?? '').trim(),
+    deliveryRoute: String(body.routeName ?? current.deliveryRoute ?? current.routeName ?? '').trim(),
+    debtBeforeCollection,
+    cashCollected,
+    cashAmount: cashCollected,
+    bankCollected,
+    transferAmount: bankCollected,
+    bankAmount: bankCollected,
+    returnAmount,
+    debtAmount,
+    debt: debtAmount,
+    deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),
+    updatedAt: nowIso()
+  };
+
+  await withMongoTransaction(async (session) => {
+    await orderRepository.upsert(updated, { session });
+  });
+
+  return { salesOrder: updated };
 }
 
 async function createMasterOrder(body = {}) {
@@ -343,6 +386,7 @@ module.exports = {
   listUnmergedChildOrders,
   listMasterOrders,
   listDeliveryToday,
+  updateDeliveryTodayOrder,
   getMasterOrder,
   createMasterOrder,
   updateMasterOrder,
