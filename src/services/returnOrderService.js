@@ -30,11 +30,26 @@ function toClient(order) {
   };
 }
 
+function isInactiveStatus(row = {}) {
+  const status = String(row.status || '').toLowerCase();
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
+}
+
 async function listReturnOrders(query = {}) {
   const q = normalizeText(query.q);
+  const dateFrom = String(query.dateFrom || '').slice(0, 10);
+  const dateTo = String(query.dateTo || '').slice(0, 10);
+  const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
   const orders = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   return orders
     .map(toClient)
+    .filter((order) => !excludeInactive || !isInactiveStatus(order))
+    .filter((order) => {
+      const d = String(order.date || order.documentDate || order.createdAt || '').slice(0, 10);
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    })
     .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.salesOrderCode, order.staffName, order.note].some((value) => normalizeText(value).includes(q)));
 }
 

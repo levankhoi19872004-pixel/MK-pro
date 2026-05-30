@@ -230,12 +230,17 @@ async function voidReceipt(id){
 async function loadReturnOrders(){
   if(!returnOrderTable)return;
   const q=returnOrderSearchInput?returnOrderSearchInput.value.trim():'';
-  const url=q?`/api/return-orders?q=${encodeURIComponent(q)}`:'/api/return-orders';
+  const params=new URLSearchParams();
+  if(q)params.set('q',q);
+  params.set('dateFrom', returnOrderDateFrom?.value || today());
+  params.set('dateTo', returnOrderDateTo?.value || returnOrderDateFrom?.value || today());
+  params.set('excludeInactive','1');
+  const url=`/api/return-orders?${params.toString()}`;
   try{
     const res=await fetch(url);
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
-    const rows=json.returnOrders||json.returns||[];
+    const rows=(json.returnOrders||json.returns||[]).filter(isActiveDocument);
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
     if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · Tổng giảm nợ ${money(totalValue)} · Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>`;
     if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="10">Chưa có đơn trả hàng.</td></tr>';return}

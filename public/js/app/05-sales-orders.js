@@ -175,10 +175,15 @@ function printSelectedImportOrders(){
   const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In gộp phiếu nhập</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
 }
 window.printSelectedImportOrders=printSelectedImportOrders;
+function isActiveDocument(row){
+  const status=String(row?.status||'').toLowerCase();
+  return !['cancelled','canceled','void','deleted','removed'].includes(status) && !row?.deletedAt;
+}
+
 async function loadImportOrders(){
   try{
-    const res=await fetch('/api/import-orders');const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
-    const orders=json.importOrders||[];importOrderCount.textContent=`${orders.length} phiếu nhập`;
+    const res=await fetch('/api/import-orders?excludeInactive=1');const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
+    const orders=(json.importOrders||[]).filter(isActiveDocument);importOrderCount.textContent=`${orders.length} phiếu nhập`;
     if(!orders.length){importOrderList.innerHTML='Chưa có phiếu nhập nào.';return}
     window.__importOrdersCache=orders;
     importOrderList.innerHTML=`<div class="bulk-actions"><button class="secondary small" onclick="printSelectedImportOrders()">In gộp phiếu đã chọn</button></div>`+orders.map((o,idx)=>`<div class="order-card">
@@ -264,12 +269,16 @@ window.cancelSalesOrder=cancelSalesOrder;
 
 async function loadSalesOrders(){
   try{
-    const res=await fetch('/api/sales-orders');const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
-    const allOrders=json.salesOrders||[];
     const q=String(salesOrderSearchInput?.value||'').trim().toLowerCase();
     const source=String(salesOrderSourceFilter?.value||'').trim().toUpperCase();
-    const dateFrom=String(salesOrderDateFrom?.value||'').trim();
-    const dateTo=String(salesOrderDateTo?.value||'').trim();
+    const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
+    const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
+    const params=new URLSearchParams();
+    if(dateFrom)params.set('dateFrom',dateFrom);
+    if(dateTo)params.set('dateTo',dateTo);
+    params.set('excludeInactive','1');
+    const res=await fetch(`/api/sales-orders?${params.toString()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
+    const allOrders=(json.salesOrders||[]).filter(isActiveDocument);
     const staff=String(salesOrderStaffFilter?.value||'').trim().toLowerCase();
     const orders=allOrders.filter(o=>{
       const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress].join(' ').toLowerCase();

@@ -29,6 +29,12 @@ async function resolveStaff(body = {}, prefix = 'delivery') {
   return userRepository.findStaffByIdOrCode(value);
 }
 
+
+function isInactiveStatus(row = {}) {
+  const status = String(row.status || '').toLowerCase();
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
+}
+
 function toClient(masterOrder, children = []) {
   return {
     ...masterOrder,
@@ -65,12 +71,14 @@ async function listMasterOrders(query = {}) {
   const q = normalizeText(query.q);
   const dateFrom = String(query.dateFrom || '').slice(0, 10);
   const dateTo = String(query.dateTo || '').slice(0, 10);
+  const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
   const masterOrders = await masterOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   const result = [];
   for (const masterOrder of masterOrders) {
     const children = await orderService.getMasterChildren(masterOrder);
     const order = toClient(masterOrder, children);
     const d = String(order.deliveryDate || order.date || '').slice(0, 10);
+    if (excludeInactive && isInactiveStatus(order)) continue;
     if (q && ![order.code, order.routeName, order.deliveryStaffName, order.deliveryStaffCode].some((value) => normalizeText(value).includes(q))) continue;
     if (dateFrom && d < dateFrom) continue;
     if (dateTo && d > dateTo) continue;
@@ -96,14 +104,14 @@ async function listDeliveryToday(query = {}) {
   const route = normalizeText(query.route || query.routeName);
   const status = normalizeText(query.status);
 
-  const masterOrders = await listMasterOrders({ dateFrom: date, dateTo: date });
+  const masterOrders = await listMasterOrders({ dateFrom: date, dateTo: date, excludeInactive: 1 });
   const rows = [];
 
   for (const master of masterOrders) {
-    if (['cancelled', 'void'].includes(String(master.status || '').toLowerCase())) continue;
+    if (isInactiveStatus(master)) continue;
     const children = Array.isArray(master.children) ? master.children : [];
     for (const child of children) {
-      if (['cancelled', 'void'].includes(String(child.status || '').toLowerCase())) continue;
+      if (isInactiveStatus(child)) continue;
       const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
       if (deliveryDate !== date) continue;
 

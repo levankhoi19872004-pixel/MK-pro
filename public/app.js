@@ -25,11 +25,28 @@ if(debtCollectionForm){debtCollectionForm.addEventListener('submit',submitDebtCo
 
 if(cashbookForm){cashbookForm.addEventListener('submit',submitCashbook);cashbookForm.elements.date.value=today()}
 
+function setTodayRange(fromEl, toEl){
+  const d=today();
+  if(fromEl && !fromEl.value)fromEl.value=d;
+  if(toEl && !toEl.value)toEl.value=d;
+}
+function setDefaultDocumentDateFilters(){
+  setTodayRange(salesOrderDateFrom, salesOrderDateTo);
+  setTodayRange(masterOrderDateFrom, masterOrderDateTo);
+  setTodayRange(returnOrderDateFrom, returnOrderDateTo);
+  if(unmergedDateFilter && !unmergedDateFilter.value)unmergedDateFilter.value=today();
+  if(deliveryDateFilter && !deliveryDateFilter.value)deliveryDateFilter.value=today();
+}
+setDefaultDocumentDateFilters();
+
 if(stockSearchInput)stockSearchInput.addEventListener('input',loadStock);
 if(debtSearchInput)debtSearchInput.addEventListener('input',loadDebts);
 [debtSalesmanFilter,debtDeliveryFilter,debtStatusFilter,debtDateFrom,debtDateTo].forEach(el=>{if(el)el.addEventListener('input',loadDebts);if(el)el.addEventListener('change',loadDebts);});
 if(receiptSearchInput)receiptSearchInput.addEventListener('input',loadReceipts);
 if(returnOrderSearchInput)returnOrderSearchInput.addEventListener('input',loadReturnOrders);
+if(returnOrderDateFrom)returnOrderDateFrom.addEventListener('change',loadReturnOrders);
+if(returnOrderDateTo)returnOrderDateTo.addEventListener('change',loadReturnOrders);
+if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
 debtInnerTabs.forEach(btn=>btn.addEventListener('click',()=>setDebtPanel(btn.dataset.debtPanel)));
 window.voidReceipt=voidReceipt;
 if(cashbookSearchInput)cashbookSearchInput.addEventListener('input',loadCashbook);
@@ -64,7 +81,7 @@ if(masterOrderDateTo)masterOrderDateTo.addEventListener('change',loadMasterOrder
 if(printSelectedMasterOrdersButton)printSelectedMasterOrdersButton.addEventListener('click',printSelectedMasterOrders);
 if(unmergedOrderList)unmergedOrderList.addEventListener('change',event=>{const check=event.target.closest('.child-order-check');if(!check)return;if(check.checked)selectedChildOrderIds.add(check.dataset.id);else selectedChildOrderIds.delete(check.dataset.id);renderUnmergedChildOrders();});
 if(reloadDeliveryTodayButton)reloadDeliveryTodayButton.addEventListener('click',loadDeliveryToday);
-if(deliveryDateFilter){deliveryDateFilter.value=today();deliveryDateFilter.addEventListener('change',loadDeliveryToday);}
+if(deliveryDateFilter){if(!deliveryDateFilter.value)deliveryDateFilter.value=today();deliveryDateFilter.addEventListener('change',loadDeliveryToday);}
 if(deliverySearchInput)deliverySearchInput.addEventListener('input',loadDeliveryToday);
 if(deliverySalesmanFilter)deliverySalesmanFilter.addEventListener('input',loadDeliveryToday);
 if(deliveryStaffFilter)deliveryStaffFilter.addEventListener('input',loadDeliveryToday);

@@ -86,19 +86,20 @@ async function loadMasterOrders(){
   const q=masterOrderSearch?masterOrderSearch.value.trim():'';
   const params=new URLSearchParams();
   if(q)params.set('q',q);
-  if(masterOrderDateFrom?.value)params.set('dateFrom',masterOrderDateFrom.value);
-  if(masterOrderDateTo?.value)params.set('dateTo',masterOrderDateTo.value);
+  params.set('dateFrom', masterOrderDateFrom?.value || today());
+  params.set('dateTo', masterOrderDateTo?.value || masterOrderDateFrom?.value || today());
+  params.set('excludeInactive','1');
   const url=`/api/master-orders${params.toString()?`?${params.toString()}`:''}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được đơn tổng');
-    masterOrdersCache=json.masterOrders||[];
+    masterOrdersCache=(json.masterOrders||[]).filter(isActiveDocument);
     if(masterOrderCount)masterOrderCount.textContent=`${masterOrdersCache.length} đơn tổng`;
     if(!masterOrdersCache.length){masterOrderList.innerHTML='Chưa có đơn tổng nào.';return}
     masterOrderList.innerHTML=masterOrdersCache.map((order,idx)=>`
       <div class="order-card master-order-card">
         <div class="order-card-head">
           <h3><label><input type="checkbox" class="master-order-check" data-idx="${idx}"> ${order.code||order.id}</label></h3>
-          <div class="order-actions">${masterStatusLabel(order.status)} ${order.status!=='cancelled'?`<button class="small danger" onclick="cancelMasterOrder('${order.id}')">Hủy gộp</button>`:''}</div>
+          <div class="order-actions">${masterStatusLabel(order.status)} ${isActiveDocument(order)?`<button class="small danger" onclick="cancelMasterOrder('${order.id}')">Hủy gộp</button>`:''}</div>
         </div>
         <div class="order-meta">Ngày giao: ${order.deliveryDate||order.date||''} · Tuyến: <strong>${order.routeName||''}</strong> · Giao hàng: ${order.deliveryStaffCode||''} ${order.deliveryStaffName||''} · NV bán: <strong>${order.salesStaffCode||''} ${order.salesStaffName||''}</strong></div>
         <div class="master-kpis">
