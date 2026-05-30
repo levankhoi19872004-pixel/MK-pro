@@ -24,6 +24,33 @@ function isNumericKeyword(value = '') {
   return /^\d+$/.test(String(value || '').trim());
 }
 
+function numericDigits(value = '') {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function priceCandidates(row = {}) {
+  return [row.salePrice, row.price, row.sellPrice, row.retailPrice]
+    .map((value) => numericDigits(Math.round(Number(value || 0))))
+    .filter(Boolean);
+}
+
+function priceSearchScore(row = {}, nq = '') {
+  const qDigits = numericDigits(nq);
+
+  // Chỉ kích hoạt tìm theo giá khi người dùng nhập tối thiểu 4 số
+  // để tránh gõ mã ngắn như 62, 627 bị lẫn với giá bán.
+  if (qDigits.length < 4) return -1;
+
+  let best = -1;
+  for (const priceText of priceCandidates(row)) {
+    if (!priceText) continue;
+    if (priceText === qDigits) best = Math.max(best, 5500);
+    else if (priceText.startsWith(qDigits)) best = Math.max(best, 4500);
+    else if (priceText.includes(qDigits)) best = Math.max(best, 2500);
+  }
+  return best;
+}
+
 function parseLimit(query = {}, fallback = SEARCH_RETURN_MAX, max = SEARCH_RETURN_MAX) {
   const requested = Number.parseInt(query.limit, 10) || fallback;
   return Math.max(1, Math.min(requested, max));
@@ -113,10 +140,14 @@ function productSearchScore(row = {}, nq = '') {
     includes: 6500
   });
 
-  // Khi từ khóa toàn số, chỉ được dò mã sản phẩm / barcode.
-  // Không dò tên, nhóm, quy cách, searchText để tránh gõ mã mà hiện sai hàng loạt.
-  if (isNumericKeyword(nq)) {
-    return Math.max(codeScore, barcodeScore);
+  const priceScore = priceSearchScore(row, nq);
+
+  // Khi từ khóa toàn số, ưu tiên mã sản phẩm / barcode, nhưng vẫn cho phép tìm theo giá bán
+  // nếu nhập từ 4 số trở lên, ví dụ 24750 hoặc 24.750.
+  // Điểm giá thấp hơn mã/barcode để gõ mã vẫn ra đúng mã trước.
+  if (isNumericKeyword(nq) || numericDigits(nq).length >= 4) {
+    const numericBest = Math.max(codeScore, barcodeScore, priceScore);
+    if (isNumericKeyword(nq)) return numericBest;
   }
 
   const nameScore = bestFieldScore([row.name, row.productName], nq, {
@@ -130,7 +161,7 @@ function productSearchScore(row = {}, nq = '') {
     includes: 1000
   });
 
-  return Math.max(codeScore, barcodeScore, nameScore, metaScore);
+  return Math.max(codeScore, barcodeScore, nameScore, metaScore, priceScore);
 }
 
 function customerSearchScore(row = {}, nq = '') {

@@ -12,6 +12,7 @@
     return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').trim();
   }
   function toNumber(value){ const n=Number(value||0); return Number.isFinite(n)?n:0; }
+  function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
   function productKey(product){ return String(product?.code || product?.productCode || product?.sku || product?.id || product?._id || '').trim(); }
   function availableQty(product){
     if(typeof window.productAvailableQty === 'function') return window.productAvailableQty(product);
@@ -86,10 +87,17 @@
     const code=normalizeText(product.code||product.productCode||product.sku);
     const barcode=normalizeText(product.barcode);
     const name=normalizeText(product.name||product.productName);
+    const qDigits=numericDigits(q);
+    const priceDigits=numericDigits(Math.round(toNumber(product.salePrice || product.price || product.sellPrice || product.retailPrice)));
     if(code===q || barcode===q) return 1000;
     if(code.startsWith(q) || barcode.startsWith(q)) return 800;
     if(name.startsWith(q)) return 600;
     if(code.includes(q) || barcode.includes(q)) return 400;
+    if(qDigits.length>=4 && priceDigits){
+      if(priceDigits===qDigits) return 550;
+      if(priceDigits.startsWith(qDigits)) return 450;
+      if(priceDigits.includes(qDigits)) return 250;
+    }
     if(name.includes(q)) return 300;
     if(product._productSearchKey?.includes(q)) return 100;
     return -1;
