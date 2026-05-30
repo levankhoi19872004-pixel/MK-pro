@@ -117,6 +117,7 @@ const deliveryRunningKpi=document.getElementById('deliveryRunningKpi');
 const deliveryDoneKpi=document.getElementById('deliveryDoneKpi');
 const deliveryUnpaidKpi=document.getElementById('deliveryUnpaidKpi');
 const deliveryLateKpi=document.getElementById('deliveryLateKpi');
+const deliveryDebtKpi=document.getElementById('deliveryDebtKpi');
 
 const deliveryEditForm=document.getElementById('deliveryEditForm');
 const deliveryEditStatus=document.getElementById('deliveryEditStatus');

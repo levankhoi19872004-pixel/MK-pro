@@ -380,12 +380,21 @@ async function loadDeliveryToday(){
     const rows=json.orders||[];
     deliveryRowsCache=rows;
     if(deliveryTodayList && json.formula){ deliveryTodayList.dataset.formula=json.formula; }
-    const kpi=json.kpi||{};
-    if(deliveryTotalKpi)deliveryTotalKpi.textContent=kpi.totalOrders||0;
-    if(deliveryRunningKpi)deliveryRunningKpi.textContent=kpi.delivering||0;
-    if(deliveryDoneKpi)deliveryDoneKpi.textContent=kpi.delivered||0;
-    if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=kpi.unpaid||0;
-    if(deliveryLateKpi)deliveryLateKpi.textContent=kpi.late||0;
+    const moneyReport=rows.reduce((acc,row)=>{
+      acc.total += deliveryDebtBase(row);
+      acc.cash += deliveryToNumber(row.cashCollected||0);
+      acc.bank += deliveryToNumber(row.bankCollected||0);
+      acc.reward += deliveryToNumber(row.rewardAmount||0);
+      acc.returned += deliveryToNumber(row.returnAmount||0);
+      acc.debt += calculateDeliveryDebt(row);
+      return acc;
+    },{total:0,cash:0,bank:0,reward:0,returned:0,debt:0});
+    if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(moneyReport.total);
+    if(deliveryRunningKpi)deliveryRunningKpi.textContent=money(moneyReport.cash);
+    if(deliveryDoneKpi)deliveryDoneKpi.textContent=money(moneyReport.bank);
+    if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=money(moneyReport.reward);
+    if(deliveryLateKpi)deliveryLateKpi.textContent=money(moneyReport.returned);
+    if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(moneyReport.debt);
     const routes=json.routes||[];
     if(deliveryRouteSummary){
       deliveryRouteSummary.innerHTML=routes.length?routes.map(r=>`<div class="route-pill"><strong>${escapeHtml(r.routeName||'Chưa có tuyến')}</strong><span>${r.orderCount} đơn</span><small>NV giao: ${escapeHtml(r.deliveryStaffName||r.deliveryStaffCode||'Chưa gán')}</small></div>`).join(''):'';

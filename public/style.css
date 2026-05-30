@@ -3657,3 +3657,7 @@ button.danger:hover{background:#fecaca}
     max-height:220px !important;
   }
 }
+.delivery-money-report-grid{grid-template-columns:repeat(6,minmax(0,1fr));}
+.delivery-money-report-grid .delivery-kpi-card strong{font-size:18px;white-space:nowrap;}
+@media(max-width:1200px){.delivery-money-report-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:720px){.delivery-money-report-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
