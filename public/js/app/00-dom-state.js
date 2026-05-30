@@ -135,6 +135,10 @@ const deliveryEditDebtBefore=document.getElementById('deliveryEditDebtBefore');
 const deliveryEditCash=document.getElementById('deliveryEditCash');
 const deliveryEditBank=document.getElementById('deliveryEditBank');
 const deliveryEditReturn=document.getElementById('deliveryEditReturn');
+const deliveryReturnItems=document.getElementById('deliveryReturnItems');
+const deliveryReturnTotalText=document.getElementById('deliveryReturnTotalText');
+const deliveryEditTotalBox=document.getElementById('deliveryEditTotalBox');
+const deliveryEditReward=document.getElementById('deliveryEditReward');
 const deliveryEditDebt=document.getElementById('deliveryEditDebt');
 const deliveryEditNote=document.getElementById('deliveryEditNote');
 

@@ -137,6 +137,9 @@ async function listDeliveryToday(query = {}) {
         cashCollected: Number(child.cashCollected || child.cashAmount || 0),
         bankCollected: Number(child.bankCollected || child.transferAmount || child.bankAmount || 0),
         returnAmount: Number(child.returnAmount || 0),
+        rewardAmount: Number(child.rewardAmount || 0),
+        items: Array.isArray(child.items) ? child.items : [],
+        returnItems: Array.isArray(child.returnItems || child.deliveryReturnItems) ? (child.returnItems || child.deliveryReturnItems) : [],
         isLate: Boolean(child.isLate)
       };
 
@@ -185,6 +188,8 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   const cashCollected = Number(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0) || 0;
   const bankCollected = Number(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0) || 0;
   const returnAmount = Number(body.returnAmount ?? current.returnAmount ?? 0) || 0;
+  const rewardAmount = Number(body.rewardAmount ?? current.rewardAmount ?? 0) || 0;
+  const returnItems = Array.isArray(body.returnItems) ? body.returnItems : (Array.isArray(current.returnItems) ? current.returnItems : []);
   const calculatedDebt = Math.max(0, debtBeforeCollection - cashCollected - bankCollected - returnAmount);
   const debtAmount = Number(body.debtAmount ?? calculatedDebt) || 0;
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
@@ -205,6 +210,9 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     transferAmount: bankCollected,
     bankAmount: bankCollected,
     returnAmount,
+    rewardAmount,
+    returnItems,
+    deliveryReturnItems: returnItems,
     debtAmount,
     debt: debtAmount,
     deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),

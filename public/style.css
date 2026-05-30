@@ -3401,3 +3401,86 @@ button.danger:hover{background:#fecaca}
   .compact-delivery-kpis,.delivery-compact-meta,.delivery-compact-money,.delivery-edit-form .form-grid.two-cols{grid-template-columns:1fr}
   .delivery-filter-bar{grid-template-columns:1fr}
 }
+
+/* Delivery edit panel: remove duplicated readonly info, emphasize returnable order items */
+.delivery-return-card{
+  margin-top:10px;
+  padding:14px;
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(15,23,42,.04);
+}
+.delivery-return-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:10px;
+}
+.delivery-return-head h3{margin:0 0 4px;font-size:16px;color:#0f172a}
+.delivery-return-head strong{
+  min-width:96px;
+  text-align:right;
+  color:#dc2626;
+  font-size:16px;
+}
+.delivery-return-table{
+  max-height:360px;
+  overflow:auto;
+  display:grid;
+  gap:8px;
+  padding-right:2px;
+}
+.delivery-return-line{
+  display:grid;
+  grid-template-columns:1fr 90px;
+  gap:10px;
+  align-items:center;
+  padding:10px;
+  border:1px solid #e2e8f0;
+  border-radius:14px;
+  background:#f8fafc;
+}
+.delivery-return-product{display:grid;gap:2px;min-width:0}
+.delivery-return-product strong{font-size:13px;color:#0f172a}
+.delivery-return-product span{font-size:13px;color:#334155;white-space:normal;line-height:1.25}
+.delivery-return-product small{font-size:12px;color:#64748b}
+.delivery-return-line input{
+  width:100%;
+  min-height:38px;
+  border:1px solid #cbd5e1;
+  border-radius:12px;
+  padding:8px;
+  font-weight:700;
+  text-align:center;
+  background:#fff;
+}
+.delivery-money-grid{margin-top:12px}
+.delivery-edit-total-box{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  padding:12px;
+  border:1px solid #bfdbfe;
+  border-radius:16px;
+  background:#eff6ff;
+}
+.delivery-edit-total-box div{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px;
+  border-radius:12px;
+  background:#fff;
+  font-size:13px;
+}
+.delivery-edit-total-box span{color:#64748b;font-weight:700}
+.delivery-edit-total-box b{color:#0f172a}
+.delivery-edit-total-box .total-debt{grid-column:1/-1;background:#fff7ed}
+.delivery-edit-total-box .total-debt b{color:#dc2626;font-size:16px}
+@media(max-width:760px){
+  .delivery-edit-total-box{grid-template-columns:1fr}
+  .delivery-return-line{grid-template-columns:1fr 78px}
+}

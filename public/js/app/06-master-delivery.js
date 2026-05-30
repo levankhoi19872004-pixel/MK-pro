@@ -172,12 +172,95 @@ function deliveryRowPaid(row){
   return Number(row?.cashCollected||0)+Number(row?.bankCollected||0)+Number(row?.returnAmount||0);
 }
 
+
+function deliveryItemQty(item){
+  return Number(item.quantity ?? item.qty ?? item.qtyOrder ?? item.soLuong ?? item.quantityBase ?? 0) || 0;
+}
+function deliveryItemPrice(item){
+  return Number(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0) || 0;
+}
+function deliveryItemCode(item){
+  return String(item.productCode || item.code || item.sku || item.productId || '').trim();
+}
+function deliveryItemName(item){
+  return String(item.productName || item.name || item.itemName || '').trim();
+}
+function getReturnInputRows(){
+  if(!deliveryReturnItems)return [];
+  return Array.from(deliveryReturnItems.querySelectorAll('[data-return-code]'));
+}
+function getDeliveryReturnItemsPayload(){
+  return getReturnInputRows().map(input=>{
+    const qtyReturn=Number(input.value||0);
+    const line=input.closest('.delivery-return-line');
+    return {
+      productCode: input.dataset.returnCode || '',
+      productName: input.dataset.returnName || '',
+      quantity: Number(input.dataset.orderQty || 0),
+      qtyReturn,
+      salePrice: Number(input.dataset.price || 0),
+      amount: Math.round(qtyReturn * Number(input.dataset.price || 0))
+    };
+  }).filter(item=>item.qtyReturn>0);
+}
+function updateDeliveryReturnTotal(){
+  const total=getDeliveryReturnItemsPayload().reduce((sum,item)=>sum+Number(item.amount||0),0);
+  if(deliveryEditReturn)deliveryEditReturn.value=Math.round(total);
+  if(deliveryReturnTotalText)deliveryReturnTotalText.textContent=money(total);
+  recalcDeliveryEditDebt();
+  renderDeliveryEditTotal();
+}
+function renderDeliveryEditTotal(){
+  if(!deliveryEditTotalBox)return;
+  const before=Number(deliveryEditDebtBefore?.value||0);
+  const cash=Number(deliveryEditCash?.value||0);
+  const bank=Number(deliveryEditBank?.value||0);
+  const returned=Number(deliveryEditReturn?.value||0);
+  const reward=Number(deliveryEditReward?.value||0);
+  const debt=Math.max(0, Math.round(before-cash-bank-returned));
+  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(before)}</b></div><div><span>Tiền mặt</span><b>${money(cash)}</b></div><div><span>Chuyển khoản</span><b>${money(bank)}</b></div><div><span>Hàng trả</span><b>${money(returned)}</b></div><div><span>Trả thưởng</span><b>${money(reward)}</b></div><div class="total-debt"><span>Còn nợ</span><b>${money(debt)}</b></div>`;
+}
+function renderDeliveryReturnItems(row){
+  if(!deliveryReturnItems)return;
+  const items=Array.isArray(row?.items)?row.items:[];
+  const savedReturns=new Map((Array.isArray(row?.returnItems)?row.returnItems:[]).map(item=>[String(item.productCode||item.code||item.productId||''), Number(item.qtyReturn||item.quantity||item.qty||0)]));
+  if(!items.length){
+    deliveryReturnItems.innerHTML='<div class="empty-state">Đơn này chưa có danh sách sản phẩm nên chưa thể chọn hàng trả.</div>';
+    if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';
+    if(deliveryEditReturn)deliveryEditReturn.value=0;
+    return;
+  }
+  deliveryReturnItems.innerHTML=`<div class="delivery-return-table">${items.map((item,index)=>{
+    const code=deliveryItemCode(item) || `SP${index+1}`;
+    const name=deliveryItemName(item);
+    const qty=deliveryItemQty(item);
+    const price=deliveryItemPrice(item);
+    const saved=savedReturns.get(code)||0;
+    return `<div class="delivery-return-line">
+      <div class="delivery-return-product"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span><small>SL đơn: ${qty} · Giá: ${money(price)}</small></div>
+      <input data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" type="number" min="0" max="${qty}" step="1" value="${saved}" placeholder="SL trả" />
+    </div>`;
+  }).join('')}</div>`;
+  getReturnInputRows().forEach(input=>{
+    input.addEventListener('input',()=>{
+      const max=Number(input.max||0);
+      if(Number(input.value||0)>max)input.value=max;
+      if(Number(input.value||0)<0)input.value=0;
+      updateDeliveryReturnTotal();
+    });
+  });
+  updateDeliveryReturnTotal();
+}
+
 function clearDeliveryEditPanel(){
   selectedDeliveryOrderId='';
   if(deliveryEditForm)deliveryEditForm.reset();
   if(deliveryEditOrderId)deliveryEditOrderId.value='';
   if(deliveryEditStatus)deliveryEditStatus.textContent='Chưa chọn đơn';
   if(deliverySelectedSummary)deliverySelectedSummary.textContent='Chưa chọn đơn giao hàng.';
+  if(deliveryReturnItems)deliveryReturnItems.innerHTML='<div class="empty-state">Chọn đơn để hiển thị sản phẩm.</div>';
+  if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';
+  if(deliveryEditTotalBox)deliveryEditTotalBox.textContent='Chọn đơn để xem tổng kết.';
   if(deliveryEditMessage)deliveryEditMessage.textContent='';
   document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
 }
@@ -198,12 +281,15 @@ function fillDeliveryEditPanel(row){
   if(deliveryEditCash)deliveryEditCash.value=Math.round(Number(row.cashCollected||0));
   if(deliveryEditBank)deliveryEditBank.value=Math.round(Number(row.bankCollected||0));
   if(deliveryEditReturn)deliveryEditReturn.value=Math.round(Number(row.returnAmount||0));
+  if(deliveryEditReward)deliveryEditReward.value=Math.round(Number(row.rewardAmount||0));
   if(deliveryEditDebt)deliveryEditDebt.value=Math.round(Number(row.debt||0));
   if(deliveryEditNote)deliveryEditNote.value=row.deliveryNote||'';
   if(deliveryEditStatus)deliveryEditStatus.textContent=deliveryStatusLabel(row.visualStatus||row.deliveryStatus);
   if(deliverySelectedSummary){
-    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')}</strong> · ${escapeHtml(row.customerName||'')}<br><small>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</small><br><b>Phải thu: ${money(row.debtBeforeCollection ?? row.debt)}</b> · <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">Còn nợ: ${money(row.debt)}</b>`;
+    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(row.debtBeforeCollection ?? row.debt)}</b> · <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">Còn nợ: ${money(row.debt)}</b></span>`;
   }
+  renderDeliveryReturnItems(row);
+  renderDeliveryEditTotal();
   if(deliveryEditMessage)deliveryEditMessage.textContent='';
   document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
   const card=document.querySelector(`.delivery-card[data-id="${CSS.escape(String(row.id||''))}"]`);
@@ -230,7 +316,8 @@ async function submitDeliveryEdit(event){
   if(!deliveryEditOrderId?.value){showMessage(deliveryEditMessage,'Chưa chọn đơn để sửa',true);return;}
   const formData=new FormData(deliveryEditForm);
   const payload=Object.fromEntries(formData.entries());
-  ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount'].forEach(key=>{
+  payload.returnItems=getDeliveryReturnItemsPayload();
+  ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
     if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
   });
   try{
@@ -248,6 +335,10 @@ async function submitDeliveryEdit(event){
   }catch(err){showMessage(deliveryEditMessage,err.message,true);}
 }
 window.submitDeliveryEdit=submitDeliveryEdit;
+
+[deliveryEditCash,deliveryEditBank,deliveryEditReward].forEach(input=>{
+  if(input)input.addEventListener('input',()=>{recalcDeliveryEditDebt();renderDeliveryEditTotal();});
+});
 async function loadDeliveryToday(){
   if(!deliveryTodayList)return;
   const params=new URLSearchParams();
