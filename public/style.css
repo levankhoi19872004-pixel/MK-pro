@@ -3294,28 +3294,7 @@ button.danger:hover{background:#fecaca}
 .debt-fallback-table tr.is-void td{background:#fff1f2;color:#7f1d1d}
 .debt-fallback-table td small{color:var(--muted);font-size:11px}
 
-/* Debt UI V45: left operations, right management reports */
-.debt-operation-list{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:8px;
-  margin:12px 0 14px;
-}
-.debt-operation-chip{
-  border:1px solid #dbe7f3;
-  background:#f8fbff;
-  color:#334155;
-  border-radius:14px;
-  padding:10px 12px;
-  font-weight:800;
-  box-shadow:0 4px 12px rgba(15,23,42,.04);
-  text-align:left;
-}
-.debt-operation-chip.active{background:#eff6ff;color:#075985;border-color:#bfdbfe}
-.debt-operation-chip.cash-box{background:#ecfdf5;color:#047857;border-color:#bbf7d0}
-.debt-operation-chip.bank-box{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}
-.debt-operation-chip.return-box{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
-.debt-operation-chip.danger-chip{background:#fff1f2;color:#be123c;border-color:#fecdd3;grid-column:1 / -1}
+/* Debt UI V45: manager report dashboard */
 .debt-report-head{align-items:flex-start;gap:12px;margin-bottom:10px}
 .debt-report-tabs{margin:0 0 14px;position:sticky;top:0;z-index:4;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);padding:6px;border-radius:18px;border:1px solid #e5edf6}
 .section-subhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin:4px 0 12px}
@@ -3323,7 +3302,7 @@ button.danger:hover{background:#fecaca}
 .section-subhead p{margin:0;max-width:640px;text-align:right}
 .debt-workspace .debt-panel:not(.active){display:none}
 .debt-workspace .debt-panel.active{display:block}
-@media(max-width:900px){.debt-operation-list{grid-template-columns:1fr}.section-subhead{display:block}.section-subhead p{text-align:left;margin-top:4px}}
+@media(max-width:900px){.section-subhead{display:block}.section-subhead p{text-align:left;margin-top:4px}}
 
 /* V45 debt screen simplification: manager-first, less visual noise */
 #debtTab .operation-compact-layout{
@@ -3378,8 +3357,6 @@ button.danger:hover{background:#fecaca}
 #debtTab .section-subhead{margin:2px 0 10px!important;align-items:center!important}
 #debtTab .section-subhead h3{font-size:15px!important}
 #debtTab .section-subhead p{font-size:11.5px!important;max-width:520px!important}
-#debtTab .debt-operation-list{gap:7px!important;margin:10px 0 12px!important}
-#debtTab .debt-operation-chip{padding:8px 10px!important;border-radius:11px!important;box-shadow:none!important}
 @media(max-width:1180px){#debtTab .debt-filter-grid{grid-template-columns:1fr 1fr 1fr!important}}
 @media(max-width:980px){#debtTab .operation-compact-layout{grid-template-columns:1fr!important}}
 @media(max-width:640px){#debtTab .debt-filter-grid{grid-template-columns:1fr!important}.debt-slim-money strong{font-size:19px}}
