@@ -549,6 +549,12 @@ async function debtReport(query = {}) {
       return;
     }
 
+    if (orderKey && !orderMeta.has(orderKey)) {
+      // Không đưa bút toán mồ côi vào báo cáo công nợ theo đơn.
+      // Đây là nguyên nhân làm danh sách đơn bán một số lượng nhưng báo cáo công nợ lại ra số khác.
+      return;
+    }
+
     const target = ensureOrder(orderKey, {
       ...meta,
       orderId: meta.orderId || entry.orderId || entry.refId || '',

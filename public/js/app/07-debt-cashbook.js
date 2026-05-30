@@ -57,7 +57,11 @@ async function loadDebts(){
           <span>NVBH: <b>${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</b></span>
           <span>NVGH: <b>${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</b></span>
         </div>
-        <button type="button" class="debt-detail-btn" onclick="selectDebtCustomerFromCard(${idx})">Chi tiết đơn nợ</button>
+        <div class="debt-card-actions">
+          <button type="button" class="debt-detail-btn" onclick="toggleDebtCustomerOrders(${idx})">Xem ${Number(d.orderCount||0)} đơn nợ</button>
+          <button type="button" class="debt-detail-btn secondary" onclick="selectDebtCustomerFromCard(${idx})">Thu vào đơn</button>
+        </div>
+        <div id="debtCustomerOrders-${idx}" class="debt-customer-orders" hidden></div>
       </article>`;
     }).join(''):'<div class="empty-state">Không còn khách đang nợ. Muốn xem khách đã tất toán, chọn bộ lọc trạng thái Đã tất toán.</div>';
     renderDebtManagementReports(ledger, json);
@@ -67,6 +71,30 @@ async function loadDebts(){
 
 
 
+
+
+function renderDebtCustomerOrderRows(customer){
+  const orders=(customer && Array.isArray(customer.orders)?customer.orders:[])
+    .filter(o=>Number(o.debt||0)>0)
+    .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')));
+  if(!orders.length)return '<div class="empty-state success-text">Khách này không còn đơn nợ.</div>';
+  return `<div class="debt-order-detail-title">Danh sách đơn còn nợ của ${escapeHtml(customer.customerCode||'')} - ${escapeHtml(customer.customerName||'')}</div>
+    <table class="mini-debt-order-table"><thead><tr><th>Đơn</th><th>Ngày</th><th>Tổng nợ gốc</th><th>Đã thu/trả</th><th>Còn nợ</th></tr></thead><tbody>
+      ${orders.map(o=>`<tr><td><b>${escapeHtml(o.orderCode||o.orderId||'')}</b></td><td>${escapeHtml(o.documentDate||'')}</td><td class="price">${money(o.debit)}</td><td class="price cash-in">${money(o.credit)}</td><td class="price debt-positive">${money(o.debt)}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+function toggleDebtCustomerOrders(index){
+  const box=document.getElementById(`debtCustomerOrders-${index}`);
+  const row=(debtsCache||[])[Number(index)];
+  if(!box||!row)return;
+  const shouldShow=box.hidden;
+  document.querySelectorAll('.debt-customer-orders').forEach(el=>{el.hidden=true;});
+  if(shouldShow){
+    box.innerHTML=renderDebtCustomerOrderRows(row);
+    box.hidden=false;
+  }
+}
 
 function selectDebtCustomerFromCard(index){
   const row=(debtsCache||[])[Number(index)];
