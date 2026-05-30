@@ -14,7 +14,7 @@ function createMobileDeliveryService(ctx) {
     if (data && Object.prototype.hasOwnProperty.call(data, 'returnOrders')) {
       data.returnOrders = await returnOrderRepository.findAll();
     }
-    return repo.persistPrimaryDataSnapshot(data);
+    return (repo.persistDeliverySnapshotSafely ? repo.persistDeliverySnapshotSafely(data) : repo.persistPrimaryDataSnapshot(data));
   }
 
   const {
