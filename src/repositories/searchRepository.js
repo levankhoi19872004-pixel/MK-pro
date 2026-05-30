@@ -5,7 +5,6 @@ const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
 const SalesOrder = require('../models/SalesOrder');
 const Inventory = require('../models/Inventory');
-const InventoryLegacy = require('../models/InventoryLegacy');
 const { escapeRegex } = require('../utils/query.util');
 
 const SEARCH_RETURN_MAX = 50;
@@ -233,15 +232,9 @@ async function findInventoriesForProducts(products = []) {
     ]
   };
 
-  // Phase 3.4 chuẩn: inventorySnapshots.
-  // Tương thích dữ liệu cũ: inventories.
-  // Gộp cả hai collection, ưu tiên dữ liệu snapshot mới khi trùng khóa.
-  const [snapshots, legacyRows] = await Promise.all([
-    Inventory.find(filter).lean(),
-    InventoryLegacy.find(filter).lean().catch(() => [])
-  ]);
-
-  return [...(legacyRows || []), ...(snapshots || [])];
+  // Phase 3.4+ strict: gợi ý sản phẩm chỉ đọc tồn từ inventorySnapshots.
+  // Không đọc collection legacy `inventories` để tránh cộng tồn cũ hoặc hiển thị sai.
+  return Inventory.find(filter).lean();
 }
 
 async function findCustomers(query = {}) {

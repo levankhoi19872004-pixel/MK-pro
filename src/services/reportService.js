@@ -158,7 +158,7 @@ async function stockReport(query = {}) {
   const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
   let stock = stockRows.map((row) => {
     const product = productMap.get(String(row.productCode || row.productId || '')) || {};
-    const quantity = toNumber(row.quantity ?? row.qty ?? row.onHand ?? row.availableQty);
+    const quantity = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
     return {
       id: row.id || String(row._id || ''),
       productId: row.productId || product.id || String(product._id || ''),
@@ -172,7 +172,7 @@ async function stockReport(query = {}) {
       qty: quantity,
       onHand: quantity,
       reservedQty: toNumber(row.reservedQty),
-      availableQty: toNumber(row.availableQty ?? quantity),
+      availableQty: toNumber(row.availableQty ?? Math.max(0, quantity - toNumber(row.reservedQty))),
       minStock: toNumber(product.minStock),
       maxStock: toNumber(product.maxStock),
       updatedAt: row.updatedAt || row.createdAt || ''
