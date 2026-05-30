@@ -382,18 +382,18 @@ async function loadDeliveryToday(){
       const bank=Number(row.bankCollected||0);
       const reward=Number(row.rewardAmount||0);
       const returned=Number(row.returnAmount||0);
-      return `<article class="delivery-card delivery-compact-card delivery-customer-card ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
-        <div class="delivery-customer-head">
+      return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
+        <div class="delivery-customer-main">
           <b>${escapeHtml(row.customerName||'Chưa có tên khách')}</b>
           <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
         </div>
         <div class="delivery-customer-money">
-          <span>Phải thu <b>${money(row.debtBeforeCollection ?? row.debt)}</b></span>
-          <span>Tiền mặt <b class="cash-in">${money(cash)}</b></span>
-          <span>Chuyển khoản <b class="cash-in">${money(bank)}</b></span>
-          <span>Trả thưởng <b>${money(reward)}</b></span>
-          <span>Tổng hàng trả <b>${money(returned)}</b></span>
-          <span>Công nợ <b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">${money(row.debt)}</b></span>
+          <span title="Phải thu"><em>Phải thu</em><b>${money(row.debtBeforeCollection ?? row.debt)}</b></span>
+          <span title="Tiền mặt"><em>TM</em><b class="cash-in">${money(cash)}</b></span>
+          <span title="Chuyển khoản"><em>CK</em><b class="cash-in">${money(bank)}</b></span>
+          <span title="Trả thưởng"><em>Thưởng</em><b>${money(reward)}</b></span>
+          <span title="Tổng tiền hàng trả"><em>Hàng trả</em><b>${money(returned)}</b></span>
+          <span title="Công nợ"><em>Công nợ</em><b class="${Number(row.debt||0)>0?'debt-positive':'debt-zero'}">${money(row.debt)}</b></span>
         </div>
       </article>`;
     }).join('');
