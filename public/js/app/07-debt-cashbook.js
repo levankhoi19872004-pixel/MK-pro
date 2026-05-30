@@ -24,6 +24,7 @@ async function loadDebts(){
     if(!ledger.length){
       if(debtTable)debtTable.innerHTML='<tr><td colspan="9">Chưa có công nợ.</td></tr>';
       if(debtCardList)debtCardList.innerHTML='<div class="empty-state">Chưa có công nợ.</div>';
+      renderDebtManagementReports([], json);
       renderCollectionCustomerSelect();return
     }
     if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr>
@@ -51,8 +52,58 @@ async function loadDebts(){
         <div class="debt-mini-timeline">${timeline}</div>
       </article>`;
     }).join('');
+    renderDebtManagementReports(ledger, json);
     renderCollectionCustomerSelect();
   }catch(err){if(debtCount)debtCount.textContent='Lỗi tải công nợ';if(debtTable)debtTable.innerHTML=`<tr><td colspan="9">${err.message}</td></tr>`;if(debtCardList)debtCardList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`}
+}
+
+
+function groupDebtByPerson(rows, codeKey, nameKey){
+  const map=new Map();
+  rows.forEach(d=>{
+    const code=d[codeKey]||'';
+    const name=d[nameKey]||'';
+    const key=(code||name||'Chưa gán');
+    const item=map.get(key)||{code,name,customers:new Set(),orders:0,debit:0,credit:0,debt:0};
+    item.orders+=1;
+    if(d.customerCode||d.customerName)item.customers.add((d.customerCode||'')+'|'+(d.customerName||''));
+    item.debit+=Number(d.debit||0);
+    item.credit+=Number(d.credit||0);
+    item.debt+=Number(d.debt||0);
+    map.set(key,item);
+  });
+  return [...map.values()].sort((a,b)=>b.debt-a.debt);
+}
+
+function renderDebtManagementReports(rows, json={}){
+  const salesmanRows=groupDebtByPerson(rows,'salesmanCode','salesmanName');
+  const deliveryRows=groupDebtByPerson(rows,'deliveryStaffCode','deliveryStaffName');
+  if(debtSalesmanReportTable){
+    debtSalesmanReportTable.innerHTML=salesmanRows.length?salesmanRows.map(r=>`<tr><td><strong>${escapeHtml(debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${r.customers.size}</td><td class="price">${r.orders}</td><td class="price">${money(r.debit)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price ${r.debt>0?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVBH.</td></tr>';
+  }
+  if(debtDeliveryReportTable){
+    debtDeliveryReportTable.innerHTML=deliveryRows.length?deliveryRows.map(r=>`<tr><td><strong>${escapeHtml(debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${r.customers.size}</td><td class="price">${r.orders}</td><td class="price cash-in">${money(r.credit)}</td><td class="price debt-positive">${money(Math.max(r.debt,0))}</td><td class="price ${r.debt>0?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVGH.</td></tr>';
+  }
+  renderDebtWarnings(rows, json.arDiagnostics||[]);
+}
+
+function renderDebtWarnings(rows, diagnostics=[]){
+  if(!receiptTimeline)return;
+  const overdueWarnings=rows.filter(d=>Number(d.debt||0)>0&&Number(d.overdueDays||0)>0).slice(0,20).map(d=>({
+    code:d.orderCode, date:d.dueDate||d.documentDate, customerCode:d.customerCode, customerName:d.customerName, amount:d.debt,
+    message:`Đơn quá hạn ${Number(d.overdueDays||0)} ngày, còn nợ ${money(d.debt)}`
+  }));
+  const negativeWarnings=rows.filter(d=>Number(d.debt||0)<0).slice(0,20).map(d=>({
+    code:d.orderCode, date:d.documentDate, customerCode:d.customerCode, customerName:d.customerName, amount:d.debt,
+    message:'Công nợ âm, cần kiểm tra thu thừa/ghi giảm sai'
+  }));
+  const warnings=[...diagnostics,...negativeWarnings,...overdueWarnings];
+  receiptTimeline.innerHTML=warnings.length?warnings.map(d=>`<article class="timeline-item finance-red is-warning">
+    <div class="timeline-dot"></div><div class="timeline-body"><div class="timeline-head"><strong>${escapeHtml(d.code||'')}</strong><span>${escapeHtml(d.date||'')}</span></div>
+    <div class="timeline-meta">${escapeHtml((d.customerCode||'')+' '+(d.customerName||''))}</div>
+    <div class="timeline-money"><span>${escapeHtml(d.message||'Cần kiểm tra công nợ')}</span><strong>${money(d.amount||0)}</strong></div>
+    <div class="timeline-actions"><span class="badge void-badge">Cần kiểm tra</span></div></div>
+  </article>`).join(''):'<div class="empty-state success-text">Chưa phát hiện cảnh báo công nợ.</div>';
 }
 
 // Debt collection
@@ -107,8 +158,8 @@ function setDebtPanel(panelId){
   if(!panelId)return;
   debtInnerTabs.forEach(btn=>btn.classList.toggle('active',btn.dataset.debtPanel===panelId));
   debtPanels.forEach(panel=>panel.classList.toggle('active',panel.dataset.debtPanelId===panelId));
-  if(panelId==='debtOverviewPanel')loadDebts();
-  if(panelId==='debtHistoryPanel')loadArLedger();
+  if(['debtOverviewPanel','debtSalesmanPanel','debtDeliveryPanel','debtWarningPanel'].includes(panelId))loadDebts();
+  if(panelId==='debtMovementPanel'||panelId==='debtArLedgerPanel')loadArLedger();
   if(panelId==='debtCashPanel'||panelId==='debtBankPanel')loadCashbook();
   if(panelId==='debtReturnPanel')loadReturnOrders();
 }
@@ -117,6 +168,13 @@ function receiptMethodLabel(method){
   if(method==='transfer')return 'Chuyển khoản';
   if(method==='return')return 'Trả hàng';
   return 'Tiền mặt';
+}
+
+
+async function voidReceiptPrompt(){
+  const code=prompt('Nhập mã phiếu thu cần hủy/Void:','');
+  if(!code)return;
+  await voidReceipt(code.trim());
 }
 
 async function voidReceipt(id){
@@ -139,6 +197,18 @@ async function loadReturnOrders(){
     if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="8">Chưa có chứng từ trả hàng.</td></tr>';return}
     returnOrderTable.innerHTML=rows.map(r=>`<tr><td><strong>${r.code||''}</strong></td><td>${r.date||''}</td><td>${r.customerCode||''} ${r.customerName||''}</td><td>${r.salesOrderCode||''}</td><td class="price">${money(r.totalQuantity)}</td><td class="price cash-in">${money(r.totalAmount)}</td><td><span class="badge in">Đã ghi</span></td><td>${r.note||''}</td></tr>`).join('');
   }catch(err){returnOrderTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`}
+}
+
+
+function renderDebtMovement(rows){
+  if(!debtMovementTable)return;
+  if(!rows.length){debtMovementTable.innerHTML='<tr><td colspan="7">Chưa có biến động công nợ.</td></tr>';return}
+  debtMovementTable.innerHTML=rows.slice(0,200).map(r=>{
+    const impact=Number(r.balanceEffect||0);
+    const increase=Number(r.debit||0)>0?Number(r.debit||0):0;
+    const decrease=Number(r.credit||0)>0?Number(r.credit||0):0;
+    return `<tr class="${String(r.type||'').toLowerCase().includes('void')?'is-void':''}"><td>${escapeHtml(r.date||'')}</td><td><strong>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</strong><br><small>${escapeHtml(r.orderCode||r.refCode||'')}</small></td><td><span class="badge ${arLedgerBadgeClass(r)}">${escapeHtml(arLedgerTypeLabel(r.type))}</span></td><td class="price debt-positive">${money(increase)}</td><td class="price cash-in">${money(decrease)}</td><td class="price ${impact>0?'debt-positive':'cash-in'}">${impact>0?'+':''}${money(impact)}</td><td>${escapeHtml(r.note||'')}</td></tr>`;
+  }).join('');
 }
 
 function arLedgerTypeLabel(type){
@@ -169,14 +239,8 @@ async function loadArLedger(){
     const diagnostics=json.arDiagnostics||[];
     const summary=json.summary||{};
     if(arLedgerSummary)arLedgerSummary.textContent=`${summary.arLedgerCount??rows.length} bút toán AR · Cảnh báo ${summary.arWarningCount??diagnostics.length} · Nợ ${money(summary.totalDebit||0)} · Có ${money(summary.totalCredit||0)} · Còn ${money(summary.totalDebt||0)}`;
-    if(receiptTimeline){
-      receiptTimeline.innerHTML=diagnostics.length?diagnostics.map(d=>`<article class="timeline-item finance-red is-warning">
-        <div class="timeline-dot"></div><div class="timeline-body"><div class="timeline-head"><strong>${escapeHtml(d.code||'')}</strong><span>${escapeHtml(d.date||'')}</span></div>
-        <div class="timeline-meta">${escapeHtml((d.customerCode||'')+' '+(d.customerName||''))}</div>
-        <div class="timeline-money"><span>${escapeHtml(d.message||'')}</span><strong>${money(d.amount||0)}</strong></div>
-        <div class="timeline-actions"><span class="badge void-badge">Cần kiểm tra</span></div></div>
-      </article>`).join(''):'<div class="empty-state success-text">AR Ledger chưa phát hiện phiếu Void thiếu bút toán đảo.</div>';
-    }
+    renderDebtWarnings(json.debts||[], diagnostics);
+    renderDebtMovement(rows);
     if(!rows.length){receiptHistoryTable.innerHTML='<tr><td colspan="9">Chưa có bút toán AR Ledger.</td></tr>';return}
     receiptHistoryTable.innerHTML=rows.map(r=>{
       const impact=Number(r.balanceEffect||0);

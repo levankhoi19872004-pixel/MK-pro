@@ -416,8 +416,8 @@
       <main class="grid import-grid operation-compact-layout">
         <section class="card sticky-form-card">
           <div class="debt-module-head">
-            <h2>Công nợ</h2>
-            <small>ERP/DMS compact</small>
+            <h2>Nghiệp vụ công nợ</h2>
+            <small>Thao tác bên trái · Báo cáo bên phải</small>
           </div>
           <div class="kpi-grid debt-kpis mini-finance-stats">
             <div class="kpi-card finance-red"><span>Còn nợ</span><strong id="debtTotalKpi">0</strong><small>Phải thu</small></div>
@@ -425,19 +425,18 @@
             <div class="kpi-card finance-green"><span>Đã CK</span><strong id="bankTotalKpi">0</strong><small>Ngân hàng</small></div>
           </div>
 
-          <div class="debt-inner-tabs">
-            <button type="button" class="debt-inner-tab active" data-debt-panel="debtOverviewPanel">Tổng công nợ</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtReceiptPanel">Phiếu thu</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtCashPanel">Tiền mặt</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtBankPanel">Chuyển khoản</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtReturnPanel">Trả hàng</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtHistoryPanel">Sổ AR Ledger</button>
+          <div class="debt-operation-list">
+            <button type="button" class="debt-operation-chip active">Phiếu thu</button>
+            <button type="button" class="debt-operation-chip cash-box">Thu tiền mặt</button>
+            <button type="button" class="debt-operation-chip bank-box">Thu chuyển khoản</button>
+            <button type="button" class="debt-operation-chip return-box">Trả hàng</button>
+            <button type="button" class="debt-operation-chip danger-chip" onclick="voidReceiptPrompt()">Hủy/Void phiếu thu</button>
           </div>
 
-          <form id="debtCollectionForm" class="form compact-form debt-panel active debt-entry-form" data-debt-panel-id="debtReceiptPanel">
+          <form id="debtCollectionForm" class="form compact-form debt-entry-form">
             <div class="compact-form-title">
-              <h3>Ghi chứng từ</h3>
-              <small>Nhập đồng thời tiền mặt, chuyển khoản và hàng trả về</small>
+              <h3>Phiếu thu / xử lý công nợ</h3>
+              <small>Nhập tiền mặt, chuyển khoản hoặc trả hàng trên cùng một chứng từ</small>
             </div>
             <div class="two-cols debt-date-customer-row">
               <label>Ngày chứng từ<input name="date" type="date" /></label>
@@ -462,34 +461,62 @@
             <button type="submit">Ghi chứng từ thật</button>
           </form>
           <p id="collectionMessage" class="message"></p>
-          <div class="note-box compact-note"><p>ERP/DMS: receipts → cashbooks/bankbooks. Trả hàng → returnOrders. Hủy phiếu thu → void/cancel.</p></div>
+          <div class="note-box compact-note"><p>Bên trái dùng để thao tác nghiệp vụ. Bên phải là báo cáo công nợ để kiểm soát khách nợ, NVBH/NVGH và cảnh báo lệch.</p></div>
         </section>
 
         <section class="card wide-history-card debt-workspace">
-          <div class="debt-panel active" data-debt-panel-id="debtOverviewPanel">
-            <div class="toolbar sticky-filter-bar debt-sticky-filter">
-              <div><h2>Tổng công nợ</h2><p id="debtCount" class="muted">Đang tải...</p></div>
-              <div class="debt-filter-grid">
-                <input id="debtSearchInput" placeholder="Tìm KH, đơn, NV..." />
-                <input id="debtSalesmanFilter" placeholder="Lọc NV bán" />
-                <input id="debtDeliveryFilter" placeholder="Lọc NV giao" />
-                <select id="debtStatusFilter">
-                  <option value="">Tất cả trạng thái</option>
-                  <option value="open">Còn nợ</option>
-                  <option value="overdue">Quá hạn</option>
-                  <option value="paid">Đã tất toán</option>
-                </select>
-                <input id="debtDateFrom" type="date" title="Ngày bán từ" />
-                <input id="debtDateTo" type="date" title="Ngày bán đến" />
-              </div>
+          <div class="toolbar sticky-filter-bar debt-sticky-filter debt-report-head">
+            <div><h2>Báo cáo công nợ</h2><p id="debtCount" class="muted">Đang tải...</p></div>
+            <div class="debt-filter-grid">
+              <input id="debtSearchInput" placeholder="Tìm KH, đơn, NV..." />
+              <input id="debtSalesmanFilter" placeholder="Lọc NV bán" />
+              <input id="debtDeliveryFilter" placeholder="Lọc NV giao" />
+              <select id="debtStatusFilter">
+                <option value="">Tất cả trạng thái</option>
+                <option value="open">Còn nợ</option>
+                <option value="overdue">Quá hạn</option>
+                <option value="paid">Đã tất toán</option>
+              </select>
+              <input id="debtDateFrom" type="date" title="Ngày bán từ" />
+              <input id="debtDateTo" type="date" title="Ngày bán đến" />
             </div>
+          </div>
+          <div class="debt-inner-tabs debt-report-tabs">
+            <button type="button" class="debt-inner-tab active" data-debt-panel="debtOverviewPanel">Tổng công nợ</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtSalesmanPanel">Theo NVBH</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtDeliveryPanel">Theo NVGH</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtWarningPanel">Cảnh báo</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtMovementPanel">Biến động</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtArLedgerPanel">AR Ledger</button>
+          </div>
+          <div class="debt-panel active" data-debt-panel-id="debtOverviewPanel">
+            <div class="section-subhead"><h3>Tổng công nợ theo khách hàng</h3><p class="muted">Mặc định ưu tiên người quản lý: khách nào còn nợ, còn bao nhiêu, thuộc NVBH/NVGH nào.</p></div>
             <div id="debtCardList" class="compact-debt-card-list"><div class="empty-state">Đang tải công nợ...</div></div>
             <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Đơn</th><th>Ngày</th><th>Khách</th><th>NV bán</th><th>NV giao</th><th>Hạn TT</th><th>Phải thu</th><th>Đã thu/giảm</th><th>Còn nợ</th></tr></thead><tbody id="debtTable"><tr><td colspan="9">Đang tải công nợ...</td></tr></tbody></table></div>
           </div>
 
-          <div class="debt-panel" data-debt-panel-id="debtHistoryPanel">
-            <div class="toolbar sticky-filter-bar"><div><h2>Sổ công nợ AR Ledger</h2><p id="arLedgerSummary" class="muted">Theo dõi toàn bộ bút toán phải thu: phát sinh nợ, thu tiền, trả hàng, Void/đảo bút toán.</p></div><input id="receiptSearchInput" placeholder="Tìm mã phiếu, đơn, khách, loại bút toán..." /></div>
-            <div id="receiptTimeline" class="receipt-timeline"><div class="empty-state">Đang tải sổ AR Ledger...</div></div>
+          <div class="debt-panel" data-debt-panel-id="debtSalesmanPanel">
+            <div class="section-subhead"><h3>Công nợ theo NVBH</h3><p class="muted">Theo dõi mỗi nhân viên bán hàng đang treo bao nhiêu khách và bao nhiêu tiền.</p></div>
+            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>NVBH</th><th>Số khách</th><th>Số đơn</th><th>Phải thu</th><th>Đã thu/giảm</th><th>Còn nợ</th></tr></thead><tbody id="debtSalesmanReportTable"><tr><td colspan="6">Đang tải báo cáo NVBH...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtDeliveryPanel">
+            <div class="section-subhead"><h3>Công nợ theo NVGH</h3><p class="muted">Phù hợp kiểm soát đơn đã giao, đã thu và còn treo theo nhân viên giao hàng.</p></div>
+            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>NVGH</th><th>Số khách</th><th>Số đơn</th><th>Đã thu/giảm</th><th>Chưa thu</th><th>Còn nợ</th></tr></thead><tbody id="debtDeliveryReportTable"><tr><td colspan="6">Đang tải báo cáo NVGH...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtWarningPanel">
+            <div class="section-subhead"><h3>Cảnh báo lệch công nợ</h3><p id="arLedgerSummary" class="muted">Void phiếu thu, công nợ âm, đơn quá hạn và các trường hợp cần kiểm tra.</p></div>
+            <div id="receiptTimeline" class="receipt-timeline"><div class="empty-state">Đang tải cảnh báo công nợ...</div></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtMovementPanel">
+            <div class="section-subhead"><h3>Lịch sử biến động công nợ</h3><p class="muted">Dòng thời gian phát sinh phải thu, thu tiền, trả hàng và đảo bút toán.</p></div>
+            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Ngày</th><th>Khách/Đơn</th><th>Nghiệp vụ</th><th>Tăng nợ</th><th>Giảm nợ</th><th>Tác động</th><th>Ghi chú</th></tr></thead><tbody id="debtMovementTable"><tr><td colspan="7">Đang tải biến động công nợ...</td></tr></tbody></table></div>
+          </div>
+
+          <div class="debt-panel" data-debt-panel-id="debtArLedgerPanel">
+            <div class="toolbar sticky-filter-bar"><div><h3>Sổ công nợ AR Ledger</h3><p class="muted">Báo cáo kỹ thuật dành cho kế toán/admin khi cần soi Debit/Credit.</p></div><input id="receiptSearchInput" placeholder="Tìm mã phiếu, đơn, khách, loại bút toán..." /></div>
             <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Ngày</th><th>Loại bút toán</th><th>Chứng từ</th><th>Đơn/KH</th><th>Nợ AR</th><th>Có AR</th><th>Tác động</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="receiptHistoryTable"><tr><td colspan="9">Đang tải sổ AR Ledger...</td></tr></tbody></table></div>
           </div>
 
