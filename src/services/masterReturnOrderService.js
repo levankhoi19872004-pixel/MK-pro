@@ -5,6 +5,7 @@ const masterReturnOrderRepository = require('../repositories/masterReturnOrderRe
 const userRepository = require('../repositories/userRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const returnOrderService = require('./returnOrderService');
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowIso() { return new Date().toISOString(); }
@@ -63,6 +64,7 @@ async function listUnmergedReturnOrders(query = {}) {
   const rows = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   return rows
     .filter((row) => !isInactiveStatus(row))
+    .filter((row) => ['waiting_receive', 'pending_warehouse_receive', 'pending'].includes(String(row.status || 'waiting_receive').toLowerCase()))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
     .filter((row) => !date || String(row.date || row.documentDate || row.createdAt || '').slice(0, 10) === date)
     .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
@@ -105,6 +107,9 @@ async function createMasterReturnOrder(body = {}) {
   const children = allReturnOrders.filter((row) => returnOrderIds.includes(String(row.id)) || returnOrderIds.includes(String(row.code)));
   if (children.length !== returnOrderIds.length) return { error: 'Một số phiếu trả hàng không tồn tại', status: 400 };
   if (children.some((row) => isInactiveStatus(row))) return { error: 'Có phiếu trả hàng đã hủy/xóa', status: 400 };
+  if (children.some((row) => !['waiting_receive', 'pending_warehouse_receive', 'pending'].includes(String(row.status || 'waiting_receive').toLowerCase()))) {
+    return { error: 'Chỉ được gộp phiếu trả hàng đang chờ kho nhận', status: 400 };
+  }
   if (children.some((row) => row.masterReturnOrderId || row.masterReturnOrderCode || (row.returnMergeStatus || 'unmerged') === 'merged')) {
     return { error: 'Có phiếu trả hàng đã được gộp trước đó', status: 400 };
   }
@@ -168,7 +173,7 @@ async function updateMasterReturnOrder(id, body = {}) {
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',
     note: String(body.note ?? current.note ?? '').trim(),
-    status: String(body.status || current.status || 'pending_warehouse_receive').trim(),
+    status: String(body.status === 'received' ? current.status : (body.status || current.status || 'pending_warehouse_receive')).trim(),
     ...summarizeReturnOrders(children),
     updatedAt: nowIso()
   };
@@ -186,6 +191,54 @@ async function updateMasterReturnOrder(id, body = {}) {
     }
   });
   return { masterReturnOrder: toClient(updated, children) };
+}
+
+
+async function confirmReceiveMasterReturnOrder(id, body = {}) {
+  const current = await masterReturnOrderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
+  if (isInactiveStatus(current)) return { error: 'Đơn tổng trả hàng đã hủy/xóa, không thể nhập kho', status: 400 };
+  if (String(current.status || '').toLowerCase() === 'received') {
+    const children = await getChildren(current);
+    return { masterReturnOrder: toClient(current, children), alreadyReceived: true };
+  }
+
+  const children = await getChildren(current);
+  if (!children.length) return { error: 'Đơn tổng trả hàng chưa có phiếu trả hàng con', status: 400 };
+
+  for (const child of children) {
+    const result = await returnOrderService.confirmReceiveReturnOrder(child.id || child.code);
+    if (result && result.error) return result;
+  }
+
+  const receivedChildren = await getChildren(current);
+  const received = {
+    ...current,
+    status: 'received',
+    warehouseReceiveStatus: 'received',
+    receivedAt: nowIso(),
+    receivedBy: String(body.receivedBy || '').trim(),
+    updatedAt: nowIso(),
+    ...summarizeReturnOrders(receivedChildren)
+  };
+
+  await withMongoTransaction(async (session) => {
+    await masterReturnOrderRepository.upsert(received, { session });
+    for (const child of receivedChildren) {
+      await returnOrderRepository.upsert({
+        ...child,
+        status: 'received',
+        warehouseReceiveStatus: 'received',
+        returnMergeStatus: 'merged',
+        masterReturnOrderId: received.id,
+        masterReturnOrderCode: received.code,
+        updatedAt: nowIso()
+      }, { session });
+    }
+  });
+
+  const finalChildren = await getChildren(received);
+  return { masterReturnOrder: toClient(received, finalChildren), alreadyReceived: false };
 }
 
 async function cancelMasterReturnOrder(id, body = {}) {
@@ -221,5 +274,6 @@ module.exports = {
   getMasterReturnOrder,
   createMasterReturnOrder,
   updateMasterReturnOrder,
+  confirmReceiveMasterReturnOrder,
   cancelMasterReturnOrder
 };

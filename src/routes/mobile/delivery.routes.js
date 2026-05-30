@@ -21,6 +21,9 @@ function createMobileDeliveryRouter(ctx) {
     body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
     body('status').isIn(['success', 'failed']).withMessage('Trạng thái giao hàng không hợp lệ'),
     body('collectAmount').optional().isFloat({ min: 0 }).withMessage('Tiền thu không được âm'),
+    body('cashAmount').optional().isFloat({ min: 0 }).withMessage('Tiền mặt không được âm'),
+    body('bankAmount').optional().isFloat({ min: 0 }).withMessage('Chuyển khoản không được âm'),
+    body('rewardAmount').optional().isFloat({ min: 0 }).withMessage('Tiền trả thưởng không được âm'),
     body('collectionMethod').optional().isIn(['cash', 'transfer']).withMessage('Hình thức thu không hợp lệ'),
     body('paymentMethod').optional().isIn(['cash', 'transfer']).withMessage('Hình thức thu không hợp lệ'),
     body('note').optional().isString().trim()

@@ -141,14 +141,43 @@ function buildErpDeliveryReturnKey(order = {}) {
   return `erp_delivery_return:${order.id || order.code || ''}`;
 }
 
-async function findErpDeliveryReturnOrder(order = {}) {
+async function findErpDeliveryReturnOrders(order = {}) {
   const key = buildErpDeliveryReturnKey(order);
   const rows = await returnOrderRepository.findAll();
-  return rows.find((row) => (
+  return rows.filter((row) => (
     row.erpDeliveryReturnKey === key
     || (row.source === 'erp_delivery_return' && String(row.salesOrderId || row.orderId || '') === String(order.id || ''))
     || (row.source === 'erp_delivery_return' && String(row.salesOrderCode || row.orderCode || '') === String(order.code || ''))
-  )) || null;
+  ));
+}
+
+async function findErpDeliveryReturnOrder(order = {}) {
+  const rows = await findErpDeliveryReturnOrders(order);
+  // Ưu tiên phiếu chưa gộp còn hiệu lực; các bản THH cũ sinh trùng sẽ được hủy ở bước sync.
+  return rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase()) && !(row.masterReturnOrderId || row.masterReturnOrderCode))
+    || rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase()))
+    || rows[0]
+    || null;
+}
+
+async function cancelDuplicateErpReturnOrders(order = {}, keep = null, options = {}) {
+  const rows = await findErpDeliveryReturnOrders(order);
+  const keepId = String(keep?.id || '').trim();
+  const keepCode = String(keep?.code || '').trim();
+  for (const row of rows) {
+    const isKeep = (keepId && String(row.id || '').trim() === keepId) || (keepCode && String(row.code || '').trim() === keepCode);
+    const status = String(row.status || '').toLowerCase();
+    if (isKeep || ['cancelled', 'canceled', 'void', 'deleted'].includes(status)) continue;
+    // Chỉ hủy bản trùng chưa gộp. Không đụng chứng từ đã đưa vào đơn tổng/kho kiểm nhận.
+    if ((row.returnMergeStatus || 'unmerged') === 'merged' || row.masterReturnOrderId || row.masterReturnOrderCode) continue;
+    await returnOrderRepository.upsert({
+      ...row,
+      status: 'cancelled',
+      cancelledAt: nowIso(),
+      cancelReason: `Hủy phiếu trả trùng của đơn giao ${order.code || order.id || ''}`,
+      updatedAt: nowIso()
+    }, options);
+  }
 }
 
 async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], options = {}) {
@@ -193,9 +222,9 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
     totalAmount,
     amount: totalAmount,
     debtReduction: totalAmount,
-    status: 'posted',
+    status: 'waiting_receive',
     returnMergeStatus: 'unmerged',
-    warehouseReceiveStatus: 'pending',
+    warehouseReceiveStatus: 'waiting_receive',
     source: 'erp_delivery_return',
     refType: 'erpDeliveryReturn',
     deliveryStaffCode: updatedOrder.deliveryStaffCode || '',
@@ -211,23 +240,24 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
       // Phiếu đã gộp/kho đang xử lý thì không ghi đè chứng từ cũ; chỉ giữ số liệu trên đơn giao.
       return existing;
     }
-    const merged = {
-      ...existing,
+    const result = await returnOrderService.createPendingReturnOrder({
       ...payload,
       id: existing.id,
       code: existing.code,
       createdAt: existing.createdAt || nowIso(),
-      updatedAt: nowIso()
-    };
-    await returnOrderRepository.upsert(merged, options);
-    return merged;
+      note: payload.note || `ERP cập nhật phiếu trả từ đơn giao ${updatedOrder.code || updatedOrder.id || ''}`
+    });
+    if (result.error) throw new Error(result.error);
+    await cancelDuplicateErpReturnOrders(updatedOrder, result.returnOrder, options);
+    return result.returnOrder;
   }
 
-  const result = await returnOrderService.createReturnOrder({
+  const result = await returnOrderService.createPendingReturnOrder({
     ...payload,
     note: payload.note || `ERP tạo phiếu trả từ đơn giao ${updatedOrder.code || updatedOrder.id || ''}`
   });
   if (result.error) throw new Error(result.error);
+  await cancelDuplicateErpReturnOrders(updatedOrder, result.returnOrder, options);
   return result.returnOrder;
 }
 

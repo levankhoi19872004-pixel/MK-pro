@@ -500,7 +500,7 @@ async function receiveMasterReturnOrder(id){
   if(!id)return;
   if(!confirm('Xác nhận kho đã kiểm nhận đơn tổng trả hàng này?'))return;
   try{
-    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'received'})});
+    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivedBy:'Kho'})});
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không cập nhật trạng thái kho');
     showMessage(masterReturnOrderMessage,json.message||'Đã xác nhận kho nhận hàng trả');

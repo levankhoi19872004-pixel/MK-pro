@@ -54,6 +54,19 @@ async function update(req, res) {
   }
 }
 
+
+async function receive(req, res) {
+  try {
+    const result = await masterReturnOrderService.confirmReceiveMasterReturnOrder(req.params.id, req.body || {});
+    return handleServiceResult(res, result, 200, (r) => ({
+      message: r.alreadyReceived ? `Đơn tổng trả hàng ${r.masterReturnOrder.code} đã được kho nhận trước đó` : `Đã xác nhận kho nhận và ghi sổ đơn tổng trả hàng ${r.masterReturnOrder.code}`,
+      masterReturnOrder: r.masterReturnOrder
+    }));
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không xác nhận được kho nhận hàng trả' });
+  }
+}
+
 async function cancel(req, res) {
   try {
     const result = await masterReturnOrderService.cancelMasterReturnOrder(req.params.id, req.body || {});
@@ -63,4 +76,4 @@ async function cancel(req, res) {
   }
 }
 
-module.exports = { listUnmerged, list, get, create, update, cancel };
+module.exports = { listUnmerged, list, get, create, update, receive, cancel };

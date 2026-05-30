@@ -111,7 +111,12 @@ function createMobileDeliveryService(ctx) {
     const data = await repo.getPrimaryDataSnapshot();
     const orderId = String(body.orderId || '').trim();
     const status = String(body.status || '').trim();
-    const collectAmount = toNumber(body.collectAmount);
+    const hasSplitAmounts = body.cashAmount !== undefined || body.bankAmount !== undefined || body.rewardAmount !== undefined;
+    const legacyCollectAmount = toNumber(body.collectAmount);
+    const cashAmount = hasSplitAmounts ? toNumber(body.cashAmount) : 0;
+    const bankAmount = hasSplitAmounts ? toNumber(body.bankAmount) : 0;
+    const rewardAmount = hasSplitAmounts ? toNumber(body.rewardAmount) : 0;
+    const collectAmount = hasSplitAmounts ? cashAmount + bankAmount + rewardAmount : legacyCollectAmount;
     const collectionMethodRaw = String(body.collectionMethod || body.paymentMethod || 'cash').trim().toLowerCase();
     const collectionMethod = ['cash', 'transfer'].includes(collectionMethodRaw) ? collectionMethodRaw : 'cash';
     const note = String(body.note || '').trim();
@@ -119,7 +124,7 @@ function createMobileDeliveryService(ctx) {
 
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
-    if (collectAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
+    if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
     const currentDebt = calculateDeliveryDebt(order);
     if (status === 'success' && collectAmount > currentDebt) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn công nợ còn lại của đơn' } };
 
@@ -134,24 +139,38 @@ function createMobileDeliveryService(ctx) {
     if (status === 'success' && collectAmount > 0) {
       const date = new Date().toISOString().slice(0, 10);
       const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
-      const receipt = createReceiptDocument(data, {
-        customer,
-        amount: collectAmount,
-        date,
-        method: collectionMethod,
-        staffName: mobileUser.name || '',
-        note: note || (collectionMethod === 'transfer' ? `App giao hàng thu chuyển khoản đơn ${order.code}` : `App giao hàng thu tiền mặt đơn ${order.code}`),
-        refType: 'mobileDelivery',
-        refId: order.id,
-        refCode: order.code
-      });
-      order.paidAmount = toNumber(order.paidAmount) + collectAmount;
-      if (collectionMethod === 'transfer') order.bankCollected = toNumber(order.bankCollected) + collectAmount;
-      else order.cashCollected = toNumber(order.cashCollected) + collectAmount;
+      const receiptLines = hasSplitAmounts
+        ? [
+            { amount: cashAmount, method: 'cash', note: note || `App giao hàng thu tiền mặt đơn ${order.code}` },
+            { amount: bankAmount, method: 'transfer', note: note || `App giao hàng thu chuyển khoản đơn ${order.code}` }
+          ].filter(line => line.amount > 0)
+        : [{ amount: legacyCollectAmount, method: collectionMethod, note: note || (collectionMethod === 'transfer' ? `App giao hàng thu chuyển khoản đơn ${order.code}` : `App giao hàng thu tiền mặt đơn ${order.code}`) }];
+
+      for (const line of receiptLines) {
+        const receipt = createReceiptDocument(data, {
+          customer,
+          amount: line.amount,
+          date,
+          method: line.method,
+          staffName: mobileUser.name || '',
+          note: line.note,
+          refType: 'mobileDelivery',
+          refId: order.id,
+          refCode: order.code
+        });
+        auditLog(data, 'mobile_delivery_receipt', 'receipt', receipt, null, receipt, 'App giao hàng sinh phiếu thu thật', mobileUser.name || '');
+      }
+
+      order.paidAmount = toNumber(order.paidAmount) + cashAmount + bankAmount + (hasSplitAmounts ? 0 : legacyCollectAmount);
+      if (hasSplitAmounts) {
+        order.cashCollected = toNumber(order.cashCollected) + cashAmount;
+        order.bankCollected = toNumber(order.bankCollected) + bankAmount;
+        order.rewardAmount = toNumber(order.rewardAmount) + rewardAmount;
+      } else if (collectionMethod === 'transfer') order.bankCollected = toNumber(order.bankCollected) + legacyCollectAmount;
+      else order.cashCollected = toNumber(order.cashCollected) + legacyCollectAmount;
       order.debtBeforeCollection = deliveryDebtBase(order);
       order.debtAmount = calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
-      auditLog(data, 'mobile_delivery_receipt', 'receipt', receipt, null, receipt, 'App giao hàng sinh phiếu thu thật', mobileUser.name || '');
     }
 
     writeMobileLog(data, mobileUser, 'mobile_confirm_delivery', {
@@ -184,10 +203,9 @@ function createMobileDeliveryService(ctx) {
     const date = new Date().toISOString().slice(0, 10);
     const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
 
-    // Đường dẫn một mối: mọi phiếu trả hàng, kể cả từ app giao hàng,
-    // đều đi qua returnOrderService.createReturnOrder() để ghi returnOrders,
-    // nhập lại tồn và giảm công nợ theo cùng một chuẩn báo cáo.
-    const result = await returnOrderService.createReturnOrder({
+    // App giao hàng chỉ lập phiếu trả ở trạng thái chờ kho nhận.
+    // Chỉ khi Đơn tổng trả hàng được kho xác nhận mới nhập tồn và giảm công nợ/doanh thu.
+    const result = await returnOrderService.createPendingReturnOrder({
       salesOrderId: order.id,
       salesOrderCode: order.code,
       orderId: order.id,

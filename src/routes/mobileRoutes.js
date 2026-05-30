@@ -757,7 +757,12 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     if (!order) return fail(res, 404, 'Không tìm thấy đơn giao hàng');
     const status = String(req.body?.status || '').trim();
     if (!['success', 'failed'].includes(status)) return fail(res, 400, 'Trạng thái giao hàng không hợp lệ');
-    const collectAmount = Math.max(0, toNumber(req.body?.collectAmount));
+    const hasSplitAmounts = req.body?.cashAmount !== undefined || req.body?.bankAmount !== undefined || req.body?.rewardAmount !== undefined;
+    const cashAmount = hasSplitAmounts ? Math.max(0, toNumber(req.body?.cashAmount)) : 0;
+    const bankAmount = hasSplitAmounts ? Math.max(0, toNumber(req.body?.bankAmount)) : 0;
+    const rewardAmount = hasSplitAmounts ? Math.max(0, toNumber(req.body?.rewardAmount)) : 0;
+    const legacyCollectAmount = Math.max(0, toNumber(req.body?.collectAmount));
+    const collectAmount = hasSplitAmounts ? cashAmount + bankAmount + rewardAmount : legacyCollectAmount;
     const method = String(req.body?.collectionMethod || req.body?.paymentMethod || 'cash').trim() === 'transfer' ? 'transfer' : 'cash';
     const note = String(req.body?.note || '').trim();
 
@@ -770,47 +775,62 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     order.updatedAt = new Date().toISOString();
 
     if (status === 'success' && collectAmount > 0) {
-      const receipt = await Receipt.create({
-        id: makeId('RC'),
-        code: buildCode('RC'),
-        date: new Date().toISOString().slice(0, 10),
-        customerId: order.customerId || '',
-        customerCode: order.customerCode || '',
-        customerName: order.customerName || '',
-        method,
-        amount: collectAmount,
-        status: 'active',
-        source: 'mobile_delivery',
-        refType: 'salesOrder',
-        refId: getDocId(order),
-        refCode: orderCode(order),
-        staffCode: req.mobileUser.code || '',
-        staffName: req.mobileUser.name || '',
-        note: note || `App giao hàng thu ${method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      const bookModel = method === 'transfer' ? Bankbook : Cashbook;
-      await bookModel.create({
-        id: makeId(method === 'transfer' ? 'BB' : 'CB'),
-        code: buildCode(method === 'transfer' ? 'BB' : 'CB'),
-        date: new Date().toISOString().slice(0, 10),
-        type: 'in',
-        source: 'mobile_delivery_receipt',
-        refType: 'receipt',
-        refId: getDocId(receipt),
-        refCode: receipt.code,
-        customerCode: order.customerCode || '',
-        customerName: order.customerName || '',
-        staffCode: req.mobileUser.code || '',
-        staffName: req.mobileUser.name || '',
-        amount: collectAmount,
-        note: receipt.note,
-        createdAt: new Date().toISOString()
-      });
-      order.paidAmount = toNumber(order.paidAmount) + collectAmount;
-      if (method === 'transfer') order.bankCollected = toNumber(order.bankCollected) + collectAmount;
-      else order.cashCollected = toNumber(order.cashCollected) + collectAmount;
+      const receiptLines = hasSplitAmounts
+        ? [
+            { method: 'cash', amount: cashAmount, note: note || `App giao hàng thu tiền mặt đơn ${orderCode(order)}` },
+            { method: 'transfer', amount: bankAmount, note: note || `App giao hàng thu chuyển khoản đơn ${orderCode(order)}` }
+          ].filter(line => line.amount > 0)
+        : [{ method, amount: legacyCollectAmount, note: note || `App giao hàng thu ${method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}` }];
+      for (const line of receiptLines) {
+        const receipt = await Receipt.create({
+          id: makeId('RC'),
+          code: buildCode('RC'),
+          date: new Date().toISOString().slice(0, 10),
+          customerId: order.customerId || '',
+          customerCode: order.customerCode || '',
+          customerName: order.customerName || '',
+          method: line.method,
+          amount: line.amount,
+          status: 'active',
+          source: 'mobile_delivery',
+          refType: 'salesOrder',
+          refId: getDocId(order),
+          refCode: orderCode(order),
+          staffCode: req.mobileUser.code || '',
+          staffName: req.mobileUser.name || '',
+          note: line.note,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        const bookModel = line.method === 'transfer' ? Bankbook : Cashbook;
+        await bookModel.create({
+          id: makeId(line.method === 'transfer' ? 'BB' : 'CB'),
+          code: buildCode(line.method === 'transfer' ? 'BB' : 'CB'),
+          date: new Date().toISOString().slice(0, 10),
+          type: 'in',
+          source: 'mobile_delivery_receipt',
+          refType: 'receipt',
+          refId: getDocId(receipt),
+          refCode: receipt.code,
+          customerCode: order.customerCode || '',
+          customerName: order.customerName || '',
+          staffCode: req.mobileUser.code || '',
+          staffName: req.mobileUser.name || '',
+          amount: line.amount,
+          note: receipt.note,
+          createdAt: new Date().toISOString()
+        });
+      }
+      if (hasSplitAmounts) {
+        order.cashCollected = toNumber(order.cashCollected) + cashAmount;
+        order.bankCollected = toNumber(order.bankCollected) + bankAmount;
+        order.rewardAmount = toNumber(order.rewardAmount) + rewardAmount;
+        order.paidAmount = toNumber(order.paidAmount) + cashAmount + bankAmount;
+      } else {
+        order.paidAmount = toNumber(order.paidAmount) + legacyCollectAmount;
+        if (method === 'transfer') order.bankCollected = toNumber(order.bankCollected) + legacyCollectAmount;
+        else order.cashCollected = toNumber(order.cashCollected) + legacyCollectAmount;
+      }
       order.debtBeforeCollection = deliveryDebtBase(order);
       order.debtAmount = calculateDeliveryDebt(order);
       order.debt = order.debtAmount;

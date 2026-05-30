@@ -39,8 +39,9 @@ async function listReturnOrders(query = {}) {
   const q = normalizeText(query.q);
   const dateFrom = String(query.dateFrom || '').slice(0, 10);
   const dateTo = String(query.dateTo || '').slice(0, 10);
-  const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
+  const excludeInactive = String(query.excludeInactive ?? '1') !== '0';
   const orders = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const seenErpDeliveryReturns = new Set();
   return orders
     .map(toClient)
     .filter((order) => !excludeInactive || !isInactiveStatus(order))
@@ -50,7 +51,16 @@ async function listReturnOrders(query = {}) {
       if (dateTo && d > dateTo) return false;
       return true;
     })
-    .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.salesOrderCode, order.staffName, order.note].some((value) => normalizeText(value).includes(q)));
+    .filter((order) => {
+      // ERP delivery: 1 đơn giao chỉ được hiện 1 phiếu trả. Các bản trùng cũ nếu còn trong DB sẽ bị ẩn khỏi màn hình.
+      if (String(order.source || '') !== 'erp_delivery_return') return true;
+      const key = String(order.erpDeliveryReturnKey || order.salesOrderId || order.orderId || order.salesOrderCode || order.orderCode || order.code || '').trim();
+      if (!key) return true;
+      if (seenErpDeliveryReturns.has(key)) return false;
+      seenErpDeliveryReturns.add(key);
+      return true;
+    })
+    .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.salesOrderCode, order.staffName, order.deliveryStaffName, order.note].some((value) => normalizeText(value).includes(q)));
 }
 
 async function resolveSalesOrder(body = {}) {
@@ -87,36 +97,110 @@ function normalizeItems(rawItems = [], salesOrder = null) {
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
 }
 
-async function createReturnOrder(body = {}) {
+async function findExistingReturnOrder(body = {}) {
+  const candidates = await returnOrderRepository.findAll();
+  const id = String(body.id || '').trim();
+  const code = String(body.code || '').trim();
+  const erpKey = String(body.erpDeliveryReturnKey || '').trim();
+  const source = String(body.source || '').trim();
+  const salesOrderId = String(body.salesOrderId || body.orderId || '').trim();
+  const salesOrderCode = String(body.salesOrderCode || body.orderCode || '').trim();
+
+  return candidates.find((row) => {
+    if (id && String(row.id || '').trim() === id) return true;
+    if (code && String(row.code || '').trim() === code) return true;
+    if (erpKey && String(row.erpDeliveryReturnKey || '').trim() === erpKey) return true;
+    if (source === 'erp_delivery_return' && String(row.source || '').trim() === 'erp_delivery_return') {
+      if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
+      if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
+    }
+    return false;
+  }) || null;
+}
+
+
+
+function isPostedReturnStatus(status = '') {
+  return ['posted', 'received', 'warehouse_received', 'completed'].includes(String(status || '').toLowerCase());
+}
+
+function isPendingReturnStatus(status = '') {
+  return ['waiting_receive', 'pending_warehouse_receive', 'pending', 'draft'].includes(String(status || '').toLowerCase());
+}
+
+async function buildReturnOrderDocument(body = {}) {
   const salesOrder = await resolveSalesOrder(body);
   const customer = await resolveCustomer(body, salesOrder);
   if (!customer && !body.customerName && !salesOrder?.customerName) return { error: 'Không tìm thấy khách hàng', status: 404 };
-  const items = normalizeItems(body.items, salesOrder);
+  const items = normalizeItems(body.items, salesOrder).filter((item) => toNumber(item.quantity) > 0);
   if (!items.length) return { error: 'Phiếu trả hàng chưa có dòng hàng', status: 400 };
+
   const existingOrders = await returnOrderRepository.findAll();
+  const existing = await findExistingReturnOrder(body);
   const totalAmount = toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0));
   const returnOrder = {
+    ...(existing || {}),
     ...body,
-    id: String(body.id || makeId('RO')).trim(),
-    code: String(body.code || buildReturnCode(existingOrders)).trim(),
-    date: String(body.date || today()).slice(0, 10),
-    salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || '',
-    salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || '',
-    customerId: customer?.id || body.customerId || salesOrder?.customerId || '',
-    customerCode: customer?.code || body.customerCode || salesOrder?.customerCode || '',
-    customerName: customer?.name || body.customerName || salesOrder?.customerName || '',
-    note: String(body.note || '').trim(),
+    id: String(existing?.id || body.id || makeId('RO')).trim(),
+    code: String(existing?.code || body.code || buildReturnCode(existingOrders)).trim(),
+    date: String(body.date || existing?.date || today()).slice(0, 10),
+    documentDate: String(body.documentDate || body.date || existing?.documentDate || existing?.date || today()).slice(0, 10),
+    salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
+    salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || existing?.salesOrderCode || '',
+    orderId: salesOrder?.id || body.orderId || body.salesOrderId || existing?.orderId || existing?.salesOrderId || '',
+    orderCode: salesOrder?.code || body.orderCode || body.salesOrderCode || existing?.orderCode || existing?.salesOrderCode || '',
+    customerId: customer?.id || body.customerId || salesOrder?.customerId || existing?.customerId || '',
+    customerCode: customer?.code || body.customerCode || salesOrder?.customerCode || existing?.customerCode || '',
+    customerName: customer?.name || body.customerName || salesOrder?.customerName || existing?.customerName || '',
+    deliveryStaffId: body.deliveryStaffId || existing?.deliveryStaffId || salesOrder?.deliveryStaffId || '',
+    deliveryStaffCode: body.deliveryStaffCode || existing?.deliveryStaffCode || salesOrder?.deliveryStaffCode || '',
+    deliveryStaffName: body.deliveryStaffName || existing?.deliveryStaffName || salesOrder?.deliveryStaffName || '',
+    staffCode: body.staffCode || body.deliveryStaffCode || existing?.staffCode || existing?.deliveryStaffCode || '',
+    staffName: body.staffName || body.deliveryStaffName || existing?.staffName || existing?.deliveryStaffName || '',
+    note: String(body.note ?? existing?.note ?? '').trim(),
     items,
     totalQuantity: toNumber(body.totalQuantity ?? items.reduce((sum, item) => sum + toNumber(item.quantity), 0)),
     totalAmount,
+    amount: toNumber(body.amount ?? totalAmount),
     debtReduction: toNumber(body.debtReduction ?? totalAmount),
-    status: body.status || 'posted',
-    source: body.source || 'mongo_return_order_route',
-    createdAt: body.createdAt || nowIso(),
+    status: body.status || existing?.status || 'posted',
+    returnMergeStatus: body.returnMergeStatus || existing?.returnMergeStatus || 'unmerged',
+    warehouseReceiveStatus: body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || (isPostedReturnStatus(body.status) ? 'received' : 'waiting_receive'),
+    source: body.source || existing?.source || 'mongo_return_order_route',
+    createdAt: existing?.createdAt || body.createdAt || nowIso(),
     updatedAt: nowIso()
   };
+  return { returnOrder, existing };
+}
+
+async function createReturnOrder(body = {}) {
+  const built = await buildReturnOrderDocument({ ...body, status: body.status || 'posted', warehouseReceiveStatus: body.warehouseReceiveStatus || 'received' });
+  if (built.error) return built;
+  const { returnOrder, existing } = built;
+
   await withMongoTransaction(async (session) => {
-    await returnOrderRepository.upsert(returnOrder, { session });
+    // Phiếu tạo trực tiếp ở menu Trả hàng vẫn giữ hành vi cũ: ghi sổ ngay.
+    // Luồng giao hàng ERP không dùng hàm này nữa mà dùng createPendingReturnOrder().
+    if (existing && isPostedReturnStatus(existing.status)) {
+      await inventoryService.reverseStockMovement(existing, {
+        type: 'RETURN',
+        reverseType: 'RETURN_UPDATE_REVERSAL',
+        direction: 'IN',
+        refType: 'RETURN_ORDER',
+        refId: existing.id || existing.code,
+        refCode: existing.code || existing.id,
+        date: existing.date,
+        note: 'Đảo nhập kho phiếu trả hàng trước khi cập nhật'
+      }, { session });
+      await postingEngine.reverseReturnOrderAR(existing, { session });
+    }
+
+    await returnOrderRepository.upsert({
+      ...returnOrder,
+      status: 'posted',
+      warehouseReceiveStatus: 'received',
+      postedAt: returnOrder.postedAt || nowIso()
+    }, { session });
     await inventoryService.postStockMovement(returnOrder, {
       type: 'RETURN',
       direction: 'IN',
@@ -124,11 +208,76 @@ async function createReturnOrder(body = {}) {
       refId: returnOrder.id || returnOrder.code,
       refCode: returnOrder.code || returnOrder.id,
       date: returnOrder.date,
-      note: 'Nhập lại kho theo phiếu trả hàng'
+      note: existing ? 'Cập nhật nhập lại kho theo phiếu trả hàng' : 'Nhập lại kho theo phiếu trả hàng'
     }, { session });
     await postingEngine.postReturnOrderAR(returnOrder, { session });
   });
-  return { returnOrder: toClient(returnOrder) };
+  return { returnOrder: toClient({ ...returnOrder, status: 'posted', warehouseReceiveStatus: 'received' }), updatedExisting: Boolean(existing) };
 }
 
-module.exports = { listReturnOrders, createReturnOrder, toClient };
+async function createPendingReturnOrder(body = {}, options = {}) {
+  const built = await buildReturnOrderDocument({
+    ...body,
+    status: body.status || 'waiting_receive',
+    returnMergeStatus: body.returnMergeStatus || 'unmerged',
+    warehouseReceiveStatus: body.warehouseReceiveStatus || 'waiting_receive'
+  });
+  if (built.error) return built;
+  const { returnOrder, existing } = built;
+
+  if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
+    return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
+  }
+  if (existing && isPostedReturnStatus(existing.status)) {
+    return { error: 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng', status: 400 };
+  }
+
+  await returnOrderRepository.upsert({
+    ...returnOrder,
+    status: 'waiting_receive',
+    returnMergeStatus: 'unmerged',
+    warehouseReceiveStatus: 'waiting_receive',
+    postedAt: '',
+    receivedAt: ''
+  }, options);
+
+  return { returnOrder: toClient({ ...returnOrder, status: 'waiting_receive', warehouseReceiveStatus: 'waiting_receive' }), updatedExisting: Boolean(existing) };
+}
+
+async function confirmReceiveReturnOrder(idOrCode, options = {}) {
+  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
+  if (['cancelled', 'canceled', 'void', 'deleted'].includes(String(current.status || '').toLowerCase())) {
+    return { error: 'Phiếu trả hàng đã hủy/xóa, không thể nhập kho', status: 400 };
+  }
+  if (isPostedReturnStatus(current.status) || String(current.warehouseReceiveStatus || '').toLowerCase() === 'received') {
+    return { returnOrder: toClient(current), alreadyReceived: true };
+  }
+
+  const received = {
+    ...current,
+    status: 'received',
+    warehouseReceiveStatus: 'received',
+    receivedAt: nowIso(),
+    postedAt: current.postedAt || nowIso(),
+    updatedAt: nowIso()
+  };
+
+  await withMongoTransaction(async (session) => {
+    await returnOrderRepository.upsert(received, { session });
+    await inventoryService.postStockMovement(received, {
+      type: 'RETURN',
+      direction: 'IN',
+      refType: 'RETURN_ORDER',
+      refId: received.id || received.code,
+      refCode: received.code || received.id,
+      date: received.date,
+      note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
+    }, { session });
+    await postingEngine.postReturnOrderAR(received, { session });
+  });
+
+  return { returnOrder: toClient(received), alreadyReceived: false };
+}
+
+module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, confirmReceiveReturnOrder, toClient };
