@@ -3353,7 +3353,10 @@ button.danger:hover{background:#fecaca}
 #debtTab .debt-staff-line,
 #debtTab .debt-date-line,
 #debtTab .debt-mini-timeline{display:none!important}
-#debtTab .debt-fallback-table{display:none!important}
+/* Ẩn bảng fallback ở tab Tổng công nợ vì tab này dùng card compact.
+   Các tab Theo NVBH/NVGH/Biến động/AR Ledger vẫn cần bảng để hiển thị báo cáo. */
+#debtTab .debt-panel[data-debt-panel-id="debtOverviewPanel"] .debt-fallback-table{display:none!important}
+#debtTab .debt-panel:not([data-debt-panel-id="debtOverviewPanel"]) .debt-fallback-table{display:block!important}
 #debtTab .section-subhead{margin:2px 0 10px!important;align-items:center!important}
 #debtTab .section-subhead h3{font-size:15px!important}
 #debtTab .section-subhead p{font-size:11.5px!important;max-width:520px!important}
