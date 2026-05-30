@@ -176,6 +176,27 @@ function renderSelectedOrder(order) {
 
 function renderActionForm(order) {
   deliveryActionBox.innerHTML = `
+    
+    <div class="delivery-summary-box">
+      <h3>Tổng kết giao hàng</h3>
+      <div>Phải thu: <b>${money(order.amount || order.debtAmount || 0)}</b></div>
+      <div>Còn nợ: <b>${money(order.debtAmount || 0)}</b></div>
+    </div>
+    <details class="return-panel" open>
+      <summary>Danh sách hàng trả (chọn đúng sản phẩm trả)</summary>
+      <p class="return-help">Nhập hàng trả trước khi thu tiền.</p>
+      <div class="mini-list return-grid">
+        ${(order.items || []).map(item => `
+          <div class="return-line">
+            <div class="return-product">
+              <strong>${escapeHtml(item.productCode || '')}</strong>
+              <span>${escapeHtml(item.productName || '')}</span>
+            </div>
+            <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" type="number" min="0" max="${Number(item.quantity || 0)}" step="1" value="0" placeholder="SL trả" />
+          </div>
+        `).join('')}
+      </div>
+    </details>
     <div class="collection-tabs" data-method-wrap="${escapeHtml(order.id)}">
       <label><input type="radio" name="collectMethod-${escapeHtml(order.id)}" value="cash" checked /> Tiền mặt</label>
       <label><input type="radio" name="collectMethod-${escapeHtml(order.id)}" value="transfer" /> Chuyển khoản</label>
@@ -183,23 +204,7 @@ function renderActionForm(order) {
     </div>
     <input class="collect-input" data-collect="${escapeHtml(order.id)}" type="number" min="0" value="${Number(order.amount || order.debtAmount || 0)}" placeholder="Tiền thực thu" />
     <input class="note-input" data-note="${escapeHtml(order.id)}" type="text" placeholder="Ghi chú giao hàng / lý do trả hàng" />
-    <details class="return-panel">
-      <summary>Trả hàng trên đơn giao</summary>
-      <p class="return-help">Nhập số lượng khách trả. Khi lưu, hệ thống sinh returnOrders, nhập lại tồn và giảm công nợ/doanh thu.</p>
-      <div class="mini-list return-grid">
-        ${(order.items || []).map(item => `
-          <div class="return-line">
-            <div class="return-product">
-              <strong>${escapeHtml(item.productCode || '')}</strong>
-              <span>${escapeHtml(item.productName || '')}</span>
-              <small>SL trong đơn: ${Number(item.quantity || 0)} · Giá: ${money(item.salePrice || item.price || 0)}</small>
-            </div>
-            <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" type="number" min="0" max="${Number(item.quantity || 0)}" step="1" value="0" placeholder="SL trả" />
-            <input class="return-reason-input" data-return-reason-order="${escapeHtml(order.id)}" data-return-reason-code="${escapeHtml(item.productCode || item.productId || '')}" type="text" placeholder="Lý do" />
-          </div>
-        `).join('')}
-      </div>
-    </details>
+    
     <div class="row-actions delivery-action-buttons">
       <button class="primary-btn" data-ok="${escapeHtml(order.id)}">Giao thành công</button>
       <button class="ghost-btn" data-partial-return="${escapeHtml(order.id)}">Trả 1 phần</button>
