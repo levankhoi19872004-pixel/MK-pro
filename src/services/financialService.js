@@ -6,6 +6,7 @@ const bankbookRepository = require('../repositories/bankbookRepository');
 const paymentRepository = require('../repositories/paymentRepository');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const customerRepository = require('../repositories/customerRepository');
+const orderRepository = require('../repositories/orderRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const postingEngine = require('../engines/posting.engine');
@@ -76,6 +77,60 @@ function allocationPrimary(allocations = []) {
     salesOrderId: first.orderId || '',
     salesOrderCode: first.orderCode || ''
   };
+}
+
+async function applyReceiptToOrderDebts(receipt = {}, options = {}) {
+  const rows = parseAllocations(receipt.allocations);
+  const allocations = rows.length ? rows : parseAllocations([{
+    orderId: receipt.orderId || receipt.salesOrderId || receipt.refId || '',
+    orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
+    amount: receipt.amount
+  }]);
+  for (const allocation of allocations) {
+    const key = allocation.orderId || allocation.orderCode;
+    if (!key || toNumber(allocation.amount) <= 0) continue;
+    const order = await orderRepository.findByIdOrCode(key);
+    if (!order) continue;
+    const nextDebt = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) - toNumber(allocation.amount));
+    const updated = {
+      ...order,
+      debtAmount: nextDebt,
+      debt: nextDebt,
+      arBalance: nextDebt,
+      arStatus: nextDebt > 0 ? 'ar_posted' : 'paid',
+      lifecycleStatus: nextDebt > 0 ? (order.lifecycleStatus || 'ar_posted') : 'paid',
+      paidAt: nextDebt <= 0 ? (order.paidAt || nowIso()) : (order.paidAt || ''),
+      updatedAt: nowIso()
+    };
+    await orderRepository.upsert(updated, options);
+  }
+}
+
+async function reverseReceiptFromOrderDebts(receipt = {}, options = {}) {
+  const rows = parseAllocations(receipt.allocations);
+  const allocations = rows.length ? rows : parseAllocations([{
+    orderId: receipt.orderId || receipt.salesOrderId || receipt.refId || '',
+    orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
+    amount: receipt.amount
+  }]);
+  for (const allocation of allocations) {
+    const key = allocation.orderId || allocation.orderCode;
+    if (!key || toNumber(allocation.amount) <= 0) continue;
+    const order = await orderRepository.findByIdOrCode(key);
+    if (!order) continue;
+    const nextDebt = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) + toNumber(allocation.amount));
+    const updated = {
+      ...order,
+      debtAmount: nextDebt,
+      debt: nextDebt,
+      arBalance: nextDebt,
+      arStatus: nextDebt > 0 ? 'ar_posted' : 'paid',
+      lifecycleStatus: nextDebt > 0 ? 'ar_posted' : (order.lifecycleStatus || 'paid'),
+      paidAt: nextDebt > 0 ? '' : (order.paidAt || ''),
+      updatedAt: nowIso()
+    };
+    await orderRepository.upsert(updated, options);
+  }
 }
 
 async function buildReceiptCode() {
@@ -248,6 +303,7 @@ async function createReceipt(body = {}) {
   await withMongoTransaction(async (session) => {
     await receiptRepository.upsert(receipt, { session });
     await postingEngine.postReceiptAR(receipt, { session });
+    await applyReceiptToOrderDebts(receipt, { session });
     if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
     else await cashbookRepository.upsert(moneyEntry, { session });
   });
@@ -290,6 +346,7 @@ async function voidReceipt(id, body = {}, query = {}) {
 
     // Sinh bút toán đảo công nợ idempotent: hủy lại hoặc rebuild không tạo trùng.
     await postingEngine.reverseReceiptAR(voided, { session });
+    await reverseReceiptFromOrderDebts(receipt, { session });
 
     await Promise.all([
       ...cashbooks.filter(sameReceiptRef).map((entry) => cashbookRepository.upsert({ ...entry, status: 'void', voidReason: voided.voidReason, voidedAt: now, updatedAt: now }, { session })),

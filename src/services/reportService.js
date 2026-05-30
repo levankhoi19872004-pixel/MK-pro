@@ -274,7 +274,13 @@ function getLedgerCustomerKey(row = {}) {
 }
 
 function makeVirtualSaleLedger(order = {}) {
-  const debit = totalOf(order) - toNumber(order.paidAmount || order.paymentAmount || 0);
+  // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
+  // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
+  const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
+  const arStatus = String(order.arStatus || '').toLowerCase();
+  const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus) || ['ar_posted', 'paid'].includes(arStatus);
+  if (!isDeliveryCompleted) return null;
+  const debit = toNumber(order.debtAmount ?? order.debt ?? (totalOf(order) - toNumber(order.paidAmount || order.paymentAmount || 0)));
   if (debit <= 0) return null;
   return {
     id: `VIRTUAL-AR-SALE-${order.id || order.code}`,

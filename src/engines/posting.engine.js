@@ -42,8 +42,10 @@ function baseJournal(doc = {}, extra = {}) {
 }
 
 async function postSalesOrderAR(order = {}, options = {}) {
-  const amount = toNumber(order.debtAmount ?? Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount)));
-  if (amount <= 0) return null;
+  const amount = Math.max(0, toNumber(order.debtAmount ?? Math.max(0, toNumber(order.totalAmount) - toNumber(order.paidAmount))));
+  // V45: khi chốt giao hàng xong, vẫn upsert bút toán AR-SALE với giá trị 0 nếu đơn đã thu đủ.
+  // Việc này xóa tác dụng của bút toán công nợ cũ trên cùng id/code, tránh đơn đã hết nợ vẫn nằm trong công nợ.
+  if (amount <= 0 && !options.postZero) return null;
   const entry = baseJournal(order, {
     id: `AR-SALE-${order.id || order.code}`,
     code: `AR-SALE-${order.code || order.id}`,

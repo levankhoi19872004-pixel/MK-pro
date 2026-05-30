@@ -105,6 +105,12 @@ async function applySalesOrderPosting(order, options = {}) {
     note: 'Xuất kho theo đơn bán'
   }, options);
 
+  // V45 chuẩn: đơn bán mới tạo/chưa chốt giao chưa được đưa vào công nợ.
+  // Công nợ chỉ phát sinh sau khi NVGH chốt giao hàng hoàn thành.
+  const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
+  const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
+  if (!isDeliveryCompleted) return;
+
   const customerKey = order.customerCode || order.customerId || order.customerName;
   if (!customerKey) return;
   const customer = await customerRepository.findByIdOrCode(customerKey);
@@ -114,7 +120,7 @@ async function applySalesOrderPosting(order, options = {}) {
   customer.currentDebt = nextDebt;
   customer.debtAmount = nextDebt;
   await customerRepository.save(customer, options);
-  await postingEngine.postSalesOrderAR(order, options);
+  await postingEngine.postSalesOrderAR(order, { ...options, postZero: true });
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
@@ -216,7 +222,10 @@ async function createOrder(body = {}) {
     masterOrderCode: body.masterOrderCode || '',
     mergeStatus: body.mergeStatus || 'unmerged',
     deliveryStatus: body.deliveryStatus || 'pending',
-    status: body.status || 'posted',
+    status: body.status || 'pending',
+    lifecycleStatus: body.lifecycleStatus || 'pending',
+    arStatus: body.arStatus || 'not_posted',
+    arBalance: 0,
     orderSource: body.orderSource || body.source || 'NVBH',
     source: body.source || body.orderSource || 'NVBH',
     createdAt: body.createdAt || nowIso(),

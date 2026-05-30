@@ -6,6 +6,7 @@ const returnOrderRepository = require('../repositories/returnOrderRepository');
 const userRepository = require('../repositories/userRepository');
 const orderService = require('./orderService');
 const returnOrderService = require('./returnOrderService');
+const postingEngine = require('../engines/posting.engine');
 const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
@@ -366,6 +367,26 @@ function calculateDeliveryDebt(order = {}) {
   ));
 }
 
+function isDeliveryCompletedStatus(status) {
+  return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
+}
+
+function orderDebtLifecycleStatus(debtAmount = 0, deliveryStatus = '') {
+  if (!isDeliveryCompletedStatus(deliveryStatus)) return 'not_posted';
+  return toNumber(debtAmount) > 0 ? 'ar_posted' : 'paid';
+}
+
+async function postDeliveryArIfCompleted(order = {}, options = {}) {
+  if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
+  const debtAmount = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0));
+  return postingEngine.postSalesOrderAR({
+    ...order,
+    debtAmount,
+    paidAmount: Math.max(0, toNumber(order.totalAmount) - debtAmount),
+    arPostedAt: order.arPostedAt || nowIso()
+  }, { ...options, postZero: true });
+}
+
 function statusForDeliveryRow(order = {}) {
   const raw = String(order.deliveryStatus || order.status || 'pending').toLowerCase();
   const debt = calculateDeliveryDebt(order);
@@ -521,12 +542,19 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     deliveryReturnItems: effectiveReturnItems,
     debtAmount,
     debt: debtAmount,
+    arBalance: debtAmount,
+    arStatus: orderDebtLifecycleStatus(debtAmount, deliveryStatus),
+    lifecycleStatus: isDeliveryCompletedStatus(deliveryStatus)
+      ? (debtAmount > 0 ? 'ar_posted' : 'paid')
+      : (current.lifecycleStatus || 'assigned_delivery'),
+    arPostedAt: isDeliveryCompletedStatus(deliveryStatus) ? (current.arPostedAt || nowIso()) : (current.arPostedAt || ''),
     deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),
     updatedAt: nowIso()
   };
 
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(updated, { session });
+    await postDeliveryArIfCompleted(updated, { session });
   });
 
   // ERP Web cũng phải sinh/chỉnh phiếu trả hàng thật trong returnOrders.
@@ -576,6 +604,10 @@ async function createMasterOrder(body = {}) {
         masterOrderId: masterOrder.id,
         masterOrderCode: masterOrder.code,
         mergeStatus: 'merged',
+        deliveryStatus: child.deliveryStatus || 'assigned_delivery',
+        status: child.status === 'posted' ? 'assigned_delivery' : (child.status || 'assigned_delivery'),
+        lifecycleStatus: 'assigned_delivery',
+        arStatus: child.arStatus || 'not_posted',
         deliveryDate: masterOrder.deliveryDate,
         deliveryStaffId: masterOrder.deliveryStaffId,
         deliveryStaffCode: masterOrder.deliveryStaffCode,

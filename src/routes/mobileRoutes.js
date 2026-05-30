@@ -28,6 +28,7 @@ const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
 const returnOrderService = require('../services/returnOrderService');
+const postingEngine = require('../engines/posting.engine');
 
 const router = express.Router();
 
@@ -310,6 +311,33 @@ function calculateDeliveryDebt(order = {}) {
     - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
     - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
   ));
+}
+
+function isDeliveryCompletedStatus(status) {
+  return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
+}
+
+function applyOrderDebtLifecycle(order) {
+  const debtAmount = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0));
+  if (isDeliveryCompletedStatus(order.deliveryStatus || order.status)) {
+    order.arBalance = debtAmount;
+    order.arStatus = debtAmount > 0 ? 'ar_posted' : 'paid';
+    order.lifecycleStatus = debtAmount > 0 ? 'ar_posted' : 'paid';
+    order.arPostedAt = order.arPostedAt || new Date().toISOString();
+  } else {
+    order.arStatus = order.arStatus || 'not_posted';
+    order.lifecycleStatus = order.lifecycleStatus || 'assigned_delivery';
+  }
+  return order;
+}
+
+async function postDeliveryArForMobile(order) {
+  if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
+  return postingEngine.postSalesOrderAR({
+    ...(order.toObject ? order.toObject() : order),
+    debtAmount: Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0)),
+    paidAmount: Math.max(0, toNumber(order.totalAmount) - Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0)))
+  }, { postZero: true });
 }
 
 
@@ -1032,12 +1060,18 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           refType: 'salesOrder',
           refId: getDocId(order),
           refCode: orderCode(order),
+          orderId: getDocId(order),
+          orderCode: orderCode(order),
+          salesOrderId: getDocId(order),
+          salesOrderCode: orderCode(order),
+          allocations: [{ orderId: getDocId(order), orderCode: orderCode(order), amount: line.amount }],
           staffCode: req.mobileUser.code || '',
           staffName: req.mobileUser.name || '',
           note: line.note,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
+        // Tiền thu ngay khi giao hàng chỉ ghi quỹ/ngân hàng; công nợ AR được ghi theo số còn nợ sau chốt giao.
         const bookModel = line.method === 'transfer' ? Bankbook : Cashbook;
         await bookModel.create({
           id: makeId(line.method === 'transfer' ? 'BB' : 'CB'),
@@ -1070,6 +1104,14 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       order.debtBeforeCollection = deliveryDebtBase(order);
       order.debtAmount = calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
+    }
+
+    if (status === 'success') {
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
+      applyOrderDebtLifecycle(order);
+      await postDeliveryArForMobile(order);
     }
 
     await order.save();
