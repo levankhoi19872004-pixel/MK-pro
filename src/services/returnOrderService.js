@@ -6,6 +6,7 @@ const customerRepository = require('../repositories/customerRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
+const postingEngine = require('../engines/posting.engine');
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowIso() { return new Date().toISOString(); }
@@ -110,6 +111,7 @@ async function createReturnOrder(body = {}) {
       date: returnOrder.date,
       note: 'Nhập lại kho theo phiếu trả hàng'
     }, { session });
+    await postingEngine.postReturnOrderAR(returnOrder, { session });
   });
   return { returnOrder: toClient(returnOrder) };
 }

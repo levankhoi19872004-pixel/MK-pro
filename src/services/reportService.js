@@ -238,69 +238,274 @@ async function stockCardReport(query = {}) {
   return { source: 'mongo_stock_transactions', transactions, summary };
 }
 
+
+function moneyDocKey(row = {}) {
+  return String(row.id || row._id || row.code || row.refId || row.refCode || '').trim();
+}
+
+function activeLedgerRows(rows = []) {
+  return rows.filter(isActive).filter((row) => {
+    const type = String(row.type || '').toLowerCase();
+    const account = String(row.account || '').toUpperCase();
+    return account === 'AR' || type.includes('ar') || type === 'debt' || toNumber(row.debit) || toNumber(row.credit);
+  });
+}
+
+function orderIdentity(order = {}) {
+  return {
+    id: String(order.id || order._id || order.code || '').trim(),
+    code: String(order.code || order.orderCode || '').trim()
+  };
+}
+
+function isLedgerForOrder(row = {}, order = {}) {
+  const { id, code } = orderIdentity(order);
+  const keys = [row.orderId, row.salesOrderId, row.refId, row.orderCode, row.salesOrderCode, row.refCode].map((v) => String(v || '').trim()).filter(Boolean);
+  return keys.includes(id) || keys.includes(code);
+}
+
+function getLedgerOrderKey(row = {}) {
+  return String(row.orderId || row.salesOrderId || row.refId || row.orderCode || row.salesOrderCode || row.refCode || '').trim();
+}
+
+function getLedgerCustomerKey(row = {}) {
+  return String(row.customerId || row.customerCode || row.customerName || '').trim();
+}
+
+function makeVirtualSaleLedger(order = {}) {
+  const debit = totalOf(order) - toNumber(order.paidAmount || order.paymentAmount || 0);
+  if (debit <= 0) return null;
+  return {
+    id: `VIRTUAL-AR-SALE-${order.id || order.code}`,
+    code: `VIRTUAL-AR-SALE-${order.code || order.id}`,
+    date: toDateOnly(order.date || order.orderDate || order.createdAt),
+    type: 'ar_sale_virtual_backfill',
+    account: 'AR',
+    refType: 'SALES_ORDER',
+    refId: order.id || order._id || order.code,
+    refCode: order.code || order.id,
+    orderId: order.id || order._id || order.code,
+    orderCode: order.code || order.id,
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    salesmanCode: order.salesmanCode || order.staffCode || order.salesStaffCode || '',
+    salesmanName: order.salesmanName || order.staffName || order.salesStaffName || '',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    debit,
+    credit: 0,
+    amount: debit,
+    status: 'posted',
+    source: 'virtual_backfill_from_orders'
+  };
+}
+
+function makeVirtualReturnLedger(row = {}) {
+  const credit = totalOf(row) || toNumber(row.returnAmount || row.debtReduction || row.totalAmount);
+  if (credit <= 0) return null;
+  return {
+    id: `VIRTUAL-AR-RETURN-${row.id || row.code}`,
+    code: `VIRTUAL-AR-RETURN-${row.code || row.id}`,
+    date: toDateOnly(row.date || row.createdAt),
+    type: 'ar_return_virtual_backfill',
+    account: 'AR',
+    refType: 'RETURN_ORDER',
+    refId: row.id || row._id || row.code,
+    refCode: row.code || row.id,
+    orderId: row.salesOrderId || row.orderId || row.sourceOrderId || '',
+    orderCode: row.salesOrderCode || row.orderCode || '',
+    customerId: row.customerId || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || '',
+    debit: 0,
+    credit,
+    amount: credit,
+    status: 'posted',
+    source: 'virtual_backfill_from_returns'
+  };
+}
+
+function makeVirtualReceiptLedger(row = {}) {
+  const credit = totalOf(row);
+  if (credit <= 0) return null;
+  return {
+    id: `VIRTUAL-AR-RECEIPT-${row.id || row.code}`,
+    code: `VIRTUAL-AR-RECEIPT-${row.code || row.id}`,
+    date: toDateOnly(row.date || row.createdAt),
+    type: 'ar_receipt_virtual_backfill',
+    account: 'AR',
+    refType: 'RECEIPT',
+    refId: row.id || row._id || row.code,
+    refCode: row.code || row.id,
+    orderId: row.orderId || row.salesOrderId || '',
+    orderCode: row.orderCode || row.salesOrderCode || row.refCode || '',
+    customerId: row.customerId || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || '',
+    debit: 0,
+    credit,
+    amount: credit,
+    status: 'posted',
+    source: 'virtual_backfill_from_receipts'
+  };
+}
+
 async function debtReport(query = {}) {
-  const [orders, receipts, payments, returns] = await Promise.all([
-    SalesOrder.find({}).sort({ date: -1, createdAt: -1 }).lean(),
-    Receipt.find({}).lean(),
+  const [orders, journals, receipts, returns] = await Promise.all([
+    SalesOrder.find({}).sort({ date: 1, createdAt: 1 }).lean(),
     Payment.find({}).lean().catch(() => []),
+    Receipt.find({}).lean(),
     ReturnOrder.find({}).lean()
   ]);
 
-  const moneyDocs = [...receipts, ...payments];
-  const receiptByOrder = new Map();
-  const receiptByCustomer = new Map();
+  const activeOrders = orders.filter(isActive).filter((order) => matchDate(order, query));
+  const ledger = activeLedgerRows(journals);
+  const ledgerKeys = new Set(ledger.map(moneyDocKey).filter(Boolean));
 
-  moneyDocs.filter(isActive).forEach((receipt) => {
-    const amount = totalOf(receipt);
-    const orderKey = String(receipt.salesOrderId || receipt.orderId || receipt.refId || receipt.orderCode || '');
-    const customerKey = String(receipt.customerId || receipt.customerCode || '');
-    if (orderKey) receiptByOrder.set(orderKey, (receiptByOrder.get(orderKey) || 0) + amount);
-    if (customerKey) receiptByCustomer.set(customerKey, (receiptByCustomer.get(customerKey) || 0) + amount);
+  // ERP/DMS chuẩn: báo cáo công nợ đọc từ AR Ledger (collection journals).
+  // Với dữ liệu cũ chưa được rebuild journal, tạo dòng backfill ảo khi báo cáo để không mất số liệu.
+  activeOrders.forEach((order) => {
+    const hasSaleLedger = ledger.some((row) => String(row.type || '').toLowerCase().includes('sale') && isLedgerForOrder(row, order));
+    if (!hasSaleLedger) {
+      const row = makeVirtualSaleLedger(order);
+      if (row) ledger.push(row);
+    }
   });
 
-  const returnByOrder = new Map();
   returns.filter(isActive).forEach((row) => {
-    const amount = totalOf(row) || toNumber(row.returnAmount);
-    const key = String(row.salesOrderId || row.orderId || row.refId || row.orderCode || '');
-    if (key) returnByOrder.set(key, (returnByOrder.get(key) || 0) + amount);
+    const key = moneyDocKey(row);
+    const hasReturnLedger = ledger.some((entry) => String(entry.type || '').toLowerCase().includes('return') && (entry.refId === row.id || entry.refCode === row.code || moneyDocKey(entry) === key));
+    if (!hasReturnLedger) {
+      const virtual = makeVirtualReturnLedger(row);
+      if (virtual) ledger.push(virtual);
+    }
   });
 
-  const now = today();
-  let debts = orders.filter(isActive).filter((order) => matchDate(order, query)).map((order) => {
-    const orderId = String(order.id || order._id || '');
-    const orderCode = String(order.code || order.orderCode || '');
-    const debit = totalOf(order);
-    const paidOnOrder = toNumber(order.paidAmount || order.paymentAmount);
-    const receiptAmount = receiptByOrder.get(orderId) || receiptByOrder.get(orderCode) || 0;
-    const returnAmount = returnByOrder.get(orderId) || returnByOrder.get(orderCode) || 0;
-    const credit = paidOnOrder + receiptAmount + returnAmount;
-    const debt = Math.max(0, debit - credit);
-    const documentDate = toDateOnly(order.date || order.orderDate || order.createdAt);
-    const dueDate = toDateOnly(order.dueDate || order.paymentDueDate || documentDate);
-    const overdueDays = debt > 0 ? Math.max(0, daysBetween(now, dueDate)) : 0;
+  receipts.filter(isActive).forEach((row) => {
+    const hasReceiptLedger = ledgerKeys.has(String(row.id || '').trim()) || ledgerKeys.has(String(row.code || '').trim()) || ledger.some((entry) => entry.refId === row.id || entry.refCode === row.code);
+    if (!hasReceiptLedger) {
+      const virtual = makeVirtualReceiptLedger(row);
+      if (virtual) ledger.push(virtual);
+    }
+  });
 
-    return {
-      orderId,
-      orderCode,
-      documentDate,
-      dueDate,
+  const orderMeta = new Map();
+  activeOrders.forEach((order) => {
+    const id = String(order.id || order._id || '').trim();
+    const code = String(order.code || order.orderCode || '').trim();
+    const meta = {
+      orderId: id || code,
+      orderCode: code || id,
+      documentDate: toDateOnly(order.date || order.orderDate || order.createdAt),
+      dueDate: toDateOnly(order.dueDate || order.paymentDueDate || order.date || order.createdAt),
       customerId: order.customerId || '',
       customerCode: order.customerCode || '',
       customerName: order.customerName || '',
       phone: order.phone || order.customerPhone || '',
       address: order.address || order.customerAddress || '',
-      salesmanCode: order.salesmanCode || order.staffCode || '',
-      salesmanName: order.salesmanName || order.staffName || '',
+      salesmanCode: order.salesmanCode || order.staffCode || order.salesStaffCode || '',
+      salesmanName: order.salesmanName || order.staffName || order.salesStaffName || '',
       deliveryStaffCode: order.deliveryStaffCode || '',
-      deliveryStaffName: order.deliveryStaffName || '',
-      debit,
-      paidOnOrder,
-      receiptAmount,
-      returnAmount,
-      credit,
+      deliveryStaffName: order.deliveryStaffName || ''
+    };
+    if (id) orderMeta.set(id, meta);
+    if (code) orderMeta.set(code, meta);
+  });
+
+  const byOrder = new Map();
+  const unappliedByCustomer = new Map();
+  const ensureOrder = (key, seed = {}) => {
+    const cleanKey = String(key || seed.orderId || seed.orderCode || '').trim();
+    if (!cleanKey) return null;
+    if (!byOrder.has(cleanKey)) {
+      byOrder.set(cleanKey, {
+        orderId: seed.orderId || cleanKey,
+        orderCode: seed.orderCode || cleanKey,
+        documentDate: seed.documentDate || '',
+        dueDate: seed.dueDate || seed.documentDate || '',
+        customerId: seed.customerId || '',
+        customerCode: seed.customerCode || '',
+        customerName: seed.customerName || '',
+        phone: seed.phone || '',
+        address: seed.address || '',
+        salesmanCode: seed.salesmanCode || '',
+        salesmanName: seed.salesmanName || '',
+        deliveryStaffCode: seed.deliveryStaffCode || '',
+        deliveryStaffName: seed.deliveryStaffName || '',
+        debit: 0,
+        credit: 0,
+        receiptAmount: 0,
+        returnAmount: 0,
+        ledgerEntries: []
+      });
+    }
+    return byOrder.get(cleanKey);
+  };
+
+  ledger.filter(isActive).forEach((entry) => {
+    const orderKey = getLedgerOrderKey(entry);
+    const meta = orderMeta.get(orderKey) || {};
+    const debit = toNumber(entry.debit || (String(entry.type || '').toLowerCase().includes('sale') ? entry.amount : 0));
+    const credit = toNumber(entry.credit || (!String(entry.type || '').toLowerCase().includes('sale') ? entry.amount : 0));
+    const type = String(entry.type || '').toLowerCase();
+    const customerKey = getLedgerCustomerKey(entry);
+
+    if (!orderKey && credit > 0 && customerKey) {
+      unappliedByCustomer.set(customerKey, (unappliedByCustomer.get(customerKey) || 0) + credit);
+      return;
+    }
+
+    const target = ensureOrder(orderKey, {
+      ...meta,
+      orderId: meta.orderId || entry.orderId || entry.refId || '',
+      orderCode: meta.orderCode || entry.orderCode || entry.refCode || '',
+      documentDate: meta.documentDate || toDateOnly(entry.date || entry.createdAt),
+      dueDate: meta.dueDate || toDateOnly(entry.dueDate || entry.date || entry.createdAt),
+      customerId: meta.customerId || entry.customerId || '',
+      customerCode: meta.customerCode || entry.customerCode || '',
+      customerName: meta.customerName || entry.customerName || '',
+      salesmanCode: meta.salesmanCode || entry.salesmanCode || '',
+      salesmanName: meta.salesmanName || entry.salesmanName || '',
+      deliveryStaffCode: meta.deliveryStaffCode || entry.deliveryStaffCode || '',
+      deliveryStaffName: meta.deliveryStaffName || entry.deliveryStaffName || ''
+    });
+    if (!target) return;
+    target.debit += debit;
+    target.credit += credit;
+    if (type.includes('receipt') || type === 'debt') target.receiptAmount += credit;
+    if (type.includes('return')) target.returnAmount += credit;
+    target.ledgerEntries.push(entry);
+  });
+
+  // Phân bổ khoản thu theo khách chưa gắn đơn vào các đơn còn nợ cũ nhất của khách.
+  Array.from(byOrder.values())
+    .sort((a, b) => String(a.documentDate).localeCompare(String(b.documentDate)))
+    .forEach((row) => {
+      const keys = [row.customerId, row.customerCode, row.customerName].map((v) => String(v || '').trim()).filter(Boolean);
+      for (const key of keys) {
+        let available = toNumber(unappliedByCustomer.get(key));
+        if (available <= 0) continue;
+        const currentDebt = Math.max(0, row.debit - row.credit);
+        const applied = Math.min(currentDebt, available);
+        if (applied > 0) {
+          row.credit += applied;
+          row.receiptAmount += applied;
+          unappliedByCustomer.set(key, available - applied);
+        }
+      }
+    });
+
+  const now = today();
+  let debts = Array.from(byOrder.values()).map((row) => {
+    const debt = Math.max(0, toNumber(row.debit) - toNumber(row.credit));
+    const overdueDays = debt > 0 ? Math.max(0, daysBetween(now, row.dueDate || row.documentDate)) : 0;
+    return {
+      ...row,
+      paidOnOrder: 0,
       debt,
       overdueDays,
-      agingDays: documentDate ? Math.max(0, daysBetween(now, documentDate)) : 0,
+      agingDays: row.documentDate ? Math.max(0, daysBetween(now, row.documentDate)) : 0,
       status: debt <= 0 ? 'paid' : (overdueDays > 0 ? 'overdue' : 'open')
     };
   });
@@ -342,10 +547,12 @@ async function debtReport(query = {}) {
     overdueCount: debts.filter((row) => row.status === 'overdue').length,
     totalDebit: sum(debts, (row) => row.debit),
     totalCredit: sum(debts, (row) => row.credit),
-    totalDebt: sum(debts, (row) => row.debt)
+    totalDebt: sum(debts, (row) => row.debt),
+    journalCount: ledger.length,
+    unappliedCredit: Array.from(unappliedByCustomer.values()).reduce((total, amount) => total + Math.max(0, toNumber(amount)), 0)
   };
 
-  return { source: 'mongo', debts, customerSummary, summary };
+  return { source: 'mongo_ar_ledger', ledgerCollection: 'journals', debts, customerSummary, summary };
 }
 
 async function salesReport(query = {}) {

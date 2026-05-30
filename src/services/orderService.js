@@ -8,6 +8,7 @@ const userRepository = require('../repositories/userRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
+const postingEngine = require('../engines/posting.engine');
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -98,6 +99,7 @@ async function applySalesOrderPosting(order, options = {}) {
   customer.currentDebt = nextDebt;
   customer.debtAmount = nextDebt;
   await customerRepository.save(customer, options);
+  await postingEngine.postSalesOrderAR(order, options);
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
@@ -121,6 +123,7 @@ async function reverseSalesOrderPosting(order, options = {}) {
   customer.currentDebt = nextDebt;
   customer.debtAmount = nextDebt;
   await customerRepository.save(customer, options);
+  await postingEngine.reverseSalesOrderAR(order, options);
 }
 
 function toClient(order) {

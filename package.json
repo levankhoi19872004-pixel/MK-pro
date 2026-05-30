@@ -14,7 +14,8 @@
     "test": "node --test",
     "test:openapi": "node --test test/openapi.test.js",
     "docs:generate": "node scripts/generate-openapi.js",
-    "docs:check": "node scripts/generate-openapi.js --check"
+    "docs:check": "node scripts/generate-openapi.js --check",
+    "rebuild:ar-ledger": "node scripts/rebuild-ar-ledger.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
