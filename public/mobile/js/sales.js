@@ -118,6 +118,8 @@ function selectCustomer(customer) {
 }
 
 
+function formatStockTL(qty, rate){ qty=Number(qty||0); rate=Number(rate||1); if(rate<=1) return `0/${qty}`; const th=Math.floor(qty/rate); const le=qty%rate; return `${th}/${le}`; }
+
 function toMobileProduct(product = {}) {
   const availableQty = Number(
     product._availableQty ??
@@ -140,7 +142,7 @@ function toMobileProduct(product = {}) {
     availableQty,
     stockQuantity: availableQty,
     conversionRate: Number(product.conversionRate || product.unitsPerCase || 1),
-    stockDisplay: product.stockDisplay || availableQty.toLocaleString('vi-VN')
+    stockDisplay: product.stockDisplay || formatStockTL(availableQty, Number(product.conversionRate || product.unitsPerCase || 1))
   };
 }
 
@@ -208,12 +210,16 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
   const packingRate = Number(selectedProduct.conversionRate || selectedProduct.unitsPerCase || 0);
   const qty = (caseQty > 0 && packingRate > 0 ? caseQty * packingRate : 0) + looseQty;
   if (qty <= 0) return setMessage(message, 'Số lượng phải lớn hơn 0', 'error');
-  if (qty > Number(selectedProduct.availableQty || 0)) return setMessage(message, 'Số lượng vượt tồn mở bán', 'error');
+
+  // V45 fix: tồn hiển thị trên autocomplete có thể bị cache/stale.
+  // Không chặn cứng ở frontend khi availableQty = 0/không có; backend sẽ kiểm tra lại tồn Mongo thật khi ghi đơn.
+  const availableQty = Number(selectedProduct.availableQty || 0);
+  if (availableQty > 0 && qty > availableQty) return setMessage(message, 'Số lượng vượt tồn mở bán', 'error');
 
   const existed = cart.find((item) => item.productCode === selectedProduct.code);
   if (existed) {
     const nextQty = existed.quantity + qty;
-    if (nextQty > Number(selectedProduct.availableQty || 0)) return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
+    if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
     existed.quantity = nextQty;
     existed.amount = existed.quantity * existed.salePrice;
   } else {

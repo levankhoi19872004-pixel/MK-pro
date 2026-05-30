@@ -3,20 +3,41 @@
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
 const Inventory = require('../../models/Inventory');
+const InventoryLegacy = require('../../models/InventoryLegacy');
 
+
+function openSaleQtyFromRows(rows = []) {
+  return rows.reduce((sum, row) => {
+    const onHand = Number(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity ?? 0);
+    const reserved = Number(row.reservedQty ?? row.reserved ?? 0);
+    const qty = row.availableQty !== undefined && row.availableQty !== null
+      ? Number(row.availableQty || 0)
+      : Math.max(0, onHand - reserved);
+    return sum + qty;
+  }, 0);
+}
 
 async function getSnapshotQtyForProduct(product = {}) {
   const keys = [product.code, product.sku, product.productCode, product.id, product._id]
     .map((value) => String(value || '').trim())
     .filter(Boolean);
   if (!keys.length) return 0;
-  const rows = await Inventory.find({
+  const filter = {
     $or: [
       { productCode: { $in: keys } },
-      { productId: { $in: keys } }
+      { productId: { $in: keys } },
+      { code: { $in: keys } },
+      { sku: { $in: keys } }
     ]
-  }).lean();
-  return rows.reduce((sum, row) => sum + Number(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty ?? 0), 0);
+  };
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean()
+  ]);
+  const snapshotQty = openSaleQtyFromRows(snapshotRows);
+  const legacyQty = openSaleQtyFromRows(legacyRows);
+  if (legacyQty > 0 && (snapshotRows.length === 0 || snapshotQty <= 0)) return legacyQty;
+  return snapshotQty;
 }
 
 function fail(statusCode, message) {

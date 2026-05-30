@@ -19,7 +19,7 @@
   }
   function stockText(product){
     if(typeof window.productStockStatusText === 'function') return window.productStockStatusText(product);
-    return product?.stockDisplay ? `Tồn: ${product.stockDisplay}` : `Tồn: ${availableQty(product).toLocaleString('vi-VN')}`;
+    const rate=toNumber(product?.conversionRate||product?.unitsPerCase||1); const qty=availableQty(product); if(product?.stockDisplay) return `Tồn: ${product.stockDisplay}`; const th=rate>1?Math.floor(qty/rate):0; const le=rate>1?(qty%rate):qty; return `Tồn: ${th}/${le}`;
   }
   function packingText(product){
     if(product?.packing) return product.packing;

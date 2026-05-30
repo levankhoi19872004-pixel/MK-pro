@@ -23,6 +23,7 @@ const ReturnOrder = require('../models/ReturnOrder');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
@@ -131,20 +132,50 @@ function productNameOf(product) {
   return String(product?.name || product?.productName || '').trim();
 }
 
+function openSaleQtyFromRows(rows = []) {
+  return rows.reduce((sum, row) => {
+    const onHand = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity);
+    const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
+    const qty = row.availableQty !== undefined && row.availableQty !== null
+      ? toNumber(row.availableQty)
+      : Math.max(0, onHand - reserved);
+    return sum + qty;
+  }, 0);
+}
+
 async function getOpenSaleQty(product) {
   const code = productCodeOf(product);
-  const ids = [code, String(product?.id || '').trim(), String(product?._id || '').trim()].filter(Boolean);
+  const ids = [
+    code,
+    String(product?.sku || '').trim(),
+    String(product?.productCode || '').trim(),
+    String(product?.id || '').trim(),
+    String(product?._id || '').trim()
+  ].filter(Boolean);
   if (!ids.length) return 0;
-  const rows = await Inventory.find({
+
+  const filter = {
     $or: [
       { productCode: { $in: ids } },
-      { productId: { $in: ids } }
+      { productId: { $in: ids } },
+      { code: { $in: ids } },
+      { sku: { $in: ids } }
     ]
-  }).lean();
+  };
 
-  // Phase 3.4: tồn mở bán chỉ đọc từ inventorySnapshots.
-  // Không fallback về products vì products chỉ là danh mục.
-  return rows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty), 0);
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean()
+  ]);
+
+  const snapshotQty = openSaleQtyFromRows(snapshotRows);
+  const legacyQty = openSaleQtyFromRows(legacyRows);
+
+  // V45 fix: app bán hàng phải kiểm tra tồn cùng nguồn với báo cáo/gợi ý.
+  // Nếu inventorySnapshots chưa rebuild hoặc đang là 0 nhưng collection inventories cũ có tồn,
+  // dùng inventories làm fallback để tránh báo "Tồn 0 lẻ" sai khi kho thực tế còn hàng.
+  if (legacyQty > 0 && (snapshotRows.length === 0 || snapshotQty <= 0)) return legacyQty;
+  return snapshotQty;
 }
 
 function formatOpenSaleQty(quantity, conversionRate = 1) {
