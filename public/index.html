@@ -431,7 +431,7 @@
             <button type="button" class="debt-inner-tab" data-debt-panel="debtCashPanel">Tiền mặt</button>
             <button type="button" class="debt-inner-tab" data-debt-panel="debtBankPanel">Chuyển khoản</button>
             <button type="button" class="debt-inner-tab" data-debt-panel="debtReturnPanel">Trả hàng</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtHistoryPanel">Lịch sử phiếu thu</button>
+            <button type="button" class="debt-inner-tab" data-debt-panel="debtHistoryPanel">Sổ AR Ledger</button>
           </div>
 
           <form id="debtCollectionForm" class="form compact-form debt-panel active debt-entry-form" data-debt-panel-id="debtReceiptPanel">
@@ -488,9 +488,9 @@
           </div>
 
           <div class="debt-panel" data-debt-panel-id="debtHistoryPanel">
-            <div class="toolbar sticky-filter-bar"><div><h2>Lịch sử phiếu thu</h2><p class="muted">Sửa/hủy phiếu thu sẽ ghi audit log, không xóa dữ liệu.</p></div><input id="receiptSearchInput" placeholder="Tìm phiếu thu..." /></div>
-            <div id="receiptTimeline" class="receipt-timeline"><div class="empty-state">Đang tải phiếu thu...</div></div>
-            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>PTTT</th><th>Khách</th><th>NV bán</th><th>NV giao</th><th>Người thu</th><th>Số tiền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="receiptHistoryTable"><tr><td colspan="10">Đang tải phiếu thu...</td></tr></tbody></table></div>
+            <div class="toolbar sticky-filter-bar"><div><h2>Sổ công nợ AR Ledger</h2><p id="arLedgerSummary" class="muted">Theo dõi toàn bộ bút toán phải thu: phát sinh nợ, thu tiền, trả hàng, Void/đảo bút toán.</p></div><input id="receiptSearchInput" placeholder="Tìm mã phiếu, đơn, khách, loại bút toán..." /></div>
+            <div id="receiptTimeline" class="receipt-timeline"><div class="empty-state">Đang tải sổ AR Ledger...</div></div>
+            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Ngày</th><th>Loại bút toán</th><th>Chứng từ</th><th>Đơn/KH</th><th>Nợ AR</th><th>Có AR</th><th>Tác động</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="receiptHistoryTable"><tr><td colspan="9">Đang tải sổ AR Ledger...</td></tr></tbody></table></div>
           </div>
 
           <div class="debt-panel" data-debt-panel-id="debtCashPanel">

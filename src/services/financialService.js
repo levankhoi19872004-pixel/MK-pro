@@ -7,6 +7,7 @@ const paymentRepository = require('../repositories/paymentRepository');
 const customerRepository = require('../repositories/customerRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const postingEngine = require('../engines/posting.engine');
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -202,7 +203,7 @@ async function createReceipt(body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await receiptRepository.upsert(receipt, { session });
-    await paymentRepository.upsert(payment, { session });
+    await postingEngine.postReceiptAR(receipt, { session });
     if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
     else await cashbookRepository.upsert(moneyEntry, { session });
   });
@@ -213,6 +214,10 @@ async function createReceipt(body = {}) {
 async function voidReceipt(id, body = {}, query = {}) {
   const receipt = await receiptRepository.findByIdOrCode(id);
   if (!receipt) return { error: 'Không tìm thấy phiếu thu', status: 404 };
+  if (String(receipt.status || '').toLowerCase() === 'void') {
+    return { error: 'Phiếu thu đã hủy trước đó, không được hủy lặp', status: 409 };
+  }
+
   const now = nowIso();
   const voided = {
     ...receipt,
@@ -221,18 +226,30 @@ async function voidReceipt(id, body = {}, query = {}) {
     voidedAt: now,
     updatedAt: now
   };
-  const sameRef = (entry) => entry.refType === 'receipt' && (entry.refId === receipt.id || entry.refCode === receipt.code);
-  const [payments, cashbooks, bankbooks] = await Promise.all([
-    paymentRepository.findAll(),
+
+  // Chuẩn ERP/DMS:
+  // - Không xóa/sửa mất dấu bút toán AR gốc trong journals.
+  // - Khi hủy phiếu thu phải sinh thêm bút toán đảo: Nợ 131 / Có 111-112.
+  // - Sổ tiền/cashbook/bankbook của phiếu thu gốc được đánh dấu void để báo cáo quỹ không tính dòng thu đã hủy.
+  const sameReceiptRef = (entry = {}) => {
+    const refType = String(entry.refType || '').toLowerCase();
+    return refType === 'receipt' && (String(entry.refId || '') === String(receipt.id || '') || String(entry.refCode || '') === String(receipt.code || ''));
+  };
+
+  const [cashbooks, bankbooks] = await Promise.all([
     cashbookRepository.findAll(),
     bankbookRepository.findAll()
   ]);
+
   await withMongoTransaction(async (session) => {
     await receiptRepository.upsert(voided, { session });
+
+    // Sinh bút toán đảo công nợ idempotent: hủy lại hoặc rebuild không tạo trùng.
+    await postingEngine.reverseReceiptAR(voided, { session });
+
     await Promise.all([
-      ...payments.filter(sameRef).map((entry) => paymentRepository.upsert({ ...entry, status: 'void', updatedAt: now }, { session })),
-      ...cashbooks.filter(sameRef).map((entry) => cashbookRepository.upsert({ ...entry, status: 'void', updatedAt: now }, { session })),
-      ...bankbooks.filter(sameRef).map((entry) => bankbookRepository.upsert({ ...entry, status: 'void', updatedAt: now }, { session }))
+      ...cashbooks.filter(sameReceiptRef).map((entry) => cashbookRepository.upsert({ ...entry, status: 'void', voidReason: voided.voidReason, voidedAt: now, updatedAt: now }, { session })),
+      ...bankbooks.filter(sameReceiptRef).map((entry) => bankbookRepository.upsert({ ...entry, status: 'void', voidReason: voided.voidReason, voidedAt: now, updatedAt: now }, { session }))
     ]);
   });
   return { receipt: voided };

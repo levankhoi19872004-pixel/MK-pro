@@ -3288,3 +3288,8 @@ button.danger:hover{background:#fecaca}
   line-height:1.35!important;
   min-height:38px;
 }
+/* AR Ledger focus: make void/reversal warnings visible in debt workspace */
+.timeline-item.is-warning .timeline-body{border-color:#fecaca;background:#fff7f7}
+.success-text{color:#15803d}
+.debt-fallback-table tr.is-void td{background:#fff1f2;color:#7f1d1d}
+.debt-fallback-table td small{color:var(--muted);font-size:11px}

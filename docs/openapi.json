@@ -1790,6 +1790,46 @@
         ]
       }
     },
+    "/api/master-orders/delivery-today": {
+      "get": {
+        "tags": [
+          "Master Orders"
+        ],
+        "summary": "GET /api/master-orders/delivery-today",
+        "operationId": "getMasterOrdersDeliveryToday",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/master-orders/unmerged-child-orders": {
       "get": {
         "tags": [

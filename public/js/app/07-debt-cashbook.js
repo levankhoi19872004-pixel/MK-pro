@@ -98,7 +98,7 @@ async function submitDebtCollection(event){
     const res=await fetch('/api/debt-collections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không xử lý được công nợ');
     debtCollectionForm.reset();debtCollectionForm.elements.date.value=today();collectionCustomerSelect.value='';if(collectionCustomerSearch)collectionCustomerSearch.value='';updateSelectedCustomerDebt();showMessage(collectionMessage,json.message||'Đã ghi chứng từ công nợ');
-    await loadDebts();await loadReceipts();await loadCashbook();await loadReturnOrders();
+    await loadDebts();await loadArLedger();await loadCashbook();await loadReturnOrders();
   }catch(err){showMessage(collectionMessage,err.message,true)}
 }
 
@@ -108,7 +108,7 @@ function setDebtPanel(panelId){
   debtInnerTabs.forEach(btn=>btn.classList.toggle('active',btn.dataset.debtPanel===panelId));
   debtPanels.forEach(panel=>panel.classList.toggle('active',panel.dataset.debtPanelId===panelId));
   if(panelId==='debtOverviewPanel')loadDebts();
-  if(panelId==='debtHistoryPanel')loadReceipts();
+  if(panelId==='debtHistoryPanel')loadArLedger();
   if(panelId==='debtCashPanel'||panelId==='debtBankPanel')loadCashbook();
   if(panelId==='debtReturnPanel')loadReturnOrders();
 }
@@ -125,7 +125,7 @@ async function voidReceipt(id){
   try{
     const res=await fetch(`/api/receipts/${encodeURIComponent(id)}?reason=${encodeURIComponent(reason)}`,{method:'DELETE'});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không hủy được phiếu thu');
-    await loadReceipts();await loadDebts();await loadCashbook();
+    await loadArLedger();await loadDebts();await loadCashbook();
   }catch(err){alert(err.message)}
 }
 
@@ -141,32 +141,52 @@ async function loadReturnOrders(){
   }catch(err){returnOrderTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`}
 }
 
-async function loadReceipts(){
+function arLedgerTypeLabel(type){
+  const value=String(type||'').toLowerCase();
+  if(value.includes('void'))return 'Void / đảo phiếu thu';
+  if(value.includes('receipt')||value==='debt')return 'Thu công nợ';
+  if(value.includes('return'))return 'Trả hàng';
+  if(value.includes('sale'))return 'Ghi nhận phải thu';
+  return type||'AR';
+}
+function arLedgerBadgeClass(row){
+  const type=String(row.type||'').toLowerCase();
+  if(type.includes('void'))return 'void-badge';
+  if(Number(row.debit||0)>0)return 'out';
+  return 'in';
+}
+async function loadArLedger(){
   if(!receiptHistoryTable)return;
+  const params=new URLSearchParams();
   const q=receiptSearchInput?receiptSearchInput.value.trim():'';
-  const url=q?`/api/receipts?q=${encodeURIComponent(q)}`:'/api/receipts';
+  if(q)params.set('q',q);
+  if(debtDateFrom&&debtDateFrom.value)params.set('dateFrom',debtDateFrom.value);
+  if(debtDateTo&&debtDateTo.value)params.set('dateTo',debtDateTo.value);
+  const url=params.toString()?`/api/debts?${params.toString()}`:'/api/debts';
   try{
-    const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được phiếu thu');
-    const rows=json.receipts||[];
-    if(!rows.length){
-      if(receiptHistoryTable)receiptHistoryTable.innerHTML='<tr><td colspan="10">Chưa có phiếu thu.</td></tr>';
-      if(receiptTimeline)receiptTimeline.innerHTML='<div class="empty-state">Chưa có phiếu thu.</div>';
-      return
+    const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được AR Ledger');
+    const rows=json.arLedger||[];
+    const diagnostics=json.arDiagnostics||[];
+    const summary=json.summary||{};
+    if(arLedgerSummary)arLedgerSummary.textContent=`${summary.arLedgerCount??rows.length} bút toán AR · Cảnh báo ${summary.arWarningCount??diagnostics.length} · Nợ ${money(summary.totalDebit||0)} · Có ${money(summary.totalCredit||0)} · Còn ${money(summary.totalDebt||0)}`;
+    if(receiptTimeline){
+      receiptTimeline.innerHTML=diagnostics.length?diagnostics.map(d=>`<article class="timeline-item finance-red is-warning">
+        <div class="timeline-dot"></div><div class="timeline-body"><div class="timeline-head"><strong>${escapeHtml(d.code||'')}</strong><span>${escapeHtml(d.date||'')}</span></div>
+        <div class="timeline-meta">${escapeHtml((d.customerCode||'')+' '+(d.customerName||''))}</div>
+        <div class="timeline-money"><span>${escapeHtml(d.message||'')}</span><strong>${money(d.amount||0)}</strong></div>
+        <div class="timeline-actions"><span class="badge void-badge">Cần kiểm tra</span></div></div>
+      </article>`).join(''):'<div class="empty-state success-text">AR Ledger chưa phát hiện phiếu Void thiếu bút toán đảo.</div>';
     }
-    if(receiptHistoryTable)receiptHistoryTable.innerHTML=rows.map(r=>`<tr class="${r.status==='void'?'is-void':''}"><td><strong>${r.code||''}</strong></td><td>${r.date||''}</td><td>${receiptMethodLabel(r.method)}</td><td>${r.customerCode||''} ${r.customerName||''}</td><td>${debtPersonLabel(r.salesmanCode,r.salesmanName)}</td><td>${debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName)}</td><td>${r.staffName||''}</td><td class="price cash-in">${money(r.amount)}</td><td><span class="badge ${r.status==='void'?'void-badge':'in'}">${r.status==='void'?'Void':'Đã ghi'}</span></td><td>${r.status==='void'?`<small>${r.voidReason||''}</small>`:`<button class="small danger" type="button" onclick="voidReceipt('${r.id||r.code}')">Hủy</button>`}</td></tr>`).join('');
-    if(receiptTimeline)receiptTimeline.innerHTML=rows.map(r=>{
-      const isVoid=r.status==='void';
-      const method=receiptMethodLabel(r.method);
-      const methodClass=r.method==='transfer'?'finance-green':(r.method==='return'?'finance-orange':'finance-green');
-      return `<article class="timeline-item ${isVoid?'is-void finance-gray':methodClass}">
-        <div class="timeline-dot"></div>
-        <div class="timeline-body"><div class="timeline-head"><strong>${escapeHtml(r.code||'')}</strong><span>${escapeHtml(r.date||'')}</span></div>
-        <div class="timeline-meta"><b>${escapeHtml(method)}</b> · ${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</div>
-        <div class="timeline-money"><span>${escapeHtml(r.staffName||'')}</span><strong>${money(r.amount)}</strong></div>
-        <div class="timeline-actions">${isVoid?`<span class="badge void-badge">Void/Cancel</span><small>${escapeHtml(r.voidReason||'')}</small>`:`<span class="badge in">Đã thu</span><button class="small danger" type="button" onclick="voidReceipt('${r.id||r.code}')">Hủy</button>`}</div></div>
-      </article>`;
+    if(!rows.length){receiptHistoryTable.innerHTML='<tr><td colspan="9">Chưa có bút toán AR Ledger.</td></tr>';return}
+    receiptHistoryTable.innerHTML=rows.map(r=>{
+      const impact=Number(r.balanceEffect||0);
+      return `<tr class="${String(r.type||'').toLowerCase().includes('void')?'is-void':''}"><td>${escapeHtml(r.date||'')}</td><td><span class="badge ${arLedgerBadgeClass(r)}">${escapeHtml(arLedgerTypeLabel(r.type))}</span></td><td><strong>${escapeHtml(r.refCode||r.code||'')}</strong><br><small>${escapeHtml(r.refType||r.source||'')}</small></td><td>${escapeHtml(r.orderCode||'')}<br><small>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</small></td><td class="price debt-positive">${money(r.debit)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price ${impact>0?'debt-positive':'cash-in'}">${impact>0?'+':''}${money(impact)}</td><td>${escapeHtml(r.status||'posted')}</td><td>${escapeHtml(r.note||'')}</td></tr>`;
     }).join('');
-  }catch(err){if(receiptHistoryTable)receiptHistoryTable.innerHTML=`<tr><td colspan="10">${err.message}</td></tr>`;if(receiptTimeline)receiptTimeline.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`}
+  }catch(err){if(receiptHistoryTable)receiptHistoryTable.innerHTML=`<tr><td colspan="9">${err.message}</td></tr>`;if(receiptTimeline)receiptTimeline.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;if(arLedgerSummary)arLedgerSummary.textContent='Lỗi tải AR Ledger'}
+}
+
+async function loadReceipts(){
+  return loadArLedger();
 }
 
 // Cashbook

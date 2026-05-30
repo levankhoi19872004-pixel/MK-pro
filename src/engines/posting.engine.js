@@ -125,12 +125,58 @@ async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
   return entry;
 }
 
+
+async function postReceiptAR(receipt = {}, options = {}) {
+  const amount = toNumber(receipt.amount ?? receipt.totalAmount ?? receipt.value);
+  if (amount <= 0) return null;
+  const entry = baseJournal(receipt, {
+    id: `AR-RECEIPT-${receipt.id || receipt.code}`,
+    code: `AR-RECEIPT-${receipt.code || receipt.id}`,
+    type: 'ar_receipt',
+    refType: 'RECEIPT',
+    refId: receipt.id || receipt._id || receipt.code,
+    refCode: receipt.code || receipt.id,
+    orderId: receipt.orderId || receipt.salesOrderId || '',
+    orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
+    debit: 0,
+    credit: amount,
+    amount,
+    note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
+  });
+  await paymentRepository.upsert(entry, options);
+  return entry;
+}
+
+async function reverseReceiptAR(receipt = {}, options = {}) {
+  const amount = toNumber(receipt.amount ?? receipt.totalAmount ?? receipt.value);
+  if (amount <= 0) return null;
+  const entry = baseJournal(receipt, {
+    id: `AR-RECEIPT-VOID-${receipt.id || receipt.code}`,
+    code: `AR-RECEIPT-VOID-${receipt.code || receipt.id}`,
+    type: 'receipt_void',
+    journalType: 'RECEIPT_VOID',
+    refType: 'receipt',
+    refId: receipt.id || receipt._id || receipt.code,
+    refCode: receipt.code || receipt.id,
+    orderId: receipt.orderId || receipt.salesOrderId || '',
+    orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
+    debit: amount,
+    credit: 0,
+    amount,
+    note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
+  });
+  await paymentRepository.upsert(entry, options);
+  return entry;
+}
+
 async function postDocument(doc = {}, options = {}) {
   const kind = String(options.kind || doc.kind || doc.refType || '').toUpperCase();
   if (kind === 'SALES_ORDER') return postSalesOrderAR(doc, options);
   if (kind === 'SALES_ORDER_REVERSAL') return reverseSalesOrderAR(doc, options);
   if (kind === 'RETURN_ORDER') return postReturnOrderAR(doc, options);
   if (kind === 'RETURN_ORDER_REVERSAL') return reverseReturnOrderAR(doc, options);
+  if (kind === 'RECEIPT') return postReceiptAR(doc, options);
+  if (kind === 'RECEIPT_VOID') return reverseReceiptAR(doc, options);
   throw new Error(`posting.engine.js: chưa hỗ trợ loại chứng từ ${kind || 'UNKNOWN'}`);
 }
 
@@ -139,5 +185,7 @@ module.exports = {
   postSalesOrderAR,
   reverseSalesOrderAR,
   postReturnOrderAR,
-  reverseReturnOrderAR
+  reverseReturnOrderAR,
+  postReceiptAR,
+  reverseReceiptAR
 };

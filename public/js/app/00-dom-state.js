@@ -152,6 +152,7 @@ const bankTotalKpi=document.getElementById('bankTotalKpi');
 const receiptHistoryTable=document.getElementById('receiptHistoryTable');
 const receiptTimeline=document.getElementById('receiptTimeline');
 const receiptSearchInput=document.getElementById('receiptSearchInput');
+const arLedgerSummary=document.getElementById('arLedgerSummary');
 const debtInnerTabs=[...document.querySelectorAll('.debt-inner-tab')];
 const debtPanels=[...document.querySelectorAll('.debt-panel[data-debt-panel-id]')];
 const bankbookTable=document.getElementById('bankbookTable');

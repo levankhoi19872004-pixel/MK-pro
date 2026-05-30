@@ -247,7 +247,7 @@ function activeLedgerRows(rows = []) {
   return rows.filter(isActive).filter((row) => {
     const type = String(row.type || '').toLowerCase();
     const account = String(row.account || '').toUpperCase();
-    return account === 'AR' || type.includes('ar') || type === 'debt' || toNumber(row.debit) || toNumber(row.credit);
+    return account === 'AR' || type.includes('ar') || type.includes('debt') || type.includes('receipt') || type.includes('return') || toNumber(row.debit) || toNumber(row.credit);
   });
 }
 
@@ -351,6 +351,72 @@ function makeVirtualReceiptLedger(row = {}) {
   };
 }
 
+
+function normalizeArLedgerEntry(row = {}) {
+  const type = String(row.type || '').toLowerCase();
+  const debit = toNumber(row.debit || (type.includes('sale') ? row.amount : 0));
+  const credit = toNumber(row.credit || (!type.includes('sale') ? row.amount : 0));
+  return {
+    id: row.id || String(row._id || ''),
+    code: row.code || '',
+    date: toDateOnly(row.date || row.createdAt),
+    type: row.type || '',
+    account: row.account || 'AR',
+    refType: row.refType || '',
+    refId: row.refId || row.id || '',
+    refCode: row.refCode || row.code || '',
+    orderId: row.orderId || row.salesOrderId || '',
+    orderCode: row.orderCode || row.salesOrderCode || '',
+    customerId: row.customerId || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || '',
+    debit,
+    credit,
+    balanceEffect: debit - credit,
+    status: row.status || 'posted',
+    source: row.source || '',
+    note: row.note || row.voidReason || ''
+  };
+}
+
+function buildArLedgerDiagnostics(receipts = [], ledger = []) {
+  const rows = ledger.map(normalizeArLedgerEntry);
+  const diagnostics = [];
+  receipts.forEach((receipt) => {
+    const receiptId = String(receipt.id || receipt._id || '').trim();
+    const receiptCode = String(receipt.code || '').trim();
+    const related = rows.filter((entry) => {
+      const keys = [entry.refId, entry.refCode, entry.code, entry.id].map((v) => String(v || '').trim());
+      return (receiptId && keys.includes(receiptId)) || (receiptCode && keys.includes(receiptCode));
+    });
+    const hasReceiptCredit = related.some((entry) => String(entry.type || '').toLowerCase().includes('receipt') && !String(entry.type || '').toLowerCase().includes('void') && toNumber(entry.credit) > 0);
+    const hasVoidReverse = related.some((entry) => String(entry.type || '').toLowerCase().includes('void') && toNumber(entry.debit) > 0);
+    const amount = totalOf(receipt);
+    if (String(receipt.status || '').toLowerCase() === 'void' && !hasVoidReverse) {
+      diagnostics.push({
+        level: 'danger',
+        code: receipt.code || receipt.id || '',
+        date: toDateOnly(receipt.date || receipt.createdAt),
+        customerCode: receipt.customerCode || '',
+        customerName: receipt.customerName || '',
+        amount,
+        message: 'Phiếu thu đã Void nhưng chưa có bút toán đảo AR debit.'
+      });
+    } else if (String(receipt.status || '').toLowerCase() !== 'void' && !hasReceiptCredit && amount > 0) {
+      diagnostics.push({
+        level: 'warning',
+        code: receipt.code || receipt.id || '',
+        date: toDateOnly(receipt.date || receipt.createdAt),
+        customerCode: receipt.customerCode || '',
+        customerName: receipt.customerName || '',
+        amount,
+        message: 'Phiếu thu đang hiệu lực nhưng chưa thấy bút toán AR credit.'
+      });
+    }
+  });
+  return diagnostics;
+}
+
 async function debtReport(query = {}) {
   const [orders, journals, receipts, returns] = await Promise.all([
     SalesOrder.find({}).sort({ date: 1, createdAt: 1 }).lean(),
@@ -451,8 +517,10 @@ async function debtReport(query = {}) {
     const type = String(entry.type || '').toLowerCase();
     const customerKey = getLedgerCustomerKey(entry);
 
-    if (!orderKey && credit > 0 && customerKey) {
-      unappliedByCustomer.set(customerKey, (unappliedByCustomer.get(customerKey) || 0) + credit);
+    if (!orderKey && customerKey && (credit > 0 || debit > 0)) {
+      // Phiếu thu không gắn đơn được phân bổ theo khách.
+      // Nếu phiếu thu bị hủy, bút toán đảo RECEIPT_VOID là debit và sẽ triệt tiêu credit gốc.
+      unappliedByCustomer.set(customerKey, (unappliedByCustomer.get(customerKey) || 0) + credit - debit);
       return;
     }
 
@@ -473,8 +541,8 @@ async function debtReport(query = {}) {
     if (!target) return;
     target.debit += debit;
     target.credit += credit;
-    if (type.includes('receipt') || type === 'debt') target.receiptAmount += credit;
-    if (type.includes('return')) target.returnAmount += credit;
+    if (type.includes('receipt') || type === 'debt') target.receiptAmount += credit - debit;
+    if (type.includes('return')) target.returnAmount += credit - debit;
     target.ledgerEntries.push(entry);
   });
 
@@ -503,6 +571,8 @@ async function debtReport(query = {}) {
     return {
       ...row,
       paidOnOrder: 0,
+      receiptAmount: Math.max(0, toNumber(row.receiptAmount)),
+      returnAmount: Math.max(0, toNumber(row.returnAmount)),
       debt,
       overdueDays,
       agingDays: row.documentDate ? Math.max(0, daysBetween(now, row.documentDate)) : 0,
@@ -541,6 +611,10 @@ async function debtReport(query = {}) {
   });
 
   const customerSummary = Array.from(customerMap.values()).filter((row) => row.debit || row.credit || row.debt);
+  let arLedger = ledger.map(normalizeArLedgerEntry).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.code).localeCompare(String(a.code)));
+  arLedger = filterByQuery(arLedger, query, ['code', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note']);
+  const arDiagnostics = buildArLedgerDiagnostics(receipts, ledger);
+
   const summary = {
     orderCount: debts.length,
     customerCount: customerSummary.length,
@@ -549,10 +623,12 @@ async function debtReport(query = {}) {
     totalCredit: sum(debts, (row) => row.credit),
     totalDebt: sum(debts, (row) => row.debt),
     journalCount: ledger.length,
+    arLedgerCount: arLedger.length,
+    arWarningCount: arDiagnostics.length,
     unappliedCredit: Array.from(unappliedByCustomer.values()).reduce((total, amount) => total + Math.max(0, toNumber(amount)), 0)
   };
 
-  return { source: 'mongo_ar_ledger', ledgerCollection: 'journals', debts, customerSummary, summary };
+  return { source: 'mongo_ar_ledger', ledgerCollection: 'journals', debts, customerSummary, arLedger, arDiagnostics, summary };
 }
 
 async function salesReport(query = {}) {
