@@ -311,43 +311,236 @@ function calculateDeliveryDebt(order = {}) {
   ));
 }
 
-function buildDeliveryRow(order, customer, master, date) {
-  const totalAmount = toNumber(order.totalAmount || order.amount || order.grandTotal || order.payableAmount);
-  const paidAmount = toNumber(order.paidAmount || order.paid || order.collectedAmount);
-  const cashCollected = toNumber(order.cashCollected || order.cashAmount);
-  const bankCollected = toNumber(order.bankCollected || order.bankAmount || order.transferAmount);
-  const returnAmount = toNumber(order.returnAmount || order.returnedAmount);
-  const rewardAmount = toNumber(order.rewardAmount || order.displayRewardAmount);
-  const debtBeforeCollection = deliveryDebtBase(order);
+
+function isActiveReturnOrder(row = {}) {
+  const status = normalizeText(row.status || row.state || row.returnStatus);
+  return !['cancelled', 'canceled', 'void', 'deleted', 'inactive', 'archived'].includes(status);
+}
+
+function returnLineCode(item = {}) {
+  return String(item.productCode || item.code || item.productId || item.sku || '').trim();
+}
+
+function returnLineQty(item = {}) {
+  return toNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? item.quantity ?? item.qty ?? 0);
+}
+
+function returnLinePrice(item = {}) {
+  return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+}
+
+function orderMatchKeys(order = {}, master = null, masterChild = null) {
+  const values = [
+    getDocId(order), orderCode(order), order.orderNo, order.orderCode, order.id, order._id,
+    getDocId(masterChild), orderCode(masterChild || {}), masterChild?.orderNo, masterChild?.orderCode, masterChild?.id, masterChild?._id,
+    getDocId(master), masterCode(master), master?.orderNo, master?.masterOrderNo
+  ];
+  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
+}
+
+function returnOrderMatchesOrder(row = {}, order = {}, master = null, masterChild = null) {
+  if (!isActiveReturnOrder(row)) return false;
+  const keys = orderMatchKeys(order, master, masterChild);
+  const rowKeys = [
+    row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.refId, row.refCode,
+    row.erpDeliveryReturnKey
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  if (rowKeys.some((key) => keys.includes(key))) return true;
+
+  // Fallback an toàn cho dữ liệu cũ: cùng khách + cùng ngày + cùng mã đơn hiển thị trong ghi chú.
+  const rowCustomer = String(row.customerCode || '').trim();
+  const orderCustomer = String(order.customerCode || masterChild?.customerCode || '').trim();
+  const rowDate = String(row.date || row.documentDate || row.returnDate || '').slice(0, 10);
+  const deliveryDate = String(orderDeliveryDate(order) || orderDeliveryDate(masterChild || {}) || master?.deliveryDate || '').slice(0, 10);
+  const note = String(row.note || '').trim();
+  return Boolean(rowCustomer && orderCustomer && rowCustomer === orderCustomer && rowDate && deliveryDate && rowDate === deliveryDate && keys.some((key) => note.includes(key)));
+}
+
+function mergeReturnItemsFromOrders(returnOrders = [], order = {}, master = null, masterChild = null) {
+  const merged = new Map();
+  for (const row of returnOrders.filter((item) => returnOrderMatchesOrder(item, order, master, masterChild))) {
+    for (const item of (Array.isArray(row.items) ? row.items : [])) {
+      const code = returnLineCode(item);
+      if (!code) continue;
+      const current = merged.get(code) || {
+        productCode: code,
+        productId: item.productId || code,
+        productName: item.productName || item.name || '',
+        qtyReturn: 0,
+        returnQuantity: 0,
+        returnedQty: 0,
+        quantity: 0,
+        qty: 0,
+        price: returnLinePrice(item),
+        salePrice: returnLinePrice(item),
+        unitPrice: returnLinePrice(item),
+        amount: 0
+      };
+      const qty = returnLineQty(item);
+      const price = returnLinePrice(item) || current.price || 0;
+      current.productName = current.productName || item.productName || item.name || '';
+      current.qtyReturn += qty;
+      current.returnQuantity = current.qtyReturn;
+      current.returnedQty = current.qtyReturn;
+      current.quantity = current.qtyReturn;
+      current.qty = current.qtyReturn;
+      current.price = price;
+      current.salePrice = price;
+      current.unitPrice = price;
+      current.amount += Math.round(qty * price);
+      merged.set(code, current);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function mergeOrderItemsWithReturnItems(order = {}, returnItems = []) {
+  const returnByCode = new Map(returnItems.map((item) => [returnLineCode(item), item]));
+  return (Array.isArray(order.items) ? order.items : []).map((item) => {
+    const code = returnLineCode(item);
+    const returned = returnByCode.get(code);
+    const qtyReturn = returned ? returnLineQty(returned) : 0;
+    const price = returnLinePrice(returned || item) || toNumber(item.salePrice || item.price || item.unitPrice || 0);
+    return {
+      ...item,
+      qtyReturn,
+      returnQuantity: qtyReturn,
+      returnedQty: qtyReturn,
+      returnQty: qtyReturn,
+      returnAmount: Math.round(qtyReturn * price)
+    };
+  });
+}
+
+function stableReturnIdForOrder(order = {}) {
+  return `RO-MOBILE-${String(getDocId(order) || orderCode(order)).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+}
+
+async function upsertMobileReturnOrder(order, items, req, returnType = 'partial') {
+  const normalizedItems = (Array.isArray(items) ? items : [])
+    .map((item) => {
+      const code = returnLineCode(item);
+      const qty = returnLineQty(item);
+      const sourceLine = (Array.isArray(order.items) ? order.items : []).find((line) => returnLineCode(line) === code) || {};
+      const price = returnLinePrice(item) || returnLinePrice(sourceLine);
+      return {
+        productId: item.productId || sourceLine.productId || code,
+        productCode: code,
+        productName: item.productName || sourceLine.productName || sourceLine.name || '',
+        quantity: qty,
+        qty: qty,
+        qtyReturn: qty,
+        returnQuantity: qty,
+        returnedQty: qty,
+        price,
+        salePrice: price,
+        unitPrice: price,
+        amount: Math.round(qty * price),
+        reason: item.reason || req.body?.note || ''
+      };
+    })
+    .filter((item) => item.productCode && item.qtyReturn > 0);
+  const totalAmount = normalizedItems.reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const stableId = stableReturnIdForOrder(order);
+  const now = new Date().toISOString();
+  const existing = await ReturnOrder.findOne({
+    $or: [
+      { id: stableId },
+      { salesOrderId: getDocId(order), source: { $in: ['mobile_delivery', 'mobile_delivery_return'] } },
+      { salesOrderCode: orderCode(order), source: { $in: ['mobile_delivery', 'mobile_delivery_return'] } }
+    ],
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] }
+  });
+  const payload = {
+    id: existing?.id || stableId,
+    code: existing?.code || buildCode('THH'),
+    date: new Date().toISOString().slice(0, 10),
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    salesOrderId: getDocId(order),
+    salesOrderCode: orderCode(order),
+    orderId: getDocId(order),
+    orderCode: orderCode(order),
+    returnType,
+    items: normalizedItems,
+    totalQuantity: normalizedItems.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0),
+    totalAmount,
+    amount: totalAmount,
+    debtReduction: totalAmount,
+    status: 'waiting_receive',
+    returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
+    warehouseReceiveStatus: existing?.warehouseReceiveStatus || 'waiting_receive',
+    source: 'mobile_delivery_return',
+    refType: 'mobileDeliveryReturn',
+    staffCode: req.mobileUser?.code || '',
+    staffName: req.mobileUser?.name || '',
+    deliveryStaffCode: req.mobileUser?.code || '',
+    deliveryStaffName: req.mobileUser?.name || '',
+    note: String(req.body?.note || '').trim() || `App giao hàng trả hàng đơn ${orderCode(order)}`,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  };
+  const saved = existing
+    ? await ReturnOrder.findOneAndUpdate({ _id: existing._id }, payload, { new: true })
+    : await ReturnOrder.create(payload);
+
+  // Hủy các phiếu mobile trùng cũ của cùng đơn để Đơn trả hàng không bị nhân đôi.
+  await ReturnOrder.updateMany({
+    _id: { $ne: saved._id },
+    source: { $in: ['mobile_delivery', 'mobile_delivery_return'] },
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    $or: [{ salesOrderId: getDocId(order) }, { salesOrderCode: orderCode(order) }, { orderId: getDocId(order) }, { orderCode: orderCode(order) }]
+  }, { $set: { status: 'cancelled', cancelReason: `Hủy phiếu mobile trùng của đơn ${orderCode(order)}`, updatedAt: now } });
+  return saved;
+}
+
+function buildDeliveryRow(order, customer, master, date, returnOrders = [], masterChild = null) {
+  const sourceOrder = masterChild && Array.isArray(masterChild.items) && masterChild.items.length ? { ...order, ...masterChild, id: getDocId(order) || masterChild.id } : order;
+  const returnItems = mergeReturnItemsFromOrders(returnOrders, order, master, masterChild);
+  const syncedReturnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.amount ?? returnLineQty(item) * returnLinePrice(item)), 0);
+  const totalAmount = toNumber(sourceOrder.totalAmount || sourceOrder.amount || sourceOrder.grandTotal || sourceOrder.payableAmount);
+  const paidAmount = toNumber(sourceOrder.paidAmount || sourceOrder.paid || sourceOrder.collectedAmount);
+  const cashCollected = toNumber(sourceOrder.cashCollected || sourceOrder.cashAmount);
+  const bankCollected = toNumber(sourceOrder.bankCollected || sourceOrder.bankAmount || sourceOrder.transferAmount);
+  // returnOrders là nguồn sự thật duy nhất cho tiền/số lượng hàng trả.
+  const returnAmount = syncedReturnAmount;
+  const rewardAmount = toNumber(sourceOrder.rewardAmount || sourceOrder.displayRewardAmount);
+  const debtBeforeCollection = deliveryDebtBase({ ...sourceOrder, totalAmount });
   const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  const itemSource = Array.isArray(sourceOrder.items) ? sourceOrder.items : [];
   return {
     id: getDocId(order),
-    code: orderCode(order),
+    code: orderCode(sourceOrder) || orderCode(order),
     masterOrderId: getDocId(master),
     masterOrderCode: master?.code || master?.masterOrderNo || '',
-    deliveryDate: orderDeliveryDate(order) || String(master?.deliveryDate || date || '').slice(0, 10),
-    deliveryStatus: order.deliveryStatus || order.status || 'pending',
-    visualStatus: order.deliveryStatus || order.status || 'pending',
-    routeName: order.routeName || customer?.route || master?.routeName || '',
-    customerName: order.customerName || customer?.name || '',
-    customerCode: order.customerCode || customer?.code || '',
-    phone: order.customerPhone || order.phone || customer?.phone || '',
-    address: order.customerAddress || order.address || customer?.address || '',
-    salesmanName: order.salesmanName || order.salesStaffName || order.staffName || '',
-    salesmanCode: order.salesmanCode || order.salesStaffCode || order.staffCode || '',
-    deliveryStaffName: order.deliveryStaffName || master?.deliveryStaffName || master?.driverName || '',
-    deliveryStaffCode: order.deliveryStaffCode || master?.deliveryStaffCode || master?.driverCode || master?.driverId || '',
+    deliveryDate: orderDeliveryDate(sourceOrder) || String(master?.deliveryDate || date || '').slice(0, 10),
+    deliveryStatus: sourceOrder.deliveryStatus || sourceOrder.status || 'pending',
+    visualStatus: sourceOrder.deliveryStatus || sourceOrder.status || 'pending',
+    routeName: sourceOrder.routeName || customer?.route || master?.routeName || '',
+    customerName: sourceOrder.customerName || customer?.name || '',
+    customerCode: sourceOrder.customerCode || customer?.code || '',
+    phone: sourceOrder.customerPhone || sourceOrder.phone || customer?.phone || '',
+    address: sourceOrder.customerAddress || sourceOrder.address || customer?.address || '',
+    salesmanName: sourceOrder.salesmanName || sourceOrder.salesStaffName || sourceOrder.staffName || '',
+    salesmanCode: sourceOrder.salesmanCode || sourceOrder.salesStaffCode || sourceOrder.staffCode || '',
+    deliveryStaffName: sourceOrder.deliveryStaffName || master?.deliveryStaffName || master?.driverName || '',
+    deliveryStaffCode: sourceOrder.deliveryStaffCode || master?.deliveryStaffCode || master?.driverCode || master?.driverId || '',
     amount: debtAmount,
     totalAmount,
     paidAmount,
     debtAmount,
+    debt: debtAmount,
     debtBeforeCollection,
     cashCollected,
     bankCollected,
     returnAmount,
+    returnedAmount: returnAmount,
     rewardAmount,
-    status: order.status || '',
-    items: Array.isArray(order.items) ? order.items : []
+    returnItems,
+    deliveryReturnItems: returnItems,
+    status: sourceOrder.status || '',
+    items: mergeOrderItemsWithReturnItems({ items: itemSource }, returnItems)
   };
 }
 
@@ -680,9 +873,16 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     // Không lấy đơn con trôi nổi chỉ vì còn deliveryDate/driverId cũ sau khi đơn tổng đã hủy.
     const masters = (await MasterOrder.find({ deliveryDate: targetDate }).lean()).filter(isActiveMasterOrder);
     const masterByChild = new Map();
+    const masterChildByKey = new Map();
     for (const master of masters) {
       for (const childId of masterChildIds(master)) {
         masterByChild.set(String(childId), master);
+      }
+      for (const child of (Array.isArray(master.children) ? master.children : [])) {
+        for (const key of orderMatchKeys(child, master, child)) {
+          masterByChild.set(String(key), master);
+          masterChildByKey.set(String(key), child);
+        }
       }
     }
 
@@ -709,22 +909,22 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     };
 
     const orders = await SalesOrder.find(orderFilter).lean();
+    const returnOrders = await ReturnOrder.find({ status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }).lean();
     const customerCodes = [...new Set(orders.map((o) => o.customerCode).filter(Boolean))];
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
     const customerByCode = new Map(customers.map((c) => [String(c.code), c]));
 
     let items = orders
       .map((order) => {
-        const possibleOrderKeys = [getDocId(order), orderCode(order), order.orderNo, order.orderCode, order._id]
-          .map((value) => String(value || '').trim())
-          .filter(Boolean);
+        const possibleOrderKeys = orderMatchKeys(order);
         const master = possibleOrderKeys.map((key) => masterByChild.get(key)).find(Boolean) || null;
-        return { order, master };
+        const masterChild = possibleOrderKeys.map((key) => masterChildByKey.get(key)).find(Boolean) || null;
+        return { order, master, masterChild };
       })
       .filter(({ master }) => isActiveMasterOrder(master))
       .filter(({ order, master }) => isApprovedForDelivery(order, master))
       .filter(({ order, master }) => orderAssignedToUser(order, master, req.mobileUser))
-      .map(({ order, master }) => buildDeliveryRow(order, customerByCode.get(String(order.customerCode)), master, targetDate))
+      .map(({ order, master, masterChild }) => buildDeliveryRow(order, customerByCode.get(String(order.customerCode || masterChild?.customerCode)), master, targetDate, returnOrders, masterChild))
       .filter((row) => includeCompleted || isActiveDeliveryStatus(row));
 
     if (q) {
@@ -773,6 +973,19 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     order.deliveryNote = note;
     order.deliveredAt = new Date().toISOString();
     order.updatedAt = new Date().toISOString();
+
+    if (status === 'failed') {
+      const fullItems = (Array.isArray(order.items) ? order.items : []).map((item) => ({
+        ...item,
+        qtyReturn: toNumber(item.quantity || item.qty || item.qtyOrder || item.orderQty),
+        reason: note || 'Không giao được'
+      })).filter((item) => toNumber(item.qtyReturn) > 0);
+      if (fullItems.length) {
+        const returnOrder = await upsertMobileReturnOrder(order, fullItems, req, 'full');
+        order.returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
+        order.returnedAmount = order.returnAmount;
+      }
+    }
 
     if (status === 'success' && collectAmount > 0) {
       const receiptLines = hasSplitAmounts
@@ -854,29 +1067,12 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
       ? sourceItems.map((item) => ({ ...item, qtyReturn: toNumber(item.quantity || item.qty), reason: req.body?.note || '' }))
       : reqItems.filter((item) => toNumber(item.qtyReturn) > 0);
     if (!items.length) return fail(res, 400, returnType === 'full' ? 'Đơn không có hàng để trả' : 'Chưa chọn sản phẩm/số lượng trả');
-    const returnAmount = items.reduce((sum, item) => sum + toNumber(item.qtyReturn || item.quantity || item.qty) * toNumber(item.salePrice || item.price || item.unitPrice), 0);
-    const returnOrder = await ReturnOrder.create({
-      id: makeId('RT'),
-      code: buildCode('RT'),
-      date: new Date().toISOString().slice(0, 10),
-      customerId: order.customerId || '',
-      customerCode: order.customerCode || '',
-      customerName: order.customerName || '',
-      salesOrderId: getDocId(order),
-      salesOrderCode: orderCode(order),
-      returnType,
-      items,
-      totalAmount: returnAmount,
-      amount: returnAmount,
-      status: 'completed',
-      source: 'mobile_delivery',
-      staffCode: req.mobileUser.code || '',
-      staffName: req.mobileUser.name || '',
-      note: String(req.body?.note || '').trim(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-    order.returnAmount = toNumber(order.returnAmount) + returnAmount;
+
+    // Idempotent: 1 đơn giao chỉ có 1 returnOrder. Lưu lại là cập nhật phiếu cũ.
+    const returnOrder = await upsertMobileReturnOrder(order, items, req, returnType);
+    const returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
+    order.returnAmount = returnAmount;
+    order.returnedAmount = returnAmount;
     order.debtBeforeCollection = deliveryDebtBase(order);
     order.debtAmount = calculateDeliveryDebt(order);
     order.debt = order.debtAmount;
@@ -884,7 +1080,7 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     order.status = returnType === 'full' ? 'returned' : 'partial_return';
     order.updatedAt = new Date().toISOString();
     await order.save();
-    return ok(res, { message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject()), order: stripMongoFields(order.toObject()) }, 201);
+    return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject()), order: stripMongoFields(order.toObject()) }, 201);
   } catch (err) {
     return fail(res, 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');
   }
