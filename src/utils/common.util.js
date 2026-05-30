@@ -22,13 +22,11 @@ function makeId(prefix) {
 }
 
 function formatCaseLooseQty(quantity, conversionRate = 1) {
-  const qty = toNumber(quantity);
+  const qty = Math.max(0, toNumber(quantity));
   const rate = Math.max(1, toNumber(conversionRate) || 1);
   const cases = Math.floor(qty / rate);
   const loose = qty % rate;
-  if (!cases) return `${loose} lẻ`;
-  if (!loose) return `${cases} thùng`;
-  return `${cases} thùng ${loose} lẻ`;
+  return `${cases}/${loose}`;
 }
 
 function normalizePacking(body = {}) {

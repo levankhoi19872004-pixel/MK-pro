@@ -183,9 +183,7 @@ function formatOpenSaleQty(quantity, conversionRate = 1) {
   const rate = Math.max(1, toNumber(conversionRate) || 1);
   const cases = Math.floor(qty / rate);
   const loose = qty % rate;
-  if (cases > 0 && loose > 0) return `${cases} thùng ${loose} lẻ`;
-  if (cases > 0) return `${cases} thùng`;
-  return `${loose} lẻ`;
+  return `${cases}/${loose}`;
 }
 
 async function buildMobileProductRow(product) {

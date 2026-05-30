@@ -18,23 +18,25 @@
     return toNumber(product?._availableQty ?? product?.availableQty ?? product?.availableStock ?? product?.openSaleQty ?? product?.stockQuantity ?? product?.quantity ?? product?.openingStock);
   }
   function stockSlash(product){
-    const rawDisplay = String(product?.stockDisplay || '').trim();
-    if(rawDisplay){
-      return rawDisplay
-        .replace(/^Tồn\s*:?\s*/i, '')
-        .replace(/^Hết tồn\s*·\s*Tồn\s*:?\s*/i, '')
-        .trim();
-    }
-    if(typeof window.productStockDisplay === 'function') return window.productStockDisplay(product);
-    if(typeof window.productStockStatusText === 'function') {
-      return String(window.productStockStatusText(product) || '')
-        .replace(/^Hết tồn\s*·\s*/i, '')
-        .replace(/^Tồn\s*:?\s*/i, '')
-        .trim();
-    }
     const rate = Math.max(1, toNumber(product?.conversionRate || product?.unitsPerCase || 1));
     const qty = Math.max(0, availableQty(product));
-    return `${Math.floor(qty / rate)}/${qty % rate}`;
+    if(qty > 0 || !product?.stockDisplay) return `${Math.floor(qty / rate)}/${qty % rate}`;
+
+    const rawDisplay = String(product?.stockDisplay || '').trim()
+      .replace(/^Tồn\s*:?\s*/i, '')
+      .replace(/^Hết tồn\s*·\s*Tồn\s*:?\s*/i, '')
+      .trim();
+    if(/^\d+\s*\/\s*\d+$/.test(rawDisplay)) return rawDisplay.replace(/\s+/g, '');
+
+    const cases = Number((rawDisplay.match(/(\d+)\s*thùng/i) || [])[1] || 0);
+    const loose = Number((rawDisplay.match(/(\d+)\s*lẻ/i) || [])[1] || 0);
+    if(cases || loose) return `${cases}/${loose}`;
+
+    if(typeof window.productStockDisplay === 'function') {
+      const text = String(window.productStockDisplay(product) || '').trim();
+      if(/^\d+\s*\/\s*\d+$/.test(text)) return text.replace(/\s+/g, '');
+    }
+    return '0/0';
   }
   function stockText(product){
     return `Tồn: ${stockSlash(product)}`;
@@ -131,11 +133,11 @@
 
     // V45 mobile sales compact format:
     // 62674330 | SUNLIGHT Lau Kính 520ml/12 chai
-    // 📦 79/2     💰 24.750
+    // 79/2 | 24.750
     // Tên sản phẩm đã có quy cách nên không hiển thị thêm QC/packing để NVBH đọc nhanh hơn.
     if(mode === 'sales'){
       const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
-      return `${code} | ${name}\n📦 ${stockSlash(product)}     💰 ${priceLabel}`;
+      return `${code} | ${name}\n${stockSlash(product)} | ${priceLabel}`;
     }
 
     const packing = product._packingText || packingText(product);

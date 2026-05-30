@@ -40,11 +40,13 @@ function productHasStock(p){
   return productAvailableQty(p) > 0;
 }
 function productStockDisplay(p){
-  const rawDisplay = String(p?.stockDisplay ?? '').trim();
-  if(rawDisplay && rawDisplay !== '0/0') return rawDisplay;
   const qty = productAvailableQty(p);
-  if(qty <= 0) return '0 lẻ';
-  return formatCaseLooseStock(qty, Number(p?.conversionRate||1));
+  if(qty > 0) return formatCaseLooseStock(qty, Number(p?.conversionRate||1));
+  const rawDisplay = String(p?.stockDisplay ?? '').trim().replace(/^Tồn\s*:?\s*/i,'').replace(/^Hết tồn\s*·\s*Tồn\s*:?\s*/i,'');
+  if(/^\d+\s*\/\s*\d+$/.test(rawDisplay)) return rawDisplay.replace(/\s+/g,'');
+  const cases = Number((rawDisplay.match(/(\d+)\s*thùng/i)||[])[1]||0);
+  const loose = Number((rawDisplay.match(/(\d+)\s*lẻ/i)||[])[1]||0);
+  return `${cases}/${loose}`;
 }
 function productStockStatusText(p){
   return productHasStock(p) ? `Tồn: ${productStockDisplay(p)}` : `Hết tồn · Tồn: ${productStockDisplay(p)}`;

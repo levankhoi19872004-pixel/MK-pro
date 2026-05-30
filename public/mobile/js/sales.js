@@ -142,7 +142,7 @@ function toMobileProduct(product = {}) {
     availableQty,
     stockQuantity: availableQty,
     conversionRate: Number(product.conversionRate || product.unitsPerCase || 1),
-    stockDisplay: product.stockDisplay || formatStockTL(availableQty, Number(product.conversionRate || product.unitsPerCase || 1))
+    stockDisplay: formatStockTL(availableQty, Number(product.conversionRate || product.unitsPerCase || 1))
   };
 }
 
@@ -155,7 +155,7 @@ function resetSelectedProduct() {
 function pickProduct(product) {
   const p = toMobileProduct(product);
   selectedProduct = p;
-  selectedProductBox.textContent = `${p.code || ''} | ${p.name || ''}\n📦 ${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)}     💰 ${money(p.salePrice || p.price || 0)}`;
+  selectedProductBox.textContent = `${p.code || ''} | ${p.name || ''}\n${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)} | ${money(p.salePrice || p.price || 0)}`;
   selectedProductBox.classList.remove('muted');
   productSearch.value = p.name || p.code || '';
   productSuggestions.innerHTML = '';
