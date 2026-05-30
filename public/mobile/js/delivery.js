@@ -89,6 +89,10 @@ function linePrice(item = {}) {
   return deliveryToNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
 }
 
+function lineReturnedQty(item = {}) {
+  return deliveryToNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? 0);
+}
+
 function calculateReturnTotalFromInputs(root = deliveryActionBox) {
   return Array.from(root.querySelectorAll('[data-return-order]')).reduce((sum, input) => {
     const qty = deliveryToNumber(input.value || 0);
@@ -277,7 +281,7 @@ function renderActionForm(order) {
             </div>
             <label>
               <span>SL trả</span>
-              <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" data-return-price="${price}" type="number" min="0" max="${qty}" step="1" value="0" inputmode="numeric" />
+              <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" data-return-price="${price}" type="number" min="0" max="${qty}" step="1" value="${lineReturnedQty(item)}" inputmode="numeric" />
             </label>
           </div>`;
         }).join('') : '<div class="empty-line">Đơn này chưa có danh sách sản phẩm.</div>'}

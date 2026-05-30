@@ -52,15 +52,82 @@ function createMobileDeliveryService(ctx) {
     });
   }
 
+  function normalizeReturnLineCode(item = {}) {
+    return String(item.productCode || item.code || item.productId || item.sku || '').trim();
+  }
+
+  function getReturnLineQty(item = {}) {
+    return toNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+  }
+
+  function getReturnLinePrice(item = {}) {
+    return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+  }
+
+  function getReturnOrderItemsForSalesOrder(data = {}, order = {}) {
+    const merged = new Map();
+    for (const returnOrder of getActiveReturnOrdersForSalesOrder(data, order)) {
+      for (const item of (Array.isArray(returnOrder.items) ? returnOrder.items : [])) {
+        const code = normalizeReturnLineCode(item);
+        if (!code) continue;
+        const prev = merged.get(code) || {
+          productCode: code,
+          productName: item.productName || item.name || '',
+          qtyReturn: 0,
+          returnQuantity: 0,
+          returnedQty: 0,
+          quantity: 0,
+          price: getReturnLinePrice(item),
+          salePrice: getReturnLinePrice(item),
+          unitPrice: getReturnLinePrice(item),
+          amount: 0
+        };
+        const qty = getReturnLineQty(item);
+        const price = getReturnLinePrice(item) || prev.price || prev.salePrice || 0;
+        prev.productName = prev.productName || item.productName || item.name || '';
+        prev.qtyReturn += qty;
+        prev.returnQuantity = prev.qtyReturn;
+        prev.returnedQty = prev.qtyReturn;
+        prev.quantity = prev.qtyReturn;
+        prev.price = price;
+        prev.salePrice = price;
+        prev.unitPrice = price;
+        prev.amount += Math.round(qty * price);
+        merged.set(code, prev);
+      }
+    }
+    return Array.from(merged.values());
+  }
+
+  function mergeOrderItemsWithReturnItems(order = {}, returnItems = []) {
+    const returnByCode = new Map(returnItems.map((item) => [normalizeReturnLineCode(item), item]));
+    return (Array.isArray(order.items) ? order.items : []).map((item) => {
+      const code = normalizeReturnLineCode(item);
+      const returned = returnByCode.get(code);
+      const qtyReturn = returned ? getReturnLineQty(returned) : 0;
+      const price = returned ? getReturnLinePrice(returned) : 0;
+      return {
+        ...item,
+        qtyReturn,
+        returnQuantity: qtyReturn,
+        returnedQty: qtyReturn,
+        returnAmount: Math.round(qtyReturn * (price || toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0)))
+      };
+    });
+  }
+
   function syncOrderReturnAmountFromReturnOrders(data = {}, order = {}) {
-    const total = getActiveReturnOrdersForSalesOrder(data, order)
-      .reduce((sum, row) => sum + toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0), 0);
+    const returnItems = getReturnOrderItemsForSalesOrder(data, order);
+    const total = returnItems.reduce((sum, item) => sum + toNumber(item.amount ?? getReturnLineQty(item) * getReturnLinePrice(item)), 0);
+    order.returnItems = returnItems;
+    order.deliveryReturnItems = returnItems;
     order.returnAmount = total;
     order.returnedAmount = total;
+    order.items = mergeOrderItemsWithReturnItems(order, returnItems);
     order.debtBeforeCollection = deliveryDebtBase(order);
     order.debtAmount = calculateDeliveryDebt(order);
     order.debt = order.debtAmount;
-    return total;
+    return { total, returnItems };
   }
 
   async function listDeliveryOrders({ query = {}, mobileUser }) {
@@ -77,10 +144,13 @@ function createMobileDeliveryService(ctx) {
       .filter((order) => getOrderDeliveryDate(data, order) === targetDate)
       .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser))
       .map((order) => {
-        syncOrderReturnAmountFromReturnOrders(data, order);
+        const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
         const row = buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate);
-        row.returnAmount = toNumber(order.returnAmount || 0);
+        row.returnAmount = toNumber(syncedReturn.total || order.returnAmount || 0);
         row.returnedAmount = row.returnAmount;
+        row.returnItems = syncedReturn.returnItems;
+        row.deliveryReturnItems = syncedReturn.returnItems;
+        row.items = mergeOrderItemsWithReturnItems(row, syncedReturn.returnItems);
         row.debtBeforeCollection = deliveryDebtBase(row);
         row.debtAmount = calculateDeliveryDebt(row);
         row.debt = row.debtAmount;
@@ -126,6 +196,9 @@ function createMobileDeliveryService(ctx) {
         bankCollected: toNumber(order.bankCollected),
         rewardAmount: toNumber(order.rewardAmount),
         returnAmount: toNumber(order.returnAmount),
+        returnedAmount: toNumber(order.returnAmount),
+        returnItems: Array.isArray(order.returnItems) ? order.returnItems : [],
+        deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : [],
         status: order.status,
         items: order.items || []
       }));

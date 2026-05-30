@@ -123,6 +123,56 @@ function returnAmountForSalesOrder(returnOrders = [], order = {}) {
     .reduce((sum, row) => sum + toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0), 0);
 }
 
+function returnOrdersForSalesOrder(returnOrders = [], order = {}) {
+  const orderId = String(order.id || '').trim();
+  const orderCode = String(order.code || '').trim();
+  return returnOrders
+    .filter(isActiveReturnOrder)
+    .filter((row) => {
+      const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
+      const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
+      return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
+    });
+}
+
+function returnItemsForSalesOrder(returnOrders = [], order = {}) {
+  const merged = new Map();
+  for (const returnOrder of returnOrdersForSalesOrder(returnOrders, order)) {
+    for (const item of (Array.isArray(returnOrder.items) ? returnOrder.items : [])) {
+      const productCode = String(item.productCode || item.code || item.productId || '').trim();
+      if (!productCode) continue;
+      const quantity = toNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+      const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0);
+      const current = merged.get(productCode) || {
+        productId: item.productId || productCode,
+        productCode,
+        productName: item.productName || item.name || '',
+        quantity: 0,
+        qty: 0,
+        qtyReturn: 0,
+        returnQuantity: 0,
+        returnedQty: 0,
+        price,
+        salePrice: price,
+        unitPrice: price,
+        amount: 0
+      };
+      current.productName = current.productName || item.productName || item.name || '';
+      current.quantity += quantity;
+      current.qty = current.quantity;
+      current.qtyReturn = current.quantity;
+      current.returnQuantity = current.quantity;
+      current.returnedQty = current.quantity;
+      current.price = price || current.price || 0;
+      current.salePrice = current.price;
+      current.unitPrice = current.price;
+      current.amount += Math.round(quantity * current.price);
+      merged.set(productCode, current);
+    }
+  }
+  return Array.from(merged.values());
+}
+
 
 function normalizeDeliveryReturnItems(rawItems = [], salesOrder = {}) {
   const sourceItems = new Map((Array.isArray(salesOrder.items) ? salesOrder.items : []).map((item) => [
@@ -318,10 +368,11 @@ async function listDeliveryToday(query = {}) {
       if (deliveryDate !== date) continue;
 
       const syncedReturnAmount = returnAmountForSalesOrder(returnOrders, child);
-      if (syncedReturnAmount > 0 || deliveryReturnAmount(child) > 0) {
-        child.returnAmount = syncedReturnAmount;
-        child.returnedAmount = syncedReturnAmount;
-      }
+      const syncedReturnItems = returnItemsForSalesOrder(returnOrders, child);
+      child.returnAmount = syncedReturnAmount;
+      child.returnedAmount = syncedReturnAmount;
+      child.returnItems = syncedReturnItems;
+      child.deliveryReturnItems = syncedReturnItems;
 
       const row = {
         id: child.id || child.code,
@@ -348,7 +399,7 @@ async function listDeliveryToday(query = {}) {
         debt: calculateDeliveryDebt(child),
         debtAmount: calculateDeliveryDebt(child),
         items: Array.isArray(child.items) ? child.items : [],
-        returnItems: Array.isArray(child.returnItems || child.deliveryReturnItems) ? (child.returnItems || child.deliveryReturnItems) : [],
+        returnItems: syncedReturnItems,
         isLate: Boolean(child.isLate)
       };
 

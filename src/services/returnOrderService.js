@@ -79,7 +79,7 @@ function normalizeItems(rawItems = [], salesOrder = null) {
     .map((raw) => {
       const productCode = String(raw.productCode || raw.code || raw.productId || '').trim();
       const original = salesItems.get(productCode) || {};
-      const quantity = toNumber(raw.quantity ?? raw.qty ?? raw.returnQuantity);
+      const quantity = toNumber(raw.qtyReturn ?? raw.returnQuantity ?? raw.returnedQty ?? raw.returnQty ?? raw.quantity ?? raw.qty);
       const price = toNumber(raw.price ?? raw.salePrice ?? raw.unitPrice ?? original.price ?? original.salePrice ?? 0);
       return {
         ...original,
