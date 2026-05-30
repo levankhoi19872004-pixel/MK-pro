@@ -96,14 +96,17 @@
       if(type === 'products'){
         const merged = dedupe([...(state.products || []), ...(rows || [])], ['code','productCode','sku','id']);
         state.products = merged;
-        if(typeof productsCache !== 'undefined') productsCache = merged;
-        if(typeof salesProductsCache !== 'undefined') salesProductsCache = merged;
+
+        // Không được ghi đè productsCache/salesProductsCache toàn cục.
+        // productsCache là cache riêng của bảng Danh sách sản phẩm (02-products.js).
+        // Autocomplete chỉ đồng bộ vào UnifiedProductSearch/state nội bộ để tránh render bảng bị dữ liệu gợi ý đè lên.
         if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync(rows || []);
       }
       if(type === 'customers'){
         const merged = dedupe([...(state.customers || []), ...(rows || [])], ['code','customerCode','id']);
         state.customers = merged;
-        if(typeof customersCache !== 'undefined') customersCache = merged;
+
+        // Không ghi đè customersCache toàn cục; bảng khách hàng tự quản lý dữ liệu từ /api/customers.
       }
     }catch(err){
       console.warn('CatalogLazyCache syncGlobals:', err.message || err);

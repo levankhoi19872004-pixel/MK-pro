@@ -46,10 +46,10 @@
   }
   function sync(rows){
     state.catalog = dedupe([...(state.catalog || []), ...(rows || [])]);
-    try{
-      if(typeof productsCache !== 'undefined') productsCache = state.catalog;
-      if(typeof salesProductsCache !== 'undefined') salesProductsCache = state.catalog;
-    }catch(err){}
+
+    // Không ghi vào productsCache/salesProductsCache toàn cục.
+    // productsCache thuộc bảng Danh sách sản phẩm; nếu autocomplete ghi vào đây,
+    // bảng có thể bị render lại bằng dữ liệu gợi ý thay vì dữ liệu /api/products.
     return state.catalog;
   }
   async function preload(options = {}){
@@ -57,12 +57,9 @@
     return search(options.keyword || '', { limit: options.limit || 50, mode: options.mode });
   }
   function getCatalog(){
-    let legacy = [];
-    try{
-      if(typeof salesProductsCache !== 'undefined') legacy = legacy.concat(salesProductsCache || []);
-      if(typeof productsCache !== 'undefined') legacy = legacy.concat(productsCache || []);
-    }catch(err){}
-    return dedupe([...(state.catalog || []), ...legacy]);
+    // Autocomplete chỉ đọc cache riêng của chính nó.
+    // Không đọc productsCache của bảng danh sách sản phẩm để tránh lẫn luồng dữ liệu.
+    return dedupe([...(state.catalog || [])]);
   }
   function scoreProduct(product, q){
     if(!q) return 0;
