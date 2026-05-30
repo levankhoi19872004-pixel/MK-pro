@@ -5,6 +5,7 @@ const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
 const SalesOrder = require('../models/SalesOrder');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const { escapeRegex } = require('../utils/query.util');
 
 const SEARCH_RETURN_MAX = 50;
@@ -232,9 +233,19 @@ async function findInventoriesForProducts(products = []) {
     ]
   };
 
-  // Phase 3.4+ strict: gợi ý sản phẩm chỉ đọc tồn từ inventorySnapshots.
-  // Không đọc collection legacy `inventories` để tránh cộng tồn cũ hoặc hiển thị sai.
-  return Inventory.find(filter).lean();
+  // Ưu tiên inventorySnapshots. Nếu snapshot chưa rebuild nhưng inventories cũ đang có dữ liệu,
+  // fallback sang inventories để app bán hàng/gợi ý không hiện tồn = 0 sai.
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean()
+  ]);
+
+  const snapshotTotalQty = snapshotRows.reduce((sum, row) => sum + Number(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty ?? 0), 0);
+  const legacyTotalQty = legacyRows.reduce((sum, row) => sum + Number(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty ?? 0), 0);
+  if (legacyRows.length > snapshotRows.length && (snapshotRows.length <= 1 || snapshotTotalQty <= 0) && legacyTotalQty !== 0) {
+    return legacyRows;
+  }
+  return snapshotRows;
 }
 
 async function findCustomers(query = {}) {

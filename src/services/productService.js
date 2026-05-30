@@ -3,6 +3,7 @@
 const productRepository = require('../repositories/productRepository');
 const searchService = require('./searchService');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 
 function normalizeSearchText(value) {
   return String(value || '')
@@ -96,9 +97,17 @@ async function snapshotMapForProducts(products = []) {
     ]
   };
 
-  // Phase 3.4+ strict: tồn hiển thị CHỈ đọc từ inventorySnapshots.
-  // Không đọc collection legacy `inventories` để tránh cộng/hiển thị sai tồn cũ.
-  const rows = await Inventory.find(filter).lean();
+  // Ưu tiên inventorySnapshots. Nếu snapshot chưa rebuild nhưng inventories cũ đang có dữ liệu,
+  // fallback sang inventories để danh sách sản phẩm không hiện tồn = 0 sai.
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean()
+  ]);
+  const snapshotTotalQty = snapshotRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
+  const legacyTotalQty = legacyRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
+  const rows = legacyRows.length > snapshotRows.length && (snapshotRows.length <= 1 || snapshotTotalQty <= 0) && legacyTotalQty !== 0
+    ? legacyRows
+    : snapshotRows;
 
   const map = new Map();
   for (const row of rows) {

@@ -2,6 +2,7 @@
 
 const Product = require('../models/Product');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const StockTransaction = require('../models/StockTransaction');
 const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
@@ -150,10 +151,19 @@ async function stockReport(query = {}) {
     return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary };
   }
 
-  const [stockRows, products] = await Promise.all([
+  const [snapshotRows, legacyRows, products] = await Promise.all([
     Inventory.find({}).sort({ productCode: 1, warehouseCode: 1 }).lean(),
+    InventoryLegacy.find({}).sort({ productCode: 1, warehouseCode: 1 }).lean(),
     Product.find({}).lean()
   ]);
+
+  // Nếu inventorySnapshots chưa được rebuild/migrate nhưng collection inventories cũ đã có dữ liệu,
+  // dùng inventories làm nguồn hiển thị tạm để tránh màn hình tồn kho chỉ hiện 1 dòng hoặc tồn = 0.
+  // Khi rebuild chuẩn xong, inventorySnapshots sẽ có nhiều dòng hơn và tự được ưu tiên.
+  const snapshotTotalQty = snapshotRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
+  const legacyTotalQty = legacyRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
+  const useLegacyInventory = legacyRows.length > snapshotRows.length && (snapshotRows.length <= 1 || snapshotTotalQty <= 0) && legacyTotalQty !== 0;
+  const stockRows = useLegacyInventory ? legacyRows : snapshotRows;
 
   const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
   let stock = stockRows.map((row) => {
@@ -192,7 +202,7 @@ async function stockReport(query = {}) {
     return acc;
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0 });
 
-  return { source: 'mongo_inventory_snapshots', stock, summary };
+  return { source: useLegacyInventory ? 'mongo_inventories_legacy_fallback' : 'mongo_inventory_snapshots', stock, summary, inventorySource: useLegacyInventory ? 'inventories' : 'inventorySnapshots' };
 }
 
 async function stockCardReport(query = {}) {
