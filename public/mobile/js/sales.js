@@ -155,7 +155,7 @@ function resetSelectedProduct() {
 function pickProduct(product) {
   const p = toMobileProduct(product);
   selectedProduct = p;
-  selectedProductBox.textContent = `${p.code || ''} - ${p.name || ''} | Tồn mở bán: ${p.stockDisplay || Number(p.availableQty || 0).toLocaleString('vi-VN')} | Giá: ${money(p.salePrice || p.price || 0)}`;
+  selectedProductBox.textContent = `${p.code || ''} | ${p.name || ''}\n${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)} | ${money(p.salePrice || p.price || 0)}`;
   selectedProductBox.classList.remove('muted');
   productSearch.value = p.name || p.code || '';
   productSuggestions.innerHTML = '';

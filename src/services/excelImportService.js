@@ -300,6 +300,101 @@ async function preloadCustomersByCode(rows = []) {
   return map;
 }
 
+
+function pushInventoryMovement({ movements, inventoryDeltas, item, direction, type, refType, refId, refCode, date, warehouseCode, warehouseName, note }) {
+  const rawQty = toNumber(item.quantity ?? item.qty);
+  if (!rawQty) return;
+  const productCode = cleanText(item.productCode || item.code || item.productId);
+  if (!productCode) return;
+  const productId = String(item.productId || productCode);
+  const productName = cleanText(item.productName || item.name);
+  const whCode = cleanText(warehouseCode) || 'MAIN';
+  const whName = cleanText(warehouseName) || 'Kho chính';
+  const sign = direction === 'OUT' ? -1 : 1;
+  const qty = Math.abs(rawQty) * sign;
+  const now = nowIso();
+
+  movements.push({
+    id: makeId('ST'),
+    date: dateOnly(date),
+    productId,
+    productCode,
+    productName,
+    warehouseId: whCode,
+    warehouseCode: whCode,
+    warehouseName: whName,
+    type,
+    direction,
+    quantity: qty,
+    qty,
+    inQty: direction === 'IN' ? Math.abs(rawQty) : 0,
+    outQty: direction === 'OUT' ? Math.abs(rawQty) : 0,
+    balanceQty: 0,
+    refType,
+    refId,
+    refCode,
+    note: note || '',
+    createdAt: now,
+    updatedAt: now
+  });
+
+  const key = `${productCode}|${whCode}`;
+  if (!inventoryDeltas.has(key)) {
+    inventoryDeltas.set(key, {
+      productId,
+      productCode,
+      productName,
+      warehouseCode: whCode,
+      warehouseId: whCode,
+      warehouseName: whName,
+      qty: 0
+    });
+  }
+  inventoryDeltas.get(key).qty += qty;
+}
+
+async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new Map()) {
+  if (movements.length) await insertManyInBatches(StockTransaction, movements);
+  const ops = [];
+  for (const delta of inventoryDeltas.values()) {
+    const qty = toNumber(delta.qty);
+    if (!qty) continue;
+    ops.push({
+      updateOne: {
+        filter: { productCode: delta.productCode, warehouseCode: delta.warehouseCode },
+        update: {
+          $setOnInsert: {
+            id: makeId('IV'),
+            productId: delta.productId,
+            productCode: delta.productCode,
+            productName: delta.productName,
+            warehouseId: delta.warehouseId,
+            warehouseCode: delta.warehouseCode,
+            warehouseName: delta.warehouseName,
+            reservedQty: 0,
+            createdAt: nowIso()
+          },
+          $set: {
+            productName: delta.productName,
+            warehouseName: delta.warehouseName,
+            lastTransactionAt: nowIso(),
+            updatedAt: nowIso()
+          },
+          $inc: {
+            qty,
+            quantity: qty,
+            onHand: qty,
+            availableQty: qty
+          }
+        },
+        upsert: true
+      }
+    });
+  }
+  if (ops.length) await bulkWriteInBatches(Inventory, ops);
+  return { transactionCount: movements.length, inventoryRows: ops.length };
+}
+
 async function upsertProducts(rows = []) {
   let skipped = 0;
   const errors = [];
@@ -386,43 +481,50 @@ async function importOpeningStock(rows = []) {
   let skipped = 0;
   const errors = [];
   const productMap = await preloadProductsByCode(rows);
+  const codeList = await buildRunningCodes(StockTransaction, 'TD', rows.length);
+  let codeIndex = 0;
+  const movements = [];
+  const inventoryDeltas = new Map();
+
   for (const row of rows) {
     const productCode = getProductCodeFromRow(row);
     const quantity = getQtyFromRow(row);
-    const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
+    const product = productMap.get(cleanText(productCode)) || null;
     if (!product || quantity < 0) {
       skipped += 1;
       errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Tồn đầu không được âm' });
       continue;
     }
     const date = dateOnly(row.date || row.documentDate || row['Ngày'] || row['Ngay'] || today());
-    const doc = {
-      id: makeId('OS'),
-      code: cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || await buildRunningCode(StockTransaction, 'TD'),
-      date,
-      items: [{
+    const docCode = cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || codeList[codeIndex++] || makeId('TD');
+    const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Kho']) || 'MAIN';
+    const warehouseName = cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || 'Kho chính';
+    const note = cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import tồn đầu Excel';
+
+    pushInventoryMovement({
+      movements,
+      inventoryDeltas,
+      item: {
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
         productName: product.name,
-        unit: product.unit,
         quantity
-      }],
-      warehouseCode: cleanText(row.warehouseCode || row.warehouse || row['Kho']) || 'MAIN',
-      warehouseName: cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || 'Kho chính',
-      note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import tồn đầu Excel'
-    };
-    await inventoryService.postStockMovement(doc, {
+      },
       direction: 'IN',
       type: 'OPENING',
       refType: 'OPENING_STOCK_IMPORT',
-      refId: doc.id,
-      refCode: doc.code,
-      date: doc.date,
-      note: doc.note
+      refId: makeId('OS'),
+      refCode: docCode,
+      date,
+      warehouseCode,
+      warehouseName,
+      note
     });
     imported += 1;
   }
-  await addImportLog('openingStock', { imported, skipped, errors: errors.slice(0, 30) });
+
+  await applyInventoryMovementsBulk(movements, inventoryDeltas);
+  await addImportLog('openingStock', { imported, skipped, errors: errors.slice(0, 30), mode: 'bulkInventory', batchSize: IMPORT_BATCH_SIZE });
   return { imported, skipped, errors };
 }
 

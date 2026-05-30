@@ -17,9 +17,27 @@
     if(typeof window.productAvailableQty === 'function') return window.productAvailableQty(product);
     return toNumber(product?._availableQty ?? product?.availableQty ?? product?.availableStock ?? product?.openSaleQty ?? product?.stockQuantity ?? product?.quantity ?? product?.openingStock);
   }
+  function stockSlash(product){
+    const rawDisplay = String(product?.stockDisplay || '').trim();
+    if(rawDisplay){
+      return rawDisplay
+        .replace(/^Tồn\s*:?\s*/i, '')
+        .replace(/^Hết tồn\s*·\s*Tồn\s*:?\s*/i, '')
+        .trim();
+    }
+    if(typeof window.productStockDisplay === 'function') return window.productStockDisplay(product);
+    if(typeof window.productStockStatusText === 'function') {
+      return String(window.productStockStatusText(product) || '')
+        .replace(/^Hết tồn\s*·\s*/i, '')
+        .replace(/^Tồn\s*:?\s*/i, '')
+        .trim();
+    }
+    const rate = Math.max(1, toNumber(product?.conversionRate || product?.unitsPerCase || 1));
+    const qty = Math.max(0, availableQty(product));
+    return `${Math.floor(qty / rate)}/${qty % rate}`;
+  }
   function stockText(product){
-    if(typeof window.productStockStatusText === 'function') return window.productStockStatusText(product);
-    const rate=toNumber(product?.conversionRate||product?.unitsPerCase||1); const qty=availableQty(product); if(product?.stockDisplay) return `Tồn: ${product.stockDisplay}`; const th=rate>1?Math.floor(qty/rate):0; const le=rate>1?(qty%rate):qty; return `Tồn: ${th}/${le}`;
+    return `Tồn: ${stockSlash(product)}`;
   }
   function packingText(product){
     if(product?.packing) return product.packing;
@@ -106,13 +124,24 @@
     return searchLocal(q, { limit });
   }
   function label(product, mode='sales'){
-    const code=product.code||product.productCode||product.sku||'';
-    const name=product.name||product.productName||'';
-    const packing=product._packingText||packingText(product);
-    const price=mode==='import'?product.costPrice:product.salePrice;
-    const priceLabel=price?` · ${mode==='import'?'Giá nhập gần nhất':'Giá bán'}: ${toNumber(price).toLocaleString('vi-VN')}`:'';
-    const packingLabel=packing?` · ${packing}`:'';
+    const code = product.code || product.productCode || product.sku || '';
+    const name = product.name || product.productName || '';
+    const price = mode === 'import' ? product.costPrice : product.salePrice;
+    const priceValue = toNumber(price);
+
+    // V45 mobile sales compact format:
+    // 62674330 | SUNLIGHT Lau Kính 520ml/12 chai
+    // 79/2 | 24.750
+    // Tên sản phẩm đã có quy cách nên không hiển thị thêm QC/packing để NVBH đọc nhanh hơn.
+    if(mode === 'sales'){
+      const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
+      return `${code} | ${name}\n${stockSlash(product)} | ${priceLabel}`;
+    }
+
+    const packing = product._packingText || packingText(product);
+    const priceLabel = priceValue ? ` · ${mode === 'import' ? 'Giá nhập gần nhất' : 'Giá bán'}: ${priceValue.toLocaleString('vi-VN')}` : '';
+    const packingLabel = packing ? ` · ${packing}` : '';
     return `${code} - ${name}${packingLabel} · ${stockText(product)}${priceLabel}`;
   }
-  window.UnifiedProductSearch = { normalizeText, sync, preload, getCatalog, search, searchLocal, label, availableQty, productKey };
+  window.UnifiedProductSearch = { normalizeText, sync, preload, getCatalog, search, searchLocal, label, availableQty, productKey, stockSlash };
 })();
