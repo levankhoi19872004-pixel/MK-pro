@@ -54,7 +54,16 @@ const INDEX_DEFINITIONS = {
     [{ code: 1 }, { name: 'idx_return_orders_code' }],
     [{ customerCode: 1 }, { name: 'idx_return_orders_customer_code' }],
     [{ sourceOrderId: 1 }, { name: 'idx_return_orders_source_order' }],
+    [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
+    [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
     [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }]
+  ],
+  masterReturnOrders: [
+    [{ id: 1 }, { name: 'idx_master_return_orders_id' }],
+    [{ code: 1 }, { name: 'idx_master_return_orders_code' }],
+    [{ deliveryStaffCode: 1 }, { name: 'idx_master_return_orders_delivery_staff_code' }],
+    [{ returnDate: 1, status: 1 }, { name: 'idx_master_return_orders_date_status' }],
+    [{ createdAt: -1 }, { name: 'idx_master_return_orders_created_at' }]
   ],
   receipts: [
     [{ id: 1 }, { name: 'idx_receipts_id' }],

@@ -8,6 +8,7 @@ const masterOrderRoutes = require('./masterOrderRoutes');
 const masterOrderController = require('../controllers/masterOrderController');
 const importOrderRoutes = require('./importOrderRoutes');
 const returnRoutes = require('./returnRoutes');
+const masterReturnOrderRoutes = require('./masterReturnOrderRoutes');
 const receiptRoutes = require('./receiptRoutes');
 const receiptController = require('../controllers/receiptController');
 const cashbookRoutes = require('./cashbookRoutes');
@@ -56,6 +57,7 @@ function registerApiRoutes(app) {
   app.use('/api/import-orders', importOrderRoutes);
   app.use('/api/return-orders', returnRoutes);
   app.use('/api/returns', returnRoutes);
+  app.use('/api/master-return-orders', masterReturnOrderRoutes);
 
   // Step 4: Receipts / Cashbook / Bankbook
   app.use('/api/receipts', receiptRoutes);

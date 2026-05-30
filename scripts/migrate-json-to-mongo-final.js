@@ -47,6 +47,7 @@ const COLLECTIONS = [
   { key: 'payments', model: 'payments', identity: ['code', 'id'] },
   { key: 'receipts', model: 'receipts', identity: ['code', 'id'] },
   { key: 'returnOrders', model: 'returnOrders', identity: ['code', 'id'] },
+  { key: 'masterReturnOrders', model: 'masterReturnOrders', identity: ['code', 'id'] },
   { key: 'cashbooks', model: 'cashbooks', identity: ['code', 'id'] },
   { key: 'bankbooks', model: 'bankbooks', identity: ['code', 'id'] },
   { key: 'importLogs', model: 'importLogs', identity: ['id', 'fileName+type'] },

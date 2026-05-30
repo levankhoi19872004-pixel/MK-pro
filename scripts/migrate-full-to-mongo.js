@@ -29,7 +29,7 @@ async function migrateToMongo() {
     const collections = [
       'products', 'customers', 'staffs', 'warehouses',
       'stock', 'importOrders', 'salesOrders', 'masterOrders',
-      'payments', 'receipts', 'returnOrders', 'cashbooks',
+      'payments', 'receipts', 'returnOrders', 'masterReturnOrders', 'cashbooks',
       'bankbooks', 'importLogs', 'mobileLogs', 'auditLogs',
       'promotions', 'importTemplates'
     ];

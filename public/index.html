@@ -24,6 +24,7 @@
       <button class="tab-button" data-tab="stockTab">Tồn kho</button>
       <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
       <button class="tab-button" data-tab="returnOrdersTab">Đơn trả hàng</button>
+      <button class="tab-button" data-tab="masterReturnOrdersTab">Đơn tổng trả hàng</button>
       <button class="tab-button" data-tab="deliveryTodayTab">Đơn đi giao hôm nay</button>
       <button class="tab-button" data-tab="debtTab">Công nợ</button>
       <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
@@ -373,6 +374,91 @@
       </main>
     </section>
 
+
+
+    <section id="masterReturnOrdersTab" class="tab-content">
+      <main class="grid master-return-grid">
+        <section class="card">
+          <div class="toolbar sticky-filter-bar">
+            <div>
+              <h2>Tạo đơn tổng trả hàng</h2>
+              <p class="muted">Gộp các phiếu trả hàng lẻ theo NVGH để kho nhận hàng trả cuối ngày.</p>
+            </div>
+            <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu chưa gộp</button>
+          </div>
+
+          <form id="masterReturnOrderForm" class="form">
+            <div class="two-cols">
+              <label>Ngày trả hàng<input name="returnDate" id="masterReturnDate" type="date" /></label>
+              <label>NV giao hàng<input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="Mã/tên NVGH" /></label>
+            </div>
+            <label>Ghi chú<input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" /></label>
+            <div class="button-row">
+              <button type="submit">Tạo đơn tổng trả hàng</button>
+              <button type="button" id="clearMasterReturnSelectionButton" class="secondary">Bỏ chọn</button>
+            </div>
+          </form>
+
+          <div class="summary-box">
+            <span id="unmergedReturnOrderSummary">Chưa tải phiếu trả hàng chưa gộp.</span>
+          </div>
+
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Chọn</th>
+                  <th>Mã trả hàng</th>
+                  <th>Ngày</th>
+                  <th>Khách</th>
+                  <th>NVGH</th>
+                  <th>SL</th>
+                  <th>Giá trị</th>
+                </tr>
+              </thead>
+              <tbody id="unmergedReturnOrderTable"><tr><td colspan="7">Đang tải phiếu trả hàng chưa gộp...</td></tr></tbody>
+            </table>
+          </div>
+          <p id="masterReturnOrderMessage" class="message"></p>
+        </section>
+
+        <section class="card">
+          <div class="toolbar sticky-filter-bar">
+            <div>
+              <h2>Danh sách đơn tổng trả hàng</h2>
+              <p id="masterReturnOrderCount" class="muted">Nguồn dữ liệu: <strong>/api/master-return-orders</strong>.</p>
+            </div>
+            <div class="sales-history-filters">
+              <input id="masterReturnOrderSearchInput" placeholder="Tìm mã đơn tổng, NVGH..." />
+              <input id="masterReturnOrderDateFrom" type="date" title="Từ ngày" />
+              <input id="masterReturnOrderDateTo" type="date" title="Đến ngày" />
+              <button id="reloadMasterReturnOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
+          </div>
+          <div class="summary-box">
+            <span>Luồng chuẩn: Phiếu trả hàng → Đơn tổng trả hàng → Kho kiểm nhận theo NVGH.</span>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã tổng trả</th>
+                  <th>Ngày</th>
+                  <th>NVGH</th>
+                  <th>Số phiếu</th>
+                  <th>Số lượng</th>
+                  <th>Giá trị</th>
+                  <th>Trạng thái kho</th>
+                  <th>Ghi chú</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="masterReturnOrderTable"><tr><td colspan="9">Đang tải đơn tổng trả hàng...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </section>
 
     <section id="deliveryTodayTab" class="tab-content">
       <main class="delivery-split-layout">
@@ -852,19 +938,19 @@
 
   </div>
 
-  <script src="/js/search/autocompleteEngine.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/search/searchFieldsConfig.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/search/catalogCacheService.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/search/productSearchBox.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/app/00-dom-state.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/app/01-utils-print-tabs.js?v=20260530-delivery-split-edit-v1"></script>
+  <script src="/js/search/autocompleteEngine.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/search/searchFieldsConfig.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/search/catalogCacheService.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/search/productSearchBox.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/app/00-dom-state.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/app/01-utils-print-tabs.js?v=20260530-master-return-order-v1"></script>
   <script src="/js/app/02-products.js?v=20260530-table-direct-mongo-v2"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=20260530-table-direct-mongo-v2"></script>
-  <script src="/js/app/04-import-orders.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/app/05-sales-orders.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/app/06-master-delivery.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/app/07-debt-cashbook.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260530-delivery-split-edit-v1"></script>
-  <script src="/app.js?v=20260530-delivery-split-edit-v1"></script>
+  <script src="/js/app/04-import-orders.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/app/07-debt-cashbook.js?v=20260530-master-return-order-v1"></script>
+  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260530-master-return-order-v1"></script>
+  <script src="/app.js?v=20260530-master-return-order-v1"></script>
 </body>
 </html>

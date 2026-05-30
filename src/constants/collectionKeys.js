@@ -12,6 +12,7 @@ const APP_COLLECTION_KEYS = [
   'payments',
   'receipts',
   'returnOrders',
+  'masterReturnOrders',
   'cashbooks',
   'bankbooks',
   'cashbook',

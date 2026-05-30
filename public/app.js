@@ -34,8 +34,10 @@ function setDefaultDocumentDateFilters(){
   setTodayRange(salesOrderDateFrom, salesOrderDateTo);
   setTodayRange(masterOrderDateFrom, masterOrderDateTo);
   setTodayRange(returnOrderDateFrom, returnOrderDateTo);
+  setTodayRange(masterReturnOrderDateFrom, masterReturnOrderDateTo);
   if(unmergedDateFilter && !unmergedDateFilter.value)unmergedDateFilter.value=today();
   if(deliveryDateFilter && !deliveryDateFilter.value)deliveryDateFilter.value=today();
+  if(masterReturnDate && !masterReturnDate.value)masterReturnDate.value=today();
 }
 setDefaultDocumentDateFilters();
 
@@ -47,6 +49,17 @@ if(returnOrderSearchInput)returnOrderSearchInput.addEventListener('input',loadRe
 if(returnOrderDateFrom)returnOrderDateFrom.addEventListener('change',loadReturnOrders);
 if(returnOrderDateTo)returnOrderDateTo.addEventListener('change',loadReturnOrders);
 if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
+if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
+if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
+if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{selectedReturnOrderIdsForMaster.clear();loadUnmergedReturnOrders();});
+if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{const check=event.target.closest('.master-return-check');if(!check)return;if(check.checked)selectedReturnOrderIdsForMaster.add(check.dataset.id);else selectedReturnOrderIdsForMaster.delete(check.dataset.id);if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=unmergedReturnOrderSummary.textContent.replace(/Đã chọn \d+$/,'Đã chọn '+selectedReturnOrderIdsForMaster.size);});
+if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.addEventListener('input',loadUnmergedReturnOrders);
+if(masterReturnDate)masterReturnDate.addEventListener('change',loadUnmergedReturnOrders);
+if(reloadMasterReturnOrdersButton)reloadMasterReturnOrdersButton.addEventListener('click',loadMasterReturnOrders);
+if(masterReturnOrderSearchInput)masterReturnOrderSearchInput.addEventListener('input',loadMasterReturnOrders);
+if(masterReturnOrderDateFrom)masterReturnOrderDateFrom.addEventListener('change',loadMasterReturnOrders);
+if(masterReturnOrderDateTo)masterReturnOrderDateTo.addEventListener('change',loadMasterReturnOrders);
+window.cancelMasterReturnOrder=cancelMasterReturnOrder;
 debtInnerTabs.forEach(btn=>btn.addEventListener('click',()=>setDebtPanel(btn.dataset.debtPanel)));
 window.voidReceipt=voidReceipt;
 if(cashbookSearchInput)cashbookSearchInput.addEventListener('input',loadCashbook);
@@ -110,6 +123,8 @@ loadStock();
 loadImportOrders();
 loadSalesOrders();
 loadMasterOrderModule();
+loadUnmergedReturnOrders();
+loadMasterReturnOrders();
 loadDeliveryToday();
 loadDebts();
 loadReceipts();

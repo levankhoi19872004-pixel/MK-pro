@@ -15,6 +15,7 @@ module.exports = {
   payments: require('./Payment'),
   receipts: require('./Receipt'),
   returnOrders: require('./ReturnOrder'),
+  masterReturnOrders: require('./MasterReturnOrder'),
   cashbooks: require('./Cashbook'),
   bankbooks: require('./Bankbook'),
   cashbook: require('./Cashbook'),
