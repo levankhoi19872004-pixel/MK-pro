@@ -131,11 +131,11 @@
 
     // V45 mobile sales compact format:
     // 62674330 | SUNLIGHT Lau Kính 520ml/12 chai
-    // 79/2 | 24.750
+    // 📦 79/2     💰 24.750
     // Tên sản phẩm đã có quy cách nên không hiển thị thêm QC/packing để NVBH đọc nhanh hơn.
     if(mode === 'sales'){
       const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
-      return `${code} | ${name}\n${stockSlash(product)} | ${priceLabel}`;
+      return `${code} | ${name}\n📦 ${stockSlash(product)}     💰 ${priceLabel}`;
     }
 
     const packing = product._packingText || packingText(product);

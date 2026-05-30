@@ -3363,3 +3363,24 @@ button.danger:hover{background:#fecaca}
 @media(max-width:1180px){#debtTab .debt-filter-grid{grid-template-columns:1fr 1fr 1fr!important}}
 @media(max-width:980px){#debtTab .operation-compact-layout{grid-template-columns:1fr!important}}
 @media(max-width:640px){#debtTab .debt-filter-grid{grid-template-columns:1fr!important}.debt-slim-money strong{font-size:19px}}
+
+
+/* V45 compact sales autocomplete: smaller and lighter product suggestions */
+#salesProductSuggestions .suggestion-item,
+#productSuggestions .suggestion-item {
+  padding: 6px 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 400 !important;
+  color: #475569 !important;
+  line-height: 1.22 !important;
+  letter-spacing: -0.01em;
+  white-space: pre-line !important;
+}
+#salesProductSuggestions .suggestion-item strong,
+#salesProductSuggestions .suggestion-item span,
+#productSuggestions .suggestion-item strong,
+#productSuggestions .suggestion-item span {
+  font-size: inherit !important;
+  font-weight: 400 !important;
+  color: inherit !important;
+}
