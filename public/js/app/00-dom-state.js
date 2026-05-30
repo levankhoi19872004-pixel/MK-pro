@@ -204,6 +204,11 @@ const masterReturnOrderDateFrom=document.getElementById('masterReturnOrderDateFr
 const masterReturnOrderDateTo=document.getElementById('masterReturnOrderDateTo');
 const reloadMasterReturnOrdersButton=document.getElementById('reloadMasterReturnOrdersButton');
 const masterReturnOrderCount=document.getElementById('masterReturnOrderCount');
+const masterReturnKpiUnmerged=document.getElementById('masterReturnKpiUnmerged');
+const masterReturnKpiUnmergedQty=document.getElementById('masterReturnKpiUnmergedQty');
+const masterReturnKpiUnmergedValue=document.getElementById('masterReturnKpiUnmergedValue');
+const masterReturnKpiMasterCount=document.getElementById('masterReturnKpiMasterCount');
+const masterReturnKpiMasterValue=document.getElementById('masterReturnKpiMasterValue');
 
 const debtCollectionForm=document.getElementById('debtCollectionForm');
 const collectionCustomerSelect=document.getElementById('collectionCustomerSelect');

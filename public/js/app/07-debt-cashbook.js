@@ -358,7 +358,11 @@ const selectedReturnOrderIdsForMaster = new Set();
 function renderUnmergedReturnOrders(rows = []){
   if(!unmergedReturnOrderTable)return;
   const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-  if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=`${rows.length} phiếu chưa gộp · Tổng giá trị ${money(totalValue)} · Đã chọn ${selectedReturnOrderIdsForMaster.size}`;
+  const totalQty=rows.reduce((sum,r)=>sum+Number(r.totalQuantity||0),0);
+  if(masterReturnKpiUnmerged)masterReturnKpiUnmerged.textContent=money(rows.length);
+  if(masterReturnKpiUnmergedQty)masterReturnKpiUnmergedQty.textContent=money(totalQty);
+  if(masterReturnKpiUnmergedValue)masterReturnKpiUnmergedValue.textContent=money(totalValue);
+  if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=`${rows.length} phiếu chưa gộp · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)} · Đã chọn ${selectedReturnOrderIdsForMaster.size}`;
   if(!rows.length){unmergedReturnOrderTable.innerHTML='<tr><td colspan="7">Chưa có phiếu trả hàng chưa gộp.</td></tr>';return}
   unmergedReturnOrderTable.innerHTML=rows.map(r=>{
     const id=String(r.id||r.code||'');
@@ -391,6 +395,9 @@ async function loadUnmergedReturnOrders(){
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu trả hàng chưa gộp');
     renderUnmergedReturnOrders(json.returnOrders||[]);
   }catch(err){
+    if(masterReturnKpiUnmerged)masterReturnKpiUnmerged.textContent='0';
+    if(masterReturnKpiUnmergedQty)masterReturnKpiUnmergedQty.textContent='0';
+    if(masterReturnKpiUnmergedValue)masterReturnKpiUnmergedValue.textContent='0';
     if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent='Không tải được phiếu trả hàng chưa gộp';
     unmergedReturnOrderTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Không tải được phiếu trả hàng chưa gộp')}</td></tr>`;
   }
@@ -399,23 +406,30 @@ async function loadUnmergedReturnOrders(){
 function renderMasterReturnOrders(rows = []){
   if(!masterReturnOrderTable)return;
   const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-  if(masterReturnOrderCount)masterReturnOrderCount.innerHTML=`${rows.length} đơn tổng · Tổng giá trị ${money(totalValue)} · Nguồn dữ liệu: <strong>/api/master-return-orders</strong>`;
-  if(!rows.length){masterReturnOrderTable.innerHTML='<tr><td colspan="9">Chưa có đơn tổng trả hàng.</td></tr>';return}
+  const totalQty=rows.reduce((sum,r)=>sum+Number(r.totalQuantity||0),0);
+  if(masterReturnKpiMasterCount)masterReturnKpiMasterCount.textContent=money(rows.length);
+  if(masterReturnKpiMasterValue)masterReturnKpiMasterValue.textContent=money(totalValue);
+  if(masterReturnOrderCount)masterReturnOrderCount.innerHTML=`${rows.length} đơn tổng · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)}`;
+  if(!rows.length){masterReturnOrderTable.innerHTML='<tr><td colspan="7">Chưa có đơn tổng trả hàng.</td></tr>';return}
   masterReturnOrderTable.innerHTML=rows.map(r=>{
     const status=String(r.status||'pending_warehouse_receive');
     const statusText=status==='pending_warehouse_receive'?'Chờ kho nhận':(status==='received'?'Kho đã nhận':(status==='cancelled'?'Đã hủy':status));
     const badgeClass=status==='cancelled'?'out':(status==='received'?'in':'warn');
     const staff=debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName);
+    const id=escapeHtml(r.id||r.code||'');
     return `<tr>
-      <td><strong>${escapeHtml(r.code||r.id||'')}</strong></td>
-      <td>${escapeHtml(r.returnDate||r.date||'')}</td>
+      <td><strong>${escapeHtml(r.code||r.id||'')}</strong><br><small>${escapeHtml(r.returnDate||r.date||'')}</small></td>
       <td>${escapeHtml(staff)}</td>
       <td class="price">${money(r.returnCount || (Array.isArray(r.children)?r.children.length:0))}</td>
       <td class="price">${money(r.totalQuantity)}</td>
       <td class="price cash-in">${money(r.debtReduction??r.totalAmount)}</td>
       <td><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></td>
-      <td>${escapeHtml(r.note||'')}</td>
-      <td><button class="secondary small" type="button" onclick="cancelMasterReturnOrder('${escapeHtml(r.id||r.code||'')}')">Hủy gộp</button></td>
+      <td class="master-return-actions">
+        <button class="secondary small" type="button" onclick="viewMasterReturnOrder('${id}')">Xem</button>
+        <button class="secondary small" type="button" onclick="printMasterReturnOrder('${id}')">In</button>
+        ${status==='received'?'':`<button class="secondary small" type="button" onclick="receiveMasterReturnOrder('${id}')">Nhập kho</button>`}
+        <button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -434,8 +448,10 @@ async function loadMasterReturnOrders(){
     if(!json.ok)throw new Error(json.message||'Không tải được đơn tổng trả hàng');
     renderMasterReturnOrders(json.masterReturnOrders||[]);
   }catch(err){
+    if(masterReturnKpiMasterCount)masterReturnKpiMasterCount.textContent='0';
+    if(masterReturnKpiMasterValue)masterReturnKpiMasterValue.textContent='0';
     if(masterReturnOrderCount)masterReturnOrderCount.textContent='Không tải được đơn tổng trả hàng';
-    masterReturnOrderTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||'Không tải được đơn tổng trả hàng')}</td></tr>`;
+    masterReturnOrderTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Không tải được đơn tổng trả hàng')}</td></tr>`;
   }
 }
 
@@ -456,6 +472,55 @@ async function submitMasterReturnOrder(event){
     await loadMasterReturnOrders();
     if(typeof loadReturnOrders==='function')await loadReturnOrders();
   }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
+}
+
+async function viewMasterReturnOrder(id){
+  if(!id)return;
+  try{
+    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được chi tiết đơn tổng trả');
+    const r=json.masterReturnOrder||{};
+    const children=Array.isArray(r.children)?r.children:[];
+    const lines=[
+      `Mã tổng trả: ${r.code||r.id||''}`,
+      `Ngày: ${r.returnDate||r.date||''}`,
+      `NVGH: ${debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName)}`,
+      `Số phiếu: ${children.length || r.returnCount || 0}`,
+      `Tổng SL: ${money(r.totalQuantity)}`,
+      `Tổng tiền: ${money(r.debtReduction??r.totalAmount)}`
+    ];
+    alert(lines.join('\n'));
+  }catch(err){alert(err.message||'Không tải được chi tiết đơn tổng trả')}
+}
+
+async function receiveMasterReturnOrder(id){
+  if(!id)return;
+  if(!confirm('Xác nhận kho đã kiểm nhận đơn tổng trả hàng này?'))return;
+  try{
+    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'received'})});
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không cập nhật trạng thái kho');
+    showMessage(masterReturnOrderMessage,json.message||'Đã xác nhận kho nhận hàng trả');
+    await loadMasterReturnOrders();
+    await loadUnmergedReturnOrders();
+  }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
+}
+
+async function printMasterReturnOrder(id){
+  if(!id)return;
+  try{
+    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được đơn tổng trả để in');
+    const r=json.masterReturnOrder||{};
+    const children=Array.isArray(r.children)?r.children:[];
+    const rows=children.map((c,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(c.code||'')}</td><td>${escapeHtml(c.customerName||c.customerCode||'')}</td><td>${money(c.totalQuantity)}</td><td>${money(c.debtReduction??c.totalAmount)}</td></tr>`).join('');
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.code||'Đơn tổng trả')}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111827}h1{font-size:22px;margin:0 0 12px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #d1d5db;padding:8px;text-align:left}th{background:#f3f4f6}.total{margin-top:14px;font-weight:700}</style></head><body><h1>ĐƠN TỔNG TRẢ HÀNG</h1><p><b>Mã:</b> ${escapeHtml(r.code||r.id||'')} &nbsp; <b>Ngày:</b> ${escapeHtml(r.returnDate||r.date||'')} &nbsp; <b>NVGH:</b> ${escapeHtml(debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName))}</p><table><thead><tr><th>STT</th><th>Mã phiếu</th><th>Khách hàng</th><th>SL</th><th>Giá trị</th></tr></thead><tbody>${rows||'<tr><td colspan="5">Không có chi tiết phiếu.</td></tr>'}</tbody></table><p class="total">Tổng SL: ${money(r.totalQuantity)} · Tổng tiền: ${money(r.debtReduction??r.totalAmount)}</p></body></html>`;
+    const w=window.open('','_blank');
+    if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in');
+    w.document.write(html);w.document.close();w.focus();w.print();
+  }catch(err){alert(err.message||'Không in được đơn tổng trả')}
 }
 
 async function cancelMasterReturnOrder(id){

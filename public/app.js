@@ -60,6 +60,9 @@ if(masterReturnOrderSearchInput)masterReturnOrderSearchInput.addEventListener('i
 if(masterReturnOrderDateFrom)masterReturnOrderDateFrom.addEventListener('change',loadMasterReturnOrders);
 if(masterReturnOrderDateTo)masterReturnOrderDateTo.addEventListener('change',loadMasterReturnOrders);
 window.cancelMasterReturnOrder=cancelMasterReturnOrder;
+window.viewMasterReturnOrder=viewMasterReturnOrder;
+window.receiveMasterReturnOrder=receiveMasterReturnOrder;
+window.printMasterReturnOrder=printMasterReturnOrder;
 debtInnerTabs.forEach(btn=>btn.addEventListener('click',()=>setDebtPanel(btn.dataset.debtPanel)));
 window.voidReceipt=voidReceipt;
 if(cashbookSearchInput)cashbookSearchInput.addEventListener('input',loadCashbook);

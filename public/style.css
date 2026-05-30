@@ -3661,3 +3661,78 @@ button.danger:hover{background:#fecaca}
 .delivery-money-report-grid .delivery-kpi-card strong{font-size:18px;white-space:nowrap;}
 @media(max-width:1200px){.delivery-money-report-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:720px){.delivery-money-report-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+/* V45 - Master Return Orders: compact ERP/DMS layout */
+#masterReturnOrdersTab .master-return-top{
+  display:grid;
+  grid-template-columns:260px minmax(0,1fr);
+  gap:12px;
+  align-items:stretch;
+  margin-bottom:12px;
+}
+#masterReturnOrdersTab .master-return-title-block,
+#masterReturnOrdersTab .master-return-kpis{
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:18px;
+  padding:14px;
+  box-shadow:var(--erp-shadow-soft,0 8px 24px rgba(15,23,42,.06));
+}
+#masterReturnOrdersTab .master-return-title-block h2{margin:0 0 6px;font-size:20px;}
+#masterReturnOrdersTab .master-return-kpis{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+}
+#masterReturnOrdersTab .master-return-kpis div{
+  border:1px solid #dbeafe;
+  background:#f8fbff;
+  border-radius:14px;
+  padding:10px 12px;
+  min-height:64px;
+}
+#masterReturnOrdersTab .master-return-kpis span{display:block;color:#64748b;font-size:12px;font-weight:700;}
+#masterReturnOrdersTab .master-return-kpis strong{display:block;color:#0f172a;font-size:20px;line-height:1.15;margin-top:4px;}
+#masterReturnOrdersTab .master-return-layout{
+  grid-template-columns:minmax(300px,28%) minmax(0,72%);
+  align-items:start;
+  gap:12px;
+}
+#masterReturnOrdersTab .master-return-create-card{position:sticky;top:10px;}
+#masterReturnOrdersTab .master-return-create-card h3,
+#masterReturnOrdersTab .master-return-layout h3{margin:0 0 4px;font-size:18px;}
+#masterReturnOrdersTab .master-return-create-card .toolbar{gap:10px;align-items:flex-start;}
+#masterReturnOrdersTab .master-return-create-card .toolbar button{white-space:normal;min-width:86px;}
+#masterReturnOrdersTab .master-return-create-card .form{gap:8px;}
+#masterReturnOrdersTab .master-return-create-card input{min-height:34px;padding:7px 10px;}
+#masterReturnOrdersTab .master-return-unmerged-scroll{max-height:250px;overflow:auto;}
+#masterReturnOrdersTab .compact-table table th,
+#masterReturnOrdersTab .compact-table table td{padding:7px 8px;font-size:12px;}
+#masterReturnOrdersTab .master-return-flow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  border:1px dashed #bfdbfe;
+  background:#eff6ff;
+  color:#1e3a8a;
+  border-radius:14px;
+  padding:9px 12px;
+  margin:8px 0;
+  font-size:13px;
+  font-weight:800;
+}
+#masterReturnOrdersTab .master-return-flow span{background:#fff;border:1px solid #dbeafe;border-radius:999px;padding:4px 10px;}
+#masterReturnOrdersTab .master-return-actions{display:flex;gap:5px;flex-wrap:wrap;min-width:210px;}
+#masterReturnOrdersTab .master-return-actions .small{padding:5px 8px;font-size:11px;}
+#masterReturnOrdersTab .master-return-actions .danger{border-color:#fecaca;background:#fff1f2;color:#b91c1c;}
+@media(max-width:1100px){
+  #masterReturnOrdersTab .master-return-top,
+  #masterReturnOrdersTab .master-return-layout{grid-template-columns:1fr;}
+  #masterReturnOrdersTab .master-return-create-card{position:static;}
+  #masterReturnOrdersTab .master-return-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@media(max-width:700px){
+  #masterReturnOrdersTab .master-return-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  #masterReturnOrdersTab .sales-history-filters{grid-template-columns:1fr;}
+}
