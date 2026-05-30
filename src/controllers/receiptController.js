@@ -31,4 +31,14 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { list, create, remove };
+async function createDebtCollection(req, res) {
+  try {
+    const result = await financialService.createDebtCollection(req.body || {});
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    res.status(201).json({ ok: true, source: 'mongo-route', message: result.message || 'Đã ghi chứng từ công nợ', ...result });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không xử lý được công nợ' });
+  }
+}
+
+module.exports = { list, create, remove, createDebtCollection };

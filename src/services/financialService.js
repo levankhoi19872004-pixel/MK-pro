@@ -4,6 +4,7 @@ const receiptRepository = require('../repositories/receiptRepository');
 const cashbookRepository = require('../repositories/cashbookRepository');
 const bankbookRepository = require('../repositories/bankbookRepository');
 const paymentRepository = require('../repositories/paymentRepository');
+const returnOrderRepository = require('../repositories/returnOrderRepository');
 const customerRepository = require('../repositories/customerRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
@@ -255,12 +256,121 @@ async function voidReceipt(id, body = {}, query = {}) {
   return { receipt: voided };
 }
 
+async function buildManualReturnCode() {
+  const rows = await returnOrderRepository.findAll();
+  return buildRunningCode('THH', rows);
+}
+
+async function createDebtCollection(body = {}) {
+  const cashAmount = toNumber(body.cashAmount);
+  const transferAmount = toNumber(body.transferAmount);
+  const returnAmount = toNumber(body.returnAmount);
+  const totalAmount = cashAmount + transferAmount + returnAmount;
+  if (totalAmount <= 0) return { error: 'Bạn cần nhập tiền mặt, chuyển khoản hoặc hàng trả về.', status: 400 };
+
+  const customer = await resolveCustomer(body);
+  if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
+
+  const date = String(body.date || today()).slice(0, 10);
+  const staffName = String(body.staffName || '').trim();
+  const note = String(body.note || '').trim();
+  const docs = { receipts: [], returnOrder: null };
+
+  if (cashAmount > 0) {
+    const result = await createReceipt({
+      ...body,
+      date,
+      customerId: customer.id || customer.code || '',
+      customerCode: customer.code || '',
+      customerName: customer.name || '',
+      method: 'cash',
+      amount: cashAmount,
+      staffName,
+      note: note || 'Thu tiền mặt công nợ',
+      refType: 'debt_collection'
+    });
+    if (result.error) return result;
+    docs.receipts.push(result.receipt);
+  }
+
+  if (transferAmount > 0) {
+    const result = await createReceipt({
+      ...body,
+      date,
+      customerId: customer.id || customer.code || '',
+      customerCode: customer.code || '',
+      customerName: customer.name || '',
+      method: 'transfer',
+      amount: transferAmount,
+      staffName,
+      note: note || 'Thu chuyển khoản công nợ',
+      refType: 'debt_collection'
+    });
+    if (result.error) return result;
+    docs.receipts.push(result.receipt);
+  }
+
+  if (returnAmount > 0) {
+    const now = nowIso();
+    const returnOrder = {
+      id: makeId('RO'),
+      code: await buildManualReturnCode(),
+      date,
+      customerId: customer.id || customer.code || '',
+      customerCode: customer.code || '',
+      customerName: customer.name || '',
+      salesOrderId: String(body.orderId || body.salesOrderId || '').trim(),
+      salesOrderCode: String(body.orderCode || body.salesOrderCode || '').trim(),
+      items: [],
+      totalQuantity: 0,
+      totalAmount: returnAmount,
+      debtReduction: returnAmount,
+      staffName,
+      note: note || 'Ghi giảm công nợ do hàng trả về',
+      status: 'posted',
+      source: 'debt_collection_manual_return',
+      createdAt: now,
+      updatedAt: now
+    };
+    const payment = {
+      id: makeId('PM'),
+      date,
+      type: 'return_manual',
+      account: 'AR',
+      refType: 'RETURN_ORDER',
+      refId: returnOrder.id,
+      refCode: returnOrder.code,
+      orderId: returnOrder.salesOrderId,
+      orderCode: returnOrder.salesOrderCode,
+      customerId: returnOrder.customerId,
+      customerCode: returnOrder.customerCode,
+      customerName: returnOrder.customerName,
+      debit: 0,
+      credit: returnAmount,
+      amount: returnAmount,
+      note: returnOrder.note,
+      status: 'posted',
+      source: 'debt_collection_manual_return',
+      createdAt: now,
+      updatedAt: now
+    };
+    await withMongoTransaction(async (session) => {
+      await returnOrderRepository.upsert(returnOrder, { session });
+      await paymentRepository.upsert(payment, { session });
+    });
+    docs.returnOrder = returnOrder;
+  }
+
+  return { ...docs, totalAmount, message: 'Đã ghi chứng từ công nợ' };
+}
+
 module.exports = {
   listCashbook,
   createCashbook,
   listBankbook,
   listReceipts,
   createReceipt,
+  createDebtCollection,
   voidReceipt,
   cashSummary,
   bankSummary
