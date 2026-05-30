@@ -155,7 +155,7 @@ function resetSelectedProduct() {
 function pickProduct(product) {
   const p = toMobileProduct(product);
   selectedProduct = p;
-  selectedProductBox.textContent = `${p.code || ''} | ${p.name || ''}\n${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)} | ${money(p.salePrice || p.price || 0)}`;
+  selectedProductBox.innerHTML = `\n    <div class="product-suggest-title">${p.code || ''} | ${p.name || ''}</div>\n    <div class="product-suggest-meta"><span class="stock-badge">Tồn: ${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)}</span><span class="price-badge">Giá bán: ${money(p.salePrice || p.price || 0)}</span></div>\n  `;
   selectedProductBox.classList.remove('muted');
   productSearch.value = p.name || p.code || '';
   productSuggestions.innerHTML = '';

@@ -189,6 +189,8 @@ function createMobileService(ctx) {
       ].some((value) => normalizeText(value).includes(q)));
     }
 
+    const onlyInStock = String(query.inStockOnly ?? '1') !== '0';
+    if (onlyInStock) items = items.filter((item) => Number(item.availableQty || 0) > 0);
     items = items.slice(0, q ? 80 : requestedLimit);
 
     return { body: { ok: true, source: 'mongo-route', items, total: items.length, cachedCatalog: !q } };

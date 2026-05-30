@@ -65,15 +65,27 @@
 
   function render({box, items, label, onPick, emptyText='Không tìm thấy dữ liệu'}){
     if(!box) return [];
-    const list = (items || []).slice(0, 100);
+    const originalCount = (items || []).length;
+    const list = (items || []).slice(0, 50);
     show(box);
+    box.classList.toggle('has-many', box.id === 'productSuggestions' && originalCount > 6);
     if(!list.length){
+      box.classList.remove('has-many');
       box.innerHTML = `<div class="suggestion-item muted">${escapeHtml(emptyText)}</div>`;
       return list;
     }
-    box.innerHTML = list.map((item, index) => (
-      `<button type="button" class="suggestion-item" role="option" data-index="${index}">${escapeHtml(label(item))}</button>`
-    )).join('');
+    const headerHtml = (box.id === 'productSuggestions' && originalCount > 6)
+      ? `<div class="suggestion-empty suggestion-scroll-note">Có ${originalCount} sản phẩm. Kéo trong khung để xem thêm.</div>`
+      : '';
+    box.innerHTML = headerHtml + list.map((item, index) => {
+      const rawLabel = label(item);
+      const htmlLabel = (box.id === 'productSuggestions'
+        && window.UnifiedProductSearch
+        && typeof window.UnifiedProductSearch.labelHtml === 'function')
+        ? window.UnifiedProductSearch.labelHtml(item, 'sales')
+        : escapeHtml(rawLabel);
+      return `<button type="button" class="suggestion-item" role="option" data-index="${index}">${htmlLabel}</button>`;
+    }).join('');
     box.querySelectorAll('.suggestion-item[data-index]').forEach(button => {
       button.addEventListener('mousedown', event => {
         event.preventDefault();

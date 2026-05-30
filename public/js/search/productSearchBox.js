@@ -133,11 +133,11 @@
 
     // V45 mobile sales compact format:
     // 62674330 | SUNLIGHT Lau Kính 520ml/12 chai
-    // 79/2 | 24.750
+    // 📦 79/2     💰 24.750
     // Tên sản phẩm đã có quy cách nên không hiển thị thêm QC/packing để NVBH đọc nhanh hơn.
     if(mode === 'sales'){
       const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
-      return `${code} | ${name}\n${stockSlash(product)} | ${priceLabel}`;
+      return `${code} | ${name}\n📦 ${stockSlash(product)}     💰 ${priceLabel}`;
     }
 
     const packing = product._packingText || packingText(product);
@@ -145,5 +145,24 @@
     const packingLabel = packing ? ` · ${packing}` : '';
     return `${code} - ${name}${packingLabel} · ${stockText(product)}${priceLabel}`;
   }
-  window.UnifiedProductSearch = { normalizeText, sync, preload, getCatalog, search, searchLocal, label, availableQty, productKey, stockSlash };
+
+  function escapeHtml(value){
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[char]));
+  }
+  function labelHtml(product, mode='sales'){
+    const code = product.code || product.productCode || product.sku || '';
+    const name = product.name || product.productName || '';
+    const price = mode === 'import' ? product.costPrice : product.salePrice;
+    const priceValue = toNumber(price);
+    if(mode === 'sales'){
+      const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
+      return `<div class="product-suggest-title">${escapeHtml(code)} | ${escapeHtml(name)}</div>`
+        + `<div class="product-suggest-meta"><span class="stock-badge">📦 ${escapeHtml(stockSlash(product))}</span><span class="price-badge">💰 ${escapeHtml(priceLabel)}</span></div>`;
+    }
+    return escapeHtml(label(product, mode));
+  }
+
+  window.UnifiedProductSearch = { normalizeText, sync, preload, getCatalog, search, searchLocal, label, labelHtml, availableQty, productKey, stockSlash };
 })();
