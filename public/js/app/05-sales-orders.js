@@ -152,13 +152,16 @@ async function submitSalesOrder(event){
 
 // Stock / histories / debt
 async function loadStock(){
+  if(!stockTable||!stockCount)return;
   const q=stockSearchInput?stockSearchInput.value.trim():'';const url=q?`/api/stock?q=${encodeURIComponent(q)}`:'/api/stock';
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được tồn kho');
-    const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`;
-    if(!stock.length){stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho. Hãy tạo phiếu nhập trước.</td></tr>';return}
+    const stock=json.stock||[];
+    const sourceLabel=json.inventorySource||json.source||'inventorySnapshots';
+    stockCount.textContent=`${stock.length} dòng tồn kho · Nguồn Mongo: ${sourceLabel}`;
+    if(!stock.length){stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho trong Mongo inventorySnapshots. Hãy import Tồn kho ban đầu rồi bấm Xác nhận import.</td></tr>';return}
     stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${r.productCode||''}</strong></td><td>${r.productName||''}</td><td>${r.unit||''}</td><td>${productPackingText(r)}</td><td class="stock-qty">${money(r.quantity)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString('vi-VN'):''}</td></tr>`).join('');
-  }catch(err){stockCount.textContent='Lỗi tải tồn kho';stockTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
+  }catch(err){stockCount.textContent='Lỗi tải tồn kho từ Mongo';stockTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
 }
 async function openImportOrderDetail(idx){
   const order=window.__importOrdersCache?.[idx];if(!order)return;
