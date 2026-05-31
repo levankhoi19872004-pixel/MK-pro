@@ -3776,3 +3776,12 @@ button.danger:hover{background:#fecaca}
 .delivery-locked-note{display:inline-block;margin-top:4px;color:#166534;font-weight:700;}
 .delivery-open-note{display:inline-block;margin-top:4px;color:#9a3412;font-weight:600;}
 #deliveryEditSaveButton:disabled{opacity:.55;cursor:not-allowed;}
+
+/* V45 delivery accounting selectable rows */
+.delivery-accounting-select{display:flex;align-items:center;justify-content:center;min-width:28px;}
+.delivery-accounting-checkbox{width:18px;height:18px;accent-color:#2563eb;cursor:pointer;}
+.delivery-card.delivery-selectable-row{grid-template-columns:32px minmax(150px,1fr) 1.9fr;align-items:center;}
+.delivery-card.delivery-selectable-row.accounting-selected{outline:2px solid #2563eb;background:#eff6ff;}
+.delivery-card.delivery-selectable-row.accounting-locked{opacity:.72;}
+.delivery-accounting-actions .secondary.compact-action{background:#eef2f7;}
+@media(max-width:900px){.delivery-card.delivery-selectable-row{grid-template-columns:28px 1fr;}.delivery-card.delivery-selectable-row .delivery-customer-money{grid-column:1 / -1;}}

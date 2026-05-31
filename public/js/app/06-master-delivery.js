@@ -181,10 +181,54 @@ function deliveryTimelineHtml(row){
 
 let deliveryRowsCache=[];
 let selectedDeliveryOrderId='';
+let selectedDeliveryAccountingIds=new Set();
 
 function getSelectedDeliveryRow(){
   return deliveryRowsCache.find(row=>String(row.id)===String(selectedDeliveryOrderId));
 }
+
+function deliveryAccountingSelectableRows(){
+  return (deliveryRowsCache||[]).filter(row=>!(row.accountingConfirmed||row.editLocked));
+}
+function syncDeliveryAccountingSelection(){
+  const valid=new Set(deliveryAccountingSelectableRows().map(row=>String(row.id)));
+  selectedDeliveryAccountingIds=new Set([...selectedDeliveryAccountingIds].filter(id=>valid.has(String(id))));
+  document.querySelectorAll('.delivery-accounting-checkbox').forEach(cb=>{
+    cb.checked=selectedDeliveryAccountingIds.has(String(cb.value));
+    const card=cb.closest('.delivery-card');
+    if(card) card.classList.toggle('accounting-selected', cb.checked);
+  });
+  const selectedCount=selectedDeliveryAccountingIds.size;
+  const selectableCount=valid.size;
+  if(confirmDeliveryAccountingButton){
+    confirmDeliveryAccountingButton.disabled=!selectedCount;
+    confirmDeliveryAccountingButton.textContent=selectedCount?`Đẩy ${selectedCount} đơn sang công nợ`:'Đẩy đơn đã chọn sang công nợ';
+  }
+  if(selectAllDeliveryAccountingButton){
+    selectAllDeliveryAccountingButton.disabled=!selectableCount;
+    selectAllDeliveryAccountingButton.textContent=selectableCount && selectedCount===selectableCount?'Đã chọn tất cả':'Chọn tất cả';
+  }
+  if(clearDeliveryAccountingSelectionButton){
+    clearDeliveryAccountingSelectionButton.disabled=!selectedCount;
+  }
+}
+function toggleDeliveryAccountingSelection(id, checked){
+  const key=String(id||'');
+  if(!key)return;
+  if(checked) selectedDeliveryAccountingIds.add(key); else selectedDeliveryAccountingIds.delete(key);
+  syncDeliveryAccountingSelection();
+}
+function selectAllDeliveryAccounting(){
+  selectedDeliveryAccountingIds=new Set(deliveryAccountingSelectableRows().map(row=>String(row.id)));
+  syncDeliveryAccountingSelection();
+}
+function clearDeliveryAccountingSelection(){
+  selectedDeliveryAccountingIds.clear();
+  syncDeliveryAccountingSelection();
+}
+window.toggleDeliveryAccountingSelection=toggleDeliveryAccountingSelection;
+window.selectAllDeliveryAccounting=selectAllDeliveryAccounting;
+window.clearDeliveryAccountingSelection=clearDeliveryAccountingSelection;
 
 function deliveryToNumber(value){
   const n=Number(value);
@@ -452,8 +496,8 @@ async function loadDeliveryToday(){
       deliveryAccountingStatus.classList.toggle('confirmed', Boolean(accounting.confirmed));
     }
     if(confirmDeliveryAccountingButton){
-      confirmDeliveryAccountingButton.disabled=Boolean(accounting.confirmed)||!rows.length;
-      confirmDeliveryAccountingButton.textContent=accounting.confirmed?'Kế toán đã xác nhận':'Xác nhận của kế toán';
+      confirmDeliveryAccountingButton.disabled=true;
+      confirmDeliveryAccountingButton.textContent=accounting.confirmed?'Kế toán đã xác nhận':'Đẩy đơn đã chọn sang công nợ';
     }
     if(deliveryTodayList && json.formula){ deliveryTodayList.dataset.formula=json.formula; }
     const moneyReport=rows.reduce((acc,row)=>{
@@ -477,6 +521,8 @@ async function loadDeliveryToday(){
     }
     if(!rows.length){
       deliveryTodayList.innerHTML='<div class="empty-state">Không có đơn đi giao theo bộ lọc hiện tại.</div>';
+      selectedDeliveryAccountingIds.clear();
+      syncDeliveryAccountingSelection();
       clearDeliveryEditPanel();
       return;
     }
@@ -486,7 +532,13 @@ async function loadDeliveryToday(){
       const bank=Number(row.bankCollected||0);
       const reward=Number(row.rewardAmount||0);
       const returned=Number(row.returnAmount||0);
-      return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
+      const rowId=String(row.id||'');
+      const locked=Boolean(row.accountingConfirmed||row.editLocked);
+      const checked=selectedDeliveryAccountingIds.has(rowId);
+      return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row delivery-selectable-row ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''} ${checked?'accounting-selected':''} ${locked?'accounting-locked':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
+        <label class="delivery-accounting-select" title="Chọn đơn này để đẩy sang công nợ" onclick="event.stopPropagation()">
+          <input class="delivery-accounting-checkbox" type="checkbox" value="${escapeHtml(rowId)}" ${checked?'checked':''} ${locked?'disabled':''} onchange="toggleDeliveryAccountingSelection(this.value,this.checked)" />
+        </label>
         <div class="delivery-customer-main">
           <b>${escapeHtml(row.customerName||'Chưa có tên khách')}</b>
           <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
@@ -502,6 +554,7 @@ async function loadDeliveryToday(){
         </div>
       </article>`;
     }).join('');
+    syncDeliveryAccountingSelection();
     if(selectedDeliveryOrderId && !getSelectedDeliveryRow()) clearDeliveryEditPanel();
   }catch(err){
     deliveryTodayList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
@@ -510,30 +563,42 @@ async function loadDeliveryToday(){
 
 async function confirmDeliveryAccounting(){
   const date=deliveryDateFilter?.value||today();
-  const rows=deliveryRowsCache||[];
-  if(!rows.length){alert('Không có đơn giao để xác nhận.');return;}
+  syncDeliveryAccountingSelection();
+  const selectedIds=[...selectedDeliveryAccountingIds];
+  const rows=(deliveryRowsCache||[]).filter(row=>selectedIds.includes(String(row.id)));
+  if(!rows.length){alert('Chưa chọn đơn nào để đẩy sang công nợ.');return;}
   const total=rows.reduce((sum,row)=>sum+deliveryDebtBase(row),0);
   const debt=rows.reduce((sum,row)=>sum+calculateDeliveryDebt(row),0);
-  const ok=confirm(`Xác nhận của kế toán cho ngày ${date}?\n\nSố đơn: ${rows.length}\nTổng phải thu: ${money(total)}\nCông nợ sẽ đưa vào sổ: ${money(debt)}\n\nSau khi xác nhận, các đơn giao sẽ bị khóa sửa và mới được đẩy sang công nợ.`);
+  const ok=confirm(`Đẩy các đơn đã chọn sang công nợ?
+
+Ngày giao: ${date}
+Số đơn đã chọn: ${rows.length}
+Tổng phải thu: ${money(total)}
+Công nợ sẽ đưa vào sổ: ${money(debt)}
+
+Sau khi xác nhận, các đơn được chọn sẽ bị khóa sửa và mới được đưa vào báo cáo công nợ.`);
   if(!ok)return;
   try{
     if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.disabled=true;
     const res=await fetch('/api/master-orders/delivery-today/confirm-accounting',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({date})
+      body:JSON.stringify({date, orderIds:selectedIds})
     });
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không xác nhận được kế toán');
-    alert(json.message||'Đã xác nhận kế toán');
+    selectedDeliveryAccountingIds.clear();
+    alert(json.message||'Đã đẩy đơn đã chọn sang công nợ');
     await loadDeliveryToday();
     if(typeof loadDebts==='function') await loadDebts();
     if(typeof loadReport==='function') await loadReport();
   }catch(err){
     alert(err.message||'Không xác nhận được kế toán');
-    if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.disabled=false;
+    syncDeliveryAccountingSelection();
   }
 }
 window.confirmDeliveryAccounting=confirmDeliveryAccounting;
 if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.addEventListener('click',confirmDeliveryAccounting);
+if(selectAllDeliveryAccountingButton)selectAllDeliveryAccountingButton.addEventListener('click',selectAllDeliveryAccounting);
+if(clearDeliveryAccountingSelectionButton)clearDeliveryAccountingSelectionButton.addEventListener('click',clearDeliveryAccountingSelection);
 

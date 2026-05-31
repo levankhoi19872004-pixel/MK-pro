@@ -662,6 +662,8 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
 async function confirmDeliveryAccounting(body = {}) {
   const date = String(body.date || today()).slice(0, 10);
+  const selectedOrderIds = Array.isArray(body.orderIds) ? body.orderIds.map((id) => String(id)).filter(Boolean) : [];
+  const selectedIdSet = new Set(selectedOrderIds);
   const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
   const now = nowIso();
   const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
@@ -673,7 +675,9 @@ async function confirmDeliveryAccounting(body = {}) {
     const matched = children.filter((child) => {
       if (isInactiveStatus(child)) return false;
       const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
-      return deliveryDate === date;
+      const childKeyList = [child.id, child._id, child.code, child.orderCode, child.documentCode].map((v) => String(v || '')).filter(Boolean);
+      const selectedMatch = !selectedIdSet.size || childKeyList.some((key) => selectedIdSet.has(key));
+      return deliveryDate === date && selectedMatch;
     });
     if (matched.length) {
       targetMasters.push(master);
@@ -682,7 +686,7 @@ async function confirmDeliveryAccounting(body = {}) {
   }
 
   if (!targetChildren.length) {
-    return { error: `Không có đơn giao ngày ${date} để kế toán xác nhận`, status: 404 };
+    return { error: selectedIdSet.size ? `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận` : `Không có đơn giao ngày ${date} để kế toán xác nhận`, status: 404 };
   }
 
   let confirmedOrders = 0;
