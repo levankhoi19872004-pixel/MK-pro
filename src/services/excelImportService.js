@@ -1186,6 +1186,16 @@ async function importCashbook(rows = []) {
 }
 
 
+
+function rowBase(row = {}) {
+  const rowNo = row.__rowNo || row.rowNo || row.dong || row['Dòng'] || row['Dong'] || '';
+  return {
+    rowNo,
+    sourceRowNo: rowNo,
+    raw: row
+  };
+}
+
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   const inventoryRows = codes.length ? await Inventory.find({ productCode: { $in: codes } }).lean() : [];

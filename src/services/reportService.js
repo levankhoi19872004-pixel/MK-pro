@@ -2,6 +2,7 @@
 
 const Product = require('../models/Product');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const StockTransaction = require('../models/StockTransaction');
 const SalesOrder = require('../models/SalesOrder');
 const Customer = require('../models/Customer');
@@ -152,18 +153,66 @@ async function stockReport(query = {}) {
     return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary };
   }
 
-  const [snapshotRows, products] = await Promise.all([
+  const [snapshotRows, legacyRows, products] = await Promise.all([
     Inventory.find({}).sort({ productCode: 1, warehouseCode: 1 }).lean(),
+    InventoryLegacy.find({}).sort({ productCode: 1, warehouseCode: 1 }).lean(),
     Product.find({}).lean()
   ]);
 
-  // V45 Mongo-native: màn Tồn kho chỉ đọc collection `inventorySnapshots`.
-  // Không fallback sang `inventories`, `data.stock`, `products.stock` hay cộng tạm từ `stockTransactions`,
-  // để tránh tình trạng màn hình hiện 445 dòng nhưng Mongo inventorySnapshots thực tế vẫn rỗng.
-  const inventorySource = 'inventorySnapshots';
+  // Nếu inventorySnapshots chưa được rebuild/migrate nhưng collection inventories cũ đã có dữ liệu,
+  // dùng inventories làm nguồn hiển thị tạm để tránh màn hình tồn kho chỉ hiện 1 dòng hoặc tồn = 0.
+  // Khi rebuild chuẩn xong, inventorySnapshots sẽ có nhiều dòng hơn và tự được ưu tiên.
+  const snapshotTotalQty = snapshotRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
+  const legacyTotalQty = legacyRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
+  const useLegacyInventory = legacyRows.length > snapshotRows.length && (snapshotRows.length <= 1 || snapshotTotalQty <= 0) && legacyTotalQty !== 0;
+  const stockRows = useLegacyInventory ? legacyRows : snapshotRows;
+
+  let effectiveStockRows = stockRows;
+  let inventorySource = useLegacyInventory ? 'inventories' : 'inventorySnapshots';
+
+  // Fallback an toàn: nếu snapshot chưa có dòng nào nhưng stockTransactions đã được ghi,
+  // tự cộng phát sinh để màn Tồn kho không hiện 0 sau khi import Excel.
+  if (!effectiveStockRows.length) {
+    const txRows = await StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean().catch(() => []);
+    if (txRows.length) {
+      const byKey = new Map();
+      txRows.forEach((tx) => {
+        const productCode = String(tx.productCode || tx.productId || '').trim();
+        if (!productCode) return;
+        const warehouseCode = String(tx.warehouseCode || 'MAIN').trim() || 'MAIN';
+        const key = `${productCode}@@${warehouseCode}`;
+        if (!byKey.has(key)) {
+          byKey.set(key, {
+            id: key,
+            productId: tx.productId || productCode,
+            productCode,
+            productName: tx.productName || '',
+            warehouseId: tx.warehouseId || warehouseCode,
+            warehouseCode,
+            warehouseName: tx.warehouseName || 'Kho chính',
+            quantity: 0,
+            qty: 0,
+            onHand: 0,
+            availableQty: 0,
+            updatedAt: tx.updatedAt || tx.createdAt || ''
+          });
+        }
+        const row = byKey.get(key);
+        const qty = stockQty(tx);
+        row.quantity += qty;
+        row.qty += qty;
+        row.onHand += qty;
+        row.availableQty += qty;
+        row.productName = row.productName || tx.productName || '';
+        row.updatedAt = tx.updatedAt || tx.createdAt || row.updatedAt;
+      });
+      effectiveStockRows = Array.from(byKey.values());
+      inventorySource = 'stockTransactions_fallback';
+    }
+  }
 
   const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
-  let stock = snapshotRows.map((row) => {
+  let stock = effectiveStockRows.map((row) => {
     const product = productMap.get(String(row.productCode || row.productId || '')) || {};
     const quantity = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
     return {
@@ -199,7 +248,7 @@ async function stockReport(query = {}) {
     return acc;
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0 });
 
-  return { source: 'mongo_inventory_snapshots', stock, summary, inventorySource };
+  return { source: inventorySource === 'stockTransactions_fallback' ? 'mongo_stock_transactions_fallback' : (useLegacyInventory ? 'mongo_inventories_legacy_fallback' : 'mongo_inventory_snapshots'), stock, summary, inventorySource };
 }
 
 async function stockCardReport(query = {}) {

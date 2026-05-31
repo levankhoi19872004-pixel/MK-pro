@@ -454,7 +454,7 @@ async function previewImportExcel(){
     showMessage(importDataMessage,'Đang đọc file và kiểm tra dữ liệu...');
     const res=await fetch('/api/import/preview',{method:'POST',body:formData});
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không preview được file import');
+    if(!json.ok)throw new Error(json.error||json.message||'Không preview được file import');
     renderImportPreview(json);
     showMessage(importDataMessage,`Preview xong: ${json.valid||0} dòng hợp lệ, ${json.invalid||0} dòng lỗi.`);
   }catch(err){
@@ -471,7 +471,7 @@ async function commitImportExcel(){
     showMessage(importDataMessage,'Đang ghi dữ liệu import vào hệ thống...');
     const res=await fetch('/api/import/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:importDataType.value,rows})});
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Import thất bại');
+    if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
     showMessage(importDataMessage,json.message||'Import thành công');
     if(commitImportButton)commitImportButton.disabled=true;
 

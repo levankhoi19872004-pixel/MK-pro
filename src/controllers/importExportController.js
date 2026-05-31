@@ -18,7 +18,8 @@ async function previewImport(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'import-export-route', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: err.message });
+    console.error('[IMPORT_PREVIEW_ERROR]', err && (err.stack || err.message || err));
+    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: err.message, detail: err.stack });
   }
 }
 
@@ -31,7 +32,8 @@ async function commitImport(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'import-export-route', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message });
+    console.error('[IMPORT_COMMIT_ERROR]', err && (err.stack || err.message || err));
+    res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message, detail: err.stack });
   }
 }
 
