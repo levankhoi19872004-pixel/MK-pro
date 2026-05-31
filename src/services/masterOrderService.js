@@ -423,7 +423,7 @@ function orderDebtLifecycleStatus(debtAmount = 0, deliveryStatus = '') {
 }
 
 async function postDeliveryArIfCompleted(order = {}, options = {}) {
-  if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
+  if (!isDeliveryCompletedStatus(order.deliveryStatus)) return null;
   const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
   return postingEngine.postSalesOrderAR({
     ...order,
@@ -584,7 +584,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     ...current,
     deliveryDate: String(body.deliveryDate || current.deliveryDate || current.date || today()).slice(0, 10),
     deliveryStatus,
-    status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'posted'),
+    status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'assigned'),
     deliveryStaffCode: String(body.deliveryStaffCode ?? current.deliveryStaffCode ?? '').trim(),
     deliveryStaffName: String(body.deliveryStaffName ?? current.deliveryStaffName ?? '').trim(),
     routeName: String(body.routeName ?? current.routeName ?? current.deliveryRoute ?? '').trim(),
@@ -667,10 +667,10 @@ async function createMasterOrder(body = {}) {
         masterOrderId: masterOrder.id,
         masterOrderCode: masterOrder.code,
         mergeStatus: 'merged',
-        deliveryStatus: child.deliveryStatus || 'assigned_delivery',
-        status: child.status === 'posted' ? 'assigned_delivery' : (child.status || 'assigned_delivery'),
-        lifecycleStatus: 'assigned_delivery',
-        arStatus: child.arStatus || 'not_posted',
+        deliveryStatus: 'assigned',
+        status: 'assigned',
+        lifecycleStatus: 'assigned',
+        arStatus: 'pending',
         deliveryDate: masterOrder.deliveryDate,
         deliveryStaffId: masterOrder.deliveryStaffId,
         deliveryStaffCode: masterOrder.deliveryStaffCode,

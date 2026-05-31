@@ -747,10 +747,10 @@ async function importSalesOrders(rows = []) {
   const stockMap = new Map(stockRows.map((stock) => [`${cleanText(stock.productCode)}|${cleanText(stock.warehouseCode || 'MAIN')}`, toNumber(stock.availableQty ?? stock.quantity ?? stock.qty ?? stock.onHand)]));
   const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${getDateFromRow(r)}|${getCustomerCodeFromRow(r)}`);
   const autoOrderCodes = await buildRunningCodes(SalesOrder, 'BH', groups.length);
-  const cashCodes = await buildRunningCodes(Cashbook, 'PT', groups.length);
   let autoOrderIdx = 0;
-  let cashCodeIdx = 0;
   const orderDocs = [];
+  // ERP/DMS chuẩn: import Excel DMS chỉ tạo đơn con chờ gộp/giao.
+  // Không tạo Payment/Cashbook/AR ngay tại bước import, vì công nợ chỉ phát sinh khi giao hàng thành công.
   const paymentDocs = [];
   const cashbookDocs = [];
   const movements = [];
@@ -843,14 +843,21 @@ async function importSalesOrders(rows = []) {
       masterOrderId: '',
       masterOrderCode: '',
       mergeStatus: 'unmerged',
-      deliveryStatus: 'unassigned',
+      deliveryStatus: 'pending',
       items,
       totalQuantity,
       totalAmount,
       grandTotal: totalAmount,
-      paidAmount,
-      debtAmount: totalAmount - paidAmount,
-      status: 'posted',
+      paidAmount: 0,
+      cashCollected: 0,
+      bankCollected: 0,
+      paymentAmount: 0,
+      debtAmount: totalAmount,
+      debt: totalAmount,
+      arBalance: totalAmount,
+      arStatus: 'pending',
+      lifecycleStatus: 'pending',
+      status: 'pending',
       warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN',
       warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho chính',
       createdAt: now,
@@ -858,44 +865,6 @@ async function importSalesOrders(rows = []) {
     };
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
-    paymentDocs.push({
-      id: makeId('PM'),
-      date: doc.date,
-      type: 'sale_debt',
-      refType: 'salesOrder',
-      refId: doc.id,
-      refCode: doc.code,
-      customerId: doc.customerId,
-      customerCode: doc.customerCode,
-      customerName: doc.customerName,
-      debit: totalAmount,
-      credit: paidAmount,
-      amount: totalAmount,
-      note: `Import Excel từ đơn bán ${doc.code}`,
-      status: 'posted',
-      createdAt: now,
-      updatedAt: now
-    });
-    if (paidAmount > 0) {
-      cashbookDocs.push({
-        id: makeId('CB'),
-        code: cashCodes[cashCodeIdx++] || makeId('PT'),
-        date: doc.date,
-        type: 'in',
-        source: 'sales_payment_import',
-        refType: 'salesOrder',
-        refId: doc.id,
-        refCode: doc.code,
-        customerId: doc.customerId,
-        customerCode: doc.customerCode,
-        customerName: doc.customerName,
-        amount: paidAmount,
-        note: `Thu tiền import từ đơn bán ${doc.code}`,
-        status: 'posted',
-        createdAt: now,
-        updatedAt: now
-      });
-    }
     for (const item of items) {
       pushInventoryMovement({
         movements,
@@ -915,8 +884,8 @@ async function importSalesOrders(rows = []) {
   }
 
   const orderResult = await insertManyInBatches(SalesOrder, orderDocs);
-  const paymentResult = await insertManyInBatches(Payment, paymentDocs);
-  const cashResult = await insertManyInBatches(Cashbook, cashbookDocs);
+  const paymentResult = { errors: [] };
+  const cashResult = { errors: [] };
   const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
 
   skipped += orderResult.errors.length + paymentResult.errors.length + cashResult.errors.length;
@@ -1064,8 +1033,8 @@ async function importDebtCollections(rows = []) {
   }
 
   const receiptResult = await insertManyInBatches(Receipt, receiptDocs);
-  const paymentResult = await insertManyInBatches(Payment, paymentDocs);
-  const cashResult = await insertManyInBatches(Cashbook, cashbookDocs);
+  const paymentResult = { errors: [] };
+  const cashResult = { errors: [] };
   const insertErrors = [...receiptResult.errors, ...paymentResult.errors, ...cashResult.errors];
   skipped += insertErrors.length;
   errors.push(...insertErrors.map((e) => ({ customerCode: '', message: e.message })));

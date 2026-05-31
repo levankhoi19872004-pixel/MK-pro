@@ -274,13 +274,16 @@ function getLedgerCustomerKey(row = {}) {
   return String(row.customerId || row.customerCode || row.customerName || '').trim();
 }
 
+function isDeliveredForAR(order = {}) {
+  // Công nợ chỉ phát sinh khi nghiệp vụ giao hàng đã hoàn tất.
+  // Không dùng status/ arStatus để thay thế deliveryStatus, vì đơn import/gộp có thể bị gán nhầm status.
+  return ['delivered', 'success', 'completed', 'done'].includes(String(order.deliveryStatus || '').toLowerCase());
+}
+
 function makeVirtualSaleLedger(order = {}) {
   // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
   // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
-  const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
-  const arStatus = String(order.arStatus || '').toLowerCase();
-  const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus) || ['ar_posted', 'paid'].includes(arStatus);
-  if (!isDeliveryCompleted) return null;
+  if (!isDeliveredForAR(order)) return null;
   const debit = toNumber(order.debtAmount ?? order.debt ?? (totalOf(order) - toNumber(order.paidAmount || order.paymentAmount || 0)));
   if (debit <= 0) return null;
   return {
@@ -435,7 +438,21 @@ async function debtReport(query = {}) {
   ]);
 
   const activeOrders = orders.filter(isActive).filter((order) => matchDate(order, query));
-  const ledger = activeLedgerRows(journals);
+  const orderByKey = new Map();
+  activeOrders.forEach((order) => {
+    const id = String(order.id || order._id || '').trim();
+    const code = String(order.code || order.orderCode || '').trim();
+    if (id) orderByKey.set(id, order);
+    if (code) orderByKey.set(code, order);
+  });
+  const ledger = activeLedgerRows(journals).filter((entry) => {
+    const type = String(entry.type || '').toLowerCase();
+    const isSaleDebit = type.includes('sale') && toNumber(entry.debit || entry.amount) > 0;
+    if (!isSaleDebit) return true;
+    const orderKey = getLedgerOrderKey(entry);
+    const order = orderByKey.get(orderKey);
+    return order ? isDeliveredForAR(order) : true;
+  });
   const ledgerKeys = new Set(ledger.map(moneyDocKey).filter(Boolean));
 
   // ERP/DMS chuẩn: báo cáo công nợ đọc từ AR Ledger (collection journals).
