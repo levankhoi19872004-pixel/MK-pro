@@ -305,19 +305,61 @@ async function deleteOrder(id, body = {}) {
   return { salesOrder: toClient(removed) };
 }
 
-async function getMasterChildren(masterOrder) {
-  const ids = new Set((masterOrder.childOrderIds || []).map(String));
+function compactOrderKeys(order = {}) {
+  return [order.id, order.code, order.orderNo, order.orderCode, order._id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function isInactiveOrder(order = {}) {
+  const status = String(order.status || '').toLowerCase();
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(order.deletedAt);
+}
+
+function masterChildIdSet(masterOrder = {}) {
+  return new Set((Array.isArray(masterOrder.childOrderIds) ? masterOrder.childOrderIds : [])
+    .map((item) => String(item?.id || item?.code || item?._id || item || '').trim())
+    .filter(Boolean));
+}
+
+async function getMasterChildren(masterOrder = {}) {
+  // NGUỒN CHUẨN DUY NHẤT: masterOrder.childOrderIds.
+  // Không dùng masterOrder.children, không dùng tổng cache, không dùng customer summary,
+  // không tự lấy theo masterOrderId vì các liên kết cũ có thể còn sót sau khi xóa/hủy đơn.
+  const ids = masterChildIdSet(masterOrder);
+  if (!ids.size) return [];
+
   const orders = await orderRepository.findAll();
-  return orders.filter((order) => ids.has(String(order.id)) || ids.has(String(order.code)) || String(order.masterOrderId || '') === String(masterOrder.id || '') || String(order.masterOrderCode || '') === String(masterOrder.code || ''));
+  const byKey = new Map();
+  for (const order of orders) {
+    if (isInactiveOrder(order)) continue;
+    const matched = compactOrderKeys(order).some((key) => ids.has(key));
+    if (!matched) continue;
+    const key = String(order.id || order.code || order._id || '').trim();
+    if (key) byKey.set(key, order);
+  }
+
+  return Array.from(byKey.values());
 }
 
 function summarizeOrders(children = []) {
-  const active = children.filter((order) => !['cancelled', 'void'].includes(String(order.status || '').toLowerCase()));
+  const active = children.filter((order) => !isInactiveOrder(order));
+  const totalOrders = active.length;
+  const totalQuantity = active.reduce((sum, order) => {
+    const items = Array.isArray(order.items) ? order.items : [];
+    return sum + items.reduce((itemSum, item) => itemSum + toNumber(item.quantity ?? item.qty ?? item.totalQuantity ?? 0), 0);
+  }, 0);
+  const totalAmount = active.reduce((sum, order) => sum + toNumber(order.totalAmount), 0);
+  const paidAmount = active.reduce((sum, order) => sum + toNumber(order.paidAmount), 0);
+  const debtAmount = active.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
   return {
-    orderCount: active.length,
-    totalAmount: active.reduce((sum, order) => sum + toNumber(order.totalAmount), 0),
-    paidAmount: active.reduce((sum, order) => sum + toNumber(order.paidAmount), 0),
-    debtAmount: active.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0)
+    orderCount: totalOrders,
+    totalOrders,
+    totalQuantity,
+    totalAmount,
+    paidAmount,
+    debtAmount,
+    totalDebt: debtAmount
   };
 }
 
@@ -325,7 +367,14 @@ async function syncMasterOrderSummary(masterIdOrCode, options = {}) {
   const master = await masterOrderRepository.findByIdOrCode(masterIdOrCode);
   if (!master) return null;
   const children = await getMasterChildren(master);
-  const updated = { ...master, ...summarizeOrders(children), updatedAt: nowIso() };
+  const childOrderIds = children.map((order) => order.id || order.code).filter(Boolean);
+  const updated = {
+    ...master,
+    childOrderIds,
+    children: [],
+    ...summarizeOrders(children),
+    updatedAt: nowIso()
+  };
   await masterOrderRepository.upsert(updated, options);
   return updated;
 }

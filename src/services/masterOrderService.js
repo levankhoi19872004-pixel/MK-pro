@@ -39,12 +39,15 @@ function isInactiveStatus(row = {}) {
 }
 
 function toClient(masterOrder, children = []) {
+  const summary = orderService.summarizeOrders(children);
   return {
     ...masterOrder,
+    ...summary,
     id: masterOrder.id || masterOrder.code,
     code: masterOrder.code || masterOrder.id,
+    // children chỉ là dữ liệu render tạm lấy từ orders thật. Không coi masterOrder.children là nguồn dữ liệu.
     children,
-    childOrderIds: Array.isArray(masterOrder.childOrderIds) ? masterOrder.childOrderIds : children.map((order) => order.id)
+    childOrderIds: children.map((order) => order.id || order.code).filter(Boolean)
   };
 }
 
@@ -568,8 +571,10 @@ async function createMasterOrder(body = {}) {
   const childIds = Array.isArray(body.childOrderIds) ? body.childOrderIds.map(String) : [];
   if (!childIds.length) return { error: 'Chưa chọn đơn con để gộp', status: 400 };
   const allOrders = await orderRepository.findAll();
-  const children = allOrders.filter((order) => childIds.includes(String(order.id)) || childIds.includes(String(order.code)));
-  if (children.length !== childIds.length) return { error: 'Một số đơn con không tồn tại', status: 400 };
+  const children = allOrders
+    .filter((order) => childIds.includes(String(order.id)) || childIds.includes(String(order.code)))
+    .filter((order) => !isInactiveStatus(order));
+  if (children.length !== childIds.length) return { error: 'Một số đơn con không tồn tại hoặc đã bị hủy/xóa', status: 400 };
   if (children.some((order) => order.masterOrderId || order.masterOrderCode || (order.mergeStatus || 'unmerged') === 'merged')) {
     return { error: 'Có đơn con đã được gộp trước đó', status: 400 };
   }
@@ -591,6 +596,7 @@ async function createMasterOrder(body = {}) {
     salesStaffCode: salesStaff?.code || body.salesStaffCode || '',
     salesStaffName: salesStaff?.name || body.salesStaffName || '',
     childOrderIds: children.map((order) => order.id || order.code),
+    children: [],
     status: body.status || 'assigned',
     ...orderService.summarizeOrders(children),
     createdAt: body.createdAt || nowIso(),

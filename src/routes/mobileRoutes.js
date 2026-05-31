@@ -924,15 +924,18 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     const masters = (await MasterOrder.find({ deliveryDate: targetDate }).lean()).filter(isActiveMasterOrder);
     const masterByChild = new Map();
     const masterChildByKey = new Map();
+    const orderRefs = [];
+
     for (const master of masters) {
-      for (const childId of masterChildIds(master)) {
-        masterByChild.set(String(childId), master);
-      }
-      for (const child of (Array.isArray(master.children) ? master.children : [])) {
-        for (const key of orderMatchKeys(child, master, child)) {
-          masterByChild.set(String(key), master);
-          masterChildByKey.set(String(key), child);
-        }
+      // Nguồn chuẩn DUY NHẤT: masterOrder.childOrderIds.
+      // Tuyệt đối không dùng master.children vì đó là snapshot cũ có thể chứa đơn đã xóa/hủy.
+      const ids = masterChildIds(master);
+
+      for (const childId of ids) {
+        const key = String(childId).trim();
+        if (!key) continue;
+        masterByChild.set(key, master);
+        orderRefs.push({ key, master, masterChild: null });
       }
     }
 
@@ -959,18 +962,31 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     };
 
     const orders = await SalesOrder.find(orderFilter).lean();
+    const orderByKey = new Map();
+    for (const order of orders) {
+      for (const key of orderMatchKeys(order)) orderByKey.set(String(key), order);
+    }
+
+    const deliveryPairs = [];
+    const seenOrders = new Set();
+    for (const ref of orderRefs) {
+      const order = orderByKey.get(ref.key);
+      if (!order) continue;
+      const stableKey = String(order.id || order.code || order._id || ref.key).trim();
+      if (seenOrders.has(stableKey)) continue;
+      seenOrders.add(stableKey);
+      const possibleOrderKeys = orderMatchKeys(order, ref.master, ref.masterChild);
+      const master = possibleOrderKeys.map((key) => masterByChild.get(key)).find(Boolean) || ref.master || null;
+      const masterChild = possibleOrderKeys.map((key) => masterChildByKey.get(key)).find(Boolean) || ref.masterChild || null;
+      deliveryPairs.push({ order, master, masterChild });
+    }
+
     const returnOrders = await ReturnOrder.find({ status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }).lean();
-    const customerCodes = [...new Set(orders.map((o) => o.customerCode).filter(Boolean))];
+    const customerCodes = [...new Set(deliveryPairs.map(({ order, masterChild }) => order.customerCode || masterChild?.customerCode).filter(Boolean))];
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
     const customerByCode = new Map(customers.map((c) => [String(c.code), c]));
 
-    let items = orders
-      .map((order) => {
-        const possibleOrderKeys = orderMatchKeys(order);
-        const master = possibleOrderKeys.map((key) => masterByChild.get(key)).find(Boolean) || null;
-        const masterChild = possibleOrderKeys.map((key) => masterChildByKey.get(key)).find(Boolean) || null;
-        return { order, master, masterChild };
-      })
+    let items = deliveryPairs
       .filter(({ master }) => isActiveMasterOrder(master))
       .filter(({ order, master }) => isApprovedForDelivery(order, master))
       .filter(({ order, master }) => orderAssignedToUser(order, master, req.mobileUser))
@@ -993,7 +1009,7 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       source: 'mobile-delivery-mongo-route',
       date: targetDate,
       user: req.mobileUser,
-      formula: 'Chỉ lấy đơn con thuộc masterOrders còn hiệu lực của ngày giao, rồi lọc theo nhân viên giao hàng đang đăng nhập. Đơn tổng đã hủy/void sẽ không còn hiện trên app.',
+      formula: 'App giao hàng chỉ lấy đơn con từ masterOrder.childOrderIds, đối chiếu orders thật còn hiệu lực; không lấy master.children/tổng cache/customer summary; không hiển thị đơn đã xóa/hủy.',
       items
     });
   } catch (err) {
