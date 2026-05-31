@@ -4066,3 +4066,48 @@ button.danger:hover{background:#fecaca}
     grid-template-columns:repeat(3,minmax(70px,1fr))!important;
   }
 }
+
+/* V45 FIX: đưa danh sách đơn đi giao vào khung riêng có con lăn
+   Mục tiêu: phần KPI + bộ lọc đứng yên, chỉ cuộn danh sách đơn bên dưới. */
+#deliveryTodayTab #deliveryTodayList.delivery-card-list.delivery-compact-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  max-height:calc(100vh - 380px)!important;
+  min-height:220px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:8px 10px 8px 8px!important;
+  border:1px solid #dbe4f0!important;
+  border-radius:16px!important;
+  background:#f8fafc!important;
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.04)!important;
+  overscroll-behavior:contain!important;
+  scrollbar-gutter:stable!important;
+}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list::-webkit-scrollbar{width:8px;}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list::-webkit-scrollbar-track{
+  background:#eef2f7;
+  border-radius:999px;
+}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list::-webkit-scrollbar-thumb{
+  background:#cbd5e1;
+  border-radius:999px;
+}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list .empty-state{
+  min-height:180px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+@media(max-width:1180px){
+  #deliveryTodayTab #deliveryTodayList.delivery-card-list.delivery-compact-list{
+    max-height:calc(100vh - 420px)!important;
+  }
+}
+@media(max-width:760px){
+  #deliveryTodayTab #deliveryTodayList.delivery-card-list.delivery-compact-list{
+    max-height:55vh!important;
+    min-height:200px!important;
+  }
+}
