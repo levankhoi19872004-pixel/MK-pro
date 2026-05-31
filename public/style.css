@@ -4847,3 +4847,191 @@ button.danger:hover{background:#fecaca}
   #masterReturnOrdersTab .master-return-one-line,
   #masterReturnOrdersTab .return-one-line-row{grid-template-columns:18px 78px minmax(90px,1fr) 68px!important;}
 }
+
+/* V45 FIX - Đơn tổng layout đúng 3 vùng: Gộp đơn tổng 100%, dưới chia 50/50 */
+#masterOrdersTab .master-order-grid{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  grid-template-areas:
+    "create create"
+    "unmerged masters"!important;
+  gap:10px!important;
+  align-items:start!important;
+  width:100%!important;
+  max-width:none!important;
+}
+#masterOrdersTab .master-create-card{grid-area:create!important;width:100%!important;padding:10px 12px!important;position:static!important;}
+#masterOrdersTab .master-filter-card{grid-area:unmerged!important;min-width:0!important;width:100%!important;}
+#masterOrdersTab .master-list-card{grid-area:masters!important;grid-column:auto!important;min-width:0!important;width:100%!important;}
+
+/* Thanh gộp đơn tổng nằm ngang, không chiếm cột trái */
+#masterOrdersTab .master-create-card>.toolbar{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:10px!important;
+  margin-bottom:8px!important;
+}
+#masterOrdersTab .master-create-card>.toolbar h2{font-size:16px!important;margin:0!important;line-height:1.2!important;}
+#masterOrdersTab .master-create-card>.toolbar .muted{font-size:12px!important;margin:2px 0 0!important;}
+#masterOrdersTab .master-order-form{
+  position:static!important;
+  display:grid!important;
+  grid-template-columns:150px minmax(160px,1fr) 120px 150px minmax(190px,1.2fr) auto auto!important;
+  gap:8px!important;
+  align-items:end!important;
+}
+#masterOrdersTab .master-order-form .two-cols{display:contents!important;}
+#masterOrdersTab .master-order-form label{margin:0!important;font-size:12px!important;font-weight:800!important;color:#334155!important;min-width:0!important;}
+#masterOrdersTab .master-order-form input{height:34px!important;margin-top:4px!important;font-size:12px!important;padding:6px 9px!important;}
+#masterOrdersTab .master-order-form .inline-check{
+  display:flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  height:34px!important;
+  padding:6px 8px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:10px!important;
+  background:#f8fbff!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#masterOrdersTab .master-order-form .inline-check input{height:auto!important;margin:0!important;}
+#masterOrdersTab .master-selection-summary{
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  min-height:34px!important;
+  padding:6px 8px!important;
+  border-radius:10px!important;
+  font-size:12px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+}
+#masterOrdersTab .master-selection-summary span{display:inline!important;}
+#masterOrdersTab .master-order-form>button[type="submit"]{height:34px!important;padding:6px 12px!important;white-space:nowrap!important;}
+#masterOrdersTab #masterOrderMessage{margin:6px 0 0!important;font-size:12px!important;}
+
+/* Hai khung dưới 50/50, danh sách có con lăn 420px */
+#masterOrdersTab .master-filter-card,
+#masterOrdersTab .master-list-card{
+  display:flex!important;
+  flex-direction:column!important;
+  height:520px!important;
+  min-height:520px!important;
+  max-height:520px!important;
+  overflow:hidden!important;
+  padding:10px!important;
+}
+#masterOrdersTab .master-filter-card>.toolbar,
+#masterOrdersTab .master-list-card>.toolbar{
+  flex:0 0 auto!important;
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:8px!important;
+  margin-bottom:6px!important;
+}
+#masterOrdersTab .master-filter-card h2,
+#masterOrdersTab .master-list-card h2{font-size:15px!important;line-height:1.2!important;margin:0!important;}
+#masterOrdersTab .master-filter-card .muted,
+#masterOrdersTab .master-list-card .muted{font-size:11px!important;line-height:1.25!important;margin:2px 0 0!important;}
+#masterOrdersTab .master-filter-row{
+  flex:0 0 auto!important;
+  display:grid!important;
+  grid-template-columns:minmax(120px,1fr) minmax(120px,1fr) 92px 112px!important;
+  gap:5px!important;
+  margin:0 0 6px!important;
+}
+#masterOrdersTab .master-filter-row input,
+#masterOrdersTab .master-filter-row select,
+#masterOrdersTab .master-filter-row .autocomplete input{
+  min-width:0!important;width:100%!important;height:30px!important;padding:5px 8px!important;font-size:12px!important;
+}
+#masterOrdersTab .master-list-card .sales-history-filters{
+  flex:1 1 auto!important;
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:minmax(110px,1fr) 104px 104px 82px 86px 72px!important;
+  gap:4px!important;
+  align-items:center!important;
+  justify-content:stretch!important;
+}
+#masterOrdersTab .master-list-card .sales-history-filters input,
+#masterOrdersTab .master-list-card .sales-history-filters button{
+  min-width:0!important;width:100%!important;height:30px!important;padding:5px 7px!important;font-size:11.5px!important;white-space:nowrap!important;
+}
+#masterOrdersTab #unmergedOrderList,
+#masterOrdersTab #masterOrderList{
+  flex:1 1 auto!important;
+  height:420px!important;
+  min-height:0!important;
+  max-height:420px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  display:block!important;
+  border:1px solid #bfdbfe!important;
+  border-radius:10px!important;
+  background:#f8fbff!important;
+  padding:6px!important;
+}
+
+/* Đơn con chưa gộp: mỗi đơn đúng 1 dòng */
+#masterOrdersTab .master-child-one-line{
+  display:grid!important;
+  grid-template-columns:18px 82px minmax(110px,1fr) 74px minmax(82px,.9fr) 82px 72px!important;
+  gap:5px!important;
+  align-items:center!important;
+  min-height:30px!important;
+  padding:4px 6px!important;
+  margin:0 0 4px!important;
+  border:1px solid #e5edf7!important;
+  border-radius:7px!important;
+  background:#fff!important;
+  cursor:pointer!important;
+}
+#masterOrdersTab .master-child-one-line:hover{border-color:#93c5fd!important;background:#fff!important;}
+#masterOrdersTab .master-child-one-line.selected{border-color:#2563eb!important;background:#eff6ff!important;}
+#masterOrdersTab .master-child-one-line input{width:15px!important;height:15px!important;}
+#masterOrdersTab .master-child-code,
+#masterOrdersTab .master-child-customer,
+#masterOrdersTab .master-child-date,
+#masterOrdersTab .master-child-staff,
+#masterOrdersTab .master-child-money,
+#masterOrdersTab .master-child-source{
+  font-size:11.5px!important;line-height:1.2!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
+}
+#masterOrdersTab .master-child-code{font-weight:900!important;color:#0f172a!important;}
+#masterOrdersTab .master-child-customer{font-weight:700!important;color:#111827!important;}
+#masterOrdersTab .master-child-date,#masterOrdersTab .master-child-staff{font-weight:700!important;color:#64748b!important;}
+#masterOrdersTab .master-child-money{text-align:right!important;color:#047857!important;font-weight:900!important;}
+
+/* Danh sách đơn tổng: mỗi đơn 1 dòng, không xổ chi tiết mặc định */
+#masterOrdersTab .master-order-one-line{
+  display:grid!important;
+  grid-template-columns:18px 80px minmax(100px,1fr) 74px 88px 72px 72px!important;
+  gap:5px!important;
+  align-items:center!important;
+  min-height:30px!important;
+  padding:4px 6px!important;
+  margin:0 0 4px!important;
+  border-radius:7px!important;
+}
+#masterOrdersTab .master-order-one-line .erp-doc-code,
+#masterOrdersTab .master-order-one-line .erp-doc-party,
+#masterOrdersTab .master-order-one-line .erp-doc-date,
+#masterOrdersTab .master-order-one-line .erp-doc-value,
+#masterOrdersTab .master-order-one-line .erp-doc-status{
+  font-size:11.5px!important;line-height:1.2!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
+}
+#masterOrdersTab .master-order-one-line .erp-doc-details{display:none!important;}
+#masterOrdersTab .master-order-one-line .erp-doc-actions{display:flex!important;justify-content:flex-end!important;gap:4px!important;}
+#masterOrdersTab .master-order-one-line .erp-doc-actions .small{min-height:24px!important;padding:3px 6px!important;font-size:11px!important;}
+
+@media(max-width:1180px){
+  #masterOrdersTab .master-order-grid{grid-template-columns:1fr!important;grid-template-areas:"create" "unmerged" "masters"!important;}
+  #masterOrdersTab .master-order-form{grid-template-columns:1fr 1fr!important;}
+  #masterOrdersTab .master-filter-card,#masterOrdersTab .master-list-card{height:520px!important;}
+  #masterOrdersTab .master-list-card .sales-history-filters,#masterOrdersTab .master-filter-row{grid-template-columns:1fr 1fr!important;}
+}

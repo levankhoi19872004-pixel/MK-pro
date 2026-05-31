@@ -67,25 +67,24 @@ window.toggleSelectAllUnmergedOrders=toggleSelectAllUnmergedOrders;
 function renderUnmergedChildOrders(){
   if(!unmergedOrderList)return;
   if(!unmergedOrdersCache.length){
-    unmergedOrderList.innerHTML='Không có đơn con chưa gộp.';
+    unmergedOrderList.innerHTML='<div class="empty-state">Không có đơn con chưa gộp.</div>';
     updateSelectedChildOrderSummary();
     updateSelectAllUnmergedOrdersButton();
     return;
   }
-  unmergedOrderList.innerHTML=unmergedOrdersCache.map(order=>`
-    <label class="child-order-row ${selectedChildOrderIds.has(order.id)?'selected':''}">
-      <input type="checkbox" class="child-order-check" data-id="${order.id}" ${selectedChildOrderIds.has(order.id)?'checked':''} />
-      <div class="child-order-main">
-        <div class="child-order-title"><strong>${order.code||order.id}</strong> ${orderSourceLabel(order.orderSource,order)} ${mergeStatusLabel(order.mergeStatus,order)}</div>
-        <div class="order-meta">${order.date||''} · ${order.customerCode||''} - ${order.customerName||''}</div>
-        <div class="order-meta">${order.customerPhone||''} · ${order.customerAddress||''}</div>
-        <div class="order-meta">NV bán hàng: <strong>${order.salesStaffCode||order.staffCode||''} ${order.salesStaffName||order.staffName||''}</strong></div>
-      </div>
-      <div class="child-order-money">
-        <strong>${money(order.totalAmount)}</strong>
-        <small>Còn thu: ${money(order.debtAmount)}</small>
-      </div>
-    </label>`).join('');
+  unmergedOrderList.innerHTML=unmergedOrdersCache.map(order=>{
+    const staff=[order.salesStaffCode||order.staffCode||'', order.salesStaffName||order.staffName||''].filter(Boolean).join(' ');
+    const customer=[order.customerCode||'', order.customerName||''].filter(Boolean).join(' - ');
+    return `<label class="child-order-row master-child-one-line ${selectedChildOrderIds.has(order.id)?'selected':''}">
+      <input type="checkbox" class="child-order-check" data-id="${escapeHtml(order.id||'')}" ${selectedChildOrderIds.has(order.id)?'checked':''} />
+      <strong class="master-child-code" title="Mã đơn">${escapeHtml(order.code||order.id||'')}</strong>
+      <span class="master-child-customer" title="Khách hàng">${escapeHtml(customer||'Không rõ khách')}</span>
+      <span class="master-child-date" title="Ngày">${escapeHtml(order.date||'')}</span>
+      <span class="master-child-staff" title="NVBH">${escapeHtml(staff||'')}</span>
+      <strong class="master-child-money" title="Giá trị">${money(order.totalAmount)}</strong>
+      <span class="master-child-source" title="Nguồn">${orderSourceLabel(order.orderSource,order)}</span>
+    </label>`;
+  }).join('');
   updateSelectedChildOrderSummary();
   updateSelectAllUnmergedOrdersButton();
 }
