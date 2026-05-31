@@ -94,52 +94,69 @@ function renderGenericItemsTable(data) {
 }
 
 
-function renderMasterWarehouseTables(data) {
-  const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
-    ? data.warehouseGroups
-    : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], totalQty: data.totals.totalQty, totalAmount: data.totals.totalAmount }];
-
-  return groups.map((group) => {
-    const rows = group.items && group.items.length
-      ? group.items.map((item, index) => `
-        <tr>
+function renderMasterWarehouseLineSection(data, title, items = [], options = {}) {
+  const isPromo = Boolean(options.isPromo);
+  const colspan = 5;
+  const rows = items.length
+    ? items.map((item, index) => `
+        <tr class="${isPromo ? 'promo-line-row' : 'sale-line-row'}">
           <td class="center">${index + 1}</td>
           <td class="mono">${text(item.code)}</td>
-          <td>${text(item.name)}</td>
+          <td>${text(item.name)}${isPromo ? '<div class="muted">Xuất khuyến mại - không tính tiền</div>' : ''}</td>
           <td class="center">${text(item.unit)}</td>
           <td class="center strong">${text(item.caseDisplay)}</td>
           <td class="right strong">${money(data, item.qty)}</td>
-          <td class="right">${money(data, item.price)}</td>
+          <td class="right">${isPromo ? '0' : money(data, item.price)}</td>
           <td class="right strong">${money(data, item.amount)}</td>
         </tr>`).join('')
-      : '<tr><td colspan="8" class="center">Chưa có dòng hàng</td></tr>';
+    : `<tr><td colspan="8" class="center">${isPromo ? 'Không có hàng khuyến mại' : 'Không có hàng bán'}</td></tr>`;
+
+  const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const totalAmount = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  return `
+    <div class="master-line-section ${isPromo ? 'promo-section' : 'sale-section'}">
+      <div class="section-title">${text(title)}</div>
+      <table class="print-table master-picking-table">
+        <thead>
+          <tr>
+            <th style="width:8mm">STT</th>
+            <th style="width:24mm">Mã hàng</th>
+            <th>Tên hàng đã gộp từ đơn con</th>
+            <th style="width:16mm">ĐVT</th>
+            <th style="width:20mm">Thùng/Lẻ</th>
+            <th style="width:18mm">SL lẻ</th>
+            <th style="width:24mm">Giá bán SP</th>
+            <th style="width:30mm">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr class="invoice-total-row">
+            <td colspan="${colspan}" class="right strong">Tổng ${text(title)}</td>
+            <td class="right strong">${money(data, totalQty)}</td>
+            <td></td>
+            <td class="right strong">${money(data, totalAmount)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderMasterWarehouseTables(data) {
+  const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
+    ? data.warehouseGroups
+    : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], saleItems: data.items || [], promoItems: [], totalQty: data.totals.totalQty, totalAmount: data.totals.totalAmount }];
+
+  return groups.map((group) => {
+    const saleItems = Array.isArray(group.saleItems) ? group.saleItems : (group.items || []).filter((item) => !item.isPromo && item.lineType !== 'PROMO');
+    const promoItems = Array.isArray(group.promoItems) ? group.promoItems : (group.items || []).filter((item) => item.isPromo || item.lineType === 'PROMO');
 
     return `
       <div class="master-warehouse-block">
         <div class="section-title master-warehouse-title">${text(group.name || group.code)}</div>
-        <table class="print-table master-picking-table">
-          <thead>
-            <tr>
-              <th style="width:8mm">STT</th>
-              <th style="width:24mm">Mã hàng</th>
-              <th>Tên hàng đã gộp từ đơn con</th>
-              <th style="width:16mm">ĐVT</th>
-              <th style="width:20mm">Thùng/Lẻ</th>
-              <th style="width:18mm">SL lẻ</th>
-              <th style="width:24mm">Giá bán SP</th>
-              <th style="width:30mm">Thành tiền</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-            <tr class="invoice-total-row">
-              <td colspan="5" class="right strong">Tổng ${text(group.name || group.code)}</td>
-              <td class="right strong">${money(data, group.totalQty)}</td>
-              <td></td>
-              <td class="right strong">${money(data, group.totalAmount)}</td>
-            </tr>
-          </tbody>
-        </table>
+        ${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng bán`, saleItems)}
+        ${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Xuất khuyến mại`, promoItems, { isPromo: true })}
       </div>`;
   }).join('');
 }

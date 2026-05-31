@@ -121,8 +121,12 @@ function normalizeOneItem(item, index, sourceOrder = null) {
   const salePriceAfterDiscount = toNumber(pick(item.netPrice, item.priceAfterDiscount, item.finalPrice, price));
   const discount = getItemDiscount(item);
   const tax = getItemTax(item);
-  const rawAmount = toNumber(pick(item.amount, item.total, item.totalAmount, qty * salePriceAfterDiscount));
-  const amount = rawAmount || qty * salePriceAfterDiscount;
+  const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
+  const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true;
+  const normalizedLineType = isPromo ? 'PROMO' : 'SALE';
+  const lineTypeName = isPromo ? 'Xuất khuyến mại' : 'Hàng bán';
+  const rawAmount = toNumber(pick(item.amount, item.total, item.totalAmount, isPromo ? 0 : qty * salePriceAfterDiscount));
+  const amount = isPromo ? 0 : (rawAmount || qty * salePriceAfterDiscount);
   const caseInfo = normalizeQuantityByPack(qty, pack);
 
   return {
@@ -147,6 +151,9 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     discount,
     tax,
     amount,
+    lineType: normalizedLineType,
+    isPromo,
+    lineTypeName,
     note: item.note || '',
     sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',
     warehouseCode,
@@ -218,10 +225,57 @@ function buildWarehouseGroups(items = []) {
   for (const item of items) {
     const code = String(item.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
     const name = String(item.warehouseName || (code === 'KHO_PC' ? 'KHO PC' : 'KHO HC')).trim();
-    if (!map.has(code)) map.set(code, { code, name, items: [], totalQty: 0, totalAmount: 0 });
+    if (!map.has(code)) {
+      map.set(code, {
+        code,
+        name,
+        items: [],
+        saleItems: [],
+        promoItems: [],
+        totalQty: 0,
+        saleQty: 0,
+        promoQty: 0,
+        totalAmount: 0
+      });
+    }
     const group = map.get(code);
-    group.items.push(item);
+    const lineType = item.isPromo || item.lineType === 'PROMO' ? 'PROMO' : 'SALE';
+    const mergeKey = [
+      code,
+      lineType,
+      item.code,
+      item.unit,
+      item.pack,
+      lineType === 'PROMO' ? 0 : item.price
+    ].join('|');
+
+    let merged = group.items.find((row) => row.__mergeKey === mergeKey);
+    if (!merged) {
+      merged = {
+        ...item,
+        __mergeKey: mergeKey,
+        qty: 0,
+        amount: 0,
+        sourceOrderCodes: []
+      };
+      group.items.push(merged);
+      if (lineType === 'PROMO') group.promoItems.push(merged);
+      else group.saleItems.push(merged);
+    }
+
+    merged.qty += toNumber(item.qty);
+    merged.amount += toNumber(item.amount);
+    merged.caseQty = normalizeQuantityByPack(merged.qty, merged.pack).cases;
+    merged.unitQty = normalizeQuantityByPack(merged.qty, merged.pack).units;
+    merged.caseDisplay = normalizeQuantityByPack(merged.qty, merged.pack).display;
+    if (item.sourceOrderCode && !merged.sourceOrderCodes.includes(item.sourceOrderCode)) merged.sourceOrderCodes.push(item.sourceOrderCode);
+    for (const sourceCode of item.sourceOrderCodes || []) {
+      if (sourceCode && !merged.sourceOrderCodes.includes(sourceCode)) merged.sourceOrderCodes.push(sourceCode);
+    }
+
     group.totalQty += toNumber(item.qty);
+    if (lineType === 'PROMO') group.promoQty += toNumber(item.qty);
+    else group.saleQty += toNumber(item.qty);
     group.totalAmount += toNumber(item.amount);
   }
   const preferred = ['KHO_HC', 'KHO_PC'];

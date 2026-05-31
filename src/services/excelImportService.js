@@ -209,6 +209,33 @@ function getPromoUnitsFromRow(row = {}) {
   return toNumber(row.promoUnits ?? row['Số lượng khuyến mãi theo SU/ Số SU khuyế'] ?? row['Số lượng khuyến mãi theo SU/ Số SU khuyến mãi'] ?? row['So luong khuyen mai theo SU/ So SU khuye'] ?? row['SL khuyến mãi SU'] ?? row['SL khuyen mai SU']);
 }
 
+function getPromoCartons2FromRow(row = {}) {
+  return toNumber(
+    row.promoCartons2 ??
+    row.promotionCartons2 ??
+    row['Số lượng khuyến mãi 2 theo thùng/ Số thùng'] ??
+    row['So luong khuyen mai 2 theo thung/ So thung'] ??
+    row['SL khuyến mãi thùng 2'] ??
+    row['SL khuyen mai thung 2'] ??
+    row['KM thùng 2'] ??
+    row['KM thung 2']
+  );
+}
+
+function getPromoUnits2FromRow(row = {}) {
+  return toNumber(
+    row.promoUnits2 ??
+    row.promotionUnits2 ??
+    row['Số lượng khuyến mãi 2 theo SU/ Số SU khuyến mãi'] ??
+    row['So luong khuyen mai 2 theo SU/ So SU khuyen mai'] ??
+    row['SL khuyến mãi SU 2'] ??
+    row['SL khuyen mai SU 2'] ??
+    row['KM SU 2'] ??
+    row['KM lẻ 2'] ??
+    row['KM le 2']
+  );
+}
+
 function getDmsQuantityFromRow(row = {}, product = null) {
   const directQty = toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
   const packing = getPackingFromRow(row, product);
@@ -220,7 +247,41 @@ function getDmsQuantityFromRow(row = {}, product = null) {
 
 function getDmsPromoQuantityFromRow(row = {}, product = null) {
   const packing = getPackingFromRow(row, product);
-  return (getPromoCartonsFromRow(row) * packing) + getPromoUnitsFromRow(row);
+  // DMS có thể có nhiều cột khuyến mại. Quy đổi toàn bộ về số lượng lẻ để xuất kho,
+  // nhưng không tính tiền bán hàng.
+  const promoQty1 = (getPromoCartonsFromRow(row) * packing) + getPromoUnitsFromRow(row);
+  const promoQty2 = (getPromoCartons2FromRow(row) * packing) + getPromoUnits2FromRow(row);
+  const directPromoQty = toNumber(
+    row.promoQuantity ??
+    row.promotionQuantity ??
+    row.freeQuantity ??
+    row['Số lượng khuyến mãi'] ??
+    row['So luong khuyen mai'] ??
+    row['SL khuyến mãi'] ??
+    row['SL khuyen mai'] ??
+    row['Hàng khuyến mãi'] ??
+    row['Hang khuyen mai'] ??
+    0
+  );
+  return promoQty1 + promoQty2 + directPromoQty;
+}
+
+function allocateStockForSaleAndPromo(saleQuantity = 0, promoQuantity = 0, availableQuantity = 0) {
+  const saleQty = Math.max(0, toNumber(saleQuantity));
+  const promoQty = Math.max(0, toNumber(promoQuantity));
+  const available = Math.max(0, toNumber(availableQuantity));
+  // Ưu tiên giữ hàng bán có tính tiền, cắt khuyến mại trước. Nếu vẫn thiếu mới cắt hàng bán.
+  const allowedSaleQuantity = Math.min(saleQty, available);
+  const remaining = Math.max(0, available - allowedSaleQuantity);
+  const allowedPromoQuantity = Math.min(promoQty, remaining);
+  return {
+    allowedSaleQuantity,
+    allowedPromoQuantity,
+    allowedDeliveredQuantity: allowedSaleQuantity + allowedPromoQuantity,
+    missingSaleQuantity: Math.max(0, saleQty - allowedSaleQuantity),
+    missingPromoQuantity: Math.max(0, promoQty - allowedPromoQuantity),
+    missingQuantity: Math.max(0, saleQty + promoQty - available)
+  };
 }
 
 function getActualAmountFromRow(row = {}) {
@@ -891,48 +952,90 @@ async function importSalesOrders(rows = []) {
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
-      const quantity = getDmsQuantityFromRow(row, product);
-      const promoQuantity = getDmsPromoQuantityFromRow(row, product);
-      const deliveredQuantity = quantity + promoQuantity;
-      const salePrice = getDmsPriceFromRow(row, quantity);
-      const lineAmount = getDmsAmountFromRow(row, quantity, salePrice);
-      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN';
+      const rawSaleQuantity = Object.prototype.hasOwnProperty.call(row, '__allowedSaleQuantity')
+        ? toNumber(row.__allowedSaleQuantity)
+        : getDmsQuantityFromRow(row, product);
+      const rawPromoQuantity = Object.prototype.hasOwnProperty.call(row, '__allowedPromoQuantity')
+        ? toNumber(row.__allowedPromoQuantity)
+        : getDmsPromoQuantityFromRow(row, product);
+      const deliveredQuantity = rawSaleQuantity + rawPromoQuantity;
+      const salePrice = getDmsPriceFromRow(row, rawSaleQuantity);
+      const lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
+      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse || first['Kho'] || product?.warehouseCode) || 'MAIN';
       const normalizedProductCode = cleanText(product?.code || productCode);
       const stockKey = `${normalizedProductCode}|${warehouseCode}`;
       const availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
-      if (!product || quantity <= 0 || salePrice < 0 || availableQty < deliveredQuantity) {
+      if (!product || deliveredQuantity <= 0 || salePrice < 0 || availableQty < deliveredQuantity) {
         skipped += 1;
         groupInvalid = true;
-        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : availableQty < deliveredQuantity ? `Không đủ tồn kho: còn ${availableQty}` : 'Dòng bán hàng không hợp lệ' });
+        errors.push({
+          productCode,
+          message: !product
+            ? 'Không tìm thấy sản phẩm'
+            : availableQty < deliveredQuantity
+              ? `Không đủ tồn kho: còn ${availableQty}`
+              : 'Dòng bán hàng/khuyến mại không hợp lệ'
+        });
         continue;
       }
       if (stockMap.has(stockKey)) stockMap.set(stockKey, availableQty - deliveredQuantity);
       productStockMap.set(normalizedProductCode, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity);
       const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
-      items.push({
+      const baseItem = {
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
         productName: product.name,
         unit: product.unit,
         packingQty: getPackingFromRow(row, product),
-        cartons: getCartonsFromRow(row),
-        units: getUnitsFromRow(row),
-        quantity,
-        promoCartons: getPromoCartonsFromRow(row),
-        promoUnits: getPromoUnitsFromRow(row),
-        promoQuantity,
-        deliveredQuantity,
-        stockQuantity: deliveredQuantity,
-        soldQuantity: quantity,
-        salePrice,
-        price: salePrice,
         listPriceBeforeVat,
         listPriceAfterVat: listPriceBeforeVat ? listPriceBeforeVat * 1.08 : 0,
         gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
         nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
         vatAmount: getVatAmountFromRow(row),
-        amount: lineAmount
-      });
+        warehouseCode,
+        warehouseName: cleanText(product.warehouseName || (warehouseCode === 'KHO_PC' ? 'KHO PC' : warehouseCode === 'KHO_HC' ? 'KHO HC' : 'Kho chính'))
+      };
+
+      if (rawSaleQuantity > 0) {
+        items.push({
+          ...baseItem,
+          lineType: 'SALE',
+          isPromo: false,
+          lineTypeName: 'Hàng bán',
+          cartons: getCartonsFromRow(row),
+          units: getUnitsFromRow(row),
+          quantity: rawSaleQuantity,
+          deliveredQuantity: rawSaleQuantity,
+          stockQuantity: rawSaleQuantity,
+          soldQuantity: rawSaleQuantity,
+          promoQuantity: 0,
+          salePrice,
+          price: salePrice,
+          amount: lineAmount
+        });
+      }
+
+      if (rawPromoQuantity > 0) {
+        items.push({
+          ...baseItem,
+          lineType: 'PROMO',
+          isPromo: true,
+          lineTypeName: 'Xuất khuyến mại',
+          cartons: 0,
+          units: rawPromoQuantity,
+          quantity: rawPromoQuantity,
+          deliveredQuantity: rawPromoQuantity,
+          stockQuantity: rawPromoQuantity,
+          soldQuantity: 0,
+          promoCartons: getPromoCartonsFromRow(row) + getPromoCartons2FromRow(row),
+          promoUnits: getPromoUnitsFromRow(row) + getPromoUnits2FromRow(row),
+          promoQuantity: rawPromoQuantity,
+          salePrice: 0,
+          referenceSalePrice: salePrice,
+          price: 0,
+          amount: 0
+        });
+      }
     }
     if (!items.length || groupInvalid) continue;
 
@@ -993,7 +1096,7 @@ async function importSalesOrders(rows = []) {
         inventoryDeltas,
         item,
         direction: 'OUT',
-        type: 'SALE',
+        type: item.lineType === 'PROMO' || item.isPromo ? 'PROMO_OUT' : 'SALE',
         refType: 'SALES_ORDER',
         refId: doc.id,
         refCode: doc.code,
@@ -1312,23 +1415,27 @@ function flattenAdjustedCommitRows(rows = []) {
   return result;
 }
 
-function applyAdjustedQuantityToRow(row = {}, allowedQuantity = 0, salePrice = 0) {
+function applyAdjustedQuantityToRow(row = {}, allowedSaleQuantity = 0, allowedPromoQuantity = 0, salePrice = 0) {
   const adjusted = { ...(row.raw || row) };
-  adjusted.quantity = allowedQuantity;
-  adjusted.qty = allowedQuantity;
-  adjusted.stockQuantity = allowedQuantity;
-  adjusted.deliveredQuantity = allowedQuantity;
-  adjusted.soldQuantity = allowedQuantity;
+  const saleQty = Math.max(0, toNumber(allowedSaleQuantity));
+  const promoQty = Math.max(0, toNumber(allowedPromoQuantity));
+  adjusted.quantity = saleQty;
+  adjusted.qty = saleQty;
+  adjusted.stockQuantity = saleQty + promoQty;
+  adjusted.deliveredQuantity = saleQty + promoQty;
+  adjusted.soldQuantity = saleQty;
   adjusted.cartons = 0;
-  adjusted.units = allowedQuantity;
+  adjusted.units = saleQty;
   adjusted.promoCartons = 0;
-  adjusted.promoUnits = 0;
-  adjusted.promoQuantity = 0;
-  adjusted.actualAmount = allowedQuantity * salePrice;
-  adjusted.amount = allowedQuantity * salePrice;
-  adjusted.lineAmount = allowedQuantity * salePrice;
+  adjusted.promoUnits = promoQty;
+  adjusted.promoQuantity = promoQty;
+  adjusted.actualAmount = saleQty * salePrice;
+  adjusted.amount = saleQty * salePrice;
+  adjusted.lineAmount = saleQty * salePrice;
+  adjusted.__allowedSaleQuantity = saleQty;
+  adjusted.__allowedPromoQuantity = promoQty;
   adjusted.__autoCutByStock = true;
-  if (allowedQuantity <= 0) adjusted.__skipImportLine = true;
+  if ((saleQty + promoQty) <= 0) adjusted.__skipImportLine = true;
   return adjusted;
 }
 
@@ -1491,13 +1598,15 @@ async function previewMongoNative(type, rows = []) {
         const amount = getDmsAmountFromRow(row, quantity, salePrice);
         const normalizedProductCode = cleanText(product?.code || productCode);
         const availableBefore = toNumber(runningStockMap.get(normalizedProductCode));
-        const allowedQuantity = Math.max(0, Math.min(availableBefore, deliveredQuantity));
-        const missingQuantity = Math.max(0, deliveredQuantity - availableBefore);
+        const allocation = allocateStockForSaleAndPromo(quantity, promoQuantity, availableBefore);
+        const allowedQuantity = allocation.allowedDeliveredQuantity;
+        const missingQuantity = allocation.missingQuantity;
         const lineErrors = [];
 
         if (!productCode) lineErrors.push('Thiếu mã sản phẩm / mã hàng hóa');
         if (!product) lineErrors.push('Không tìm thấy sản phẩm');
-        if (quantity <= 0) lineErrors.push('Số lượng bán phải lớn hơn 0');
+        // Hàng khuyến mại hợp lệ dù số lượng bán = 0. Chỉ bỏ qua/báo lỗi khi cả hàng bán và 4 cột KM đều bằng 0.
+        if (deliveredQuantity <= 0) lineErrors.push('Số lượng bán hoặc khuyến mại phải lớn hơn 0');
         if (salePrice < 0) lineErrors.push('Giá bán không được âm');
 
         totalQuantity += Math.max(0, deliveredQuantity);
@@ -1509,11 +1618,18 @@ async function previewMongoNative(type, rows = []) {
             productCode: product.code,
             productName: product.name,
             requestedQuantity: deliveredQuantity,
+            saleQuantity: quantity,
+            promoQuantity,
             availableQuantity: availableBefore,
             importQuantity: allowedQuantity,
+            allowedSaleQuantity: allocation.allowedSaleQuantity,
+            allowedPromoQuantity: allocation.allowedPromoQuantity,
             missingQuantity,
+            missingSaleQuantity: allocation.missingSaleQuantity,
+            missingPromoQuantity: allocation.missingPromoQuantity,
             salePrice,
-            cutAmount: missingQuantity * salePrice
+            // Ưu tiên cắt KM trước nên chỉ tính giảm giá trị khi bị cắt cả hàng bán.
+            cutAmount: allocation.missingSaleQuantity * salePrice
           });
         }
 
@@ -1521,23 +1637,30 @@ async function previewMongoNative(type, rows = []) {
           detailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, productName: product?.name || '', errors: lineErrors });
         }
 
-        const adjustedRow = applyAdjustedQuantityToRow(row, allowedQuantity, salePrice);
+        const adjustedRow = applyAdjustedQuantityToRow(row, allocation.allowedSaleQuantity, allocation.allowedPromoQuantity, salePrice);
         adjustedRows.push(adjustedRow);
         adjustedQuantity += allowedQuantity;
-        adjustedAmount += allowedQuantity * salePrice;
+        adjustedAmount += allocation.allowedSaleQuantity * salePrice;
         if (product) runningStockMap.set(normalizedProductCode, Math.max(0, availableBefore - deliveredQuantity));
 
         lineDetails.push({
           rowNo: row.__rowNo || row.rowNo || '',
           productCode,
           productName: product?.name || cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+          saleQuantity: quantity,
+          promoQuantity,
           requestedQuantity: deliveredQuantity,
           availableQuantity: availableBefore,
           importQuantity: allowedQuantity,
+          allowedSaleQuantity: allocation.allowedSaleQuantity,
+          allowedPromoQuantity: allocation.allowedPromoQuantity,
           missingQuantity,
+          missingSaleQuantity: allocation.missingSaleQuantity,
+          missingPromoQuantity: allocation.missingPromoQuantity,
           salePrice,
           amount,
-          adjustedAmount: allowedQuantity * salePrice,
+          adjustedAmount: allocation.allowedSaleQuantity * salePrice,
+          lineType: promoQuantity > 0 && quantity <= 0 ? 'PROMO' : 'SALE',
           errors: lineErrors
         });
       }
