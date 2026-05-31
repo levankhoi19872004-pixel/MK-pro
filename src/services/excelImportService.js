@@ -962,12 +962,12 @@ async function importSalesOrders(rows = [], options = {}) {
   for (const group of groups) {
     const first = group[0] || {};
     const docCodeCheck = getOrderDocumentCode(first);
-    if (docCodeCheck && existingDocumentSet.has(docCodeCheck)) {
+    if (docCodeCheck && docCodeCheck !== 'AUTO' && existingDocumentSet.has(docCodeCheck)) {
       skipped += group.length;
       errors.push({ documentCode: docCodeCheck, message: 'Đơn đã tồn tại - bỏ qua import' });
       continue;
     }
-    if (docCodeCheck && importedDocumentSet.has(docCodeCheck)) {
+    if (docCodeCheck && docCodeCheck !== 'AUTO' && importedDocumentSet.has(docCodeCheck)) {
       skipped += group.length;
       errors.push({ documentCode: docCodeCheck, message: 'Đơn trùng trong cùng file - bỏ qua import' });
       continue;
@@ -1109,7 +1109,9 @@ async function importSalesOrders(rows = [], options = {}) {
         });
       }
     }
-    if (!items.length || groupInvalid) continue;
+    // Không bỏ cả hóa đơn chỉ vì 1 dòng lỗi.
+    // Với đơn DMS dài, một dòng thiếu mã/thiếu tồn không được làm mất toàn bộ đơn của khách.
+    if (!items.length) continue;
 
     const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
@@ -1164,8 +1166,7 @@ async function importSalesOrders(rows = [], options = {}) {
     };
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
-    const importedCodeKey = cleanText(doc.documentCode || doc.code);
-    if (importedCodeKey) importedDocumentSet.add(importedCodeKey);
+    if (doc.documentCode) importedDocumentSet.add(cleanText(doc.documentCode));
     for (const item of items) {
       pushInventoryMovement({
         movements,
@@ -1422,41 +1423,29 @@ async function getStockMapByProductCode(rows = []) {
 
 
 function getOrderDocumentCode(row = {}) {
-  // Với file DMS, mã đơn thật nằm ở cột "Số hóa đơn".
-  // Không được ưu tiên row.code trước vì trong một số template/custom mapping,
-  // code có thể là mã sản phẩm. Khi đó các dòng hàng bị tách/ghép sai đơn.
-  // Cũng không dùng cột "Số hóa đơn trong 1 ngày" vì đó chỉ là số thứ tự/thống kê.
-  const exactInvoiceCode = cleanText(
+  // DMS/Unilever: mã chứng từ chuẩn nằm ở cột Số hóa đơn.
+  // Không được ưu tiên row.code vì nhiều luồng chuẩn hóa dùng code cho Mã hàng hóa,
+  // khiến mỗi dòng sản phẩm bị hiểu nhầm là một đơn hoặc làm gộp/sót đơn liền nhau.
+  const explicitCode = cleanText(
     row.documentCode ||
-    row.orderCode ||
     row.invoiceCode ||
-    row.invoiceNo ||
-    row.invoiceNumber ||
+    row.orderCode ||
     row['Số hóa đơn'] ||
     row['So hoa don'] ||
     row['Số hoá đơn'] ||
-    row['So hoa don DMS'] ||
-    text(row, [
-      'documentCode',
-      'orderCode',
-      'invoiceCode',
-      'invoiceNo',
-      'invoiceNumber',
-      'số hóa đơn',
-      'số hoá đơn',
-      'so hoa don'
-    ])
-  );
-  if (exactInvoiceCode) return exactInvoiceCode;
-
-  const fallbackCode = cleanText(
+    row['So hoa don '] ||
     row['Mã đơn'] ||
     row['Ma don'] ||
     row['Mã phiếu'] ||
-    row['Ma phieu'] ||
-    row.code
+    row['Ma phieu']
   );
-  return fallbackCode || 'AUTO';
+  if (explicitCode) return explicitCode;
+
+  // Chỉ dùng row.code khi chắc chắn đó là mã đơn, không phải mã sản phẩm dạng số.
+  const genericCode = cleanText(row.code);
+  if (genericCode && !/^\d{5,}$/.test(genericCode)) return genericCode;
+
+  return 'AUTO';
 }
 
 function makeImportOrderGroupKey(row = {}) {
@@ -1469,12 +1458,11 @@ function makeImportOrderGroupKey(row = {}) {
 
 function makeSalesOrderGroupKey(row = {}) {
   const documentCode = getOrderDocumentCode(row);
-  // Nếu thiếu mã hóa đơn, không gom toàn bộ cùng khách/ngày thành 1 đơn.
-  // Việc gom kiểu đó làm 2 đơn đứng gần nhau của cùng khách (ví dụ Hải Miên)
-  // bị hiểu là một đơn và khi import/kiểm tra trùng sẽ mất đơn.
+  // Nếu file thiếu Số hóa đơn thì không gom cứng theo khách/ngày,
+  // vì 2 đơn cùng khách đứng sát nhau sẽ bị hiểu là 1 đơn.
   const safeDocumentCode = documentCode && documentCode !== 'AUTO'
     ? documentCode
-    : `AUTO_ROW_${cleanText(row.__rowNo || row.rowNo || makeId('ROW'))}`;
+    : `AUTO_ROW_${row.__rowNo || row.rowNo || makeId('ROW')}`;
   return [
     safeDocumentCode,
     getDateFromRow(row),
@@ -1778,7 +1766,13 @@ async function previewMongoNative(type, rows = []) {
         });
       }
 
-      if (detailErrors.length) errors.push(`${detailErrors.length} dòng hàng lỗi`);
+      const importableAdjustedRows = adjustedRows.filter((r) => !r.__skipImportLine);
+      const blockingErrors = [...errors];
+      // Lỗi chi tiết từng dòng chỉ để cảnh báo/cắt dòng đó, không khóa cả hóa đơn
+      // nếu hóa đơn vẫn còn dòng hợp lệ để import.
+      if (detailErrors.length && !importableAdjustedRows.length) {
+        blockingErrors.push(`${detailErrors.length} dòng hàng lỗi`);
+      }
       const shortageSummary = summarizeOrderShortages(shortageReport);
       return {
         ...rowBase(first),
@@ -1797,14 +1791,14 @@ async function previewMongoNative(type, rows = []) {
         shortageQuantity: shortageSummary.totalMissingQty,
         shortageAmount: shortageSummary.totalCutAmount,
         hasShortage: shortageReport.length > 0,
-        statusText: errors.length ? 'Có lỗi' : (shortageReport.length ? 'Vượt tồn' : 'Hợp lệ'),
+        statusText: blockingErrors.length ? 'Có lỗi' : (detailErrors.length ? 'Có dòng bị bỏ qua' : (shortageReport.length ? 'Vượt tồn' : 'Hợp lệ')),
         shortageReport,
         lineDetails,
         detailErrors,
         __importRows: group,
         __adjustedRows: adjustedRows,
-        errors,
-        valid: errors.length === 0
+        errors: blockingErrors,
+        valid: blockingErrors.length === 0
       };
     });
   } else if (type === 'openingDebt') {
