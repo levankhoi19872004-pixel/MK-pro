@@ -284,7 +284,9 @@ function makeVirtualSaleLedger(order = {}) {
   // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
   // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
   if (!isDeliveredForAR(order)) return null;
-  const debit = toNumber(order.debtAmount ?? order.debt ?? (totalOf(order) - toNumber(order.paidAmount || order.paymentAmount || 0)));
+  // Bút toán phát sinh công nợ phải lấy tổng phải thu ban đầu của đơn đã giao.
+  // Không dùng debtAmount còn lại, vì receipt/return sẽ được ghi thành bút toán giảm nợ riêng trong AR Ledger.
+  const debit = toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.payableAmount ?? order.debtAmount ?? order.debt ?? 0);
   if (debit <= 0) return null;
   return {
     id: `VIRTUAL-AR-SALE-${order.id || order.code}`,
@@ -622,22 +624,22 @@ async function debtReport(query = {}) {
   const now = today();
   let debts = Array.from(byOrder.values()).map((row) => {
     const rawDebt = toNumber(row.debit) - toNumber(row.credit);
-    const normalizedDebt = normalizeDebtAmount(rawDebt);
-    const debt = Math.max(0, normalizedDebt);
-    const overpaidAmount = Math.max(0, -normalizedDebt);
+    const debt = normalizeDebtAmount(rawDebt);
+    const overpaidAmount = Math.max(0, -debt);
     const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, row.dueDate || row.documentDate)) : 0;
+    const status = isOverpaid(debt) ? 'overpaid' : (hasOpenDebt(debt) ? (overdueDays > 0 ? 'overdue' : 'open') : 'paid');
     return {
       ...row,
       paidOnOrder: 0,
       receiptAmount: Math.max(0, toNumber(row.receiptAmount)),
       returnAmount: Math.max(0, toNumber(row.returnAmount)),
       debt,
-      rawDebt: normalizeDebtAmount(rawDebt),
+      rawDebt: debt,
       overpaidAmount,
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       overdueDays,
       agingDays: row.documentDate ? Math.max(0, daysBetween(now, row.documentDate)) : 0,
-      status: hasOpenDebt(debt) ? (overdueDays > 0 ? 'overdue' : 'open') : 'paid'
+      status
     };
   });
 
@@ -649,7 +651,9 @@ async function debtReport(query = {}) {
   // Tab Tổng công nợ là báo cáo quản trị: mặc định chỉ hiển thị khách còn nợ > 0.
   // Khách đã tất toán chỉ xuất hiện khi người dùng lọc trạng thái "Đã tất toán" hoặc truyền includePaid=1.
   const includePaidCustomers = String(query.includePaid || '').trim() === '1' || String(query.status || '') === 'paid';
-  const reportDebtRows = includePaidCustomers ? debts : debts.filter((row) => hasOpenDebt(row.debt));
+  // Mặc định hiển thị cả dòng nợ âm để kế toán thấy lỗi thu vượt/thiếu bút toán phát sinh nợ,
+  // không che âm về 0.
+  const reportDebtRows = includePaidCustomers ? debts : debts.filter((row) => hasOpenDebt(row.debt) || isOverpaid(row.debt));
 
   const customerMap = new Map();
   reportDebtRows.forEach((row) => {
@@ -719,12 +723,13 @@ async function debtReport(query = {}) {
   const customerSummary = Array.from(customerMap.values())
     .map((row) => ({
       ...row,
-      debt: Math.max(0, normalizeDebtAmount(row.debt)),
-      status: hasOpenDebt(row.debt) ? (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open') : 'paid',
+      debt: normalizeDebtAmount(row.debt),
+      overpaidAmount: Math.max(0, -normalizeDebtAmount(row.debt)),
+      status: isOverpaid(row.debt) ? 'overpaid' : (hasOpenDebt(row.debt) ? (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open') : 'paid'),
       debtZeroTolerance: DEBT_ZERO_TOLERANCE
     }))
-    .filter((row) => includePaidCustomers ? (row.debit || row.credit || row.debt) : hasOpenDebt(row.debt))
-    .sort((a, b) => b.debt - a.debt || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
+    .filter((row) => includePaidCustomers ? (row.debit || row.credit || row.debt) : (hasOpenDebt(row.debt) || isOverpaid(row.debt)))
+    .sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
 
   const bySalesman = buildDebtPersonSummary(reportDebtRows, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
   const byDelivery = buildDebtPersonSummary(reportDebtRows, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
@@ -739,6 +744,8 @@ async function debtReport(query = {}) {
     totalDebit: sum(reportDebtRows, (row) => row.debit),
     totalCredit: sum(reportDebtRows, (row) => row.credit),
     totalDebt: sum(reportDebtRows, (row) => normalizeDebtAmount(row.debt)),
+    totalPositiveDebt: sum(reportDebtRows.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
+    totalOverpaid: sum(reportDebtRows.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
     debtZeroTolerance: DEBT_ZERO_TOLERANCE,
     journalCount: ledger.length,
     arLedgerCount: arLedger.length,

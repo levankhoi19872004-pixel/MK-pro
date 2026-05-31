@@ -335,10 +335,17 @@ function applyOrderDebtLifecycle(order) {
 
 async function postDeliveryArForMobile(order) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
+
+  const raw = order.toObject ? order.toObject() : order;
+  const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(raw)));
+
+  // ERP/DMS chuẩn: khi giao hàng xong, AR-SALE phải ghi tổng phải thu ban đầu.
+  // Tiền mặt, chuyển khoản, trả thưởng/trả hàng sẽ được ghi bằng các bút toán giảm nợ riêng.
+  // Không lấy debtAmount còn lại để ghi AR-SALE, vì sẽ làm mất phát sinh tăng nợ.
   return postingEngine.postSalesOrderAR({
-    ...(order.toObject ? order.toObject() : order),
-    debtAmount: Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0)),
-    paidAmount: Math.max(0, toNumber(order.totalAmount) - Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0)))
+    ...raw,
+    debtAmount: baseAmount,
+    paidAmount: 0
   }, { postZero: true });
 }
 

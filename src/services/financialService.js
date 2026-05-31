@@ -20,6 +20,18 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+// Chặn chứng từ nhập sai định dạng tiền gây lệch sổ công nợ.
+// Có thể nâng ngưỡng này sau, nhưng một chứng từ thu công nợ thông thường không nên vượt 1 tỷ.
+const MAX_SAFE_RECEIPT_AMOUNT = 1000000000;
+
+function assertSafeMoneyAmount(amount, label = 'Số tiền') {
+  const value = toNumber(amount);
+  if (value > MAX_SAFE_RECEIPT_AMOUNT) {
+    return { error: `${label} quá lớn, vui lòng kiểm tra lại định dạng nhập tiền`, status: 400 };
+  }
+  return null;
+}
+
 function isActive(row = {}) {
   return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase());
 }
@@ -240,6 +252,8 @@ async function resolveCustomer(body = {}) {
 async function createReceipt(body = {}) {
   const amount = toNumber(body.amount);
   if (amount <= 0) return { error: 'Số tiền thu phải lớn hơn 0', status: 400 };
+  const unsafeAmount = assertSafeMoneyAmount(amount, 'Số tiền thu');
+  if (unsafeAmount) return unsafeAmount;
   const customer = await resolveCustomer(body);
   if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
   const method = ['transfer', 'bank'].includes(String(body.method || '').toLowerCase()) ? 'transfer' : 'cash';
@@ -385,6 +399,14 @@ async function createDebtCollection(body = {}) {
   const returnAmount = toNumber(body.returnAmount);
   const totalAmount = cashAmount + transferAmount + returnAmount;
   if (totalAmount <= 0) return { error: 'Bạn cần nhập tiền mặt, chuyển khoản hoặc hàng trả về.', status: 400 };
+  const unsafeCash = assertSafeMoneyAmount(cashAmount, 'Tiền mặt');
+  if (unsafeCash) return unsafeCash;
+  const unsafeTransfer = assertSafeMoneyAmount(transferAmount, 'Tiền chuyển khoản');
+  if (unsafeTransfer) return unsafeTransfer;
+  const unsafeReturn = assertSafeMoneyAmount(returnAmount, 'Giá trị hàng trả');
+  if (unsafeReturn) return unsafeReturn;
+  const unsafeTotal = assertSafeMoneyAmount(totalAmount, 'Tổng tiền xử lý công nợ');
+  if (unsafeTotal) return unsafeTotal;
 
   const customer = await resolveCustomer(body);
   if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
