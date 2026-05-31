@@ -232,7 +232,14 @@ async function loadCustomImportTemplates(){
     const type=importDataType?importDataType.value:'';
     const options=customImportTemplates.filter(t=>!type||t.type===type).map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} - ${escapeHtml(t.code||'')}</option>`).join('');
     customImportTemplateSelect.innerHTML=`<option value="">Không dùng mẫu tự tạo</option>${options}`;
-  }catch(err){showMessage(importDataMessage,err.message,true)}
+  }catch(err){
+    if(commitImportButton){
+      commitImportButton.disabled=false;
+      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
+    }
+    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
+    showMessage(importDataMessage,err.message,true);
+  }
 }
 function getSelectedCustomTemplate(){
   const id=customImportTemplateSelect?customImportTemplateSelect.value:'';
@@ -266,7 +273,14 @@ async function saveCustomImportTemplate(){
     showMessage(importDataMessage,json.message||'Đã lưu mẫu import');
     await loadCustomImportTemplates();
     if(json.template&&customImportTemplateSelect)customImportTemplateSelect.value=json.template.id;
-  }catch(err){showMessage(importDataMessage,err.message,true)}
+  }catch(err){
+    if(commitImportButton){
+      commitImportButton.disabled=false;
+      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
+    }
+    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
+    showMessage(importDataMessage,err.message,true);
+  }
 }
 function downloadCustomImportTemplate(){
   const template=getSelectedCustomTemplate();
@@ -285,7 +299,14 @@ async function deleteCustomImportTemplate(){
     if(customImportTemplateName)customImportTemplateName.value='';
     await loadCustomImportTemplates();
     renderCustomImportMapping([]);
-  }catch(err){showMessage(importDataMessage,err.message,true)}
+  }catch(err){
+    if(commitImportButton){
+      commitImportButton.disabled=false;
+      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
+    }
+    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
+    showMessage(importDataMessage,err.message,true);
+  }
 }
 function resetImportPreviewMessage(){
   if(importDataMessage)showMessage(importDataMessage,'');
@@ -635,7 +656,14 @@ async function commitImportExcel(){
     shortageMode='cut';
   }
   try{
-    showMessage(importDataMessage,'Đang ghi dữ liệu import vào hệ thống...');
+    if(commitImportButton){
+      commitImportButton.disabled=true;
+      commitImportButton.dataset.originalText=commitImportButton.textContent||'Xác nhận import';
+      commitImportButton.textContent='Đang import...';
+    }
+    const shortageButtons=document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton');
+    shortageButtons.forEach(btn=>{btn.disabled=true;});
+    showMessage(importDataMessage,'Đang import dữ liệu... Vui lòng chờ, không bấm lại nhiều lần.');
     const commitPayload=(mode='')=>({type:importDataType.value,rows,shortageMode:mode||shortageMode});
     let res=await fetch('/api/import/commit',{
       method:'POST',
@@ -681,7 +709,14 @@ async function commitImportExcel(){
     }
 
     await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
-  }catch(err){showMessage(importDataMessage,err.message,true)}
+  }catch(err){
+    if(commitImportButton){
+      commitImportButton.disabled=false;
+      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
+    }
+    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
+    showMessage(importDataMessage,err.message,true);
+  }
 }
 
 resetButton.addEventListener('click',resetForm);

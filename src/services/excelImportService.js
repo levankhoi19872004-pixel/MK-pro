@@ -965,21 +965,31 @@ async function importSalesOrders(rows = []) {
       const normalizedProductCode = cleanText(product?.code || productCode);
       const stockKey = `${normalizedProductCode}|${warehouseCode}`;
       const availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
-      if (!product || deliveredQuantity <= 0 || salePrice < 0 || availableQty < deliveredQuantity) {
+      const isCutByStockRow = Boolean(
+        row.__autoCutByStock ||
+        Object.prototype.hasOwnProperty.call(row, '__allowedSaleQuantity') ||
+        Object.prototype.hasOwnProperty.call(row, '__allowedPromoQuantity')
+      );
+      // Khi người dùng đã chọn "Tiếp tục import theo tồn thực tế", preview đã sinh ra
+      // __allowedSaleQuantity / __allowedPromoQuantity. Ở bước commit không được chặn
+      // lại bằng điều kiện availableQty < deliveredQuantity, vì như vậy luồng tự cắt
+      // hàng thiếu sẽ không bao giờ ghi được đơn. Các dòng đã cắt vẫn phải trừ tồn
+      // theo số lượng được phép import.
+      if (!product || deliveredQuantity <= 0 || salePrice < 0 || (!isCutByStockRow && availableQty < deliveredQuantity)) {
         skipped += 1;
         groupInvalid = true;
         errors.push({
           productCode,
           message: !product
             ? 'Không tìm thấy sản phẩm'
-            : availableQty < deliveredQuantity
+            : (!isCutByStockRow && availableQty < deliveredQuantity)
               ? `Không đủ tồn kho: còn ${availableQty}`
               : 'Dòng bán hàng/khuyến mại không hợp lệ'
         });
         continue;
       }
-      if (stockMap.has(stockKey)) stockMap.set(stockKey, availableQty - deliveredQuantity);
-      productStockMap.set(normalizedProductCode, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity);
+      if (stockMap.has(stockKey)) stockMap.set(stockKey, Math.max(0, availableQty - deliveredQuantity));
+      productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
       const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
       const baseItem = {
         productId: String(product.id || product._id || product.code),
