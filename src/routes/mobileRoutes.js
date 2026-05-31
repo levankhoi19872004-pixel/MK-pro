@@ -1543,41 +1543,13 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       : (await order.save(), order);
 
     if (status === 'success') {
-      for (const line of receiptLines) {
-        const result = await financialService.createReceipt({
-          date: new Date().toISOString().slice(0, 10),
-          customerId: order.customerId || '',
-          customerCode: order.customerCode || '',
-          customerName: order.customerName || '',
-          allowCustomerSnapshot: true,
-          method: line.method,
-          amount: line.amount,
-          status: 'pending_accounting',
-          source: 'mobile_delivery',
-          refType: 'mobileDelivery',
-          refId: getDocId(order),
-          refCode: orderCode(order),
-          orderId: getDocId(order),
-          orderCode: orderCode(order),
-          salesOrderId: getDocId(order),
-          salesOrderCode: orderCode(order),
-          allocations: line.allocations || [{ orderId: getDocId(order), orderCode: orderCode(order), amount: line.amount }],
-          staffCode: req.mobileUser.code || '',
-          staffName: req.mobileUser.name || '',
-          note: line.note || `App giao hàng thu ${line.method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}`
-        });
-        if (result?.error) {
-          receiptWarning = result.error;
-          order.financialSyncStatus = 'receipt_error';
-          order.financialSyncMessage = result.error;
-          order.financialSyncAt = new Date().toISOString();
-          await order.save();
-          break;
-        }
-      }
+      // V45 chuẩn kế toán: app giao hàng chỉ lưu số tiền/hàng trả vào đơn giao.
+      // Tuyệt đối không tạo phiếu thu posted và không post AR-PAYMENT tại đây,
+      // vì kế toán chưa đối chiếu tiền mặt/chuyển khoản/hàng trả.
+      receiptLines = [];
 
       try {
-        // Không post AR-SALE / AR-BONUS ở app giao hàng.
+        // Không post AR-SALE / AR-BONUS / AR-PAYMENT / AR-RETURN ở app giao hàng.
         // Kế toán sẽ kiểm tra báo cáo giao hàng rồi bấm xác nhận để đưa đơn sang AR Ledger.
         order.accountingStatus = order.accountingStatus || 'pending_accounting';
         order.accountingConfirmed = Boolean(order.accountingConfirmed);

@@ -3,9 +3,6 @@
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
-const receiptRepository = require('../repositories/receiptRepository');
-const cashbookRepository = require('../repositories/cashbookRepository');
-const bankbookRepository = require('../repositories/bankbookRepository');
 const userRepository = require('../repositories/userRepository');
 const customerRepository = require('../repositories/customerRepository');
 const orderService = require('./orderService');
@@ -465,13 +462,106 @@ async function addDebtToCustomerIfNeeded(order = {}, options = {}) {
   return customer;
 }
 
+function orderKey(order = {}) {
+  return String(order.id || order._id || order.code || order.orderCode || '').trim();
+}
+
+function orderDisplayCode(order = {}) {
+  return String(order.code || order.orderCode || order.id || order._id || '').trim();
+}
+
+function compactAllocations(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const amount = toNumber(row.amount ?? row.allocatedAmount ?? row.paymentAmount);
+    if (amount <= 0) continue;
+    const orderId = String(row.orderId || row.salesOrderId || '').trim();
+    const orderCode = String(row.orderCode || row.salesOrderCode || '').trim();
+    const key = `${orderId}::${orderCode}`;
+    const prev = map.get(key) || { orderId, orderCode, amount: 0 };
+    prev.amount += amount;
+    map.set(key, prev);
+  }
+  return [...map.values()].filter((row) => row.amount > 0);
+}
+
+async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, options = {}) {
+  const key = orderKey(order);
+  const code = orderDisplayCode(order);
+  if (!key && !code) return null;
+
+  const currentOrderId = key;
+  const currentOrderCode = code;
+  const posted = [];
+
+  const oldDebtAllocations = Array.isArray(order.debtCollectionAllocations) ? order.debtCollectionAllocations : [];
+  const buildPaymentAllocations = (method, currentAmount) => compactAllocations([
+    ...(toNumber(currentAmount) > 0 ? [{ orderId: currentOrderId, orderCode: currentOrderCode, amount: currentAmount }] : []),
+    ...oldDebtAllocations
+      .filter((row) => String(row.method || '').toLowerCase() === method)
+      .map((row) => ({ orderId: row.orderId, orderCode: row.orderCode, amount: row.amount }))
+  ]);
+
+  const paymentRows = [
+    { method: 'cash', label: 'tiền mặt', amount: toNumber(order.cashCollected ?? order.cashAmount ?? 0) },
+    { method: 'transfer', label: 'chuyển khoản', amount: toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0) }
+  ];
+
+  for (const row of paymentRows) {
+    const allocations = buildPaymentAllocations(row.method, row.amount);
+    const total = allocations.reduce((sum, allocation) => sum + toNumber(allocation.amount), 0);
+    if (total <= 0) continue;
+    const entry = await postingEngine.postReceiptAR({
+      id: `MOBILE-DELIVERY-${row.method.toUpperCase()}-${key || code}`,
+      code: `MOBILE-DELIVERY-${row.method.toUpperCase()}-${code || key}`,
+      date: order.deliveryDate || order.date || today(),
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || '',
+      amount: total,
+      method: row.method,
+      source: 'mobile_delivery_accounting_confirmed',
+      refType: 'MOBILE_DELIVERY_ACCOUNTING',
+      refId: key || code,
+      refCode: code || key,
+      orderId: currentOrderId,
+      orderCode: currentOrderCode,
+      allocations,
+      note: `Kế toán xác nhận thu ${row.label} từ app giao hàng ${code || key}`
+    }, options);
+    posted.push(entry);
+  }
+
+  const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  if (returnAmount > 0) {
+    const entry = await postingEngine.postReturnOrderAR({
+      id: `MOBILE-DELIVERY-RETURN-${key || code}`,
+      code: `MOBILE-DELIVERY-RETURN-${code || key}`,
+      date: order.deliveryDate || order.date || today(),
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || '',
+      salesOrderId: currentOrderId,
+      salesOrderCode: currentOrderCode,
+      orderId: currentOrderId,
+      orderCode: currentOrderCode,
+      debtReduction: returnAmount,
+      amount: returnAmount,
+      source: 'mobile_delivery_accounting_confirmed',
+      note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
+    }, options);
+    posted.push(entry);
+  }
+
+  return posted;
+}
+
 async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
   if (!isAccountingConfirmed(order)) return null;
 
   // AR-SALE phải là phát sinh phải thu ban đầu của đơn đã giao.
-  // Tiền mặt/chuyển khoản/hàng trả/trả thưởng đã hoặc sẽ được ghi bằng bút toán credit riêng,
-  // nên tuyệt đối không lấy debtAmount còn lại để ghi debit AR-SALE.
+  // Tiền mặt/chuyển khoản/hàng trả/trả thưởng chỉ được ghi credit sau khi kế toán xác nhận.
   const baseAmount = Math.max(0, normalizeDebtAmount(
     order.debtBeforeCollection
     ?? order.totalAmount
@@ -491,91 +581,12 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
     arPostedAt: order.arPostedAt || nowIso()
   }, { ...options, postZero: true, skipIfExists: true });
 
+  await postDeliveryCollectionsAfterAccountingConfirmed(order, options);
+
   // Trả thưởng/trợ giá là khoản cấn trừ công nợ riêng.
   // Không gộp vào phiếu thu để tránh sai sổ quỹ tiền mặt/ngân hàng.
   await postingEngine.postBonusAllowanceAR(order, options);
   return saleEntry;
-}
-
-
-function receiptOrderKeys(row = {}) {
-  return [
-    row.id,
-    row._id,
-    row.code,
-    row.orderId,
-    row.orderCode,
-    row.salesOrderId,
-    row.salesOrderCode,
-    row.refId,
-    row.refCode
-  ].map((value) => String(value || '').trim()).filter(Boolean);
-}
-
-function isPendingAccountingReceipt(row = {}) {
-  const status = String(row.status || '').toLowerCase();
-  const source = String(row.source || '').toLowerCase();
-  return source === 'mobile_delivery' && ['pending_accounting', 'pending_ar'].includes(status);
-}
-
-async function postPendingMobileReceiptsForOrder(order = {}, options = {}) {
-  const keys = new Set(receiptOrderKeys(order));
-  if (!keys.size) return { posted: 0 };
-
-  const receipts = await receiptRepository.findAll({
-    source: 'mobile_delivery',
-    status: { $in: ['pending_accounting', 'pending_ar'] }
-  });
-
-  const matched = (Array.isArray(receipts) ? receipts : []).filter((receipt) => (
-    isPendingAccountingReceipt(receipt)
-    && receiptOrderKeys(receipt).some((key) => keys.has(key))
-  ));
-
-  let posted = 0;
-  for (const receipt of matched) {
-    const now = nowIso();
-    const method = ['transfer', 'bank'].includes(String(receipt.method || '').toLowerCase()) ? 'transfer' : 'cash';
-    const updatedReceipt = {
-      ...receipt,
-      status: 'posted',
-      accountingConfirmed: true,
-      accountingConfirmedAt: receipt.accountingConfirmedAt || now,
-      updatedAt: now
-    };
-
-    await receiptRepository.upsert(updatedReceipt, options);
-    await postingEngine.postReceiptAR(updatedReceipt, options);
-
-    const moneyEntry = {
-      id: makeId(method === 'transfer' ? 'BB' : 'CB'),
-      code: makeId(method === 'transfer' ? 'BB' : 'CB'),
-      date: updatedReceipt.date || today(),
-      type: 'in',
-      source: 'receipt',
-      refType: 'receipt',
-      refId: updatedReceipt.id,
-      refCode: updatedReceipt.code,
-      orderId: updatedReceipt.orderId || updatedReceipt.salesOrderId || '',
-      orderCode: updatedReceipt.orderCode || updatedReceipt.salesOrderCode || updatedReceipt.refCode || '',
-      customerId: updatedReceipt.customerId,
-      customerCode: updatedReceipt.customerCode,
-      customerName: updatedReceipt.customerName,
-      staffName: updatedReceipt.staffName,
-      method,
-      amount: Math.max(0, toNumber(updatedReceipt.amount)),
-      note: updatedReceipt.note || `Thu công nợ ${updatedReceipt.code}`,
-      status: 'posted',
-      createdAt: now,
-      updatedAt: now
-    };
-
-    if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, options);
-    else await cashbookRepository.upsert(moneyEntry, options);
-    posted += 1;
-  }
-
-  return { posted };
 }
 
 function statusForDeliveryRow(order = {}) {
@@ -937,7 +948,6 @@ async function confirmDeliveryAccounting(body = {}) {
       };
       await orderRepository.upsert(updated, { session });
       await postDeliveryArIfAccountingConfirmed(updated, { session });
-      await postPendingMobileReceiptsForOrder(updated, { session });
       // Công nợ khách hàng chỉ lấy từ AR Ledger; không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
       if (alreadyConfirmed) skippedOrders += 1; else confirmedOrders += 1;
     }
