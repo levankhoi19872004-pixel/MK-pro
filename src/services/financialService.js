@@ -36,6 +36,67 @@ function isActive(row = {}) {
   return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase());
 }
 
+function ledgerOrderKeysFrom(value = {}) {
+  return [
+    value.orderId,
+    value.orderCode,
+    value.salesOrderId,
+    value.salesOrderCode,
+    value.refId,
+    value.refCode,
+    value.id,
+    value.code
+  ].map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function ledgerEntryMatchesOrder(entry = {}, keys = []) {
+  if (!keys.length) return false;
+  const entryKeys = ledgerOrderKeysFrom(entry);
+  return entryKeys.some((key) => keys.includes(key));
+}
+
+async function syncOrderDebtCacheFromAR(orderOrKey, options = {}) {
+  const seed = typeof orderOrKey === 'object' && orderOrKey !== null ? orderOrKey : { id: orderOrKey, code: orderOrKey };
+  const keys = ledgerOrderKeysFrom(seed);
+  if (!keys.length) return null;
+  const order = await orderRepository.findByIdOrCode(keys[0]);
+  const allKeys = [...new Set([...keys, ...ledgerOrderKeysFrom(order || {})])];
+  if (!order || !allKeys.length) return null;
+
+  const journals = await paymentRepository.findAll({}, options);
+  const balance = journals
+    .filter(isActive)
+    .filter((entry) => ledgerEntryMatchesOrder(entry, allKeys))
+    .reduce((sum, entry) => sum + toNumber(entry.debit) - toNumber(entry.credit), 0);
+  const nextDebt = Math.max(0, normalizeDebtAmount(balance));
+  const updated = {
+    ...order,
+    debtAmount: nextDebt,
+    debt: nextDebt,
+    arBalance: nextDebt,
+    arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
+    lifecycleStatus: hasOpenDebt(nextDebt) ? (order.lifecycleStatus || 'ar_posted') : 'paid',
+    paidAt: !hasOpenDebt(nextDebt) ? (order.paidAt || nowIso()) : (order.paidAt || ''),
+    updatedAt: nowIso()
+  };
+  await orderRepository.upsert(updated, options);
+  return updated;
+}
+
+async function syncAllocatedOrderDebtCaches(allocations = [], options = {}) {
+  const keys = parseAllocations(allocations)
+    .flatMap((row) => [row.orderId, row.orderCode])
+    .map((key) => String(key || '').trim())
+    .filter(Boolean);
+  const unique = [...new Set(keys)];
+  const results = [];
+  for (const key of unique) {
+    const updated = await syncOrderDebtCacheFromAR(key, options);
+    if (updated) results.push(updated);
+  }
+  return results;
+}
+
 function buildRunningCode(prefix, rows = []) {
   const max = rows.reduce((result, row) => {
     const match = String(row.code || '').match(/(\d+)$/);
@@ -99,24 +160,10 @@ async function applyReceiptToOrderDebts(receipt = {}, options = {}) {
     orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
     amount: receipt.amount
   }]);
-  for (const allocation of allocations) {
-    const key = allocation.orderId || allocation.orderCode;
-    if (!key || toNumber(allocation.amount) <= 0) continue;
-    const order = await orderRepository.findByIdOrCode(key);
-    if (!order) continue;
-    const nextDebt = Math.max(0, normalizeDebtAmount(toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) - toNumber(allocation.amount)));
-    const updated = {
-      ...order,
-      debtAmount: nextDebt,
-      debt: nextDebt,
-      arBalance: nextDebt,
-      arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
-      lifecycleStatus: hasOpenDebt(nextDebt) ? (order.lifecycleStatus || 'ar_posted') : 'paid',
-      paidAt: !hasOpenDebt(nextDebt) ? (order.paidAt || nowIso()) : (order.paidAt || ''),
-      updatedAt: nowIso()
-    };
-    await orderRepository.upsert(updated, options);
-  }
+
+  // V45 chuẩn AR Ledger: không trừ công nợ bằng cách sửa trực tiếp order.debtAmount.
+  // order.debtAmount/arBalance chỉ là cache hiển thị, luôn được tính lại từ journals sau khi đã post AR.
+  return syncAllocatedOrderDebtCaches(allocations, options);
 }
 
 async function reverseReceiptFromOrderDebts(receipt = {}, options = {}) {
@@ -126,24 +173,10 @@ async function reverseReceiptFromOrderDebts(receipt = {}, options = {}) {
     orderCode: receipt.orderCode || receipt.salesOrderCode || receipt.refCode || '',
     amount: receipt.amount
   }]);
-  for (const allocation of allocations) {
-    const key = allocation.orderId || allocation.orderCode;
-    if (!key || toNumber(allocation.amount) <= 0) continue;
-    const order = await orderRepository.findByIdOrCode(key);
-    if (!order) continue;
-    const nextDebt = Math.max(0, normalizeDebtAmount(toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) + toNumber(allocation.amount)));
-    const updated = {
-      ...order,
-      debtAmount: nextDebt,
-      debt: nextDebt,
-      arBalance: nextDebt,
-      arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
-      lifecycleStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : (order.lifecycleStatus || 'paid'),
-      paidAt: hasOpenDebt(nextDebt) ? '' : (order.paidAt || ''),
-      updatedAt: nowIso()
-    };
-    await orderRepository.upsert(updated, options);
-  }
+
+  // Hủy phiếu thu cũng không cộng/trừ trực tiếp vào order.
+  // Bút toán đảo đã vào journals, cache được rebuild lại từ AR Ledger.
+  return syncAllocatedOrderDebtCaches(allocations, options);
 }
 
 async function buildReceiptCode() {
@@ -521,6 +554,7 @@ async function createDebtCollection(body = {}) {
     await withMongoTransaction(async (session) => {
       await returnOrderRepository.upsert(returnOrder, { session });
       await Promise.all(payments.map((payment) => paymentRepository.upsert(payment, { session })));
+      await syncAllocatedOrderDebtCaches(returnAllocations.length ? returnAllocations : [{ orderId: returnOrder.salesOrderId, orderCode: returnOrder.salesOrderCode, amount: returnAmount }], { session });
     });
     docs.returnOrder = returnOrder;
   }
@@ -535,6 +569,8 @@ module.exports = {
   listReceipts,
   createReceipt,
   createDebtCollection,
+  syncOrderDebtCacheFromAR,
+  syncAllocatedOrderDebtCaches,
   voidReceipt,
   cashSummary,
   bankSummary

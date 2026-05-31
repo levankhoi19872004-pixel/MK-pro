@@ -1475,6 +1475,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
 
       try {
         await postDeliveryArForMobile(order);
+        await financialService.syncOrderDebtCacheFromAR(order);
       } catch (err) {
         postingWarning = err.message || 'Không post được AR Ledger';
         order.financialSyncStatus = order.financialSyncStatus || 'posting_error';

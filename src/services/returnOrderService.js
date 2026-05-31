@@ -7,6 +7,7 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
+const financialService = require('./financialService');
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function nowIso() { return new Date().toISOString(); }
@@ -217,6 +218,10 @@ async function createReturnOrder(body = {}) {
       note: existing ? 'Cập nhật nhập lại kho theo phiếu trả hàng' : 'Nhập lại kho theo phiếu trả hàng'
     }, { session });
     await postingEngine.postReturnOrderAR(returnOrder, { session });
+    await financialService.syncOrderDebtCacheFromAR({
+      orderId: returnOrder.salesOrderId || returnOrder.orderId || '',
+      orderCode: returnOrder.salesOrderCode || returnOrder.orderCode || ''
+    }, { session });
   });
   return { returnOrder: toClient({ ...returnOrder, status: 'posted', warehouseReceiveStatus: 'received' }), updatedExisting: Boolean(existing) };
 }
@@ -238,16 +243,25 @@ async function createPendingReturnOrder(body = {}, options = {}) {
     return { error: 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng', status: 400 };
   }
 
-  await returnOrderRepository.upsert({
+  const pendingReturnOrder = {
     ...returnOrder,
     status: 'waiting_receive',
     returnMergeStatus: 'unmerged',
     warehouseReceiveStatus: 'waiting_receive',
     postedAt: '',
     receivedAt: ''
+  };
+  await returnOrderRepository.upsert(pendingReturnOrder, options);
+
+  // V45 chuẩn AR Ledger: hàng trả đã được NVGH ghi nhận phải giảm công nợ ngay trên AR Ledger.
+  // Khi kho nhận hàng sau đó, postReturnOrderAR dùng id cố định nên chỉ upsert, không tạo trùng bút toán.
+  await postingEngine.postReturnOrderAR(pendingReturnOrder, options);
+  await financialService.syncOrderDebtCacheFromAR({
+    orderId: pendingReturnOrder.salesOrderId || pendingReturnOrder.orderId || '',
+    orderCode: pendingReturnOrder.salesOrderCode || pendingReturnOrder.orderCode || ''
   }, options);
 
-  return { returnOrder: toClient({ ...returnOrder, status: 'waiting_receive', warehouseReceiveStatus: 'waiting_receive' }), updatedExisting: Boolean(existing) };
+  return { returnOrder: toClient({ ...pendingReturnOrder, status: 'waiting_receive', warehouseReceiveStatus: 'waiting_receive' }), updatedExisting: Boolean(existing) };
 }
 
 async function confirmReceiveReturnOrder(idOrCode, options = {}) {
@@ -281,6 +295,10 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
       note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
     }, { session });
     await postingEngine.postReturnOrderAR(received, { session });
+    await financialService.syncOrderDebtCacheFromAR({
+      orderId: received.salesOrderId || received.orderId || '',
+      orderCode: received.salesOrderCode || received.orderCode || ''
+    }, { session });
   });
 
   return { returnOrder: toClient(received), alreadyReceived: false };
