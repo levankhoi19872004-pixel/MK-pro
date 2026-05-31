@@ -3785,3 +3785,199 @@ button.danger:hover{background:#fecaca}
 .delivery-card.delivery-selectable-row.accounting-locked{opacity:.72;}
 .delivery-accounting-actions .secondary.compact-action{background:#eef2f7;}
 @media(max-width:900px){.delivery-card.delivery-selectable-row{grid-template-columns:28px 1fr;}.delivery-card.delivery-selectable-row .delivery-customer-money{grid-column:1 / -1;}}
+
+
+/* V45 FIX 2026-05-31: restore delivery today layout after print CSS changes
+   - Keep accounting confirmation button on top
+   - Keep each delivery row in 3 clear zones: checkbox | customer | money summary
+   - Prevent money chips from collapsing to P... / TM... / CK...
+*/
+#deliveryTodayTab .delivery-head{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+  flex-wrap:wrap!important;
+}
+#deliveryTodayTab .delivery-accounting-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+}
+#deliveryTodayTab #confirmDeliveryAccountingButton{
+  background:#2563eb!important;
+  color:#fff!important;
+  border-color:#2563eb!important;
+  min-width:170px!important;
+  height:38px!important;
+  border-radius:10px!important;
+  font-weight:800!important;
+  box-shadow:0 8px 18px rgba(37,99,235,.18)!important;
+}
+#deliveryTodayTab .delivery-left-panel{
+  overflow:visible!important;
+}
+#deliveryTodayTab .delivery-compact-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:8px!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding-right:0!important;
+}
+#deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+  display:grid!important;
+  grid-template-columns:44px minmax(190px,1.05fr) minmax(430px,2fr)!important;
+  align-items:center!important;
+  gap:14px!important;
+  width:100%!important;
+  padding:12px 14px!important;
+  min-height:86px!important;
+  border-radius:16px!important;
+  background:#fffdfa!important;
+}
+#deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row.accounting-selected{
+  background:#eff6ff!important;
+}
+#deliveryTodayTab .delivery-accounting-select{
+  width:44px!important;
+  min-width:44px!important;
+  height:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  margin:0!important;
+  border-right:1px solid #edf2f7!important;
+}
+#deliveryTodayTab .delivery-accounting-checkbox{
+  width:18px!important;
+  height:18px!important;
+  flex:0 0 auto!important;
+}
+#deliveryTodayTab .delivery-customer-main{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  gap:3px!important;
+  text-align:left!important;
+}
+#deliveryTodayTab .delivery-customer-main b{
+  display:block!important;
+  width:100%!important;
+  font-size:16px!important;
+  line-height:1.2!important;
+  color:#0f172a!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#deliveryTodayTab .delivery-customer-main small{
+  display:block!important;
+  width:100%!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+  color:#475569!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#deliveryTodayTab .delivery-customer-main .delivery-open-note{
+  color:#1e3a8a!important;
+  font-weight:700!important;
+}
+#deliveryTodayTab .delivery-customer-main .delivery-locked-note{
+  color:#166534!important;
+  font-weight:800!important;
+}
+#deliveryTodayTab .delivery-customer-money{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(74px,1fr))!important;
+  gap:8px!important;
+  min-width:0!important;
+  width:100%!important;
+  align-items:stretch!important;
+}
+#deliveryTodayTab .delivery-customer-money span{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  min-width:0!important;
+  min-height:52px!important;
+  padding:8px 9px!important;
+  border-radius:10px!important;
+  background:#f8fafc!important;
+  border:1px solid #dbeafe!important;
+}
+#deliveryTodayTab .delivery-customer-money em{
+  display:block!important;
+  width:100%!important;
+  font-style:normal!important;
+  font-size:11px!important;
+  line-height:1.15!important;
+  color:#64748b!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#deliveryTodayTab .delivery-customer-money b{
+  display:block!important;
+  width:100%!important;
+  margin-top:4px!important;
+  font-size:14px!important;
+  line-height:1.1!important;
+  font-weight:900!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  color:#0f172a!important;
+}
+#deliveryTodayTab .delivery-customer-money .cash-in{color:#059669!important;}
+#deliveryTodayTab .delivery-customer-money .debt-positive{color:#dc2626!important;}
+#deliveryTodayTab .delivery-customer-money .debt-zero{color:#16a34a!important;}
+#deliveryTodayTab .delivery-money-report-grid{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(110px,1fr))!important;
+  gap:8px!important;
+}
+#deliveryTodayTab .delivery-money-report-grid .delivery-kpi-card{
+  min-height:62px!important;
+  padding:9px 11px!important;
+}
+#deliveryTodayTab .delivery-money-report-grid .delivery-kpi-card strong{
+  font-size:20px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+@media(max-width:1180px){
+  #deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+    grid-template-columns:40px minmax(170px,.9fr) minmax(360px,1.7fr)!important;
+    gap:10px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money{
+    grid-template-columns:repeat(3,minmax(96px,1fr))!important;
+  }
+  #deliveryTodayTab .delivery-money-report-grid{
+    grid-template-columns:repeat(3,minmax(120px,1fr))!important;
+  }
+}
+@media(max-width:760px){
+  #deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+    grid-template-columns:36px minmax(0,1fr)!important;
+    gap:8px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money{
+    grid-column:1 / -1!important;
+    grid-template-columns:repeat(2,minmax(120px,1fr))!important;
+  }
+  #deliveryTodayTab .delivery-money-report-grid,
+  #deliveryTodayTab .delivery-simple-filter,
+  #deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{
+    grid-template-columns:1fr!important;
+  }
+}
