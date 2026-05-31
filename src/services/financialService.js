@@ -313,7 +313,11 @@ async function createReceipt(body = {}) {
     salesOrderId: body.salesOrderId || body.orderId || body.refId || primaryAllocation.orderId || '',
     salesOrderCode: body.salesOrderCode || body.orderCode || body.refCode || primaryAllocation.orderCode || '',
     allocations,
-    status: body.status === 'void' || body.status === 'cancelled' ? 'void' : 'posted',
+    status: ['void', 'cancelled'].includes(String(body.status || '').toLowerCase())
+      ? 'void'
+      : (['pending_accounting', 'pending_ar'].includes(String(body.status || '').toLowerCase())
+        ? 'pending_accounting'
+        : 'posted'),
     voidReason: body.voidReason || '',
     voidedAt: body.voidedAt || '',
     createdAt: body.createdAt || now,
@@ -367,10 +371,16 @@ async function createReceipt(body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await receiptRepository.upsert(receipt, { session });
-    await postingEngine.postReceiptAR(receipt, { session });
-    await applyReceiptToOrderDebts(receipt, { session });
-    if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
-    else await cashbookRepository.upsert(moneyEntry, { session });
+
+    // Phiếu thu từ app giao hàng phải chờ kế toán xác nhận cùng đơn giao.
+    // Nếu post AR-PAYMENT ngay trong khi AR-SALE chưa được kế toán xác nhận,
+    // màn công nợ sẽ sinh "dư có" ảo.
+    if (receipt.status === 'posted') {
+      await postingEngine.postReceiptAR(receipt, { session });
+      await applyReceiptToOrderDebts(receipt, { session });
+      if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
+      else await cashbookRepository.upsert(moneyEntry, { session });
+    }
   });
 
   return { receipt };

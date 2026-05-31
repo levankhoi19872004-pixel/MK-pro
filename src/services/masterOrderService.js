@@ -3,6 +3,9 @@
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
+const receiptRepository = require('../repositories/receiptRepository');
+const cashbookRepository = require('../repositories/cashbookRepository');
+const bankbookRepository = require('../repositories/bankbookRepository');
 const userRepository = require('../repositories/userRepository');
 const customerRepository = require('../repositories/customerRepository');
 const orderService = require('./orderService');
@@ -494,6 +497,87 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
   return saleEntry;
 }
 
+
+function receiptOrderKeys(row = {}) {
+  return [
+    row.id,
+    row._id,
+    row.code,
+    row.orderId,
+    row.orderCode,
+    row.salesOrderId,
+    row.salesOrderCode,
+    row.refId,
+    row.refCode
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+}
+
+function isPendingAccountingReceipt(row = {}) {
+  const status = String(row.status || '').toLowerCase();
+  const source = String(row.source || '').toLowerCase();
+  return source === 'mobile_delivery' && ['pending_accounting', 'pending_ar'].includes(status);
+}
+
+async function postPendingMobileReceiptsForOrder(order = {}, options = {}) {
+  const keys = new Set(receiptOrderKeys(order));
+  if (!keys.size) return { posted: 0 };
+
+  const receipts = await receiptRepository.findAll({
+    source: 'mobile_delivery',
+    status: { $in: ['pending_accounting', 'pending_ar'] }
+  });
+
+  const matched = (Array.isArray(receipts) ? receipts : []).filter((receipt) => (
+    isPendingAccountingReceipt(receipt)
+    && receiptOrderKeys(receipt).some((key) => keys.has(key))
+  ));
+
+  let posted = 0;
+  for (const receipt of matched) {
+    const now = nowIso();
+    const method = ['transfer', 'bank'].includes(String(receipt.method || '').toLowerCase()) ? 'transfer' : 'cash';
+    const updatedReceipt = {
+      ...receipt,
+      status: 'posted',
+      accountingConfirmed: true,
+      accountingConfirmedAt: receipt.accountingConfirmedAt || now,
+      updatedAt: now
+    };
+
+    await receiptRepository.upsert(updatedReceipt, options);
+    await postingEngine.postReceiptAR(updatedReceipt, options);
+
+    const moneyEntry = {
+      id: makeId(method === 'transfer' ? 'BB' : 'CB'),
+      code: makeId(method === 'transfer' ? 'BB' : 'CB'),
+      date: updatedReceipt.date || today(),
+      type: 'in',
+      source: 'receipt',
+      refType: 'receipt',
+      refId: updatedReceipt.id,
+      refCode: updatedReceipt.code,
+      orderId: updatedReceipt.orderId || updatedReceipt.salesOrderId || '',
+      orderCode: updatedReceipt.orderCode || updatedReceipt.salesOrderCode || updatedReceipt.refCode || '',
+      customerId: updatedReceipt.customerId,
+      customerCode: updatedReceipt.customerCode,
+      customerName: updatedReceipt.customerName,
+      staffName: updatedReceipt.staffName,
+      method,
+      amount: Math.max(0, toNumber(updatedReceipt.amount)),
+      note: updatedReceipt.note || `Thu công nợ ${updatedReceipt.code}`,
+      status: 'posted',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, options);
+    else await cashbookRepository.upsert(moneyEntry, options);
+    posted += 1;
+  }
+
+  return { posted };
+}
+
 function statusForDeliveryRow(order = {}) {
   const raw = String(order.deliveryStatus || order.status || 'pending').toLowerCase();
   const debt = calculateDeliveryDebt(order);
@@ -853,6 +937,7 @@ async function confirmDeliveryAccounting(body = {}) {
       };
       await orderRepository.upsert(updated, { session });
       await postDeliveryArIfAccountingConfirmed(updated, { session });
+      await postPendingMobileReceiptsForOrder(updated, { session });
       // Công nợ khách hàng chỉ lấy từ AR Ledger; không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
       if (alreadyConfirmed) skippedOrders += 1; else confirmedOrders += 1;
     }

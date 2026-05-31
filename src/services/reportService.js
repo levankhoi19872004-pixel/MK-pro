@@ -443,11 +443,22 @@ async function debtReport(query = {}) {
   });
   const ledger = activeLedgerRows(journals).filter((entry) => {
     const type = String(entry.type || '').toLowerCase();
-    const isSaleDebit = type.includes('sale') && toNumber(entry.debit || entry.amount) > 0;
-    if (!isSaleDebit) return true;
     const orderKey = getLedgerOrderKey(entry);
     const order = orderByKey.get(orderKey);
-    return order ? isDeliveredForAR(order) : true;
+
+    const isSaleDebit = type.includes('sale') && toNumber(entry.debit || entry.amount) > 0;
+    if (isSaleDebit) return order ? isDeliveredForAR(order) : true;
+
+    // Không tính AR-PAYMENT từ app giao hàng nếu đơn chưa được kế toán xác nhận.
+    // Nếu không, phiếu thu vào trước AR-SALE sẽ tạo "dư có" ảo.
+    const isReceiptCredit = (type.includes('receipt') || type.includes('payment')) && toNumber(entry.credit || entry.amount) > 0;
+    const source = String(entry.source || '').toLowerCase();
+    if (isReceiptCredit && source === 'mobile_delivery' && order) {
+      const accountingStatus = String(order.accountingStatus || '').toLowerCase();
+      return Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+    }
+
+    return true;
   });
   const ledgerKeys = new Set(ledger.map(moneyDocKey).filter(Boolean));
 
@@ -470,7 +481,20 @@ async function debtReport(query = {}) {
     }
   });
 
-  receipts.filter(isActive).forEach((row) => {
+  receipts.filter(isActive).filter((row) => {
+    const status = String(row.status || '').toLowerCase();
+    if (status !== 'posted') return false;
+
+    // Phiếu thu từ app giao hàng chỉ được đưa vào công nợ khi đơn đã được kế toán xác nhận.
+    // Tránh trường hợp thu tiền trước, AR-SALE chưa post, màn công nợ hiện "dư có" ảo.
+    const source = String(row.source || '').toLowerCase();
+    if (source !== 'mobile_delivery') return true;
+    const orderKey = String(row.orderId || row.salesOrderId || row.refId || row.orderCode || row.salesOrderCode || row.refCode || '').trim();
+    const order = orderByKey.get(orderKey);
+    if (!order) return true;
+    const accountingStatus = String(order.accountingStatus || '').toLowerCase();
+    return Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+  }).forEach((row) => {
     const hasReceiptLedger = ledgerKeys.has(String(row.id || '').trim()) || ledgerKeys.has(String(row.code || '').trim()) || ledger.some((entry) => entry.refId === row.id || entry.refCode === row.code);
     if (!hasReceiptLedger) {
       const virtual = makeVirtualReceiptLedger(row);

@@ -1552,7 +1552,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           allowCustomerSnapshot: true,
           method: line.method,
           amount: line.amount,
-          status: 'posted',
+          status: 'pending_accounting',
           source: 'mobile_delivery',
           refType: 'mobileDelivery',
           refId: getDocId(order),
