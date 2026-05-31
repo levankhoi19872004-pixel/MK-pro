@@ -308,16 +308,16 @@ function renderDmsInvoiceItemsTable(data) {
     <table class="dms-invoice-table">
       <thead>
         <tr>
-          <th style="width:7mm">STT</th>
-          <th style="width:19mm">Mã hàng</th>
-          <th>Tên sản phẩm</th>
-          <th style="width:17mm">Số lượng<br/>(CS/SU)</th>
-          <th style="width:15mm">Số<br/>lượng<br/>(lẻ)</th>
-          <th style="width:21mm">Đơn Giá<br/>(Trước Thuế/KM)</th>
-          <th style="width:22mm">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
-          <th style="width:21mm">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
-          <th style="width:17mm">Thuế<br/>GTGT</th>
-          <th style="width:23mm">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:4%">STT</th>
+          <th style="width:8%">Mã hàng</th>
+          <th style="width:34%">Tên sản phẩm</th>
+          <th style="width:7%">Số lượng<br/>(CS/SU)</th>
+          <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:8%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:8%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:6%">Thuế<br/>GTGT</th>
+          <th style="width:12%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
         </tr>
         <tr class="dms-formula-row">
           <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
