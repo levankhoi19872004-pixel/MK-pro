@@ -564,8 +564,34 @@ async function commitImportExcel(){
   }
   try{
     showMessage(importDataMessage,'Đang ghi dữ liệu import vào hệ thống...');
-    const res=await fetch('/api/import/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:importDataType.value,rows,shortageMode})});
-    const json=await res.json();
+    const commitPayload=(mode='')=>({type:importDataType.value,rows,shortageMode:mode||shortageMode});
+    let res=await fetch('/api/import/commit',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(commitPayload(shortageMode))
+    });
+    let json=await res.json();
+
+    // Fallback an toàn: nếu backend phát hiện còn đơn vượt tồn nhưng frontend chưa gửi shortageMode=cut
+    // thì hỏi lại người dùng và gửi lại request với chế độ cắt theo tồn thực tế.
+    if(!json.ok && json.hasShortage && importDataType.value==='salesOrders'){
+      const shortageRows=Array.isArray(json.shortageReport)?json.shortageReport:[];
+      const shortageQty=shortageRows.reduce((sum,item)=>sum+Number(item.missingQuantity||0),0);
+      const shortageAmount=shortageRows.reduce((sum,item)=>sum+Number(item.cutAmount||0),0);
+      const ok=confirm(`Backend phát hiện đơn vượt tồn.\n\nSL hàng sẽ bị cắt: ${formatNumber(shortageQty)}\nGiá trị bị cắt: ${money(shortageAmount)}\n\nBấm OK để TIẾP TỤC import theo tồn thực tế.\nBấm Cancel để DỪNG import.`);
+      if(!ok){
+        showMessage(importDataMessage,'Đã dừng import vì có đơn vượt tồn.',true);
+        return;
+      }
+      showMessage(importDataMessage,'Đang import theo tồn thực tế...');
+      res=await fetch('/api/import/commit',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(commitPayload('cut'))
+      });
+      json=await res.json();
+    }
+
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
     const shortageText=(json.shortageReport&&json.shortageReport.length)?` · Đã cắt ${formatNumber(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`:'';
     showMessage(importDataMessage,(json.message||'Import thành công')+shortageText);
