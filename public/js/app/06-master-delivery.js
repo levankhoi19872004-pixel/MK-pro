@@ -227,15 +227,26 @@ function updateDeliveryReturnTotal(){
   recalcDeliveryEditDebt();
   renderDeliveryEditTotal();
 }
+function getDeliveryEditPaymentState(){
+  const before=Math.round(Number(deliveryEditDebtBefore?.value||0));
+  const cash=Math.round(Number(deliveryEditCash?.value||0));
+  const bank=Math.round(Number(deliveryEditBank?.value||0));
+  const returned=Math.round(Number(deliveryEditReturn?.value||0));
+  const reward=Math.round(Number(deliveryEditReward?.value||0));
+  const paid=cash+bank+returned+reward;
+  const tolerance=1000;
+  const diff=paid-before;
+  const over=diff>tolerance?diff:0;
+  const debt=diff<-tolerance?Math.abs(diff):0;
+  return {before,cash,bank,returned,reward,paid,over,debt};
+}
+function buildDeliveryOverpaymentMessage(state){
+  return `Khách đang trả vượt số phải thu\n\nPhải thu: ${money(state.before)}\nĐã nhập: ${money(state.paid)}\n\nVượt: ${money(state.over)}\n\n[Quay lại chỉnh]`;
+}
 function renderDeliveryEditTotal(){
   if(!deliveryEditTotalBox)return;
-  const before=Number(deliveryEditDebtBefore?.value||0);
-  const cash=Number(deliveryEditCash?.value||0);
-  const bank=Number(deliveryEditBank?.value||0);
-  const returned=Number(deliveryEditReturn?.value||0);
-  const reward=Number(deliveryEditReward?.value||0);
-  const debt=calculateDeliveryDebt({debtBeforeCollection:before,cashCollected:cash,bankCollected:bank,returnAmount:returned,rewardAmount:reward});
-  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(before)}</b></div><div><span>Tiền mặt</span><b>${money(cash)}</b></div><div><span>Chuyển khoản</span><b>${money(bank)}</b></div><div><span>Hàng trả</span><b>${money(returned)}</b></div><div><span>Trả thưởng</span><b>${money(reward)}</b></div><div class="total-debt"><span>Còn nợ</span><b>${money(debt)}</b></div>`;
+  const state=getDeliveryEditPaymentState();
+  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>Còn nợ</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
 }
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
@@ -347,6 +358,14 @@ async function submitDeliveryEdit(event){
   ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
     if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
   });
+  const paymentState=getDeliveryEditPaymentState();
+  if(paymentState.over>0){
+    const message=buildDeliveryOverpaymentMessage(paymentState);
+    showMessage(deliveryEditMessage, message.replace(/\n/g,' '), true);
+    alert(message);
+    renderDeliveryEditTotal();
+    return;
+  }
   try{
     showMessage(deliveryEditMessage,'Đang lưu chỉnh sửa...');
     const res=await fetch(`/api/master-orders/delivery-today/${encodeURIComponent(payload.orderId)}`,{

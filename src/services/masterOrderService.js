@@ -518,9 +518,24 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   }
   const effectiveReturnItems = lockedReturnOrder ? lockedReturnItems : returnItems;
   const effectiveReturnAmount = lockedReturnOrder ? toNumber(lockedReturnOrder.totalAmount ?? lockedReturnOrder.amount ?? lockedReturnOrder.debtReduction ?? 0) : returnAmount;
+
+  // Chặn nghiệp vụ trả vượt phải thu ngay tại service để tránh âm công nợ/AR Ledger sai,
+  // kể cả khi người dùng bỏ qua kiểm tra ở giao diện.
+  const totalEntered = Math.round(cashCollected + bankCollected + effectiveReturnAmount + rewardAmount);
+  const receivable = Math.round(debtBeforeCollection);
+  const DEBT_ZERO_TOLERANCE = 1000;
+  if ((totalEntered - receivable) > DEBT_ZERO_TOLERANCE) {
+    const overAmount = totalEntered - receivable;
+    return {
+      error: `Khách đang trả vượt số phải thu\n\nPhải thu: ${receivable.toLocaleString('vi-VN')}\nĐã nhập: ${totalEntered.toLocaleString('vi-VN')}\n\nVượt: ${overAmount.toLocaleString('vi-VN')}\n\n[Quay lại chỉnh]`,
+      status: 400
+    };
+  }
+
   // Công thức chuẩn duy nhất cho toàn bộ luồng giao hàng:
   // Còn nợ = Phải thu - Tiền mặt - Chuyển khoản - Trả thưởng - Tổng tiền hàng trả
-  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
+  let debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
+  if (Math.abs(debtAmount) <= DEBT_ZERO_TOLERANCE) debtAmount = 0;
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
 
   const updated = {
