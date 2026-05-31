@@ -1115,9 +1115,16 @@ async function importSalesOrders(rows = [], options = {}) {
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
     const paidAmount = Math.min(toNumber(first.paidAmount ?? first['Đã thu'] ?? first['Da thu']), totalAmount);
     const now = nowIso();
+    const orderCode = docCodeCheck === 'AUTO'
+      ? (autoOrderCodes[autoOrderIdx++] || makeId('BH'))
+      : docCodeCheck;
     const doc = {
       id: makeId('SO'),
-      code: docCodeCheck === 'AUTO' ? (autoOrderCodes[autoOrderIdx++] || makeId('BH')) : docCodeCheck,
+      code: orderCode,
+      // Mã hóa đơn DMS gốc dùng làm khóa chặn trùng chuẩn.
+      // Không chặn theo khách hàng/ngày/loại đơn, vì cùng một khách có thể có nhiều hóa đơn trong ngày.
+      documentCode: orderCode,
+      originalDocumentCode: docCodeCheck === 'AUTO' ? '' : docCodeCheck,
       date: getDateFromRow(first),
       orderDate: getDateFromRow(first),
       deliveryDate: getDateFromRow(first),
@@ -1162,7 +1169,12 @@ async function importSalesOrders(rows = [], options = {}) {
     };
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
-    if (doc.documentCode) importedDocumentSet.add(cleanText(doc.documentCode));
+    // Chặn trùng trong cùng file theo mã hóa đơn/mã đơn thực tế.
+    // Trước đây chỉ add doc.documentCode, nhưng doc lại chưa được gán documentCode nên không chặn đúng.
+    for (const key of [doc.documentCode, doc.code, doc.originalDocumentCode]) {
+      const normalizedKey = cleanText(key);
+      if (normalizedKey && normalizedKey !== 'AUTO') importedDocumentSet.add(normalizedKey);
+    }
     for (const item of items) {
       pushInventoryMovement({
         movements,
