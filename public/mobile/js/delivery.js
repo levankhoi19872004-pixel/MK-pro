@@ -51,9 +51,10 @@ function isArLedgerSynced(order = {}) {
 }
 
 function calculateDeliveryDebt(order = {}) {
-  if (isArLedgerSynced(order)) {
-    return Math.max(0, Math.round(deliveryToNumber(order.arDebtAmount ?? order.arBalance ?? order.debtAmount ?? order.debt ?? 0)));
-  }
+  // App giao hàng tính công nợ hiển thị theo công thức đang nhập trên màn hình:
+  // phải thu gốc - tiền mặt - chuyển khoản - trả thưởng - hàng trả.
+  // Không lấy arDebtAmount/arBalance làm nguồn chính, vì AR Ledger có thể đang chờ post
+  // hoặc đã bị cache cũ trả về 0 khiến nhân viên thấy sai công nợ.
   return Math.max(0, Math.round(
     deliveryDebtBase(order)
     - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
@@ -136,7 +137,6 @@ function calculateReturnTotalFromInputs(root = deliveryActionBox) {
 }
 
 function calculateDraftDebt(order = {}) {
-  if (isArLedgerSynced(order)) return calculateDeliveryDebt(order);
   const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
   const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
   const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
@@ -160,7 +160,6 @@ function selectedOldDebtIds() {
 }
 
 function currentOrderDue(order = {}) {
-  if (isArLedgerSynced(order)) return calculateDeliveryDebt(order);
   return Math.max(0, deliveryDebtBase(order) - deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0));
 }
 
@@ -187,7 +186,7 @@ function refreshDeliveryDraftTotals(order = {}) {
   oldDebtEls.forEach((el) => { el.textContent = money(oldDebt); });
   if (totalDueEl) totalDueEl.textContent = money(totalDue);
   if (returnEl) returnEl.textContent = money(returned);
-  if (collectedEl) collectedEl.textContent = money(isArLedgerSynced(order) ? Math.max(0, cash + bank + reward - alreadySaved) : cash + bank + reward);
+  if (collectedEl) collectedEl.textContent = money(cash + bank + reward);
   if (debtEl) debtEl.textContent = money(debt);
   if (statusEl) {
     statusEl.textContent = debt <= 0 ? 'Đủ tiền' : `Còn nợ ${money(debt)}`;
