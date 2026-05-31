@@ -298,12 +298,71 @@ function escapeImportHtml(value){
   return String(value ?? '').replace(/[&<>'\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]));
 }
 function importRowToText(row){
-  const skip=['valid','errors','rowNo'];
+  if(row&&row.previewMode==='order'){
+    const customer=row.customerName||row.supplier||'';
+    const total=row.totalAmount!==undefined?money(row.totalAmount):'';
+    const status=row.statusText||(row.valid?'Hợp lệ':'Lỗi');
+    const shortage=row.hasShortage?` | Vượt tồn: ${formatNumber(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:'';
+    return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | Trạng thái: ${status}${shortage}`;
+  }
+  const skip=['valid','errors','rowNo','raw','__importRows','__adjustedRows','lineDetails','shortageReport','detailErrors'];
   return Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??''}`).join(' | ');
 }
 function getImportRowMainFields(row){
+  if(row&&row.previewMode==='order'){
+    return [
+      {key:'Mã đơn',value:row.documentCode||''},
+      {key:row.supplier?'Nhà cung cấp':'Mã KH',value:row.supplier||row.customerCode||''},
+      {key:'Tên KH/NCC',value:row.customerName||row.supplier||''},
+      {key:'Số dòng hàng',value:row.lineCount||0},
+      {key:'Giá trị đơn',value:money(row.totalAmount||0)},
+      {key:'Trạng thái',value:row.statusText||(row.valid?'Hợp lệ':'Lỗi')},
+      ...(row.hasShortage?[
+        {key:'SL vượt tồn',value:formatNumber(row.shortageQuantity||0)},
+        {key:'Giá trị bị cắt',value:money(row.shortageAmount||0)}
+      ]:[])
+    ];
+  }
   const fields=['documentCode','date','customerCode','customerName','productCode','productName','quantity','stockQuantity','soldQuantity','salePrice','amount','staffName','note'];
   return fields.filter(k=>row[k]!==undefined && row[k]!==null && row[k]!=='').map(k=>({key:k,value:row[k]}));
+}
+
+function renderImportOrderDetailHtml(row){
+  const errors=(row.detailErrors||[]).flatMap(d=>(d.errors||[]).map(e=>`Dòng ${d.rowNo||''} - ${d.productCode||''}: ${e}`));
+  const shortages=row.shortageReport||[];
+  const lines=row.lineDetails||[];
+  const shortageHtml=shortages.length?`
+    <div class="import-preview-shortage">
+      <b>Báo cáo hàng bị cắt do vượt tồn</b>
+      <div class="import-shortage-table">
+        <div class="import-shortage-head">Mã SP</div><div class="import-shortage-head">Tên SP</div><div class="import-shortage-head">SL đặt</div><div class="import-shortage-head">Tồn</div><div class="import-shortage-head">SL nhập</div><div class="import-shortage-head">SL cắt</div><div class="import-shortage-head">Giá trị cắt</div>
+        ${shortages.map(s=>`
+          <div>${escapeImportHtml(s.productCode||'')}</div>
+          <div>${escapeImportHtml(s.productName||'')}</div>
+          <div>${formatNumber(s.requestedQuantity||0)}</div>
+          <div>${formatNumber(s.availableQuantity||0)}</div>
+          <div>${formatNumber(s.importQuantity||0)}</div>
+          <div>${formatNumber(s.missingQuantity||0)}</div>
+          <div>${money(s.cutAmount||0)}</div>
+        `).join('')}
+      </div>
+    </div>`:'';
+  const lineHtml=lines.length?`
+    <details class="import-preview-lines">
+      <summary>Xem chi tiết ${formatNumber(lines.length)} dòng hàng</summary>
+      <div class="import-line-list">
+        ${lines.slice(0,80).map(l=>`
+          <div class="import-line-item ${Number(l.missingQuantity||0)>0?'shortage':''}">
+            <b>${escapeImportHtml(l.productCode||'')}</b>
+            <span>${escapeImportHtml(l.productName||'')}</span>
+            <span>SL: ${formatNumber(l.requestedQuantity||l.quantity||0)}</span>
+            ${l.availableQuantity!==undefined?`<span>Tồn: ${formatNumber(l.availableQuantity||0)}</span>`:''}
+            ${Number(l.missingQuantity||0)>0?`<span class="danger-text">Cắt: ${formatNumber(l.missingQuantity||0)}</span>`:''}
+          </div>`).join('')}
+      </div>
+    </details>`:'';
+  const errorHtml=errors.length?`<div class="import-preview-error"><b>Lỗi chi tiết:</b> ${escapeImportHtml(errors.join('; '))}</div>`:'';
+  return `${shortageHtml}${lineHtml}${errorHtml}`;
 }
 
 function ensureImportPreviewModal(){
@@ -347,12 +406,17 @@ function renderImportPreviewModal(result){
   const total=result.total||importPreviewRows.length;
   const valid=result.valid||0;
   const invalid=result.invalid||0;
-  if(title)title.textContent=`Xem trước import - ${total} dòng`;
+  const orderMode=importPreviewRows.some(r=>r&&r.previewMode==='order');
+  const shortageOrders=importPreviewRows.filter(r=>r&&r.hasShortage).length;
+  const shortageAmount=importPreviewRows.reduce((sum,r)=>sum+Number(r.shortageAmount||0),0);
+  if(title)title.textContent=`Xem trước import - ${formatNumber(total)} ${orderMode?'đơn/chứng từ':'dòng'}`;
   if(report){
     report.innerHTML=`
-      <div class="import-report-card"><span>Tổng dòng</span><strong>${formatNumber(total)}</strong></div>
+      <div class="import-report-card"><span>${orderMode?'Tổng đơn':'Tổng dòng'}</span><strong>${formatNumber(total)}</strong></div>
       <div class="import-report-card success"><span>Hợp lệ</span><strong>${formatNumber(valid)}</strong></div>
-      <div class="import-report-card danger"><span>Dòng lỗi</span><strong>${formatNumber(invalid)}</strong></div>
+      <div class="import-report-card danger"><span>${orderMode?'Đơn lỗi':'Dòng lỗi'}</span><strong>${formatNumber(invalid)}</strong></div>
+      ${orderMode?`<div class="import-report-card danger"><span>Đơn vượt tồn</span><strong>${formatNumber(shortageOrders)}</strong></div>
+      <div class="import-report-card danger"><span>Giá trị bị cắt</span><strong>${money(shortageAmount)}</strong></div>`:''}
       <div class="import-report-card"><span>Được chọn</span><strong id="importPreviewSelectedCount">${formatNumber(valid)}</strong></div>`;
   }
   if(!importPreviewRows.length){
@@ -372,6 +436,7 @@ function renderImportPreviewModal(result){
           <span class="badge ${row.valid?'active':'inactive'}">${row.valid?'Hợp lệ':'Lỗi'}</span>
         </div>
         <div class="import-preview-grid">${fieldHtml}</div>
+        ${row.previewMode==='order'?renderImportOrderDetailHtml(row):''}
         ${errors.length?`<div class="import-preview-error"><b>Lỗi:</b> ${escapeImportHtml(errors.join('; '))}</div>`:''}
       </article>`;
     }).join('');
@@ -422,16 +487,34 @@ function renderImportPreview(result){
     if(commitImportButton)commitImportButton.disabled=true;
     return;
   }
-  if(importPreviewHead)importPreviewHead.innerHTML='<tr><th>Chọn</th><th>Dòng</th><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr>';
+  const orderMode=importPreviewRows.some(r=>r&&r.previewMode==='order');
+  if(importPreviewHead){
+    importPreviewHead.innerHTML=orderMode
+      ? '<tr><th>Chọn</th><th>Mã đơn</th><th>Khách hàng/NCC</th><th>Số dòng</th><th>Giá trị</th><th>Trạng thái</th><th>Báo cáo vượt tồn</th></tr>'
+      : '<tr><th>Chọn</th><th>Dòng</th><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr>';
+  }
   if(importPreviewTable){
-    importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
-      <tr class="${row.valid?'import-valid':'import-invalid'}">
-        <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
-        <td>${row.rowNo||''}</td>
-        <td><span class="badge ${row.valid?'active':'inactive'}">${row.valid?'Hợp lệ':'Lỗi'}</span></td>
-        <td>${importRowToText(row)}</td>
-        <td>${(row.errors||[]).join('; ')}</td>
-      </tr>`).join('');
+    if(orderMode){
+      importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
+        <tr class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
+          <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
+          <td><strong>${escapeImportHtml(row.documentCode||'')}</strong></td>
+          <td>${escapeImportHtml(row.customerName||row.supplier||row.customerCode||'')}</td>
+          <td>${formatNumber(row.lineCount||0)}</td>
+          <td class="price">${money(row.totalAmount||0)}</td>
+          <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
+          <td>${row.hasShortage?`Vượt ${formatNumber(row.shortageQuantity||0)} · Cắt ${money(row.shortageAmount||0)}`:(row.errors||[]).join('; ')}</td>
+        </tr>`).join('');
+    }else{
+      importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
+        <tr class="${row.valid?'import-valid':'import-invalid'}">
+          <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
+          <td>${row.rowNo||''}</td>
+          <td><span class="badge ${row.valid?'active':'inactive'}">${row.valid?'Hợp lệ':'Lỗi'}</span></td>
+          <td>${importRowToText(row)}</td>
+          <td>${(row.errors||[]).join('; ')}</td>
+        </tr>`).join('');
+    }
   }
   renderImportPreviewModal(result);
   if(commitImportButton)commitImportButton.disabled=valid<=0;
@@ -467,12 +550,25 @@ async function commitImportExcel(){
   if(!importDataType)return;
   const rows=getSelectedImportRows();
   if(!rows.length){showMessage(importDataMessage,'Chưa chọn dòng hợp lệ nào để import',true);return}
+  const hasShortage=rows.some(row=>row&&row.hasShortage);
+  let shortageMode='';
+  if(importDataType.value==='salesOrders'&&hasShortage){
+    const shortageAmount=rows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0);
+    const shortageQty=rows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);
+    const ok=confirm(`Có đơn vượt tồn.\n\nSL hàng sẽ bị cắt: ${formatNumber(shortageQty)}\nGiá trị bị cắt: ${money(shortageAmount)}\n\nBấm OK để TIẾP TỤC import theo tồn thực tế.\nBấm Cancel để DỪNG import.`);
+    if(!ok){
+      showMessage(importDataMessage,'Đã dừng import vì có đơn vượt tồn.',true);
+      return;
+    }
+    shortageMode='cut';
+  }
   try{
     showMessage(importDataMessage,'Đang ghi dữ liệu import vào hệ thống...');
-    const res=await fetch('/api/import/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:importDataType.value,rows})});
+    const res=await fetch('/api/import/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:importDataType.value,rows,shortageMode})});
     const json=await res.json();
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
-    showMessage(importDataMessage,json.message||'Import thành công');
+    const shortageText=(json.shortageReport&&json.shortageReport.length)?` · Đã cắt ${formatNumber(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`:'';
+    showMessage(importDataMessage,(json.message||'Import thành công')+shortageText);
     if(commitImportButton)commitImportButton.disabled=true;
 
     // Khi import đơn bán DMS, tự chuyển bộ lọc danh sách đơn bán về đúng ngày của file import.

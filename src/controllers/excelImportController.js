@@ -14,7 +14,7 @@ async function preview(req, res) {
 
 async function commit(req, res) {
   try {
-    const result = await excelImportService.commit({ type: String(req.body?.type || '').trim(), rows: req.body?.rows });
+    const result = await excelImportService.commit({ type: String(req.body?.type || '').trim(), rows: req.body?.rows, shortageMode: String(req.body?.shortageMode || '').trim() });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, ...result });
   } catch (err) {

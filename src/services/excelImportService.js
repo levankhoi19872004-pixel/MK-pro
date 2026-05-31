@@ -1223,6 +1223,106 @@ async function getStockMapByProductCode(rows = []) {
   return map;
 }
 
+
+function getOrderDocumentCode(row = {}) {
+  return cleanText(
+    row.documentCode ||
+    row.code ||
+    row.orderCode ||
+    row.invoiceCode ||
+    row['Số hóa đơn'] ||
+    row['So hoa don'] ||
+    row['Mã đơn'] ||
+    row['Ma don'] ||
+    row['Mã phiếu'] ||
+    row['Ma phieu']
+  ) || 'AUTO';
+}
+
+function makeImportOrderGroupKey(row = {}) {
+  return [
+    getOrderDocumentCode(row),
+    getDateFromRow(row),
+    cleanText(row.supplier || row.supplierName || row['Nhà cung cấp'] || row['Nha cung cap']) || 'Import Excel'
+  ].join('|');
+}
+
+function makeSalesOrderGroupKey(row = {}) {
+  return [
+    getOrderDocumentCode(row),
+    getDateFromRow(row),
+    getCustomerCodeFromRow(row)
+  ].join('|');
+}
+
+function cloneRawRowForImport(row = {}) {
+  const cloned = { ...(row.raw || row) };
+  delete cloned.raw;
+  delete cloned.errors;
+  delete cloned.valid;
+  return cloned;
+}
+
+function flattenCommitRows(rows = []) {
+  const result = [];
+  for (const row of rows || []) {
+    const source = Array.isArray(row.__importRows) ? row.__importRows : (Array.isArray(row.rows) ? row.rows : null);
+    if (source) {
+      for (const child of source) result.push(cloneRawRowForImport(child));
+    } else {
+      result.push(cloneRawRowForImport(row));
+    }
+  }
+  return result;
+}
+
+function flattenAdjustedCommitRows(rows = []) {
+  const result = [];
+  for (const row of rows || []) {
+    const source = Array.isArray(row.__adjustedRows)
+      ? row.__adjustedRows
+      : (Array.isArray(row.__importRows) ? row.__importRows : (Array.isArray(row.rows) ? row.rows : null));
+    if (source) {
+      for (const child of source) {
+        const raw = cloneRawRowForImport(child);
+        if (raw.__skipImportLine) continue;
+        result.push(raw);
+      }
+    } else {
+      const raw = cloneRawRowForImport(row);
+      if (!raw.__skipImportLine) result.push(raw);
+    }
+  }
+  return result;
+}
+
+function applyAdjustedQuantityToRow(row = {}, allowedQuantity = 0, salePrice = 0) {
+  const adjusted = { ...(row.raw || row) };
+  adjusted.quantity = allowedQuantity;
+  adjusted.qty = allowedQuantity;
+  adjusted.stockQuantity = allowedQuantity;
+  adjusted.deliveredQuantity = allowedQuantity;
+  adjusted.soldQuantity = allowedQuantity;
+  adjusted.cartons = 0;
+  adjusted.units = allowedQuantity;
+  adjusted.promoCartons = 0;
+  adjusted.promoUnits = 0;
+  adjusted.promoQuantity = 0;
+  adjusted.actualAmount = allowedQuantity * salePrice;
+  adjusted.amount = allowedQuantity * salePrice;
+  adjusted.lineAmount = allowedQuantity * salePrice;
+  adjusted.__autoCutByStock = true;
+  if (allowedQuantity <= 0) adjusted.__skipImportLine = true;
+  return adjusted;
+}
+
+function summarizeOrderShortages(shortages = []) {
+  const totalMissingQty = shortages.reduce((sum, item) => sum + toNumber(item.missingQuantity), 0);
+  const totalCutAmount = shortages.reduce((sum, item) => sum + toNumber(item.cutAmount), 0);
+  return { totalMissingQty, totalCutAmount };
+}
+
+
 async function previewMongoNative(type, rows = []) {
   const safeRows = Array.isArray(rows) ? rows : [];
   let result = [];
@@ -1282,86 +1382,178 @@ async function previewMongoNative(type, rows = []) {
     });
   } else if (type === 'importOrders') {
     const productMap = await preloadProductsByCode(safeRows);
-    result = safeRows.map((row) => {
-      const productCode = getProductCodeFromRow(row);
-      const product = productMap.get(cleanText(productCode));
-      const quantity = getQtyFromRow(row);
-      const costPrice = getCostFromRow(row);
-      const item = {
-        ...rowBase(row),
-        documentCode: cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || 'AUTO',
-        date: getDateFromRow(row),
-        supplier: cleanText(row.supplier || row.supplierName || row['Nhà cung cấp'] || row['Nha cung cap']) || 'Import Excel',
-        productCode,
-        productName: product?.name || '',
-        quantity,
-        costPrice,
-        errors: []
+    const groups = groupRows(safeRows, makeImportOrderGroupKey);
+    result = groups.map((group) => {
+      const first = group[0] || {};
+      const errors = [];
+      const detailErrors = [];
+      const lineDetails = [];
+      let totalQuantity = 0;
+      let totalAmount = 0;
+
+      for (const row of group) {
+        const productCode = getProductCodeFromRow(row);
+        const product = productMap.get(cleanText(productCode));
+        const quantity = getQtyFromRow(row);
+        const costPrice = getCostFromRow(row);
+        const amount = quantity * costPrice;
+        const lineErrors = [];
+        if (!productCode) lineErrors.push('Thiếu mã sản phẩm');
+        if (!product) lineErrors.push('Không tìm thấy sản phẩm');
+        if (quantity <= 0) lineErrors.push('Số lượng nhập phải lớn hơn 0');
+        if (costPrice < 0) lineErrors.push('Giá nhập không được âm');
+        if (lineErrors.length) detailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, productName: product?.name || '', errors: lineErrors });
+
+        totalQuantity += Math.max(0, quantity);
+        totalAmount += Math.max(0, amount);
+        lineDetails.push({
+          rowNo: row.__rowNo || row.rowNo || '',
+          productCode,
+          productName: product?.name || cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+          quantity,
+          price: costPrice,
+          amount,
+          errors: lineErrors
+        });
+      }
+
+      if (detailErrors.length) errors.push(`${detailErrors.length} dòng hàng lỗi`);
+      return {
+        ...rowBase(first),
+        previewMode: 'order',
+        documentCode: getOrderDocumentCode(first),
+        date: getDateFromRow(first),
+        supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
+        customerCode: '',
+        customerName: '',
+        lineCount: group.length,
+        totalQuantity,
+        totalAmount,
+        amount: totalAmount,
+        statusText: errors.length ? 'Có lỗi' : 'Hợp lệ',
+        hasShortage: false,
+        shortageCount: 0,
+        shortageReport: [],
+        lineDetails,
+        detailErrors,
+        __importRows: group,
+        errors,
+        valid: errors.length === 0
       };
-      if (!productCode) item.errors.push('Thiếu mã sản phẩm');
-      if (!product) item.errors.push('Không tìm thấy sản phẩm');
-      if (quantity <= 0) item.errors.push('Số lượng nhập phải lớn hơn 0');
-      if (costPrice < 0) item.errors.push('Giá nhập không được âm');
-      return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'salesOrders') {
     const productMap = await preloadProductsByCode(safeRows);
     const customerMap = await preloadCustomersByCode(safeRows);
     const stockMap = await getStockMapByProductCode(safeRows);
-    result = safeRows.map((row) => {
-      const customerCode = getCustomerCodeFromRow(row);
-      const productCode = getProductCodeFromRow(row);
+    const runningStockMap = new Map(stockMap);
+    const groups = groupRows(safeRows, makeSalesOrderGroupKey);
+
+    result = groups.map((group) => {
+      const first = group[0] || {};
+      const customerCode = getCustomerCodeFromRow(first);
       const customer = customerMap.get(cleanText(customerCode));
-      const product = productMap.get(cleanText(productCode));
-      const quantity = getDmsQuantityFromRow(row, product);
-      const promoQuantity = getDmsPromoQuantityFromRow(row, product);
-      const deliveredQuantity = quantity + promoQuantity;
-      const salePrice = getDmsPriceFromRow(row, quantity);
-      const amount = getDmsAmountFromRow(row, quantity, salePrice);
-      const stockQty = toNumber(stockMap.get(cleanText(productCode)));
-      const item = {
-        ...rowBase(row),
-        documentCode: cleanText(row.documentCode || row['Số hóa đơn'] || row['So hoa don'] || row['Mã đơn'] || row['Ma don']) || 'AUTO',
-        date: getDateFromRow(row),
+      const errors = [];
+      const detailErrors = [];
+      const shortageReport = [];
+      const lineDetails = [];
+      const adjustedRows = [];
+      let totalQuantity = 0;
+      let totalAmount = 0;
+      let adjustedQuantity = 0;
+      let adjustedAmount = 0;
+
+      if (!customerCode) errors.push('Thiếu mã khách hàng / mã cửa hàng');
+      if (!customer) errors.push('Không tìm thấy khách hàng');
+
+      for (const row of group) {
+        const productCode = getProductCodeFromRow(row);
+        const product = productMap.get(cleanText(productCode));
+        const quantity = getDmsQuantityFromRow(row, product);
+        const promoQuantity = getDmsPromoQuantityFromRow(row, product);
+        const deliveredQuantity = quantity + promoQuantity;
+        const salePrice = getDmsPriceFromRow(row, quantity);
+        const amount = getDmsAmountFromRow(row, quantity, salePrice);
+        const normalizedProductCode = cleanText(product?.code || productCode);
+        const availableBefore = toNumber(runningStockMap.get(normalizedProductCode));
+        const allowedQuantity = Math.max(0, Math.min(availableBefore, deliveredQuantity));
+        const missingQuantity = Math.max(0, deliveredQuantity - availableBefore);
+        const lineErrors = [];
+
+        if (!productCode) lineErrors.push('Thiếu mã sản phẩm / mã hàng hóa');
+        if (!product) lineErrors.push('Không tìm thấy sản phẩm');
+        if (quantity <= 0) lineErrors.push('Số lượng bán phải lớn hơn 0');
+        if (salePrice < 0) lineErrors.push('Giá bán không được âm');
+
+        totalQuantity += Math.max(0, deliveredQuantity);
+        totalAmount += Math.max(0, amount);
+
+        if (product && missingQuantity > 0) {
+          shortageReport.push({
+            rowNo: row.__rowNo || row.rowNo || '',
+            productCode: product.code,
+            productName: product.name,
+            requestedQuantity: deliveredQuantity,
+            availableQuantity: availableBefore,
+            importQuantity: allowedQuantity,
+            missingQuantity,
+            salePrice,
+            cutAmount: missingQuantity * salePrice
+          });
+        }
+
+        if (lineErrors.length) {
+          detailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, productName: product?.name || '', errors: lineErrors });
+        }
+
+        const adjustedRow = applyAdjustedQuantityToRow(row, allowedQuantity, salePrice);
+        adjustedRows.push(adjustedRow);
+        adjustedQuantity += allowedQuantity;
+        adjustedAmount += allowedQuantity * salePrice;
+        if (product) runningStockMap.set(normalizedProductCode, Math.max(0, availableBefore - deliveredQuantity));
+
+        lineDetails.push({
+          rowNo: row.__rowNo || row.rowNo || '',
+          productCode,
+          productName: product?.name || cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+          requestedQuantity: deliveredQuantity,
+          availableQuantity: availableBefore,
+          importQuantity: allowedQuantity,
+          missingQuantity,
+          salePrice,
+          amount,
+          adjustedAmount: allowedQuantity * salePrice,
+          errors: lineErrors
+        });
+      }
+
+      if (detailErrors.length) errors.push(`${detailErrors.length} dòng hàng lỗi`);
+      const shortageSummary = summarizeOrderShortages(shortageReport);
+      return {
+        ...rowBase(first),
+        previewMode: 'order',
+        documentCode: getOrderDocumentCode(first),
+        date: getDateFromRow(first),
         customerCode,
-        customerName: getCustomerNameFromRow(row) || customer?.name || '',
-        productCode,
-        productName: product?.name || cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
-        packingQty: getPackingFromRow(row, product),
-        cartons: getCartonsFromRow(row),
-        units: getUnitsFromRow(row),
-        quantity,
-        promoCartons: getPromoCartonsFromRow(row),
-        promoUnits: getPromoUnitsFromRow(row),
-        promoQuantity,
-        deliveredQuantity,
-        stockQuantity: deliveredQuantity,
-        soldQuantity: quantity,
-        salePrice,
-        listPriceBeforeVat: getListPriceBeforeVatFromRow(row),
-        listPriceAfterVat: getListPriceBeforeVatFromRow(row) ? getListPriceBeforeVatFromRow(row) * 1.08 : 0,
-        gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
-        nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
-        vatAmount: getVatAmountFromRow(row),
-        amount,
-        paidAmount: toNumber(row.paidAmount ?? row['Đã thu'] ?? row['Da thu']),
-        staffCode: cleanText(row.staffCode || row['Mã nhân viên'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã NVBH'] || row['Ma NVBH']),
-        staffName: cleanText(row.staffName || row['Tên NVTT'] || row['Ten NVTT'] || row['Tên NVBH'] || row['Ten NVBH']),
-        orderSource: 'DMS',
-        source: 'DMS',
-        sourceType: 'dms_import',
-        orderSourceName: 'Từ DMS',
-        note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import Excel DMS',
-        errors: []
+        customerName: getCustomerNameFromRow(first) || customer?.name || '',
+        lineCount: group.length,
+        totalQuantity,
+        totalAmount,
+        amount: totalAmount,
+        adjustedQuantity,
+        adjustedAmount,
+        shortageCount: shortageReport.length,
+        shortageQuantity: shortageSummary.totalMissingQty,
+        shortageAmount: shortageSummary.totalCutAmount,
+        hasShortage: shortageReport.length > 0,
+        statusText: errors.length ? 'Có lỗi' : (shortageReport.length ? 'Vượt tồn' : 'Hợp lệ'),
+        shortageReport,
+        lineDetails,
+        detailErrors,
+        __importRows: group,
+        __adjustedRows: adjustedRows,
+        errors,
+        valid: errors.length === 0
       };
-      if (!customerCode) item.errors.push('Thiếu mã khách hàng / mã cửa hàng');
-      if (!customer) item.errors.push('Không tìm thấy khách hàng');
-      if (!productCode) item.errors.push('Thiếu mã sản phẩm / mã hàng hóa');
-      if (!product) item.errors.push('Không tìm thấy sản phẩm');
-      if (quantity <= 0) item.errors.push('Số lượng bán phải lớn hơn 0');
-      if (salePrice < 0) item.errors.push('Giá bán không được âm');
-      if (product && stockQty < deliveredQuantity) item.errors.push(`Không đủ tồn kho: còn ${stockQty}`);
-      return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'openingDebt') {
     const customerMap = await preloadCustomersByCode(safeRows);
@@ -1412,28 +1604,49 @@ async function preview({ type, buffer }) {
   return previewMongoNative(type, rows);
 }
 
-async function commit({ type, rows }) {
+async function commit({ type, rows, shortageMode = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (!Array.isArray(rows) || !rows.length) return { error: 'Chưa có dòng nào để import', status: 400 };
   const validRows = rows.filter((r) => r && r.valid !== false && (!Array.isArray(r.errors) || r.errors.length === 0));
   if (!validRows.length) return { error: 'Không có dòng hợp lệ để import', status: 400 };
 
+  const hasShortage = validRows.some((r) => r && r.hasShortage);
+  if (type === 'salesOrders' && hasShortage && shortageMode !== 'cut') {
+    return {
+      error: 'Có đơn vượt tồn. Vui lòng chọn Dừng hoặc Tiếp tục import theo tồn thực tế.',
+      status: 409,
+      hasShortage: true,
+      shortageReport: validRows.flatMap((r) => r.shortageReport || [])
+    };
+  }
+
+  const commitRows = type === 'salesOrders' && shortageMode === 'cut'
+    ? flattenAdjustedCommitRows(validRows)
+    : flattenCommitRows(validRows);
+
   let result;
-  if (type === 'products') result = await upsertProducts(validRows);
-  else if (type === 'customers') result = await upsertCustomers(validRows);
-  else if (type === 'openingStock') result = await importOpeningStock(validRows);
-  else if (type === 'importOrders') result = await importImportOrders(validRows);
-  else if (type === 'salesOrders') result = await importSalesOrders(validRows);
-  else if (type === 'openingDebt') result = await importOpeningDebt(validRows);
-  else if (type === 'debtCollections') result = await importDebtCollections(validRows);
-  else if (type === 'cashbook') result = await importCashbook(validRows);
+  if (type === 'products') result = await upsertProducts(commitRows);
+  else if (type === 'customers') result = await upsertCustomers(commitRows);
+  else if (type === 'openingStock') result = await importOpeningStock(commitRows);
+  else if (type === 'importOrders') result = await importImportOrders(commitRows);
+  else if (type === 'salesOrders') result = await importSalesOrders(commitRows);
+  else if (type === 'openingDebt') result = await importOpeningDebt(commitRows);
+  else if (type === 'debtCollections') result = await importDebtCollections(commitRows);
+  else if (type === 'cashbook') result = await importCashbook(commitRows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
+  const shortageRows = validRows.flatMap((r) => r.shortageReport || []);
+  const shortageSummary = summarizeOrderShortages(shortageRows);
   return {
     source: 'mongo-native',
     ok: true,
     message: `Đã import Mongo-native ${result.imported || 0} dòng/chứng từ`,
     totalRows: rows.length,
+    totalCommitRows: commitRows.length,
+    hasShortage,
+    shortageMode: hasShortage ? (shortageMode === 'cut' ? 'cut' : 'stop') : '',
+    shortageReport: shortageRows,
+    shortageSummary,
     ...result
   };
 }
