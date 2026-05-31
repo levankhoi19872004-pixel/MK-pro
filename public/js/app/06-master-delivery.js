@@ -135,8 +135,33 @@ function toggleSelectAllMasterOrders(){
 async function printSelectedMasterOrders(){
   const orders=selectedMasterOrders();
   if(!orders.length){alert('Chưa chọn đơn tổng để in');return}
-  const html=orders.map(o=>`<section class="print-page"><h2>Đơn tổng: ${o.code||o.id}</h2><p>Ngày giao: ${o.deliveryDate||o.date||''} · Tuyến: ${o.routeName||''} · Giao hàng: ${o.deliveryStaffCode||''} ${o.deliveryStaffName||''} · NV bán: ${o.salesStaffCode||''} ${o.salesStaffName||''}</p><p>Số đơn con: ${money(o.totalOrders)} · Tổng tiền: ${money(o.totalAmount)} · Còn thu: ${money(o.totalDebt)}</p><table class="print-table"><thead><tr><th>Đơn con</th><th>NV bán</th><th>Khách hàng</th><th>Tổng tiền</th><th>Còn thu</th></tr></thead><tbody>${(o.children||[]).map(c=>`<tr><td>${c.code||''}</td><td>${c.salesStaffCode||c.staffCode||''} ${c.salesStaffName||c.staffName||''}</td><td>${c.customerCode||''} - ${c.customerName||''}</td><td>${money(c.totalAmount)}</td><td>${money(c.debtAmount)}</td></tr>`).join('')}</tbody></table></section>`).join('');
-  const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In đơn tổng</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
+
+  // Đơn tổng phải in PHIẾU NHẶT HÀNG: danh sách sản phẩm đã gộp từ các đơn con.
+  // Không tự dựng bảng danh sách đơn con ở frontend nữa, vì bảng đó chỉ dùng để xem/tổng hợp.
+  // Luồng in đúng đi qua /api/print/master-orders/:id để backend load đơn con, gộp sản phẩm theo mã hàng/kho, rồi render mẫu ORDER_TOTAL.
+  const ids=orders.map(o=>encodeURIComponent(o.id||o.code||o._id||'')).filter(Boolean);
+  if(!ids.length){alert('Không xác định được mã đơn tổng để in');return}
+
+  try{
+    if(ids.length===1){
+      window.open(`/api/print/master-orders/${ids[0]}`,'_blank');
+      return;
+    }
+
+    const pages=[];
+    for(const id of ids){
+      const res=await fetch(`/api/print/master-orders/${id}`);
+      const html=await res.text();
+      if(!res.ok)throw new Error(html||'Không in được đơn tổng');
+      const doc=new DOMParser().parseFromString(html,'text/html');
+      pages.push(`<section class="print-page">${doc.body.innerHTML}</section>`);
+    }
+    const w=window.open('','_blank');
+    w.document.write(`<!doctype html><html><head><title>In đơn tổng</title><link rel="stylesheet" href="/print.css"></head><body>${pages.join('')}<script>window.print()<\/script></body></html>`);
+    w.document.close();
+  }catch(err){
+    alert(err.message||'Không in được đơn tổng');
+  }
 }
 function exportSelectedMasterOrders(){
   const orders=selectedMasterOrders();
