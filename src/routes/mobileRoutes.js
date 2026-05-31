@@ -31,6 +31,7 @@ const returnOrderService = require('../services/returnOrderService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('../services/financialService');
 const masterOrderService = require('../services/masterOrderService');
+const reportService = require('../services/reportService');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 
 const router = express.Router();
@@ -1239,6 +1240,87 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
   }
 });
 
+
+function rowMatchesCustomer(row = {}, identity = {}) {
+  const needleValues = [identity.customerId, identity.customerCode, identity.customerName]
+    .map((v) => normalizeText(v)).filter(Boolean);
+  if (!needleValues.length) return false;
+  const rowValues = [row.customerId, row.customerCode, row.customerName]
+    .map((v) => normalizeText(v)).filter(Boolean);
+  return needleValues.some((needle) => rowValues.some((value) => value === needle || value.includes(needle) || needle.includes(value)));
+}
+
+function debtOrderKey(row = {}) {
+  return String(row.orderId || row.orderCode || row.id || row.code || '').trim();
+}
+
+async function mobileCustomerDebtRows(identity = {}, excludeKeys = []) {
+  const result = await reportService.debtReport({ status: 'open' });
+  const excluded = new Set((excludeKeys || []).map((v) => String(v || '').trim()).filter(Boolean));
+  return (Array.isArray(result?.debts) ? result.debts : [])
+    .filter((row) => hasOpenDebt(row.debt))
+    .filter((row) => rowMatchesCustomer(row, identity))
+    .filter((row) => {
+      const keys = [row.orderId, row.orderCode, row.id, row.code].map((v) => String(v || '').trim()).filter(Boolean);
+      return !keys.some((key) => excluded.has(key));
+    })
+    .map((row) => ({
+      orderId: row.orderId || row.id || '',
+      orderCode: row.orderCode || row.code || row.orderId || '',
+      documentDate: row.documentDate || row.date || row.orderDate || '',
+      dueDate: row.dueDate || '',
+      customerId: row.customerId || '',
+      customerCode: row.customerCode || '',
+      customerName: row.customerName || '',
+      debt: normalizeDebtAmount(row.debt),
+      overdueDays: toNumber(row.overdueDays),
+      agingDays: toNumber(row.agingDays),
+      status: row.status || ''
+    }))
+    .sort((a, b) => String(a.documentDate || '').localeCompare(String(b.documentDate || '')) || String(a.orderCode).localeCompare(String(b.orderCode)));
+}
+
+function splitPaymentToAllocations(amount, priorityRows = []) {
+  let remaining = Math.max(0, toNumber(amount));
+  const allocations = [];
+  for (const row of priorityRows) {
+    if (remaining <= 0) break;
+    const debt = Math.max(0, toNumber(row.debt));
+    if (debt <= 0) continue;
+    const applied = Math.min(debt, remaining);
+    if (applied > 0) {
+      allocations.push({
+        orderId: row.orderId || row.id || '',
+        orderCode: row.orderCode || row.code || row.orderId || '',
+        amount: applied
+      });
+      remaining -= applied;
+    }
+  }
+  return { allocations, remaining };
+}
+
+router.get('/delivery/customer-debts', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
+  try {
+    const currentOrderId = String(req.query.currentOrderId || '').trim();
+    const currentOrder = currentOrderId ? await findOrderByIdOrCode(currentOrderId) : null;
+    const identity = {
+      customerId: req.query.customerId || currentOrder?.customerId || '',
+      customerCode: req.query.customerCode || currentOrder?.customerCode || '',
+      customerName: req.query.customerName || currentOrder?.customerName || ''
+    };
+    const exclude = [currentOrderId, currentOrder?.id, currentOrder?._id, currentOrder?.code, currentOrder?.orderCode, currentOrder?.orderNo];
+    const items = await mobileCustomerDebtRows(identity, exclude);
+    const summary = {
+      orderCount: items.length,
+      totalDebt: items.reduce((sum, row) => sum + toNumber(row.debt), 0)
+    };
+    return ok(res, { source: 'mobile-delivery-customer-debts', items, summary });
+  } catch (err) {
+    return fail(res, 500, err.message || 'Không tải được danh sách đơn nợ của khách');
+  }
+});
+
 router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
     const order = await findOrderByIdOrCode(req.body?.orderId);
@@ -1253,6 +1335,9 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     const collectAmount = hasSplitAmounts ? cashAmount + bankAmount + rewardAmount : legacyCollectAmount;
     const method = String(req.body?.collectionMethod || req.body?.paymentMethod || 'cash').trim() === 'transfer' ? 'transfer' : 'cash';
     const note = String(req.body?.note || '').trim();
+    const selectedDebtOrderIds = Array.isArray(req.body?.debtOrderIds)
+      ? req.body.debtOrderIds.map((id) => String(id || '').trim()).filter(Boolean)
+      : [];
 
     order.deliveryStatus = status === 'success' ? 'delivered' : 'failed';
     order.status = status === 'success' ? 'delivered' : 'delivery_failed';
@@ -1283,21 +1368,55 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     let receiptLines = [];
 
     if (status === 'success') {
-      // App giao hàng gửi số tiền TỔNG đang hiển thị trên form, không phải số tiền thu thêm.
-      // Vì vậy lưu vào SalesOrder trước theo kiểu absolute giống màn hình phần mềm.
-      // Các chứng từ phụ (receipt/AR) chạy sau, nếu lỗi không được làm mất tiền vừa bấm Lưu.
+      // App giao hàng có thể thu cả nợ cũ của khách ở tab Thu tiền.
+      // Số tiền thực thu được phân bổ ưu tiên vào đơn nợ cũ đã tick, sau đó mới tới đơn đang giao.
       const previousCash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
       const previousBank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
       const previousReward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
-      const nextCash = hasSplitAmounts ? cashAmount : (method === 'cash' ? legacyCollectAmount : previousCash);
-      const nextBank = hasSplitAmounts ? bankAmount : (method === 'transfer' ? legacyCollectAmount : previousBank);
+      const inputCash = hasSplitAmounts ? cashAmount : (method === 'cash' ? legacyCollectAmount : previousCash);
+      const inputBank = hasSplitAmounts ? bankAmount : (method === 'transfer' ? legacyCollectAmount : previousBank);
       const nextReward = hasSplitAmounts ? rewardAmount : previousReward;
-      const cashDelta = Math.max(0, nextCash - previousCash);
-      const bankDelta = Math.max(0, nextBank - previousBank);
+      const cashDeltaTotal = Math.max(0, inputCash - previousCash);
+      const bankDeltaTotal = Math.max(0, inputBank - previousBank);
+
+      const selectedDebtRows = selectedDebtOrderIds.length
+        ? (await mobileCustomerDebtRows({
+            customerId: order.customerId || '',
+            customerCode: order.customerCode || '',
+            customerName: order.customerName || ''
+          }, [getDocId(order), orderCode(order)]))
+            .filter((row) => {
+              const keys = [row.orderId, row.orderCode].map((value) => String(value || '').trim()).filter(Boolean);
+              return keys.some((key) => selectedDebtOrderIds.includes(key));
+            })
+        : [];
+
+      const currentOrderDebtSeed = Math.max(0, deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0) - nextReward);
+      const priorityRowsBase = [
+        ...selectedDebtRows,
+        { orderId: getDocId(order), orderCode: orderCode(order), debt: currentOrderDebtSeed, documentDate: order.date || order.orderDate || order.deliveryDate || '' }
+      ];
+      const cashSplit = splitPaymentToAllocations(cashDeltaTotal, priorityRowsBase);
+      const paidByCash = new Map(cashSplit.allocations.map((row) => [String(row.orderId || row.orderCode), toNumber(row.amount)]));
+      const priorityRowsAfterCash = priorityRowsBase.map((row) => {
+        const key = String(row.orderId || row.orderCode || '').trim();
+        const paid = toNumber(paidByCash.get(key));
+        return { ...row, debt: Math.max(0, toNumber(row.debt) - paid) };
+      });
+      const bankSplit = splitPaymentToAllocations(bankDeltaTotal, priorityRowsAfterCash);
+      const currentKeys = new Set([getDocId(order), orderCode(order)].map((value) => String(value || '').trim()).filter(Boolean));
+      const currentCashDelta = cashSplit.allocations
+        .filter((row) => currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))
+        .reduce((sum, row) => sum + toNumber(row.amount), 0);
+      const currentBankDelta = bankSplit.allocations
+        .filter((row) => currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))
+        .reduce((sum, row) => sum + toNumber(row.amount), 0);
+      const nextCash = previousCash + currentCashDelta;
+      const nextBank = previousBank + currentBankDelta;
       receiptLines = [
-        { method: 'cash', amount: cashDelta, note: note || `App giao hàng thu thêm tiền mặt đơn ${orderCode(order)}` },
-        { method: 'transfer', amount: bankDelta, note: note || `App giao hàng thu thêm chuyển khoản đơn ${orderCode(order)}` }
-      ].filter(line => line.amount > 0);
+        { method: 'cash', amount: cashDeltaTotal, allocations: cashSplit.allocations, note: note || `App giao hàng thu tiền mặt khách ${order.customerName || order.customerCode || ''}` },
+        { method: 'transfer', amount: bankDeltaTotal, allocations: bankSplit.allocations, note: note || `App giao hàng thu chuyển khoản khách ${order.customerName || order.customerCode || ''}` }
+      ].filter(line => line.amount > 0 && Array.isArray(line.allocations) && line.allocations.length);
 
       order.cashCollected = nextCash;
       order.cashAmount = nextCash;
@@ -1339,7 +1458,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           orderCode: orderCode(order),
           salesOrderId: getDocId(order),
           salesOrderCode: orderCode(order),
-          allocations: [{ orderId: getDocId(order), orderCode: orderCode(order), amount: line.amount }],
+          allocations: line.allocations || [{ orderId: getDocId(order), orderCode: orderCode(order), amount: line.amount }],
           staffCode: req.mobileUser.code || '',
           staffName: req.mobileUser.name || '',
           note: line.note || `App giao hàng thu ${line.method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}`

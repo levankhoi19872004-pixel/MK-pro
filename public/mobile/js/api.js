@@ -133,6 +133,11 @@ export const mobileApi = {
   createDeliveryReturn(payload) {
     return apiRequest(MOBILE_ROUTES.deliveryReturn, { method: 'POST', body: JSON.stringify(payload) });
   },
+  getDeliveryCustomerDebts(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.deliveryCustomerDebts}${suffix}`);
+  },
   submitCash(payload) {
     return apiRequest(MOBILE_ROUTES.cashSubmit, { method: 'POST', body: JSON.stringify(payload) });
   }

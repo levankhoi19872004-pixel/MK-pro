@@ -10,7 +10,9 @@ document.getElementById('staffInfo').textContent = `${user.name || user.username
 
 const state = {
   orders: [],
-  selectedOrderId: ''
+  selectedOrderId: '',
+  customerDebtRows: [],
+  customerDebtLoading: false
 };
 
 function deliveryToNumber(value) {
@@ -134,21 +136,48 @@ function calculateDraftDebt(order = {}) {
   return Math.max(0, Math.round(deliveryDebtBase(order) - cash - bank - reward - returned));
 }
 
+function selectedOldDebtRows() {
+  return Array.from(deliveryActionBox.querySelectorAll('[data-old-debt-check]:checked')).map((input) => {
+    const key = String(input.value || '').trim();
+    return state.customerDebtRows.find((row) => [row.orderId, row.orderCode].map((v) => String(v || '').trim()).includes(key));
+  }).filter(Boolean);
+}
+
+function selectedOldDebtTotal() {
+  return selectedOldDebtRows().reduce((sum, row) => sum + deliveryToNumber(row.debt), 0);
+}
+
+function selectedOldDebtIds() {
+  return selectedOldDebtRows().map((row) => String(row.orderId || row.orderCode || '').trim()).filter(Boolean);
+}
+
+function currentOrderDue(order = {}) {
+  return Math.max(0, deliveryDebtBase(order) - deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0));
+}
+
+
 function refreshDeliveryDraftTotals(order = {}) {
   const returned = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
   const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
   const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
   const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
-  const debt = Math.max(0, Math.round(deliveryDebtBase(order) - cash - bank - reward - returned));
+  const oldDebt = selectedOldDebtTotal();
+  const currentDue = currentOrderDue(order);
+  const totalDue = currentDue + oldDebt;
+  const debt = Math.max(0, Math.round(totalDue - cash - bank - reward));
+  const oldDebtEls = deliveryActionBox.querySelectorAll('[data-old-debt-total]');
+  const totalDueEl = deliveryActionBox.querySelector('[data-total-due]');
   const returnEl = deliveryActionBox.querySelector('[data-return-total]');
   const collectedEl = deliveryActionBox.querySelector('[data-collected-total]');
   const debtEl = deliveryActionBox.querySelector('[data-draft-debt]');
   const statusEl = deliveryActionBox.querySelector('[data-draft-status]');
+  oldDebtEls.forEach((el) => { el.textContent = money(oldDebt); });
+  if (totalDueEl) totalDueEl.textContent = money(totalDue);
   if (returnEl) returnEl.textContent = money(returned);
-  if (collectedEl) collectedEl.textContent = money(cash + bank + reward + returned);
+  if (collectedEl) collectedEl.textContent = money(cash + bank + reward);
   if (debtEl) debtEl.textContent = money(debt);
   if (statusEl) {
-    statusEl.textContent = debt <= 0 ? 'Đủ tiền / đủ bù trừ' : `Còn nợ ${money(debt)}`;
+    statusEl.textContent = debt <= 0 ? 'Đủ tiền' : `Còn nợ ${money(debt)}`;
     statusEl.className = debt <= 0 ? 'settlement-status ok' : 'settlement-status warn';
   }
 }
@@ -271,7 +300,9 @@ function selectOrder(orderId, openCollectTab = true) {
   state.selectedOrderId = order.id;
   renderSelectedOrder(order);
   renderProductForm(order);
+  state.customerDebtRows = [];
   renderActionForm(order);
+  loadCustomerDebtsForOrder(order);
   if (openCollectTab) showTab('products');
 }
 
@@ -349,18 +380,64 @@ function renderProductForm(order) {
   deliveryProductBox.querySelector('[data-no-delivery]')?.addEventListener('click', btnEvent => markWholeOrderReturned(btnEvent.currentTarget.dataset.noDelivery));
 }
 
+async function loadCustomerDebtsForOrder(order = {}) {
+  if (!order?.id) return;
+  state.customerDebtLoading = true;
+  renderActionForm(order);
+  try {
+    const data = await mobileApi.getDeliveryCustomerDebts({
+      currentOrderId: order.id,
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || ''
+    });
+    if (String(state.selectedOrderId) !== String(order.id)) return;
+    state.customerDebtRows = Array.isArray(data.items) ? data.items : [];
+  } catch (err) {
+    state.customerDebtRows = [];
+    setMessage(actionMessage, err.message || 'Không tải được danh sách đơn nợ cũ', 'error');
+  } finally {
+    state.customerDebtLoading = false;
+    if (String(state.selectedOrderId) === String(order.id)) renderActionForm(order);
+  }
+}
+
+function debtRowsHtml(order = {}) {
+  if (state.customerDebtLoading) return '<div class="empty-line">Đang tải danh sách đơn nợ cũ...</div>';
+  const rows = state.customerDebtRows || [];
+  if (!rows.length) return '<div class="empty-line">Khách này không còn đơn nợ cũ.</div>';
+  return rows.map((row) => {
+    const key = escapeHtml(row.orderId || row.orderCode || '');
+    return `
+      <label class="old-debt-line">
+        <input type="checkbox" data-old-debt-check value="${key}" />
+        <span class="old-debt-info">
+          <strong>${escapeHtml(row.orderCode || row.orderId || '')}</strong>
+          <small>Ngày nợ: ${escapeHtml(String(row.documentDate || '').slice(0, 10) || 'Chưa rõ ngày')}</small>
+        </span>
+        <b>${money(row.debt || 0)}</b>
+      </label>`;
+  }).join('');
+}
+
 function renderActionForm(order) {
   const existingCash = deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0);
   const existingBank = deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
   const existingReward = deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
   const currentReturn = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const currentDue = currentOrderDue(order);
   deliveryActionBox.innerHTML = `
-    <section class="delivery-block delivery-customer-block">
-      <h3>Thông tin khách hàng</h3>
-      <strong>${escapeHtml(order.customerName || '')}</strong>
-      <span>${escapeHtml(order.phone || '')}</span>
-      <span>${escapeHtml(order.address || '')}</span>
-      <b>Phải thu: ${money(deliveryDebtBase(order))}</b>
+    <section class="delivery-block debt-collect-block">
+      <div class="block-title-row">
+        <div>
+          <h3>Đơn nợ cũ của khách</h3>
+          <p class="return-help">Tích đơn khách đồng ý trả. Khi thiếu tiền, hệ thống ưu tiên trừ đơn nợ cũ trước rồi mới trừ đơn đang giao.</p>
+        </div>
+        <b data-old-debt-total>0</b>
+      </div>
+      <div class="old-debt-scroll">
+        ${debtRowsHtml(order)}
+      </div>
     </section>
 
     <section class="delivery-block payment-block">
@@ -375,11 +452,12 @@ function renderActionForm(order) {
 
     <section class="delivery-block settlement-block">
       <h3>Tổng kết</h3>
-      <div class="settlement-row"><span>Phải thu</span><b>${money(deliveryDebtBase(order))}</b></div>
-      <div class="settlement-row"><span>Tiền hàng trả</span><b>${money(currentReturn)}</b></div>
-      <div class="settlement-row"><span>Đã thu / bù trừ</span><b data-collected-total>${money(existingCash + existingBank + existingReward + currentReturn)}</b></div>
-      <div class="settlement-row"><span>Còn nợ</span><b data-draft-debt>${money(calculateDeliveryDebt(order))}</b></div>
-      <div data-draft-status class="settlement-status ${calculateDeliveryDebt(order) <= 0 ? 'ok' : 'warn'}">${calculateDeliveryDebt(order) <= 0 ? 'Đủ tiền / đủ bù trừ' : `Còn nợ ${money(calculateDeliveryDebt(order))}`}</div>
+      <div class="settlement-row"><span>Phải thu đơn đang giao</span><b>${money(currentDue)}</b></div>
+      <div class="settlement-row"><span>Nợ cũ đã tích</span><b data-old-debt-total>0</b></div>
+      <div class="settlement-row"><span>Tổng phải thu</span><b data-total-due>${money(currentDue)}</b></div>
+      <div class="settlement-row"><span>Đã nhập thanh toán</span><b data-collected-total>${money(existingCash + existingBank + existingReward)}</b></div>
+      <div class="settlement-row"><span>Còn nợ sau thu</span><b data-draft-debt>${money(calculateDeliveryDebt(order))}</b></div>
+      <div data-draft-status class="settlement-status ${calculateDeliveryDebt(order) <= 0 ? 'ok' : 'warn'}">${calculateDeliveryDebt(order) <= 0 ? 'Đủ tiền' : `Còn nợ ${money(calculateDeliveryDebt(order))}`}</div>
     </section>
 
     <input class="note-input" data-note="${escapeHtml(order.id)}" type="text" placeholder="Ghi chú thu tiền" />
@@ -390,8 +468,9 @@ function renderActionForm(order) {
     </div>
   `;
 
-  deliveryActionBox.querySelectorAll('[data-cash], [data-bank], [data-reward]').forEach(input => {
+  deliveryActionBox.querySelectorAll('[data-cash], [data-bank], [data-reward], [data-old-debt-check]').forEach(input => {
     input.addEventListener('input', () => refreshDeliveryDraftTotals(order));
+    input.addEventListener('change', () => refreshDeliveryDraftTotals(order));
   });
   refreshDeliveryDraftTotals(order);
 
@@ -444,6 +523,7 @@ async function confirmDelivery(orderId, status, amounts = null) {
       cashAmount,
       bankAmount,
       rewardAmount,
+      debtOrderIds: selectedOldDebtIds(),
       collectAmount: cashAmount + bankAmount,
       collectionMethod: bankAmount > 0 && cashAmount <= 0 ? 'transfer' : 'cash',
       note: noteInput?.value || ''
@@ -576,6 +656,7 @@ async function saveDeliverySettlement(orderId) {
       cashAmount,
       bankAmount,
       rewardAmount,
+      debtOrderIds: selectedOldDebtIds(),
       collectAmount: cashAmount + bankAmount,
       collectionMethod: bankAmount > 0 && cashAmount <= 0 ? 'transfer' : 'cash',
       note: noteInput?.value || ''

@@ -959,3 +959,13 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 .delivery-product-line .return-product small{color:#475569;font-weight:800;}
 .warn-text{color:#dc2626!important;font-weight:900;}
 @media (max-width:380px){.delivery-tab{font-size:11px;padding:9px 3px;}}
+
+/* Delivery tab 3: collect old customer debt together with current delivery */
+.debt-collect-block{background:#f8fbff;border-color:#dbeafe;}
+.old-debt-scroll{display:grid;gap:8px;max-height:210px;overflow:auto;padding-right:2px;}
+.old-debt-line{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid #dbe4f0;border-radius:12px;background:#fff;padding:10px;}
+.old-debt-line input{width:18px;height:18px;}
+.old-debt-info{display:grid;gap:2px;min-width:0;}
+.old-debt-info strong{font-size:13px;color:#0f172a;}
+.old-debt-info small{font-size:12px;color:#64748b;}
+.old-debt-line b{font-size:13px;color:#dc2626;white-space:nowrap;}
