@@ -8,6 +8,7 @@ const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
 const StockTransaction = require('../models/StockTransaction');
 const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
 const Payment = require('../models/Payment');
@@ -473,6 +474,7 @@ function pushInventoryMovement({ movements, inventoryDeltas, item, direction, ty
 async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new Map()) {
   if (movements.length) await insertManyInBatches(StockTransaction, movements);
   const ops = [];
+  const now = nowIso();
   for (const delta of inventoryDeltas.values()) {
     const qty = toNumber(delta.qty);
     if (!qty) continue;
@@ -484,18 +486,20 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
             id: makeId('IV'),
             productId: delta.productId,
             productCode: delta.productCode,
+            warehouseId: delta.warehouseId,
+            warehouseCode: delta.warehouseCode,
+            reservedQty: 0,
+            createdAt: now
+          },
+          $set: {
+            productId: delta.productId,
+            productCode: delta.productCode,
             productName: delta.productName,
             warehouseId: delta.warehouseId,
             warehouseCode: delta.warehouseCode,
             warehouseName: delta.warehouseName,
-            reservedQty: 0,
-            createdAt: nowIso()
-          },
-          $set: {
-            productName: delta.productName,
-            warehouseName: delta.warehouseName,
-            lastTransactionAt: nowIso(),
-            updatedAt: nowIso()
+            lastTransactionAt: now,
+            updatedAt: now
           },
           $inc: {
             qty,
@@ -508,8 +512,53 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
       }
     });
   }
-  if (ops.length) await bulkWriteInBatches(Inventory, ops);
+  if (ops.length) {
+    await bulkWriteInBatches(Inventory, ops);
+    // Ghi song song collection inventories cũ để các màn/mobile bản cũ vẫn đọc được tồn.
+    await bulkWriteInBatches(InventoryLegacy, ops);
+  }
   return { transactionCount: movements.length, inventoryRows: ops.length };
+}
+
+async function setOpeningStockSnapshotsBulk(rows = []) {
+  const ops = [];
+  const now = nowIso();
+  for (const row of rows) {
+    const quantity = toNumber(row.quantity);
+    const reservedQty = toNumber(row.reservedQty);
+    ops.push({
+      updateOne: {
+        filter: { productCode: row.productCode, warehouseCode: row.warehouseCode || 'MAIN' },
+        update: {
+          $setOnInsert: {
+            id: makeId('IV'),
+            createdAt: now
+          },
+          $set: {
+            productId: row.productId || row.productCode,
+            productCode: row.productCode,
+            productName: row.productName || '',
+            warehouseId: row.warehouseId || row.warehouseCode || 'MAIN',
+            warehouseCode: row.warehouseCode || 'MAIN',
+            warehouseName: row.warehouseName || 'Kho chính',
+            qty: quantity,
+            quantity,
+            onHand: quantity,
+            reservedQty,
+            availableQty: Math.max(0, quantity - reservedQty),
+            lastTransactionAt: now,
+            updatedAt: now
+          }
+        },
+        upsert: true
+      }
+    });
+  }
+  if (ops.length) {
+    await bulkWriteInBatches(Inventory, ops);
+    await bulkWriteInBatches(InventoryLegacy, ops);
+  }
+  return { inventoryRows: ops.length };
 }
 
 async function upsertProducts(rows = []) {
@@ -601,47 +650,77 @@ async function importOpeningStock(rows = []) {
   const codeList = await buildRunningCodes(StockTransaction, 'TD', rows.length);
   let codeIndex = 0;
   const movements = [];
-  const inventoryDeltas = new Map();
+  const snapshotRows = [];
 
   for (const row of rows) {
     const productCode = getProductCodeFromRow(row);
     const quantity = getQtyFromRow(row);
     const product = productMap.get(cleanText(productCode)) || null;
-    if (!product || quantity < 0) {
+    const productNameFromRow = cleanText(row.productName || row.name || row['Tên sản phẩm'] || row['Ten san pham']);
+    if (!productCode || quantity < 0) {
       skipped += 1;
-      errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Tồn đầu không được âm' });
+      errors.push({ productCode, message: !productCode ? 'Thiếu mã sản phẩm' : 'Tồn đầu không được âm' });
+      continue;
+    }
+    if (!product && !productNameFromRow) {
+      skipped += 1;
+      errors.push({ productCode, message: 'Không tìm thấy sản phẩm và file không có tên sản phẩm để tạo tồn' });
       continue;
     }
     const date = dateOnly(row.date || row.documentDate || row['Ngày'] || row['Ngay'] || today());
     const docCode = cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || codeList[codeIndex++] || makeId('TD');
     const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Kho']) || 'MAIN';
     const warehouseName = cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || 'Kho chính';
+    const productId = String(product?.id || product?._id || productCode);
+    const productName = product?.name || productNameFromRow || productCode;
     const note = cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import tồn đầu Excel';
 
-    pushInventoryMovement({
-      movements,
-      inventoryDeltas,
-      item: {
-        productId: String(product.id || product._id || product.code),
-        productCode: product.code,
-        productName: product.name,
-        quantity
-      },
-      direction: 'IN',
+    movements.push({
+      id: makeId('ST'),
+      date,
+      productId,
+      productCode: product?.code || productCode,
+      productName,
+      warehouseId: warehouseCode,
+      warehouseCode,
+      warehouseName,
       type: 'OPENING',
+      direction: 'IN',
+      quantity,
+      qty: quantity,
+      inQty: quantity,
+      outQty: 0,
+      balanceQty: quantity,
       refType: 'OPENING_STOCK_IMPORT',
       refId: makeId('OS'),
       refCode: docCode,
-      date,
+      note,
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    });
+    snapshotRows.push({
+      productId,
+      productCode: product?.code || productCode,
+      productName,
+      warehouseId: warehouseCode,
       warehouseCode,
       warehouseName,
-      note
+      quantity
     });
     imported += 1;
   }
 
-  await applyInventoryMovementsBulk(movements, inventoryDeltas);
-  await addImportLog('openingStock', { imported, skipped, errors: errors.slice(0, 30), mode: 'bulkInventory', batchSize: IMPORT_BATCH_SIZE });
+  if (movements.length) await insertManyInBatches(StockTransaction, movements);
+  const inventoryResult = await setOpeningStockSnapshotsBulk(snapshotRows);
+  await addImportLog('openingStock', {
+    imported,
+    skipped,
+    errors: errors.slice(0, 30),
+    mode: 'setOpeningStockSnapshots',
+    batchSize: IMPORT_BATCH_SIZE,
+    stockTransactions: movements.length,
+    inventoryRows: inventoryResult.inventoryRows
+  });
   return { imported, skipped, errors };
 }
 
