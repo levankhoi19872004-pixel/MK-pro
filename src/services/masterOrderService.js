@@ -448,12 +448,17 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
   if (!isAccountingConfirmed(order)) return null;
   const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
-  return postingEngine.postSalesOrderAR({
+  const saleEntry = await postingEngine.postSalesOrderAR({
     ...order,
     debtAmount,
     paidAmount: Math.max(0, toNumber(order.totalAmount) - debtAmount),
     arPostedAt: order.arPostedAt || nowIso()
-  }, { ...options, postZero: true });
+  }, { ...options, postZero: true, skipIfExists: true });
+
+  // Trả thưởng/trợ giá là khoản cấn trừ công nợ riêng.
+  // Không gộp vào phiếu thu để tránh sai sổ quỹ tiền mặt/ngân hàng.
+  await postingEngine.postBonusAllowanceAR(order, options);
+  return saleEntry;
 }
 
 function statusForDeliveryRow(order = {}) {

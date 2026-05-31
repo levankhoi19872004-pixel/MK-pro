@@ -445,6 +445,7 @@ function arLedgerTypeLabel(type){
   const value=String(type||'').toLowerCase();
   if(value.includes('void'))return 'Void / đảo phiếu thu';
   if(value.includes('receipt')||value==='debt')return 'Thu công nợ';
+  if(value.includes('bonus')||value.includes('allowance')||value.includes('discount'))return 'Trả thưởng/cấn trừ';
   if(value.includes('return'))return 'Trả hàng';
   if(value.includes('sale'))return 'Ghi nhận phải thu';
   return type||'AR';

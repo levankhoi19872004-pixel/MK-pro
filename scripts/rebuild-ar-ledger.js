@@ -39,7 +39,8 @@ async function main() {
         'return_debt',
         'return_order',
         'return_ar',
-        'ar_return'
+        'ar_return',
+        'ar_bonus'
       ] } },
       { refType: { $in: ['salesOrder', 'receipt', 'returnOrder', 'RECEIPT', 'RECEIPT_VOID', 'SALES_ORDER', 'RETURN_ORDER'] } }
     ]
@@ -54,11 +55,14 @@ async function main() {
   let saleCount = 0;
   let receiptCount = 0;
   let returnCount = 0;
+  let bonusCount = 0;
   let receiptVoidCount = 0;
 
   for (const order of orders.filter(isActive)) {
     const entry = await postingEngine.postSalesOrderAR(order);
     if (entry) saleCount += 1;
+    const bonusEntry = await postingEngine.postBonusAllowanceAR(order);
+    if (bonusEntry) bonusCount += 1;
   }
 
   for (const receipt of receipts) {
@@ -79,7 +83,7 @@ async function main() {
     if (entry) returnCount += 1;
   }
 
-  console.log(JSON.stringify({ ok: true, collection: 'journals', saleCount, receiptCount, receiptVoidCount, returnCount }, null, 2));
+  console.log(JSON.stringify({ ok: true, collection: 'journals', saleCount, receiptCount, receiptVoidCount, returnCount, bonusCount }, null, 2));
 }
 
 main()

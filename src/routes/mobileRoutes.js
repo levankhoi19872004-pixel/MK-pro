@@ -1517,6 +1517,9 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
 
       try {
         await postDeliveryArForMobile(order);
+        // Trả thưởng là khoản cấn trừ công nợ riêng, không phải tiền mặt/chuyển khoản.
+        // Phải post vào AR Ledger dạng AR-BONUS để công nợ AR khớp màn hình giao hàng.
+        await postingEngine.postBonusAllowanceAR(order);
         await financialService.syncOrderDebtCacheFromAR(order);
       } catch (err) {
         postingWarning = err.message || 'Không post được AR Ledger';

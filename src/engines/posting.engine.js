@@ -163,6 +163,45 @@ async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
   return entry;
 }
 
+async function postBonusAllowanceAR(doc = {}, options = {}) {
+  const amount = toNumber(
+    doc.rewardAmount
+    ?? doc.displayRewardAmount
+    ?? doc.bonusAmount
+    ?? doc.allowanceAmount
+    ?? doc.discountAmount
+    ?? 0
+  );
+  const key = doc.id || doc._id || doc.code || doc.orderId || doc.orderCode;
+  const journalId = `AR-BONUS-${key}`;
+
+  // Nếu kế toán sửa tiền trả thưởng về 0 thì phải xóa bút toán cấn trừ cũ,
+  // tránh AR Ledger vẫn còn giữ credit cũ làm lệch công nợ.
+  if (amount <= 0) {
+    if (key && typeof paymentRepository.deleteOne === 'function') {
+      await paymentRepository.deleteOne(journalId, options);
+    }
+    return null;
+  }
+
+  const entry = baseJournal(doc, {
+    id: journalId,
+    code: `AR-BONUS-${doc.code || doc.orderCode || doc.id}`,
+    type: 'ar_bonus',
+    refType: 'BONUS_ALLOWANCE',
+    refId: doc.id || doc._id || doc.code,
+    refCode: doc.code || doc.orderCode || doc.id,
+    orderId: doc.id || doc._id || doc.orderId || doc.code,
+    orderCode: doc.code || doc.orderCode || doc.id,
+    debit: 0,
+    credit: amount,
+    amount,
+    note: doc.bonusNote || doc.rewardNote || `Cấn trừ công nợ trả thưởng ${doc.code || doc.orderCode || doc.id}`
+  });
+  await paymentRepository.upsert(entry, options);
+  return entry;
+}
+
 
 function normalizeAllocations(doc = {}) {
   const rows = Array.isArray(doc.allocations) ? doc.allocations : [];
@@ -275,6 +314,7 @@ async function postDocument(doc = {}, options = {}) {
   if (kind === 'RETURN_ORDER_REVERSAL') return reverseReturnOrderAR(doc, options);
   if (kind === 'RECEIPT') return postReceiptAR(doc, options);
   if (kind === 'RECEIPT_VOID') return reverseReceiptAR(doc, options);
+  if (['BONUS', 'ALLOWANCE', 'DISCOUNT', 'REWARD', 'BONUS_ALLOWANCE'].includes(kind)) return postBonusAllowanceAR(doc, options);
   throw new Error(`posting.engine.js: chưa hỗ trợ loại chứng từ ${kind || 'UNKNOWN'}`);
 }
 
@@ -286,5 +326,6 @@ module.exports = {
   postReturnOrderAR,
   reverseReturnOrderAR,
   postReceiptAR,
-  reverseReceiptAR
+  reverseReceiptAR,
+  postBonusAllowanceAR
 };

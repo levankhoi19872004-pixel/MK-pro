@@ -12,4 +12,8 @@ async function upsert(payment, options = {}) {
   return collectionRepository.upsertByIdentity(PAYMENT_KEY, payment, ['id', 'code'], options);
 }
 
-module.exports = { findAll, upsert };
+async function deleteOne(idOrCode, options = {}) {
+  return collectionRepository.deleteOneByIdentity(PAYMENT_KEY, idOrCode, ['id', 'code'], options);
+}
+
+module.exports = { findAll, upsert, deleteOne };
