@@ -9,6 +9,7 @@ const customerRepository = require('../repositories/customerRepository');
 const orderRepository = require('../repositories/orderRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const postingEngine = require('../engines/posting.engine');
 
 function today() {
