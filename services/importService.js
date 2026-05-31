@@ -54,11 +54,29 @@ function getDateFromRow(row = {}) {
   const value = row.date ?? row.orderDate ?? row['Ngày'] ?? row['Ngay'] ?? row['Ngày lập hoá đơn'] ?? row['Ngày lập hóa đơn'] ?? get(row, ['date', 'ngày', 'ngay', 'ngày lập hoá đơn', 'ngày lập hóa đơn']);
   const textValue = String(value ?? '').trim();
   if (!textValue) return today();
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
   if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
   const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
-  const dmy = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
+  const parts = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
+  if (parts) {
+    let a = Number(parts[1]);
+    let b = Number(parts[2]);
+    let y = Number(parts[3]);
+    if (y < 100) y += y >= 70 ? 1900 : 2000;
+    let day;
+    let month;
+    if (b > 12 && a <= 12) {
+      month = a;
+      day = b;
+    } else {
+      day = a;
+      month = b;
+    }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
   return textValue.slice(0, 10);
 }
 

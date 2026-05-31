@@ -267,6 +267,23 @@ async function cancelSalesOrder(idx){
 }
 window.cancelSalesOrder=cancelSalesOrder;
 
+
+function normalizeOrderDateForFilter(value){
+  const raw=String(value||'').trim();
+  if(!raw)return '';
+  let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  m=raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
+  if(m){
+    let a=Number(m[1]),b=Number(m[2]),y=Number(m[3]);
+    if(y<100)y+=y>=70?1900:2000;
+    let day,month;
+    if(b>12&&a<=12){month=a;day=b;}else{day=a;month=b;}
+    if(month>=1&&month<=12&&day>=1&&day<=31)return `${y}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+  return raw.slice(0,10);
+}
+
 async function loadSalesOrders(){
   try{
     const q=String(salesOrderSearchInput?.value||'').trim().toLowerCase();
@@ -283,7 +300,7 @@ async function loadSalesOrders(){
     const orders=allOrders.filter(o=>{
       const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress].join(' ').toLowerCase();
       const sourceOk=!source || String(o.orderSource||'NVBH').toUpperCase()===source;
-      const date=String(o.date||'').slice(0,10);
+      const date=normalizeOrderDateForFilter(o.date||o.orderDate||o.deliveryDate||'');
       const dateOk=(!dateFrom||date>=dateFrom)&&(!dateTo||date<=dateTo);
       const staffText=[o.staffCode,o.staffName,o.salesStaffCode,o.salesStaffName,o.createdByName,o.createdBy].join(' ').toLowerCase();
       const staffOk=!staff||staffText.includes(staff);

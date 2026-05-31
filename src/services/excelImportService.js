@@ -28,8 +28,41 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizeImportDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const textValue = cleanText(value);
+  if (!textValue) return today();
+
+  if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
+
+  const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+
+  const parts = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
+  if (parts) {
+    let a = Number(parts[1]);
+    let b = Number(parts[2]);
+    let y = Number(parts[3]);
+    if (y < 100) y += y >= 70 ? 1900 : 2000;
+    let day;
+    let month;
+    if (b > 12 && a <= 12) {
+      month = a;
+      day = b;
+    } else {
+      day = a;
+      month = b;
+    }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  return textValue.slice(0, 10);
+}
+
 function dateOnly(value) {
-  return String(value || today()).slice(0, 10);
+  return normalizeImportDate(value || today());
 }
 
 function isObjectIdLike(value) {
@@ -138,15 +171,7 @@ function excelSerialToDate(value) {
 
 function getDateFromRow(row = {}) {
   const value = row.date ?? row.orderDate ?? row['Ngày'] ?? row['Ngay'] ?? row['Ngày lập hoá đơn'] ?? row['Ngày lập hóa đơn'] ?? row['Ngay lap hoa don'] ?? get(row, ['date', 'ngày', 'ngay', 'ngày lập hoá đơn', 'ngày lập hóa đơn', 'ngay lap hoa don']);
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
-  const textValue = cleanText(value);
-  if (!textValue) return today();
-  if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
-  const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
-  const dmy = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
-  return textValue.slice(0, 10);
+  return normalizeImportDate(value);
 }
 
 function getPackingFromRow(row = {}, product = null) {
@@ -385,7 +410,7 @@ async function preloadCustomersByCode(rows = []) {
 
 
 function pushInventoryMovement({ movements, inventoryDeltas, item, direction, type, refType, refId, refCode, date, warehouseCode, warehouseName, note }) {
-  const rawQty = toNumber(item.quantity ?? item.qty);
+  const rawQty = toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty);
   if (!rawQty) return;
   const productCode = cleanText(item.productCode || item.code || item.productId);
   if (!productCode) return;
@@ -612,18 +637,22 @@ async function importOpeningStock(rows = []) {
 }
 
 async function importImportOrders(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
   const productMap = await preloadProductsByCode(rows);
   const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã phiếu'] || r['Ma phieu']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${cleanText(r.supplier || r.supplierName || r['Nhà cung cấp'] || r['Nha cung cap']) || 'Import Excel'}`);
+  const autoCodes = await buildRunningCodes(ImportOrder, 'PN', groups.length);
+  let autoIdx = 0;
+  const docs = [];
+  const movements = [];
+  const inventoryDeltas = new Map();
 
   for (const group of groups) {
     const first = group[0] || {};
     const items = [];
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
-      const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
+      const product = productMap.get(cleanText(productCode));
       const quantity = getQtyFromRow(row);
       const costPrice = getCostFromRow(row);
       if (!product || quantity <= 0 || costPrice < 0) {
@@ -645,78 +674,110 @@ async function importImportOrders(rows = []) {
     const now = nowIso();
     const doc = {
       id: makeId('IM'),
-      code: cleanText(first.documentCode || first.code || first['Mã phiếu'] || first['Ma phieu']) || await buildRunningCode(ImportOrder, 'PN'),
+      code: cleanText(first.documentCode || first.code || first['Mã phiếu'] || first['Ma phieu']) || autoCodes[autoIdx++] || makeId('PN'),
       date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || today()),
       supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       supplierName: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN',
       warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho chính',
-      note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel Mongo-native',
+      note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel Mongo-native bulk',
       status: 'posted',
       items,
-      totalQuantity: items.reduce((s, i) => s + toNumber(i.quantity), 0),
-      totalAmount: items.reduce((s, i) => s + toNumber(i.amount), 0),
+      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
+      totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0),
       createdAt: now,
       updatedAt: now
     };
-    await ImportOrder.create(doc);
-    await inventoryService.postStockMovement(doc, {
-      direction: 'IN',
-      type: 'IMPORT',
-      refType: 'IMPORT_ORDER',
-      refId: doc.id,
-      refCode: doc.code,
-      date: doc.date,
-      note: doc.note
-    });
-    imported += 1;
+    docs.push(doc);
+    for (const item of items) {
+      pushInventoryMovement({
+        movements,
+        inventoryDeltas,
+        item,
+        direction: 'IN',
+        type: 'IMPORT',
+        refType: 'IMPORT_ORDER',
+        refId: doc.id,
+        refCode: doc.code,
+        date: doc.date,
+        warehouseCode: doc.warehouseCode,
+        warehouseName: doc.warehouseName,
+        note: doc.note
+      });
+    }
   }
-  await addImportLog('importOrders', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const orderResult = await insertManyInBatches(ImportOrder, docs);
+  const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
+  skipped += orderResult.errors.length;
+  errors.push(...orderResult.errors.map((error) => ({ productCode: '', message: error.message })));
+  const imported = Math.max(0, docs.length - orderResult.errors.length);
+  await addImportLog('importOrders', {
+    imported,
+    skipped,
+    errors: errors.slice(0, 30),
+    mode: 'bulkImportOrders',
+    batchSize: IMPORT_BATCH_SIZE,
+    stockTransactions: inventoryResult.transactionCount,
+    inventoryRows: inventoryResult.inventoryRows
+  });
   return { imported, skipped, errors };
 }
 
 async function importSalesOrders(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
   const customerMap = await preloadCustomersByCode(rows);
   const productMap = await preloadProductsByCode(rows);
   const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
+  const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   const stockRows = await Inventory.find({
-    productCode: { $in: Array.from(new Set(rows.map(getProductCodeFromRow).filter(Boolean))) },
+    productCode: { $in: productCodes },
     warehouseCode: { $in: warehouseCodes }
   }).lean().catch(() => []);
-  const stockMap = new Map(stockRows.map((stock) => [`${cleanText(stock.productCode)}|${cleanText(stock.warehouseCode || 'MAIN')}`, stock]));
+  const stockMap = new Map(stockRows.map((stock) => [`${cleanText(stock.productCode)}|${cleanText(stock.warehouseCode || 'MAIN')}`, toNumber(stock.availableQty ?? stock.quantity ?? stock.qty ?? stock.onHand)]));
   const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${getDateFromRow(r)}|${getCustomerCodeFromRow(r)}`);
+  const autoOrderCodes = await buildRunningCodes(SalesOrder, 'BH', groups.length);
+  const cashCodes = await buildRunningCodes(Cashbook, 'PT', groups.length);
+  let autoOrderIdx = 0;
+  let cashCodeIdx = 0;
+  const orderDocs = [];
+  const paymentDocs = [];
+  const cashbookDocs = [];
+  const movements = [];
+  const inventoryDeltas = new Map();
 
   for (const group of groups) {
     const first = group[0] || {};
     const customerCode = getCustomerCodeFromRow(first);
-    const customer = customerMap.get(cleanText(customerCode)) || await findCustomerByAny(customerCode);
+    const customer = customerMap.get(cleanText(customerCode));
     if (!customer) {
       skipped += group.length;
       errors.push({ customerCode, message: 'Không tìm thấy khách hàng' });
       continue;
     }
+
     const items = [];
     let groupInvalid = false;
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
-      const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
+      const product = productMap.get(cleanText(productCode));
       const quantity = getDmsQuantityFromRow(row, product);
       const promoQuantity = getDmsPromoQuantityFromRow(row, product);
       const deliveredQuantity = quantity + promoQuantity;
       const salePrice = getDmsPriceFromRow(row, quantity);
       const lineAmount = getDmsAmountFromRow(row, quantity, salePrice);
-      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse) || 'MAIN';
-      const stock = product ? stockMap.get(`${cleanText(product.code)}|${warehouseCode}`) : null;
-      const availableQty = toNumber(stock?.availableQty ?? stock?.quantity ?? stock?.qty ?? stock?.onHand);
+      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN';
+      const stockKey = `${cleanText(product?.code || productCode)}|${warehouseCode}`;
+      const availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : 0;
       if (!product || quantity <= 0 || salePrice < 0 || availableQty < deliveredQuantity) {
         skipped += 1;
         groupInvalid = true;
         errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : availableQty < deliveredQuantity ? `Không đủ tồn kho: còn ${availableQty}` : 'Dòng bán hàng không hợp lệ' });
         continue;
       }
+      stockMap.set(stockKey, availableQty - deliveredQuantity);
+      const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
       items.push({
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
@@ -734,8 +795,8 @@ async function importSalesOrders(rows = []) {
         soldQuantity: quantity,
         salePrice,
         price: salePrice,
-        listPriceBeforeVat: getListPriceBeforeVatFromRow(row),
-        listPriceAfterVat: getListPriceBeforeVatFromRow(row) ? getListPriceBeforeVatFromRow(row) * 1.08 : 0,
+        listPriceBeforeVat,
+        listPriceAfterVat: listPriceBeforeVat ? listPriceBeforeVat * 1.08 : 0,
         gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
         nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
         vatAmount: getVatAmountFromRow(row),
@@ -743,13 +804,14 @@ async function importSalesOrders(rows = []) {
       });
     }
     if (!items.length || groupInvalid) continue;
-    const totalQuantity = items.reduce((s, i) => s + toNumber(i.quantity), 0);
-    const totalAmount = items.reduce((s, i) => s + toNumber(i.amount), 0);
+
+    const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
+    const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
     const paidAmount = Math.min(toNumber(first.paidAmount ?? first['Đã thu'] ?? first['Da thu']), totalAmount);
     const now = nowIso();
     const doc = {
       id: makeId('SO'),
-      code: cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']) || await buildRunningCode(SalesOrder, 'BH'),
+      code: cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']) || autoOrderCodes[autoOrderIdx++] || makeId('BH'),
       date: getDateFromRow(first),
       orderDate: getDateFromRow(first),
       deliveryDate: getDateFromRow(first),
@@ -760,7 +822,7 @@ async function importSalesOrders(rows = []) {
       customerAddress: customer.address || '',
       staffCode: cleanText(first.staffCode || first['Mã nhân viên'] || first['Mã nhân viên'] || first['Ma nhan vien'] || first['Mã NVBH'] || first['Ma NVBH']),
       staffName: cleanText(first.staffName || first['Tên NVTT'] || first['Ten NVTT'] || first['Tên NVBH'] || first['Ten NVBH']),
-      note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS',
+      note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS bulk',
       source: 'dms_import',
       orderSource: 'DMS',
       orderSourceName: 'Từ DMS',
@@ -773,6 +835,7 @@ async function importSalesOrders(rows = []) {
       items,
       totalQuantity,
       totalAmount,
+      grandTotal: totalAmount,
       paidAmount,
       debtAmount: totalAmount - paidAmount,
       status: 'posted',
@@ -781,17 +844,8 @@ async function importSalesOrders(rows = []) {
       createdAt: now,
       updatedAt: now
     };
-    await SalesOrder.create(doc);
-    await inventoryService.postStockMovement(doc, {
-      direction: 'OUT',
-      type: 'SALE',
-      refType: 'SALES_ORDER',
-      refId: doc.id,
-      refCode: doc.code,
-      date: doc.date,
-      note: doc.note
-    });
-    await Payment.create({
+    orderDocs.push(doc);
+    paymentDocs.push({
       id: makeId('PM'),
       date: doc.date,
       type: 'sale_debt',
@@ -810,9 +864,9 @@ async function importSalesOrders(rows = []) {
       updatedAt: now
     });
     if (paidAmount > 0) {
-      const cash = {
+      cashbookDocs.push({
         id: makeId('CB'),
-        code: await buildRunningCode(Cashbook, 'PT'),
+        code: cashCodes[cashCodeIdx++] || makeId('PT'),
         date: doc.date,
         type: 'in',
         source: 'sales_payment_import',
@@ -827,12 +881,47 @@ async function importSalesOrders(rows = []) {
         status: 'posted',
         createdAt: now,
         updatedAt: now
-      };
-      await Cashbook.create(cash);
+      });
     }
-    imported += 1;
+    for (const item of items) {
+      pushInventoryMovement({
+        movements,
+        inventoryDeltas,
+        item,
+        direction: 'OUT',
+        type: 'SALE',
+        refType: 'SALES_ORDER',
+        refId: doc.id,
+        refCode: doc.code,
+        date: doc.date,
+        warehouseCode: doc.warehouseCode,
+        warehouseName: doc.warehouseName,
+        note: doc.note
+      });
+    }
   }
-  await addImportLog('salesOrders', { imported, skipped, errors: errors.slice(0, 30) });
+
+  const orderResult = await insertManyInBatches(SalesOrder, orderDocs);
+  const paymentResult = await insertManyInBatches(Payment, paymentDocs);
+  const cashResult = await insertManyInBatches(Cashbook, cashbookDocs);
+  const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
+
+  skipped += orderResult.errors.length + paymentResult.errors.length + cashResult.errors.length;
+  errors.push(...orderResult.errors.map((error) => ({ customerCode: '', message: error.message })));
+  errors.push(...paymentResult.errors.map((error) => ({ customerCode: '', message: `Payment: ${error.message}` })));
+  errors.push(...cashResult.errors.map((error) => ({ customerCode: '', message: `Cashbook: ${error.message}` })));
+  const imported = Math.max(0, orderDocs.length - orderResult.errors.length);
+  await addImportLog('salesOrders', {
+    imported,
+    skipped,
+    errors: errors.slice(0, 30),
+    mode: 'bulkSalesOrders',
+    batchSize: IMPORT_BATCH_SIZE,
+    payments: paymentDocs.length,
+    cashbook: cashbookDocs.length,
+    stockTransactions: inventoryResult.transactionCount,
+    inventoryRows: inventoryResult.inventoryRows
+  });
   return { imported, skipped, errors };
 }
 

@@ -18,6 +18,33 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function normalizeOrderDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  const parts = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
+  if (parts) {
+    let a = Number(parts[1]);
+    let b = Number(parts[2]);
+    let y = Number(parts[3]);
+    if (y < 100) y += y >= 70 ? 1900 : 2000;
+    let day;
+    let month;
+    if (b > 12 && a <= 12) {
+      month = a;
+      day = b;
+    } else {
+      day = a;
+      month = b;
+    }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return raw.slice(0, 10);
+}
+
 function buildOrderCode(existingOrders = []) {
   const max = existingOrders.reduce((result, order) => {
     const match = String(order.code || '').match(/(\d+)$/);
@@ -180,7 +207,7 @@ async function listOrders(query = {}) {
     .map(toClient)
     .filter((order) => !excludeInactive || !isInactiveStatus(order))
     .filter((order) => {
-      const d = String(order.date || order.orderDate || order.deliveryDate || '').slice(0, 10);
+      const d = normalizeOrderDate(order.date || order.orderDate || order.deliveryDate || '');
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
       return true;
