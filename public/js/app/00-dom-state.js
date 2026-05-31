@@ -102,6 +102,7 @@ const salesOrderSourceFilter=document.getElementById('salesOrderSourceFilter');
 const salesOrderDateFrom=document.getElementById('salesOrderDateFrom');
 const salesOrderDateTo=document.getElementById('salesOrderDateTo');
 const salesOrderStaffFilter=document.getElementById('salesOrderStaffFilter');
+const selectAllSalesOrdersButton=document.getElementById('selectAllSalesOrdersButton');
 const printSelectedSalesOrdersButton=document.getElementById('printSelectedSalesOrdersButton');
 const deliveryDateFilter=document.getElementById('deliveryDateFilter');
 const deliverySearchInput=document.getElementById('deliverySearchInput');

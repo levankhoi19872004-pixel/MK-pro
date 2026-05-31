@@ -4387,3 +4387,43 @@ button.danger:hover{background:#fecaca}
 .import-shortage-actions .btn.danger{background:#fee2e2;color:#991b1b;}
 .import-shortage-row{background:#fff7ed!important;}
 .badge.warn{background:#fef3c7;color:#92400e;}
+
+
+/* Sales order history: tối giản 1 dòng theo yêu cầu */
+.sales-order-one-line{
+  display:grid !important;
+  grid-template-columns:24px minmax(82px,110px) minmax(160px,1fr) minmax(82px,100px) minmax(100px,125px) minmax(72px,92px) auto;
+  align-items:center !important;
+  gap:8px !important;
+  padding:7px 10px !important;
+  min-height:38px !important;
+  border-radius:10px !important;
+  box-shadow:none !important;
+  border:1px solid #e5edf7 !important;
+}
+.sales-order-one-line .sales-order-select{margin:0!important;}
+.sales-order-one-line .sales-order-code-text,
+.sales-order-one-line .sales-order-customer-inline,
+.sales-order-one-line .sales-order-date,
+.sales-order-one-line .sales-order-total-one-line,
+.sales-order-one-line .sales-order-source-one-line{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.sales-order-one-line .sales-order-code-text{font-size:12.5px!important;font-weight:800!important;}
+.sales-order-one-line .sales-order-customer-inline{font-size:12.5px!important;font-weight:700!important;color:#111827!important;}
+.sales-order-one-line .sales-order-date{font-size:12px!important;color:#64748b!important;font-weight:700!important;}
+.sales-order-total-one-line{font-size:12.5px!important;text-align:right;color:#0f172a;}
+.sales-order-one-line .badge{padding:3px 7px!important;font-size:11px!important;justify-self:start;}
+.sales-order-actions-one-line{display:flex!important;justify-content:flex-end!important;gap:5px!important;}
+.sales-order-actions-one-line .small{min-height:26px!important;padding:4px 8px!important;border-radius:8px!important;font-size:11.5px!important;}
+#salesOrderList.order-list{gap:6px!important;}
+@media(max-width:980px){
+  .sales-order-one-line{grid-template-columns:24px minmax(82px,1fr) minmax(100px,1.2fr);grid-auto-rows:auto;}
+  .sales-order-one-line .sales-order-date,
+  .sales-order-total-one-line,
+  .sales-order-source-one-line,
+  .sales-order-actions-one-line{grid-column:auto;}
+}

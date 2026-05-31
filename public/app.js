@@ -105,6 +105,7 @@ if(salesOrderSourceFilter)salesOrderSourceFilter.addEventListener('change',loadS
 if(salesOrderDateFrom)salesOrderDateFrom.addEventListener('change',loadSalesOrders);
 if(salesOrderDateTo)salesOrderDateTo.addEventListener('change',loadSalesOrders);
 if(salesOrderStaffFilter)salesOrderStaffFilter.addEventListener('input',loadSalesOrders);
+if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 
 if(reloadMasterOrdersButton)reloadMasterOrdersButton.addEventListener('click',loadMasterOrderModule);

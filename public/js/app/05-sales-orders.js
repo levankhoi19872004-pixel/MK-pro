@@ -242,6 +242,18 @@ function extractPrintBody(html){
   return doc.body ? doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/gi,'') : html;
 }
 
+
+function toggleSelectAllSalesOrders(){
+  const checks=[...document.querySelectorAll('.sales-order-check')];
+  if(!checks.length)return;
+  const shouldCheck=checks.some(ch=>!ch.checked);
+  checks.forEach(ch=>{ch.checked=shouldCheck;});
+  if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton){
+    selectAllSalesOrdersButton.textContent=shouldCheck?'Bỏ chọn tất cả':'Chọn tất cả';
+  }
+}
+window.toggleSelectAllSalesOrders=toggleSelectAllSalesOrders;
+
 async function printSelectedSalesOrders(){
   try{
     const checks=[...document.querySelectorAll('.sales-order-check:checked')];
@@ -343,46 +355,19 @@ async function loadSalesOrders(){
     salesOrderCount.textContent=`${orders.length} / ${allOrders.length} đơn bán`;
     if(!orders.length){salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';return}
     window.__salesOrdersCache=orders;
+    if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
     salesOrderList.innerHTML=orders.map((o,idx)=>`
-      <article class="sales-order-card sales-order-card-compact">
-        <div class="sales-order-row-main">
-          <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
-          <div class="sales-order-identity">
-            <div class="sales-order-titleline">
-              <strong class="sales-order-code-text">${o.code||o.id}</strong>
-              <span class="sales-order-date">${o.date||''}</span>
-              <span class="sales-order-customer-inline">${o.customerCode||''} - ${o.customerName||''}</span>
-            </div>
-            <div class="sales-order-subline">
-              <span>${o.customerPhone||''}${o.customerAddress?` · ${o.customerAddress}`:''}</span>
-              <span>${o.note?`Ghi chú: ${o.note}`:'Đơn bán đã ghi nhận vào hệ thống'}</span>
-            </div>
-          </div>
-          <div class="sales-order-inline-total">
-            <span>Tổng</span>
-            <strong>${money(o.totalAmount)}</strong>
-          </div>
-          <div class="sales-order-badges">
-            <span class="badge ${getOrderSourceClass(o)}">${getOrderSourceText(o)}</span>
-            <span class="badge ${getOrderMergeClass(o)}">${getOrderMergeText(o)}</span>
-          </div>
-          <div class="sales-order-actions">
-            <button class="small ghost" onclick="event.preventDefault();event.stopPropagation();document.getElementById('sales-order-lines-${idx}')?.toggleAttribute('open')">Chi tiết</button>
-            <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
-            ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Hủy đơn</button>`}
-            <button class="small" onclick="printDocument('ORDER_SINGLE', window.__salesOrdersCache[${idx}])">In</button>
-          </div>
+      <article class="sales-order-card sales-order-card-compact sales-order-one-line">
+        <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
+        <strong class="sales-order-code-text" title="Mã đơn">${o.code||o.id}</strong>
+        <span class="sales-order-customer-inline" title="Khách hàng">${o.customerName||o.customerCode||''}</span>
+        <span class="sales-order-date" title="Ngày đơn">${o.date||o.orderDate||''}</span>
+        <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
+        <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
+        <div class="sales-order-actions sales-order-actions-one-line">
+          <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
+          ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}
         </div>
-
-        <details id="sales-order-lines-${idx}" class="sales-order-lines sales-order-lines-compact">
-          <summary>Chi tiết sản phẩm (${(o.items||[]).length} SP)</summary>
-          <div class="sales-order-detail-finance">
-            <span>Tổng tiền: <strong>${money(o.totalAmount)}</strong></span>
-            <span>Đã thu: <strong class="cash-in">${money(o.paidAmount)}</strong></span>
-            <span>Còn nợ: <strong class="debt-positive">${money(o.debtAmount)}</strong></span>
-          </div>
-          ${renderSalesOrderItems(o.items)}
-        </details>
       </article>`).join('');
   }catch(err){salesOrderCount.textContent='Lỗi tải lịch sử';salesOrderList.innerHTML=err.message}
 }
