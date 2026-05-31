@@ -613,35 +613,28 @@ function renderMasterReturnOrders(rows = []){
     masterReturnOrderTable.innerHTML='<div class="empty-state">Chưa có đơn tổng trả hàng.</div>';
     return;
   }
-  masterReturnOrderTable.innerHTML=rows.map(r=>{
+  window.__masterReturnOrdersCache=rows;
+  if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.textContent='Chọn tất cả';
+  masterReturnOrderTable.innerHTML=rows.map((r,idx)=>{
     const status=String(r.status||'pending_warehouse_receive');
     const statusText=status==='pending_warehouse_receive'?'Chờ kho nhận':(status==='received'?'Kho đã nhận':(status==='cancelled'?'Đã hủy':status));
     const badgeClass=status==='cancelled'?'out':(status==='received'?'in':'warn');
     const staff=debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName);
     const id=escapeHtml(r.id||r.code||'');
     const returnCount=Number(r.returnCount || (Array.isArray(r.children)?r.children.length:0));
-    return `<div class="order-card master-return-card">
-      <div class="master-return-card-head">
-        <div>
-          <h3>${escapeHtml(r.code||r.id||'')}</h3>
-          <div class="order-meta">Ngày: ${escapeHtml(r.returnDate||r.date||'')} · Giao hàng: ${escapeHtml(staff)}</div>
-        </div>
-        <span class="badge ${badgeClass}">${escapeHtml(statusText)}</span>
-      </div>
-      <div class="master-return-card-metrics">
-        <span>Số phiếu: <b>${money(returnCount)}</b></span>
-        <span>Tổng SL: <b>${money(r.totalQuantity)}</b></span>
-        <span>Tổng tiền: <b class="cash-in">${money(r.debtReduction??r.totalAmount)}</b></span>
-        <span>Kho: <b>${escapeHtml(statusText)}</b></span>
-      </div>
-      ${r.note?`<div class="order-meta">Ghi chú: ${escapeHtml(r.note)}</div>`:''}
-      <div class="master-return-actions">
-        <button class="secondary small" type="button" onclick="viewMasterReturnOrder('${id}')">Xem</button>
-        <button class="secondary small" type="button" onclick="printMasterReturnOrder('${id}')">In</button>
-        ${status==='received'?'':`<button class="secondary small" type="button" onclick="receiveMasterReturnOrder('${id}')">Nhập kho</button>`}
+    return `<article class="erp-doc-row master-return-one-line">
+      <label class="erp-doc-check"><input type="checkbox" class="master-return-order-check" data-idx="${idx}"></label>
+      <strong class="erp-doc-code" title="Mã chứng từ">${escapeHtml(r.code||r.id||'')}</strong>
+      <span class="erp-doc-party" title="Khách hàng/NV">${escapeHtml(staff)}</span>
+      <span class="erp-doc-date" title="Ngày">${escapeHtml(r.returnDate||r.date||'')}</span>
+      <strong class="erp-doc-value" title="Giá trị">${money(r.debtReduction??r.totalAmount)}</strong>
+      <span class="erp-doc-status" title="Trạng thái"><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></span>
+      <div class="erp-doc-actions">
+        <button class="secondary small" type="button" onclick="editMasterReturnOrder(${idx})">Sửa</button>
         <button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>
       </div>
-    </div>`;
+      <details class="erp-doc-details"><summary>Xem phiếu trả (${money(returnCount)})</summary>${status==='received'?'':`<button class="secondary small" type="button" onclick="receiveMasterReturnOrder('${id}')">Nhập kho</button>`}<div class="order-meta">Tổng SL: ${money(r.totalQuantity)}${r.note?' · Ghi chú: '+escapeHtml(r.note):''}</div></details>
+    </article>`;
   }).join('');
 }
 
@@ -684,6 +677,27 @@ async function submitMasterReturnOrder(event){
     if(typeof loadReturnOrders==='function')await loadReturnOrders();
   }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
 }
+
+
+async function editMasterReturnOrder(idx){
+  const order=window.__masterReturnOrdersCache?.[Number(idx)];
+  if(!order)return;
+  const deliveryStaffCode=prompt('NV giao hàng', order.deliveryStaffCode||'');
+  if(deliveryStaffCode===null)return;
+  const note=prompt('Ghi chú', order.note||'');
+  if(note===null)return;
+  try{
+    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(order.id||order.code)}`,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({deliveryStaffCode,note})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không sửa được đơn tổng trả');
+    showMessage(masterReturnOrderMessage,json.message||'Đã sửa đơn tổng trả');
+    await loadMasterReturnOrders();
+  }catch(err){showMessage(masterReturnOrderMessage,err.message||'Không sửa được đơn tổng trả',true)}
+}
+window.editMasterReturnOrder=editMasterReturnOrder;
 
 async function viewMasterReturnOrder(id){
   if(!id)return;
@@ -746,3 +760,32 @@ async function cancelMasterReturnOrder(id){
     await loadMasterReturnOrders();
   }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
 }
+
+
+function selectedMasterReturnOrders(){
+  const checks=[...document.querySelectorAll('.master-return-order-check:checked')];
+  return checks.map(ch=>window.__masterReturnOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+}
+function toggleSelectAllMasterReturnOrders(){
+  const checks=[...document.querySelectorAll('.master-return-order-check')];
+  if(!checks.length)return;
+  const shouldCheck=checks.some(ch=>!ch.checked);
+  checks.forEach(ch=>{ch.checked=shouldCheck;});
+  if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.textContent=shouldCheck?'Bỏ chọn tất cả':'Chọn tất cả';
+}
+async function printSelectedMasterReturnOrders(){
+  const orders=selectedMasterReturnOrders();
+  if(!orders.length){alert('Chưa chọn đơn tổng trả để in');return}
+  for(const r of orders){ await printMasterReturnOrder(r.id||r.code); }
+}
+function exportSelectedMasterReturnOrders(){
+  const orders=selectedMasterReturnOrders();
+  if(!orders.length){alert('Chưa chọn đơn tổng trả để xuất Excel');return}
+  exportErpRows('don-tong-tra-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(r=>[r.code||r.id||'', debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName), r.returnDate||r.date||'', Number(r.debtReduction??r.totalAmount??0), String(r.status||'pending_warehouse_receive')]));
+}
+window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
+window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;
+window.exportSelectedMasterReturnOrders=exportSelectedMasterReturnOrders;
+if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.addEventListener('click',toggleSelectAllMasterReturnOrders);
+if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',printSelectedMasterReturnOrders);
+if(exportSelectedMasterReturnOrdersButton)exportSelectedMasterReturnOrdersButton.addEventListener('click',exportSelectedMasterReturnOrders);

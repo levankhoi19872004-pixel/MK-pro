@@ -121,14 +121,31 @@ async function submitMasterOrder(event){
   }catch(err){showMessage(masterOrderMessage,err.message,true)}
 }
 
-async function printSelectedMasterOrders(){
+function selectedMasterOrders(){
   const checks=[...document.querySelectorAll('.master-order-check:checked')];
-  const orders=checks.map(ch=>masterOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
-  if(!orders.length){alert('Chưa chọn đơn tổng để in gộp');return}
+  return checks.map(ch=>masterOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+}
+function toggleSelectAllMasterOrders(){
+  const checks=[...document.querySelectorAll('.master-order-check')];
+  if(!checks.length)return;
+  const shouldCheck=checks.some(ch=>!ch.checked);
+  checks.forEach(ch=>{ch.checked=shouldCheck;});
+  if(selectAllMasterOrdersButton)selectAllMasterOrdersButton.textContent=shouldCheck?'Bỏ chọn tất cả':'Chọn tất cả';
+}
+async function printSelectedMasterOrders(){
+  const orders=selectedMasterOrders();
+  if(!orders.length){alert('Chưa chọn đơn tổng để in');return}
   const html=orders.map(o=>`<section class="print-page"><h2>Đơn tổng: ${o.code||o.id}</h2><p>Ngày giao: ${o.deliveryDate||o.date||''} · Tuyến: ${o.routeName||''} · Giao hàng: ${o.deliveryStaffCode||''} ${o.deliveryStaffName||''} · NV bán: ${o.salesStaffCode||''} ${o.salesStaffName||''}</p><p>Số đơn con: ${money(o.totalOrders)} · Tổng tiền: ${money(o.totalAmount)} · Còn thu: ${money(o.totalDebt)}</p><table class="print-table"><thead><tr><th>Đơn con</th><th>NV bán</th><th>Khách hàng</th><th>Tổng tiền</th><th>Còn thu</th></tr></thead><tbody>${(o.children||[]).map(c=>`<tr><td>${c.code||''}</td><td>${c.salesStaffCode||c.staffCode||''} ${c.salesStaffName||c.staffName||''}</td><td>${c.customerCode||''} - ${c.customerName||''}</td><td>${money(c.totalAmount)}</td><td>${money(c.debtAmount)}</td></tr>`).join('')}</tbody></table></section>`).join('');
-  const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In gộp đơn tổng</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
+  const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In đơn tổng</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
+}
+function exportSelectedMasterOrders(){
+  const orders=selectedMasterOrders();
+  if(!orders.length){alert('Chưa chọn đơn tổng để xuất Excel');return}
+  exportErpRows('don-tong.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', `${o.deliveryStaffCode||''} ${o.deliveryStaffName||''}`.trim(), o.deliveryDate||o.date||'', Number(o.totalAmount||0), String(o.status||'active')||'active']));
 }
 window.printSelectedMasterOrders=printSelectedMasterOrders;
+window.toggleSelectAllMasterOrders=toggleSelectAllMasterOrders;
+window.exportSelectedMasterOrders=exportSelectedMasterOrders;
 async function loadMasterOrders(){
   if(!masterOrderList)return;
   const q=masterOrderSearch?masterOrderSearch.value.trim():'';
@@ -143,27 +160,51 @@ async function loadMasterOrders(){
     masterOrdersCache=(json.masterOrders||[]).filter(isActiveDocument);
     if(masterOrderCount)masterOrderCount.textContent=`${masterOrdersCache.length} đơn tổng`;
     if(!masterOrdersCache.length){masterOrderList.innerHTML='Chưa có đơn tổng nào.';return}
+    if(selectAllMasterOrdersButton)selectAllMasterOrdersButton.textContent='Chọn tất cả';
     masterOrderList.innerHTML=masterOrdersCache.map((order,idx)=>`
-      <div class="order-card master-order-card">
-        <div class="order-card-head">
-          <h3><label><input type="checkbox" class="master-order-check" data-idx="${idx}"> ${order.code||order.id}</label></h3>
-          <div class="order-actions">${masterStatusLabel(order.status)} ${isActiveDocument(order)?`<button class="small danger" onclick="cancelMasterOrder('${order.id}')">Hủy gộp</button>`:''}</div>
+      <article class="erp-doc-row master-order-one-line">
+        <label class="erp-doc-check"><input type="checkbox" class="master-order-check" data-idx="${idx}"></label>
+        <strong class="erp-doc-code" title="Mã chứng từ">${escapeHtml(order.code||order.id||'')}</strong>
+        <span class="erp-doc-party" title="Khách hàng/NV">${escapeHtml([order.deliveryStaffCode,order.deliveryStaffName].filter(Boolean).join(' ') || order.routeName || '')}</span>
+        <span class="erp-doc-date" title="Ngày">${escapeHtml(order.deliveryDate||order.date||'')}</span>
+        <strong class="erp-doc-value" title="Giá trị">${money(order.totalAmount)}</strong>
+        <span class="erp-doc-status" title="Trạng thái">${masterStatusLabel(order.status)}</span>
+        <div class="erp-doc-actions">
+          <button class="small" onclick="editMasterOrder(${idx})">Sửa</button>
+          ${isActiveDocument(order)?`<button class="small danger" onclick="cancelMasterOrder('${escapeHtml(order.id||order.code||'')}')">Hủy</button>`:''}
         </div>
-        <div class="order-meta">Ngày giao: ${order.deliveryDate||order.date||''} · Tuyến: <strong>${order.routeName||''}</strong> · Giao hàng: ${order.deliveryStaffCode||''} ${order.deliveryStaffName||''} · NV bán: <strong>${order.salesStaffCode||''} ${order.salesStaffName||''}</strong></div>
-        <div class="master-kpis">
-          <span>${money(order.totalOrders)} đơn con</span>
-          <span>Tổng SL: ${money(order.totalQuantity)}</span>
-          <span>Tổng tiền: ${money(order.totalAmount)}</span>
-          <span>Còn thu: ${money(order.totalDebt)}</span>
-        </div>
-        ${(order.note)?`<div class="order-meta">Ghi chú: ${order.note}</div>`:''}
-        <details class="master-details"><summary>Xem đơn con</summary><ul class="order-items">${(order.children||[]).map(child=>`<li><strong>${child.code}</strong> · Ngày giao: ${child.deliveryDate||order.deliveryDate||order.date||''} · Trạng thái: ${deliveryStatusLabel(child.deliveryStatus||'pending')} · ${orderSourceLabel(child.orderSource,child)} · NV bán: ${child.salesStaffCode||child.staffCode||''} ${child.salesStaffName||child.staffName||''} · NV giao: ${child.deliveryStaffCode||order.deliveryStaffCode||''} ${child.deliveryStaffName||order.deliveryStaffName||''} · ${child.customerCode||''} ${child.customerName||''} · ${money(child.totalAmount)} · Còn thu ${money(child.debtAmount)}</li>`).join('')}</ul></details>
-      </div>`).join('');
+        <details class="erp-doc-details"><summary>Xem đơn con (${money(order.totalOrders || (order.children||[]).length)})</summary><ul class="order-items">${(order.children||[]).map(child=>`<li><strong>${escapeHtml(child.code||'')}</strong> · ${escapeHtml(child.customerCode||'')} ${escapeHtml(child.customerName||'')} · ${money(child.totalAmount)} · Còn thu ${money(child.debtAmount)}</li>`).join('')}</ul></details>
+      </article>`).join('');
   }catch(err){
     if(masterOrderCount)masterOrderCount.textContent='Lỗi tải đơn tổng';
     masterOrderList.innerHTML=err.message;
   }
 }
+
+
+async function editMasterOrder(idx){
+  const order=masterOrdersCache?.[Number(idx)];
+  if(!order)return;
+  const routeName=prompt('Tuyến / khu vực', order.routeName||'');
+  if(routeName===null)return;
+  const deliveryStaffCode=prompt('Mã NV giao hàng', order.deliveryStaffCode||'');
+  if(deliveryStaffCode===null)return;
+  const deliveryStaffName=prompt('Tên NV giao hàng', order.deliveryStaffName||'');
+  if(deliveryStaffName===null)return;
+  const note=prompt('Ghi chú', order.note||'');
+  if(note===null)return;
+  try{
+    const res=await fetch(`/api/master-orders/${encodeURIComponent(order.id||order.code)}`,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({routeName,deliveryStaffCode,deliveryStaffName,note})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không sửa được đơn tổng');
+    showMessage(masterOrderMessage,json.message||'Đã sửa đơn tổng');
+    await loadMasterOrders();
+  }catch(err){alert(err.message||'Không sửa được đơn tổng')}
+}
+window.editMasterOrder=editMasterOrder;
 
 async function cancelMasterOrder(id){
   if(!confirm('Hủy gộp đơn tổng này và trả các đơn con về trạng thái chưa gộp?'))return;

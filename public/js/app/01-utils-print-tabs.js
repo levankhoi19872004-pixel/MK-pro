@@ -90,6 +90,25 @@ window.getOrderSourceClass=getOrderSourceClass;
 window.orderSourceLabel=orderSourceLabel;
 function showMessage(el,text,isError=false){if(!el)return;el.textContent=text;el.classList.toggle('error',isError)}
 
+function exportErpRows(filename, headers, rows){
+  const safeRows=[headers, ...(rows||[])];
+  const csv=safeRows.map(row=>(row||[]).map(value=>{
+    const text=String(value ?? '').replace(/"/g,'""');
+    return `"${text}"`;
+  }).join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=filename||'erp-export.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+window.exportErpRows=exportErpRows;
+
+
 async function printDocument(type, documentData){
   try{
     const res=await fetch('/api/print/render',{

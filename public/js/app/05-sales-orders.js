@@ -379,3 +379,19 @@ if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
     if(!getSalesProductCatalog().length) await loadSalesProductCatalog();
   });
 }
+
+
+function selectedSalesOrders(){
+  const checks=[...document.querySelectorAll('.sales-order-check:checked')];
+  return checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+}
+function exportSelectedSalesOrders(){
+  const orders=selectedSalesOrders();
+  if(!orders.length){alert('Chưa chọn đơn bán để xuất Excel');return}
+  exportErpRows('don-ban-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', o.customerName||o.customerCode||'', o.date||o.orderDate||'', Number(o.totalAmount||0), getOrderSourceText(o)]));
+}
+window.exportSelectedSalesOrders=exportSelectedSalesOrders;
+if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
+if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
+if(exportSelectedSalesOrdersButton)exportSelectedSalesOrdersButton.addEventListener('click',exportSelectedSalesOrders);
+if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
