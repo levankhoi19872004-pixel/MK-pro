@@ -305,8 +305,41 @@ function getImportRowMainFields(row){
   const fields=['documentCode','date','customerCode','customerName','productCode','productName','quantity','stockQuantity','soldQuantity','salePrice','amount','staffName','note'];
   return fields.filter(k=>row[k]!==undefined && row[k]!==null && row[k]!=='').map(k=>({key:k,value:row[k]}));
 }
+
+function ensureImportPreviewModal(){
+  let modal=document.getElementById('importPreviewModal');
+  if(modal)return modal;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="importPreviewModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="importPreviewModalTitle">
+      <div class="modal-card import-preview-modal-card">
+        <div class="modal-head">
+          <div>
+            <h3 id="importPreviewModalTitle">Xem trước import</h3>
+            <p class="muted">Kiểm tra tổng quan dữ liệu, dòng hợp lệ và dòng lỗi trước khi ghi vào hệ thống.</p>
+          </div>
+          <button type="button" id="closeImportPreviewModalButton" class="secondary">Đóng</button>
+        </div>
+        <div id="importPreviewModalReport" class="import-preview-report"></div>
+        <div class="button-row import-preview-modal-actions">
+          <button type="button" id="selectAllImportPreviewButton" class="secondary">Chọn tất cả hợp lệ</button>
+          <button type="button" id="clearAllImportPreviewButton" class="secondary">Bỏ chọn</button>
+          <button type="button" id="commitImportFromModalButton">Xác nhận import</button>
+        </div>
+        <div id="importPreviewModalBody" class="import-preview-modal-body"></div>
+      </div>
+    </div>`);
+  modal=document.getElementById('importPreviewModal');
+  modal.addEventListener('click', function(event){
+    if(event.target===modal)closeImportPreviewModal();
+  });
+  document.addEventListener('keydown', function(event){
+    if(event.key==='Escape')closeImportPreviewModal();
+  });
+  return modal;
+}
+
 function renderImportPreviewModal(result){
-  const modal=document.getElementById('importPreviewModal');
+  const modal=ensureImportPreviewModal();
   const report=document.getElementById('importPreviewModalReport');
   const body=document.getElementById('importPreviewModalBody');
   const title=document.getElementById('importPreviewModalTitle');
