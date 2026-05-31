@@ -15,6 +15,7 @@ const ImportLog = require('../models/ImportLog');
 const systemService = require('./systemService');
 const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
+const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.util');
 
 function cleanText(value) {
   return String(value ?? '').trim();
@@ -823,12 +824,7 @@ async function importSalesOrders(rows = []) {
       staffCode: cleanText(first.staffCode || first['Mã nhân viên'] || first['Mã nhân viên'] || first['Ma nhan vien'] || first['Mã NVBH'] || first['Ma NVBH']),
       staffName: cleanText(first.staffName || first['Tên NVTT'] || first['Ten NVTT'] || first['Tên NVBH'] || first['Ten NVBH']),
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS bulk',
-      // Đơn bán import từ file DMS phải được nhận diện thống nhất là nguồn DMS.
-      // source giữ cùng giá trị với orderSource để các màn hình lọc/hiển thị không hiểu nhầm là NVBH.
-      source: 'DMS',
-      sourceType: 'dms_import',
-      orderSource: 'DMS',
-      orderSourceName: 'Từ DMS',
+      importSource: 'excel_dms',
       isImported: true,
       isChildOrder: true,
       masterOrderId: '',
@@ -847,6 +843,7 @@ async function importSalesOrders(rows = []) {
       createdAt: now,
       updatedAt: now
     };
+    Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
     paymentDocs.push({
       id: makeId('PM'),

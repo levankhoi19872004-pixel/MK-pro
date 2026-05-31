@@ -10,6 +10,7 @@ const postingEngine = require('../engines/posting.engine');
 const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
+const { normalizeOrderSourceValue } = require('../utils/orderSource.util');
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -59,18 +60,59 @@ async function getMasterOrder(id) {
   return { masterOrder: toClient(masterOrder, children) };
 }
 
+function normalizeOrderDateForMaster(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  const parts = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
+  if (parts) {
+    let a = Number(parts[1]);
+    let b = Number(parts[2]);
+    let y = Number(parts[3]);
+    if (y < 100) y += y >= 70 ? 1900 : 2000;
+    let day = a;
+    let month = b;
+    // File DMS thường là M/D/YY, còn app Việt Nam thường là D/M/YYYY.
+    // Nếu số đầu <=12 và số sau >12 thì chắc chắn là M/D. Các trường hợp còn lại giữ D/M.
+    if (a <= 12 && b > 12) {
+      month = a;
+      day = b;
+    }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return raw.slice(0, 10);
+}
+
+function orderDeliveryFilterDate(order = {}) {
+  return normalizeOrderDateForMaster(order.deliveryDate || order.orderDate || order.date || order.createdAt || '');
+}
+
+function normalizeOrderSourceForMaster(order = {}) {
+  return normalizeOrderSourceValue(order).toLowerCase();
+}
+
+function isUnmergedChildOrder(order = {}) {
+  if (isInactiveStatus(order)) return false;
+  const mergeStatus = String(order.mergeStatus || 'unmerged').toLowerCase();
+  if (['merged', 'mastered', 'grouped'].includes(mergeStatus)) return false;
+  return !(order.masterOrderId || order.masterOrderCode || order.masterOrderNo);
+}
+
 async function listUnmergedChildOrders(query = {}) {
   const q = normalizeText(query.q);
   const source = normalizeText(query.source);
-  const date = String(query.date || '').slice(0, 10);
+  const sourceKey = source.includes('dms') ? 'dms' : (source ? 'nvbh' : '');
+  const date = normalizeOrderDateForMaster(query.date);
   const salesStaff = normalizeText(query.salesStaff);
   const orders = await orderService.listOrders({});
   return orders
-    .filter((order) => !['cancelled', 'void'].includes(String(order.status || '').toLowerCase()))
-    .filter((order) => (order.mergeStatus || 'unmerged') !== 'merged' && !order.masterOrderId && !order.masterOrderCode)
+    .filter(isUnmergedChildOrder)
     .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.customerPhone, order.customerAddress].some((value) => normalizeText(value).includes(q)))
-    .filter((order) => !source || normalizeText(order.orderSource || order.source || 'NVBH') === source)
-    .filter((order) => !date || String(order.deliveryDate || order.date || '').slice(0, 10) === date)
+    .filter((order) => !sourceKey || normalizeOrderSourceForMaster(order) === sourceKey)
+    .filter((order) => !date || orderDeliveryFilterDate(order) === date)
     .filter((order) => !salesStaff || [order.staffCode, order.staffName, order.salesStaffCode, order.salesStaffName].some((value) => normalizeText(value).includes(salesStaff)));
 }
 

@@ -195,8 +195,8 @@ async function loadImportOrders(){
   }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';importOrderList.innerHTML=err.message}
 }
 function normalizeOrderSourceClient(order){
-  const raw=[order?.orderSource,order?.source,order?.sourceType,order?.orderSourceName,order?.note].filter(Boolean).join(' ').toUpperCase();
-  return raw.includes('DMS')?'DMS':'NVBH';
+  const raw=[order?.orderSource,order?.source,order?.sourceType,order?.orderSourceName,order?.importSource,order?.importType,order?.origin,order?.note].filter(Boolean).join(' ').toUpperCase();
+  return /(^|[^A-Z])DMS([^A-Z]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(raw)?'DMS':'NVBH';
 }
 function getOrderSourceText(order){
   return normalizeOrderSourceClient(order)==='DMS'?'Từ DMS':'Từ NVBH';
@@ -296,6 +296,7 @@ async function loadSalesOrders(){
     const params=new URLSearchParams();
     if(dateFrom)params.set('dateFrom',dateFrom);
     if(dateTo)params.set('dateTo',dateTo);
+    if(source)params.set('source',source);
     params.set('excludeInactive','1');
     const res=await fetch(`/api/sales-orders?${params.toString()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
     const allOrders=(json.salesOrders||[]).filter(isActiveDocument);

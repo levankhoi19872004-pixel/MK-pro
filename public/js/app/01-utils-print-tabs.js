@@ -52,6 +52,36 @@ function productStockStatusText(p){
   return productHasStock(p) ? `Tồn: ${productStockDisplay(p)}` : `Hết tồn · Tồn: ${productStockDisplay(p)}`;
 }
 function today(){return new Date().toISOString().slice(0,10)}
+
+function normalizeOrderSourceClient(order){
+  const raw=[
+    order?.orderSource,
+    order?.source,
+    order?.sourceType,
+    order?.orderSourceName,
+    order?.importSource,
+    order?.importType,
+    order?.origin,
+    order?.note
+  ].filter(Boolean).join(' ').toUpperCase();
+  return /(^|[^A-Z])DMS([^A-Z]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(raw) ? 'DMS' : 'NVBH';
+}
+function getOrderSourceText(order){
+  return normalizeOrderSourceClient(order)==='DMS'?'Từ DMS':'Từ NVBH';
+}
+function getOrderSourceClass(order){
+  return normalizeOrderSourceClient(order)==='DMS'?'source-dms':'source-nvbh';
+}
+function orderSourceLabel(source, row){
+  const order={...(row||{}), orderSource: source ?? row?.orderSource};
+  const cls=getOrderSourceClass(order);
+  const text=getOrderSourceText(order);
+  return `<span class="badge ${cls}">${text}</span>`;
+}
+window.normalizeOrderSourceClient=normalizeOrderSourceClient;
+window.getOrderSourceText=getOrderSourceText;
+window.getOrderSourceClass=getOrderSourceClass;
+window.orderSourceLabel=orderSourceLabel;
 function showMessage(el,text,isError=false){if(!el)return;el.textContent=text;el.classList.toggle('error',isError)}
 
 async function printDocument(type, documentData){

@@ -6,22 +6,10 @@ function reportDateInRange(dateText, fromDate, toDate){
 }
 
 function orderSourceLabel(source, row){
-  const value=[source,row?.orderSource,row?.source,row?.sourceType,row?.orderSourceName,row?.note].filter(Boolean).join(' ').toUpperCase();
-  if(value.includes('DMS'))return '<span class="badge source-dms">Từ DMS</span>';
+  const order={...(row||{}), orderSource: source ?? row?.orderSource};
+  const value=[order.orderSource,order.source,order.sourceType,order.orderSourceName,order.importSource,order.importType,order.origin,order.note].filter(Boolean).join(' ').toUpperCase();
+  if(/(^|[^A-Z])DMS([^A-Z]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(value))return '<span class="badge source-dms">Từ DMS</span>';
   return '<span class="badge source-nvbh">Từ NVBH</span>';
-}
-function mergeStatusLabel(status){
-  const value=String(status||'unmerged');
-  if(value==='merged')return '<span class="badge merged">Đã gộp</span>';
-  return '<span class="badge unmerged">Chưa gộp</span>';
-}
-
-function masterStatusLabel(status){
-  const value=String(status||'assigned');
-  if(value==='completed')return '<span class="badge merged">Hoàn thành</span>';
-  if(value==='cancelled')return '<span class="badge danger-badge">Đã hủy</span>';
-  if(value==='delivering')return '<span class="badge source-dms">Đang giao</span>';
-  return '<span class="badge source-nvbh">Đã giao tuyến</span>';
 }
 
 function deliveryLabel(status){

@@ -7,6 +7,7 @@ const customerRepository = require('../repositories/customerRepository');
 const userRepository = require('../repositories/userRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 
@@ -175,17 +176,6 @@ async function reverseSalesOrderPosting(order, options = {}) {
 }
 
 
-function normalizeOrderSourceValue(order = {}) {
-  const raw = normalizeText([
-    order.orderSource,
-    order.source,
-    order.sourceType,
-    order.orderSourceName,
-    order.note
-  ].filter(Boolean).join(' '));
-  if (raw === 'dms' || raw.includes('dms') || raw.includes('import excel dms')) return 'DMS';
-  return 'NVBH';
-}
 
 function toClient(order) {
   const normalizedOrderSource = normalizeOrderSourceValue(order);
@@ -219,6 +209,7 @@ async function listOrders(query = {}) {
   const dateFrom = String(query.dateFrom || '').slice(0, 10);
   const dateTo = String(query.dateTo || '').slice(0, 10);
   const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
+  const sourceKey = normalizeText(query.source || query.orderSource);
   const orders = await orderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   return orders
     .map(toClient)
@@ -229,6 +220,7 @@ async function listOrders(query = {}) {
       if (dateTo && d > dateTo) return false;
       return true;
     })
+    .filter((order) => !sourceKey || normalizeText(normalizeOrderSourceValue(order)).includes(sourceKey.includes('dms') ? 'dms' : 'nvbh'))
     .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.staffName, order.deliveryStaffName].some((value) => normalizeText(value).includes(q)));
 }
 
@@ -270,11 +262,10 @@ async function createOrder(body = {}) {
     lifecycleStatus: body.lifecycleStatus || 'pending',
     arStatus: body.arStatus || 'not_posted',
     arBalance: 0,
-    orderSource: normalizeOrderSourceValue(body),
-    source: normalizeOrderSourceValue(body),
     createdAt: body.createdAt || nowIso(),
     updatedAt: nowIso()
   };
+  Object.assign(order, applyOrderSourceFields(order));
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(order, { session });
     await applySalesOrderPosting(order, { session });
@@ -289,7 +280,7 @@ async function updateOrder(id, body = {}) {
   const items = body.items ? await hydrateItemNames(calculateItems(body.items)) : current.items;
   const totalAmount = toNumber(body.totalAmount ?? (items || []).reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount ?? current.paidAmount ?? 0);
-  const updated = {
+  const updated = applyOrderSourceFields({
     ...current,
     ...body,
     items,
@@ -297,7 +288,7 @@ async function updateOrder(id, body = {}) {
     paidAmount,
     debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
     updatedAt: nowIso()
-  };
+  });
   await withMongoTransaction(async (session) => {
     await reverseSalesOrderPosting(current, { session });
     await orderRepository.upsert(updated, { session });
