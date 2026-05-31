@@ -1506,8 +1506,11 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       const currentBankDelta = bankSplit.allocations
         .filter((row) => currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))
         .reduce((sum, row) => sum + toNumber(row.amount), 0);
-      const nextCash = previousCash + currentCashDelta;
-      const nextBank = previousBank + currentBankDelta;
+      // Các ô tiền trên app là số tuyệt đối đang lưu cho đơn, không phải số thu thêm.
+      // Nếu không chọn đơn nợ cũ, ghi đè trực tiếp để sửa giảm tiền được (200000 -> 100000).
+      // Nếu có chọn nợ cũ, chỉ phần tiền được phân bổ về đơn hiện tại mới cập nhật vào đơn hiện tại.
+      const nextCash = selectedDebtRows.length ? previousCash + currentCashDelta : inputCash;
+      const nextBank = selectedDebtRows.length ? previousBank + currentBankDelta : inputBank;
       receiptLines = [
         { method: 'cash', amount: cashDeltaTotal, allocations: cashSplit.allocations, note: note || `App giao hàng thu tiền mặt khách ${order.customerName || order.customerCode || ''}` },
         { method: 'transfer', amount: bankDeltaTotal, allocations: bankSplit.allocations, note: note || `App giao hàng thu chuyển khoản khách ${order.customerName || order.customerCode || ''}` }

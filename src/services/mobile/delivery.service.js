@@ -285,8 +285,8 @@ function createMobileDeliveryService(ctx) {
     syncOrderReturnAmountFromReturnOrders(data, order);
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
     if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
-    const currentDebt = calculateDeliveryDebt(order);
-    if (status === 'success' && collectAmount > currentDebt) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn công nợ còn lại của đơn' } };
+    const orderDueLimit = Math.max(0, deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0));
+    if (status === 'success' && collectAmount > orderDueLimit) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn giá trị phải thu của đơn' } };
 
     order.deliveryStatus = status === 'success' ? 'delivered' : 'failed';
     order.deliveryStaffName = mobileUser.name || '';
@@ -360,13 +360,30 @@ function createMobileDeliveryService(ctx) {
         auditLog(data, 'mobile_delivery_receipt', 'receipt', receipt, null, receipt, 'App giao hàng sinh phiếu thu thật', mobileUser.name || '');
       }
 
-      order.paidAmount = toNumber(order.paidAmount) + cashAmount + bankAmount + (hasSplitAmounts ? 0 : legacyCollectAmount);
       if (hasSplitAmounts) {
-        order.cashCollected = toNumber(order.cashCollected) + cashAmount;
-        order.bankCollected = toNumber(order.bankCollected) + bankAmount;
-        order.rewardAmount = toNumber(order.rewardAmount) + rewardAmount;
-      } else if (collectionMethod === 'transfer') order.bankCollected = toNumber(order.bankCollected) + legacyCollectAmount;
-      else order.cashCollected = toNumber(order.cashCollected) + legacyCollectAmount;
+        // App gửi số đang hiển thị trong ô nhập là số tuyệt đối, không phải số cộng thêm.
+        // Vì vậy khi sửa 200000 xuống 100000 phải ghi đè về 100000, không được cộng dồn hoặc giữ số cũ.
+        order.cashCollected = cashAmount;
+        order.cashAmount = cashAmount;
+        order.bankCollected = bankAmount;
+        order.bankAmount = bankAmount;
+        order.transferAmount = bankAmount;
+        order.rewardAmount = rewardAmount;
+        order.displayRewardAmount = rewardAmount;
+        order.paidAmount = cashAmount + bankAmount;
+        order.collectedAmount = cashAmount + bankAmount;
+      } else if (collectionMethod === 'transfer') {
+        order.bankCollected = legacyCollectAmount;
+        order.bankAmount = legacyCollectAmount;
+        order.transferAmount = legacyCollectAmount;
+        order.paidAmount = toNumber(order.cashCollected) + legacyCollectAmount;
+        order.collectedAmount = order.paidAmount;
+      } else {
+        order.cashCollected = legacyCollectAmount;
+        order.cashAmount = legacyCollectAmount;
+        order.paidAmount = legacyCollectAmount + toNumber(order.bankCollected);
+        order.collectedAmount = order.paidAmount;
+      }
       order.debtBeforeCollection = deliveryDebtBase(order);
       order.debtAmount = calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
