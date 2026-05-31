@@ -36,8 +36,28 @@ function createMobileDeliveryService(ctx) {
     buildCashCode
   } = ctx;
 
+  function firstPositiveAmount(...values) {
+    for (const value of values) {
+      const n = toNumber(value);
+      if (n > 0) return n;
+    }
+    return 0;
+  }
+
   function deliveryDebtBase(order = {}) {
-    return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? 0);
+    // Công nợ gốc của đơn đang giao phải lấy theo giá trị đơn hàng.
+    // Không ưu tiên debtBeforeCollection nếu trường đó đang bị lưu/cached = 0.
+    return firstPositiveAmount(
+      order.totalAmount,
+      order.total,
+      order.amount,
+      order.grandTotal,
+      order.payableAmount,
+      order.orderAmount,
+      order.debtBeforeCollection,
+      order.debtAmount,
+      order.debt
+    );
   }
 
   function calculateDeliveryDebt(order = {}) {

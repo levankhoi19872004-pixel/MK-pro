@@ -315,13 +315,9 @@ function applyOrderDebtLifecycle(order) {
   const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
   if (isDeliveryCompletedStatus(order.deliveryStatus || order.status)) {
     order.arBalance = debtAmount;
-    // Lưu ý quan trọng:
-    // Không được set arStatus/arPostedAt = đã post ở đây.
-    // Đây chỉ là cache trạng thái đơn. Nếu set trước, postDeliveryArForMobile()
-    // sẽ hiểu nhầm AR-SALE đã tồn tại và bỏ qua bút toán tăng công nợ gốc,
-    // làm AR Ledger bị âm/0 và app hiển thị sai công nợ.
-    order.arStatus = order.arStatus || 'not_posted';
-    order.lifecycleStatus = hasOpenDebt(debtAmount) ? 'delivered_unpaid' : 'paid';
+    order.arStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
+    order.lifecycleStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
+    order.arPostedAt = order.arPostedAt || new Date().toISOString();
   } else {
     order.arStatus = order.arStatus || 'not_posted';
     order.lifecycleStatus = order.lifecycleStatus || 'assigned_delivery';
@@ -336,9 +332,7 @@ async function postDeliveryArForMobile(order) {
   // Tối ưu tốc độ app: nếu đơn đã từng post AR-SALE thì không gọi lại posting engine.
   // Trước đây mỗi lần bấm lưu thu tiền vẫn đi kiểm tra/upsert AR-SALE, gây chậm và dễ lệch công nợ.
   const arStatus = String(raw.arStatus || raw.accountingStatus || '').toLowerCase();
-  // Chỉ bỏ qua khi có dấu hiệu AR-SALE thật sự đã post.
-  // Không dùng arPostedAt/arStatus='ar_posted' do các bản cũ có thể set nhầm trước khi post.
-  if (raw.arSalePostedAt || arStatus === 'posted') return null;
+  if (raw.arPostedAt || raw.arSalePostedAt || ['posted', 'ar_posted', 'confirmed'].includes(arStatus)) return null;
 
   const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(raw)));
 
@@ -627,13 +621,10 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
   const debtBeforeCollection = deliveryDebtBase({ ...sourceOrder, totalAmount });
   const arDebtRow = findArDebtRow(arDebtMap, order, sourceOrder);
   const fallbackDebtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
-  // App giao hàng cần hiển thị số còn phải thu theo chính các ô đang xử lý:
-  // phải thu gốc - tiền mặt - chuyển khoản - trả thưởng - hàng trả.
-  // AR Ledger vẫn giữ ở arLedgerDebt để đối chiếu, nhưng không dùng nó ghi đè công nợ hiển thị
-  // vì AR-SALE/AR-RECEIPT có thể post lệch thứ tự trong lúc nhân viên đang lưu tiền.
-  const arLedgerDebt = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : null;
-  const debtAmount = fallbackDebtAmount;
-  const debtSource = 'order_formula';
+  // App giao hàng phải hiển thị cùng nguồn với màn Công nợ ERP: AR Ledger.
+  // Nếu AR có dòng cho đơn, lấy số nợ còn lại từ AR; chỉ fallback sang công thức order khi đơn chưa có AR.
+  const debtAmount = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : fallbackDebtAmount;
+  const debtSource = arDebtRow ? 'ar_ledger' : 'order_cache';
   const itemSource = Array.isArray(sourceOrder.items) ? sourceOrder.items : [];
   return {
     id: getDocId(order),
@@ -659,9 +650,8 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     debt: debtAmount,
     arBalance: debtAmount,
     arDebtAmount: debtAmount,
-    arLedgerDebt,
     debtSource,
-    arLedgerSynced: false,
+    arLedgerSynced: debtSource === 'ar_ledger',
     debtBeforeCollection,
     cashCollected,
     bankCollected,
@@ -1572,24 +1562,9 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
         order.financialSyncAt = new Date().toISOString();
         await order.save();
       }
-
-      // Sau khi post/sync AR Ledger, luôn ghi lại cache công nợ của app theo công thức giao hàng.
-      // Tránh trường hợp syncOrderDebtCacheFromAR trả về 0 do AR-SALE chưa có/đang post lệch thứ tự.
-      const appDebtAmount = calculateDeliveryDebt(order);
-      order.debtAmount = appDebtAmount;
-      order.debt = appDebtAmount;
-      order.arBalance = appDebtAmount;
-      await order.save();
     }
 
-    const finalOrder = order || savedCanonicalOrder;
-    const finalPayload = stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder);
-    finalPayload.debtAmount = calculateDeliveryDebt(finalPayload);
-    finalPayload.debt = finalPayload.debtAmount;
-    finalPayload.arBalance = finalPayload.debtAmount;
-    finalPayload.arDebtAmount = finalPayload.debtAmount;
-    finalPayload.debtSource = 'order_formula';
-    finalPayload.arLedgerSynced = false;
+    const finalOrder = savedCanonicalOrder || order;
     // Không query lại toàn bộ đơn và không đồng bộ snapshot trong luồng chờ của app.
     // saveDeliveryPaymentCanonical đã trả về bản đã patch và tự đẩy đồng bộ phụ chạy nền.
     const warnings = [receiptWarning, postingWarning].filter(Boolean);
@@ -1598,7 +1573,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
         ? `Đã lưu tiền trên đơn giao. Cảnh báo chứng từ: ${warnings.join(' | ')}`
         : 'Đã cập nhật trạng thái giao hàng',
       warning: warnings.join(' | '),
-      order: finalPayload
+      order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder)
     });
   } catch (err) {
     return fail(res, 500, err.message || 'Không cập nhật được giao hàng mobile');
