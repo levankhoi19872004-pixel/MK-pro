@@ -137,6 +137,9 @@ if(userSearchInput)userSearchInput.addEventListener('input',loadUsers);
 if(promotionForm)promotionForm.addEventListener('submit',submitPromotion);
 if(resetPromotionButton)resetPromotionButton.addEventListener('click',resetPromotionForm);
 if(promotionSearchInput)promotionSearchInput.addEventListener('input',loadPromotions);
+if(reloadSystemStatusButton)reloadSystemStatusButton.addEventListener('click',loadSystemStatus);
+if(createSystemBackupButton)createSystemBackupButton.addEventListener('click',createSystemBackup);
+if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSystemData);
 
 setupTabs();
 loadImportFieldOptions();
@@ -156,6 +159,7 @@ loadReceipts();
 loadCashbook();
 loadUsers();
 loadPromotions();
+if(typeof loadSystemStatus==='function')loadSystemStatus();
 setReportDefaults();
 renderImportItems();
 renderSalesItems();

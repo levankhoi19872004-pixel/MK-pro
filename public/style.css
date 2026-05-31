@@ -4324,3 +4324,15 @@ button.danger:hover{background:#fecaca}
   #masterReturnOrdersTab .return-child-order-row{grid-template-columns:24px 1fr;}
   #masterReturnOrdersTab .child-order-money{grid-column:2;grid-template-columns:1fr 1fr;}
 }
+
+/* System reset module */
+.system-card{display:flex;flex-direction:column;gap:16px;}
+.system-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
+.system-grid{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(320px,1.1fr);gap:16px;align-items:start;}
+.system-panel{border:1px solid #e2e8f0;border-radius:16px;background:#fff;padding:16px;box-shadow:0 8px 20px rgba(15,23,42,.04);}
+.system-panel h3{margin:0 0 8px;font-size:16px;color:#0f172a;}
+.system-panel label{display:block;margin-top:10px;font-weight:600;color:#334155;}
+.system-panel input,.system-panel select{width:100%;margin-top:6px;}
+.system-danger-panel{border-color:#fecaca;background:#fff7f7;}
+.small-note{font-size:12px;margin-top:10px;padding:8px 10px;border-radius:10px;}
+@media(max-width:900px){.system-grid{grid-template-columns:1fr;}}

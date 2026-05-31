@@ -97,9 +97,30 @@ async function createBackup() {
   return { fileName, filePath, counts };
 }
 
-async function resetOperationalData({ confirm } = {}) {
+const RESET_SCOPES = {
+  operational: [
+    'stock',
+    'importOrders',
+    'salesOrders',
+    'masterOrders',
+    'payments',
+    'receipts',
+    'returnOrders',
+    'masterReturnOrders',
+    'cashbooks',
+    'bankbooks',
+    'cashbook',
+    'importLogs',
+    'mobileLogs',
+    'auditLogs'
+  ],
+  catalog: ['products', 'customers', 'staffs', 'warehouses', 'promotions', 'importTemplates'],
+  all: APP_COLLECTION_KEYS
+};
+
+async function resetOperationalData({ confirm, scope = 'operational' } = {}) {
   if (process.env.ALLOW_SYSTEM_RESET !== 'true') {
-    const err = new Error('Reset hệ thống đang bị khóa. Chỉ bật bằng ALLOW_SYSTEM_RESET=true khi thật sự cần.');
+    const err = new Error('Reset hệ thống đang bị khóa. Bật ALLOW_SYSTEM_RESET=true trên Render/.env rồi deploy lại trước khi reset.');
     err.status = 403;
     throw err;
   }
@@ -108,10 +129,14 @@ async function resetOperationalData({ confirm } = {}) {
     err.status = 400;
     throw err;
   }
+  const resetScope = RESET_SCOPES[scope] ? scope : 'operational';
+  const clearedCollections = RESET_SCOPES[resetScope].filter((key) => APP_COLLECTION_KEYS.includes(key));
   const backup = await createBackup();
-  const emptyData = Object.fromEntries(APP_COLLECTION_KEYS.map((key) => [key, []]));
-  await repository.replaceAll(emptyData);
-  return { ok: true, backup, clearedCollections: APP_COLLECTION_KEYS };
+  const currentData = await getDataSnapshot();
+  const nextData = { ...currentData };
+  clearedCollections.forEach((key) => { nextData[key] = []; });
+  await repository.replaceAll(nextData);
+  return { ok: true, scope: resetScope, backup, clearedCollections };
 }
 
 module.exports = {

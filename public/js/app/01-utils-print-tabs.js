@@ -130,6 +130,7 @@ function setupTabs(){
       if(button.dataset.tab==='debtTab'){await loadDebts();await loadReceipts();await loadCashbook();renderCollectionCustomerSelect()}
       if(button.dataset.tab==='reportsTab') await loadReports();
       if(button.dataset.tab==='importDataTab'){resetImportPreviewMessage();}
+      if(button.dataset.tab==='systemTab' && typeof loadSystemStatus==='function') await loadSystemStatus();
       if(button.dataset.tab==='importTab'){await loadProducts();renderImportProductSelect();await loadImportOrders()}
       if(button.dataset.tab==='salesTab'){await loadProducts();await loadCustomers();await loadUsers();renderSalesProductSelect();renderSalesCustomerSelect();renderSalesStaffSelect()}
     });

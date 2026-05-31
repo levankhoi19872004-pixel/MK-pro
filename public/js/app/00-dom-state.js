@@ -309,3 +309,13 @@ let importPreviewRows=[];
 let customImportFields=[];
 let customImportTemplates=[];
 
+const reloadSystemStatusButton=document.getElementById('reloadSystemStatusButton');
+const createSystemBackupButton=document.getElementById('createSystemBackupButton');
+const resetSystemDataButton=document.getElementById('resetSystemDataButton');
+const systemResetScope=document.getElementById('systemResetScope');
+const systemResetConfirm=document.getElementById('systemResetConfirm');
+const systemMongoState=document.getElementById('systemMongoState');
+const systemResetState=document.getElementById('systemResetState');
+const systemDataSource=document.getElementById('systemDataSource');
+const systemCountsTable=document.getElementById('systemCountsTable');
+const systemMessage=document.getElementById('systemMessage');
