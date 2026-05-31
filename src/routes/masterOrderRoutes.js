@@ -7,6 +7,7 @@ const router = express.Router();
 
 router.get('/unmerged-child-orders', masterOrderController.listUnmergedChildOrders);
 router.get('/delivery-today', masterOrderController.listDeliveryToday);
+router.post('/delivery-today/confirm-accounting', masterOrderController.confirmDeliveryAccounting);
 router.patch('/delivery-today/:id', masterOrderController.updateDeliveryTodayOrder);
 router.get('/', masterOrderController.list);
 router.post('/', masterOrderController.create);

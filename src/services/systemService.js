@@ -4,11 +4,58 @@ const fs = require('fs/promises');
 const path = require('path');
 const mongoose = require('mongoose');
 const AppDataRepository = require('../repositories/appData.repository');
+const collectionRepository = require('../repositories/mongoCollection.repository');
 const settingRepository = require('../repositories/settingRepository');
 const { APP_COLLECTION_KEYS } = require('../constants/collectionKeys');
 
 const repository = new AppDataRepository(APP_COLLECTION_KEYS);
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'backups');
+
+const RESET_CONFIRM_TEXT = 'XÁC NHẬN RESET';
+const LEGACY_RESET_CONFIRM_TEXT = 'RESET_MONGO_DATA';
+
+// Reset theo nhóm để tránh bấm nhầm làm mất danh mục sản phẩm/khách hàng/nhân viên.
+const RESET_PROFILES = {
+  operational: {
+    label: 'Reset nghiệp vụ',
+    description: 'Xóa chứng từ phát sinh: đơn bán, đơn tổng, phiếu nhập, công nợ, trả hàng, quỹ tiền, log import/mobile/audit. Giữ danh mục.',
+    collections: [
+      'importOrders',
+      'salesOrders',
+      'masterOrders',
+      'payments',
+      'receipts',
+      'returnOrders',
+      'masterReturnOrders',
+      'cashbooks',
+      'bankbooks',
+      'cashbook',
+      'stock',
+      'importLogs',
+      'mobileLogs',
+      'auditLogs'
+    ]
+  },
+  inventory: {
+    label: 'Reset tồn kho',
+    description: 'Chỉ xóa sổ tồn kho/snapshot tồn kho. Không xóa danh mục và chứng từ bán hàng.',
+    collections: ['stock']
+  },
+  debt: {
+    label: 'Reset công nợ',
+    description: 'Xóa chứng từ giảm công nợ, trả hàng và sổ tiền. Không xóa đơn bán gốc.',
+    collections: ['payments', 'receipts', 'returnOrders', 'masterReturnOrders', 'cashbooks', 'bankbooks', 'cashbook']
+  },
+  full: {
+    label: 'Reset toàn bộ',
+    description: 'Xóa toàn bộ dữ liệu trong các collection của phần mềm. Chỉ dùng khi muốn làm lại từ đầu.',
+    collections: APP_COLLECTION_KEYS
+  }
+};
+
+function uniqExistingCollections(keys = []) {
+  return [...new Set(keys)].filter((key) => APP_COLLECTION_KEYS.includes(key));
+}
 
 function mongoState() {
   const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
@@ -56,6 +103,11 @@ async function status() {
     env: process.env.NODE_ENV || 'development',
     legacyJsonEnabled: process.env.ENABLE_LEGACY_JSON === 'true',
     resetEnabled: process.env.ALLOW_SYSTEM_RESET === 'true',
+    resetProfiles: Object.fromEntries(Object.entries(RESET_PROFILES).map(([key, profile]) => [key, {
+      label: profile.label,
+      description: profile.description,
+      collections: uniqExistingCollections(profile.collections)
+    }])),
     dataSource,
     settingCount: settings.length
   };
@@ -97,21 +149,55 @@ async function createBackup() {
   return { fileName, filePath, counts };
 }
 
-async function resetOperationalData({ confirm } = {}) {
+function assertResetAllowed(confirm) {
   if (process.env.ALLOW_SYSTEM_RESET !== 'true') {
     const err = new Error('Reset hệ thống đang bị khóa. Chỉ bật bằng ALLOW_SYSTEM_RESET=true khi thật sự cần.');
     err.status = 403;
     throw err;
   }
-  if (confirm !== 'RESET_MONGO_DATA') {
-    const err = new Error('Thiếu mã xác nhận reset: RESET_MONGO_DATA');
+  if (![RESET_CONFIRM_TEXT, LEGACY_RESET_CONFIRM_TEXT].includes(String(confirm || '').trim())) {
+    const err = new Error(`Thiếu mã xác nhận reset: ${RESET_CONFIRM_TEXT}`);
     err.status = 400;
     throw err;
   }
-  const backup = await createBackup();
-  const emptyData = Object.fromEntries(APP_COLLECTION_KEYS.map((key) => [key, []]));
-  await repository.replaceAll(emptyData);
-  return { ok: true, backup, clearedCollections: APP_COLLECTION_KEYS };
+}
+
+async function resetOperationalData({ confirm, mode = 'operational', backupBeforeReset = true } = {}) {
+  assertResetAllowed(confirm);
+
+  const normalizedMode = String(mode || 'operational').trim();
+  const profile = RESET_PROFILES[normalizedMode];
+  if (!profile) {
+    const err = new Error('Chế độ reset không hợp lệ. Chọn: operational, inventory, debt hoặc full.');
+    err.status = 400;
+    throw err;
+  }
+
+  const clearedCollections = uniqExistingCollections(profile.collections);
+  const beforeCounts = {};
+  for (const key of clearedCollections) beforeCounts[key] = await collectionRepository.count(key);
+
+  const backup = backupBeforeReset === false ? null : await createBackup();
+  const results = [];
+  for (const key of clearedCollections) {
+    results.push(await collectionRepository.deleteMany(key, {}));
+  }
+
+  const afterCounts = {};
+  for (const key of clearedCollections) afterCounts[key] = await collectionRepository.count(key);
+
+  return {
+    ok: true,
+    success: true,
+    mode: normalizedMode,
+    label: profile.label,
+    message: `${profile.label} thành công`,
+    backup,
+    beforeCounts,
+    afterCounts,
+    clearedCollections,
+    results
+  };
 }
 
 module.exports = {

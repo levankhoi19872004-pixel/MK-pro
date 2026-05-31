@@ -3768,3 +3768,17 @@ button.danger:hover{background:#fecaca}
 }
 .delivery-edit-total .total-overpay b,
 #deliveryEditTotalBox .total-overpay b{color:#ea580c!important;}
+
+.system-reset-card { max-width: 980px; margin: 0 auto; }
+.system-reset-form { max-width: 560px; }
+.danger-note { border-left: 4px solid #dc2626; background: #fff7f7; }
+button.danger, .button-row .danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+button.danger:hover, .button-row .danger:hover { filter: brightness(0.95); }
+
+/* V45 accounting confirmation lock for delivery today */
+.delivery-accounting-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+.delivery-accounting-status{margin:10px 0 12px;padding:10px 12px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:600;font-size:13px;}
+.delivery-accounting-status.confirmed{background:#ecfdf5;border-color:#bbf7d0;color:#166534;}
+.delivery-locked-note{display:inline-block;margin-top:4px;color:#166534;font-weight:700;}
+.delivery-open-note{display:inline-block;margin-top:4px;color:#9a3412;font-weight:600;}
+#deliveryEditSaveButton:disabled{opacity:.55;cursor:not-allowed;}

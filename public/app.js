@@ -138,3 +138,33 @@ loadPromotions();
 setReportDefaults();
 renderImportItems();
 renderSalesItems();
+
+async function submitSystemReset(){
+  const modeEl=document.getElementById('systemResetMode');
+  const confirmEl=document.getElementById('systemResetConfirm');
+  const backupEl=document.getElementById('systemResetBackup');
+  const messageEl=document.getElementById('systemResetMessage');
+  const buttonEl=document.getElementById('systemResetButton');
+  if(!modeEl||!confirmEl||!messageEl)return;
+  const confirmText=String(confirmEl.value||'').trim();
+  if(confirmText!=='XÁC NHẬN RESET'){
+    showMessage(messageEl,'Anh cần nhập đúng: XÁC NHẬN RESET',true);
+    return;
+  }
+  const mode=modeEl.value||'operational';
+  const modeLabel=modeEl.options[modeEl.selectedIndex]?.textContent||mode;
+  if(!window.confirm(`Xác nhận ${modeLabel}? Dữ liệu đã chọn sẽ bị xóa khỏi MongoDB.`))return;
+  try{
+    if(buttonEl)buttonEl.disabled=true;
+    showMessage(messageEl,'Đang reset dữ liệu...');
+    const res=await fetch('/api/system/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,confirm:confirmText,backupBeforeReset:backupEl?backupEl.checked:true})});
+    const json=await res.json();
+    if(!json.ok&&!json.success)throw new Error(json.message||'Reset thất bại');
+    const deleted=Object.entries(json.beforeCounts||{}).reduce((sum,[,v])=>sum+Number(v||0),0);
+    showMessage(messageEl,`${json.message||'Reset thành công'} - đã xóa ${deleted.toLocaleString('vi-VN')} bản ghi. Backup: ${json.backup?.fileName||'không tạo'}`);
+    await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadMasterOrderModule();await loadDeliveryToday();await loadDebts();await loadReceipts();await loadCashbook();await loadUsers();await loadPromotions();
+  }catch(err){showMessage(messageEl,err.message,true)}
+  finally{if(buttonEl)buttonEl.disabled=false;}
+}
+const systemResetButton=document.getElementById('systemResetButton');
+if(systemResetButton)systemResetButton.addEventListener('click',submitSystemReset);

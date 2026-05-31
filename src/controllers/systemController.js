@@ -76,7 +76,11 @@ async function backup(req, res) {
 
 async function reset(req, res) {
   try {
-    res.json(await systemService.resetOperationalData({ confirm: req.body && req.body.confirm }));
+    res.json(await systemService.resetOperationalData({
+      confirm: req.body && req.body.confirm,
+      mode: req.body && req.body.mode,
+      backupBeforeReset: req.body && req.body.backupBeforeReset !== false
+    }));
   } catch (err) {
     sendError(res, err, 'Không reset được dữ liệu');
   }
