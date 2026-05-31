@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V45 Mobile - Giao hàng 4 tab</title>
-  <link rel="stylesheet" href="./mobile.css?v=delivery-vertical-settlement-v45" />
+  <link rel="stylesheet" href="./mobile.css?v=delivery-debt-collection-report-v45" />
 </head>
 <body>
   <main class="mobile-page delivery-app-page">
@@ -95,10 +95,14 @@
           </div>
         </div>
         <div class="delivery-report-grid">
-          <div><span>Tiền mặt</span><strong id="reportCashAmount">0</strong></div>
-          <div><span>Chuyển khoản</span><strong id="reportBankAmount">0</strong></div>
+          <div><span>Tổng tiền mặt</span><strong id="reportCashAmount">0</strong></div>
+          <div><span>Tổng chuyển khoản</span><strong id="reportBankAmount">0</strong></div>
           <div><span>Trả hàng</span><strong id="reportReturnAmount">0</strong></div>
           <div><span>Còn nợ</span><strong id="reportDebtAmount">0</strong></div>
+          <div><span>Thu đơn hôm nay - TM</span><strong id="reportTodayCashAmount">0</strong></div>
+          <div><span>Thu đơn hôm nay - CK</span><strong id="reportTodayBankAmount">0</strong></div>
+          <div><span>Thu nợ cũ - TM</span><strong id="reportOldDebtCashAmount">0</strong></div>
+          <div><span>Thu nợ cũ - CK</span><strong id="reportOldDebtBankAmount">0</strong></div>
         </div>
         <h2 class="sub-title">Danh sách đơn đã giao / đã xử lý</h2>
         <div id="deliveryReportList" class="order-list empty">Chưa có dữ liệu báo cáo.</div>
@@ -106,6 +110,6 @@
     </section>
   </main>
 
-  <script type="module" src="./js/delivery.js?v=delivery-vertical-settlement-v45"></script>
+  <script type="module" src="./js/delivery.js?v=delivery-debt-collection-report-v45"></script>
 </body>
 </html>

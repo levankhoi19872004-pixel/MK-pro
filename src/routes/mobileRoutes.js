@@ -1495,6 +1495,12 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       const currentBankDelta = bankSplit.allocations
         .filter((row) => currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))
         .reduce((sum, row) => sum + toNumber(row.amount), 0);
+      const oldDebtCashDelta = cashSplit.allocations
+        .filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim())))
+        .reduce((sum, row) => sum + toNumber(row.amount), 0);
+      const oldDebtBankDelta = bankSplit.allocations
+        .filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim())))
+        .reduce((sum, row) => sum + toNumber(row.amount), 0);
       // Các ô tiền trên app là số tuyệt đối đang lưu cho đơn, không phải số thu thêm.
       // Nếu không chọn đơn nợ cũ, ghi đè trực tiếp để sửa giảm tiền được (200000 -> 100000).
       // Nếu có chọn nợ cũ, chỉ phần tiền được phân bổ về đơn hiện tại mới cập nhật vào đơn hiện tại.
@@ -1510,6 +1516,16 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       order.bankCollected = nextBank;
       order.bankAmount = nextBank;
       order.transferAmount = nextBank;
+      order.oldDebtCashCollected = toNumber(order.oldDebtCashCollected || order.debtCashCollected || 0) + oldDebtCashDelta;
+      order.debtCashCollected = order.oldDebtCashCollected;
+      order.oldDebtBankCollected = toNumber(order.oldDebtBankCollected || order.debtBankCollected || 0) + oldDebtBankDelta;
+      order.debtBankCollected = order.oldDebtBankCollected;
+      order.oldDebtCollectedAmount = order.oldDebtCashCollected + order.oldDebtBankCollected;
+      order.debtCollectionAllocations = [
+        ...(Array.isArray(order.debtCollectionAllocations) ? order.debtCollectionAllocations : []),
+        ...cashSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'cash', date: new Date().toISOString().slice(0, 10), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) })),
+        ...bankSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'transfer', date: new Date().toISOString().slice(0, 10), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) }))
+      ];
       order.rewardAmount = nextReward;
       order.displayRewardAmount = nextReward;
       order.paidAmount = nextCash + nextBank;

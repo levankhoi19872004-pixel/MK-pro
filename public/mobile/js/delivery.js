@@ -125,6 +125,10 @@ const reportCashAmount = document.getElementById('reportCashAmount');
 const reportBankAmount = document.getElementById('reportBankAmount');
 const reportReturnAmount = document.getElementById('reportReturnAmount');
 const reportDebtAmount = document.getElementById('reportDebtAmount');
+const reportTodayCashAmount = document.getElementById('reportTodayCashAmount');
+const reportTodayBankAmount = document.getElementById('reportTodayBankAmount');
+const reportOldDebtCashAmount = document.getElementById('reportOldDebtCashAmount');
+const reportOldDebtBankAmount = document.getElementById('reportOldDebtBankAmount');
 
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadOrders);
 document.getElementById('submitCashBtn')?.addEventListener('click', submitCash);
@@ -546,14 +550,22 @@ function renderActionForm(order) {
 
 function renderReport() {
   const completed = state.orders.filter(isCompleted);
-  const cash = completed.reduce((sum, order) => sum + Number(order.cashCollected || 0), 0);
-  const bank = completed.reduce((sum, order) => sum + Number(order.bankCollected || 0), 0);
-  const returns = completed.reduce((sum, order) => sum + Number(order.returnAmount || 0), 0);
+  const todayCash = completed.reduce((sum, order) => sum + deliveryToNumber(order.cashCollected || 0), 0);
+  const todayBank = completed.reduce((sum, order) => sum + deliveryToNumber(order.bankCollected || 0), 0);
+  const oldDebtCash = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtCashCollected || order.debtCashCollected || 0), 0);
+  const oldDebtBank = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0), 0);
+  const totalCash = todayCash + oldDebtCash;
+  const totalBank = todayBank + oldDebtBank;
+  const returns = completed.reduce((sum, order) => sum + deliveryToNumber(order.returnAmount || 0), 0);
   const debt = completed.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
-  if (reportCashAmount) reportCashAmount.textContent = money(cash);
-  if (reportBankAmount) reportBankAmount.textContent = money(bank);
+  if (reportCashAmount) reportCashAmount.textContent = money(totalCash);
+  if (reportBankAmount) reportBankAmount.textContent = money(totalBank);
   if (reportReturnAmount) reportReturnAmount.textContent = money(returns);
   if (reportDebtAmount) reportDebtAmount.textContent = money(debt);
+  if (reportTodayCashAmount) reportTodayCashAmount.textContent = money(todayCash);
+  if (reportTodayBankAmount) reportTodayBankAmount.textContent = money(todayBank);
+  if (reportOldDebtCashAmount) reportOldDebtCashAmount.textContent = money(oldDebtCash);
+  if (reportOldDebtBankAmount) reportOldDebtBankAmount.textContent = money(oldDebtBank);
 
   if (!completed.length) {
     reportList.className = 'order-list empty';
@@ -561,16 +573,22 @@ function renderReport() {
     return;
   }
   reportList.className = 'order-list delivery-report-list';
-  reportList.innerHTML = completed.map(order => `
+  reportList.innerHTML = completed.map(order => {
+    const orderCash = deliveryToNumber(order.cashCollected || 0);
+    const orderBank = deliveryToNumber(order.bankCollected || 0);
+    const debtCash = deliveryToNumber(order.oldDebtCashCollected || order.debtCashCollected || 0);
+    const debtBank = deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0);
+    return `
     <article class="delivery-report-item">
       <div>
         <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
-        <span>${statusLabel(order)} · Còn nợ: ${money(calculateDeliveryDebt(order))}</span>
-        <span>TM: ${money(order.cashCollected || 0)} · CK: ${money(order.bankCollected || 0)} · Thưởng: ${money(order.rewardAmount || 0)} · Trả: ${money(order.returnAmount || 0)}</span>
+        <span>${statusLabel(order)} · Còn nợ đơn hôm nay: ${money(calculateDeliveryDebt(order))}</span>
+        <span>Thu đơn hôm nay: TM ${money(orderCash)} · CK ${money(orderBank)} · Thưởng ${money(order.rewardAmount || 0)} · Trả ${money(order.returnAmount || 0)}</span>
+        <span>Thu nợ cũ: TM ${money(debtCash)} · CK ${money(debtBank)}</span>
       </div>
       <button class="ghost-btn small-btn" data-edit-report="${escapeHtml(order.id)}">Sửa</button>
-    </article>
-  `).join('');
+    </article>`;
+  }).join('');
 
   reportList.querySelectorAll('[data-edit-report]').forEach(btn => {
     btn.addEventListener('click', () => selectOrder(btn.dataset.editReport, true));
