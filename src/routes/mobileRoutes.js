@@ -639,10 +639,12 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
   const returnAmount = syncedReturnAmount;
   const rewardAmount = toNumber(sourceOrder.rewardAmount || sourceOrder.displayRewardAmount);
   const debtBeforeCollection = deliveryDebtBase({ ...sourceOrder, totalAmount });
-  // App giao hàng không dùng AR cache/AR Ledger để tính tiền trên màn thu.
-  // Dùng đúng công thức hiện hành của đơn: phải thu - tiền mặt - chuyển khoản - trả thưởng - hàng trả.
-  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
-  const debtSource = 'delivery_formula';
+  const arDebtRow = findArDebtRow(arDebtMap, order, sourceOrder);
+  const formulaDebtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  // Nếu đã có bút toán AR cho đơn này thì dùng AR Ledger làm nguồn hiển thị công nợ duy nhất.
+  // Nếu chưa có AR thì vẫn dùng công thức tạm tính để NVGH biết còn phải thu bao nhiêu trước khi đẩy kế toán.
+  const debtAmount = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : formulaDebtAmount;
+  const debtSource = arDebtRow ? 'ar_ledger' : 'delivery_formula';
   const itemSource = Array.isArray(sourceOrder.items) ? sourceOrder.items : [];
   return {
     id: getDocId(order),
@@ -669,7 +671,7 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     arBalance: debtAmount,
     arDebtAmount: debtAmount,
     debtSource,
-    arLedgerSynced: false,
+    arLedgerSynced: Boolean(arDebtRow),
     debtBeforeCollection,
     cashCollected,
     bankCollected,
@@ -1301,8 +1303,9 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
     const customerByCode = new Map(customers.map((c) => [String(c.code), c]));
 
-    // Không build AR cache cho app giao hàng; công nợ trên app tính trực tiếp từ đơn và tiền đã nhập.
-    const arDebtMap = null;
+    // V45 chuẩn: công nợ hiển thị trên app giao hàng phải ưu tiên cùng nguồn với màn Công nợ ERP (AR Ledger).
+    // Chỉ fallback công thức tạm tính từ đơn khi đơn chưa có bút toán AR, tránh mỗi màn hiện một số khác nhau.
+    const arDebtMap = await buildArDebtMapForOrders(orders);
 
     let items = deliveryPairs
       .filter(({ master }) => isActiveMasterOrder(master))

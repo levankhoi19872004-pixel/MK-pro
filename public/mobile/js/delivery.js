@@ -80,13 +80,16 @@ function deliveryDebtBase(order = {}) {
 }
 
 function isArLedgerSynced(order = {}) {
-  return false;
+  return order?.arLedgerSynced === true || String(order?.debtSource || '').toLowerCase() === 'ar_ledger';
+}
+function deliveryArLedgerDebt(order = {}) {
+  return Math.round(deliveryToNumber(order.arDebtAmount ?? order.arBalance ?? order.debtAmount ?? order.debt ?? 0));
 }
 
 function calculateDeliveryDebt(order = {}) {
-  // Luôn tính theo chứng từ/giá trị đơn trên màn hình giao hàng.
-  // Không lấy arDebtAmount/arBalance làm nguồn chính ở app giao hàng, vì AR có thể chưa post
-  // hoặc cache cũ trả về 0 làm sai công nợ.
+  // Nếu backend đã gắn nguồn AR Ledger thì dùng cùng số công nợ với ERP.
+  // Nếu chưa có AR, fallback công thức tạm tính của đơn giao.
+  if (isArLedgerSynced(order)) return deliveryArLedgerDebt(order);
   return Math.max(0, Math.round(
     deliveryDebtBase(order)
     - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)

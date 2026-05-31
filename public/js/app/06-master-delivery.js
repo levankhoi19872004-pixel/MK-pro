@@ -353,7 +353,19 @@ function isDeliveryArLedgerSynced(row){
   return row?.arLedgerSynced === true || String(row?.debtSource || '').toLowerCase() === 'ar_ledger';
 }
 function deliveryArLedgerDebt(row){
-  return Math.max(0, Math.round(deliveryToNumber(row?.arDebtAmount ?? row?.arBalance ?? row?.debtAmount ?? row?.debt ?? 0)));
+  // AR Ledger có thể âm khi khách dư có; không ép về 0 để các màn thống nhất số liệu công nợ.
+  return Math.round(deliveryToNumber(row?.arDebtAmount ?? row?.arBalance ?? row?.debtAmount ?? row?.debt ?? 0));
+}
+function deliveryDebtClass(value){
+  const n=Math.round(deliveryToNumber(value));
+  if(n>0)return 'debt-positive';
+  if(n<0)return 'cash-in';
+  return 'debt-zero';
+}
+function deliveryDebtCompactLabel(value){
+  const n=Math.round(deliveryToNumber(value));
+  if(n<0)return `Dư ${deliveryCompactMoney(Math.abs(n))}`;
+  return deliveryCompactMoney(n);
 }
 function calculateDeliveryDraftDebt(row){
   return Math.max(0, normalizeDebtAmount(
@@ -638,6 +650,8 @@ async function loadDeliveryToday(){
       acc.debt += calculateDeliveryDebt(row);
       return acc;
     },{total:0,cash:0,bank:0,reward:0,returned:0,debt:0});
+    // KPI Công nợ chỉ cộng phần còn nợ dương; khách dư có vẫn hiển thị ở dòng chi tiết nhưng không làm âm KPI phải thu.
+    moneyReport.debt=Math.max(0, moneyReport.debt);
     if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(moneyReport.total);
     if(deliveryRunningKpi)deliveryRunningKpi.textContent=money(moneyReport.cash);
     if(deliveryDoneKpi)deliveryDoneKpi.textContent=money(moneyReport.bank);
@@ -679,7 +693,7 @@ async function loadDeliveryToday(){
           <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b class="cash-in">${deliveryCompactMoney(bank)}</b></span>
           <span title="Trả thưởng: ${money(reward)}"><em>Thưởng</em><b>${deliveryCompactMoney(reward)}</b></span>
           <span title="Hàng trả: ${money(returned)}"><em>Hàng trả</em><b>${deliveryCompactMoney(returned)}</b></span>
-          <span class="money-debt" title="Công nợ: ${money(calculateDeliveryDebt(row))}"><em>CN</em><b class="${hasOpenDebt(calculateDeliveryDebt(row))?'debt-positive':'debt-zero'}">${deliveryCompactMoney(calculateDeliveryDebt(row))}</b></span>
+          <span class="money-debt" title="Công nợ: ${money(calculateDeliveryDebt(row))} · Nguồn: ${row.debtSource==='ar_ledger'?'AR Ledger':'Tạm tính đơn giao'}"><em>CN</em><b class="${deliveryDebtClass(calculateDeliveryDebt(row))}">${deliveryDebtCompactLabel(calculateDeliveryDebt(row))}</b></span>
         </div>
       </article>`;
     }).join('');
@@ -697,7 +711,7 @@ async function confirmDeliveryAccounting(){
   const rows=(deliveryRowsCache||[]).filter(row=>selectedIds.includes(String(row.id)));
   if(!rows.length){alert('Chưa chọn đơn nào để đẩy sang công nợ.');return;}
   const total=rows.reduce((sum,row)=>sum+deliveryDebtBase(row),0);
-  const debt=rows.reduce((sum,row)=>sum+calculateDeliveryDebt(row),0);
+  const debt=rows.reduce((sum,row)=>sum+Math.max(0, calculateDeliveryDebt(row)),0);
   const ok=confirm(`Đẩy các đơn đã chọn sang công nợ?
 
 Ngày giao: ${date}
