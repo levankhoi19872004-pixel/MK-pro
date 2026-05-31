@@ -283,7 +283,13 @@ function deliveryCompactMoney(value){
 function deliveryDebtBase(row){
   return deliveryToNumber(row?.debtBeforeCollection ?? row?.totalAmount ?? row?.amount ?? row?.debtAmount ?? row?.debt ?? 0);
 }
-function calculateDeliveryDebt(row){
+function isDeliveryArLedgerSynced(row){
+  return row?.arLedgerSynced === true || String(row?.debtSource || '').toLowerCase() === 'ar_ledger';
+}
+function deliveryArLedgerDebt(row){
+  return Math.max(0, Math.round(deliveryToNumber(row?.arDebtAmount ?? row?.arBalance ?? row?.debtAmount ?? row?.debt ?? 0)));
+}
+function calculateDeliveryDraftDebt(row){
   return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(row)
     - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
@@ -291,6 +297,12 @@ function calculateDeliveryDebt(row){
     - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
     - deliveryToNumber(row?.returnAmount ?? row?.returnedAmount ?? 0)
   ));
+}
+function calculateDeliveryDebt(row){
+  // Sau khi đơn đã được đẩy sang công nợ, chỉ hiển thị một nguồn duy nhất: AR Ledger.
+  // Không trộn số tạm tính từ form với số công nợ đã ghi sổ, tránh cùng một đơn hiện 2 số khác nhau.
+  if(isDeliveryArLedgerSynced(row)) return deliveryArLedgerDebt(row);
+  return calculateDeliveryDraftDebt(row);
 }
 function deliveryRowPaid(row){
   return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryToNumber(row?.returnAmount||0);
@@ -353,7 +365,10 @@ function buildDeliveryOverpaymentMessage(state){
 function renderDeliveryEditTotal(){
   if(!deliveryEditTotalBox)return;
   const state=getDeliveryEditPaymentState();
-  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>Còn nợ</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
+  const selectedRow=getSelectedDeliveryRow?.();
+  const arSynced=isDeliveryArLedgerSynced(selectedRow);
+  const arDebt=arSynced?deliveryArLedgerDebt(selectedRow):state.debt;
+  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>${arSynced?'Còn nợ AR':'Còn nợ tạm tính'}</span><b>${money(arDebt)}</b></div>${state.over>0 && !arSynced?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
 }
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
@@ -438,7 +453,8 @@ function fillDeliveryEditPanel(row){
   if(deliveryEditStatus)deliveryEditStatus.textContent=deliveryStatusLabel(row.visualStatus||row.deliveryStatus);
   if(deliverySelectedSummary){
     const calcDebt=calculateDeliveryDebt(row);
-    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(deliveryDebtBase(row))}</b> · <b class="${calcDebt>0?'debt-positive':'debt-zero'}">Còn nợ: ${money(calcDebt)}</b></span>`;
+    const debtLabel=isDeliveryArLedgerSynced(row)?'Còn nợ AR':'Còn nợ tạm tính';
+    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(deliveryDebtBase(row))}</b> · <b class="${calcDebt>0?'debt-positive':'debt-zero'}">${debtLabel}: ${money(calcDebt)}</b></span>`;
   }
   renderDeliveryReturnItems(row);
   renderDeliveryEditTotal();
@@ -461,7 +477,10 @@ function recalcDeliveryEditDebt(){
   const bank=Number(deliveryEditBank?.value||0);
   const returned=Number(deliveryEditReturn?.value||0);
   const reward=Number(deliveryEditReward?.value||0);
-  if(deliveryEditDebt)deliveryEditDebt.value=calculateDeliveryDebt({debtBeforeCollection:before,cashCollected:cash,bankCollected:bank,returnAmount:returned,rewardAmount:reward});
+  const selectedRow=getSelectedDeliveryRow?.();
+  if(deliveryEditDebt)deliveryEditDebt.value=isDeliveryArLedgerSynced(selectedRow)
+    ? deliveryArLedgerDebt(selectedRow)
+    : calculateDeliveryDraftDebt({debtBeforeCollection:before,cashCollected:cash,bankCollected:bank,returnAmount:returned,rewardAmount:reward});
 }
 window.recalcDeliveryEditDebt=recalcDeliveryEditDebt;
 

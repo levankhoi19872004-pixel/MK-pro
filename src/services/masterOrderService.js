@@ -7,6 +7,7 @@ const userRepository = require('../repositories/userRepository');
 const customerRepository = require('../repositories/customerRepository');
 const orderService = require('./orderService');
 const returnOrderService = require('./returnOrderService');
+const reportService = require('./reportService');
 const postingEngine = require('../engines/posting.engine');
 const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
@@ -464,6 +465,55 @@ function statusForDeliveryRow(order = {}) {
   return 'waiting';
 }
 
+
+function masterDeliveryDebtMapKey(value) {
+  return String(value || '').trim();
+}
+
+function masterDeliveryOrderKeys(...sources) {
+  return [...new Set(sources.flatMap((source) => [
+    source?.id,
+    source?.code,
+    source?.orderId,
+    source?.orderCode,
+    source?.salesOrderId,
+    source?.salesOrderCode,
+    source?.refId,
+    source?.refCode
+  ]).map(masterDeliveryDebtMapKey).filter(Boolean))];
+}
+
+function masterDeliveryPutDebtMapEntry(map, row = {}) {
+  masterDeliveryOrderKeys(row).forEach((key) => map.set(key, row));
+}
+
+async function buildMasterDeliveryArDebtMap(orders = []) {
+  const map = new Map();
+  const wanted = new Set();
+  (orders || []).forEach((order) => masterDeliveryOrderKeys(order).forEach((key) => wanted.add(key)));
+  if (!wanted.size) return map;
+  try {
+    const report = await reportService.debtReport({ includePaid: '1', status: 'all' });
+    const rows = Array.isArray(report?.debts) ? report.debts : [];
+    rows.forEach((row) => {
+      const keys = masterDeliveryOrderKeys(row);
+      if (keys.some((key) => wanted.has(key))) masterDeliveryPutDebtMapEntry(map, row);
+    });
+  } catch (err) {
+    // Nếu AR Ledger lỗi, màn giao hàng vẫn fallback về cache order để không vỡ giao diện.
+  }
+  return map;
+}
+
+function findMasterDeliveryArDebtRow(arDebtMap, ...sources) {
+  if (!arDebtMap || !arDebtMap.size) return null;
+  for (const key of masterDeliveryOrderKeys(...sources)) {
+    const row = arDebtMap.get(key);
+    if (row) return row;
+  }
+  return null;
+}
+
 async function listDeliveryToday(query = {}) {
   const date = String(query.date || today()).slice(0, 10);
   const q = normalizeText(query.q);
@@ -474,6 +524,8 @@ async function listDeliveryToday(query = {}) {
 
   const masterOrders = await listMasterOrders({ excludeInactive: 1 });
   const returnOrders = await returnOrderRepository.findAll();
+  const allChildrenForAr = masterOrders.flatMap((master) => Array.isArray(master.children) ? master.children : []).filter((child) => !isInactiveStatus(child));
+  const arDebtMap = await buildMasterDeliveryArDebtMap(allChildrenForAr);
   const rows = [];
 
   for (const master of masterOrders) {
@@ -514,8 +566,24 @@ async function listDeliveryToday(query = {}) {
         bankCollected: toNumber(child.bankCollected ?? child.transferAmount ?? child.bankAmount ?? 0),
         returnAmount: deliveryReturnAmount(child),
         rewardAmount: deliveryRewardAmount(child),
-        debt: calculateDeliveryDebt(child),
-        debtAmount: calculateDeliveryDebt(child),
+        debt: (() => {
+          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
+          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
+        })(),
+        debtAmount: (() => {
+          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
+          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
+        })(),
+        arBalance: (() => {
+          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
+          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
+        })(),
+        arDebtAmount: (() => {
+          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
+          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
+        })(),
+        debtSource: findMasterDeliveryArDebtRow(arDebtMap, child, master) ? 'ar_ledger' : 'order_cache',
+        arLedgerSynced: Boolean(findMasterDeliveryArDebtRow(arDebtMap, child, master)),
         items: Array.isArray(child.items) ? child.items : [],
         returnItems: syncedReturnItems,
         deliveryReturnItems: syncedReturnItems,
