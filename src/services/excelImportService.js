@@ -914,13 +914,19 @@ async function importSalesOrders(rows = [], options = {}) {
   const productMap = await preloadProductsByCode(rows);
   const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
   const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
-  const importDocumentCodes = Array.from(new Set(rows.map((r) => cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don'])).filter(Boolean)));
+  const importDocumentCodes = Array.from(new Set(rows.map(getOrderDocumentCode).map(cleanText).filter((code) => code && code !== 'AUTO')));
   const existingSalesOrders = importDocumentCodes.length
-    ? await SalesOrder.find({ documentCode: { $in: importDocumentCodes } }).select('documentCode code').lean().catch(() => [])
+    ? await SalesOrder.find({
+        $or: [
+          { documentCode: { $in: importDocumentCodes } },
+          { code: { $in: importDocumentCodes } }
+        ]
+      }).select('documentCode code').lean().catch(() => [])
     : [];
   const existingDocumentSet = new Set(
     existingSalesOrders
-      .map((order) => cleanText(order.documentCode || order.code))
+      .flatMap((order) => [order.documentCode, order.code])
+      .map(cleanText)
       .filter(Boolean)
   );
   const importedDocumentSet = new Set();
@@ -941,7 +947,7 @@ async function importSalesOrders(rows = [], options = {}) {
     stockMap.set(exactKey, toNumber(stockMap.get(exactKey)) + qty);
     productStockMap.set(code, toNumber(productStockMap.get(code)) + qty);
   }
-  const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${getDateFromRow(r)}|${getCustomerCodeFromRow(r)}`);
+  const groups = groupRows(rows, makeSalesOrderGroupKey);
   const autoOrderCodes = await buildRunningCodes(SalesOrder, 'BH', groups.length);
   let autoOrderIdx = 0;
   const orderDocs = [];
@@ -955,7 +961,7 @@ async function importSalesOrders(rows = [], options = {}) {
 
   for (const group of groups) {
     const first = group[0] || {};
-    const docCodeCheck = cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']);
+    const docCodeCheck = getOrderDocumentCode(first);
     if (docCodeCheck && existingDocumentSet.has(docCodeCheck)) {
       skipped += group.length;
       errors.push({ documentCode: docCodeCheck, message: 'Đơn đã tồn tại - bỏ qua import' });
@@ -1008,7 +1014,7 @@ async function importSalesOrders(rows = [], options = {}) {
         deliveredQuantity = allocation.allowedDeliveredQuantity;
         lineAmount = rawSaleQuantity * salePrice;
         shortageReport.push({
-          documentCode: cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']) || '',
+          documentCode: docCodeCheck === 'AUTO' ? '' : docCodeCheck,
           customerCode,
           customerName: getCustomerNameFromRow(first) || customer?.name || '',
           productCode: normalizedProductCode,
@@ -1111,7 +1117,7 @@ async function importSalesOrders(rows = [], options = {}) {
     const now = nowIso();
     const doc = {
       id: makeId('SO'),
-      code: cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']) || autoOrderCodes[autoOrderIdx++] || makeId('BH'),
+      code: docCodeCheck === 'AUTO' ? (autoOrderCodes[autoOrderIdx++] || makeId('BH')) : docCodeCheck,
       date: getDateFromRow(first),
       orderDate: getDateFromRow(first),
       deliveryDate: getDateFromRow(first),
