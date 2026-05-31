@@ -465,11 +465,26 @@ async function addDebtToCustomerIfNeeded(order = {}, options = {}) {
 async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
   if (!isAccountingConfirmed(order)) return null;
-  const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
+
+  // AR-SALE phải là phát sinh phải thu ban đầu của đơn đã giao.
+  // Tiền mặt/chuyển khoản/hàng trả/trả thưởng đã hoặc sẽ được ghi bằng bút toán credit riêng,
+  // nên tuyệt đối không lấy debtAmount còn lại để ghi debit AR-SALE.
+  const baseAmount = Math.max(0, normalizeDebtAmount(
+    order.debtBeforeCollection
+    ?? order.totalAmount
+    ?? order.amount
+    ?? order.grandTotal
+    ?? order.payableAmount
+    ?? order.debtAmount
+    ?? order.debt
+    ?? 0
+  ));
+
   const saleEntry = await postingEngine.postSalesOrderAR({
     ...order,
-    debtAmount,
-    paidAmount: Math.max(0, toNumber(order.totalAmount) - debtAmount),
+    debtBeforeCollection: baseAmount,
+    debtAmount: baseAmount,
+    paidAmount: 0,
     arPostedAt: order.arPostedAt || nowIso()
   }, { ...options, postZero: true, skipIfExists: true });
 
@@ -838,7 +853,7 @@ async function confirmDeliveryAccounting(body = {}) {
       };
       await orderRepository.upsert(updated, { session });
       await postDeliveryArIfAccountingConfirmed(updated, { session });
-      if (!alreadyConfirmed) await addDebtToCustomerIfNeeded(updated, { session });
+      // Công nợ khách hàng chỉ lấy từ AR Ledger; không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
       if (alreadyConfirmed) skippedOrders += 1; else confirmedOrders += 1;
     }
   });

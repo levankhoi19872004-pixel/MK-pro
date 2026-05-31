@@ -265,9 +265,13 @@ function getLedgerCustomerKey(row = {}) {
 }
 
 function isDeliveredForAR(order = {}) {
-  // Công nợ chỉ phát sinh khi nghiệp vụ giao hàng đã hoàn tất.
-  // Không dùng status/ arStatus để thay thế deliveryStatus, vì đơn import/gộp có thể bị gán nhầm status.
-  return ['delivered', 'success', 'completed', 'done'].includes(String(order.deliveryStatus || '').toLowerCase());
+  // Công nợ AR chỉ phát sinh sau 2 điều kiện:
+  // 1) NVGH đã giao xong; 2) kế toán đã xác nhận báo cáo giao hàng.
+  // Không backfill ảo cho đơn mới giao nhưng còn chờ kế toán, vì sẽ làm báo cáo công nợ nhảy sớm.
+  const delivered = ['delivered', 'success', 'completed', 'done'].includes(String(order.deliveryStatus || '').toLowerCase());
+  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
+  const accountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+  return delivered && accountingConfirmed;
 }
 
 function makeVirtualSaleLedger(order = {}) {

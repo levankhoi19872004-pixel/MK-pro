@@ -1423,23 +1423,27 @@ async function getStockMapByProductCode(rows = []) {
 
 
 function getOrderDocumentCode(row = {}) {
-  // DMS/Unilever: mã chứng từ chuẩn nằm ở cột Số hóa đơn.
-  // Không được ưu tiên row.code vì nhiều luồng chuẩn hóa dùng code cho Mã hàng hóa,
-  // khiến mỗi dòng sản phẩm bị hiểu nhầm là một đơn hoặc làm gộp/sót đơn liền nhau.
-  const explicitCode = cleanText(
-    row.documentCode ||
-    row.invoiceCode ||
-    row.orderCode ||
+  // DMS/Unilever: mã chứng từ chuẩn phải lấy từ cột "Số hóa đơn" trước tiên.
+  // File DMS có thêm cột "Số hóa đơn trong 1 ngày" giá trị 0/1; nếu mapping nhầm
+  // cột này vào documentCode thì các dòng sẽ bị gom sai và có thể làm mất đơn Hải Miên.
+  const rawInvoiceCode = cleanText(
     row['Số hóa đơn'] ||
     row['So hoa don'] ||
     row['Số hoá đơn'] ||
+    row['Số hoá đơn '] ||
     row['So hoa don '] ||
+    row.invoiceCode ||
+    row.orderCode ||
     row['Mã đơn'] ||
     row['Ma don'] ||
     row['Mã phiếu'] ||
     row['Ma phieu']
   );
-  if (explicitCode) return explicitCode;
+  if (rawInvoiceCode) return rawInvoiceCode;
+
+  const mappedDocumentCode = cleanText(row.documentCode);
+  // Không nhận 0/1/2... làm mã đơn, vì đó thường là cột "Số hóa đơn trong 1 ngày".
+  if (mappedDocumentCode && !/^\d{1,3}$/.test(mappedDocumentCode)) return mappedDocumentCode;
 
   // Chỉ dùng row.code khi chắc chắn đó là mã đơn, không phải mã sản phẩm dạng số.
   const genericCode = cleanText(row.code);

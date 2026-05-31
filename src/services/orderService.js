@@ -134,10 +134,12 @@ async function applySalesOrderPosting(order, options = {}) {
   }, options);
 
   // V45 chuẩn: đơn bán mới tạo/chưa chốt giao chưa được đưa vào công nợ.
-  // Công nợ chỉ phát sinh sau khi NVGH chốt giao hàng hoàn thành.
+  // Kể cả đã giao xong, AR chỉ post sau khi kế toán xác nhận báo cáo giao hàng.
   const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
   const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
-  if (!isDeliveryCompleted) return;
+  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
+  const accountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+  if (!isDeliveryCompleted || !accountingConfirmed) return;
 
   const customerKey = order.customerCode || order.customerId || order.customerName;
   if (!customerKey) return;

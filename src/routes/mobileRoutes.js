@@ -331,13 +331,23 @@ function isDeliveryCompletedStatus(status) {
   return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
 }
 
+function isAccountingConfirmedForAR(row = {}) {
+  const accountingStatus = String(row.accountingStatus || '').toLowerCase();
+  return Boolean(row.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+}
+
 function applyOrderDebtLifecycle(order) {
   const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
   if (isDeliveryCompletedStatus(order.deliveryStatus || order.status)) {
     order.arBalance = debtAmount;
-    order.arStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
-    order.lifecycleStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
-    order.arPostedAt = order.arPostedAt || new Date().toISOString();
+    if (isAccountingConfirmedForAR(order)) {
+      order.arStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
+      order.lifecycleStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
+    } else {
+      order.arStatus = 'pending_accounting';
+      order.lifecycleStatus = 'pending_accounting';
+      order.arPostedAt = '';
+    }
   } else {
     order.arStatus = order.arStatus || 'not_posted';
     order.lifecycleStatus = order.lifecycleStatus || 'assigned_delivery';
@@ -346,33 +356,9 @@ function applyOrderDebtLifecycle(order) {
 }
 
 async function postDeliveryArForMobile(order) {
-  if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
-
-  const raw = order.toObject ? order.toObject() : order;
-  // Tối ưu tốc độ app: nếu đơn đã từng post AR-SALE thì không gọi lại posting engine.
-  // Trước đây mỗi lần bấm lưu thu tiền vẫn đi kiểm tra/upsert AR-SALE, gây chậm và dễ lệch công nợ.
-  const arStatus = String(raw.arStatus || raw.accountingStatus || '').toLowerCase();
-  if (raw.arPostedAt || raw.arSalePostedAt || ['posted', 'ar_posted', 'confirmed'].includes(arStatus)) return null;
-
-  const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(raw)));
-
-  // ERP/DMS chuẩn: khi giao hàng xong, AR-SALE phải ghi tổng phải thu ban đầu.
-  // Tiền mặt, chuyển khoản, trả thưởng/trả hàng sẽ được ghi bằng các bút toán giảm nợ riêng.
-  // Không lấy debtAmount còn lại để ghi AR-SALE, vì sẽ làm mất phát sinh tăng nợ.
-  const entry = await postingEngine.postSalesOrderAR({
-    ...raw,
-    debtAmount: baseAmount,
-    paidAmount: 0
-  }, { postZero: true, skipIfExists: true });
-
-  if (entry && order && typeof order.set === 'function') {
-    order.set({ arStatus: 'posted', arPostedAt: new Date().toISOString() });
-    await order.save();
-  } else if (entry) {
-    raw.arStatus = 'posted';
-    raw.arPostedAt = new Date().toISOString();
-  }
-  return entry;
+  // App giao hàng chỉ ghi nhận trạng thái giao/thu tiền tạm thời.
+  // AR-SALE chỉ được post khi kế toán bấm "Xác nhận của kế toán" ở báo cáo giao hàng.
+  return null;
 }
 
 
@@ -1575,14 +1561,19 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       }
 
       try {
-        await postDeliveryArForMobile(order);
-        // Trả thưởng là khoản cấn trừ công nợ riêng, không phải tiền mặt/chuyển khoản.
-        // Phải post vào AR Ledger dạng AR-BONUS để công nợ AR khớp màn hình giao hàng.
-        await postingEngine.postBonusAllowanceAR(order);
-        await financialService.syncOrderDebtCacheFromAR(order);
+        // Không post AR-SALE / AR-BONUS ở app giao hàng.
+        // Kế toán sẽ kiểm tra báo cáo giao hàng rồi bấm xác nhận để đưa đơn sang AR Ledger.
+        order.accountingStatus = order.accountingStatus || 'pending_accounting';
+        order.accountingConfirmed = Boolean(order.accountingConfirmed);
+        order.arStatus = order.accountingConfirmed ? order.arStatus : 'pending_accounting';
+        order.lifecycleStatus = order.accountingConfirmed ? order.lifecycleStatus : 'pending_accounting';
+        order.financialSyncStatus = 'pending_accounting';
+        order.financialSyncMessage = 'Đã giao/thu tiền trên app, chờ kế toán xác nhận để post AR công nợ';
+        order.financialSyncAt = new Date().toISOString();
+        await order.save();
       } catch (err) {
-        postingWarning = err.message || 'Không post được AR Ledger';
-        order.financialSyncStatus = order.financialSyncStatus || 'posting_error';
+        postingWarning = err.message || 'Không cập nhật được trạng thái chờ kế toán';
+        order.financialSyncStatus = order.financialSyncStatus || 'pending_accounting_error';
         order.financialSyncMessage = [order.financialSyncMessage, postingWarning].filter(Boolean).join(' | ');
         order.financialSyncAt = new Date().toISOString();
         await order.save();
