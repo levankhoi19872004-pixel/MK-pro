@@ -14,8 +14,30 @@ const state = {
 };
 
 function deliveryToNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let text = String(value ?? '').trim().toLowerCase();
+  if (!text) return 0;
+  let multiplier = 1;
+  if (text.endsWith('k')) {
+    multiplier = 1000;
+    text = text.slice(0, -1);
+  }
+  text = text.replace(/\s/g, '');
+  if (text.includes(',') && text.includes('.')) {
+    // 1,234,567.89 hoặc 1.234.567,89: giữ dấu thập phân cuối cùng.
+    const lastComma = text.lastIndexOf(',');
+    const lastDot = text.lastIndexOf('.');
+    const decimalSep = lastComma > lastDot ? ',' : '.';
+    const thousandSep = decimalSep === ',' ? '.' : ',';
+    text = text.split(thousandSep).join('').replace(decimalSep, '.');
+  } else if (/^\d{1,3}([.,]\d{3})+$/.test(text)) {
+    // 500.000 hoặc 500,000 là phân tách hàng nghìn, không phải số thập phân.
+    text = text.replace(/[.,]/g, '');
+  } else {
+    text = text.replace(',', '.');
+  }
+  const n = Number(text);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n * multiplier)) : 0;
 }
 
 function deliveryDebtBase(order = {}) {
@@ -293,9 +315,9 @@ function renderActionForm(order) {
     <section class="delivery-block payment-block">
       <h3>Thu tiền</h3>
       <div class="payment-grid">
-        <label>Tiền mặt<input data-cash="${escapeHtml(order.id)}" type="number" min="0" value="${existingCash}" inputmode="numeric" /></label>
-        <label>Chuyển khoản<input data-bank="${escapeHtml(order.id)}" type="number" min="0" value="${existingBank}" inputmode="numeric" /></label>
-        <label>Trả thưởng<input data-reward="${escapeHtml(order.id)}" type="number" min="0" value="${existingReward}" inputmode="numeric" /></label>
+        <label>Tiền mặt<input data-cash="${escapeHtml(order.id)}" type="text" value="${money(existingCash)}" inputmode="numeric" /></label>
+        <label>Chuyển khoản<input data-bank="${escapeHtml(order.id)}" type="text" value="${money(existingBank)}" inputmode="numeric" /></label>
+        <label>Trả thưởng<input data-reward="${escapeHtml(order.id)}" type="text" value="${money(existingReward)}" inputmode="numeric" /></label>
         <label>Trả hàng<input data-return-readonly type="text" value="${money(currentReturn)}" readonly /></label>
       </div>
     </section>

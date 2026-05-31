@@ -1133,10 +1133,14 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       }
     }
 
+    let receiptWarning = '';
+    let postingWarning = '';
+    let receiptLines = [];
+
     if (status === 'success') {
       // App giao hàng gửi số tiền TỔNG đang hiển thị trên form, không phải số tiền thu thêm.
-      // Vì vậy phải lưu theo kiểu absolute giống màn hình phần mềm, tránh bấm lưu từ app nhưng
-      // dữ liệu không đổi hoặc bị cộng dồn sai khi sửa lại nhiều lần.
+      // Vì vậy lưu vào SalesOrder trước theo kiểu absolute giống màn hình phần mềm.
+      // Các chứng từ phụ (receipt/AR) chạy sau, nếu lỗi không được làm mất tiền vừa bấm Lưu.
       const previousCash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
       const previousBank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
       const previousReward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
@@ -1145,11 +1149,31 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       const nextReward = hasSplitAmounts ? rewardAmount : previousReward;
       const cashDelta = Math.max(0, nextCash - previousCash);
       const bankDelta = Math.max(0, nextBank - previousBank);
-      const receiptLines = [
+      receiptLines = [
         { method: 'cash', amount: cashDelta, note: note || `App giao hàng thu thêm tiền mặt đơn ${orderCode(order)}` },
         { method: 'transfer', amount: bankDelta, note: note || `App giao hàng thu thêm chuyển khoản đơn ${orderCode(order)}` }
       ].filter(line => line.amount > 0);
 
+      order.cashCollected = nextCash;
+      order.cashAmount = nextCash;
+      order.bankCollected = nextBank;
+      order.bankAmount = nextBank;
+      order.transferAmount = nextBank;
+      order.rewardAmount = nextReward;
+      order.displayRewardAmount = nextReward;
+      order.paidAmount = nextCash + nextBank;
+      order.collectedAmount = nextCash + nextBank;
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
+      order.arBalance = order.debtAmount;
+      applyOrderDebtLifecycle(order);
+    }
+
+    // Lưu SalesOrder trước để app luôn ghi nhận được tiền thanh toán, kể cả khi receipt/AR phụ lỗi.
+    await order.save();
+
+    if (status === 'success') {
       for (const line of receiptLines) {
         const result = await financialService.createReceipt({
           date: new Date().toISOString().slice(0, 10),
@@ -1173,35 +1197,36 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           staffName: req.mobileUser.name || '',
           note: line.note || `App giao hàng thu ${line.method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}`
         });
-        if (result.error) return fail(res, result.status || 400, result.error);
+        if (result?.error) {
+          receiptWarning = result.error;
+          order.financialSyncStatus = 'receipt_error';
+          order.financialSyncMessage = result.error;
+          order.financialSyncAt = new Date().toISOString();
+          await order.save();
+          break;
+        }
       }
 
-      order.cashCollected = nextCash;
-      order.cashAmount = nextCash;
-      order.bankCollected = nextBank;
-      order.bankAmount = nextBank;
-      order.transferAmount = nextBank;
-      order.rewardAmount = nextReward;
-      order.displayRewardAmount = nextReward;
-      order.paidAmount = nextCash + nextBank;
-      order.collectedAmount = nextCash + nextBank;
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
-      order.debt = order.debtAmount;
-      order.arBalance = order.debtAmount;
+      try {
+        await postDeliveryArForMobile(order);
+      } catch (err) {
+        postingWarning = err.message || 'Không post được AR Ledger';
+        order.financialSyncStatus = order.financialSyncStatus || 'posting_error';
+        order.financialSyncMessage = [order.financialSyncMessage, postingWarning].filter(Boolean).join(' | ');
+        order.financialSyncAt = new Date().toISOString();
+        await order.save();
+      }
     }
 
-    if (status === 'success') {
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
-      order.debt = order.debtAmount;
-      applyOrderDebtLifecycle(order);
-      await postDeliveryArForMobile(order);
-    }
-
-    await order.save();
     await syncDeliveryPaymentToMasterSnapshot(order);
-    return ok(res, { message: 'Đã cập nhật trạng thái giao hàng', order: stripMongoFields(order.toObject()) });
+    const warnings = [receiptWarning, postingWarning].filter(Boolean);
+    return ok(res, {
+      message: warnings.length
+        ? `Đã lưu tiền trên đơn giao. Cảnh báo chứng từ: ${warnings.join(' | ')}`
+        : 'Đã cập nhật trạng thái giao hàng',
+      warning: warnings.join(' | '),
+      order: stripMongoFields(order.toObject())
+    });
   } catch (err) {
     return fail(res, 500, err.message || 'Không cập nhật được giao hàng mobile');
   }
