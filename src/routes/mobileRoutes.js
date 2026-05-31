@@ -1068,6 +1068,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           customerId: order.customerId || '',
           customerCode: order.customerCode || '',
           customerName: order.customerName || '',
+          allowCustomerSnapshot: true,
           method: line.method,
           amount: line.amount,
           status: 'posted',

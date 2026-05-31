@@ -215,8 +215,25 @@ async function listReceipts(query = {}) {
 
 async function resolveCustomer(body = {}) {
   const identity = String(body.customerId || body.customerCode || body.customerName || '').trim();
-  if (!identity) return null;
-  return customerRepository.findByIdOrCode(identity);
+  let customer = null;
+  if (identity) customer = await customerRepository.findByIdOrCode(identity);
+  if (customer) return customer;
+
+  // Mobile giao hàng có thể thu tiền từ đơn đã chốt/snapshot cũ.
+  // Không được làm rơi phiếu thu chỉ vì danh mục khách hàng hiện tại không tìm thấy mã khách.
+  // Khi có đủ thông tin khách trên đơn, cho phép dùng snapshot khách hàng của đơn để ghi receipt/cashbook/bankbook.
+  const allowSnapshot = body.allowCustomerSnapshot === true || String(body.source || '').startsWith('mobile_');
+  const code = String(body.customerCode || body.customerId || '').trim();
+  const name = String(body.customerName || '').trim();
+  if (allowSnapshot && (code || name)) {
+    return {
+      id: String(body.customerId || code || name).trim(),
+      code,
+      name: name || code
+    };
+  }
+
+  return null;
 }
 
 async function createReceipt(body = {}) {
