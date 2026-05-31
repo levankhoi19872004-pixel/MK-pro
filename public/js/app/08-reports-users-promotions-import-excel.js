@@ -294,9 +294,87 @@ function getSelectedImportRows(){
     return checkbox && checkbox.checked && row.valid;
   });
 }
+function escapeImportHtml(value){
+  return String(value ?? '').replace(/[&<>'\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]));
+}
 function importRowToText(row){
   const skip=['valid','errors','rowNo'];
   return Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??''}`).join(' | ');
+}
+function getImportRowMainFields(row){
+  const fields=['documentCode','date','customerCode','customerName','productCode','productName','quantity','stockQuantity','soldQuantity','salePrice','amount','staffName','note'];
+  return fields.filter(k=>row[k]!==undefined && row[k]!==null && row[k]!=='').map(k=>({key:k,value:row[k]}));
+}
+function renderImportPreviewModal(result){
+  const modal=document.getElementById('importPreviewModal');
+  const report=document.getElementById('importPreviewModalReport');
+  const body=document.getElementById('importPreviewModalBody');
+  const title=document.getElementById('importPreviewModalTitle');
+  if(!modal||!body)return;
+  const total=result.total||importPreviewRows.length;
+  const valid=result.valid||0;
+  const invalid=result.invalid||0;
+  if(title)title.textContent=`Xem trước import - ${total} dòng`;
+  if(report){
+    report.innerHTML=`
+      <div class="import-report-card"><span>Tổng dòng</span><strong>${formatNumber(total)}</strong></div>
+      <div class="import-report-card success"><span>Hợp lệ</span><strong>${formatNumber(valid)}</strong></div>
+      <div class="import-report-card danger"><span>Dòng lỗi</span><strong>${formatNumber(invalid)}</strong></div>
+      <div class="import-report-card"><span>Được chọn</span><strong id="importPreviewSelectedCount">${formatNumber(valid)}</strong></div>`;
+  }
+  if(!importPreviewRows.length){
+    body.innerHTML='<div class="empty-state">Không có dữ liệu xem trước.</div>';
+  }else{
+    body.innerHTML=importPreviewRows.map((row,index)=>{
+      const fields=getImportRowMainFields(row);
+      const fieldHtml=(fields.length?fields:Object.keys(row).filter(k=>!['valid','errors','rowNo'].includes(k)).slice(0,12).map(k=>({key:k,value:row[k]}))).map(f=>`
+        <div class="import-preview-field"><span>${escapeImportHtml(f.key)}</span><b>${escapeImportHtml(f.value)}</b></div>`).join('');
+      const errors=(row.errors||[]).filter(Boolean);
+      return `<article class="import-preview-card ${row.valid?'valid':'invalid'}">
+        <div class="import-preview-card-head">
+          <label class="import-preview-check-wrap">
+            ${row.valid?`<input class="import-row-check import-modal-row-check" data-index="${index}" type="checkbox" checked />`:''}
+            <span>Dòng ${escapeImportHtml(row.rowNo||'')}</span>
+          </label>
+          <span class="badge ${row.valid?'active':'inactive'}">${row.valid?'Hợp lệ':'Lỗi'}</span>
+        </div>
+        <div class="import-preview-grid">${fieldHtml}</div>
+        ${errors.length?`<div class="import-preview-error"><b>Lỗi:</b> ${escapeImportHtml(errors.join('; '))}</div>`:''}
+      </article>`;
+    }).join('');
+  }
+  modal.classList.add('show');
+  document.body.classList.add('modal-open');
+  bindImportPreviewModalControls();
+  syncImportSelectedCount();
+}
+function closeImportPreviewModal(){
+  const modal=document.getElementById('importPreviewModal');
+  if(modal)modal.classList.remove('show');
+  document.body.classList.remove('modal-open');
+}
+function syncImportSelectedCount(){
+  const selected=document.querySelectorAll('.import-modal-row-check:checked').length || getSelectedImportRows().length;
+  const el=document.getElementById('importPreviewSelectedCount');
+  if(el)el.textContent=formatNumber(selected);
+}
+function syncImportChecksFromModal(){
+  document.querySelectorAll('.import-modal-row-check').forEach(cb=>{
+    const inline=document.querySelector(`.import-preview-wrap .import-row-check[data-index="${cb.dataset.index}"]`);
+    if(inline)inline.checked=cb.checked;
+  });
+  syncImportSelectedCount();
+}
+function bindImportPreviewModalControls(){
+  const closeBtn=document.getElementById('closeImportPreviewModalButton');
+  if(closeBtn)closeBtn.onclick=closeImportPreviewModal;
+  const selectAll=document.getElementById('selectAllImportPreviewButton');
+  if(selectAll)selectAll.onclick=()=>{document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=true);syncImportChecksFromModal();};
+  const clearAll=document.getElementById('clearAllImportPreviewButton');
+  if(clearAll)clearAll.onclick=()=>{document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=false);syncImportChecksFromModal();};
+  const importBtn=document.getElementById('commitImportFromModalButton');
+  if(importBtn)importBtn.onclick=()=>{syncImportChecksFromModal();commitImportExcel();};
+  document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.onchange=syncImportChecksFromModal);
 }
 function renderImportPreview(result){
   importPreviewRows=result.rows||[];
@@ -322,6 +400,7 @@ function renderImportPreview(result){
         <td>${(row.errors||[]).join('; ')}</td>
       </tr>`).join('');
   }
+  renderImportPreviewModal(result);
   if(commitImportButton)commitImportButton.disabled=valid<=0;
 }
 function downloadImportTemplate(){
