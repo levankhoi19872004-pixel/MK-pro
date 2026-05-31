@@ -374,6 +374,18 @@ async function commitImportExcel(){
     if(!json.ok)throw new Error(json.message||'Import thất bại');
     showMessage(importDataMessage,json.message||'Import thành công');
     if(commitImportButton)commitImportButton.disabled=true;
+
+    // Khi import đơn bán DMS, tự chuyển bộ lọc danh sách đơn bán về đúng ngày của file import.
+    // Tránh trường hợp dữ liệu đã ghi vào Mongo nhưng danh sách đang mặc định lọc hôm nay nên người dùng tưởng chưa có đơn.
+    if(importDataType.value==='salesOrders' && rows.length){
+      const dates=rows.map(r=>String(r.date||r.orderDate||r.deliveryDate||'').slice(0,10)).filter(Boolean).sort();
+      if(dates.length){
+        if(salesOrderDateFrom)salesOrderDateFrom.value=dates[0];
+        if(salesOrderDateTo)salesOrderDateTo.value=dates[dates.length-1];
+      }
+      if(salesOrderSourceFilter)salesOrderSourceFilter.value='DMS';
+    }
+
     await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
   }catch(err){showMessage(importDataMessage,err.message,true)}
 }

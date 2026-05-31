@@ -1055,13 +1055,23 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       }
     }
 
-    if (status === 'success' && collectAmount > 0) {
-      const receiptLines = hasSplitAmounts
-        ? [
-            { method: 'cash', amount: cashAmount, note: note || `App giao hàng thu tiền mặt đơn ${orderCode(order)}` },
-            { method: 'transfer', amount: bankAmount, note: note || `App giao hàng thu chuyển khoản đơn ${orderCode(order)}` }
-          ].filter(line => line.amount > 0)
-        : [{ method, amount: legacyCollectAmount, note: note || `App giao hàng thu ${method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}` }];
+    if (status === 'success') {
+      // App giao hàng gửi số tiền TỔNG đang hiển thị trên form, không phải số tiền thu thêm.
+      // Vì vậy phải lưu theo kiểu absolute giống màn hình phần mềm, tránh bấm lưu từ app nhưng
+      // dữ liệu không đổi hoặc bị cộng dồn sai khi sửa lại nhiều lần.
+      const previousCash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
+      const previousBank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
+      const previousReward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
+      const nextCash = hasSplitAmounts ? cashAmount : (method === 'cash' ? legacyCollectAmount : previousCash);
+      const nextBank = hasSplitAmounts ? bankAmount : (method === 'transfer' ? legacyCollectAmount : previousBank);
+      const nextReward = hasSplitAmounts ? rewardAmount : previousReward;
+      const cashDelta = Math.max(0, nextCash - previousCash);
+      const bankDelta = Math.max(0, nextBank - previousBank);
+      const receiptLines = [
+        { method: 'cash', amount: cashDelta, note: note || `App giao hàng thu thêm tiền mặt đơn ${orderCode(order)}` },
+        { method: 'transfer', amount: bankDelta, note: note || `App giao hàng thu thêm chuyển khoản đơn ${orderCode(order)}` }
+      ].filter(line => line.amount > 0);
+
       for (const line of receiptLines) {
         const result = await financialService.createReceipt({
           date: new Date().toISOString().slice(0, 10),
@@ -1087,19 +1097,20 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
         });
         if (result.error) return fail(res, result.status || 400, result.error);
       }
-      if (hasSplitAmounts) {
-        order.cashCollected = toNumber(order.cashCollected) + cashAmount;
-        order.bankCollected = toNumber(order.bankCollected) + bankAmount;
-        order.rewardAmount = toNumber(order.rewardAmount) + rewardAmount;
-        order.paidAmount = toNumber(order.paidAmount) + cashAmount + bankAmount;
-      } else {
-        order.paidAmount = toNumber(order.paidAmount) + legacyCollectAmount;
-        if (method === 'transfer') order.bankCollected = toNumber(order.bankCollected) + legacyCollectAmount;
-        else order.cashCollected = toNumber(order.cashCollected) + legacyCollectAmount;
-      }
+
+      order.cashCollected = nextCash;
+      order.cashAmount = nextCash;
+      order.bankCollected = nextBank;
+      order.bankAmount = nextBank;
+      order.transferAmount = nextBank;
+      order.rewardAmount = nextReward;
+      order.displayRewardAmount = nextReward;
+      order.paidAmount = nextCash + nextBank;
+      order.collectedAmount = nextCash + nextBank;
       order.debtBeforeCollection = deliveryDebtBase(order);
       order.debtAmount = calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
+      order.arBalance = order.debtAmount;
     }
 
     if (status === 'success') {
