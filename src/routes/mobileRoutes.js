@@ -682,20 +682,30 @@ function orderIdentityKeys(...sources) {
   ]).map((value) => String(value || '').trim()).filter(Boolean))];
 }
 
-async function activeReturnItemsForOrder(order = {}) {
+async function activeReturnSummaryForOrder(order = {}) {
   const keys = orderIdentityKeys(order);
-  if (!keys.length) return [];
+  if (!keys.length) return { items: [], amount: 0, returnOrder: null };
   const rows = await ReturnOrder.find({
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
     $or: [
       { salesOrderId: { $in: keys } },
       { salesOrderCode: { $in: keys } },
       { orderId: { $in: keys } },
-      { orderCode: { $in: keys } }
+      { orderCode: { $in: keys } },
+      { refId: { $in: keys } },
+      { refCode: { $in: keys } }
     ]
   }).sort({ updatedAt: -1, createdAt: -1 }).lean();
-  const active = rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase()));
-  return Array.isArray(active?.items) ? active.items : [];
+  const active = rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase())) || null;
+  const items = Array.isArray(active?.items) ? active.items : [];
+  const amount = items.length
+    ? items.reduce((sum, item) => sum + toNumber(item.amount ?? returnLineQty(item) * returnLinePrice(item)), 0)
+    : toNumber(active?.totalAmount ?? active?.amount ?? active?.debtReduction ?? 0);
+  return { items, amount, returnOrder: active };
+}
+
+async function activeReturnItemsForOrder(order = {}) {
+  return (await activeReturnSummaryForOrder(order)).items;
 }
 
 async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
@@ -714,20 +724,31 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
   };
 
   // Ghi đúng nguồn mà màn web “Đơn giao hôm nay” đang dùng: SalesOrder thật.
-  // Không chỉ sửa object Mongoose đang cầm trong RAM, vì một số đơn có id/code/_id khác nhau.
+  // Nếu app vừa tạo phiếu trả, returnOrders mới là nguồn chuẩn; phải kéo lại trước khi lưu tiền.
+  let canonicalReturnItems = Array.isArray(order.returnItems) && order.returnItems.length
+    ? order.returnItems
+    : (Array.isArray(order.deliveryReturnItems) && order.deliveryReturnItems.length ? order.deliveryReturnItems : []);
+  let canonicalReturnAmount = toNumber(patch.returnAmount);
+  const activeReturnSummary = await activeReturnSummaryForOrder({ ...order.toObject?.() || order, ...patch });
+  if (activeReturnSummary.items.length) {
+    canonicalReturnItems = activeReturnSummary.items;
+    canonicalReturnAmount = activeReturnSummary.amount;
+  }
+  if (canonicalReturnItems.length) {
+    patch.returnAmount = canonicalReturnAmount;
+    patch.returnedAmount = canonicalReturnAmount;
+    patch.returnItems = canonicalReturnItems;
+    patch.deliveryReturnItems = canonicalReturnItems;
+    patch.debtAmount = calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch });
+    patch.debt = patch.debtAmount;
+    patch.arBalance = patch.debtAmount;
+  }
   await SalesOrder.updateOne(filter, { $set: patch });
 
   // Dùng cùng service của phần mềm web để công thức công nợ/trạng thái thống nhất.
-  // Lưu ý quan trọng: KHÔNG được truyền returnItems: [] khi app vừa tạo phiếu trả.
-  // Service web hiểu returnItems rỗng là xóa/hủy phiếu trả hàng đang chờ gộp.
-  // Vì vậy phải lấy returnItems thật từ SalesOrder hoặc collection returnOrders trước khi gọi service.
+  // TUYỆT ĐỐI không truyền returnItems: [] từ app khi bấm lưu tiền, vì đó là lệnh xóa hàng trả.
+  // App chỉ được gửi returnItems khi thật sự có hàng trả hiệu lực.
   try {
-    let canonicalReturnItems = Array.isArray(order.returnItems) && order.returnItems.length
-      ? order.returnItems
-      : (Array.isArray(order.deliveryReturnItems) && order.deliveryReturnItems.length ? order.deliveryReturnItems : []);
-    if (!canonicalReturnItems.length && toNumber(patch.returnAmount) > 0) {
-      canonicalReturnItems = await activeReturnItemsForOrder({ ...order.toObject?.() || order, ...patch });
-    }
     const servicePayload = {
       ...patch,
       orderId: keys[0] || getDocId(order)
@@ -735,9 +756,8 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
     if (canonicalReturnItems.length) {
       servicePayload.returnItems = canonicalReturnItems;
       servicePayload.deliveryReturnItems = canonicalReturnItems;
-    } else if (toNumber(patch.returnAmount) <= 0) {
-      servicePayload.returnItems = [];
-      servicePayload.deliveryReturnItems = [];
+      servicePayload.returnAmount = canonicalReturnAmount;
+      servicePayload.returnedAmount = canonicalReturnAmount;
     }
     await masterOrderService.updateDeliveryTodayOrder(keys[0] || getDocId(order), servicePayload);
   } catch (err) {
@@ -781,6 +801,10 @@ async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
     transferAmount: toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
     rewardAmount: toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
     displayRewardAmount: toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
+    returnAmount: toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
+    returnedAmount: toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
+    returnItems: Array.isArray(order.returnItems) ? order.returnItems : [],
+    deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []),
     paidAmount: toNumber(order.paidAmount ?? order.collectedAmount ?? 0),
     collectedAmount: toNumber(order.collectedAmount ?? order.paidAmount ?? 0),
     debtBeforeCollection: toNumber(order.debtBeforeCollection ?? deliveryDebtBase(order)),
@@ -1383,7 +1407,10 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     order.status = returnType === 'full' ? 'returned' : 'partial_return';
     order.updatedAt = new Date().toISOString();
     await order.save();
-    return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject ? returnOrder.toObject() : returnOrder), order: stripMongoFields(order.toObject()) }, 201);
+    // Đồng bộ ngay nguồn hiển thị app/web sau khi tạo hàng trả.
+    // Nếu không, lần bấm Lưu tiền kế tiếp có thể đọc snapshot/patch cũ và đẩy ngược returnAmount về 0.
+    const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId);
+    return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject ? returnOrder.toObject() : returnOrder), order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder) }, 201);
   } catch (err) {
     return fail(res, 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');
   }
