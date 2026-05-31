@@ -41,9 +41,37 @@ function baseJournal(doc = {}, extra = {}) {
   };
 }
 
+async function hasExistingSalesOrderAR(order = {}, options = {}) {
+  const keys = [
+    order.id,
+    order._id,
+    order.code,
+    order.orderId,
+    order.orderCode
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  if (!keys.length) return false;
+  const rows = await paymentRepository.findAll({
+    type: 'ar_sale',
+    $or: [
+      { id: { $in: keys.map((key) => `AR-SALE-${key}`) } },
+      { orderId: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { refId: { $in: keys } },
+      { refCode: { $in: keys } }
+    ]
+  }, options);
+  return Array.isArray(rows) && rows.some((row) => toNumber(row.debit ?? row.amount) >= 0);
+}
+
 async function postSalesOrderAR(order = {}, options = {}) {
   // ERP/DMS chuẩn: AR-SALE là phát sinh tăng nợ gốc khi đơn đã giao.
   // Không tự trừ paidAmount tại đây; receipt/return sẽ là bút toán credit riêng.
+  // Quan trọng: app giao hàng có thể bấm lưu tiền nhiều lần. Nếu AR-SALE đã có,
+  // không được upsert lại vì sẽ ghi đè phát sinh nợ gốc và làm công nợ lệch.
+  if (options.skipIfExists && await hasExistingSalesOrderAR(order, options)) {
+    return null;
+  }
+
   const amount = Math.max(0, toNumber(
     order.debtBeforeCollection
     ?? order.totalAmount
@@ -253,6 +281,7 @@ async function postDocument(doc = {}, options = {}) {
 module.exports = {
   postDocument,
   postSalesOrderAR,
+  hasExistingSalesOrderAR,
   reverseSalesOrderAR,
   postReturnOrderAR,
   reverseReturnOrderAR,

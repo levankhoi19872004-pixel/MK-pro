@@ -348,7 +348,7 @@ async function postDeliveryArForMobile(order) {
     ...raw,
     debtAmount: baseAmount,
     paidAmount: 0
-  }, { postZero: true });
+  }, { postZero: true, skipIfExists: true });
 }
 
 
