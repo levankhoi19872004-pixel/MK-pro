@@ -8,6 +8,12 @@ function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
 }
 function hasOpenDebt(value){ return normalizeDebtAmount(value) > 0; }
 function isOverpaidDebt(value){ return normalizeDebtAmount(value) < 0; }
+function debtDisplayMeta(value){
+  const debt=normalizeDebtAmount(value);
+  if(debt>0)return {amount:debt,text:money(debt),className:'debt-positive',label:'Còn nợ'};
+  if(debt<0)return {amount:debt,text:`Dư có ${money(Math.abs(debt))}`,className:'cash-in',label:'Dư có'};
+  return {amount:0,text:'0',className:'debt-zero',label:'Hết nợ'};
+}
 function parseDebtMoneyInput(value){
   if(typeof value==='number')return Number.isFinite(value)?Math.round(value):0;
   const raw=String(value||'').trim().toLowerCase();
@@ -78,11 +84,11 @@ async function loadDebts(){
     window.debtVisibleRows=rows;
     if(debtCardList){
       debtCardList.innerHTML=rows.length?rows.map((d,idx)=>{
-        const debt=Math.max(0, normalizeDebtAmount(d.debt));
+        const meta=debtDisplayMeta(d.debt);
         const overdue=Number(d.overdueDays||0);
         const key=escapeHtml(getDebtCustomerKey(d));
         return `<article class="debt-v2-customer-card" data-debt-index="${idx}" onclick="selectDebtCustomerFromCard(${idx})">
-          <div class="debt-v2-card-top"><div><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'Chưa rõ khách')}</b></div><strong class="${hasOpenDebt(debt)?'debt-positive':'debt-zero'}">${money(debt)}</strong></div>
+          <div class="debt-v2-card-top"><div><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'Chưa rõ khách')}</b></div><strong class="${meta.className}">${meta.text}</strong></div>
           <div class="debt-v2-card-meta"><span>${Number(d.orderCount||0)} đơn</span><span>${overdue>0?'Quá hạn '+overdue+' ngày':'Tuổi nợ '+Number(d.agingDays||0)+' ngày'}</span></div>
           <div class="debt-v2-card-staff"><span>NVBH: ${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</span><span>NVGH: ${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</span></div>
         </article>`;
@@ -273,7 +279,7 @@ function getSelectedDebtOrderAllocations(totalAmount){
 function getCollectionCustomerMatches(){
   const q=collectionCustomerSearch?collectionCustomerSearch.value.trim():'';
   return debtsCache
-    .filter(d=>hasOpenDebt(d.debt))
+    .filter(d=>hasOpenDebt(d.debt) || isOverpaidDebt(d.debt))
     .filter(d=>matchSearch(q,[d.customerCode,d.customerName]));
 }
 function selectCollectionCustomer(d, options={}){
@@ -291,8 +297,9 @@ function selectCollectionCustomer(d, options={}){
   const active=document.querySelector(`.debt-v2-customer-card[data-debt-index="${index}"]`);
   if(active)active.classList.add('active');
   if(debtDetailStatus)debtDetailStatus.textContent='Đang xử lý';
+  const debtMeta=debtDisplayMeta(d.debt);
   if(debtCustomerInfoBox){
-    debtCustomerInfoBox.innerHTML=`<div class="debt-info-main"><div><small>Mã khách</small><b>${escapeHtml(d.customerCode||'')}</b></div><div><small>Tên khách</small><b>${escapeHtml(d.customerName||'')}</b></div><div><small>Công nợ hiện tại</small><strong class="debt-positive">${money(d.debt)}</strong></div></div>
+    debtCustomerInfoBox.innerHTML=`<div class="debt-info-main"><div><small>Mã khách</small><b>${escapeHtml(d.customerCode||'')}</b></div><div><small>Tên khách</small><b>${escapeHtml(d.customerName||'')}</b></div><div><small>${escapeHtml(debtMeta.label)}</small><strong class="${debtMeta.className}">${debtMeta.text}</strong></div></div>
       <div class="debt-info-sub"><span>NVBH: <b>${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</b></span><span>NVGH: <b>${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</b></span><span>Số đơn nợ: <b>${Number(d.orderCount||0)}</b></span></div>`;
   }
   updateSelectedCustomerDebt();
@@ -302,14 +309,14 @@ function selectCollectionCustomer(d, options={}){
 }
 function renderCollectionCustomerSelect(){
   if(!collectionCustomerSearch)return;
-  const has=debtsCache.some(d=>hasOpenDebt(d.debt));
+  const has=debtsCache.some(d=>hasOpenDebt(d.debt) || isOverpaidDebt(d.debt));
   collectionCustomerSearch.disabled=!has;
-  collectionCustomerSearch.placeholder=has?'Gõ mã/tên khách đang nợ...':'Không có khách đang nợ';
+  collectionCustomerSearch.placeholder=has?'Gõ mã/tên khách đang nợ hoặc dư có...':'Không có khách đang nợ/dư có';
   if(!has){collectionCustomerSelect.value='';selectedCustomerDebt.textContent='0';renderCollectionOrderAllocations(null);}
 }
 function updateSelectedCustomerDebt(){
   if(!collectionCustomerSelect || !selectedCustomerDebt)return;
-  selectedCustomerDebt.textContent=collectionCustomerSelect.value?money(collectionCustomerSelect.dataset.debt||0):'0';
+  selectedCustomerDebt.textContent=collectionCustomerSelect.value?debtDisplayMeta(collectionCustomerSelect.dataset.debt||0).text:'0';
 }
 async function submitDebtCollection(event){
   event.preventDefault();
