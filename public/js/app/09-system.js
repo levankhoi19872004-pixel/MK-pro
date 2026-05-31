@@ -1,5 +1,11 @@
 'use strict';
 
+function systemFormatNumber(value) {
+  if (typeof formatNumber === 'function') return formatNumber(value);
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n.toLocaleString('vi-VN') : '0';
+}
+
 function setSystemMessage(text, type = '') {
   if (!systemMessage) return;
   systemMessage.textContent = text || '';
@@ -16,7 +22,7 @@ function renderSystemCounts(counts = {}) {
   systemCountsTable.innerHTML = entries.map(([key, count]) => `
     <tr>
       <td>${escapeHtml(key)}</td>
-      <td><strong>${formatNumber(count || 0)}</strong></td>
+      <td><strong>${systemFormatNumber(count || 0)}</strong></td>
     </tr>
   `).join('');
 }

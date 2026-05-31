@@ -17,6 +17,12 @@ function parseDebtMoneyInput(value){
   const n=Number(cleaned);
   return Number.isFinite(n)?Math.max(0,Math.round(n*multiplier)):0;
 }
+
+function formatNumber(value){
+  const n=Number(value||0);
+  return Number.isFinite(n)?n.toLocaleString('vi-VN'):'0';
+}
+window.formatNumber=window.formatNumber||formatNumber;
 function getDebtCustomerKey(d){return String(d?.customerId||d?.customerCode||d?.customerName||'');}
 function getSelectedDebtCustomer(){
   const key=collectionCustomerSelect?String(collectionCustomerSelect.value||''):'';
@@ -479,19 +485,39 @@ async function loadReceipts(){
 
 // Cashbook
 async function loadCashbook(){
-  const q=cashbookSearchInput?cashbookSearchInput.value.trim():'';const url=q?`/api/cashbook?q=${encodeURIComponent(q)}`:'/api/cashbook';
+  // File này có thể được load ở màn Hệ thống, nơi không có UI Sổ quỹ.
+  // Nếu không có bất kỳ phần tử quỹ tiền nào thì thoát sớm để tránh lỗi null.textContent/null.innerHTML.
+  if(!cashSummary && !cashbookTable && !bankbookTable && !cashTotalKpi && !bankTotalKpi)return;
+
+  const q=cashbookSearchInput?cashbookSearchInput.value.trim():'';
+  const url=q?`/api/cashbook?q=${encodeURIComponent(q)}`:'/api/cashbook';
   try{
-    const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được sổ quỹ');
-    const entries=json.cashbook||[];const s=json.summary||{cashIn:0,cashOut:0,balance:0};const bs=json.bankSummary||{bankIn:0,bankOut:0,balance:0};
+    const res=await fetch(url);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được sổ quỹ');
+    const entries=json.cashbook||[];
+    const s=json.summary||{cashIn:0,cashOut:0,balance:0};
+    const bs=json.bankSummary||{bankIn:0,bankOut:0,balance:0};
     if(cashTotalKpi)cashTotalKpi.textContent=money(s.balance);
     if(bankTotalKpi)bankTotalKpi.textContent=money(bs.balance);
-    cashSummary.textContent=`Tiền mặt: thu ${money(s.cashIn)} · chi ${money(s.cashOut)} · tồn ${money(s.balance)} | Chuyển khoản: ${money(bs.balance)}`;
+    if(cashSummary){
+      cashSummary.textContent=`Tiền mặt: thu ${money(s.cashIn)} · chi ${money(s.cashOut)} · tồn ${money(s.balance)} | Chuyển khoản: ${money(bs.balance)}`;
+    }
     const cashRows=entries.filter(e=>!e.isBank);
     const bankRows=entries.filter(e=>e.isBank);
-    if(cashbookTable){cashbookTable.innerHTML=cashRows.length?cashRows.map(e=>`<tr><td><strong>${e.code||''}</strong></td><td>${e.date||''}</td><td><span class="badge ${e.type==='out'?'out':'in'}">${e.type==='out'?'Chi':'Thu'}</span></td><td>${e.source||''}</td><td>${e.customerCode||''} ${e.customerName||''}</td><td>${e.staffName||''}</td><td class="price ${e.type==='out'?'cash-out':'cash-in'}">${money(e.amount)}</td><td>${e.note||''}</td></tr>`).join(''):'<tr><td colspan="8">Chưa có phát sinh tiền mặt.</td></tr>';}
-    if(bankbookTable){bankbookTable.innerHTML=bankRows.length?bankRows.map(e=>`<tr><td><strong>${e.code||''}</strong></td><td>${e.date||''}</td><td>${e.source||''}</td><td>${e.customerCode||''} ${e.customerName||''}</td><td>${e.staffName||''}</td><td class="price cash-in">${money(e.amount)}</td><td>${e.note||''}</td></tr>`).join(''):'<tr><td colspan="7">Chưa có phát sinh chuyển khoản.</td></tr>';}
-  }catch(err){cashSummary.textContent='Lỗi tải sổ quỹ';cashbookTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`;if(bankbookTable)bankbookTable.innerHTML=`<tr><td colspan="7">${err.message}</td></tr>`}
+    if(cashbookTable){
+      cashbookTable.innerHTML=cashRows.length?cashRows.map(e=>`<tr><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(e.date||'')}</td><td><span class="badge ${e.type==='out'?'out':'in'}">${e.type==='out'?'Chi':'Thu'}</span></td><td>${escapeHtml(e.source||'')}</td><td>${escapeHtml((e.customerCode||'')+' '+(e.customerName||''))}</td><td>${escapeHtml(e.staffName||'')}</td><td class="price ${e.type==='out'?'cash-out':'cash-in'}">${money(e.amount)}</td><td>${escapeHtml(e.note||'')}</td></tr>`).join(''):'<tr><td colspan="8">Chưa có phát sinh tiền mặt.</td></tr>';
+    }
+    if(bankbookTable){
+      bankbookTable.innerHTML=bankRows.length?bankRows.map(e=>`<tr><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(e.date||'')}</td><td>${escapeHtml(e.source||'')}</td><td>${escapeHtml((e.customerCode||'')+' '+(e.customerName||''))}</td><td>${escapeHtml(e.staffName||'')}</td><td class="price cash-in">${money(e.amount)}</td><td>${escapeHtml(e.note||'')}</td></tr>`).join(''):'<tr><td colspan="7">Chưa có phát sinh chuyển khoản.</td></tr>';
+    }
+  }catch(err){
+    if(cashSummary)cashSummary.textContent='Lỗi tải sổ quỹ';
+    if(cashbookTable)cashbookTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Lỗi tải sổ quỹ')}</td></tr>`;
+    if(bankbookTable)bankbookTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Lỗi tải sổ quỹ')}</td></tr>`;
+  }
 }
+
 async function submitCashbook(event){
   event.preventDefault();
   const payload=Object.fromEntries(new FormData(cashbookForm).entries());
