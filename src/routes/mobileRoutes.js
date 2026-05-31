@@ -293,8 +293,28 @@ function isActiveDeliveryStatus(order) {
   return !['delivered', 'success', 'returned', 'cancelled', 'void'].includes(status);
 }
 
+function firstPositiveAmount(...values) {
+  for (const value of values) {
+    const n = toNumber(value);
+    if (n > 0) return n;
+  }
+  return 0;
+}
+
 function deliveryDebtBase(order = {}) {
-  return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.payableAmount ?? order.debtAmount ?? 0);
+  // Giá trị phải thu gốc của đơn đang giao phải ưu tiên giá trị đơn hàng thật.
+  // Không ưu tiên debtBeforeCollection/debtAmount nếu chúng đang là cache AR = 0.
+  return firstPositiveAmount(
+    order.totalAmount,
+    order.total,
+    order.amount,
+    order.grandTotal,
+    order.payableAmount,
+    order.orderAmount,
+    order.debtBeforeCollection,
+    order.debtAmount,
+    order.debt
+  );
 }
 
 function calculateDeliveryDebt(order = {}) {
@@ -619,12 +639,10 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
   const returnAmount = syncedReturnAmount;
   const rewardAmount = toNumber(sourceOrder.rewardAmount || sourceOrder.displayRewardAmount);
   const debtBeforeCollection = deliveryDebtBase({ ...sourceOrder, totalAmount });
-  const arDebtRow = findArDebtRow(arDebtMap, order, sourceOrder);
-  const fallbackDebtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
-  // App giao hàng phải hiển thị cùng nguồn với màn Công nợ ERP: AR Ledger.
-  // Nếu AR có dòng cho đơn, lấy số nợ còn lại từ AR; chỉ fallback sang công thức order khi đơn chưa có AR.
-  const debtAmount = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : fallbackDebtAmount;
-  const debtSource = arDebtRow ? 'ar_ledger' : 'order_cache';
+  // App giao hàng không dùng AR cache/AR Ledger để tính tiền trên màn thu.
+  // Dùng đúng công thức hiện hành của đơn: phải thu - tiền mặt - chuyển khoản - trả thưởng - hàng trả.
+  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  const debtSource = 'delivery_formula';
   const itemSource = Array.isArray(sourceOrder.items) ? sourceOrder.items : [];
   return {
     id: getDocId(order),
@@ -651,7 +669,7 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     arBalance: debtAmount,
     arDebtAmount: debtAmount,
     debtSource,
-    arLedgerSynced: debtSource === 'ar_ledger',
+    arLedgerSynced: false,
     debtBeforeCollection,
     cashCollected,
     bankCollected,
@@ -691,7 +709,7 @@ function deliveryPaymentPatchFromOrder(order = {}) {
   const cash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
   const bank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
   const reward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
-  const debtBeforeCollection = toNumber(order.debtBeforeCollection ?? deliveryDebtBase(order));
+  const debtBeforeCollection = deliveryDebtBase(order);
   const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
   const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected: cash, bankCollected: bank, returnAmount, rewardAmount: reward });
   return {
@@ -869,7 +887,7 @@ async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
     deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []),
     paidAmount: toNumber(order.paidAmount ?? order.collectedAmount ?? 0),
     collectedAmount: toNumber(order.collectedAmount ?? order.paidAmount ?? 0),
-    debtBeforeCollection: toNumber(order.debtBeforeCollection ?? deliveryDebtBase(order)),
+    debtBeforeCollection: deliveryDebtBase(order),
     debtAmount: toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
     debt: toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
     arBalance: toNumber(order.arBalance ?? order.debtAmount ?? order.debt ?? 0),
@@ -1283,7 +1301,8 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
     const customerByCode = new Map(customers.map((c) => [String(c.code), c]));
 
-    const arDebtMap = await buildArDebtMapForOrders(deliveryPairs.map(({ order }) => order));
+    // Không build AR cache cho app giao hàng; công nợ trên app tính trực tiếp từ đơn và tiền đã nhập.
+    const arDebtMap = null;
 
     let items = deliveryPairs
       .filter(({ master }) => isActiveMasterOrder(master))

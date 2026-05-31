@@ -68,7 +68,7 @@ function deliveryDebtBase(order = {}) {
 }
 
 function isArLedgerSynced(order = {}) {
-  return order.arLedgerSynced === true || String(order.debtSource || '').toLowerCase() === 'ar_ledger';
+  return false;
 }
 
 function calculateDeliveryDebt(order = {}) {
@@ -157,7 +157,6 @@ function calculateReturnTotalFromInputs(root = deliveryActionBox) {
 }
 
 function calculateDraftDebt(order = {}) {
-  if (isArLedgerSynced(order)) return calculateDeliveryDebt(order);
   const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
   const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
   const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
@@ -181,8 +180,9 @@ function selectedOldDebtIds() {
 }
 
 function currentOrderDue(order = {}) {
-  if (isArLedgerSynced(order)) return calculateDeliveryDebt(order);
-  return Math.max(0, deliveryDebtBase(order) - deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0));
+  // Dòng 'Phải thu đơn đang giao' phải luôn là giá trị gốc của đơn.
+  // Không lấy AR cache và không trừ hàng trả ở đây; hàng trả nằm trong 'Đã nhập thanh toán'.
+  return deliveryDebtBase(order);
 }
 
 
@@ -194,11 +194,10 @@ function refreshDeliveryDraftTotals(order = {}) {
   const oldDebt = selectedOldDebtTotal();
   const currentDue = currentOrderDue(order);
   const totalDue = currentDue + oldDebt;
-  const alreadySaved = isArLedgerSynced(order)
-    ? deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0) + deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0) + deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
-    : 0;
-  const newCollected = Math.max(0, cash + bank + reward - alreadySaved);
-  const debt = Math.max(0, Math.round(totalDue - newCollected));
+  // Tổng đã nhập phải gồm cả hàng trả. Không trừ alreadySaved theo AR,
+  // vì trên màn hình sửa đơn các ô đang là tổng giá trị hiện tại của đơn.
+  const collected = cash + bank + reward + returned;
+  const debt = Math.max(0, Math.round(totalDue - collected));
   const oldDebtEls = deliveryActionBox.querySelectorAll('[data-old-debt-total]');
   const totalDueEl = deliveryActionBox.querySelector('[data-total-due]');
   const returnEl = deliveryActionBox.querySelector('[data-return-total]');
@@ -208,7 +207,7 @@ function refreshDeliveryDraftTotals(order = {}) {
   oldDebtEls.forEach((el) => { el.textContent = money(oldDebt); });
   if (totalDueEl) totalDueEl.textContent = money(totalDue);
   if (returnEl) returnEl.textContent = money(returned);
-  if (collectedEl) collectedEl.textContent = money(isArLedgerSynced(order) ? Math.max(0, cash + bank + reward - alreadySaved) : cash + bank + reward);
+  if (collectedEl) collectedEl.textContent = money(collected);
   if (debtEl) debtEl.textContent = money(debt);
   if (statusEl) {
     statusEl.textContent = debt <= 0 ? 'Đủ tiền' : `Còn nợ ${money(debt)}`;
@@ -497,7 +496,7 @@ function renderActionForm(order) {
       <div class="settlement-row"><span>Phải thu đơn đang giao</span><b>${money(currentDue)}</b></div>
       <div class="settlement-row"><span>Nợ cũ đã tích</span><b data-old-debt-total>0</b></div>
       <div class="settlement-row"><span>Tổng phải thu</span><b data-total-due>${money(currentDue)}</b></div>
-      <div class="settlement-row"><span>Đã nhập thanh toán</span><b data-collected-total>${money(existingCash + existingBank + existingReward)}</b></div>
+      <div class="settlement-row"><span>Đã nhập thanh toán</span><b data-collected-total>${money(existingCash + existingBank + existingReward + currentReturn)}</b></div>
       <div class="settlement-row"><span>Còn nợ sau thu</span><b data-draft-debt>${money(calculateDeliveryDebt(order))}</b></div>
       <div data-draft-status class="settlement-status ${calculateDeliveryDebt(order) <= 0 ? 'ok' : 'warn'}">${calculateDeliveryDebt(order) <= 0 ? 'Đủ tiền' : `Còn nợ ${money(calculateDeliveryDebt(order))}`}</div>
     </section>

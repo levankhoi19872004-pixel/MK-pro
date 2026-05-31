@@ -407,9 +407,7 @@ function renderDeliveryEditTotal(){
   if(!deliveryEditTotalBox)return;
   const state=getDeliveryEditPaymentState();
   const selectedRow=getSelectedDeliveryRow?.();
-  const arSynced=isDeliveryArLedgerSynced(selectedRow);
-  const arDebt=arSynced?deliveryArLedgerDebt(selectedRow):state.debt;
-  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>${arSynced?'Còn nợ AR':'Còn nợ tạm tính'}</span><b>${money(arDebt)}</b></div>${state.over>0 && !arSynced?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
+  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>Còn nợ tạm tính</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
 }
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
@@ -494,7 +492,7 @@ function fillDeliveryEditPanel(row){
   if(deliveryEditStatus)deliveryEditStatus.textContent=deliveryStatusLabel(row.visualStatus||row.deliveryStatus);
   if(deliverySelectedSummary){
     const calcDebt=calculateDeliveryDebt(row);
-    const debtLabel=isDeliveryArLedgerSynced(row)?'Còn nợ AR':'Còn nợ tạm tính';
+    const debtLabel='Còn nợ tạm tính';
     deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(deliveryDebtBase(row))}</b> · <b class="${calcDebt>0?'debt-positive':'debt-zero'}">${debtLabel}: ${money(calcDebt)}</b></span>`;
   }
   renderDeliveryReturnItems(row);

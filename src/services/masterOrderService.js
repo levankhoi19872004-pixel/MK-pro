@@ -143,8 +143,26 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function firstPositiveAmount(...values) {
+  for (const value of values) {
+    const n = toNumber(value);
+    if (n > 0) return n;
+  }
+  return 0;
+}
+
 function deliveryDebtBase(order = {}) {
-  return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? order.debt ?? 0);
+  return firstPositiveAmount(
+    order.totalAmount,
+    order.total,
+    order.amount,
+    order.grandTotal,
+    order.payableAmount,
+    order.orderAmount,
+    order.debtBeforeCollection,
+    order.debtAmount,
+    order.debt
+  );
 }
 
 function deliveryReturnAmount(order = {}) {
@@ -529,8 +547,8 @@ async function listDeliveryToday(query = {}) {
 
   const masterOrders = await listMasterOrders({ excludeInactive: 1 });
   const returnOrders = await returnOrderRepository.findAll();
-  const allChildrenForAr = masterOrders.flatMap((master) => Array.isArray(master.children) ? master.children : []).filter((child) => !isInactiveStatus(child));
-  const arDebtMap = await buildMasterDeliveryArDebtMap(allChildrenForAr);
+  // Không dùng AR cache cho danh sách giao hàng; dùng công thức giao hàng bình thường.
+  const arDebtMap = null;
   const rows = [];
 
   for (const master of masterOrders) {
@@ -571,24 +589,12 @@ async function listDeliveryToday(query = {}) {
         bankCollected: toNumber(child.bankCollected ?? child.transferAmount ?? child.bankAmount ?? 0),
         returnAmount: deliveryReturnAmount(child),
         rewardAmount: deliveryRewardAmount(child),
-        debt: (() => {
-          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
-          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
-        })(),
-        debtAmount: (() => {
-          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
-          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
-        })(),
-        arBalance: (() => {
-          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
-          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
-        })(),
-        arDebtAmount: (() => {
-          const arDebtRow = findMasterDeliveryArDebtRow(arDebtMap, child, master);
-          return arDebtRow ? normalizeDebtAmount(toNumber(arDebtRow.debt)) : calculateDeliveryDebt(child);
-        })(),
-        debtSource: findMasterDeliveryArDebtRow(arDebtMap, child, master) ? 'ar_ledger' : 'order_cache',
-        arLedgerSynced: Boolean(findMasterDeliveryArDebtRow(arDebtMap, child, master)),
+        debt: calculateDeliveryDebt(child),
+        debtAmount: calculateDeliveryDebt(child),
+        arBalance: calculateDeliveryDebt(child),
+        arDebtAmount: calculateDeliveryDebt(child),
+        debtSource: 'delivery_formula',
+        arLedgerSynced: false,
         items: Array.isArray(child.items) ? child.items : [],
         returnItems: syncedReturnItems,
         deliveryReturnItems: syncedReturnItems,
@@ -655,7 +661,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   if (isInactiveStatus(current)) return { error: 'Đơn đã hủy/xóa, không thể chỉnh sửa giao hàng', status: 400 };
   if (isAccountingConfirmed(current)) return { error: 'Kế toán đã xác nhận, đơn giao đã khóa và không được chỉnh sửa', status: 400 };
 
-  const debtBeforeCollection = toNumber(body.debtBeforeCollection ?? current.debtBeforeCollection ?? current.totalAmount ?? current.debtAmount ?? 0);
+  const debtBeforeCollection = deliveryDebtBase({ ...current, ...body });
   const cashCollected = toNumber(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0);
   const bankCollected = toNumber(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0);
   const returnAmount = toNumber(body.returnAmount ?? current.returnAmount ?? 0);
