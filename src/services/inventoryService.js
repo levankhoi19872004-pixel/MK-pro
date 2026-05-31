@@ -18,7 +18,7 @@ function getProductKey(item = {}) {
 }
 
 function getQty(item = {}) {
-  return toNumber(item.quantity ?? item.qty ?? item.totalQty ?? item.returnQuantity);
+  return toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty ?? item.totalQty ?? item.returnQuantity);
 }
 
 async function findProduct(item = {}) {

@@ -128,16 +128,99 @@ async function findCustomerByAny(value) {
   return Customer.findOne({ $or: ors }).lean();
 }
 
+
+function excelSerialToDate(value) {
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial <= 0) return '';
+  const utc = Math.round((serial - 25569) * 86400 * 1000);
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
+function getDateFromRow(row = {}) {
+  const value = row.date ?? row.orderDate ?? row['Ngày'] ?? row['Ngay'] ?? row['Ngày lập hoá đơn'] ?? row['Ngày lập hóa đơn'] ?? row['Ngay lap hoa don'] ?? get(row, ['date', 'ngày', 'ngay', 'ngày lập hoá đơn', 'ngày lập hóa đơn', 'ngay lap hoa don']);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const textValue = cleanText(value);
+  if (!textValue) return today();
+  if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
+  const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  const dmy = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
+  return textValue.slice(0, 10);
+}
+
+function getPackingFromRow(row = {}, product = null) {
+  return Math.max(1, toNumber(row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach'] ?? product?.conversionRate ?? product?.packingQty ?? product?.packing));
+}
+
+function getCartonsFromRow(row = {}) {
+  return toNumber(row.cartons ?? row.cartonQty ?? row['Số lượng thùng'] ?? row['So luong thung'] ?? row['SL thùng'] ?? row['SL thung'] ?? row['Thùng'] ?? row['Thung']);
+}
+
+function getUnitsFromRow(row = {}) {
+  return toNumber(row.units ?? row.unitQty ?? row['Số lượng SU'] ?? row['So luong SU'] ?? row['SL lẻ'] ?? row['SL le'] ?? row['Lẻ'] ?? row['Le']);
+}
+
+function getPromoCartonsFromRow(row = {}) {
+  return toNumber(row.promoCartons ?? row['Số lượng khuyến mãi theo thùng/ Số thùng'] ?? row['So luong khuyen mai theo thung/ So thung'] ?? row['SL khuyến mãi thùng'] ?? row['SL khuyen mai thung']);
+}
+
+function getPromoUnitsFromRow(row = {}) {
+  return toNumber(row.promoUnits ?? row['Số lượng khuyến mãi theo SU/ Số SU khuyế'] ?? row['Số lượng khuyến mãi theo SU/ Số SU khuyến mãi'] ?? row['So luong khuyen mai theo SU/ So SU khuye'] ?? row['SL khuyến mãi SU'] ?? row['SL khuyen mai SU']);
+}
+
+function getDmsQuantityFromRow(row = {}, product = null) {
+  const directQty = toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
+  const packing = getPackingFromRow(row, product);
+  const cartons = getCartonsFromRow(row);
+  const units = getUnitsFromRow(row);
+  if (cartons || units) return (cartons * packing) + units;
+  return directQty;
+}
+
+function getDmsPromoQuantityFromRow(row = {}, product = null) {
+  const packing = getPackingFromRow(row, product);
+  return (getPromoCartonsFromRow(row) * packing) + getPromoUnitsFromRow(row);
+}
+
+function getActualAmountFromRow(row = {}) {
+  return toNumber(row.actualAmount ?? row.lineAmount ?? row['Doanh số mỗi ngày'] ?? row['Doanh so moi ngay'] ?? row['Thành tiền thực tế'] ?? row['Thanh tien thuc te'] ?? row['Giá trị bán thực tế'] ?? row['Gia tri ban thuc te']);
+}
+
+function getListPriceBeforeVatFromRow(row = {}) {
+  return toNumber(row.listPriceBeforeVat ?? row.listPrice ?? row['Đơn giá'] ?? row['Don gia'] ?? row['Giá niêm yết trước thuế'] ?? row['Gia niem yet truoc thue']);
+}
+
+function getVatAmountFromRow(row = {}) {
+  return toNumber(row.vatAmount ?? row.taxAmount ?? row['Thuế'] ?? row['Thue']);
+}
+
+function getDmsPriceFromRow(row = {}, quantity = 0) {
+  const actualAmount = getActualAmountFromRow(row);
+  if (actualAmount > 0 && quantity > 0) return actualAmount / quantity;
+  const explicit = getSalePriceFromRow(row);
+  if (explicit > 0) return explicit;
+  const beforeVat = getListPriceBeforeVatFromRow(row);
+  if (beforeVat > 0) return beforeVat * 1.08;
+  return 0;
+}
+
+function getDmsAmountFromRow(row = {}, quantity = 0, salePrice = 0) {
+  const actualAmount = getActualAmountFromRow(row);
+  if (actualAmount > 0) return actualAmount;
+  return quantity * salePrice;
+}
+
 function getProductCodeFromRow(row = {}) {
-  return cleanText(row.productCode || row.code || row['Mã sản phẩm'] || row['Ma san pham'] || text(row, ['productCode', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'code']));
+  return cleanText(row.productCode || row.code || row['Mã hàng hóa'] || row['Ma hang hoa'] || row['Mã sản phẩm'] || row['Ma san pham'] || text(row, ['productCode', 'mã hàng hóa', 'ma hang hoa', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'code']));
 }
 
 function getCustomerCodeFromRow(row = {}) {
-  return cleanText(row.customerCode || row['Mã khách hàng'] || row['Ma khach hang'] || text(row, ['customerCode', 'mã khách hàng', 'ma khach hang', 'mã khách']));
+  return cleanText(row.customerCode || row['Mã cửa hàng'] || row['Ma cua hang'] || row['Mã khách hàng'] || row['Ma khach hang'] || text(row, ['customerCode', 'mã cửa hàng', 'ma cua hang', 'mã khách hàng', 'ma khach hang', 'mã khách']));
 }
 
 function getQtyFromRow(row = {}) {
-  return toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
+  return getDmsQuantityFromRow(row);
 }
 
 function getCostFromRow(row = {}) {
@@ -604,7 +687,7 @@ async function importSalesOrders(rows = []) {
     warehouseCode: { $in: warehouseCodes }
   }).lean().catch(() => []);
   const stockMap = new Map(stockRows.map((stock) => [`${cleanText(stock.productCode)}|${cleanText(stock.warehouseCode || 'MAIN')}`, stock]));
-  const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${getCustomerCodeFromRow(r)}`);
+  const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${getDateFromRow(r)}|${getCustomerCodeFromRow(r)}`);
 
   for (const group of groups) {
     const first = group[0] || {};
@@ -620,15 +703,18 @@ async function importSalesOrders(rows = []) {
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode)) || await findProductByAny(productCode);
-      const quantity = getQtyFromRow(row);
-      const salePrice = getSalePriceFromRow(row);
+      const quantity = getDmsQuantityFromRow(row, product);
+      const promoQuantity = getDmsPromoQuantityFromRow(row, product);
+      const deliveredQuantity = quantity + promoQuantity;
+      const salePrice = getDmsPriceFromRow(row, quantity);
+      const lineAmount = getDmsAmountFromRow(row, quantity, salePrice);
       const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse) || 'MAIN';
       const stock = product ? stockMap.get(`${cleanText(product.code)}|${warehouseCode}`) : null;
       const availableQty = toNumber(stock?.availableQty ?? stock?.quantity ?? stock?.qty ?? stock?.onHand);
-      if (!product || quantity <= 0 || salePrice < 0 || availableQty < quantity) {
+      if (!product || quantity <= 0 || salePrice < 0 || availableQty < deliveredQuantity) {
         skipped += 1;
         groupInvalid = true;
-        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : availableQty < quantity ? `Không đủ tồn kho: còn ${availableQty}` : 'Dòng bán hàng không hợp lệ' });
+        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : availableQty < deliveredQuantity ? `Không đủ tồn kho: còn ${availableQty}` : 'Dòng bán hàng không hợp lệ' });
         continue;
       }
       items.push({
@@ -636,10 +722,24 @@ async function importSalesOrders(rows = []) {
         productCode: product.code,
         productName: product.name,
         unit: product.unit,
+        packingQty: getPackingFromRow(row, product),
+        cartons: getCartonsFromRow(row),
+        units: getUnitsFromRow(row),
         quantity,
+        promoCartons: getPromoCartonsFromRow(row),
+        promoUnits: getPromoUnitsFromRow(row),
+        promoQuantity,
+        deliveredQuantity,
+        stockQuantity: deliveredQuantity,
+        soldQuantity: quantity,
         salePrice,
         price: salePrice,
-        amount: quantity * salePrice
+        listPriceBeforeVat: getListPriceBeforeVatFromRow(row),
+        listPriceAfterVat: getListPriceBeforeVatFromRow(row) ? getListPriceBeforeVatFromRow(row) * 1.08 : 0,
+        gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
+        nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
+        vatAmount: getVatAmountFromRow(row),
+        amount: lineAmount
       });
     }
     if (!items.length || groupInvalid) continue;
@@ -649,16 +749,16 @@ async function importSalesOrders(rows = []) {
     const now = nowIso();
     const doc = {
       id: makeId('SO'),
-      code: cleanText(first.documentCode || first.code || first['Mã đơn'] || first['Ma don']) || await buildRunningCode(SalesOrder, 'BH'),
-      date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || today()),
-      orderDate: dateOnly(first.date || first['Ngày'] || first['Ngay'] || today()),
+      code: cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']) || await buildRunningCode(SalesOrder, 'BH'),
+      date: getDateFromRow(first),
+      orderDate: getDateFromRow(first),
       customerId: String(customer.id || customer._id || customer.code),
       customerCode: customer.code,
       customerName: customer.name,
       customerPhone: customer.phone || '',
       customerAddress: customer.address || '',
-      staffCode: cleanText(first.staffCode || first['Mã NVBH'] || first['Ma NVBH']),
-      staffName: cleanText(first.staffName || first['Tên NVBH'] || first['Ten NVBH']),
+      staffCode: cleanText(first.staffCode || first['Mã nhân viên'] || first['Mã nhân viên'] || first['Ma nhan vien'] || first['Mã NVBH'] || first['Ma NVBH']),
+      staffName: cleanText(first.staffName || first['Tên NVTT'] || first['Ten NVTT'] || first['Tên NVBH'] || first['Ten NVBH']),
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel Mongo-native',
       source: 'excel_import',
       orderSource: 'excel_import',

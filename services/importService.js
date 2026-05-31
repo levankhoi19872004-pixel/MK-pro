@@ -42,6 +42,58 @@ function number(row, names) {
   return toNumber(get(row, names));
 }
 
+
+function excelSerialToDate(value) {
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial <= 0) return '';
+  const utc = Math.round((serial - 25569) * 86400 * 1000);
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
+function getDateFromRow(row = {}) {
+  const value = row.date ?? row.orderDate ?? row['Ngày'] ?? row['Ngay'] ?? row['Ngày lập hoá đơn'] ?? row['Ngày lập hóa đơn'] ?? get(row, ['date', 'ngày', 'ngay', 'ngày lập hoá đơn', 'ngày lập hóa đơn']);
+  const textValue = String(value ?? '').trim();
+  if (!textValue) return today();
+  if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
+  const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  const dmy = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
+  return textValue.slice(0, 10);
+}
+
+function getPackingFromRow(row = {}, product = null) {
+  return Math.max(1, toNumber(row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach'] ?? product?.conversionRate ?? product?.packingQty ?? product?.packing));
+}
+function getCartonsFromRow(row = {}) { return toNumber(row.cartons ?? row.cartonQty ?? row['Số lượng thùng'] ?? row['So luong thung'] ?? row['SL thùng'] ?? row['Thùng']); }
+function getUnitsFromRow(row = {}) { return toNumber(row.units ?? row.unitQty ?? row['Số lượng SU'] ?? row['So luong SU'] ?? row['SL lẻ'] ?? row['Lẻ']); }
+function getPromoCartonsFromRow(row = {}) { return toNumber(row.promoCartons ?? row['Số lượng khuyến mãi theo thùng/ Số thùng'] ?? row['SL khuyến mãi thùng']); }
+function getPromoUnitsFromRow(row = {}) { return toNumber(row.promoUnits ?? row['Số lượng khuyến mãi theo SU/ Số SU khuyế'] ?? row['Số lượng khuyến mãi theo SU/ Số SU khuyến mãi'] ?? row['SL khuyến mãi SU']); }
+function getDmsQuantityFromRow(row = {}, product = null) {
+  const packing = getPackingFromRow(row, product);
+  const cartons = getCartonsFromRow(row);
+  const units = getUnitsFromRow(row);
+  if (cartons || units) return cartons * packing + units;
+  return number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']);
+}
+function getDmsPromoQuantityFromRow(row = {}, product = null) { return getPromoCartonsFromRow(row) * getPackingFromRow(row, product) + getPromoUnitsFromRow(row); }
+function getActualAmountFromRow(row = {}) { return toNumber(row.actualAmount ?? row.lineAmount ?? row['Doanh số mỗi ngày'] ?? row['Doanh so moi ngay'] ?? row['Thành tiền thực tế'] ?? row['Giá trị bán thực tế']); }
+function getListPriceBeforeVatFromRow(row = {}) { return toNumber(row.listPriceBeforeVat ?? row.listPrice ?? row['Đơn giá'] ?? row['Don gia'] ?? row['Giá niêm yết trước thuế']); }
+function getVatAmountFromRow(row = {}) { return toNumber(row.vatAmount ?? row.taxAmount ?? row['Thuế'] ?? row['Thue']); }
+function getDmsPriceFromRow(row = {}, quantity = 0) {
+  const actualAmount = getActualAmountFromRow(row);
+  if (actualAmount > 0 && quantity > 0) return actualAmount / quantity;
+  const explicit = number(row, ['salePrice', 'giá bán', 'gia ban']);
+  if (explicit > 0) return explicit;
+  const beforeVat = getListPriceBeforeVatFromRow(row);
+  if (beforeVat > 0) return beforeVat * 1.08;
+  return 0;
+}
+function getDmsAmountFromRow(row = {}, quantity = 0, salePrice = 0) {
+  const actualAmount = getActualAmountFromRow(row);
+  return actualAmount > 0 ? actualAmount : quantity * salePrice;
+}
+
 function rowBase(row) {
   return { rowNo: row.__rowNo || '' };
 }
@@ -79,7 +131,7 @@ function upsertStock(data, item, mode = 'add') {
 function reduceStock(data, item) {
   const stockRow = findStockRow(data, item);
   if (!stockRow) return null;
-  stockRow.quantity = toNumber(stockRow.quantity) - toNumber(item.quantity);
+  stockRow.quantity = toNumber(stockRow.quantity) - toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity);
   stockRow.updatedAt = new Date().toISOString();
   return stockRow;
 }
@@ -189,36 +241,56 @@ function previewImportOrders(rows, data) {
 
 function previewSalesOrders(rows, data) {
   return rows.map((row) => {
-    const customerCode = text(row, ['customerCode', 'mã khách hàng', 'ma khach hang', 'mã khách']);
-    const productCode = text(row, ['productCode', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'code']);
+    const customerCode = text(row, ['customerCode', 'mã cửa hàng', 'ma cua hang', 'mã khách hàng', 'ma khach hang', 'mã khách']);
+    const productCode = text(row, ['productCode', 'mã hàng hóa', 'ma hang hoa', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'code']);
     const customer = findCustomer(data, customerCode);
     const product = findProduct(data, productCode);
-    const quantity = number(row, ['quantity', 'số lượng', 'so luong', 'sl']);
-    const salePrice = number(row, ['salePrice', 'giá bán', 'gia ban', 'đơn giá', 'don gia']);
+    const quantity = getDmsQuantityFromRow(row, product);
+    const promoQuantity = getDmsPromoQuantityFromRow(row, product);
+    const deliveredQuantity = quantity + promoQuantity;
+    const salePrice = getDmsPriceFromRow(row, quantity);
+    const amount = getDmsAmountFromRow(row, quantity, salePrice);
     const paidAmount = number(row, ['paidAmount', 'đã thu', 'da thu', 'tiền đã thu']);
     const stockRow = product ? findStockRow(data, product) : null;
     const stockQty = stockRow ? toNumber(stockRow.quantity) : 0;
     const item = {
       ...rowBase(row),
-      documentCode: text(row, ['documentCode', 'mã đơn', 'ma don', 'số đơn']) || 'AUTO',
-      date: text(row, ['date', 'ngày', 'ngay']) || today(),
+      documentCode: text(row, ['documentCode', 'số hóa đơn', 'so hoa don', 'mã đơn', 'ma don', 'số đơn']) || 'AUTO',
+      date: getDateFromRow(row),
       customerCode,
       customerName: customer ? customer.name : '',
       productCode,
       productName: product ? product.name : '',
+      packingQty: getPackingFromRow(row, product),
+      cartons: getCartonsFromRow(row),
+      units: getUnitsFromRow(row),
       quantity,
+      promoCartons: getPromoCartonsFromRow(row),
+      promoUnits: getPromoUnitsFromRow(row),
+      promoQuantity,
+      deliveredQuantity,
+      stockQuantity: deliveredQuantity,
+      soldQuantity: quantity,
       salePrice,
+      listPriceBeforeVat: getListPriceBeforeVatFromRow(row),
+      listPriceAfterVat: getListPriceBeforeVatFromRow(row) ? getListPriceBeforeVatFromRow(row) * 1.08 : 0,
+      gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
+      nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
+      vatAmount: getVatAmountFromRow(row),
+      amount,
       paidAmount,
-      note: text(row, ['note', 'ghi chú', 'ghi chu']),
+      staffCode: text(row, ['staffCode', 'mã nhân viên', 'mã nhân viên', 'ma nhan vien', 'mã NVBH']),
+      staffName: text(row, ['staffName', 'tên NVTT', 'ten NVTT', 'tên NVBH']),
+      note: text(row, ['note', 'ghi chú', 'ghi chu']) || 'Import Excel DMS',
       errors: []
     };
-    if (!customerCode) item.errors.push('Thiếu mã khách hàng');
+    if (!customerCode) item.errors.push('Thiếu mã khách hàng / mã cửa hàng');
     if (!customer) item.errors.push('Không tìm thấy khách hàng');
-    if (!productCode) item.errors.push('Thiếu mã sản phẩm');
+    if (!productCode) item.errors.push('Thiếu mã sản phẩm / mã hàng hóa');
     if (!product) item.errors.push('Không tìm thấy sản phẩm');
     if (quantity <= 0) item.errors.push('Số lượng bán phải lớn hơn 0');
     if (salePrice < 0) item.errors.push('Giá bán không được âm');
-    if (product && stockQty < quantity) item.errors.push(`Không đủ tồn kho: còn ${stockQty}`);
+    if (product && stockQty < deliveredQuantity) item.errors.push(`Không đủ tồn kho: còn ${stockQty}`);
     return { ...item, valid: item.errors.length === 0 };
   });
 }
@@ -329,7 +401,7 @@ function commitImportOrders(rows, data) {
     });
     const totalQuantity = items.reduce((s, i) => s + i.quantity, 0);
     const totalAmount = items.reduce((s, i) => s + i.amount, 0);
-    const order = { id: makeId('IM'), code: buildImportCode(data), date: first.date || today(), supplier: first.supplier || 'Import Excel', note: first.note || 'Import Excel', items, totalQuantity, totalAmount, createdAt: new Date().toISOString() };
+    const order = { id: makeId('IM'), code: buildImportCode(data), date: first.date || getDateFromRow(first) || today(), supplier: first.supplier || 'Import Excel', note: first.note || 'Import Excel', items, totalQuantity, totalAmount, createdAt: new Date().toISOString() };
     data.importOrders.push(order);
     items.forEach((item) => upsertStock(data, item, 'add'));
     count += 1;
@@ -345,8 +417,11 @@ function commitSalesOrders(rows, data) {
     const items = group.map((r) => {
       const product = findProduct(data, r.productCode);
       const quantity = toNumber(r.quantity);
+      const promoQuantity = toNumber(r.promoQuantity);
+      const deliveredQuantity = toNumber(r.deliveredQuantity || r.stockQuantity || (quantity + promoQuantity));
       const salePrice = toNumber(r.salePrice);
-      return { productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, quantity, salePrice, amount: quantity * salePrice };
+      const amount = toNumber(r.amount || quantity * salePrice);
+      return { productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, packingQty: r.packingQty, cartons: r.cartons, units: r.units, quantity, soldQuantity: quantity, promoCartons: r.promoCartons, promoUnits: r.promoUnits, promoQuantity, deliveredQuantity, stockQuantity: deliveredQuantity, salePrice, listPriceBeforeVat: r.listPriceBeforeVat, listPriceAfterVat: r.listPriceAfterVat, gsvAmount: r.gsvAmount, nivAmount: r.nivAmount, vatAmount: r.vatAmount, amount }; 
     });
     const totalQuantity = items.reduce((s, i) => s + i.quantity, 0);
     const totalAmount = items.reduce((s, i) => s + i.amount, 0);
@@ -354,13 +429,15 @@ function commitSalesOrders(rows, data) {
     const debtAmount = totalAmount - paidAmount;
     const order = {
       id: makeId('SO'),
-      code: buildSalesCode(data),
-      date: first.date || today(),
+      code: first.documentCode && first.documentCode !== 'AUTO' ? first.documentCode : buildSalesCode(data),
+      date: first.date || getDateFromRow(first) || today(),
       customerId: customer.id,
       customerCode: customer.code,
       customerName: customer.name,
       customerPhone: customer.phone,
       customerAddress: customer.address,
+      staffCode: first.staffCode || '',
+      staffName: first.staffName || '',
       note: first.note || 'Import Excel DMS',
       orderSource: 'DMS',
       orderSourceName: 'Từ DMS',
