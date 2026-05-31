@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>V45 Mobile - Giao hàng 3 tab</title>
+  <title>V45 Mobile - Giao hàng 4 tab</title>
   <link rel="stylesheet" href="./mobile.css?v=delivery-vertical-settlement-v45" />
 </head>
 <body>
@@ -11,13 +11,14 @@
     <header class="mobile-header delivery-main-header">
       <div>
         <h1>App giao hàng V45</h1>
-        <p id="staffInfo">Đang tải...</p><small class="version-badge">Giao hàng 3 tab: Đơn giao · Thu tiền · Báo cáo</small>
+        <p id="staffInfo">Đang tải...</p><small class="version-badge">Giao hàng 4 tab: Đơn giao · Hàng giao · Thu tiền · Báo cáo</small>
       </div>
       <button id="logoutBtn" class="ghost-btn">Thoát</button>
     </header>
 
-    <nav class="delivery-bottom-tabs" aria-label="Điều hướng app giao hàng">
+    <nav class="delivery-bottom-tabs delivery-bottom-tabs-4" aria-label="Điều hướng app giao hàng">
       <button class="delivery-tab active" data-delivery-tab="list" type="button">Đơn giao</button>
+      <button class="delivery-tab" data-delivery-tab="products" type="button">Hàng giao</button>
       <button class="delivery-tab" data-delivery-tab="collect" type="button">Thu tiền</button>
       <button class="delivery-tab" data-delivery-tab="report" type="button">Báo cáo</button>
     </nav>
@@ -48,12 +49,27 @@
       </section>
     </section>
 
+
+    <section id="deliveryProductsPanel" class="delivery-panel">
+      <section class="card">
+        <div class="section-title-row">
+          <div>
+            <h2>Sản phẩm cần giao / hàng trả</h2>
+            <p>Chọn đơn ở tab Đơn giao. Kiểm hàng cần giao, nhập số lượng hàng trả nếu có rồi xác nhận giao.</p>
+          </div>
+        </div>
+        <div id="productSelectedOrderBox" class="selected-delivery-box empty">Chưa chọn đơn giao hàng.</div>
+        <div id="deliveryProductBox" class="delivery-action-box"></div>
+        <p id="deliveryProductMessage" class="message"></p>
+      </section>
+    </section>
+
     <section id="deliveryCollectPanel" class="delivery-panel">
       <section class="card">
         <div class="section-title-row">
           <div>
-            <h2>Thu tiền / thực hiện giao hàng</h2>
-            <p>Chọn đơn ở tab Đơn giao, hoặc bấm Sửa trong Báo cáo.</p>
+            <h2>Thu tiền</h2>
+            <p>Nhập tiền mặt, chuyển khoản, trả thưởng sau khi đã xác nhận hàng giao ở tab Hàng giao.</p>
           </div>
         </div>
         <div id="selectedOrderBox" class="selected-delivery-box empty">Chưa chọn đơn giao hàng.</div>
