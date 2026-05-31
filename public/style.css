@@ -4136,3 +4136,119 @@ button.danger:hover{background:#fecaca}
 .debt-v2-selected-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.debt-v2-selected-summary>div{border:1px solid #e2e8f0;border-radius:14px;padding:10px;background:#fff}.debt-v2-selected-summary span{display:block;font-size:12px;color:#64748b}.debt-v2-selected-summary b{font-size:18px}
 .debt-v2-pay-row{display:grid;grid-template-columns:2fr 1fr;gap:10px}.debt-v2-payment-form label{font-weight:700;color:#64748b;font-size:13px}.debt-v2-payment-form button[type="submit"]{background:#2563eb;color:#fff}.debt-v2-technical{display:none!important}
 @media(max-width:1000px){.debt-v2-layout{grid-template-columns:1fr}.debt-v2-left,.debt-v2-right{min-height:auto}.debt-v2-customer-list{max-height:420px}.debt-info-main,.debt-v2-selected-summary,.debt-v2-pay-row,.debt-v2-mini-filters{grid-template-columns:1fr}}
+
+
+/* V45 - Master Return Orders aligned with Master Orders layout */
+#masterReturnOrdersTab .master-return-v2-layout{
+  grid-template-columns:380px 1fr;
+  align-items:start;
+}
+#masterReturnOrdersTab .master-return-create-card{position:sticky;top:14px;}
+#masterReturnOrdersTab .master-return-unmerged-card{min-width:0;}
+#masterReturnOrdersTab .master-return-list-card{grid-column:1 / -1;}
+#masterReturnOrdersTab .master-return-filter-row{
+  grid-template-columns:1fr 150px 150px 130px;
+}
+#masterReturnOrdersTab .master-selection-summary{
+  font-size:14px;
+}
+#masterReturnOrdersTab .master-selection-summary span{
+  display:block;
+}
+#masterReturnOrdersTab .master-return-unmerged-list{
+  max-height:560px;
+  overflow:auto;
+  padding-right:4px;
+}
+#masterReturnOrdersTab .return-child-order-row{
+  grid-template-columns:auto 1fr 180px;
+}
+#masterReturnOrdersTab .child-order-money{
+  display:grid;
+  gap:6px;
+  justify-items:end;
+  color:#334155;
+}
+#masterReturnOrdersTab .child-order-money span{
+  display:block;
+  border:1px solid #dbeafe;
+  border-radius:12px;
+  background:#f8fbff;
+  padding:6px 10px;
+  min-width:150px;
+  text-align:right;
+}
+#masterReturnOrdersTab .master-return-card{
+  display:grid;
+  gap:12px;
+}
+#masterReturnOrdersTab .master-return-card-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+#masterReturnOrdersTab .master-return-card-head h3{
+  margin:0 0 6px;
+  font-size:16px;
+}
+#masterReturnOrdersTab .master-return-card-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+#masterReturnOrdersTab .master-return-card-metrics span{
+  border:1px solid #e2e8f0;
+  background:#f8fafc;
+  border-radius:12px;
+  padding:8px 10px;
+  color:#475569;
+}
+#masterReturnOrdersTab .master-return-card-metrics b{
+  display:block;
+  margin-top:4px;
+  color:#0f172a;
+}
+#masterReturnOrdersTab .master-return-flow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  border:1px dashed #bfdbfe;
+  background:#eff6ff;
+  color:#1e3a8a;
+  border-radius:14px;
+  padding:9px 12px;
+  margin:8px 0 14px;
+  font-size:13px;
+  font-weight:800;
+}
+#masterReturnOrdersTab .master-return-flow span{
+  background:#fff;
+  border:1px solid #dbeafe;
+  border-radius:999px;
+  padding:4px 10px;
+}
+#masterReturnOrdersTab .master-return-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+#masterReturnOrdersTab .master-return-actions .danger{
+  border-color:#fecaca;
+  background:#fff1f2;
+  color:#b91c1c;
+}
+@media(max-width:1100px){
+  #masterReturnOrdersTab .master-return-v2-layout{grid-template-columns:1fr;}
+  #masterReturnOrdersTab .master-return-create-card{position:static;}
+  #masterReturnOrdersTab .master-return-filter-row{grid-template-columns:1fr;}
+  #masterReturnOrdersTab .master-return-card-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:700px){
+  #masterReturnOrdersTab .return-child-order-row{grid-template-columns:auto 1fr;}
+  #masterReturnOrdersTab .child-order-money{grid-column:2;justify-items:stretch;}
+  #masterReturnOrdersTab .child-order-money span{text-align:left;min-width:0;}
+  #masterReturnOrdersTab .master-return-card-metrics{grid-template-columns:1fr;}
+}

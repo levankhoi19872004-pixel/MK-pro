@@ -56,7 +56,23 @@ if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',lo
 if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
 if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
 if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{selectedReturnOrderIdsForMaster.clear();loadUnmergedReturnOrders();});
-if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{const check=event.target.closest('.master-return-check');if(!check)return;if(check.checked)selectedReturnOrderIdsForMaster.add(check.dataset.id);else selectedReturnOrderIdsForMaster.delete(check.dataset.id);if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=unmergedReturnOrderSummary.textContent.replace(/Đã chọn \d+$/,'Đã chọn '+selectedReturnOrderIdsForMaster.size);});
+if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{
+  const check=event.target.closest('.master-return-check');
+  if(!check)return;
+  if(check.checked)selectedReturnOrderIdsForMaster.add(check.dataset.id);else selectedReturnOrderIdsForMaster.delete(check.dataset.id);
+  loadUnmergedReturnOrders();
+});
+const selectAllUnmergedReturnOrdersButton=document.getElementById('selectAllUnmergedReturnOrdersButton');
+if(selectAllUnmergedReturnOrdersButton)selectAllUnmergedReturnOrdersButton.addEventListener('click',()=>{
+  document.querySelectorAll('.master-return-check').forEach(input=>{
+    if(input.dataset.id)selectedReturnOrderIdsForMaster.add(input.dataset.id);
+  });
+  loadUnmergedReturnOrders();
+});
+const reloadUnmergedReturnOrdersInlineButton=document.getElementById('reloadUnmergedReturnOrdersInlineButton');
+if(reloadUnmergedReturnOrdersInlineButton)reloadUnmergedReturnOrdersInlineButton.addEventListener('click',loadUnmergedReturnOrders);
+const unmergedReturnOrderSearchInput=document.getElementById('unmergedReturnOrderSearchInput');
+if(unmergedReturnOrderSearchInput)unmergedReturnOrderSearchInput.addEventListener('input',loadUnmergedReturnOrders);
 if(masterReturnDeliveryStaff)masterReturnDeliveryStaff.addEventListener('input',loadUnmergedReturnOrders);
 // masterReturnDate là ngày tạo đơn tổng/kho nhận, không dùng để lọc phiếu chưa gộp.
 // if(masterReturnDate)masterReturnDate.addEventListener('change',loadUnmergedReturnOrders);
