@@ -22,7 +22,6 @@ const Receipt = require('../models/Receipt');
 const ReturnOrder = require('../models/ReturnOrder');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
-const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
@@ -169,19 +168,10 @@ async function getOpenSaleQty(product) {
     ]
   };
 
-  const [snapshotRows, legacyRows] = await Promise.all([
-    Inventory.find(filter).lean(),
-    InventoryLegacy.find(filter).lean()
-  ]);
+  const inventoryRows = await InventoryLegacy.find(filter).lean();
 
-  const snapshotQty = openSaleQtyFromRows(snapshotRows);
-  const legacyQty = openSaleQtyFromRows(legacyRows);
-
-  // V45 fix: app bán hàng phải kiểm tra tồn cùng nguồn với báo cáo/gợi ý.
-  // Nếu inventorySnapshots chưa rebuild hoặc đang là 0 nhưng collection inventories cũ có tồn,
-  // dùng inventories làm fallback để tránh báo "Tồn 0 lẻ" sai khi kho thực tế còn hàng.
-  if (legacyQty > 0 && (snapshotRows.length === 0 || snapshotQty <= 0)) return legacyQty;
-  return snapshotQty;
+  // V45 single source: app bán hàng kiểm tra tồn trực tiếp từ collection inventories.
+  return openSaleQtyFromRows(inventoryRows);
 }
 
 function formatOpenSaleQty(quantity, conversionRate = 1) {
@@ -989,7 +979,7 @@ router.post('/inventory/rebuild', requireMobileLogin, requireMobileRole(['admin'
     });
     return ok(res, {
       source: 'mobile-mongo-route',
-      message: 'Đã rebuild stockTransactions và inventorySnapshots. Products chỉ còn là danh mục, không lưu tồn.',
+      message: 'Đã rebuild stockTransactions và inventories. Products chỉ còn là danh mục, không lưu tồn.',
       ...result
     });
   } catch (err) {

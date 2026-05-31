@@ -6,7 +6,6 @@ const Customer = require('../models/Customer');
 const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
 const StockTransaction = require('../models/StockTransaction');
-const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
 const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
@@ -604,14 +603,12 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     });
   }
   if (ops.length) {
-    await bulkWriteInBatches(Inventory, ops);
-    // Ghi song song collection inventories cũ để các màn/mobile bản cũ vẫn đọc được tồn.
     await bulkWriteInBatches(InventoryLegacy, ops);
   }
   return { transactionCount: movements.length, inventoryRows: ops.length };
 }
 
-async function setOpeningStockSnapshotsBulk(rows = []) {
+async function setOpeningStockInventoriesBulk(rows = []) {
   const ops = [];
   const now = nowIso();
   for (const row of rows) {
@@ -646,7 +643,6 @@ async function setOpeningStockSnapshotsBulk(rows = []) {
     });
   }
   if (ops.length) {
-    await bulkWriteInBatches(Inventory, ops);
     await bulkWriteInBatches(InventoryLegacy, ops);
   }
   return { inventoryRows: ops.length };
@@ -801,7 +797,7 @@ async function importOpeningStock(rows = []) {
   }
 
   if (movements.length) await insertManyInBatches(StockTransaction, movements);
-  const inventoryResult = await setOpeningStockSnapshotsBulk(snapshotRows);
+  const inventoryResult = await setOpeningStockInventoriesBulk(snapshotRows);
   await addImportLog('openingStock', {
     imported,
     skipped,
@@ -931,7 +927,7 @@ async function importSalesOrders(rows = [], options = {}) {
   // Lấy tồn kho theo mã sản phẩm. Không khóa cứng warehouseCode ở bước import DMS,
   // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
   // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
-  const stockRows = await Inventory.find({
+  const stockRows = await InventoryLegacy.find({
     productCode: { $in: productCodes }
   }).lean().catch(() => []);
   const stockMap = new Map();
@@ -1404,7 +1400,7 @@ function rowBase(row = {}) {
 
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
-  const inventoryRows = codes.length ? await Inventory.find({ productCode: { $in: codes } }).lean() : [];
+  const inventoryRows = codes.length ? await InventoryLegacy.find({ productCode: { $in: codes } }).lean() : [];
   const map = new Map();
   for (const row of inventoryRows) {
     const code = cleanText(row.productCode || row.productId);

@@ -1,6 +1,6 @@
 'use strict';
 
-const Inventory = require('../models/Inventory');
+const Inventory = require('../models/InventoryLegacy');
 const Product = require('../models/Product');
 const StockTransaction = require('../models/StockTransaction');
 const ImportOrder = require('../models/ImportOrder');
@@ -107,7 +107,7 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
     await snapshot.save({ session });
 
     // Phase 3.4: không ghi tồn ngược về products.
-    // Products chỉ là danh mục; tồn hiện tại nằm ở inventorySnapshots.
+    // Products chỉ là danh mục; tồn hiện tại nằm ở inventories.
 
     const tx = await StockTransaction.create([{
       id: makeId('ST'),
