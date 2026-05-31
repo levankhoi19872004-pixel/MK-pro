@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KHO Minh Khai Pro V44</title>
-  <link rel="stylesheet" href="/style.css?v=20260531-import-preview-modal-v2" />
+  <link rel="stylesheet" href="/style.css?v=20260531-import-direct-v1" />
 </head>
 <body>
   <div class="app">
@@ -875,7 +875,7 @@
         <div class="toolbar">
           <div>
             <h2>Import dữ liệu Excel</h2>
-            <p class="muted">Xem trước dữ liệu, kiểm tra lỗi, tick chọn dòng hợp lệ rồi mới ghi vào hệ thống.</p>
+            <p class="muted">Chọn file rồi bấm Import ngay. Hệ thống tự kiểm tra, tự cắt hàng vượt tồn và báo cáo kết quả sau import.</p>
           </div>
         </div>
 
@@ -897,15 +897,15 @@
           </label>
           <div class="button-row import-actions">
             <button type="button" id="downloadImportTemplateButton" class="secondary">Tải mẫu Excel</button>
-            <button type="button" id="previewImportButton">Xem trước</button>
-            <button type="button" id="commitImportButton" class="success" disabled>Xác nhận import</button>
+            <button type="button" id="previewImportButton" class="secondary" style="display:none">Xem trước</button>
+            <button type="button" id="commitImportButton" class="success" disabled>Import ngay</button>
           </div>
         </div>
 
         <div class="note-box import-guide">
           <strong>Mẫu Excel chuẩn:</strong>
-          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Mỗi file có 3 sheet: HuongDan, DuLieuMau và Import.</p>
-          <p>Nếu file Excel của bạn có tên cột riêng, dùng khu vực <b>Tự tạo mẫu import</b> bên dưới để map cột Excel về trường dữ liệu.</p>
+          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file và bấm <b>Import ngay</b>.</p>
+          <p>Nếu file Excel có tên cột riêng, dùng khu vực <b>Tự tạo mẫu import</b> để map cột Excel về trường dữ liệu.</p>
           <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
         </div>
 
@@ -950,7 +950,7 @@
         <div class="table-wrap import-preview-wrap">
           <table>
             <thead id="importPreviewHead"><tr><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr></thead>
-            <tbody id="importPreviewTable"><tr><td colspan="3">Chưa có dữ liệu preview.</td></tr></tbody>
+            <tbody id="importPreviewTable"><tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -1024,7 +1024,7 @@
   <script src="/js/app/05-sales-orders.js?v=20260531-common-child-print-v1"></script>
   <script src="/js/app/06-master-delivery.js?v=20260531-master-status-label-fix-v1"></script>
   <script src="/js/app/07-debt-cashbook.js?v=20260531-common-child-print-v1"></script>
-  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260531-import-preview-modal-v2"></script>
+  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260531-import-direct-v1"></script>
   <script src="/js/app/09-system.js?v=20260531-system-reset-v1"></script>
   <script src="/app.js?v=20260531-system-reset-v1"></script>
 </body>

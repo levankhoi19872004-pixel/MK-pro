@@ -525,25 +525,13 @@ function renderImportShortageActions(rows=[]){
   const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);
   const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0);
   box.style.display='flex';
+  importShortageActionMode='cut';
+  if(commitImportButton)commitImportButton.disabled=false;
   box.innerHTML=`
     <div class="import-shortage-actions-text">
       <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>
-      <span>SL sẽ bị cắt: ${formatNumber(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
-    </div>
-    <button type="button" id="stopShortageImportButton" class="btn danger">Dừng import</button>
-    <button type="button" id="continueShortageImportButton" class="btn primary">Tiếp tục import theo tồn thực tế</button>`;
-  const stopBtn=document.getElementById('stopShortageImportButton');
-  const continueBtn=document.getElementById('continueShortageImportButton');
-  if(stopBtn)stopBtn.onclick=()=>{
-    importShortageActionMode='stop';
-    if(commitImportButton)commitImportButton.disabled=true;
-    showMessage(importDataMessage,'Đã chọn Dừng import vì có đơn vượt tồn.',true);
-  };
-  if(continueBtn)continueBtn.onclick=()=>{
-    importShortageActionMode='cut';
-    if(commitImportButton)commitImportButton.disabled=false;
-    showMessage(importDataMessage,'Đã chọn Tiếp tục import theo tồn thực tế. Khi xác nhận, hệ thống sẽ tự cắt phần vượt tồn.');
-  };
+      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${formatNumber(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
+    </div>`;
 }
 
 function renderImportPreview(result){
@@ -575,7 +563,7 @@ function renderImportPreview(result){
     importPreviewSummary.innerHTML=`<span>Tổng dòng: <strong>${total}</strong></span><span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`;
   }
   if(!importPreviewRows.length){
-    if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu preview.</td></tr>';
+    if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu import.</td></tr>';
     if(commitImportButton)commitImportButton.disabled=true;
     return;
   }
@@ -608,8 +596,8 @@ function renderImportPreview(result){
         </tr>`).join('');
     }
   }
+  // Bỏ cửa sổ popup preview: chỉ hiển thị báo cáo gọn ngay trên màn import.
   renderImportShortageActions(importPreviewRows);
-  renderImportPreviewModal(result);
   if(commitImportButton)commitImportButton.disabled=valid<=0;
 }
 function downloadImportTemplate(){
@@ -620,42 +608,46 @@ function downloadImportTemplate(){
 
 async function previewImportExcel(){
   if(!importDataType||!importExcelFile)return;
-  const file=importExcelFile.files[0];
-  if(!file){showMessage(importDataMessage,'Bạn chưa chọn file Excel',true);return}
-  const formData=new FormData();
-  formData.append('type',importDataType.value);
-  if(customImportTemplateSelect&&customImportTemplateSelect.value)formData.append('templateId',customImportTemplateSelect.value);
-  formData.append('file',file);
   try{
     showMessage(importDataMessage,'Đang đọc file và kiểm tra dữ liệu...');
-    const res=await fetch('/api/import/preview',{method:'POST',body:formData});
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.error||json.message||'Không preview được file import');
+    const json=await previewImportExcelSilent();
     renderImportPreview(json);
-    showMessage(importDataMessage,`Preview xong: ${json.valid||0} dòng hợp lệ, ${json.invalid||0} dòng lỗi.`);
+    showMessage(importDataMessage,`Đã đọc file: ${json.valid||0} dòng/đơn hợp lệ, ${json.invalid||0} lỗi.`);
   }catch(err){
     importPreviewRows=[];
     if(commitImportButton)commitImportButton.disabled=true;
     showMessage(importDataMessage,err.message,true);
   }
 }
+
+async function previewImportExcelSilent(){
+  if(!importDataType||!importExcelFile)throw new Error('Thiếu thông tin import');
+  const file=importExcelFile.files[0];
+  if(!file)throw new Error('Bạn chưa chọn file Excel');
+  const formData=new FormData();
+  formData.append('type',importDataType.value);
+  if(customImportTemplateSelect&&customImportTemplateSelect.value)formData.append('templateId',customImportTemplateSelect.value);
+  formData.append('file',file);
+  const res=await fetch('/api/import/preview',{method:'POST',body:formData});
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.error||json.message||'Không đọc được file import');
+  return json;
+}
+
 async function commitImportExcel(){
   if(!importDataType)return;
-  const rows=getSelectedImportRows();
-  if(!rows.length){showMessage(importDataMessage,'Chưa chọn dòng hợp lệ nào để import',true);return}
-  const hasShortage=rows.some(row=>row&&row.hasShortage);
-  let shortageMode=importShortageActionMode==='cut'?'cut':'';
-  if(importDataType.value==='salesOrders'&&hasShortage&&shortageMode!=='cut'){
-    const shortageAmount=rows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0);
-    const shortageQty=rows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);
-    const ok=confirm(`Có đơn vượt tồn.\n\nSL hàng sẽ bị cắt: ${formatNumber(shortageQty)}\nGiá trị bị cắt: ${money(shortageAmount)}\n\nBấm OK để TIẾP TỤC import theo tồn thực tế.\nBấm Cancel để DỪNG import.`);
-    if(!ok){
-      showMessage(importDataMessage,'Đã dừng import vì có đơn vượt tồn.',true);
-      return;
-    }
-    shortageMode='cut';
-  }
   try{
+    // Luồng mới: bỏ cửa sổ preview. Nếu chưa preview thì tự đọc file, tự kiểm tra và import luôn.
+    if(!importPreviewRows.length){
+      showMessage(importDataMessage,'Đang đọc file và chuẩn bị import...');
+      const preview=await previewImportExcelSilent();
+      renderImportPreview(preview);
+    }
+    const rows=getSelectedImportRows();
+    if(!rows.length){showMessage(importDataMessage,'Không có dòng/đơn hợp lệ để import',true);return}
+    const hasShortage=rows.some(row=>row&&row.hasShortage);
+    // Đơn bán DMS: nếu vượt tồn thì tự cắt theo tồn thực tế, không hỏi thêm để tránh rối thao tác.
+    let shortageMode=(importDataType.value==='salesOrders'&&hasShortage)?'cut':(importShortageActionMode==='cut'?'cut':'');
     if(commitImportButton){
       commitImportButton.disabled=true;
       commitImportButton.dataset.originalText=commitImportButton.textContent||'Xác nhận import';
@@ -672,18 +664,9 @@ async function commitImportExcel(){
     });
     let json=await res.json();
 
-    // Fallback an toàn: nếu backend phát hiện còn đơn vượt tồn nhưng frontend chưa gửi shortageMode=cut
-    // thì hỏi lại người dùng và gửi lại request với chế độ cắt theo tồn thực tế.
-    if(!json.ok && json.hasShortage){
-      const shortageRows=Array.isArray(json.shortageReport)?json.shortageReport:[];
-      const shortageQty=shortageRows.reduce((sum,item)=>sum+Number(item.missingQuantity||0),0);
-      const shortageAmount=shortageRows.reduce((sum,item)=>sum+Number(item.cutAmount||0),0);
-      const ok=confirm(`Backend phát hiện đơn vượt tồn.\n\nSL hàng sẽ bị cắt: ${formatNumber(shortageQty)}\nGiá trị bị cắt: ${money(shortageAmount)}\n\nBấm OK để TIẾP TỤC import theo tồn thực tế.\nBấm Cancel để DỪNG import.`);
-      if(!ok){
-        showMessage(importDataMessage,'Đã dừng import vì có đơn vượt tồn.',true);
-        return;
-      }
-      showMessage(importDataMessage,'Đang import theo tồn thực tế...');
+    // Fallback an toàn: nếu backend phát hiện còn đơn vượt tồn, tự import lại theo chế độ cắt tồn.
+    if(!json.ok && json.hasShortage && importDataType.value==='salesOrders'){
+      showMessage(importDataMessage,'Có đơn vượt tồn, hệ thống đang tự cắt theo tồn thực tế...');
       res=await fetch('/api/import/commit',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
