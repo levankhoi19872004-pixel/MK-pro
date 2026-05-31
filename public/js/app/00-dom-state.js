@@ -177,6 +177,7 @@ const debtDeliveryFilter=document.getElementById('debtDeliveryFilter');
 const debtStatusFilter=document.getElementById('debtStatusFilter');
 const debtDateFrom=document.getElementById('debtDateFrom');
 const debtDateTo=document.getElementById('debtDateTo');
+const debtClearFiltersButton=document.getElementById('debtClearFiltersButton');
 const debtTotalKpi=document.getElementById('debtTotalKpi');
 const cashTotalKpi=document.getElementById('cashTotalKpi');
 const bankTotalKpi=document.getElementById('bankTotalKpi');

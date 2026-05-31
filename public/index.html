@@ -605,13 +605,14 @@
             </label>
             <div class="debt-v2-mini-filters">
               <select id="debtStatusFilter">
-                <option value="open">Chỉ khách còn nợ</option>
+                <option value="">Khách còn nợ</option>
                 <option value="overdue">Quá hạn</option>
                 <option value="paid">Đã tất toán</option>
-                <option value="">Tất cả</option>
+                <option value="all">Tất cả</option>
               </select>
               <input id="debtDateFrom" type="date" title="Từ ngày" />
               <input id="debtDateTo" type="date" title="Đến ngày" />
+              <button type="button" class="secondary" id="debtClearFiltersButton">Xóa lọc</button>
             </div>
           </div>
 

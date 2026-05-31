@@ -643,10 +643,22 @@ async function debtReport(query = {}) {
     };
   });
 
-  debts = filterByQuery(debts, query, ['orderCode', 'customerCode', 'customerName', 'salesmanName', 'deliveryStaffName']);
-  if (query.salesman) debts = debts.filter((row) => normalizeText(row.salesmanName || row.salesmanCode).includes(normalizeText(query.salesman)));
-  if (query.delivery) debts = debts.filter((row) => normalizeText(row.deliveryStaffName || row.deliveryStaffCode).includes(normalizeText(query.delivery)));
-  if (query.status) debts = debts.filter((row) => row.status === query.status);
+  debts = filterByQuery(debts, query, ['orderCode', 'customerCode', 'customerName', 'salesmanName', 'deliveryStaffName', 'salesmanCode', 'deliveryStaffCode']);
+  if (query.salesman) {
+    const s = normalizeText(query.salesman);
+    debts = debts.filter((row) => [row.salesmanCode, row.salesmanName].some((value) => normalizeText(value).includes(s)));
+  }
+  if (query.delivery) {
+    const d = normalizeText(query.delivery);
+    debts = debts.filter((row) => [row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(d)));
+  }
+  if (query.status && query.status !== 'all') {
+    if (query.status === 'unpaid' || query.status === 'open') {
+      debts = debts.filter((row) => hasOpenDebt(row.debt) || isOverpaid(row.debt));
+    } else {
+      debts = debts.filter((row) => row.status === query.status);
+    }
+  }
 
   // Tab Tổng công nợ là báo cáo quản trị: mặc định chỉ hiển thị khách còn nợ > 0.
   // Khách đã tất toán chỉ xuất hiện khi người dùng lọc trạng thái "Đã tất toán" hoặc truyền includePaid=1.

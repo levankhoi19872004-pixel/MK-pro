@@ -22,6 +22,15 @@ function getSelectedDebtCustomer(){
   const key=collectionCustomerSelect?String(collectionCustomerSelect.value||''):'';
   return (debtsCache||[]).find(d=>String(d.customerId||d.customerCode||d.customerName||'')===key)||null;
 }
+function resetDebtFilters(options={}){
+  if(debtSearchInput)debtSearchInput.value='';
+  if(debtSalesmanFilter)debtSalesmanFilter.value='';
+  if(debtDeliveryFilter)debtDeliveryFilter.value='';
+  if(debtStatusFilter)debtStatusFilter.value='';
+  if(debtDateFrom)debtDateFrom.value='';
+  if(debtDateTo)debtDateTo.value='';
+  if(options.load!==false && typeof loadDebts==='function')loadDebts();
+}
 async function loadDebts(){
   const params=new URLSearchParams();
   const q=debtSearchInput?debtSearchInput.value.trim():'';
@@ -33,7 +42,7 @@ async function loadDebts(){
   if(q)params.set('q',q);
   if(salesman)params.set('salesman',salesman);
   if(delivery)params.set('delivery',delivery);
-  if(status)params.set('status',status);
+  if(status && status!=='all')params.set('status',status);
   if(dateFrom)params.set('dateFrom',dateFrom);
   if(dateTo)params.set('dateTo',dateTo);
   const url=params.toString()?`/api/debts?${params.toString()}`:'/api/debts';
@@ -54,7 +63,12 @@ async function loadDebts(){
     if(debtOverdueCountKpi)debtOverdueCountKpi.textContent=money(summary.overdueCount??0);
     if(debtTable)debtTable.innerHTML=ledger.map(d=>`<tr><td>${escapeHtml(d.orderCode||'')}</td><td>${escapeHtml(d.customerCode||'')} ${escapeHtml(d.customerName||'')}</td><td>${money(d.debt)}</td></tr>`).join('');
 
-    const rows=debtsCache.filter(d=>status==='paid'? !hasOpenDebt(d.debt) : (status==='' ? true : hasOpenDebt(d.debt)));
+    const rows=debtsCache.filter(d=>{
+      if(status==='paid')return !hasOpenDebt(d.debt);
+      if(status==='overdue')return hasOpenDebt(d.debt) && Number(d.overdueDays||0)>0;
+      if(status==='all')return true;
+      return hasOpenDebt(d.debt) || isOverpaidDebt(d.debt);
+    });
     window.debtVisibleRows=rows;
     if(debtCardList){
       debtCardList.innerHTML=rows.length?rows.map((d,idx)=>{
