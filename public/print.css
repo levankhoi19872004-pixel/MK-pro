@@ -418,7 +418,7 @@ body {
 .dms-invoice-table td,
 .dms-detail-table th,
 .dms-detail-table td {
-  border: 0.6px solid #9ca3af;
+  border: 1px solid #000;
   padding: 2.2px 2.5px;
   vertical-align: middle;
   word-break: break-word;
@@ -438,18 +438,6 @@ body {
 
 .dms-invoice-table td {
   min-height: 6.8mm;
-}
-
-.dms-invoice-table tbody tr:not(.dms-total-row) td,
-.dms-detail-table tbody tr td {
-  border-color: #b6beca;
-}
-
-.dms-invoice-table thead th,
-.dms-detail-table thead th,
-.dms-total-row td,
-.dms-total-row th {
-  border-color: #8f99a8;
 }
 
 .dms-formula-row th {

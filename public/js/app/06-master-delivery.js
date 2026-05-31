@@ -1,3 +1,7 @@
+
+function deliveryFullMoney(value){
+  return Number(value||0).toLocaleString('vi-VN');
+}
 var DEBT_ZERO_TOLERANCE = window.DEBT_ZERO_TOLERANCE || 1000;
 window.DEBT_ZERO_TOLERANCE = DEBT_ZERO_TOLERANCE;
 function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
@@ -233,21 +237,6 @@ window.clearDeliveryAccountingSelection=clearDeliveryAccountingSelection;
 function deliveryToNumber(value){
   const n=Number(value);
   return Number.isFinite(n)?n:0;
-}
-
-function deliveryCompactMoney(value){
-  const n=Math.round(deliveryToNumber(value));
-  const sign=n<0?'-':'';
-  const abs=Math.abs(n);
-  if(abs>=1000000){
-    const v=abs/1000000;
-    const text=(abs%1000000===0?String(Math.round(v)):v.toFixed(1).replace('.',','));
-    return `${sign}${text}tr`;
-  }
-  if(abs>=1000){
-    return `${sign}${Math.round(abs/1000)}k`;
-  }
-  return `${sign}${abs}`;
 }
 function deliveryDebtBase(row){
   return deliveryToNumber(row?.debtBeforeCollection ?? row?.totalAmount ?? row?.amount ?? row?.debtAmount ?? row?.debt ?? 0);
@@ -524,12 +513,12 @@ async function loadDeliveryToday(){
       acc.debt += calculateDeliveryDebt(row);
       return acc;
     },{total:0,cash:0,bank:0,reward:0,returned:0,debt:0});
-    if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(moneyReport.total);
-    if(deliveryRunningKpi)deliveryRunningKpi.textContent=money(moneyReport.cash);
-    if(deliveryDoneKpi)deliveryDoneKpi.textContent=money(moneyReport.bank);
-    if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=money(moneyReport.reward);
-    if(deliveryLateKpi)deliveryLateKpi.textContent=money(moneyReport.returned);
-    if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(moneyReport.debt);
+    if(deliveryTotalKpi)deliveryTotalKpi.textContent=deliveryFullMoney(moneyReport.total);
+    if(deliveryRunningKpi)deliveryRunningKpi.textContent=deliveryFullMoney(moneyReport.cash);
+    if(deliveryDoneKpi)deliveryDoneKpi.textContent=deliveryFullMoney(moneyReport.bank);
+    if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=deliveryFullMoney(moneyReport.reward);
+    if(deliveryLateKpi)deliveryLateKpi.textContent=deliveryFullMoney(moneyReport.returned);
+    if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=deliveryFullMoney(moneyReport.debt);
     const routes=json.routes||[];
     if(deliveryRouteSummary){
       deliveryRouteSummary.innerHTML=routes.length?routes.map(r=>`<div class="route-pill"><strong>${escapeHtml(r.routeName||'Chưa có tuyến')}</strong><span>${r.orderCount} đơn</span><small>NV giao: ${escapeHtml(r.deliveryStaffName||r.deliveryStaffCode||'Chưa gán')}</small></div>`).join(''):'';
@@ -560,12 +549,12 @@ async function loadDeliveryToday(){
           ${row.accountingConfirmed?'<small class="delivery-locked-note">Đã xác nhận kế toán · khóa sửa</small>':'<small class="delivery-open-note">Chưa xác nhận kế toán</small>'}
         </div>
         <div class="delivery-customer-money">
-          <span class="money-pt" title="Phải thu: ${money(deliveryDebtBase(row))}"><em>PT</em><b>${deliveryCompactMoney(deliveryDebtBase(row))}</b></span>
-          <span title="Tiền mặt: ${money(cash)}"><em>TM</em><b class="cash-in">${deliveryCompactMoney(cash)}</b></span>
-          <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b class="cash-in">${deliveryCompactMoney(bank)}</b></span>
-          <span title="Trả thưởng: ${money(reward)}"><em>Thưởng</em><b>${deliveryCompactMoney(reward)}</b></span>
-          <span title="Hàng trả: ${money(returned)}"><em>Hàng trả</em><b>${deliveryCompactMoney(returned)}</b></span>
-          <span class="money-debt" title="Công nợ: ${money(calculateDeliveryDebt(row))}"><em>CN</em><b class="${hasOpenDebt(calculateDeliveryDebt(row))?'debt-positive':'debt-zero'}">${deliveryCompactMoney(calculateDeliveryDebt(row))}</b></span>
+          <span title="Phải thu"><em>Phải thu</em><b>${deliveryFullMoney(deliveryDebtBase(row))}</b></span>
+          <span title="Tiền mặt"><em>Tiền mặt</em><b class="cash-in">${deliveryFullMoney(cash)}</b></span>
+          <span title="Chuyển khoản"><em>Chuyển khoản</em><b class="cash-in">${deliveryFullMoney(bank)}</b></span>
+          <span title="Trả thưởng"><em>Trả thưởng</em><b>${deliveryFullMoney(reward)}</b></span>
+          <span title="Tổng tiền hàng trả"><em>Hàng trả</em><b>${deliveryFullMoney(returned)}</b></span>
+          <span title="Công nợ"><em>Công nợ</em><b class="${hasOpenDebt(calculateDeliveryDebt(row))?'debt-positive':'debt-zero'}">${deliveryFullMoney(calculateDeliveryDebt(row))}</b></span>
         </div>
       </article>`;
     }).join('');
