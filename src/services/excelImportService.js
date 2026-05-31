@@ -819,11 +819,23 @@ async function importSalesOrders(rows = []) {
   const productMap = await preloadProductsByCode(rows);
   const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
   const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
+  // Lấy tồn kho theo mã sản phẩm. Không khóa cứng warehouseCode ở bước import DMS,
+  // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
+  // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
   const stockRows = await Inventory.find({
-    productCode: { $in: productCodes },
-    warehouseCode: { $in: warehouseCodes }
+    productCode: { $in: productCodes }
   }).lean().catch(() => []);
-  const stockMap = new Map(stockRows.map((stock) => [`${cleanText(stock.productCode)}|${cleanText(stock.warehouseCode || 'MAIN')}`, toNumber(stock.availableQty ?? stock.quantity ?? stock.qty ?? stock.onHand)]));
+  const stockMap = new Map();
+  const productStockMap = new Map();
+  for (const stock of stockRows) {
+    const code = cleanText(stock.productCode);
+    if (!code) continue;
+    const wh = cleanText(stock.warehouseCode || 'MAIN') || 'MAIN';
+    const qty = toNumber(stock.availableQty ?? stock.quantity ?? stock.qty ?? stock.onHand);
+    const exactKey = `${code}|${wh}`;
+    stockMap.set(exactKey, toNumber(stockMap.get(exactKey)) + qty);
+    productStockMap.set(code, toNumber(productStockMap.get(code)) + qty);
+  }
   const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don']) || 'AUTO'}|${getDateFromRow(r)}|${getCustomerCodeFromRow(r)}`);
   const autoOrderCodes = await buildRunningCodes(SalesOrder, 'BH', groups.length);
   let autoOrderIdx = 0;
@@ -856,15 +868,17 @@ async function importSalesOrders(rows = []) {
       const salePrice = getDmsPriceFromRow(row, quantity);
       const lineAmount = getDmsAmountFromRow(row, quantity, salePrice);
       const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN';
-      const stockKey = `${cleanText(product?.code || productCode)}|${warehouseCode}`;
-      const availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : 0;
+      const normalizedProductCode = cleanText(product?.code || productCode);
+      const stockKey = `${normalizedProductCode}|${warehouseCode}`;
+      const availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
       if (!product || quantity <= 0 || salePrice < 0 || availableQty < deliveredQuantity) {
         skipped += 1;
         groupInvalid = true;
         errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : availableQty < deliveredQuantity ? `Không đủ tồn kho: còn ${availableQty}` : 'Dòng bán hàng không hợp lệ' });
         continue;
       }
-      stockMap.set(stockKey, availableQty - deliveredQuantity);
+      if (stockMap.has(stockKey)) stockMap.set(stockKey, availableQty - deliveredQuantity);
+      productStockMap.set(normalizedProductCode, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity);
       const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
       items.push({
         productId: String(product.id || product._id || product.code),
@@ -1178,8 +1192,27 @@ async function preview({ type, buffer }) {
   const rows = parseExcelBuffer(buffer);
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
-  // Preview vẫn dùng bộ kiểm tra cũ để giữ tương thích UI, nhưng commit bên dưới đã Mongo-native.
+  // Preview vẫn dùng bộ kiểm tra cũ để giữ tương thích UI, nhưng cần nạp tồn từ inventorySnapshots
+  // để phần Xem trước khớp với màn Tồn kho hiện tại.
   const data = await systemService.getDataSnapshot();
+  if (type === 'salesOrders') {
+    const productCodes = Array.from(new Set(rows.map((r) => cleanText(getProductCodeFromRow(r))).filter(Boolean)));
+    const inventoryRows = await Inventory.find({ productCode: { $in: productCodes } }).lean().catch(() => []);
+    const stockByProduct = new Map();
+    for (const row of inventoryRows) {
+      const code = cleanText(row.productCode);
+      if (!code) continue;
+      const qty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
+      stockByProduct.set(code, toNumber(stockByProduct.get(code)) + qty);
+    }
+    data.stock = Array.from(stockByProduct.entries()).map(([productCode, quantity]) => ({
+      productCode,
+      quantity,
+      qty: quantity,
+      availableQty: quantity,
+      onHand: quantity
+    }));
+  }
   return previewImport(type, rows, data);
 }
 
