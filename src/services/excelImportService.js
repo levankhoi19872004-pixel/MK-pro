@@ -820,7 +820,10 @@ async function importImportOrders(rows = []) {
   let skipped = 0;
   const errors = [];
   const productMap = await preloadProductsByCode(rows);
-  const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã phiếu'] || r['Ma phieu']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${cleanText(r.supplier || r.supplierName || r['Nhà cung cấp'] || r['Nha cung cap']) || 'Import Excel'}`);
+  const importDocumentCodes = Array.from(new Set(rows.map(r => cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don'])).filter(Boolean)));
+  const existingOrders = await SalesOrder.find({ documentCode: { $in: importDocumentCodes } }).select('documentCode').lean().catch(() => []);
+  const existingDocumentSet = new Set(existingOrders.map(o => cleanText(o.documentCode)));
+const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã phiếu'] || r['Ma phieu']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${cleanText(r.supplier || r.supplierName || r['Nhà cung cấp'] || r['Nha cung cap']) || 'Import Excel'}`);
   const autoCodes = await buildRunningCodes(ImportOrder, 'PN', groups.length);
   let autoIdx = 0;
   const docs = [];
@@ -946,6 +949,13 @@ async function importSalesOrders(rows = [], options = {}) {
 
   for (const group of groups) {
     const first = group[0] || {};
+    const docCodeCheck = cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']);
+    if (docCodeCheck && existingDocumentSet.has(docCodeCheck)) {
+      skipped += group.length;
+      errors.push({ documentCode: docCodeCheck, message: 'Đơn đã tồn tại - bỏ qua import' });
+      continue;
+    }
+
     const customerCode = getCustomerCodeFromRow(first);
     const customer = customerMap.get(cleanText(customerCode));
     if (!customer) {
