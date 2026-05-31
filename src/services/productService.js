@@ -17,6 +17,18 @@ function normalizeSearchText(value) {
 
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
 
+
+function normalizeWarehouseCode(value) {
+  const raw = String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (raw === 'KHO_PC' || raw === 'PC') return 'KHO_PC';
+  if (raw === 'KHO_HC' || raw === 'HC') return 'KHO_HC';
+  return 'KHO_HC';
+}
+
+function warehouseNameFromCode(code) {
+  return normalizeWarehouseCode(code) === 'KHO_PC' ? 'KHO PC' : 'KHO HC';
+}
+
 function pickProductPayload(body = {}) {
   return {
     code: String(body.code || body.sku || body.productCode || '').trim(),
@@ -27,6 +39,8 @@ function pickProductPayload(body = {}) {
     brand: String(body.brand || '').trim(),
     costPrice: toNumber(body.costPrice),
     salePrice: toNumber(body.salePrice),
+    warehouseCode: normalizeWarehouseCode(body.warehouseCode || body.warehouse || body.kho),
+    warehouseName: warehouseNameFromCode(body.warehouseCode || body.warehouse || body.kho),
     minStock: toNumber(body.minStock),
     maxStock: toNumber(body.maxStock),
     // Phase 3.4: products chỉ lưu danh mục, không nhận/lưu số tồn.
@@ -146,7 +160,7 @@ async function searchProducts(query) {
 
 async function createProduct(body) {
   const payload = pickProductPayload(body);
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
@@ -159,12 +173,12 @@ async function updateProduct(id, body) {
   const current = await productRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy sản phẩm trong MongoDB', status: 404 };
   const payload = pickProductPayload(body);
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code, current._id)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
   if (payload.barcode && await productRepository.findDuplicateBarcode(payload.barcode, current._id)) return { error: 'Mã vạch đã tồn tại trong MongoDB', status: 409 };
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   Object.assign(current, payload);
   // Xóa các field tồn cũ nếu còn sót trên document vì products chỉ là danh mục.
   for (const field of ['openingStock', 'availableStock', 'stockQuantity', 'availableQty', 'stock', 'quantity', 'qty', 'tonKho', 'tonDau']) {

@@ -62,6 +62,8 @@ function buildQueryFilter(query = {}) {
       { name: { $regex: rawRegex, $options: 'i' } },
       { category: { $regex: rawRegex, $options: 'i' } },
       { brand: { $regex: rawRegex, $options: 'i' } },
+      { warehouseCode: { $regex: rawRegex, $options: 'i' } },
+      { warehouseName: { $regex: rawRegex, $options: 'i' } },
       { packing: { $regex: rawRegex, $options: 'i' } },
       { unit: { $regex: rawRegex, $options: 'i' } },
       { baseUnit: { $regex: rawRegex, $options: 'i' } },
@@ -84,6 +86,8 @@ function productSearchRank(product = {}, keyword = '') {
   const category = normalizeSearchText(product.category || '');
   const brand = normalizeSearchText(product.brand || '');
   const packing = normalizeSearchText(product.packing || '');
+  const warehouseCode = normalizeSearchText(product.warehouseCode || '');
+  const warehouseName = normalizeSearchText(product.warehouseName || '');
   const searchText = normalizeSearchText(product.searchText || '');
 
   const codes = [code, sku, productCode].filter(Boolean);
@@ -97,7 +101,7 @@ function productSearchRank(product = {}, keyword = '') {
   if (barcode && barcode.includes(q)) return 35;
   if (name.startsWith(q)) return 40;
   if (name.includes(q)) return 50;
-  if (category.includes(q) || brand.includes(q) || packing.includes(q)) return 60;
+  if (category.includes(q) || brand.includes(q) || warehouseCode.includes(q) || warehouseName.includes(q) || packing.includes(q)) return 60;
   if (searchText.includes(q)) return 70;
   return 0;
 }
@@ -137,7 +141,7 @@ async function search(query = {}) {
 
   const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
   const candidates = await Product.find(filter)
-    .select('code name unit baseUnit conversionRate packing barcode category brand salePrice costPrice minStock maxStock isActive searchText')
+    .select('code name unit baseUnit conversionRate packing barcode category brand warehouseCode warehouseName salePrice costPrice minStock maxStock isActive searchText')
     .sort({ code: 1 })
     .lean();
 

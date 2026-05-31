@@ -5,6 +5,8 @@ function getFormPayload(){
   const formData=new FormData(productForm);const payload=Object.fromEntries(formData.entries());
   payload.costPrice=Number(payload.costPrice||0);payload.salePrice=Number(payload.salePrice||0);
   payload.conversionRate=Number(payload.conversionRate||1);
+  payload.warehouseCode=payload.warehouseCode||'KHO_HC';
+  payload.warehouseName=payload.warehouseCode==='KHO_PC'?'KHO PC':'KHO HC';
   payload.minStock=Number(payload.minStock||0);payload.maxStock=Number(payload.maxStock||0);
   payload.isActive=productForm.elements.isActive.checked;return payload;
 }
@@ -15,6 +17,7 @@ function fillForm(p){
   if(productForm.elements.baseUnit)productForm.elements.baseUnit.value=p.baseUnit||'';
   if(productForm.elements.conversionRate)productForm.elements.conversionRate.value=p.conversionRate||1;
   if(productForm.elements.packing)productForm.elements.packing.value=p.packing||'';
+  if(productForm.elements.warehouseCode)productForm.elements.warehouseCode.value=p.warehouseCode||'KHO_HC';
   productForm.elements.barcode.value=p.barcode||'';
   productForm.elements.costPrice.value=p.costPrice||0;productForm.elements.salePrice.value=p.salePrice||0;
   productForm.elements.minStock.value=p.minStock||0;productForm.elements.maxStock.value=p.maxStock||0;
@@ -115,6 +118,7 @@ function renderProductTable(){
         <div class="product-compact-meta">
           ${p.category?`<span>Nhóm: <b>${p.category}</b></span>`:''}
           ${packingText?`<span>Quy cách: <b>${packingText}</b></span>`:''}
+          <span>Kho: <b>${p.warehouseName||p.warehouseCode||'KHO HC'}</b></span>
           <span>ĐVT: <b>${p.unit||''}</b></span>
           <span>Nhập: <b>${money(p.costPrice)}</b></span>
           <span>Bán: <b>${money(p.salePrice)}</b></span>

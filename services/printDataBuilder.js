@@ -113,6 +113,8 @@ function getItemTax(item) {
 }
 
 function normalizeOneItem(item, index, sourceOrder = null) {
+  const warehouseCode = pick(item.warehouseCode, item.khoCode, item.warehouse, 'KHO_HC');
+  const warehouseName = pick(item.warehouseName, item.khoName, warehouseCode === 'KHO_PC' ? 'KHO PC' : 'KHO HC');
   const qty = getItemQuantity(item);
   const pack = getItemPack(item);
   const price = getItemPrice(item);
@@ -146,7 +148,10 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     tax,
     amount,
     note: item.note || '',
-    sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : ''
+    sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',
+    warehouseCode,
+    warehouseName,
+    sourceOrderCodes: Array.isArray(item.sourceOrderCodes) ? item.sourceOrderCodes : []
   };
 }
 
@@ -207,10 +212,32 @@ function normalizeDisplayRewards(document) {
   }));
 }
 
+
+function buildWarehouseGroups(items = []) {
+  const map = new Map();
+  for (const item of items) {
+    const code = String(item.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
+    const name = String(item.warehouseName || (code === 'KHO_PC' ? 'KHO PC' : 'KHO HC')).trim();
+    if (!map.has(code)) map.set(code, { code, name, items: [], totalQty: 0, totalAmount: 0 });
+    const group = map.get(code);
+    group.items.push(item);
+    group.totalQty += toNumber(item.qty);
+    group.totalAmount += toNumber(item.amount);
+  }
+  const preferred = ['KHO_HC', 'KHO_PC'];
+  return Array.from(map.values()).sort((a, b) => {
+    const ai = preferred.indexOf(a.code);
+    const bi = preferred.indexOf(b.code);
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    return a.name.localeCompare(b.name, 'vi');
+  });
+}
+
 function buildPrintData(document = {}, options = {}) {
   const items = normalizeItems(document);
   const promotions = normalizePromotions(document);
   const displayRewards = normalizeDisplayRewards(document);
+  const warehouseGroups = buildWarehouseGroups(items);
 
   const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
   const goodsAmount = toNumber(pick(document.goodsAmount, document.subTotal, document.subtotal, items.reduce((sum, item) => sum + item.qty * item.price, 0)));
@@ -265,6 +292,7 @@ function buildPrintData(document = {}, options = {}) {
     items,
     promotions,
     displayRewards,
+    warehouseGroups,
     totals: {
       totalQty,
       goodsAmount,
@@ -274,6 +302,7 @@ function buildPrintData(document = {}, options = {}) {
       paid,
       payable,
       debt,
+      orderCount: toNumber(pick(document.orderCount, document.totalOrders, Array.isArray(document.children) ? document.children.length : 0)),
       promotionValue,
       displayRewardTotal,
       totalAmountText: document.totalAmountText || numberToVietnameseWords(payable || totalAmount)

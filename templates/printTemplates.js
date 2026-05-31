@@ -93,6 +93,57 @@ function renderGenericItemsTable(data) {
     </table>`;
 }
 
+
+function renderMasterWarehouseTables(data) {
+  const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
+    ? data.warehouseGroups
+    : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], totalQty: data.totals.totalQty, totalAmount: data.totals.totalAmount }];
+
+  return groups.map((group) => {
+    const rows = group.items && group.items.length
+      ? group.items.map((item, index) => `
+        <tr>
+          <td class="center">${index + 1}</td>
+          <td class="mono">${text(item.code)}</td>
+          <td>${text(item.name)}</td>
+          <td class="center">${text(item.unit)}</td>
+          <td class="center strong">${text(item.caseDisplay)}</td>
+          <td class="right strong">${money(data, item.qty)}</td>
+          <td class="right">${money(data, item.price)}</td>
+          <td class="right strong">${money(data, item.amount)}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="8" class="center">Chưa có dòng hàng</td></tr>';
+
+    return `
+      <div class="master-warehouse-block">
+        <div class="section-title master-warehouse-title">${text(group.name || group.code)}</div>
+        <table class="print-table master-picking-table">
+          <thead>
+            <tr>
+              <th style="width:8mm">STT</th>
+              <th style="width:24mm">Mã hàng</th>
+              <th>Tên hàng đã gộp từ đơn con</th>
+              <th style="width:16mm">ĐVT</th>
+              <th style="width:20mm">Thùng/Lẻ</th>
+              <th style="width:18mm">SL lẻ</th>
+              <th style="width:24mm">Giá bán SP</th>
+              <th style="width:30mm">Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            <tr class="invoice-total-row">
+              <td colspan="5" class="right strong">Tổng ${text(group.name || group.code)}</td>
+              <td class="right strong">${money(data, group.totalQty)}</td>
+              <td></td>
+              <td class="right strong">${money(data, group.totalAmount)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+  }).join('');
+}
+
 function renderPromotionTable(data) {
   if (!data.promotions.length) return '';
 
@@ -223,21 +274,31 @@ function orderSingleTemplate(data) {
 
 function orderTotalTemplate(data) {
   const body = `
-    ${renderDocumentHeader('PHIẾU GỘP ĐƠN TỔNG', data)}
-    <div class="info-strip">
-      <div><b>Ngày:</b> ${text(data.document.date)}</div>
-      <div><b>Nhân viên bán hàng:</b> ${text(data.staff.code)} - ${text(data.staff.name)}</div>
-      <div><b>Giao hàng:</b> ${text(data.delivery.name)}</div>
-      <div><b>Tuyến:</b> ${text(data.delivery.route)}</div>
+    <div class="simple-print-header">
+      <div>
+        <h2>${text(data.company.name)}</h2>
+        <p>${text(data.company.address)}</p>
+      </div>
+      <div class="print-code"><b>Mã đơn tổng</b><span>${text(data.document.code)}</span></div>
     </div>
-    ${renderGenericItemsTable(data)}
+    <h1 class="print-title">PHIẾU NHẶT HÀNG ĐƠN TỔNG</h1>
+    <div class="info-grid">
+      <div><b>Mã đơn tổng:</b> ${text(data.document.code)}</div>
+      <div><b>Ngày giao:</b> ${text(data.document.date)}</div>
+      <div><b>Nhân viên giao hàng:</b> ${text(data.delivery.code)} - ${text(data.delivery.name)}</div>
+      <div><b>Tuyến:</b> ${text(data.delivery.route)}</div>
+      <div><b>Số đơn con:</b> ${money(data, data.totals.orderCount)}</div>
+      <div><b>Giá trị đơn tổng:</b> ${money(data, data.totals.totalAmount)} đ</div>
+      <div class="full"><b>Nguyên tắc tính:</b> Gộp số lượng từ đơn con, chia theo kho mặc định trên sản phẩm, giá trị = số lượng × giá bán hiện tại trong danh mục sản phẩm.</div>
+    </div>
+    ${renderMasterWarehouseTables(data)}
     <div class="total-box">
       <div><span>Tổng số lượng:</span><b>${money(data, data.totals.totalQty)}</b></div>
-      <div><span>Tổng giá trị:</span><b>${money(data, data.totals.totalAmount)}</b></div>
-      <div><span>Còn phải thu:</span><b>${money(data, data.totals.debt)}</b></div>
+      <div><span>Giá trị đơn tổng:</span><b>${money(data, data.totals.totalAmount)}</b></div>
+      <div><span>Số đơn con:</span><b>${money(data, data.totals.orderCount)}</b></div>
     </div>
-    ${renderSignature(['Người lập phiếu', 'Người giao hàng', 'Thủ kho', 'Kế toán'])}`;
-  return baseLayout('PHIẾU GỘP ĐƠN TỔNG', data, body);
+    ${renderSignature(['Người lập phiếu', 'Người giao hàng', 'Kho HC', 'Kho PC'])}`;
+  return baseLayout('PHIẾU NHẶT HÀNG ĐƠN TỔNG', data, body);
 }
 
 function importOrderTemplate(data) {

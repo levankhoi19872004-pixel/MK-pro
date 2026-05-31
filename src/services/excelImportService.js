@@ -88,7 +88,19 @@ function number(row, names) {
   return toNumber(get(row, names));
 }
 
+function normalizeProductWarehouseCode(value) {
+  const raw = cleanText(value).toUpperCase().replace(/[\s-]+/g, '_');
+  if (raw === 'KHO_PC' || raw === 'PC') return 'KHO_PC';
+  if (raw === 'KHO_HC' || raw === 'HC') return 'KHO_HC';
+  return 'KHO_HC';
+}
+
+function productWarehouseName(code) {
+  return normalizeProductWarehouseCode(code) === 'KHO_PC' ? 'KHO PC' : 'KHO HC';
+}
+
 function pickProductPayload(row = {}) {
+  const warehouseCode = normalizeProductWarehouseCode(row.warehouseCode || row.warehouse || row.kho || row['Kho'] || row['Kho mặc định'] || row['Kho mac dinh']);
   const code = cleanText(row.code || row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
   const packingInfo = normalizePacking({
     unit: row.unit || row['Đơn vị'] || row['Don vi'],
@@ -103,6 +115,8 @@ function pickProductPayload(row = {}) {
     barcode: cleanText(row.barcode || row['Mã vạch'] || row['Ma vach']),
     category: cleanText(row.category || row['Nhóm hàng'] || row['Nhom hang']),
     brand: cleanText(row.brand || row['Thương hiệu'] || row['Thuong hieu']),
+    warehouseCode,
+    warehouseName: productWarehouseName(warehouseCode),
     salePrice: toNumber(row.salePrice || row.price || row['Giá bán'] || row['Gia ban']),
     costPrice: toNumber(row.costPrice || row.importPrice || row['Giá nhập'] || row['Gia nhap']),
     minStock: toNumber(row.minStock || row['Tồn tối thiểu'] || row['Ton toi thieu']),

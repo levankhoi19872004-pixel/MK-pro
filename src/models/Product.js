@@ -29,6 +29,9 @@ const productSchema = new mongoose.Schema({
   brand: { type: String, default: '', trim: true },
   costPrice: { type: Number, default: 0 },
   salePrice: { type: Number, default: 0 },
+  // Kho mặc định dùng để chia phiếu nhặt hàng/in đơn tổng cho NPP có nhiều kho.
+  warehouseCode: { type: String, default: 'KHO_HC', trim: true },
+  warehouseName: { type: String, default: 'KHO HC', trim: true },
   // Products là danh mục: không lưu tồn thực tế tại đây.
   // minStock/maxStock chỉ là ngưỡng cảnh báo, không phải số tồn.
   minStock: { type: Number, default: 0 },
@@ -42,12 +45,13 @@ productSchema.index({ code: 1 });
 productSchema.index({ name: 1 });
 productSchema.index({ barcode: 1 }, { sparse: true });
 productSchema.index({ category: 1 });
+productSchema.index({ warehouseCode: 1, code: 1 });
 productSchema.index({ isActive: 1, code: 1 });
 productSchema.index({ searchText: 1 });
 
 
 productSchema.pre('validate', function buildSearchText(next) {
-  this.searchText = normalizeSearchText([this.code, this.sku, this.productCode, this.name, this.productName, this.barcode, this.category, this.brand, this.packing, this.unit, this.baseUnit].filter(Boolean).join(' '));
+  this.searchText = normalizeSearchText([this.code, this.sku, this.productCode, this.name, this.productName, this.barcode, this.category, this.brand, this.warehouseCode, this.warehouseName, this.packing, this.unit, this.baseUnit].filter(Boolean).join(' '));
   next();
 });
 
