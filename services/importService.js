@@ -81,7 +81,7 @@ function getDateFromRow(row = {}) {
 }
 
 function getPackingFromRow(row = {}, product = null) {
-  return Math.max(1, toNumber(row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach'] ?? product?.conversionRate ?? product?.packingQty ?? product?.packing));
+  return Math.max(1, toNumber(product?.conversionRate ?? product?.packingQty ?? row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach']));
 }
 function getCartonsFromRow(row = {}) { return toNumber(row.cartons ?? row.cartonQty ?? row['Số lượng thùng'] ?? row['So luong thung'] ?? row['SL thùng'] ?? row['Thùng']); }
 function getUnitsFromRow(row = {}) { return toNumber(row.units ?? row.unitQty ?? row['Số lượng SU'] ?? row['So luong SU'] ?? row['SL lẻ'] ?? row['Lẻ']); }
@@ -299,6 +299,10 @@ function previewSalesOrders(rows, data) {
       paidAmount,
       staffCode: text(row, ['staffCode', 'mã nhân viên', 'mã nhân viên', 'ma nhan vien', 'mã NVBH']),
       staffName: text(row, ['staffName', 'tên NVTT', 'ten NVTT', 'tên NVBH']),
+      orderSource: 'DMS',
+      source: 'DMS',
+      sourceType: 'dms_import',
+      orderSourceName: 'Từ DMS',
       note: text(row, ['note', 'ghi chú', 'ghi chu']) || 'Import Excel DMS',
       errors: []
     };

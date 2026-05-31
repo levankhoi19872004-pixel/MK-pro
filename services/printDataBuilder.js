@@ -1,3 +1,4 @@
+const { calculateCartonUnit } = require('../src/utils/common.util');
 function toNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number : 0;
@@ -73,11 +74,8 @@ function numberToVietnameseWords(value) {
 }
 
 function normalizeQuantityByPack(quantity, pack) {
-  const qty = toNumber(quantity);
-  const packSize = Math.max(1, toNumber(pack || 1));
-  const cases = Math.floor(qty / packSize);
-  const units = qty % packSize;
-  return { cases, units, display: `${cases}/${units}` };
+  const result = calculateCartonUnit(quantity, pack);
+  return { cases: result.cartons, units: result.units, display: result.display };
 }
 
 function pick(...values) {
@@ -89,7 +87,17 @@ function getItemQuantity(item) {
 }
 
 function getItemPack(item) {
-  return toNumber(pick(item.pack, item.packing, item.packSize, item.quyCach, 1)) || 1;
+  // Quy cách phải lấy từ dữ liệu Mongo/snapshot số học, không parse từ tên sản phẩm hoặc chuỗi packing.
+  return toNumber(pick(
+    item.packingQty,
+    item.conversionRate,
+    item.unitsPerCase,
+    item.qtyPerCase,
+    item.packSize,
+    item.product?.conversionRate,
+    item.productSnapshot?.conversionRate,
+    1
+  )) || 1;
 }
 
 function getItemPrice(item) {
@@ -122,9 +130,9 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     unit: pick(item.unit, item.dvt, item.uom, 'Cái'),
     pack,
     qty,
-    caseQty: toNumber(pick(item.caseQty, item.thung, caseInfo.cases)),
-    unitQty: toNumber(pick(item.unitQty, item.le, caseInfo.units)),
-    caseDisplay: pick(item.caseDisplay, item.qtyDisplay, caseInfo.display),
+    caseQty: caseInfo.cases,
+    unitQty: caseInfo.units,
+    caseDisplay: caseInfo.display,
     price,
     priceAfterDiscount: salePriceAfterDiscount,
     discount,

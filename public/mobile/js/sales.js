@@ -118,7 +118,8 @@ function selectCustomer(customer) {
 }
 
 
-function formatStockTL(qty, rate){ qty=Number(qty||0); rate=Number(rate||1); if(rate<=1) return `0/${qty}`; const th=Math.floor(qty/rate); const le=qty%rate; return `${th}/${le}`; }
+function calculateCartonUnit(quantity, packing){ const qty=Math.max(0,Number(quantity||0)); const rate=Math.max(1,Number(packing||1)); const cartons=Math.floor(qty/rate); const units=qty%rate; return {cartons,units,packing:rate,display:`${cartons}/${units}`}; }
+function formatStockTL(qty, rate){ return calculateCartonUnit(qty, rate).display; }
 
 function toMobileProduct(product = {}) {
   const availableQty = Number(

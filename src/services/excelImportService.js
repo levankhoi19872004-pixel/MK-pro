@@ -176,7 +176,7 @@ function getDateFromRow(row = {}) {
 }
 
 function getPackingFromRow(row = {}, product = null) {
-  return Math.max(1, toNumber(row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach'] ?? product?.conversionRate ?? product?.packingQty ?? product?.packing));
+  return Math.max(1, toNumber(product?.conversionRate ?? product?.packingQty ?? row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach']));
 }
 
 function getCartonsFromRow(row = {}) {
@@ -243,6 +243,14 @@ function getProductCodeFromRow(row = {}) {
 
 function getCustomerCodeFromRow(row = {}) {
   return cleanText(row.customerCode || row['Mã cửa hàng'] || row['Ma cua hang'] || row['Mã khách hàng'] || row['Ma khach hang'] || text(row, ['customerCode', 'mã cửa hàng', 'ma cua hang', 'mã khách hàng', 'ma khach hang', 'mã khách']));
+}
+
+function getCustomerNameFromRow(row = {}) {
+  return cleanText(row.customerName || row['Tên cửa hàng'] || row['Ten cua hang'] || row['Tên khách hàng'] || row['Ten khach hang'] || row['Họ'] || row['Họ'] || row['Ho'] || text(row, ['customerName', 'tên cửa hàng', 'ten cua hang', 'tên khách hàng', 'ten khach hang', 'họ', 'ho']));
+}
+
+function getRouteCodeFromRow(row = {}) {
+  return cleanText(row.routeCode || row['Tuyến bán hàng'] || row['Tuyen ban hang'] || row['Mã tuyến'] || row['Ma tuyen'] || text(row, ['routeCode', 'tuyến bán hàng', 'tuyen ban hang', 'mã tuyến', 'ma tuyen']));
 }
 
 function getQtyFromRow(row = {}) {
@@ -818,12 +826,17 @@ async function importSalesOrders(rows = []) {
       deliveryDate: getDateFromRow(first),
       customerId: String(customer.id || customer._id || customer.code),
       customerCode: customer.code,
-      customerName: customer.name,
+      customerName: getCustomerNameFromRow(first) || customer.name,
       customerPhone: customer.phone || '',
       customerAddress: customer.address || '',
       staffCode: cleanText(first.staffCode || first['Mã nhân viên'] || first['Mã nhân viên'] || first['Ma nhan vien'] || first['Mã NVBH'] || first['Ma NVBH']),
       staffName: cleanText(first.staffName || first['Tên NVTT'] || first['Ten NVTT'] || first['Tên NVBH'] || first['Ten NVBH']),
+      routeCode: getRouteCodeFromRow(first),
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS bulk',
+      source: 'DMS',
+      sourceType: 'dms_import',
+      orderSource: 'DMS',
+      orderSourceName: 'Từ DMS',
       importSource: 'excel_dms',
       isImported: true,
       isChildOrder: true,

@@ -21,12 +21,16 @@ function makeId(prefix) {
   return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-function formatCaseLooseQty(quantity, conversionRate = 1) {
+function calculateCartonUnit(quantity, packing = 1) {
   const qty = Math.max(0, toNumber(quantity));
-  const rate = Math.max(1, toNumber(conversionRate) || 1);
-  const cases = Math.floor(qty / rate);
-  const loose = qty % rate;
-  return `${cases}/${loose}`;
+  const rate = Math.max(1, toNumber(packing) || 1);
+  const cartons = Math.floor(qty / rate);
+  const units = qty % rate;
+  return { cartons, units, packing: rate, display: `${cartons}/${units}` };
+}
+
+function formatCaseLooseQty(quantity, conversionRate = 1) {
+  return calculateCartonUnit(quantity, conversionRate).display;
 }
 
 function normalizePacking(body = {}) {
@@ -48,6 +52,7 @@ module.exports = {
   toNumber,
   stripMongoFields,
   makeId,
+  calculateCartonUnit,
   formatCaseLooseQty,
   normalizePacking
 };

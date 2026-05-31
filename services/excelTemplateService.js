@@ -46,21 +46,21 @@ const TEMPLATE_DEFINITIONS = {
     notes: ['Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.', 'Mã sản phẩm phải tồn tại trong danh mục.']
   },
   salesOrders: {
-    title: 'Mẫu import đơn bán hàng DMS Unilever',
-    fileName: 'mau-import-don-ban-hang-dms-unilever.xlsx',
-    columns: ['routeCode', 'documentCode', 'date', 'productCode', 'productName', 'packingQty', 'cartons', 'units', 'promoCartons', 'promoUnits', 'staffCode', 'staffName', 'customerCode', 'invoiceCountInDay', 'skuCountInDay', 'listPriceBeforeVat', 'gsvAmount', 'nivAmount', 'customerName', 'actualAmount', 'invoiceType', 'vatAmount'],
-    headers: ['Tuyến bán hàng', 'Số hóa đơn', 'Ngày lập hoá đơn', 'Mã hàng hóa', 'Mô tả mặt hàng', 'Đóng gói', 'Số lượng thùng', 'Số lượng SU', 'Số lượng khuyến mãi theo thùng/ Số thùng', 'Số lượng khuyến mãi theo SU/ Số SU khuyế', 'Mã nhân viên', 'Tên NVTT', 'Mã cửa hàng', 'Số hóa đơn trong 1 ngày', 'Số SKU trong 1 ngày', 'Đơn giá', 'GSV bán ra', 'NIV bán ra', 'Họ', 'Doanh số mỗi ngày', 'Loại hóa đơn', 'Thuế'],
+    title: 'Mẫu import đơn con DMS Unilever',
+    fileName: 'mau-import-don-con-dms-unilever.xlsx',
+    columns: ['routeCode', 'documentCode', 'date', 'productCode', 'productName', 'packingQty', 'cartons', 'units', 'promoCartons', 'promoUnits', 'staffCode', 'staffName', 'customerCode', 'invoiceCountInDay', 'skuCountInDay', 'listPriceBeforeVat', 'gsvAmount', 'nivAmount', 'customerName', 'actualAmount', 'invoiceType', 'vatAmount', 'orderSource'],
+    headers: ['Tuyến bán hàng', 'Số hóa đơn', 'Ngày lập hoá đơn', 'Mã hàng hóa', 'Mô tả mặt hàng', 'Đóng gói', 'Số lượng thùng', 'Số lượng SU', 'Số lượng khuyến mãi theo thùng/ Số thùng', 'Số lượng khuyến mãi theo SU/ Số SU khuyến mãi', 'Mã nhân viên', 'Tên NVTT', 'Mã cửa hàng', 'Số hóa đơn trong 1 ngày', 'Số SKU trong 1 ngày', 'Đơn giá', 'GSV bán ra', 'NIV bán ra', 'Tên cửa hàng', 'Doanh số mỗi ngày', 'Loại hóa đơn', 'Thuế', 'Nguồn đơn'],
     sample: [
-      ['W1SPW', 'HU90202209', '2026-05-26', '64340182', 'LIFEBUOY XA PHONG SUA DUONG AM 72X125G', 72, 0, 5, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 0, 14818, 74090, 63347, 'Chị Thuận', 68415, 'ZID1', 5068],
-      ['W1SPW', 'HU90202209', '2026-05-26', '65251427', 'CLEAR DG MAT LANH BAC HA 24X350G', 24, 0, 2, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 1, 83333, 166666, 166666, 'Chị Thuận', 179999, 'ZID1', 13333]
+      ['W1SPW', 'HU90202209', '2026-05-26', '64340182', 'LIFEBUOY XA PHONG SUA DUONG AM 72X125G', 72, 0, 5, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 0, 14818, 74090, 63347, 'Chị Thuận', 68415, 'ZID1', 5068, 'DMS'],
+      ['W1SPW', 'HU90202209', '2026-05-26', '65251427', 'CLEAR DG MAT LANH BAC HA 24X350G', 24, 0, 2, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 1, 83333, 166666, 166666, 'Chị Thuận', 179999, 'ZID1', 13333, 'DMS']
     ],
     notes: [
-      'Đây là mẫu import đơn bán theo file DMS Unilever; giữ nguyên tên cột dòng đầu tiên.',
-      'Số lượng bán quy đổi = (Số lượng thùng × Đóng gói) + Số lượng SU.',
+      'Đây là mẫu import ĐƠN CON DMS Unilever; đơn import sẽ luôn được nhận diện là Từ DMS để đi xuyên suốt Lịch sử đơn bán, Gộp đơn tổng, App giao hàng và báo cáo.',
+      'Số lượng bán quy đổi = (Số lượng thùng × quy cách trong Mongo của sản phẩm) + Số lượng SU. Cột Đóng gói trong file DMS chỉ dùng dự phòng/đối chiếu, không parse từ tên sản phẩm.',
       'Đơn giá cột P là giá niêm yết trước VAT; giá niêm yết sau VAT = P × 1.08.',
       'Doanh số mỗi ngày cột T là giá trị bán thực tế khách phải trả sau thuế và sau khuyến mại; V45 dùng cột T để tính tổng đơn, công nợ, app giao hàng và AR Ledger.',
       'Số lượng khuyến mãi I/J được trừ tồn kho nhưng không cộng doanh thu/công nợ.',
-      'Các dòng cùng Số hóa đơn + Ngày lập hóa đơn + Mã cửa hàng được gộp thành một đơn con.'
+      'Các dòng cùng Số hóa đơn + Ngày lập hóa đơn + Mã cửa hàng được gộp thành một đơn con. Cột Nguồn đơn có thể để trống; hệ thống vẫn tự gán DMS.'
     ]
   },
   openingDebt: {

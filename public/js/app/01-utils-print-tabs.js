@@ -21,11 +21,17 @@ function findProductByKey(key){
   }
   return null;
 }
-function formatCaseLooseStock(quantity, conversionRate){
+function calculateCartonUnit(quantity, packing){
   const qty=Math.max(0,Number(quantity||0));
-  const rate=Math.max(1,Number(conversionRate||1));
-  return `${Math.floor(qty/rate)}/${qty%rate}`;
+  const rate=Math.max(1,Number(packing||1));
+  const cartons=Math.floor(qty/rate);
+  const units=qty%rate;
+  return {cartons,units,packing:rate,display:`${cartons}/${units}`};
 }
+function formatCaseLooseStock(quantity, conversionRate){
+  return calculateCartonUnit(quantity, conversionRate).display;
+}
+window.calculateCartonUnit=window.calculateCartonUnit||calculateCartonUnit;
 function productAvailableQty(p){
   // Tồn mở bán ưu tiên lấy từ inventory/snapshot. Không dùng hàm này để ẩn sản phẩm khỏi gợi ý.
   const direct = Number(p?.availableQty ?? p?.availableStock ?? p?.available ?? p?.stockQuantity ?? p?.quantity ?? 0);
