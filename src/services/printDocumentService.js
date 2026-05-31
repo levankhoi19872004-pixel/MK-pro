@@ -4,7 +4,8 @@ const { renderPrintHtml } = require('../../services/printService');
 const printRepository = require('../repositories/printRepository');
 
 const SUPPORTED_PRINT_TYPES = [
-  { type: 'ORDER_SINGLE', name: 'Phiếu giao nhận và thanh toán', source: 'salesOrders' },
+  { type: 'ORDER_SINGLE', name: 'Phiếu giao nhận và thanh toán - mẫu dùng chung đơn con', source: 'salesOrders' },
+  { type: 'DMS_DELIVERY_INVOICE', name: 'Phiếu giao nhận và thanh toán - mẫu Unilever', source: 'salesOrders' },
   { type: 'ORDER_TOTAL', name: 'Phiếu gộp đơn tổng', source: 'masterOrders' },
   { type: 'IMPORT_ORDER', name: 'Phiếu nhập kho', source: 'importOrders' },
   { type: 'PAYMENT_RECEIPT', name: 'Phiếu thu tiền', source: 'receipts/cashbooks/bankbooks' }

@@ -134,7 +134,14 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     unitQty: caseInfo.units,
     caseDisplay: caseInfo.display,
     price,
+    priceBeforeVat: toNumber(pick(item.priceBeforeVat, item.listPriceBeforeVat, item.beforeVatPrice, price)),
+    listPriceBeforeVat: toNumber(pick(item.listPriceBeforeVat, item.priceBeforeVat, item.beforeVatPrice, price)),
+    priceAfterVatBeforeDiscount: toNumber(pick(item.priceAfterVatBeforeDiscount, item.listPriceAfterVat, item.afterVatBeforeDiscountPrice, item.grossPrice, price ? price * 1.08 : 0)),
+    listPriceAfterVat: toNumber(pick(item.listPriceAfterVat, item.priceAfterVatBeforeDiscount, item.afterVatBeforeDiscountPrice, item.grossPrice, price ? price * 1.08 : 0)),
     priceAfterDiscount: salePriceAfterDiscount,
+    priceAfterVatAfterDiscount: toNumber(pick(item.priceAfterVatAfterDiscount, item.netPrice, item.priceAfterDiscount, item.finalPrice, salePriceAfterDiscount)),
+    gsvAmount: toNumber(pick(item.gsvAmount, item.gsv, item.grossSalesValue)),
+    nivAmount: toNumber(pick(item.nivAmount, item.niv, item.netInvoiceValue)),
     discount,
     tax,
     amount,
@@ -180,9 +187,30 @@ function normalizePromotions(document) {
   }));
 }
 
+
+function normalizeDisplayRewards(document) {
+  const rows = Array.isArray(document.displayRewards) ? document.displayRewards
+    : Array.isArray(document.rewardRows) ? document.rewardRows
+      : Array.isArray(document.displayRewardRows) ? document.displayRewardRows
+        : Array.isArray(document.deductions) ? document.deductions
+          : Array.isArray(document.offsetRows) ? document.offsetRows
+            : [];
+
+  return rows.map((row, index) => ({
+    stt: index + 1,
+    code: pick(row.code, row.rewardCode, row.displayCode, row.cttbCode, row.maCTTrungBay, row.maCT),
+    name: pick(row.name, row.title, row.description, row.programName, row.noiDung, row.content),
+    month: pick(row.month, row.displayMonth, row.thangTrungBay),
+    goodsAmount: toNumber(pick(row.goodsAmount, row.goodsRewardAmount, row.hangHoa, row.chiTraHangHoa)),
+    quantityText: pick(row.quantityText, row.caseUnitText, row.cartonUnitText, row.soLuongThungLe),
+    offsetAmount: toNumber(pick(row.offsetAmount, row.cashAmount, row.debtOffsetAmount, row.canTruNo, row.amount))
+  }));
+}
+
 function buildPrintData(document = {}, options = {}) {
   const items = normalizeItems(document);
   const promotions = normalizePromotions(document);
+  const displayRewards = normalizeDisplayRewards(document);
 
   const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
   const goodsAmount = toNumber(pick(document.goodsAmount, document.subTotal, document.subtotal, items.reduce((sum, item) => sum + item.qty * item.price, 0)));
@@ -192,7 +220,8 @@ function buildPrintData(document = {}, options = {}) {
   const paid = toNumber(pick(document.paidAmount, document.paid, document.collectedAmount, document.cashReceived));
   const payable = toNumber(pick(document.payableAmount, document.mustPay, totalAmount - discount));
   const debt = toNumber(pick(document.debtAmount, document.debt, Math.max(payable - paid, 0)));
-  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, promotions.reduce((sum, item) => sum + item.basisAmount, 0)));
+  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
+  const displayRewardTotal = toNumber(pick(document.displayRewardTotal, document.totalDisplayReward, document.rewardAmount, document.offsetAmount, displayRewards.reduce((sum, item) => sum + item.offsetAmount, 0)));
 
   return {
     company: {
@@ -204,12 +233,12 @@ function buildPrintData(document = {}, options = {}) {
     document: {
       id: document.id || document._id || '',
       code: pick(document.code, document.orderCode, document.refCode, document.id, document._id),
-      invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon),
-      customerOrderCode: pick(document.customerOrderCode, document.soDonHang),
+      invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
+      customerOrderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
       date: formatDate(pick(document.date, document.createdAt)),
       dateTime: formatDateTime(pick(document.date, document.createdAt)),
       rawDate: pick(document.date, document.createdAt),
-      type: document.type || '',
+      type: pick(document.type, document.invoiceType, document.orderType, document.orderSourceName, ''),
       note: document.note || '',
       terms: pick(document.terms, document.paymentTerms, 'đáo hạn trong 7 ngày'),
       page: options.page || '1 / 1',
@@ -224,7 +253,8 @@ function buildPrintData(document = {}, options = {}) {
     },
     staff: {
       code: pick(document.staffCode, document.salesStaffCode, document.salesCode, document.salesStaffId),
-      name: pick(document.staffName, document.salesStaffName, document.salesName, document.createdBy)
+      name: pick(document.staffName, document.salesStaffName, document.salesName, document.createdBy),
+      phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
     },
     delivery: {
       code: pick(document.deliveryCode, document.deliveryStaffCode),
@@ -234,6 +264,7 @@ function buildPrintData(document = {}, options = {}) {
     },
     items,
     promotions,
+    displayRewards,
     totals: {
       totalQty,
       goodsAmount,
@@ -244,6 +275,7 @@ function buildPrintData(document = {}, options = {}) {
       payable,
       debt,
       promotionValue,
+      displayRewardTotal,
       totalAmountText: document.totalAmountText || numberToVietnameseWords(payable || totalAmount)
     },
     meta: {

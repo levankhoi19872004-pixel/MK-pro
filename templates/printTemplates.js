@@ -287,8 +287,196 @@ function paymentReceiptTemplate(data) {
   return baseLayout('PHIẾU THU TIỀN', data, body);
 }
 
+function renderDmsInvoiceItemsTable(data) {
+  const rows = data.items.length
+    ? data.items.map((item) => `
+      <tr>
+        <td class="center">${item.stt}</td>
+        <td class="mono">${text(item.code)}</td>
+        <td class="dms-product-name">${text(item.name)}</td>
+        <td class="center strong">${text(item.caseDisplay)}</td>
+        <td class="right strong">${money(data, item.qty)}</td>
+        <td class="right">${money(data, item.listPriceBeforeVat || item.priceBeforeVat || item.price)}</td>
+        <td class="right">${money(data, item.listPriceAfterVat || item.priceAfterVatBeforeDiscount)}</td>
+        <td class="right">${money(data, item.priceAfterVatAfterDiscount || item.priceAfterDiscount)}</td>
+        <td class="right">${money(data, item.tax)}</td>
+        <td class="right strong">${money(data, item.amount)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="10" class="center">Chưa có dòng hàng</td></tr>';
+
+  return `
+    <table class="dms-invoice-table">
+      <thead>
+        <tr>
+          <th style="width:7mm">STT</th>
+          <th style="width:19mm">Mã hàng</th>
+          <th>Tên sản phẩm</th>
+          <th style="width:17mm">Số lượng<br/>(CS/SU)</th>
+          <th style="width:15mm">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:21mm">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:22mm">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:21mm">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:17mm">Thuế<br/>GTGT</th>
+          <th style="width:23mm">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+        </tr>
+        <tr class="dms-formula-row">
+          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="dms-total-row">
+          <td colspan="4" class="center strong">Tổng cộng (A)</td>
+          <td class="right strong">${money(data, data.totals.totalQty)}</td>
+          <td></td><td></td><td></td>
+          <td class="right strong">${money(data, data.totals.tax)}</td>
+          <td class="right strong">${money(data, data.totals.totalAmount)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+function renderDmsPromotionTable(data) {
+  if (!data.promotions.length) return '';
+  const rows = data.promotions.map((promo) => `
+    <tr>
+      <td class="mono">${text(promo.code)}</td>
+      <td>${text(promo.name)}</td>
+      <td class="right">${money(data, promo.basisAmount)}</td>
+      <td class="right">${promo.percent ? `${money(data, promo.percent)}` : ''}</td>
+      <td class="right">${money(data, promo.beforeTax)}</td>
+      <td class="right strong">${money(data, promo.afterTax)}</td>
+    </tr>`).join('');
+  return `
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị khuyến mãi tiền (C)</td><td class="right strong">${money(data, data.totals.promotionValue)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function renderDmsRewardTable(data) {
+  if (!data.displayRewards.length) return '';
+  const rows = data.displayRewards.map((row) => `
+    <tr>
+      <td class="mono">${text(row.code)}</td>
+      <td>${text(row.name)}</td>
+      <td class="center">${text(row.month)}</td>
+      <td class="right">${money(data, row.goodsAmount)}</td>
+      <td class="center">${text(row.quantityText)}</td>
+      <td class="right strong">${money(data, row.offsetAmount)}</td>
+    </tr>`).join('');
+  return `
+    <div class="dms-section-title">CHI TIẾT CẤN TRỪ NỢ:(D+E)</div>
+    <table class="dms-detail-table dms-reward-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CT Trưng bày</th>
+          <th>Nội dung Chương trình trưng bày</th>
+          <th style="width:20mm">Tháng trưng bày</th>
+          <th style="width:24mm">Chi trả trưng bày (hàng hóa)</th>
+          <th style="width:20mm">Số lượng (Thùng/lẻ)</th>
+          <th style="width:25mm">Chi trả trưng bày (cấn trừ nợ)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right strong">${money(data, data.totals.displayRewardTotal)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function renderDmsHeader(data, copyLabel) {
+  return `
+    <div class="dms-document-top">
+      <div class="dms-left">
+        <div><b>Số hóa đơn:</b> ${text(data.document.invoiceCode || data.document.code)}</div>
+        <div><b>Số đơn hàng:</b> ${text(data.document.customerOrderCode || data.document.code)}</div>
+        <div><b>NVBH:</b> ${text(data.staff.code)} - ${text(data.staff.name)}${data.staff.phone ? ` - ${text(data.staff.phone)}` : ''}</div>
+        <div><b>Khách hàng - Điện thoại:</b> ${text(data.customer.code)} - ${text(data.customer.name)} - ${text(data.customer.phone)}</div>
+        <div><b>Địa chỉ giao hàng:</b> ${text(data.customer.address)}</div>
+        <div><b>Điều khoản thanh toán:</b> ${text(data.document.terms)}</div>
+        <div><b>MST:</b> ${text(data.customer.taxCode)}</div>
+      </div>
+      <div class="dms-title-block">
+        <h1>PHIẾU GIAO NHẬN VÀ THANH TOÁN</h1>
+        <div><b>Loại hóa đơn:</b> ${text(data.document.type || 'Từ NVTT')}</div>
+      </div>
+      <div class="dms-right">
+        <div><b>Số xe tải:</b> ${text(data.document.vehicleNo)}</div>
+        <div class="dms-copy"><b>${text(copyLabel)}</b></div>
+        <div><b>Trang:</b> 1 / 2</div>
+        <br/>
+        <div><b>Thời gian đặt hàng:</b> ${text(data.document.dateTime)}</div>
+        <div><b>Nhà phân phối:</b> ${text(data.company.code || '3293')} - ${text(data.company.name || 'Công Ty TNHH MTV Minh Khai')}</div>
+        <div><b>Địa chỉ:</b> ${text(data.company.address)}</div>
+        <div><b>Điện thoại:</b> ${text(data.company.phone)}</div>
+      </div>
+    </div>`;
+}
+
+function dmsDeliveryInvoiceTemplate(data) {
+  const renderCopy = (copyLabel) => `
+    <section class="print-page dms-print-page compact-print">
+      ${renderDmsHeader(data, copyLabel)}
+      ${renderDmsInvoiceItemsTable(data)}
+      <div class="dms-summary-grid">
+        <div class="dms-amount-words"><b>Số tiền viết bằng chữ :</b> ${text(data.totals.totalAmountText)}</div>
+        <div class="dms-calculation-box">
+          <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${money(data, data.totals.payable || data.totals.totalAmount)}</b></div>
+          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><b>${money(data, data.totals.goodsAmount || data.totals.totalAmount)}</b></div>
+          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><b>${money(data, data.totals.promotionValue)}</b></div>
+          <div><span>Cấn trừ tiền (D+E+H):</span><b>${money(data, data.totals.displayRewardTotal || data.totals.discount)}</b></div>
+          <div><span>Tổng tiền CK của NPP (F)=...</span><b>0</b></div>
+          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><b>${data.totals.goodsAmount ? ((data.totals.promotionValue / data.totals.goodsAmount) * 100).toFixed(2) : '0.00'}%</b></div>
+        </div>
+      </div>
+      <div class="dms-signature">
+        <div><b>Người lập biểu</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người bán hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Nhân viên giao hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người nhận hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+      </div>
+      ${renderDmsPromotionTable(data)}
+      ${renderDmsRewardTable(data)}
+    </section>`;
+
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phiếu giao nhận DMS - ${text(data.document.code)}</title>
+  <link rel="stylesheet" href="/print.css" />
+</head>
+<body class="dms-print-body">
+  ${renderCopy('Liên 1')}
+  ${renderCopy('Liên 2')}
+  <script>
+    window.onload = function(){
+      window.focus();
+      if (!window.location.search.includes('preview=1')) window.print();
+    };
+  </script>
+</body>
+</html>`;
+}
+
 module.exports = {
   ORDER_SINGLE: orderSingleTemplate,
+  DMS_DELIVERY_INVOICE: dmsDeliveryInvoiceTemplate,
   ORDER_TOTAL: orderTotalTemplate,
   IMPORT_ORDER: importOrderTemplate,
   PAYMENT_RECEIPT: paymentReceiptTemplate

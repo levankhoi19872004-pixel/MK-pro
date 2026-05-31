@@ -279,10 +279,8 @@ function makeVirtualSaleLedger(order = {}) {
   // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
   const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
   const arStatus = String(order.arStatus || '').toLowerCase();
-  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
-  const isAccountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
   const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus) || ['ar_posted', 'paid'].includes(arStatus);
-  if (!isDeliveryCompleted || !isAccountingConfirmed) return null;
+  if (!isDeliveryCompleted) return null;
   const debit = toNumber(order.debtAmount ?? order.debt ?? (totalOf(order) - toNumber(order.paidAmount || order.paymentAmount || 0)));
   if (debit <= 0) return null;
   return {

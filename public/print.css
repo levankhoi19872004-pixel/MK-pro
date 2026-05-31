@@ -366,3 +366,156 @@ body {
     display: table-footer-group;
   }
 }
+
+/* DMS/Unilever delivery invoice print template */
+.dms-print-body {
+  background: #fff;
+}
+
+.dms-print-page {
+  padding: 6mm 5mm 5mm;
+  font-size: 9.2px;
+  line-height: 1.14;
+}
+
+.dms-document-top {
+  display: grid;
+  grid-template-columns: 1.08fr 0.82fr 1.08fr;
+  gap: 5mm;
+  align-items: start;
+  margin-bottom: 7mm;
+}
+
+.dms-document-top div {
+  margin-bottom: 1.6px;
+}
+
+.dms-title-block {
+  text-align: center;
+  padding-top: 4mm;
+}
+
+.dms-title-block h1 {
+  margin: 0 0 3px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dms-copy {
+  text-align: center;
+  font-size: 11px;
+}
+
+.dms-invoice-table,
+.dms-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.dms-invoice-table th,
+.dms-invoice-table td,
+.dms-detail-table th,
+.dms-detail-table td {
+  border: 1px solid #000;
+  padding: 2.2px 2.5px;
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+.dms-invoice-table th,
+.dms-detail-table th {
+  text-align: center;
+  font-weight: 700;
+  background: #fff;
+}
+
+.dms-invoice-table th {
+  font-size: 8px;
+  line-height: 1.06;
+}
+
+.dms-invoice-table td {
+  min-height: 6.8mm;
+}
+
+.dms-formula-row th {
+  font-size: 8px;
+  padding: 1px 2px;
+}
+
+.dms-product-name {
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.dms-total-row td,
+.dms-total-row th {
+  font-weight: 700;
+  background: #fff;
+}
+
+.dms-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.98fr;
+  gap: 8mm;
+  margin-top: 5mm;
+}
+
+.dms-amount-words {
+  padding-top: 3mm;
+  min-height: 18mm;
+}
+
+.dms-calculation-box div {
+  display: grid;
+  grid-template-columns: 1fr 26mm;
+  gap: 4mm;
+  padding: 1px 0;
+}
+
+.dms-calculation-box b {
+  text-align: right;
+}
+
+.dms-signature {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid #000;
+  border-right: 0;
+  margin-top: 5mm;
+  text-align: center;
+}
+
+.dms-signature div {
+  min-height: 18mm;
+  border-right: 1px solid #000;
+  padding-top: 2mm;
+}
+
+.dms-signature b,
+.dms-signature span {
+  display: block;
+}
+
+.dms-section-title {
+  margin-top: 6mm;
+  margin-bottom: 2mm;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.dms-detail-table {
+  font-size: 8.4px;
+}
+
+.dms-detail-table td {
+  min-height: 7mm;
+}
+
+@media print {
+  .dms-print-page {
+    page-break-after: always;
+  }
+}

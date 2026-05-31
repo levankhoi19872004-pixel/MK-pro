@@ -26,12 +26,6 @@ async function count(collectionKey, filter = {}) {
   return getModel(collectionKey).countDocuments(filter);
 }
 
-async function deleteMany(collectionKey, filter = {}, options = {}) {
-  const Model = getModel(collectionKey);
-  const result = await Model.deleteMany(filter || {}, { session: options.session });
-  return { key: collectionKey, collection: Model.collection.name, deletedCount: result.deletedCount || 0 };
-}
-
 async function replaceAll(collectionKey, rows = [], options = {}) {
   const Model = getModel(collectionKey);
   await Model.deleteMany({}, { session: options.session });
@@ -62,4 +56,4 @@ async function deleteOneByIdentity(collectionKey, idOrCode, identityFields = ['i
   return Model.deleteOne(filter, { session: options.session });
 }
 
-module.exports = { MongoStore, stripMongoFields, getModel, findAll, count, deleteMany, replaceAll, upsertByIdentity, deleteOneByIdentity };
+module.exports = { MongoStore, stripMongoFields, getModel, findAll, count, replaceAll, upsertByIdentity, deleteOneByIdentity };

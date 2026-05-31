@@ -133,13 +133,11 @@ async function applySalesOrderPosting(order, options = {}) {
     note: 'Xuất kho theo đơn bán'
   }, options);
 
-  // V45 chuẩn: đơn bán mới tạo/chưa được kế toán xác nhận chưa được đưa vào công nợ.
-  // Công nợ chỉ phát sinh sau nút "Xác nhận của kế toán" ở màn Đơn đi giao hôm nay.
+  // V45 chuẩn: đơn bán mới tạo/chưa chốt giao chưa được đưa vào công nợ.
+  // Công nợ chỉ phát sinh sau khi NVGH chốt giao hàng hoàn thành.
   const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
   const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
-  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
-  const isAccountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
-  if (!isDeliveryCompleted || !isAccountingConfirmed) return;
+  if (!isDeliveryCompleted) return;
 
   const customerKey = order.customerCode || order.customerId || order.customerName;
   if (!customerKey) return;
@@ -263,8 +261,6 @@ async function createOrder(body = {}) {
     status: body.status || 'pending',
     lifecycleStatus: body.lifecycleStatus || 'pending',
     arStatus: body.arStatus || 'not_posted',
-    accountingStatus: body.accountingStatus || 'draft_delivery',
-    accountingConfirmed: Boolean(body.accountingConfirmed),
     arBalance: 0,
     createdAt: body.createdAt || nowIso(),
     updatedAt: nowIso()

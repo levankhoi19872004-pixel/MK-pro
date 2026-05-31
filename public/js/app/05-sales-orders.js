@@ -222,12 +222,41 @@ function renderSalesOrderItems(items){
   const more=(items||[]).length>3?`<div class="sales-order-more">+ ${(items||[]).length-3} dòng hàng khác</div>`:'';
   return rows+more;
 }
-function printSelectedSalesOrders(){
-  const checks=[...document.querySelectorAll('.sales-order-check:checked')];
-  const orders=checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
-  if(!orders.length){alert('Chưa chọn đơn con để in');return}
-  const html=orders.map(o=>`<section class="print-page"><h2>Đơn bán: ${o.code||o.id}</h2><p>Ngày: ${o.date||''} · Khách: ${o.customerCode||''} - ${o.customerName||''}</p><p>Tổng tiền: ${money(o.totalAmount)} · Đã thu: ${money(o.paidAmount)} · Còn nợ: ${money(o.debtAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${(o.items||[]).map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${money(i.quantity)}</td><td>${money(i.salePrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`).join('');
-  const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In nhiều đơn con</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
+async function renderSalesOrderPrintHtml(order){
+  const res=await fetch('/api/print/render',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      type:'ORDER_SINGLE',
+      document:order,
+      options:{companyName:'NHÀ PHÂN PHỐI MINH KHAI'}
+    })
+  });
+  const html=await res.text();
+  if(!res.ok)throw new Error(html||'Không tạo được mẫu in đơn con');
+  return html;
+}
+
+function extractPrintBody(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  return doc.body ? doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/gi,'') : html;
+}
+
+async function printSelectedSalesOrders(){
+  try{
+    const checks=[...document.querySelectorAll('.sales-order-check:checked')];
+    const orders=checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+    if(!orders.length){alert('Chưa chọn đơn con để in');return}
+    const bodies=[];
+    for(const order of orders){
+      bodies.push(extractPrintBody(await renderSalesOrderPrintHtml(order)));
+    }
+    const w=window.open('','_blank');
+    if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
+    w.document.open();
+    w.document.write(`<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>In nhiều đơn con</title><link rel="stylesheet" href="/print.css"></head><body class="dms-print-body">${bodies.join('')}<script>window.onload=function(){window.focus();window.print()}<\/script></body></html>`);
+    w.document.close();
+  }catch(err){alert(err.message||'Không in được nhiều đơn con')}
 }
 window.printSelectedSalesOrders=printSelectedSalesOrders;
 

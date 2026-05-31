@@ -12,6 +12,8 @@ const PRINT_TYPE_ALIASES = {
   SALES_ORDER: 'ORDER_SINGLE',
   SALES: 'ORDER_SINGLE',
   ORDER_SINGLE: 'ORDER_SINGLE',
+  DMS_DELIVERY_INVOICE: 'DMS_DELIVERY_INVOICE',
+  DMS_INVOICE: 'DMS_DELIVERY_INVOICE',
 
   MASTER_ORDER: 'ORDER_TOTAL',
   TOTAL_ORDER: 'ORDER_TOTAL',
@@ -42,7 +44,7 @@ async function findDocumentByPrintType(type, idOrCode) {
   if (!idOrCode) return { printType, document: null };
 
   let document = null;
-  if (printType === 'ORDER_SINGLE') document = await orderRepository.findByIdOrCode(idOrCode);
+  if (printType === 'ORDER_SINGLE' || printType === 'DMS_DELIVERY_INVOICE') document = await orderRepository.findByIdOrCode(idOrCode);
   if (printType === 'ORDER_TOTAL') document = await masterOrderRepository.findByIdOrCode(idOrCode);
   if (printType === 'IMPORT_ORDER') document = await importOrderRepository.findByIdOrCode(idOrCode);
   if (printType === 'PAYMENT_RECEIPT') document = await findPaymentReceiptByIdOrCode(idOrCode);

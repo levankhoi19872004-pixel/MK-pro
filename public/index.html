@@ -31,7 +31,6 @@
       <button class="tab-button" data-tab="usersTab">Tài khoản</button>
       <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
       <button class="tab-button" data-tab="importDataTab">Import dữ liệu</button>
-      <button class="tab-button" data-tab="systemTab">Hệ thống</button>
     </nav>
 
     <section id="productsTab" class="tab-content active">
@@ -480,12 +479,8 @@
               <h2>Đơn đi giao hôm nay</h2>
               <p class="muted">Bên trái theo dõi danh sách + báo cáo. Chọn một đơn để chỉnh sửa ở bên phải.</p>
             </div>
-            <div class="delivery-accounting-actions">
-              <button id="confirmDeliveryAccountingButton" class="primary compact-action" type="button">Xác nhận của kế toán</button>
-              <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
-            </div>
+            <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
           </div>
-          <div id="deliveryAccountingStatus" class="delivery-accounting-status">Chưa xác nhận kế toán: đơn còn được sửa và chưa đưa vào công nợ.</div>
 
           <div class="delivery-filter-bar sticky-filter-bar delivery-simple-filter">
             <label class="delivery-filter-field">Ngày giao hàng
@@ -956,54 +951,21 @@
       </section>
     </section>
 
-
-    <section id="systemTab" class="tab-content">
-      <section class="card system-reset-card">
-        <div class="toolbar">
-          <div>
-            <h2>Reset dữ liệu</h2>
-            <p class="muted">Dùng khi cần làm sạch dữ liệu để import lại. Nên chọn <b>Reset nghiệp vụ</b> để giữ danh mục sản phẩm, khách hàng, nhân viên và khuyến mại.</p>
-          </div>
-        </div>
-        <div class="note-box danger-note">
-          <strong>⚠ Cảnh báo:</strong> Chức năng này xóa dữ liệu trên MongoDB. Hệ thống sẽ tự tạo backup trước khi xóa nếu bật tùy chọn backup.
-        </div>
-        <div class="form system-reset-form">
-          <label>Chế độ reset
-            <select id="systemResetMode">
-              <option value="operational" selected>Reset nghiệp vụ - giữ danh mục</option>
-              <option value="inventory">Reset tồn kho</option>
-              <option value="debt">Reset công nợ</option>
-              <option value="full">Reset toàn bộ</option>
-            </select>
-          </label>
-          <label class="check-row"><input type="checkbox" id="systemResetBackup" checked /> Tạo backup trước khi reset</label>
-          <label>Nhập chính xác: XÁC NHẬN RESET
-            <input id="systemResetConfirm" placeholder="XÁC NHẬN RESET" />
-          </label>
-          <div class="button-row">
-            <button type="button" id="systemResetButton" class="danger">Thực hiện reset</button>
-          </div>
-          <p id="systemResetMessage" class="message"></p>
-        </div>
-      </section>
-    </section>
-
   </div>
 
-  <script src="/js/search/autocompleteEngine.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/search/searchFieldsConfig.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/search/catalogCacheService.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/search/productSearchBox.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/app/00-dom-state.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/app/01-utils-print-tabs.js?v=20260531-dms-source-flow-v1"></script>
+  <script src="/js/search/autocompleteEngine.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/search/searchFieldsConfig.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/search/catalogCacheService.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/search/productSearchBox.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/app/00-dom-state.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/app/01-utils-print-tabs.js?v=20260531-common-child-print-v1"></script>
   <script src="/js/app/02-products.js?v=20260530-table-direct-mongo-v2"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=20260530-table-direct-mongo-v2"></script>
-  <script src="/js/app/04-import-orders.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/app/05-sales-orders.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/app/06-master-delivery.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/app/07-debt-cashbook.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260531-dms-source-flow-v1"></script>
-  <script src="/app.js?v=20260531-dms-source-flow-v1"></script>
+  <script src="/js/app/04-import-orders.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/app/07-debt-cashbook.js?v=20260531-common-child-print-v1"></script>
+  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=20260531-common-child-print-v1"></script>
+  <script src="/app.js?v=20260531-common-child-print-v1"></script>
 </body>
 </html>

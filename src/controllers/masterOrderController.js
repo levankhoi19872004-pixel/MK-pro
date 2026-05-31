@@ -36,16 +36,6 @@ async function listDeliveryToday(req, res) {
   }
 }
 
-
-async function confirmDeliveryAccounting(req, res) {
-  try {
-    const result = await masterOrderService.confirmDeliveryAccounting({ ...(req.query || {}), ...(req.body || {}) });
-    return handleServiceResult(res, result, 200, (r) => ({ message: r.message, result: r }));
-  } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không xác nhận được đơn giao' });
-  }
-}
-
 async function updateDeliveryTodayOrder(req, res) {
   try {
     const result = await masterOrderService.updateDeliveryTodayOrder(req.params.id, req.body || {});
@@ -100,4 +90,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { listUnmergedChildOrders, listDeliveryToday, confirmDeliveryAccounting, updateDeliveryTodayOrder, list, get, create, update, cancel, remove };
+module.exports = { listUnmergedChildOrders, listDeliveryToday, updateDeliveryTodayOrder, list, get, create, update, cancel, remove };
