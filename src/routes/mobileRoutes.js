@@ -682,6 +682,22 @@ function orderIdentityKeys(...sources) {
   ]).map((value) => String(value || '').trim()).filter(Boolean))];
 }
 
+async function activeReturnItemsForOrder(order = {}) {
+  const keys = orderIdentityKeys(order);
+  if (!keys.length) return [];
+  const rows = await ReturnOrder.find({
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    $or: [
+      { salesOrderId: { $in: keys } },
+      { salesOrderCode: { $in: keys } },
+      { orderId: { $in: keys } },
+      { orderCode: { $in: keys } }
+    ]
+  }).sort({ updatedAt: -1, createdAt: -1 }).lean();
+  const active = rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase()));
+  return Array.isArray(active?.items) ? active.items : [];
+}
+
 async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
   const keys = orderIdentityKeys(requestOrderId, order);
   const patch = deliveryPaymentPatchFromOrder(order);
@@ -702,13 +718,28 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
   await SalesOrder.updateOne(filter, { $set: patch });
 
   // Dùng cùng service của phần mềm web để công thức công nợ/trạng thái thống nhất.
-  // Nếu service phụ lỗi thì không chặn việc SalesOrder đã được ghi ở trên.
+  // Lưu ý quan trọng: KHÔNG được truyền returnItems: [] khi app vừa tạo phiếu trả.
+  // Service web hiểu returnItems rỗng là xóa/hủy phiếu trả hàng đang chờ gộp.
+  // Vì vậy phải lấy returnItems thật từ SalesOrder hoặc collection returnOrders trước khi gọi service.
   try {
-    await masterOrderService.updateDeliveryTodayOrder(keys[0] || getDocId(order), {
+    let canonicalReturnItems = Array.isArray(order.returnItems) && order.returnItems.length
+      ? order.returnItems
+      : (Array.isArray(order.deliveryReturnItems) && order.deliveryReturnItems.length ? order.deliveryReturnItems : []);
+    if (!canonicalReturnItems.length && toNumber(patch.returnAmount) > 0) {
+      canonicalReturnItems = await activeReturnItemsForOrder({ ...order.toObject?.() || order, ...patch });
+    }
+    const servicePayload = {
       ...patch,
-      orderId: keys[0] || getDocId(order),
-      returnItems: Array.isArray(order.returnItems) ? order.returnItems : []
-    });
+      orderId: keys[0] || getDocId(order)
+    };
+    if (canonicalReturnItems.length) {
+      servicePayload.returnItems = canonicalReturnItems;
+      servicePayload.deliveryReturnItems = canonicalReturnItems;
+    } else if (toNumber(patch.returnAmount) <= 0) {
+      servicePayload.returnItems = [];
+      servicePayload.deliveryReturnItems = [];
+    }
+    await masterOrderService.updateDeliveryTodayOrder(keys[0] || getDocId(order), servicePayload);
   } catch (err) {
     order.financialSyncStatus = order.financialSyncStatus || 'web_delivery_service_warning';
     order.financialSyncMessage = [order.financialSyncMessage, err.message || 'Không đồng bộ được service đơn giao hôm nay'].filter(Boolean).join(' | ');
@@ -1215,8 +1246,11 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       })).filter((item) => toNumber(item.qtyReturn) > 0);
       if (fullItems.length) {
         const returnOrder = await upsertMobileReturnOrder(order, fullItems, req, 'full');
+        const savedReturnItems = Array.isArray(returnOrder.items) ? returnOrder.items : [];
         order.returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
         order.returnedAmount = order.returnAmount;
+        order.returnItems = savedReturnItems;
+        order.deliveryReturnItems = savedReturnItems;
       }
     }
 
@@ -1337,8 +1371,11 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     // Idempotent: 1 đơn giao chỉ có 1 returnOrder. Lưu lại là cập nhật phiếu cũ.
     const returnOrder = await upsertMobileReturnOrder(order, items, req, returnType);
     const returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
+    const savedReturnItems = Array.isArray(returnOrder.items) ? returnOrder.items : [];
     order.returnAmount = returnAmount;
     order.returnedAmount = returnAmount;
+    order.returnItems = savedReturnItems;
+    order.deliveryReturnItems = savedReturnItems;
     order.debtBeforeCollection = deliveryDebtBase(order);
     order.debtAmount = calculateDeliveryDebt(order);
     order.debt = order.debtAmount;
