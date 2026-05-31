@@ -1,3 +1,13 @@
+var DEBT_ZERO_TOLERANCE = window.DEBT_ZERO_TOLERANCE || 1000;
+window.DEBT_ZERO_TOLERANCE = DEBT_ZERO_TOLERANCE;
+function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
+  const n = Number(value || 0);
+  if(!Number.isFinite(n)) return 0;
+  const rounded = Math.round(n);
+  return Math.abs(rounded) <= tolerance ? 0 : rounded;
+}
+function hasOpenDebt(value){ return normalizeDebtAmount(value) > 0; }
+function isOverpaidDebt(value){ return normalizeDebtAmount(value) < 0; }
 async function loadDebts(){
   const params=new URLSearchParams();
   const q=debtSearchInput?debtSearchInput.value.trim():'';
@@ -18,7 +28,7 @@ async function loadDebts(){
     debtsCache=json.customerSummary||[];
     const ledger=json.debts||[];
     const summary=json.summary||{};
-    const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+Number(d.debt||0),0));
+    const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.debt),0));
     if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
     if(debtCount)debtCount.textContent=`${summary.orderCount??ledger.length} đơn · ${summary.customerCount??debtsCache.length} khách · Quá hạn ${summary.overdueCount??0} · Tổng nợ ${money(totalDebt)}`;
     if(!ledger.length){
@@ -34,12 +44,12 @@ async function loadDebts(){
       <td>${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</td>
       <td>${escapeHtml(d.dueDate||'')}${Number(d.overdueDays||0)>0?` <span class="badge out">+${d.overdueDays} ngày</span>`:''}</td>
       <td class="price">${money(d.debit)}</td><td class="price cash-in">${money(d.credit)}</td>
-      <td class="price ${Number(d.debt||0)>0?'debt-positive':'debt-zero'}">${money(d.debt)}</td></tr>`).join('');
+      <td class="price ${hasOpenDebt(d.debt)?'debt-positive':'debt-zero'}">${money(d.debt)}</td></tr>`).join('');
     const overviewRows=(Array.isArray(json.customerSummary)&&json.customerSummary.length)
       ?json.customerSummary
-      :buildCustomerDebtOverview(ledger).filter(d=>Number(d.debt||0)>0);
+      :buildCustomerDebtOverview(ledger).filter(d=>hasOpenDebt(d.debt));
     if(debtCardList)debtCardList.innerHTML=overviewRows.length?overviewRows.map((d,idx)=>{
-      const debt=Number(d.debt||0);
+      const debt=Math.max(0, normalizeDebtAmount(d.debt));
       const statusClass=debtFinanceClass(d);
       const statusText=debtStatusLabel(d.status);
       const overdue=Number(d.overdueDays||0);
@@ -48,7 +58,7 @@ async function loadDebts(){
           <div class="debt-slim-name"><small>${escapeHtml(d.customerCode||'')}</small><b>${escapeHtml(d.customerName||'')}</b></div>
           <span class="debt-status-pill">${statusText}</span>
         </div>
-        <div class="debt-slim-money"><span>Còn nợ</span><strong class="${debt>0?'debt-positive':'debt-zero'}">${money(debt)}</strong></div>
+        <div class="debt-slim-money"><span>Còn nợ</span><strong class="${hasOpenDebt(debt)?'debt-positive':'debt-zero'}">${money(debt)}</strong></div>
         <div class="debt-slim-meta">
           <span>${overdue>0?'Quá hạn':'Tuổi nợ'}: <b>${overdue>0?overdue:Number(d.agingDays||0)} ngày</b></span>
           <span>Số đơn: <b>${Number(d.orderCount||0)}</b></span>
@@ -75,7 +85,7 @@ async function loadDebts(){
 
 function renderDebtCustomerOrderRows(customer){
   const orders=(customer && Array.isArray(customer.orders)?customer.orders:[])
-    .filter(o=>Number(o.debt||0)>0)
+    .filter(o=>hasOpenDebt(o.debt))
     .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')));
   if(!orders.length)return '<div class="empty-state success-text">Khách này không còn đơn nợ.</div>';
   return `<div class="debt-order-detail-title">Danh sách đơn còn nợ của ${escapeHtml(customer.customerCode||'')} - ${escapeHtml(customer.customerName||'')}</div>
@@ -114,7 +124,7 @@ function buildCustomerDebtOverview(rows){
     };
     item.debit+=Number(d.debit||0);
     item.credit+=Number(d.credit||0);
-    item.debt+=Number(d.debt||0);
+    item.debt+=normalizeDebtAmount(d.debt);
     item.orderCount+=1;
     item.overdueDays=Math.max(Number(item.overdueDays||0),Number(d.overdueDays||0));
     item.agingDays=Math.max(Number(item.agingDays||0),Number(d.agingDays||0));
@@ -122,7 +132,7 @@ function buildCustomerDebtOverview(rows){
     if(!item.deliveryStaffCode&&!item.deliveryStaffName){item.deliveryStaffCode=d.deliveryStaffCode||'';item.deliveryStaffName=d.deliveryStaffName||'';}
     map.set(key,item);
   });
-  return [...map.values()].map(d=>({...d,status:Number(d.debt||0)<=0?'paid':(Number(d.overdueDays||0)>0?'overdue':'open')})).sort((a,b)=>Number(b.debt||0)-Number(a.debt||0));
+  return [...map.values()].map(d=>({...d,status:hasOpenDebt(d.debt)?(Number(d.overdueDays||0)>0?'overdue':'open'):'paid'})).sort((a,b)=>normalizeDebtAmount(b.debt)-normalizeDebtAmount(a.debt));
 }
 
 function groupDebtByPerson(rows, codeKey, nameKey){
@@ -136,7 +146,7 @@ function groupDebtByPerson(rows, codeKey, nameKey){
     if(d.customerCode||d.customerName)item.customers.add((d.customerCode||'')+'|'+(d.customerName||''));
     item.debit+=Number(d.debit||0);
     item.credit+=Number(d.credit||0);
-    item.debt+=Number(d.debt||0);
+    item.debt+=normalizeDebtAmount(d.debt);
     map.set(key,item);
   });
   return [...map.values()].sort((a,b)=>b.debt-a.debt);
@@ -150,14 +160,14 @@ function renderDebtManagementReports(rows, json={}){
   if(debtSalesmanReportTable){
     debtSalesmanReportTable.innerHTML=salesmanRows.length?salesmanRows.map(r=>{
       const customers=(r.customers&&typeof r.customers.size==='number')?r.customers.size:Number(r.customers||0);
-      return `<tr><td><strong>${escapeHtml(r.label||debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${customers}</td><td class="price">${Number(r.orders||0)}</td><td class="price">${money(r.debit)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price ${Number(r.debt||0)>0?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`;
+      return `<tr><td><strong>${escapeHtml(r.label||debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${customers}</td><td class="price">${Number(r.orders||0)}</td><td class="price">${money(r.debit)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price ${hasOpenDebt(r.debt)?'debt-positive':'debt-zero'}">${money(r.debt)}</td></tr>`;
     }).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVBH.</td></tr>';
   }
   if(debtDeliveryReportTable){
     debtDeliveryReportTable.innerHTML=deliveryRows.length?deliveryRows.map(r=>{
       const customers=(r.customers&&typeof r.customers.size==='number')?r.customers.size:Number(r.customers||0);
-      const debt=Number(r.debt||0);
-      return `<tr><td><strong>${escapeHtml(r.label||debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${customers}</td><td class="price">${Number(r.orders||0)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price debt-positive">${money(Math.max(debt,0))}</td><td class="price ${debt>0?'debt-positive':'debt-zero'}">${money(debt)}</td></tr>`;
+      const debt=Math.max(0, normalizeDebtAmount(r.debt));
+      return `<tr><td><strong>${escapeHtml(r.label||debtPersonLabel(r.code,r.name))}</strong></td><td class="price">${customers}</td><td class="price">${Number(r.orders||0)}</td><td class="price cash-in">${money(r.credit)}</td><td class="price debt-positive">${money(Math.max(debt,0))}</td><td class="price ${hasOpenDebt(debt)?'debt-positive':'debt-zero'}">${money(debt)}</td></tr>`;
     }).join(''):'<tr><td colspan="6">Chưa có công nợ theo NVGH.</td></tr>';
   }
   renderDebtWarnings(rows, json.arDiagnostics||[]);
@@ -165,11 +175,11 @@ function renderDebtManagementReports(rows, json={}){
 
 function renderDebtWarnings(rows, diagnostics=[]){
   if(!receiptTimeline)return;
-  const overdueWarnings=rows.filter(d=>Number(d.debt||0)>0&&Number(d.overdueDays||0)>0).slice(0,20).map(d=>({
+  const overdueWarnings=rows.filter(d=>hasOpenDebt(d.debt)&&Number(d.overdueDays||0)>0).slice(0,20).map(d=>({
     code:d.orderCode, date:d.dueDate||d.documentDate, customerCode:d.customerCode, customerName:d.customerName, amount:d.debt,
     message:`Đơn quá hạn ${Number(d.overdueDays||0)} ngày, còn nợ ${money(d.debt)}`
   }));
-  const negativeWarnings=rows.filter(d=>Number(d.debt||0)<0).slice(0,20).map(d=>({
+  const negativeWarnings=rows.filter(d=>isOverpaidDebt(d.debt)).slice(0,20).map(d=>({
     code:d.orderCode, date:d.documentDate, customerCode:d.customerCode, customerName:d.customerName, amount:d.debt,
     message:'Công nợ âm, cần kiểm tra thu thừa/ghi giảm sai'
   }));
@@ -187,7 +197,7 @@ function renderDebtWarnings(rows, diagnostics=[]){
 function renderCollectionOrderAllocations(customer = null){
   if(!collectionOrderAllocationBox)return;
   const orders = (customer && Array.isArray(customer.orders) ? customer.orders : [])
-    .filter(o=>Number(o.debt||0)>0)
+    .filter(o=>hasOpenDebt(o.debt))
     .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')));
   selectedCollectionCustomerOrders=orders;
   if(!customer){collectionOrderAllocationBox.innerHTML='<div class="empty-state">Chọn khách để hiện danh sách đơn còn nợ.</div>';return;}
@@ -196,7 +206,7 @@ function renderCollectionOrderAllocations(customer = null){
     <div class="allocation-list">${orders.map((o,index)=>`<label class="allocation-row">
       <input type="checkbox" class="debt-order-allocation-check" data-index="${index}">
       <span><b>${escapeHtml(o.orderCode||o.orderId||'')}</b><small>${escapeHtml(o.documentDate||'')} · Còn nợ ${money(o.debt)}${Number(o.overdueDays||0)>0?` · Quá hạn ${Number(o.overdueDays||0)} ngày`:''}</small></span>
-      <input class="debt-order-allocation-amount" data-index="${index}" type="number" min="0" step="1" value="${Math.max(0,Number(o.debt||0))}" disabled>
+      <input class="debt-order-allocation-amount" data-index="${index}" type="number" min="0" step="1" value="${Math.max(0,normalizeDebtAmount(o.debt))}" disabled>
     </label>`).join('')}</div>`;
   collectionOrderAllocationBox.querySelectorAll('.debt-order-allocation-check').forEach(chk=>{
     chk.addEventListener('change',()=>{
@@ -214,7 +224,7 @@ function getSelectedDebtOrderAllocations(totalAmount){
     const order=selectedCollectionCustomerOrders[index];
     const amountInput=collectionOrderAllocationBox.querySelector(`.debt-order-allocation-amount[data-index="${index}"]`);
     const rawAmount=Number(amountInput?amountInput.value:0);
-    const amount=Math.min(Math.max(0,rawAmount), Number(order?.debt||0));
+    const amount=Math.min(Math.max(0,rawAmount), normalizeDebtAmount(order?.debt));
     if(order && amount>0){rows.push({orderId:order.orderId||'',orderCode:order.orderCode||'',amount});}
   });
   let remain=Number(totalAmount||0);
@@ -228,13 +238,13 @@ function getSelectedDebtOrderAllocations(totalAmount){
 function getCollectionCustomerMatches(){
   const q=collectionCustomerSearch?collectionCustomerSearch.value.trim():'';
   return debtsCache
-    .filter(d=>d.debt>0)
+    .filter(d=>hasOpenDebt(d.debt))
     .filter(d=>matchSearch(q,[d.customerCode,d.customerName]));
 }
 function selectCollectionCustomer(d){
   if(!d)return;
   collectionCustomerSelect.value=d.customerId||'';
-  collectionCustomerSelect.dataset.debt=String(d.debt||0);
+  collectionCustomerSelect.dataset.debt=String(normalizeDebtAmount(d.debt));
   if(collectionCustomerSearch){
     collectionCustomerSearch.value=debtCustomerSuggestionLabel(d);
     collectionCustomerSearch.dataset.selectedId=d.customerId||'';
@@ -246,7 +256,7 @@ function selectCollectionCustomer(d){
 }
 function renderCollectionCustomerSelect(){
   if(!collectionCustomerSearch)return;
-  const has=debtsCache.some(d=>d.debt>0);
+  const has=debtsCache.some(d=>hasOpenDebt(d.debt));
   collectionCustomerSearch.disabled=!has;
   collectionCustomerSearch.placeholder=has?'Gõ mã/tên khách đang nợ...':'Không có khách đang nợ';
   if(!has){collectionCustomerSelect.value='';selectedCustomerDebt.textContent='0';renderCollectionOrderAllocations(null);}

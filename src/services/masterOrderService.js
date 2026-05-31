@@ -9,6 +9,7 @@ const returnOrderService = require('./returnOrderService');
 const postingEngine = require('../engines/posting.engine');
 const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
+const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -361,7 +362,7 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
 }
 
 function calculateDeliveryDebt(order = {}) {
-  return Math.max(0, Math.round(
+  return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(order)
     - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
     - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
@@ -376,12 +377,12 @@ function isDeliveryCompletedStatus(status) {
 
 function orderDebtLifecycleStatus(debtAmount = 0, deliveryStatus = '') {
   if (!isDeliveryCompletedStatus(deliveryStatus)) return 'not_posted';
-  return toNumber(debtAmount) > 0 ? 'ar_posted' : 'paid';
+  return hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
 }
 
 async function postDeliveryArIfCompleted(order = {}, options = {}) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
-  const debtAmount = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0));
+  const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
   return postingEngine.postSalesOrderAR({
     ...order,
     debtAmount,
@@ -393,7 +394,7 @@ async function postDeliveryArIfCompleted(order = {}, options = {}) {
 function statusForDeliveryRow(order = {}) {
   const raw = String(order.deliveryStatus || order.status || 'pending').toLowerCase();
   const debt = calculateDeliveryDebt(order);
-  if (['delivered', 'done', 'completed', 'paid'].includes(raw)) return debt > 0 ? 'unpaid' : 'delivered';
+  if (['delivered', 'done', 'completed', 'paid'].includes(raw)) return hasOpenDebt(debt) ? 'unpaid' : 'delivered';
   if (['delivering', 'shipping', 'on_route'].includes(raw)) return 'delivering';
   if (['returned', 'partial_return'].includes(raw)) return raw;
   return 'waiting';
@@ -492,7 +493,7 @@ async function listDeliveryToday(query = {}) {
       totalOrders: rows.length,
       delivering: rows.filter((row) => row.visualStatus === 'delivering').length,
       delivered: rows.filter((row) => row.visualStatus === 'delivered').length,
-      unpaid: rows.filter((row) => Number(row.debt || 0) > 0).length,
+      unpaid: rows.filter((row) => hasOpenDebt(row.debt)).length,
       late: rows.filter((row) => row.isLate).length
     }
   };
@@ -523,7 +524,6 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   // kể cả khi người dùng bỏ qua kiểm tra ở giao diện.
   const totalEntered = Math.round(cashCollected + bankCollected + effectiveReturnAmount + rewardAmount);
   const receivable = Math.round(debtBeforeCollection);
-  const DEBT_ZERO_TOLERANCE = 1000;
   if ((totalEntered - receivable) > DEBT_ZERO_TOLERANCE) {
     const overAmount = totalEntered - receivable;
     return {
@@ -535,7 +535,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   // Công thức chuẩn duy nhất cho toàn bộ luồng giao hàng:
   // Còn nợ = Phải thu - Tiền mặt - Chuyển khoản - Trả thưởng - Tổng tiền hàng trả
   let debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
-  if (Math.abs(debtAmount) <= DEBT_ZERO_TOLERANCE) debtAmount = 0;
+  debtAmount = Math.max(0, normalizeDebtAmount(debtAmount));
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
 
   const updated = {
@@ -563,7 +563,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     arBalance: debtAmount,
     arStatus: orderDebtLifecycleStatus(debtAmount, deliveryStatus),
     lifecycleStatus: isDeliveryCompletedStatus(deliveryStatus)
-      ? (debtAmount > 0 ? 'ar_posted' : 'paid')
+      ? (hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid')
       : (current.lifecycleStatus || 'assigned_delivery'),
     arPostedAt: isDeliveryCompletedStatus(deliveryStatus) ? (current.arPostedAt || nowIso()) : (current.arPostedAt || ''),
     deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),

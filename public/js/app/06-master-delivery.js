@@ -1,3 +1,12 @@
+var DEBT_ZERO_TOLERANCE = window.DEBT_ZERO_TOLERANCE || 1000;
+window.DEBT_ZERO_TOLERANCE = DEBT_ZERO_TOLERANCE;
+function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
+  const n = Number(value || 0);
+  if(!Number.isFinite(n)) return 0;
+  const rounded = Math.round(n);
+  return Math.abs(rounded) <= tolerance ? 0 : rounded;
+}
+function hasOpenDebt(value){ return normalizeDebtAmount(value) > 0; }
 async function loadUnmergedChildOrders(){
   if(!unmergedOrderList)return;
   const params=new URLSearchParams();
@@ -146,8 +155,8 @@ function deliveryStatusLabel(status){
 function deliveryStatusClass(row){
   if(row.isLate)return 'delivery-late';
   const debt=calculateDeliveryDebt(row);
-  if(row.deliveryStatus==='delivered' && debt<=0)return 'delivery-done';
-  if(debt>0)return 'delivery-unpaid';
+  if(row.deliveryStatus==='delivered' && !hasOpenDebt(debt))return 'delivery-done';
+  if(hasOpenDebt(debt))return 'delivery-unpaid';
   if(row.deliveryStatus==='delivering')return 'delivery-running';
   return 'delivery-waiting';
 }
@@ -157,7 +166,7 @@ function deliveryTimelineHtml(row){
     ['stock','Xuất kho',true],
     ['delivering','Đang giao',row.deliveryStatus==='delivering'||row.deliveryStatus==='delivered'],
     ['delivered','Đã giao',row.deliveryStatus==='delivered'],
-    ['paid','Thu tiền',calculateDeliveryDebt(row)<=0]
+    ['paid','Thu tiền',!hasOpenDebt(calculateDeliveryDebt(row))]
   ];
   return `<div class="delivery-timeline">${steps.map(step=>`<span class="${step[2]?'done':''}">${step[1]}</span>`).join('')}</div>`;
 }
@@ -177,7 +186,7 @@ function deliveryDebtBase(row){
   return deliveryToNumber(row?.debtBeforeCollection ?? row?.totalAmount ?? row?.amount ?? row?.debtAmount ?? row?.debt ?? 0);
 }
 function calculateDeliveryDebt(row){
-  return Math.max(0, Math.round(
+  return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(row)
     - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
     - deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0)
@@ -234,10 +243,10 @@ function getDeliveryEditPaymentState(){
   const returned=Math.round(Number(deliveryEditReturn?.value||0));
   const reward=Math.round(Number(deliveryEditReward?.value||0));
   const paid=cash+bank+returned+reward;
-  const tolerance=1000;
-  const diff=paid-before;
-  const over=diff>tolerance?diff:0;
-  const debt=diff<-tolerance?Math.abs(diff):0;
+  const tolerance=DEBT_ZERO_TOLERANCE;
+  const diff=normalizeDebtAmount(paid-before);
+  const over=diff>0?diff:0;
+  const debt=diff<0?Math.abs(diff):0;
   return {before,cash,bank,returned,reward,paid,over,debt};
 }
 function buildDeliveryOverpaymentMessage(state){
@@ -453,7 +462,7 @@ async function loadDeliveryToday(){
           <span title="Chuyển khoản"><em>CK</em><b class="cash-in">${money(bank)}</b></span>
           <span title="Trả thưởng"><em>Thưởng</em><b>${money(reward)}</b></span>
           <span title="Tổng tiền hàng trả"><em>Hàng trả</em><b>${money(returned)}</b></span>
-          <span title="Công nợ"><em>Công nợ</em><b class="${calculateDeliveryDebt(row)>0?'debt-positive':'debt-zero'}">${money(calculateDeliveryDebt(row))}</b></span>
+          <span title="Công nợ"><em>Công nợ</em><b class="${hasOpenDebt(calculateDeliveryDebt(row))?'debt-positive':'debt-zero'}">${money(calculateDeliveryDebt(row))}</b></span>
         </div>
       </article>`;
     }).join('');

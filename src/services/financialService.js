@@ -91,15 +91,15 @@ async function applyReceiptToOrderDebts(receipt = {}, options = {}) {
     if (!key || toNumber(allocation.amount) <= 0) continue;
     const order = await orderRepository.findByIdOrCode(key);
     if (!order) continue;
-    const nextDebt = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) - toNumber(allocation.amount));
+    const nextDebt = Math.max(0, normalizeDebtAmount(toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) - toNumber(allocation.amount)));
     const updated = {
       ...order,
       debtAmount: nextDebt,
       debt: nextDebt,
       arBalance: nextDebt,
-      arStatus: nextDebt > 0 ? 'ar_posted' : 'paid',
-      lifecycleStatus: nextDebt > 0 ? (order.lifecycleStatus || 'ar_posted') : 'paid',
-      paidAt: nextDebt <= 0 ? (order.paidAt || nowIso()) : (order.paidAt || ''),
+      arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
+      lifecycleStatus: hasOpenDebt(nextDebt) ? (order.lifecycleStatus || 'ar_posted') : 'paid',
+      paidAt: !hasOpenDebt(nextDebt) ? (order.paidAt || nowIso()) : (order.paidAt || ''),
       updatedAt: nowIso()
     };
     await orderRepository.upsert(updated, options);
@@ -118,15 +118,15 @@ async function reverseReceiptFromOrderDebts(receipt = {}, options = {}) {
     if (!key || toNumber(allocation.amount) <= 0) continue;
     const order = await orderRepository.findByIdOrCode(key);
     if (!order) continue;
-    const nextDebt = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) + toNumber(allocation.amount));
+    const nextDebt = Math.max(0, normalizeDebtAmount(toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0) + toNumber(allocation.amount)));
     const updated = {
       ...order,
       debtAmount: nextDebt,
       debt: nextDebt,
       arBalance: nextDebt,
-      arStatus: nextDebt > 0 ? 'ar_posted' : 'paid',
-      lifecycleStatus: nextDebt > 0 ? 'ar_posted' : (order.lifecycleStatus || 'paid'),
-      paidAt: nextDebt > 0 ? '' : (order.paidAt || ''),
+      arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
+      lifecycleStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : (order.lifecycleStatus || 'paid'),
+      paidAt: hasOpenDebt(nextDebt) ? '' : (order.paidAt || ''),
       updatedAt: nowIso()
     };
     await orderRepository.upsert(updated, options);
@@ -272,7 +272,7 @@ async function createReceipt(body = {}) {
     amount: receipt.amount,
     note: receipt.note || `Thu công nợ ${receipt.code}`,
     status: 'posted',
-    source: 'financial_service',
+    source: receipt.source || 'financial_service',
     createdAt: now,
     updatedAt: now
   };
@@ -296,7 +296,7 @@ async function createReceipt(body = {}) {
     amount: receipt.amount,
     note: receipt.note || `Thu công nợ ${receipt.code}`,
     status: 'posted',
-    source: 'financial_service',
+    source: receipt.source || 'financial_service',
     createdAt: now,
     updatedAt: now
   };

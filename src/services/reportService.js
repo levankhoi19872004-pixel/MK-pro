@@ -14,6 +14,7 @@ const Bankbook = require('../models/Bankbook');
 const ReturnOrder = require('../models/ReturnOrder');
 const ImportOrder = require('../models/ImportOrder');
 const { normalizeText, toNumber } = require('../utils/common.util');
+const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -603,17 +604,23 @@ async function debtReport(query = {}) {
 
   const now = today();
   let debts = Array.from(byOrder.values()).map((row) => {
-    const debt = Math.max(0, toNumber(row.debit) - toNumber(row.credit));
-    const overdueDays = debt > 0 ? Math.max(0, daysBetween(now, row.dueDate || row.documentDate)) : 0;
+    const rawDebt = toNumber(row.debit) - toNumber(row.credit);
+    const normalizedDebt = normalizeDebtAmount(rawDebt);
+    const debt = Math.max(0, normalizedDebt);
+    const overpaidAmount = Math.max(0, -normalizedDebt);
+    const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, row.dueDate || row.documentDate)) : 0;
     return {
       ...row,
       paidOnOrder: 0,
       receiptAmount: Math.max(0, toNumber(row.receiptAmount)),
       returnAmount: Math.max(0, toNumber(row.returnAmount)),
       debt,
+      rawDebt: normalizeDebtAmount(rawDebt),
+      overpaidAmount,
+      debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       overdueDays,
       agingDays: row.documentDate ? Math.max(0, daysBetween(now, row.documentDate)) : 0,
-      status: debt <= 0 ? 'paid' : (overdueDays > 0 ? 'overdue' : 'open')
+      status: hasOpenDebt(debt) ? (overdueDays > 0 ? 'overdue' : 'open') : 'paid'
     };
   });
 
@@ -625,7 +632,7 @@ async function debtReport(query = {}) {
   // Tab Tổng công nợ là báo cáo quản trị: mặc định chỉ hiển thị khách còn nợ > 0.
   // Khách đã tất toán chỉ xuất hiện khi người dùng lọc trạng thái "Đã tất toán" hoặc truyền includePaid=1.
   const includePaidCustomers = String(query.includePaid || '').trim() === '1' || String(query.status || '') === 'paid';
-  const reportDebtRows = includePaidCustomers ? debts : debts.filter((row) => toNumber(row.debt) > 0);
+  const reportDebtRows = includePaidCustomers ? debts : debts.filter((row) => hasOpenDebt(row.debt));
 
   const customerMap = new Map();
   reportDebtRows.forEach((row) => {
@@ -659,7 +666,7 @@ async function debtReport(query = {}) {
     target.credit += toNumber(row.credit);
     target.receiptAmount += toNumber(row.receiptAmount);
     target.returnAmount += toNumber(row.returnAmount);
-    target.debt += toNumber(row.debt);
+    target.debt += normalizeDebtAmount(row.debt);
     target.orderCount += 1;
     target.orders.push({
       orderId: row.orderId,
@@ -670,7 +677,7 @@ async function debtReport(query = {}) {
       credit: toNumber(row.credit),
       receiptAmount: toNumber(row.receiptAmount),
       returnAmount: toNumber(row.returnAmount),
-      debt: toNumber(row.debt),
+      debt: normalizeDebtAmount(row.debt),
       overdueDays: toNumber(row.overdueDays),
       agingDays: toNumber(row.agingDays),
       status: row.status,
@@ -695,10 +702,11 @@ async function debtReport(query = {}) {
   const customerSummary = Array.from(customerMap.values())
     .map((row) => ({
       ...row,
-      debt: Math.max(0, toNumber(row.debt)),
-      status: toNumber(row.debt) <= 0 ? 'paid' : (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open')
+      debt: Math.max(0, normalizeDebtAmount(row.debt)),
+      status: hasOpenDebt(row.debt) ? (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open') : 'paid',
+      debtZeroTolerance: DEBT_ZERO_TOLERANCE
     }))
-    .filter((row) => includePaidCustomers ? (row.debit || row.credit || row.debt) : row.debt > 0)
+    .filter((row) => includePaidCustomers ? (row.debit || row.credit || row.debt) : hasOpenDebt(row.debt))
     .sort((a, b) => b.debt - a.debt || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
 
   const bySalesman = buildDebtPersonSummary(reportDebtRows, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
@@ -713,7 +721,8 @@ async function debtReport(query = {}) {
     overdueCount: reportDebtRows.filter((row) => row.status === 'overdue').length,
     totalDebit: sum(reportDebtRows, (row) => row.debit),
     totalCredit: sum(reportDebtRows, (row) => row.credit),
-    totalDebt: sum(reportDebtRows, (row) => row.debt),
+    totalDebt: sum(reportDebtRows, (row) => normalizeDebtAmount(row.debt)),
+    debtZeroTolerance: DEBT_ZERO_TOLERANCE,
     journalCount: ledger.length,
     arLedgerCount: arLedger.length,
     arWarningCount: arDiagnostics.length,
@@ -767,7 +776,7 @@ function buildDebtPersonSummary(rows = [], options = {}) {
     target.credit += toNumber(row.credit);
     target.receiptAmount += toNumber(row.receiptAmount);
     target.returnAmount += toNumber(row.returnAmount);
-    target.debt += toNumber(row.debt);
+    target.debt += normalizeDebtAmount(row.debt);
     target.maxOverdueDays = Math.max(target.maxOverdueDays, toNumber(row.overdueDays));
     target.maxAgingDays = Math.max(target.maxAgingDays, toNumber(row.agingDays));
   });
@@ -779,7 +788,9 @@ function buildDebtPersonSummary(rows = [], options = {}) {
         ...plain,
         customers: customerKeys.size,
         collectionRate: plain.debit > 0 ? Math.round((plain.credit / plain.debit) * 10000) / 100 : 0,
-        status: plain.debt <= 0 ? 'paid' : (plain.overdueOrders > 0 ? 'overdue' : 'open')
+        debt: Math.max(0, normalizeDebtAmount(plain.debt)),
+        debtZeroTolerance: DEBT_ZERO_TOLERANCE,
+        status: hasOpenDebt(plain.debt) ? (plain.overdueOrders > 0 ? 'overdue' : 'open') : 'paid'
       };
     })
     .sort((a, b) => b.debt - a.debt || b.overdueOrders - a.overdueOrders || String(a.label).localeCompare(String(b.label)));

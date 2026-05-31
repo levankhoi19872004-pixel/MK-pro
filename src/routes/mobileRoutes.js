@@ -29,6 +29,8 @@ const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
 const returnOrderService = require('../services/returnOrderService');
 const postingEngine = require('../engines/posting.engine');
+const financialService = require('../services/financialService');
+const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 
 const router = express.Router();
 
@@ -304,7 +306,7 @@ function deliveryDebtBase(order = {}) {
 }
 
 function calculateDeliveryDebt(order = {}) {
-  return Math.max(0, Math.round(
+  return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(order)
     - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
     - toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0)
@@ -318,11 +320,11 @@ function isDeliveryCompletedStatus(status) {
 }
 
 function applyOrderDebtLifecycle(order) {
-  const debtAmount = Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0));
+  const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
   if (isDeliveryCompletedStatus(order.deliveryStatus || order.status)) {
     order.arBalance = debtAmount;
-    order.arStatus = debtAmount > 0 ? 'ar_posted' : 'paid';
-    order.lifecycleStatus = debtAmount > 0 ? 'ar_posted' : 'paid';
+    order.arStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
+    order.lifecycleStatus = hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
     order.arPostedAt = order.arPostedAt || new Date().toISOString();
   } else {
     order.arStatus = order.arStatus || 'not_posted';
@@ -335,8 +337,8 @@ async function postDeliveryArForMobile(order) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
   return postingEngine.postSalesOrderAR({
     ...(order.toObject ? order.toObject() : order),
-    debtAmount: Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0)),
-    paidAmount: Math.max(0, toNumber(order.totalAmount) - Math.max(0, toNumber(order.debtAmount ?? order.debt ?? 0)))
+    debtAmount: Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0)),
+    paidAmount: Math.max(0, toNumber(order.totalAmount) - Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0)))
   }, { postZero: true });
 }
 
@@ -999,7 +1001,7 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     }
     if (status) {
       items = items.filter((row) => {
-        if (status === 'unpaid') return toNumber(row.debtAmount) > 0;
+        if (status === 'unpaid') return hasOpenDebt(row.debtAmount);
         return normalizeText(row.deliveryStatus) === status || normalizeText(row.visualStatus) === status;
       });
     }
@@ -1061,18 +1063,16 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           ].filter(line => line.amount > 0)
         : [{ method, amount: legacyCollectAmount, note: note || `App giao hàng thu ${method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}` }];
       for (const line of receiptLines) {
-        const receipt = await Receipt.create({
-          id: makeId('RC'),
-          code: buildCode('RC'),
+        const result = await financialService.createReceipt({
           date: new Date().toISOString().slice(0, 10),
           customerId: order.customerId || '',
           customerCode: order.customerCode || '',
           customerName: order.customerName || '',
           method: line.method,
           amount: line.amount,
-          status: 'active',
+          status: 'posted',
           source: 'mobile_delivery',
-          refType: 'salesOrder',
+          refType: 'mobileDelivery',
           refId: getDocId(order),
           refCode: orderCode(order),
           orderId: getDocId(order),
@@ -1082,29 +1082,9 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
           allocations: [{ orderId: getDocId(order), orderCode: orderCode(order), amount: line.amount }],
           staffCode: req.mobileUser.code || '',
           staffName: req.mobileUser.name || '',
-          note: line.note,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          note: line.note || `App giao hàng thu ${line.method === 'transfer' ? 'chuyển khoản' : 'tiền mặt'} đơn ${orderCode(order)}`
         });
-        // Tiền thu ngay khi giao hàng chỉ ghi quỹ/ngân hàng; công nợ AR được ghi theo số còn nợ sau chốt giao.
-        const bookModel = line.method === 'transfer' ? Bankbook : Cashbook;
-        await bookModel.create({
-          id: makeId(line.method === 'transfer' ? 'BB' : 'CB'),
-          code: buildCode(line.method === 'transfer' ? 'BB' : 'CB'),
-          date: new Date().toISOString().slice(0, 10),
-          type: 'in',
-          source: 'mobile_delivery_receipt',
-          refType: 'receipt',
-          refId: getDocId(receipt),
-          refCode: receipt.code,
-          customerCode: order.customerCode || '',
-          customerName: order.customerName || '',
-          staffCode: req.mobileUser.code || '',
-          staffName: req.mobileUser.name || '',
-          amount: line.amount,
-          note: receipt.note,
-          createdAt: new Date().toISOString()
-        });
+        if (result.error) return fail(res, result.status || 400, result.error);
       }
       if (hasSplitAmounts) {
         order.cashCollected = toNumber(order.cashCollected) + cashAmount;
@@ -1170,9 +1150,7 @@ router.post('/cash/submit', requireMobileLogin, requireMobileRole(['delivery', '
   try {
     const amount = toNumber(req.body?.amount);
     if (amount <= 0) return fail(res, 400, 'Số tiền nộp quỹ phải lớn hơn 0');
-    const entry = await Cashbook.create({
-      id: makeId('CB'),
-      code: buildCode('CB'),
+    const result = await financialService.createCashbook({
       date: new Date().toISOString().slice(0, 10),
       type: 'in',
       source: 'mobile_cash_submit',
@@ -1180,10 +1158,10 @@ router.post('/cash/submit', requireMobileLogin, requireMobileRole(['delivery', '
       staffCode: req.mobileUser.code || '',
       staffName: req.mobileUser.name || '',
       amount,
-      note: String(req.body?.note || '').trim() || `Nhân viên ${req.mobileUser.name || ''} nộp tiền về quỹ`,
-      createdAt: new Date().toISOString()
+      note: String(req.body?.note || '').trim() || `Nhân viên ${req.mobileUser.name || ''} nộp tiền về quỹ`
     });
-    return ok(res, { message: 'Đã ghi nhận nộp tiền về quỹ', entry: stripMongoFields(entry.toObject()) }, 201);
+    if (result.error) return fail(res, result.status || 400, result.error);
+    return ok(res, { message: 'Đã ghi nhận nộp tiền về quỹ', entry: result.entry }, 201);
   } catch (err) {
     return fail(res, 500, err.message || 'Không ghi nhận được nộp quỹ mobile');
   }
