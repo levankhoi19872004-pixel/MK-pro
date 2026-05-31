@@ -4111,3 +4111,28 @@ button.danger:hover{background:#fecaca}
     min-height:200px!important;
   }
 }
+
+/* Công nợ V2 - bố cục mới 2 cột */
+.debt-v2-layout{display:grid;grid-template-columns:minmax(360px,38%) 1fr;gap:14px;align-items:start}
+.debt-v2-left,.debt-v2-right{min-height:calc(100vh - 150px)}
+.debt-v2-head,.debt-v2-detail-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.debt-v2-head h2,.debt-v2-detail-head h2{margin:0 0 4px}
+.debt-v2-total{padding:8px 10px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;white-space:nowrap}
+.debt-v2-filter-grid{display:grid;gap:10px;margin-bottom:12px}
+.debt-v2-filter-grid label{font-weight:700;color:#64748b;font-size:13px}
+.debt-v2-filter-grid input,.debt-v2-filter-grid select,.debt-v2-payment-form input,.debt-v2-payment-form select{width:100%;border:1px solid #dbe5f3;border-radius:12px;padding:10px 12px;background:#fff;color:#0f172a}
+.debt-v2-mini-filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.debt-v2-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 12px}
+.debt-v2-kpis>div{border:1px solid #dbeafe;background:#f8fbff;border-radius:14px;padding:10px}
+.debt-v2-kpis span{display:block;font-size:12px;color:#64748b}.debt-v2-kpis b{font-size:18px;color:#0f172a}
+.debt-v2-customer-list{display:grid;gap:8px;max-height:calc(100vh - 390px);overflow:auto;padding-right:4px}
+.debt-v2-customer-card{border:1px solid #dbe5f3;border-radius:16px;padding:12px;background:#fff;cursor:pointer;transition:.15s ease;box-shadow:0 4px 14px rgba(15,23,42,.04)}
+.debt-v2-customer-card:hover,.debt-v2-customer-card.active{border-color:#2563eb;background:#eff6ff;transform:translateY(-1px)}
+.debt-v2-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.debt-v2-card-top small{display:block;color:#64748b;font-weight:800}.debt-v2-card-top b{font-size:15px;color:#0f172a}.debt-v2-card-top strong{font-size:18px}
+.debt-v2-card-meta,.debt-v2-card-staff{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;color:#64748b;font-size:12px}.debt-v2-card-meta span,.debt-v2-card-staff span{background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:4px 8px}
+.debt-customer-info-box{border:1px solid #dbe5f3;border-radius:16px;background:#f8fbff;padding:12px;margin:10px 0 14px}.debt-info-main{display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px}.debt-info-main small{display:block;color:#64748b;font-weight:700}.debt-info-main b,.debt-info-main strong{font-size:18px}.debt-info-sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;color:#475569}.debt-info-sub span{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:5px 9px}
+.debt-v2-section-title{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:8px}.debt-v2-section-title h3{margin:0}.debt-v2-section-title small{color:#64748b}
+.debt-v2-order-box{border:1px dashed #cbd5e1;border-radius:16px;padding:10px;max-height:300px;overflow:auto;background:#fff}.debt-v2-allocation-list{display:grid;gap:8px}.debt-v2-order-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border:1px solid #e2e8f0;border-radius:14px;padding:10px;background:#f8fafc}.debt-v2-order-row small{display:block;color:#64748b;margin-top:2px}.debt-v2-order-row strong{color:#dc2626}
+.debt-v2-selected-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.debt-v2-selected-summary>div{border:1px solid #e2e8f0;border-radius:14px;padding:10px;background:#fff}.debt-v2-selected-summary span{display:block;font-size:12px;color:#64748b}.debt-v2-selected-summary b{font-size:18px}
+.debt-v2-pay-row{display:grid;grid-template-columns:2fr 1fr;gap:10px}.debt-v2-payment-form label{font-weight:700;color:#64748b;font-size:13px}.debt-v2-payment-form button[type="submit"]{background:#2563eb;color:#fff}.debt-v2-technical{display:none!important}
+@media(max-width:1000px){.debt-v2-layout{grid-template-columns:1fr}.debt-v2-left,.debt-v2-right{min-height:auto}.debt-v2-customer-list{max-height:420px}.debt-info-main,.debt-v2-selected-summary,.debt-v2-pay-row,.debt-v2-mini-filters{grid-template-columns:1fr}}

@@ -574,126 +574,129 @@
     </section>
 
     <section id="debtTab" class="tab-content">
-      <main class="grid import-grid operation-compact-layout">
-        <section class="card sticky-form-card">
-          <div class="debt-module-head">
-            <h2>Nghiệp vụ công nợ</h2>
-            <small>Thao tác bên trái · Báo cáo bên phải</small>
-          </div>
-          <div class="kpi-grid debt-kpis mini-finance-stats">
-            <div class="kpi-card finance-red"><span>Còn nợ</span><strong id="debtTotalKpi">0</strong><small>Phải thu</small></div>
-            <div class="kpi-card finance-green"><span>Đã thu TM</span><strong id="cashTotalKpi">0</strong><small>Tiền mặt</small></div>
-            <div class="kpi-card finance-green"><span>Đã CK</span><strong id="bankTotalKpi">0</strong><small>Ngân hàng</small></div>
+      <main class="debt-v2-layout">
+        <section class="card debt-v2-left">
+          <div class="debt-v2-head">
+            <div>
+              <h2>Danh sách công nợ</h2>
+              <p id="debtCount" class="muted">Đang tải công nợ...</p>
+            </div>
+            <span class="debt-v2-total">Tổng nợ: <b id="debtTotalKpi">0</b></span>
           </div>
 
-
-          <form id="debtCollectionForm" class="form compact-form debt-entry-form">
-            <div class="compact-form-title">
-              <h3>Phiếu thu / xử lý công nợ</h3>
-              <small>Nhập tiền mặt, chuyển khoản hoặc trả hàng trên cùng một chứng từ</small>
-            </div>
-            <div class="two-cols debt-date-customer-row">
-              <label>Ngày chứng từ<input name="date" type="date" /></label>
-              <label>Khách hàng / đơn hàng
-                <div class="autocomplete">
-                  <input id="collectionCustomerSearch" type="text" placeholder="Gõ mã/tên khách đang nợ..." autocomplete="off" />
-                  <input name="customerId" id="collectionCustomerSelect" type="hidden" />
-                  <div id="collectionCustomerSuggestions" class="suggestions" hidden></div>
-                </div>
-              </label>
-            </div>
-            <div class="inline-current-debt compact-summary"><span>Công nợ hiện tại</span><strong id="selectedCustomerDebt">0</strong></div>
-            <div id="collectionOrderAllocationBox" class="order-allocation-box"><div class="empty-state">Chọn khách để hiện danh sách đơn còn nợ.</div></div>
-            <div class="payment-three-fields">
-              <label class="pay-box cash-box"><span>Tiền mặt</span><input name="cashAmount" type="number" min="0" value="0" inputmode="numeric" /></label>
-              <label class="pay-box bank-box"><span>Chuyển khoản</span><input name="transferAmount" type="number" min="0" value="0" inputmode="numeric" /></label>
-              <label class="pay-box return-box"><span>Hàng trả về</span><input name="returnAmount" type="number" min="0" value="0" inputmode="numeric" /></label>
-            </div>
-            <div class="two-cols">
-              <label>Người thực hiện<input name="staffName" placeholder="VD: NV giao hàng / kế toán" /></label>
-              <label>Ghi chú<input name="note" placeholder="VD: khách thanh toán / trả hàng" /></label>
-            </div>
-            <button type="submit">Ghi chứng từ thật</button>
-          </form>
-          <p id="collectionMessage" class="message"></p>
-          <div class="note-box compact-note"><p>Bên trái dùng để thao tác nghiệp vụ. Bên phải là báo cáo công nợ để kiểm soát khách nợ, NVBH/NVGH và cảnh báo lệch.</p></div>
-        </section>
-
-        <section class="card wide-history-card debt-workspace">
-          <div class="toolbar sticky-filter-bar debt-sticky-filter debt-report-head">
-            <div><h2>Báo cáo công nợ</h2><p id="debtCount" class="muted">Đang tải...</p></div>
-            <div class="debt-filter-grid">
-              <input id="debtSearchInput" placeholder="Tìm khách / đơn / nhân viên..." />
-              <input id="debtSalesmanFilter" placeholder="NV bán" />
-              <input id="debtDeliveryFilter" placeholder="NV giao" />
+          <div class="debt-v2-filter-grid">
+            <label>Tìm khách hàng
+              <div class="autocomplete">
+                <input id="debtSearchInput" placeholder="Gõ mã / tên / SĐT khách..." autocomplete="off" />
+                <div id="debtSearchSuggestions" class="suggestions" hidden></div>
+              </div>
+            </label>
+            <label>Nhân viên bán hàng
+              <div class="autocomplete">
+                <input id="debtSalesmanFilter" placeholder="Gõ mã hoặc tên NV bán..." autocomplete="off" />
+                <div id="debtSalesmanFilterSuggestions" class="suggestions" hidden></div>
+              </div>
+            </label>
+            <label>Nhân viên giao hàng
+              <div class="autocomplete">
+                <input id="debtDeliveryFilter" placeholder="Gõ mã hoặc tên NV giao..." autocomplete="off" />
+                <div id="debtDeliveryFilterSuggestions" class="suggestions" hidden></div>
+              </div>
+            </label>
+            <div class="debt-v2-mini-filters">
               <select id="debtStatusFilter">
-                <option value="">Tất cả trạng thái</option>
-                <option value="open">Còn nợ</option>
+                <option value="open">Chỉ khách còn nợ</option>
                 <option value="overdue">Quá hạn</option>
                 <option value="paid">Đã tất toán</option>
+                <option value="">Tất cả</option>
               </select>
-              <input id="debtDateFrom" type="date" title="Ngày bán từ" />
-              <input id="debtDateTo" type="date" title="Ngày bán đến" />
-            </div>
-          </div>
-          <div class="debt-inner-tabs debt-report-tabs">
-            <button type="button" class="debt-inner-tab active" data-debt-panel="debtOverviewPanel">Tổng công nợ</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtSalesmanPanel">Theo NVBH</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtDeliveryPanel">Theo NVGH</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtWarningPanel">Cảnh báo</button>
-            <button type="button" class="debt-inner-tab" data-debt-panel="debtMovementPanel">Biến động</button>
-            
-          </div>
-          <div class="debt-panel active" data-debt-panel-id="debtOverviewPanel">
-            <div class="section-subhead"><h3>Tổng công nợ theo khách hàng</h3><p class="muted">Chỉ hiện thông tin quản lý cần nhìn ngay: khách nợ, số tiền, quá hạn và người phụ trách.</p></div>
-            <div id="debtCardList" class="compact-debt-card-list"><div class="empty-state">Đang tải công nợ...</div></div>
-            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Đơn</th><th>Ngày</th><th>Khách</th><th>NV bán</th><th>NV giao</th><th>Hạn TT</th><th>Phải thu</th><th>Đã thu/giảm</th><th>Còn nợ</th></tr></thead><tbody id="debtTable"><tr><td colspan="9">Đang tải công nợ...</td></tr></tbody></table></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtSalesmanPanel">
-            <div class="section-subhead"><h3>Công nợ theo NVBH</h3><p class="muted">Theo dõi mỗi nhân viên bán hàng đang treo bao nhiêu khách và bao nhiêu tiền.</p></div>
-            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>NVBH</th><th>Số khách</th><th>Số đơn</th><th>Phải thu</th><th>Đã thu/giảm</th><th>Còn nợ</th></tr></thead><tbody id="debtSalesmanReportTable"><tr><td colspan="6">Đang tải báo cáo NVBH...</td></tr></tbody></table></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtDeliveryPanel">
-            <div class="section-subhead"><h3>Công nợ theo NVGH</h3><p class="muted">Phù hợp kiểm soát đơn đã giao, đã thu và còn treo theo nhân viên giao hàng.</p></div>
-            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>NVGH</th><th>Số khách</th><th>Số đơn</th><th>Đã thu/giảm</th><th>Chưa thu</th><th>Còn nợ</th></tr></thead><tbody id="debtDeliveryReportTable"><tr><td colspan="6">Đang tải báo cáo NVGH...</td></tr></tbody></table></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtWarningPanel">
-            <div class="section-subhead"><h3>Cảnh báo lệch công nợ</h3><p id="arLedgerSummary" class="muted">Void phiếu thu, công nợ âm, đơn quá hạn và các trường hợp cần kiểm tra.</p></div>
-            <div id="receiptTimeline" class="receipt-timeline"><div class="empty-state">Đang tải cảnh báo công nợ...</div></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtMovementPanel">
-            <div class="section-subhead"><h3>Lịch sử biến động công nợ</h3><p class="muted">Dòng thời gian phát sinh phải thu, thu tiền, trả hàng và đảo bút toán.</p></div>
-            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Ngày</th><th>Khách/Đơn</th><th>Nghiệp vụ</th><th>Tăng nợ</th><th>Giảm nợ</th><th>Tác động</th><th>Ghi chú</th></tr></thead><tbody id="debtMovementTable"><tr><td colspan="7">Đang tải biến động công nợ...</td></tr></tbody></table></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtArLedgerPanel">
-            <div class="toolbar sticky-filter-bar"><div><h3>Sổ công nợ AR Ledger</h3><p class="muted">Báo cáo kỹ thuật dành cho kế toán/admin khi cần soi Debit/Credit.</p></div><input id="receiptSearchInput" placeholder="Tìm mã phiếu, đơn, khách, loại bút toán..." /></div>
-            <div class="table-wrap compact-table debt-fallback-table"><table><thead><tr><th>Ngày</th><th>Loại bút toán</th><th>Chứng từ</th><th>Đơn/KH</th><th>Nợ AR</th><th>Có AR</th><th>Tác động</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="receiptHistoryTable"><tr><td colspan="9">Đang tải sổ AR Ledger...</td></tr></tbody></table></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtCashPanel">
-            <div class="toolbar sticky-filter-bar"><div><h2>Tiền mặt</h2><p id="cashSummary" class="muted">Đang tải...</p></div><input id="cashbookSearchInput" placeholder="Tìm mã phiếu, khách, ghi chú..." /></div>
-            <div class="table-wrap compact-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Loại</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead><tbody id="cashbookTable"><tr><td colspan="8">Đang tải sổ tiền...</td></tr></tbody></table></div>
-          </div>
-
-          <div class="debt-panel" data-debt-panel-id="debtBankPanel">
-            <div class="toolbar sticky-filter-bar"><div><h2>Chuyển khoản</h2><p class="muted">Các chứng từ ghi vào bankbooks.</p></div></div>
-            <div class="table-wrap compact-table"><table><thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Nguồn</th><th>Khách</th><th>Người liên quan</th><th>Số tiền</th><th>Ghi chú</th></tr></thead><tbody id="bankbookTable"><tr><td colspan="7">Đang tải sổ chuyển khoản...</td></tr></tbody></table></div>
-          </div>
-          <div class="debt-panel" data-debt-panel-id="debtReturnPanel">
-            <div class="toolbar sticky-filter-bar">
-              <div>
-                <h2>Đơn trả hàng</h2>
-                <p class="muted">Mục này đã được tách riêng ra menu ngoài để quản lý tập trung và phục vụ báo cáo.</p>
-              </div>
-              <button type="button" class="secondary" onclick="document.querySelector('[data-tab=returnOrdersTab]')?.click()">Mở Đơn trả hàng</button>
+              <input id="debtDateFrom" type="date" title="Từ ngày" />
+              <input id="debtDateTo" type="date" title="Đến ngày" />
             </div>
           </div>
 
+          <div class="debt-v2-kpis">
+            <div><span>Khách nợ</span><b id="debtCustomerCountKpi">0</b></div>
+            <div><span>Đơn nợ</span><b id="debtOrderCountKpi">0</b></div>
+            <div><span>Quá hạn</span><b id="debtOverdueCountKpi">0</b></div>
+          </div>
+
+          <div id="debtCardList" class="debt-v2-customer-list">
+            <div class="empty-state">Đang tải danh sách công nợ...</div>
+          </div>
+        </section>
+
+        <section class="card debt-v2-right">
+          <div class="debt-v2-detail-head">
+            <div>
+              <h2>Chi tiết công nợ khách hàng</h2>
+              <p class="muted">Chọn khách bên trái, tick đơn cần thanh toán, nhập một số tiền thanh toán.</p>
+            </div>
+            <span id="debtDetailStatus" class="debt-status-pill">Chưa chọn khách</span>
+          </div>
+
+          <div id="debtCustomerInfoBox" class="debt-customer-info-box">
+            <div class="empty-state">Chọn một khách hàng trong danh sách công nợ để xem chi tiết.</div>
+          </div>
+
+          <form id="debtCollectionForm" class="form debt-v2-payment-form">
+            <input name="date" type="hidden" />
+            <input name="customerId" id="collectionCustomerSelect" type="hidden" />
+            <input id="collectionCustomerSearch" type="hidden" />
+            <div id="collectionCustomerSuggestions" class="suggestions" hidden></div>
+            <input name="staffName" type="hidden" value="Kế toán" />
+
+            <div class="debt-v2-section-title">
+              <h3>Danh sách đơn còn nợ</h3>
+              <small>Tick một hoặc nhiều đơn. Khi nhập tiền, hệ thống tự phân bổ vào đơn lâu nhất trước.</small>
+            </div>
+            <div id="collectionOrderAllocationBox" class="order-allocation-box debt-v2-order-box">
+              <div class="empty-state">Chọn khách để hiện danh sách đơn còn nợ.</div>
+            </div>
+
+            <div class="debt-v2-selected-summary">
+              <div><span>Tổng công nợ khách</span><b id="selectedCustomerDebt">0</b></div>
+              <div><span>Tổng đơn đã tick</span><b id="selectedDebtOrdersTotal">0</b></div>
+              <div><span>Sẽ phân bổ</span><b id="selectedDebtPaymentPreview">0</b></div>
+            </div>
+
+            <div class="debt-v2-pay-row">
+              <label>Số tiền thanh toán
+                <input id="debtPaymentAmount" name="paymentAmount" type="text" inputmode="numeric" placeholder="VD: 1.000.000" />
+              </label>
+              <label>Hình thức
+                <select id="debtPaymentMethod" name="paymentMethod">
+                  <option value="cash">Tiền mặt</option>
+                  <option value="transfer">Chuyển khoản</option>
+                  <option value="return">Hàng trả / bù trừ</option>
+                </select>
+              </label>
+            </div>
+            <label>Ghi chú
+              <input name="note" placeholder="VD: khách thanh toán nhiều đơn, phân bổ đơn cũ trước" />
+            </label>
+            <div class="form-actions">
+              <button type="submit">Ghi chứng từ công nợ</button>
+              <button type="button" class="secondary" id="clearDebtCustomerButton">Bỏ chọn khách</button>
+            </div>
+            <p id="collectionMessage" class="message"></p>
+          </form>
+
+          <div class="debt-v2-technical" hidden>
+            <table><tbody id="debtTable"></tbody></table>
+            <table><tbody id="debtSalesmanReportTable"></tbody></table>
+            <table><tbody id="debtDeliveryReportTable"></tbody></table>
+            <table><tbody id="debtMovementTable"></tbody></table>
+            <table><tbody id="receiptHistoryTable"></tbody></table>
+            <table><tbody id="cashbookTable"></tbody></table>
+            <table><tbody id="bankbookTable"></tbody></table>
+            <div id="receiptTimeline"></div>
+            <input id="receiptSearchInput" />
+            <input id="cashbookSearchInput" />
+            <p id="arLedgerSummary"></p>
+            <strong id="cashTotalKpi">0</strong>
+            <strong id="bankTotalKpi">0</strong>
+          </div>
         </section>
       </main>
     </section>

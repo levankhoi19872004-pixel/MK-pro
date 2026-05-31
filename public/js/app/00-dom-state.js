@@ -224,6 +224,17 @@ const collectionOrderAllocationBox=document.getElementById('collectionOrderAlloc
 const selectedCustomerDebt=document.getElementById('selectedCustomerDebt');
 const collectionMessage=document.getElementById('collectionMessage');
 
+const debtCustomerInfoBox=document.getElementById('debtCustomerInfoBox');
+const debtDetailStatus=document.getElementById('debtDetailStatus');
+const debtCustomerCountKpi=document.getElementById('debtCustomerCountKpi');
+const debtOrderCountKpi=document.getElementById('debtOrderCountKpi');
+const debtOverdueCountKpi=document.getElementById('debtOverdueCountKpi');
+const selectedDebtOrdersTotal=document.getElementById('selectedDebtOrdersTotal');
+const selectedDebtPaymentPreview=document.getElementById('selectedDebtPaymentPreview');
+const debtPaymentAmount=document.getElementById('debtPaymentAmount');
+const debtPaymentMethod=document.getElementById('debtPaymentMethod');
+const clearDebtCustomerButton=document.getElementById('clearDebtCustomerButton');
+
 const cashbookForm=document.getElementById('cashbookForm');
 const cashbookMessage=document.getElementById('cashbookMessage');
 const cashbookTable=document.getElementById('cashbookTable');

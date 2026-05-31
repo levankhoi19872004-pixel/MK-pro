@@ -21,7 +21,9 @@ if(importForm){importForm.addEventListener('submit',submitImportOrder);importFor
 if(addSalesItemButton)addSalesItemButton.addEventListener('click',addSalesItem);
 if(salesForm){salesForm.addEventListener('submit',submitSalesOrder);salesForm.elements.date.value=today()}
 
-if(debtCollectionForm){debtCollectionForm.addEventListener('submit',submitDebtCollection);debtCollectionForm.elements.date.value=today()}
+if(debtCollectionForm){debtCollectionForm.addEventListener('submit',submitDebtCollection);if(debtCollectionForm.elements.date)debtCollectionForm.elements.date.value=today()}
+if(debtPaymentAmount)debtPaymentAmount.addEventListener('input',updateDebtSelectionSummary);
+if(clearDebtCustomerButton)clearDebtCustomerButton.addEventListener('click',clearDebtCustomerSelection);
 
 if(cashbookForm){cashbookForm.addEventListener('submit',submitCashbook);cashbookForm.elements.date.value=today()}
 

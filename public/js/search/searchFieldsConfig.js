@@ -73,6 +73,52 @@
       emptyText: 'Không tìm thấy sản phẩm phù hợp. Kiểm tra /api/products hoặc dữ liệu sản phẩm.'
     },
     {
+      key: 'debtCustomerFilter',
+      type: 'debtCustomer',
+      inputId: 'debtSearchInput',
+      boxId: 'debtSearchSuggestions',
+      source: 'debts',
+      searchKeys: ['customerCode','customerName','phone','address'],
+      limit: 20,
+      fill: [
+        { targetId: 'debtSearchInput', value: 'customerIdOrCode' }
+      ],
+      afterSelect: 'loadDebts',
+      emptyText: 'Không tìm thấy khách đang nợ'
+    },
+    {
+      key: 'debtSalesmanFilter',
+      type: 'staff',
+      inputId: 'debtSalesmanFilter',
+      boxId: 'debtSalesmanFilterSuggestions',
+      source: 'users',
+      roles: ['sales','admin'],
+      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'debtSalesmanFilter', value: 'codeOrUsernameOrId' }
+      ],
+      afterSelect: 'loadDebts',
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    },
+    {
+      key: 'debtDeliveryFilter',
+      type: 'staff',
+      inputId: 'debtDeliveryFilter',
+      boxId: 'debtDeliveryFilterSuggestions',
+      source: 'users',
+      roles: ['delivery','admin'],
+      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'debtDeliveryFilter', value: 'codeOrUsernameOrId' }
+      ],
+      afterSelect: 'loadDebts',
+      emptyText: 'Không tìm thấy nhân viên giao hàng'
+    },
+    {
       key: 'collectionCustomer',
       type: 'debtCustomer',
       inputId: 'collectionCustomerSearch',
