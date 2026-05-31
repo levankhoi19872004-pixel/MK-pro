@@ -196,6 +196,16 @@ async function loadOrders() {
   }
 }
 
+
+function mergeSavedDeliveryOrder(savedOrder = {}) {
+  if (!savedOrder || !savedOrder.id && !savedOrder.code && !savedOrder._id) return;
+  const keys = [savedOrder.id, savedOrder._id, savedOrder.code, savedOrder.orderNo, savedOrder.orderCode].map(value => String(value || '')).filter(Boolean);
+  state.orders = state.orders.map(order => {
+    const orderKeys = [order.id, order._id, order.code, order.orderNo, order.orderCode].map(value => String(value || '')).filter(Boolean);
+    return orderKeys.some(key => keys.includes(key)) ? { ...order, ...savedOrder, id: order.id || savedOrder.id || savedOrder._id } : order;
+  });
+}
+
 function renderKpis() {
   const total = state.orders.length;
   const done = state.orders.filter(isDelivered).length;
@@ -391,7 +401,7 @@ async function confirmDelivery(orderId, status, amounts = null) {
   const bankAmount = amounts ? deliveryToNumber(amounts.bankAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${orderId}"]`)?.value || 0);
   const rewardAmount = amounts ? deliveryToNumber(amounts.rewardAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${orderId}"]`)?.value || 0);
   try {
-    await mobileApi.confirmDelivery({
+    const result = await mobileApi.confirmDelivery({
       orderId,
       status,
       cashAmount,
@@ -401,6 +411,7 @@ async function confirmDelivery(orderId, status, amounts = null) {
       collectionMethod: bankAmount > 0 && cashAmount <= 0 ? 'transfer' : 'cash',
       note: noteInput?.value || ''
     });
+    mergeSavedDeliveryOrder(result.order);
     setMessage(actionMessage, status === 'failed' ? 'Đã ghi nhận không giao được' : 'Đã lưu xử lý giao hàng', 'success');
     await loadOrders();
     showTab(status === 'failed' ? 'report' : 'report');
@@ -444,7 +455,7 @@ async function saveDeliverySettlement(orderId) {
         note: noteInput?.value || ''
       });
     }
-    await mobileApi.confirmDelivery({
+    const result = await mobileApi.confirmDelivery({
       orderId,
       status: 'success',
       cashAmount,
@@ -454,6 +465,7 @@ async function saveDeliverySettlement(orderId) {
       collectionMethod: bankAmount > 0 && cashAmount <= 0 ? 'transfer' : 'cash',
       note: noteInput?.value || ''
     });
+    mergeSavedDeliveryOrder(result.order);
     setMessage(actionMessage, 'Đã lưu thu tiền, hàng trả và hoàn thành giao hàng', 'success');
     await loadOrders();
     showTab('report');

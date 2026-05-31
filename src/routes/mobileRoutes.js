@@ -30,6 +30,7 @@ const searchService = require('../services/searchService');
 const returnOrderService = require('../services/returnOrderService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('../services/financialService');
+const masterOrderService = require('../services/masterOrderService');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 
 const router = express.Router();
@@ -630,10 +631,96 @@ async function findOrderByIdOrCode(idOrCode) {
 }
 
 
-async function syncDeliveryPaymentToMasterSnapshot(order) {
-  const keys = [getDocId(order), orderCode(order), order.orderNo, order.orderCode]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
+
+function deliveryPaymentPatchFromOrder(order = {}) {
+  const cash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
+  const bank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
+  const reward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
+  const debtBeforeCollection = toNumber(order.debtBeforeCollection ?? deliveryDebtBase(order));
+  const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected: cash, bankCollected: bank, returnAmount, rewardAmount: reward });
+  return {
+    deliveryDate: String(order.deliveryDate || order.date || new Date().toISOString()).slice(0, 10),
+    deliveryStatus: order.deliveryStatus || 'delivered',
+    status: order.status || 'delivered',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    routeName: order.routeName || order.deliveryRoute || '',
+    deliveryRoute: order.deliveryRoute || order.routeName || '',
+    debtBeforeCollection,
+    cashCollected: cash,
+    cashAmount: cash,
+    bankCollected: bank,
+    bankAmount: bank,
+    transferAmount: bank,
+    rewardAmount: reward,
+    displayRewardAmount: reward,
+    returnAmount,
+    returnedAmount: returnAmount,
+    paidAmount: cash + bank,
+    collectedAmount: cash + bank,
+    debtAmount,
+    debt: debtAmount,
+    arBalance: debtAmount,
+    deliveryNote: order.deliveryNote || '',
+    deliveredAt: order.deliveredAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function orderIdentityKeys(...sources) {
+  return [...new Set(sources.flatMap((source) => [
+    source,
+    source && source.id,
+    source && source._id,
+    source && source.code,
+    source && source.orderNo,
+    source && source.orderCode,
+    source && source.documentCode,
+    source && source.salesOrderId,
+    source && source.salesOrderCode
+  ]).map((value) => String(value || '').trim()).filter(Boolean))];
+}
+
+async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
+  const keys = orderIdentityKeys(requestOrderId, order);
+  const patch = deliveryPaymentPatchFromOrder(order);
+  const objectIds = keys.filter((key) => /^[a-f\d]{24}$/i.test(key));
+  const filter = {
+    $or: [
+      { id: { $in: keys } },
+      { code: { $in: keys } },
+      { orderNo: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { documentCode: { $in: keys } },
+      ...(objectIds.length ? [{ _id: { $in: objectIds } }] : [])
+    ]
+  };
+
+  // Ghi đúng nguồn mà màn web “Đơn giao hôm nay” đang dùng: SalesOrder thật.
+  // Không chỉ sửa object Mongoose đang cầm trong RAM, vì một số đơn có id/code/_id khác nhau.
+  await SalesOrder.updateOne(filter, { $set: patch });
+
+  // Dùng cùng service của phần mềm web để công thức công nợ/trạng thái thống nhất.
+  // Nếu service phụ lỗi thì không chặn việc SalesOrder đã được ghi ở trên.
+  try {
+    await masterOrderService.updateDeliveryTodayOrder(keys[0] || getDocId(order), {
+      ...patch,
+      orderId: keys[0] || getDocId(order),
+      returnItems: Array.isArray(order.returnItems) ? order.returnItems : []
+    });
+  } catch (err) {
+    order.financialSyncStatus = order.financialSyncStatus || 'web_delivery_service_warning';
+    order.financialSyncMessage = [order.financialSyncMessage, err.message || 'Không đồng bộ được service đơn giao hôm nay'].filter(Boolean).join(' | ');
+  }
+
+  await syncDeliveryPaymentToMasterSnapshot({ ...order.toObject?.() || order, ...patch, id: order.id, _id: order._id, code: order.code, orderNo: order.orderNo, orderCode: order.orderCode }, keys);
+  const fresh = await findOrderByIdOrCode(keys[0] || getDocId(order));
+  return fresh || order;
+}
+
+async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
+  const keys = orderIdentityKeys(...(Array.isArray(extraKeys) ? extraKeys : [extraKeys]), order);
   if (!keys.length) return;
 
   const masters = await MasterOrder.find({
@@ -1170,8 +1257,10 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       applyOrderDebtLifecycle(order);
     }
 
-    // Lưu SalesOrder trước để app luôn ghi nhận được tiền thanh toán, kể cả khi receipt/AR phụ lỗi.
-    await order.save();
+    // Lưu vào đúng nguồn hiển thị của web/app: SalesOrder thật + snapshot đơn tổng.
+    const savedCanonicalOrder = status === 'success'
+      ? await saveDeliveryPaymentCanonical(order, req.body?.orderId)
+      : (await order.save(), order);
 
     if (status === 'success') {
       for (const line of receiptLines) {
@@ -1218,14 +1307,15 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       }
     }
 
-    await syncDeliveryPaymentToMasterSnapshot(order);
+    const finalOrder = status === 'success' ? (await findOrderByIdOrCode(req.body?.orderId)) || savedCanonicalOrder || order : order;
+    await syncDeliveryPaymentToMasterSnapshot(finalOrder, [req.body?.orderId]);
     const warnings = [receiptWarning, postingWarning].filter(Boolean);
     return ok(res, {
       message: warnings.length
         ? `Đã lưu tiền trên đơn giao. Cảnh báo chứng từ: ${warnings.join(' | ')}`
         : 'Đã cập nhật trạng thái giao hàng',
       warning: warnings.join(' | '),
-      order: stripMongoFields(order.toObject())
+      order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder)
     });
   } catch (err) {
     return fail(res, 500, err.message || 'Không cập nhật được giao hàng mobile');
