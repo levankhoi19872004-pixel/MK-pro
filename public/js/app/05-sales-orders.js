@@ -194,12 +194,15 @@ async function loadImportOrders(){
     </div>`).join('');
   }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';importOrderList.innerHTML=err.message}
 }
+function normalizeOrderSourceClient(order){
+  const raw=[order?.orderSource,order?.source,order?.sourceType,order?.orderSourceName,order?.note].filter(Boolean).join(' ').toUpperCase();
+  return raw.includes('DMS')?'DMS':'NVBH';
+}
 function getOrderSourceText(order){
-  const source=String(order.orderSource||'NVBH').toUpperCase();
-  return source==='DMS'?'Từ DMS':'Từ NVBH';
+  return normalizeOrderSourceClient(order)==='DMS'?'Từ DMS':'Từ NVBH';
 }
 function getOrderSourceClass(order){
-  return String(order.orderSource||'NVBH').toUpperCase()==='DMS'?'source-dms':'source-nvbh';
+  return normalizeOrderSourceClient(order)==='DMS'?'source-dms':'source-nvbh';
 }
 function isOrderMerged(order){
   return String(order?.mergeStatus||'unmerged')==='merged' && Boolean(order?.masterOrderId || order?.masterOrderCode);
@@ -299,7 +302,7 @@ async function loadSalesOrders(){
     const staff=String(salesOrderStaffFilter?.value||'').trim().toLowerCase();
     const orders=allOrders.filter(o=>{
       const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress].join(' ').toLowerCase();
-      const sourceOk=!source || String(o.orderSource||'NVBH').toUpperCase()===source;
+      const sourceOk=!source || normalizeOrderSourceClient(o)===source;
       const date=normalizeOrderDateForFilter(o.date||o.orderDate||o.deliveryDate||'');
       const dateOk=(!dateFrom||date>=dateFrom)&&(!dateTo||date<=dateTo);
       const staffText=[o.staffCode,o.staffName,o.salesStaffCode,o.salesStaffName,o.createdByName,o.createdBy].join(' ').toLowerCase();

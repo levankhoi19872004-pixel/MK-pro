@@ -174,7 +174,21 @@ async function reverseSalesOrderPosting(order, options = {}) {
   await postingEngine.reverseSalesOrderAR(order, options);
 }
 
+
+function normalizeOrderSourceValue(order = {}) {
+  const raw = normalizeText([
+    order.orderSource,
+    order.source,
+    order.sourceType,
+    order.orderSourceName,
+    order.note
+  ].filter(Boolean).join(' '));
+  if (raw === 'dms' || raw.includes('dms') || raw.includes('import excel dms')) return 'DMS';
+  return 'NVBH';
+}
+
 function toClient(order) {
+  const normalizedOrderSource = normalizeOrderSourceValue(order);
   return {
     ...order,
     id: order.id || order.code,
@@ -182,7 +196,10 @@ function toClient(order) {
     items: Array.isArray(order.items) ? order.items : [],
     totalAmount: toNumber(order.totalAmount),
     paidAmount: toNumber(order.paidAmount),
-    debtAmount: toNumber(order.debtAmount)
+    debtAmount: toNumber(order.debtAmount),
+    source: normalizedOrderSource,
+    orderSource: normalizedOrderSource,
+    orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH'
   };
 }
 
@@ -253,8 +270,8 @@ async function createOrder(body = {}) {
     lifecycleStatus: body.lifecycleStatus || 'pending',
     arStatus: body.arStatus || 'not_posted',
     arBalance: 0,
-    orderSource: body.orderSource || body.source || 'NVBH',
-    source: body.source || body.orderSource || 'NVBH',
+    orderSource: normalizeOrderSourceValue(body),
+    source: normalizeOrderSourceValue(body),
     createdAt: body.createdAt || nowIso(),
     updatedAt: nowIso()
   };

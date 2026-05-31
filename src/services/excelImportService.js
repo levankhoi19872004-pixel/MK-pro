@@ -823,7 +823,10 @@ async function importSalesOrders(rows = []) {
       staffCode: cleanText(first.staffCode || first['Mã nhân viên'] || first['Mã nhân viên'] || first['Ma nhan vien'] || first['Mã NVBH'] || first['Ma NVBH']),
       staffName: cleanText(first.staffName || first['Tên NVTT'] || first['Ten NVTT'] || first['Tên NVBH'] || first['Ten NVBH']),
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS bulk',
-      source: 'dms_import',
+      // Đơn bán import từ file DMS phải được nhận diện thống nhất là nguồn DMS.
+      // source giữ cùng giá trị với orderSource để các màn hình lọc/hiển thị không hiểu nhầm là NVBH.
+      source: 'DMS',
+      sourceType: 'dms_import',
       orderSource: 'DMS',
       orderSourceName: 'Từ DMS',
       isImported: true,

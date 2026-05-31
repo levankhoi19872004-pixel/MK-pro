@@ -5,9 +5,9 @@ function reportDateInRange(dateText, fromDate, toDate){
   return true;
 }
 
-function orderSourceLabel(source){
-  const value=String(source||'NVBH').toUpperCase();
-  if(value==='DMS')return '<span class="badge source-dms">Từ DMS</span>';
+function orderSourceLabel(source, row){
+  const value=[source,row?.orderSource,row?.source,row?.sourceType,row?.orderSourceName,row?.note].filter(Boolean).join(' ').toUpperCase();
+  if(value.includes('DMS'))return '<span class="badge source-dms">Từ DMS</span>';
   return '<span class="badge source-nvbh">Từ NVBH</span>';
 }
 function mergeStatusLabel(status){
@@ -78,7 +78,7 @@ async function loadReports(){
     if(!salesOrders.length){
       reportSalesTable.innerHTML='<tr><td colspan="9">Không có đơn bán trong khoảng ngày đã chọn.</td></tr>';
     }else{
-      reportSalesTable.innerHTML=salesOrders.slice(0,100).map(o=>`<tr><td><strong>${o.code||''}</strong></td><td>${orderSourceLabel(o.orderSource)}</td><td>${o.date||''}</td><td>${o.customerCode||''} ${o.customerName||''}</td><td>${money(o.totalQuantity)}</td><td class="price">${money(o.totalAmount)}</td><td class="price cash-in">${money(o.paidAmount)}</td><td class="price ${Number(o.debtAmount||0)>0?'debt-positive':'debt-zero'}">${money(o.debtAmount)}</td><td>${deliveryLabel(o.deliveryStatus)}</td></tr>`).join('');
+      reportSalesTable.innerHTML=salesOrders.slice(0,100).map(o=>`<tr><td><strong>${o.code||''}</strong></td><td>${orderSourceLabel(o.orderSource,o)}</td><td>${o.date||''}</td><td>${o.customerCode||''} ${o.customerName||''}</td><td>${money(o.totalQuantity)}</td><td class="price">${money(o.totalAmount)}</td><td class="price cash-in">${money(o.paidAmount)}</td><td class="price ${Number(o.debtAmount||0)>0?'debt-positive':'debt-zero'}">${money(o.debtAmount)}</td><td>${deliveryLabel(o.deliveryStatus)}</td></tr>`).join('');
     }
 
     const productMinMap=new Map((productsCache||[]).map(p=>[String(p.code||''),Number(p.minStock||0)]));
