@@ -1,6 +1,7 @@
 'use strict';
 
 const importExportService = require('../services/importExportService');
+const excelImportService = require('../services/excelImportService');
 
 function sendWorkbook(res, result) {
   if (result?.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
@@ -34,6 +35,21 @@ async function commitImport(req, res) {
   } catch (err) {
     console.error('[IMPORT_COMMIT_ERROR]', err && (err.stack || err.message || err));
     res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message, detail: err.stack });
+  }
+}
+
+
+async function directImport(req, res) {
+  try {
+    const result = await excelImportService.importDirect({
+      type: String(req.body?.type || '').trim(),
+      buffer: req.file?.buffer
+    });
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
+    res.json({ ok: true, source: 'mongo-native-direct-route', ...result });
+  } catch (err) {
+    console.error('[IMPORT_DIRECT_ERROR]', err && (err.stack || err.message || err));
+    res.status(500).json({ ok: false, message: 'Không import được dữ liệu', error: err.message, detail: err.stack });
   }
 }
 
@@ -111,6 +127,7 @@ async function exportExcel(req, res) {
 
 module.exports = {
   previewImport,
+  directImport,
   commitImport,
   importLogs,
   listBuiltInTemplates,

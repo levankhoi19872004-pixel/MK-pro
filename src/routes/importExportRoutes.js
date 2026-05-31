@@ -10,6 +10,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 // Import runtime
 importRouter.post('/preview', upload.single('file'), controller.previewImport);
+importRouter.post('/direct', upload.single('file'), controller.directImport);
 importRouter.post('/commit', controller.commitImport);
 importRouter.get('/logs', controller.importLogs);
 
