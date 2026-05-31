@@ -479,8 +479,12 @@
               <h2>Đơn đi giao hôm nay</h2>
               <p class="muted">Bên trái theo dõi danh sách + báo cáo. Chọn một đơn để chỉnh sửa ở bên phải.</p>
             </div>
-            <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
+            <div class="delivery-accounting-actions">
+              <button id="confirmDeliveryAccountingButton" class="primary compact-action" type="button">Xác nhận của kế toán</button>
+              <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
+            </div>
           </div>
+          <div id="deliveryAccountingStatus" class="delivery-accounting-status">Chưa xác nhận kế toán: đơn còn được sửa và chưa đưa vào công nợ.</div>
 
           <div class="delivery-filter-bar sticky-filter-bar delivery-simple-filter">
             <label class="delivery-filter-field">Ngày giao hàng

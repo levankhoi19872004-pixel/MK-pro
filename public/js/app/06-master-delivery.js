@@ -310,9 +310,22 @@ function clearDeliveryEditPanel(){
   if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';
   if(deliveryEditTotalBox)deliveryEditTotalBox.textContent='Chọn đơn để xem tổng kết.';
   if(deliveryEditMessage)deliveryEditMessage.textContent='';
+  [deliveryEditCash,deliveryEditBank,deliveryEditReward,deliveryEditNote].forEach(el=>{if(el)el.disabled=false;});
+  if(deliveryEditSaveButton)deliveryEditSaveButton.disabled=false;
   document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
 }
 window.clearDeliveryEditPanel=clearDeliveryEditPanel;
+
+function setDeliveryEditLocked(locked){
+  [deliveryEditCash,deliveryEditBank,deliveryEditReward,deliveryEditNote].forEach(el=>{if(el)el.disabled=Boolean(locked);});
+  if(deliveryEditSaveButton){
+    deliveryEditSaveButton.disabled=Boolean(locked);
+    deliveryEditSaveButton.textContent=locked?'Đã khóa bởi kế toán':'Lưu chỉnh sửa';
+  }
+  const returnInputs=document.querySelectorAll('#deliveryReturnItems input');
+  returnInputs.forEach(input=>{input.disabled=Boolean(locked)||Boolean(input.dataset.locked==='1');});
+}
+window.setDeliveryEditLocked=setDeliveryEditLocked;
 
 function fillDeliveryEditPanel(row){
   if(!row)return clearDeliveryEditPanel();
@@ -339,7 +352,8 @@ function fillDeliveryEditPanel(row){
   }
   renderDeliveryReturnItems(row);
   renderDeliveryEditTotal();
-  if(deliveryEditMessage)deliveryEditMessage.textContent='';
+  setDeliveryEditLocked(row.editLocked||row.accountingConfirmed);
+  if(deliveryEditMessage)deliveryEditMessage.textContent=(row.editLocked||row.accountingConfirmed)?'Kế toán đã xác nhận, đơn này đã khóa chỉnh sửa và đã đưa vào công nợ.':'';
   document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
   const card=document.querySelector(`.delivery-card[data-id="${CSS.escape(String(row.id||''))}"]`);
   if(card)card.classList.add('selected');
@@ -367,6 +381,10 @@ async function submitDeliveryEdit(event){
   const formData=new FormData(deliveryEditForm);
   const payload=Object.fromEntries(formData.entries());
   const selectedRow=deliveryRowsCache.find(item=>String(item.id)===String(payload.orderId));
+  if(selectedRow?.editLocked||selectedRow?.accountingConfirmed){
+    showMessage(deliveryEditMessage,'Kế toán đã xác nhận, đơn giao đã khóa và không được chỉnh sửa',true);
+    return;
+  }
   if(selectedRow?.returnLocked){
     delete payload.returnItems;
   }else{
@@ -427,7 +445,16 @@ async function loadDeliveryToday(){
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được đơn đi giao');
     const rows=json.orders||[];
+    const accounting=json.accounting||{};
     deliveryRowsCache=rows;
+    if(deliveryAccountingStatus){
+      deliveryAccountingStatus.textContent=accounting.message||'';
+      deliveryAccountingStatus.classList.toggle('confirmed', Boolean(accounting.confirmed));
+    }
+    if(confirmDeliveryAccountingButton){
+      confirmDeliveryAccountingButton.disabled=Boolean(accounting.confirmed)||!rows.length;
+      confirmDeliveryAccountingButton.textContent=accounting.confirmed?'Kế toán đã xác nhận':'Xác nhận của kế toán';
+    }
     if(deliveryTodayList && json.formula){ deliveryTodayList.dataset.formula=json.formula; }
     const moneyReport=rows.reduce((acc,row)=>{
       acc.total += deliveryDebtBase(row);
@@ -463,6 +490,7 @@ async function loadDeliveryToday(){
         <div class="delivery-customer-main">
           <b>${escapeHtml(row.customerName||'Chưa có tên khách')}</b>
           <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
+          ${row.accountingConfirmed?'<small class="delivery-locked-note">Đã xác nhận kế toán · khóa sửa</small>':'<small class="delivery-open-note">Chưa xác nhận kế toán</small>'}
         </div>
         <div class="delivery-customer-money">
           <span title="Phải thu"><em>Phải thu</em><b>${money(deliveryDebtBase(row))}</b></span>
@@ -480,4 +508,32 @@ async function loadDeliveryToday(){
   }
 }
 
+async function confirmDeliveryAccounting(){
+  const date=deliveryDateFilter?.value||today();
+  const rows=deliveryRowsCache||[];
+  if(!rows.length){alert('Không có đơn giao để xác nhận.');return;}
+  const total=rows.reduce((sum,row)=>sum+deliveryDebtBase(row),0);
+  const debt=rows.reduce((sum,row)=>sum+calculateDeliveryDebt(row),0);
+  const ok=confirm(`Xác nhận của kế toán cho ngày ${date}?\n\nSố đơn: ${rows.length}\nTổng phải thu: ${money(total)}\nCông nợ sẽ đưa vào sổ: ${money(debt)}\n\nSau khi xác nhận, các đơn giao sẽ bị khóa sửa và mới được đẩy sang công nợ.`);
+  if(!ok)return;
+  try{
+    if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.disabled=true;
+    const res=await fetch('/api/master-orders/delivery-today/confirm-accounting',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({date})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không xác nhận được kế toán');
+    alert(json.message||'Đã xác nhận kế toán');
+    await loadDeliveryToday();
+    if(typeof loadDebts==='function') await loadDebts();
+    if(typeof loadReport==='function') await loadReport();
+  }catch(err){
+    alert(err.message||'Không xác nhận được kế toán');
+    if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.disabled=false;
+  }
+}
+window.confirmDeliveryAccounting=confirmDeliveryAccounting;
+if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.addEventListener('click',confirmDeliveryAccounting);
 

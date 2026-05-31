@@ -4,6 +4,7 @@ const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const userRepository = require('../repositories/userRepository');
+const customerRepository = require('../repositories/customerRepository');
 const orderService = require('./orderService');
 const returnOrderService = require('./returnOrderService');
 const postingEngine = require('../engines/posting.engine');
@@ -417,13 +418,34 @@ function isDeliveryCompletedStatus(status) {
   return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
 }
 
-function orderDebtLifecycleStatus(debtAmount = 0, deliveryStatus = '') {
+function isAccountingConfirmed(row = {}) {
+  return Boolean(row.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(String(row.accountingStatus || '').toLowerCase());
+}
+
+function orderDebtLifecycleStatus(debtAmount = 0, deliveryStatus = '', order = {}) {
+  // V45: đơn giao xong vẫn chưa được đưa vào công nợ cho tới khi kế toán xác nhận.
   if (!isDeliveryCompletedStatus(deliveryStatus)) return 'not_posted';
+  if (!isAccountingConfirmed(order)) return 'pending_accounting';
   return hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid';
 }
 
-async function postDeliveryArIfCompleted(order = {}, options = {}) {
-  if (!isDeliveryCompletedStatus(order.deliveryStatus)) return null;
+async function addDebtToCustomerIfNeeded(order = {}, options = {}) {
+  const customerKey = order.customerCode || order.customerId || order.customerName;
+  if (!customerKey) return null;
+  const customer = await customerRepository.findByIdOrCode(customerKey);
+  if (!customer) return null;
+  const amount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
+  const currentDebt = toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.openingDebt);
+  const nextDebt = Math.max(0, normalizeDebtAmount(currentDebt + amount));
+  customer.currentDebt = nextDebt;
+  customer.debtAmount = nextDebt;
+  await customerRepository.save(customer, options);
+  return customer;
+}
+
+async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
+  if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
+  if (!isAccountingConfirmed(order)) return null;
   const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));
   return postingEngine.postSalesOrderAR({
     ...order,
@@ -503,7 +525,12 @@ async function listDeliveryToday(query = {}) {
         masterReturnOrderId: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '',
         masterReturnOrderCode: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '',
         warehouseReceiveStatus: lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '',
-        isLate: Boolean(child.isLate)
+        isLate: Boolean(child.isLate),
+        accountingConfirmed: isAccountingConfirmed(child) || isAccountingConfirmed(master),
+        accountingStatus: child.accountingStatus || master.accountingStatus || 'draft_delivery',
+        accountingConfirmedAt: child.accountingConfirmedAt || master.accountingConfirmedAt || '',
+        accountingConfirmedBy: child.accountingConfirmedBy || master.accountingConfirmedBy || '',
+        editLocked: isAccountingConfirmed(child) || isAccountingConfirmed(master)
       };
 
       if (q && ![row.orderCode, row.masterOrderCode, row.customerCode, row.customerName, row.customerPhone, row.customerAddress].some((value) => normalizeText(value).includes(q))) continue;
@@ -527,8 +554,15 @@ async function listDeliveryToday(query = {}) {
     routeMap.get(key).orderCount += 1;
   }
 
+  const accountingConfirmed = rows.length > 0 && rows.every((row) => row.accountingConfirmed || row.editLocked);
   return {
-    formula: 'Lấy đơn con đã gộp theo Ngày giao hàng trong đơn tổng/đơn con; không lấy theo ngày tạo đơn.',
+    formula: 'Lấy đơn con đã gộp theo Ngày giao hàng trong đơn tổng/đơn con; không lấy theo ngày tạo đơn. Công nợ chỉ phát sinh sau khi kế toán xác nhận.',
+    accounting: {
+      date,
+      confirmed: accountingConfirmed,
+      editable: !accountingConfirmed,
+      message: accountingConfirmed ? 'Kế toán đã xác nhận. Đơn giao đã khóa chỉnh sửa và đã đưa vào công nợ.' : 'Chưa xác nhận kế toán. Đơn còn được chỉnh sửa và chưa đưa vào công nợ.'
+    },
     orders: rows,
     routes: Array.from(routeMap.values()),
     kpi: {
@@ -546,6 +580,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn giao hàng', status: 404 };
   if (isInactiveStatus(current)) return { error: 'Đơn đã hủy/xóa, không thể chỉnh sửa giao hàng', status: 400 };
+  if (isAccountingConfirmed(current)) return { error: 'Kế toán đã xác nhận, đơn giao đã khóa và không được chỉnh sửa', status: 400 };
 
   const debtBeforeCollection = toNumber(body.debtBeforeCollection ?? current.debtBeforeCollection ?? current.totalAmount ?? current.debtAmount ?? 0);
   const cashCollected = toNumber(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0);
@@ -584,7 +619,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     ...current,
     deliveryDate: String(body.deliveryDate || current.deliveryDate || current.date || today()).slice(0, 10),
     deliveryStatus,
-    status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'assigned'),
+    status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'posted'),
     deliveryStaffCode: String(body.deliveryStaffCode ?? current.deliveryStaffCode ?? '').trim(),
     deliveryStaffName: String(body.deliveryStaffName ?? current.deliveryStaffName ?? '').trim(),
     routeName: String(body.routeName ?? current.routeName ?? current.deliveryRoute ?? '').trim(),
@@ -603,18 +638,19 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     debtAmount,
     debt: debtAmount,
     arBalance: debtAmount,
-    arStatus: orderDebtLifecycleStatus(debtAmount, deliveryStatus),
+    accountingStatus: current.accountingStatus || 'draft_delivery',
+    accountingConfirmed: Boolean(current.accountingConfirmed),
+    arStatus: orderDebtLifecycleStatus(debtAmount, deliveryStatus, current),
     lifecycleStatus: isDeliveryCompletedStatus(deliveryStatus)
-      ? (hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid')
+      ? 'pending_accounting'
       : (current.lifecycleStatus || 'assigned_delivery'),
-    arPostedAt: isDeliveryCompletedStatus(deliveryStatus) ? (current.arPostedAt || nowIso()) : (current.arPostedAt || ''),
+    arPostedAt: current.arPostedAt || '',
     deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),
     updatedAt: nowIso()
   };
 
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(updated, { session });
-    await postDeliveryArIfCompleted(updated, { session });
   });
 
   // ERP Web cũng phải sinh/chỉnh phiếu trả hàng thật trong returnOrders.
@@ -622,6 +658,82 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   if (!lockedReturnOrder) await syncErpDeliveryReturnOrder(updated, effectiveReturnItems);
 
   return { salesOrder: updated };
+}
+
+async function confirmDeliveryAccounting(body = {}) {
+  const date = String(body.date || today()).slice(0, 10);
+  const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
+  const now = nowIso();
+  const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
+  const targetMasters = [];
+  const targetChildren = [];
+
+  for (const master of masterOrders) {
+    const children = Array.isArray(master.children) ? master.children : [];
+    const matched = children.filter((child) => {
+      if (isInactiveStatus(child)) return false;
+      const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
+      return deliveryDate === date;
+    });
+    if (matched.length) {
+      targetMasters.push(master);
+      targetChildren.push(...matched.map((child) => ({ master, child })));
+    }
+  }
+
+  if (!targetChildren.length) {
+    return { error: `Không có đơn giao ngày ${date} để kế toán xác nhận`, status: 404 };
+  }
+
+  let confirmedOrders = 0;
+  let skippedOrders = 0;
+  await withMongoTransaction(async (session) => {
+    for (const master of targetMasters) {
+      await masterOrderRepository.upsert({
+        ...master,
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed',
+        accountingConfirmedAt: master.accountingConfirmedAt || now,
+        accountingConfirmedBy: master.accountingConfirmedBy || confirmedBy,
+        deliveryLocked: true,
+        children: [],
+        updatedAt: now
+      }, { session });
+    }
+
+    for (const { child } of targetChildren) {
+      const alreadyConfirmed = isAccountingConfirmed(child);
+      const debtAmount = Math.max(0, normalizeDebtAmount(child.debtAmount ?? child.debt ?? calculateDeliveryDebt(child)));
+      const updated = {
+        ...child,
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed',
+        accountingConfirmedAt: child.accountingConfirmedAt || now,
+        accountingConfirmedBy: child.accountingConfirmedBy || confirmedBy,
+        editLocked: true,
+        deliveryLocked: true,
+        debtAmount,
+        debt: debtAmount,
+        arBalance: debtAmount,
+        arStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
+        lifecycleStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
+        arPostedAt: child.arPostedAt || now,
+        updatedAt: now
+      };
+      await orderRepository.upsert(updated, { session });
+      await postDeliveryArIfAccountingConfirmed(updated, { session });
+      if (!alreadyConfirmed) await addDebtToCustomerIfNeeded(updated, { session });
+      if (alreadyConfirmed) skippedOrders += 1; else confirmedOrders += 1;
+    }
+  });
+
+  return {
+    date,
+    confirmedOrders,
+    skippedOrders,
+    totalOrders: targetChildren.length,
+    message: `Kế toán đã xác nhận ${targetChildren.length} đơn giao ngày ${date}. Đơn đã khóa chỉnh sửa và đã đưa vào công nợ.`
+  };
 }
 
 async function createMasterOrder(body = {}) {
@@ -667,10 +779,12 @@ async function createMasterOrder(body = {}) {
         masterOrderId: masterOrder.id,
         masterOrderCode: masterOrder.code,
         mergeStatus: 'merged',
-        deliveryStatus: 'assigned',
-        status: 'assigned',
-        lifecycleStatus: 'assigned',
-        arStatus: 'pending',
+        deliveryStatus: child.deliveryStatus || 'assigned_delivery',
+        status: child.status === 'posted' ? 'assigned_delivery' : (child.status || 'assigned_delivery'),
+        lifecycleStatus: 'assigned_delivery',
+        arStatus: 'not_posted',
+        accountingStatus: 'draft_delivery',
+        accountingConfirmed: false,
         deliveryDate: masterOrder.deliveryDate,
         deliveryStaffId: masterOrder.deliveryStaffId,
         deliveryStaffCode: masterOrder.deliveryStaffCode,
@@ -799,6 +913,7 @@ module.exports = {
   listUnmergedChildOrders,
   listMasterOrders,
   listDeliveryToday,
+  confirmDeliveryAccounting,
   updateDeliveryTodayOrder,
   getMasterOrder,
   createMasterOrder,
