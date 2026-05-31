@@ -4378,3 +4378,12 @@ button.danger:hover{background:#fecaca}
 .danger-text{color:#b91c1c;font-weight:700}
 .import-shortage-row td{background:#fff7f7}
 .badge.warn{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+
+/* Import shortage actions */
+.import-shortage-actions{display:none;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;padding:12px;border:1px solid #fecaca;background:#fff1f2;border-radius:12px;color:#991b1b;}
+.import-shortage-actions-text{display:flex;flex-direction:column;gap:3px;font-size:13px;}
+.import-shortage-actions .btn{border:0;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer;}
+.import-shortage-actions .btn.primary{background:#2563eb;color:#fff;}
+.import-shortage-actions .btn.danger{background:#fee2e2;color:#991b1b;}
+.import-shortage-row{background:#fff7ed!important;}
+.badge.warn{background:#fef3c7;color:#92400e;}

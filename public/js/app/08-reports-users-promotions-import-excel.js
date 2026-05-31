@@ -1,3 +1,5 @@
+let importShortageActionMode='';
+
 function reportDateInRange(dateText, fromDate, toDate){
   const value=String(dateText||'').slice(0,10);
   if(fromDate && value<fromDate)return false;
@@ -433,7 +435,7 @@ function renderImportPreviewModal(result){
             ${row.valid?`<input class="import-row-check import-modal-row-check" data-index="${index}" type="checkbox" checked />`:''}
             <span>Dòng ${escapeImportHtml(row.rowNo||'')}</span>
           </label>
-          <span class="badge ${row.valid?'active':'inactive'}">${row.valid?'Hợp lệ':'Lỗi'}</span>
+          <span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span>
         </div>
         <div class="import-preview-grid">${fieldHtml}</div>
         ${row.previewMode==='order'?renderImportOrderDetailHtml(row):''}
@@ -474,8 +476,77 @@ function bindImportPreviewModalControls(){
   if(importBtn)importBtn.onclick=()=>{syncImportChecksFromModal();commitImportExcel();};
   document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.onchange=syncImportChecksFromModal);
 }
+
+function ensureImportShortageActions(){
+  let box=document.getElementById('importShortageActions');
+  if(!box){
+    box=document.createElement('div');
+    box.id='importShortageActions';
+    box.className='import-shortage-actions';
+    if(importPreviewSummary&&importPreviewSummary.parentNode){
+      importPreviewSummary.parentNode.insertBefore(box,importPreviewSummary);
+    }else if(importDataMessage&&importDataMessage.parentNode){
+      importDataMessage.parentNode.insertBefore(box,importDataMessage.nextSibling);
+    }
+  }
+  return box;
+}
+function renderImportShortageActions(rows=[]){
+  const box=ensureImportShortageActions();
+  if(!box)return;
+  const shortageRows=rows.filter(r=>r&&r.hasShortage);
+  if(importDataType?.value!=='salesOrders'||!shortageRows.length){
+    box.innerHTML='';
+    box.style.display='none';
+    importShortageActionMode='';
+    return;
+  }
+  const shortageQty=shortageRows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);
+  const shortageAmount=shortageRows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0);
+  box.style.display='flex';
+  box.innerHTML=`
+    <div class="import-shortage-actions-text">
+      <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>
+      <span>SL sẽ bị cắt: ${formatNumber(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
+    </div>
+    <button type="button" id="stopShortageImportButton" class="btn danger">Dừng import</button>
+    <button type="button" id="continueShortageImportButton" class="btn primary">Tiếp tục import theo tồn thực tế</button>`;
+  const stopBtn=document.getElementById('stopShortageImportButton');
+  const continueBtn=document.getElementById('continueShortageImportButton');
+  if(stopBtn)stopBtn.onclick=()=>{
+    importShortageActionMode='stop';
+    if(commitImportButton)commitImportButton.disabled=true;
+    showMessage(importDataMessage,'Đã chọn Dừng import vì có đơn vượt tồn.',true);
+  };
+  if(continueBtn)continueBtn.onclick=()=>{
+    importShortageActionMode='cut';
+    if(commitImportButton)commitImportButton.disabled=false;
+    showMessage(importDataMessage,'Đã chọn Tiếp tục import theo tồn thực tế. Khi xác nhận, hệ thống sẽ tự cắt phần vượt tồn.');
+  };
+}
+
 function renderImportPreview(result){
+  importShortageActionMode='';
   importPreviewRows=result.rows||[];
+  // Bảo hiểm dữ liệu: nếu backend trả shortageReport cấp tổng nhưng từng đơn chưa gắn hasShortage,
+  // gom shortage theo mã đơn rồi đánh dấu lại để UI và commit nhận biết đúng.
+  if(Array.isArray(result.shortageReport)&&result.shortageReport.length){
+    const byDoc=new Map();
+    result.shortageReport.forEach(item=>{
+      const key=String(item.documentCode||item.refCode||item.orderCode||item.code||'').trim();
+      if(!key)return;
+      if(!byDoc.has(key))byDoc.set(key,[]);
+      byDoc.get(key).push(item);
+    });
+    importPreviewRows=importPreviewRows.map(row=>{
+      const key=String(row.documentCode||row.code||'').trim();
+      const list=byDoc.get(key);
+      if(!list||!list.length)return row;
+      const q=list.reduce((sum,it)=>sum+Number(it.missingQuantity||it.shortageQuantity||0),0);
+      const a=list.reduce((sum,it)=>sum+Number(it.cutAmount||it.shortageAmount||0),0);
+      return {...row,hasShortage:true,statusText:row.statusText==='Hợp lệ'?'Vượt tồn':row.statusText,shortageReport:list,shortageCount:list.length,shortageQuantity:q,shortageAmount:a};
+    });
+  }
   const total=result.total||importPreviewRows.length;
   const valid=result.valid||0;
   const invalid=result.invalid||0;
@@ -510,12 +581,13 @@ function renderImportPreview(result){
         <tr class="${row.valid?'import-valid':'import-invalid'}">
           <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
           <td>${row.rowNo||''}</td>
-          <td><span class="badge ${row.valid?'active':'inactive'}">${row.valid?'Hợp lệ':'Lỗi'}</span></td>
+          <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
           <td>${importRowToText(row)}</td>
           <td>${(row.errors||[]).join('; ')}</td>
         </tr>`).join('');
     }
   }
+  renderImportShortageActions(importPreviewRows);
   renderImportPreviewModal(result);
   if(commitImportButton)commitImportButton.disabled=valid<=0;
 }
@@ -551,8 +623,8 @@ async function commitImportExcel(){
   const rows=getSelectedImportRows();
   if(!rows.length){showMessage(importDataMessage,'Chưa chọn dòng hợp lệ nào để import',true);return}
   const hasShortage=rows.some(row=>row&&row.hasShortage);
-  let shortageMode='';
-  if(importDataType.value==='salesOrders'&&hasShortage){
+  let shortageMode=importShortageActionMode==='cut'?'cut':'';
+  if(importDataType.value==='salesOrders'&&hasShortage&&shortageMode!=='cut'){
     const shortageAmount=rows.reduce((sum,row)=>sum+Number(row.shortageAmount||0),0);
     const shortageQty=rows.reduce((sum,row)=>sum+Number(row.shortageQuantity||0),0);
     const ok=confirm(`Có đơn vượt tồn.\n\nSL hàng sẽ bị cắt: ${formatNumber(shortageQty)}\nGiá trị bị cắt: ${money(shortageAmount)}\n\nBấm OK để TIẾP TỤC import theo tồn thực tế.\nBấm Cancel để DỪNG import.`);
@@ -574,7 +646,7 @@ async function commitImportExcel(){
 
     // Fallback an toàn: nếu backend phát hiện còn đơn vượt tồn nhưng frontend chưa gửi shortageMode=cut
     // thì hỏi lại người dùng và gửi lại request với chế độ cắt theo tồn thực tế.
-    if(!json.ok && json.hasShortage && importDataType.value==='salesOrders'){
+    if(!json.ok && json.hasShortage){
       const shortageRows=Array.isArray(json.shortageReport)?json.shortageReport:[];
       const shortageQty=shortageRows.reduce((sum,item)=>sum+Number(item.missingQuantity||0),0);
       const shortageAmount=shortageRows.reduce((sum,item)=>sum+Number(item.cutAmount||0),0);

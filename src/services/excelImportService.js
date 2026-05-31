@@ -1508,6 +1508,7 @@ async function previewMongoNative(type, rows = []) {
     const groups = groupRows(safeRows, makeImportOrderGroupKey);
     result = groups.map((group) => {
       const first = group[0] || {};
+      const documentCode = getOrderDocumentCode(first);
       const errors = [];
       const detailErrors = [];
       const lineDetails = [];
@@ -1544,7 +1545,7 @@ async function previewMongoNative(type, rows = []) {
       return {
         ...rowBase(first),
         previewMode: 'order',
-        documentCode: getOrderDocumentCode(first),
+        documentCode,
         date: getDateFromRow(first),
         supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
         customerCode: '',
@@ -1573,6 +1574,7 @@ async function previewMongoNative(type, rows = []) {
 
     result = groups.map((group) => {
       const first = group[0] || {};
+      const documentCode = getOrderDocumentCode(first);
       const customerCode = getCustomerCodeFromRow(first);
       const customer = customerMap.get(cleanText(customerCode));
       const errors = [];
@@ -1614,6 +1616,9 @@ async function previewMongoNative(type, rows = []) {
 
         if (product && missingQuantity > 0) {
           shortageReport.push({
+            documentCode,
+            customerCode,
+            customerName: getCustomerNameFromRow(first) || customer?.name || '',
             rowNo: row.__rowNo || row.rowNo || '',
             productCode: product.code,
             productName: product.name,
@@ -1670,7 +1675,7 @@ async function previewMongoNative(type, rows = []) {
       return {
         ...rowBase(first),
         previewMode: 'order',
-        documentCode: getOrderDocumentCode(first),
+        documentCode,
         date: getDateFromRow(first),
         customerCode,
         customerName: getCustomerNameFromRow(first) || customer?.name || '',
