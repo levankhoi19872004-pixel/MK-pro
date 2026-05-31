@@ -1118,6 +1118,8 @@ async function importSalesOrders(rows = [], options = {}) {
     const doc = {
       id: makeId('SO'),
       code: docCodeCheck === 'AUTO' ? (autoOrderCodes[autoOrderIdx++] || makeId('BH')) : docCodeCheck,
+      documentCode: docCodeCheck === 'AUTO' ? '' : docCodeCheck,
+      invoiceCode: docCodeCheck === 'AUTO' ? '' : docCodeCheck,
       date: getDateFromRow(first),
       orderDate: getDateFromRow(first),
       deliveryDate: getDateFromRow(first),
@@ -1162,7 +1164,8 @@ async function importSalesOrders(rows = [], options = {}) {
     };
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
-    if (doc.documentCode) importedDocumentSet.add(cleanText(doc.documentCode));
+    const importedCodeKey = cleanText(doc.documentCode || doc.code);
+    if (importedCodeKey) importedDocumentSet.add(importedCodeKey);
     for (const item of items) {
       pushInventoryMovement({
         movements,
@@ -1419,18 +1422,41 @@ async function getStockMapByProductCode(rows = []) {
 
 
 function getOrderDocumentCode(row = {}) {
-  return cleanText(
+  // Với file DMS, mã đơn thật nằm ở cột "Số hóa đơn".
+  // Không được ưu tiên row.code trước vì trong một số template/custom mapping,
+  // code có thể là mã sản phẩm. Khi đó các dòng hàng bị tách/ghép sai đơn.
+  // Cũng không dùng cột "Số hóa đơn trong 1 ngày" vì đó chỉ là số thứ tự/thống kê.
+  const exactInvoiceCode = cleanText(
     row.documentCode ||
-    row.code ||
     row.orderCode ||
     row.invoiceCode ||
+    row.invoiceNo ||
+    row.invoiceNumber ||
     row['Số hóa đơn'] ||
     row['So hoa don'] ||
+    row['Số hoá đơn'] ||
+    row['So hoa don DMS'] ||
+    text(row, [
+      'documentCode',
+      'orderCode',
+      'invoiceCode',
+      'invoiceNo',
+      'invoiceNumber',
+      'số hóa đơn',
+      'số hoá đơn',
+      'so hoa don'
+    ])
+  );
+  if (exactInvoiceCode) return exactInvoiceCode;
+
+  const fallbackCode = cleanText(
     row['Mã đơn'] ||
     row['Ma don'] ||
     row['Mã phiếu'] ||
-    row['Ma phieu']
-  ) || 'AUTO';
+    row['Ma phieu'] ||
+    row.code
+  );
+  return fallbackCode || 'AUTO';
 }
 
 function makeImportOrderGroupKey(row = {}) {
@@ -1442,8 +1468,15 @@ function makeImportOrderGroupKey(row = {}) {
 }
 
 function makeSalesOrderGroupKey(row = {}) {
+  const documentCode = getOrderDocumentCode(row);
+  // Nếu thiếu mã hóa đơn, không gom toàn bộ cùng khách/ngày thành 1 đơn.
+  // Việc gom kiểu đó làm 2 đơn đứng gần nhau của cùng khách (ví dụ Hải Miên)
+  // bị hiểu là một đơn và khi import/kiểm tra trùng sẽ mất đơn.
+  const safeDocumentCode = documentCode && documentCode !== 'AUTO'
+    ? documentCode
+    : `AUTO_ROW_${cleanText(row.__rowNo || row.rowNo || makeId('ROW'))}`;
   return [
-    getOrderDocumentCode(row),
+    safeDocumentCode,
     getDateFromRow(row),
     getCustomerCodeFromRow(row)
   ].join('|');
