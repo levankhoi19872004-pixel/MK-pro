@@ -918,6 +918,16 @@ async function importSalesOrders(rows = [], options = {}) {
   const productMap = await preloadProductsByCode(rows);
   const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
   const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
+  const importDocumentCodes = Array.from(new Set(rows.map((r) => cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don'])).filter(Boolean)));
+  const existingSalesOrders = importDocumentCodes.length
+    ? await SalesOrder.find({ documentCode: { $in: importDocumentCodes } }).select('documentCode code').lean().catch(() => [])
+    : [];
+  const existingDocumentSet = new Set(
+    existingSalesOrders
+      .map((order) => cleanText(order.documentCode || order.code))
+      .filter(Boolean)
+  );
+  const importedDocumentSet = new Set();
   // Lấy tồn kho theo mã sản phẩm. Không khóa cứng warehouseCode ở bước import DMS,
   // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
   // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
@@ -953,6 +963,11 @@ async function importSalesOrders(rows = [], options = {}) {
     if (docCodeCheck && existingDocumentSet.has(docCodeCheck)) {
       skipped += group.length;
       errors.push({ documentCode: docCodeCheck, message: 'Đơn đã tồn tại - bỏ qua import' });
+      continue;
+    }
+    if (docCodeCheck && importedDocumentSet.has(docCodeCheck)) {
+      skipped += group.length;
+      errors.push({ documentCode: docCodeCheck, message: 'Đơn trùng trong cùng file - bỏ qua import' });
       continue;
     }
 
@@ -1145,6 +1160,7 @@ async function importSalesOrders(rows = [], options = {}) {
     };
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
+    if (doc.documentCode) importedDocumentSet.add(cleanText(doc.documentCode));
     for (const item of items) {
       pushInventoryMovement({
         movements,
