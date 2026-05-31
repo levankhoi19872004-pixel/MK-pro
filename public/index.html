@@ -388,43 +388,35 @@
 
 
     <section id="masterReturnOrdersTab" class="tab-content">
-      <main class="grid master-order-grid master-return-v2-layout">
-        <section class="card master-create-card master-return-create-card">
-          <div class="toolbar">
-            <div>
+      <main class="master-return-split-layout">
+        <section class="card master-create-card master-return-create-card master-return-top-create">
+          <form id="masterReturnOrderForm" class="form master-return-inline-form">
+            <div class="master-return-top-title">
               <h2>Gộp đơn tổng trả</h2>
-              <p class="muted">Chọn phiếu trả hàng để gom thành đơn tổng trả.</p>
+              <p id="masterReturnOrderMessage" class="message"></p>
             </div>
-            <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu</button>
-          </div>
-
-          <form id="masterReturnOrderForm" class="form master-order-form">
-            <div class="two-cols">
-              <label>Ngày trả hàng<input name="returnDate" id="masterReturnDate" type="date" /></label>
-              <label>NV giao hàng<input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="Mã/tên NVGH" /></label>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" /></label>
-
-            <div class="master-selection-summary">
+            <label>Ngày trả hàng<input name="returnDate" id="masterReturnDate" type="date" /></label>
+            <label>NV giao hàng<input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="Mã/tên NVGH" /></label>
+            <label class="master-return-note">Ghi chú<input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" /></label>
+            <div class="master-selection-summary master-return-inline-summary">
               <span>Đã chọn: <strong id="selectedMasterReturnCount">0</strong> phiếu</span>
               <span>Tổng SL: <strong id="selectedMasterReturnQty">0</strong></span>
               <span>Tổng giá trị: <strong id="selectedMasterReturnValue">0</strong></span>
               <span id="unmergedReturnOrderSummary">Chưa tải phiếu trả hàng chưa gộp.</span>
             </div>
-
-            <div class="button-row">
-              <button type="submit">Tạo đơn tổng trả hàng</button>
+            <div class="button-row master-return-top-actions">
+              <button type="submit">Tạo đơn tổng trả</button>
               <button type="button" id="clearMasterReturnSelectionButton" class="secondary">Bỏ chọn</button>
+              <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu</button>
             </div>
           </form>
-          <p id="masterReturnOrderMessage" class="message"></p>
         </section>
 
-        <section class="card master-filter-card master-return-unmerged-card">
-          <div class="toolbar">
+        <section class="card master-filter-card master-return-unmerged-card master-return-half-card">
+          <div class="toolbar master-return-compact-toolbar">
             <div>
               <h2>Phiếu trả hàng chưa gộp</h2>
-              <p class="muted">Chọn các phiếu trả để gom thành đơn tổng trả.</p>
+              <p class="muted">Chọn phiếu để gộp.</p>
             </div>
             <button id="selectAllUnmergedReturnOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
           </div>
@@ -434,11 +426,11 @@
             <input id="unmergedReturnOrderDateTo" type="date" title="Đến ngày" />
             <button id="reloadUnmergedReturnOrdersInlineButton" class="secondary" type="button">Tải lại</button>
           </div>
-          <div id="unmergedReturnOrderTable" class="order-list compact-order-list master-return-unmerged-list">Đang tải phiếu trả hàng chưa gộp...</div>
+          <div id="unmergedReturnOrderTable" class="order-list compact-order-list master-return-unmerged-list master-return-scroll-list">Đang tải phiếu trả hàng chưa gộp...</div>
         </section>
 
-        <section class="card master-list-card master-return-list-card">
-          <div class="toolbar">
+        <section class="card master-list-card master-return-list-card master-return-half-card">
+          <div class="toolbar master-return-compact-toolbar">
             <div>
               <h2>Danh sách đơn tổng trả hàng</h2>
               <p id="masterReturnOrderCount" class="muted">Đang tải...</p>
@@ -448,15 +440,12 @@
               <input id="masterReturnOrderDateFrom" type="date" title="Từ ngày" />
               <input id="masterReturnOrderDateTo" type="date" title="Đến ngày" />
               <button id="selectAllMasterReturnOrdersButton" class="secondary" type="button">Chọn tất cả</button>
-              <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In đơn tổng trả</button>
+              <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In</button>
               <button id="exportSelectedMasterReturnOrdersButton" class="secondary" type="button">Xuất Excel</button>
               <button id="reloadMasterReturnOrdersButton" class="secondary" type="button">Tải lại</button>
             </div>
           </div>
-          <div class="master-return-flow">
-            <span>Phiếu trả hàng</span><b>→</b><span>Đơn tổng trả</span><b>→</b><span>Kho kiểm nhận</span><b>→</b><span>Tăng tồn kho</span>
-          </div>
-          <div id="masterReturnOrderTable" class="order-list">Đang tải đơn tổng trả hàng...</div>
+          <div id="masterReturnOrderTable" class="order-list master-return-scroll-list">Đang tải đơn tổng trả hàng...</div>
         </section>
 
         <div class="master-return-hidden-kpis" hidden>
@@ -711,10 +700,7 @@
             <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
           </div>
         </div>
-        <div class="summary-box">
-          <span>Luồng chuẩn: App giao hàng / phần mềm → returnOrders → nhập lại tồn → giảm công nợ → báo cáo công nợ.</span>
-        </div>
-        <div class="table-wrap compact-table">
+        <div class="table-wrap compact-table return-order-one-line-wrap">
           <table>
             <thead>
               <tr>
@@ -724,13 +710,12 @@
                 <th>Đơn bán</th>
                 <th>NV liên quan</th>
                 <th>Số lượng</th>
-                <th>Giá trị giảm nợ</th>
+                <th>Giá trị</th>
                 <th>Nguồn</th>
                 <th>Trạng thái</th>
-                <th>Ghi chú</th>
               </tr>
             </thead>
-            <tbody id="returnOrderTable"><tr><td colspan="10">Đang tải đơn trả hàng...</td></tr></tbody>
+            <tbody id="returnOrderTable"><tr><td colspan="9">Đang tải đơn trả hàng...</td></tr></tbody>
           </table>
         </div>
       </section>

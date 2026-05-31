@@ -402,7 +402,7 @@ async function loadReturnOrders(){
     const rows=(json.returnOrders||json.returns||[]).filter(isActiveDocument);
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
     if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · Tổng giảm nợ ${money(totalValue)} · Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>`;
-    if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="10">Chưa có đơn trả hàng.</td></tr>';return}
+    if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="9">Chưa có đơn trả hàng.</td></tr>';return}
     returnOrderTable.innerHTML=rows.map(r=>{
       const staff=debtPersonLabel(r.staffCode||r.deliveryStaffCode||r.salesmanCode,r.staffName||r.deliveryStaffName||r.salesmanName);
       const source=String(r.source||r.refType||'returnOrders');
@@ -419,12 +419,11 @@ async function loadReturnOrders(){
         <td class="price cash-in">${money(r.debtReduction??r.totalAmount)}</td>
         <td>${escapeHtml(source)}</td>
         <td><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></td>
-        <td>${escapeHtml(r.note||'')}</td>
       </tr>`;
     }).join('');
   }catch(err){
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
-    returnOrderTable.innerHTML=`<tr><td colspan="10">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
+    returnOrderTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
   }
 }
 
@@ -562,16 +561,14 @@ function renderUnmergedReturnOrders(rows = []){
     const staff=debtPersonLabel(r.deliveryStaffCode||r.staffCode,r.deliveryStaffName||r.staffName);
     const customer=[r.customerCode,r.customerName].filter(Boolean).join(' - ');
     const selected=checked?' selected':'';
-    return `<label class="child-order-row return-child-order-row${selected}">
+    return `<label class="return-one-line-row${selected}">
       <input type="checkbox" class="master-return-check" data-id="${escapeHtml(id)}" ${checked}>
-      <div class="return-child-main">
-        <div class="child-order-title">${escapeHtml(r.code||r.id||'')} · ${escapeHtml(customer||'Không rõ khách')}</div>
-        <div class="child-order-meta">${escapeHtml(r.date||r.documentDate||'')} · NVGH: ${escapeHtml(staff)}</div>
-      </div>
-      <div class="child-order-money">
-        <span>SL: <b>${money(r.totalQuantity)}</b></span>
-        <span>Giá trị: <b class="cash-in">${money(r.debtReduction??r.totalAmount)}</b></span>
-      </div>
+      <strong class="return-row-code">${escapeHtml(r.code||r.id||'')}</strong>
+      <span class="return-row-customer">${escapeHtml(customer||'Không rõ khách')}</span>
+      <span class="return-row-date">${escapeHtml(r.date||r.documentDate||'')}</span>
+      <span class="return-row-staff">${escapeHtml(staff)}</span>
+      <span class="return-row-qty">SL ${money(r.totalQuantity)}</span>
+      <strong class="return-row-money">${money(r.debtReduction??r.totalAmount)}</strong>
     </label>`;
   }).join('');
 }
@@ -627,13 +624,13 @@ function renderMasterReturnOrders(rows = []){
       <strong class="erp-doc-code" title="Mã chứng từ">${escapeHtml(r.code||r.id||'')}</strong>
       <span class="erp-doc-party" title="Khách hàng/NV">${escapeHtml(staff)}</span>
       <span class="erp-doc-date" title="Ngày">${escapeHtml(r.returnDate||r.date||'')}</span>
+      <span class="erp-doc-qty" title="Số phiếu">${money(returnCount)} phiếu</span>
       <strong class="erp-doc-value" title="Giá trị">${money(r.debtReduction??r.totalAmount)}</strong>
       <span class="erp-doc-status" title="Trạng thái"><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></span>
       <div class="erp-doc-actions">
         <button class="secondary small" type="button" onclick="editMasterReturnOrder(${idx})">Sửa</button>
         <button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>
       </div>
-      <details class="erp-doc-details"><summary>Xem phiếu trả (${money(returnCount)})</summary>${status==='received'?'':`<button class="secondary small" type="button" onclick="receiveMasterReturnOrder('${id}')">Nhập kho</button>`}<div class="order-meta">Tổng SL: ${money(r.totalQuantity)}${r.note?' · Ghi chú: '+escapeHtml(r.note):''}</div></details>
     </article>`;
   }).join('');
 }

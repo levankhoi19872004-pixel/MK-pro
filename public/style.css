@@ -4460,3 +4460,124 @@ button.danger:hover{background:#fecaca}
   .erp-doc-date,.erp-doc-value,.erp-doc-status,.erp-doc-actions{grid-column:auto;}
   .erp-doc-details{grid-column:1 / -1;}
 }
+
+/* V45 - Master return 3-zone compact layout: top create bar + 50/50 scroll lists */
+#masterReturnOrdersTab .master-return-split-layout{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:12px!important;
+  align-items:start!important;
+}
+#masterReturnOrdersTab .master-return-top-create{
+  grid-column:1 / -1!important;
+  position:static!important;
+  padding:12px 14px!important;
+}
+#masterReturnOrdersTab .master-return-inline-form{
+  display:grid!important;
+  grid-template-columns:170px 210px 260px minmax(260px,1fr) auto!important;
+  gap:10px!important;
+  align-items:end!important;
+}
+#masterReturnOrdersTab .master-return-top-title{align-self:center!important;}
+#masterReturnOrdersTab .master-return-top-title h2{margin:0!important;font-size:16px!important;}
+#masterReturnOrdersTab .master-return-top-title .message{margin:2px 0 0!important;font-size:12px!important;}
+#masterReturnOrdersTab .master-return-inline-form label{margin:0!important;font-size:12px!important;font-weight:800!important;color:#334155!important;}
+#masterReturnOrdersTab .master-return-inline-form input{height:38px!important;margin-top:4px!important;}
+#masterReturnOrdersTab .master-return-inline-summary{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+  flex-wrap:wrap!important;
+  min-height:38px!important;
+  padding:7px 10px!important;
+  border-radius:10px!important;
+  background:#f8fafc!important;
+  border:1px solid #e2e8f0!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+}
+#masterReturnOrdersTab .master-return-inline-summary span{display:inline!important;white-space:nowrap!important;}
+#masterReturnOrdersTab .master-return-inline-summary #unmergedReturnOrderSummary{max-width:360px;overflow:hidden;text-overflow:ellipsis;}
+#masterReturnOrdersTab .master-return-top-actions{display:flex!important;gap:6px!important;align-items:center!important;margin:0!important;}
+#masterReturnOrdersTab .master-return-top-actions button{height:38px!important;white-space:nowrap!important;padding:0 12px!important;}
+#masterReturnOrdersTab .master-return-half-card{min-width:0!important;padding:12px!important;}
+#masterReturnOrdersTab .master-return-compact-toolbar{align-items:flex-start!important;gap:8px!important;margin-bottom:8px!important;}
+#masterReturnOrdersTab .master-return-compact-toolbar h2{font-size:16px!important;margin:0!important;}
+#masterReturnOrdersTab .master-return-compact-toolbar .muted{font-size:12px!important;margin:2px 0 0!important;}
+#masterReturnOrdersTab .master-return-filter-row{display:grid!important;grid-template-columns:minmax(160px,1fr) 130px 130px 88px!important;gap:6px!important;margin-bottom:8px!important;}
+#masterReturnOrdersTab .sales-history-filters{display:flex!important;justify-content:flex-end!important;gap:6px!important;}
+#masterReturnOrdersTab .sales-history-filters input{max-width:180px!important;min-width:130px!important;}
+#masterReturnOrdersTab .sales-history-filters button{min-height:34px!important;padding:6px 10px!important;font-size:12px!important;}
+#masterReturnOrdersTab .master-return-scroll-list{
+  height:calc(100vh - 285px)!important;
+  max-height:none!important;
+  min-height:360px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding-right:4px!important;
+}
+#masterReturnOrdersTab .return-one-line-row{
+  display:grid!important;
+  grid-template-columns:22px 86px minmax(130px,1fr) 84px 82px 64px 96px!important;
+  gap:7px!important;
+  align-items:center!important;
+  min-height:34px!important;
+  padding:5px 8px!important;
+  border:1px solid #e5edf7!important;
+  border-radius:9px!important;
+  background:#fff!important;
+  margin-bottom:5px!important;
+  cursor:pointer!important;
+}
+#masterReturnOrdersTab .return-one-line-row:hover{border-color:#93c5fd!important;background:#f8fbff!important;}
+#masterReturnOrdersTab .return-one-line-row.selected{border-color:#2563eb!important;background:#eff6ff!important;}
+#masterReturnOrdersTab .return-one-line-row input{width:16px!important;height:16px!important;}
+#masterReturnOrdersTab .return-row-code,#masterReturnOrdersTab .return-row-customer,#masterReturnOrdersTab .return-row-date,#masterReturnOrdersTab .return-row-staff,#masterReturnOrdersTab .return-row-qty,#masterReturnOrdersTab .return-row-money{
+  min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:12px!important;
+}
+#masterReturnOrdersTab .return-row-code{font-weight:900!important;color:#0f172a!important;}
+#masterReturnOrdersTab .return-row-customer{font-weight:700!important;color:#111827!important;}
+#masterReturnOrdersTab .return-row-date,#masterReturnOrdersTab .return-row-staff,#masterReturnOrdersTab .return-row-qty{color:#64748b!important;font-weight:700!important;}
+#masterReturnOrdersTab .return-row-money{text-align:right!important;color:#047857!important;font-weight:900!important;}
+#masterReturnOrdersTab #masterReturnOrderTable.order-list{gap:5px!important;}
+#masterReturnOrdersTab .master-return-one-line{
+  grid-template-columns:22px 92px minmax(110px,1fr) 78px 72px 96px 104px auto!important;
+  min-height:34px!important;
+  padding:5px 8px!important;
+  gap:7px!important;
+  border-radius:9px!important;
+}
+#masterReturnOrdersTab .master-return-one-line .erp-doc-qty{font-size:12px!important;color:#64748b!important;font-weight:800!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+#masterReturnOrdersTab .master-return-one-line .erp-doc-actions .small{min-height:24px!important;padding:3px 7px!important;}
+#masterReturnOrdersTab .master-return-flow{display:none!important;}
+@media(max-width:1280px){
+  #masterReturnOrdersTab .master-return-inline-form{grid-template-columns:1fr 1fr 1fr!important;}
+  #masterReturnOrdersTab .master-return-inline-summary,#masterReturnOrdersTab .master-return-top-actions{grid-column:auto / span 1!important;}
+}
+@media(max-width:980px){
+  #masterReturnOrdersTab .master-return-split-layout{grid-template-columns:1fr!important;}
+  #masterReturnOrdersTab .master-return-inline-form{grid-template-columns:1fr!important;}
+  #masterReturnOrdersTab .master-return-scroll-list{height:420px!important;}
+  #masterReturnOrdersTab .return-one-line-row{grid-template-columns:22px 92px minmax(120px,1fr) 84px!important;grid-auto-rows:auto!important;}
+  #masterReturnOrdersTab .return-row-staff,#masterReturnOrdersTab .return-row-qty,#masterReturnOrdersTab .return-row-money{grid-column:auto!important;}
+}
+
+/* V45 - Return order list follows the same compact one-line ERP pattern */
+#returnOrdersTab .sticky-filter-bar{gap:10px!important;align-items:flex-start!important;}
+#returnOrdersTab .return-order-filters{display:flex!important;gap:6px!important;flex-wrap:wrap!important;justify-content:flex-end!important;}
+#returnOrdersTab .return-order-filters input{max-width:210px!important;}
+#returnOrdersTab .return-order-one-line-wrap{
+  max-height:calc(100vh - 230px)!important;
+  overflow:auto!important;
+  border:1px solid #e5edf7!important;
+  border-radius:12px!important;
+}
+#returnOrdersTab .return-order-one-line-wrap table{font-size:12px!important;}
+#returnOrdersTab .return-order-one-line-wrap th,#returnOrdersTab .return-order-one-line-wrap td{
+  padding:7px 9px!important;
+  white-space:nowrap!important;
+  vertical-align:middle!important;
+}
+#returnOrdersTab .return-order-one-line-wrap tbody tr{height:34px!important;}
+#returnOrdersTab .return-order-one-line-wrap td:nth-child(3){max-width:260px!important;overflow:hidden!important;text-overflow:ellipsis!important;}
