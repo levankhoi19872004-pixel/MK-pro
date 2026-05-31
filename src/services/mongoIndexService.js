@@ -29,17 +29,27 @@ const INDEX_DEFINITIONS = {
   salesOrders: [
     [{ id: 1 }, { name: 'idx_orders_id' }],
     [{ code: 1 }, { name: 'idx_orders_code' }],
+    [{ customerId: 1 }, { name: 'idx_orders_customer_id', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_orders_customer_code' }],
+    [{ customerName: 1 }, { name: 'idx_orders_customer_name' }],
     [{ staffCode: 1 }, { name: 'idx_orders_staff_code' }],
+    [{ deliveryStaffId: 1 }, { name: 'idx_orders_delivery_staff_id', sparse: true }],
     [{ deliveryStaffCode: 1 }, { name: 'idx_orders_delivery_staff_code' }],
+    [{ deliveryDate: 1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_mobile_delivery_fast' }],
     [{ deliveryDate: 1, status: 1 }, { name: 'idx_orders_delivery_date_status' }],
+    [{ arStatus: 1, deliveryDate: 1 }, { name: 'idx_orders_ar_status_delivery_date' }],
     [{ createdAt: -1 }, { name: 'idx_orders_created_at' }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'idx_master_orders_id' }],
     [{ code: 1 }, { name: 'idx_master_orders_code' }],
+    [{ deliveryStaffId: 1 }, { name: 'idx_master_orders_delivery_staff_id', sparse: true }],
     [{ deliveryStaffCode: 1 }, { name: 'idx_master_orders_delivery_staff_code' }],
+    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_mobile_delivery_fast' }],
     [{ deliveryDate: 1, status: 1 }, { name: 'idx_master_orders_delivery_date_status' }],
+    [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
+    [{ 'children.id': 1 }, { name: 'idx_master_orders_children_id' }],
+    [{ 'children.code': 1 }, { name: 'idx_master_orders_children_code' }],
     [{ createdAt: -1 }, { name: 'idx_master_orders_created_at' }]
   ],
   importOrders: [
@@ -68,20 +78,39 @@ const INDEX_DEFINITIONS = {
   receipts: [
     [{ id: 1 }, { name: 'idx_receipts_id' }],
     [{ code: 1 }, { name: 'idx_receipts_code' }],
+    [{ customerId: 1 }, { name: 'idx_receipts_customer_id', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_receipts_customer_code' }],
+    [{ orderId: 1 }, { name: 'idx_receipts_order_id', sparse: true }],
+    [{ orderCode: 1 }, { name: 'idx_receipts_order_code', sparse: true }],
+    [{ date: 1, status: 1 }, { name: 'idx_receipts_date_status' }],
     [{ method: 1, status: 1 }, { name: 'idx_receipts_method_status' }],
     [{ createdAt: -1 }, { name: 'idx_receipts_created_at' }]
+  ],
+  payments: [
+    [{ id: 1 }, { name: 'idx_payments_id' }],
+    [{ code: 1 }, { name: 'idx_payments_code' }],
+    [{ type: 1, orderId: 1 }, { name: 'idx_payments_type_order_id' }],
+    [{ type: 1, orderCode: 1 }, { name: 'idx_payments_type_order_code' }],
+    [{ refType: 1, refId: 1 }, { name: 'idx_payments_ref' }],
+    [{ customerId: 1, date: 1 }, { name: 'idx_payments_customer_id_date', sparse: true }],
+    [{ customerCode: 1, date: 1 }, { name: 'idx_payments_customer_code_date' }],
+    [{ date: 1, type: 1, status: 1 }, { name: 'idx_payments_date_type_status' }],
+    [{ createdAt: -1 }, { name: 'idx_payments_created_at' }]
   ],
   cashbooks: [
     [{ id: 1 }, { name: 'idx_cashbooks_id' }],
     [{ code: 1 }, { name: 'idx_cashbooks_code' }],
     [{ refType: 1, refId: 1 }, { name: 'idx_cashbooks_ref' }],
+    [{ orderId: 1 }, { name: 'idx_cashbooks_order_id', sparse: true }],
+    [{ date: 1, status: 1 }, { name: 'idx_cashbooks_date_status' }],
     [{ createdAt: -1 }, { name: 'idx_cashbooks_created_at' }]
   ],
   bankbooks: [
     [{ id: 1 }, { name: 'idx_bankbooks_id' }],
     [{ code: 1 }, { name: 'idx_bankbooks_code' }],
     [{ refType: 1, refId: 1 }, { name: 'idx_bankbooks_ref' }],
+    [{ orderId: 1 }, { name: 'idx_bankbooks_order_id', sparse: true }],
+    [{ date: 1, status: 1 }, { name: 'idx_bankbooks_date_status' }],
     [{ createdAt: -1 }, { name: 'idx_bankbooks_created_at' }]
   ],
   stock: [

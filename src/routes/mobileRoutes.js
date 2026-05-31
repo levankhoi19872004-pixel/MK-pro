@@ -329,16 +329,30 @@ async function postDeliveryArForMobile(order) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
 
   const raw = order.toObject ? order.toObject() : order;
+  // Tối ưu tốc độ app: nếu đơn đã từng post AR-SALE thì không gọi lại posting engine.
+  // Trước đây mỗi lần bấm lưu thu tiền vẫn đi kiểm tra/upsert AR-SALE, gây chậm và dễ lệch công nợ.
+  const arStatus = String(raw.arStatus || raw.accountingStatus || '').toLowerCase();
+  if (raw.arPostedAt || raw.arSalePostedAt || ['posted', 'ar_posted', 'confirmed'].includes(arStatus)) return null;
+
   const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(raw)));
 
   // ERP/DMS chuẩn: khi giao hàng xong, AR-SALE phải ghi tổng phải thu ban đầu.
   // Tiền mặt, chuyển khoản, trả thưởng/trả hàng sẽ được ghi bằng các bút toán giảm nợ riêng.
   // Không lấy debtAmount còn lại để ghi AR-SALE, vì sẽ làm mất phát sinh tăng nợ.
-  return postingEngine.postSalesOrderAR({
+  const entry = await postingEngine.postSalesOrderAR({
     ...raw,
     debtAmount: baseAmount,
     paidAmount: 0
   }, { postZero: true, skipIfExists: true });
+
+  if (entry && order && typeof order.set === 'function') {
+    order.set({ arStatus: 'posted', arPostedAt: new Date().toISOString() });
+    await order.save();
+  } else if (entry) {
+    raw.arStatus = 'posted';
+    raw.arPostedAt = new Date().toISOString();
+  }
+  return entry;
 }
 
 
@@ -786,10 +800,21 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
   }
   await SalesOrder.updateOne(filter, { $set: patch });
 
-  // Dùng cùng service của phần mềm web để công thức công nợ/trạng thái thống nhất.
-  // TUYỆT ĐỐI không truyền returnItems: [] từ app khi bấm lưu tiền, vì đó là lệnh xóa hàng trả.
-  // App chỉ được gửi returnItems khi thật sự có hàng trả hiệu lực.
-  try {
+  const snapshotOrder = {
+    ...(order.toObject?.() || order),
+    ...patch,
+    id: order.id,
+    _id: order._id,
+    code: order.code,
+    orderNo: order.orderNo,
+    orderCode: order.orderCode
+  };
+
+  // Tối ưu tốc độ mobile: request chỉ ghi SalesOrder chuẩn rồi trả về ngay.
+  // Đồng bộ snapshot đơn tổng và service web chạy nền vì đây là dữ liệu hiển thị phụ.
+  runMobileDeliveryBackgroundTask('sync-master-delivery-snapshot', async () => {
+    // Dùng cùng service của phần mềm web để công thức công nợ/trạng thái thống nhất.
+    // TUYỆT ĐỐI không truyền returnItems: [] từ app khi bấm lưu tiền, vì đó là lệnh xóa hàng trả.
     const servicePayload = {
       ...patch,
       orderId: keys[0] || getDocId(order)
@@ -801,14 +826,10 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
       servicePayload.returnedAmount = canonicalReturnAmount;
     }
     await masterOrderService.updateDeliveryTodayOrder(keys[0] || getDocId(order), servicePayload);
-  } catch (err) {
-    order.financialSyncStatus = order.financialSyncStatus || 'web_delivery_service_warning';
-    order.financialSyncMessage = [order.financialSyncMessage, err.message || 'Không đồng bộ được service đơn giao hôm nay'].filter(Boolean).join(' | ');
-  }
+    await syncDeliveryPaymentToMasterSnapshot(snapshotOrder, keys);
+  });
 
-  await syncDeliveryPaymentToMasterSnapshot({ ...order.toObject?.() || order, ...patch, id: order.id, _id: order._id, code: order.code, orderNo: order.orderNo, orderCode: order.orderCode }, keys);
-  const fresh = await findOrderByIdOrCode(keys[0] || getDocId(order));
-  return fresh || order;
+  return snapshotOrder;
 }
 
 async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
@@ -875,6 +896,19 @@ async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
       await master.save();
     }
   }
+}
+
+
+function runMobileDeliveryBackgroundTask(label, task) {
+  const runner = async () => {
+    try {
+      await task();
+    } catch (err) {
+      console.warn(`[mobile-delivery-background] ${label}:`, err && err.message ? err.message : err);
+    }
+  };
+  if (typeof setImmediate === 'function') setImmediate(runner);
+  else setTimeout(runner, 0);
 }
 
 router.post('/login', async (req, res) => {
@@ -1530,8 +1564,9 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       }
     }
 
-    const finalOrder = status === 'success' ? (await findOrderByIdOrCode(req.body?.orderId)) || savedCanonicalOrder || order : order;
-    await syncDeliveryPaymentToMasterSnapshot(finalOrder, [req.body?.orderId]);
+    const finalOrder = savedCanonicalOrder || order;
+    // Không query lại toàn bộ đơn và không đồng bộ snapshot trong luồng chờ của app.
+    // saveDeliveryPaymentCanonical đã trả về bản đã patch và tự đẩy đồng bộ phụ chạy nền.
     const warnings = [receiptWarning, postingWarning].filter(Boolean);
     return ok(res, {
       message: warnings.length

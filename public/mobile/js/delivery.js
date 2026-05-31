@@ -251,6 +251,14 @@ function mergeSavedDeliveryOrder(savedOrder = {}) {
   });
 }
 
+
+function refreshDeliveryViews() {
+  renderOrders(state.orders, deliveryDateInput?.value || todayValue());
+  renderKpis();
+  renderReport();
+  if (state.selectedOrderId) selectOrder(state.selectedOrderId, false);
+}
+
 function renderKpis() {
   const total = state.orders.length;
   const done = state.orders.filter(isDelivered).length;
@@ -543,8 +551,8 @@ async function confirmDelivery(orderId, status, amounts = null) {
     });
     mergeSavedDeliveryOrder(result.order);
     setMessage(actionMessage, status === 'failed' ? 'Đã ghi nhận không giao được' : 'Đã lưu xử lý giao hàng', 'success');
-    await loadOrders();
-    showTab(status === 'failed' ? 'report' : 'report');
+    refreshDeliveryViews();
+    showTab('report');
   } catch (err) {
     setMessage(actionMessage, err.message, 'error');
   }
@@ -621,7 +629,7 @@ async function saveDeliveryProducts(orderId) {
     });
     mergeSavedDeliveryOrder(result.order);
     setMessage(productMessage || actionMessage, 'Đã xác nhận hàng giao và hàng trả', 'success');
-    await loadOrders();
+    refreshDeliveryViews();
     showTab('collect');
   } catch (err) {
     setMessage(productMessage || actionMessage, err.message, 'error');
@@ -676,7 +684,7 @@ async function saveDeliverySettlement(orderId) {
     });
     mergeSavedDeliveryOrder(result.order);
     setMessage(actionMessage, 'Đã lưu thu tiền', 'success');
-    await loadOrders();
+    refreshDeliveryViews();
     showTab('report');
   } catch (err) {
     setMessage(actionMessage, err.message, 'error');
