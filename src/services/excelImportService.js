@@ -268,6 +268,23 @@ function getRouteCodeFromRow(row = {}) {
 }
 
 function getQtyFromRow(row = {}) {
+  const directQty = toNumber(
+    row.quantity ??
+    row.qty ??
+    row.stockQuantity ??
+    row.openingQuantity ??
+    row.openingStock ??
+    row['Số lượng'] ??
+    row['So luong'] ??
+    row['Số lượng tồn đầu'] ??
+    row['So luong ton dau'] ??
+    row['SL'] ??
+    row['sl'] ??
+    number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'số lượng tồn đầu', 'so luong ton dau', 'sl'])
+  );
+  if (directQty > 0 || Object.prototype.hasOwnProperty.call(row, 'quantity') || Object.prototype.hasOwnProperty.call(row, 'Số lượng')) {
+    return directQty;
+  }
   return getDmsQuantityFromRow(row);
 }
 
@@ -669,23 +686,22 @@ async function importOpeningStock(rows = []) {
     const productCode = getProductCodeFromRow(row);
     const quantity = getQtyFromRow(row);
     const product = productMap.get(cleanText(productCode)) || null;
-    const productNameFromRow = cleanText(row.productName || row.name || row['Tên sản phẩm'] || row['Ten san pham']);
     if (!productCode || quantity < 0) {
       skipped += 1;
       errors.push({ productCode, message: !productCode ? 'Thiếu mã sản phẩm' : 'Tồn đầu không được âm' });
       continue;
     }
-    if (!product && !productNameFromRow) {
+    if (!product) {
       skipped += 1;
-      errors.push({ productCode, message: 'Không tìm thấy sản phẩm và file không có tên sản phẩm để tạo tồn' });
+      errors.push({ productCode, message: 'Không tìm thấy sản phẩm trong danh mục. Tồn kho ban đầu chỉ nhận mã sản phẩm đã có.' });
       continue;
     }
     const date = dateOnly(row.date || row.documentDate || row['Ngày'] || row['Ngay'] || today());
     const docCode = cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || codeList[codeIndex++] || makeId('TD');
-    const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Kho']) || 'MAIN';
-    const warehouseName = cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || 'Kho chính';
-    const productId = String(product?.id || product?._id || productCode);
-    const productName = product?.name || productNameFromRow || productCode;
+    const warehouseCode = cleanText(product.warehouseCode || product.defaultWarehouseCode) || 'KHO_HC';
+    const warehouseName = cleanText(product.warehouseName || product.defaultWarehouseName) || productWarehouseName(warehouseCode);
+    const productId = String(product.id || product._id || productCode);
+    const productName = product.name || productCode;
     const note = cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import tồn đầu Excel';
 
     movements.push({
@@ -1362,21 +1378,21 @@ async function previewMongoNative(type, rows = []) {
     result = safeRows.map((row) => {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
-      const productNameFromRow = cleanText(row.productName || row.name || row['Tên sản phẩm'] || row['Ten san pham']);
       const quantity = getQtyFromRow(row);
+      const warehouseCode = product ? (cleanText(product.warehouseCode || product.defaultWarehouseCode) || 'KHO_HC') : '';
       const item = {
         ...rowBase(row),
-        documentCode: cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || 'AUTO',
+        documentCode: 'AUTO',
         date: getDateFromRow(row),
         productCode,
-        productName: product?.name || productNameFromRow || '',
-        warehouseCode: cleanText(row.warehouseCode || row.warehouse || row['Kho']) || 'MAIN',
-        warehouseName: cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || 'Kho chính',
+        productName: product?.name || '',
+        warehouseCode,
+        warehouseName: product ? (cleanText(product.warehouseName || product.defaultWarehouseName) || productWarehouseName(warehouseCode)) : '',
         quantity,
         errors: []
       };
       if (!productCode) item.errors.push('Thiếu mã sản phẩm');
-      if (!product && !productNameFromRow) item.errors.push('Không tìm thấy sản phẩm và file không có tên sản phẩm');
+      if (!product) item.errors.push('Không tìm thấy sản phẩm trong danh mục');
       if (quantity < 0) item.errors.push('Tồn đầu không được âm');
       return { ...item, valid: item.errors.length === 0 };
     });

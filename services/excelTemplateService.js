@@ -26,13 +26,18 @@ const TEMPLATE_DEFINITIONS = {
   openingStock: {
     title: 'Mẫu import tồn kho ban đầu',
     fileName: 'mau-import-ton-kho-ban-dau.xlsx',
-    columns: ['productCode', 'productName', 'warehouse', 'unit', 'quantity', 'costPrice', 'openingDate', 'note'],
-    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Kho', 'ĐVT', 'Số lượng tồn đầu', 'Giá vốn đầu', 'Ngày tồn đầu', 'Ghi chú'],
+    columns: ['productCode', 'quantity'],
+    headers: ['Mã sản phẩm', 'Số lượng'],
     sample: [
-      ['SP001', 'OMO Bột giặt 5.5kg', 'Kho chính', 'Thùng', 100, 145000, '2026-05-26', 'Tồn đầu kỳ'],
-      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Kho chính', 'Thùng', 80, 115000, '2026-05-26', 'Tồn đầu kỳ']
+      ['SP001', 100],
+      ['SP002', 80]
     ],
-    notes: ['Mã sản phẩm phải tồn tại trong danh mục sản phẩm.', 'Cột Số lượng tồn đầu là bắt buộc và sẽ được map về quantity.', 'Import tồn kho ban đầu sẽ đặt lại số lượng tồn theo file, chỉ dùng khi khởi tạo hoặc chốt tồn đầu kỳ.']
+    notes: [
+      'Mẫu tồn kho ban đầu chỉ cần Mã sản phẩm và Số lượng.',
+      'Tên sản phẩm, đơn vị tính, giá bán và kho mặc định sẽ tự lấy từ danh mục sản phẩm.',
+      'Mã sản phẩm phải tồn tại trong danh mục sản phẩm.',
+      'Import tồn kho ban đầu sẽ đặt lại số lượng tồn theo file, chỉ dùng khi khởi tạo hoặc chốt tồn đầu kỳ.'
+    ]
   },
   importOrders: {
     title: 'Mẫu import phiếu nhập kho',
