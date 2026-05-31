@@ -46,7 +46,14 @@ function deliveryDebtBase(order = {}) {
   return deliveryToNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? 0);
 }
 
+function isArLedgerSynced(order = {}) {
+  return order.arLedgerSynced === true || String(order.debtSource || '').toLowerCase() === 'ar_ledger';
+}
+
 function calculateDeliveryDebt(order = {}) {
+  if (isArLedgerSynced(order)) {
+    return Math.max(0, Math.round(deliveryToNumber(order.arDebtAmount ?? order.arBalance ?? order.debtAmount ?? order.debt ?? 0)));
+  }
   return Math.max(0, Math.round(
     deliveryDebtBase(order)
     - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
@@ -129,6 +136,7 @@ function calculateReturnTotalFromInputs(root = deliveryActionBox) {
 }
 
 function calculateDraftDebt(order = {}) {
+  if (isArLedgerSynced(order)) return calculateDeliveryDebt(order);
   const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
   const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
   const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
@@ -152,6 +160,7 @@ function selectedOldDebtIds() {
 }
 
 function currentOrderDue(order = {}) {
+  if (isArLedgerSynced(order)) return calculateDeliveryDebt(order);
   return Math.max(0, deliveryDebtBase(order) - deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0));
 }
 
@@ -164,7 +173,11 @@ function refreshDeliveryDraftTotals(order = {}) {
   const oldDebt = selectedOldDebtTotal();
   const currentDue = currentOrderDue(order);
   const totalDue = currentDue + oldDebt;
-  const debt = Math.max(0, Math.round(totalDue - cash - bank - reward));
+  const alreadySaved = isArLedgerSynced(order)
+    ? deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0) + deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0) + deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+    : 0;
+  const newCollected = Math.max(0, cash + bank + reward - alreadySaved);
+  const debt = Math.max(0, Math.round(totalDue - newCollected));
   const oldDebtEls = deliveryActionBox.querySelectorAll('[data-old-debt-total]');
   const totalDueEl = deliveryActionBox.querySelector('[data-total-due]');
   const returnEl = deliveryActionBox.querySelector('[data-return-total]');
@@ -174,7 +187,7 @@ function refreshDeliveryDraftTotals(order = {}) {
   oldDebtEls.forEach((el) => { el.textContent = money(oldDebt); });
   if (totalDueEl) totalDueEl.textContent = money(totalDue);
   if (returnEl) returnEl.textContent = money(returned);
-  if (collectedEl) collectedEl.textContent = money(cash + bank + reward);
+  if (collectedEl) collectedEl.textContent = money(isArLedgerSynced(order) ? Math.max(0, cash + bank + reward - alreadySaved) : cash + bank + reward);
   if (debtEl) debtEl.textContent = money(debt);
   if (statusEl) {
     statusEl.textContent = debt <= 0 ? 'Đủ tiền' : `Còn nợ ${money(debt)}`;
@@ -311,7 +324,7 @@ function deliveryOrderSummaryHtml(order) {
     <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
     <span>${escapeHtml(order.phone || '')} · ${escapeHtml(order.address || '')}</span>
     <span>Ngày giao: ${escapeHtml(order.deliveryDate || '')} · Tuyến: ${escapeHtml(order.routeName || 'Chưa gán')}</span>
-    <span>Tổng tiền: ${money(order.totalAmount)} · Đã xử lý: ${money(deliveryProcessedAmount(order))} · Còn thu: ${money(calculateDeliveryDebt(order))}</span>
+    <span>Tổng tiền: ${money(order.totalAmount)} · Đã xử lý: ${money(deliveryProcessedAmount(order))} · Còn thu: ${money(calculateDeliveryDebt(order))}${isArLedgerSynced(order) ? ' · AR' : ''}</span>
     <span>Trạng thái: <b>${statusLabel(order)}</b></span>
   `;
 }

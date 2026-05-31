@@ -556,7 +556,48 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
 return saved;
 }
 
-function buildDeliveryRow(order, customer, master, date, returnOrders = [], masterChild = null) {
+function buildDebtMapKey(value) {
+  return String(value || '').trim();
+}
+
+function putDebtMapEntry(map, row = {}) {
+  if (!row) return;
+  const keys = [row.orderId, row.orderCode, row.id, row.code]
+    .map(buildDebtMapKey)
+    .filter(Boolean);
+  keys.forEach((key) => map.set(key, row));
+}
+
+async function buildArDebtMapForOrders(orders = []) {
+  const map = new Map();
+  try {
+    const report = await reportService.debtReport({ includePaid: '1', status: 'all' });
+    const rows = Array.isArray(report?.debts) ? report.debts : [];
+    const wanted = new Set();
+    (orders || []).forEach((order) => {
+      orderMatchKeys(order).forEach((key) => { if (key) wanted.add(String(key)); });
+    });
+    rows.forEach((row) => {
+      const keys = [row.orderId, row.orderCode, row.id, row.code].map(buildDebtMapKey).filter(Boolean);
+      if (!wanted.size || keys.some((key) => wanted.has(key))) putDebtMapEntry(map, row);
+    });
+  } catch (err) {
+    // Nếu báo cáo AR lỗi, app vẫn hiển thị theo cache order để không làm vỡ luồng giao hàng.
+  }
+  return map;
+}
+
+function findArDebtRow(arDebtMap, order = {}, sourceOrder = {}) {
+  if (!arDebtMap || !arDebtMap.size) return null;
+  const keys = orderMatchKeys(order, sourceOrder);
+  for (const key of keys) {
+    const row = arDebtMap.get(String(key || '').trim());
+    if (row) return row;
+  }
+  return null;
+}
+
+function buildDeliveryRow(order, customer, master, date, returnOrders = [], masterChild = null, arDebtMap = null) {
   // MasterOrder.children chỉ là snapshot tại lúc gộp đơn.
   // Các trường thanh toán/trạng thái sau khi app bấm Lưu phải lấy từ SalesOrder thật,
   // nếu không snapshot cũ sẽ ghi đè cashCollected/bankCollected/rewardAmount về 0.
@@ -574,7 +615,12 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
   const returnAmount = syncedReturnAmount;
   const rewardAmount = toNumber(sourceOrder.rewardAmount || sourceOrder.displayRewardAmount);
   const debtBeforeCollection = deliveryDebtBase({ ...sourceOrder, totalAmount });
-  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  const arDebtRow = findArDebtRow(arDebtMap, order, sourceOrder);
+  const fallbackDebtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  // App giao hàng phải hiển thị cùng nguồn với màn Công nợ ERP: AR Ledger.
+  // Nếu AR có dòng cho đơn, lấy số nợ còn lại từ AR; chỉ fallback sang công thức order khi đơn chưa có AR.
+  const debtAmount = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : fallbackDebtAmount;
+  const debtSource = arDebtRow ? 'ar_ledger' : 'order_cache';
   const itemSource = Array.isArray(sourceOrder.items) ? sourceOrder.items : [];
   return {
     id: getDocId(order),
@@ -598,6 +644,10 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     paidAmount,
     debtAmount,
     debt: debtAmount,
+    arBalance: debtAmount,
+    arDebtAmount: debtAmount,
+    debtSource,
+    arLedgerSynced: debtSource === 'ar_ledger',
     debtBeforeCollection,
     cashCollected,
     bankCollected,
@@ -1209,11 +1259,13 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
     const customerByCode = new Map(customers.map((c) => [String(c.code), c]));
 
+    const arDebtMap = await buildArDebtMapForOrders(deliveryPairs.map(({ order }) => order));
+
     let items = deliveryPairs
       .filter(({ master }) => isActiveMasterOrder(master))
       .filter(({ order, master }) => isApprovedForDelivery(order, master))
       .filter(({ order, master }) => orderAssignedToUser(order, master, req.mobileUser))
-      .map(({ order, master, masterChild }) => buildDeliveryRow(order, customerByCode.get(String(order.customerCode || masterChild?.customerCode)), master, targetDate, returnOrders, masterChild))
+      .map(({ order, master, masterChild }) => buildDeliveryRow(order, customerByCode.get(String(order.customerCode || masterChild?.customerCode)), master, targetDate, returnOrders, masterChild, arDebtMap))
       .filter((row) => includeCompleted || isActiveDeliveryStatus(row));
 
     if (q) {
@@ -1232,7 +1284,7 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       source: 'mobile-delivery-mongo-route',
       date: targetDate,
       user: req.mobileUser,
-      formula: 'App giao hàng chỉ lấy đơn con từ masterOrder.childOrderIds, đối chiếu orders thật còn hiệu lực; không lấy master.children/tổng cache/customer summary; không hiển thị đơn đã xóa/hủy.',
+      formula: 'App giao hàng lấy danh sách đơn từ masterOrder.childOrderIds, nhưng số còn thu/công nợ lấy theo AR Ledger giống màn Công nợ ERP; chỉ fallback order cache khi đơn chưa có AR.',
       items
     });
   } catch (err) {
