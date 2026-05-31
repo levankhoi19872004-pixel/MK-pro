@@ -662,44 +662,77 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
 async function confirmDeliveryAccounting(body = {}) {
   const date = String(body.date || today()).slice(0, 10);
-  const selectedOrderIds = Array.isArray(body.orderIds) ? body.orderIds.map((id) => String(id)).filter(Boolean) : [];
+  const selectedOrderIds = Array.isArray(body.orderIds)
+    ? body.orderIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : [];
+
+  // Bắt buộc phải có danh sách đơn được tick chọn.
+  // Trước đây khi orderIds rỗng/mất selection, backend tự hiểu là chọn toàn bộ đơn trong ngày,
+  // dẫn đến lỗi ấn xác nhận một vài đơn nhưng cả ngày bị đẩy sang công nợ.
+  if (!selectedOrderIds.length) {
+    return { error: 'Vui lòng chọn ít nhất một đơn để đẩy sang công nợ', status: 400 };
+  }
+
   const selectedIdSet = new Set(selectedOrderIds);
   const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
   const now = nowIso();
   const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
-  const targetMasters = [];
+  const targetMasters = new Map();
   const targetChildren = [];
+
+  const childKeys = (child = {}) => [
+    child.id,
+    child._id,
+    child.code,
+    child.orderCode,
+    child.documentCode
+  ].map((v) => String(v || '').trim()).filter(Boolean);
 
   for (const master of masterOrders) {
     const children = Array.isArray(master.children) ? master.children : [];
     const matched = children.filter((child) => {
       if (isInactiveStatus(child)) return false;
       const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
-      const childKeyList = [child.id, child._id, child.code, child.orderCode, child.documentCode].map((v) => String(v || '')).filter(Boolean);
-      const selectedMatch = !selectedIdSet.size || childKeyList.some((key) => selectedIdSet.has(key));
-      return deliveryDate === date && selectedMatch;
+      if (deliveryDate !== date) return false;
+      return childKeys(child).some((key) => selectedIdSet.has(key));
     });
     if (matched.length) {
-      targetMasters.push(master);
+      const masterKey = String(master.id || master.code || '').trim() || `master-${targetMasters.size}`;
+      targetMasters.set(masterKey, { master, matched });
       targetChildren.push(...matched.map((child) => ({ master, child })));
     }
   }
 
   if (!targetChildren.length) {
-    return { error: selectedIdSet.size ? `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận` : `Không có đơn giao ngày ${date} để kế toán xác nhận`, status: 404 };
+    return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
   }
 
   let confirmedOrders = 0;
   let skippedOrders = 0;
   await withMongoTransaction(async (session) => {
-    for (const master of targetMasters) {
+    for (const { master, matched } of targetMasters.values()) {
+      const children = Array.isArray(master.children) ? master.children : [];
+      const activeChildrenInDate = children.filter((child) => {
+        if (isInactiveStatus(child)) return false;
+        const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
+        return deliveryDate === date;
+      });
+      const matchedKeySet = new Set(matched.flatMap((child) => childKeys(child)));
+      const allChildrenConfirmed = activeChildrenInDate.length > 0 && activeChildrenInDate.every((child) => {
+        if (isAccountingConfirmed(child)) return true;
+        return childKeys(child).some((key) => matchedKeySet.has(key));
+      });
+
+      // Chỉ khóa/xác nhận đơn tổng khi toàn bộ đơn con trong ngày của đơn tổng đã được chọn
+      // hoặc đã xác nhận từ trước. Nếu chỉ chọn một phần, tuyệt đối không set cờ master,
+      // vì listDeliveryToday đang coi master.accountingConfirmed là khóa tất cả đơn con.
       await masterOrderRepository.upsert({
         ...master,
-        accountingConfirmed: true,
-        accountingStatus: 'confirmed',
-        accountingConfirmedAt: master.accountingConfirmedAt || now,
-        accountingConfirmedBy: master.accountingConfirmedBy || confirmedBy,
-        deliveryLocked: true,
+        accountingConfirmed: allChildrenConfirmed,
+        accountingStatus: allChildrenConfirmed ? 'confirmed' : (master.accountingStatus || 'draft_delivery'),
+        accountingConfirmedAt: allChildrenConfirmed ? (master.accountingConfirmedAt || now) : (master.accountingConfirmedAt || ''),
+        accountingConfirmedBy: allChildrenConfirmed ? (master.accountingConfirmedBy || confirmedBy) : (master.accountingConfirmedBy || ''),
+        deliveryLocked: allChildrenConfirmed,
         children: [],
         updatedAt: now
       }, { session });
