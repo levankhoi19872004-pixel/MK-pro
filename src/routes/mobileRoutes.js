@@ -554,21 +554,14 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
 return saved;
 }
 
-function buildDeliveryDisplaySource(order = {}, masterChild = null) {
-  // Nguồn thật của tiền thanh toán/trạng thái luôn là SalesOrder mới nhất.
-  // masterChild chỉ là snapshot để lấy danh sách hàng khi cần; không được ghi đè
-  // cashCollected/bankCollected/rewardAmount/debtAmount sau khi app bấm Lưu.
-  if (!masterChild || !Array.isArray(masterChild.items) || !masterChild.items.length) return order;
-  return {
-    ...masterChild,
-    ...order,
-    id: getDocId(order) || masterChild.id,
-    items: masterChild.items
-  };
-}
-
 function buildDeliveryRow(order, customer, master, date, returnOrders = [], masterChild = null) {
-  const sourceOrder = buildDeliveryDisplaySource(order, masterChild);
+  // MasterOrder.children chỉ là snapshot tại lúc gộp đơn.
+  // Các trường thanh toán/trạng thái sau khi app bấm Lưu phải lấy từ SalesOrder thật,
+  // nếu không snapshot cũ sẽ ghi đè cashCollected/bankCollected/rewardAmount về 0.
+  const hasMasterItems = masterChild && Array.isArray(masterChild.items) && masterChild.items.length;
+  const sourceOrder = hasMasterItems
+    ? { ...masterChild, ...stripMongoFields(order), id: getDocId(order) || masterChild.id, items: masterChild.items }
+    : order;
   const returnItems = mergeReturnItemsFromOrders(returnOrders, order, master, masterChild);
   const syncedReturnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.amount ?? returnLineQty(item) * returnLinePrice(item)), 0);
   const totalAmount = toNumber(sourceOrder.totalAmount || sourceOrder.amount || sourceOrder.grandTotal || sourceOrder.payableAmount);
@@ -622,48 +615,6 @@ function buildCode(prefix) {
   return `${prefix}${ymd}${String(d.getTime()).slice(-6)}`;
 }
 
-async function syncDeliveryPaymentToMasterSnapshots(order) {
-  // Một số màn hình cũ còn đọc children/items snapshot trong masterOrder.
-  // Đồng bộ các trường tiền để app/web không bị lệch khi refresh từ snapshot.
-  const keys = [getDocId(order), orderCode(order), order.orderNo, order.orderCode].filter(Boolean).map(String);
-  if (!keys.length) return;
-  const paymentPatch = {
-    'children.$[child].cashCollected': toNumber(order.cashCollected ?? order.cashAmount ?? 0),
-    'children.$[child].cashAmount': toNumber(order.cashCollected ?? order.cashAmount ?? 0),
-    'children.$[child].bankCollected': toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
-    'children.$[child].bankAmount': toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
-    'children.$[child].transferAmount': toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
-    'children.$[child].rewardAmount': toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
-    'children.$[child].displayRewardAmount': toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
-    'children.$[child].returnAmount': toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
-    'children.$[child].returnedAmount': toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
-    'children.$[child].debtBeforeCollection': toNumber(order.debtBeforeCollection ?? 0),
-    'children.$[child].debtAmount': toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
-    'children.$[child].debt': toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
-    'children.$[child].deliveryStatus': order.deliveryStatus || '',
-    'children.$[child].status': order.status || '',
-    'children.$[child].updatedAt': new Date().toISOString()
-  };
-  const matchFields = ['id', '_id', 'code', 'orderCode', 'orderNo'];
-  try {
-    for (const field of matchFields) {
-      await MasterOrder.updateMany(
-        {
-          $or: [
-            { childOrderIds: { $in: keys } },
-            { [`children.${field}`]: { $in: keys } }
-          ]
-        },
-        { $set: paymentPatch },
-        { arrayFilters: [{ [`child.${field}`]: { $in: keys } }] }
-      );
-    }
-  } catch (err) {
-    console.warn('[mobile-delivery] sync master snapshot payment failed:', err.message);
-  }
-}
-
-
 async function findOrderByIdOrCode(idOrCode) {
   const key = String(idOrCode || '').trim();
   if (!key) return null;
@@ -676,6 +627,71 @@ async function findOrderByIdOrCode(idOrCode) {
       ...(key.match(/^[a-f\d]{24}$/i) ? [{ _id: key }] : [])
     ]
   });
+}
+
+
+async function syncDeliveryPaymentToMasterSnapshot(order) {
+  const keys = [getDocId(order), orderCode(order), order.orderNo, order.orderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  if (!keys.length) return;
+
+  const masters = await MasterOrder.find({
+    $or: [
+      { childOrderIds: { $in: keys } },
+      { childOrders: { $in: keys } },
+      { orderIds: { $in: keys } },
+      { orders: { $in: keys } },
+      { 'children.id': { $in: keys } },
+      { 'children.code': { $in: keys } },
+      { 'children.orderId': { $in: keys } },
+      { 'children.orderCode': { $in: keys } },
+      { 'items.id': { $in: keys } },
+      { 'items.code': { $in: keys } },
+      { 'items.orderId': { $in: keys } },
+      { 'items.orderCode': { $in: keys } }
+    ]
+  });
+
+  const paymentPatch = {
+    deliveryStatus: order.deliveryStatus,
+    status: order.status,
+    cashCollected: toNumber(order.cashCollected ?? order.cashAmount ?? 0),
+    cashAmount: toNumber(order.cashCollected ?? order.cashAmount ?? 0),
+    bankCollected: toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
+    bankAmount: toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
+    transferAmount: toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
+    rewardAmount: toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
+    displayRewardAmount: toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
+    paidAmount: toNumber(order.paidAmount ?? order.collectedAmount ?? 0),
+    collectedAmount: toNumber(order.collectedAmount ?? order.paidAmount ?? 0),
+    debtBeforeCollection: toNumber(order.debtBeforeCollection ?? deliveryDebtBase(order)),
+    debtAmount: toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
+    debt: toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
+    arBalance: toNumber(order.arBalance ?? order.debtAmount ?? order.debt ?? 0),
+    deliveredAt: order.deliveredAt || '',
+    deliveryNote: order.deliveryNote || '',
+    updatedAt: new Date().toISOString()
+  };
+
+  for (const master of masters) {
+    let changed = false;
+    for (const field of ['children', 'items']) {
+      if (!Array.isArray(master[field])) continue;
+      master[field] = master[field].map((child) => {
+        const childKeys = [child?.id, child?._id, child?.code, child?.orderId, child?.orderCode]
+          .map((value) => String(value || '').trim())
+          .filter(Boolean);
+        if (!childKeys.some((key) => keys.includes(key))) return child;
+        changed = true;
+        return { ...child, ...paymentPatch };
+      });
+    }
+    if (changed) {
+      master.updatedAt = new Date().toISOString();
+      await master.save();
+    }
+  }
 }
 
 router.post('/login', async (req, res) => {
@@ -1184,7 +1200,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     }
 
     await order.save();
-    await syncDeliveryPaymentToMasterSnapshots(order);
+    await syncDeliveryPaymentToMasterSnapshot(order);
     return ok(res, { message: 'Đã cập nhật trạng thái giao hàng', order: stripMongoFields(order.toObject()) });
   } catch (err) {
     return fail(res, 500, err.message || 'Không cập nhật được giao hàng mobile');
