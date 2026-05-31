@@ -234,6 +234,21 @@ function deliveryToNumber(value){
   const n=Number(value);
   return Number.isFinite(n)?n:0;
 }
+
+function deliveryCompactMoney(value){
+  const n=Math.round(deliveryToNumber(value));
+  const sign=n<0?'-':'';
+  const abs=Math.abs(n);
+  if(abs>=1000000){
+    const v=abs/1000000;
+    const text=(abs%1000000===0?String(Math.round(v)):v.toFixed(1).replace('.',','));
+    return `${sign}${text}tr`;
+  }
+  if(abs>=1000){
+    return `${sign}${Math.round(abs/1000)}k`;
+  }
+  return `${sign}${abs}`;
+}
 function deliveryDebtBase(row){
   return deliveryToNumber(row?.debtBeforeCollection ?? row?.totalAmount ?? row?.amount ?? row?.debtAmount ?? row?.debt ?? 0);
 }
@@ -545,12 +560,12 @@ async function loadDeliveryToday(){
           ${row.accountingConfirmed?'<small class="delivery-locked-note">Đã xác nhận kế toán · khóa sửa</small>':'<small class="delivery-open-note">Chưa xác nhận kế toán</small>'}
         </div>
         <div class="delivery-customer-money">
-          <span title="Phải thu"><em>Phải thu</em><b>${money(deliveryDebtBase(row))}</b></span>
-          <span title="Tiền mặt"><em>TM</em><b class="cash-in">${money(cash)}</b></span>
-          <span title="Chuyển khoản"><em>CK</em><b class="cash-in">${money(bank)}</b></span>
-          <span title="Trả thưởng"><em>Thưởng</em><b>${money(reward)}</b></span>
-          <span title="Tổng tiền hàng trả"><em>Hàng trả</em><b>${money(returned)}</b></span>
-          <span title="Công nợ"><em>Công nợ</em><b class="${hasOpenDebt(calculateDeliveryDebt(row))?'debt-positive':'debt-zero'}">${money(calculateDeliveryDebt(row))}</b></span>
+          <span class="money-pt" title="Phải thu: ${money(deliveryDebtBase(row))}"><em>PT</em><b>${deliveryCompactMoney(deliveryDebtBase(row))}</b></span>
+          <span title="Tiền mặt: ${money(cash)}"><em>TM</em><b class="cash-in">${deliveryCompactMoney(cash)}</b></span>
+          <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b class="cash-in">${deliveryCompactMoney(bank)}</b></span>
+          <span title="Trả thưởng: ${money(reward)}"><em>Thưởng</em><b>${deliveryCompactMoney(reward)}</b></span>
+          <span title="Hàng trả: ${money(returned)}"><em>Hàng trả</em><b>${deliveryCompactMoney(returned)}</b></span>
+          <span class="money-debt" title="Công nợ: ${money(calculateDeliveryDebt(row))}"><em>CN</em><b class="${hasOpenDebt(calculateDeliveryDebt(row))?'debt-positive':'debt-zero'}">${deliveryCompactMoney(calculateDeliveryDebt(row))}</b></span>
         </div>
       </article>`;
     }).join('');
