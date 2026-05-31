@@ -301,14 +301,6 @@ function renderProductForm(order) {
   const returnLockMessage = order.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
   if (!deliveryProductBox) return;
   deliveryProductBox.innerHTML = `
-    <section class="delivery-block delivery-customer-block">
-      <h3>Thông tin khách hàng</h3>
-      <strong>${escapeHtml(order.customerName || '')}</strong>
-      <span>${escapeHtml(order.phone || '')}</span>
-      <span>${escapeHtml(order.address || '')}</span>
-      <b>Phải thu: ${money(deliveryDebtBase(order))}</b>
-    </section>
-
     <section class="delivery-block return-panel mobile-return-panel">
       <div class="block-title-row">
         <div>
@@ -340,9 +332,9 @@ function renderProductForm(order) {
 
     <input class="note-input" data-product-note="${escapeHtml(order.id)}" type="text" placeholder="Ghi chú giao hàng / lý do trả hàng" />
 
-    <div class="mobile-sticky-actions">
+    <div class="mobile-sticky-actions two-actions">
       <button class="primary-btn" data-confirm-products="${escapeHtml(order.id)}">Xác nhận giao</button>
-      <button class="ghost-btn" data-go-collect="${escapeHtml(order.id)}">Sang thu tiền</button>
+      <button class="danger-btn" data-no-delivery="${escapeHtml(order.id)}">Không giao</button>
     </div>
   `;
 
@@ -354,7 +346,7 @@ function renderProductForm(order) {
   deliveryProductBox.querySelectorAll('[data-return-order]').forEach(input => input.addEventListener('input', refresh));
   refresh();
   deliveryProductBox.querySelector('[data-confirm-products]')?.addEventListener('click', btnEvent => saveDeliveryProducts(btnEvent.currentTarget.dataset.confirmProducts));
-  deliveryProductBox.querySelector('[data-go-collect]')?.addEventListener('click', () => showTab('collect'));
+  deliveryProductBox.querySelector('[data-no-delivery]')?.addEventListener('click', btnEvent => markWholeOrderReturned(btnEvent.currentTarget.dataset.noDelivery));
 }
 
 function renderActionForm(order) {
@@ -462,6 +454,33 @@ async function confirmDelivery(orderId, status, amounts = null) {
     showTab(status === 'failed' ? 'report' : 'report');
   } catch (err) {
     setMessage(actionMessage, err.message, 'error');
+  }
+}
+
+
+async function markWholeOrderReturned(orderId) {
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (!order) {
+    setMessage(productMessage || actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
+    return;
+  }
+  if (order.returnLocked) {
+    setMessage(productMessage || actionMessage, order.returnLockMessage || 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.', 'error');
+    return;
+  }
+  const noteInput = deliveryProductBox?.querySelector(`[data-product-note="${orderId}"]`);
+  try {
+    await mobileApi.createDeliveryReturn({
+      orderId,
+      returnType: 'full',
+      items: [],
+      note: noteInput?.value || 'Không giao được - trả cả đơn từ app giao hàng'
+    });
+    setMessage(productMessage || actionMessage, 'Đã ghi nhận không giao và trả cả đơn', 'success');
+    await loadOrders();
+    showTab('report');
+  } catch (err) {
+    setMessage(productMessage || actionMessage, err.message, 'error');
   }
 }
 
