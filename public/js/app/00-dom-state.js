@@ -155,6 +155,7 @@ const unmergedOrderSearch=document.getElementById('unmergedOrderSearch');
 const unmergedSourceFilter=document.getElementById('unmergedSourceFilter');
 const unmergedDateFilter=document.getElementById('unmergedDateFilter');
 const unmergedSalesStaffFilter=document.getElementById('unmergedSalesStaffFilter');
+const selectAllUnmergedOrdersButton=document.getElementById('selectAllUnmergedOrdersButton');
 const selectedChildOrderCount=document.getElementById('selectedChildOrderCount');
 const selectedChildOrderAmount=document.getElementById('selectedChildOrderAmount');
 const selectedChildOrderDebt=document.getElementById('selectedChildOrderDebt');

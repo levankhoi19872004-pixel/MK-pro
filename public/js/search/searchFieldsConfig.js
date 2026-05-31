@@ -118,6 +118,22 @@
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
     ,{
+      key: 'unmergedSalesStaffFilter',
+      type: 'staff',
+      inputId: 'unmergedSalesStaffFilter',
+      boxId: 'unmergedSalesStaffSuggestions',
+      source: 'users',
+      roles: ['sales','admin'],
+      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'unmergedSalesStaffFilter', value: 'codeOrUsernameOrId' }
+      ],
+      afterSelect: 'loadUnmergedChildOrders',
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    }
+    ,{
       key: 'deliveryStaffFilter',
       type: 'staff',
       inputId: 'deliveryStaffFilter',

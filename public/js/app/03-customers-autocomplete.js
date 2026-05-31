@@ -259,6 +259,7 @@ function applyConfiguredSelect(config, item){
   if(config.afterSelect==='setImportCostPrice' && importCostPrice) importCostPrice.value=Number(item.costPrice||0);
   if(config.afterSelect==='setSalesPrice' && salesPrice) salesPrice.value=Number(item.salePrice||0);
   if(config.afterSelect==='loadDeliveryToday' && typeof loadDeliveryToday==='function') loadDeliveryToday();
+  if(config.afterSelect==='loadUnmergedChildOrders' && typeof loadUnmergedChildOrders==='function') loadUnmergedChildOrders();
   if(config.afterSelect==='setCollectionAmount'){
     if(collectionCustomerSelect) collectionCustomerSelect.dataset.debt=String(item.debt||0);
     updateSelectedCustomerDebt();

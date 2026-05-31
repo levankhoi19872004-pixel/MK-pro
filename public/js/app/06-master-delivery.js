@@ -15,6 +15,15 @@ function mergeStatusLabel(status, row){
   return '<span class="badge source-unmerged">Chưa gộp</span>';
 }
 window.mergeStatusLabel = window.mergeStatusLabel || mergeStatusLabel;
+
+function masterStatusLabel(status){
+  const value=String(status||'active').toLowerCase();
+  if(['cancelled','canceled','void','deleted','removed'].includes(value)) return '<span class="badge source-cancelled">Đã hủy</span>';
+  if(['delivered','completed','done'].includes(value)) return '<span class="badge source-merged">Hoàn tất</span>';
+  if(['assigned','active','created','pending',''].includes(value)) return '<span class="badge source-merged">Đã gộp</span>';
+  return `<span class="badge source-merged">${value}</span>`;
+}
+window.masterStatusLabel = window.masterStatusLabel || masterStatusLabel;
 async function loadUnmergedChildOrders(){
   if(!unmergedOrderList)return;
   const params=new URLSearchParams();
@@ -35,11 +44,32 @@ async function loadUnmergedChildOrders(){
   }
 }
 
+function updateSelectAllUnmergedOrdersButton(){
+  if(!selectAllUnmergedOrdersButton)return;
+  const ids=(unmergedOrdersCache||[]).map(order=>order.id).filter(Boolean);
+  const allSelected=ids.length>0 && ids.every(id=>selectedChildOrderIds.has(id));
+  selectAllUnmergedOrdersButton.textContent=allSelected?'Bỏ chọn tất cả':'Chọn tất cả';
+  selectAllUnmergedOrdersButton.disabled=!ids.length;
+}
+
+function toggleSelectAllUnmergedOrders(){
+  const ids=(unmergedOrdersCache||[]).map(order=>order.id).filter(Boolean);
+  if(!ids.length)return;
+  const allSelected=ids.every(id=>selectedChildOrderIds.has(id));
+  ids.forEach(id=>{
+    if(allSelected)selectedChildOrderIds.delete(id);
+    else selectedChildOrderIds.add(id);
+  });
+  renderUnmergedChildOrders();
+}
+window.toggleSelectAllUnmergedOrders=toggleSelectAllUnmergedOrders;
+
 function renderUnmergedChildOrders(){
   if(!unmergedOrderList)return;
   if(!unmergedOrdersCache.length){
     unmergedOrderList.innerHTML='Không có đơn con chưa gộp.';
     updateSelectedChildOrderSummary();
+    updateSelectAllUnmergedOrdersButton();
     return;
   }
   unmergedOrderList.innerHTML=unmergedOrdersCache.map(order=>`
@@ -57,6 +87,7 @@ function renderUnmergedChildOrders(){
       </div>
     </label>`).join('');
   updateSelectedChildOrderSummary();
+  updateSelectAllUnmergedOrdersButton();
 }
 
 function updateSelectedChildOrderSummary(){

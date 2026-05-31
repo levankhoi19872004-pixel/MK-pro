@@ -92,6 +92,7 @@ if(unmergedOrderSearch)unmergedOrderSearch.addEventListener('input',loadUnmerged
 if(unmergedSourceFilter)unmergedSourceFilter.addEventListener('change',loadUnmergedChildOrders);
 if(unmergedDateFilter)unmergedDateFilter.addEventListener('change',loadUnmergedChildOrders);
 if(unmergedSalesStaffFilter)unmergedSalesStaffFilter.addEventListener('input',loadUnmergedChildOrders);
+if(selectAllUnmergedOrdersButton)selectAllUnmergedOrdersButton.addEventListener('click',toggleSelectAllUnmergedOrders);
 if(masterOrderSearch)masterOrderSearch.addEventListener('input',loadMasterOrders);
 if(masterOrderDateFrom)masterOrderDateFrom.addEventListener('change',loadMasterOrders);
 if(masterOrderDateTo)masterOrderDateTo.addEventListener('change',loadMasterOrders);
