@@ -42,6 +42,18 @@ function deliveryToNumber(value) {
   return Number.isFinite(n) ? Math.max(0, Math.round(n * multiplier)) : 0;
 }
 
+function normalizeMoneyInput(input) {
+  // Ô nhập tiền trên app giao hàng dùng số thuần để sửa tăng/giảm ổn định.
+  // Không format 100.000 trong lúc gõ vì dễ làm con trỏ nhảy và không xóa/giảm được giá trị.
+  if (!input) return;
+  const raw = String(input.value ?? '');
+  const keepK = /k$/i.test(raw.trim());
+  let cleaned = raw.replace(/[^0-9kK]/g, '');
+  if (keepK && cleaned && !/k$/i.test(cleaned)) cleaned += 'k';
+  input.value = cleaned;
+}
+
+
 function firstPositiveAmount(...values) {
   for (const value of values) {
     const n = deliveryToNumber(value);
@@ -484,9 +496,9 @@ function renderActionForm(order) {
     <section class="delivery-block payment-block">
       <h3>Thu tiền</h3>
       <div class="payment-grid">
-        <label>Tiền mặt<input data-cash="${escapeHtml(order.id)}" type="text" value="${money(existingCash)}" inputmode="numeric" /></label>
-        <label>Chuyển khoản<input data-bank="${escapeHtml(order.id)}" type="text" value="${money(existingBank)}" inputmode="numeric" /></label>
-        <label>Trả thưởng<input data-reward="${escapeHtml(order.id)}" type="text" value="${money(existingReward)}" inputmode="numeric" /></label>
+        <label>Tiền mặt<input data-cash="${escapeHtml(order.id)}" type="text" value="${existingCash || 0}" inputmode="numeric" autocomplete="off" /></label>
+        <label>Chuyển khoản<input data-bank="${escapeHtml(order.id)}" type="text" value="${existingBank || 0}" inputmode="numeric" autocomplete="off" /></label>
+        <label>Trả thưởng<input data-reward="${escapeHtml(order.id)}" type="text" value="${existingReward || 0}" inputmode="numeric" autocomplete="off" /></label>
         <label>Hàng trả<input data-return-readonly type="text" value="${money(currentReturn)}" readonly /></label>
       </div>
     </section>
@@ -509,7 +521,17 @@ function renderActionForm(order) {
     </div>
   `;
 
-  deliveryActionBox.querySelectorAll('[data-cash], [data-bank], [data-reward], [data-old-debt-check]').forEach(input => {
+  deliveryActionBox.querySelectorAll('[data-cash], [data-bank], [data-reward]').forEach(input => {
+    input.addEventListener('input', () => {
+      normalizeMoneyInput(input);
+      refreshDeliveryDraftTotals(order);
+    });
+    input.addEventListener('change', () => {
+      normalizeMoneyInput(input);
+      refreshDeliveryDraftTotals(order);
+    });
+  });
+  deliveryActionBox.querySelectorAll('[data-old-debt-check]').forEach(input => {
     input.addEventListener('input', () => refreshDeliveryDraftTotals(order));
     input.addEventListener('change', () => refreshDeliveryDraftTotals(order));
   });
