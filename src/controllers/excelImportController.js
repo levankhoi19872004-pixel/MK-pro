@@ -22,6 +22,19 @@ async function commit(req, res) {
   }
 }
 
+async function direct(req, res) {
+  try {
+    const result = await excelImportService.importDirect({
+      type: String(req.body?.type || '').trim(),
+      buffer: req.file?.buffer
+    });
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không import được dữ liệu', error: err.message });
+  }
+}
+
 async function logs(req, res) {
   try {
     res.json({ ok: true, source: 'mongo-route', importLogs: await excelImportService.logs() });
@@ -30,4 +43,4 @@ async function logs(req, res) {
   }
 }
 
-module.exports = { preview, commit, logs };
+module.exports = { preview, commit, direct, logs };

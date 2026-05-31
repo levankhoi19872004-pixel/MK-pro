@@ -9,6 +9,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 
 router.post('/preview', upload.single('file'), excelImportController.preview);
 router.post('/commit', excelImportController.commit);
+router.post('/direct', upload.single('file'), excelImportController.direct);
 router.get('/logs', excelImportController.logs);
 
 module.exports = router;

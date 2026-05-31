@@ -635,59 +635,58 @@ async function previewImportExcelSilent(){
 }
 
 async function commitImportExcel(){
-  if(!importDataType)return;
+  if(!importDataType||!importExcelFile)return;
   try{
-    // Luồng mới: bỏ cửa sổ preview. Nếu chưa preview thì tự đọc file, tự kiểm tra và import luôn.
-    if(!importPreviewRows.length){
-      showMessage(importDataMessage,'Đang đọc file và chuẩn bị import...');
-      const preview=await previewImportExcelSilent();
-      renderImportPreview(preview);
-    }
-    const rows=getSelectedImportRows();
-    if(!rows.length){showMessage(importDataMessage,'Không có dòng/đơn hợp lệ để import',true);return}
-    const hasShortage=rows.some(row=>row&&row.hasShortage);
-    // Đơn bán DMS: nếu vượt tồn thì tự cắt theo tồn thực tế, không hỏi thêm để tránh rối thao tác.
-    let shortageMode=(importDataType.value==='salesOrders'&&hasShortage)?'cut':(importShortageActionMode==='cut'?'cut':'');
+    const file=importExcelFile.files[0];
+    if(!file){showMessage(importDataMessage,'Bạn chưa chọn file Excel',true);return;}
+
     if(commitImportButton){
       commitImportButton.disabled=true;
-      commitImportButton.dataset.originalText=commitImportButton.textContent||'Xác nhận import';
+      commitImportButton.dataset.originalText=commitImportButton.textContent||'Import ngay';
       commitImportButton.textContent='Đang import...';
     }
-    const shortageButtons=document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton');
-    shortageButtons.forEach(btn=>{btn.disabled=true;});
-    showMessage(importDataMessage,'Đang import dữ liệu... Vui lòng chờ, không bấm lại nhiều lần.');
-    const commitPayload=(mode='')=>({type:importDataType.value,rows,shortageMode:mode||shortageMode});
-    let res=await fetch('/api/import/commit',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(commitPayload(shortageMode))
-    });
-    let json=await res.json();
 
-    // Fallback an toàn: nếu backend phát hiện còn đơn vượt tồn, tự import lại theo chế độ cắt tồn.
-    if(!json.ok && json.hasShortage && importDataType.value==='salesOrders'){
-      showMessage(importDataMessage,'Có đơn vượt tồn, hệ thống đang tự cắt theo tồn thực tế...');
-      res=await fetch('/api/import/commit',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(commitPayload('cut'))
-      });
-      json=await res.json();
+    importPreviewRows=[];
+    if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="6">Đang import trực tiếp, vui lòng chờ...</td></tr>';
+    showMessage(importDataMessage,'Đang import trực tiếp. Hệ thống tự kiểm tra tồn, tự cắt hàng thiếu và ghi báo cáo.');
+
+    const formData=new FormData();
+    formData.append('type',importDataType.value);
+    if(customImportTemplateSelect&&customImportTemplateSelect.value)formData.append('templateId',customImportTemplateSelect.value);
+    formData.append('file',file);
+
+    const res=await fetch('/api/import/direct',{method:'POST',body:formData});
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
+
+    const shortageText=(json.shortageReport&&json.shortageReport.length)
+      ? ` · Đã tự cắt ${formatNumber(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`
+      : '';
+    showMessage(importDataMessage,(json.message||'Import thành công')+shortageText);
+
+    const reportRows=(json.shortageReport||[]).slice(0,80);
+    if(importPreviewTable){
+      if(reportRows.length){
+        importPreviewTable.innerHTML=reportRows.map(r=>`
+          <tr>
+            <td>${escapeImportHtml(r.documentCode||'')}</td>
+            <td>${escapeImportHtml(r.customerName||r.customerCode||'')}</td>
+            <td>${escapeImportHtml(r.productCode||'')}</td>
+            <td>${escapeImportHtml(r.productName||'')}</td>
+            <td>${formatNumber(r.missingQuantity||0)}</td>
+            <td>${money(r.cutAmount||0)}</td>
+          </tr>
+        `).join('');
+        if(importPreviewHead)importPreviewHead.innerHTML='<tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>SL thiếu</th><th>Giá trị cắt</th></tr>';
+      }else{
+        importPreviewTable.innerHTML=`<tr><td colspan="6">Import thành công. Không có hàng vượt tồn.</td></tr>`;
+        if(importPreviewHead)importPreviewHead.innerHTML='<tr><th colspan="6">Báo cáo import</th></tr>';
+      }
     }
 
-    if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
-    const shortageText=(json.shortageReport&&json.shortageReport.length)?` · Đã cắt ${formatNumber(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`:'';
-    showMessage(importDataMessage,(json.message||'Import thành công')+shortageText);
     if(commitImportButton)commitImportButton.disabled=true;
 
-    // Khi import đơn bán DMS, tự chuyển bộ lọc danh sách đơn bán về đúng ngày của file import.
-    // Tránh trường hợp dữ liệu đã ghi vào Mongo nhưng danh sách đang mặc định lọc hôm nay nên người dùng tưởng chưa có đơn.
-    if(importDataType.value==='salesOrders' && rows.length){
-      const dates=rows.map(r=>String(r.date||r.orderDate||r.deliveryDate||'').slice(0,10)).filter(Boolean).sort();
-      if(dates.length){
-        if(salesOrderDateFrom)salesOrderDateFrom.value=dates[0];
-        if(salesOrderDateTo)salesOrderDateTo.value=dates[dates.length-1];
-      }
+    if(importDataType.value==='salesOrders'){
       if(salesOrderSourceFilter)salesOrderSourceFilter.value='DMS';
     }
 
@@ -697,7 +696,6 @@ async function commitImportExcel(){
       commitImportButton.disabled=false;
       if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
     }
-    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
     showMessage(importDataMessage,err.message,true);
   }
 }

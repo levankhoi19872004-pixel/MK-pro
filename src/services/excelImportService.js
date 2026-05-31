@@ -809,9 +809,11 @@ async function importOpeningStock(rows = []) {
     mode: 'setOpeningStockSnapshots',
     batchSize: IMPORT_BATCH_SIZE,
     stockTransactions: movements.length,
-    inventoryRows: inventoryResult.inventoryRows
+    inventoryRows: inventoryResult.inventoryRows,
+    shortageCount: shortageReport.length,
+    shortageReport: shortageReport.slice(0, 100)
   });
-  return { imported, skipped, errors };
+  return { imported, skipped, errors, shortageReport };
 }
 
 async function importImportOrders(rows = []) {
@@ -824,6 +826,7 @@ async function importImportOrders(rows = []) {
   const docs = [];
   const movements = [];
   const inventoryDeltas = new Map();
+  const shortageReport = [];
 
   for (const group of groups) {
     const first = group[0] || {};
@@ -897,12 +900,15 @@ async function importImportOrders(rows = []) {
     mode: 'bulkImportOrders',
     batchSize: IMPORT_BATCH_SIZE,
     stockTransactions: inventoryResult.transactionCount,
-    inventoryRows: inventoryResult.inventoryRows
+    inventoryRows: inventoryResult.inventoryRows,
+    shortageCount: shortageReport.length,
+    shortageReport: shortageReport.slice(0, 100)
   });
-  return { imported, skipped, errors };
+  return { imported, skipped, errors, shortageReport };
 }
 
-async function importSalesOrders(rows = []) {
+async function importSalesOrders(rows = [], options = {}) {
+  const autoCutStock = Boolean(options.autoCutStock);
   let skipped = 0;
   const errors = [];
   const customerMap = await preloadCustomersByCode(rows);
@@ -936,6 +942,7 @@ async function importSalesOrders(rows = []) {
   const cashbookDocs = [];
   const movements = [];
   const inventoryDeltas = new Map();
+  const shortageReport = [];
 
   for (const group of groups) {
     const first = group[0] || {};
@@ -952,42 +959,70 @@ async function importSalesOrders(rows = []) {
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
-      const rawSaleQuantity = Object.prototype.hasOwnProperty.call(row, '__allowedSaleQuantity')
+      let rawSaleQuantity = Object.prototype.hasOwnProperty.call(row, '__allowedSaleQuantity')
         ? toNumber(row.__allowedSaleQuantity)
         : getDmsQuantityFromRow(row, product);
-      const rawPromoQuantity = Object.prototype.hasOwnProperty.call(row, '__allowedPromoQuantity')
+      let rawPromoQuantity = Object.prototype.hasOwnProperty.call(row, '__allowedPromoQuantity')
         ? toNumber(row.__allowedPromoQuantity)
         : getDmsPromoQuantityFromRow(row, product);
-      const deliveredQuantity = rawSaleQuantity + rawPromoQuantity;
+      let deliveredQuantity = rawSaleQuantity + rawPromoQuantity;
+      const originalSaleQuantity = rawSaleQuantity;
+      const originalPromoQuantity = rawPromoQuantity;
       const salePrice = getDmsPriceFromRow(row, rawSaleQuantity);
-      const lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
+      let lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
       const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse || first['Kho'] || product?.warehouseCode) || 'MAIN';
       const normalizedProductCode = cleanText(product?.code || productCode);
       const stockKey = `${normalizedProductCode}|${warehouseCode}`;
-      const availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
+      let availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
       const isCutByStockRow = Boolean(
         row.__autoCutByStock ||
         Object.prototype.hasOwnProperty.call(row, '__allowedSaleQuantity') ||
         Object.prototype.hasOwnProperty.call(row, '__allowedPromoQuantity')
       );
-      // Khi người dùng đã chọn "Tiếp tục import theo tồn thực tế", preview đã sinh ra
-      // __allowedSaleQuantity / __allowedPromoQuantity. Ở bước commit không được chặn
-      // lại bằng điều kiện availableQty < deliveredQuantity, vì như vậy luồng tự cắt
-      // hàng thiếu sẽ không bao giờ ghi được đơn. Các dòng đã cắt vẫn phải trừ tồn
-      // theo số lượng được phép import.
-      if (!product || deliveredQuantity <= 0 || salePrice < 0 || (!isCutByStockRow && availableQty < deliveredQuantity)) {
+
+      if (product && autoCutStock && !isCutByStockRow && deliveredQuantity > availableQty) {
+        const allocation = allocateStockForSaleAndPromo(rawSaleQuantity, rawPromoQuantity, availableQty);
+        rawSaleQuantity = allocation.allowedSaleQuantity;
+        rawPromoQuantity = allocation.allowedPromoQuantity;
+        deliveredQuantity = allocation.allowedDeliveredQuantity;
+        lineAmount = rawSaleQuantity * salePrice;
+        shortageReport.push({
+          documentCode: cleanText(first.documentCode || first.code || first['Số hóa đơn'] || first['So hoa don'] || first['Mã đơn'] || first['Ma don']) || '',
+          customerCode,
+          customerName: getCustomerNameFromRow(first) || customer?.name || '',
+          productCode: normalizedProductCode,
+          productName: product.name,
+          requestedQuantity: originalSaleQuantity + originalPromoQuantity,
+          importedQuantity: deliveredQuantity,
+          missingQuantity: allocation.missingQuantity,
+          missingSaleQuantity: allocation.missingSaleQuantity,
+          missingPromoQuantity: allocation.missingPromoQuantity,
+          cutAmount: allocation.missingSaleQuantity * salePrice,
+          availableQuantity: availableQty
+        });
+      }
+
+      // Dòng không có số lượng bán và không có số lượng khuyến mại thì bỏ qua,
+      // không làm hỏng cả đơn DMS.
+      if (product && deliveredQuantity <= 0 && (originalSaleQuantity + originalPromoQuantity) <= 0) {
+        skipped += 1;
+        continue;
+      }
+
+      if (!product || deliveredQuantity <= 0 || salePrice < 0 || (!autoCutStock && !isCutByStockRow && availableQty < deliveredQuantity)) {
         skipped += 1;
         groupInvalid = true;
         errors.push({
           productCode,
           message: !product
             ? 'Không tìm thấy sản phẩm'
-            : (!isCutByStockRow && availableQty < deliveredQuantity)
+            : (!autoCutStock && !isCutByStockRow && availableQty < deliveredQuantity)
               ? `Không đủ tồn kho: còn ${availableQty}`
               : 'Dòng bán hàng/khuyến mại không hợp lệ'
         });
         continue;
       }
+
       if (stockMap.has(stockKey)) stockMap.set(stockKey, Math.max(0, availableQty - deliveredQuantity));
       productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
       const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
@@ -1137,9 +1172,11 @@ async function importSalesOrders(rows = []) {
     payments: paymentDocs.length,
     cashbook: cashbookDocs.length,
     stockTransactions: inventoryResult.transactionCount,
-    inventoryRows: inventoryResult.inventoryRows
+    inventoryRows: inventoryResult.inventoryRows,
+    shortageCount: shortageReport.length,
+    shortageReport: shortageReport.slice(0, 100)
   });
-  return { imported, skipped, errors };
+  return { imported, skipped, errors, shortageReport };
 }
 
 async function importOpeningDebt(rows = []) {
@@ -1764,17 +1801,10 @@ async function commit({ type, rows, shortageMode = '' }) {
   const validRows = rows.filter((r) => r && r.valid !== false && (!Array.isArray(r.errors) || r.errors.length === 0));
   if (!validRows.length) return { error: 'Không có dòng hợp lệ để import', status: 400 };
 
+  // Luồng import mới: không trả 409 để hỏi lại người dùng.
+  // Đơn bán DMS luôn tự cắt theo tồn thực tế và sinh báo cáo hàng thiếu.
   const hasShortage = validRows.some((r) => r && r.hasShortage);
-  if (type === 'salesOrders' && hasShortage && shortageMode !== 'cut') {
-    return {
-      error: 'Có đơn vượt tồn. Vui lòng chọn Dừng hoặc Tiếp tục import theo tồn thực tế.',
-      status: 409,
-      hasShortage: true,
-      shortageReport: validRows.flatMap((r) => r.shortageReport || [])
-    };
-  }
-
-  const commitRows = type === 'salesOrders' && shortageMode === 'cut'
+  const commitRows = type === 'salesOrders'
     ? flattenAdjustedCommitRows(validRows)
     : flattenCommitRows(validRows);
 
@@ -1783,22 +1813,58 @@ async function commit({ type, rows, shortageMode = '' }) {
   else if (type === 'customers') result = await upsertCustomers(commitRows);
   else if (type === 'openingStock') result = await importOpeningStock(commitRows);
   else if (type === 'importOrders') result = await importImportOrders(commitRows);
-  else if (type === 'salesOrders') result = await importSalesOrders(commitRows);
+  else if (type === 'salesOrders') result = await importSalesOrders(commitRows, { autoCutStock: true });
   else if (type === 'openingDebt') result = await importOpeningDebt(commitRows);
   else if (type === 'debtCollections') result = await importDebtCollections(commitRows);
   else if (type === 'cashbook') result = await importCashbook(commitRows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
-  const shortageRows = validRows.flatMap((r) => r.shortageReport || []);
+  const shortageRows = [
+    ...validRows.flatMap((r) => r.shortageReport || []),
+    ...(result.shortageReport || [])
+  ];
   const shortageSummary = summarizeOrderShortages(shortageRows);
   return {
-    source: 'mongo-native',
+    source: 'mongo-native-direct',
     ok: true,
-    message: `Đã import Mongo-native ${result.imported || 0} dòng/chứng từ`,
+    message: `Đã import ${result.imported || 0} chứng từ`,
     totalRows: rows.length,
     totalCommitRows: commitRows.length,
-    hasShortage,
-    shortageMode: hasShortage ? (shortageMode === 'cut' ? 'cut' : 'stop') : '',
+    hasShortage: hasShortage || shortageRows.length > 0,
+    shortageMode: shortageRows.length ? 'cut' : '',
+    shortageReport: shortageRows,
+    shortageSummary,
+    ...result
+  };
+}
+
+async function importDirect({ type, buffer }) {
+  if (!type) return { error: 'Thiếu loại import', status: 400 };
+  if (!buffer) return { error: 'Chưa chọn file Excel', status: 400 };
+  const rows = parseExcelBuffer(buffer);
+  if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
+
+  let result;
+  if (type === 'products') result = await upsertProducts(rows);
+  else if (type === 'customers') result = await upsertCustomers(rows);
+  else if (type === 'openingStock') result = await importOpeningStock(rows);
+  else if (type === 'importOrders') result = await importImportOrders(rows);
+  else if (type === 'salesOrders') result = await importSalesOrders(rows, { autoCutStock: true });
+  else if (type === 'openingDebt') result = await importOpeningDebt(rows);
+  else if (type === 'debtCollections') result = await importDebtCollections(rows);
+  else if (type === 'cashbook') result = await importCashbook(rows);
+  else return { error: 'Loại import không hợp lệ', status: 400 };
+
+  const shortageRows = result.shortageReport || [];
+  const shortageSummary = summarizeOrderShortages(shortageRows);
+  return {
+    source: 'mongo-native-direct',
+    ok: true,
+    message: `Đã import ${result.imported || 0} chứng từ`,
+    totalRows: rows.length,
+    totalCommitRows: rows.length,
+    hasShortage: shortageRows.length > 0,
+    shortageMode: shortageRows.length ? 'cut' : '',
     shortageReport: shortageRows,
     shortageSummary,
     ...result
@@ -1810,4 +1876,4 @@ async function logs() {
   return logs;
 }
 
-module.exports = { preview, commit, logs };
+module.exports = { preview, commit, importDirect, logs };
