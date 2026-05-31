@@ -1,7 +1,6 @@
 'use strict';
 
 const { parseExcelBuffer } = require('../../utils/excelParser');
-const { previewImport } = require('../../services/importService');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const ImportOrder = require('../models/ImportOrder');
@@ -1186,34 +1185,207 @@ async function importCashbook(rows = []) {
   return { imported, skipped, errors };
 }
 
+
+async function getStockMapByProductCode(rows = []) {
+  const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
+  const inventoryRows = codes.length ? await Inventory.find({ productCode: { $in: codes } }).lean() : [];
+  const map = new Map();
+  for (const row of inventoryRows) {
+    const code = cleanText(row.productCode || row.productId);
+    if (!code) continue;
+    const qty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
+    map.set(code, toNumber(map.get(code)) + qty);
+  }
+  return map;
+}
+
+async function previewMongoNative(type, rows = []) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  let result = [];
+
+  if (type === 'products') {
+    const payloads = safeRows.map((row) => ({ ...rowBase(row), ...pickProductPayload(row), errors: [] }));
+    const codes = Array.from(new Set(payloads.map((p) => cleanText(p.code)).filter(Boolean)));
+    const existingRows = codes.length ? await Product.find({ code: { $in: codes } }).select('code').lean() : [];
+    const existing = new Set(existingRows.map((p) => cleanText(p.code)));
+    const seen = new Set();
+    result = payloads.map((item) => {
+      if (!item.code) item.errors.push('Thiếu mã sản phẩm');
+      if (!item.name) item.errors.push('Thiếu tên sản phẩm');
+      if (item.code && existing.has(cleanText(item.code))) item.errors.push('Mã sản phẩm đã tồn tại');
+      if (item.code && seen.has(cleanText(item.code))) item.errors.push('Mã sản phẩm bị trùng trong file');
+      if (item.code) seen.add(cleanText(item.code));
+      if (toNumber(item.conversionRate) < 1) item.errors.push('Quy đổi phải lớn hơn hoặc bằng 1');
+      if (toNumber(item.costPrice) < 0 || toNumber(item.salePrice) < 0) item.errors.push('Giá không được âm');
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'customers') {
+    const payloads = safeRows.map((row) => ({ ...rowBase(row), ...pickCustomerPayload(row), errors: [] }));
+    const codes = Array.from(new Set(payloads.map((c) => cleanText(c.code)).filter(Boolean)));
+    const existingRows = codes.length ? await Customer.find({ code: { $in: codes } }).select('code').lean() : [];
+    const existing = new Set(existingRows.map((c) => cleanText(c.code)));
+    const seen = new Set();
+    result = payloads.map((item) => {
+      if (!item.code) item.errors.push('Thiếu mã khách hàng');
+      if (!item.name) item.errors.push('Thiếu tên khách hàng');
+      if (item.code && existing.has(cleanText(item.code))) item.errors.push('Mã khách hàng đã tồn tại');
+      if (item.code && seen.has(cleanText(item.code))) item.errors.push('Mã khách hàng bị trùng trong file');
+      if (item.code) seen.add(cleanText(item.code));
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'openingStock') {
+    const productMap = await preloadProductsByCode(safeRows);
+    result = safeRows.map((row) => {
+      const productCode = getProductCodeFromRow(row);
+      const product = productMap.get(cleanText(productCode));
+      const productNameFromRow = cleanText(row.productName || row.name || row['Tên sản phẩm'] || row['Ten san pham']);
+      const quantity = getQtyFromRow(row);
+      const item = {
+        ...rowBase(row),
+        documentCode: cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || 'AUTO',
+        date: getDateFromRow(row),
+        productCode,
+        productName: product?.name || productNameFromRow || '',
+        warehouseCode: cleanText(row.warehouseCode || row.warehouse || row['Kho']) || 'MAIN',
+        warehouseName: cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || 'Kho chính',
+        quantity,
+        errors: []
+      };
+      if (!productCode) item.errors.push('Thiếu mã sản phẩm');
+      if (!product && !productNameFromRow) item.errors.push('Không tìm thấy sản phẩm và file không có tên sản phẩm');
+      if (quantity < 0) item.errors.push('Tồn đầu không được âm');
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'importOrders') {
+    const productMap = await preloadProductsByCode(safeRows);
+    result = safeRows.map((row) => {
+      const productCode = getProductCodeFromRow(row);
+      const product = productMap.get(cleanText(productCode));
+      const quantity = getQtyFromRow(row);
+      const costPrice = getCostFromRow(row);
+      const item = {
+        ...rowBase(row),
+        documentCode: cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || 'AUTO',
+        date: getDateFromRow(row),
+        supplier: cleanText(row.supplier || row.supplierName || row['Nhà cung cấp'] || row['Nha cung cap']) || 'Import Excel',
+        productCode,
+        productName: product?.name || '',
+        quantity,
+        costPrice,
+        errors: []
+      };
+      if (!productCode) item.errors.push('Thiếu mã sản phẩm');
+      if (!product) item.errors.push('Không tìm thấy sản phẩm');
+      if (quantity <= 0) item.errors.push('Số lượng nhập phải lớn hơn 0');
+      if (costPrice < 0) item.errors.push('Giá nhập không được âm');
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'salesOrders') {
+    const productMap = await preloadProductsByCode(safeRows);
+    const customerMap = await preloadCustomersByCode(safeRows);
+    const stockMap = await getStockMapByProductCode(safeRows);
+    result = safeRows.map((row) => {
+      const customerCode = getCustomerCodeFromRow(row);
+      const productCode = getProductCodeFromRow(row);
+      const customer = customerMap.get(cleanText(customerCode));
+      const product = productMap.get(cleanText(productCode));
+      const quantity = getDmsQuantityFromRow(row, product);
+      const promoQuantity = getDmsPromoQuantityFromRow(row, product);
+      const deliveredQuantity = quantity + promoQuantity;
+      const salePrice = getDmsPriceFromRow(row, quantity);
+      const amount = getDmsAmountFromRow(row, quantity, salePrice);
+      const stockQty = toNumber(stockMap.get(cleanText(productCode)));
+      const item = {
+        ...rowBase(row),
+        documentCode: cleanText(row.documentCode || row['Số hóa đơn'] || row['So hoa don'] || row['Mã đơn'] || row['Ma don']) || 'AUTO',
+        date: getDateFromRow(row),
+        customerCode,
+        customerName: getCustomerNameFromRow(row) || customer?.name || '',
+        productCode,
+        productName: product?.name || cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+        packingQty: getPackingFromRow(row, product),
+        cartons: getCartonsFromRow(row),
+        units: getUnitsFromRow(row),
+        quantity,
+        promoCartons: getPromoCartonsFromRow(row),
+        promoUnits: getPromoUnitsFromRow(row),
+        promoQuantity,
+        deliveredQuantity,
+        stockQuantity: deliveredQuantity,
+        soldQuantity: quantity,
+        salePrice,
+        listPriceBeforeVat: getListPriceBeforeVatFromRow(row),
+        listPriceAfterVat: getListPriceBeforeVatFromRow(row) ? getListPriceBeforeVatFromRow(row) * 1.08 : 0,
+        gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
+        nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
+        vatAmount: getVatAmountFromRow(row),
+        amount,
+        paidAmount: toNumber(row.paidAmount ?? row['Đã thu'] ?? row['Da thu']),
+        staffCode: cleanText(row.staffCode || row['Mã nhân viên'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã NVBH'] || row['Ma NVBH']),
+        staffName: cleanText(row.staffName || row['Tên NVTT'] || row['Ten NVTT'] || row['Tên NVBH'] || row['Ten NVBH']),
+        orderSource: 'DMS',
+        source: 'DMS',
+        sourceType: 'dms_import',
+        orderSourceName: 'Từ DMS',
+        note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import Excel DMS',
+        errors: []
+      };
+      if (!customerCode) item.errors.push('Thiếu mã khách hàng / mã cửa hàng');
+      if (!customer) item.errors.push('Không tìm thấy khách hàng');
+      if (!productCode) item.errors.push('Thiếu mã sản phẩm / mã hàng hóa');
+      if (!product) item.errors.push('Không tìm thấy sản phẩm');
+      if (quantity <= 0) item.errors.push('Số lượng bán phải lớn hơn 0');
+      if (salePrice < 0) item.errors.push('Giá bán không được âm');
+      if (product && stockQty < deliveredQuantity) item.errors.push(`Không đủ tồn kho: còn ${stockQty}`);
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'openingDebt') {
+    const customerMap = await preloadCustomersByCode(safeRows);
+    result = safeRows.map((row) => {
+      const customerCode = getCustomerCodeFromRow(row);
+      const customer = customerMap.get(cleanText(customerCode));
+      const amount = toNumber(row.amount ?? row['Số tiền'] ?? row['So tien'] ?? row['Công nợ'] ?? row['Cong no']);
+      const item = { ...rowBase(row), date: getDateFromRow(row), customerCode, customerName: customer?.name || '', amount, note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']), errors: [] };
+      if (!customerCode) item.errors.push('Thiếu mã khách hàng');
+      if (!customer) item.errors.push('Không tìm thấy khách hàng');
+      if (amount < 0) item.errors.push('Công nợ đầu không được âm');
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'debtCollections') {
+    const customerMap = await preloadCustomersByCode(safeRows);
+    result = safeRows.map((row) => {
+      const customerCode = getCustomerCodeFromRow(row);
+      const customer = customerMap.get(cleanText(customerCode));
+      const amount = toNumber(row.amount ?? row['Số tiền'] ?? row['So tien'] ?? row['Tiền thu'] ?? row['Tien thu']);
+      const item = { ...rowBase(row), date: getDateFromRow(row), customerCode, customerName: customer?.name || '', amount, staffName: cleanText(row.staffName || row['Người thu'] || row['Nguoi thu'] || row['Nhân viên']), note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']), errors: [] };
+      if (!customerCode) item.errors.push('Thiếu mã khách hàng');
+      if (!customer) item.errors.push('Không tìm thấy khách hàng');
+      if (amount <= 0) item.errors.push('Số tiền thu phải lớn hơn 0');
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'cashbook') {
+    result = safeRows.map((row) => {
+      const typeRaw = normalizeText(row.type || row['Loại'] || row['Loai'] || row['Thu chi'] || 'in');
+      const cashType = typeRaw.includes('chi') || typeRaw === 'out' ? 'out' : 'in';
+      const amount = toNumber(row.amount ?? row['Số tiền'] ?? row['So tien']);
+      const item = { ...rowBase(row), date: getDateFromRow(row), type: cashType, source: cleanText(row.source || row['Nguồn'] || row['Nguon'] || row['Nhóm tiền']) || 'import_excel', staffName: cleanText(row.staffName || row['Người nộp/nhận'] || row['Nguoi nop'] || row['Nhân viên']), amount, note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']), errors: [] };
+      if (amount <= 0) item.errors.push('Số tiền phải lớn hơn 0');
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else {
+    throw new Error('Loại import không hợp lệ');
+  }
+
+  return { type, rows: result, total: result.length, valid: result.filter((r) => r.valid).length, invalid: result.filter((r) => !r.valid).length };
+}
+
 async function preview({ type, buffer }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (!buffer) return { error: 'Chưa chọn file Excel', status: 400 };
   const rows = parseExcelBuffer(buffer);
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
-  // Preview vẫn dùng bộ kiểm tra cũ để giữ tương thích UI, nhưng cần nạp tồn từ inventorySnapshots
-  // để phần Xem trước khớp với màn Tồn kho hiện tại.
-  const data = await systemService.getDataSnapshot();
-  if (type === 'salesOrders') {
-    const productCodes = Array.from(new Set(rows.map((r) => cleanText(getProductCodeFromRow(r))).filter(Boolean)));
-    const inventoryRows = await Inventory.find({ productCode: { $in: productCodes } }).lean().catch(() => []);
-    const stockByProduct = new Map();
-    for (const row of inventoryRows) {
-      const code = cleanText(row.productCode);
-      if (!code) continue;
-      const qty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
-      stockByProduct.set(code, toNumber(stockByProduct.get(code)) + qty);
-    }
-    data.stock = Array.from(stockByProduct.entries()).map(([productCode, quantity]) => ({
-      productCode,
-      quantity,
-      qty: quantity,
-      availableQty: quantity,
-      onHand: quantity
-    }));
-  }
-  return previewImport(type, rows, data);
+  return previewMongoNative(type, rows);
 }
 
 async function commit({ type, rows }) {
