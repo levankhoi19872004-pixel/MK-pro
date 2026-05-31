@@ -4252,3 +4252,75 @@ button.danger:hover{background:#fecaca}
   #masterReturnOrdersTab .child-order-money span{text-align:left;min-width:0;}
   #masterReturnOrdersTab .master-return-card-metrics{grid-template-columns:1fr;}
 }
+
+
+/* V45 - Master Return Orders compact balance refinement */
+#masterReturnOrdersTab .master-return-v2-layout{
+  grid-template-columns:380px minmax(0,1fr);
+}
+#masterReturnOrdersTab .master-return-create-card{
+  max-height:fit-content;
+}
+#masterReturnOrdersTab .master-return-unmerged-card{
+  align-self:start;
+}
+#masterReturnOrdersTab .master-return-unmerged-card > .toolbar{
+  margin-bottom:6px;
+}
+#masterReturnOrdersTab .master-return-unmerged-card > .toolbar h2{
+  margin-bottom:2px;
+}
+#masterReturnOrdersTab .master-return-unmerged-card > .toolbar .muted{
+  margin:0;
+}
+#masterReturnOrdersTab .master-return-filter-row{
+  margin-bottom:8px;
+}
+#masterReturnOrdersTab .master-return-unmerged-list{
+  max-height:355px;
+  overflow:auto;
+  padding-right:4px;
+}
+#masterReturnOrdersTab .return-child-order-row{
+  grid-template-columns:26px minmax(0,1fr) 245px;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  min-height:64px;
+}
+#masterReturnOrdersTab .return-child-main{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+#masterReturnOrdersTab .return-child-main .child-order-title,
+#masterReturnOrdersTab .return-child-main .child-order-meta{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#masterReturnOrdersTab .child-order-money{
+  display:grid;
+  grid-template-columns:90px 145px;
+  gap:8px;
+  justify-items:stretch;
+}
+#masterReturnOrdersTab .child-order-money span{
+  min-width:0;
+  padding:5px 9px;
+  border-radius:11px;
+  text-align:right;
+  white-space:nowrap;
+}
+#masterReturnOrdersTab .master-selection-summary{
+  font-size:13px;
+  line-height:1.45;
+  padding:10px 12px;
+}
+@media(max-width:1100px){
+  #masterReturnOrdersTab .master-return-unmerged-list{max-height:420px;}
+}
+@media(max-width:700px){
+  #masterReturnOrdersTab .return-child-order-row{grid-template-columns:24px 1fr;}
+  #masterReturnOrdersTab .child-order-money{grid-column:2;grid-template-columns:1fr 1fr;}
+}

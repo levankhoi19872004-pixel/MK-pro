@@ -537,10 +537,9 @@ function renderUnmergedReturnOrders(rows = []){
     const selected=checked?' selected':'';
     return `<label class="child-order-row return-child-order-row${selected}">
       <input type="checkbox" class="master-return-check" data-id="${escapeHtml(id)}" ${checked}>
-      <div>
-        <div class="child-order-title">${escapeHtml(r.code||r.id||'')}</div>
-        <div class="child-order-meta">${escapeHtml(r.date||r.documentDate||'')} · ${escapeHtml(customer||'Không rõ khách')}</div>
-        <div class="child-order-meta">NVGH: ${escapeHtml(staff)}</div>
+      <div class="return-child-main">
+        <div class="child-order-title">${escapeHtml(r.code||r.id||'')} · ${escapeHtml(customer||'Không rõ khách')}</div>
+        <div class="child-order-meta">${escapeHtml(r.date||r.documentDate||'')} · NVGH: ${escapeHtml(staff)}</div>
       </div>
       <div class="child-order-money">
         <span>SL: <b>${money(r.totalQuantity)}</b></span>
