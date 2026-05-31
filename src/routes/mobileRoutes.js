@@ -554,8 +554,21 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
 return saved;
 }
 
+function buildDeliveryDisplaySource(order = {}, masterChild = null) {
+  // Nguồn thật của tiền thanh toán/trạng thái luôn là SalesOrder mới nhất.
+  // masterChild chỉ là snapshot để lấy danh sách hàng khi cần; không được ghi đè
+  // cashCollected/bankCollected/rewardAmount/debtAmount sau khi app bấm Lưu.
+  if (!masterChild || !Array.isArray(masterChild.items) || !masterChild.items.length) return order;
+  return {
+    ...masterChild,
+    ...order,
+    id: getDocId(order) || masterChild.id,
+    items: masterChild.items
+  };
+}
+
 function buildDeliveryRow(order, customer, master, date, returnOrders = [], masterChild = null) {
-  const sourceOrder = masterChild && Array.isArray(masterChild.items) && masterChild.items.length ? { ...order, ...masterChild, id: getDocId(order) || masterChild.id } : order;
+  const sourceOrder = buildDeliveryDisplaySource(order, masterChild);
   const returnItems = mergeReturnItemsFromOrders(returnOrders, order, master, masterChild);
   const syncedReturnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.amount ?? returnLineQty(item) * returnLinePrice(item)), 0);
   const totalAmount = toNumber(sourceOrder.totalAmount || sourceOrder.amount || sourceOrder.grandTotal || sourceOrder.payableAmount);
@@ -608,6 +621,48 @@ function buildCode(prefix) {
   const ymd = d.toISOString().slice(0, 10).replace(/-/g, '');
   return `${prefix}${ymd}${String(d.getTime()).slice(-6)}`;
 }
+
+async function syncDeliveryPaymentToMasterSnapshots(order) {
+  // Một số màn hình cũ còn đọc children/items snapshot trong masterOrder.
+  // Đồng bộ các trường tiền để app/web không bị lệch khi refresh từ snapshot.
+  const keys = [getDocId(order), orderCode(order), order.orderNo, order.orderCode].filter(Boolean).map(String);
+  if (!keys.length) return;
+  const paymentPatch = {
+    'children.$[child].cashCollected': toNumber(order.cashCollected ?? order.cashAmount ?? 0),
+    'children.$[child].cashAmount': toNumber(order.cashCollected ?? order.cashAmount ?? 0),
+    'children.$[child].bankCollected': toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
+    'children.$[child].bankAmount': toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
+    'children.$[child].transferAmount': toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
+    'children.$[child].rewardAmount': toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
+    'children.$[child].displayRewardAmount': toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
+    'children.$[child].returnAmount': toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
+    'children.$[child].returnedAmount': toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
+    'children.$[child].debtBeforeCollection': toNumber(order.debtBeforeCollection ?? 0),
+    'children.$[child].debtAmount': toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
+    'children.$[child].debt': toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
+    'children.$[child].deliveryStatus': order.deliveryStatus || '',
+    'children.$[child].status': order.status || '',
+    'children.$[child].updatedAt': new Date().toISOString()
+  };
+  const matchFields = ['id', '_id', 'code', 'orderCode', 'orderNo'];
+  try {
+    for (const field of matchFields) {
+      await MasterOrder.updateMany(
+        {
+          $or: [
+            { childOrderIds: { $in: keys } },
+            { [`children.${field}`]: { $in: keys } }
+          ]
+        },
+        { $set: paymentPatch },
+        { arrayFilters: [{ [`child.${field}`]: { $in: keys } }] }
+      );
+    }
+  } catch (err) {
+    console.warn('[mobile-delivery] sync master snapshot payment failed:', err.message);
+  }
+}
+
 
 async function findOrderByIdOrCode(idOrCode) {
   const key = String(idOrCode || '').trim();
@@ -1129,6 +1184,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     }
 
     await order.save();
+    await syncDeliveryPaymentToMasterSnapshots(order);
     return ok(res, { message: 'Đã cập nhật trạng thái giao hàng', order: stripMongoFields(order.toObject()) });
   } catch (err) {
     return fail(res, 500, err.message || 'Không cập nhật được giao hàng mobile');
