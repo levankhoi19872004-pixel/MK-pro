@@ -7,6 +7,14 @@ function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
   return Math.abs(rounded) <= tolerance ? 0 : rounded;
 }
 function hasOpenDebt(value){ return normalizeDebtAmount(value) > 0; }
+
+function mergeStatusLabel(status, row){
+  const value = String(status || row?.mergeStatus || 'unmerged').toLowerCase();
+  const isMerged = ['merged','mastered','grouped'].includes(value) || Boolean(row?.masterOrderId || row?.masterOrderCode || row?.masterOrderNo);
+  if(isMerged) return '<span class="badge source-merged">Đã gộp</span>';
+  return '<span class="badge source-unmerged">Chưa gộp</span>';
+}
+window.mergeStatusLabel = window.mergeStatusLabel || mergeStatusLabel;
 async function loadUnmergedChildOrders(){
   if(!unmergedOrderList)return;
   const params=new URLSearchParams();
@@ -38,7 +46,7 @@ function renderUnmergedChildOrders(){
     <label class="child-order-row ${selectedChildOrderIds.has(order.id)?'selected':''}">
       <input type="checkbox" class="child-order-check" data-id="${order.id}" ${selectedChildOrderIds.has(order.id)?'checked':''} />
       <div class="child-order-main">
-        <div class="child-order-title"><strong>${order.code||order.id}</strong> ${orderSourceLabel(order.orderSource,order)} ${mergeStatusLabel(order.mergeStatus)}</div>
+        <div class="child-order-title"><strong>${order.code||order.id}</strong> ${orderSourceLabel(order.orderSource,order)} ${mergeStatusLabel(order.mergeStatus,order)}</div>
         <div class="order-meta">${order.date||''} · ${order.customerCode||''} - ${order.customerName||''}</div>
         <div class="order-meta">${order.customerPhone||''} · ${order.customerAddress||''}</div>
         <div class="order-meta">NV bán hàng: <strong>${order.salesStaffCode||order.staffCode||''} ${order.salesStaffName||order.staffName||''}</strong></div>
