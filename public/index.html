@@ -231,11 +231,10 @@
         <section class="card">
           <h2>Tạo đơn bán hàng</h2>
           <form id="salesForm" class="form">
-            <div class="two-cols">
-              <label>Ngày bán<input name="date" type="date" /></label>
+            <div class="two-cols sales-customer-staff-row">
               <label>Khách hàng
                 <div class="autocomplete">
-                  <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/địa chỉ khách hàng..." autocomplete="off" />
+                  <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/tuyến khách hàng..." autocomplete="off" />
                   <input name="customerId" id="salesCustomerSelect" type="hidden" />
                   <div id="salesCustomerSuggestions" class="suggestions" hidden></div>
                 </div>
@@ -248,6 +247,14 @@
                   <div id="salesStaffSuggestions" class="suggestions" hidden></div>
                 </div>
               </label>
+            </div>
+            <div class="two-cols sales-date-mode-row">
+              <label>Ngày bán<input name="date" type="date" /></label>
+              <div class="sales-mode-box">
+                <div class="sales-mode-title">Phương thức bán</div>
+                <label class="sales-mode-option"><input type="radio" name="saleMode" value="direct" checked /> Bán thẳng giá mặc định</label>
+                <label class="sales-mode-option"><input type="radio" name="saleMode" value="promotion" /> Bán theo khuyến mại</label>
+              </div>
             </div>
             <label>Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
             <div class="import-line-box">

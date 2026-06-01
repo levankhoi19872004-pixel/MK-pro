@@ -96,11 +96,63 @@ function syncSalesPrice(){
   const p=findProductByKey(salesProductSelect.value);
   if(p&&salesPrice)salesPrice.value=Number(p.salePrice||0);
 }
+function getSalesMode(){
+  const checked=document.querySelector('input[name="saleMode"]:checked');
+  return checked?.value === 'promotion' ? 'promotion' : 'direct';
+}
+function isDirectSaleMode(){return getSalesMode()==='direct'}
+function recalcSalesItem(index){
+  const item=salesItems[index];
+  if(!item)return;
+  item.quantity=Number(item.quantity||0);
+  item.salePrice=Number(item.salePrice||0);
+  item.price=item.salePrice;
+  item.amount=item.quantity*item.salePrice;
+}
+function updateSalesItemQuantity(index,value){
+  const item=salesItems[index];
+  if(!item)return;
+  const next=Number(value||0);
+  if(next<0)return;
+  item.quantity=next;
+  recalcSalesItem(index);
+  renderSalesItems();
+}
+function updateSalesItemPrice(index,value){
+  if(!isDirectSaleMode())return;
+  const item=salesItems[index];
+  if(!item)return;
+  const next=Number(value||0);
+  if(next<0)return;
+  item.salePrice=next;
+  item.price=next;
+  recalcSalesItem(index);
+  renderSalesItems();
+}
+function syncSalesModeUi(){
+  const direct=isDirectSaleMode();
+  if(salesPrice){
+    salesPrice.readOnly=!direct;
+    salesPrice.title=direct?'Được sửa giá bán khi bán thẳng':'Giá khóa theo chương trình khuyến mại';
+    salesPrice.classList.toggle('readonly-price',!direct);
+  }
+  renderSalesItems();
+}
+window.updateSalesItemQuantity=updateSalesItemQuantity;
+window.updateSalesItemPrice=updateSalesItemPrice;
 function renderSalesItems(){
+  const direct=isDirectSaleMode();
   const tq=salesItems.reduce((s,i)=>s+Number(i.quantity||0),0);const ta=salesItems.reduce((s,i)=>s+Number(i.amount||0),0);
   salesTotalQuantity.textContent=money(tq);salesTotalAmount.textContent=money(ta);
   if(!salesItems.length){salesItemsTable.innerHTML='<tr><td colspan="6">Chưa có dòng hàng</td></tr>';return}
-  salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr><td><strong>${i.productCode}</strong></td><td>${i.productName}</td><td>${money(i.quantity)}</td><td class="price">${money(i.salePrice)}</td><td class="price">${money(i.amount)}</td><td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td></tr>`).join('');
+  salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>
+    <td><strong>${i.productCode}</strong></td>
+    <td>${i.productName}</td>
+    <td><input class="sales-line-input qty" type="number" min="0" value="${Number(i.quantity||0)}" onchange="updateSalesItemQuantity(${idx}, this.value)"></td>
+    <td class="price"><input class="sales-line-input price" type="number" min="0" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
+    <td class="price">${money(i.amount)}</td>
+    <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>
+  </tr>`).join('');
 }
 window.removeSalesItem=index=>{salesItems.splice(index,1);renderSalesItems()};
 function addSalesItem(){
@@ -115,8 +167,9 @@ function addSalesItem(){
   if(availableQty<=0){showMessage(salesMessage,`Sản phẩm ${p.code||''} hiện hết tồn mở bán. Vui lòng nhập kho/rebuild tồn kho trước khi bán.`,true);return}
   if(quantity>availableQty){showMessage(salesMessage,`Số lượng bán vượt tồn mở bán. Tồn mở bán hiện tại: ${money(availableQty)} lẻ.`,true);return}
   if(salePrice<0){showMessage(salesMessage,'Giá bán không được âm',true);return}
-  const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice);
-  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,salePrice,amount:quantity*salePrice});
+  const lineMode=getSalesMode();
+  const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&String(i.saleMode||'direct')===lineMode);
+  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,salePrice,price:salePrice,amount:quantity*salePrice,saleMode:lineMode,priceLocked:lineMode==='promotion'});
   if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
 }
 function resetSalesFormAfterSave(){
@@ -124,6 +177,8 @@ function resetSalesFormAfterSave(){
   salesItems=[];
   salesForm.reset();
   salesForm.elements.date.value=today();
+  const directMode=salesForm.querySelector('input[name="saleMode"][value="direct"]');
+  if(directMode)directMode.checked=true;
   salesForm.elements.paidAmount.value=0;
   if(salesCustomerSearch)salesCustomerSearch.value='';
   salesCustomerSelect.value='';
@@ -141,7 +196,9 @@ async function submitSalesOrder(event){
   const payload=Object.fromEntries(new FormData(salesForm).entries());
   if(salesStaffSelect)payload.salesStaffCode=salesStaffSelect.value||'';
   if(salesStaffName)payload.salesStaffName=salesStaffName.value||'';
-  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,salePrice:i.salePrice}));
+  payload.saleMode=getSalesMode();
+  payload.pricingMode=payload.saleMode;
+  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,salePrice:i.salePrice,price:i.salePrice,saleMode:i.saleMode||getSalesMode(),priceLocked:(i.saleMode||getSalesMode())==='promotion'}));
   payload.paidAmount=Number(payload.paidAmount||0);
   if(editingSalesOrderId)payload.actorRole='admin';
   try{
@@ -281,7 +338,10 @@ function openSalesOrderEdit(idx){
   const order=window.__salesOrdersCache?.[idx];
   if(!order)return;
   editingSalesOrderId=order.id||order.code||'';
-  salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),salePrice:Number(i.salePrice||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||0))}));
+  const editMode=order.saleMode||order.pricingMode||order.orderPricingMode||'direct';
+  const modeInput=salesForm.querySelector(`input[name="saleMode"][value="${editMode==='promotion'?'promotion':'direct'}"]`);
+  if(modeInput)modeInput.checked=true;
+  salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMode:i.saleMode||editMode,priceLocked:Boolean(i.priceLocked)||editMode==='promotion'}));
   salesForm.elements.date.value=toDateOnly(order.date||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
@@ -393,6 +453,12 @@ if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
   });
 }
 
+
+
+if(salesForm){
+  salesForm.querySelectorAll('input[name="saleMode"]').forEach(input=>input.addEventListener('change',syncSalesModeUi));
+  syncSalesModeUi();
+}
 
 function selectedSalesOrders(){
   const checks=[...document.querySelectorAll('.sales-order-check:checked')];

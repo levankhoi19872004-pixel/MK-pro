@@ -57,12 +57,20 @@ function calculateDeliveryDebt(order = {}) {
   ));
 }
 
-function calculateItems(items = []) {
+function normalizeSaleMode(value, fallback = 'direct') {
+  const raw = normalizeText(value || fallback);
+  if (['promotion', 'promo', 'khuyen mai', 'khuyenmai', 'km'].some((token) => raw.includes(token))) return 'promotion';
+  return 'direct';
+}
+
+function calculateItems(items = [], saleMode = 'direct') {
+  const normalizedSaleMode = normalizeSaleMode(saleMode);
   return (Array.isArray(items) ? items : [])
     .map((item) => {
+      const lineMode = normalizeSaleMode(item.saleMode || item.pricingMode, normalizedSaleMode);
       const quantity = toNumber(item.quantity ?? item.qty ?? item.totalQty);
       const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice);
-      const amount = toNumber(item.amount ?? item.total ?? quantity * price);
+      const amount = quantity * price;
       return {
         ...item,
         productId: String(item.productId || item.id || item.productCode || item.code || '').trim(),
@@ -72,7 +80,10 @@ function calculateItems(items = []) {
         qty: quantity,
         price,
         salePrice: price,
-        amount
+        amount,
+        saleMode: lineMode,
+        pricingMode: lineMode,
+        priceLocked: lineMode === 'promotion'
       };
     })
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
@@ -90,7 +101,7 @@ async function resolveStaff(body = {}) {
   return userRepository.findStaffByIdOrCode(staffId);
 }
 
-async function hydrateItemNames(items) {
+async function hydrateItemNames(items, saleMode = 'direct') {
   const products = await productRepository.findAll({});
   const byCode = new Map(products.map((p) => [String(p.code || p.sku || p.id || '').trim(), p]));
   return items.map((item) => {
@@ -101,9 +112,12 @@ async function hydrateItemNames(items) {
       productId: item.productId || product.id || product.code,
       productCode: item.productCode || product.code,
       productName: item.productName || product.name,
-      price: item.price || product.salePrice || 0,
-      salePrice: item.salePrice || product.salePrice || 0,
-      amount: item.amount || toNumber(item.quantity) * toNumber(item.price || product.salePrice)
+      price: toNumber(item.price || item.salePrice || product.salePrice || 0),
+      salePrice: toNumber(item.salePrice || item.price || product.salePrice || 0),
+      amount: toNumber(item.quantity) * toNumber(item.salePrice || item.price || product.salePrice || 0),
+      saleMode: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode),
+      pricingMode: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode),
+      priceLocked: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode) === 'promotion' 
     };
   });
 }
@@ -264,7 +278,8 @@ async function createOrder(body = {}) {
   const existingOrders = await orderRepository.findAll();
   const customer = await resolveCustomer(body);
   const staff = await resolveStaff(body);
-  const items = await hydrateItemNames(calculateItems(body.items));
+  const saleMode = normalizeSaleMode(body.saleMode || body.pricingMode || body.orderPricingMode || body.priceMode || 'direct');
+  const items = await hydrateItemNames(calculateItems(body.items, saleMode), saleMode);
   if (!items.length) return { error: 'Đơn bán chưa có sản phẩm', status: 400 };
   const totalAmount = toNumber(body.totalAmount || items.reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount || body.paid || 0);
@@ -285,6 +300,10 @@ async function createOrder(body = {}) {
     salesStaffId: staff?.id || body.salesStaffId || body.staffId || '',
     salesStaffCode: staff?.code || body.salesStaffCode || body.staffCode || '',
     salesStaffName: staff?.name || body.salesStaffName || body.staffName || '',
+    saleMode,
+    pricingMode: saleMode,
+    orderPricingMode: saleMode,
+    isPromotionSale: saleMode === 'promotion',
     items,
     totalAmount,
     paidAmount,
@@ -313,12 +332,17 @@ async function updateOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
   if (current.masterOrderId || current.mergeStatus === 'merged') return { error: 'Đơn đã gộp, không nên sửa trực tiếp đơn con', status: 400 };
-  const items = body.items ? await hydrateItemNames(calculateItems(body.items)) : current.items;
+  const saleMode = normalizeSaleMode(body.saleMode || body.pricingMode || body.orderPricingMode || current.saleMode || current.pricingMode || 'direct');
+  const items = body.items ? await hydrateItemNames(calculateItems(body.items, saleMode), saleMode) : current.items;
   const totalAmount = toNumber(body.totalAmount ?? (items || []).reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount ?? current.paidAmount ?? 0);
   const updated = applyOrderSourceFields({
     ...current,
     ...body,
+    saleMode,
+    pricingMode: saleMode,
+    orderPricingMode: saleMode,
+    isPromotionSale: saleMode === 'promotion',
     items,
     totalAmount,
     paidAmount,

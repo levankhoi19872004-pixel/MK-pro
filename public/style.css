@@ -5118,3 +5118,64 @@ button.danger:hover{background:#fecaca}
 .import-preview-wrap td{
   vertical-align:top;
 }
+
+/* V45: bố cục tạo đơn bán + phương thức bán */
+#salesTab .sales-customer-staff-row{
+  grid-template-columns:1.2fr 1fr!important;
+  align-items:end!important;
+}
+#salesTab .sales-customer-staff-row > label:nth-child(1),
+#salesTab .sales-customer-staff-row > label:nth-child(2){
+  grid-column:auto!important;
+}
+#salesTab .sales-date-mode-row{
+  grid-template-columns:.75fr 1.45fr!important;
+  align-items:end!important;
+}
+#salesTab .sales-mode-box{
+  border:1px solid var(--line-soft,#dbe5f2);
+  border-radius:12px;
+  padding:7px 9px;
+  background:#f8fbff;
+  min-height:32px;
+}
+#salesTab .sales-mode-title{
+  font-size:11px;
+  font-weight:800;
+  color:#344563;
+  margin-bottom:4px;
+}
+#salesTab .sales-mode-option{
+  display:inline-flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  gap:5px!important;
+  margin-right:10px!important;
+  font-size:12px!important;
+  font-weight:700!important;
+}
+#salesTab .sales-mode-option input{
+  min-height:auto!important;
+  width:15px!important;
+  height:15px!important;
+  padding:0!important;
+}
+#salesTab .sales-line-input{
+  width:88px!important;
+  min-height:26px!important;
+  padding:3px 6px!important;
+  text-align:right!important;
+  font-size:12px!important;
+}
+#salesTab .sales-line-input.price[readonly],
+#salesTab #salesPrice.readonly-price{
+  background:#eef3f8!important;
+  color:#6b7280!important;
+  cursor:not-allowed!important;
+}
+@media(max-width:900px){
+  #salesTab .sales-customer-staff-row,
+  #salesTab .sales-date-mode-row{
+    grid-template-columns:1fr!important;
+  }
+}
