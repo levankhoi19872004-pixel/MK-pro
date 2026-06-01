@@ -428,7 +428,7 @@ function getImportOrderShortageState(row){
     return {type:'error',label:'🔴 Lỗi',count:0,shortages};
   }
   if(!row.hasShortage||!shortages.length){
-    return {type:'ok',label:'🟢',count:0,shortages};
+    return {type:'ok',label:'🟢 Đủ tồn',count:0,shortages};
   }
   const fullShortage=lineCount>0
     && shortages.length>=lineCount
@@ -462,26 +462,36 @@ function renderImportOrderPreviewSummary(row,index,options={}){
   const checked=options.modal?'import-modal-row-check':'import-row-check';
   const showCheckbox=options.inline ? false : true;
   const checkHtml=(showCheckbox&&row.valid)?`<input class="${checked}" data-index="${index}" type="checkbox" checked />`:'';
-  const customer=row.customerName||row.supplier||row.customerCode||'';
-  const lineCount=Number(row.lineCount||(Array.isArray(row.lineDetails)?row.lineDetails.length:0)||0);
-  const staffCode=row.staffCode||row.salesStaffCode||row.salesmanCode||row.employeeCode||'';
-  const staffName=row.staffName||row.salesStaffName||row.salesmanName||row.employeeName||'';
-  const staffCodeHtml=staffCode ? `<span>|</span><span>Mã NVBH: ${escapeImportHtml(staffCode)}</span>` : '';
-  const staffNameHtml=staffName ? `<span>|</span><span>NVBH: ${escapeImportHtml(staffName)}</span>` : '';
+  const customer=row.customerName||row.customer||row.supplier||row.customerCode||'';
+  const lineCount=Number(
+    row.lineCount ||
+    row.skuCount ||
+    row.itemCount ||
+    (Array.isArray(row.lineDetails)?row.lineDetails.length:0) ||
+    (Array.isArray(row.items)?row.items.length:0) ||
+    (Array.isArray(row.__importRows)?row.__importRows.length:0) ||
+    0
+  );
+  const staffCode=row.staffCode||row.salesStaffCode||row.salesmanCode||row.employeeCode||row.raw?.staffCode||row.raw?.salesStaffCode||row.raw?.['Mã NVBH']||row.raw?.['Ma NVBH']||'';
+  const staffName=row.staffName||row.salesStaffName||row.salesmanName||row.employeeName||row.raw?.staffName||row.raw?.salesStaffName||row.raw?.['Tên NVBH']||row.raw?.['Ten NVBH']||'';
+  const code=row.documentCode||row.code||row.orderCode||row.invoiceCode||'';
+  const total=Number(row.totalAmount ?? row.amount ?? row.grossAmount ?? 0);
   return `
     <div class="import-order-preview-item ${state.type}">
       ${showCheckbox?`<div class="import-order-preview-check">${checkHtml}</div>`:''}
       <div class="import-order-preview-content">
         <div class="import-order-preview-line">
-          <strong>${escapeImportHtml(row.documentCode||row.code||'')}</strong>
+          <strong>${escapeImportHtml(code)}</strong>
           <span>|</span>
           <span>${escapeImportHtml(customer)}</span>
           <span>|</span>
-          <span class="price">${money(row.totalAmount||0)}</span>
+          <span class="price">${money(total)}</span>
           <span>|</span>
           <span>${formatNumber(lineCount)} SP</span>
-          ${staffCodeHtml}
-          ${staffNameHtml}
+          <span>|</span>
+          <span>Mã NVBH: ${escapeImportHtml(staffCode||'-')}</span>
+          <span>|</span>
+          <span>NVBH: ${escapeImportHtml(staffName||'-')}</span>
           <span>|</span>
           <span class="import-order-status ${state.type}">${escapeImportHtml(state.label)}</span>
         </div>
@@ -653,7 +663,7 @@ function renderImportPreview(result){
       importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
         <tr class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
           <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
-          <td>${renderImportOrderPreviewSummary(row,index,{inline:true}).replace(/<input[^>]*>/,'')}</td>
+          <td>${renderImportOrderPreviewSummary(row,index,{inline:true})}</td>
         </tr>`).join('');
     }else{
       importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
