@@ -314,7 +314,7 @@ function resetImportPreviewMessage(){
 function getSelectedImportRows(){
   return importPreviewRows.filter((row,index)=>{
     const checkbox=document.querySelector(`.import-row-check[data-index="${index}"]`);
-    return checkbox && checkbox.checked && row.valid;
+    return checkbox && checkbox.checked && row.valid && row.canImport !== false;
   });
 }
 function escapeImportHtml(value){
@@ -326,7 +326,8 @@ function importRowToText(row){
     const total=row.totalAmount!==undefined?money(row.totalAmount):'';
     const status=row.statusText||(row.valid?'Hợp lệ':'Lỗi');
     const shortage=row.hasShortage?` | Vượt tồn: ${formatNumber(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:'';
-    return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | Trạng thái: ${status}${shortage}`;
+    const sourceFile=row.sourceFile||row.fileName||'';
+    return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | File: ${sourceFile||'-'} | Trạng thái: ${status}${shortage}`;
   }
   const skip=['valid','errors','rowNo','raw','__importRows','__adjustedRows','lineDetails','shortageReport','detailErrors'];
   return Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??''}`).join(' | ');
@@ -335,6 +336,7 @@ function getImportRowMainFields(row){
   if(row&&row.previewMode==='order'){
     return [
       {key:'Mã đơn',value:row.documentCode||''},
+      {key:'File nguồn',value:row.sourceFile||row.fileName||''},
       {key:'Mã NVBH',value:row.staffCode||row.salesStaffCode||''},
       {key:'NVBH',value:row.staffName||row.salesStaffName||''},
       {key:row.supplier?'Nhà cung cấp':'Mã KH',value:row.supplier||row.customerCode||''},
@@ -571,7 +573,8 @@ function renderImportOrderPreviewSummary(row,index,options={}){
   const state=getImportOrderShortageState(row);
   const checked=options.modal?'import-modal-row-check':'import-row-check';
   const showCheckbox=options.inline ? false : true;
-  const checkHtml=(showCheckbox&&row.valid)?`<input class="${checked}" data-index="${index}" type="checkbox" checked />`:'';
+  const canCheck=!!row.valid && row.canImport !== false;
+  const checkHtml=(showCheckbox&&canCheck)?`<input class="${checked}" data-index="${index}" type="checkbox" checked />`:'';
   const customer=row.customerName||row.customer||row.supplier||row.customerCode||'';
   const lineCount=Number(
     row.lineCount ||
@@ -586,12 +589,13 @@ function renderImportOrderPreviewSummary(row,index,options={}){
   const staffName=getImportPreviewSalesStaffName(row);
   const code=row.documentCode||row.code||row.orderCode||row.invoiceCode||'';
   const total=Number(row.totalAmount ?? row.amount ?? row.grossAmount ?? 0);
+  const sourceFile=row.sourceFile||row.fileName||'';
   return `
     <div class="import-order-preview-item ${state.type} ${showCheckbox?'':'no-check'}">
       ${showCheckbox?`<div class="import-order-preview-check">${checkHtml}</div>`:''}
       <div class="import-order-preview-content">
         <div class="import-order-line import-order-preview-line">
-          <strong>${escapeImportHtml(code)}</strong> | ${escapeImportHtml(customer)} | ${money(total)} | ${formatNumber(lineCount)} SP | Mã NVBH: ${escapeImportHtml(staffCode||'-')} | NVBH: ${escapeImportHtml(staffName||'-')} | <span class="import-order-status ${state.type}">${escapeImportHtml(state.label)}</span>
+          <strong>${escapeImportHtml(code)}</strong> | ${escapeImportHtml(customer)} | ${money(total)} | ${formatNumber(lineCount)} SP | Mã NVBH: ${escapeImportHtml(staffCode||'-')} | NVBH: ${escapeImportHtml(staffName||'-')} | File: ${escapeImportHtml(sourceFile||'-')} | <span class="import-order-status ${state.type}">${escapeImportHtml(state.label)}</span>
         </div>
         ${renderImportOrderShortageLines(row,2)}
         ${!row.valid&&Array.isArray(row.errors)&&row.errors.length?`<div class="import-preview-error"><b>Lỗi:</b> ${escapeImportHtml(row.errors.join('; '))}</div>`:''}
@@ -632,7 +636,7 @@ function renderImportPreviewModal(result){
       return `<article class="import-preview-card ${row.valid?'valid':'invalid'}">
         <div class="import-preview-card-head">
           <label class="import-preview-check-wrap">
-            ${row.valid?`<input class="import-row-check import-modal-row-check" data-index="${index}" type="checkbox" checked />`:''}
+            ${row.valid&&row.canImport!==false?`<input class="import-row-check import-modal-row-check" data-index="${index}" type="checkbox" checked />`:''}
             <span>Dòng ${escapeImportHtml(row.rowNo||'')}</span>
           </label>
           <span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span>
@@ -745,7 +749,9 @@ function renderImportPreview(result){
   const valid=importPreviewRows.filter(r=>r&&r.valid).length;
   const invalid=Math.max(0,total-valid);
   if(importPreviewSummary){
-    importPreviewSummary.innerHTML=`<span>Tổng dòng: <strong>${total}</strong></span><span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`;
+    const fileCount=Number(result.totalFiles||0);
+    const fileText=fileCount>1?`<span>Số file: <strong>${fileCount}</strong></span>`:'';
+    importPreviewSummary.innerHTML=`${fileText}<span>Tổng dòng/đơn: <strong>${total}</strong></span><span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`;
   }
   if(!importPreviewRows.length){
     if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu import.</td></tr>';
@@ -762,13 +768,13 @@ function renderImportPreview(result){
     if(orderMode){
       importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
         <tr class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
-          <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
+          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
           <td>${renderImportOrderPreviewSummary(row,index,{inline:true})}</td>
         </tr>`).join('');
     }else{
       importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
         <tr class="${row.valid?'import-valid':'import-invalid'}">
-          <td>${row.valid?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
+          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
           <td>${row.rowNo||''}</td>
           <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
           <td>${importRowToText(row)}</td>
@@ -795,7 +801,8 @@ async function previewImportExcel(){
     renderImportPreview(json);
     const validNow=importPreviewRows.filter(r=>r&&r.valid).length;
     const invalidNow=Math.max(0,importPreviewRows.length-validNow);
-    showMessage(importDataMessage,`Đã đọc file: ${validNow} dòng/đơn hợp lệ, ${invalidNow} lỗi. Hãy tick chọn đơn rồi bấm Import các đơn đã chọn.`);
+    const fileCount=Array.from(importExcelFile.files||[]).length;
+    showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${validNow} dòng/đơn hợp lệ, ${invalidNow} lỗi. Hãy tick chọn đơn rồi bấm Import các đơn đã chọn.`);
   }catch(err){
     importPreviewRows=[];
     if(commitImportButton)commitImportButton.disabled=true;
@@ -805,12 +812,12 @@ async function previewImportExcel(){
 
 async function previewImportExcelSilent(){
   if(!importDataType||!importExcelFile)throw new Error('Thiếu thông tin import');
-  const file=importExcelFile.files[0];
-  if(!file)throw new Error('Bạn chưa chọn file Excel');
+  const files=Array.from(importExcelFile.files||[]);
+  if(!files.length)throw new Error('Bạn chưa chọn file Excel');
   const formData=new FormData();
   formData.append('type',importDataType.value);
   if(customImportTemplateSelect&&customImportTemplateSelect.value)formData.append('templateId',customImportTemplateSelect.value);
-  formData.append('file',file);
+  files.forEach(file=>formData.append('files',file));
   const res=await fetch('/api/import/preview',{method:'POST',body:formData});
   const json=await res.json();
   if(!json.ok)throw new Error(json.error||json.message||'Không đọc được file import');
@@ -828,8 +835,8 @@ async function handleImportExcelAction(){
 async function commitImportExcel(){
   if(!importDataType||!importExcelFile)return;
   try{
-    const file=importExcelFile.files[0];
-    if(!file){showMessage(importDataMessage,'Bạn chưa chọn file Excel',true);return;}
+    const files=Array.from(importExcelFile.files||[]);
+    if(!files.length){showMessage(importDataMessage,'Bạn chưa chọn file Excel',true);return;}
 
     if(!importPreviewRows.length){
       await previewImportExcel();

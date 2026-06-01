@@ -5,32 +5,93 @@ const { STAFF_ROLES } = require('../constants/business.constants');
 const { normalizeCode } = require('./commonRules');
 const { makeBusinessError } = require('../utils/businessError.util');
 
+function escapeRegex(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function roleList(type) {
   return type === 'delivery' ? STAFF_ROLES.DELIVERY : STAFF_ROLES.SALES;
 }
 
+function normalizeRoleText(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_\-]+/g, '');
+}
+
 function roleMatches(row = {}, type = 'sales') {
-  const roles = roleList(type).map((r) => String(r).toLowerCase());
-  const value = String(row.role || row.type || row.position || row.department || '').toLowerCase();
-  if (roles.includes(value)) return true;
-  if (type === 'sales') return row.isSalesman === true || row.isSalesStaff === true || row.salesStaff === true;
-  return row.isDelivery === true || row.isDeliveryStaff === true || row.deliveryStaff === true;
+  const allowed = roleList(type).map(normalizeRoleText);
+  const roleValues = [
+    row.role,
+    row.type,
+    row.position,
+    row.department,
+    row.roleLabel,
+    row.group,
+    row.team
+  ].map(normalizeRoleText).filter(Boolean);
+
+  if (roleValues.some((value) => allowed.includes(value))) return true;
+
+  if (type === 'sales') {
+    if (row.isSalesman === true || row.isSalesStaff === true || row.salesStaff === true) return true;
+    return roleValues.some((value) => ['banhang', 'nhanvienbanhang', 'nvbanhang', 'nvbh', 'sales', 'salesstaff'].includes(value));
+  }
+
+  if (row.isDelivery === true || row.isDeliveryStaff === true || row.deliveryStaff === true) return true;
+  return roleValues.some((value) => ['giaohang', 'nhanviengiaohang', 'nvgiaohang', 'nvgh', 'delivery', 'deliverystaff', 'shipper'].includes(value));
+}
+
+function codeCandidates(staffCode) {
+  const code = normalizeCode(staffCode);
+  if (!code) return [];
+  const values = new Set([code, String(staffCode).trim()]);
+  if (/^\d+$/.test(code)) values.add(Number(code));
+  return Array.from(values).filter((value) => value !== '' && value !== null && value !== undefined);
+}
+
+function buildCodeFilter(staffCode) {
+  const values = codeCandidates(staffCode);
+  const textValues = values.filter((value) => typeof value === 'string');
+  const numericValues = values.filter((value) => typeof value === 'number');
+  const exactRegexes = textValues.map((value) => new RegExp(`^${escapeRegex(value)}$`, 'i'));
+
+  // Quy tắc V45: mã NVBH/NVGH lấy từ tài khoản trong collection users.
+  // Ưu tiên users.staffCode, nhưng nhiều dữ liệu cũ lưu mã nhân viên ở users.code.
+  // Không dùng username/id để tránh tài khoản chung như `banhang`, `giaohang` bị nhận nhầm.
+  const codeFields = ['staffCode', 'code', 'employeeCode', 'salesStaffCode', 'deliveryStaffCode'];
+  const clauses = [];
+  for (const field of codeFields) {
+    if (textValues.length) clauses.push({ [field]: { $in: textValues } });
+    if (numericValues.length) clauses.push({ [field]: { $in: numericValues } });
+    for (const rx of exactRegexes) clauses.push({ [field]: rx });
+  }
+  return clauses;
 }
 
 async function resolveStaffByCode(staffCode, type = 'sales') {
   const code = normalizeCode(staffCode);
   if (!code) return null;
-  const roles = roleList(type).map((r) => new RegExp(`^${String(r).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
 
-  // Quy tắc V45: mã NVBH/NVGH là mã nhân viên thật trong users.staffCode.
-  // Không fallback sang username/id, vì username có thể là tài khoản chung như `banhang` hoặc `giaohang`.
-  return User.findOne({
+  const codeFilter = buildCodeFilter(code);
+  if (!codeFilter.length) return null;
+
+  const candidates = await User.find({
     isActive: { $ne: false },
-    staffCode: code,
-    role: { $in: roles }
-  }).lean();
-}
+    $or: codeFilter
+  })
+    .select('id staffCode code employeeCode salesStaffCode deliveryStaffCode username name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive')
+    .lean()
+    .catch(() => []);
 
+  const matched = candidates.find((row) => roleMatches(row, type));
+  return matched || null;
+}
 
 async function resolveSalesStaffByCode(staffCode) {
   return resolveStaffByCode(staffCode, 'sales');
@@ -47,10 +108,11 @@ async function validateStaffCode(staffCode, type = 'sales', context = {}) {
     return { valid: false, staff: null, error: makeBusinessError({ code: `MISSING_${label}_CODE`, message: `Thiếu mã ${label}`, orderCode: context.orderCode || '', field: type === 'delivery' ? 'deliveryStaffCode' : 'salesStaffCode' }) };
   }
   const staff = await resolveStaffByCode(code, type);
-  if (!staff || !roleMatches(staff, type)) {
+  if (!staff) {
     return { valid: false, staff: null, error: makeBusinessError({ code: `INVALID_${label}_CODE`, message: `Mã ${label} ${code} không tồn tại trong danh sách tài khoản`, orderCode: context.orderCode || '', field: type === 'delivery' ? 'deliveryStaffCode' : 'salesStaffCode' }) };
   }
-  return { valid: true, staff: { ...staff, code: staff.staffCode || staff.code || staff.username, name: staff.fullName || staff.name || staff.username }, error: null };
+  const realCode = staff.staffCode || staff.code || staff.employeeCode || staff.salesStaffCode || staff.deliveryStaffCode || code;
+  return { valid: true, staff: { ...staff, code: String(realCode || '').trim(), name: staff.fullName || staff.name || staff.username }, error: null };
 }
 
 function validateSalesStaffCode(staffCode, context = {}) { return validateStaffCode(staffCode, 'sales', context); }

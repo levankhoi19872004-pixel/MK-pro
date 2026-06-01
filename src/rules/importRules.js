@@ -4,6 +4,7 @@ const { normalizeCode } = require('./commonRules');
 const staffRules = require('./staffRules');
 const customerRules = require('./customerRules');
 const productRules = require('./productRules');
+const SalesOrder = require('../models/SalesOrder');
 const { makeBusinessError, makeBusinessWarning } = require('../utils/businessError.util');
 
 function pushUnique(list, value) {
@@ -13,8 +14,20 @@ function pushUnique(list, value) {
   if (!list.some((item) => (typeof item === 'string' ? item : item.message) === message)) list.push(value);
 }
 
+function cleanText(value) {
+  return String(value ?? '').trim();
+}
+
+function getOrderCode(order = {}) {
+  return normalizeCode(order.documentCode || order.orderCode || order.invoiceCode || order.code);
+}
+
+function getSourceFile(order = {}) {
+  return cleanText(order.sourceFile || order.fileName || order.originalFileName || order.raw?.sourceFile || order.raw?.__sourceFile || '');
+}
+
 async function validateImportSalesOrder(order = {}, context = {}) {
-  const orderCode = normalizeCode(order.documentCode || order.orderCode || order.code);
+  const orderCode = getOrderCode(order);
   const errors = [];
   const warnings = [];
   const resolved = {};
@@ -56,6 +69,8 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   const flatWarnings = warnings.map((e) => (typeof e === 'string' ? e : e.message)).filter(Boolean);
   return {
     ...order,
+    sourceFile: getSourceFile(order),
+    fileName: getSourceFile(order),
     documentCode: order.documentCode || orderCode,
     orderCode: order.orderCode || orderCode,
     customerCode: resolved.customerCode || customerCode || order.customerCode || '',
@@ -74,20 +89,63 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   };
 }
 
-async function validateImportBatch(orders = []) {
-  const seen = new Set();
-  const out = [];
-  for (const order of orders || []) {
-    let row = await validateImportSalesOrder(order);
-    const code = normalizeCode(row.documentCode || row.orderCode || row.code);
-    if (code && seen.has(code)) {
-      const msg = `Mã đơn / số hóa đơn ${code} bị trùng trong file preview`;
-      row = { ...row, valid: false, canImport: false, errors: [...(row.errors || []), msg], businessErrors: [...(row.businessErrors || []), makeBusinessError({ code: 'DUPLICATE_ORDER_CODE_IN_BATCH', message: msg, orderCode: code, field: 'documentCode' })] };
-    }
-    if (code) seen.add(code);
-    out.push(row);
-  }
-  return out;
+async function findExistingOrderCodeSet(orderCodes = []) {
+  const codes = Array.from(new Set((orderCodes || []).map(cleanText).filter(Boolean)));
+  if (!codes.length) return new Set();
+  const rows = await SalesOrder.find({
+    $or: [
+      { documentCode: { $in: codes } },
+      { invoiceCode: { $in: codes } },
+      { code: { $in: codes } }
+    ]
+  }).select('documentCode invoiceCode code').lean().catch(() => []);
+  return new Set(rows.flatMap((row) => [row.documentCode, row.invoiceCode, row.code]).map(cleanText).filter(Boolean));
 }
 
-module.exports = { validateImportSalesOrder, validateImportBatch };
+async function validateImportBatch(orders = []) {
+  const validated = [];
+  for (const order of orders || []) validated.push(await validateImportSalesOrder(order));
+
+  const byCode = new Map();
+  validated.forEach((row, index) => {
+    const code = getOrderCode(row);
+    if (!code) return;
+    if (!byCode.has(code)) byCode.set(code, []);
+    byCode.get(code).push({ row, index });
+  });
+
+  for (const [code, items] of byCode.entries()) {
+    if (items.length <= 1) continue;
+    const files = Array.from(new Set(items.map((item) => getSourceFile(item.row)).filter(Boolean)));
+    const suffix = files.length ? ` giữa các file: ${files.join(', ')}` : ' trong batch preview';
+    const msg = `Mã đơn / số hóa đơn ${code} bị trùng${suffix}`;
+    items.forEach(({ index }) => {
+      const row = validated[index];
+      validated[index] = {
+        ...row,
+        valid: false,
+        canImport: false,
+        errors: [...new Set([...(row.errors || []), msg])],
+        businessErrors: [...(row.businessErrors || []), makeBusinessError({ code: 'DUPLICATE_ORDER_CODE_IN_BATCH', message: msg, orderCode: code, field: 'documentCode' })]
+      };
+    });
+  }
+
+  const existingCodeSet = await findExistingOrderCodeSet(Array.from(byCode.keys()));
+  validated.forEach((row, index) => {
+    const code = getOrderCode(row);
+    if (!code || !existingCodeSet.has(code)) return;
+    const msg = `Mã đơn / số hóa đơn ${code} đã tồn tại trong hệ thống`;
+    validated[index] = {
+      ...row,
+      valid: false,
+      canImport: false,
+      errors: [...new Set([...(row.errors || []), msg])],
+      businessErrors: [...(row.businessErrors || []), makeBusinessError({ code: 'DUPLICATE_ORDER_CODE_IN_DATABASE', message: msg, orderCode: code, field: 'documentCode' })]
+    };
+  });
+
+  return validated;
+}
+
+module.exports = { validateImportSalesOrder, validateImportBatch, findExistingOrderCodeSet };

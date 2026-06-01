@@ -2,9 +2,22 @@
 
 const excelImportService = require('../services/excelImportService');
 
+function normalizeUploadedFiles(req) {
+  const files = [];
+  if (req.file) files.push(req.file);
+  if (Array.isArray(req.files)) files.push(...req.files);
+  else if (req.files && typeof req.files === 'object') {
+    Object.values(req.files).forEach((list) => {
+      if (Array.isArray(list)) files.push(...list);
+    });
+  }
+  return files.filter((file) => file && file.buffer);
+}
+
 async function preview(req, res) {
   try {
-    const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), buffer: req.file?.buffer, userName: req.user?.username || req.user?.fullName || '' });
+    const files = normalizeUploadedFiles(req);
+    const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), files, buffer: files[0]?.buffer, fileName: files[0]?.originalname || '', userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, ...result });
   } catch (err) {
@@ -24,9 +37,12 @@ async function commit(req, res) {
 
 async function direct(req, res) {
   try {
+    const files = normalizeUploadedFiles(req);
     const result = await excelImportService.importDirect({
       type: String(req.body?.type || '').trim(),
-      buffer: req.file?.buffer
+      files,
+      buffer: files[0]?.buffer,
+      fileName: files[0]?.originalname || ''
     });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, ...result });

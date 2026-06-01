@@ -1401,9 +1401,12 @@ async function importCashbook(rows = []) {
 
 function rowBase(row = {}) {
   const rowNo = row.__rowNo || row.rowNo || row.dong || row['Dòng'] || row['Dong'] || '';
+  const sourceFile = cleanText(row.sourceFile || row.__sourceFile || row.fileName || row.originalFileName || '');
   return {
     rowNo,
     sourceRowNo: rowNo,
+    sourceFile,
+    fileName: sourceFile,
     raw: row
   };
 }
@@ -1512,6 +1515,7 @@ function makeSalesOrderGroupKey(row = {}) {
     ? documentCode
     : `AUTO_ROW_${row.__rowNo || row.rowNo || makeId('ROW')}`;
   return [
+    cleanText(row.__sourceFile || row.sourceFile || row.fileName || ''),
     safeDocumentCode,
     getDateFromRow(row),
     getCustomerCodeFromRow(row)
@@ -1934,13 +1938,52 @@ async function previewMongoNative(type, rows = []) {
   return { type, rows: result, total: result.length, valid: result.filter((r) => r.valid).length, invalid: result.filter((r) => !r.valid).length };
 }
 
-async function preview({ type, buffer, userName = '' }) {
+
+function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {}) {
+  const list = [];
+  if (Array.isArray(files) && files.length) {
+    files.forEach((file, index) => {
+      if (file && file.buffer) list.push({ buffer: file.buffer, fileName: cleanText(file.originalname || file.filename || file.name || `File ${index + 1}.xlsx`) });
+    });
+  }
+  if (!list.length && buffer) list.push({ buffer, fileName: cleanText(fileName || 'File Excel') });
+  return list;
+}
+
+function parseExcelFiles({ files = [], buffer = null, fileName = '' } = {}) {
+  const normalizedFiles = normalizeImportFiles({ files, buffer, fileName });
+  const rows = [];
+  const fileReports = [];
+  for (const file of normalizedFiles) {
+    const fileRows = parseExcelBuffer(file.buffer).map((row, index) => ({
+      ...row,
+      __sourceFile: file.fileName,
+      sourceFile: file.fileName,
+      fileName: file.fileName,
+      __fileIndex: fileReports.length,
+      __rowNo: row.__rowNo || row.rowNo || index + 2
+    }));
+    fileReports.push({
+      fileName: file.fileName,
+      totalRows: fileRows.length,
+      totalOrders: 0,
+      errors: []
+    });
+    rows.push(...fileRows);
+  }
+  return { rows, fileReports, totalFiles: normalizedFiles.length };
+}
+
+async function preview({ type, files = [], buffer = null, fileName = '', userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
-  if (!buffer) return { error: 'Chưa chọn file Excel', status: 400 };
-  const rows = parseExcelBuffer(buffer);
+  const parsed = parseExcelFiles({ files, buffer, fileName });
+  if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
+  const rows = parsed.rows;
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
   const result = await previewMongoNative(type, rows);
+  result.files = parsed.fileReports;
+  result.totalFiles = parsed.totalFiles;
   if (type === 'salesOrders') {
     const validatedRows = await importRules.validateImportBatch(result.rows || []);
     const session = importSessionService.createSession({ type, rows: validatedRows, rawRows: rows, createdBy: userName });
@@ -1956,8 +1999,20 @@ async function preview({ type, buffer, userName = '' }) {
         invalidOrders: validatedRows.filter((r) => !r.valid).length
       }
     });
+    const orderCountByFile = new Map();
+    validatedRows.forEach((row) => {
+      const name = cleanText(row.sourceFile || row.fileName || '');
+      if (!name) return;
+      orderCountByFile.set(name, Number(orderCountByFile.get(name) || 0) + 1);
+    });
+    const fileReports = (parsed.fileReports || []).map((report) => ({
+      ...report,
+      totalOrders: Number(orderCountByFile.get(report.fileName) || 0),
+      errors: validatedRows.filter((row) => cleanText(row.sourceFile || row.fileName) === report.fileName && row.valid === false).flatMap((row) => row.errors || []).slice(0, 20)
+    }));
     return {
       ...result,
+      files: fileReports,
       rows: validatedRows,
       total: validatedRows.length,
       valid: validatedRows.filter((r) => r.valid).length,
@@ -2053,10 +2108,11 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   };
 }
 
-async function importDirect({ type, buffer }) {
+async function importDirect({ type, files = [], buffer = null, fileName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
-  if (!buffer) return { error: 'Chưa chọn file Excel', status: 400 };
-  const rows = parseExcelBuffer(buffer);
+  const parsed = parseExcelFiles({ files, buffer, fileName });
+  if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
+  const rows = parsed.rows;
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
   let result;
