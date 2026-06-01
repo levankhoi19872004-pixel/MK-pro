@@ -493,6 +493,85 @@ async function preloadProductsByCode(rows = []) {
   return map;
 }
 
+function getProductNameFromImportRow(row = {}, productCode = '') {
+  return cleanText(
+    row.productName ||
+    row.name ||
+    row['Tên hàng hóa'] ||
+    row['Ten hang hoa'] ||
+    row['Tên sản phẩm'] ||
+    row['Ten san pham'] ||
+    row['Tên hàng'] ||
+    row['Ten hang'] ||
+    text(row, ['productName', 'tên hàng hóa', 'ten hang hoa', 'tên sản phẩm', 'ten san pham', 'tên hàng', 'ten hang'])
+  ) || `Sản phẩm tự tạo ${productCode}`;
+}
+
+function buildAutoCreatedProductPayload(row = {}, productCode = '') {
+  const warehouseCode = normalizeProductWarehouseCode(row.warehouseCode || row.warehouse || row.kho || row['Kho'] || row['Kho mặc định'] || row['Kho mac dinh']);
+  const packingInfo = normalizePacking({
+    unit: row.unit || row['Đơn vị'] || row['Don vi'],
+    baseUnit: row.baseUnit || row['Đơn vị gốc'] || row['Don vi goc'],
+    conversionRate: row.conversionRate || row['Quy đổi'] || row['Quy doi'] || row['Tỷ lệ'] || row['Ty le'],
+    packing: row.packing || row.package || row['Quy cách'] || row['Quy cach']
+  });
+  const costPrice = getCostFromRow(row);
+  const salePrice = getSalePriceFromRow(row);
+  const payload = {
+    code: productCode,
+    name: getProductNameFromImportRow(row, productCode),
+    ...packingInfo,
+    barcode: cleanText(row.barcode || row['Mã vạch'] || row['Ma vach']),
+    category: cleanText(row.category || row['Nhóm hàng'] || row['Nhom hang']),
+    brand: cleanText(row.brand || row['Thương hiệu'] || row['Thuong hieu']),
+    warehouseCode,
+    warehouseName: productWarehouseName(warehouseCode),
+    costPrice,
+    salePrice: salePrice > 0 ? salePrice : 0,
+    minStock: 0,
+    maxStock: 0,
+    isActive: true,
+    autoCreated: true,
+    autoCreatedFrom: 'import_order_excel',
+    autoCreatedAt: nowIso()
+  };
+  payload.searchText = productSearchText(payload);
+  return payload;
+}
+
+async function ensureProductForImportRow(row = {}, productMap = new Map(), autoCreatedProducts = []) {
+  const productCode = getProductCodeFromRow(row);
+  const productKey = cleanText(productCode);
+  if (!productKey) return null;
+
+  const cached = productMap.get(productKey);
+  if (cached) return cached;
+
+  const existing = await findProductByAny(productKey);
+  if (existing) {
+    [existing.code, existing.productCode, existing.sku, existing.barcode, existing.id, String(existing._id || '')]
+      .filter(Boolean)
+      .forEach((key) => productMap.set(cleanText(key), existing));
+    return existing;
+  }
+
+  const payload = buildAutoCreatedProductPayload(row, productKey);
+  const createdDoc = await Product.create(payload);
+  const created = typeof createdDoc.toObject === 'function' ? createdDoc.toObject() : createdDoc;
+  [created.code, created.productCode, created.sku, created.barcode, created.id, String(created._id || '')]
+    .filter(Boolean)
+    .forEach((key) => productMap.set(cleanText(key), created));
+  autoCreatedProducts.push({
+    code: created.code,
+    name: created.name,
+    unit: created.unit,
+    costPrice: created.costPrice,
+    warehouseCode: created.warehouseCode,
+    source: 'import_order_excel'
+  });
+  return created;
+}
+
 async function preloadCustomersByCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getCustomerCodeFromRow).filter(Boolean)));
   const customers = codes.length ? await Customer.find({ $or: [
@@ -730,6 +809,7 @@ async function upsertCustomers(rows = []) {
 }
 
 async function importOpeningStock(rows = []) {
+  const shortageReport = [];
   let imported = 0;
   let skipped = 0;
   const errors = [];
@@ -816,6 +896,7 @@ async function importImportOrders(rows = []) {
   let skipped = 0;
   const errors = [];
   const productMap = await preloadProductsByCode(rows);
+  const autoCreatedProducts = [];
   const importDocumentCodes = Array.from(new Set(rows.map(r => cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don'])).filter(Boolean)));
   const existingOrders = await SalesOrder.find({ documentCode: { $in: importDocumentCodes } }).select('documentCode').lean().catch(() => []);
   const existingDocumentSet = new Set(existingOrders.map(o => cleanText(o.documentCode)));
@@ -832,12 +913,19 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     const items = [];
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
-      const product = productMap.get(cleanText(productCode));
+      let product = null;
+      try {
+        product = await ensureProductForImportRow(row, productMap, autoCreatedProducts);
+      } catch (error) {
+        skipped += 1;
+        errors.push({ productCode, message: `Không thể tự tạo sản phẩm: ${error.message}` });
+        continue;
+      }
       const quantity = getQtyFromRow(row);
       const costPrice = getCostFromRow(row);
       if (!product || quantity <= 0 || costPrice < 0) {
         skipped += 1;
-        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Dòng nhập kho không hợp lệ' });
+        errors.push({ productCode, message: !product ? 'Thiếu mã sản phẩm' : 'Dòng nhập kho không hợp lệ' });
         continue;
       }
       items.push({
@@ -901,9 +989,18 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     stockTransactions: inventoryResult.transactionCount,
     inventoryRows: inventoryResult.inventoryRows,
     shortageCount: shortageReport.length,
-    shortageReport: shortageReport.slice(0, 100)
+    shortageReport: shortageReport.slice(0, 100),
+    autoCreatedProductCount: autoCreatedProducts.length,
+    autoCreatedProducts: autoCreatedProducts.slice(0, 100)
   });
-  return { imported, skipped, errors, shortageReport };
+  return {
+    imported,
+    skipped,
+    errors,
+    shortageReport,
+    autoCreatedProductCount: autoCreatedProducts.length,
+    autoCreatedProducts
+  };
 }
 
 async function importSalesOrders(rows = [], options = {}) {
@@ -1539,9 +1636,52 @@ function applyAdjustedQuantityToRow(row = {}, allowedSaleQuantity = 0, allowedPr
   return adjusted;
 }
 
+function normalizeShortageRows(shortages = []) {
+  if (!Array.isArray(shortages)) return [];
+  const seen = new Set();
+  const rows = [];
+
+  for (const item of shortages) {
+    if (!item || typeof item !== 'object') continue;
+    const documentCode = cleanText(item.documentCode || item.orderCode || item.code || item.refCode || '');
+    const productCode = cleanText(item.productCode || item.code || item.productId || '');
+    const missingQuantity = toNumber(item.missingQuantity ?? item.shortageQuantity ?? item.missingQty);
+    const cutAmount = toNumber(item.cutAmount ?? item.shortageAmount ?? item.amount);
+    const orderedQuantity = toNumber(item.orderedQuantity ?? item.orderQuantity ?? item.quantity);
+    const availableQuantity = toNumber(item.availableQuantity ?? item.stockQuantity ?? item.availableStock);
+    const allowedQuantity = toNumber(item.allowedQuantity ?? item.importedQuantity ?? item.adjustedQuantity);
+
+    // Không đưa dòng rỗng/ảo vào báo cáo thiếu hàng.
+    if (!documentCode && !productCode && missingQuantity <= 0 && cutAmount <= 0) continue;
+
+    const key = [
+      documentCode,
+      productCode,
+      orderedQuantity,
+      availableQuantity,
+      allowedQuantity,
+      missingQuantity,
+      cutAmount
+    ].join('|');
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      ...item,
+      documentCode: documentCode || item.documentCode || item.orderCode || item.refCode || '',
+      productCode: productCode || item.productCode || item.productId || '',
+      missingQuantity,
+      cutAmount
+    });
+  }
+
+  return rows;
+}
+
 function summarizeOrderShortages(shortages = []) {
-  const totalMissingQty = shortages.reduce((sum, item) => sum + toNumber(item.missingQuantity), 0);
-  const totalCutAmount = shortages.reduce((sum, item) => sum + toNumber(item.cutAmount), 0);
+  const safeShortages = normalizeShortageRows(shortages);
+  const totalMissingQty = safeShortages.reduce((sum, item) => sum + toNumber(item.missingQuantity), 0);
+  const totalCutAmount = safeShortages.reduce((sum, item) => sum + toNumber(item.cutAmount), 0);
   return { totalMissingQty, totalCutAmount };
 }
 
@@ -1878,22 +2018,24 @@ async function commit({ type, rows, shortageMode = '' }) {
   else if (type === 'cashbook') result = await importCashbook(commitRows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
-  const shortageRows = [
-    ...validRows.flatMap((r) => r.shortageReport || []),
-    ...(result.shortageReport || [])
-  ];
+  const shortageRows = type === 'salesOrders'
+    ? normalizeShortageRows([
+        ...validRows.flatMap((r) => r.shortageReport || []),
+        ...(result.shortageReport || [])
+      ])
+    : [];
   const shortageSummary = summarizeOrderShortages(shortageRows);
   return {
+    ...result,
     source: 'mongo-native-direct',
     ok: true,
     message: `Đã import ${result.imported || 0} chứng từ`,
     totalRows: rows.length,
     totalCommitRows: commitRows.length,
-    hasShortage: hasShortage || shortageRows.length > 0,
+    hasShortage: type === 'salesOrders' && (hasShortage || shortageRows.length > 0),
     shortageMode: shortageRows.length ? 'cut' : '',
     shortageReport: shortageRows,
-    shortageSummary,
-    ...result
+    shortageSummary
   };
 }
 
@@ -1914,9 +2056,10 @@ async function importDirect({ type, buffer }) {
   else if (type === 'cashbook') result = await importCashbook(rows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
-  const shortageRows = result.shortageReport || [];
+  const shortageRows = type === 'salesOrders' ? normalizeShortageRows(result.shortageReport || []) : [];
   const shortageSummary = summarizeOrderShortages(shortageRows);
   return {
+    ...result,
     source: 'mongo-native-direct',
     ok: true,
     message: `Đã import ${result.imported || 0} chứng từ`,
@@ -1925,8 +2068,7 @@ async function importDirect({ type, buffer }) {
     hasShortage: shortageRows.length > 0,
     shortageMode: shortageRows.length ? 'cut' : '',
     shortageReport: shortageRows,
-    shortageSummary,
-    ...result
+    shortageSummary
   };
 }
 
