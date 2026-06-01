@@ -210,7 +210,8 @@ function isInactiveStatus(row = {}) {
 
 async function listOrders(query = {}) {
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
-  const page = queryGuard.getPagination(guardedQuery);
+  const internalMaxLimit = Math.max(Number(guardedQuery.__internalMaxLimit || 0), 0);
+  const page = queryGuard.getPagination(guardedQuery, internalMaxLimit ? { maxLimit: internalMaxLimit, defaultLimit: Math.min(internalMaxLimit, 500) } : {});
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);

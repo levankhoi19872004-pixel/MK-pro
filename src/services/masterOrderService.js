@@ -91,21 +91,24 @@ async function listUnmergedChildOrders(query = {}) {
   const q = normalizeText(query.q);
   const source = normalizeText(query.source);
   const sourceKey = source.includes('dms') ? 'dms' : (source ? 'nvbh' : '');
-  const salesStaff = normalizeText(query.salesStaff);
+  const salesStaff = normalizeText(query.salesStaff || query.salesStaffCode || query.staffCode);
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
   const dateFrom = normalizeOrderDateForMaster(guardedQuery.dateFrom);
   const dateTo = normalizeOrderDateForMaster(guardedQuery.dateTo);
-  // Lấy rộng hơn limit hiển thị để bước lọc cuối theo đúng ngày đơn bán không làm hụt dữ liệu
-  // khi orderService còn query cả deliveryDate/orderDate cho các màn khác.
-  // Không truyền source/orderSource xuống orderService vì orderService cũng lọc nguồn.
-  // Nếu lọc 2 lần, đơn SO/NVBH có thể bị loại trước khi màn Đơn tổng tự phân loại nguồn.
+  const requestedLimit = Math.min(Math.max(Number(guardedQuery.limit || 2000), 1), 5000);
+  // Màn Đơn con chưa gộp phải lấy đủ dữ liệu để người dùng tìm/checkbox được đơn ngoài 50 dòng đầu.
+  // orderService mặc định chặn limit 100 cho danh sách thường, nên truyền __internalMaxLimit riêng cho luồng nội bộ này.
+  // Đồng thời đẩy mã NVBH xuống orderService để Mongo lọc trước khi limit, tránh lấy 50/100 đơn đầu rồi mới lọc làm mất đơn cần tìm.
+  // Không truyền source/orderSource xuống orderService vì orderService cũng lọc nguồn; màn Đơn tổng tự lọc nguồn sau để không làm mất đơn SO/NVBH.
   const orders = await orderService.listOrders({
     ...guardedQuery,
     source: '',
     orderSource: '',
+    salesStaffCode: salesStaff || guardedQuery.salesStaffCode || guardedQuery.staffCode || '',
     excludeInactive: 1,
     page: 1,
-    limit: guardedQuery.limit || 500
+    limit: requestedLimit,
+    __internalMaxLimit: 5000
   });
   return orders
     .filter(isUnmergedChildOrder)
@@ -1011,6 +1014,8 @@ async function createMasterOrder(body = {}) {
     date: dateUtil.toDateOnly(body.date || deliveryDate),
     deliveryDate,
     routeName: String(body.routeName || '').trim(),
+    note: String(body.note || body.deliveryNote || '').trim(),
+    deliveryNote: String(body.deliveryNote || body.note || '').trim(),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || '',
@@ -1068,6 +1073,8 @@ async function updateMasterOrder(id, body = {}) {
     date: dateUtil.toDateOnly(body.date || current.date || deliveryDate),
     deliveryDate,
     routeName: String(body.routeName ?? current.routeName ?? '').trim(),
+    note: String(body.note ?? body.deliveryNote ?? current.note ?? current.deliveryNote ?? '').trim(),
+    deliveryNote: String(body.deliveryNote ?? body.note ?? current.deliveryNote ?? current.note ?? '').trim(),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',

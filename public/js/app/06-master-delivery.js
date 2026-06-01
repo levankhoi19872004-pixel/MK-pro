@@ -35,7 +35,7 @@ async function loadUnmergedChildOrders(){
   params.set('dateTo', toDate);
   if(unmergedSalesStaffFilter && unmergedSalesStaffFilter.value.trim())params.set('salesStaff',unmergedSalesStaffFilter.value.trim());
   params.set('page','1');
-  params.set('limit','50');
+  params.set('limit','2000');
   const url=`/api/master-orders/unmerged-child-orders${params.toString()?`?${params.toString()}`:''}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được đơn con chưa gộp');
@@ -199,6 +199,7 @@ async function loadMasterOrders(){
         <span class="erp-doc-party" title="Khách hàng/NV">${escapeHtml([order.deliveryStaffCode,order.deliveryStaffName].filter(Boolean).join(' ') || order.routeName || '')}</span>
         <span class="erp-doc-date" title="Ngày">${escapeHtml(order.deliveryDate||order.date||'')}</span>
         <strong class="erp-doc-value" title="Giá trị">${money(order.totalAmount)}</strong>
+        <span class="erp-doc-note" title="Ghi chú">${escapeHtml(order.note || order.deliveryNote || '')}</span>
         <span class="erp-doc-status" title="Trạng thái">${masterStatusLabel(order.status)}</span>
         <div class="erp-doc-actions">
           <button class="small" onclick="editMasterOrder(${idx})">Sửa</button>
