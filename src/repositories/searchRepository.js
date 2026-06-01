@@ -221,15 +221,29 @@ async function findProducts(query = {}) {
       .lean();
   }
 
-  // Phase 3.6 search ranking fix:
-  // - Không fallback về danh sách đầu tiên khi không khớp.
-  // - Server tìm trên toàn bộ catalog active, rồi xếp hạng theo:
-  //   mã chính xác → mã bắt đầu bằng → mã chứa → barcode → tên → metadata.
-  // - Vì products chỉ là danh mục và số SKU hiện tại không quá lớn, quét catalog active
-  //   giúp tìm không dấu ổn định cho cả dữ liệu cũ chưa có searchText.
-  const scanned = await Product.find(baseFilter)
+  const rawRegex = { $regex: escapeRegex(q), $options: 'i' };
+  const normalizedRegex = { $regex: escapeRegex(nq), $options: 'i' };
+  const filter = {
+    ...baseFilter,
+    $or: [
+      { code: rawRegex },
+      { sku: rawRegex },
+      { productCode: rawRegex },
+      { barcode: rawRegex },
+      { name: rawRegex },
+      { productName: rawRegex },
+      { category: rawRegex },
+      { brand: rawRegex },
+      { packing: rawRegex },
+      { unit: rawRegex },
+      { baseUnit: rawRegex },
+      { searchText: normalizedRegex }
+    ]
+  };
+  const scanned = await Product.find(filter)
     .select(select)
     .sort({ code: 1 })
+    .limit(Math.min(limit * 5, 250))
     .lean();
 
   return uniqueBy(
@@ -294,11 +308,28 @@ async function findCustomers(query = {}) {
       .lean();
   }
 
-  // Tương tự sản phẩm: không fallback về 50 khách đầu tiên khi không khớp.
-  // Ưu tiên: mã KH chính xác → bắt đầu bằng → chứa → SĐT → tên → địa chỉ/khu vực.
-  const scanned = await Customer.find(baseFilter)
+  const rawRegex = { $regex: escapeRegex(q), $options: 'i' };
+  const normalizedRegex = { $regex: escapeRegex(nq), $options: 'i' };
+  const filter = {
+    ...baseFilter,
+    $or: [
+      { code: rawRegex },
+      { customerCode: rawRegex },
+      { name: rawRegex },
+      { customerName: rawRegex },
+      { phone: rawRegex },
+      { address: rawRegex },
+      { area: rawRegex },
+      { route: rawRegex },
+      { staffCode: rawRegex },
+      { staffName: rawRegex },
+      { searchText: normalizedRegex }
+    ]
+  };
+  const scanned = await Customer.find(filter)
     .select(select)
     .sort({ code: 1 })
+    .limit(Math.min(limit * 5, 250))
     .lean();
 
   return uniqueBy(

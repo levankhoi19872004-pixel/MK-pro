@@ -1,6 +1,7 @@
 'use strict';
 
 const customerRepository = require('../repositories/customerRepository');
+const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
 
 function normalizeSearchText(value) {
@@ -52,16 +53,24 @@ function toClient(customer) {
   };
 }
 
-async function listCustomers(query) {
-  const result = await customerRepository.findAll(query);
+async function listCustomers(query = {}) {
+  const guardedQuery = { ...(query || {}), page: query?.page || 1, limit: queryGuard.clampLimit(query?.limit) };
+  const q = String(guardedQuery.q || guardedQuery.search || '').trim();
+  const allowUnfiltered = String(guardedQuery.allowAll || '') === '1';
+  if (!allowUnfiltered && q.length < 2 && !guardedQuery.code && !guardedQuery.customerCode && !guardedQuery.staffCode) {
+    return { customers: [], meta: { page: 1, limit: guardedQuery.limit, total: 0, message: 'Nhập ít nhất 2 ký tự để tải khách hàng' } };
+  }
+  const result = await customerRepository.findAll(guardedQuery);
   if (result && Array.isArray(result.rows)) {
     return { customers: result.rows.map(toClient), meta: result.meta };
   }
   return { customers: (result || []).map(toClient), meta: null };
 }
 
-async function searchCustomers(query) {
-  return searchService.searchCustomers(query);
+async function searchCustomers(query = {}) {
+  const checked = queryGuard.ensureSearchKeyword(query, 2);
+  if (!checked.ok) return [];
+  return searchService.searchCustomers({ ...(query || {}), limit: queryGuard.clampLimit(query?.limit, 20, 50) });
 }
 
 async function createCustomer(body) {

@@ -1,6 +1,7 @@
 'use strict';
 
 const searchRepository = require('../repositories/searchRepository');
+const queryGuard = require('../utils/queryGuard.util');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../utils/common.util');
 
 const ROLE_LABELS = {
@@ -146,7 +147,8 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
 }
 
 async function searchProducts(query = {}) {
-  const products = await searchRepository.findProducts(query);
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const products = await searchRepository.findProducts({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
 
   // Tồn mở bán là thông tin bắt buộc của gợi ý bán hàng.
   // Trước đây web chỉ lấy product.availableStock nên có thể hiện 0,
@@ -181,7 +183,8 @@ function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
 }
 
 async function searchCustomers(query = {}) {
-  const customers = await searchRepository.findCustomers(query);
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const customers = await searchRepository.findCustomers({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
   let revenueByCustomer = new Map();
   const includeMetrics = ['1', 'true', 'yes'].includes(String(query.includeMetrics ?? query.mobile ?? '').toLowerCase());
   if (includeMetrics) {
@@ -223,7 +226,8 @@ function toStaffSuggestion(staff = {}) {
 }
 
 async function searchStaffs(query = {}) {
-  const staffs = await searchRepository.findStaffs(query);
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok && !query.role) return [];
+  const staffs = await searchRepository.findStaffs({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
   return staffs.map(toStaffSuggestion);
 }
 

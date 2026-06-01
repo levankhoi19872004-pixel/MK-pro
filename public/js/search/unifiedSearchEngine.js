@@ -81,24 +81,36 @@
     ], ['code', 'staffCode', 'username', 'id', '_id']);
   }
 
-  async function ensureStaffCatalog() {
-    let rows = mergeStaffRows([]);
-    if (rows.length) return rows;
+  async function ensureStaffCatalog(keyword = '', role = '') {
+    const q = String(keyword || '').trim();
+    if (q.length < 2) return mergeStaffRows([]);
 
-    if (!staffCatalogLoading) {
-      staffCatalogLoading = fetch('/api/users?q=')
+    const cacheRows = mergeStaffRows([]);
+    const localMatches = cacheRows.filter(function (row) {
+      return includesAny(row, q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
+    });
+    if (localMatches.length) return localMatches;
+
+    const cacheKey = `${role}:${q}`;
+    if (!staffCatalogLoading || staffCatalogLoading.key !== cacheKey) {
+      const params = new URLSearchParams();
+      params.set('q', q);
+      params.set('limit', '50');
+      if (role) params.set('role', role);
+      const promise = fetch(`/api/users?${params.toString()}`)
         .then(function (res) { return res.json(); })
         .then(function (json) {
           const users = json && json.ok ? (json.users || []) : [];
-          window.__usersCache = users;
-          try { window.usersCache = users; } catch (e) {}
+          window.__usersCache = uniqueBy([...(window.__usersCache || []), ...users], ['code', 'staffCode', 'username', 'id', '_id']);
+          try { window.usersCache = window.__usersCache; } catch (e) {}
           return users;
         })
         .catch(function () { return []; })
         .finally(function () { staffCatalogLoading = null; });
+      staffCatalogLoading = { key: cacheKey, promise };
     }
 
-    const fetched = await staffCatalogLoading;
+    const fetched = await staffCatalogLoading.promise;
     return mergeStaffRows(fetched);
   }
 
@@ -133,6 +145,7 @@
   async function searchCustomer(keyword = '', options = {}) {
     const limit = normalizeLimit(options.limit, 20);
     const q = String(keyword || '').trim();
+    if (q.length < 2) return [];
 
     if (window.CatalogCache && typeof window.CatalogCache.searchCustomers === 'function') {
       return window.CatalogCache.searchCustomers(q, { limit, mobile: !!options.mobile });
@@ -148,22 +161,26 @@
 
   async function searchSalesStaff(keyword = '', options = {}) {
     const limit = normalizeLimit(options.limit, 20);
-    const rows = await ensureStaffCatalog();
+    const q = String(keyword || '').trim();
+    if (q.length < 2) return [];
+    const rows = await ensureStaffCatalog(q, 'sales');
     return rows
       .filter(isSalesStaff)
       .filter(function (s) {
-        return includesAny(s, keyword, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
+        return includesAny(s, q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
       })
       .slice(0, limit);
   }
 
   async function searchDeliveryStaff(keyword = '', options = {}) {
     const limit = normalizeLimit(options.limit, 20);
-    const rows = await ensureStaffCatalog();
+    const q = String(keyword || '').trim();
+    if (q.length < 2) return [];
+    const rows = await ensureStaffCatalog(q, 'delivery');
     return rows
       .filter(isDeliveryStaff)
       .filter(function (s) {
-        return includesAny(s, keyword, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
+        return includesAny(s, q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
       })
       .slice(0, limit);
   }
@@ -171,6 +188,7 @@
   async function searchProduct(keyword = '', options = {}) {
     const limit = normalizeLimit(options.limit, 50);
     const q = String(keyword || '').trim();
+    if (q.length < 2) return [];
 
     if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.search === 'function') {
       const rows = await window.UnifiedProductSearch.search(q, {

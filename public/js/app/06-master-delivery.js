@@ -29,8 +29,10 @@ async function loadUnmergedChildOrders(){
   const params=new URLSearchParams();
   if(unmergedOrderSearch && unmergedOrderSearch.value.trim())params.set('q',unmergedOrderSearch.value.trim());
   if(unmergedSourceFilter && unmergedSourceFilter.value)params.set('source',unmergedSourceFilter.value);
-  if(unmergedDateFilter && unmergedDateFilter.value)params.set('date',unmergedDateFilter.value);
+  params.set('date', unmergedDateFilter?.value || today());
   if(unmergedSalesStaffFilter && unmergedSalesStaffFilter.value.trim())params.set('salesStaff',unmergedSalesStaffFilter.value.trim());
+  params.set('page','1');
+  params.set('limit','50');
   const url=`/api/master-orders/unmerged-child-orders${params.toString()?`?${params.toString()}`:''}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được đơn con chưa gộp');
@@ -177,6 +179,8 @@ async function loadMasterOrders(){
   if(q)params.set('q',q);
   params.set('dateFrom', masterOrderDateFrom?.value || today());
   params.set('dateTo', masterOrderDateTo?.value || masterOrderDateFrom?.value || today());
+  params.set('page','1');
+  params.set('limit','50');
   params.set('excludeInactive','1');
   const url=`/api/master-orders${params.toString()?`?${params.toString()}`:''}`;
   try{
@@ -624,6 +628,8 @@ async function loadDeliveryToday(){
   if(delivery)params.set('delivery',delivery);
   if(route)params.set('route',route);
   if(status)params.set('status',status);
+  params.set('page','1');
+  params.set('limit','50');
   try{
     const res=await fetch(`/api/master-orders/delivery-today?${params.toString()}`);
     const json=await res.json();

@@ -1,6 +1,7 @@
 'use strict';
 
 const productRepository = require('../repositories/productRepository');
+const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
 const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
@@ -142,8 +143,14 @@ async function snapshotMapForProducts(products = []) {
   return map;
 }
 
-async function listProducts(query) {
-  const result = await productRepository.findAll(query);
+async function listProducts(query = {}) {
+  const guardedQuery = { ...(query || {}), page: query?.page || 1, limit: queryGuard.clampLimit(query?.limit) };
+  const q = String(guardedQuery.q || guardedQuery.search || '').trim();
+  const allowUnfiltered = String(guardedQuery.allowAll || '') === '1';
+  if (!allowUnfiltered && q.length < 2 && !guardedQuery.code && !guardedQuery.productCode && !guardedQuery.warehouseCode) {
+    return { products: [], meta: { page: 1, limit: guardedQuery.limit, total: 0, message: 'Nhập ít nhất 2 ký tự hoặc chọn kho để tải sản phẩm' } };
+  }
+  const result = await productRepository.findAll(guardedQuery);
   const rows = result && Array.isArray(result.rows) ? result.rows : (result || []);
   const snapshots = await snapshotMapForProducts(rows);
   const products = rows.map((row) => {
@@ -154,8 +161,10 @@ async function listProducts(query) {
   return { products, meta: result && Array.isArray(result.rows) ? result.meta : null };
 }
 
-async function searchProducts(query) {
-  return searchService.searchProducts(query);
+async function searchProducts(query = {}) {
+  const checked = queryGuard.ensureSearchKeyword(query, 2);
+  if (!checked.ok) return [];
+  return searchService.searchProducts({ ...(query || {}), limit: queryGuard.clampLimit(query?.limit, 20, 50) });
 }
 
 async function createProduct(body) {

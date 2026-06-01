@@ -7,6 +7,7 @@ const productRepository = require('../repositories/productRepository');
 const customerRepository = require('../repositories/customerRepository');
 const userRepository = require('../repositories/userRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
+const queryGuard = require('../utils/queryGuard.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
 const inventoryService = require('./inventoryService');
@@ -185,23 +186,50 @@ function isInactiveStatus(row = {}) {
 }
 
 async function listOrders(query = {}) {
-  const q = normalizeText(query.q);
-  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
-  const dateTo = dateUtil.toDateOnly(query.dateTo);
-  const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
-  const sourceKey = normalizeText(query.source || query.orderSource);
-  const orders = await orderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const page = queryGuard.getPagination(guardedQuery);
+  const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
+  const excludeInactive = String(guardedQuery.excludeInactive ?? '0') !== '0';
+  const sourceKey = normalizeText(guardedQuery.source || guardedQuery.orderSource);
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.$or = [
+      { date: range },
+      { orderDate: range },
+      { deliveryDate: range }
+    ];
+  }
+  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (q) {
+    const rx = queryGuard.buildRegex(q);
+    const qOr = [
+      { code: rx },
+      { id: rx },
+      { orderCode: rx },
+      { salesOrderCode: rx },
+      { customerCode: rx },
+      { customerName: rx },
+      { staffCode: rx },
+      { staffName: rx },
+      { salesStaffCode: rx },
+      { salesStaffName: rx },
+      { deliveryStaffCode: rx },
+      { deliveryStaffName: rx }
+    ];
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: qOr });
+  }
+
+  const orders = await orderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
   return orders
     .map(toClient)
-    .filter((order) => !excludeInactive || !isInactiveStatus(order))
-    .filter((order) => {
-      const d = normalizeOrderDate(order.date || order.orderDate || order.deliveryDate || '');
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      return true;
-    })
-    .filter((order) => !sourceKey || normalizeText(normalizeOrderSourceValue(order)).includes(sourceKey.includes('dms') ? 'dms' : 'nvbh'))
-    .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.staffName, order.deliveryStaffName].some((value) => normalizeText(value).includes(q)));
+    .filter((order) => !sourceKey || normalizeText(normalizeOrderSourceValue(order)).includes(sourceKey.includes('dms') ? 'dms' : 'nvbh'));
 }
 
 async function createOrder(body = {}) {

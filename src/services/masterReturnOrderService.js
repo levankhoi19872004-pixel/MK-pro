@@ -1,6 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
+const queryGuard = require('../utils/queryGuard.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const masterReturnOrderRepository = require('../repositories/masterReturnOrderRepository');
 const userRepository = require('../repositories/userRepository');
@@ -73,20 +74,38 @@ async function listUnmergedReturnOrders(query = {}) {
 }
 
 async function listMasterReturnOrders(query = {}) {
-  const q = normalizeText(query.q);
-  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
-  const dateTo = dateUtil.toDateOnly(query.dateTo);
-  const delivery = normalizeText(query.delivery || query.deliveryStaff);
-  const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
-  const rows = await masterReturnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const page = queryGuard.getPagination(guardedQuery);
+  const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
+  const delivery = normalizeText(guardedQuery.delivery || guardedQuery.deliveryStaff);
+  const excludeInactive = String(guardedQuery.excludeInactive ?? '0') !== '0';
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.$or = [{ returnDate: range }, { date: range }];
+  }
+  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (delivery || q) {
+    const clauses = [];
+    if (delivery) {
+      const rx = queryGuard.buildRegex(guardedQuery.delivery || guardedQuery.deliveryStaff);
+      clauses.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }] });
+    }
+    if (q) {
+      const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+      clauses.push({ $or: [{ code: rx }, { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { routeName: rx }, { note: rx }] });
+    }
+    if (clauses.length) filter.$and = clauses;
+  }
+
+  const rows = await masterReturnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
   const result = [];
   for (const row of rows) {
-    if (excludeInactive && isInactiveStatus(row)) continue;
-    const d = dateUtil.toDateOnly(row.returnDate || row.date || row.createdAt);
-    if (dateFrom && d < dateFrom) continue;
-    if (dateTo && d > dateTo) continue;
-    if (delivery && ![row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(delivery))) continue;
-    if (q && ![row.code, row.deliveryStaffCode, row.deliveryStaffName, row.note].some((value) => normalizeText(value).includes(q))) continue;
     const children = await getChildren(row);
     result.push(toClient(row, children));
   }

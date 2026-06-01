@@ -116,6 +116,7 @@
   async function searchProducts(keyword = '', options = {}){
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || MAX_LIMIT)));
     const q = String(keyword || '').trim();
+    if(q.length < 2) return [];
     const key = cacheKey(q, { limit });
     const cached = getCached(state.productSearchCache, key);
     if(cached) return cached;
@@ -136,6 +137,7 @@
   async function searchCustomers(keyword = '', options = {}){
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number(options.limit || MAX_LIMIT)));
     const q = String(keyword || '').trim();
+    if(q.length < 2) return [];
     const key = cacheKey(q, { limit, mobile: options.mobile });
     const cached = getCached(state.customerSearchCache, key);
     if(cached) return cached;
@@ -171,6 +173,7 @@
     const limit = Math.max(1, Number(options.limit || 50));
     const page = Math.max(1, Number(options.page || 1));
     const q = String(options.q || options.search || '').trim();
+    if(q.length < 2 && !options.allowAll) return { rows: [], meta: { page, limit, total: 0 } };
     const url = `${listEndpoint('products')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
     const json = await fetchJson(url);
     const rows = dedupe(json.products || json.items || [], ['code','productCode','sku','id']);
@@ -182,6 +185,7 @@
     const limit = Math.max(1, Number(options.limit || 50));
     const page = Math.max(1, Number(options.page || 1));
     const q = String(options.q || options.search || '').trim();
+    if(q.length < 2 && !options.allowAll) return { rows: [], meta: { page, limit, total: 0 } };
     const url = `${listEndpoint('customers')}?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
     const json = await fetchJson(url);
     const rows = dedupe(json.customers || json.items || [], ['code','customerCode','id']);

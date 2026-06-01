@@ -2,6 +2,7 @@
 
 const bcrypt = require('bcryptjs');
 const userRepository = require('../repositories/userRepository');
+const queryGuard = require('../utils/queryGuard.util');
 const { makeId, stripMongoFields } = require('../utils/common.util');
 
 const ROLE_LABELS = {
@@ -75,8 +76,11 @@ function staffToClient(staff) {
   };
 }
 
-async function listUsers(query) {
-  const staffs = await userRepository.findStaffs(query);
+async function listUsers(query = {}) {
+  // Tài khoản/nhân viên là danh mục nhỏ được phép load toàn bộ,
+  // nhưng vẫn phải ép page/limit để không query khổng lồ.
+  const guardedQuery = { ...(query || {}), page: query?.page || 1, limit: queryGuard.clampLimit(query?.limit) };
+  const staffs = await userRepository.findStaffs(guardedQuery);
   return staffs.map(staffToClient);
 }
 

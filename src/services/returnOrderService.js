@@ -1,6 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
+const queryGuard = require('../utils/queryGuard.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const orderRepository = require('../repositories/orderRepository');
 const customerRepository = require('../repositories/customerRepository');
@@ -38,31 +39,50 @@ function isInactiveStatus(row = {}) {
 }
 
 async function listReturnOrders(query = {}) {
-  const q = normalizeText(query.q);
-  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
-  const dateTo = dateUtil.toDateOnly(query.dateTo);
-  const excludeInactive = String(query.excludeInactive ?? '1') !== '0';
-  const orders = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const page = queryGuard.getPagination(guardedQuery);
+  const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
+  const excludeInactive = String(guardedQuery.excludeInactive ?? '1') !== '0';
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.$or = [{ date: range }, { documentDate: range }];
+  }
+  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (q) {
+    const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: [
+      { code: rx },
+      { salesOrderCode: rx },
+      { customerCode: rx },
+      { customerName: rx },
+      { staffCode: rx },
+      { staffName: rx },
+      { deliveryStaffCode: rx },
+      { deliveryStaffName: rx },
+      { note: rx }
+    ] });
+  }
+
+  const orders = await returnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
   const seenSalesReturns = new Set();
   return orders
     .map(toClient)
     .filter((order) => !excludeInactive || !isInactiveStatus(order))
     .filter((order) => {
-      const d = dateUtil.toDateOnly(order.date || order.documentDate || order.createdAt);
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      return true;
-    })
-    .filter((order) => {
-      // V45 chuẩn: App giao hàng và ERP đều ghi chung collection returnOrders.
-      // Vì dữ liệu cũ có thể đã sinh trùng từ nhiều source, màn danh sách chỉ hiển thị 1 phiếu hiệu lực / 1 đơn bán.
-      const salesKey = String(order.salesOrderId || order.orderId || order.salesOrderCode || order.orderCode || '').trim();
+      const salesKey = String(order.salesOrderId || order.salesOrderCode || order.orderId || order.orderCode || '').trim();
       if (!salesKey) return true;
-      if (seenSalesReturns.has(salesKey)) return false;
-      seenSalesReturns.add(salesKey);
+      const stableKey = `${salesKey}|${order.code || order.id || ''}`;
+      if (seenSalesReturns.has(stableKey)) return false;
+      seenSalesReturns.add(stableKey);
       return true;
-    })
-    .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.salesOrderCode, order.staffName, order.deliveryStaffName, order.note].some((value) => normalizeText(value).includes(q)));
+    });
 }
 
 async function resolveSalesOrder(body = {}) {

@@ -116,6 +116,7 @@
   async function search(keyword='', options={}){
     const limit=Math.min(50, Math.max(1, Number(options.limit||50)));
     const q=String(keyword||'').trim();
+    if(q.length < 2) return [];
     const cache=catalogCache();
     if(cache && typeof cache.searchProducts === 'function'){
       const rows = await cache.searchProducts(q, { limit, mode: options.mode || 'sales' });

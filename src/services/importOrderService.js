@@ -1,6 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
+const queryGuard = require('../utils/queryGuard.util');
 const importOrderRepository = require('../repositories/importOrderRepository');
 const productRepository = require('../repositories/productRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
@@ -30,11 +31,27 @@ function toClient(order) {
 }
 
 async function listImportOrders(query = {}) {
-  const q = normalizeText(query.q);
-  const orders = await importOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
-  return orders
-    .map(toClient)
-    .filter((order) => !q || [order.code, order.supplier, order.supplierName, order.note].some((value) => normalizeText(value).includes(q)));
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const page = queryGuard.getPagination(guardedQuery);
+  const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.$or = [{ date: range }, { documentDate: range }];
+  }
+  if (q) {
+    const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: [{ code: rx }, { supplier: rx }, { supplierName: rx }, { note: rx }] });
+  }
+
+  const orders = await importOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
+  return orders.map(toClient);
 }
 
 async function hydrateItems(rawItems = []) {

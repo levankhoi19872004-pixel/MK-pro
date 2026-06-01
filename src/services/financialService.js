@@ -1,6 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
+const queryGuard = require('../utils/queryGuard.util');
 const receiptRepository = require('../repositories/receiptRepository');
 const cashbookRepository = require('../repositories/cashbookRepository');
 const bankbookRepository = require('../repositories/bankbookRepository');
@@ -251,13 +252,34 @@ async function listBankbook() {
 }
 
 async function listReceipts(query = {}) {
-  const q = normalizeText(query.q);
-  let receipts = await receiptRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
-  if (q) {
-    receipts = receipts.filter((r) => [r.code, r.customerCode, r.customerName, r.staffName, r.refCode, r.note]
-      .some((value) => normalizeText(value).includes(q)));
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const page = queryGuard.getPagination(guardedQuery);
+  const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.$or = [{ date: range }, { documentDate: range }];
   }
-  return receipts;
+  if (q) {
+    const rx = queryGuard.buildRegex(q);
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: [
+      { code: rx },
+      { customerCode: rx },
+      { customerName: rx },
+      { staffCode: rx },
+      { staffName: rx },
+      { refCode: rx },
+      { note: rx }
+    ] });
+  }
+
+  return receiptRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
 }
 
 async function resolveCustomer(body = {}) {

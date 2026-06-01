@@ -49,15 +49,17 @@ async function loadDebts(){
   const salesman=debtSalesmanFilter?debtSalesmanFilter.value.trim():'';
   const delivery=debtDeliveryFilter?debtDeliveryFilter.value.trim():'';
   const status=debtStatusFilter?debtStatusFilter.value:'';
-  const dateFrom=debtDateFrom?debtDateFrom.value:'';
-  const dateTo=debtDateTo?debtDateTo.value:'';
+  const dateFrom=debtDateFrom?(debtDateFrom.value||today()):today();
+  const dateTo=debtDateTo?(debtDateTo.value||dateFrom):dateFrom;
   if(q)params.set('q',q);
   if(salesman)params.set('salesman',salesman);
   if(delivery)params.set('delivery',delivery);
   if(status && status!=='all')params.set('status',status);
   if(dateFrom)params.set('dateFrom',dateFrom);
   if(dateTo)params.set('dateTo',dateTo);
-  const url=params.toString()?`/api/debts?${params.toString()}`:'/api/debts';
+  params.set('page','1');
+  params.set('limit','50');
+  const url=`/api/debts?${params.toString()}`;
   try{
     const res=await fetch(url);
     const json=await res.json();
@@ -400,6 +402,8 @@ async function loadReturnOrders(){
   if(q)params.set('q',q);
   params.set('dateFrom', returnOrderDateFrom?.value || today());
   params.set('dateTo', returnOrderDateTo?.value || returnOrderDateFrom?.value || today());
+  params.set('page','1');
+  params.set('limit','50');
   params.set('excludeInactive','1');
   const url=`/api/return-orders?${params.toString()}`;
   try{
@@ -649,6 +653,8 @@ async function loadMasterReturnOrders(){
   if(q)params.set('q',q);
   params.set('dateFrom', masterReturnOrderDateFrom?.value || today());
   params.set('dateTo', masterReturnOrderDateTo?.value || masterReturnOrderDateFrom?.value || today());
+  params.set('page','1');
+  params.set('limit','50');
   params.set('excludeInactive','1');
   try{
     const res=await fetch(`/api/master-return-orders?${params.toString()}`);

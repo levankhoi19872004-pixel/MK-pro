@@ -328,6 +328,10 @@ async function loadSalesOrders(){
     if(dateFrom)params.set('dateFrom',dateFrom);
     if(dateTo)params.set('dateTo',dateTo);
     if(source)params.set('source',source);
+    if(q)params.set('q',q);
+    if(String(salesOrderStaffFilter?.value||'').trim())params.set('staffName',String(salesOrderStaffFilter.value||'').trim());
+    params.set('page','1');
+    params.set('limit','50');
     params.set('excludeInactive','1');
     const res=await fetch(`/api/sales-orders?${params.toString()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
     const allOrders=(json.salesOrders||[]).filter(isActiveDocument);

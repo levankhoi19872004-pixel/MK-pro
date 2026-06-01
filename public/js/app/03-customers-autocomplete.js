@@ -3,6 +3,16 @@ async function loadCustomers(options = {}){
   const requestSeq = ++customerListRequestSeq;
   const q=customerSearchInput?customerSearchInput.value.trim():'';
   const resetPage=options.resetPage===true;
+  const allowEmpty = options.allowEmpty === true;
+  if(!allowEmpty && q.length < 2){
+    customersCache=[];
+    customerTotal=0;
+    customerTotalPages=1;
+    if(customerCount)customerCount.textContent='Nhập ít nhất 2 ký tự để tìm khách hàng';
+    if(customerTable)customerTable.innerHTML='<tr><td colspan="8" class="empty-cell">Nhập ít nhất 2 ký tự để tải danh sách khách hàng.</td></tr>';
+    renderCustomerPagination();
+    return;
+  }
   if(resetPage) customerPage=1;
   if(customerPage<1) customerPage=1;
   const limit=Number(customerPageSize||50);

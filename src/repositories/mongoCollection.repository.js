@@ -1,4 +1,5 @@
 const MongoStore = require('../models');
+const { clampLimit } = require('../utils/queryGuard.util');
 
 function stripMongoFields(row) {
   if (!row) return row;
@@ -16,7 +17,8 @@ async function findAll(collectionKey, filter = {}, options = {}) {
   const Model = getModel(collectionKey);
   let query = Model.find(filter).lean();
   if (options.sort) query = query.sort(options.sort);
-  if (options.limit) query = query.limit(options.limit);
+  if (options.skip) query = query.skip(Math.max(0, Number.parseInt(options.skip, 10) || 0));
+  if (options.limit) query = query.limit(clampLimit(options.limit));
   if (options.session) query = query.session(options.session);
   const rows = await query;
   return rows.map(stripMongoFields);

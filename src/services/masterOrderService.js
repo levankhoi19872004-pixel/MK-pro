@@ -1,6 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
+const queryGuard = require('../utils/queryGuard.util');
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
@@ -88,7 +89,8 @@ async function listUnmergedChildOrders(query = {}) {
   const sourceKey = source.includes('dms') ? 'dms' : (source ? 'nvbh' : '');
   const date = normalizeOrderDateForMaster(query.date);
   const salesStaff = normalizeText(query.salesStaff);
-  const orders = await orderService.listOrders({});
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const orders = await orderService.listOrders({ ...guardedQuery, excludeInactive: 1, limit: guardedQuery.limit || 100 });
   return orders
     .filter(isUnmergedChildOrder)
     .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.customerPhone, order.customerAddress].some((value) => normalizeText(value).includes(q)))
@@ -98,18 +100,42 @@ async function listUnmergedChildOrders(query = {}) {
 }
 
 async function listMasterOrders(query = {}) {
-  const q = normalizeText(query.q);
-  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
-  const dateTo = dateUtil.toDateOnly(query.dateTo);
-  const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
-  const masterOrders = await masterOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const page = queryGuard.getPagination(guardedQuery);
+  const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
+  const excludeInactive = String(guardedQuery.excludeInactive ?? '0') !== '0';
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.$or = [{ date: range }, { deliveryDate: range }];
+  }
+  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (q) {
+    const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: [
+      { code: rx },
+      { id: rx },
+      { routeName: rx },
+      { deliveryStaffName: rx },
+      { deliveryStaffCode: rx },
+      { staffCode: rx },
+      { staffName: rx }
+    ] });
+  }
+
+  const masterOrders = await masterOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
   const result = [];
   for (const masterOrder of masterOrders) {
     const children = await orderService.getMasterChildren(masterOrder);
     const order = toClient(masterOrder, children);
     const d = dateUtil.toDateOnly(order.deliveryDate || order.date);
     if (excludeInactive && isInactiveStatus(order)) continue;
-    if (q && ![order.code, order.routeName, order.deliveryStaffName, order.deliveryStaffCode].some((value) => normalizeText(value).includes(q))) continue;
     if (dateFrom && d < dateFrom) continue;
     if (dateTo && d > dateTo) continue;
     result.push(order);
@@ -634,7 +660,7 @@ async function listDeliveryToday(query = {}) {
   const route = normalizeText(query.route || query.routeName);
   const status = normalizeText(query.status);
 
-  const masterOrders = await listMasterOrders({ excludeInactive: 1 });
+  const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date, limit: query.limit || 100 });
   const returnOrders = await returnOrderRepository.findAll();
   // Không dùng AR cache cho danh sách giao hàng; dùng công thức giao hàng bình thường.
   const arDebtMap = null;

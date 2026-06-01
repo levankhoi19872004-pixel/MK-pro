@@ -28,6 +28,16 @@ async function loadProducts(options = {}){
   const requestSeq = ++productListRequestSeq;
   const q=searchInput?searchInput.value.trim():'';
   const resetPage=options.resetPage===true;
+  const allowEmpty = options.allowEmpty === true;
+  if(!allowEmpty && q.length < 2){
+    productsCache=[];
+    productTotal=0;
+    productTotalPages=1;
+    if(productCount)productCount.textContent='Nhập ít nhất 2 ký tự để tìm sản phẩm';
+    if(productTable)productTable.innerHTML='<tr><td colspan="3" class="empty-cell">Nhập ít nhất 2 ký tự để tải danh sách sản phẩm.</td></tr>';
+    renderProductPagination();
+    return;
+  }
   if(resetPage) productPage=1;
   if(productPage<1) productPage=1;
   const limit=Number(productPageSize||50);

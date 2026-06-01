@@ -4,16 +4,18 @@ const Staff = require('../models/Staff');
 const Role = require('../models/Role');
 const Permission = require('../models/Permission');
 const { buildIdentityFilter } = require('../utils/identity.util');
+const { getPagination } = require('../utils/query.util');
 
 function buildStaffMongoFilter(idOrCode) {
   return buildIdentityFilter(idOrCode, ['id', 'code', 'username']);
 }
 
 function buildStaffQueryFilter(query = {}) {
-  const q = String(query.q || '').trim();
+  const q = String(query.q || query.search || query.keyword || '').trim();
   const activeOnly = String(query.activeOnly || '') === '1';
   const filter = {};
   if (activeOnly) filter.isActive = { $ne: false };
+  if (query.role) filter.role = String(query.role).trim();
   if (q) {
     filter.$or = [
       { code: { $regex: q, $options: 'i' } },
@@ -28,7 +30,12 @@ function buildStaffQueryFilter(query = {}) {
 }
 
 async function findStaffs(query = {}) {
-  return Staff.find(buildStaffQueryFilter(query)).sort({ code: 1, username: 1 }).lean();
+  const page = getPagination({ page: query.page || 1, limit: query.limit || 50 });
+  return Staff.find(buildStaffQueryFilter(query))
+    .sort({ code: 1, username: 1 })
+    .skip(page.skip)
+    .limit(Math.min(page.limit || 50, 100))
+    .lean();
 }
 
 async function findStaffByIdOrCode(idOrCode) {
