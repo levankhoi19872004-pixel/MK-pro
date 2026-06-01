@@ -3,6 +3,18 @@
 const importExportService = require('../services/importExportService');
 const excelImportService = require('../services/excelImportService');
 
+function normalizeUploadedFiles(req) {
+  const files = [];
+  if (req.file) files.push(req.file);
+  if (Array.isArray(req.files)) files.push(...req.files);
+  else if (req.files && typeof req.files === 'object') {
+    Object.values(req.files).forEach((list) => {
+      if (Array.isArray(list)) files.push(...list);
+    });
+  }
+  return files.filter((file) => file && file.buffer);
+}
+
 function sendWorkbook(res, result) {
   if (result?.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -12,9 +24,13 @@ function sendWorkbook(res, result) {
 
 async function previewImport(req, res) {
   try {
+    const files = normalizeUploadedFiles(req);
     const result = await importExportService.previewImport({
       type: String(req.body?.type || '').trim(),
-      buffer: req.file?.buffer
+      files,
+      buffer: files[0]?.buffer,
+      fileName: files[0]?.originalname || '',
+      userName: req.user?.username || req.user?.fullName || ''
     });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'import-export-route', ...result });
@@ -28,7 +44,11 @@ async function commitImport(req, res) {
   try {
     const result = await importExportService.commitImport({
       type: String(req.body?.type || '').trim(),
-      rows: req.body?.rows
+      rows: req.body?.rows,
+      shortageMode: String(req.body?.shortageMode || '').trim(),
+      sessionId: String(req.body?.sessionId || req.body?.importSessionId || '').trim(),
+      selectedOrderCodes: req.body?.selectedOrderCodes || [],
+      userName: req.user?.username || req.user?.fullName || ''
     });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'import-export-route', ...result });
@@ -41,9 +61,12 @@ async function commitImport(req, res) {
 
 async function directImport(req, res) {
   try {
+    const files = normalizeUploadedFiles(req);
     const result = await excelImportService.importDirect({
       type: String(req.body?.type || '').trim(),
-      buffer: req.file?.buffer
+      files,
+      buffer: files[0]?.buffer,
+      fileName: files[0]?.originalname || ''
     });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'mongo-native-direct-route', ...result });
