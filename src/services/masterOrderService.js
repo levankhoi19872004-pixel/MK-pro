@@ -91,15 +91,33 @@ async function listUnmergedChildOrders(query = {}) {
   const q = normalizeText(query.q);
   const source = normalizeText(query.source);
   const sourceKey = source.includes('dms') ? 'dms' : (source ? 'nvbh' : '');
-  const date = normalizeOrderDateForMaster(query.date);
   const salesStaff = normalizeText(query.salesStaff);
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
-  const orders = await orderService.listOrders({ ...guardedQuery, excludeInactive: 1, limit: guardedQuery.limit || 100 });
+  const dateFrom = normalizeOrderDateForMaster(guardedQuery.dateFrom);
+  const dateTo = normalizeOrderDateForMaster(guardedQuery.dateTo);
+  // Lấy rộng hơn limit hiển thị để bước lọc cuối theo đúng ngày đơn bán không làm hụt dữ liệu
+  // khi orderService còn query cả deliveryDate/orderDate cho các màn khác.
+  // Không truyền source/orderSource xuống orderService vì orderService cũng lọc nguồn.
+  // Nếu lọc 2 lần, đơn SO/NVBH có thể bị loại trước khi màn Đơn tổng tự phân loại nguồn.
+  const orders = await orderService.listOrders({
+    ...guardedQuery,
+    source: '',
+    orderSource: '',
+    excludeInactive: 1,
+    page: 1,
+    limit: guardedQuery.limit || 500
+  });
   return orders
     .filter(isUnmergedChildOrder)
     .filter((order) => !q || [order.code, order.customerCode, order.customerName, order.customerPhone, order.customerAddress].some((value) => normalizeText(value).includes(q)))
     .filter((order) => !sourceKey || normalizeOrderSourceForMaster(order) === sourceKey)
-    .filter((order) => !date || orderDeliveryFilterDate(order) === date)
+    .filter((order) => {
+      const orderDate = orderDeliveryFilterDate(order);
+      if (!orderDate) return false;
+      if (dateFrom && orderDate < dateFrom) return false;
+      if (dateTo && orderDate > dateTo) return false;
+      return true;
+    })
     .filter((order) => !salesStaff || [order.staffCode, order.staffName, order.salesStaffCode, order.salesStaffName].some((value) => normalizeText(value).includes(salesStaff)));
 }
 

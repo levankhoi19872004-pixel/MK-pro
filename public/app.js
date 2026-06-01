@@ -37,7 +37,7 @@ function setDefaultDocumentDateFilters(){
   setTodayRange(masterOrderDateFrom, masterOrderDateTo);
   setTodayRange(returnOrderDateFrom, returnOrderDateTo);
   setTodayRange(masterReturnOrderDateFrom, masterReturnOrderDateTo);
-  if(unmergedDateFilter && !unmergedDateFilter.value)unmergedDateFilter.value=today();
+  setTodayRange(unmergedDateFrom, unmergedDateTo);
   if(deliveryDateFilter && !deliveryDateFilter.value)deliveryDateFilter.value=today();
   if(masterReturnDate && !masterReturnDate.value)masterReturnDate.value=today();
 }
@@ -112,7 +112,8 @@ if(reloadMasterOrdersButton)reloadMasterOrdersButton.addEventListener('click',lo
 if(masterOrderForm){masterOrderForm.addEventListener('submit',submitMasterOrder);if(masterOrderForm.elements.deliveryDate)masterOrderForm.elements.deliveryDate.value=today();else if(masterOrderForm.elements.date)masterOrderForm.elements.date.value=today()}
 if(unmergedOrderSearch)unmergedOrderSearch.addEventListener('input',loadUnmergedChildOrders);
 if(unmergedSourceFilter)unmergedSourceFilter.addEventListener('change',loadUnmergedChildOrders);
-if(unmergedDateFilter)unmergedDateFilter.addEventListener('change',loadUnmergedChildOrders);
+if(unmergedDateFrom)unmergedDateFrom.addEventListener('change',loadUnmergedChildOrders);
+if(unmergedDateTo)unmergedDateTo.addEventListener('change',loadUnmergedChildOrders);
 if(unmergedSalesStaffFilter)unmergedSalesStaffFilter.addEventListener('input',loadUnmergedChildOrders);
 if(selectAllUnmergedOrdersButton)selectAllUnmergedOrdersButton.addEventListener('click',toggleSelectAllUnmergedOrders);
 if(masterOrderSearch)masterOrderSearch.addEventListener('input',loadMasterOrders);

@@ -29,7 +29,10 @@ async function loadUnmergedChildOrders(){
   const params=new URLSearchParams();
   if(unmergedOrderSearch && unmergedOrderSearch.value.trim())params.set('q',unmergedOrderSearch.value.trim());
   if(unmergedSourceFilter && unmergedSourceFilter.value)params.set('source',unmergedSourceFilter.value);
-  params.set('date', unmergedDateFilter?.value || today());
+  const fromDate = unmergedDateFrom?.value || unmergedDateFilter?.value || today();
+  const toDate = unmergedDateTo?.value || fromDate || today();
+  params.set('dateFrom', fromDate);
+  params.set('dateTo', toDate);
   if(unmergedSalesStaffFilter && unmergedSalesStaffFilter.value.trim())params.set('salesStaff',unmergedSalesStaffFilter.value.trim());
   params.set('page','1');
   params.set('limit','50');

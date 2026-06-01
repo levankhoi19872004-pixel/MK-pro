@@ -155,7 +155,10 @@ const unmergedOrderList=document.getElementById('unmergedOrderList');
 const unmergedOrderCount=document.getElementById('unmergedOrderCount');
 const unmergedOrderSearch=document.getElementById('unmergedOrderSearch');
 const unmergedSourceFilter=document.getElementById('unmergedSourceFilter');
-const unmergedDateFilter=document.getElementById('unmergedDateFilter');
+const unmergedDateFrom=document.getElementById('unmergedDateFrom');
+const unmergedDateTo=document.getElementById('unmergedDateTo');
+// Tương thích code cũ nếu còn gọi unmergedDateFilter: dùng ngày bắt đầu.
+const unmergedDateFilter=unmergedDateFrom;
 const unmergedSalesStaffFilter=document.getElementById('unmergedSalesStaffFilter');
 const selectAllUnmergedOrdersButton=document.getElementById('selectAllUnmergedOrdersButton');
 const selectedChildOrderCount=document.getElementById('selectedChildOrderCount');
