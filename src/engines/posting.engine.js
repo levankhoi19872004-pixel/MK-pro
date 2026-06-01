@@ -63,6 +63,37 @@ async function hasExistingSalesOrderAR(order = {}, options = {}) {
   return Array.isArray(rows) && rows.some((row) => toNumber(row.debit ?? row.amount) >= 0);
 }
 
+
+async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
+  const keys = [
+    returnOrder.id,
+    returnOrder._id,
+    returnOrder.code,
+    returnOrder.orderId,
+    returnOrder.orderCode,
+    returnOrder.salesOrderId,
+    returnOrder.salesOrderCode,
+    returnOrder.refId,
+    returnOrder.refCode
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+  if (!keys.length) return false;
+  const rows = await paymentRepository.findAll({
+    $or: [
+      { id: { $in: keys.map((key) => [`AR-RETURN-${key}`, `MOBILE-DELIVERY-RETURN-${key}`]).flat() } },
+      { orderId: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { refId: { $in: keys } },
+      { refCode: { $in: keys } }
+    ]
+  }, options);
+  return Array.isArray(rows) && rows.some((row) => {
+    const type = String(row.type || '').toLowerCase();
+    const refType = String(row.refType || '').toLowerCase();
+    const isReturn = type.includes('return') || refType.includes('return');
+    return isReturn && toNumber(row.credit ?? row.amount) > 0;
+  });
+}
+
 async function postSalesOrderAR(order = {}, options = {}) {
   // ERP/DMS chuẩn: AR-SALE là phát sinh tăng nợ gốc khi đơn đã giao.
   // Không tự trừ paidAmount tại đây; receipt/return sẽ là bút toán credit riêng.
@@ -122,6 +153,9 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
 }
 
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
+  if (options.skipIfExists && await hasExistingReturnOrderAR(returnOrder, options)) {
+    return null;
+  }
   const amount = toNumber(returnOrder.debtReduction ?? returnOrder.totalAmount ?? returnOrder.amount);
   if (amount <= 0) return null;
   const entry = baseJournal(returnOrder, {

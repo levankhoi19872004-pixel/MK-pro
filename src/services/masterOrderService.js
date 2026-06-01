@@ -549,8 +549,8 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       amount: returnAmount,
       source: 'mobile_delivery_accounting_confirmed',
       note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
-    }, options);
-    posted.push(entry);
+    }, { ...options, skipIfExists: true });
+    if (entry) posted.push(entry);
   }
 
   return posted;

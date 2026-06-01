@@ -523,7 +523,19 @@ async function debtReport(query = {}) {
   returns.filter(isActive).forEach((row) => {
     if (!isReturnDocAllowedForAR(row, orderByKey)) return;
     const key = moneyDocKey(row);
-    const hasReturnLedger = ledger.some((entry) => String(entry.type || '').toLowerCase().includes('return') && (entry.refId === row.id || entry.refCode === row.code || moneyDocKey(entry) === key));
+    const returnOrderKeys = [
+      row.id, row._id, row.code, row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.sourceOrderCode
+    ].map((value) => String(value || '').trim()).filter(Boolean);
+    const hasReturnLedger = ledger.some((entry) => {
+      const type = String(entry.type || '').toLowerCase();
+      const refType = String(entry.refType || '').toLowerCase();
+      if (!type.includes('return') && !refType.includes('return')) return false;
+      if (entry.refId === row.id || entry.refCode === row.code || moneyDocKey(entry) === key) return true;
+      const entryKeys = [entry.orderId, entry.orderCode, entry.salesOrderId, entry.salesOrderCode, entry.refId, entry.refCode]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      return entryKeys.some((entryKey) => returnOrderKeys.includes(entryKey));
+    });
     if (!hasReturnLedger) {
       const virtual = makeVirtualReturnLedger(row);
       if (virtual) ledger.push(virtual);
@@ -538,6 +550,33 @@ async function debtReport(query = {}) {
       if (virtual) ledger.push(virtual);
     }
   });
+
+
+  const seenReturnLedger = new Map();
+  for (let i = ledger.length - 1; i >= 0; i -= 1) {
+    const entry = ledger[i] || {};
+    const type = String(entry.type || '').toLowerCase();
+    const refType = String(entry.refType || '').toLowerCase();
+    if (!type.includes('return') && !refType.includes('return')) continue;
+    const orderKey = getLedgerOrderKey(entry);
+    const credit = Math.round(toNumber(entry.credit ?? entry.amount));
+    if (!orderKey || credit <= 0) continue;
+    const signature = `${orderKey}::${credit}`;
+    const isPreferred = isAccountingConfirmedDoc(entry) || String(entry.source || '').toLowerCase().includes('accounting_confirmed');
+    const previousIndex = seenReturnLedger.get(signature);
+    if (previousIndex === undefined) {
+      seenReturnLedger.set(signature, i);
+      continue;
+    }
+    const previous = ledger[previousIndex] || {};
+    const previousPreferred = isAccountingConfirmedDoc(previous) || String(previous.source || '').toLowerCase().includes('accounting_confirmed');
+    if (isPreferred && !previousPreferred) {
+      ledger.splice(previousIndex, 1);
+      seenReturnLedger.set(signature, i);
+    } else {
+      ledger.splice(i, 1);
+    }
+  }
 
   const customerMeta = new Map();
   customers.filter(isActive).forEach((customer) => {
