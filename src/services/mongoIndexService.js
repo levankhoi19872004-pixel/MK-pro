@@ -11,7 +11,11 @@ const INDEX_DEFINITIONS = {
     [{ brand: 1 }, { name: 'idx_products_brand' }],
     [{ salePrice: 1 }, { name: 'idx_products_sale_price', sparse: true }],
     [{ warehouseCode: 1 }, { name: 'idx_products_warehouse_code' }],
-    [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }]
+    [{ warehouseCode: 1, code: 1 }, { name: 'idx_products_warehouse_code_code' }],
+    [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }],
+    [{ isActive: 1, category: 1 }, { name: 'idx_products_active_category' }],
+    [{ searchText: 1 }, { name: 'idx_products_search_text' }],
+    [{ searchText: 'text' }, { name: 'txt_products_search_text', default_language: 'none' }]
   ],
   customers: [
     [{ code: 1 }, { name: 'idx_customers_code' }],
@@ -22,7 +26,10 @@ const INDEX_DEFINITIONS = {
     [{ staffCode: 1 }, { name: 'idx_customers_staff_code' }],
     [{ route: 1 }, { name: 'idx_customers_route' }],
     [{ routeName: 1 }, { name: 'idx_customers_route_name', sparse: true }],
-    [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }]
+    [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }],
+    [{ staffCode: 1, route: 1, isActive: 1 }, { name: 'idx_customers_staff_route_active' }],
+    [{ searchText: 1 }, { name: 'idx_customers_search_text' }],
+    [{ searchText: 'text' }, { name: 'txt_customers_search_text', default_language: 'none' }]
   ],
   staffs: [
     [{ code: 1 }, { name: 'idx_staffs_code', sparse: true }],
@@ -39,7 +46,8 @@ const INDEX_DEFINITIONS = {
     [{ salesStaffCode: 1 }, { name: 'idx_users_sales_staff_code', sparse: true }],
     [{ deliveryStaffCode: 1 }, { name: 'idx_users_delivery_staff_code', sparse: true }],
     [{ fullName: 1 }, { name: 'idx_users_full_name', sparse: true }],
-    [{ role: 1, isActive: 1 }, { name: 'idx_users_role_active' }]
+    [{ role: 1, isActive: 1 }, { name: 'idx_users_role_active' }],
+    [{ role: 1, isActive: 1, staffCode: 1 }, { name: 'idx_users_role_active_staff_code' }]
   ],
   roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
   permissions: [[{ roleCode: 1, module: 1 }, { name: 'idx_permissions_role_module' }]],
@@ -51,6 +59,9 @@ const INDEX_DEFINITIONS = {
     [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
     [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
     [{ date: 1, status: 1 }, { name: 'idx_orders_date_status' }],
+    [{ status: 1, deliveryStatus: 1, date: -1, customerCode: 1, staffCode: 1, mergeStatus: 1 }, { name: 'idx_orders_hot_list_report' }],
+    [{ mergeStatus: 1, date: -1, staffCode: 1 }, { name: 'idx_orders_merge_date_staff' }],
+    [{ status: 1, date: -1 }, { name: 'idx_orders_status_date_desc' }],
     [{ customerId: 1 }, { name: 'idx_orders_customer_id', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_orders_customer_code' }],
     [{ customerName: 1 }, { name: 'idx_orders_customer_name' }],
@@ -72,6 +83,7 @@ const INDEX_DEFINITIONS = {
     [{ deliveryStaffName: 1 }, { name: 'idx_master_orders_delivery_staff_name', sparse: true }],
     [{ routeName: 1 }, { name: 'idx_master_orders_route_name', sparse: true }],
     [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_mobile_delivery_fast' }],
+    [{ status: 1, deliveryStatus: 1, date: -1, customerCode: 1, staffCode: 1, mergeStatus: 1 }, { name: 'idx_master_orders_hot_list_report' }],
     [{ deliveryDate: 1, status: 1 }, { name: 'idx_master_orders_delivery_date_status' }],
     [{ date: 1 }, { name: 'idx_master_orders_date', sparse: true }],
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
@@ -162,7 +174,9 @@ const INDEX_DEFINITIONS = {
     [{ orderCode: 1 }, { name: 'idx_ar_ledger_order_code', sparse: true }],
     [{ refCode: 1 }, { name: 'idx_ar_ledger_ref_code', sparse: true }],
     [{ date: 1 }, { name: 'idx_ar_ledger_date' }],
-    [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledger_customer_date' }]
+    [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledger_customer_date' }],
+    [{ customerCode: 1, type: 1, date: -1 }, { name: 'idx_ar_ledger_customer_type_date_desc' }],
+    [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledger_ref_code_type' }]
   ],
   stockTransactions: [
     [{ date: 1, productCode: 1, warehouseCode: 1 }, { name: 'idx_stock_tx_date_product_warehouse' }],
@@ -189,6 +203,10 @@ const INDEX_DEFINITIONS = {
     [{ type: 1, createdAt: -1 }, { name: 'idx_import_logs_type_created' }],
     [{ fileName: 1 }, { name: 'idx_import_logs_file_name' }],
     [{ batchCode: 1 }, { name: 'idx_import_logs_batch_code', sparse: true }]
+  ],
+  importSessions: [
+    [{ sessionId: 1 }, { name: 'idx_import_sessions_session_id', unique: true, sparse: true }],
+    [{ createdAt: 1 }, { name: 'ttl_import_sessions_created_at', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 3600) }]
   ]
 };
 

@@ -22,6 +22,7 @@ module.exports = {
   bankbooks: require('./Bankbook'),
   cashbook: require('./Cashbook'),
   importLogs: require('./ImportLog'),
+  importSessions: require('./ImportSession'),
   mobileLogs: require('./MobileLog'),
   auditLogs: require('./AuditLog'),
   settings: require('./Setting'),

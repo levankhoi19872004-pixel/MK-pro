@@ -47,7 +47,10 @@ productSchema.index({ barcode: 1 }, { sparse: true });
 productSchema.index({ category: 1 });
 productSchema.index({ warehouseCode: 1, code: 1 });
 productSchema.index({ isActive: 1, code: 1 });
+productSchema.index({ isActive: 1, category: 1 });
+productSchema.index({ warehouseCode: 1, code: 1 });
 productSchema.index({ searchText: 1 });
+productSchema.index({ searchText: 'text' });
 
 
 productSchema.pre('validate', function buildSearchText(next) {

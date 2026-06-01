@@ -33,7 +33,9 @@ customerSchema.index({ phone: 1 });
 customerSchema.index({ staffCode: 1 });
 customerSchema.index({ route: 1 });
 customerSchema.index({ isActive: 1, code: 1 });
+customerSchema.index({ staffCode: 1, route: 1, isActive: 1 });
 customerSchema.index({ searchText: 1 });
+customerSchema.index({ searchText: 'text' });
 
 
 customerSchema.pre('validate', function buildSearchText(next) {

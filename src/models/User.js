@@ -17,6 +17,9 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true, strict: false });
 
 userSchema.index({ staffCode: 1 }, { sparse: true });
+userSchema.index({ code: 1 }, { sparse: true });
+userSchema.index({ employeeCode: 1 }, { sparse: true });
+userSchema.index({ role: 1, isActive: 1, staffCode: 1 });
 userSchema.index({ role: 1, staffCode: 1 });
 
 module.exports = mongoose.model('User', userSchema);
