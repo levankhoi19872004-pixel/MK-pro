@@ -322,7 +322,9 @@ function createMobileDeliveryService(ctx) {
           deliveryStaffCode: mobileUser.code || '',
           deliveryStaffName: mobileUser.name || '',
           note: note || `Không giao được - trả toàn bộ đơn ${order.code}`,
-          source: 'returnOrders',
+          source: 'mobile_delivery_return',
+          accountingStatus: 'pending',
+          accountingConfirmed: false,
           refType: 'mobileDeliveryFullReturn',
           returnType: 'full'
         });
@@ -429,7 +431,9 @@ function createMobileDeliveryService(ctx) {
       deliveryStaffCode: mobileUser.code || '',
       deliveryStaffName: mobileUser.name || '',
       note: note || (returnType === 'full' ? `App giao hàng trả cả đơn ${order.code}` : `App giao hàng trả một phần đơn ${order.code}`),
-      source: 'returnOrders',
+      source: 'mobile_delivery_return',
+      accountingStatus: 'pending',
+      accountingConfirmed: false,
       refType: returnType === 'full' ? 'mobileDeliveryFullReturn' : 'mobileDeliveryPartialReturn',
       returnType
     });

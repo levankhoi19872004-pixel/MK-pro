@@ -289,7 +289,11 @@ function isMobileDeliveryMoneyDoc(row = {}) {
   const text = [row.source, row.refType, row.type, row.note]
     .map((value) => String(value || '').toLowerCase())
     .join(' ');
-  return text.includes('mobile_delivery') || text.includes('mobiledelivery') || text.includes('app giao hàng');
+  return text.includes('mobile_delivery')
+    || text.includes('mobiledelivery')
+    || text.includes('mobile delivery')
+    || text.includes('mobile_delivery_return')
+    || text.includes('app giao hàng');
 }
 
 function isMoneyDocAllowedForAR(row = {}, orderByKey = new Map()) {

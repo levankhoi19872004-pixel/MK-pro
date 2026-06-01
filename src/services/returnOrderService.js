@@ -137,7 +137,11 @@ async function buildReturnOrderDocument(body = {}) {
   if (!customer && !body.customerName && !salesOrder?.customerName) return { error: 'Không tìm thấy khách hàng', status: 404 };
   const items = normalizeItems(body.items, salesOrder).filter((item) => toNumber(item.quantity) > 0);
   if (!items.length) return { error: 'Phiếu trả hàng chưa có dòng hàng', status: 400 };
-  const requiresSalesKey = ['mobileDeliveryReturn', 'erpDeliveryReturn'].includes(String(body.refType || '')) || String(body.source || '') === 'returnOrders';
+  const sourceText = String(body.source || body.refType || '').toLowerCase();
+  const requiresSalesKey = ['mobileDeliveryReturn', 'erpDeliveryReturn'].includes(String(body.refType || ''))
+    || String(body.source || '') === 'returnOrders'
+    || sourceText.includes('mobile_delivery')
+    || sourceText.includes('mobiledelivery');
   if (requiresSalesKey && !String(body.salesOrderId || '').trim() && !String(body.salesOrderCode || '').trim()) {
     return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
   }
@@ -173,7 +177,9 @@ async function buildReturnOrderDocument(body = {}) {
     status: body.status || existing?.status || 'posted',
     returnMergeStatus: body.returnMergeStatus || existing?.returnMergeStatus || 'unmerged',
     warehouseReceiveStatus: body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || (isPostedReturnStatus(body.status) ? 'received' : 'waiting_receive'),
-    source: 'returnOrders',
+    source: body.source || existing?.source || 'returnOrders',
+    accountingStatus: body.accountingStatus || existing?.accountingStatus || '',
+    accountingConfirmed: Boolean(body.accountingConfirmed ?? existing?.accountingConfirmed ?? false),
     createdAt: existing?.createdAt || body.createdAt || nowIso(),
     updatedAt: nowIso()
   };
@@ -248,6 +254,8 @@ async function createPendingReturnOrder(body = {}, options = {}) {
     status: 'waiting_receive',
     returnMergeStatus: 'unmerged',
     warehouseReceiveStatus: 'waiting_receive',
+    accountingStatus: 'pending',
+    accountingConfirmed: false,
     postedAt: '',
     receivedAt: ''
   };
@@ -289,8 +297,10 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
       date: received.date,
       note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
     }, { session });
-    const source = String(received.source || received.refType || '').toLowerCase();
-    const fromMobileDelivery = source.includes('mobiledelivery') || source.includes('mobile_delivery');
+    const source = [received.source, received.refType, received.note]
+      .map((value) => String(value || '').toLowerCase())
+      .join(' ');
+    const fromMobileDelivery = source.includes('mobiledelivery') || source.includes('mobile_delivery') || source.includes('app giao hàng');
     const accountingStatus = String(received.accountingStatus || '').toLowerCase();
     const accountingConfirmed = Boolean(received.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
     if (!fromMobileDelivery || accountingConfirmed) {
