@@ -5046,6 +5046,15 @@ button.danger:hover{background:#fecaca}
   align-items:flex-start;
   padding:4px 0;
 }
+
+.import-order-preview-item.no-check{
+  display:block;
+  grid-template-columns:none;
+}
+.import-order-preview-item.no-check .import-order-preview-content{
+  width:100%;
+}
+
 .import-order-preview-check{
   display:flex;
   align-items:center;

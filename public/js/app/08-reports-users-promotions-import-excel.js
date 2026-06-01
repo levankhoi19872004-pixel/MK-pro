@@ -477,7 +477,7 @@ function renderImportOrderPreviewSummary(row,index,options={}){
   const code=row.documentCode||row.code||row.orderCode||row.invoiceCode||'';
   const total=Number(row.totalAmount ?? row.amount ?? row.grossAmount ?? 0);
   return `
-    <div class="import-order-preview-item ${state.type}">
+    <div class="import-order-preview-item ${state.type} ${showCheckbox?'':'no-check'}">
       ${showCheckbox?`<div class="import-order-preview-check">${checkHtml}</div>`:''}
       <div class="import-order-preview-content">
         <div class="import-order-line import-order-preview-line">
