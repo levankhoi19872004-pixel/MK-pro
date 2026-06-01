@@ -377,57 +377,32 @@ async function findStaffs(query = {}) {
     ? query.roles
     : String(query.roles || query.role || '').split(',').map((v) => v.trim()).filter(Boolean);
   const normalizedRoles = staffRoleFilter(query.role, roles);
-  const limit = parseLimit(query, q ? 50 : 50, 50);
-  const active = activeFilter(query);
-
-  const staffFilter = { ...active };
-  const userFilter = { ...active };
+  const limit = parseLimit(query, q ? 50 : 20, 50);
+  const userFilter = { ...activeFilter(query) };
 
   if (normalizedRoles && normalizedRoles.length) {
     const roleRegexes = normalizedRoles.map((r) => new RegExp(`^${escapeRegex(r)}$`, 'i'));
-    staffFilter.$or = [
-      { role: { $in: roleRegexes } },
-      { type: { $in: roleRegexes } },
-      { position: { $in: roleRegexes } },
-      { department: { $in: roleRegexes } },
-      ...(normalizedRoles.some((r) => ['sales', 'sale', 'nvbh', 'salesstaff', 'sales_staff'].includes(String(r).toLowerCase())) ? [{ isSalesman: true }, { isSalesStaff: true }, { salesStaff: true }] : []),
-      ...(normalizedRoles.some((r) => ['delivery', 'shipper', 'nvgh', 'deliverystaff', 'delivery_staff'].includes(String(r).toLowerCase())) ? [{ isDelivery: true }, { isDeliveryStaff: true }, { deliveryStaff: true }] : [])
-    ];
     userFilter.role = { $in: roleRegexes };
   }
 
-  const staffSearchOrs = regexOr(q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'role', 'roleLabel', 'position', 'department']);
   const userSearchOrs = regexOr(q, ['staffCode', 'username', 'fullName', 'name', 'phone', 'role']);
-  if (staffSearchOrs.length) {
-    if (staffFilter.$or) staffFilter.$and = [{ $or: staffFilter.$or }, { $or: staffSearchOrs }], delete staffFilter.$or;
-    else staffFilter.$or = staffSearchOrs;
-  }
   if (userSearchOrs.length) userFilter.$or = userSearchOrs;
 
-  const [staffRows, userRows] = await Promise.all([
-    Staff.find(staffFilter)
-      .select('id code staffCode username name fullName phone role roleLabel type position department isActive isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff')
-      .sort({ code: 1 })
-      .limit(limit)
-      .lean(),
-    User.find(userFilter)
-      .select('id staffCode username name fullName phone role isActive')
-      .sort({ staffCode: 1, username: 1 })
-      .limit(limit)
-      .lean()
-  ]);
+  // V45 rule: nhân viên lấy từ users là nguồn chuẩn. Không trộn staffs để tránh lệch mã/tên/role.
+  const userRows = await User.find(userFilter)
+    .select('id staffCode username name fullName phone role isActive')
+    .sort({ staffCode: 1, username: 1 })
+    .limit(limit)
+    .lean();
 
-  return uniqueBy([
-    ...staffRows,
-    ...userRows.map((u) => ({
-      ...u,
-      code: u.staffCode || u.code || u.username,
-      staffCode: u.staffCode || u.code || u.username,
-      name: u.fullName || u.name || u.username,
-      fullName: u.fullName || u.name || u.username,
-      source: 'users'
-    }))
-  ], ['code', 'staffCode', 'username']).slice(0, limit);
+  return uniqueBy(userRows.map((u) => ({
+    ...u,
+    code: u.staffCode || u.code || u.username,
+    staffCode: u.staffCode || u.code || u.username,
+    name: u.fullName || u.name || u.username,
+    fullName: u.fullName || u.name || u.username,
+    source: 'users'
+  })), ['code', 'staffCode', 'username']).slice(0, limit);
 }
 
 function orderSearchScore(row = {}, nq = '') {

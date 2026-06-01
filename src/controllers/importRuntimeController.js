@@ -5,7 +5,7 @@ const excelImportService = require('../services/excelImportService');
 async function preview(req, res) {
   try {
     if (!req.file) return res.status(400).json({ ok: false, message: 'Chưa có file Excel để import' });
-    const result = await excelImportService.preview({ type: String(req.body?.type || req.query?.type || '').trim(), buffer: req.file.buffer });
+    const result = await excelImportService.preview({ type: String(req.body?.type || req.query?.type || '').trim(), buffer: req.file.buffer, userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {
@@ -15,7 +15,7 @@ async function preview(req, res) {
 
 async function commit(req, res) {
   try {
-    const result = await excelImportService.commit({ type: String(req.body?.type || '').trim(), rows: req.body?.rows });
+    const result = await excelImportService.commit({ type: String(req.body?.type || '').trim(), rows: req.body?.rows, sessionId: String(req.body?.sessionId || req.body?.importSessionId || '').trim(), selectedOrderCodes: req.body?.selectedOrderCodes || [], userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {

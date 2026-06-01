@@ -1,4 +1,5 @@
 let importShortageActionMode='';
+let importPreviewSessionId='';
 
 function reportDateInRange(dateText, fromDate, toDate){
   return isDateInRange(dateText, fromDate, toDate);
@@ -524,27 +525,9 @@ function attachImportOrderError(row,message){
   return row;
 }
 function normalizeImportPreviewSalesStaffFromAccounts(rows=[]){
-  return rows.map(row=>{
-    if(!row || row.previewMode!=='order')return row;
-    const excelStaffCode=normalizeImportStaffCode(getImportPreviewSalesStaffCode(row));
-    if(!excelStaffCode){
-      return attachImportOrderError(row,'Thiếu mã NVBH trong file Excel');
-    }
-    const account=findImportSalesAccountByCode(excelStaffCode);
-    if(!account){
-      row.salesStaffCode=excelStaffCode;
-      row.staffCode=excelStaffCode;
-      row.salesStaffName='';
-      row.staffName='';
-      return attachImportOrderError(row,`Mã NVBH ${excelStaffCode} không có trong danh sách tài khoản`);
-    }
-    const accountName=account.name||account.fullName||account.displayName||account.username||'';
-    row.salesStaffCode=excelStaffCode;
-    row.staffCode=excelStaffCode;
-    row.salesStaffName=accountName;
-    row.staffName=accountName;
-    return row;
-  });
+  // V45: tên/mã NVBH của preview phải do backend Rule Engine trả về.
+  // Frontend chỉ render, không tự validate/tự sửa theo cache tài khoản.
+  return Array.isArray(rows)?rows:[];
 }
 
 function getImportOrderShortageState(row){
@@ -736,6 +719,7 @@ function renderImportShortageActions(rows=[]){
 
 function renderImportPreview(result){
   importShortageActionMode='';
+  importPreviewSessionId=result.sessionId||result.importSessionId||'';
   importPreviewRows=result.rows||[];
   // Bảo hiểm dữ liệu: nếu backend trả shortageReport cấp tổng nhưng từng đơn chưa gắn hasShortage,
   // gom shortage theo mã đơn rồi đánh dấu lại để UI và commit nhận biết đúng.
@@ -852,9 +836,7 @@ async function commitImportExcel(){
       return;
     }
 
-    await ensureImportUsersCache();
-    importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
-    renderImportPreview({rows:importPreviewRows});
+    // V45: backend validate lần 2 theo importSession; frontend không tự sửa dữ liệu preview.
 
     const selectedRows=getSelectedImportRows();
     if(!selectedRows.length){showMessage(importDataMessage,'Bạn chưa chọn đơn/dòng nào để import',true);return;}
@@ -870,7 +852,7 @@ async function commitImportExcel(){
     const res=await fetch('/api/import/commit',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type:importDataType.value,rows:selectedRows,shortageMode:importShortageActionMode||'cut'})
+      body:JSON.stringify({type:importDataType.value,rows:selectedRows,sessionId:importPreviewSessionId,selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||'').trim()).filter(Boolean),shortageMode:importShortageActionMode||'cut'})
     });
     const json=await res.json();
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');

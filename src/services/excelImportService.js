@@ -8,6 +8,7 @@ const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
 const StockTransaction = require('../models/StockTransaction');
 const InventoryLegacy = require('../models/InventoryLegacy');
+const Inventory = require('../models/Inventory');
 const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
 const Payment = require('../models/Payment');
@@ -16,6 +17,9 @@ const systemService = require('./systemService');
 const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
 const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.util');
+const importRules = require('../rules/importRules');
+const importSessionService = require('./importSessionService');
+const auditService = require('./auditService');
 
 function cleanText(value) {
   return String(value ?? '').trim();
@@ -586,7 +590,10 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     });
   }
   if (ops.length) {
-    await bulkWriteInBatches(InventoryLegacy, ops);
+    await Promise.all([
+      bulkWriteInBatches(InventoryLegacy, ops),
+      bulkWriteInBatches(Inventory, ops)
+    ]);
   }
   return { transactionCount: movements.length, inventoryRows: ops.length };
 }
@@ -626,7 +633,10 @@ async function setOpeningStockInventoriesBulk(rows = []) {
     });
   }
   if (ops.length) {
-    await bulkWriteInBatches(InventoryLegacy, ops);
+    await Promise.all([
+      bulkWriteInBatches(InventoryLegacy, ops),
+      bulkWriteInBatches(Inventory, ops)
+    ]);
   }
   return { inventoryRows: ops.length };
 }
@@ -917,9 +927,15 @@ async function importSalesOrders(rows = [], options = {}) {
   // Lấy tồn kho theo mã sản phẩm. Không khóa cứng warehouseCode ở bước import DMS,
   // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
   // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
-  const stockRows = await InventoryLegacy.find({
-    productCode: { $in: productCodes }
-  }).lean().catch(() => []);
+  const [snapshotStockRows, legacyStockRows] = await Promise.all([
+    Inventory.find({ productCode: { $in: productCodes } }).lean().catch(() => []),
+    InventoryLegacy.find({ productCode: { $in: productCodes } }).lean().catch(() => [])
+  ]);
+  const snapshotTotalQty = snapshotStockRows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand), 0);
+  const legacyTotalQty = legacyStockRows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand), 0);
+  const stockRows = legacyStockRows.length > snapshotStockRows.length && snapshotTotalQty <= 0 && legacyTotalQty !== 0
+    ? legacyStockRows
+    : snapshotStockRows;
   const stockMap = new Map();
   const productStockMap = new Map();
   for (const stock of stockRows) {
@@ -1427,15 +1443,26 @@ function getSalesStaffNameFromRow(row = {}) {
 
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
-  const inventoryRows = codes.length ? await InventoryLegacy.find({ productCode: { $in: codes } }).lean() : [];
-  const map = new Map();
-  for (const row of inventoryRows) {
-    const code = cleanText(row.productCode || row.productId);
-    if (!code) continue;
-    const qty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
-    map.set(code, toNumber(map.get(code)) + qty);
-  }
-  return map;
+  if (!codes.length) return new Map();
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find({ productCode: { $in: codes } }).lean().catch(() => []),
+    InventoryLegacy.find({ productCode: { $in: codes } }).lean().catch(() => [])
+  ]);
+  const buildMap = (inventoryRows = []) => {
+    const map = new Map();
+    for (const row of inventoryRows) {
+      const code = cleanText(row.productCode || row.productId);
+      if (!code) continue;
+      const qty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
+      map.set(code, toNumber(map.get(code)) + qty);
+    }
+    return map;
+  };
+  const snapshotMap = buildMap(snapshotRows);
+  const legacyMap = buildMap(legacyRows);
+  const snapshotTotal = [...snapshotMap.values()].reduce((a, b) => a + toNumber(b), 0);
+  const legacyTotal = [...legacyMap.values()].reduce((a, b) => a + toNumber(b), 0);
+  return legacyRows.length > snapshotRows.length && snapshotTotal <= 0 && legacyTotal !== 0 ? legacyMap : snapshotMap;
 }
 
 
@@ -1907,23 +1934,71 @@ async function previewMongoNative(type, rows = []) {
   return { type, rows: result, total: result.length, valid: result.filter((r) => r.valid).length, invalid: result.filter((r) => !r.valid).length };
 }
 
-async function preview({ type, buffer }) {
+async function preview({ type, buffer, userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (!buffer) return { error: 'Chưa chọn file Excel', status: 400 };
   const rows = parseExcelBuffer(buffer);
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
-  return previewMongoNative(type, rows);
+  const result = await previewMongoNative(type, rows);
+  if (type === 'salesOrders') {
+    const validatedRows = await importRules.validateImportBatch(result.rows || []);
+    const session = importSessionService.createSession({ type, rows: validatedRows, rawRows: rows, createdBy: userName });
+    await auditService.log('IMPORT_PREVIEW', {
+      refType: 'importSession',
+      refId: session.id,
+      refCode: session.id,
+      userName,
+      summary: {
+        type,
+        totalOrders: validatedRows.length,
+        validOrders: validatedRows.filter((r) => r.valid).length,
+        invalidOrders: validatedRows.filter((r) => !r.valid).length
+      }
+    });
+    return {
+      ...result,
+      rows: validatedRows,
+      total: validatedRows.length,
+      valid: validatedRows.filter((r) => r.valid).length,
+      invalid: validatedRows.filter((r) => !r.valid).length,
+      sessionId: session.id,
+      importSessionId: session.id
+    };
+  }
+
+  return result;
 }
 
-async function commit({ type, rows, shortageMode = '' }) {
+async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
-  if (!Array.isArray(rows) || !rows.length) return { error: 'Chưa có dòng nào để import', status: 400 };
-  const validRows = rows.filter((r) => r && r.valid !== false && (!Array.isArray(r.errors) || r.errors.length === 0));
-  if (!validRows.length) return { error: 'Không có dòng hợp lệ để import', status: 400 };
 
-  // Luồng import mới: không trả 409 để hỏi lại người dùng.
-  // Đơn bán DMS luôn tự cắt theo tồn thực tế và sinh báo cáo hàng thiếu.
+  let sourceRows = Array.isArray(rows) ? rows : [];
+  let session = null;
+  if (sessionId) {
+    session = importSessionService.getSession(sessionId);
+    if (!session) return { error: 'Phiên preview import đã hết hạn, vui lòng preview lại file Excel', status: 400 };
+    if (session.type !== type) return { error: 'Phiên preview không khớp loại import', status: 400 };
+    sourceRows = importSessionService.selectRows(session, selectedOrderCodes);
+    if (!sourceRows.length) return { error: 'Chưa chọn đơn hợp lệ trong phiên preview', status: 400 };
+  }
+
+  if (!Array.isArray(sourceRows) || !sourceRows.length) return { error: 'Chưa có dòng nào để import', status: 400 };
+
+  // Backend validate lần 2. Không tin hoàn toàn dữ liệu frontend.
+  if (type === 'salesOrders') {
+    sourceRows = await importRules.validateImportBatch(sourceRows);
+  }
+
+  const validRows = sourceRows.filter((r) => r && r.valid !== false && r.canImport !== false && (!Array.isArray(r.errors) || r.errors.length === 0));
+  if (!validRows.length) {
+    return {
+      error: 'Không có dòng/đơn hợp lệ để import',
+      status: 400,
+      errors: sourceRows.flatMap((r) => r.errors || []).slice(0, 50)
+    };
+  }
+
   const hasShortage = validRows.some((r) => r && r.hasShortage);
   const commitRows = type === 'salesOrders'
     ? flattenAdjustedCommitRows(validRows)
@@ -1940,6 +2015,23 @@ async function commit({ type, rows, shortageMode = '' }) {
   else if (type === 'cashbook') result = await importCashbook(commitRows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
+  if (session) importSessionService.updateSession(session.id, { status: 'committed', selectedOrderCodes, committedAt: nowIso() });
+  await auditService.log('IMPORT_COMMIT', {
+    refType: 'importSession',
+    refId: session?.id || '',
+    refCode: session?.id || '',
+    userName,
+    summary: {
+      type,
+      totalSelected: sourceRows.length,
+      totalValid: validRows.length,
+      totalCommitRows: commitRows.length,
+      imported: result.imported || 0,
+      skipped: result.skipped || 0,
+      errors: (result.errors || []).slice(0, 20)
+    }
+  });
+
   const shortageRows = type === 'salesOrders'
     ? normalizeShortageRows([
         ...validRows.flatMap((r) => r.shortageReport || []),
@@ -1949,10 +2041,10 @@ async function commit({ type, rows, shortageMode = '' }) {
   const shortageSummary = summarizeOrderShortages(shortageRows);
   return {
     ...result,
-    source: 'mongo-native-direct',
+    source: session ? 'mongo-native-session-commit' : 'mongo-native-direct',
     ok: true,
     message: `Đã import ${result.imported || 0} chứng từ`,
-    totalRows: rows.length,
+    totalRows: sourceRows.length,
     totalCommitRows: commitRows.length,
     hasShortage: type === 'salesOrders' && (hasShortage || shortageRows.length > 0),
     shortageMode: shortageRows.length ? 'cut' : '',

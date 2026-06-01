@@ -4,7 +4,7 @@ const excelImportService = require('../services/excelImportService');
 
 async function preview(req, res) {
   try {
-    const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), buffer: req.file?.buffer });
+    const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), buffer: req.file?.buffer, userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, ...result });
   } catch (err) {
@@ -14,7 +14,7 @@ async function preview(req, res) {
 
 async function commit(req, res) {
   try {
-    const result = await excelImportService.commit({ type: String(req.body?.type || '').trim(), rows: req.body?.rows, shortageMode: String(req.body?.shortageMode || '').trim() });
+    const result = await excelImportService.commit({ type: String(req.body?.type || '').trim(), rows: req.body?.rows, shortageMode: String(req.body?.shortageMode || '').trim(), sessionId: String(req.body?.sessionId || req.body?.importSessionId || '').trim(), selectedOrderCodes: req.body?.selectedOrderCodes || [], userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, ...result });
   } catch (err) {

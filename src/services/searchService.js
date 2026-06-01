@@ -229,7 +229,7 @@ function toStaffSuggestion(staff = {}) {
 }
 
 async function searchStaffs(query = {}) {
-  if (!queryGuard.ensureSearchKeyword(query, 2).ok && !query.role) return [];
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
   const staffs = await searchRepository.findStaffs({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
   return staffs.map(toStaffSuggestion);
 }
