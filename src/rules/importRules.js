@@ -2,9 +2,10 @@
 
 const { normalizeCode } = require('./commonRules');
 const staffRules = require('./staffRules');
-const customerRules = require('./customerRules');
-const productRules = require('./productRules');
 const SalesOrder = require('../models/SalesOrder');
+const Customer = require('../models/Customer');
+const Product = require('../models/Product');
+const User = require('../models/User');
 const { makeBusinessError, makeBusinessWarning } = require('../utils/businessError.util');
 
 function pushUnique(list, value) {
@@ -26,6 +27,102 @@ function getSourceFile(order = {}) {
   return cleanText(order.sourceFile || order.fileName || order.originalFileName || order.raw?.sourceFile || order.raw?.__sourceFile || '');
 }
 
+function addMapAlias(map, value, row) {
+  const key = normalizeCode(value);
+  if (key && row) map.set(key, row);
+}
+
+function getLineProductCode(line = {}) {
+  return normalizeCode(line.productCode || line.code || line.sku || line.barcode || line.productId || line.itemCode);
+}
+
+function getUserRealCode(user = {}, fallback = '') {
+  return cleanText(user.staffCode || user.code || user.employeeCode || user.salesStaffCode || user.deliveryStaffCode || user.maNhanVien || user.employeeId || user.staffId || user.username || fallback);
+}
+
+async function buildImportValidationContext(orders = []) {
+  const customerCodes = new Set();
+  const productCodes = new Set();
+  const staffCodes = new Set();
+
+  for (const order of orders || []) {
+    const customerCode = normalizeCode(order.customerCode);
+    const salesStaffCode = normalizeCode(order.staffCode || order.salesStaffCode);
+    if (customerCode) customerCodes.add(customerCode);
+    if (salesStaffCode) staffCodes.add(salesStaffCode);
+    const lines = Array.isArray(order.lineDetails) ? order.lineDetails : [];
+    for (const line of lines) {
+      const productCode = getLineProductCode(line);
+      if (productCode) productCodes.add(productCode);
+    }
+  }
+
+  const [customers, products, users] = await Promise.all([
+    customerCodes.size ? Customer.find({ isActive: { $ne: false }, $or: [
+      { code: { $in: Array.from(customerCodes) } },
+      { customerCode: { $in: Array.from(customerCodes) } },
+      { phone: { $in: Array.from(customerCodes) } },
+      { id: { $in: Array.from(customerCodes) } }
+    ] }).lean().catch(() => []) : [],
+    productCodes.size ? Product.find({ isActive: { $ne: false }, $or: [
+      { code: { $in: Array.from(productCodes) } },
+      { productCode: { $in: Array.from(productCodes) } },
+      { sku: { $in: Array.from(productCodes) } },
+      { barcode: { $in: Array.from(productCodes) } },
+      { id: { $in: Array.from(productCodes) } }
+    ] }).lean().catch(() => []) : [],
+    staffCodes.size ? User.find({ isActive: { $ne: false }, $or: [
+      { staffCode: { $in: Array.from(staffCodes) } },
+      { code: { $in: Array.from(staffCodes) } },
+      { employeeCode: { $in: Array.from(staffCodes) } },
+      { salesStaffCode: { $in: Array.from(staffCodes) } },
+      { deliveryStaffCode: { $in: Array.from(staffCodes) } },
+      { username: { $in: Array.from(staffCodes) } },
+      { maNhanVien: { $in: Array.from(staffCodes) } },
+      { employeeId: { $in: Array.from(staffCodes) } },
+      { staffId: { $in: Array.from(staffCodes) } }
+    ] }).select('id staffCode code employeeCode salesStaffCode deliveryStaffCode username maNhanVien employeeId staffId name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []) : []
+  ]);
+
+  const customerMap = new Map();
+  customers.forEach((c) => [c.code, c.customerCode, c.phone, c.id, String(c._id || '')].forEach((v) => addMapAlias(customerMap, v, c)));
+
+  const productMap = new Map();
+  products.forEach((p) => [p.code, p.productCode, p.sku, p.barcode, p.id, String(p._id || '')].forEach((v) => addMapAlias(productMap, v, p)));
+
+  const salesStaffMap = new Map();
+  users.forEach((u) => {
+    const aliases = [u.staffCode, u.code, u.employeeCode, u.salesStaffCode, u.deliveryStaffCode, u.username, u.maNhanVien, u.employeeId, u.staffId, String(u._id || '')];
+    aliases.forEach((v) => addMapAlias(salesStaffMap, v, u));
+  });
+
+  return { customerMap, productMap, salesStaffMap };
+}
+
+function validateCustomerFromContext(customerCode, context = {}, orderCode = '') {
+  const code = normalizeCode(customerCode);
+  if (!code) return { valid: false, customer: null, error: makeBusinessError({ code: 'MISSING_CUSTOMER_CODE', message: 'Thiếu mã khách hàng', orderCode, field: 'customerCode' }) };
+  const customer = context.customerMap?.get(code);
+  if (!customer) return { valid: false, customer: null, error: makeBusinessError({ code: 'INVALID_CUSTOMER_CODE', message: `Mã khách hàng ${code} không tồn tại trong danh mục khách hàng`, orderCode, field: 'customerCode' }) };
+  return { valid: true, customer: { ...customer, code: customer.code || customer.customerCode || code, name: customer.name || customer.customerName || '' }, error: null };
+}
+
+function validateSalesStaffFromContext(staffCode, context = {}, orderCode = '') {
+  const code = normalizeCode(staffCode);
+  if (!code) return { valid: false, staff: null, error: makeBusinessError({ code: 'MISSING_NVBH_CODE', message: 'Thiếu mã NVBH', orderCode, field: 'salesStaffCode' }) };
+  const staff = context.salesStaffMap?.get(code);
+  if (!staff) return { valid: false, staff: null, error: makeBusinessError({ code: 'INVALID_NVBH_CODE', message: `Mã NVBH ${code} không tồn tại trong danh sách tài khoản`, orderCode, field: 'salesStaffCode' }) };
+  return { valid: true, staff: { ...staff, code: getUserRealCode(staff, code), name: staff.fullName || staff.name || staff.username || '' }, error: null };
+}
+
+function validateProductFromContext(productCode, context = {}, orderCode = '') {
+  const code = normalizeCode(productCode);
+  if (!code) return { valid: false, product: null, error: makeBusinessError({ code: 'MISSING_PRODUCT_CODE', message: 'Thiếu mã sản phẩm', orderCode, field: 'productCode' }) };
+  const product = context.productMap?.get(code);
+  if (!product) return { valid: false, product: null, error: makeBusinessError({ code: 'INVALID_PRODUCT_CODE', message: `Mã sản phẩm ${code} không tồn tại trong danh mục sản phẩm`, orderCode, field: 'productCode' }) };
+  return { valid: true, product: { ...product, code: product.code || product.productCode || product.sku || code, name: product.name || product.productName || '' }, error: null };
+}
+
 async function validateImportSalesOrder(order = {}, context = {}) {
   const orderCode = getOrderCode(order);
   const errors = [];
@@ -35,7 +132,7 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   if (!orderCode) pushUnique(errors, makeBusinessError({ code: 'MISSING_ORDER_CODE', message: 'Thiếu mã đơn / số hóa đơn', field: 'documentCode' }));
 
   const customerCode = normalizeCode(order.customerCode);
-  const customerResult = await customerRules.validateCustomerCode(customerCode, { orderCode });
+  const customerResult = context.customerMap ? validateCustomerFromContext(customerCode, context, orderCode) : { valid: false, customer: null, error: makeBusinessError({ code: 'INVALID_CUSTOMER_CODE', message: `Mã khách hàng ${customerCode || '-'} chưa được preload`, orderCode, field: 'customerCode' }) };
   if (!customerResult.valid) pushUnique(errors, customerResult.error);
   else {
     resolved.customerCode = customerResult.customer.code;
@@ -43,7 +140,7 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   }
 
   const salesStaffCode = normalizeCode(order.staffCode || order.salesStaffCode);
-  const staffResult = await staffRules.validateSalesStaffCode(salesStaffCode, { orderCode });
+  const staffResult = context.salesStaffMap ? validateSalesStaffFromContext(salesStaffCode, context, orderCode) : await staffRules.validateSalesStaffCode(salesStaffCode, { orderCode });
   if (!staffResult.valid) pushUnique(errors, staffResult.error);
   else {
     resolved.salesStaffCode = staffResult.staff.code;
@@ -53,8 +150,8 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   const lines = Array.isArray(order.lineDetails) ? order.lineDetails : [];
   if (!lines.length) pushUnique(errors, makeBusinessError({ code: 'MISSING_ORDER_LINES', message: 'Đơn không có dòng hàng', orderCode, field: 'items' }));
   for (const line of lines) {
-    const productCode = normalizeCode(line.productCode);
-    const productResult = await productRules.validateProductCode(productCode, { orderCode });
+    const productCode = getLineProductCode(line);
+    const productResult = context.productMap ? validateProductFromContext(productCode, context, orderCode) : { valid: false, product: null, error: makeBusinessError({ code: 'INVALID_PRODUCT_CODE', message: `Mã sản phẩm ${productCode || '-'} chưa được preload`, orderCode, field: 'productCode' }) };
     if (!productResult.valid) pushUnique(errors, { ...productResult.error, rowNo: line.rowNo || '' });
     if (Number(line.saleQuantity ?? line.requestedQuantity ?? line.quantity ?? 0) < 0) {
       pushUnique(errors, makeBusinessError({ code: 'INVALID_QUANTITY', message: `Số lượng sản phẩm ${productCode || '-'} không hợp lệ`, orderCode, field: 'quantity' }));
@@ -103,8 +200,9 @@ async function findExistingOrderCodeSet(orderCodes = []) {
 }
 
 async function validateImportBatch(orders = []) {
+  const context = await buildImportValidationContext(orders);
   const validated = [];
-  for (const order of orders || []) validated.push(await validateImportSalesOrder(order));
+  for (const order of orders || []) validated.push(await validateImportSalesOrder(order, context));
 
   const byCode = new Map();
   validated.forEach((row, index) => {
@@ -148,4 +246,4 @@ async function validateImportBatch(orders = []) {
   return validated;
 }
 
-module.exports = { validateImportSalesOrder, validateImportBatch, findExistingOrderCodeSet };
+module.exports = { validateImportSalesOrder, validateImportBatch, findExistingOrderCodeSet, buildImportValidationContext };

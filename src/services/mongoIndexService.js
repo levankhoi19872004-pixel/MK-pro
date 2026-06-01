@@ -34,6 +34,10 @@ const INDEX_DEFINITIONS = {
   users: [
     [{ staffCode: 1 }, { name: 'idx_users_staff_code', sparse: true }],
     [{ username: 1 }, { name: 'idx_users_username_search', sparse: true }],
+    [{ code: 1 }, { name: 'idx_users_code', sparse: true }],
+    [{ employeeCode: 1 }, { name: 'idx_users_employee_code', sparse: true }],
+    [{ salesStaffCode: 1 }, { name: 'idx_users_sales_staff_code', sparse: true }],
+    [{ deliveryStaffCode: 1 }, { name: 'idx_users_delivery_staff_code', sparse: true }],
     [{ fullName: 1 }, { name: 'idx_users_full_name', sparse: true }],
     [{ role: 1, isActive: 1 }, { name: 'idx_users_role_active' }]
   ],
@@ -42,6 +46,8 @@ const INDEX_DEFINITIONS = {
   salesOrders: [
     [{ id: 1 }, { name: 'idx_orders_id' }],
     [{ code: 1 }, { name: 'idx_orders_code' }],
+    [{ documentCode: 1 }, { name: 'idx_orders_document_code', sparse: true }],
+    [{ invoiceCode: 1 }, { name: 'idx_orders_invoice_code', sparse: true }],
     [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
     [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
     [{ date: 1, status: 1 }, { name: 'idx_orders_date_status' }],
@@ -181,7 +187,8 @@ const INDEX_DEFINITIONS = {
   ],
   importLogs: [
     [{ type: 1, createdAt: -1 }, { name: 'idx_import_logs_type_created' }],
-    [{ fileName: 1 }, { name: 'idx_import_logs_file_name' }]
+    [{ fileName: 1 }, { name: 'idx_import_logs_file_name' }],
+    [{ batchCode: 1 }, { name: 'idx_import_logs_batch_code', sparse: true }]
   ]
 };
 

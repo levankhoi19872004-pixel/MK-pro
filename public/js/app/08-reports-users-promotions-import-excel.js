@@ -1,5 +1,7 @@
 let importShortageActionMode='';
 let importPreviewSessionId='';
+let importSelectedRowKeySet=new Set();
+const IMPORT_PREVIEW_RENDER_LIMIT=Number(window.IMPORT_PREVIEW_RENDER_LIMIT||120);
 
 function reportDateInRange(dateText, fromDate, toDate){
   return isDateInRange(dateText, fromDate, toDate);
@@ -311,11 +313,36 @@ async function deleteCustomImportTemplate(){
 function resetImportPreviewMessage(){
   if(importDataMessage)showMessage(importDataMessage,'');
 }
-function getSelectedImportRows(){
-  return importPreviewRows.filter((row,index)=>{
-    const checkbox=document.querySelector(`.import-row-check[data-index="${index}"]`);
-    return checkbox && checkbox.checked && row.valid && row.canImport !== false;
+function getImportRowSelectKey(row,index){
+  const code=String(row?.documentCode||row?.orderCode||row?.code||'').trim();
+  return code || `ROW_${index}`;
+}
+function initImportSelectedRows(rows=[]){
+  importSelectedRowKeySet=new Set();
+  rows.forEach((row,index)=>{
+    if(row&&row.valid&&row.canImport!==false)importSelectedRowKeySet.add(getImportRowSelectKey(row,index));
   });
+}
+function syncImportInlineSelection(){
+  document.querySelectorAll('.import-row-check').forEach(cb=>{
+    const index=Number(cb.dataset.index);
+    const row=importPreviewRows[index];
+    const key=getImportRowSelectKey(row,index);
+    if(cb.checked)importSelectedRowKeySet.add(key);
+    else importSelectedRowKeySet.delete(key);
+  });
+  syncImportSelectedCount();
+}
+function bindImportInlinePreviewChecks(){
+  document.querySelectorAll('.import-row-check').forEach(cb=>{
+    const index=Number(cb.dataset.index);
+    const row=importPreviewRows[index];
+    cb.checked=importSelectedRowKeySet.has(getImportRowSelectKey(row,index));
+    cb.onchange=syncImportInlineSelection;
+  });
+}
+function getSelectedImportRows(){
+  return importPreviewRows.filter((row,index)=>row&&row.valid&&row.canImport!==false&&importSelectedRowKeySet.has(getImportRowSelectKey(row,index)));
 }
 function escapeImportHtml(value){
   return String(value ?? '').replace(/[&<>'\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]));
@@ -647,12 +674,17 @@ function closeImportPreviewModal(){
   document.body.classList.remove('modal-open');
 }
 function syncImportSelectedCount(){
-  const selected=document.querySelectorAll('.import-modal-row-check:checked').length || getSelectedImportRows().length;
+  const selected=getSelectedImportRows().length;
   const el=document.getElementById('importPreviewSelectedCount');
   if(el)el.textContent=formatNumber(selected);
 }
 function syncImportChecksFromModal(){
   document.querySelectorAll('.import-modal-row-check').forEach(cb=>{
+    const index=Number(cb.dataset.index);
+    const row=importPreviewRows[index];
+    const key=getImportRowSelectKey(row,index);
+    if(cb.checked)importSelectedRowKeySet.add(key);
+    else importSelectedRowKeySet.delete(key);
     const inline=document.querySelector(`.import-preview-wrap .import-row-check[data-index="${cb.dataset.index}"]`);
     if(inline)inline.checked=cb.checked;
   });
@@ -662,9 +694,9 @@ function bindImportPreviewModalControls(){
   const closeBtn=document.getElementById('closeImportPreviewModalButton');
   if(closeBtn)closeBtn.onclick=closeImportPreviewModal;
   const selectAll=document.getElementById('selectAllImportPreviewButton');
-  if(selectAll)selectAll.onclick=()=>{document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=true);syncImportChecksFromModal();};
+  if(selectAll)selectAll.onclick=()=>{initImportSelectedRows(importPreviewRows);document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=true);syncImportChecksFromModal();};
   const clearAll=document.getElementById('clearAllImportPreviewButton');
-  if(clearAll)clearAll.onclick=()=>{document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=false);syncImportChecksFromModal();};
+  if(clearAll)clearAll.onclick=()=>{importSelectedRowKeySet=new Set();document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.checked=false);syncImportChecksFromModal();};
   const importBtn=document.getElementById('commitImportFromModalButton');
   if(importBtn)importBtn.onclick=()=>{syncImportChecksFromModal();commitImportExcel();};
   document.querySelectorAll('.import-modal-row-check').forEach(cb=>cb.onchange=syncImportChecksFromModal);
@@ -730,6 +762,7 @@ function renderImportPreview(result){
     });
   }
   importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
+  initImportSelectedRows(importPreviewRows);
   const total=importPreviewRows.length;
   const valid=importPreviewRows.filter(r=>r&&r.valid).length;
   const invalid=Math.max(0,total-valid);
@@ -750,22 +783,28 @@ function renderImportPreview(result){
       : '<tr><th>Chọn</th><th>Dòng</th><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr>';
   }
   if(importPreviewTable){
+    const indexedRows=importPreviewRows.map((row,index)=>({row,index}));
+    const invalidFirst=indexedRows.filter(x=>!x.row.valid).concat(indexedRows.filter(x=>x.row.valid));
+    const visibleRows=invalidFirst.slice(0,IMPORT_PREVIEW_RENDER_LIMIT);
+    const hiddenCount=Math.max(0,indexedRows.length-visibleRows.length);
+    const hiddenNote=hiddenCount>0?`<tr><td colspan="${orderMode?2:5}" class="muted">Đang tối ưu tốc độ: chỉ hiển thị ${formatNumber(visibleRows.length)} dòng đầu, còn ${formatNumber(hiddenCount)} dòng vẫn đã được chọn/import theo session.</td></tr>`:'';
     if(orderMode){
-      importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
+      importPreviewTable.innerHTML=visibleRows.map(({row,index})=>`
         <tr class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
-          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
+          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
           <td>${renderImportOrderPreviewSummary(row,index,{inline:true})}</td>
-        </tr>`).join('');
+        </tr>`).join('')+hiddenNote;
     }else{
-      importPreviewTable.innerHTML=importPreviewRows.map((row,index)=>`
+      importPreviewTable.innerHTML=visibleRows.map(({row,index})=>`
         <tr class="${row.valid?'import-valid':'import-invalid'}">
-          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" checked />`:''}</td>
+          <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
           <td>${row.rowNo||''}</td>
           <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
           <td>${importRowToText(row)}</td>
           <td>${(row.errors||[]).join('; ')}</td>
-        </tr>`).join('');
+        </tr>`).join('')+hiddenNote;
     }
+    bindImportInlinePreviewChecks();
   }
   // Bỏ cửa sổ popup preview: chỉ hiển thị báo cáo gọn ngay trên màn import.
   renderImportShortageActions(importPreviewRows);
