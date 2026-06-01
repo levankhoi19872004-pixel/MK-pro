@@ -420,6 +420,61 @@ function ensureImportPreviewModal(){
 }
 
 
+
+function normalizeImportPreviewKey(value){
+  return String(value||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g,'');
+}
+function pickImportPreviewValue(source, keys){
+  if(!source || typeof source!=='object')return '';
+  for(const key of keys){
+    const direct=source[key];
+    if(direct!==undefined && direct!==null && String(direct).trim()!=='')return direct;
+  }
+  const normalizedKeys=keys.map(normalizeImportPreviewKey);
+  for(const [k,v] of Object.entries(source)){
+    if(v===undefined || v===null || String(v).trim()==='')continue;
+    if(normalizedKeys.includes(normalizeImportPreviewKey(k)))return v;
+  }
+  return '';
+}
+function findImportPreviewValue(row, keys){
+  const pools=[
+    row,
+    row&&row.raw,
+    row&&row.source,
+    row&&row.order,
+    row&&row.meta,
+    row&&row.customer,
+    row&&Array.isArray(row.lineDetails)?row.lineDetails[0]:null,
+    row&&Array.isArray(row.items)?row.items[0]:null,
+    row&&Array.isArray(row.__importRows)?row.__importRows[0]:null
+  ];
+  for(const pool of pools){
+    const value=pickImportPreviewValue(pool,keys);
+    if(value!==undefined && value!==null && String(value).trim()!=='')return String(value).trim();
+  }
+  return '';
+}
+function getImportPreviewSalesStaffCode(row){
+  return findImportPreviewValue(row,[
+    'staffCode','salesStaffCode','salesmanCode','employeeCode','sellerCode','saleCode','salesCode',
+    'maNV','maNVBH','maNhanVien','maNhanVienBanHang','maNvBanHang','maNVBanHang',
+    'Mã NVBH','Ma NVBH','Mã nhân viên','Ma nhan vien','Mã nhân viên bán hàng','Ma nhan vien ban hang','Mã NV bán hàng','Ma NV ban hang',
+    'Salesman Code','Sales Rep Code','Sales Staff Code'
+  ]);
+}
+function getImportPreviewSalesStaffName(row){
+  return findImportPreviewValue(row,[
+    'staffName','salesStaffName','salesmanName','employeeName','sellerName','saleName','salesName',
+    'tenNV','tenNVBH','tenNhanVien','tenNhanVienBanHang','tenNvBanHang','tenNVBanHang',
+    'Tên NVBH','Ten NVBH','Tên NVTT','Ten NVTT','Nhân viên bán hàng','Nhan vien ban hang','NVBH',
+    'Salesman','Sales Rep','Sales Staff Name'
+  ]);
+}
+
 function getImportOrderShortageState(row){
   const shortages=Array.isArray(row.shortageReport)?row.shortageReport.filter(s=>Number(s.missingQuantity||s.shortageQuantity||0)>0):[];
   const lineCount=Number(row.lineCount||(Array.isArray(row.lineDetails)?row.lineDetails.length:0)||0);
@@ -472,8 +527,8 @@ function renderImportOrderPreviewSummary(row,index,options={}){
     (Array.isArray(row.__importRows)?row.__importRows.length:0) ||
     0
   );
-  const staffCode=row.staffCode||row.salesStaffCode||row.salesmanCode||row.employeeCode||row.raw?.staffCode||row.raw?.salesStaffCode||row.raw?.['Mã NVBH']||row.raw?.['Ma NVBH']||'';
-  const staffName=row.staffName||row.salesStaffName||row.salesmanName||row.employeeName||row.raw?.staffName||row.raw?.salesStaffName||row.raw?.['Tên NVBH']||row.raw?.['Ten NVBH']||'';
+  const staffCode=getImportPreviewSalesStaffCode(row);
+  const staffName=getImportPreviewSalesStaffName(row);
   const code=row.documentCode||row.code||row.orderCode||row.invoiceCode||'';
   const total=Number(row.totalAmount ?? row.amount ?? row.grossAmount ?? 0);
   return `
