@@ -51,17 +51,20 @@ function renderSalesCustomerSelect(){
 async function getSalesStaffMatches(){
   const q=salesStaffSearch?salesStaffSearch.value.trim():'';
   if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchSalesStaff(q,{limit:20});
-  return (usersCache||[])
-    .filter(u=>u.isActive!==false && ['sales','admin'].includes(String(u.role||'').toLowerCase()))
+  return (usersCache||window.__usersCache||[])
+    .filter(u=>{
+      const role=String(u.role||u.roleLabel||'').toLowerCase();
+      return u.isActive!==false && (u.isSalesman===true || u.isSalesStaff===true || ['sales','admin','nvbh','salesstaff','sales_staff'].includes(role) || role.includes('ban hang') || role.includes('sales'));
+    })
     .filter(u=>matchSearch(q,[u.code,u.username,u.name,u.fullName,u.phone,u.roleLabel,u.role]));
 }
 function selectSalesStaff(u){
   if(!u)return;
-  if(salesStaffSelect)salesStaffSelect.value=u.code||u.username||u.id||'';
+  if(salesStaffSelect)salesStaffSelect.value=u.code||u.staffCode||u.username||u.id||'';
   if(salesStaffName)salesStaffName.value=u.name||u.fullName||u.username||'';
   if(salesStaffSearch){
     salesStaffSearch.value=staffSuggestionLabel(u);
-    salesStaffSearch.dataset.selectedId=u.code||u.username||u.id||'';
+    salesStaffSearch.dataset.selectedId=u.code||u.staffCode||u.username||u.id||'';
   }
   hideSuggestions(salesStaffSuggestions);
 }

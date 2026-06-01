@@ -3,6 +3,9 @@
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
+const User = require('../models/User');
+const MasterOrder = require('../models/MasterOrder');
+const Journal = require('../models/Journal');
 const SalesOrder = require('../models/SalesOrder');
 const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
@@ -90,7 +93,7 @@ function productSearchText(row = {}) {
 function customerSearchText(row = {}) {
   return normalizeText([
     row.code, row.customerCode, row.name, row.customerName, row.phone,
-    row.address, row.area, row.route, row.staffCode, row.staffName, row.searchText
+    row.address, row.area, row.route, row.routeName, row.staffCode, row.staffName, row.searchText
   ].filter(Boolean).join(' '));
 }
 
@@ -182,7 +185,7 @@ function customerSearchScore(row = {}, nq = '') {
     startsWith: 5000,
     includes: 3000
   });
-  const metaScore = bestFieldScore([row.address, row.area, row.route, row.staffCode, row.staffName, row.searchText], nq, {
+  const metaScore = bestFieldScore([row.address, row.area, row.route, row.routeName, row.staffCode, row.staffName, row.searchText], nq, {
     exact: 2000,
     startsWith: 1500,
     includes: 1000
@@ -298,7 +301,7 @@ async function findCustomers(query = {}) {
   const nq = normalizeText(q);
   const limit = parseLimit(query);
   const baseFilter = activeFilter(query);
-  const select = 'code customerCode name customerName phone address area route staffCode staffName openingDebt debtLimit debtAmount currentDebt debt balance isActive searchText';
+  const select = 'code customerCode name customerName phone address area route routeName staffCode staffName openingDebt debtLimit debtAmount currentDebt debt balance isActive searchText';
 
   if (!q) {
     return Customer.find(baseFilter)
@@ -321,6 +324,7 @@ async function findCustomers(query = {}) {
       { address: rawRegex },
       { area: rawRegex },
       { route: rawRegex },
+      { routeName: rawRegex },
       { staffCode: rawRegex },
       { staffName: rawRegex },
       { searchText: normalizedRegex }
@@ -350,21 +354,136 @@ async function findMonthOrdersForCustomers(customerCodes = [], monthPrefix = '')
   }).select('customerCode totalAmount amount grandTotal payableAmount date orderDate status').lean();
 }
 
+
+function staffRoleFilter(role = '', roles = []) {
+  const wanted = [...roles, role].map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  if (!wanted.length) return null;
+  const expanded = new Set();
+  for (const item of wanted) {
+    expanded.add(item);
+    if (['sales', 'sale', 'nvbh', 'salesstaff'].includes(item)) {
+      ['sales', 'sale', 'nvbh', 'salesStaff', 'sales_staff'].forEach((v) => expanded.add(v));
+    }
+    if (['delivery', 'shipper', 'nvgh', 'deliverystaff'].includes(item)) {
+      ['delivery', 'shipper', 'nvgh', 'deliveryStaff', 'delivery_staff'].forEach((v) => expanded.add(v));
+    }
+  }
+  return [...expanded];
+}
+
 async function findStaffs(query = {}) {
   const q = String(query.q || query.search || query.keyword || '').trim();
-  const filter = activeFilter(query);
   const roles = Array.isArray(query.roles)
     ? query.roles
-    : String(query.roles || '').split(',').map((v) => v.trim()).filter(Boolean);
-  if (roles.length) filter.role = { $in: roles };
-  const ors = regexOr(q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'role']);
-  if (ors.length) filter.$or = ors;
+    : String(query.roles || query.role || '').split(',').map((v) => v.trim()).filter(Boolean);
+  const normalizedRoles = staffRoleFilter(query.role, roles);
+  const limit = parseLimit(query, q ? 50 : 50, 50);
+  const active = activeFilter(query);
 
-  return Staff.find(filter)
-    .select('code staffCode username name fullName phone role type isActive isSalesman isDelivery')
-    .sort({ code: 1 })
-    .limit(parseLimit(query, q ? 50 : 50, 50))
+  const staffFilter = { ...active };
+  const userFilter = { ...active };
+
+  if (normalizedRoles && normalizedRoles.length) {
+    const roleRegexes = normalizedRoles.map((r) => new RegExp(`^${escapeRegex(r)}$`, 'i'));
+    staffFilter.$or = [
+      { role: { $in: roleRegexes } },
+      { type: { $in: roleRegexes } },
+      { position: { $in: roleRegexes } },
+      { department: { $in: roleRegexes } },
+      ...(normalizedRoles.some((r) => ['sales', 'sale', 'nvbh', 'salesstaff', 'sales_staff'].includes(String(r).toLowerCase())) ? [{ isSalesman: true }, { isSalesStaff: true }, { salesStaff: true }] : []),
+      ...(normalizedRoles.some((r) => ['delivery', 'shipper', 'nvgh', 'deliverystaff', 'delivery_staff'].includes(String(r).toLowerCase())) ? [{ isDelivery: true }, { isDeliveryStaff: true }, { deliveryStaff: true }] : [])
+    ];
+    userFilter.role = { $in: roleRegexes };
+  }
+
+  const staffSearchOrs = regexOr(q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'role', 'roleLabel', 'position', 'department']);
+  const userSearchOrs = regexOr(q, ['staffCode', 'username', 'fullName', 'name', 'phone', 'role']);
+  if (staffSearchOrs.length) {
+    if (staffFilter.$or) staffFilter.$and = [{ $or: staffFilter.$or }, { $or: staffSearchOrs }], delete staffFilter.$or;
+    else staffFilter.$or = staffSearchOrs;
+  }
+  if (userSearchOrs.length) userFilter.$or = userSearchOrs;
+
+  const [staffRows, userRows] = await Promise.all([
+    Staff.find(staffFilter)
+      .select('id code staffCode username name fullName phone role roleLabel type position department isActive isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff')
+      .sort({ code: 1 })
+      .limit(limit)
+      .lean(),
+    User.find(userFilter)
+      .select('id staffCode username name fullName phone role isActive')
+      .sort({ staffCode: 1, username: 1 })
+      .limit(limit)
+      .lean()
+  ]);
+
+  return uniqueBy([
+    ...staffRows,
+    ...userRows.map((u) => ({
+      ...u,
+      code: u.staffCode || u.code || u.username,
+      staffCode: u.staffCode || u.code || u.username,
+      name: u.fullName || u.name || u.username,
+      fullName: u.fullName || u.name || u.username,
+      source: 'users'
+    }))
+  ], ['code', 'staffCode', 'username']).slice(0, limit);
+}
+
+function orderSearchScore(row = {}, nq = '') {
+  return Math.max(
+    bestFieldScore([row.code, row.orderCode, row.salesOrderCode, row.id], nq, { exact: 10000, startsWith: 9000, includes: 7000 }),
+    bestFieldScore([row.customerCode, row.customerName, row.staffCode, row.staffName, row.deliveryStaffCode, row.deliveryStaffName, row.date, row.deliveryDate], nq, { exact: 6000, startsWith: 5000, includes: 3000 })
+  );
+}
+
+async function findOrders(query = {}) {
+  const q = String(query.q || query.search || query.keyword || '').trim();
+  const nq = normalizeText(q);
+  const limit = parseLimit(query, 20, 50);
+  const filter = {};
+  if (q) filter.$or = regexOr(q, ['code', 'orderCode', 'salesOrderCode', 'customerCode', 'customerName', 'staffCode', 'staffName', 'deliveryStaffCode', 'deliveryStaffName', 'date']);
+  const rows = await SalesOrder.find(filter)
+    .select('id code orderCode salesOrderCode date orderDate customerCode customerName staffCode staffName deliveryStaffCode deliveryStaffName status deliveryStatus arStatus totalAmount amount grandTotal source')
+    .sort({ date: -1, createdAt: -1 })
+    .limit(Math.min(limit * 5, 250))
     .lean();
+  return q ? sortScoredRows(rows, orderSearchScore, nq, limit, ['code', 'orderCode', 'salesOrderCode']) : rows.slice(0, limit);
+}
+
+async function findMasterOrders(query = {}) {
+  const q = String(query.q || query.search || query.keyword || '').trim();
+  const nq = normalizeText(q);
+  const limit = parseLimit(query, 20, 50);
+  const filter = {};
+  if (q) filter.$or = regexOr(q, ['code', 'deliveryDate', 'deliveryStaffCode', 'deliveryStaffName', 'routeName', 'status']);
+  const rows = await MasterOrder.find(filter)
+    .select('id code date deliveryDate deliveryStaffCode deliveryStaffName routeName status totalAmount childOrderIds children createdAt')
+    .sort({ deliveryDate: -1, createdAt: -1 })
+    .limit(Math.min(limit * 5, 250))
+    .lean();
+  return q ? sortScoredRows(rows, orderSearchScore, nq, limit, ['code']) : rows.slice(0, limit);
+}
+
+function ledgerSearchScore(row = {}, nq = '') {
+  return Math.max(
+    bestFieldScore([row.code, row.id, row.refCode, row.orderCode], nq, { exact: 10000, startsWith: 9000, includes: 7000 }),
+    bestFieldScore([row.customerCode, row.customerName, row.type, row.note, row.date], nq, { exact: 6000, startsWith: 5000, includes: 3000 })
+  );
+}
+
+async function findArLedger(query = {}) {
+  const q = String(query.q || query.search || query.keyword || '').trim();
+  const nq = normalizeText(q);
+  const limit = parseLimit(query, 20, 50);
+  const filter = {};
+  if (q) filter.$or = regexOr(q, ['code', 'id', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note', 'date']);
+  const rows = await Journal.find(filter)
+    .select('id code type date customerCode customerName orderId orderCode refId refCode refType amount debit credit note createdAt')
+    .sort({ date: -1, createdAt: -1 })
+    .limit(Math.min(limit * 5, 250))
+    .lean();
+  return q ? sortScoredRows(rows, ledgerSearchScore, nq, limit, ['code', 'refCode', 'orderCode']) : rows.slice(0, limit);
 }
 
 module.exports = {
@@ -372,5 +491,8 @@ module.exports = {
   findInventoriesForProducts,
   findCustomers,
   findMonthOrdersForCustomers,
-  findStaffs
+  findStaffs,
+  findOrders,
+  findMasterOrders,
+  findArLedger
 };

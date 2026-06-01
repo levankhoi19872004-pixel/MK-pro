@@ -495,11 +495,25 @@ function findImportSalesAccountByCode(code){
   })||null;
 }
 async function ensureImportUsersCache(){
-  if(Array.isArray(usersCache)&&usersCache.length)return;
-  const res=await fetch('/api/users');
-  const json=await res.json();
-  if(!json.ok)throw new Error(json.message||'Không tải được danh sách tài khoản để kiểm tra mã NVBH');
-  usersCache=json.users||[];
+  // Import DMS không load toàn bộ tài khoản nữa.
+  // Chỉ kiểm tra các mã NVBH có trong file Excel qua unified search API.
+  const rows=Array.isArray(importPreviewRows)?importPreviewRows:[];
+  const codes=[...new Set(rows.map(r=>normalizeImportStaffCode(getImportPreviewSalesStaffCode(r))).filter(Boolean))];
+  if(!codes.length){usersCache=[];return;}
+  const found=[];
+  for(const code of codes){
+    const params=new URLSearchParams({q:code,limit:'20',activeOnly:'1'});
+    const res=await fetch(`/api/search/sales-staff?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được danh sách tài khoản để kiểm tra mã NVBH');
+    found.push(...(json.items||json.users||json.staffs||[]));
+  }
+  const map=new Map();
+  found.forEach(u=>{
+    const key=normalizeImportStaffCode(u.code||u.staffCode||u.username||u.id).toLowerCase();
+    if(key)map.set(key,u);
+  });
+  usersCache=[...map.values()];
   if(typeof renderSalesStaffSelect==='function')renderSalesStaffSelect();
 }
 function attachImportOrderError(row,message){

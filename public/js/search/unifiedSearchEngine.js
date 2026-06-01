@@ -1,17 +1,21 @@
 /*
  * V45 Unified Search Engine
- * Một lớp trung gian duy nhất cho 4 nhóm tìm kiếm:
- * - searchCustomer()
- * - searchSalesStaff()
- * - searchDeliveryStaff()
- * - searchProduct()
+ * Nguồn chuẩn:
+ * - Khách hàng: customers
+ * - Sản phẩm: products + inventories/inventorySnapshots
+ * - NVBH: users/staffs role sales
+ * - NVGH: users/staffs role delivery
+ * - Đơn bán: orders
+ * - Đơn tổng: master_orders
+ * - Công nợ: AR Ledger (journals)
  *
- * Các màn hình nghiệp vụ chỉ gọi file này, không tự filter catalog riêng.
+ * Không màn hình nào tự load toàn bộ catalog để tìm kiếm.
  */
 (function () {
   'use strict';
 
   const MAX_LIMIT = 50;
+  const DEFAULT_LIMIT = 20;
 
   function normalizeText(value) {
     return String(value ?? '')
@@ -22,13 +26,14 @@
       .trim();
   }
 
+  function normalizeLimit(value, fallback = DEFAULT_LIMIT) {
+    const n = Number.parseInt(value, 10);
+    return Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(n) ? n : fallback));
+  }
+
   function toNumber(value) {
     const n = Number(value || 0);
     return Number.isFinite(n) ? n : 0;
-  }
-
-  function normalizeLimit(value, fallback = 20) {
-    return Math.min(MAX_LIMIT, Math.max(1, Number(value || fallback)));
   }
 
   function includesAny(item, keyword, fields) {
@@ -39,184 +44,72 @@
     });
   }
 
-  function uniqueBy(rows, keys) {
-    const map = new Map();
-    (rows || []).forEach(function (row) {
-      if (!row) return;
-      const key = (keys || [])
-        .map(function (k) { return String(row[k] || '').trim(); })
-        .find(Boolean) || String(row._id || row.id || '').trim();
-      if (!key) return;
-      map.set(key, { ...(map.get(key) || {}), ...row });
+  async function requestSearch(path, keyword = '', options = {}) {
+    const q = String(keyword || '').trim();
+    const minChars = Number(options.minChars || 2);
+    if (q.length < minChars) return [];
+
+    const params = new URLSearchParams();
+    params.set('q', q);
+    params.set('limit', String(normalizeLimit(options.limit, DEFAULT_LIMIT)));
+    params.set('activeOnly', options.activeOnly === false ? '0' : '1');
+
+    Object.keys(options || {}).forEach(function (key) {
+      if (['limit', 'minChars', 'activeOnly'].includes(key)) return;
+      const value = options[key];
+      if (value === undefined || value === null || value === '') return;
+      params.set(key, String(value));
     });
-    return Array.from(map.values());
-  }
 
-  function getCatalog() {
-    const cache = window.CatalogCache || null;
-    const productSearch = window.UnifiedProductSearch || null;
-    return {
-      customers: cache && typeof cache.getCustomers === 'function'
-        ? cache.getCustomers()
-        : (window.customersCache || window.customers || []),
-      products: productSearch && typeof productSearch.getCatalog === 'function'
-        ? productSearch.getCatalog()
-        : (cache && typeof cache.getProducts === 'function' ? cache.getProducts() : (window.productsCache || window.products || [])),
-      staffs: window.staffsCache || window.staffs || [],
-      users: window.usersCache || window.users || []
-    };
-  }
-
-
-  let staffCatalogLoading = null;
-
-  function mergeStaffRows(rows) {
-    const catalog = getCatalog();
-    return uniqueBy([
-      ...(rows || []),
-      ...(catalog.staffs || []),
-      ...(catalog.users || []),
-      ...(window.__usersCache || []),
-      ...(window.__staffsCache || [])
-    ], ['code', 'staffCode', 'username', 'id', '_id']);
-  }
-
-  async function ensureStaffCatalog(keyword = '', role = '') {
-    const q = String(keyword || '').trim();
-    if (q.length < 2) return mergeStaffRows([]);
-
-    const cacheRows = mergeStaffRows([]);
-    const localMatches = cacheRows.filter(function (row) {
-      return includesAny(row, q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
+    const res = await fetch(`/api/search/${path}?${params.toString()}`, {
+      headers: { Accept: 'application/json' }
     });
-    if (localMatches.length) return localMatches;
-
-    const cacheKey = `${role}:${q}`;
-    if (!staffCatalogLoading || staffCatalogLoading.key !== cacheKey) {
-      const params = new URLSearchParams();
-      params.set('q', q);
-      params.set('limit', '50');
-      if (role) params.set('role', role);
-      const promise = fetch(`/api/users?${params.toString()}`)
-        .then(function (res) { return res.json(); })
-        .then(function (json) {
-          const users = json && json.ok ? (json.users || []) : [];
-          window.__usersCache = uniqueBy([...(window.__usersCache || []), ...users], ['code', 'staffCode', 'username', 'id', '_id']);
-          try { window.usersCache = window.__usersCache; } catch (e) {}
-          return users;
-        })
-        .catch(function () { return []; })
-        .finally(function () { staffCatalogLoading = null; });
-      staffCatalogLoading = { key: cacheKey, promise };
-    }
-
-    const fetched = await staffCatalogLoading.promise;
-    return mergeStaffRows(fetched);
+    const json = await res.json().catch(function () { return {}; });
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tìm được dữ liệu');
+    return json.items || json.products || json.customers || json.users || json.staffs || json.orders || json.masterOrders || json.arLedger || json.debts || [];
   }
 
-  function staffRoleText(staff) {
-    return normalizeText([
-      staff && staff.role,
-      staff && staff.roleLabel,
-      staff && staff.type,
-      staff && staff.position,
-      staff && staff.title,
-      staff && staff.group,
-      staff && staff.department,
-      staff && staff.permission,
-      staff && staff.permissions
-    ].filter(Boolean).join(' '));
+  function searchCustomer(keyword = '', options = {}) {
+    return requestSearch('customers', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
   }
 
-  function isSalesStaff(staff) {
-    if (!staff || staff.isActive === false) return false;
-    if (staff.isSalesStaff === true || staff.salesStaff === true) return true;
-    const role = staffRoleText(staff);
-    return role.includes('sales') || role.includes('nvbh') || role.includes('ban hang') || role === 'admin';
-  }
-
-  function isDeliveryStaff(staff) {
-    if (!staff || staff.isActive === false) return false;
-    if (staff.isDeliveryStaff === true || staff.deliveryStaff === true) return true;
-    const role = staffRoleText(staff);
-    return role.includes('delivery') || role.includes('nvgh') || role.includes('giao hang') || role === 'admin';
-  }
-
-  async function searchCustomer(keyword = '', options = {}) {
-    const limit = normalizeLimit(options.limit, 20);
-    const q = String(keyword || '').trim();
-    if (q.length < 2) return [];
-
-    if (window.CatalogCache && typeof window.CatalogCache.searchCustomers === 'function') {
-      return window.CatalogCache.searchCustomers(q, { limit, mobile: !!options.mobile });
-    }
-
-    return uniqueBy(getCatalog().customers, ['code', 'customerCode', 'id'])
-      .filter(function (c) { return c.isActive !== false; })
-      .filter(function (c) {
-        return includesAny(c, q, ['code', 'customerCode', 'name', 'customerName', 'phone', 'address', 'area', 'route', 'staffName']);
-      })
-      .slice(0, limit);
-  }
-
-  async function searchSalesStaff(keyword = '', options = {}) {
-    const limit = normalizeLimit(options.limit, 20);
-    const q = String(keyword || '').trim();
-    if (q.length < 2) return [];
-    const rows = await ensureStaffCatalog(q, 'sales');
-    return rows
-      .filter(isSalesStaff)
-      .filter(function (s) {
-        return includesAny(s, q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
-      })
-      .slice(0, limit);
-  }
-
-  async function searchDeliveryStaff(keyword = '', options = {}) {
-    const limit = normalizeLimit(options.limit, 20);
-    const q = String(keyword || '').trim();
-    if (q.length < 2) return [];
-    const rows = await ensureStaffCatalog(q, 'delivery');
-    return rows
-      .filter(isDeliveryStaff)
-      .filter(function (s) {
-        return includesAny(s, q, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
-      })
-      .slice(0, limit);
-  }
-
-  async function searchProduct(keyword = '', options = {}) {
-    const limit = normalizeLimit(options.limit, 50);
-    const q = String(keyword || '').trim();
-    if (q.length < 2) return [];
-
-    if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.search === 'function') {
-      const rows = await window.UnifiedProductSearch.search(q, {
-        limit,
-        mode: options.mode || 'sales'
+  function searchProduct(keyword = '', options = {}) {
+    return requestSearch('products', keyword, {
+      ...options,
+      limit: normalizeLimit(options.limit, 20),
+      includeStock: options.includeStock ?? '1',
+      inStockOnly: options.inStockOnly ? '1' : ''
+    }).then(function (rows) {
+      if (!options.inStockOnly) return rows;
+      return (rows || []).filter(function (p) {
+        return toNumber(p.availableQty || p.availableStock || p.stockQuantity || p.stock || p.quantity || p.openSaleQty) > 0;
       });
-      return (rows || [])
-        .filter(function (p) { return p.isActive !== false; })
-        .filter(function (p) {
-          if (!options.inStockOnly) return true;
-          const qty = window.UnifiedProductSearch && typeof window.UnifiedProductSearch.availableQty === 'function'
-            ? window.UnifiedProductSearch.availableQty(p)
-            : toNumber(p.stock || p.totalStock || p.quantity || p.availableQty || p.availableStock);
-          return qty > 0;
-        })
-        .slice(0, limit);
-    }
+    });
+  }
 
-    return uniqueBy(getCatalog().products, ['code', 'productCode', 'sku', 'id'])
-      .filter(function (p) { return p.isActive !== false; })
-      .filter(function (p) {
-        if (!options.inStockOnly) return true;
-        return toNumber(p.stock || p.totalStock || p.quantity || p.availableQty || p.availableStock) > 0;
-      })
-      .filter(function (p) {
-        return includesAny(p, q, ['code', 'productCode', 'sku', 'barcode', 'name', 'productName', 'unit', 'baseUnit', 'packing', 'brand', 'category', 'salePrice', 'price']);
-      })
-      .slice(0, limit);
+  function searchSalesStaff(keyword = '', options = {}) {
+    return requestSearch('sales-staff', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+  }
+
+  function searchDeliveryStaff(keyword = '', options = {}) {
+    return requestSearch('delivery-staff', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+  }
+
+  function searchOrder(keyword = '', options = {}) {
+    return requestSearch('orders', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+  }
+
+  function searchMasterOrder(keyword = '', options = {}) {
+    return requestSearch('master-orders', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+  }
+
+  function searchDebt(keyword = '', options = {}) {
+    return requestSearch('ar-ledger', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+  }
+
+  // Giữ hàm này để frontend cũ không vỡ, nhưng không còn dùng cache làm nguồn tìm kiếm.
+  function getCatalog() {
+    return { customers: [], products: [], staffs: [], users: [] };
   }
 
   window.UnifiedSearchEngine = {
@@ -224,8 +117,11 @@
     includesAny,
     getCatalog,
     searchCustomer,
+    searchProduct,
     searchSalesStaff,
     searchDeliveryStaff,
-    searchProduct
+    searchOrder,
+    searchMasterOrder,
+    searchDebt
   };
 })();

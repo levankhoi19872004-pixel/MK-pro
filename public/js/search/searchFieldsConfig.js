@@ -46,7 +46,7 @@
       boxId: 'salesStaffSuggestions',
       source: 'users',
       roles: ['sales','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [
@@ -93,7 +93,7 @@
       boxId: 'debtSalesmanFilterSuggestions',
       source: 'users',
       roles: ['sales','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [
@@ -109,7 +109,7 @@
       boxId: 'debtDeliveryFilterSuggestions',
       source: 'users',
       roles: ['delivery','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [
@@ -139,7 +139,7 @@
       inputSelector: '#masterOrderForm [name="deliveryStaffCode"]',
       source: 'users',
       roles: ['delivery','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 10,
       fill: [
@@ -154,7 +154,7 @@
       inputSelector: '#masterOrderForm [name="deliveryStaffName"]',
       source: 'users',
       roles: ['delivery','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 10,
       fill: [
@@ -170,7 +170,7 @@
       boxId: 'unmergedSalesStaffSuggestions',
       source: 'users',
       roles: ['sales','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [
@@ -186,7 +186,7 @@
       boxId: 'deliveryStaffFilterSuggestions',
       source: 'users',
       roles: ['delivery','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [
@@ -203,7 +203,7 @@
       boxId: 'salesOrderStaffFilterSuggestions',
       source: 'users',
       roles: ['sales','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [
@@ -219,7 +219,7 @@
       boxId: 'masterReturnDeliveryStaffSuggestions',
       source: 'users',
       roles: ['delivery','admin'],
-      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
       onlyActive: true,
       limit: 20,
       fill: [

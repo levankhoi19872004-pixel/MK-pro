@@ -15,7 +15,22 @@ function buildStaffQueryFilter(query = {}) {
   const activeOnly = String(query.activeOnly || '') === '1';
   const filter = {};
   if (activeOnly) filter.isActive = { $ne: false };
-  if (query.role) filter.role = String(query.role).trim();
+
+  const roleRaw = String(query.role || query.roles || '').trim().toLowerCase();
+  if (roleRaw) {
+    const roleValues = roleRaw.split(',').map(v => v.trim()).filter(Boolean);
+    const expandedRoles = new Set();
+    roleValues.forEach(role => {
+      if (['sales', 'sale', 'nvbh', 'banhang', 'ban_hang', 'salesstaff', 'sales_staff'].includes(role)) {
+        ['sales', 'sale', 'nvbh', 'NVBH', 'salesStaff', 'sales_staff', 'admin'].forEach(v => expandedRoles.add(v));
+      } else if (['delivery', 'shipper', 'nvgh', 'giaohang', 'giao_hang', 'deliverystaff', 'delivery_staff'].includes(role)) {
+        ['delivery', 'shipper', 'nvgh', 'NVGH', 'deliveryStaff', 'delivery_staff', 'admin'].forEach(v => expandedRoles.add(v));
+      } else {
+        expandedRoles.add(role);
+      }
+    });
+    if (expandedRoles.size) filter.role = { $in: Array.from(expandedRoles) };
+  }
   if (q) {
     filter.$or = [
       { code: { $regex: q, $options: 'i' } },

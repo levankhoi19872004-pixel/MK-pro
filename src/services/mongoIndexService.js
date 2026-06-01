@@ -9,6 +9,7 @@ const INDEX_DEFINITIONS = {
     [{ barcode: 1 }, { name: 'idx_products_barcode', sparse: true }],
     [{ category: 1 }, { name: 'idx_products_category' }],
     [{ brand: 1 }, { name: 'idx_products_brand' }],
+    [{ salePrice: 1 }, { name: 'idx_products_sale_price', sparse: true }],
     [{ warehouseCode: 1 }, { name: 'idx_products_warehouse_code' }],
     [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }]
   ],
@@ -20,12 +21,21 @@ const INDEX_DEFINITIONS = {
     [{ phone: 1 }, { name: 'idx_customers_phone' }],
     [{ staffCode: 1 }, { name: 'idx_customers_staff_code' }],
     [{ route: 1 }, { name: 'idx_customers_route' }],
+    [{ routeName: 1 }, { name: 'idx_customers_route_name', sparse: true }],
     [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }]
   ],
   staffs: [
     [{ code: 1 }, { name: 'idx_staffs_code', sparse: true }],
     [{ username: 1 }, { name: 'idx_staffs_username', sparse: true }],
+    [{ name: 1 }, { name: 'idx_staffs_name', sparse: true }],
+    [{ fullName: 1 }, { name: 'idx_staffs_full_name', sparse: true }],
     [{ role: 1, isActive: 1 }, { name: 'idx_staffs_role_active' }]
+  ],
+  users: [
+    [{ staffCode: 1 }, { name: 'idx_users_staff_code', sparse: true }],
+    [{ username: 1 }, { name: 'idx_users_username_search', sparse: true }],
+    [{ fullName: 1 }, { name: 'idx_users_full_name', sparse: true }],
+    [{ role: 1, isActive: 1 }, { name: 'idx_users_role_active' }]
   ],
   roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
   permissions: [[{ roleCode: 1, module: 1 }, { name: 'idx_permissions_role_module' }]],
@@ -57,6 +67,7 @@ const INDEX_DEFINITIONS = {
     [{ routeName: 1 }, { name: 'idx_master_orders_route_name', sparse: true }],
     [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_mobile_delivery_fast' }],
     [{ deliveryDate: 1, status: 1 }, { name: 'idx_master_orders_delivery_date_status' }],
+    [{ date: 1 }, { name: 'idx_master_orders_date', sparse: true }],
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
     [{ 'children.id': 1 }, { name: 'idx_master_orders_children_id' }],
     [{ 'children.code': 1 }, { name: 'idx_master_orders_children_code' }],
@@ -128,6 +139,24 @@ const INDEX_DEFINITIONS = {
   stock: [
     [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventory_snapshot_product_warehouse' }],
     [{ warehouseCode: 1 }, { name: 'idx_inventory_snapshot_warehouse' }]
+  ],
+  inventories: [
+    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventories_product_warehouse' }],
+    [{ productCode: 1 }, { name: 'idx_inventories_product_code' }],
+    [{ warehouseCode: 1 }, { name: 'idx_inventories_warehouse_code' }]
+  ],
+  inventoriesLegacy: [
+    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventories_legacy_product_warehouse' }],
+    [{ productCode: 1 }, { name: 'idx_inventories_legacy_product_code' }],
+    [{ warehouseCode: 1 }, { name: 'idx_inventories_legacy_warehouse_code' }]
+  ],
+  journals: [
+    [{ customerCode: 1 }, { name: 'idx_ar_ledger_customer_code' }],
+    [{ customerName: 1 }, { name: 'idx_ar_ledger_customer_name', sparse: true }],
+    [{ orderCode: 1 }, { name: 'idx_ar_ledger_order_code', sparse: true }],
+    [{ refCode: 1 }, { name: 'idx_ar_ledger_ref_code', sparse: true }],
+    [{ date: 1 }, { name: 'idx_ar_ledger_date' }],
+    [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledger_customer_date' }]
   ],
   stockTransactions: [
     [{ date: 1, productCode: 1, warehouseCode: 1 }, { name: 'idx_stock_tx_date_product_warehouse' }],

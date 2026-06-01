@@ -66,7 +66,7 @@
   function render({box, items, label, onPick, emptyText='Không tìm thấy dữ liệu'}){
     if(!box) return [];
     const originalCount = (items || []).length;
-    const list = (items || []).slice(0, 50);
+    const list = (items || []).slice(0, 20);
     show(box);
     box.classList.toggle('has-many', box.id === 'productSuggestions' && originalCount > 6);
     if(!list.length){
@@ -119,8 +119,8 @@
       select,
       emptyText='Không tìm thấy dữ liệu',
       loadingText='Đang tìm...',
-      minChars=0,
-      debounceMs=180,
+      minChars=2,
+      debounceMs=280,
       clearOnInput=true
     } = options || {};
 
@@ -140,7 +140,7 @@
       const q = String(input.value || '').trim();
       activeIndex = -1;
       if(minChars > 0 && q.length < minChars){
-        renderStatus(box, `Gõ ít nhất ${minChars} ký tự để tìm`);
+        hide(box);
         currentItems = [];
         return;
       }

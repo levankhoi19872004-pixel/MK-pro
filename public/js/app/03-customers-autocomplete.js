@@ -249,7 +249,7 @@ function getSuggestValue(item, valueType, config){
   if(valueType==='label') return getConfiguredLabel(item, config);
   if(valueType==='id') return item.id||'';
   if(valueType==='idOrCode') return getProductKey(item) || item.id || item.code || '';
-  if(valueType==='codeOrUsernameOrId') return item.code||item.username||item.id||'';
+  if(valueType==='codeOrUsernameOrId') return item.code||item.staffCode||item.username||item.id||'';
   if(valueType==='nameOrFullNameOrUsername') return item.name||item.fullName||item.username||'';
   if(valueType==='customerIdOrCode') return item.customerId||item.customerCode||'';
   return item[valueType] ?? '';
@@ -306,13 +306,15 @@ function initConfiguredAutocomplete(){
     const input=getSuggestElement(config,'inputId','inputSelector');
     const box=ensureSuggestionBox(config);
     if(!input || !box) return;
+    const shouldRequireKeyword = ['product','customer','staff','debtCustomer'].includes(config.type);
     wireAutocomplete({
       input,
       box,
       getItems:()=>getConfiguredSource(config),
       label:item=>getConfiguredLabel(item,config),
       select:item=>applyConfiguredSelect(config,item),
-      emptyText:config.emptyText||'Không tìm thấy dữ liệu'
+      emptyText:config.emptyText||'Không tìm thấy dữ liệu',
+      minChars: Number(config.minChars ?? (shouldRequireKeyword ? 2 : 0))
     });
     // Phase 3.6: focus không preload toàn bộ. Autocomplete tự tìm server-side khi gõ/focus.
   });

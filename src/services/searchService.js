@@ -157,7 +157,10 @@ async function searchProducts(query = {}) {
   const includeStock = String(query.includeStock ?? '1') !== '0';
   const inventories = includeStock ? await searchRepository.findInventoriesForProducts(products) : [];
   const inventoryMap = includeStock ? buildInventoryMap(products, inventories) : new Map();
-  return products.map((product) => toProductSuggestion(product, inventoryMap, { compact: query.compact === '1' }));
+  let suggestions = products.map((product) => toProductSuggestion(product, inventoryMap, { compact: query.compact === '1' }));
+  const inStockOnly = ['1', 'true', 'yes'].includes(String(query.inStockOnly ?? query.onlyInStock ?? '').toLowerCase());
+  if (inStockOnly) suggestions = suggestions.filter((row) => toNumber(row.availableQty || row.availableStock || row.stockQuantity || row.stock || row.quantity) > 0);
+  return suggestions;
 }
 
 function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
@@ -231,11 +234,77 @@ async function searchStaffs(query = {}) {
   return staffs.map(toStaffSuggestion);
 }
 
+
+function toOrderSuggestion(order = {}, type = 'order') {
+  const raw = stripMongoFields(order);
+  const code = String(order.code || order.orderCode || order.salesOrderCode || order.id || '').trim();
+  return {
+    ...raw,
+    type,
+    id: String(order.id || order._id || code || '').trim(),
+    code,
+    orderCode: order.orderCode || order.salesOrderCode || code,
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    staffCode: order.staffCode || '',
+    staffName: order.staffName || '',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    date: order.date || order.orderDate || order.deliveryDate || '',
+    totalAmount: toNumber(order.totalAmount || order.amount || order.grandTotal),
+    label: [code, order.customerName, order.deliveryStaffName, order.date || order.deliveryDate].filter(Boolean).join(' - '),
+    value: code
+  };
+}
+
+async function searchOrders(query = {}) {
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const rows = await searchRepository.findOrders({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
+  return rows.map((row) => toOrderSuggestion(row, 'order'));
+}
+
+async function searchMasterOrders(query = {}) {
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const rows = await searchRepository.findMasterOrders({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
+  return rows.map((row) => toOrderSuggestion(row, 'masterOrder'));
+}
+
+function toDebtSuggestion(row = {}) {
+  const raw = stripMongoFields(row);
+  const code = String(row.code || row.refCode || row.orderCode || row.id || '').trim();
+  const amount = toNumber(row.amount || row.debit || row.credit);
+  return {
+    ...raw,
+    type: 'arLedger',
+    id: String(row.id || row._id || code || '').trim(),
+    code,
+    refCode: row.refCode || '',
+    orderCode: row.orderCode || row.refCode || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || '',
+    date: row.date || '',
+    amount,
+    label: [code, row.customerName, row.type, amount ? amount.toLocaleString('vi-VN') : ''].filter(Boolean).join(' - '),
+    value: code
+  };
+}
+
+async function searchDebt(query = {}) {
+  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const rows = await searchRepository.findArLedger({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
+  return rows.map(toDebtSuggestion);
+}
+
 async function search(type, query = {}) {
   const normalizedType = String(type || query.type || '').trim().toLowerCase();
   if (['product', 'products', 'stock'].includes(normalizedType)) return searchProducts({ ...query, includeStock: normalizedType === 'stock' ? '1' : query.includeStock });
   if (['customer', 'customers'].includes(normalizedType)) return searchCustomers(query);
   if (['staff', 'staffs', 'user', 'users'].includes(normalizedType)) return searchStaffs(query);
+  if (['sales-staff', 'sales_staff', 'salesstaff', 'sales'].includes(normalizedType)) return searchStaffs({ ...query, role: 'sales' });
+  if (['delivery-staff', 'delivery_staff', 'deliverystaff', 'delivery'].includes(normalizedType)) return searchStaffs({ ...query, role: 'delivery' });
+  if (['order', 'orders'].includes(normalizedType)) return searchOrders(query);
+  if (['master-order', 'master-orders', 'master_order', 'master_orders'].includes(normalizedType)) return searchMasterOrders(query);
+  if (['ar-ledger', 'ar_ledger', 'debt', 'debts'].includes(normalizedType)) return searchDebt(query);
   return [];
 }
 
@@ -245,6 +314,9 @@ module.exports = {
   searchProducts,
   searchCustomers,
   searchStaffs,
+  searchOrders,
+  searchMasterOrders,
+  searchDebt,
   toProductSuggestion,
   toCustomerSuggestion,
   toStaffSuggestion
