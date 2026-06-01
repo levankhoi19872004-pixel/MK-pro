@@ -332,6 +332,8 @@ function getImportRowMainFields(row){
   if(row&&row.previewMode==='order'){
     return [
       {key:'Mã đơn',value:row.documentCode||''},
+      {key:'Mã NVBH',value:row.staffCode||row.salesStaffCode||''},
+      {key:'NVBH',value:row.staffName||row.salesStaffName||''},
       {key:row.supplier?'Nhà cung cấp':'Mã KH',value:row.supplier||row.customerCode||''},
       {key:'Tên KH/NCC',value:row.customerName||row.supplier||''},
       {key:'Số dòng hàng',value:row.lineCount||0},
