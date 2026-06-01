@@ -480,20 +480,8 @@ function renderImportOrderPreviewSummary(row,index,options={}){
     <div class="import-order-preview-item ${state.type}">
       ${showCheckbox?`<div class="import-order-preview-check">${checkHtml}</div>`:''}
       <div class="import-order-preview-content">
-        <div class="import-order-preview-line">
-          <strong>${escapeImportHtml(code)}</strong>
-          <span>|</span>
-          <span>${escapeImportHtml(customer)}</span>
-          <span>|</span>
-          <span class="price">${money(total)}</span>
-          <span>|</span>
-          <span>${formatNumber(lineCount)} SP</span>
-          <span>|</span>
-          <span>Mã NVBH: ${escapeImportHtml(staffCode||'-')}</span>
-          <span>|</span>
-          <span>NVBH: ${escapeImportHtml(staffName||'-')}</span>
-          <span>|</span>
-          <span class="import-order-status ${state.type}">${escapeImportHtml(state.label)}</span>
+        <div class="import-order-line import-order-preview-line">
+          <strong>${escapeImportHtml(code)}</strong> | ${escapeImportHtml(customer)} | ${money(total)} | ${formatNumber(lineCount)} SP | Mã NVBH: ${escapeImportHtml(staffCode||'-')} | NVBH: ${escapeImportHtml(staffName||'-')} | <span class="import-order-status ${state.type}">${escapeImportHtml(state.label)}</span>
         </div>
         ${renderImportOrderShortageLines(row,2)}
         ${!row.valid&&Array.isArray(row.errors)&&row.errors.length?`<div class="import-preview-error"><b>Lỗi:</b> ${escapeImportHtml(row.errors.join('; '))}</div>`:''}

@@ -5055,13 +5055,14 @@ button.danger:hover{background:#fecaca}
 .import-order-preview-content{
   min-width:0;
 }
-.import-order-preview-line{
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:7px;
+.import-order-preview-line,
+.import-order-line{
+  display:block;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
   font-size:13px;
-  line-height:1.35;
+  line-height:28px;
   color:#0f172a;
 }
 .import-order-preview-line strong{
@@ -5088,8 +5089,10 @@ button.danger:hover{background:#fecaca}
   font-size:12.5px;
   color:#92400e;
 }
-.import-order-shortage-line{
-  padding-left:14px;
+.import-order-shortage-line,
+.shortage-line{
+  padding-left:18px;
+  font-size:12px;
   line-height:1.35;
 }
 .import-order-shortage-line.more{
