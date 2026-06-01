@@ -18,7 +18,8 @@ function createMobileSalesRouter(ctx) {
     body('items.*.quantity').optional().isFloat({ gt: 0 }).withMessage('Số lượng phải lớn hơn 0'),
     body('items.*.qty').optional().isFloat({ gt: 0 }).withMessage('Số lượng phải lớn hơn 0'),
     body('paidAmount').optional().isFloat({ min: 0 }).withMessage('Tiền thu không được âm'),
-    body('note').optional().isString().trim()
+    body('note').optional().isString().trim(),
+    body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ];
 
   router.post('/sales/orders', ...onlySales, orderPayloadRules, validateRequest, controller.createOrder);

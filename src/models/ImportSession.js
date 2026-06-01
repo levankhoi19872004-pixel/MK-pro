@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const importSessionSchema = new mongoose.Schema({
-  sessionId: { type: String, required: true, trim: true, index: true },
+  sessionId: { type: String, required: true, trim: true },
   type: { type: String, default: '', trim: true },
   fileNames: { type: [String], default: [] },
   rows: { type: Array, default: [] },

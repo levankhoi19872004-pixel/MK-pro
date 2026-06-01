@@ -73,6 +73,14 @@ async function findUserByIdOrCode(idOrCode) {
   return User.findOne(buildUserMongoFilter(idOrCode)).lean();
 }
 
+
+async function findStaffByIdOrCode(idOrCode) {
+  // Alias dùng chung cho các service nghiệp vụ cần tìm nhân viên theo mã/id/tài khoản.
+  // Trước đây masterOrderService/orderService gọi hàm này nhưng repository chưa export,
+  // gây lỗi: userRepository.findStaffByIdOrCode is not a function.
+  return findUserByIdOrCode(idOrCode);
+}
+
 async function findDuplicateUser(staffCode, username, exceptId) {
   const clauses = [];
   if (staffCode) clauses.push({ staffCode });
@@ -109,6 +117,7 @@ module.exports = {
   buildUserMongoFilter,
   findUsers,
   findUserByIdOrCode,
+  findStaffByIdOrCode,
   findDuplicateUser,
   createUser,
   updateUser,

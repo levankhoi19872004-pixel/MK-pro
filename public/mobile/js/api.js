@@ -31,6 +31,17 @@ export function getUser() {
   }
 }
 
+
+function makeClientRequestId(prefix = 'mobile') {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${prefix}:${Date.now()}:${random}`;
+}
+
+function withClientRequestId(payload = {}, prefix = 'mobile') {
+  if (!payload || typeof payload !== 'object') return { idempotencyKey: makeClientRequestId(prefix) };
+  return { ...payload, idempotencyKey: payload.idempotencyKey || payload.requestId || payload.clientRequestId || makeClientRequestId(prefix) };
+}
+
 export async function apiRequest(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -108,13 +119,13 @@ export const mobileApi = {
     return apiRequest(`${MOBILE_ROUTES.stock}?q=${encodeURIComponent(q)}`);
   },
   createSalesOrder(payload) {
-    return apiRequest(MOBILE_ROUTES.salesOrders, { method: 'POST', body: JSON.stringify(payload) });
+    return apiRequest(MOBILE_ROUTES.salesOrders, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'sales-create')) });
   },
   getSalesOrder(id) {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`);
   },
   updateSalesOrder(id, payload) {
-    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) });
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(withClientRequestId(payload, 'sales-update')) });
   },
   deleteSalesOrder(id) {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -128,10 +139,10 @@ export const mobileApi = {
     return apiRequest(`${MOBILE_ROUTES.deliveryOrders}${suffix}`);
   },
   confirmDelivery(payload) {
-    return apiRequest(MOBILE_ROUTES.deliveryConfirm, { method: 'POST', body: JSON.stringify(payload) });
+    return apiRequest(MOBILE_ROUTES.deliveryConfirm, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-confirm')) });
   },
   createDeliveryReturn(payload) {
-    return apiRequest(MOBILE_ROUTES.deliveryReturn, { method: 'POST', body: JSON.stringify(payload) });
+    return apiRequest(MOBILE_ROUTES.deliveryReturn, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-return')) });
   },
   getDeliveryCustomerDebts(params = {}) {
     const query = new URLSearchParams(params);
@@ -139,6 +150,6 @@ export const mobileApi = {
     return apiRequest(`${MOBILE_ROUTES.deliveryCustomerDebts}${suffix}`);
   },
   submitCash(payload) {
-    return apiRequest(MOBILE_ROUTES.cashSubmit, { method: 'POST', body: JSON.stringify(payload) });
+    return apiRequest(MOBILE_ROUTES.cashSubmit, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'cash-submit')) });
   }
 };

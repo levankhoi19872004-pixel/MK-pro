@@ -5,6 +5,7 @@ const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileDeliveryRepository } = require('../../repositories/mobile/delivery.repository');
 const returnOrderService = require('../returnOrderService');
 const returnOrderRepository = require('../../repositories/returnOrderRepository');
+const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 
 function createMobileDeliveryService(ctx) {
   const repo = createMobileDeliveryRepository(ctx);
@@ -267,8 +268,15 @@ function createMobileDeliveryService(ctx) {
   }
 
   async function confirmDelivery({ body = {}, mobileUser }) {
-    return withMongoTransaction(async () => {
+    const orderIdForKey = String(body.orderId || '').trim();
+    const idemKey = getIdempotencyKey(body, ['delivery-confirm', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.status]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+    const perf = createStepTimer('delivery.confirm');
+    const result = await withMongoTransaction(async () => {
+    perf('start');
     const data = await repo.getPrimaryDataSnapshot();
+    perf('load_snapshot');
     const orderId = String(body.orderId || '').trim();
     const status = String(body.status || '').trim();
     const hasSplitAmounts = body.cashAmount !== undefined || body.bankAmount !== undefined || body.rewardAmount !== undefined;
@@ -281,9 +289,11 @@ function createMobileDeliveryService(ctx) {
     const collectionMethod = ['cash', 'transfer'].includes(collectionMethodRaw) ? collectionMethodRaw : 'cash';
     const note = String(body.note || '').trim();
     const order = repo.findSalesOrder(data, orderId);
+    perf('find_order');
 
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
     syncOrderReturnAmountFromReturnOrders(data, order);
+    perf('sync_return_amount');
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
     if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
     const orderDueLimit = Math.max(0, deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0));
@@ -387,16 +397,26 @@ function createMobileDeliveryService(ctx) {
     });
 
     await persistDeliverySnapshotSafely(data);
+    perf('persist_snapshot');
     return { statusCode: 200, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã cập nhật trạng thái giao hàng', order } };
     });
+    perf('done');
+    return rememberIdempotentResult(idemKey, result);
   }
 
   async function createReturnFromDelivery({ body = {}, mobileUser }) {
+    const orderIdForKey = String(body.orderId || '').trim();
+    const idemKey = getIdempotencyKey(body, ['delivery-return', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.returnType]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+    const perf = createStepTimer('delivery.return');
     const data = await repo.getPrimaryDataSnapshot();
+    perf('load_snapshot');
     const orderId = String(body.orderId || '').trim();
     const returnType = String(body.returnType || 'partial').trim() === 'full' ? 'full' : 'partial';
     const note = String(body.note || '').trim();
     const order = repo.findSalesOrder(data, orderId);
+    perf('find_order');
 
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
     if (['returned', 'cancelled', 'void'].includes(String(order.status || '').toLowerCase())) {
@@ -467,12 +487,19 @@ function createMobileDeliveryService(ctx) {
     });
 
     await persistDeliverySnapshotSafely(data);
-    return { statusCode: 201, body: { ok: true, source: 'return-orders-main-route', message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
+    perf('persist_snapshot');
+    const finalResult = { statusCode: 201, body: { ok: true, source: 'return-orders-main-route', message: returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', returnOrder, order } };
+    return rememberIdempotentResult(idemKey, finalResult);
   }
 
   async function submitCash({ body = {}, mobileUser }) {
-    return withMongoTransaction(async () => {
+    const idemKey = getIdempotencyKey(body, ['cash-submit', mobileUser && (mobileUser.id || mobileUser.code), body.amount]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+    const result = await withMongoTransaction(async () => {
+    const perf = createStepTimer('delivery.cashSubmit');
     const data = await repo.getPrimaryDataSnapshot();
+    perf('load_snapshot');
     const amount = toNumber(body.amount);
     const note = String(body.note || '').trim();
 
@@ -504,8 +531,10 @@ function createMobileDeliveryService(ctx) {
       note: `Nộp quỹ ${entry.code}`
     });
     await persistDeliverySnapshotSafely(data);
+    perf('persist_snapshot');
     return { statusCode: 201, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã ghi nhận nộp tiền về quỹ', entry } };
     });
+    return rememberIdempotentResult(idemKey, result);
   }
 
   return { listDeliveryOrders, confirmDelivery, createReturnFromDelivery, submitCash };

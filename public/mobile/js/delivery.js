@@ -8,6 +8,20 @@ bindLogout(document.getElementById('logoutBtn'));
 const user = getUser();
 document.getElementById('staffInfo').textContent = `${user.name || user.username || 'Nhân viên'} · ${user.role || 'delivery'}`;
 
+
+function setButtonBusy(button, busy, busyText = 'Đang lưu...') {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalText = button.dataset.originalText || button.textContent || '';
+    button.disabled = true;
+    button.textContent = busyText;
+  } else {
+    button.disabled = false;
+    if (button.dataset.originalText) button.textContent = button.dataset.originalText;
+    delete button.dataset.originalText;
+  }
+}
+
 const state = {
   orders: [],
   selectedOrderId: '',
@@ -605,6 +619,8 @@ function renderReport() {
 }
 
 async function confirmDelivery(orderId, status, amounts = null) {
+  const activeButton = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+  setButtonBusy(activeButton, true);
   const noteInput = deliveryActionBox.querySelector(`[data-note="${orderId}"]`);
   const cashAmount = amounts ? deliveryToNumber(amounts.cashAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${orderId}"]`)?.value || 0);
   const bankAmount = amounts ? deliveryToNumber(amounts.bankAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${orderId}"]`)?.value || 0);
@@ -627,6 +643,8 @@ async function confirmDelivery(orderId, status, amounts = null) {
     showTab('report');
   } catch (err) {
     setMessage(actionMessage, err.message, 'error');
+  } finally {
+    setButtonBusy(activeButton, false);
   }
 }
 
@@ -658,6 +676,8 @@ async function markWholeOrderReturned(orderId) {
 }
 
 async function saveDeliveryProducts(orderId) {
+  const activeButton = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+  setButtonBusy(activeButton, true);
   const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
   if (!order) {
     setMessage(productMessage || actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
@@ -705,10 +725,14 @@ async function saveDeliveryProducts(orderId) {
     showTab('collect');
   } catch (err) {
     setMessage(productMessage || actionMessage, err.message, 'error');
+  } finally {
+    setButtonBusy(activeButton, false);
   }
 }
 
 async function saveDeliverySettlement(orderId) {
+  const activeButton = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+  setButtonBusy(activeButton, true);
   const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
   if (!order) {
     setMessage(actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
@@ -760,6 +784,8 @@ async function saveDeliverySettlement(orderId) {
     showTab('report');
   } catch (err) {
     setMessage(actionMessage, err.message, 'error');
+  } finally {
+    setButtonBusy(activeButton, false);
   }
 }
 

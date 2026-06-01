@@ -26,19 +26,22 @@ function createMobileDeliveryRouter(ctx) {
     body('rewardAmount').optional().isFloat({ min: 0 }).withMessage('Tiền trả thưởng không được âm'),
     body('collectionMethod').optional().isIn(['cash', 'transfer']).withMessage('Hình thức thu không hợp lệ'),
     body('paymentMethod').optional().isIn(['cash', 'transfer']).withMessage('Hình thức thu không hợp lệ'),
-    body('note').optional().isString().trim()
+    body('note').optional().isString().trim(),
+    body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ], validateRequest, controller.confirm);
 
   router.post('/delivery/return', ...onlyDelivery, [
     body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
     body('returnType').optional().isIn(['full', 'partial']).withMessage('Loại trả hàng không hợp lệ'),
     body('items').optional().isArray().withMessage('Danh sách hàng trả không hợp lệ'),
-    body('note').optional().isString().trim()
+    body('note').optional().isString().trim(),
+    body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ], validateRequest, controller.createReturn);
 
   router.post('/cash/submit', ...onlyDelivery, [
     body('amount').isFloat({ gt: 0 }).withMessage('Số tiền nộp quỹ phải lớn hơn 0'),
-    body('note').optional().isString().trim()
+    body('note').optional().isString().trim(),
+    body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ], validateRequest, controller.submitCash);
 
   return router;

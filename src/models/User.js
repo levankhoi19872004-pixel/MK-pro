@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
     enum: ['admin', 'manager', 'sales', 'warehouse', 'accountant', 'delivery'],
     default: 'sales'
   },
-  staffCode: { type: String, default: '', trim: true, index: true },
+  staffCode: { type: String, default: '', trim: true },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true, strict: false });
 

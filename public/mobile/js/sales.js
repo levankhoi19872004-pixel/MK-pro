@@ -8,12 +8,27 @@ bindLogout(document.getElementById('logoutBtn'));
 const user = getUser();
 document.getElementById('staffInfo').textContent = `${user.name || user.username || 'Nhân viên'} · ${user.role || 'sales'}`;
 
+
+function setButtonBusy(button, busy, busyText = 'Đang lưu...') {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalText = button.dataset.originalText || button.textContent || '';
+    button.disabled = true;
+    button.textContent = busyText;
+  } else {
+    button.disabled = false;
+    if (button.dataset.originalText) button.textContent = button.dataset.originalText;
+    delete button.dataset.originalText;
+  }
+}
+
 let selectedCustomer = null;
 let selectedProduct = null;
 let cart = [];
 let editingOrderId = '';
 let lastCustomers = [];
 let customerCatalog = [];
+let todayOrderCache = [];
 
 const tabs = document.querySelectorAll('.tab-btn');
 const panels = document.querySelectorAll('.tab-panel');
@@ -284,6 +299,8 @@ function renderCart() {
 }
 
 submitOrderBtn.addEventListener('click', async () => {
+  if (submitOrderBtn.disabled) return;
+  setButtonBusy(submitOrderBtn, true);
   setMessage(message, '');
   if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng', 'error');
   if (!cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
@@ -302,11 +319,13 @@ submitOrderBtn.addEventListener('click', async () => {
 
     const code = data.salesOrder?.code || '';
     clearOrderForm(false);
+    upsertTodayOrder(data.salesOrder);
     setMessage(message, `${data.message || 'Đã lưu đơn'} ${code}`, 'success');
-    await loadTodayOrders();
     switchTab('reportTab');
   } catch (err) {
     setMessage(message, err.message, 'error');
+  } finally {
+    setButtonBusy(submitOrderBtn, false);
   }
 });
 
@@ -383,43 +402,58 @@ async function deleteTodayOrder(orderId, orderCode) {
   }
 }
 
+
+function renderTodayOrders(items = todayOrderCache) {
+  todayOrderCache = Array.isArray(items) ? items : [];
+  const totalAmount = todayOrderCache.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+  const paidAmount = todayOrderCache.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
+  const debtAmount = todayOrderCache.reduce((sum, order) => sum + Number(order.debtAmount || 0), 0);
+
+  document.getElementById('todayRevenue').textContent = money(totalAmount);
+  document.getElementById('todayOrderCount').textContent = String(todayOrderCache.length);
+  document.getElementById('todayPaid').textContent = money(paidAmount);
+  document.getElementById('todayDebt').textContent = money(debtAmount);
+
+  if (!todayOrderCache.length) {
+    todayOrders.className = 'order-list empty';
+    todayOrders.textContent = 'Chưa có đơn';
+    return;
+  }
+
+  todayOrders.className = 'order-list';
+  todayOrders.innerHTML = todayOrderCache.map((order) => `
+    <div class="order-item">
+      <strong>${order.code} - ${order.customerName || ''}</strong>
+      <span>Ngày: ${formatShortDate(order.date)} · Tổng: ${money(order.totalAmount)} · Đã thu: ${money(order.paidAmount)} · Còn nợ: ${money(order.debtAmount)}</span>
+      <span>Trạng thái: ${order.status || ''} / ${order.deliveryStatus || ''} · ${order.canEdit ? 'Chưa gộp đơn tổng' : 'Đã gộp đơn tổng'}</span>
+      <div class="row-actions">
+        ${order.canEdit ? `<button class="ghost-btn small-btn" data-edit-order="${order.id || order.code}">Chỉnh sửa</button><button class="danger-btn small-btn" data-delete-order="${order.id || order.code}" data-order-code="${order.code}">Xóa</button>` : '<span class="muted">Đã gộp đơn tổng - không sửa/xóa trên app</span>'}
+      </div>
+    </div>
+  `).join('');
+
+  todayOrders.querySelectorAll('[data-edit-order]').forEach((btn) => {
+    btn.addEventListener('click', () => editTodayOrder(btn.dataset.editOrder));
+  });
+  todayOrders.querySelectorAll('[data-delete-order]').forEach((btn) => {
+    btn.addEventListener('click', () => deleteTodayOrder(btn.dataset.deleteOrder, btn.dataset.orderCode));
+  });
+}
+
+function upsertTodayOrder(order = {}) {
+  if (!order || !(order.id || order.code)) return;
+  const key = String(order.id || order.code);
+  const normalized = { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' };
+  const index = todayOrderCache.findIndex((item) => String(item.id || item.code) === key || String(item.code || '') === String(order.code || ''));
+  if (index >= 0) todayOrderCache[index] = { ...todayOrderCache[index], ...normalized };
+  else todayOrderCache.unshift(normalized);
+  renderTodayOrders(todayOrderCache);
+}
+
 async function loadTodayOrders() {
   try {
     const data = await mobileApi.getMySalesOrders();
-    const items = data.items || [];
-    const totalAmount = items.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
-    const paidAmount = items.reduce((sum, order) => sum + Number(order.paidAmount || 0), 0);
-    const debtAmount = items.reduce((sum, order) => sum + Number(order.debtAmount || 0), 0);
-
-    document.getElementById('todayRevenue').textContent = money(totalAmount);
-    document.getElementById('todayOrderCount').textContent = String(items.length);
-    document.getElementById('todayPaid').textContent = money(paidAmount);
-    document.getElementById('todayDebt').textContent = money(debtAmount);
-
-    if (!items.length) {
-      todayOrders.className = 'order-list empty';
-      todayOrders.textContent = 'Chưa có đơn';
-      return;
-    }
-
-    todayOrders.className = 'order-list';
-    todayOrders.innerHTML = items.map((order) => `
-      <div class="order-item">
-        <strong>${order.code} - ${order.customerName || ''}</strong>
-        <span>Ngày: ${formatShortDate(order.date)} · Tổng: ${money(order.totalAmount)} · Đã thu: ${money(order.paidAmount)} · Còn nợ: ${money(order.debtAmount)}</span>
-        <span>Trạng thái: ${order.status || ''} / ${order.deliveryStatus || ''} · ${order.canEdit ? 'Chưa gộp đơn tổng' : 'Đã gộp đơn tổng'}</span>
-        <div class="row-actions">
-          ${order.canEdit ? `<button class="ghost-btn small-btn" data-edit-order="${order.id || order.code}">Chỉnh sửa</button><button class="danger-btn small-btn" data-delete-order="${order.id || order.code}" data-order-code="${order.code}">Xóa</button>` : '<span class="muted">Đã gộp đơn tổng - không sửa/xóa trên app</span>'}
-        </div>
-      </div>
-    `).join('');
-
-    todayOrders.querySelectorAll('[data-edit-order]').forEach((btn) => {
-      btn.addEventListener('click', () => editTodayOrder(btn.dataset.editOrder));
-    });
-    todayOrders.querySelectorAll('[data-delete-order]').forEach((btn) => {
-      btn.addEventListener('click', () => deleteTodayOrder(btn.dataset.deleteOrder, btn.dataset.orderCode));
-    });
+    renderTodayOrders(data.items || []);
   } catch (err) {
     todayOrders.className = 'order-list empty';
     todayOrders.textContent = err.message;

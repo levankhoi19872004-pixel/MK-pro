@@ -5,6 +5,7 @@ const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
 const Inventory = require('../../models/Inventory');
 const InventoryLegacy = require('../../models/InventoryLegacy');
+const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 
 
 function openSaleQtyFromRows(rows = []) {
@@ -16,6 +17,65 @@ function openSaleQtyFromRows(rows = []) {
       : Math.max(0, onHand - reserved);
     return sum + qty;
   }, 0);
+}
+
+
+function buildProductStockKeys(product = {}) {
+  return [product.code, product.sku, product.productCode, product.id, product._id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+async function getSnapshotQtyByProducts(products = []) {
+  const keyToProductCodes = new Map();
+  const allKeys = [];
+  for (const product of products) {
+    const keys = buildProductStockKeys(product);
+    const canonical = String(product.code || product.productCode || product.id || '').trim();
+    for (const key of keys) {
+      allKeys.push(key);
+      keyToProductCodes.set(key, canonical);
+    }
+  }
+  const uniqueKeys = Array.from(new Set(allKeys));
+  const result = new Map();
+  for (const product of products) {
+    const canonical = String(product.code || product.productCode || product.id || '').trim();
+    if (canonical) result.set(canonical, 0);
+  }
+  if (!uniqueKeys.length) return result;
+  const filter = {
+    $or: [
+      { productCode: { $in: uniqueKeys } },
+      { productId: { $in: uniqueKeys } },
+      { code: { $in: uniqueKeys } },
+      { sku: { $in: uniqueKeys } }
+    ]
+  };
+  const [snapshotRows, legacyRows] = await Promise.all([
+    Inventory.find(filter).lean(),
+    InventoryLegacy.find(filter).lean()
+  ]);
+  function accumulate(rows = [], target = new Map()) {
+    for (const row of rows) {
+      const matchedKey = [row.productCode, row.productId, row.code, row.sku]
+        .map((value) => String(value || '').trim())
+        .find((key) => keyToProductCodes.has(key));
+      const canonical = keyToProductCodes.get(matchedKey);
+      if (!canonical) continue;
+      target.set(canonical, (target.get(canonical) || 0) + openSaleQtyFromRows([row]));
+    }
+    return target;
+  }
+  const snapshotQty = accumulate(snapshotRows, new Map());
+  const legacyQty = accumulate(legacyRows, new Map());
+  for (const product of products) {
+    const canonical = String(product.code || product.productCode || product.id || '').trim();
+    const snap = snapshotQty.get(canonical) || 0;
+    const legacy = legacyQty.get(canonical) || 0;
+    result.set(canonical, legacy > 0 && (snap <= 0) ? legacy : snap);
+  }
+  return result;
 }
 
 async function getSnapshotQtyForProduct(product = {}) {
@@ -66,10 +126,16 @@ function createMobileSalesService(ctx) {
   }
 
   async function createSalesOrder({ body = {}, mobileUser }) {
+    const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || (body.customer && body.customer.code), Array.isArray(body.items) ? body.items.length : 0]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+    const perf = createStepTimer('sales.createOrder');
     let createdOrder = null;
 
     const result = await withMongoTransaction(async () => {
+      perf('start');
       const data = await repo.getPrimaryDataSnapshot();
+      perf('load_snapshot');
       const customerPayload = body.customer || {};
       const customer = repo.findCustomer(data, customerPayload.id || customerPayload.code || body.customerId || body.customerCode);
       const rawItems = Array.isArray(body.items) ? body.items : [];
@@ -79,14 +145,26 @@ function createMobileSalesService(ctx) {
       if (!customer) return fail(400, 'Không tìm thấy khách hàng');
       if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
 
-      const items = [];
+      const preparedRows = [];
+      const productByCode = new Map();
       for (const rawItem of rawItems) {
         const product = repo.findProduct(data, rawItem.productCode || rawItem.code || rawItem.productId);
         if (!product) return fail(400, `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}`);
         const quantity = toNumber(rawItem.quantity || rawItem.qty);
         const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice);
         if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
-        const availableQty = await getSnapshotQtyForProduct(product);
+        preparedRows.push({ rawItem, product, quantity, salePrice });
+        productByCode.set(String(product.code || product.productCode || product.id || '').trim(), product);
+      }
+      perf('prepare_items');
+      const stockByProduct = await getSnapshotQtyByProducts(Array.from(productByCode.values()));
+      perf('batch_stock_check', { products: productByCode.size });
+
+      const items = [];
+      for (const row of preparedRows) {
+        const { product, quantity, salePrice } = row;
+        const stockKey = String(product.code || product.productCode || product.id || '').trim();
+        const availableQty = stockByProduct.get(stockKey) || 0;
         if (availableQty < quantity) {
           return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
         }
@@ -178,11 +256,14 @@ function createMobileSalesService(ctx) {
         note: `Tạo đơn ${salesOrder.code} từ mobile`
       });
       await repo.saveOperationalData(data);
+      perf('save_operational_data');
       createdOrder = salesOrder;
       return { statusCode: 201, body: { ok: true, source: 'mobile-sales-route', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder } };
     });
 
-    return result || { statusCode: 201, body: { ok: true, salesOrder: createdOrder } };
+    const finalResult = result || { statusCode: 201, body: { ok: true, salesOrder: createdOrder } };
+    perf('done');
+    return rememberIdempotentResult(idemKey, finalResult);
   }
 
   async function getSalesOrder({ params = {}, mobileUser }) {
@@ -195,7 +276,12 @@ function createMobileSalesService(ctx) {
   }
 
   async function updateSalesOrder({ params = {}, body = {}, mobileUser }) {
-    return withMongoTransaction(async () => {
+    const idemKey = getIdempotencyKey(body, ['sales-update', mobileUser && (mobileUser.id || mobileUser.code), params.id]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+    const perf = createStepTimer('sales.updateOrder');
+    const result = await withMongoTransaction(async () => {
+      perf('start');
       if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
       const data = await repo.getPrimaryDataSnapshot();
       const order = repo.findSalesOrder(data, params.id);
@@ -221,8 +307,11 @@ function createMobileSalesService(ctx) {
         note: `Sửa đơn ${salesOrder.code} từ mobile khi chưa gộp đơn tổng`
       });
       await repo.saveOperationalData(data);
+      perf('save_operational_data');
       return { body: { ok: true, source: 'mobile-sales-route', message: `Đã sửa đơn ${salesOrder.code}`, salesOrder } };
     });
+    perf('done');
+    return rememberIdempotentResult(idemKey, result);
   }
 
   async function deleteSalesOrder({ params = {}, mobileUser }) {
