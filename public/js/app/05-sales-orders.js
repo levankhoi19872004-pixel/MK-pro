@@ -27,7 +27,7 @@ async function loadSalesProductCatalog(){
 }
 function getSalesCustomerMatches(){
   const q=salesCustomerSearch?salesCustomerSearch.value.trim():'';
-  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20});
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20,minChars:0,allowEmpty:'1',showOnFocus:'1'});
   return customersCache
     .filter(c=>c.isActive!==false)
     .filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route,c.staffName]));
@@ -44,9 +44,9 @@ function selectSalesCustomer(c){
 }
 function renderSalesCustomerSelect(){
   if(!salesCustomerSearch)return;
-  const has=customersCache.some(c=>c.isActive!==false);
-  salesCustomerSearch.disabled=!has;
-  salesCustomerSearch.placeholder=has?'Gõ mã/tên/sđt/địa chỉ khách hàng...':'Chưa có khách hàng';
+  // V45: khách hàng dùng Unified Search từ /api/search/customers, không phụ thuộc customersCache cũ.
+  salesCustomerSearch.disabled=false;
+  salesCustomerSearch.placeholder='Bấm để chọn hoặc gõ mã/tên/sđt/tuyến khách hàng...';
 }
 async function getSalesStaffMatches(){
   const q=salesStaffSearch?salesStaffSearch.value.trim():'';

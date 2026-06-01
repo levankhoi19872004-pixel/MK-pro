@@ -224,7 +224,7 @@ function getConfiguredSource(config){
       return window.UnifiedSearchEngine.searchProduct(q,{limit,mode,inStockOnly:!!config.onlyInStock});
     }
     if(config.type==='customer'){
-      return window.UnifiedSearchEngine.searchCustomer(q,{limit});
+      return window.UnifiedSearchEngine.searchCustomer(q,{limit,minChars:0,allowEmpty:'1',showOnFocus:'1'});
     }
     if(config.type==='staff'){
       const roles=(config.roles||[]).map(role=>String(role).toLowerCase());
@@ -307,7 +307,7 @@ function initConfiguredAutocomplete(){
     const input=getSuggestElement(config,'inputId','inputSelector');
     const box=ensureSuggestionBox(config);
     if(!input || !box) return;
-    const shouldRequireKeyword = ['product','customer','debtCustomer'].includes(config.type);
+    const shouldRequireKeyword = ['product','debtCustomer'].includes(config.type);
     wireAutocomplete({
       input,
       box,
@@ -317,7 +317,7 @@ function initConfiguredAutocomplete(){
       emptyText:config.emptyText||'Không tìm thấy dữ liệu',
       minChars: Number(config.minChars ?? (shouldRequireKeyword ? 2 : 0))
     });
-    // Staff UX: focus/click vào ô NVBH/NVGH sẽ hiện 20 gợi ý đầu tiên. Product/customer vẫn yêu cầu gõ tối thiểu 2 ký tự.
+    // Staff/Customer UX: focus/click vào ô NVBH/NVGH/Khách hàng sẽ hiện 20 gợi ý đầu tiên. Product vẫn yêu cầu gõ tối thiểu 2 ký tự.
   });
 }
 

@@ -185,8 +185,14 @@ function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
   };
 }
 
+function allowsEmptyCustomerSearch(query = {}) {
+  return ['1', 'true', 'yes'].includes(String(query.allowEmpty ?? query.showOnFocus ?? query.initial ?? '').toLowerCase());
+}
+
 async function searchCustomers(query = {}) {
-  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const q = String(query.q || query.search || query.keyword || '').trim();
+  if (!q && !allowsEmptyCustomerSearch(query)) return [];
+  if (q && !queryGuard.ensureSearchKeyword(query, 2).ok) return [];
   const customers = await searchRepository.findCustomers({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
   let revenueByCustomer = new Map();
   const includeMetrics = ['1', 'true', 'yes'].includes(String(query.includeMetrics ?? query.mobile ?? '').toLowerCase());

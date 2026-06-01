@@ -70,7 +70,13 @@
   }
 
   function searchCustomer(keyword = '', options = {}) {
-    return requestSearch('customers', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+    return requestSearch('customers', keyword, {
+      minChars: 0,
+      allowEmpty: '1',
+      showOnFocus: '1',
+      ...options,
+      limit: normalizeLimit(options.limit, 20)
+    });
   }
 
   function searchProduct(keyword = '', options = {}) {
