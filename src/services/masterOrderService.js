@@ -15,6 +15,7 @@ const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const { normalizeOrderSourceValue } = require('../utils/orderSource.util');
+const Product = require('../models/Product');
 
 function today() {
   return dateUtil.todayVN();
@@ -992,6 +993,137 @@ async function confirmDeliveryAccounting(body = {}) {
   };
 }
 
+
+function cleanMasterPrintText(value) {
+  return String(value ?? '').trim();
+}
+
+function getItemProductCodeForMasterPrint(item = {}) {
+  return cleanMasterPrintText(item.productCode || item.code || item.sku || item.maHang || item.productId);
+}
+
+function getItemProductNameForMasterPrint(item = {}, product = {}) {
+  return cleanMasterPrintText(item.productName || item.name || item.tenHang || product.name || product.productName);
+}
+
+function getItemUnitForMasterPrint(item = {}, product = {}) {
+  return cleanMasterPrintText(item.unit || item.dvt || product.unit || product.baseUnit || 'Cái');
+}
+
+function getItemPriceForMasterPrint(item = {}, product = {}) {
+  return toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.priceAfterDiscount ?? product.salePrice ?? product.price ?? 0);
+}
+
+function getItemQuantityForMasterPrint(item = {}) {
+  return toNumber(item.quantity ?? item.qty ?? item.totalQuantity ?? item.soLuong ?? item.baseQty ?? 0);
+}
+
+function getItemPackForMasterPrint(item = {}, product = {}) {
+  return toNumber(item.packingQty ?? item.conversionRate ?? item.unitsPerCase ?? item.qtyPerCase ?? item.packSize ?? product.conversionRate ?? 1) || 1;
+}
+
+async function buildAggregateMasterPrintDocument(body = {}) {
+  const inputIds = body.masterOrderIds || body.ids || body.masterOrders || [];
+  const ids = (Array.isArray(inputIds) ? inputIds : String(inputIds || '').split(','))
+    .map((value) => cleanMasterPrintText(value))
+    .filter(Boolean);
+  if (!ids.length) return { error: 'Chưa chọn đơn tổng để in', status: 400 };
+
+  const masterOrders = [];
+  const missingIds = [];
+  for (const id of ids) {
+    const master = await masterOrderRepository.findByIdOrCode(id);
+    if (master) masterOrders.push(master);
+    else missingIds.push(id);
+  }
+  if (!masterOrders.length) return { error: 'Không tìm thấy đơn tổng đã chọn', status: 404 };
+
+  const masterCodes = masterOrders.map((order) => cleanMasterPrintText(order.code || order.id)).filter(Boolean);
+  const allChildren = [];
+  for (const master of masterOrders) {
+    const children = await orderService.getMasterChildren(master);
+    for (const child of children) {
+      if (isInactiveStatus(child)) continue;
+      allChildren.push({ ...child, sourceMasterCode: master.code || master.id || '' });
+    }
+  }
+
+  const productCodes = Array.from(new Set(allChildren.flatMap((child) => (Array.isArray(child.items) ? child.items : [])
+    .map(getItemProductCodeForMasterPrint)
+    .filter(Boolean))));
+  const products = productCodes.length ? await Product.find({ code: { $in: productCodes } }).lean() : [];
+  const productMap = new Map(products.map((product) => [cleanMasterPrintText(product.code || product.productCode || product.sku), product]));
+  const grouped = new Map();
+
+  for (const child of allChildren) {
+    const childCode = cleanMasterPrintText(child.code || child.orderCode || child.id);
+    for (const item of (Array.isArray(child.items) ? child.items : [])) {
+      const productCode = getItemProductCodeForMasterPrint(item);
+      if (!productCode) continue;
+      const product = productMap.get(productCode) || {};
+      const productName = getItemProductNameForMasterPrint(item, product);
+      const unit = getItemUnitForMasterPrint(item, product);
+      const price = getItemPriceForMasterPrint(item, product);
+      const quantity = getItemQuantityForMasterPrint(item);
+      const pack = getItemPackForMasterPrint(item, product);
+      const key = [productCode, productName, unit, price].map(cleanMasterPrintText).join('|');
+      const row = grouped.get(key) || {
+        code: productCode,
+        productCode,
+        name: productName,
+        productName,
+        unit,
+        price,
+        salePrice: price,
+        quantity: 0,
+        qty: 0,
+        amount: 0,
+        conversionRate: pack,
+        packingQty: pack,
+        warehouseCode: cleanMasterPrintText(product.warehouseCode || item.warehouseCode || item.warehouse || 'KHO_HC'),
+        warehouseName: cleanMasterPrintText(product.warehouseName || item.warehouseName || ''),
+        sourceOrderCodes: [],
+        sourceMasterCodes: []
+      };
+      row.quantity += quantity;
+      row.qty += quantity;
+      row.amount += quantity * price;
+      if (childCode && !row.sourceOrderCodes.includes(childCode)) row.sourceOrderCodes.push(childCode);
+      if (child.sourceMasterCode && !row.sourceMasterCodes.includes(child.sourceMasterCode)) row.sourceMasterCodes.push(child.sourceMasterCode);
+      grouped.set(key, row);
+    }
+  }
+
+  const items = Array.from(grouped.values()).sort((a, b) => String(a.code).localeCompare(String(b.code), 'vi', { numeric: true }));
+  const totalQty = items.reduce((sum, item) => sum + toNumber(item.qty), 0);
+  const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const firstMaster = masterOrders[0] || {};
+
+  return {
+    document: {
+      id: `PRINT_AGG_${Date.now()}`,
+      code: masterCodes.length <= 3 ? masterCodes.join(', ') : `${masterCodes.slice(0, 3).join(', ')} +${masterCodes.length - 3}`,
+      date: dateUtil.toDateOnly(body.date || firstMaster.deliveryDate || firstMaster.date || today()),
+      deliveryDate: dateUtil.toDateOnly(body.date || firstMaster.deliveryDate || firstMaster.date || today()),
+      routeName: masterOrders.map((order) => cleanMasterPrintText(order.routeName)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
+      deliveryStaffCode: masterOrders.map((order) => cleanMasterPrintText(order.deliveryStaffCode)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
+      deliveryStaffName: masterOrders.map((order) => cleanMasterPrintText(order.deliveryStaffName)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
+      note: `Đơn tổng gộp từ: ${masterCodes.join(', ')}${missingIds.length ? `. Không tìm thấy: ${missingIds.join(', ')}` : ''}`,
+      masterOrderCodes: masterCodes,
+      selectedMasterOrderCount: masterOrders.length,
+      children: allChildren,
+      orderCount: allChildren.length,
+      totalOrders: allChildren.length,
+      totalQuantity: totalQty,
+      totalQty,
+      totalAmount,
+      goodsAmount: totalAmount,
+      items,
+      printMode: 'MASTER_AGGREGATE_SELECTED'
+    }
+  };
+}
+
 async function createMasterOrder(body = {}) {
   const childIds = Array.isArray(body.childOrderIds) ? body.childOrderIds.map(String) : [];
   if (!childIds.length) return { error: 'Chưa chọn đơn con để gộp', status: 400 };
@@ -1176,6 +1308,7 @@ module.exports = {
   confirmDeliveryAccounting,
   updateDeliveryTodayOrder,
   getMasterOrder,
+  buildAggregateMasterPrintDocument,
   createMasterOrder,
   updateMasterOrder,
   cancelMasterOrder,

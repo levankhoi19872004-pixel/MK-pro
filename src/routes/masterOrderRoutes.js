@@ -9,6 +9,7 @@ router.get('/unmerged-child-orders', masterOrderController.listUnmergedChildOrde
 router.get('/delivery-today', masterOrderController.listDeliveryToday);
 router.post('/delivery-today/confirm-accounting', masterOrderController.confirmDeliveryAccounting);
 router.patch('/delivery-today/:id', masterOrderController.updateDeliveryTodayOrder);
+router.post('/print-aggregate', masterOrderController.printAggregate);
 router.get('/', masterOrderController.list);
 router.post('/', masterOrderController.create);
 router.get('/:id', masterOrderController.get);

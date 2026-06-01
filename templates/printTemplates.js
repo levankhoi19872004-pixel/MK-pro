@@ -290,23 +290,27 @@ function orderSingleTemplate(data) {
 }
 
 function orderTotalTemplate(data) {
+  const isAggregate = data.document.printMode === 'MASTER_AGGREGATE_SELECTED';
+  const title = isAggregate ? 'ĐƠN TỔNG GỘP' : 'PHIẾU NHẶT HÀNG ĐƠN TỔNG';
   const body = `
     <div class="simple-print-header">
       <div>
         <h2>${text(data.company.name)}</h2>
         <p>${text(data.company.address)}</p>
       </div>
-      <div class="print-code"><b>Mã đơn tổng</b><span>${text(data.document.code)}</span></div>
+      <div class="print-code"><b>${isAggregate ? 'Các đơn tổng' : 'Mã đơn tổng'}</b><span>${text(data.document.code)}</span></div>
     </div>
-    <h1 class="print-title">PHIẾU NHẶT HÀNG ĐƠN TỔNG</h1>
+    <h1 class="print-title">${text(title)}</h1>
     <div class="info-grid">
-      <div><b>Mã đơn tổng:</b> ${text(data.document.code)}</div>
+      <div><b>${isAggregate ? 'Gồm đơn tổng' : 'Mã đơn tổng'}:</b> ${text(data.document.masterOrderCodes && data.document.masterOrderCodes.length ? data.document.masterOrderCodes.join(', ') : data.document.code)}</div>
       <div><b>Ngày giao:</b> ${text(data.document.date)}</div>
       <div><b>Nhân viên giao hàng:</b> ${text(data.delivery.code)} - ${text(data.delivery.name)}</div>
       <div><b>Tuyến:</b> ${text(data.delivery.route)}</div>
+      ${isAggregate ? `<div><b>Số đơn tổng đã chọn:</b> ${money(data, data.document.selectedMasterOrderCount || 0)}</div>` : ''}
       <div><b>Số đơn con:</b> ${money(data, data.totals.orderCount)}</div>
       <div><b>Giá trị đơn tổng:</b> ${money(data, data.totals.totalAmount)} đ</div>
-      <div class="full"><b>Nguyên tắc tính:</b> Gộp số lượng từ đơn con, chia theo kho mặc định trên sản phẩm, giá trị = số lượng × giá bán hiện tại trong danh mục sản phẩm.</div>
+      ${data.document.note ? `<div class="full"><b>Ghi chú:</b> ${text(data.document.note)}</div>` : ''}
+      <div class="full"><b>Nguyên tắc tính:</b> Gộp sản phẩm trùng theo mã hàng + tên hàng + ĐVT + giá bán từ toàn bộ đơn con của các đơn tổng đã chọn.</div>
     </div>
     ${renderMasterWarehouseTables(data)}
     <div class="total-box">
@@ -315,7 +319,7 @@ function orderTotalTemplate(data) {
       <div><span>Số đơn con:</span><b>${money(data, data.totals.orderCount)}</b></div>
     </div>
     ${renderSignature(['Người lập phiếu', 'Người giao hàng', 'Kho HC', 'Kho PC'])}`;
-  return baseLayout('PHIẾU NHẶT HÀNG ĐƠN TỔNG', data, body);
+  return baseLayout(title, data, body);
 }
 
 function importOrderTemplate(data) {

@@ -1,6 +1,7 @@
 'use strict';
 
 const masterOrderService = require('../services/masterOrderService');
+const printDocumentService = require('../services/printDocumentService');
 
 function handleServiceResult(res, result, successStatus = 200, successPayload = {}) {
   if (result && result.error) {
@@ -55,6 +56,22 @@ async function updateDeliveryTodayOrder(req, res) {
   }
 }
 
+
+async function printAggregate(req, res) {
+  try {
+    const result = await masterOrderService.buildAggregateMasterPrintDocument(req.body || {});
+    if (result && result.error) {
+      return res.status(result.status || 400).send(result.error);
+    }
+    const rendered = printDocumentService.renderFromDocument('ORDER_TOTAL', result.document, req.query || {});
+    if (rendered.error) return res.status(rendered.status || 400).send(rendered.error);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(rendered.html);
+  } catch (err) {
+    return res.status(500).send(err.message || 'Không in được đơn tổng gộp');
+  }
+}
+
 async function get(req, res) {
   try {
     const result = await masterOrderService.getMasterOrder(req.params.id);
@@ -100,4 +117,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { listUnmergedChildOrders, listDeliveryToday, confirmDeliveryAccounting, updateDeliveryTodayOrder, list, get, create, update, cancel, remove };
+module.exports = { listUnmergedChildOrders, listDeliveryToday, confirmDeliveryAccounting, updateDeliveryTodayOrder, printAggregate, list, get, create, update, cancel, remove };

@@ -323,7 +323,10 @@ function buildPrintData(document = {}, options = {}) {
       note: document.note || '',
       terms: pick(document.terms, document.paymentTerms, 'đáo hạn trong 7 ngày'),
       page: options.page || '1 / 1',
-      vehicleNo: pick(document.vehicleNo, document.truckNo, document.soXeTai)
+      vehicleNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
+      printMode: document.printMode || '',
+      masterOrderCodes: Array.isArray(document.masterOrderCodes) ? document.masterOrderCodes : [],
+      selectedMasterOrderCount: document.selectedMasterOrderCount || 0
     },
     customer: {
       code: pick(document.customerCode, document.customer?.code, document.customerId),
