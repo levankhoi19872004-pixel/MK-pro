@@ -46,7 +46,7 @@
 
   async function requestSearch(path, keyword = '', options = {}) {
     const q = String(keyword || '').trim();
-    const minChars = Number(options.minChars || 2);
+    const minChars = Number(options.minChars ?? 2);
     if (q.length < minChars) return [];
 
     const params = new URLSearchParams();
@@ -88,11 +88,21 @@
   }
 
   function searchSalesStaff(keyword = '', options = {}) {
-    return requestSearch('sales-staff', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+    return requestSearch('sales-staff', keyword, {
+      minChars: 0,
+      allowEmpty: '1',
+      ...options,
+      limit: normalizeLimit(options.limit, 20)
+    });
   }
 
   function searchDeliveryStaff(keyword = '', options = {}) {
-    return requestSearch('delivery-staff', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+    return requestSearch('delivery-staff', keyword, {
+      minChars: 0,
+      allowEmpty: '1',
+      ...options,
+      limit: normalizeLimit(options.limit, 20)
+    });
   }
 
   function searchOrder(keyword = '', options = {}) {

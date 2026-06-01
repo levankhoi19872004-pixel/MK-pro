@@ -228,8 +228,14 @@ function toStaffSuggestion(staff = {}) {
   };
 }
 
+function allowsEmptyStaffSearch(query = {}) {
+  return ['1', 'true', 'yes'].includes(String(query.allowEmpty ?? query.showOnFocus ?? query.initial ?? '').toLowerCase());
+}
+
 async function searchStaffs(query = {}) {
-  if (!queryGuard.ensureSearchKeyword(query, 2).ok) return [];
+  const q = String(query.q || query.search || query.keyword || '').trim();
+  if (!q && !allowsEmptyStaffSearch(query)) return [];
+  if (q && !queryGuard.ensureSearchKeyword(query, 2).ok) return [];
   const staffs = await searchRepository.findStaffs({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
   return staffs.map(toStaffSuggestion);
 }

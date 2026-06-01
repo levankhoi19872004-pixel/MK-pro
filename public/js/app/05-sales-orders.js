@@ -50,7 +50,7 @@ function renderSalesCustomerSelect(){
 }
 async function getSalesStaffMatches(){
   const q=salesStaffSearch?salesStaffSearch.value.trim():'';
-  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchSalesStaff(q,{limit:20});
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchSalesStaff(q,{limit:20,minChars:0,allowEmpty:'1',showOnFocus:'1'});
   return (usersCache||window.__usersCache||[])
     .filter(u=>{
       const role=String(u.role||u.roleLabel||'').toLowerCase();
