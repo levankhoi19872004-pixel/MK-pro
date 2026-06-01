@@ -475,6 +475,62 @@ function getImportPreviewSalesStaffName(row){
   ]);
 }
 
+
+function normalizeImportStaffCode(value){
+  return String(value||'').trim();
+}
+function isImportSalesAccount(user){
+  const role=String(user&&user.role||'').toLowerCase();
+  return user && user.isActive!==false && (!role || role==='sales' || role==='admin' || role==='sale' || role==='seller');
+}
+function findImportSalesAccountByCode(code){
+  const target=normalizeImportStaffCode(code).toLowerCase();
+  if(!target)return null;
+  return (usersCache||[]).find(u=>{
+    if(!isImportSalesAccount(u))return false;
+    const keys=[u.code,u.staffCode,u.salesStaffCode,u.username,u.id].map(v=>normalizeImportStaffCode(v).toLowerCase()).filter(Boolean);
+    return keys.includes(target);
+  })||null;
+}
+async function ensureImportUsersCache(){
+  if(Array.isArray(usersCache)&&usersCache.length)return;
+  const res=await fetch('/api/users');
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.message||'Không tải được danh sách tài khoản để kiểm tra mã NVBH');
+  usersCache=json.users||[];
+  if(typeof renderSalesStaffSelect==='function')renderSalesStaffSelect();
+}
+function attachImportOrderError(row,message){
+  row.valid=false;
+  row.statusText='Lỗi';
+  row.errors=Array.isArray(row.errors)?row.errors:[];
+  if(!row.errors.includes(message))row.errors.push(message);
+  return row;
+}
+function normalizeImportPreviewSalesStaffFromAccounts(rows=[]){
+  return rows.map(row=>{
+    if(!row || row.previewMode!=='order')return row;
+    const excelStaffCode=normalizeImportStaffCode(getImportPreviewSalesStaffCode(row));
+    if(!excelStaffCode){
+      return attachImportOrderError(row,'Thiếu mã NVBH trong file Excel');
+    }
+    const account=findImportSalesAccountByCode(excelStaffCode);
+    if(!account){
+      row.salesStaffCode=excelStaffCode;
+      row.staffCode=excelStaffCode;
+      row.salesStaffName='';
+      row.staffName='';
+      return attachImportOrderError(row,`Mã NVBH ${excelStaffCode} không có trong danh sách tài khoản`);
+    }
+    const accountName=account.name||account.fullName||account.displayName||account.username||'';
+    row.salesStaffCode=excelStaffCode;
+    row.staffCode=excelStaffCode;
+    row.salesStaffName=accountName;
+    row.staffName=accountName;
+    return row;
+  });
+}
+
 function getImportOrderShortageState(row){
   const shortages=Array.isArray(row.shortageReport)?row.shortageReport.filter(s=>Number(s.missingQuantity||s.shortageQuantity||0)>0):[];
   const lineCount=Number(row.lineCount||(Array.isArray(row.lineDetails)?row.lineDetails.length:0)||0);
@@ -684,9 +740,10 @@ function renderImportPreview(result){
       return {...row,hasShortage:true,statusText:row.statusText==='Hợp lệ'?'Vượt tồn':row.statusText,shortageReport:list,shortageCount:list.length,shortageQuantity:q,shortageAmount:a};
     });
   }
-  const total=result.total||importPreviewRows.length;
-  const valid=result.valid||0;
-  const invalid=result.invalid||0;
+  importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
+  const total=importPreviewRows.length;
+  const valid=importPreviewRows.filter(r=>r&&r.valid).length;
+  const invalid=Math.max(0,total-valid);
   if(importPreviewSummary){
     importPreviewSummary.innerHTML=`<span>Tổng dòng: <strong>${total}</strong></span><span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`;
   }
@@ -734,8 +791,11 @@ async function previewImportExcel(){
   try{
     showMessage(importDataMessage,'Đang đọc file và kiểm tra dữ liệu...');
     const json=await previewImportExcelSilent();
+    await ensureImportUsersCache();
     renderImportPreview(json);
-    showMessage(importDataMessage,`Đã đọc file: ${json.valid||0} dòng/đơn hợp lệ, ${json.invalid||0} lỗi. Hãy tick chọn đơn rồi bấm Import các đơn đã chọn.`);
+    const validNow=importPreviewRows.filter(r=>r&&r.valid).length;
+    const invalidNow=Math.max(0,importPreviewRows.length-validNow);
+    showMessage(importDataMessage,`Đã đọc file: ${validNow} dòng/đơn hợp lệ, ${invalidNow} lỗi. Hãy tick chọn đơn rồi bấm Import các đơn đã chọn.`);
   }catch(err){
     importPreviewRows=[];
     if(commitImportButton)commitImportButton.disabled=true;
@@ -775,6 +835,10 @@ async function commitImportExcel(){
       await previewImportExcel();
       return;
     }
+
+    await ensureImportUsersCache();
+    importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
+    renderImportPreview({rows:importPreviewRows});
 
     const selectedRows=getSelectedImportRows();
     if(!selectedRows.length){showMessage(importDataMessage,'Bạn chưa chọn đơn/dòng nào để import',true);return;}
