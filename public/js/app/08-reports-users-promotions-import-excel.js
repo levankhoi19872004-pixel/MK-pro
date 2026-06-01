@@ -456,7 +456,20 @@ function renderImportPreviewModal(result){
           <span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span>
         </div>
         <div class="import-preview-grid">${fieldHtml}</div>
-        ${row.previewMode==='order'?renderImportOrderDetailHtml(row):''}
+        ${row.previewMode==='order' ? `
+          <div class="import-order-summary">
+            ${row.hasShortage ? `
+              <div style="margin-top:6px;font-size:13px;color:#b45309">
+                ⚠ Thiếu ${(row.shortageReport||[]).length} SP
+                ${(row.shortageReport||[]).slice(0,2).map(s =>
+                  `<div style="padding-left:18px">↳ ${escapeImportHtml(s.productName||s.productCode||'')} (-${formatNumber(s.missingQuantity||0)})</div>`
+                ).join('')}
+                ${(row.shortageReport||[]).length>2 ? `<div style="padding-left:18px">+ ${(row.shortageReport||[]).length-2} sản phẩm khác...</div>` : ''}
+              </div>
+            ` : `<div style="margin-top:6px;color:#15803d">🟢 Đủ tồn</div>`}
+          </div>
+          ${renderImportOrderDetailHtml(row)}
+        ` : ''}
         ${errors.length?`<div class="import-preview-error"><b>Lỗi:</b> ${escapeImportHtml(errors.join('; '))}</div>`:''}
       </article>`;
     }).join('');
