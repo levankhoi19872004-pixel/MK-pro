@@ -19,6 +19,57 @@ function cleanText(value) {
   return String(value ?? '').trim();
 }
 
+
+function normalizeImportHeaderKey(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+}
+
+function getObjectValueByAliases(obj = {}, aliases = []) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const alias of aliases) {
+    if (Object.prototype.hasOwnProperty.call(obj, alias) && cleanText(obj[alias])) return obj[alias];
+  }
+  const aliasSet = new Set(aliases.map(normalizeImportHeaderKey).filter(Boolean));
+  for (const key of Object.keys(obj)) {
+    if (aliasSet.has(normalizeImportHeaderKey(key)) && cleanText(obj[key])) return obj[key];
+  }
+  return '';
+}
+
+const IMPORT_SALES_STAFF_CODE_ALIASES = [
+  'staffCode', 'salesStaffCode', 'salesmanCode', 'employeeCode', 'sellerCode', 'saleCode', 'salesCode',
+  'Mã NVBH', 'Ma NVBH', 'Mã NVTT', 'Ma NVTT', 'Mã NV', 'Ma NV',
+  'Mã nhân viên', 'Ma nhan vien', 'Mã nhân viên TT', 'Ma nhan vien TT',
+  'Mã nhân viên bán hàng', 'Ma nhan vien ban hang', 'Mã NV bán hàng', 'Ma NV ban hang',
+  'NV bán hàng', 'NV ban hang', 'Nhân viên bán hàng', 'Nhan vien ban hang',
+  'Salesman Code', 'Sales Rep Code', 'Sales Staff Code', 'Seller Code', 'Employee Code',
+  'Mã nhân viên', 'Mã NVBH', 'Mã NVTT'
+];
+
+function extractSalesStaffCode(order = {}) {
+  const direct = getObjectValueByAliases(order, IMPORT_SALES_STAFF_CODE_ALIASES);
+  if (direct) return normalizeCode(direct);
+  const raw = getObjectValueByAliases(order.raw || {}, IMPORT_SALES_STAFF_CODE_ALIASES);
+  if (raw) return normalizeCode(raw);
+  const rows = Array.isArray(order.__importRows) ? order.__importRows : [];
+  for (const row of rows) {
+    const value = getObjectValueByAliases(row, IMPORT_SALES_STAFF_CODE_ALIASES);
+    if (value) return normalizeCode(value);
+  }
+  const adjustedRows = Array.isArray(order.__adjustedRows) ? order.__adjustedRows : [];
+  for (const row of adjustedRows) {
+    const value = getObjectValueByAliases(row, IMPORT_SALES_STAFF_CODE_ALIASES);
+    if (value) return normalizeCode(value);
+  }
+  return '';
+}
+
 function getOrderCode(order = {}) {
   return normalizeCode(order.documentCode || order.orderCode || order.invoiceCode || order.code);
 }
@@ -47,7 +98,7 @@ async function buildImportValidationContext(orders = []) {
 
   for (const order of orders || []) {
     const customerCode = normalizeCode(order.customerCode);
-    const salesStaffCode = normalizeCode(order.staffCode || order.salesStaffCode);
+    const salesStaffCode = extractSalesStaffCode(order);
     if (customerCode) customerCodes.add(customerCode);
     if (salesStaffCode) staffCodes.add(salesStaffCode);
     const lines = Array.isArray(order.lineDetails) ? order.lineDetails : [];
@@ -139,11 +190,13 @@ async function validateImportSalesOrder(order = {}, context = {}) {
     resolved.customerName = customerResult.customer.name;
   }
 
-  const salesStaffCode = normalizeCode(order.staffCode || order.salesStaffCode);
+  const salesStaffCode = extractSalesStaffCode(order);
   const staffResult = context.salesStaffMap ? validateSalesStaffFromContext(salesStaffCode, context, orderCode) : await staffRules.validateSalesStaffCode(salesStaffCode, { orderCode });
   if (!staffResult.valid) pushUnique(errors, staffResult.error);
   else {
-    resolved.salesStaffCode = staffResult.staff.code;
+    // Quy tắc chuẩn: mã NVBH lưu theo mã đọc trực tiếp từ file Excel import.
+    // Tên NVBH được tra từ users Mongo theo mã Excel.
+    resolved.salesStaffCode = salesStaffCode;
     resolved.salesStaffName = staffResult.staff.name;
   }
 
@@ -172,8 +225,8 @@ async function validateImportSalesOrder(order = {}, context = {}) {
     orderCode: order.orderCode || orderCode,
     customerCode: resolved.customerCode || customerCode || order.customerCode || '',
     customerName: resolved.customerName || order.customerName || '',
-    staffCode: resolved.salesStaffCode || salesStaffCode || order.staffCode || '',
-    salesStaffCode: resolved.salesStaffCode || salesStaffCode || order.salesStaffCode || '',
+    staffCode: salesStaffCode || resolved.salesStaffCode || order.staffCode || '',
+    salesStaffCode: salesStaffCode || resolved.salesStaffCode || order.salesStaffCode || '',
     staffName: resolved.salesStaffName || order.staffName || '',
     salesStaffName: resolved.salesStaffName || order.salesStaffName || order.staffName || '',
     resolved,

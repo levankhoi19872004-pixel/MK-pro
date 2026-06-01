@@ -13,6 +13,7 @@ const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
 const Payment = require('../models/Payment');
 const ImportLog = require('../models/ImportLog');
+const User = require('../models/User');
 const systemService = require('./systemService');
 const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
@@ -906,6 +907,7 @@ async function importSalesOrders(rows = [], options = {}) {
   const errors = [];
   const customerMap = await preloadCustomersByCode(rows);
   const productMap = await preloadProductsByCode(rows);
+  const salesStaffUserMap = await preloadSalesStaffUsersByCode(rows);
   const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
   const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   const importDocumentCodes = Array.from(new Set(rows.map(getOrderDocumentCode).map(cleanText).filter((code) => code && code !== 'AUTO')));
@@ -961,6 +963,7 @@ async function importSalesOrders(rows = [], options = {}) {
 
   for (const group of groups) {
     const first = group[0] || {};
+    const resolvedSalesStaff = resolveSalesStaffForImportRow(first, salesStaffUserMap);
     const docCodeCheck = getOrderDocumentCode(first);
     if (docCodeCheck && docCodeCheck !== 'AUTO' && existingDocumentSet.has(docCodeCheck)) {
       skipped += group.length;
@@ -978,6 +981,16 @@ async function importSalesOrders(rows = [], options = {}) {
     if (!customer) {
       skipped += group.length;
       errors.push({ customerCode, message: 'Không tìm thấy khách hàng' });
+      continue;
+    }
+    if (!resolvedSalesStaff.staffCode) {
+      skipped += group.length;
+      errors.push({ documentCode: docCodeCheck, message: 'Thiếu mã NVBH trong file Excel import' });
+      continue;
+    }
+    if (!salesStaffUserMap.get(resolvedSalesStaff.staffCode)) {
+      skipped += group.length;
+      errors.push({ documentCode: docCodeCheck, staffCode: resolvedSalesStaff.staffCode, message: `Mã NVBH ${resolvedSalesStaff.staffCode} không tồn tại trong users` });
       continue;
     }
 
@@ -1130,8 +1143,11 @@ async function importSalesOrders(rows = [], options = {}) {
       customerName: getCustomerNameFromRow(first) || customer.name,
       customerPhone: customer.phone || '',
       customerAddress: customer.address || '',
-      staffCode: cleanText(first.staffCode || first['Mã nhân viên'] || first['Mã nhân viên'] || first['Ma nhan vien'] || first['Mã NVBH'] || first['Ma NVBH']),
-      staffName: cleanText(first.staffName || first['Tên NVTT'] || first['Ten NVTT'] || first['Tên NVBH'] || first['Ten NVBH']),
+      // Mã NVBH lấy nguyên từ Excel; tên NVBH lấy từ users Mongo theo mã NVBH.
+      staffCode: resolvedSalesStaff.staffCode,
+      salesStaffCode: resolvedSalesStaff.salesStaffCode,
+      staffName: resolvedSalesStaff.staffName,
+      salesStaffName: resolvedSalesStaff.salesStaffName,
       routeCode: getRouteCodeFromRow(first),
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel DMS bulk',
       source: 'DMS',
@@ -1411,37 +1427,99 @@ function rowBase(row = {}) {
   };
 }
 
+function normalizeExcelHeaderKey(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toLowerCase();
+}
+
+function getRowValueByAliases(row = {}, aliases = []) {
+  if (!row || typeof row !== 'object') return '';
+  for (const alias of aliases) {
+    if (Object.prototype.hasOwnProperty.call(row, alias) && cleanText(row[alias])) return row[alias];
+  }
+  const aliasSet = new Set(aliases.map(normalizeExcelHeaderKey).filter(Boolean));
+  for (const key of Object.keys(row)) {
+    if (aliasSet.has(normalizeExcelHeaderKey(key)) && cleanText(row[key])) return row[key];
+  }
+  return '';
+}
+
+const SALES_STAFF_CODE_ALIASES = [
+  'staffCode', 'salesStaffCode', 'salesmanCode', 'employeeCode', 'sellerCode', 'saleCode', 'salesCode',
+  'Mã NVBH', 'Ma NVBH', 'Mã NVTT', 'Ma NVTT', 'Mã NV', 'Ma NV',
+  'Mã nhân viên', 'Ma nhan vien', 'Mã nhân viên TT', 'Ma nhan vien TT',
+  'Mã nhân viên bán hàng', 'Ma nhan vien ban hang', 'Mã NV bán hàng', 'Ma NV ban hang',
+  'NV bán hàng', 'NV ban hang', 'Nhân viên bán hàng', 'Nhan vien ban hang',
+  'Salesman Code', 'Sales Rep Code', 'Sales Staff Code', 'Seller Code', 'Employee Code',
+  'Mã nhân viên', 'Mã NVBH', 'Mã NVTT'
+];
+
+const SALES_STAFF_NAME_ALIASES = [
+  'staffName', 'salesStaffName', 'salesmanName', 'employeeName', 'sellerName',
+  'Tên NVBH', 'Ten NVBH', 'Tên NVTT', 'Ten NVTT', 'Tên NV', 'Ten NV',
+  'Tên nhân viên', 'Ten nhan vien', 'Tên nhân viên bán hàng', 'Ten nhan vien ban hang',
+  'Nhân viên bán hàng', 'Nhan vien ban hang', 'NVBH', 'NVTT',
+  'Salesman', 'Sales Rep', 'Sales Staff', 'Seller Name', 'Employee Name'
+];
+
 function getSalesStaffCodeFromRow(row = {}) {
-  return cleanText(
-    row.staffCode ||
-    row.salesStaffCode ||
-    row.salesmanCode ||
-    row.employeeCode ||
-    row['Mã NVBH'] ||
-    row['Ma NVBH'] ||
-    row['Mã nhân viên bán hàng'] ||
-    row['Ma nhan vien ban hang'] ||
-    row['Mã NV bán hàng'] ||
-    row['Ma NV ban hang'] ||
-    row['Salesman Code'] ||
-    row['Sales Rep Code']
-  );
+  return cleanText(getRowValueByAliases(row, SALES_STAFF_CODE_ALIASES));
 }
 
 function getSalesStaffNameFromRow(row = {}) {
-  return cleanText(
-    row.staffName ||
-    row.salesStaffName ||
-    row.salesmanName ||
-    row.employeeName ||
-    row['Tên NVBH'] ||
-    row['Ten NVBH'] ||
-    row['Nhân viên bán hàng'] ||
-    row['Nhan vien ban hang'] ||
-    row['NVBH'] ||
-    row['Salesman'] ||
-    row['Sales Rep']
-  );
+  return cleanText(getRowValueByAliases(row, SALES_STAFF_NAME_ALIASES));
+}
+
+function addUserStaffAlias(map, value, user) {
+  const key = cleanText(value);
+  if (key && user && !map.has(key)) map.set(key, user);
+}
+
+function getUserStaffName(user = {}) {
+  return cleanText(user.fullName || user.name || user.staffName || user.username || '');
+}
+
+async function preloadSalesStaffUsersByCode(rows = []) {
+  const codes = Array.from(new Set((rows || []).map(getSalesStaffCodeFromRow).map(cleanText).filter(Boolean)));
+  if (!codes.length) return new Map();
+  const users = await User.find({
+    isActive: { $ne: false },
+    $or: [
+      { staffCode: { $in: codes } },
+      { code: { $in: codes } },
+      { employeeCode: { $in: codes } },
+      { salesStaffCode: { $in: codes } },
+      { username: { $in: codes } },
+      { maNhanVien: { $in: codes } },
+      { employeeId: { $in: codes } },
+      { staffId: { $in: codes } }
+    ]
+  }).select('id staffCode code employeeCode salesStaffCode username maNhanVien employeeId staffId fullName name staffName phone role isActive').lean().catch(() => []);
+
+  const map = new Map();
+  for (const user of users || []) {
+    [user.staffCode, user.code, user.employeeCode, user.salesStaffCode, user.username, user.maNhanVien, user.employeeId, user.staffId, String(user._id || '')]
+      .forEach((value) => addUserStaffAlias(map, value, user));
+  }
+  return map;
+}
+
+function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) {
+  // Quy tắc chuẩn: mã NVBH lấy trực tiếp từ file Excel import.
+  // Tên NVBH không lấy từ khách hàng và không tin tên Excel; chỉ tra từ users Mongo theo mã Excel.
+  const excelStaffCode = cleanText(getSalesStaffCodeFromRow(row));
+  const user = excelStaffCode ? salesStaffUserMap.get(excelStaffCode) : null;
+  return {
+    staffCode: excelStaffCode,
+    salesStaffCode: excelStaffCode,
+    staffName: user ? getUserStaffName(user) : '',
+    salesStaffName: user ? getUserStaffName(user) : ''
+  };
 }
 
 async function getStockMapByProductCode(rows = []) {
@@ -1553,10 +1631,19 @@ function flattenAdjustedCommitRows(rows = []) {
       for (const child of source) {
         const raw = cloneRawRowForImport(child);
         if (raw.__skipImportLine) continue;
+        // Giữ kết quả validate: mã NVBH lấy từ Excel, tên NVBH đã resolve từ users.
+        raw.staffCode = row.staffCode || row.salesStaffCode || raw.staffCode;
+        raw.salesStaffCode = row.salesStaffCode || row.staffCode || raw.salesStaffCode;
+        raw.staffName = row.staffName || row.salesStaffName || raw.staffName;
+        raw.salesStaffName = row.salesStaffName || row.staffName || raw.salesStaffName;
         result.push(raw);
       }
     } else {
       const raw = cloneRawRowForImport(row);
+      raw.staffCode = row.staffCode || row.salesStaffCode || raw.staffCode;
+      raw.salesStaffCode = row.salesStaffCode || row.staffCode || raw.salesStaffCode;
+      raw.staffName = row.staffName || row.salesStaffName || raw.staffName;
+      raw.salesStaffName = row.salesStaffName || row.staffName || raw.salesStaffName;
       if (!raw.__skipImportLine) result.push(raw);
     }
   }
@@ -1876,8 +1963,11 @@ async function previewMongoNative(type, rows = []) {
         date: getDateFromRow(first),
         customerCode,
         customerName: getCustomerNameFromRow(first) || customer?.name || '',
-        staffCode: getSalesStaffCodeFromRow(first) || customer?.staffCode || customer?.salesStaffCode || '',
-        staffName: getSalesStaffNameFromRow(first) || customer?.staffName || customer?.salesStaffName || '',
+        // Mã NVBH phải lấy từ Excel; tên NVBH sẽ được validate/điền lại từ users Mongo theo mã này.
+        staffCode: getSalesStaffCodeFromRow(first),
+        salesStaffCode: getSalesStaffCodeFromRow(first),
+        staffName: '',
+        salesStaffName: '',
         lineCount: group.length,
         totalQuantity,
         totalAmount,
