@@ -656,7 +656,7 @@ function renderImportPreview(result){
   }
   // Bỏ cửa sổ popup preview: chỉ hiển thị báo cáo gọn ngay trên màn import.
   renderImportShortageActions(importPreviewRows);
-  if(commitImportButton)commitImportButton.disabled=valid<=0;
+  if(commitImportButton){commitImportButton.disabled=valid<=0;commitImportButton.textContent='Import các đơn đã chọn';}
 }
 function downloadImportTemplate(){
   if(!importDataType)return;
@@ -670,7 +670,7 @@ async function previewImportExcel(){
     showMessage(importDataMessage,'Đang đọc file và kiểm tra dữ liệu...');
     const json=await previewImportExcelSilent();
     renderImportPreview(json);
-    showMessage(importDataMessage,`Đã đọc file: ${json.valid||0} dòng/đơn hợp lệ, ${json.invalid||0} lỗi.`);
+    showMessage(importDataMessage,`Đã đọc file: ${json.valid||0} dòng/đơn hợp lệ, ${json.invalid||0} lỗi. Hãy tick chọn đơn rồi bấm Import các đơn đã chọn.`);
   }catch(err){
     importPreviewRows=[];
     if(commitImportButton)commitImportButton.disabled=true;
@@ -692,28 +692,41 @@ async function previewImportExcelSilent(){
   return json;
 }
 
+async function handleImportExcelAction(){
+  if(!importPreviewRows.length){
+    await previewImportExcel();
+    return;
+  }
+  await commitImportExcel();
+}
+
 async function commitImportExcel(){
   if(!importDataType||!importExcelFile)return;
   try{
     const file=importExcelFile.files[0];
     if(!file){showMessage(importDataMessage,'Bạn chưa chọn file Excel',true);return;}
 
+    if(!importPreviewRows.length){
+      await previewImportExcel();
+      return;
+    }
+
+    const selectedRows=getSelectedImportRows();
+    if(!selectedRows.length){showMessage(importDataMessage,'Bạn chưa chọn đơn/dòng nào để import',true);return;}
+
     if(commitImportButton){
       commitImportButton.disabled=true;
-      commitImportButton.dataset.originalText=commitImportButton.textContent||'Import ngay';
+      commitImportButton.dataset.originalText=commitImportButton.textContent||'Import các đơn đã chọn';
       commitImportButton.textContent='Đang import...';
     }
 
-    importPreviewRows=[];
-    if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="6">Đang import trực tiếp, vui lòng chờ...</td></tr>';
-    showMessage(importDataMessage,'Đang import trực tiếp. Hệ thống tự kiểm tra tồn, tự cắt hàng thiếu và ghi báo cáo.');
+    showMessage(importDataMessage,`Đang import ${formatNumber(selectedRows.length)} đơn/dòng đã chọn...`);
 
-    const formData=new FormData();
-    formData.append('type',importDataType.value);
-    if(customImportTemplateSelect&&customImportTemplateSelect.value)formData.append('templateId',customImportTemplateSelect.value);
-    formData.append('file',file);
-
-    const res=await fetch('/api/import/direct',{method:'POST',body:formData});
+    const res=await fetch('/api/import/commit',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:importDataType.value,rows:selectedRows,shortageMode:importShortageActionMode||'cut'})
+    });
     const json=await res.json();
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
 
@@ -742,7 +755,11 @@ async function commitImportExcel(){
       }
     }
 
-    if(commitImportButton)commitImportButton.disabled=true;
+    importPreviewRows=[];
+    if(commitImportButton){
+      commitImportButton.disabled=true;
+      commitImportButton.textContent='Import ngay';
+    }
 
     if(importDataType.value==='salesOrders'){
       if(salesOrderSourceFilter)salesOrderSourceFilter.value='DMS';
