@@ -27,6 +27,7 @@ async function loadSalesProductCatalog(){
 }
 function getSalesCustomerMatches(){
   const q=salesCustomerSearch?salesCustomerSearch.value.trim():'';
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20});
   return customersCache
     .filter(c=>c.isActive!==false)
     .filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route,c.staffName]));
@@ -49,6 +50,7 @@ function renderSalesCustomerSelect(){
 }
 function getSalesStaffMatches(){
   const q=salesStaffSearch?salesStaffSearch.value.trim():'';
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchSalesStaff(q,{limit:20});
   return (usersCache||[])
     .filter(u=>u.isActive!==false && ['sales','admin'].includes(String(u.role||'').toLowerCase()))
     .filter(u=>matchSearch(q,[u.code,u.username,u.name,u.fullName,u.phone,u.roleLabel,u.role]));

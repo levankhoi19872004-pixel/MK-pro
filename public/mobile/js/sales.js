@@ -63,6 +63,7 @@ async function preloadCustomers(force = false) {
 }
 
 async function filterCustomers(keyword = '') {
+  if (window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(keyword, { limit: 50, mobile: true });
   if (window.CatalogCache) return window.CatalogCache.searchCustomers(keyword, { limit: 50, mobile: true });
   const data = await mobileApi.getCustomers(keyword, { limit: 50 });
   return data.items || data.customers || [];
@@ -181,7 +182,9 @@ function initProductAutocomplete() {
   window.SearchAutocomplete.wire({
     input: productSearch,
     box: productSuggestions,
-    getItems: () => window.UnifiedProductSearch.search(productSearch.value.trim(), { limit: 50, mode: 'sales' }),
+    getItems: () => window.UnifiedSearchEngine
+      ? window.UnifiedSearchEngine.searchProduct(productSearch.value.trim(), { limit: 50, mode: 'sales', inStockOnly: true })
+      : window.UnifiedProductSearch.search(productSearch.value.trim(), { limit: 50, mode: 'sales' }),
     label: (product) => window.UnifiedProductSearch.label(product, 'sales'),
     select: pickProduct,
     emptyText: 'Không tìm thấy sản phẩm phù hợp'

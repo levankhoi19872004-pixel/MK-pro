@@ -157,6 +157,7 @@ function debtPersonLabel(code,name){
 }
 function getProductListMatches(){
   const q=searchInput?searchInput.value.trim():'';
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchProduct(q,{limit:20,mode:'sales'});
   return productsCache
     .filter(p=>p.isActive!==false)
     .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.packing,p.unit,p.baseUnit]))
@@ -170,6 +171,7 @@ function selectProductFromListSuggestion(p){
 }
 function getCustomerListMatches(){
   const q=customerSearchInput?customerSearchInput.value.trim():'';
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20});
   if(!q)return customersCache.filter(c=>c.isActive!==false).slice(0,10);
   return customersCache.filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route,c.staffName]));
 }
@@ -204,13 +206,21 @@ function getConfiguredSource(config){
   const input=getSuggestElement(config,'inputId','inputSelector');
   const q=input?input.value.trim():'';
 
-  // Phase 3.6: sản phẩm/khách hàng dùng server-side search + lazy cache, không preload toàn bộ.
-  if(config.type==='product' && window.UnifiedProductSearch){
-    const mode=config.key==='importProduct'?'import':'sales';
-    return window.UnifiedProductSearch.search(q,{limit:Number(config.limit||50),mode});
-  }
-  if(config.type==='customer' && window.CatalogCache){
-    return window.CatalogCache.searchCustomers(q,{limit:Number(config.limit||50)});
+  // V45 Unified Search Engine: mọi autocomplete nghiệp vụ đi qua 1 lớp trung gian.
+  if(window.UnifiedSearchEngine){
+    const limit=Number(config.limit||50);
+    if(config.type==='product'){
+      const mode=config.key==='importProduct'?'import':'sales';
+      return window.UnifiedSearchEngine.searchProduct(q,{limit,mode,inStockOnly:!!config.onlyInStock});
+    }
+    if(config.type==='customer'){
+      return window.UnifiedSearchEngine.searchCustomer(q,{limit});
+    }
+    if(config.type==='staff'){
+      const roles=(config.roles||[]).map(role=>String(role).toLowerCase());
+      if(roles.includes('delivery')) return window.UnifiedSearchEngine.searchDeliveryStaff(q,{limit});
+      return window.UnifiedSearchEngine.searchSalesStaff(q,{limit});
+    }
   }
 
   const map={products:productsCache,customers:customersCache,users:usersCache,debts:debtsCache};
