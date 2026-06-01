@@ -69,7 +69,11 @@ function normalizeOrderDateForMaster(value) {
 }
 
 function orderDeliveryFilterDate(order = {}) {
-  return normalizeOrderDateForMaster(order.deliveryDate || order.orderDate || order.date || order.createdAt || '');
+  // Màn "Đơn con chưa gộp" đang hiển thị ngày đơn bán (order.date),
+  // vì vậy bộ lọc ngày cũng phải bám theo ngày đơn bán.
+  // Không ưu tiên deliveryDate ở đây, tránh trường hợp lọc ngày giao 02/06
+  // nhưng lại hiển thị đơn có date 01/06.
+  return normalizeOrderDateForMaster(order.date || order.orderDate || '');
 }
 
 function normalizeOrderSourceForMaster(order = {}) {
