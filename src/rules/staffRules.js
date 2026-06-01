@@ -21,14 +21,16 @@ async function resolveStaffByCode(staffCode, type = 'sales') {
   const code = normalizeCode(staffCode);
   if (!code) return null;
   const roles = roleList(type).map((r) => new RegExp(`^${String(r).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+
+  // Quy tắc V45: mã NVBH/NVGH là mã nhân viên thật trong users.staffCode.
+  // Không fallback sang username/id, vì username có thể là tài khoản chung như `banhang` hoặc `giaohang`.
   return User.findOne({
     isActive: { $ne: false },
-    $and: [
-      { $or: [{ staffCode: code }, { username: code }, { code }, { id: code }] },
-      { $or: [{ role: { $in: roles } }] }
-    ]
+    staffCode: code,
+    role: { $in: roles }
   }).lean();
 }
+
 
 async function resolveSalesStaffByCode(staffCode) {
   return resolveStaffByCode(staffCode, 'sales');

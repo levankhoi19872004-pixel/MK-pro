@@ -361,14 +361,38 @@ function staffRoleFilter(role = '', roles = []) {
   const expanded = new Set();
   for (const item of wanted) {
     expanded.add(item);
-    if (['sales', 'sale', 'nvbh', 'salesstaff'].includes(item)) {
-      ['sales', 'sale', 'nvbh', 'salesStaff', 'sales_staff'].forEach((v) => expanded.add(v));
+    if (['sales', 'sale', 'nvbh', 'salesstaff', 'sales_staff'].includes(item)) {
+      ['sales', 'sale', 'nvbh', 'NVBH', 'salesStaff', 'sales_staff'].forEach((v) => expanded.add(v));
     }
-    if (['delivery', 'shipper', 'nvgh', 'deliverystaff'].includes(item)) {
-      ['delivery', 'shipper', 'nvgh', 'deliveryStaff', 'delivery_staff'].forEach((v) => expanded.add(v));
+    if (['delivery', 'shipper', 'nvgh', 'deliverystaff', 'delivery_staff'].includes(item)) {
+      ['delivery', 'shipper', 'nvgh', 'NVGH', 'deliveryStaff', 'delivery_staff'].forEach((v) => expanded.add(v));
     }
   }
   return [...expanded];
+}
+
+function isRoleSpecificStaffSearch(query = {}) {
+  const roleText = String(query.role || query.roles || '').toLowerCase();
+  return ['sales', 'sale', 'nvbh', 'salesstaff', 'sales_staff', 'delivery', 'shipper', 'nvgh', 'deliverystaff', 'delivery_staff']
+    .some((key) => roleText.includes(key));
+}
+
+function staffCodeFilterRequired(query = {}) {
+  // Gợi ý NVBH/NVGH phải là nhân viên thật có mã nhân viên.
+  // Không được hiện tài khoản dùng chung như `banhang` / `giaohang` vì các tài khoản này chỉ là account đăng nhập.
+  // Nếu màn nào cố tình cần xem toàn bộ user account thì gọi /api/search/staffs với includeLoginAccounts=1.
+  if (['1', 'true', 'yes'].includes(String(query.includeLoginAccounts || query.includeAccounts || '').toLowerCase())) return false;
+  return isRoleSpecificStaffSearch(query);
+}
+
+function staffCodeExistsFilter() {
+  return {
+    $and: [
+      { staffCode: { $exists: true } },
+      { staffCode: { $ne: '' } },
+      { staffCode: { $ne: null } }
+    ]
+  };
 }
 
 async function findStaffs(query = {}) {
@@ -379,30 +403,43 @@ async function findStaffs(query = {}) {
   const normalizedRoles = staffRoleFilter(query.role, roles);
   const limit = parseLimit(query, q ? 50 : 20, 50);
   const userFilter = { ...activeFilter(query) };
+  const andFilters = [];
 
   if (normalizedRoles && normalizedRoles.length) {
     const roleRegexes = normalizedRoles.map((r) => new RegExp(`^${escapeRegex(r)}$`, 'i'));
     userFilter.role = { $in: roleRegexes };
   }
 
-  const userSearchOrs = regexOr(q, ['staffCode', 'username', 'fullName', 'name', 'phone', 'role']);
-  if (userSearchOrs.length) userFilter.$or = userSearchOrs;
+  if (staffCodeFilterRequired({ ...query, roles })) {
+    andFilters.push(staffCodeExistsFilter());
+  }
 
-  // V45 rule: nhân viên lấy từ users là nguồn chuẩn. Không trộn staffs để tránh lệch mã/tên/role.
+  const searchFields = staffCodeFilterRequired({ ...query, roles })
+    ? ['staffCode', 'fullName', 'name', 'phone']
+    : ['staffCode', 'username', 'fullName', 'name', 'phone', 'role'];
+  const userSearchOrs = regexOr(q, searchFields);
+  if (userSearchOrs.length) andFilters.push({ $or: userSearchOrs });
+  if (andFilters.length) userFilter.$and = andFilters;
+
+  // V45 rule: NVBH/NVGH lấy từ users có role đúng và có staffCode thật.
+  // Không fallback sang username cho mã nhân viên, để tránh hiện tài khoản đăng nhập dùng chung.
   const userRows = await User.find(userFilter)
     .select('id staffCode username name fullName phone role isActive')
     .sort({ staffCode: 1, username: 1 })
     .limit(limit)
     .lean();
 
-  return uniqueBy(userRows.map((u) => ({
-    ...u,
-    code: u.staffCode || u.code || u.username,
-    staffCode: u.staffCode || u.code || u.username,
-    name: u.fullName || u.name || u.username,
-    fullName: u.fullName || u.name || u.username,
-    source: 'users'
-  })), ['code', 'staffCode', 'username']).slice(0, limit);
+  return uniqueBy(userRows.map((u) => {
+    const realStaffCode = String(u.staffCode || '').trim();
+    return {
+      ...u,
+      code: realStaffCode || u.username,
+      staffCode: realStaffCode,
+      name: u.fullName || u.name || u.username,
+      fullName: u.fullName || u.name || u.username,
+      source: 'users'
+    };
+  }), ['staffCode', 'username']).slice(0, limit);
 }
 
 function orderSearchScore(row = {}, nq = '') {

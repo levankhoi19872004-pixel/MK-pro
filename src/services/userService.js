@@ -24,12 +24,13 @@ function hashPasswordSync(password) {
 
 function pickStaffPayload(body = {}, current = null) {
   const role = VALID_ROLES.includes(String(body.role || current?.role || '').trim()) ? String(body.role || current?.role).trim() : 'sales';
-  const code = String(body.code || body.staffCode || current?.code || body.username || '').trim();
+  const code = String(body.code || body.staffCode || current?.staffCode || current?.code || body.username || '').trim();
   const username = String(body.username || current?.username || code).trim();
   const passwordInput = String(body.password || '').trim();
   const payload = {
-    id: String(body.id || current?.id || code || username || makeId('U')).trim(),
+    id: String(body.id || current?._id || current?.id || code || username || makeId('U')).trim(),
     code,
+    staffCode: code,
     username,
     name: String(body.name || body.fullName || current?.name || current?.fullName || username).trim(),
     fullName: String(body.fullName || body.name || current?.fullName || current?.name || username).trim(),
@@ -56,13 +57,14 @@ function validateStaff(payload) {
 
 function staffToClient(staff) {
   const raw = typeof staff?.toObject === 'function' ? staff.toObject() : (staff || {});
-  const code = String(raw.code || raw.staffCode || raw.username || raw._id || '').trim();
+  const code = String(raw.staffCode || raw.code || raw.username || raw._id || '').trim();
   const role = VALID_ROLES.includes(String(raw.role || '').trim()) ? String(raw.role).trim() : 'sales';
   return {
     ...raw,
-    id: raw.id || code,
+    id: raw._id ? String(raw._id) : (raw.id || code),
     _id: raw._id ? String(raw._id) : undefined,
     code,
+    staffCode: raw.staffCode || code,
     username: raw.username || code,
     name: raw.name || raw.fullName || raw.username || code,
     fullName: raw.fullName || raw.name || raw.username || code,
@@ -77,28 +79,28 @@ function staffToClient(staff) {
 }
 
 async function listUsers(query = {}) {
-  // Tài khoản/nhân viên là danh mục nhỏ được phép load toàn bộ,
-  // nhưng vẫn phải ép page/limit để không query khổng lồ.
+  // V45 rule: mục Tài khoản phải đọc trực tiếp từ collection users trên MongoDB.
+  // Không đọc collection staffs nữa, vì NVBH/NVGH và import đều lấy users.staffCode làm nguồn chuẩn.
   const guardedQuery = { ...(query || {}), page: query?.page || 1, limit: queryGuard.clampLimit(query?.limit) };
-  const staffs = await userRepository.findStaffs(guardedQuery);
-  return staffs.map(staffToClient);
+  const users = await userRepository.findUsers(guardedQuery);
+  return users.map(staffToClient);
 }
 
 async function saveUser(body) {
   const id = String(body?.id || '').trim();
-  const current = id ? await userRepository.findStaffByIdOrCode(id) : null;
+  const current = id ? await userRepository.findUserByIdOrCode(id) : null;
   const payload = pickStaffPayload(body, current);
   const error = validateStaff(payload);
   if (error) return { error, status: 400 };
-  const duplicated = await userRepository.findDuplicateStaff(payload.code, payload.username, current?._id);
+  const duplicated = await userRepository.findDuplicateUser(payload.staffCode || payload.code, payload.username, current?._id);
   if (duplicated) return { error: 'Mã nhân viên hoặc tên đăng nhập đã tồn tại trong MongoDB', status: 409 };
-  const saved = current ? await userRepository.updateStaff(id, payload) : await userRepository.createStaff(payload);
+  const saved = current ? await userRepository.updateUser(id, payload) : await userRepository.createUser(payload);
   return { user: staffToClient(saved), created: !current };
 }
 
 async function deleteUser(id) {
-  const staff = await userRepository.deleteStaff(id);
-  if (!staff) return { error: 'Không tìm thấy tài khoản trong MongoDB', status: 404 };
+  const staff = await userRepository.deleteUser(id);
+  if (!staff) return { error: 'Không tìm thấy tài khoản trong collection users', status: 404 };
   return { user: staffToClient(staff) };
 }
 
