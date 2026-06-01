@@ -9,15 +9,37 @@ function productLineMeta(p){
   return {unit:p.unit||'',baseUnit:p.baseUnit||'',conversionRate:Number(p.conversionRate||1),packing:productPackingText(p),units:Array.isArray(p.units)?p.units:[]};
 }
 function getProductKey(p){return String(p?.code||p?.id||'')}
+function extractProductCodeFromInput(value){
+  const text=String(value||'').trim();
+  if(!text)return '';
+  // Hỗ trợ các label gợi ý kiểu:
+  // 65437062 | SUNSILK... / 65437062 - SUNSILK... / 65437062 SUNSILK...
+  const m=text.match(/^([A-Za-z0-9._-]+)/);
+  return m ? m[1].trim() : text;
+}
+function normalizeProductLookup(value){
+  return String(value||'').trim().toLowerCase();
+}
 function findProductByKey(key){
-  const value=String(key||'');
+  const raw=String(key||'').trim();
+  const value=normalizeProductLookup(raw);
+  const leadingCode=normalizeProductLookup(extractProductCodeFromInput(raw));
+  if(!value && !leadingCode)return null;
   const pools=[];
   if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.getCatalog==='function') pools.push(window.UnifiedProductSearch.getCatalog());
   if(Array.isArray(salesProductsCache))pools.push(salesProductsCache);
   if(Array.isArray(productsCache))pools.push(productsCache);
+  const seen=new Set();
   for(const pool of pools){
-    const found=pool.find(x=>String(x.code||'')===value||String(x.id||'')===value||String(x._id||'')===value||String(x.productCode||'')===value||String(x.sku||'')===value);
-    if(found)return found;
+    if(!Array.isArray(pool))continue;
+    for(const x of pool){
+      if(!x)continue;
+      const identity=String(x.id||x._id||x.code||x.productCode||'');
+      if(identity && seen.has(identity))continue;
+      if(identity)seen.add(identity);
+      const keys=[x.code,x.id,x._id,x.productCode,x.sku,x.barcode].map(normalizeProductLookup).filter(Boolean);
+      if(keys.includes(value) || keys.includes(leadingCode))return x;
+    }
   }
   return null;
 }

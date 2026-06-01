@@ -96,6 +96,25 @@ function syncSalesPrice(){
   const p=findProductByKey(salesProductSelect.value);
   if(p&&salesPrice)salesPrice.value=Number(p.salePrice||0);
 }
+function getSelectedSalesProduct(){
+  // Ưu tiên hidden value do autocomplete set, sau đó fallback từ dataset và text đang hiển thị.
+  // Lỗi trước đây: ô sản phẩm đã hiện label, nhưng hidden salesProductSelect rỗng nên bấm Thêm vào đơn báo chưa chọn SP.
+  const keys=[
+    salesProductSelect?.value,
+    salesProductSearch?.dataset?.selectedId,
+    salesProductSearch?.value
+  ];
+  for(const key of keys){
+    const found=findProductByKey(key);
+    if(found){
+      const productKey=getProductKey(found);
+      if(salesProductSelect) salesProductSelect.value=productKey;
+      if(salesProductSearch) salesProductSearch.dataset.selectedId=productKey;
+      return found;
+    }
+  }
+  return null;
+}
 function getSalesMode(){
   const checked=document.querySelector('input[name="saleMode"]:checked');
   return checked?.value === 'promotion' ? 'promotion' : 'direct';
@@ -156,7 +175,7 @@ function renderSalesItems(){
 }
 window.removeSalesItem=index=>{salesItems.splice(index,1);renderSalesItems()};
 function addSalesItem(){
-  const p=findProductByKey(salesProductSelect.value);if(!p){showMessage(salesMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
+  const p=getSelectedSalesProduct();if(!p){showMessage(salesMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
   const caseQty=Number(salesQuantityCase?.value||0);
   const looseQty=Number(salesQuantityLoose?.value||0);
   const packingRate=Number(p.conversionRate||p.unitsPerCase||0);
