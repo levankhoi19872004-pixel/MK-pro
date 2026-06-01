@@ -45,10 +45,10 @@ const TEMPLATE_DEFINITIONS = {
     columns: ['documentCode', 'date', 'supplier', 'productCode', 'quantity', 'costPrice', 'note'],
     headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Số lượng', 'Giá nhập', 'Ghi chú'],
     sample: [
-      ['PN-EXCEL-001', '2026-05-26', 'Unilever', 'SP001', 50, 145000, 'Nhập theo hóa đơn'],
-      ['PN-EXCEL-001', '2026-05-26', 'Unilever', 'SP002', 30, 115000, 'Cùng phiếu nhập']
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 50, 145000, 'Nhập theo hóa đơn'],
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 30, 115000, 'Cùng phiếu nhập']
     ],
-    notes: ['Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.', 'Mã sản phẩm phải tồn tại trong danh mục.']
+    notes: ['Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.', 'Mã sản phẩm sẽ tự tạo nếu chưa tồn tại trong danh mục.', 'Định dạng ngày chuẩn: DD/MM/YYYY (ví dụ 26/05/2026).']
   },
   salesOrders: {
     title: 'Mẫu import đơn con DMS Unilever',
@@ -56,8 +56,8 @@ const TEMPLATE_DEFINITIONS = {
     columns: ['routeCode', 'documentCode', 'date', 'productCode', 'productName', 'packingQty', 'cartons', 'units', 'promoCartons', 'promoUnits', 'staffCode', 'staffName', 'customerCode', 'invoiceCountInDay', 'skuCountInDay', 'listPriceBeforeVat', 'gsvAmount', 'nivAmount', 'customerName', 'actualAmount', 'invoiceType', 'vatAmount', 'orderSource'],
     headers: ['Tuyến bán hàng', 'Số hóa đơn', 'Ngày lập hoá đơn', 'Mã hàng hóa', 'Mô tả mặt hàng', 'Đóng gói', 'Số lượng thùng', 'Số lượng SU', 'Số lượng khuyến mãi theo thùng/ Số thùng', 'Số lượng khuyến mãi theo SU/ Số SU khuyến mãi', 'Mã nhân viên', 'Tên NVTT', 'Mã cửa hàng', 'Số hóa đơn trong 1 ngày', 'Số SKU trong 1 ngày', 'Đơn giá', 'GSV bán ra', 'NIV bán ra', 'Tên cửa hàng', 'Doanh số mỗi ngày', 'Loại hóa đơn', 'Thuế', 'Nguồn đơn'],
     sample: [
-      ['W1SPW', 'HU90202209', '2026-05-26', '64340182', 'LIFEBUOY XA PHONG SUA DUONG AM 72X125G', 72, 0, 5, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 0, 14818, 74090, 63347, 'Chị Thuận', 68415, 'ZID1', 5068, 'DMS'],
-      ['W1SPW', 'HU90202209', '2026-05-26', '65251427', 'CLEAR DG MAT LANH BAC HA 24X350G', 24, 0, 2, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 1, 83333, 166666, 166666, 'Chị Thuận', 179999, 'ZID1', 13333, 'DMS']
+      ['W1SPW', 'HU90202209', '26/05/2026', '64340182', 'LIFEBUOY XA PHONG SUA DUONG AM 72X125G', 72, 0, 5, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 0, 14818, 74090, 63347, 'Chị Thuận', 68415, 'ZID1', 5068, 'DMS'],
+      ['W1SPW', 'HU90202209', '26/05/2026', '65251427', 'CLEAR DG MAT LANH BAC HA 24X350G', 24, 0, 2, 0, 0, '33949', 'Đỗ Thị Anh - 0979107225', '4501808', 0, 1, 83333, 166666, 166666, 'Chị Thuận', 179999, 'ZID1', 13333, 'DMS']
     ],
     notes: [
       'Đây là mẫu import ĐƠN CON DMS Unilever; đơn import sẽ luôn được nhận diện là Từ DMS để đi xuyên suốt Lịch sử đơn bán, Gộp đơn tổng, App giao hàng và báo cáo.',
@@ -74,8 +74,8 @@ const TEMPLATE_DEFINITIONS = {
     columns: ['date', 'customerCode', 'amount', 'note'],
     headers: ['Ngày', 'Mã khách hàng', 'Số tiền công nợ đầu', 'Ghi chú'],
     sample: [
-      ['2026-05-26', 'KH001', 1500000, 'Nợ đầu kỳ'],
-      ['2026-05-26', 'KH002', 750000, 'Nợ đầu kỳ']
+      ['26/05/2026', 'KH001', 1500000, 'Nợ đầu kỳ'],
+      ['26/05/2026', 'KH002', 750000, 'Nợ đầu kỳ']
     ],
     notes: ['Mã khách hàng phải tồn tại trong danh mục.', 'Số tiền công nợ không được âm.']
   },
@@ -85,8 +85,8 @@ const TEMPLATE_DEFINITIONS = {
     columns: ['date', 'customerCode', 'amount', 'staffName', 'note'],
     headers: ['Ngày', 'Mã khách hàng', 'Số tiền thu', 'Người thu', 'Ghi chú'],
     sample: [
-      ['2026-05-26', 'KH001', 500000, 'Nguyễn Văn A', 'Thu tiền giao hàng'],
-      ['2026-05-26', 'KH002', 300000, 'Trần Văn B', 'Thu công nợ']
+      ['26/05/2026', 'KH001', 500000, 'Nguyễn Văn A', 'Thu tiền giao hàng'],
+      ['26/05/2026', 'KH002', 300000, 'Trần Văn B', 'Thu công nợ']
     ],
     notes: ['Import thu công nợ sẽ đồng thời ghi vào công nợ và quỹ tiền.', 'Số tiền thu phải lớn hơn 0.']
   },
@@ -96,8 +96,8 @@ const TEMPLATE_DEFINITIONS = {
     columns: ['date', 'type', 'source', 'staffName', 'amount', 'note'],
     headers: ['Ngày', 'Loại thu/chi', 'Nguồn/Nhóm tiền', 'Người nộp/nhận', 'Số tiền', 'Ghi chú'],
     sample: [
-      ['2026-05-26', 'thu', 'Nhân viên giao hàng nộp tiền', 'Nguyễn Văn A', 1000000, 'Nộp tiền cuối ngày'],
-      ['2026-05-26', 'chi', 'Chi phí vận hành', 'Trần Văn B', 200000, 'Chi xăng xe']
+      ['26/05/2026', 'thu', 'Nhân viên giao hàng nộp tiền', 'Nguyễn Văn A', 1000000, 'Nộp tiền cuối ngày'],
+      ['26/05/2026', 'chi', 'Chi phí vận hành', 'Trần Văn B', 200000, 'Chi xăng xe']
     ],
     notes: ['Cột loại thu/chi nhập: thu hoặc chi.', 'Số tiền phải lớn hơn 0.']
   }
@@ -116,7 +116,7 @@ function buildGuideSheet(definition) {
     ['Cách sử dụng'],
     ['1. Nhập dữ liệu thật vào sheet Import.'],
     ['2. Giữ nguyên tên cột ở dòng đầu tiên, không xóa hoặc đổi tên cột.'],
-    ['3. Ngày nên nhập theo định dạng YYYY-MM-DD, ví dụ 2026-05-26.'],
+    ['3. Ngày nên nhập theo định dạng DD/MM/YYYY, ví dụ 26/05/2026.'],
     ['4. Sau khi nhập xong, quay lại phần mềm, chọn đúng loại import và tải file lên để xem trước.'],
     [],
     ['Lưu ý nghiệp vụ'],

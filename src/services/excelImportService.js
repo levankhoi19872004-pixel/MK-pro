@@ -28,34 +28,48 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function isValidDateParts(year, month, day) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (year < 1900 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const check = new Date(Date.UTC(year, month - 1, day));
+  return check.getUTCFullYear() === year && check.getUTCMonth() === month - 1 && check.getUTCDate() === day;
+}
+
+function formatDateOnly(year, month, day) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 function normalizeImportDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatDateOnly(value.getFullYear(), value.getMonth() + 1, value.getDate());
+  }
+
   const textValue = cleanText(value);
   if (!textValue) return today();
 
+  // Excel serial date, ví dụ 46168 -> 2026-05-26.
   if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
 
+  // Vẫn chấp nhận ISO từ hệ thống/API: YYYY-MM-DD hoặc YYYY/MM/DD.
   const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (isValidDateParts(year, month, day)) return formatDateOnly(year, month, day);
+    return textValue.slice(0, 10);
+  }
 
+  // Chuẩn import Việt Nam: DD/MM/YYYY hoặc DD-MM-YYYY.
+  // Không tự đảo sang MM/DD/YYYY để tránh 01/06 bị hiểu nhầm là 06/01.
   const parts = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
   if (parts) {
-    let a = Number(parts[1]);
-    let b = Number(parts[2]);
-    let y = Number(parts[3]);
-    if (y < 100) y += y >= 70 ? 1900 : 2000;
-    let day;
-    let month;
-    if (b > 12 && a <= 12) {
-      month = a;
-      day = b;
-    } else {
-      day = a;
-      month = b;
-    }
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
+    const day = Number(parts[1]);
+    const month = Number(parts[2]);
+    let year = Number(parts[3]);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    if (isValidDateParts(year, month, day)) return formatDateOnly(year, month, day);
+    return textValue.slice(0, 10);
   }
 
   return textValue.slice(0, 10);
@@ -493,85 +507,6 @@ async function preloadProductsByCode(rows = []) {
   return map;
 }
 
-function getProductNameFromImportRow(row = {}, productCode = '') {
-  return cleanText(
-    row.productName ||
-    row.name ||
-    row['Tên hàng hóa'] ||
-    row['Ten hang hoa'] ||
-    row['Tên sản phẩm'] ||
-    row['Ten san pham'] ||
-    row['Tên hàng'] ||
-    row['Ten hang'] ||
-    text(row, ['productName', 'tên hàng hóa', 'ten hang hoa', 'tên sản phẩm', 'ten san pham', 'tên hàng', 'ten hang'])
-  ) || `Sản phẩm tự tạo ${productCode}`;
-}
-
-function buildAutoCreatedProductPayload(row = {}, productCode = '') {
-  const warehouseCode = normalizeProductWarehouseCode(row.warehouseCode || row.warehouse || row.kho || row['Kho'] || row['Kho mặc định'] || row['Kho mac dinh']);
-  const packingInfo = normalizePacking({
-    unit: row.unit || row['Đơn vị'] || row['Don vi'],
-    baseUnit: row.baseUnit || row['Đơn vị gốc'] || row['Don vi goc'],
-    conversionRate: row.conversionRate || row['Quy đổi'] || row['Quy doi'] || row['Tỷ lệ'] || row['Ty le'],
-    packing: row.packing || row.package || row['Quy cách'] || row['Quy cach']
-  });
-  const costPrice = getCostFromRow(row);
-  const salePrice = getSalePriceFromRow(row);
-  const payload = {
-    code: productCode,
-    name: getProductNameFromImportRow(row, productCode),
-    ...packingInfo,
-    barcode: cleanText(row.barcode || row['Mã vạch'] || row['Ma vach']),
-    category: cleanText(row.category || row['Nhóm hàng'] || row['Nhom hang']),
-    brand: cleanText(row.brand || row['Thương hiệu'] || row['Thuong hieu']),
-    warehouseCode,
-    warehouseName: productWarehouseName(warehouseCode),
-    costPrice,
-    salePrice: salePrice > 0 ? salePrice : 0,
-    minStock: 0,
-    maxStock: 0,
-    isActive: true,
-    autoCreated: true,
-    autoCreatedFrom: 'import_order_excel',
-    autoCreatedAt: nowIso()
-  };
-  payload.searchText = productSearchText(payload);
-  return payload;
-}
-
-async function ensureProductForImportRow(row = {}, productMap = new Map(), autoCreatedProducts = []) {
-  const productCode = getProductCodeFromRow(row);
-  const productKey = cleanText(productCode);
-  if (!productKey) return null;
-
-  const cached = productMap.get(productKey);
-  if (cached) return cached;
-
-  const existing = await findProductByAny(productKey);
-  if (existing) {
-    [existing.code, existing.productCode, existing.sku, existing.barcode, existing.id, String(existing._id || '')]
-      .filter(Boolean)
-      .forEach((key) => productMap.set(cleanText(key), existing));
-    return existing;
-  }
-
-  const payload = buildAutoCreatedProductPayload(row, productKey);
-  const createdDoc = await Product.create(payload);
-  const created = typeof createdDoc.toObject === 'function' ? createdDoc.toObject() : createdDoc;
-  [created.code, created.productCode, created.sku, created.barcode, created.id, String(created._id || '')]
-    .filter(Boolean)
-    .forEach((key) => productMap.set(cleanText(key), created));
-  autoCreatedProducts.push({
-    code: created.code,
-    name: created.name,
-    unit: created.unit,
-    costPrice: created.costPrice,
-    warehouseCode: created.warehouseCode,
-    source: 'import_order_excel'
-  });
-  return created;
-}
-
 async function preloadCustomersByCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getCustomerCodeFromRow).filter(Boolean)));
   const customers = codes.length ? await Customer.find({ $or: [
@@ -896,7 +831,6 @@ async function importImportOrders(rows = []) {
   let skipped = 0;
   const errors = [];
   const productMap = await preloadProductsByCode(rows);
-  const autoCreatedProducts = [];
   const importDocumentCodes = Array.from(new Set(rows.map(r => cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don'])).filter(Boolean)));
   const existingOrders = await SalesOrder.find({ documentCode: { $in: importDocumentCodes } }).select('documentCode').lean().catch(() => []);
   const existingDocumentSet = new Set(existingOrders.map(o => cleanText(o.documentCode)));
@@ -913,19 +847,12 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     const items = [];
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
-      let product = null;
-      try {
-        product = await ensureProductForImportRow(row, productMap, autoCreatedProducts);
-      } catch (error) {
-        skipped += 1;
-        errors.push({ productCode, message: `Không thể tự tạo sản phẩm: ${error.message}` });
-        continue;
-      }
+      const product = productMap.get(cleanText(productCode));
       const quantity = getQtyFromRow(row);
       const costPrice = getCostFromRow(row);
       if (!product || quantity <= 0 || costPrice < 0) {
         skipped += 1;
-        errors.push({ productCode, message: !product ? 'Thiếu mã sản phẩm' : 'Dòng nhập kho không hợp lệ' });
+        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Dòng nhập kho không hợp lệ' });
         continue;
       }
       items.push({
@@ -989,18 +916,9 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     stockTransactions: inventoryResult.transactionCount,
     inventoryRows: inventoryResult.inventoryRows,
     shortageCount: shortageReport.length,
-    shortageReport: shortageReport.slice(0, 100),
-    autoCreatedProductCount: autoCreatedProducts.length,
-    autoCreatedProducts: autoCreatedProducts.slice(0, 100)
+    shortageReport: shortageReport.slice(0, 100)
   });
-  return {
-    imported,
-    skipped,
-    errors,
-    shortageReport,
-    autoCreatedProductCount: autoCreatedProducts.length,
-    autoCreatedProducts
-  };
+  return { imported, skipped, errors, shortageReport };
 }
 
 async function importSalesOrders(rows = [], options = {}) {

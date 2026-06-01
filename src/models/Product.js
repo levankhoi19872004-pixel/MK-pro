@@ -37,10 +37,6 @@ const productSchema = new mongoose.Schema({
   minStock: { type: Number, default: 0 },
   maxStock: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
-  // Sản phẩm được sinh tự động khi import phiếu nhập mà mã chưa có trong danh mục.
-  autoCreated: { type: Boolean, default: false },
-  autoCreatedFrom: { type: String, default: '', trim: true },
-  autoCreatedAt: { type: Date, default: null },
   searchText: { type: String, default: '', trim: true }
 }, { timestamps: true, strict: false, versionKey: false });
 
@@ -52,7 +48,6 @@ productSchema.index({ category: 1 });
 productSchema.index({ warehouseCode: 1, code: 1 });
 productSchema.index({ isActive: 1, code: 1 });
 productSchema.index({ searchText: 1 });
-productSchema.index({ autoCreated: 1, code: 1 });
 
 
 productSchema.pre('validate', function buildSearchText(next) {

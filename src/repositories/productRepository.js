@@ -22,7 +22,6 @@ function baseFilter(query = {}) {
   const activeOnly = String(query.activeOnly || '') === '1';
   const filter = {};
   if (activeOnly) filter.isActive = { $ne: false };
-  if (String(query.autoCreated || query.autoCreatedOnly || '') === '1') filter.autoCreated = true;
   return filter;
 }
 
