@@ -195,5 +195,39 @@
       afterSelect: 'loadDeliveryToday',
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
+
+    ,{
+      key: 'salesOrderStaffFilter',
+      type: 'staff',
+      inputId: 'salesOrderStaffFilter',
+      boxId: 'salesOrderStaffFilterSuggestions',
+      source: 'users',
+      roles: ['sales','admin'],
+      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'salesOrderStaffFilter', value: 'label' }
+      ],
+      afterSelect: 'loadSalesOrders',
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    }
+    ,{
+      key: 'masterReturnDeliveryStaff',
+      type: 'staff',
+      inputId: 'masterReturnDeliveryStaff',
+      boxId: 'masterReturnDeliveryStaffSuggestions',
+      source: 'users',
+      roles: ['delivery','admin'],
+      searchKeys: ['code','username','name','fullName','phone','roleLabel','role'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'masterReturnDeliveryStaff', value: 'codeOrUsernameOrId' }
+      ],
+      afterSelect: 'loadUnmergedReturnOrders',
+      emptyText: 'Không tìm thấy nhân viên giao hàng'
+    }
+
   ];
 })();
