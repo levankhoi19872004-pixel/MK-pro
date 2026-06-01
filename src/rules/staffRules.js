@@ -64,7 +64,7 @@ function buildCodeFilter(staffCode) {
   // Quy tắc V45: mã NVBH/NVGH lấy từ tài khoản trong collection users.
   // Ưu tiên users.staffCode, nhưng nhiều dữ liệu cũ lưu mã nhân viên ở users.code.
   // Không dùng username/id để tránh tài khoản chung như `banhang`, `giaohang` bị nhận nhầm.
-  const codeFields = ['staffCode', 'code', 'employeeCode', 'salesStaffCode', 'deliveryStaffCode'];
+  const codeFields = ['staffCode', 'code', 'employeeCode', 'salesStaffCode', 'deliveryStaffCode', 'username', 'maNhanVien', 'employeeId', 'staffId'];
   const clauses = [];
   for (const field of codeFields) {
     if (textValues.length) clauses.push({ [field]: { $in: textValues } });
@@ -89,8 +89,15 @@ async function resolveStaffByCode(staffCode, type = 'sales') {
     .lean()
     .catch(() => []);
 
+  // Ưu tiên đúng vai trò NVBH/NVGH nếu tài khoản có khai báo role.
   const matched = candidates.find((row) => roleMatches(row, type));
-  return matched || null;
+  if (matched) return matched;
+
+  // Dữ liệu users cũ có thể chỉ lưu mã nhân viên nhưng chưa gắn role chuẩn.
+  // Với import DMS, quy tắc nghiệp vụ là: mã NVBH phải tồn tại trong users Mongo.
+  // Vì vậy cho phép fallback theo mã exact để tránh báo sai "Thiếu/không tồn tại mã NVBH"
+  // khi tài khoản chưa được chuẩn hóa role.
+  return candidates[0] || null;
 }
 
 async function resolveSalesStaffByCode(staffCode) {
@@ -111,7 +118,7 @@ async function validateStaffCode(staffCode, type = 'sales', context = {}) {
   if (!staff) {
     return { valid: false, staff: null, error: makeBusinessError({ code: `INVALID_${label}_CODE`, message: `Mã ${label} ${code} không tồn tại trong danh sách tài khoản`, orderCode: context.orderCode || '', field: type === 'delivery' ? 'deliveryStaffCode' : 'salesStaffCode' }) };
   }
-  const realCode = staff.staffCode || staff.code || staff.employeeCode || staff.salesStaffCode || staff.deliveryStaffCode || code;
+  const realCode = staff.staffCode || staff.code || staff.employeeCode || staff.salesStaffCode || staff.deliveryStaffCode || staff.maNhanVien || staff.employeeId || staff.staffId || staff.username || code;
   return { valid: true, staff: { ...staff, code: String(realCode || '').trim(), name: staff.fullName || staff.name || staff.username }, error: null };
 }
 
