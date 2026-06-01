@@ -223,11 +223,9 @@ async function createReturnOrder(body = {}) {
       date: returnOrder.date,
       note: existing ? 'Cập nhật nhập lại kho theo phiếu trả hàng' : 'Nhập lại kho theo phiếu trả hàng'
     }, { session });
-    await postingEngine.postReturnOrderAR(returnOrder, { session });
-    await financialService.syncOrderDebtCacheFromAR({
-      orderId: returnOrder.salesOrderId || returnOrder.orderId || '',
-      orderCode: returnOrder.salesOrderCode || returnOrder.orderCode || ''
-    }, { session });
+    // V45 chuẩn kế toán: phiếu trả hàng / kho nhận hàng chỉ nhập lại tồn kho.
+    // KHÔNG ghi AR-RETURN ở bước này vì kế toán chưa xác nhận giảm công nợ.
+    // AR-RETURN chỉ được post ở luồng kế toán xác nhận công nợ.
   });
   return { returnOrder: toClient({ ...returnOrder, status: 'posted', warehouseReceiveStatus: 'received' }), updatedExisting: Boolean(existing) };
 }
@@ -297,19 +295,9 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
       date: received.date,
       note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
     }, { session });
-    const source = [received.source, received.refType, received.note]
-      .map((value) => String(value || '').toLowerCase())
-      .join(' ');
-    const fromMobileDelivery = source.includes('mobiledelivery') || source.includes('mobile_delivery') || source.includes('app giao hàng');
-    const accountingStatus = String(received.accountingStatus || '').toLowerCase();
-    const accountingConfirmed = Boolean(received.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
-    if (!fromMobileDelivery || accountingConfirmed) {
-      await postingEngine.postReturnOrderAR(received, { session });
-      await financialService.syncOrderDebtCacheFromAR({
-        orderId: received.salesOrderId || received.orderId || '',
-        orderCode: received.salesOrderCode || received.orderCode || ''
-      }, { session });
-    }
+    // Kho xác nhận hàng trả chỉ ảnh hưởng tồn kho.
+    // Không post AR-RETURN và không sync công nợ ở đây.
+    // Kế toán sẽ ghi giảm công nợ ở màn xác nhận công nợ/giao hàng.
   });
 
   return { returnOrder: toClient(received), alreadyReceived: false };

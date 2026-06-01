@@ -304,6 +304,30 @@ function isMoneyDocAllowedForAR(row = {}, orderByKey = new Map()) {
   return order ? isDeliveredForAR(order) : false;
 }
 
+function isAccountingConfirmedDoc(row = {}) {
+  const accountingStatus = String(row.accountingStatus || row.financeStatus || '').toLowerCase();
+  return Boolean(row.accountingConfirmed || row.financeConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+}
+
+function isReturnDocAllowedForAR(row = {}, orderByKey = new Map()) {
+  // V45: hàng trả dù kho đã nhận vẫn chỉ là dữ liệu chờ kế toán.
+  // Chỉ đưa hàng trả vào AR khi chính phiếu/đơn đã được kế toán xác nhận,
+  // hoặc đơn giao liên quan đã được kế toán xác nhận.
+  if (isAccountingConfirmedDoc(row)) return true;
+  const order = findOrderForMoneyDoc(row, orderByKey);
+  return order ? isDeliveredForAR(order) : false;
+}
+
+function isLedgerReturnOrMobileMoneyBlocked(entry = {}, orderByKey = new Map()) {
+  const type = String(entry.type || '').toLowerCase();
+  const refType = String(entry.refType || '').toLowerCase();
+  const isReturnLedger = type.includes('return') || refType.includes('return');
+  if (!isReturnLedger && !isMobileDeliveryMoneyDoc(entry)) return false;
+  if (isAccountingConfirmedDoc(entry)) return false;
+  const order = findOrderForMoneyDoc(entry, orderByKey);
+  return order ? !isDeliveredForAR(order) : isMobileDeliveryMoneyDoc(entry);
+}
+
 function makeVirtualSaleLedger(order = {}) {
   // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
   // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
@@ -473,6 +497,7 @@ async function debtReport(query = {}) {
   });
   const ledger = activeLedgerRows(journals).filter((entry) => {
     const type = String(entry.type || '').toLowerCase();
+    if (isLedgerReturnOrMobileMoneyBlocked(entry, orderByKey)) return false;
     if (isMobileDeliveryMoneyDoc(entry)) {
       const order = findOrderForMoneyDoc(entry, orderByKey);
       return order ? isDeliveredForAR(order) : false;
@@ -496,7 +521,7 @@ async function debtReport(query = {}) {
   });
 
   returns.filter(isActive).forEach((row) => {
-    if (!isMoneyDocAllowedForAR(row, orderByKey)) return;
+    if (!isReturnDocAllowedForAR(row, orderByKey)) return;
     const key = moneyDocKey(row);
     const hasReturnLedger = ledger.some((entry) => String(entry.type || '').toLowerCase().includes('return') && (entry.refId === row.id || entry.refCode === row.code || moneyDocKey(entry) === key));
     if (!hasReturnLedger) {
