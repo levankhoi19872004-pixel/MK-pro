@@ -274,6 +274,32 @@ function isDeliveredForAR(order = {}) {
   return delivered && accountingConfirmed;
 }
 
+function findOrderForMoneyDoc(row = {}, orderByKey = new Map()) {
+  const keys = [row.orderId, row.salesOrderId, row.sourceOrderId, row.refId, row.orderCode, row.salesOrderCode, row.sourceOrderCode, row.refCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  for (const key of keys) {
+    const order = orderByKey.get(key);
+    if (order) return order;
+  }
+  return null;
+}
+
+function isMobileDeliveryMoneyDoc(row = {}) {
+  const text = [row.source, row.refType, row.type, row.note]
+    .map((value) => String(value || '').toLowerCase())
+    .join(' ');
+  return text.includes('mobile_delivery') || text.includes('mobiledelivery') || text.includes('app giao hàng');
+}
+
+function isMoneyDocAllowedForAR(row = {}, orderByKey = new Map()) {
+  // Phiếu thu/hàng trả phát sinh từ app giao hàng chỉ là dữ liệu chờ đối chiếu.
+  // Không đưa vào AR Ledger ảo cho tới khi đơn liên quan đã được kế toán xác nhận.
+  if (!isMobileDeliveryMoneyDoc(row)) return true;
+  const order = findOrderForMoneyDoc(row, orderByKey);
+  return order ? isDeliveredForAR(order) : false;
+}
+
 function makeVirtualSaleLedger(order = {}) {
   // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
   // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
@@ -443,6 +469,10 @@ async function debtReport(query = {}) {
   });
   const ledger = activeLedgerRows(journals).filter((entry) => {
     const type = String(entry.type || '').toLowerCase();
+    if (isMobileDeliveryMoneyDoc(entry)) {
+      const order = findOrderForMoneyDoc(entry, orderByKey);
+      return order ? isDeliveredForAR(order) : false;
+    }
     const isSaleDebit = type.includes('sale') && toNumber(entry.debit || entry.amount) > 0;
     if (!isSaleDebit) return true;
     const orderKey = getLedgerOrderKey(entry);
@@ -462,6 +492,7 @@ async function debtReport(query = {}) {
   });
 
   returns.filter(isActive).forEach((row) => {
+    if (!isMoneyDocAllowedForAR(row, orderByKey)) return;
     const key = moneyDocKey(row);
     const hasReturnLedger = ledger.some((entry) => String(entry.type || '').toLowerCase().includes('return') && (entry.refId === row.id || entry.refCode === row.code || moneyDocKey(entry) === key));
     if (!hasReturnLedger) {
@@ -471,6 +502,7 @@ async function debtReport(query = {}) {
   });
 
   receipts.filter(isActive).forEach((row) => {
+    if (!isMoneyDocAllowedForAR(row, orderByKey)) return;
     const hasReceiptLedger = ledgerKeys.has(String(row.id || '').trim()) || ledgerKeys.has(String(row.code || '').trim()) || ledger.some((entry) => entry.refId === row.id || entry.refCode === row.code);
     if (!hasReceiptLedger) {
       const virtual = makeVirtualReceiptLedger(row);
@@ -741,7 +773,7 @@ async function debtReport(query = {}) {
   const byDelivery = buildDebtPersonSummary(reportDebtRows, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
   let arLedger = ledger.map(normalizeArLedgerEntry).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.code).localeCompare(String(a.code)));
   arLedger = filterByQuery(arLedger, query, ['code', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note']);
-  const arDiagnostics = buildArLedgerDiagnostics(receipts, ledger);
+  const arDiagnostics = buildArLedgerDiagnostics(receipts.filter((row) => isMoneyDocAllowedForAR(row, orderByKey)), ledger);
 
   const summary = {
     orderCount: reportDebtRows.length,

@@ -336,29 +336,16 @@ function createMobileDeliveryService(ctx) {
     }
 
     if (status === 'success' && collectAmount > 0) {
-      const date = new Date().toISOString().slice(0, 10);
-      const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
-      const receiptLines = hasSplitAmounts
-        ? [
-            { amount: cashAmount, method: 'cash', note: note || `App giao hàng thu tiền mặt đơn ${order.code}` },
-            { amount: bankAmount, method: 'transfer', note: note || `App giao hàng thu chuyển khoản đơn ${order.code}` }
-          ].filter(line => line.amount > 0)
-        : [{ amount: legacyCollectAmount, method: collectionMethod, note: note || (collectionMethod === 'transfer' ? `App giao hàng thu chuyển khoản đơn ${order.code}` : `App giao hàng thu tiền mặt đơn ${order.code}`) }];
-
-      for (const line of receiptLines) {
-        const receipt = createReceiptDocument(data, {
-          customer,
-          amount: line.amount,
-          date,
-          method: line.method,
-          staffName: mobileUser.name || '',
-          note: line.note,
-          refType: 'mobileDelivery',
-          refId: order.id,
-          refCode: order.code
-        });
-        auditLog(data, 'mobile_delivery_receipt', 'receipt', receipt, null, receipt, 'App giao hàng sinh phiếu thu thật', mobileUser.name || '');
-      }
+      // V45 chuẩn kế toán: app giao hàng chỉ lưu số tiền NVGH đã thu vào đơn giao.
+      // Không sinh phiếu thu thật ở đây, vì phiếu thu/AR Ledger chỉ được tạo sau khi kế toán xác nhận.
+      auditLog(data, 'mobile_delivery_collection_pending_accounting', 'order', {
+        orderId: order.id,
+        orderCode: order.code,
+        cashAmount,
+        bankAmount,
+        legacyCollectAmount,
+        collectionMethod
+      }, null, null, 'App giao hàng lưu tiền thu tạm, chờ kế toán xác nhận', mobileUser.name || '');
 
       if (hasSplitAmounts) {
         // App gửi số đang hiển thị trong ô nhập là số tuyệt đối, không phải số cộng thêm.

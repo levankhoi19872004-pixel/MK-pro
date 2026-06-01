@@ -253,13 +253,8 @@ async function createPendingReturnOrder(body = {}, options = {}) {
   };
   await returnOrderRepository.upsert(pendingReturnOrder, options);
 
-  // V45 chuẩn AR Ledger: hàng trả đã được NVGH ghi nhận phải giảm công nợ ngay trên AR Ledger.
-  // Khi kho nhận hàng sau đó, postReturnOrderAR dùng id cố định nên chỉ upsert, không tạo trùng bút toán.
-  await postingEngine.postReturnOrderAR(pendingReturnOrder, options);
-  await financialService.syncOrderDebtCacheFromAR({
-    orderId: pendingReturnOrder.salesOrderId || pendingReturnOrder.orderId || '',
-    orderCode: pendingReturnOrder.salesOrderCode || pendingReturnOrder.orderCode || ''
-  }, options);
+  // V45 chuẩn: đơn trả từ app giao hàng chỉ là đề nghị/ghi nhận tạm.
+  // Không post AR-RETURN và không sync công nợ tại đây; AR chỉ ghi khi kế toán xác nhận báo cáo giao hàng.
 
   return { returnOrder: toClient({ ...pendingReturnOrder, status: 'waiting_receive', warehouseReceiveStatus: 'waiting_receive' }), updatedExisting: Boolean(existing) };
 }
@@ -294,11 +289,17 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
       date: received.date,
       note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
     }, { session });
-    await postingEngine.postReturnOrderAR(received, { session });
-    await financialService.syncOrderDebtCacheFromAR({
-      orderId: received.salesOrderId || received.orderId || '',
-      orderCode: received.salesOrderCode || received.orderCode || ''
-    }, { session });
+    const source = String(received.source || received.refType || '').toLowerCase();
+    const fromMobileDelivery = source.includes('mobiledelivery') || source.includes('mobile_delivery');
+    const accountingStatus = String(received.accountingStatus || '').toLowerCase();
+    const accountingConfirmed = Boolean(received.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+    if (!fromMobileDelivery || accountingConfirmed) {
+      await postingEngine.postReturnOrderAR(received, { session });
+      await financialService.syncOrderDebtCacheFromAR({
+        orderId: received.salesOrderId || received.orderId || '',
+        orderCode: received.salesOrderCode || received.orderCode || ''
+      }, { session });
+    }
   });
 
   return { returnOrder: toClient(received), alreadyReceived: false };
