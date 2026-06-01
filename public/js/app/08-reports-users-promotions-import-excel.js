@@ -460,11 +460,17 @@ function renderImportOrderShortageLines(row,limit=2){
 function renderImportOrderPreviewSummary(row,index,options={}){
   const state=getImportOrderShortageState(row);
   const checked=options.modal?'import-modal-row-check':'import-row-check';
-  const checkHtml=row.valid?`<input class="${checked}" data-index="${index}" type="checkbox" checked />`:'';
+  const showCheckbox=options.inline ? false : true;
+  const checkHtml=(showCheckbox&&row.valid)?`<input class="${checked}" data-index="${index}" type="checkbox" checked />`:'';
   const customer=row.customerName||row.supplier||row.customerCode||'';
+  const lineCount=Number(row.lineCount||(Array.isArray(row.lineDetails)?row.lineDetails.length:0)||0);
+  const staffCode=row.staffCode||row.salesStaffCode||row.salesmanCode||row.employeeCode||'';
+  const staffName=row.staffName||row.salesStaffName||row.salesmanName||row.employeeName||'';
+  const staffCodeHtml=staffCode ? `<span>|</span><span>Mã NVBH: ${escapeImportHtml(staffCode)}</span>` : '';
+  const staffNameHtml=staffName ? `<span>|</span><span>NVBH: ${escapeImportHtml(staffName)}</span>` : '';
   return `
     <div class="import-order-preview-item ${state.type}">
-      <div class="import-order-preview-check">${checkHtml}</div>
+      ${showCheckbox?`<div class="import-order-preview-check">${checkHtml}</div>`:''}
       <div class="import-order-preview-content">
         <div class="import-order-preview-line">
           <strong>${escapeImportHtml(row.documentCode||row.code||'')}</strong>
@@ -472,6 +478,10 @@ function renderImportOrderPreviewSummary(row,index,options={}){
           <span>${escapeImportHtml(customer)}</span>
           <span>|</span>
           <span class="price">${money(row.totalAmount||0)}</span>
+          <span>|</span>
+          <span>${formatNumber(lineCount)} SP</span>
+          ${staffCodeHtml}
+          ${staffNameHtml}
           <span>|</span>
           <span class="import-order-status ${state.type}">${escapeImportHtml(state.label)}</span>
         </div>

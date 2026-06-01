@@ -1392,6 +1392,39 @@ function rowBase(row = {}) {
   };
 }
 
+function getSalesStaffCodeFromRow(row = {}) {
+  return cleanText(
+    row.staffCode ||
+    row.salesStaffCode ||
+    row.salesmanCode ||
+    row.employeeCode ||
+    row['Mã NVBH'] ||
+    row['Ma NVBH'] ||
+    row['Mã nhân viên bán hàng'] ||
+    row['Ma nhan vien ban hang'] ||
+    row['Mã NV bán hàng'] ||
+    row['Ma NV ban hang'] ||
+    row['Salesman Code'] ||
+    row['Sales Rep Code']
+  );
+}
+
+function getSalesStaffNameFromRow(row = {}) {
+  return cleanText(
+    row.staffName ||
+    row.salesStaffName ||
+    row.salesmanName ||
+    row.employeeName ||
+    row['Tên NVBH'] ||
+    row['Ten NVBH'] ||
+    row['Nhân viên bán hàng'] ||
+    row['Nhan vien ban hang'] ||
+    row['NVBH'] ||
+    row['Salesman'] ||
+    row['Sales Rep']
+  );
+}
+
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   const inventoryRows = codes.length ? await InventoryLegacy.find({ productCode: { $in: codes } }).lean() : [];
@@ -1812,6 +1845,8 @@ async function previewMongoNative(type, rows = []) {
         date: getDateFromRow(first),
         customerCode,
         customerName: getCustomerNameFromRow(first) || customer?.name || '',
+        staffCode: getSalesStaffCodeFromRow(first) || customer?.staffCode || customer?.salesStaffCode || '',
+        staffName: getSalesStaffNameFromRow(first) || customer?.staffName || customer?.salesStaffName || '',
         lineCount: group.length,
         totalQuantity,
         totalAmount,
