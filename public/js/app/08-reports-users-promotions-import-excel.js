@@ -109,14 +109,16 @@ function roleText(role){
   return map[role]||role||'';
 }
 async function loadUsers(){
-  if(!userTable)return;
   try{
     const q=encodeURIComponent(userSearchInput?.value||'');
     const res=await fetch(`/api/users?q=${q}`);
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được tài khoản');
     usersCache=json.users||[];
+    window.__usersCache = usersCache;
+    try { window.usersCache = usersCache; } catch(e) {}
     renderSalesStaffSelect();
+    if(!userTable)return;
     if(userCount)userCount.textContent=`${usersCache.length} tài khoản`;
     if(!usersCache.length){userTable.innerHTML='<tr><td colspan="7">Chưa có tài khoản.</td></tr>';return}
     userTable.innerHTML=usersCache.map(u=>`<tr>

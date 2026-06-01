@@ -48,7 +48,7 @@ function renderSalesCustomerSelect(){
   salesCustomerSearch.disabled=!has;
   salesCustomerSearch.placeholder=has?'Gõ mã/tên/sđt/địa chỉ khách hàng...':'Chưa có khách hàng';
 }
-function getSalesStaffMatches(){
+async function getSalesStaffMatches(){
   const q=salesStaffSearch?salesStaffSearch.value.trim():'';
   if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchSalesStaff(q,{limit:20});
   return (usersCache||[])
@@ -67,9 +67,9 @@ function selectSalesStaff(u){
 }
 function renderSalesStaffSelect(){
   if(!salesStaffSearch)return;
-  const has=(usersCache||[]).some(u=>u.isActive!==false && ['sales','admin'].includes(String(u.role||'').toLowerCase()));
-  salesStaffSearch.disabled=!has;
-  salesStaffSearch.placeholder=has?'Gõ mã/tên/tài khoản NV bán hàng...':'Chưa có tài khoản bán hàng';
+  const has=(usersCache||window.__usersCache||[]).some(u=>u.isActive!==false && ['sales','admin','nvbh'].includes(String(u.role||'').toLowerCase()));
+  salesStaffSearch.disabled=false;
+  salesStaffSearch.placeholder=has?'Gõ mã/tên/tài khoản NV bán hàng...':'Gõ để tìm NV bán hàng từ Tài khoản';
 }
 // Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
 function selectSalesProduct(p){

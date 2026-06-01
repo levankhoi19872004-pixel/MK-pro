@@ -165,11 +165,11 @@ function setupTabs(){
 
       if(button.dataset.tab==='customersTab') await loadCustomers();
       if(button.dataset.tab==='stockTab') await loadStock();
-      if(button.dataset.tab==='salesTab') await loadSalesOrders();
-      if(button.dataset.tab==='masterOrdersTab') await loadMasterOrderModule();
+      if(button.dataset.tab==='salesTab'){ await loadUsers(); await loadSalesOrders(); }
+      if(button.dataset.tab==='masterOrdersTab'){ await loadUsers(); await loadMasterOrderModule(); }
       if(button.dataset.tab==='returnOrdersTab') await loadReturnOrders();
-      if(button.dataset.tab==='deliveryTodayTab') await loadDeliveryToday();
-      if(button.dataset.tab==='debtTab'){await loadDebts();await loadReceipts();await loadCashbook();renderCollectionCustomerSelect()}
+      if(button.dataset.tab==='deliveryTodayTab'){ await loadUsers(); await loadDeliveryToday(); }
+      if(button.dataset.tab==='debtTab'){await loadUsers();await loadDebts();await loadReceipts();await loadCashbook();renderCollectionCustomerSelect()}
       if(button.dataset.tab==='reportsTab') await loadReports();
       if(button.dataset.tab==='importDataTab'){resetImportPreviewMessage();}
       if(button.dataset.tab==='systemTab' && typeof loadSystemStatus==='function') await loadSystemStatus();

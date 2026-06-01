@@ -67,6 +67,41 @@
     };
   }
 
+
+  let staffCatalogLoading = null;
+
+  function mergeStaffRows(rows) {
+    const catalog = getCatalog();
+    return uniqueBy([
+      ...(rows || []),
+      ...(catalog.staffs || []),
+      ...(catalog.users || []),
+      ...(window.__usersCache || []),
+      ...(window.__staffsCache || [])
+    ], ['code', 'staffCode', 'username', 'id', '_id']);
+  }
+
+  async function ensureStaffCatalog() {
+    let rows = mergeStaffRows([]);
+    if (rows.length) return rows;
+
+    if (!staffCatalogLoading) {
+      staffCatalogLoading = fetch('/api/users?q=')
+        .then(function (res) { return res.json(); })
+        .then(function (json) {
+          const users = json && json.ok ? (json.users || []) : [];
+          window.__usersCache = users;
+          try { window.usersCache = users; } catch (e) {}
+          return users;
+        })
+        .catch(function () { return []; })
+        .finally(function () { staffCatalogLoading = null; });
+    }
+
+    const fetched = await staffCatalogLoading;
+    return mergeStaffRows(fetched);
+  }
+
   function staffRoleText(staff) {
     return normalizeText([
       staff && staff.role,
@@ -74,7 +109,10 @@
       staff && staff.type,
       staff && staff.position,
       staff && staff.title,
-      staff && staff.group
+      staff && staff.group,
+      staff && staff.department,
+      staff && staff.permission,
+      staff && staff.permissions
     ].filter(Boolean).join(' '));
   }
 
@@ -108,26 +146,24 @@
       .slice(0, limit);
   }
 
-  function searchSalesStaff(keyword = '', options = {}) {
+  async function searchSalesStaff(keyword = '', options = {}) {
     const limit = normalizeLimit(options.limit, 20);
-    const catalog = getCatalog();
-    const rows = uniqueBy([...(catalog.staffs || []), ...(catalog.users || [])], ['code', 'staffCode', 'username', 'id']);
+    const rows = await ensureStaffCatalog();
     return rows
       .filter(isSalesStaff)
       .filter(function (s) {
-        return includesAny(s, keyword, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role']);
+        return includesAny(s, keyword, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
       })
       .slice(0, limit);
   }
 
-  function searchDeliveryStaff(keyword = '', options = {}) {
+  async function searchDeliveryStaff(keyword = '', options = {}) {
     const limit = normalizeLimit(options.limit, 20);
-    const catalog = getCatalog();
-    const rows = uniqueBy([...(catalog.staffs || []), ...(catalog.users || [])], ['code', 'staffCode', 'username', 'id']);
+    const rows = await ensureStaffCatalog();
     return rows
       .filter(isDeliveryStaff)
       .filter(function (s) {
-        return includesAny(s, keyword, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role']);
+        return includesAny(s, keyword, ['code', 'staffCode', 'username', 'name', 'fullName', 'phone', 'roleLabel', 'role', 'department', 'position']);
       })
       .slice(0, limit);
   }
