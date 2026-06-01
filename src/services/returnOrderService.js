@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const orderRepository = require('../repositories/orderRepository');
 const customerRepository = require('../repositories/customerRepository');
@@ -9,7 +10,7 @@ const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() { return dateUtil.todayVN(); }
 function nowIso() { return new Date().toISOString(); }
 
 function buildReturnCode(existingOrders = []) {
@@ -38,8 +39,8 @@ function isInactiveStatus(row = {}) {
 
 async function listReturnOrders(query = {}) {
   const q = normalizeText(query.q);
-  const dateFrom = String(query.dateFrom || '').slice(0, 10);
-  const dateTo = String(query.dateTo || '').slice(0, 10);
+  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
+  const dateTo = dateUtil.toDateOnly(query.dateTo);
   const excludeInactive = String(query.excludeInactive ?? '1') !== '0';
   const orders = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   const seenSalesReturns = new Set();
@@ -47,7 +48,7 @@ async function listReturnOrders(query = {}) {
     .map(toClient)
     .filter((order) => !excludeInactive || !isInactiveStatus(order))
     .filter((order) => {
-      const d = String(order.date || order.documentDate || order.createdAt || '').slice(0, 10);
+      const d = dateUtil.toDateOnly(order.date || order.documentDate || order.createdAt);
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
       return true;
@@ -154,8 +155,8 @@ async function buildReturnOrderDocument(body = {}) {
     ...body,
     id: String(existing?.id || body.id || makeId('RO')).trim(),
     code: String(existing?.code || body.code || buildReturnCode(existingOrders)).trim(),
-    date: String(body.date || existing?.date || today()).slice(0, 10),
-    documentDate: String(body.documentDate || body.date || existing?.documentDate || existing?.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || existing?.date || today()),
+    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || today()),
     salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
     salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || existing?.salesOrderCode || '',
     orderId: salesOrder?.id || body.orderId || body.salesOrderId || existing?.orderId || existing?.salesOrderId || '',

@@ -279,7 +279,7 @@ function openSalesOrderEdit(idx){
   if(!order)return;
   editingSalesOrderId=order.id||order.code||'';
   salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),salePrice:Number(i.salePrice||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||0))}));
-  salesForm.elements.date.value=String(order.date||today()).slice(0,10);
+  salesForm.elements.date.value=toDateOnly(order.date||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
   const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode));
@@ -315,19 +315,7 @@ window.cancelSalesOrder=cancelSalesOrder;
 
 
 function normalizeOrderDateForFilter(value){
-  const raw=String(value||'').trim();
-  if(!raw)return '';
-  let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
-  m=raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
-  if(m){
-    let a=Number(m[1]),b=Number(m[2]),y=Number(m[3]);
-    if(y<100)y+=y>=70?1900:2000;
-    let day,month;
-    if(b>12&&a<=12){month=a;day=b;}else{day=a;month=b;}
-    if(month>=1&&month<=12&&day>=1&&day<=31)return `${y}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  }
-  return raw.slice(0,10);
+  return toDateOnly(value);
 }
 
 async function loadSalesOrders(){

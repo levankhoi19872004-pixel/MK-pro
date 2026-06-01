@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const receiptRepository = require('../repositories/receiptRepository');
 const cashbookRepository = require('../repositories/cashbookRepository');
 const bankbookRepository = require('../repositories/bankbookRepository');
@@ -13,7 +14,7 @@ const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.const
 const postingEngine = require('../engines/posting.engine');
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return dateUtil.todayVN();
 }
 
 function nowIso() {
@@ -221,7 +222,7 @@ async function createCashbook(body = {}) {
   const entry = {
     id: String(body.id || makeId('CB')).trim(),
     code: String(body.code || await buildCashCode(type)).trim(),
-    date: String(body.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || today()),
     type,
     source: String(body.source || 'manual_cashbook').trim(),
     refType: String(body.refType || 'manual_cashbook').trim(),
@@ -297,7 +298,7 @@ async function createReceipt(body = {}) {
     ...body,
     id: String(body.id || makeId('RC')).trim(),
     code: String(body.code || await buildReceiptCode()).trim(),
-    date: String(body.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || today()),
     customerId: customer.id || body.customerId || customer.code || '',
     customerCode: customer.code || body.customerCode || '',
     customerName: customer.name || body.customerName || '',
@@ -444,7 +445,7 @@ async function createDebtCollection(body = {}) {
   const customer = await resolveCustomer(body);
   if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
 
-  const date = String(body.date || today()).slice(0, 10);
+  const date = dateUtil.toDateOnly(body.date || today());
   const staffName = String(body.staffName || '').trim();
   const note = String(body.note || '').trim();
   const allAllocations = parseAllocations(body.allocations);

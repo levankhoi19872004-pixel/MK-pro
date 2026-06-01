@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
 const productRepository = require('../repositories/productRepository');
@@ -12,7 +13,7 @@ const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return dateUtil.todayVN();
 }
 
 function nowIso() {
@@ -20,30 +21,7 @@ function nowIso() {
 }
 
 function normalizeOrderDate(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
-  const parts = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
-  if (parts) {
-    let a = Number(parts[1]);
-    let b = Number(parts[2]);
-    let y = Number(parts[3]);
-    if (y < 100) y += y >= 70 ? 1900 : 2000;
-    let day;
-    let month;
-    if (b > 12 && a <= 12) {
-      month = a;
-      day = b;
-    } else {
-      day = a;
-      month = b;
-    }
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-  }
-  return raw.slice(0, 10);
+  return dateUtil.toDateOnly(value);
 }
 
 function buildOrderCode(existingOrders = []) {
@@ -161,7 +139,7 @@ async function reverseSalesOrderPosting(order, options = {}) {
     refType: 'SALES_ORDER',
     refId: order.id || order._id || order.code,
     refCode: order.code || order.id,
-    date: new Date().toISOString().slice(0, 10),
+    date: dateUtil.todayVN(),
     note: 'Đảo xuất kho đơn bán'
   }, options);
 
@@ -208,8 +186,8 @@ function isInactiveStatus(row = {}) {
 
 async function listOrders(query = {}) {
   const q = normalizeText(query.q);
-  const dateFrom = String(query.dateFrom || '').slice(0, 10);
-  const dateTo = String(query.dateTo || '').slice(0, 10);
+  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
+  const dateTo = dateUtil.toDateOnly(query.dateTo);
   const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
   const sourceKey = normalizeText(query.source || query.orderSource);
   const orders = await orderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
@@ -238,8 +216,8 @@ async function createOrder(body = {}) {
     ...body,
     id: String(body.id || makeId('SO')).trim(),
     code: String(body.code || buildOrderCode(existingOrders)).trim(),
-    date: String(body.date || today()).slice(0, 10),
-    deliveryDate: String(body.deliveryDate || body.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || today()),
+    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || today()),
     customerId: customer?.id || body.customerId || body.customerCode || '',
     customerCode: customer?.code || body.customerCode || '',
     customerName: customer?.name || body.customerName || '',

@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const Inventory = require('../models/InventoryLegacy');
 const Product = require('../models/Product');
 const StockTransaction = require('../models/StockTransaction');
@@ -9,8 +10,8 @@ const ReturnOrder = require('../models/ReturnOrder');
 const { makeId, toNumber, normalizeText } = require('../utils/common.util');
 
 function nowIso() { return new Date().toISOString(); }
-function today() { return new Date().toISOString().slice(0, 10); }
-function dateOnly(value) { return String(value || today()).slice(0, 10); }
+function today() { return dateUtil.todayVN(); }
+function dateOnly(value) { return dateUtil.toDateOnly(value || today()); }
 function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
 
 function getProductKey(item = {}) {
@@ -160,9 +161,9 @@ async function getStockTransactions(query = {}) {
   if (query.warehouseCode) filter.warehouseCode = query.warehouseCode;
   if (query.dateFrom || query.dateTo || query.date) {
     filter.date = {};
-    if (query.dateFrom) filter.date.$gte = String(query.dateFrom).slice(0, 10);
-    if (query.dateTo) filter.date.$lte = String(query.dateTo).slice(0, 10);
-    if (query.date) filter.date = String(query.date).slice(0, 10);
+    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
   }
   const q = normalizeText(query.q || query.search || query.keyword);
   let rows = await StockTransaction.find(filter).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();

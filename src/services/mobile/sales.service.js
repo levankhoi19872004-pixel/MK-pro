@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
 const Inventory = require('../../models/Inventory');
@@ -73,7 +74,7 @@ function createMobileSalesService(ctx) {
       const customer = repo.findCustomer(data, customerPayload.id || customerPayload.code || body.customerId || body.customerCode);
       const rawItems = Array.isArray(body.items) ? body.items : [];
       const paidAmount = toNumber(body.paidAmount);
-      const date = new Date().toISOString().slice(0, 10);
+      const date = dateUtil.todayVN();
 
       if (!customer) return fail(400, 'Không tìm thấy khách hàng');
       if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
@@ -254,13 +255,13 @@ function createMobileSalesService(ctx) {
   async function listSalesOrders({ query = {}, mobileUser }) {
     if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
     const data = await repo.getPrimaryDataSnapshot();
-    const date = String(query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const onlyMine = String(query.mine || '1') !== '0';
     const q = normalizeText(query.q);
 
     let items = (data.salesOrders || [])
       .filter((order) => !['void', 'cancelled', 'canceled', 'deleted'].includes(String(order.status || '').toLowerCase()))
-      .filter((order) => !date || String(order.date || order.orderDate || '').slice(0, 10) === date)
+      .filter((order) => !date || dateUtil.toDateOnly(order.date || order.orderDate) === date)
       .filter((order) => !onlyMine || isOwnedByMobileUser(order, mobileUser));
 
     if (q) {

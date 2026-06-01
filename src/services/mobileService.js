@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const Inventory = require('../models/Inventory');
@@ -221,7 +222,7 @@ function createMobileService(ctx) {
     const customer = findCustomer(data, customerPayload.id || customerPayload.code || body.customerId || body.customerCode);
     const rawItems = Array.isArray(body.items) ? body.items : [];
     const paidAmount = toNumber(body.paidAmount);
-    const date = new Date().toISOString().slice(0, 10);
+    const date = dateUtil.todayVN();
 
     if (!customer) return fail(400, 'Không tìm thấy khách hàng');
     if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
@@ -348,7 +349,7 @@ function createMobileService(ctx) {
   async function listSalesOrders({ query = {}, mobileUser }) {
     await refreshOrderDocumentCacheFromMongo();
     const data = await getPrimaryDataSnapshot();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dateUtil.todayVN();
     const onlyMine = String(query.mine || '1') !== '0';
     const items = data.salesOrders
       .filter((order) => order.date === today)

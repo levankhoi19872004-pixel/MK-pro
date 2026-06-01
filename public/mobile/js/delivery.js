@@ -137,7 +137,16 @@ document.querySelectorAll('[data-delivery-tab]').forEach(btn => {
 });
 
 function todayValue() {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+}
+function toDateOnly(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  let m = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  m = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4}|\d{2})/);
+  if (m) { let d=Number(m[1]), mo=Number(m[2]), y=Number(m[3]); if(y<100)y+=y>=70?1900:2000; if(mo>=1&&mo<=12&&d>=1&&d<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+  return raw.slice(0,10);
 }
 
 function escapeHtml(value = '') {
@@ -473,7 +482,7 @@ function debtRowsHtml(order = {}) {
         <input type="checkbox" data-old-debt-check value="${key}" />
         <span class="old-debt-info">
           <strong>${escapeHtml(row.orderCode || row.orderId || '')}</strong>
-          <small>Ngày nợ: ${escapeHtml(String(row.documentDate || '').slice(0, 10) || 'Chưa rõ ngày')}</small>
+          <small>Ngày nợ: ${escapeHtml(toDateOnly(row.documentDate) || 'Chưa rõ ngày')}</small>
         </span>
         <b>${money(row.debt || 0)}</b>
       </label>`;

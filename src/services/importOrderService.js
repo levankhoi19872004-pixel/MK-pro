@@ -1,12 +1,13 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const importOrderRepository = require('../repositories/importOrderRepository');
 const productRepository = require('../repositories/productRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() { return dateUtil.todayVN(); }
 function nowIso() { return new Date().toISOString(); }
 
 function buildImportCode(existingOrders = []) {
@@ -71,7 +72,7 @@ async function createImportOrder(body = {}) {
     ...body,
     id: String(body.id || makeId('IM')).trim(),
     code: String(body.code || buildImportCode(existingOrders)).trim(),
-    date: String(body.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || today()),
     supplier: String(body.supplier || body.supplierName || '').trim(),
     supplierName: String(body.supplierName || body.supplier || '').trim(),
     note: String(body.note || '').trim(),
@@ -108,7 +109,7 @@ async function updateImportOrder(id, body = {}) {
     ...body,
     id: current.id || body.id,
     code: current.code || body.code,
-    date: String(body.date || current.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || current.date || today()),
     supplier: String(body.supplier ?? body.supplierName ?? current.supplier ?? '').trim(),
     supplierName: String(body.supplierName ?? body.supplier ?? current.supplierName ?? '').trim(),
     note: String(body.note ?? current.note ?? '').trim(),

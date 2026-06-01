@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const masterReturnOrderRepository = require('../repositories/masterReturnOrderRepository');
 const userRepository = require('../repositories/userRepository');
@@ -7,7 +8,7 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const returnOrderService = require('./returnOrderService');
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() { return dateUtil.todayVN(); }
 function nowIso() { return new Date().toISOString(); }
 
 function isInactiveStatus(row = {}) {
@@ -59,29 +60,29 @@ async function getChildren(masterReturnOrder = {}) {
 
 async function listUnmergedReturnOrders(query = {}) {
   const q = normalizeText(query.q);
-  const date = String(query.date || query.returnDate || '').slice(0, 10);
+  const date = dateUtil.toDateOnly(query.date || query.returnDate);
   const delivery = normalizeText(query.delivery || query.deliveryStaff);
   const rows = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   return rows
     .filter((row) => !isInactiveStatus(row))
     .filter((row) => ['waiting_receive', 'pending_warehouse_receive', 'pending'].includes(String(row.status || 'waiting_receive').toLowerCase()))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
-    .filter((row) => !date || String(row.date || row.documentDate || row.createdAt || '').slice(0, 10) === date)
+    .filter((row) => !date || dateUtil.toDateOnly(row.date || row.documentDate || row.createdAt) === date)
     .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
     .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)));
 }
 
 async function listMasterReturnOrders(query = {}) {
   const q = normalizeText(query.q);
-  const dateFrom = String(query.dateFrom || '').slice(0, 10);
-  const dateTo = String(query.dateTo || '').slice(0, 10);
+  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
+  const dateTo = dateUtil.toDateOnly(query.dateTo);
   const delivery = normalizeText(query.delivery || query.deliveryStaff);
   const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
   const rows = await masterReturnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   const result = [];
   for (const row of rows) {
     if (excludeInactive && isInactiveStatus(row)) continue;
-    const d = String(row.returnDate || row.date || row.createdAt || '').slice(0, 10);
+    const d = dateUtil.toDateOnly(row.returnDate || row.date || row.createdAt);
     if (dateFrom && d < dateFrom) continue;
     if (dateTo && d > dateTo) continue;
     if (delivery && ![row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(delivery))) continue;
@@ -117,13 +118,13 @@ async function createMasterReturnOrder(body = {}) {
   const existing = await masterReturnOrderRepository.findAll();
   const deliveryStaff = await resolveDeliveryStaff(body);
   const first = children[0] || {};
-  const returnDate = String(body.returnDate || body.date || first.date || today()).slice(0, 10);
+  const returnDate = dateUtil.toDateOnly(body.returnDate || body.date || first.date || today());
   const summary = summarizeReturnOrders(children);
   const masterReturnOrder = {
     ...body,
     id: String(body.id || makeId('MRO')).trim(),
     code: String(body.code || buildMasterReturnCode(existing)).trim(),
-    date: String(body.date || returnDate).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || returnDate),
     returnDate,
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || first.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || first.deliveryStaffCode || first.staffCode || '',
@@ -167,8 +168,8 @@ async function updateMasterReturnOrder(id, body = {}) {
   const updated = {
     ...current,
     ...body,
-    returnDate: String(body.returnDate || body.date || current.returnDate || current.date || today()).slice(0, 10),
-    date: String(body.date || current.date || body.returnDate || current.returnDate || today()).slice(0, 10),
+    returnDate: dateUtil.toDateOnly(body.returnDate || body.date || current.returnDate || current.date || today()),
+    date: dateUtil.toDateOnly(body.date || current.date || body.returnDate || current.returnDate || today()),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',

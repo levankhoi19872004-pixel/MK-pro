@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 /**
  * Mobile API V45 - standalone Mongo routes.
  *
@@ -231,7 +232,7 @@ function orderCode(order) {
 }
 
 function orderDeliveryDate(order) {
-  return String(order.deliveryDate || order.ngayGiao || order.shipDate || order.orderDate || order.date || '').slice(0, 10);
+  return dateUtil.toDateOnly(order.deliveryDate || order.ngayGiao || order.shipDate || order.orderDate || order.date);
 }
 
 function masterChildIds(master) {
@@ -400,8 +401,8 @@ function returnOrderMatchesOrder(row = {}, order = {}, master = null, masterChil
   // Fallback an toàn cho dữ liệu cũ: cùng khách + cùng ngày + cùng mã đơn hiển thị trong ghi chú.
   const rowCustomer = String(row.customerCode || '').trim();
   const orderCustomer = String(order.customerCode || masterChild?.customerCode || '').trim();
-  const rowDate = String(row.date || row.documentDate || row.returnDate || '').slice(0, 10);
-  const deliveryDate = String(orderDeliveryDate(order) || orderDeliveryDate(masterChild || {}) || master?.deliveryDate || '').slice(0, 10);
+  const rowDate = dateUtil.toDateOnly(row.date || row.documentDate || row.returnDate);
+  const deliveryDate = dateUtil.toDateOnly(orderDeliveryDate(order) || orderDeliveryDate(masterChild || {}) || master?.deliveryDate);
   const note = String(row.note || '').trim();
   return Boolean(rowCustomer && orderCustomer && rowCustomer === orderCustomer && rowDate && deliveryDate && rowDate === deliveryDate && keys.some((key) => note.includes(key)));
 }
@@ -510,8 +511,8 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
   // Dedup chỉ theo salesOrderId/salesOrderCode hợp lệ; tuyệt đối không dùng orderId/orderCode mơ hồ.
   const result = await returnOrderService.createPendingReturnOrder({
     id: stableId,
-    date: now.slice(0, 10),
-    documentDate: now.slice(0, 10),
+    date: dateUtil.toDateOnly(now),
+    documentDate: dateUtil.toDateOnly(now),
     customerId: order.customerId || '',
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
@@ -639,7 +640,7 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     code: orderCode(sourceOrder) || orderCode(order),
     masterOrderId: getDocId(master),
     masterOrderCode: master?.code || master?.masterOrderNo || '',
-    deliveryDate: orderDeliveryDate(sourceOrder) || String(master?.deliveryDate || date || '').slice(0, 10),
+    deliveryDate: orderDeliveryDate(sourceOrder) || dateUtil.toDateOnly(master?.deliveryDate || date),
     deliveryStatus: sourceOrder.deliveryStatus || sourceOrder.status || 'pending',
     visualStatus: sourceOrder.deliveryStatus || sourceOrder.status || 'pending',
     routeName: sourceOrder.routeName || customer?.route || master?.routeName || '',
@@ -675,7 +676,7 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
 
 function buildCode(prefix) {
   const d = new Date();
-  const ymd = d.toISOString().slice(0, 10).replace(/-/g, '');
+  const ymd = dateUtil.toDateOnly(d).replace(/-/g, '');
   return `${prefix}${ymd}${String(d.getTime()).slice(-6)}`;
 }
 
@@ -703,7 +704,7 @@ function deliveryPaymentPatchFromOrder(order = {}) {
   const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
   const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected: cash, bankCollected: bank, returnAmount, rewardAmount: reward });
   return {
-    deliveryDate: String(order.deliveryDate || order.date || new Date().toISOString()).slice(0, 10),
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
     deliveryStatus: order.deliveryStatus || 'delivered',
     status: order.status || 'delivered',
     deliveryStaffCode: order.deliveryStaffCode || '',
@@ -1034,7 +1035,7 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
     const user = req.mobileUser || {};
     const mine = String(req.query.mine || '') === '1';
     const q = normalizeText(req.query.q);
-    const targetDate = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const targetDate = dateUtil.toDateOnly(req.query.date || dateUtil.todayVN());
     const filter = {
       status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] },
       $or: [{ date: targetDate }, { orderDate: targetDate }]
@@ -1052,7 +1053,7 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
     const rows = await SalesOrder.find(filter).sort({ createdAt: -1 }).limit(100).lean();
     let items = rows.map(stripMongoFields).map((order) => ({
       ...order,
-      date: String(order.date || order.orderDate || '').slice(0, 10),
+      date: dateUtil.toDateOnly(order.date || order.orderDate),
       canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && String(order.mergeStatus || 'unmerged') !== 'merged'
     }));
     if (q) items = items.filter((o) => [o.code, o.customerCode, o.customerName, o.customerPhone, o.customerAddress].some((v) => normalizeText(v).includes(q)));
@@ -1066,7 +1067,7 @@ router.get('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
   const order = await findOrderByIdOrCode(req.params.id);
   if (!order) return fail(res, 404, 'Không tìm thấy đơn mobile');
   const item = stripMongoFields(order.toObject ? order.toObject() : order);
-  item.date = String(item.date || item.orderDate || '').slice(0, 10);
+  item.date = dateUtil.toDateOnly(item.date || item.orderDate);
   item.canEdit = !item.masterOrderId && !item.masterOrderCode && !item.masterOrderNo && String(item.mergeStatus || 'unmerged') !== 'merged';
   return ok(res, { order: item });
 });
@@ -1095,9 +1096,9 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       staffName: req.mobileUser.name || '',
       salesStaffCode: req.mobileUser.code || '',
       salesStaffName: req.mobileUser.name || '',
-      date: body.orderDate || new Date().toISOString().slice(0, 10),
-      orderDate: body.orderDate || new Date().toISOString().slice(0, 10),
-      deliveryDate: body.deliveryDate || body.orderDate || new Date().toISOString().slice(0, 10),
+      date: body.orderDate || dateUtil.todayVN(),
+      orderDate: body.orderDate || dateUtil.todayVN(),
+      deliveryDate: body.deliveryDate || body.orderDate || dateUtil.todayVN(),
       isChildOrder: true,
       masterOrderId: '',
       masterOrderCode: '',
@@ -1165,7 +1166,7 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
       refType: 'MOBILE_SALES_ORDER',
       refId: raw.id || raw.code,
       refCode: raw.code || raw.id,
-      date: new Date().toISOString().slice(0, 10),
+      date: dateUtil.todayVN(),
       note: 'Đảo xuất kho trước khi sửa đơn app bán hàng'
     });
     await order.save();
@@ -1206,7 +1207,7 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
       refType: 'MOBILE_SALES_ORDER',
       refId: raw.id || raw.code,
       refCode: raw.code || raw.id,
-      date: new Date().toISOString().slice(0, 10),
+      date: dateUtil.todayVN(),
       note: 'Đảo xuất kho khi xóa đơn app bán hàng'
     });
     await order.save();
@@ -1219,7 +1220,7 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
 
 router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
-    const targetDate = String(req.query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const targetDate = dateUtil.toDateOnly(req.query.date || dateUtil.todayVN());
     const includeCompleted = ['1', 'true'].includes(String(req.query.includeCompleted || '').toLowerCase());
     const q = normalizeText(req.query.q);
     const status = normalizeText(req.query.status);
@@ -1525,8 +1526,8 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       order.oldDebtCollectedAmount = order.oldDebtCashCollected + order.oldDebtBankCollected;
       order.debtCollectionAllocations = [
         ...(Array.isArray(order.debtCollectionAllocations) ? order.debtCollectionAllocations : []),
-        ...cashSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'cash', date: new Date().toISOString().slice(0, 10), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) })),
-        ...bankSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'transfer', date: new Date().toISOString().slice(0, 10), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) }))
+        ...cashSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'cash', date: dateUtil.todayVN(), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) })),
+        ...bankSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'transfer', date: dateUtil.todayVN(), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) }))
       ];
       order.rewardAmount = nextReward;
       order.displayRewardAmount = nextReward;
@@ -1627,7 +1628,7 @@ router.post('/cash/submit', requireMobileLogin, requireMobileRole(['delivery', '
     const amount = toNumber(req.body?.amount);
     if (amount <= 0) return fail(res, 400, 'Số tiền nộp quỹ phải lớn hơn 0');
     const result = await financialService.createCashbook({
-      date: new Date().toISOString().slice(0, 10),
+      date: dateUtil.todayVN(),
       type: 'in',
       source: 'mobile_cash_submit',
       refType: 'cashSubmit',

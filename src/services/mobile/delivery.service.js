@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileDeliveryRepository } = require('../../repositories/mobile/delivery.repository');
 const returnOrderService = require('../returnOrderService');
@@ -178,7 +179,7 @@ function createMobileDeliveryService(ctx) {
 
   async function listDeliveryOrders({ query = {}, mobileUser }) {
     const data = await repo.getPrimaryDataSnapshot();
-    const targetDate = String(query.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const targetDate = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const q = normalizeText(query.q);
     const status = normalizeText(query.status);
     const includeCompleted = String(query.includeCompleted || '') === '1';
@@ -303,7 +304,7 @@ function createMobileDeliveryService(ctx) {
       }
       const fullItems = buildReturnItemsFromRequest(order, [], 'full');
       if (fullItems.length) {
-        const date = new Date().toISOString().slice(0, 10);
+        const date = dateUtil.todayVN();
         const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
         const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
         const result = await returnOrderService.createPendingReturnOrder({
@@ -409,7 +410,7 @@ function createMobileDeliveryService(ctx) {
     const items = buildReturnItemsFromRequest(order, body.items || [], returnType);
     if (!items.length) return { statusCode: 400, body: { ok: false, message: returnType === 'full' ? 'Đơn không có hàng để trả' : 'Chưa chọn sản phẩm/số lượng trả' } };
 
-    const date = new Date().toISOString().slice(0, 10);
+    const date = dateUtil.todayVN();
     const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
 
     // App giao hàng chỉ lập phiếu trả ở trạng thái chờ kho nhận.
@@ -480,7 +481,7 @@ function createMobileDeliveryService(ctx) {
     const entry = {
       id: makeId('CB'),
       code: buildCashCode(data, 'in'),
-      date: new Date().toISOString().slice(0, 10),
+      date: dateUtil.todayVN(),
       type: 'in',
       source: 'mobile_cash_submit',
       refType: 'cashSubmit',

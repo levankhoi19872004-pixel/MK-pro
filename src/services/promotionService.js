@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const promotionRepository = require('../repositories/promotionRepository');
 const { makeId } = require('../utils/common.util');
 
@@ -29,8 +30,8 @@ async function savePromotion(body = {}) {
     displayReward: String(body.displayReward || '').trim(),
     couponText: String(body.couponText || '').trim(),
     ontopText: String(body.ontopText || '').trim(),
-    startDate: String(body.startDate || '').slice(0, 10),
-    endDate: String(body.endDate || '').slice(0, 10),
+    startDate: dateUtil.toDateOnly(body.startDate),
+    endDate: dateUtil.toDateOnly(body.endDate),
     note: String(body.note || '').trim(),
     isActive: body.isActive !== false && body.isActive !== 'false',
     updatedAt: now

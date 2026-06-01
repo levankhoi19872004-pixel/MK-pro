@@ -1,10 +1,7 @@
 let importShortageActionMode='';
 
 function reportDateInRange(dateText, fromDate, toDate){
-  const value=String(dateText||'').slice(0,10);
-  if(fromDate && value<fromDate)return false;
-  if(toDate && value>toDate)return false;
-  return true;
+  return isDateInRange(dateText, fromDate, toDate);
 }
 
 function orderSourceLabel(source, row){

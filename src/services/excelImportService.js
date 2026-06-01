@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const { parseExcelBuffer } = require('../../utils/excelParser');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
@@ -21,7 +22,7 @@ function cleanText(value) {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return dateUtil.todayVN();
 }
 
 function nowIso() {
@@ -40,39 +41,7 @@ function formatDateOnly(year, month, day) {
 }
 
 function normalizeImportDate(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return formatDateOnly(value.getFullYear(), value.getMonth() + 1, value.getDate());
-  }
-
-  const textValue = cleanText(value);
-  if (!textValue) return today();
-
-  // Excel serial date, ví dụ 46168 -> 2026-05-26.
-  if (/^\d+(\.\d+)?$/.test(textValue)) return excelSerialToDate(textValue) || textValue.slice(0, 10);
-
-  // Vẫn chấp nhận ISO từ hệ thống/API: YYYY-MM-DD hoặc YYYY/MM/DD.
-  const iso = textValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) {
-    const year = Number(iso[1]);
-    const month = Number(iso[2]);
-    const day = Number(iso[3]);
-    if (isValidDateParts(year, month, day)) return formatDateOnly(year, month, day);
-    return textValue.slice(0, 10);
-  }
-
-  // Chuẩn import Việt Nam: DD/MM/YYYY hoặc DD-MM-YYYY.
-  // Không tự đảo sang MM/DD/YYYY để tránh 01/06 bị hiểu nhầm là 06/01.
-  const parts = textValue.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
-  if (parts) {
-    const day = Number(parts[1]);
-    const month = Number(parts[2]);
-    let year = Number(parts[3]);
-    if (year < 100) year += year >= 70 ? 1900 : 2000;
-    if (isValidDateParts(year, month, day)) return formatDateOnly(year, month, day);
-    return textValue.slice(0, 10);
-  }
-
-  return textValue.slice(0, 10);
+  return dateUtil.toDateOnly(value);
 }
 
 function dateOnly(value) {
@@ -194,7 +163,7 @@ function excelSerialToDate(value) {
   const serial = Number(value);
   if (!Number.isFinite(serial) || serial <= 0) return '';
   const utc = Math.round((serial - 25569) * 86400 * 1000);
-  return new Date(utc).toISOString().slice(0, 10);
+  return dateUtil.toDateOnly(new Date(utc));
 }
 
 function getDateFromRow(row = {}) {

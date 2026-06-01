@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
@@ -15,7 +16,7 @@ const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../co
 const { normalizeOrderSourceValue } = require('../utils/orderSource.util');
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return dateUtil.todayVN();
 }
 
 function nowIso() {
@@ -63,29 +64,7 @@ async function getMasterOrder(id) {
 }
 
 function normalizeOrderDateForMaster(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const iso = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
-  const parts = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})/);
-  if (parts) {
-    let a = Number(parts[1]);
-    let b = Number(parts[2]);
-    let y = Number(parts[3]);
-    if (y < 100) y += y >= 70 ? 1900 : 2000;
-    let day = a;
-    let month = b;
-    // File DMS thường là M/D/YY, còn app Việt Nam thường là D/M/YYYY.
-    // Nếu số đầu <=12 và số sau >12 thì chắc chắn là M/D. Các trường hợp còn lại giữ D/M.
-    if (a <= 12 && b > 12) {
-      month = a;
-      day = b;
-    }
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-  }
-  return raw.slice(0, 10);
+  return dateUtil.toDateOnly(value);
 }
 
 function orderDeliveryFilterDate(order = {}) {
@@ -120,15 +99,15 @@ async function listUnmergedChildOrders(query = {}) {
 
 async function listMasterOrders(query = {}) {
   const q = normalizeText(query.q);
-  const dateFrom = String(query.dateFrom || '').slice(0, 10);
-  const dateTo = String(query.dateTo || '').slice(0, 10);
+  const dateFrom = dateUtil.toDateOnly(query.dateFrom);
+  const dateTo = dateUtil.toDateOnly(query.dateTo);
   const excludeInactive = String(query.excludeInactive ?? '0') !== '0';
   const masterOrders = await masterOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   const result = [];
   for (const masterOrder of masterOrders) {
     const children = await orderService.getMasterChildren(masterOrder);
     const order = toClient(masterOrder, children);
-    const d = String(order.deliveryDate || order.date || '').slice(0, 10);
+    const d = dateUtil.toDateOnly(order.deliveryDate || order.date);
     if (excludeInactive && isInactiveStatus(order)) continue;
     if (q && ![order.code, order.routeName, order.deliveryStaffName, order.deliveryStaffCode].some((value) => normalizeText(value).includes(q))) continue;
     if (dateFrom && d < dateFrom) continue;
@@ -378,8 +357,8 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
     customerId: updatedOrder.customerId || '',
     customerCode: updatedOrder.customerCode || '',
     customerName: updatedOrder.customerName || '',
-    date: String(updatedOrder.deliveryDate || updatedOrder.date || today()).slice(0, 10),
-    documentDate: String(updatedOrder.deliveryDate || updatedOrder.date || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(updatedOrder.deliveryDate || updatedOrder.date || today()),
+    documentDate: dateUtil.toDateOnly(updatedOrder.deliveryDate || updatedOrder.date || today()),
     items,
     totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
     totalAmount,
@@ -648,7 +627,7 @@ function findMasterDeliveryArDebtRow(arDebtMap, ...sources) {
 }
 
 async function listDeliveryToday(query = {}) {
-  const date = String(query.date || today()).slice(0, 10);
+  const date = dateUtil.toDateOnly(query.date || today());
   const q = normalizeText(query.q);
   const salesman = normalizeText(query.salesman || query.salesStaff);
   const delivery = normalizeText(query.delivery || query.deliveryStaff);
@@ -666,7 +645,7 @@ async function listDeliveryToday(query = {}) {
     const children = Array.isArray(master.children) ? master.children : [];
     for (const child of children) {
       if (isInactiveStatus(child)) continue;
-      const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
+      const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
       if (deliveryDate !== date) continue;
 
       const syncedReturnAmount = returnAmountForSalesOrder(returnOrders, child);
@@ -806,7 +785,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
   const updated = {
     ...current,
-    deliveryDate: String(body.deliveryDate || current.deliveryDate || current.date || today()).slice(0, 10),
+    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || current.date || today()),
     deliveryStatus,
     status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'posted'),
     deliveryStaffCode: String(body.deliveryStaffCode ?? current.deliveryStaffCode ?? '').trim(),
@@ -850,7 +829,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 }
 
 async function confirmDeliveryAccounting(body = {}) {
-  const date = String(body.date || today()).slice(0, 10);
+  const date = dateUtil.toDateOnly(body.date || today());
   const selectedOrderIds = Array.isArray(body.orderIds)
     ? body.orderIds.map((id) => String(id || '').trim()).filter(Boolean)
     : [];
@@ -881,7 +860,7 @@ async function confirmDeliveryAccounting(body = {}) {
     const children = Array.isArray(master.children) ? master.children : [];
     const matched = children.filter((child) => {
       if (isInactiveStatus(child)) return false;
-      const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
+      const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
       if (deliveryDate !== date) return false;
       return childKeys(child).some((key) => selectedIdSet.has(key));
     });
@@ -903,7 +882,7 @@ async function confirmDeliveryAccounting(body = {}) {
       const children = Array.isArray(master.children) ? master.children : [];
       const activeChildrenInDate = children.filter((child) => {
         if (isInactiveStatus(child)) return false;
-        const deliveryDate = String(child.deliveryDate || master.deliveryDate || child.date || master.date || '').slice(0, 10);
+        const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
         return deliveryDate === date;
       });
       const matchedKeySet = new Set(matched.flatMap((child) => childKeys(child)));
@@ -976,12 +955,12 @@ async function createMasterOrder(body = {}) {
   const existingMasterOrders = await masterOrderRepository.findAll();
   const deliveryStaff = await resolveStaff(body, 'delivery');
   const salesStaff = await resolveStaff(body, 'sales');
-  const deliveryDate = String(body.deliveryDate || body.date || today()).slice(0, 10);
+  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || today());
   const masterOrder = {
     ...body,
     id: String(body.id || makeId('MO')).trim(),
     code: String(body.code || buildMasterOrderCode(existingMasterOrders)).trim(),
-    date: String(body.date || deliveryDate).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || deliveryDate),
     deliveryDate,
     routeName: String(body.routeName || '').trim(),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || '',
@@ -1034,11 +1013,11 @@ async function updateMasterOrder(id, body = {}) {
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
   const salesStaff = await resolveStaff(body, 'sales');
-  const deliveryDate = String(body.deliveryDate || current.deliveryDate || body.date || current.date || today()).slice(0, 10);
+  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || today());
   const updated = {
     ...current,
     ...body,
-    date: String(body.date || current.date || deliveryDate).slice(0, 10),
+    date: dateUtil.toDateOnly(body.date || current.date || deliveryDate),
     deliveryDate,
     routeName: String(body.routeName ?? current.routeName ?? '').trim(),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',

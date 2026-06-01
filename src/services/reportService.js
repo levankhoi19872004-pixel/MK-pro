@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
 const InventoryLegacy = require('../models/InventoryLegacy');
 const StockTransaction = require('../models/StockTransaction');
@@ -16,11 +17,11 @@ const { normalizeText, toNumber } = require('../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return dateUtil.todayVN();
 }
 
 function toDateOnly(value) {
-  return String(value || '').slice(0, 10);
+  return dateUtil.toDateOnly(value);
 }
 
 function daysBetween(from, to) {
@@ -62,9 +63,9 @@ function buildStockTxFilter(query = {}) {
   if (query.warehouseCode) filter.warehouseCode = String(query.warehouseCode).trim();
   if (query.date || query.dateFrom || query.dateTo) {
     filter.date = {};
-    if (query.dateFrom) filter.date.$gte = String(query.dateFrom).slice(0, 10);
-    if (query.dateTo) filter.date.$lte = String(query.dateTo).slice(0, 10);
-    if (query.date) filter.date = String(query.date).slice(0, 10);
+    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
   }
   return filter;
 }
@@ -85,8 +86,8 @@ async function stockReport(query = {}) {
   const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
 
   if (hasPeriod) {
-    const dateFrom = String(query.dateFrom || '0000-01-01').slice(0, 10);
-    const dateTo = String(query.dateTo || query.asOfDate || today()).slice(0, 10);
+    const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
+    const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || today());
     const [transactions, products] = await Promise.all([
       StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
       Product.find({}).lean()

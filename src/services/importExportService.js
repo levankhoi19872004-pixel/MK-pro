@@ -1,5 +1,6 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const XLSX = require('xlsx');
 const excelImportService = require('./excelImportService');
 const importTemplateService = require('./importTemplateService');
@@ -90,7 +91,7 @@ async function exportToExcel(type, query = {}) {
   if (!rows) return { error: 'Loại dữ liệu export không hợp lệ', status: 400 };
   const buffer = buildWorkbook({ type, rows });
   const safeType = String(type || 'data').replace(/[^a-zA-Z0-9_-]/g, '-');
-  return { buffer, rows: rows.length, fileName: `${safeType}-export-${new Date().toISOString().slice(0, 10)}.xlsx` };
+  return { buffer, rows: rows.length, fileName: `${safeType}-export-${dateUtil.todayVN()}.xlsx` };
 }
 
 module.exports = {

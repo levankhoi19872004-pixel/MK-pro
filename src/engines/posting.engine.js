@@ -1,10 +1,11 @@
 'use strict';
 
+const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return dateUtil.todayVN();
 }
 
 function nowIso() {
@@ -15,7 +16,7 @@ function baseJournal(doc = {}, extra = {}) {
   return {
     id: extra.id || makeId('JR'),
     code: extra.code || `${extra.prefix || 'JR'}-${doc.code || doc.id || Date.now()}`,
-    date: String(extra.date || doc.date || doc.documentDate || doc.orderDate || doc.createdAt || today()).slice(0, 10),
+    date: dateUtil.toDateOnly(extra.date || doc.date || doc.documentDate || doc.orderDate || doc.createdAt || today()),
     type: extra.type || 'ar',
     account: extra.account || 'AR',
     refType: extra.refType || doc.refType || 'DOCUMENT',
