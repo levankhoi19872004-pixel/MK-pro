@@ -86,10 +86,18 @@
       includeStock: options.includeStock ?? '1',
       inStockOnly: options.inStockOnly ? '1' : ''
     }).then(function (rows) {
-      if (!options.inStockOnly) return rows;
-      return (rows || []).filter(function (p) {
-        return toNumber(p.availableQty || p.availableStock || p.stockQuantity || p.stock || p.quantity || p.openSaleQty) > 0;
-      });
+      let result = rows || [];
+      if (options.inStockOnly) {
+        result = result.filter(function (p) {
+          return toNumber(p.availableQty || p.availableStock || p.stockQuantity || p.stock || p.quantity || p.openSaleQty) > 0;
+        });
+      }
+      // Đồng bộ lại cache riêng của UnifiedProductSearch để màn Bán hàng có thể lấy đúng sản phẩm đã chọn.
+      // Nếu không sync, ô input đã hiện label nhưng getSelectedSalesProduct() không tìm được trong catalog.
+      if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') {
+        window.UnifiedProductSearch.sync(result);
+      }
+      return result;
     });
   }
 

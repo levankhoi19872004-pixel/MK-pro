@@ -97,8 +97,8 @@ function syncSalesPrice(){
   if(p&&salesPrice)salesPrice.value=Number(p.salePrice||0);
 }
 function getSelectedSalesProduct(){
-  // Ưu tiên hidden value do autocomplete set, sau đó fallback từ dataset và text đang hiển thị.
-  // Lỗi trước đây: ô sản phẩm đã hiện label, nhưng hidden salesProductSelect rỗng nên bấm Thêm vào đơn báo chưa chọn SP.
+  // Ưu tiên hidden value do autocomplete set, sau đó fallback từ dataset, object vừa chọn và text đang hiển thị.
+  // Lỗi cũ: input đã hiện label nhưng hidden/cache rỗng nên bấm Thêm vào đơn vẫn báo chưa chọn sản phẩm.
   const keys=[
     salesProductSelect?.value,
     salesProductSearch?.dataset?.selectedId,
@@ -112,6 +112,29 @@ function getSelectedSalesProduct(){
       if(salesProductSearch) salesProductSearch.dataset.selectedId=productKey;
       return found;
     }
+  }
+
+  const picked=window.__selectedSalesProduct;
+  if(picked){
+    const pickedKey=getProductKey(picked);
+    const inputCode=extractProductCodeFromInput(salesProductSearch?.value || '');
+    const selectedKey=String(salesProductSearch?.dataset?.selectedId || salesProductSelect?.value || '').trim();
+    if(pickedKey && (!inputCode || inputCode===pickedKey || selectedKey===pickedKey)){
+      if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync([picked]);
+      if(salesProductSelect) salesProductSelect.value=pickedKey;
+      if(salesProductSearch) salesProductSearch.dataset.selectedId=pickedKey;
+      return picked;
+    }
+  }
+
+  // Fallback cuối: người dùng gõ/giữ label dạng "Mã | Tên" thì lấy phần mã để tìm lại.
+  const code=extractProductCodeFromInput(salesProductSearch?.value || '');
+  const byCode=code ? findProductByKey(code) : null;
+  if(byCode){
+    const productKey=getProductKey(byCode);
+    if(salesProductSelect) salesProductSelect.value=productKey;
+    if(salesProductSearch) salesProductSearch.dataset.selectedId=productKey;
+    return byCode;
   }
   return null;
 }
@@ -189,7 +212,7 @@ function addSalesItem(){
   const lineMode=getSalesMode();
   const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&String(i.saleMode||'direct')===lineMode);
   if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,salePrice,price:salePrice,amount:quantity*salePrice,saleMode:lineMode,priceLocked:lineMode==='promotion'});
-  if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
+  if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';window.__selectedSalesProduct=null;if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
 }
 function resetSalesFormAfterSave(){
   editingSalesOrderId='';
