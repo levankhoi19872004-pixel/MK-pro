@@ -5035,3 +5035,74 @@ button.danger:hover{background:#fecaca}
   #masterOrdersTab .master-filter-card,#masterOrdersTab .master-list-card{height:520px!important;}
   #masterOrdersTab .master-list-card .sales-history-filters,#masterOrdersTab .master-filter-row{grid-template-columns:1fr 1fr!important;}
 }
+
+
+
+/* Import sales order preview A+: 1 dòng đơn + cảnh báo thiếu tồn trực quan */
+.import-order-preview-item{
+  display:grid;
+  grid-template-columns:34px 1fr;
+  gap:8px;
+  align-items:flex-start;
+  padding:4px 0;
+}
+.import-order-preview-check{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding-top:1px;
+}
+.import-order-preview-content{
+  min-width:0;
+}
+.import-order-preview-line{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  font-size:13px;
+  line-height:1.35;
+  color:#0f172a;
+}
+.import-order-preview-line strong{
+  font-weight:800;
+  color:#0f172a;
+}
+.import-order-preview-line .price{
+  font-weight:800;
+  white-space:nowrap;
+  color:#0f172a;
+}
+.import-order-status{
+  font-weight:800;
+  white-space:nowrap;
+}
+.import-order-status.ok{color:#15803d}
+.import-order-status.shortage{color:#b45309}
+.import-order-status.full-shortage,
+.import-order-status.error{color:#b91c1c}
+.import-order-shortage-lines{
+  margin-top:4px;
+  display:grid;
+  gap:2px;
+  font-size:12.5px;
+  color:#92400e;
+}
+.import-order-shortage-line{
+  padding-left:14px;
+  line-height:1.35;
+}
+.import-order-shortage-line.more{
+  color:#64748b;
+  font-style:italic;
+}
+.import-order-preview-item.full-shortage .import-order-shortage-lines,
+.import-order-preview-item.error .import-order-shortage-lines{
+  color:#b91c1c;
+}
+.import-preview-wrap .import-order-preview-item{
+  padding:0;
+}
+.import-preview-wrap td{
+  vertical-align:top;
+}
