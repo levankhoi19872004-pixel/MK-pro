@@ -74,6 +74,12 @@ function isDateInRange(value,fromDate,toDate){
   const d=toDateOnly(value); const f=toDateOnly(fromDate); const t=toDateOnly(toDate);
   if(!d)return false; if(f&&d<f)return false; if(t&&d>t)return false; return true;
 }
+function formatDateVN(value){
+  const d=toDateOnly(value);
+  const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (value||'');
+}
+
 
 
 function normalizeOrderSourceClient(order){

@@ -351,7 +351,7 @@ async function loadSalesOrders(){
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
         <strong class="sales-order-code-text" title="Mã đơn">${o.code||o.id}</strong>
         <span class="sales-order-customer-inline" title="Khách hàng">${o.customerName||o.customerCode||''}</span>
-        <span class="sales-order-date" title="Ngày đơn">${o.date||o.orderDate||''}</span>
+        <span class="sales-order-date" title="Ngày đơn">${typeof formatDateVN==='function'?formatDateVN(o.date||o.orderDate||''):(o.date||o.orderDate||'')}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
@@ -378,7 +378,7 @@ function selectedSalesOrders(){
 function exportSelectedSalesOrders(){
   const orders=selectedSalesOrders();
   if(!orders.length){alert('Chưa chọn đơn bán để xuất Excel');return}
-  exportErpRows('don-ban-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', o.customerName||o.customerCode||'', o.date||o.orderDate||'', Number(o.totalAmount||0), getOrderSourceText(o)]));
+  exportErpRows('don-ban-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', o.customerName||o.customerCode||'', typeof formatDateVN==='function'?formatDateVN(o.date||o.orderDate||''):(o.date||o.orderDate||''), Number(o.totalAmount||0), getOrderSourceText(o)]));
 }
 window.exportSelectedSalesOrders=exportSelectedSalesOrders;
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);

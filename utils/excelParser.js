@@ -30,12 +30,15 @@ function pickImportSheet(workbook) {
 
 function parseExcelBuffer(buffer) {
   if (!buffer || !buffer.length) return [];
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: false });
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
   const sheetName = pickImportSheet(workbook);
   if (!sheetName) return [];
 
   const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false, blankrows: false });
+  // Dùng raw:true + cellDates:true để giữ ô ngày Excel là Date object.
+  // Nếu dùng raw:false, file DMS có format mm-dd-yy sẽ thành chuỗi 06-01-26,
+  // sau đó hệ thống Việt Nam hiểu nhầm là 06/01/2026 thay vì 01/06/2026.
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
 
   return rows.map((row, index) => {
     const cleanRow = { __rowNo: index + 2 };
