@@ -25,6 +25,15 @@ function normalizeOrderDate(value) {
   return dateUtil.toDateOnly(value);
 }
 
+
+function extractStaffCodeParam(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const first = raw.split(/\s+-\s+|\|/)[0].trim();
+  const match = first.match(/[A-Za-z0-9_.-]+/);
+  return String(match ? match[0] : first).trim();
+}
+
 function buildOrderCode(existingOrders = []) {
   const max = existingOrders.reduce((result, order) => {
     const match = String(order.code || '').match(/(\d+)$/);
@@ -224,6 +233,25 @@ async function listOrders(query = {}) {
     ];
     filter.$and = filter.$and || [];
     filter.$and.push({ $or: qOr });
+  }
+
+  const staffCodeFilter = extractStaffCodeParam(
+    guardedQuery.salesStaffCode || guardedQuery.staffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+  );
+  if (staffCodeFilter) {
+    filter.$and = filter.$and || [];
+    filter.$and.push({
+      $or: [
+        { staffCode: staffCodeFilter },
+        { salesStaffCode: staffCodeFilter },
+        { salesPersonCode: staffCodeFilter },
+        { salesmanCode: staffCodeFilter },
+        { nvbhCode: staffCodeFilter },
+        { maNVBH: staffCodeFilter },
+        { 'salesStaff.code': staffCodeFilter },
+        { 'staff.code': staffCodeFilter }
+      ]
+    });
   }
 
   const orders = await orderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });

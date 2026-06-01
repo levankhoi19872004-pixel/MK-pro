@@ -317,6 +317,20 @@ async function cancelSalesOrder(idx){
 window.cancelSalesOrder=cancelSalesOrder;
 
 
+
+function extractStaffCodeFromDisplay(value){
+  const raw=String(value||'').trim();
+  if(!raw)return '';
+  const first=raw.split(/\s+-\s+|\|/)[0].trim();
+  const m=first.match(/[A-Za-z0-9_.-]+/);
+  return (m?m[0]:first).trim();
+}
+function getSalesOrderStaffFilterCode(){
+  if(!salesOrderStaffFilter)return '';
+  const selected=String(salesOrderStaffFilter.dataset?.selectedId||'').trim();
+  return extractStaffCodeFromDisplay(selected || salesOrderStaffFilter.value || '');
+}
+
 function normalizeOrderDateForFilter(value){
   return toDateOnly(value);
 }
@@ -332,20 +346,22 @@ async function loadSalesOrders(){
     if(dateTo)params.set('dateTo',dateTo);
     if(source)params.set('source',source);
     if(q)params.set('q',q);
-    if(String(salesOrderStaffFilter?.value||'').trim())params.set('staffName',String(salesOrderStaffFilter.value||'').trim());
+    const staffCodeFilter=getSalesOrderStaffFilterCode();
+    if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
     params.set('page','1');
     params.set('limit','50');
     params.set('excludeInactive','1');
     const res=await fetch(`/api/sales-orders?${params.toString()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
     const allOrders=(json.salesOrders||[]).filter(isActiveDocument);
-    const staff=String(salesOrderStaffFilter?.value||'').trim().toLowerCase();
+    const staff=staffCodeFilter.toLowerCase();
     const orders=allOrders.filter(o=>{
       const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress].join(' ').toLowerCase();
       const sourceOk=!source || normalizeOrderSourceClient(o)===source;
       const date=normalizeOrderDateForFilter(o.date||o.orderDate||o.deliveryDate||'');
       const dateOk=(!dateFrom||date>=dateFrom)&&(!dateTo||date<=dateTo);
-      const staffText=[o.staffCode,o.staffName,o.salesStaffCode,o.salesStaffName,o.createdByName,o.createdBy].join(' ').toLowerCase();
-      const staffOk=!staff||staffText.includes(staff);
+      const staffCodes=[o.staffCode,o.salesStaffCode,o.salesPersonCode,o.nvbhCode,o.maNVBH,o.salesmanCode,o.createdBy].map(v=>String(v||'').toLowerCase());
+      const staffText=[...staffCodes,o.staffName,o.salesStaffName,o.createdByName].join(' ').toLowerCase();
+      const staffOk=!staff||staffCodes.includes(staff)||staffText.includes(staff);
       const searchOk=!q || text.includes(q);
       return sourceOk && dateOk && staffOk && searchOk;
     });
