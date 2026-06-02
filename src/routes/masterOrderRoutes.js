@@ -6,6 +6,9 @@ const masterOrderController = require('../controllers/masterOrderController');
 const router = express.Router();
 
 router.get('/unmerged-child-orders', masterOrderController.listUnmergedChildOrders);
+router.get('/delivery-today-summary', masterOrderController.listDeliveryTodaySummary);
+router.get('/delivery-today-summary/:deliveryStaffCode', masterOrderController.listDeliveryTodaySalesSummary);
+router.get('/delivery-today-orders', masterOrderController.listDeliveryTodayOrdersCompact);
 router.get('/delivery-today', masterOrderController.listDeliveryToday);
 router.post('/delivery-today/confirm-accounting', masterOrderController.confirmDeliveryAccounting);
 router.post('/delivery-today/:id/admin-unlock', masterOrderController.adminUnlockDeliveryAccounting);

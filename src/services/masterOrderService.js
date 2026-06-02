@@ -1048,7 +1048,7 @@ async function listDeliveryToday(query = {}) {
   const route = normalizeText(query.route || query.routeName);
   const status = normalizeText(query.status);
 
-  const page = queryGuard.getPagination({ page: query.page || 1, limit: query.limit || 50 });
+  const page = queryGuard.getPagination({ page: query.page || 1, limit: query.limit || 50 }, { defaultLimit: 50, maxLimit: 5000 });
   const masterFilter = {
     $or: [{ date }, { deliveryDate: date }],
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
@@ -1170,6 +1170,160 @@ async function listDeliveryToday(query = {}) {
       unpaid: rows.filter((row) => hasOpenDebt(row.debt)).length,
       late: rows.filter((row) => row.isLate).length
     }
+  };
+}
+
+function deliveryGroupKey(value, fallback) {
+  const key = String(value || '').trim();
+  return key || fallback;
+}
+
+function deliveryRowCollectedAmount(row = {}) {
+  return toNumber(row.cashCollected || 0)
+    + toNumber(row.bankCollected || 0)
+    + toNumber(row.rewardAmount || 0)
+    + deliveryReturnAmount(row);
+}
+
+function buildDeliverySummaryAccumulator(row = {}) {
+  return {
+    orderCount: 0,
+    deliveredCount: 0,
+    pendingCount: 0,
+    failedCount: 0,
+    totalAmount: 0,
+    cashAmount: 0,
+    bankAmount: 0,
+    rewardAmount: 0,
+    returnAmount: 0,
+    collectedAmount: 0,
+    remainingAmount: 0
+  };
+}
+
+function addDeliveryRowToSummary(acc, row = {}) {
+  const visual = String(row.visualStatus || row.deliveryStatus || '').toLowerCase();
+  acc.orderCount += 1;
+  if (['delivered', 'done', 'completed'].includes(visual)) acc.deliveredCount += 1;
+  else if (['failed', 'cancelled', 'canceled', 'returned', 'delivery_failed'].includes(visual)) acc.failedCount += 1;
+  else acc.pendingCount += 1;
+  acc.totalAmount += deliveryDebtBase(row);
+  acc.cashAmount += toNumber(row.cashCollected || 0);
+  acc.bankAmount += toNumber(row.bankCollected || 0);
+  acc.rewardAmount += toNumber(row.rewardAmount || 0);
+  acc.returnAmount += deliveryReturnAmount(row);
+  acc.collectedAmount += deliveryRowCollectedAmount(row);
+  acc.remainingAmount += calculateDeliveryDebt(row);
+  return acc;
+}
+
+function finalizeDeliverySummaryRow(row = {}) {
+  const roundKeys = ['totalAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount', 'collectedAmount', 'remainingAmount'];
+  for (const key of roundKeys) row[key] = Math.max(0, normalizeDebtAmount(Math.round(toNumber(row[key]))));
+  return row;
+}
+
+async function listDeliveryTodaySummary(query = {}) {
+  const base = await listDeliveryToday({ ...(query || {}), page: 1, limit: query.limit || 5000 });
+  const map = new Map();
+  for (const row of base.orders || []) {
+    const key = deliveryGroupKey(row.deliveryStaffCode || row.deliveryStaffName, 'NO_DELIVERY');
+    if (!map.has(key)) {
+      map.set(key, {
+        deliveryStaffCode: row.deliveryStaffCode || '',
+        deliveryStaffName: row.deliveryStaffName || row.deliveryStaffCode || 'Chưa có NVGH',
+        ...buildDeliverySummaryAccumulator(row)
+      });
+    }
+    addDeliveryRowToSummary(map.get(key), row);
+  }
+  const rows = Array.from(map.values()).map(finalizeDeliverySummaryRow)
+    .sort((a, b) => b.totalAmount - a.totalAmount || String(a.deliveryStaffName).localeCompare(String(b.deliveryStaffName), 'vi'));
+  return {
+    date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
+    formula: 'Tổng hợp tầng 1 theo nhân viên giao hàng; chưa render danh sách đơn để tối ưu tốc độ.',
+    accounting: base.accounting,
+    summary: rows,
+    kpi: rows.reduce((acc, row) => {
+      acc.totalOrders += row.orderCount;
+      acc.delivered += row.deliveredCount;
+      acc.pending += row.pendingCount;
+      acc.failed += row.failedCount;
+      acc.totalAmount += row.totalAmount;
+      acc.collectedAmount += row.collectedAmount;
+      acc.remainingAmount += row.remainingAmount;
+      acc.cashAmount += row.cashAmount;
+      acc.bankAmount += row.bankAmount;
+      acc.rewardAmount += row.rewardAmount;
+      acc.returnAmount += row.returnAmount;
+      return acc;
+    }, { totalOrders: 0, delivered: 0, pending: 0, failed: 0, totalAmount: 0, collectedAmount: 0, remainingAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, returnAmount: 0 })
+  };
+}
+
+async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
+  const deliveryKey = String(deliveryStaffCode || '').trim();
+  const base = await listDeliveryToday({ ...(query || {}), delivery: deliveryKey, page: 1, limit: query.limit || 5000 });
+  const map = new Map();
+  for (const row of base.orders || []) {
+    const sameDelivery = !deliveryKey || [row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(normalizeText(deliveryKey)) || String(value || '').trim() === deliveryKey);
+    if (!sameDelivery) continue;
+    const key = deliveryGroupKey(row.salesmanCode || row.salesmanName, 'NO_SALES');
+    if (!map.has(key)) {
+      map.set(key, {
+        deliveryStaffCode: row.deliveryStaffCode || deliveryKey,
+        deliveryStaffName: row.deliveryStaffName || row.deliveryStaffCode || 'Chưa có NVGH',
+        salesStaffCode: row.salesmanCode || '',
+        salesStaffName: row.salesmanName || row.salesmanCode || 'Chưa có NVBH',
+        ...buildDeliverySummaryAccumulator(row)
+      });
+    }
+    addDeliveryRowToSummary(map.get(key), row);
+  }
+  const rows = Array.from(map.values()).map(finalizeDeliverySummaryRow)
+    .sort((a, b) => b.totalAmount - a.totalAmount || String(a.salesStaffName).localeCompare(String(b.salesStaffName), 'vi'));
+  return {
+    date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
+    deliveryStaffCode: deliveryKey,
+    formula: 'Tổng hợp tầng 2 theo nhân viên bán hàng nằm trong nhân viên giao hàng đã chọn.',
+    summary: rows
+  };
+}
+
+async function listDeliveryTodayOrdersCompact(query = {}) {
+  const base = await listDeliveryToday({ ...(query || {}), page: 1, limit: query.limit || 5000 });
+  const sales = normalizeText(query.salesStaffCode || query.salesStaff || query.salesman || '');
+  let rows = base.orders || [];
+  if (sales) rows = rows.filter((row) => [row.salesmanCode, row.salesmanName].some((value) => normalizeText(value).includes(sales)));
+  rows = rows.map((row) => ({
+    id: row.id,
+    orderCode: row.orderCode,
+    masterOrderCode: row.masterOrderCode,
+    customerCode: row.customerCode,
+    customerName: row.customerName,
+    salesmanCode: row.salesmanCode,
+    salesmanName: row.salesmanName,
+    deliveryStaffCode: row.deliveryStaffCode,
+    deliveryStaffName: row.deliveryStaffName,
+    deliveryStatus: row.deliveryStatus,
+    visualStatus: row.visualStatus,
+    totalAmount: deliveryDebtBase(row),
+    cashCollected: toNumber(row.cashCollected || 0),
+    bankCollected: toNumber(row.bankCollected || 0),
+    rewardAmount: toNumber(row.rewardAmount || 0),
+    returnAmount: deliveryReturnAmount(row),
+    collectedAmount: deliveryRowCollectedAmount(row),
+    debtAmount: calculateDeliveryDebt(row),
+    accountingConfirmed: row.accountingConfirmed,
+    editLocked: row.editLocked,
+    needReAccounting: row.needReAccounting,
+    adminAdjustmentOpen: row.adminAdjustmentOpen,
+    returnLocked: row.returnLocked
+  }));
+  return {
+    date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
+    formula: 'Danh sách đơn chỉ tải sau khi chọn NVGH/NVBH.',
+    orders: rows
   };
 }
 
@@ -1758,6 +1912,9 @@ module.exports = {
   listUnmergedChildOrders,
   listMasterOrders,
   listDeliveryToday,
+  listDeliveryTodaySummary,
+  listDeliveryTodaySalesSummary,
+  listDeliveryTodayOrdersCompact,
   confirmDeliveryAccounting,
   adminUnlockDeliveryAccounting,
   updateDeliveryTodayOrder,

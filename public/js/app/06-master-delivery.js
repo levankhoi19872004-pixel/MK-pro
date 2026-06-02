@@ -280,6 +280,10 @@ function deliveryTimelineHtml(row){
 }
 
 let deliveryRowsCache=[];
+let deliverySummaryCache=[];
+let deliverySalesSummaryCache=new Map();
+let deliveryOpenStaffCode='';
+let deliveryOpenSalesCode='';
 let selectedDeliveryOrderId='';
 let selectedDeliveryAccountingIds=new Set();
 
@@ -638,102 +642,186 @@ window.submitDeliveryEdit=submitDeliveryEdit;
 [deliveryEditCash,deliveryEditBank,deliveryEditReward].forEach(input=>{
   if(input)input.addEventListener('input',()=>{recalcDeliveryEditDebt();renderDeliveryEditTotal();});
 });
-async function loadDeliveryToday(){
-  if(!deliveryTodayList)return;
+
+function deliverySummaryParams(){
   const params=new URLSearchParams();
   const date=deliveryDateFilter?.value||today();
   const q=deliverySearchInput?.value.trim()||'';
-  const salesman=deliverySalesmanFilter?.value.trim()||'';
   const delivery=deliveryStaffFilter?.value.trim()||'';
-  const route=deliveryRouteFilter?.value.trim()||'';
+  const route=deliveryRouteFilter?.value?.trim?.()||'';
   const status=deliveryStatusFilter?.value||'';
   if(date)params.set('date',date);
   if(q)params.set('q',q);
-  if(salesman)params.set('salesman',salesman);
   if(delivery)params.set('delivery',delivery);
   if(route)params.set('route',route);
   if(status)params.set('status',status);
-  params.set('page','1');
-  params.set('limit','50');
-  try{
-    const res=await fetch(`/api/master-orders/delivery-today?${params.toString()}`);
+  params.set('limit','5000');
+  return params;
+}
+function deliveryMetricLine(row){
+  return `${Number(row.orderCount||0)}Đ | G${Number(row.deliveredCount||0)}/C${Number(row.pendingCount||0)}${Number(row.failedCount||0)?`/K${Number(row.failedCount||0)}`:''} | H${deliveryCompactMoney(row.totalAmount||0)} | T${deliveryCompactMoney(row.collectedAmount||0)} | N${deliveryCompactMoney(row.remainingAmount||0)}`;
+}
+function deliveryStaffSafeKey(row){return String(row.deliveryStaffCode||row.deliveryStaffName||'NO_DELIVERY').trim()||'NO_DELIVERY';}
+function deliverySalesSafeKey(row){return String(row.salesStaffCode||row.salesStaffName||'NO_SALES').trim()||'NO_SALES';}
+function updateDeliveryKpiFromSummary(kpi={}){
+  if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(kpi.totalAmount||0);
+  if(deliveryRunningKpi)deliveryRunningKpi.textContent=money(kpi.cashAmount||0);
+  if(deliveryDoneKpi)deliveryDoneKpi.textContent=money(kpi.bankAmount||0);
+  if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=money(kpi.rewardAmount||0);
+  if(deliveryLateKpi)deliveryLateKpi.textContent=money(kpi.returnAmount||0);
+  if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(kpi.remainingAmount||0);
+}
+function renderDeliveryTodaySummary(){
+  if(!deliveryTodayList)return;
+  const rows=deliverySummaryCache||[];
+  if(!rows.length){
+    deliveryTodayList.innerHTML='<div class="empty-state">Không có đơn đi giao theo bộ lọc hiện tại.</div>';
+    return;
+  }
+  deliveryTodayList.innerHTML=rows.map(row=>{
+    const code=deliveryStaffSafeKey(row);
+    const open=String(deliveryOpenStaffCode)===String(code);
+    const salesRows=deliverySalesSummaryCache.get(code)||[];
+    return `<div class="delivery-accordion-block ${open?'open':''}">
+      <button type="button" class="delivery-accordion-row delivery-staff-summary-row" onclick="toggleDeliveryStaffSummary('${escapeHtml(code)}')">
+        <span class="delivery-caret">${open?'▼':'▶'}</span>
+        <b>${escapeHtml(row.deliveryStaffName||row.deliveryStaffCode||'Chưa có NVGH')}</b>
+        <span>${escapeHtml(deliveryMetricLine(row))}</span>
+      </button>
+      <div class="delivery-sales-summary-box" ${open?'':'hidden'}>
+        ${open ? renderDeliverySalesSummaryRows(code, salesRows) : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderDeliverySalesSummaryRows(deliveryCode, rows){
+  if(!rows||!rows.length)return '<div class="empty-state compact-empty">Đang tải / chưa có chi tiết NVBH.</div>';
+  return rows.map(row=>{
+    const salesCode=deliverySalesSafeKey(row);
+    const open=String(deliveryOpenStaffCode)===String(deliveryCode)&&String(deliveryOpenSalesCode)===String(salesCode);
+    return `<div class="delivery-sales-block ${open?'open':''}">
+      <button type="button" class="delivery-accordion-row delivery-sales-summary-row" onclick="toggleDeliverySalesOrders('${escapeHtml(deliveryCode)}','${escapeHtml(salesCode)}')">
+        <span class="delivery-caret">${open?'▼':'▶'}</span>
+        <b>${escapeHtml(row.salesStaffName||row.salesStaffCode||'Chưa có NVBH')}</b>
+        <span>${escapeHtml(deliveryMetricLine(row))}</span>
+      </button>
+      <div class="delivery-sales-orders-box" data-delivery="${escapeHtml(deliveryCode)}" data-sales="${escapeHtml(salesCode)}" ${open?'':'hidden'}>
+        ${open?renderCompactDeliveryOrders(deliveryRowsCache):''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderCompactDeliveryOrders(rows=[]){
+  if(!rows.length)return '<div class="empty-state compact-empty">Chưa có đơn thuộc nhóm này.</div>';
+  return rows.map(row=>{
+    const cash=Number(row.cashCollected||0);
+    const bank=Number(row.bankCollected||0);
+    const reward=Number(row.rewardAmount||0);
+    const returned=Number(row.returnAmount||0);
+    const debt=Number(row.debtAmount ?? calculateDeliveryDebt(row));
+    const locked=Boolean(row.accountingConfirmed||row.editLocked);
+    const rowId=String(row.id||'');
+    const checked=selectedDeliveryAccountingIds.has(rowId);
+    return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row delivery-selectable-row ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''} ${checked?'accounting-selected':''} ${locked?'accounting-locked':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
+      <label class="delivery-accounting-select" title="Chọn đơn này để đẩy sang công nợ" onclick="event.stopPropagation()">
+        <input class="delivery-accounting-checkbox" type="checkbox" value="${escapeHtml(rowId)}" ${checked?'checked':''} ${locked?'disabled':''} onchange="toggleDeliveryAccountingSelection(this.value,this.checked)" />
+      </label>
+      <div class="delivery-customer-main one-line">
+        <b>${escapeHtml(row.orderCode||row.id||'')}</b>
+        <span>${escapeHtml(row.customerName||'Chưa có khách')}</span>
+        <small>${escapeHtml(row.salesmanName||row.salesmanCode||'')}</small>
+      </div>
+      <div class="delivery-customer-money one-line-money">
+        <span title="Phải thu: ${money(row.totalAmount||0)}"><em>H</em><b>${deliveryCompactMoney(row.totalAmount||0)}</b></span>
+        <span title="Tiền mặt: ${money(cash)}"><em>TM</em><b>${deliveryCompactMoney(cash)}</b></span>
+        <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b>${deliveryCompactMoney(bank)}</b></span>
+        <span title="Thưởng: ${money(reward)}"><em>Th</em><b>${deliveryCompactMoney(reward)}</b></span>
+        <span title="Trả hàng: ${money(returned)}"><em>Tr</em><b>${deliveryCompactMoney(returned)}</b></span>
+        <span title="Còn nợ: ${money(debt)}"><em>N</em><b class="${deliveryDebtClass(debt)}">${deliveryDebtCompactLabel(debt)}</b></span>
+      </div>
+    </article>`;
+  }).join('');
+}
+async function toggleDeliveryStaffSummary(deliveryCode){
+  deliveryOpenSalesCode='';
+  deliveryRowsCache=[];
+  clearDeliveryEditPanel();
+  if(String(deliveryOpenStaffCode)===String(deliveryCode)){
+    deliveryOpenStaffCode='';
+    renderDeliveryTodaySummary();
+    return;
+  }
+  deliveryOpenStaffCode=deliveryCode;
+  renderDeliveryTodaySummary();
+  if(!deliverySalesSummaryCache.has(deliveryCode)){
+    const params=deliverySummaryParams();
+    const res=await fetch(`/api/master-orders/delivery-today-summary/${encodeURIComponent(deliveryCode)}?${params.toString()}`);
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được đơn đi giao');
-    const rows=json.orders||[];
+    if(!json.ok)throw new Error(json.message||'Không tải được chi tiết NVBH');
+    deliverySalesSummaryCache.set(deliveryCode,json.summary||[]);
+  }
+  renderDeliveryTodaySummary();
+}
+window.toggleDeliveryStaffSummary=toggleDeliveryStaffSummary;
+async function toggleDeliverySalesOrders(deliveryCode,salesCode){
+  if(String(deliveryOpenStaffCode)===String(deliveryCode)&&String(deliveryOpenSalesCode)===String(salesCode)){
+    deliveryOpenSalesCode='';
+    deliveryRowsCache=[];
+    clearDeliveryEditPanel();
+    renderDeliveryTodaySummary();
+    return;
+  }
+  deliveryOpenStaffCode=deliveryCode;
+  deliveryOpenSalesCode=salesCode;
+  const params=deliverySummaryParams();
+  params.set('deliveryStaffCode',deliveryCode);
+  params.set('delivery',deliveryCode);
+  params.set('salesStaffCode',salesCode);
+  params.set('salesman',salesCode);
+  const res=await fetch(`/api/master-orders/delivery-today-orders?${params.toString()}`);
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.message||'Không tải được danh sách đơn');
+  deliveryRowsCache=json.orders||[];
+  renderDeliveryTodaySummary();
+  syncDeliveryAccountingSelection();
+}
+window.toggleDeliverySalesOrders=toggleDeliverySalesOrders;
+
+async function loadDeliveryToday(){
+  if(!deliveryTodayList)return;
+  const params=deliverySummaryParams();
+  deliveryRowsCache=[];
+  deliverySummaryCache=[];
+  deliverySalesSummaryCache=new Map();
+  deliveryOpenStaffCode='';
+  deliveryOpenSalesCode='';
+  try{
+    deliveryTodayList.innerHTML='<div class="empty-state">Đang tải tổng quan theo nhân viên giao hàng...</div>';
+    const res=await fetch(`/api/master-orders/delivery-today-summary?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được tổng quan đơn đi giao');
     const accounting=json.accounting||{};
-    deliveryRowsCache=rows;
+    deliverySummaryCache=json.summary||[];
+    updateDeliveryKpiFromSummary(json.kpi||{});
     if(deliveryAccountingStatus){
-      deliveryAccountingStatus.textContent=accounting.message||'';
+      deliveryAccountingStatus.textContent=accounting.message||'Màn hình đang hiển thị tổng quan theo NVGH. Bấm NVGH để xem NVBH, bấm NVBH để xem đơn.';
       deliveryAccountingStatus.classList.toggle('confirmed', Boolean(accounting.confirmed));
     }
     if(confirmDeliveryAccountingButton){
       confirmDeliveryAccountingButton.disabled=true;
-      confirmDeliveryAccountingButton.textContent=accounting.confirmed?'Kế toán đã xác nhận':'Đẩy đơn đã chọn sang công nợ';
+      confirmDeliveryAccountingButton.textContent=accounting.confirmed?'Kế toán đã xác nhận':'Đẩy nhóm đơn đang mở sang công nợ';
     }
-    if(deliveryTodayList && json.formula){ deliveryTodayList.dataset.formula=json.formula; }
-    const moneyReport=rows.reduce((acc,row)=>{
-      acc.total += deliveryDebtBase(row);
-      acc.cash += deliveryToNumber(row.cashCollected||0);
-      acc.bank += deliveryToNumber(row.bankCollected||0);
-      acc.reward += deliveryToNumber(row.rewardAmount||0);
-      acc.returned += deliveryReturnAmountFromItems(row);
-      acc.debt += calculateDeliveryDebt(row);
-      return acc;
-    },{total:0,cash:0,bank:0,reward:0,returned:0,debt:0});
-    // KPI Công nợ chỉ cộng phần còn nợ dương; khách dư có vẫn hiển thị ở dòng chi tiết nhưng không làm âm KPI phải thu.
-    moneyReport.debt=Math.max(0, moneyReport.debt);
-    if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(moneyReport.total);
-    if(deliveryRunningKpi)deliveryRunningKpi.textContent=money(moneyReport.cash);
-    if(deliveryDoneKpi)deliveryDoneKpi.textContent=money(moneyReport.bank);
-    if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=money(moneyReport.reward);
-    if(deliveryLateKpi)deliveryLateKpi.textContent=money(moneyReport.returned);
-    if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(moneyReport.debt);
-    const routes=json.routes||[];
     if(deliveryRouteSummary){
-      deliveryRouteSummary.innerHTML=routes.length?routes.map(r=>`<div class="route-pill"><strong>${escapeHtml(r.routeName||'Chưa có tuyến')}</strong><span>${r.orderCount} đơn</span><small>NV giao: ${escapeHtml(r.deliveryStaffName||r.deliveryStaffCode||'Chưa gán')}</small></div>`).join(''):'';
+      deliveryRouteSummary.innerHTML='<div class="route-pill compact-help"><strong>Chế độ gọn</strong><span>Click NVGH → NVBH → đơn</span><small>Không tải toàn bộ danh sách đơn ngay từ đầu</small></div>';
     }
-    if(!rows.length){
-      deliveryTodayList.innerHTML='<div class="empty-state">Không có đơn đi giao theo bộ lọc hiện tại.</div>';
-      selectedDeliveryAccountingIds.clear();
-      syncDeliveryAccountingSelection();
-      clearDeliveryEditPanel();
-      return;
-    }
-    deliveryTodayList.innerHTML=rows.map(row=>{
-      const cls=deliveryStatusClass(row);
-      const cash=Number(row.cashCollected||0);
-      const bank=Number(row.bankCollected||0);
-      const reward=Number(row.rewardAmount||0);
-      const returned=deliveryReturnAmountFromItems(row);
-      const rowId=String(row.id||'');
-      const locked=Boolean(row.accountingConfirmed||row.editLocked);
-      const checked=selectedDeliveryAccountingIds.has(rowId);
-      return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row delivery-selectable-row ${cls} ${String(row.id)===String(selectedDeliveryOrderId)?'selected':''} ${checked?'accounting-selected':''} ${locked?'accounting-locked':''}" data-id="${escapeHtml(row.id||'')}" onclick="selectDeliveryOrder(this.dataset.id)">
-        <label class="delivery-accounting-select" title="Chọn đơn này để đẩy sang công nợ" onclick="event.stopPropagation()">
-          <input class="delivery-accounting-checkbox" type="checkbox" value="${escapeHtml(rowId)}" ${checked?'checked':''} ${locked?'disabled':''} onchange="toggleDeliveryAccountingSelection(this.value,this.checked)" />
-        </label>
-        <div class="delivery-customer-main">
-          <b>${escapeHtml(row.customerName||'Chưa có tên khách')}</b>
-          <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
-          ${(row.needReAccounting||row.adminAdjustmentOpen||String(row.accountingStatus||'').toLowerCase()==='needs_repost')?'<small class="delivery-open-note">Đã điều chỉnh · chờ xác nhận lại kế toán</small>':(row.accountingConfirmed?'<small class="delivery-locked-note">Đã xác nhận kế toán · khóa sửa</small>':'<small class="delivery-open-note">Chưa xác nhận kế toán</small>')}
-        </div>
-        <div class="delivery-customer-money">
-          <span class="money-pt" title="Phải thu: ${money(deliveryDebtBase(row))}"><em>PT</em><b>${deliveryCompactMoney(deliveryDebtBase(row))}</b></span>
-          <span title="Tiền mặt: ${money(cash)}"><em>TM</em><b class="cash-in">${deliveryCompactMoney(cash)}</b></span>
-          <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b class="cash-in">${deliveryCompactMoney(bank)}</b></span>
-          <span title="Trả thưởng: ${money(reward)}"><em>Thưởng</em><b>${deliveryCompactMoney(reward)}</b></span>
-          <span title="Hàng trả: ${money(returned)}"><em>Hàng trả</em><b>${deliveryCompactMoney(returned)}</b></span>
-          <span class="money-debt" title="Công nợ: ${money(calculateDeliveryDebt(row))} · Nguồn: ${row.debtSource==='ar_ledger'?'AR Ledger':'Tạm tính đơn giao'}"><em>CN</em><b class="${deliveryDebtClass(calculateDeliveryDebt(row))}">${deliveryDebtCompactLabel(calculateDeliveryDebt(row))}</b></span>
-        </div>
-      </article>`;
-    }).join('');
+    renderDeliveryTodaySummary();
+    selectedDeliveryAccountingIds.clear();
     syncDeliveryAccountingSelection();
-    if(selectedDeliveryOrderId && !getSelectedDeliveryRow()) clearDeliveryEditPanel();
+    clearDeliveryEditPanel();
   }catch(err){
     deliveryTodayList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
   }
 }
-
 
 async function adminUnlockSelectedDeliveryOrder(){
   const row=getSelectedDeliveryRow?.();

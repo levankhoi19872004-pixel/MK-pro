@@ -5181,3 +5181,22 @@ button.danger:hover{background:#fecaca}
     grid-template-columns:1fr!important;
   }
 }
+
+/* V45 delivery today compact accordion: NVGH -> NVBH -> orders */
+.delivery-accordion-block,
+.delivery-sales-block{border-bottom:1px solid rgba(15,23,42,.08)}
+.delivery-accordion-row{width:100%;display:grid;grid-template-columns:18px minmax(90px,1fr) auto;align-items:center;gap:6px;border:0;background:transparent;text-align:left;cursor:pointer;padding:4px 6px;min-height:26px;font-size:11px;line-height:1.2;color:#111827}
+.delivery-accordion-row:hover{background:rgba(15,23,42,.04)}
+.delivery-staff-summary-row{font-size:12px;font-weight:600;background:rgba(15,23,42,.03)}
+.delivery-sales-summary-row{padding-left:18px;color:#374151}
+.delivery-caret{font-size:10px;color:#6b7280}
+.delivery-sales-summary-box{padding:2px 0 2px 0;background:rgba(248,250,252,.8)}
+.delivery-sales-orders-box{padding-left:16px;background:#fff}
+.compact-empty{font-size:11px;padding:6px 12px}
+.delivery-customer-main.one-line{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.delivery-customer-main.one-line b{font-size:11px;min-width:70px}
+.delivery-customer-main.one-line span{font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.delivery-customer-main.one-line small{font-size:10px;color:#64748b}
+.one-line-money{font-size:10px;gap:4px;white-space:nowrap}
+.one-line-money span{display:inline-flex;gap:2px;align-items:center}
+.route-pill.compact-help{opacity:.85}

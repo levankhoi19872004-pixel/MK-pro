@@ -39,6 +39,33 @@ async function listDeliveryToday(req, res) {
 
 
 
+async function listDeliveryTodaySummary(req, res) {
+  try {
+    const result = await masterOrderService.listDeliveryTodaySummary(req.query || {});
+    res.json({ ok: true, source: 'mongo-route', ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không tải được tổng hợp NVGH hôm nay', error: err.message });
+  }
+}
+
+async function listDeliveryTodaySalesSummary(req, res) {
+  try {
+    const result = await masterOrderService.listDeliveryTodaySalesSummary(req.params.deliveryStaffCode, req.query || {});
+    res.json({ ok: true, source: 'mongo-route', ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không tải được chi tiết NVBH theo NVGH', error: err.message });
+  }
+}
+
+async function listDeliveryTodayOrdersCompact(req, res) {
+  try {
+    const result = await masterOrderService.listDeliveryTodayOrdersCompact(req.query || {});
+    res.json({ ok: true, source: 'mongo-route', ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không tải được danh sách đơn theo NVGH/NVBH', error: err.message });
+  }
+}
+
 async function adminUnlockDeliveryAccounting(req, res) {
   try {
     const result = await masterOrderService.adminUnlockDeliveryAccounting(req.params.id, req.body || {});
@@ -127,4 +154,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { listUnmergedChildOrders, listDeliveryToday, confirmDeliveryAccounting, adminUnlockDeliveryAccounting, updateDeliveryTodayOrder, printAggregate, list, get, create, update, cancel, remove };
+module.exports = { listUnmergedChildOrders, listDeliveryToday, listDeliveryTodaySummary, listDeliveryTodaySalesSummary, listDeliveryTodayOrdersCompact, confirmDeliveryAccounting, adminUnlockDeliveryAccounting, updateDeliveryTodayOrder, printAggregate, list, get, create, update, cancel, remove };
