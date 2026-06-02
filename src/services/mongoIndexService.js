@@ -85,6 +85,8 @@ const INDEX_DEFINITIONS = {
     [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_mobile_delivery_fast' }],
     [{ status: 1, deliveryStatus: 1, date: -1, customerCode: 1, staffCode: 1, mergeStatus: 1 }, { name: 'idx_master_orders_hot_list_report' }],
     [{ deliveryDate: 1, status: 1 }, { name: 'idx_master_orders_delivery_date_status' }],
+    [{ deliveryStatus: 1, arStatus: 1, deliveryDate: 1 }, { name: 'idx_master_orders_delivery_ar_date' }],
+    [{ accountingConfirmed: 1, deliveryDate: 1 }, { name: 'idx_master_orders_accounting_date' }],
     [{ date: 1 }, { name: 'idx_master_orders_date', sparse: true }],
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
     [{ 'children.id': 1 }, { name: 'idx_master_orders_children_id' }],
@@ -107,6 +109,9 @@ const INDEX_DEFINITIONS = {
     [{ orderId: 1 }, { name: 'idx_return_orders_order_id', sparse: true }],
     [{ orderCode: 1 }, { name: 'idx_return_orders_order_code', sparse: true }],
     [{ sourceOrderId: 1 }, { name: 'idx_return_orders_source_order' }],
+    [{ sourceOrderCode: 1 }, { name: 'idx_return_orders_source_order_code', sparse: true }],
+    [{ status: 1 }, { name: 'idx_return_orders_status' }],
+    [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
     [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
     [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }]
@@ -139,11 +144,13 @@ const INDEX_DEFINITIONS = {
     [{ orderId: 1 }, { name: 'idx_ar_ledgers_order_id', sparse: true }],
     [{ orderCode: 1 }, { name: 'idx_ar_ledgers_order_code', sparse: true }],
     [{ refType: 1, refId: 1 }, { name: 'idx_ar_ledgers_ref' }],
+    [{ refType: 1, refId: 1, type: 1 }, { name: 'idx_ar_ledgers_ref_type' }],
     [{ refCode: 1 }, { name: 'idx_ar_ledgers_ref_code', sparse: true }],
     [{ date: 1 }, { name: 'idx_ar_ledgers_date' }],
     [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledgers_customer_date' }],
     [{ customerCode: 1, type: 1, date: -1 }, { name: 'idx_ar_ledgers_customer_type_date_desc' }],
-    [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledgers_ref_code_type' }]
+    [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledgers_ref_code_type' }],
+    [{ source: 1 }, { name: 'idx_ar_ledgers_source' }]
   ],
   payments: [
     [{ id: 1 }, { name: 'idx_payments_id' }],

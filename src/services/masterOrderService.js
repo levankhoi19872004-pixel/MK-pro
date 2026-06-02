@@ -12,6 +12,7 @@ const returnOrderService = require('./returnOrderService');
 const reportService = require('./reportService');
 const postingEngine = require('../engines/posting.engine');
 const paymentRepository = require('../repositories/paymentRepository');
+const MongoStore = require('../models');
 const { makeId, normalizeText } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
@@ -777,6 +778,177 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
   return posted;
 }
 
+
+function makeBatchArRow(order = {}, extra = {}) {
+  const key = orderKey(order) || orderDisplayCode(order);
+  const code = orderDisplayCode(order) || key;
+  const amount = Math.max(0, toNumber(extra.amount));
+  return makeArBaseRow(order, {
+    id: extra.id,
+    code: extra.code || extra.id,
+    date: extra.date || order.deliveryDate || order.date || today(),
+    type: extra.type,
+    refType: extra.refType,
+    refId: key,
+    refCode: code,
+    orderId: key,
+    orderCode: code,
+    debit: toNumber(extra.debit),
+    credit: toNumber(extra.credit),
+    amount,
+    note: extra.note,
+    source: extra.source || 'delivery_batch_post',
+    createdBy: extra.createdBy || '',
+    reAccountingBatchId: extra.reAccountingBatchId || ''
+  });
+}
+
+function returnAmountForOrderFromMap(returnByOrderKey = new Map(), order = {}) {
+  const keys = compactDeliveryOrderKeys(order);
+  const used = new Set();
+  let amount = 0;
+  for (const key of keys) {
+    const rows = returnByOrderKey.get(key) || [];
+    for (const row of rows) {
+      const rowKey = String(row.id || row.code || `${key}-${row.totalAmount || row.amount || ''}`).trim();
+      if (used.has(rowKey)) continue;
+      used.add(rowKey);
+      if (!isActiveReturnOrder(row)) continue;
+      const receiveStatus = String(row.warehouseReceiveStatus || row.receiveStatus || '').toLowerCase();
+      if (['cancelled', 'canceled', 'cleared', 'void', 'deleted'].includes(receiveStatus)) continue;
+      amount += toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0);
+    }
+  }
+  return amount;
+}
+
+async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = 'accountant', options = {}) {
+  const children = (postableChildren || []).filter(Boolean);
+  if (!children.length) return { ledgerRows: [], postedOrderKeys: new Set(), skippedPostedKeys: new Set() };
+
+  const allKeys = [...new Set(children.flatMap(compactDeliveryOrderKeys))];
+  if (!allKeys.length) return { ledgerRows: [], postedOrderKeys: new Set(), skippedPostedKeys: new Set() };
+
+  const existingLedgers = await paymentRepository.findAll({
+    status: { $ne: 'reversed' },
+    reversed: { $ne: true },
+    type: { $in: ['ar_sale', 'ar_receipt', 'ar_bonus', 'ar_return'] },
+    $or: [
+      { orderId: { $in: allKeys } },
+      { orderCode: { $in: allKeys } },
+      { refId: { $in: allKeys } },
+      { refCode: { $in: allKeys } }
+    ]
+  }, options);
+
+  const postedKeySet = new Set();
+  for (const row of existingLedgers || []) {
+    for (const key of masterDeliveryOrderKeys(row)) postedKeySet.add(key);
+  }
+
+  const returnOrders = await findReturnOrdersForDeliveryChildren(children);
+  const returnByOrderKey = new Map();
+  for (const r of returnOrders || []) {
+    for (const key of masterDeliveryOrderKeys(r, {
+      id: r.sourceOrderId || r.salesOrderId || r.orderId,
+      code: r.sourceOrderCode || r.salesOrderCode || r.orderCode
+    })) {
+      if (!returnByOrderKey.has(key)) returnByOrderKey.set(key, []);
+      returnByOrderKey.get(key).push(r);
+    }
+  }
+
+  const ledgerRows = [];
+  const postedOrderKeys = new Set();
+  const skippedPostedKeys = new Set();
+
+  for (const order of children) {
+    if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) continue;
+    const keys = compactDeliveryOrderKeys(order);
+    if (keys.some((key) => postedKeySet.has(key))) {
+      for (const key of keys) skippedPostedKeys.add(key);
+      continue;
+    }
+
+    const key = orderKey(order) || orderDisplayCode(order);
+    const code = orderDisplayCode(order) || key;
+    const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(order)));
+    const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
+    const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
+    const rewardAmount = deliveryRewardAmount(order);
+    const returnAmount = Math.max(deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
+    const idSeed = key || code || makeId('AR');
+
+    ledgerRows.push(makeBatchArRow(order, {
+      id: `AR-SALE-${idSeed}`,
+      code: `AR-SALE-${code || idSeed}`,
+      type: 'ar_sale',
+      refType: 'SALES_ORDER',
+      debit: baseAmount,
+      credit: 0,
+      amount: baseAmount,
+      note: `Ghi nhận công nợ đơn bán ${code || key}`,
+      createdBy: confirmedBy
+    }));
+
+    if (cashAmount > 0) ledgerRows.push(makeBatchArRow(order, {
+      id: `AR-RECEIPT-CASH-${idSeed}`,
+      code: `AR-RECEIPT-CASH-${code || idSeed}`,
+      type: 'ar_receipt',
+      refType: 'RECEIPT',
+      debit: 0,
+      credit: cashAmount,
+      amount: cashAmount,
+      note: `Thu tiền mặt đơn giao ${code || key}`,
+      createdBy: confirmedBy
+    }));
+
+    if (bankAmount > 0) ledgerRows.push(makeBatchArRow(order, {
+      id: `AR-RECEIPT-BANK-${idSeed}`,
+      code: `AR-RECEIPT-BANK-${code || idSeed}`,
+      type: 'ar_receipt',
+      refType: 'RECEIPT',
+      debit: 0,
+      credit: bankAmount,
+      amount: bankAmount,
+      note: `Thu chuyển khoản đơn giao ${code || key}`,
+      createdBy: confirmedBy
+    }));
+
+    if (rewardAmount > 0) ledgerRows.push(makeBatchArRow(order, {
+      id: `AR-BONUS-${idSeed}`,
+      code: `AR-BONUS-${code || idSeed}`,
+      type: 'ar_bonus',
+      refType: 'BONUS_ALLOWANCE',
+      debit: 0,
+      credit: rewardAmount,
+      amount: rewardAmount,
+      note: `Cấn trừ trả thưởng đơn giao ${code || key}`,
+      createdBy: confirmedBy
+    }));
+
+    if (returnAmount > 0) ledgerRows.push(makeBatchArRow(order, {
+      id: `AR-RETURN-${idSeed}`,
+      code: `AR-RETURN-${code || idSeed}`,
+      type: 'ar_return',
+      refType: 'RETURN_ORDER',
+      debit: 0,
+      credit: returnAmount,
+      amount: returnAmount,
+      note: `Cấn trừ hàng trả đơn giao ${code || key}`,
+      createdBy: confirmedBy
+    }));
+
+    for (const keyItem of keys) postedOrderKeys.add(keyItem);
+  }
+
+  if (ledgerRows.length) {
+    await MongoStore.arLedgers.insertMany(ledgerRows, { ordered: false, session: options.session });
+  }
+
+  return { ledgerRows, postedOrderKeys, skippedPostedKeys };
+}
+
 async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
   if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) return null;
   if (!isAccountingConfirmed(order)) return null;
@@ -1205,8 +1377,12 @@ async function confirmDeliveryAccounting(body = {}) {
       }, { session });
     }
 
+    const normalPostChildren = [];
+    const orderUpdateOps = [];
+
     for (const { child } of targetChildren) {
       const alreadyConfirmed = isAccountingConfirmed(child);
+      const requiresReAccounting = isAccountingReopenPending(child);
       const debtAmount = Math.max(0, normalizeDebtAmount(child.debtAmount ?? child.debt ?? calculateDeliveryDebt(child)));
       const updated = {
         ...child,
@@ -1226,28 +1402,39 @@ async function confirmDeliveryAccounting(body = {}) {
         arStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
         lifecycleStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
         arPostedAt: child.arPostedAt || now,
-        updatedAt: now
-      };
-      const requiresReAccounting = isAccountingReopenPending(child);
-      if (requiresReAccounting) {
-        const reverseResult = await reverseActiveArLedgersForOrder(child, { name: confirmedBy }, { session });
-        await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.batchId, { session });
-      } else {
-        await postDeliveryArIfAccountingConfirmed(updated, { session });
-      }
-      await orderRepository.upsert({
-        ...updated,
-        accountingLocked: true,
-        needReAccounting: false,
-        reAccountingRequired: false,
-        adminAdjustmentOpen: false,
         reAccountingAt: requiresReAccounting ? now : (child.reAccountingAt || ''),
         reAccountingBy: requiresReAccounting ? confirmedBy : (child.reAccountingBy || ''),
-        reAccountingNote: requiresReAccounting ? 'Reverse AR cũ và post lại AR mới sau điều chỉnh admin' : (child.reAccountingNote || '')
-      }, { session });
-      // Công nợ khách hàng chỉ lấy từ AR Ledger; không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
+        reAccountingNote: requiresReAccounting ? 'Reverse AR cũ và post lại AR mới sau điều chỉnh admin' : (child.reAccountingNote || ''),
+        updatedAt: now
+      };
+
+      if (requiresReAccounting) {
+        // Đơn đã mở khóa/sửa sau khi post AR: giữ đúng luồng kế toán bằng reversal trước, sau đó post lại.
+        const reverseResult = await reverseActiveArLedgersForOrder(child, { name: confirmedBy }, { session });
+        await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.batchId, { session });
+      } else if (!alreadyConfirmed) {
+        // Đơn mới xác nhận lần đầu: gom lại để ghi AR Ledger bằng insertMany một lần.
+        normalPostChildren.push(updated);
+      }
+
+      orderUpdateOps.push({
+        updateOne: {
+          filter: buildIdentityInFilter(compactDeliveryOrderKeys(updated), ['id', 'code', 'orderCode', 'documentCode']) || { id: updated.id || updated.code },
+          update: { $set: updated },
+          upsert: true
+        }
+      });
+
       if (alreadyConfirmed && !requiresReAccounting) skippedOrders += 1; else confirmedOrders += 1;
     }
+
+    const batchPostResult = await batchPostDeliveryArLedgers(normalPostChildren, confirmedBy, { session });
+    skippedOrders += batchPostResult.skippedPostedKeys.size;
+
+    if (orderUpdateOps.length) {
+      await MongoStore.salesOrders.bulkWrite(orderUpdateOps, { ordered: false, session });
+    }
+    // Công nợ khách hàng chỉ lấy từ AR Ledger; không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
   });
 
   return {

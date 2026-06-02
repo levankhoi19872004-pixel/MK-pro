@@ -1950,6 +1950,46 @@
         ]
       }
     },
+    "/api/master-orders/delivery-today/{id}/admin-unlock": {
+      "post": {
+        "tags": [
+          "Master Orders"
+        ],
+        "summary": "POST /api/master-orders/delivery-today/{id}/admin-unlock",
+        "operationId": "postMasterOrdersDeliveryTodayIdAdminUnlock",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/master-orders/delivery-today/confirm-accounting": {
       "post": {
         "tags": [
@@ -1957,6 +1997,46 @@
         ],
         "summary": "POST /api/master-orders/delivery-today/confirm-accounting",
         "operationId": "postMasterOrdersDeliveryTodayConfirmAccounting",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/master-orders/print-aggregate": {
+      "post": {
+        "tags": [
+          "Master Orders"
+        ],
+        "summary": "POST /api/master-orders/print-aggregate",
+        "operationId": "postMasterOrdersPrintAggregate",
         "responses": {
           "201": {
             "description": "Success response",
