@@ -991,3 +991,40 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 .old-debt-info strong{font-size:13px;color:#0f172a;}
 .old-debt-info small{font-size:12px;color:#64748b;}
 .old-debt-line b{font-size:13px;color:#dc2626;white-space:nowrap;}
+
+/* V45 FIX: flatten mobile delivery return product list - keep only parent card and row separators */
+.delivery-block.mobile-return-panel,
+.delivery-block.return-panel.mobile-return-panel{
+  border:none!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:0!important;
+  margin:0!important;
+}
+.mobile-return-scroll.delivery-products-scroll{
+  border:none!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:0!important;
+  margin:0!important;
+  gap:0!important;
+  max-height:320px!important;
+}
+.mobile-return-scroll.delivery-products-scroll .mobile-return-line.delivery-product-line{
+  border:none!important;
+  border-bottom:1px solid #edf2f7!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:8px 2px!important;
+}
+.mobile-return-scroll.delivery-products-scroll .mobile-return-line.delivery-product-line:last-child{
+  border-bottom:none!important;
+}
+.mobile-return-scroll.delivery-products-scroll .return-qty-input{
+  border:1px solid #dbe4ef!important;
+  border-radius:8px!important;
+  background:#fff!important;
+}

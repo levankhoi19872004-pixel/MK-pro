@@ -5687,3 +5687,67 @@ body::after{
 .web-return-copy-panel .mobile-return-line input:disabled{background:#fff;color:#020617;opacity:1;cursor:default;}
 .web-return-copy-panel .empty-line{border:1px solid #edf2f7;border-radius:8px;padding:10px;text-align:center;color:#64748b;background:#fff;}
 @media(max-width:900px){.web-return-copy-panel .mobile-return-line{grid-template-columns:1fr;}.web-return-copy-panel .mobile-return-line label{max-width:120px;}}
+
+/* V45 FIX: flatten delivery return product list - remove nested card/border layers */
+#deliveryTodayTab .delivery-return-card{
+  border:1px solid #e2e8f0!important;
+  border-radius:16px!important;
+  box-shadow:none!important;
+  background:#fff!important;
+}
+#deliveryTodayTab #deliveryReturnItems{
+  min-width:0!important;
+}
+#deliveryTodayTab #deliveryReturnItems .web-return-copy-panel,
+#deliveryTodayTab #deliveryReturnItems .delivery-block,
+#deliveryTodayTab #deliveryReturnItems .mobile-return-panel,
+#deliveryTodayTab #deliveryReturnItems .return-panel{
+  border:none!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:0!important;
+  margin:0!important;
+}
+#deliveryTodayTab #deliveryReturnItems .mobile-return-scroll,
+#deliveryTodayTab #deliveryReturnItems .delivery-products-scroll{
+  border:none!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:0!important;
+  margin:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:0!important;
+  max-height:320px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+#deliveryTodayTab #deliveryReturnItems .mobile-return-line,
+#deliveryTodayTab #deliveryReturnItems .delivery-product-line{
+  border:none!important;
+  border-bottom:1px solid #edf2f7!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  padding:8px 2px!important;
+  min-height:0!important;
+}
+#deliveryTodayTab #deliveryReturnItems .mobile-return-line:last-child,
+#deliveryTodayTab #deliveryReturnItems .delivery-product-line:last-child{
+  border-bottom:none!important;
+}
+#deliveryTodayTab #deliveryReturnItems .return-product strong{
+  font-size:12px!important;
+}
+#deliveryTodayTab #deliveryReturnItems .return-product span,
+#deliveryTodayTab #deliveryReturnItems .return-product small{
+  font-size:11.5px!important;
+}
+#deliveryTodayTab #deliveryReturnItems .return-qty-input{
+  border:1px solid #dbe4ef!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  min-height:34px!important;
+}
