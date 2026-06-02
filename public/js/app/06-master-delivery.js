@@ -438,12 +438,107 @@ function getDeliveryReturnItemsPayload(){
 function deliveryReturnAmountFromItems(row){
   const returnItems=Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:null);
   if(Array.isArray(returnItems)) return Math.round(returnItems.reduce((sum,item)=>{
-    const qty=Number(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)||0;
+    const qty=Number(item.qtyReturn ?? item.returnQty ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)||0;
     const price=Number(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0)||0;
-    const amount=Number(item.amount ?? item.returnAmount ?? NaN);
+    const amount=Number(item.returnAmount ?? item.amount ?? NaN);
     return sum+(Number.isFinite(amount)?amount:Math.round(qty*price));
   },0));
-  return Math.round(Number(row?.returnAmount ?? row?.returnedAmount ?? 0)||0);
+  if(row?.returnOrder) return calcReturnAmountFromReturnOrder(row.returnOrder);
+  return Math.round(Number(row?.returnAmount ?? row?.totalReturnAmount ?? row?.returnedAmount ?? 0)||0);
+}
+
+function calcReturnAmountFromReturnOrder(returnOrder){
+  if(!returnOrder)return 0;
+  const directTotal=Number(returnOrder.totalReturnAmount ?? returnOrder.returnAmount ?? returnOrder.totalAmount ?? returnOrder.amount ?? 0)||0;
+  if(directTotal>0)return Math.round(directTotal);
+  const items=Array.isArray(returnOrder.items)?returnOrder.items:[];
+  return Math.round(items.reduce((sum,item)=>{
+    const qty=Number(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)||0;
+    const price=Number(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0)||0;
+    const amount=Number(item.returnAmount ?? item.amount ?? NaN);
+    return sum+(Number.isFinite(amount)?amount:Math.round(qty*price));
+  },0));
+}
+
+function deliveryRowOrderKeys(row={}){
+  return [
+    row.id,row._id,row.code,row.orderCode,row.salesOrderCode,row.salesOrderId,row.orderId,row.refCode,row.refId
+  ].filter(Boolean).map(v=>String(v).trim()).filter(Boolean);
+}
+
+function returnOrderSalesKeys(ro={}){
+  return [
+    ro.salesOrderId,ro.salesOrderCode,ro.orderId,ro.orderCode,ro.refId,ro.refCode
+  ].filter(Boolean).map(v=>String(v).trim()).filter(Boolean);
+}
+
+function isReturnOrderForDeliveryRow(row,ro){
+  const rowKeys=deliveryRowOrderKeys(row);
+  const roKeys=returnOrderSalesKeys(ro);
+  if(!rowKeys.length||!roKeys.length)return false;
+  return roKeys.some(key=>rowKeys.includes(key));
+}
+
+function findReturnOrderForDeliveryRow(row,returnOrders=[]){
+  const exact=(returnOrders||[]).filter(ro=>isReturnOrderForDeliveryRow(row,ro));
+  if(!exact.length)return null;
+  return exact.slice().sort((a,b)=>{
+    const amountDiff=calcReturnAmountFromReturnOrder(b)-calcReturnAmountFromReturnOrder(a);
+    if(amountDiff!==0)return amountDiff;
+    const ai=Array.isArray(a.items)?a.items.length:0;
+    const bi=Array.isArray(b.items)?b.items.length:0;
+    if(ai!==bi)return bi-ai;
+    return String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''));
+  })[0];
+}
+
+function applyReturnOrderToDeliveryRow(row,returnOrder){
+  if(!row)return row;
+  if(!returnOrder){
+    row.returnOrder=null;
+    row.returnOrderId='';
+    row.returnOrderCode='';
+    row.returnOrderItems=[];
+    row.deliveryReturnItems=[];
+    row.returnItems=[];
+    row.returnAmount=0;
+    row.totalReturnAmount=0;
+    row.returnDraftLoaded=true;
+    return row;
+  }
+  const amount=calcReturnAmountFromReturnOrder(returnOrder);
+  row.returnOrder=returnOrder;
+  row.returnOrderId=returnOrder.id||returnOrder._id||returnOrder.code||'';
+  row.returnOrderCode=returnOrder.code||returnOrder.id||'';
+  row.returnOrderItems=mergeReturnDraftItemsWithSoldItems(row,Array.isArray(returnOrder.items)?returnOrder.items:[]);
+  row.deliveryReturnItems=row.returnOrderItems;
+  row.returnItems=row.returnOrderItems;
+  row.returnAmount=amount;
+  row.totalReturnAmount=amount;
+  row.returnMergeStatus=returnOrder.returnMergeStatus||row.returnMergeStatus||'';
+  row.masterReturnOrderId=returnOrder.masterReturnOrderId||row.masterReturnOrderId||'';
+  row.masterReturnOrderCode=returnOrder.masterReturnOrderCode||row.masterReturnOrderCode||'';
+  row.returnDraftLoaded=true;
+  return row;
+}
+
+function mergeReturnOrdersIntoDeliveryRows(rows=[],returnOrders=[]){
+  return (rows||[]).map(row=>applyReturnOrderToDeliveryRow(row,findReturnOrderForDeliveryRow(row,returnOrders)));
+}
+
+async function fetchReturnOrdersForDeliveryFilter(){
+  const params=deliverySummaryParams();
+  const staffQuery=selectedDeliveryStaffQuery();
+  if(staffQuery){
+    params.set('deliveryStaffCode',staffQuery);
+    params.set('delivery',staffQuery);
+  }
+  params.set('excludeInactive','1');
+  params.set('limit','5000');
+  const res=await fetch(`/api/return-orders?${params.toString()}`);
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.message||'Không tải được returnOrders theo bộ lọc giao hàng');
+  return json.returnOrders||json.returns||[];
 }
 function updateDeliveryReturnTotal(){
   const total=getDeliveryReturnItemsPayload().reduce((sum,item)=>sum+Number(item.amount||0),0);
@@ -584,42 +679,22 @@ function renderDeliveryReturnItems(row){
 async function loadReturnDraftForDeliveryRow(row){
   if(!row)return null;
   const params=new URLSearchParams();
-  const salesOrderId=String(row.salesOrderId||row.orderId||row.id||'').trim();
-  const salesOrderCode=String(row.salesOrderCode||row.orderCode||'').trim();
+  const salesOrderId=String(row.salesOrderId||row.orderId||row.id||row._id||'').trim();
+  const salesOrderCode=String(row.salesOrderCode||row.orderCode||row.code||'').trim();
   if(salesOrderId)params.set('salesOrderId',salesOrderId);
   if(salesOrderCode)params.set('salesOrderCode',salesOrderCode);
-  params.set('limit','5');
+  params.set('limit','20');
   params.set('excludeInactive','1');
   const res=await fetch(`/api/return-orders?${params.toString()}`);
   const json=await res.json();
   if(!json.ok)throw new Error(json.message||'Không tải được returnOrders của đơn đang chọn');
   const rows=json.returnOrders||json.returns||[];
-  const matched=rows.filter(r=>
-    (salesOrderId && String(r.salesOrderId||r.orderId||'').trim()===salesOrderId) ||
-    (salesOrderCode && String(r.salesOrderCode||r.orderCode||'').trim()===salesOrderCode)
-  );
-  const candidates=(matched.length?matched:rows).slice().sort((a,b)=>{
-    const aDraft=String(a.source||a.createdFrom||a.id||a.code||'').toLowerCase().includes('sales_order') || String(a.id||'').startsWith('RO-DRAFT');
-    const bDraft=String(b.source||b.createdFrom||b.id||b.code||'').toLowerCase().includes('sales_order') || String(b.id||'').startsWith('RO-DRAFT');
-    if(aDraft!==bDraft)return aDraft?-1:1;
-    const ai=Array.isArray(a.items)?a.items.length:0;
-    const bi=Array.isArray(b.items)?b.items.length:0;
-    if(ai!==bi)return bi-ai;
-    return String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''));
-  });
-  const exact=candidates[0] || null;
-  if(!exact)return null;
-  row.returnOrder=exact;
-  row.returnOrderId=exact.id||exact.code||'';
-  row.returnOrderCode=exact.code||exact.id||'';
-  row.returnOrderItems=mergeReturnDraftItemsWithSoldItems(row, Array.isArray(exact.items)?exact.items:[]);
-  row.deliveryReturnItems=row.returnOrderItems;
-  row.returnItems=row.returnOrderItems;
-  row.returnAmount=Number(exact.totalReturnAmount ?? exact.totalAmount ?? exact.amount ?? 0)||0;
-  row.returnMergeStatus=exact.returnMergeStatus||row.returnMergeStatus||'';
-  row.masterReturnOrderId=exact.masterReturnOrderId||row.masterReturnOrderId||'';
-  row.masterReturnOrderCode=exact.masterReturnOrderCode||row.masterReturnOrderCode||'';
-  row.returnDraftLoaded=true;
+  const exact=findReturnOrderForDeliveryRow(row,rows);
+  if(!exact){
+    applyReturnOrderToDeliveryRow(row,null);
+    return null;
+  }
+  applyReturnOrderToDeliveryRow(row,exact);
   return exact;
 }
 
@@ -704,6 +779,9 @@ async function selectDeliveryOrder(id){
   fillDeliveryEditPanel(row);
   try{
     await loadReturnDraftForDeliveryRow(row);
+    deliveryRowsCache=deliveryRowsCache.map(item=>String(item.id)===String(row.id)?row:item);
+    updateDeliveryKpiFromSummary(buildDeliveryKpiFromRows(deliveryRowsCache));
+    renderDeliveryTodaySummary();
     if(String(selectedDeliveryOrderId)===String(row.id))fillDeliveryEditPanel(row);
   }catch(err){
     row.returnDraftLoaded=true;
@@ -797,9 +875,10 @@ function deliveryMetricValues(row){
   const tm=Number(row.cashAmount ?? row.cashCollected ?? 0);
   const ck=Number(row.bankAmount ?? row.bankCollected ?? 0);
   const tt=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
-  // TH/Trả hàng do backend đồng bộ từ returnOrders. Frontend chỉ hiển thị, không tự lấy từ snapshot đơn.
-  const th=Number(row.returnAmount ?? 0);
-  const cn=Number(row.debtAmount ?? row.remainingAmount ?? Math.max(0,pt-tm-ck-tt-th));
+  const th=deliveryReturnAmountFromItems(row);
+  const cn=isDeliveryArLedgerSynced(row)
+    ? deliveryArLedgerDebt(row)
+    : Math.max(0, normalizeDebtAmount(pt-tm-ck-tt-th));
   return { pt, tm, ck, tt, th, cn };
 }
 function deliveryMetricBadge(label,value,cls,title){
@@ -885,9 +964,10 @@ function renderCompactDeliveryOrders(rows=[]){
     const cash=Number(row.cashAmount ?? row.cashCollected ?? 0);
     const bank=Number(row.bankAmount ?? row.bankCollected ?? 0);
     const reward=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
-    // TH lấy từ returnOrders ở backend; không dùng cache/snapshot tạm trên đơn.
-    const returned=Number(row.returnAmount||0);
-    const debt=Number(row.debtAmount ?? row.remainingAmount ?? Math.max(0,receivable-cash-bank-reward-returned));
+    const returned=deliveryReturnAmountFromItems(row);
+    const debt=isDeliveryArLedgerSynced(row)
+      ? deliveryArLedgerDebt(row)
+      : Math.max(0,normalizeDebtAmount(receivable-cash-bank-reward-returned));
     const locked=Boolean(row.accountingConfirmed||row.editLocked);
     const rowId=String(row.id||'');
     const checked=selectedDeliveryAccountingIds.has(rowId);
@@ -994,6 +1074,12 @@ async function loadDeliveryToday(){
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được danh sách đơn đi giao');
     deliveryRowsCache=json.orders||[];
+    try{
+      const returnOrders=await fetchReturnOrdersForDeliveryFilter();
+      deliveryRowsCache=mergeReturnOrdersIntoDeliveryRows(deliveryRowsCache,returnOrders);
+    }catch(returnErr){
+      console.warn('[deliveryToday] Không merge được returnOrders vào danh sách đơn:', returnErr);
+    }
     updateDeliveryKpiFromSummary(buildDeliveryKpiFromRows(deliveryRowsCache));
     if(deliveryAccountingStatus){
       deliveryAccountingStatus.textContent=`Đang hiển thị ${deliveryRowsCache.length} đơn/khách hàng của NVGH đã chọn. Có thể tick đơn rồi đẩy sang công nợ.`;
