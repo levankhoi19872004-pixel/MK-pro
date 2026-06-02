@@ -473,7 +473,12 @@ async function loadArLedger(){
   if(q)params.set('q',q);
   if(debtDateFrom&&debtDateFrom.value)params.set('dateFrom',debtDateFrom.value);
   if(debtDateTo&&debtDateTo.value)params.set('dateTo',debtDateTo.value);
-  const url=params.toString()?`/api/debts?${params.toString()}`:'/api/debts';
+  if(!params.has('dateFrom')){
+    const d=(typeof today==='function') ? today() : new Date().toISOString().slice(0,10);
+    params.set('dateFrom',d);
+  }
+  if(!params.has('dateTo')) params.set('dateTo',params.get('dateFrom'));
+  const url=`/api/debts?${params.toString()}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được AR Ledger');
     const rows=json.arLedger||[];

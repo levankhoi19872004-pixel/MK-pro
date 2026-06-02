@@ -661,7 +661,7 @@ async function loadDeliveryToday(){
       acc.cash += deliveryToNumber(row.cashCollected||0);
       acc.bank += deliveryToNumber(row.bankCollected||0);
       acc.reward += deliveryToNumber(row.rewardAmount||0);
-      acc.returned += deliveryTodeliveryReturnAmountFromItems(row);
+      acc.returned += deliveryReturnAmountFromItems(row);
       acc.debt += calculateDeliveryDebt(row);
       return acc;
     },{total:0,cash:0,bank:0,reward:0,returned:0,debt:0});
