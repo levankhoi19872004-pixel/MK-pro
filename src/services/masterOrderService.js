@@ -26,6 +26,60 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+
+function compactDeliveryOrderKeys(order = {}) {
+  return [order.id, order._id, order.code, order.orderCode, order.documentCode, order.salesOrderId, order.salesOrderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function masterChildOrderRefs(masterOrder = {}) {
+  return [...new Set((Array.isArray(masterOrder.childOrderIds) ? masterOrder.childOrderIds : [])
+    .map((item) => String(item?.id || item?.code || item?._id || item || '').trim())
+    .filter(Boolean))];
+}
+
+function buildIdentityInFilter(keys = [], fields = ['id', 'code']) {
+  const values = [...new Set((keys || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  if (!values.length) return null;
+  return { $or: fields.map((field) => ({ [field]: { $in: values } })) };
+}
+
+async function buildMasterChildrenMapFast(masterOrders = []) {
+  const allRefs = [...new Set((masterOrders || []).flatMap(masterChildOrderRefs))];
+  const map = new Map();
+  if (!allRefs.length) return map;
+
+  const filter = buildIdentityInFilter(allRefs, ['id', 'code', 'orderCode', 'documentCode']);
+  const orders = filter ? await orderRepository.findAll(filter) : [];
+  const byKey = new Map();
+  for (const order of orders || []) {
+    if (isInactiveStatus(order)) continue;
+    for (const key of compactDeliveryOrderKeys(order)) byKey.set(key, order);
+  }
+
+  for (const master of masterOrders || []) {
+    const children = [];
+    const used = new Set();
+    for (const ref of masterChildOrderRefs(master)) {
+      const child = byKey.get(ref);
+      const childKey = child ? String(child.id || child.code || ref) : '';
+      if (!child || used.has(childKey)) continue;
+      used.add(childKey);
+      children.push(child);
+    }
+    map.set(String(master.id || master.code || ''), children);
+  }
+  return map;
+}
+
+async function findReturnOrdersForDeliveryChildren(children = []) {
+  const keys = [...new Set((children || []).flatMap(compactDeliveryOrderKeys))];
+  if (!keys.length) return [];
+  const filter = buildIdentityInFilter(keys, ['salesOrderId', 'orderId', 'sourceOrderId', 'salesOrderCode', 'orderCode', 'sourceOrderCode']);
+  return filter ? returnOrderRepository.findAll(filter) : [];
+}
+
 function buildMasterOrderCode(existingMasterOrders = []) {
   const max = existingMasterOrders.reduce((result, order) => {
     const match = String(order.code || '').match(/(\d+)$/);
@@ -822,15 +876,26 @@ async function listDeliveryToday(query = {}) {
   const route = normalizeText(query.route || query.routeName);
   const status = normalizeText(query.status);
 
-  const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date, limit: query.limit || 100 });
-  const returnOrders = await returnOrderRepository.findAll();
+  const page = queryGuard.getPagination({ page: query.page || 1, limit: query.limit || 50 });
+  const masterFilter = {
+    $or: [{ date }, { deliveryDate: date }],
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+  };
+  const masterOrders = await masterOrderRepository.findAll(masterFilter, {
+    sort: { deliveryDate: -1, createdAt: -1, code: -1 },
+    skip: page.skip,
+    limit: page.limit
+  });
+  const childrenMap = await buildMasterChildrenMapFast(masterOrders);
+  const allChildren = Array.from(childrenMap.values()).flat();
+  const returnOrders = await findReturnOrdersForDeliveryChildren(allChildren);
   // Không dùng AR cache cho danh sách giao hàng; dùng công thức giao hàng bình thường.
   const arDebtMap = null;
   const rows = [];
 
   for (const master of masterOrders) {
     if (isInactiveStatus(master)) continue;
-    const children = Array.isArray(master.children) ? master.children : [];
+    const children = childrenMap.get(String(master.id || master.code || '')) || [];
     for (const child of children) {
       if (isInactiveStatus(child)) continue;
       const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
