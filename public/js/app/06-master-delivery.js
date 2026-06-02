@@ -631,8 +631,9 @@ function mergeReturnDraftItemsWithSoldItems(row = {}, draftItems = []){
     const key=String(sold.lineKey||deliveryReturnLineKey(sold)).trim();
     const code=deliveryItemCode(sold);
     const saved=byKey.get(key)||byCode.get(code)||{};
-    const price=deliveryItemPrice(saved)||deliveryItemPrice(sold);
-    const soldQty=deliveryReturnLineSoldQty(saved)||deliveryReturnLineSoldQty(sold)||deliveryItemQty(sold);
+    // Tên/SL giao/Giá bán phải lấy từ order.items gốc; returnOrders chỉ cấp returnQty.
+    const price=deliveryItemPrice(sold)||deliveryItemPrice(saved);
+    const soldQty=deliveryReturnLineSoldQty(sold)||deliveryItemQty(sold)||deliveryReturnLineSoldQty(saved);
     const returnQty=deliveryReturnLineReturnQty(saved);
     return {
       ...sold,

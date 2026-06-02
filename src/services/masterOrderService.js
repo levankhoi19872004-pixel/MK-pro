@@ -1416,7 +1416,19 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     editLocked: row.editLocked,
     needReAccounting: row.needReAccounting,
     adminAdjustmentOpen: row.adminAdjustmentOpen,
-    returnLocked: row.returnLocked
+    returnLocked: row.returnLocked,
+    returnLockMessage: row.returnLockMessage || '',
+    returnMergeStatus: row.returnMergeStatus || '',
+    masterReturnOrderId: row.masterReturnOrderId || '',
+    masterReturnOrderCode: row.masterReturnOrderCode || '',
+    // Bắt buộc trả về sản phẩm gốc của đơn cho màn phần mềm.
+    // Nếu không có các mảng này, frontend chỉ còn returnOrders.items nên sẽ mất dòng SL trả = 0.
+    items: Array.isArray(row.items) ? row.items : [],
+    orderItems: Array.isArray(row.orderItems) ? row.orderItems : (Array.isArray(row.items) ? row.items : []),
+    soldItems: Array.isArray(row.soldItems) ? row.soldItems : (Array.isArray(row.items) ? row.items : []),
+    originalItems: Array.isArray(row.originalItems) ? row.originalItems : (Array.isArray(row.items) ? row.items : []),
+    returnItems: Array.isArray(row.returnItems) ? row.returnItems : [],
+    deliveryReturnItems: Array.isArray(row.deliveryReturnItems) ? row.deliveryReturnItems : []
   }));
   return {
     date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),

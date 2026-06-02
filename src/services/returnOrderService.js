@@ -661,7 +661,11 @@ async function getReturnOrderBySalesOrderKey(salesOrderIdOrCode, query = {}, opt
     salesOrderCode: salesOrder?.code || query.salesOrderCode || query.orderCode || key
   };
   let existing = await findExistingReturnOrder(lookup);
-  if (!existing && salesOrder && options.ensureDraft !== false) {
+
+  // Đồng bộ 2 chiều cần danh sách chính luôn là order.items gốc.
+  // Vì vậy khi đọc phiếu trả, nếu có đơn gốc thì refresh draft từ salesOrder để bổ sung đủ
+  // các sản phẩm chưa trả (returnQty = 0), thay vì trả về returnOrders.items bị thiếu dòng.
+  if (salesOrder && options.ensureDraft !== false && (!existing || !isPostedReturnStatus(existing.status))) {
     const ensured = await ensureReturnDraftForSalesOrder(salesOrder, options);
     existing = ensured?.returnOrder || await findExistingReturnOrder(lookup);
   }
@@ -700,9 +704,11 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
     if (lineKey) inputByKey.set(lineKey, raw);
   }
 
-  const baseItems = Array.isArray(current.items) && current.items.length
-    ? current.items
-    : (Array.isArray(salesOrder?.items) ? buildReturnDraftFromSalesOrder(salesOrder, current).items : []);
+  // Khi lưu từ app hoặc phần mềm, danh sách chuẩn vẫn phải lấy từ order.items gốc.
+  // current.items có thể chỉ chứa các dòng đã trả của dữ liệu cũ, nên không được dùng làm danh sách chính nếu có salesOrder.
+  const baseItems = Array.isArray(salesOrder?.items) && salesOrder.items.length
+    ? buildReturnDraftFromSalesOrder(salesOrder, current).items
+    : (Array.isArray(current.items) ? current.items : []);
 
   const items = baseItems.map((item) => {
     const key = String(item.lineKey || returnLineKey(item)).trim();
