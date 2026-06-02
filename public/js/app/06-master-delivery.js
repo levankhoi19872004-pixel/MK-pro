@@ -416,14 +416,20 @@ function getReturnInputRows(){
   return Array.from(deliveryReturnItems.querySelectorAll('[data-return-code]'));
 }
 function getDeliveryReturnItemsPayload(){
-  return getReturnInputRows().map(input=>{
-    const qtyReturn=Number(input.value||0);
-    const price=Number(input.dataset.price || 0);
+  const row=getSelectedDeliveryRow?.();
+  const sourceItems=Array.isArray(row?.deliveryReturnItems)
+    ? row.deliveryReturnItems
+    : (Array.isArray(row?.returnItems) ? row.returnItems : []);
+  const mergedItems=mergeReturnDraftItemsWithSoldItems(row||{}, sourceItems);
+  return (Array.isArray(mergedItems)?mergedItems:[]).map((item,index)=>{
+    const qtyReturn=deliveryReturnLineReturnQty(item);
+    const price=deliveryItemPrice(item);
+    const code=deliveryItemCode(item)||`SP${index+1}`;
     return {
-      lineKey: input.dataset.returnLineKey || '',
-      productCode: input.dataset.returnCode || '',
-      productName: input.dataset.returnName || '',
-      soldQty: Number(input.dataset.orderQty || 0),
+      lineKey: item.lineKey || deliveryReturnLineKey(item),
+      productCode: code,
+      productName: deliveryItemName(item),
+      soldQty: deliveryReturnLineSoldQty(item),
       quantity: qtyReturn,
       returnQty: qtyReturn,
       qtyReturn,
@@ -648,42 +654,41 @@ function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
   const draftItems=deliveryReturnDraftItems(row);
   const baseSoldItems=deliverySoldItemsForReturn(row);
-  // Ưu tiên render theo baseSoldItems, không render trực tiếp theo returnOrders/items.
-  // Nếu render trực tiếp theo returnOrders thì các mã chưa trả sẽ bị ẩn.
-  const items=baseSoldItems.length?mergeReturnDraftItemsWithSoldItems(row, Array.isArray(draftItems)?draftItems:[]):((Array.isArray(draftItems)?draftItems:[]));
-  const savedReturnItems=Array.isArray(draftItems)?draftItems:(Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:[]));
+  // Danh sách trả hàng trên phần mềm là màn xem/duyệt: lấy đủ sản phẩm gốc của đơn giao,
+  // sau đó ghép SL trả từ returnOrders theo productCode. Không cho sửa SL trả tại web.
+  const items=baseSoldItems.length
+    ? mergeReturnDraftItemsWithSoldItems(row, Array.isArray(draftItems)?draftItems:[])
+    : (Array.isArray(draftItems)?draftItems:[]);
+  const savedReturnItems=Array.isArray(draftItems)
+    ? draftItems
+    : (Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:[]));
   const savedReturns=new Map(savedReturnItems.map(item=>[String(item.productCode||item.code||item.productId||'').trim(), deliveryReturnLineReturnQty(item)]));
   if(!items.length){
     const hint= row?.returnDraftLoaded===false
       ? 'Đang tải danh sách hàng trả từ returnOrders...'
-      : 'Đơn này chưa có returnOrders/items nên chưa thể chọn hàng trả.';
+      : 'Đơn này chưa có danh sách sản phẩm gốc nên chưa thể đối soát hàng trả.';
     deliveryReturnItems.innerHTML=`<div class="empty-state">${escapeHtml(hint)}</div>`;
     if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';
     if(deliveryEditReturn)deliveryEditReturn.value=0;
     return;
   }
   const returnLocked=Boolean(row?.returnLocked || row?.masterReturnOrderId || row?.masterReturnOrderCode || row?.returnOrder?.masterReturnOrderId || row?.returnOrder?.masterReturnOrderCode || String(row?.returnMergeStatus||row?.returnOrder?.returnMergeStatus||'').toLowerCase()==='merged');
-  const lockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
-  deliveryReturnItems.innerHTML=`${returnLocked?`<div class="empty-state warning-state">${escapeHtml(lockMessage)}</div>`:''}<div class="delivery-return-table">${items.map((item,index)=>{
+  const lockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý.' : 'Danh sách hàng trả chỉ xem/duyệt trên phần mềm. Số lượng trả chỉ sửa trên app giao hàng.');
+  deliveryReturnItems.innerHTML=`<div class="empty-state ${returnLocked?'warning-state':''}">${escapeHtml(lockMessage)}</div><div class="delivery-return-table readonly-return-table">${items.map((item,index)=>{
     const code=deliveryItemCode(item) || `SP${index+1}`;
     const name=deliveryItemName(item);
     const qty=deliveryReturnLineSoldQty(item);
     const price=deliveryItemPrice(item);
-    const saved=savedReturns.get(String(code).trim())||deliveryReturnLineReturnQty(item)||0;
-    const lineKey=String(item.lineKey||`${code}|${item.unit||''}|${price}`).trim();
-    return `<div class="delivery-return-line">
+    const returned=savedReturns.get(String(code).trim())||deliveryReturnLineReturnQty(item)||0;
+    const amount=Math.round(returned*price);
+    const lineClass=returned>0?'has-return':'zero-return';
+    return `<div class="delivery-return-line ${lineClass}">
       <div class="delivery-return-product"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span><small>SL bán: ${qty} · Giá: ${money(price)}</small></div>
-      <input data-return-code="${escapeHtml(code)}" data-return-line-key="${escapeHtml(lineKey)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" type="number" min="0" max="${qty}" step="1" value="${saved}" placeholder="SL trả" ${returnLocked?'disabled readonly':''} />
+      <div class="delivery-return-readonly" data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" data-return-qty="${returned}">
+        <span>SL trả</span><b>${returned}</b><small>${money(amount)}</small>
+      </div>
     </div>`;
   }).join('')}</div>`;
-  getReturnInputRows().forEach(input=>{
-    input.addEventListener('input',()=>{
-      const max=Number(input.max||0);
-      if(Number(input.value||0)>max)input.value=max;
-      if(Number(input.value||0)<0)input.value=0;
-      updateDeliveryReturnTotal();
-    });
-  });
   updateDeliveryReturnTotal();
 }
 
@@ -825,11 +830,9 @@ async function submitDeliveryEdit(event){
     showMessage(deliveryEditMessage,'Kế toán đã xác nhận, admin cần bấm Mở khóa điều chỉnh trước khi sửa',true);
     return;
   }
-  if(selectedRow?.returnLocked){
-    delete payload.returnItems;
-  }else{
-    payload.returnItems=getDeliveryReturnItemsPayload();
-  }
+  // Phần mềm chỉ xem/duyệt danh sách hàng trả. SL trả chỉ được sửa từ app giao hàng/returnOrders,
+  // nên tuyệt đối không gửi returnItems từ web để tránh ghi đè phiếu trả hàng thật.
+  delete payload.returnItems;
   ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
     if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
   });

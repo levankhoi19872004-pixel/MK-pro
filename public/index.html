@@ -719,23 +719,31 @@
             <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
           </div>
         </div>
-        <div class="table-wrap compact-table return-order-one-line-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Mã trả hàng</th>
-                <th>Ngày</th>
-                <th>Khách</th>
-                <th>Đơn bán</th>
-                <th>NV liên quan</th>
-                <th>Số lượng</th>
-                <th>Giá trị</th>
-                <th>Nguồn</th>
-                <th>Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody id="returnOrderTable"><tr><td colspan="9">Đang tải đơn trả hàng...</td></tr></tbody>
-          </table>
+        <div class="return-order-split-layout">
+          <div class="return-order-list-card">
+            <div class="return-order-section-title">Danh sách phiếu trả</div>
+            <div class="table-wrap compact-table return-order-one-line-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mã trả hàng</th>
+                    <th>Ngày</th>
+                    <th>Khách</th>
+                    <th>SL</th>
+                    <th>Giá trị</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="returnOrderTable"><tr><td colspan="6">Đang tải đơn trả hàng...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <aside id="returnOrderDetailPanel" class="return-order-detail-panel">
+            <div class="return-detail-empty">
+              <strong>Chi tiết đơn trả hàng</strong>
+              <p>Chọn một phiếu bên trái để xem sản phẩm trả. Khu vực này chỉ xem, không cho chỉnh sửa.</p>
+            </div>
+          </aside>
         </div>
       </section>
     </section>

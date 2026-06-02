@@ -1435,17 +1435,19 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   const debtBeforeCollection = deliveryDebtBase({ ...current, ...body });
   const cashCollected = toNumber(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0);
   const bankCollected = toNumber(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0);
-  const returnAmount = toNumber(body.returnAmount ?? current.returnAmount ?? 0);
   const rewardAmount = toNumber(body.rewardAmount ?? current.rewardAmount ?? current.displayRewardAmount ?? 0);
-  const returnItems = Array.isArray(body.returnItems) ? body.returnItems : (Array.isArray(current.returnItems) ? current.returnItems : []);
+
+  // Danh sách trả hàng trên phần mềm là read-only. Nguồn chuẩn luôn là returnOrders,
+  // không nhận returnItems/returnAmount từ form web để tránh ghi đè dữ liệu app giao hàng.
   const relatedReturnOrders = await returnOrderRepository.findAll();
   const lockedReturnOrder = getLockedReturnOrderForSalesOrder(relatedReturnOrders, current);
-  const lockedReturnItems = lockedReturnOrder ? returnItemsForSalesOrder([lockedReturnOrder], current) : [];
-  if (lockedReturnOrder && Array.isArray(body.returnItems) && hasReturnItemsChanged(returnItems, lockedReturnItems)) {
-    return { error: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả`, status: 400 };
+  const syncedReturnItems = returnItemsForSalesOrder(relatedReturnOrders, current);
+  const syncedReturnAmount = returnAmountForSalesOrder(relatedReturnOrders, current);
+  if (Array.isArray(body.returnItems)) {
+    return { error: 'Danh sách hàng trả chỉ được sửa trên app giao hàng. Phần mềm chỉ xem/duyệt và không được ghi đè returnOrders.', status: 400 };
   }
-  const effectiveReturnItems = lockedReturnOrder ? lockedReturnItems : returnItems;
-  const effectiveReturnAmount = lockedReturnOrder ? returnOrderTotalAmount(lockedReturnOrder) : returnAmount;
+  const effectiveReturnItems = lockedReturnOrder ? returnItemsForSalesOrder([lockedReturnOrder], current) : syncedReturnItems;
+  const effectiveReturnAmount = lockedReturnOrder ? returnOrderTotalAmount(lockedReturnOrder) : syncedReturnAmount;
 
   // Chặn nghiệp vụ trả vượt phải thu ngay tại service để tránh âm công nợ/AR Ledger sai,
   // kể cả khi người dùng bỏ qua kiểm tra ở giao diện.
@@ -1507,9 +1509,8 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     await orderRepository.upsert(updated, { session });
   });
 
-  // ERP Web cũng phải sinh/chỉnh phiếu trả hàng thật trong returnOrders.
-  // Nếu không, màn Đơn trả hàng / Đơn tổng trả hàng sẽ không thấy hàng trả dù đơn giao đã có returnAmount.
-  if (!lockedReturnOrder) await syncErpDeliveryReturnOrder(updated, effectiveReturnItems);
+  // Phần mềm không sinh/chỉnh phiếu returnOrders ở màn giao hàng hôm nay.
+  // returnOrders phải phát sinh từ app giao hàng để giữ đúng nguồn nghiệp vụ.
 
   return { salesOrder: updated };
 }

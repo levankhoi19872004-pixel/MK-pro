@@ -395,6 +395,101 @@ async function voidReceipt(id){
   }catch(err){alert(err.message)}
 }
 
+
+// V45 - Return Orders readonly split panel state
+let returnOrdersCache = [];
+let selectedReturnOrderKey = '';
+
+function returnOrderRowKey(r){
+  return String(r?.id || r?._id || r?.code || r?.returnCode || r?.salesOrderCode || r?.orderCode || '').trim();
+}
+function returnOrderItems(r){
+  const sources=[r?.items,r?.returnItems,r?.lines,r?.products,r?.details];
+  for(const src of sources){ if(Array.isArray(src)) return src; }
+  return [];
+}
+function returnItemQty(item){
+  return Number(item?.returnQty ?? item?.returnedQty ?? item?.qty ?? item?.quantity ?? item?.returnQuantity ?? 0) || 0;
+}
+function returnItemPrice(item){
+  return Number(item?.price ?? item?.unitPrice ?? item?.salePrice ?? item?.sellingPrice ?? item?.returnPrice ?? 0) || 0;
+}
+function returnItemAmount(item){
+  const direct=Number(item?.amount ?? item?.totalAmount ?? item?.lineAmount ?? item?.returnAmount ?? 0);
+  if(Number.isFinite(direct) && direct) return direct;
+  return returnItemQty(item) * returnItemPrice(item);
+}
+function returnOrderStatusLabel(status){
+  const s=String(status||'posted');
+  const map={posted:'Đã ghi',waiting_receive:'Chờ kho nhận',pending_warehouse_receive:'Chờ kho nhận',received:'Kho đã nhận',void:'Đã hủy',cancelled:'Đã hủy',canceled:'Đã hủy'};
+  return map[s] || s;
+}
+function returnOrderStatusBadgeClass(status){
+  const s=String(status||'').toLowerCase();
+  return ['void','cancelled','canceled','deleted'].includes(s)?'out':'in';
+}
+function renderReturnOrderDetail(order){
+  const panel=document.getElementById('returnOrderDetailPanel');
+  if(!panel) return;
+  if(!order){
+    panel.innerHTML='<div class="return-detail-empty"><strong>Chi tiết đơn trả hàng</strong><p>Chọn một phiếu bên trái để xem sản phẩm trả. Khu vực này chỉ xem, không cho chỉnh sửa.</p></div>';
+    return;
+  }
+  const items=returnOrderItems(order);
+  const totalQty=items.reduce((sum,it)=>sum+returnItemQty(it),0) || Number(order.totalQuantity||0);
+  const totalAmount=items.reduce((sum,it)=>sum+returnItemAmount(it),0) || Number(order.debtReduction ?? order.totalAmount ?? order.amount ?? 0);
+  const staff=debtPersonLabel(order.staffCode||order.deliveryStaffCode||order.salesmanCode,order.staffName||order.deliveryStaffName||order.salesmanName);
+  const source=String(order.source||order.refType||'returnOrders');
+  const status=String(order.status||'posted');
+  const rows=items.map((it,idx)=>{
+    const code=it.productCode||it.code||it.sku||it.productId||'';
+    const name=it.productName||it.name||it.itemName||'';
+    const unit=it.unit||it.baseUnit||it.uom||'';
+    const qty=returnItemQty(it);
+    const price=returnItemPrice(it);
+    const amount=returnItemAmount(it);
+    return `<tr><td>${idx+1}</td><td><strong>${escapeHtml(code)}</strong></td><td>${escapeHtml(name)}${unit?`<div class="muted tiny-text">ĐVT: ${escapeHtml(unit)}</div>`:''}</td><td class="price">${money(qty)}</td><td class="price">${money(price)}</td><td class="price cash-in">${money(amount)}</td></tr>`;
+  }).join('');
+  panel.innerHTML=`
+    <div class="return-detail-header">
+      <div>
+        <div class="return-detail-title">Chi tiết đơn trả hàng</div>
+        <div class="return-detail-code">${escapeHtml(order.code||order.id||'')}</div>
+      </div>
+      <span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span>
+    </div>
+    <div class="return-detail-grid">
+      <div><span>Ngày trả</span><strong>${escapeHtml(order.date||order.documentDate||order.returnDate||'')}</strong></div>
+      <div><span>Đơn bán</span><strong>${escapeHtml(order.salesOrderCode||order.orderCode||order.refCode||'')}</strong></div>
+      <div><span>Khách hàng</span><strong>${escapeHtml((order.customerCode||'')+' '+(order.customerName||''))}</strong></div>
+      <div><span>NV liên quan</span><strong>${escapeHtml(staff)}</strong></div>
+      <div><span>Nguồn</span><strong>${escapeHtml(source)}</strong></div>
+      <div><span>Không chỉnh sửa</span><strong>Readonly</strong></div>
+    </div>
+    <div class="return-detail-summary">
+      <div><span>Tổng SL trả</span><strong>${money(totalQty)}</strong></div>
+      <div><span>Tổng giá trị trả</span><strong class="cash-in">${money(totalAmount)}</strong></div>
+      <div><span>Giảm công nợ</span><strong class="cash-in">${money(order.debtReduction ?? order.totalAmount ?? totalAmount)}</strong></div>
+    </div>
+    <div class="return-detail-note"><strong>Ghi chú/lý do:</strong> ${escapeHtml(order.reason||order.returnReason||order.note||'Không có')}</div>
+    <div class="return-detail-products-title">Sản phẩm trả về</div>
+    <div class="return-detail-products-wrap">
+      <table class="return-detail-products-table">
+        <thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>SL trả</th><th>Đơn giá</th><th>Giá trị</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6">Phiếu này chưa có dòng sản phẩm trả.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+function selectReturnOrderByKey(key){
+  selectedReturnOrderKey=String(key||'');
+  const order=returnOrdersCache.find(r=>returnOrderRowKey(r)===selectedReturnOrderKey)||null;
+  if(returnOrderTable){
+    returnOrderTable.querySelectorAll('tr[data-return-key]').forEach(tr=>tr.classList.toggle('active', tr.dataset.returnKey===selectedReturnOrderKey));
+  }
+  renderReturnOrderDetail(order);
+}
+
 async function loadReturnOrders(){
   if(!returnOrderTable)return;
   const q=returnOrderSearchInput?returnOrderSearchInput.value.trim():'';
@@ -420,29 +515,34 @@ async function loadReturnOrders(){
     const rows=(json.returnOrders||json.returns||[]).filter(isActiveDocument);
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
     const modeLabel=returnOrderDateMode?.value==='all'?'Tất cả':(returnOrderDateMode?.value==='range'?'Theo khoảng ngày':'Hôm nay');
-    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>`;
-    if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="9">Chưa có đơn trả hàng.</td></tr>';return}
+    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Chọn một phiếu để xem sản phẩm trả · <strong>Readonly</strong>`;
+    returnOrdersCache=rows;
+    if(!rows.length){
+      selectedReturnOrderKey='';
+      returnOrderTable.innerHTML='<tr><td colspan="6">Chưa có đơn trả hàng.</td></tr>';
+      renderReturnOrderDetail(null);
+      return;
+    }
+    if(!rows.some(r=>returnOrderRowKey(r)===selectedReturnOrderKey)) selectedReturnOrderKey=returnOrderRowKey(rows[0]);
     returnOrderTable.innerHTML=rows.map(r=>{
-      const staff=debtPersonLabel(r.staffCode||r.deliveryStaffCode||r.salesmanCode,r.staffName||r.deliveryStaffName||r.salesmanName);
-      const source=String(r.source||r.refType||'returnOrders');
+      const key=returnOrderRowKey(r);
       const status=String(r.status||'posted');
-      const statusText=status==='posted'?'Đã ghi':(status==='void'?'Đã hủy':status);
-      const badgeClass=status==='void'?'out':'in';
-      return `<tr>
-        <td><strong>${escapeHtml(r.code||r.id||'')}</strong></td>
-        <td>${escapeHtml(r.date||r.documentDate||'')}</td>
+      const totalQty=Number(r.totalQuantity||0) || returnOrderItems(r).reduce((sum,it)=>sum+returnItemQty(it),0);
+      const totalAmount=Number(r.debtReduction??r.totalAmount??r.amount??0) || returnOrderItems(r).reduce((sum,it)=>sum+returnItemAmount(it),0);
+      return `<tr data-return-key="${escapeHtml(key)}" class="${key===selectedReturnOrderKey?'active':''}" title="Bấm để xem chi tiết sản phẩm trả">
+        <td><strong>${escapeHtml(r.code||r.id||'')}</strong><div class="muted tiny-text">${escapeHtml(r.salesOrderCode||r.orderCode||'')}</div></td>
+        <td>${escapeHtml(r.date||r.documentDate||r.returnDate||'')}</td>
         <td>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</td>
-        <td>${escapeHtml(r.salesOrderCode||r.orderCode||'')}</td>
-        <td>${escapeHtml(staff)}</td>
-        <td class="price">${money(r.totalQuantity)}</td>
-        <td class="price cash-in">${money(r.debtReduction??r.totalAmount)}</td>
-        <td>${escapeHtml(source)}</td>
-        <td><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></td>
+        <td class="price">${money(totalQty)}</td>
+        <td class="price cash-in">${money(totalAmount)}</td>
+        <td><span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span></td>
       </tr>`;
     }).join('');
+    selectReturnOrderByKey(selectedReturnOrderKey);
   }catch(err){
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
-    returnOrderTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
+    returnOrderTable.innerHTML=`<tr><td colspan="6">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
+    renderReturnOrderDetail(null);
   }
 }
 
@@ -817,6 +917,7 @@ if(returnOrderDateFrom) returnOrderDateFrom.addEventListener('change',()=>{ if(r
 if(returnOrderDateTo) returnOrderDateTo.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
 if(returnOrderSearchInput) returnOrderSearchInput.addEventListener('input',()=>{ clearTimeout(window.__returnOrderSearchTimer); window.__returnOrderSearchTimer=setTimeout(loadReturnOrders,250); });
 if(reloadReturnOrdersButton) reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
+if(returnOrderTable) returnOrderTable.addEventListener('click',event=>{ const tr=event.target.closest('tr[data-return-key]'); if(tr) selectReturnOrderByKey(tr.dataset.returnKey); });
 
 window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
 window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;
