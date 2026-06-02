@@ -251,6 +251,110 @@ async function createReturnOrder(body = {}) {
   return { returnOrder: toClient({ ...returnOrder, status: 'posted', warehouseReceiveStatus: 'received' }), updatedExisting: Boolean(existing) };
 }
 
+
+function normalizeDeliveryReturnItems(rawItems = [], salesOrder = null) {
+  const salesItems = new Map((salesOrder?.items || []).map((item) => [String(item.productCode || item.code || item.productId || '').trim(), item]));
+  return (Array.isArray(rawItems) ? rawItems : [])
+    .map((raw) => {
+      const productCode = String(raw.productCode || raw.code || raw.productId || '').trim();
+      const original = salesItems.get(productCode) || {};
+      const qtyReturn = toNumber(raw.qtyReturn ?? raw.returnQty ?? raw.returnQuantity ?? raw.returnedQty ?? raw.quantity ?? raw.qty ?? 0);
+      const price = toNumber(raw.price ?? raw.salePrice ?? raw.unitPrice ?? original.price ?? original.salePrice ?? original.unitPrice ?? 0);
+      return {
+        ...original,
+        ...raw,
+        productId: raw.productId || original.productId || productCode,
+        productCode: productCode || original.productCode || original.code || '',
+        productName: raw.productName || raw.name || original.productName || original.name || '',
+        quantity: qtyReturn,
+        qty: qtyReturn,
+        qtyReturn,
+        returnQty: qtyReturn,
+        returnQuantity: qtyReturn,
+        returnedQty: qtyReturn,
+        price,
+        salePrice: price,
+        unitPrice: price,
+        amount: Math.round(toNumber(raw.amount ?? qtyReturn * price)),
+        reason: raw.reason || ''
+      };
+    })
+    .filter((item) => item.productCode && toNumber(item.qtyReturn) > 0);
+}
+
+async function upsertDeliveryReturnOrder(body = {}, options = {}) {
+  const salesOrder = await resolveSalesOrder(body);
+  const salesOrderId = String(body.salesOrderId || body.orderId || salesOrder?.id || '').trim();
+  const salesOrderCode = String(body.salesOrderCode || body.orderCode || salesOrder?.code || '').trim();
+  if (!salesOrderId && !salesOrderCode) {
+    return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
+  }
+
+  const customer = await resolveCustomer(body, salesOrder);
+  if (!customer && !body.customerName && !salesOrder?.customerName) {
+    return { error: 'Không tìm thấy khách hàng', status: 404 };
+  }
+
+  const existing = await findExistingReturnOrder({ ...body, salesOrderId, salesOrderCode });
+  if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
+    return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
+  }
+  if (existing && isPostedReturnStatus(existing.status)) {
+    return { error: 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng', status: 400 };
+  }
+
+  const existingOrders = await returnOrderRepository.findAll();
+  const items = normalizeDeliveryReturnItems(body.items, salesOrder);
+  const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
+  const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
+  const now = nowIso();
+  const id = String(existing?.id || body.id || `RO-MOBILE-${String(salesOrderId || salesOrderCode).replace(/[^a-zA-Z0-9_-]/g, '')}` || makeId('RO')).trim();
+  const code = String(existing?.code || body.code || buildReturnCode(existingOrders)).trim();
+  const status = totalAmount > 0 ? (body.status || 'waiting_receive') : 'cleared';
+
+  const returnOrder = {
+    ...(existing || {}),
+    ...body,
+    id,
+    code,
+    date: dateUtil.toDateOnly(body.date || body.documentDate || existing?.date || today()),
+    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || today()),
+    salesOrderId,
+    salesOrderCode,
+    orderId: salesOrderId,
+    orderCode: salesOrderCode,
+    customerId: customer?.id || body.customerId || salesOrder?.customerId || existing?.customerId || '',
+    customerCode: customer?.code || body.customerCode || salesOrder?.customerCode || existing?.customerCode || '',
+    customerName: customer?.name || body.customerName || salesOrder?.customerName || existing?.customerName || '',
+    deliveryStaffId: body.deliveryStaffId || existing?.deliveryStaffId || salesOrder?.deliveryStaffId || '',
+    deliveryStaffCode: body.deliveryStaffCode || existing?.deliveryStaffCode || salesOrder?.deliveryStaffCode || '',
+    deliveryStaffName: body.deliveryStaffName || existing?.deliveryStaffName || salesOrder?.deliveryStaffName || '',
+    staffCode: body.staffCode || body.deliveryStaffCode || existing?.staffCode || existing?.deliveryStaffCode || '',
+    staffName: body.staffName || body.deliveryStaffName || existing?.staffName || existing?.deliveryStaffName || '',
+    items,
+    totalQuantity,
+    totalAmount,
+    amount: totalAmount,
+    debtReduction: totalAmount,
+    status,
+    returnStatus: status,
+    returnMergeStatus: existing?.returnMergeStatus || body.returnMergeStatus || 'unmerged',
+    warehouseReceiveStatus: totalAmount > 0 ? (body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || 'waiting_receive') : 'cleared',
+    source: body.source || existing?.source || 'mobile_delivery',
+    accountingStatus: totalAmount > 0 ? (body.accountingStatus || existing?.accountingStatus || 'pending') : 'cleared',
+    accountingConfirmed: false,
+    postedAt: '',
+    receivedAt: '',
+    note: String(body.note ?? existing?.note ?? '').trim(),
+    clearedAt: totalAmount > 0 ? '' : now,
+    updatedAt: now,
+    createdAt: existing?.createdAt || body.createdAt || now
+  };
+
+  await returnOrderRepository.upsert(returnOrder, options);
+  return { returnOrder: toClient(returnOrder), updatedExisting: Boolean(existing) };
+}
+
 async function createPendingReturnOrder(body = {}, options = {}) {
   const built = await buildReturnOrderDocument({
     ...body,
@@ -324,4 +428,4 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
   return { returnOrder: toClient(received), alreadyReceived: false };
 }
 
-module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, confirmReceiveReturnOrder, toClient };
+module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, toClient };

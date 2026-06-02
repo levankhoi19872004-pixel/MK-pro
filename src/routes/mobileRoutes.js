@@ -509,7 +509,7 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
 
   // V45 chuẩn: app và ERP đều ghi qua returnOrderService để dùng chung 1 nguồn returnOrders.
   // Dedup chỉ theo salesOrderId/salesOrderCode hợp lệ; tuyệt đối không dùng orderId/orderCode mơ hồ.
-  const result = await returnOrderService.createPendingReturnOrder({
+  const result = await returnOrderService.upsertDeliveryReturnOrder({
     id: stableId,
     date: dateUtil.toDateOnly(now),
     documentDate: dateUtil.toDateOnly(now),
@@ -527,7 +527,7 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
     status: 'waiting_receive',
     returnMergeStatus: 'unmerged',
     warehouseReceiveStatus: 'waiting_receive',
-    source: 'mobile_delivery_return',
+    source: 'mobile_delivery',
     accountingStatus: 'pending',
     accountingConfirmed: false,
     refType: 'mobileDeliveryReturn',
@@ -788,37 +788,41 @@ function isReturnOrderLockedForMobile(row = {}) {
 async function clearMobileReturnOrderForSalesOrder(order = {}, note = '') {
   const active = await activeReturnSummaryForOrder(order);
   const returnOrder = active.returnOrder;
-  if (!returnOrder) return { cleared: false, returnOrder: null };
-  if (isReturnOrderLockedForMobile(returnOrder)) {
+  if (returnOrder && isReturnOrderLockedForMobile(returnOrder)) {
     throw new Error('Phiếu trả hàng đã gộp đơn tổng/kho đã nhận/đã ghi sổ, không được sửa từ app giao hàng');
   }
-  const now = new Date().toISOString();
-  const cancelled = {
-    ...returnOrder,
+  const result = await returnOrderService.upsertDeliveryReturnOrder({
+    id: returnOrder?.id || stableReturnIdForOrder(order),
+    code: returnOrder?.code || '',
+    salesOrderId: getDocId(order),
+    salesOrderCode: orderCode(order),
+    orderId: getDocId(order),
+    orderCode: orderCode(order),
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    staffCode: order.deliveryStaffCode || '',
+    staffName: order.deliveryStaffName || '',
+    date: dateUtil.todayVN(),
     items: [],
-    totalQuantity: 0,
-    totalAmount: 0,
-    amount: 0,
-    debtReduction: 0,
-    status: 'cancelled',
-    returnStatus: 'cancelled',
-    warehouseReceiveStatus: 'cancelled',
-    accountingStatus: 'cancelled',
-    cancelReason: String(note || '').trim() || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng',
-    cancelledAt: now,
-    updatedAt: now
-  };
-  await ReturnOrder.updateOne(
-    { $or: [{ id: returnOrder.id }, { code: returnOrder.code }, { _id: returnOrder._id }].filter((item) => Object.values(item)[0]) },
-    { $set: cancelled },
-    { upsert: false }
-  );
-  return { cleared: true, returnOrder: cancelled };
+    note: String(note || '').trim() || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng',
+    source: 'mobile_delivery',
+    refType: 'mobileDeliveryReturnClear',
+    returnType: 'partial'
+  });
+  if (result?.error) {
+    const err = new Error(result.error);
+    err.status = result.status || 400;
+    throw err;
+  }
+  return { cleared: true, returnOrder: result.returnOrder || null };
 }
-
-async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
+async function saveDeliveryPaymentCanonical(order, requestOrderId = '', options = {}) {
   const keys = orderIdentityKeys(requestOrderId, order);
   const patch = deliveryPaymentPatchFromOrder(order);
+  const forceSyncReturn = Boolean(options && options.syncReturn);
   const objectIds = keys.filter((key) => /^[a-f\d]{24}$/i.test(key));
   const filter = {
     $or: [
@@ -842,12 +846,25 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
     canonicalReturnItems = activeReturnSummary.items;
     canonicalReturnAmount = activeReturnSummary.amount;
   }
-  if (canonicalReturnItems.length) {
+  const shouldSyncReturn = forceSyncReturn || Boolean(activeReturnSummary.returnOrder);
+  if (shouldSyncReturn) {
+    canonicalReturnItems = activeReturnSummary.returnOrder ? activeReturnSummary.items : canonicalReturnItems;
+    canonicalReturnAmount = activeReturnSummary.returnOrder ? activeReturnSummary.amount : canonicalReturnAmount;
     patch.returnAmount = canonicalReturnAmount;
     patch.returnedAmount = canonicalReturnAmount;
     patch.returnItems = canonicalReturnItems;
     patch.deliveryReturnItems = canonicalReturnItems;
-    patch.debtAmount = calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch });
+    patch.debtAmount = calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: canonicalReturnAmount });
+    patch.debt = patch.debtAmount;
+    patch.arBalance = patch.debtAmount;
+  } else {
+    // returnOrders là nguồn thật. Nếu request chỉ lưu tiền và không có phiếu trả đang hiệu lực,
+    // không được đẩy returnItems/returnAmount cũ trong SalesOrder hoặc snapshot lên ghi đè hiển thị.
+    delete patch.returnAmount;
+    delete patch.returnedAmount;
+    delete patch.returnItems;
+    delete patch.deliveryReturnItems;
+    patch.debtAmount = calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: 0 });
     patch.debt = patch.debtAmount;
     patch.arBalance = patch.debtAmount;
   }
@@ -872,20 +889,25 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
       ...patch,
       orderId: keys[0] || getDocId(order)
     };
-    if (canonicalReturnItems.length) {
+    if (shouldSyncReturn) {
       servicePayload.returnItems = canonicalReturnItems;
       servicePayload.deliveryReturnItems = canonicalReturnItems;
       servicePayload.returnAmount = canonicalReturnAmount;
       servicePayload.returnedAmount = canonicalReturnAmount;
+    } else {
+      delete servicePayload.returnItems;
+      delete servicePayload.deliveryReturnItems;
+      delete servicePayload.returnAmount;
+      delete servicePayload.returnedAmount;
     }
     await masterOrderService.updateDeliveryTodayOrder(keys[0] || getDocId(order), servicePayload);
-    await syncDeliveryPaymentToMasterSnapshot(snapshotOrder, keys);
+    await syncDeliveryPaymentToMasterSnapshot(snapshotOrder, keys, { syncReturn: shouldSyncReturn });
   });
 
   return snapshotOrder;
 }
 
-async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
+async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = [], options = {}) {
   const keys = orderIdentityKeys(...(Array.isArray(extraKeys) ? extraKeys : [extraKeys]), order);
   if (!keys.length) return;
 
@@ -930,6 +952,13 @@ async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = []) {
     deliveryNote: order.deliveryNote || '',
     updatedAt: new Date().toISOString()
   };
+
+  if (!(options && options.syncReturn)) {
+    delete paymentPatch.returnAmount;
+    delete paymentPatch.returnedAmount;
+    delete paymentPatch.returnItems;
+    delete paymentPatch.deliveryReturnItems;
+  }
 
   for (const master of masters) {
     let changed = false;
@@ -1656,7 +1685,7 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
       order.debt = order.debtAmount;
       order.updatedAt = new Date().toISOString();
       await order.save();
-      const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId);
+      const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId, { syncReturn: true });
       return ok(res, {
         message: clearResult.cleared ? 'Đã xóa/cập nhật hàng trả về 0' : 'Đơn không có hàng trả cần cập nhật',
         returnOrder: clearResult.returnOrder ? stripMongoFields(clearResult.returnOrder) : null,
@@ -1681,7 +1710,7 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     await order.save();
     // Đồng bộ ngay nguồn hiển thị app/web sau khi tạo hàng trả.
     // Nếu không, lần bấm Lưu tiền kế tiếp có thể đọc snapshot/patch cũ và đẩy ngược returnAmount về 0.
-    const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId);
+    const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId, { syncReturn: true });
     return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject ? returnOrder.toObject() : returnOrder), order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder) }, 201);
   } catch (err) {
     return fail(res, 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');

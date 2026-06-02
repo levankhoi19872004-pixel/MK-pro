@@ -180,6 +180,8 @@ function createMobileDeliveryService(ctx) {
 
   async function listDeliveryOrders({ query = {}, mobileUser }) {
     const data = await repo.getPrimaryDataSnapshot();
+    // returnOrders là nguồn thật; luôn refresh từ Mongo trước khi build danh sách app.
+    data.returnOrders = await returnOrderRepository.findAll();
     const targetDate = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const q = normalizeText(query.q);
     const status = normalizeText(query.status);
@@ -318,7 +320,7 @@ function createMobileDeliveryService(ctx) {
         const date = dateUtil.todayVN();
         const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
         const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
-        const result = await returnOrderService.createPendingReturnOrder({
+        const result = await returnOrderService.upsertDeliveryReturnOrder({
           id: stableReturnId,
           salesOrderId: order.id,
           salesOrderCode: order.code,
@@ -334,7 +336,7 @@ function createMobileDeliveryService(ctx) {
           deliveryStaffCode: mobileUser.code || '',
           deliveryStaffName: mobileUser.name || '',
           note: note || `Không giao được - trả toàn bộ đơn ${order.code}`,
-          source: 'mobile_delivery_return',
+          source: 'mobile_delivery',
           accountingStatus: 'pending',
           accountingConfirmed: false,
           refType: 'mobileDeliveryFullReturn',
@@ -438,24 +440,28 @@ function createMobileDeliveryService(ctx) {
         return { statusCode: 400, body: { ok: false, message: 'Đơn không có hàng để trả' } };
       }
       const activeReturnOrder = getActiveReturnOrdersForSalesOrder(data, order)[0];
-      if (activeReturnOrder) {
-        const now = new Date().toISOString();
-        await returnOrderRepository.upsert({
-          ...activeReturnOrder,
-          items: [],
-          totalQuantity: 0,
-          totalAmount: 0,
-          amount: 0,
-          debtReduction: 0,
-          status: 'cancelled',
-          returnStatus: 'cancelled',
-          warehouseReceiveStatus: 'cancelled',
-          accountingStatus: 'cancelled',
-          cancelReason: note || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng',
-          cancelledAt: now,
-          updatedAt: now
-        });
-      }
+      const clearResult = await returnOrderService.upsertDeliveryReturnOrder({
+        id: activeReturnOrder?.id || `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
+        code: activeReturnOrder?.code || '',
+        salesOrderId: order.id,
+        salesOrderCode: order.code,
+        orderId: order.id,
+        orderCode: order.code,
+        customerId: order.customerId || '',
+        customerCode: order.customerCode || '',
+        customerName: order.customerName || '',
+        deliveryStaffCode: mobileUser.code || order.deliveryStaffCode || '',
+        deliveryStaffName: mobileUser.name || order.deliveryStaffName || '',
+        staffCode: mobileUser.code || '',
+        staffName: mobileUser.name || '',
+        date: dateUtil.todayVN(),
+        items: [],
+        note: note || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng',
+        source: 'mobile_delivery',
+        refType: 'mobileDeliveryReturnClear',
+        returnType
+      });
+      if (clearResult.error) return { statusCode: clearResult.status || 400, body: { ok: false, message: clearResult.error } };
       order.returnAmount = 0;
       order.returnedAmount = 0;
       order.returnItems = [];
@@ -465,7 +471,7 @@ function createMobileDeliveryService(ctx) {
       order.debt = order.debtAmount;
       order.updatedAt = new Date().toISOString();
       await persistDeliverySnapshotSafely(data);
-      const finalResult = { statusCode: 200, body: { ok: true, source: 'return-orders-main-route', message: activeReturnOrder ? 'Đã xóa/cập nhật hàng trả về 0' : 'Đơn không có hàng trả cần cập nhật', returnOrder: activeReturnOrder ? { ...activeReturnOrder, items: [], totalAmount: 0, amount: 0, debtReduction: 0, status: 'cancelled' } : null, order } };
+      const finalResult = { statusCode: 200, body: { ok: true, source: 'return-orders-main-route', message: 'Đã xóa/cập nhật hàng trả về 0', returnOrder: clearResult?.returnOrder || null, order } };
       return rememberIdempotentResult(idemKey, finalResult);
     }
 
@@ -475,7 +481,7 @@ function createMobileDeliveryService(ctx) {
     // App giao hàng chỉ lập phiếu trả ở trạng thái chờ kho nhận.
     // Chỉ khi Đơn tổng trả hàng được kho xác nhận mới nhập tồn và giảm công nợ/doanh thu.
     const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
-    const result = await returnOrderService.createPendingReturnOrder({
+    const result = await returnOrderService.upsertDeliveryReturnOrder({
       id: stableReturnId,
       salesOrderId: order.id,
       salesOrderCode: order.code,
@@ -491,7 +497,7 @@ function createMobileDeliveryService(ctx) {
       deliveryStaffCode: mobileUser.code || '',
       deliveryStaffName: mobileUser.name || '',
       note: note || (returnType === 'full' ? `App giao hàng trả cả đơn ${order.code}` : `App giao hàng trả một phần đơn ${order.code}`),
-      source: 'mobile_delivery_return',
+      source: 'mobile_delivery',
       accountingStatus: 'pending',
       accountingConfirmed: false,
       refType: returnType === 'full' ? 'mobileDeliveryFullReturn' : 'mobileDeliveryPartialReturn',
