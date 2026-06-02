@@ -703,7 +703,7 @@ async function saveDeliveryProducts(orderId) {
   }
   try {
     if (!order.returnLocked) {
-      await mobileApi.createDeliveryReturn({
+      const returnResult = await mobileApi.createDeliveryReturn({
         orderId,
         returnType: 'partial',
         items,
@@ -711,6 +711,10 @@ async function saveDeliveryProducts(orderId) {
         allowEmptyReturn: true,
         note: noteInput?.value || ''
       });
+      if (returnResult?.order) {
+        mergeSavedDeliveryOrder(returnResult.order);
+        Object.assign(order, returnResult.order);
+      }
     }
     const result = await mobileApi.confirmDelivery({
       orderId,
@@ -751,8 +755,7 @@ async function saveDeliverySettlement(orderId) {
         qtyReturn,
         maxQty
       };
-    })
-    .filter(item => item.qtyReturn > 0);
+    });
   const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
   if (invalidItem) {
     setMessage(actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng đặt`, 'error');
@@ -767,6 +770,8 @@ async function saveDeliverySettlement(orderId) {
         orderId,
         returnType: 'partial',
         items,
+        replaceReturnItems: true,
+        allowEmptyReturn: true,
         note: noteInput?.value || ''
       });
     }
@@ -805,8 +810,7 @@ async function createReturn(orderId, returnType) {
         maxQty,
         reason: reasonInput?.value || ''
       };
-    })
-    .filter(item => item.qtyReturn > 0);
+    });
   const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
   if (invalidItem) {
     setMessage(actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng trong đơn`, 'error');
@@ -827,6 +831,8 @@ async function createReturn(orderId, returnType) {
       orderId,
       returnType,
       items,
+      replaceReturnItems: true,
+      allowEmptyReturn: true,
       note: noteInput?.value || ''
     });
     setMessage(actionMessage, returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', 'success');

@@ -428,7 +428,44 @@ function createMobileDeliveryService(ctx) {
     }
 
     const items = buildReturnItemsFromRequest(order, body.items || [], returnType);
-    if (!items.length) return { statusCode: 400, body: { ok: false, message: returnType === 'full' ? 'Đơn không có hàng để trả' : 'Chưa chọn sản phẩm/số lượng trả' } };
+
+    // Cho phép app gửi danh sách SL trả = 0 để ghi đè/xóa phiếu trả tạm cũ.
+    // Tiền hàng trả không lưu ở ô Thu tiền; nó lấy từ returnOrders.totalAmount/debtReduction.
+    if (!items.length) {
+      if (returnType === 'full') {
+        return { statusCode: 400, body: { ok: false, message: 'Đơn không có hàng để trả' } };
+      }
+      const activeReturnOrder = getActiveReturnOrdersForSalesOrder(data, order)[0];
+      if (activeReturnOrder) {
+        const now = new Date().toISOString();
+        await returnOrderRepository.upsert({
+          ...activeReturnOrder,
+          items: [],
+          totalQuantity: 0,
+          totalAmount: 0,
+          amount: 0,
+          debtReduction: 0,
+          status: 'cancelled',
+          returnStatus: 'cancelled',
+          warehouseReceiveStatus: 'cancelled',
+          accountingStatus: 'cancelled',
+          cancelReason: note || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng',
+          cancelledAt: now,
+          updatedAt: now
+        });
+      }
+      order.returnAmount = 0;
+      order.returnedAmount = 0;
+      order.returnItems = [];
+      order.deliveryReturnItems = [];
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
+      order.updatedAt = new Date().toISOString();
+      await persistDeliverySnapshotSafely(data);
+      const finalResult = { statusCode: 200, body: { ok: true, source: 'return-orders-main-route', message: activeReturnOrder ? 'Đã xóa/cập nhật hàng trả về 0' : 'Đơn không có hàng trả cần cập nhật', returnOrder: activeReturnOrder ? { ...activeReturnOrder, items: [], totalAmount: 0, amount: 0, debtReduction: 0, status: 'cancelled' } : null, order } };
+      return rememberIdempotentResult(idemKey, finalResult);
+    }
 
     const date = dateUtil.todayVN();
     const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
