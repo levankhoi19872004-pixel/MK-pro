@@ -772,6 +772,50 @@ async function activeReturnItemsForOrder(order = {}) {
   return (await activeReturnSummaryForOrder(order)).items;
 }
 
+function isReturnOrderLockedForMobile(row = {}) {
+  const status = String(row.status || '').toLowerCase();
+  const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
+  const mergeStatus = String(row.returnMergeStatus || '').toLowerCase();
+  return Boolean(
+    mergeStatus === 'merged'
+    || row.masterReturnOrderId
+    || row.masterReturnOrderCode
+    || ['posted', 'received', 'warehouse_received', 'completed'].includes(status)
+    || warehouseStatus === 'received'
+  );
+}
+
+async function clearMobileReturnOrderForSalesOrder(order = {}, note = '') {
+  const active = await activeReturnSummaryForOrder(order);
+  const returnOrder = active.returnOrder;
+  if (!returnOrder) return { cleared: false, returnOrder: null };
+  if (isReturnOrderLockedForMobile(returnOrder)) {
+    throw new Error('Phiếu trả hàng đã gộp đơn tổng/kho đã nhận/đã ghi sổ, không được sửa từ app giao hàng');
+  }
+  const now = new Date().toISOString();
+  const cancelled = {
+    ...returnOrder,
+    items: [],
+    totalQuantity: 0,
+    totalAmount: 0,
+    amount: 0,
+    debtReduction: 0,
+    status: 'cancelled',
+    returnStatus: 'cancelled',
+    warehouseReceiveStatus: 'cancelled',
+    accountingStatus: 'cancelled',
+    cancelReason: String(note || '').trim() || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng',
+    cancelledAt: now,
+    updatedAt: now
+  };
+  await ReturnOrder.updateOne(
+    { $or: [{ id: returnOrder.id }, { code: returnOrder.code }, { _id: returnOrder._id }].filter((item) => Object.values(item)[0]) },
+    { $set: cancelled },
+    { upsert: false }
+  );
+  return { cleared: true, returnOrder: cancelled };
+}
+
 async function saveDeliveryPaymentCanonical(order, requestOrderId = '') {
   const keys = orderIdentityKeys(requestOrderId, order);
   const patch = deliveryPaymentPatchFromOrder(order);
@@ -1597,9 +1641,30 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     const items = returnType === 'full'
       ? sourceItems.map((item) => ({ ...item, qtyReturn: toNumber(item.quantity || item.qty), reason: req.body?.note || '' }))
       : reqItems.filter((item) => toNumber(item.qtyReturn) > 0);
-    if (!items.length) return fail(res, 400, returnType === 'full' ? 'Đơn không có hàng để trả' : 'Chưa chọn sản phẩm/số lượng trả');
 
-    // Idempotent: 1 đơn giao chỉ có 1 returnOrder. Lưu lại là cập nhật phiếu cũ.
+    // Cho phép app gửi danh sách rỗng khi NVGH sửa toàn bộ SL trả về 0.
+    // Trường hợp này phải hủy/clear phiếu trả tạm cũ, đồng thời đưa returnAmount của SalesOrder về 0.
+    if (!items.length) {
+      if (returnType === 'full') return fail(res, 400, 'Đơn không có hàng để trả');
+      const clearResult = await clearMobileReturnOrderForSalesOrder(order, req.body?.note || '');
+      order.returnAmount = 0;
+      order.returnedAmount = 0;
+      order.returnItems = [];
+      order.deliveryReturnItems = [];
+      order.debtBeforeCollection = deliveryDebtBase(order);
+      order.debtAmount = calculateDeliveryDebt(order);
+      order.debt = order.debtAmount;
+      order.updatedAt = new Date().toISOString();
+      await order.save();
+      const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId);
+      return ok(res, {
+        message: clearResult.cleared ? 'Đã xóa/cập nhật hàng trả về 0' : 'Đơn không có hàng trả cần cập nhật',
+        returnOrder: clearResult.returnOrder ? stripMongoFields(clearResult.returnOrder) : null,
+        order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder)
+      });
+    }
+
+    // Idempotent: 1 đơn giao chỉ có 1 returnOrder. Lưu lại là cập nhật phiếu cũ bằng số lượng mới.
     const returnOrder = await upsertMobileReturnOrder(order, items, req, returnType);
     const returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
     const savedReturnItems = Array.isArray(returnOrder.items) ? returnOrder.items : [];
