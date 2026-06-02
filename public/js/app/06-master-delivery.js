@@ -575,11 +575,19 @@ function deliveryReturnLineKey(item = {}){
   const price=deliveryItemPrice(item);
   return `${code}|${unit}|${price}`;
 }
+function deliverySoldItemsForReturn(row = {}){
+  const sources=[row?.soldItems,row?.orderItems,row?.salesOrderItems,row?.originalItems,row?.items];
+  for(const source of sources){
+    if(Array.isArray(source)&&source.length)return source;
+  }
+  return [];
+}
 function mergeReturnDraftItemsWithSoldItems(row = {}, draftItems = []){
-  const soldItems=Array.isArray(row?.soldItems)?row.soldItems:(Array.isArray(row?.orderItems)?row.orderItems:(Array.isArray(row?.items)?row.items:[]));
+  // Danh sách chính LUÔN là sản phẩm gốc của đơn giao. returnOrders chỉ dùng để điền SL trả.
+  // Nhờ vậy sản phẩm chưa trả (SL trả = 0) vẫn hiện để người dùng có thể sửa/bổ sung.
+  const soldItems=deliverySoldItemsForReturn(row);
   const cleanDraft=Array.isArray(draftItems)?draftItems:[];
   if(!soldItems.length)return cleanDraft;
-  if(cleanDraft.length>=soldItems.length)return cleanDraft;
 
   const byKey=new Map();
   const byCode=new Map();
@@ -639,7 +647,10 @@ function deliveryReturnLineReturnQty(item){
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
   const draftItems=deliveryReturnDraftItems(row);
-  const items=Array.isArray(draftItems)?draftItems:(Array.isArray(row?.items)?row.items:[]);
+  const baseSoldItems=deliverySoldItemsForReturn(row);
+  // Ưu tiên render theo baseSoldItems, không render trực tiếp theo returnOrders/items.
+  // Nếu render trực tiếp theo returnOrders thì các mã chưa trả sẽ bị ẩn.
+  const items=baseSoldItems.length?mergeReturnDraftItemsWithSoldItems(row, Array.isArray(draftItems)?draftItems:[]):((Array.isArray(draftItems)?draftItems:[]));
   const savedReturnItems=Array.isArray(draftItems)?draftItems:(Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:[]));
   const savedReturns=new Map(savedReturnItems.map(item=>[String(item.productCode||item.code||item.productId||'').trim(), deliveryReturnLineReturnQty(item)]));
   if(!items.length){

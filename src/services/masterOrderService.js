@@ -1178,7 +1178,11 @@ async function listDeliveryToday(query = {}) {
         arDebtAmount: amount.debtAmount,
         debtSource: 'delivery_formula',
         arLedgerSynced: false,
+        // Giữ riêng danh sách sản phẩm gốc để panel hàng trả luôn hiện đủ mã sản phẩm,
+        // kể cả mã chưa có SL trả trong returnOrders.
         items: Array.isArray(child.items) ? child.items : [],
+        orderItems: Array.isArray(child.items) ? child.items : [],
+        soldItems: Array.isArray(child.items) ? child.items : [],
         returnItems: syncedReturnItems,
         deliveryReturnItems: syncedReturnItems,
         returnLocked: Boolean(lockedReturnOrder),
