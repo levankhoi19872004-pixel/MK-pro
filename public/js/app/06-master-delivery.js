@@ -654,8 +654,8 @@ function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
   const draftItems=deliveryReturnDraftItems(row);
   const baseSoldItems=deliverySoldItemsForReturn(row);
-  // Danh sách trả hàng trên phần mềm là màn xem/duyệt: lấy đủ sản phẩm gốc của đơn giao,
-  // sau đó ghép SL trả từ returnOrders theo productCode. Không cho sửa SL trả tại web.
+  // Web copy đúng mẫu app giao hàng: danh sách chính là order.items, SL trả lấy từ returnOrders.
+  // Không cho chỉnh sửa trên phần mềm: input chỉ để hiển thị giống app, luôn disabled/readonly.
   const items=baseSoldItems.length
     ? mergeReturnDraftItemsWithSoldItems(row, Array.isArray(draftItems)?draftItems:[])
     : (Array.isArray(draftItems)?draftItems:[]);
@@ -666,29 +666,47 @@ function renderDeliveryReturnItems(row){
   if(!items.length){
     const hint= row?.returnDraftLoaded===false
       ? 'Đang tải danh sách hàng trả từ returnOrders...'
-      : 'Đơn này chưa có danh sách sản phẩm gốc nên chưa thể đối soát hàng trả.';
-    deliveryReturnItems.innerHTML=`<div class="empty-state">${escapeHtml(hint)}</div>`;
+      : 'Đơn này chưa có danh sách sản phẩm.';
+    deliveryReturnItems.innerHTML=`<div class="empty-line">${escapeHtml(hint)}</div>`;
     if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';
     if(deliveryEditReturn)deliveryEditReturn.value=0;
     return;
   }
   const returnLocked=Boolean(row?.returnLocked || row?.masterReturnOrderId || row?.masterReturnOrderCode || row?.returnOrder?.masterReturnOrderId || row?.returnOrder?.masterReturnOrderCode || String(row?.returnMergeStatus||row?.returnOrder?.returnMergeStatus||'').toLowerCase()==='merged');
-  const lockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý.' : 'Danh sách hàng trả chỉ xem/duyệt trên phần mềm. Số lượng trả chỉ sửa trên app giao hàng.');
-  deliveryReturnItems.innerHTML=`<div class="empty-state ${returnLocked?'warning-state':''}">${escapeHtml(lockMessage)}</div><div class="delivery-return-table readonly-return-table">${items.map((item,index)=>{
-    const code=deliveryItemCode(item) || `SP${index+1}`;
-    const name=deliveryItemName(item);
-    const qty=deliveryReturnLineSoldQty(item);
-    const price=deliveryItemPrice(item);
-    const returned=savedReturns.get(String(code).trim())||deliveryReturnLineReturnQty(item)||0;
-    const amount=Math.round(returned*price);
-    const lineClass=returned>0?'has-return':'zero-return';
-    return `<div class="delivery-return-line ${lineClass}">
-      <div class="delivery-return-product"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span><small>SL bán: ${qty} · Giá: ${money(price)}</small></div>
-      <div class="delivery-return-readonly" data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" data-return-qty="${returned}">
-        <span>SL trả</span><b>${returned}</b><small>${money(amount)}</small>
+  const returnLockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
+  const currentReturn=deliveryReturnAmountFromItems(row);
+  deliveryReturnItems.innerHTML=`
+    <section class="delivery-block return-panel mobile-return-panel web-return-copy-panel">
+      <div class="block-title-row">
+        <div>
+          <h3>Sản phẩm cần giao</h3>
+          <p class="return-help">Hiển thị hàng cần giao cho cửa hàng. Nếu có hàng trả, nhập số lượng ở cột SL trả.</p>
+          ${returnLocked ? `<p class="return-help warn-text">${escapeHtml(returnLockMessage)}</p>` : ''}
+        </div>
+        <b data-product-return-total>${money(currentReturn)}</b>
       </div>
-    </div>`;
-  }).join('')}</div>`;
+      <div class="mobile-return-scroll delivery-products-scroll">
+        ${items.length ? items.map((item,index)=>{
+          const code=deliveryItemCode(item) || `SP${index+1}`;
+          const name=deliveryItemName(item);
+          const qty=deliveryReturnLineSoldQty(item);
+          const price=deliveryItemPrice(item);
+          const returned=savedReturns.get(String(code).trim())||deliveryReturnLineReturnQty(item)||0;
+          return `
+          <div class="mobile-return-line delivery-product-line">
+            <div class="return-product">
+              <strong>${escapeHtml(code)}</strong>
+              <span>${escapeHtml(name)}</span>
+              <small>SL giao: ${money(qty)} · Giá bán: ${money(price)}</small>
+            </div>
+            <label>
+              <span>SL trả</span>
+              <input class="return-qty-input" data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" data-return-qty="${returned}" type="number" min="0" max="${qty}" step="1" value="${returned}" inputmode="numeric" disabled readonly data-locked="1" />
+            </label>
+          </div>`;
+        }).join('') : '<div class="empty-line">Đơn này chưa có danh sách sản phẩm.</div>'}
+      </div>
+    </section>`;
   updateDeliveryReturnTotal();
 }
 

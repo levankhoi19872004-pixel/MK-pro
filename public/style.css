@@ -5665,3 +5665,22 @@ body::after{
 @media(max-width:900px){
   .readonly-return-table .delivery-return-line{grid-template-columns:1fr 92px;}
 }
+
+
+/* V45: copy nguyên mẫu khối hàng giao/hàng trả từ app giao hàng sang phần mềm */
+.web-return-copy-panel{background:#f8fbff;border:1px solid #dbeafe;border-radius:16px;padding:12px;box-shadow:none;}
+.web-return-copy-panel .block-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.web-return-copy-panel .block-title-row h3{margin:0 0 6px;font-size:15px;font-weight:900;color:#020617;}
+.web-return-copy-panel .block-title-row b{font-size:17px;color:#ef1b1b;white-space:nowrap;}
+.web-return-copy-panel .return-help{margin:0;color:#475569;font-size:12px;line-height:1.35;}
+.web-return-copy-panel .warn-text{color:#b91c1c;font-weight:800;margin-top:4px;}
+.web-return-copy-panel .mobile-return-scroll{border:1px dashed #cbd5e1;border-radius:16px;padding:8px;display:grid;gap:10px;max-height:260px;overflow:auto;background:#f8fbff;}
+.web-return-copy-panel .mobile-return-line{display:grid;grid-template-columns:1fr 94px;gap:10px;align-items:center;border:1px solid #dbe4ef;border-radius:14px;background:#fff;padding:10px;}
+.web-return-copy-panel .return-product strong{display:block;font-size:12px;color:#020617;font-weight:900;}
+.web-return-copy-panel .return-product span,.web-return-copy-panel .return-product small{display:block;color:#475569;font-size:11.5px;line-height:1.35;}
+.web-return-copy-panel .delivery-product-line .return-product small{color:#475569;font-weight:800;}
+.web-return-copy-panel .mobile-return-line label{display:grid;gap:4px;font-size:11px;font-weight:800;color:#64748b;}
+.web-return-copy-panel .mobile-return-line input{text-align:center;font-weight:900;min-height:40px;border:1px solid #dbe4ef;border-radius:10px;background:#fff;color:#020617;opacity:1;}
+.web-return-copy-panel .mobile-return-line input:disabled{background:#fff;color:#020617;opacity:1;cursor:default;}
+.web-return-copy-panel .empty-line{border:1px dashed #cbd5e1;border-radius:14px;padding:12px;text-align:center;color:#64748b;background:#fff;}
+@media(max-width:900px){.web-return-copy-panel .mobile-return-line{grid-template-columns:1fr;}}
