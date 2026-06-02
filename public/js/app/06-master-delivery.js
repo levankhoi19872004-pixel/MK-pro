@@ -474,11 +474,62 @@ function renderDeliveryEditTotal(){
   const selectedRow=getSelectedDeliveryRow?.();
   deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>Còn nợ tạm tính</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
 }
+function deliveryReturnLineKey(item = {}){
+  const code=deliveryItemCode(item);
+  const unit=String(item?.unit||item?.baseUnit||'').trim();
+  const price=deliveryItemPrice(item);
+  return `${code}|${unit}|${price}`;
+}
+function mergeReturnDraftItemsWithSoldItems(row = {}, draftItems = []){
+  const soldItems=Array.isArray(row?.soldItems)?row.soldItems:(Array.isArray(row?.orderItems)?row.orderItems:(Array.isArray(row?.items)?row.items:[]));
+  const cleanDraft=Array.isArray(draftItems)?draftItems:[];
+  if(!soldItems.length)return cleanDraft;
+  if(cleanDraft.length>=soldItems.length)return cleanDraft;
+
+  const byKey=new Map();
+  const byCode=new Map();
+  cleanDraft.forEach(item=>{
+    const key=String(item.lineKey||deliveryReturnLineKey(item)).trim();
+    const code=deliveryItemCode(item);
+    if(key)byKey.set(key,item);
+    if(code&&!byCode.has(code))byCode.set(code,item);
+  });
+
+  return soldItems.map((sold,index)=>{
+    const key=String(sold.lineKey||deliveryReturnLineKey(sold)).trim();
+    const code=deliveryItemCode(sold);
+    const saved=byKey.get(key)||byCode.get(code)||{};
+    const price=deliveryItemPrice(saved)||deliveryItemPrice(sold);
+    const soldQty=deliveryReturnLineSoldQty(saved)||deliveryReturnLineSoldQty(sold)||deliveryItemQty(sold);
+    const returnQty=deliveryReturnLineReturnQty(saved);
+    return {
+      ...sold,
+      ...saved,
+      productCode: deliveryItemCode(saved)||deliveryItemCode(sold)||`SP${index+1}`,
+      productName: deliveryItemName(saved)||deliveryItemName(sold),
+      unit: saved.unit||sold.unit||sold.baseUnit||'',
+      soldQty,
+      quantitySold: soldQty,
+      price,
+      salePrice: price,
+      unitPrice: price,
+      returnQty,
+      qtyReturn: returnQty,
+      returnQuantity: returnQty,
+      returnedQty: returnQty,
+      returnAmount: Math.round(returnQty*price),
+      amount: Math.round(returnQty*price),
+      lineKey: key||String(saved.lineKey||'')
+    };
+  });
+}
 function deliveryReturnDraftItems(row){
-  if(Array.isArray(row?.returnOrderItems))return row.returnOrderItems;
-  if(Array.isArray(row?.returnDraftItems))return row.returnDraftItems;
-  if(Array.isArray(row?.returnOrder?.items))return row.returnOrder.items;
-  if(Array.isArray(row?.returnDraft?.items))return row.returnDraft.items;
+  let items=null;
+  if(Array.isArray(row?.returnOrderItems))items=row.returnOrderItems;
+  else if(Array.isArray(row?.returnDraftItems))items=row.returnDraftItems;
+  else if(Array.isArray(row?.returnOrder?.items))items=row.returnOrder.items;
+  else if(Array.isArray(row?.returnDraft?.items))items=row.returnDraft.items;
+  if(Array.isArray(items))return mergeReturnDraftItemsWithSoldItems(row, items);
   return null;
 }
 
@@ -543,15 +594,25 @@ async function loadReturnDraftForDeliveryRow(row){
   const json=await res.json();
   if(!json.ok)throw new Error(json.message||'Không tải được returnOrders của đơn đang chọn');
   const rows=json.returnOrders||json.returns||[];
-  const exact=rows.find(r=>
+  const matched=rows.filter(r=>
     (salesOrderId && String(r.salesOrderId||r.orderId||'').trim()===salesOrderId) ||
     (salesOrderCode && String(r.salesOrderCode||r.orderCode||'').trim()===salesOrderCode)
-  ) || rows[0] || null;
+  );
+  const candidates=(matched.length?matched:rows).slice().sort((a,b)=>{
+    const aDraft=String(a.source||a.createdFrom||a.id||a.code||'').toLowerCase().includes('sales_order') || String(a.id||'').startsWith('RO-DRAFT');
+    const bDraft=String(b.source||b.createdFrom||b.id||b.code||'').toLowerCase().includes('sales_order') || String(b.id||'').startsWith('RO-DRAFT');
+    if(aDraft!==bDraft)return aDraft?-1:1;
+    const ai=Array.isArray(a.items)?a.items.length:0;
+    const bi=Array.isArray(b.items)?b.items.length:0;
+    if(ai!==bi)return bi-ai;
+    return String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''));
+  });
+  const exact=candidates[0] || null;
   if(!exact)return null;
   row.returnOrder=exact;
   row.returnOrderId=exact.id||exact.code||'';
   row.returnOrderCode=exact.code||exact.id||'';
-  row.returnOrderItems=Array.isArray(exact.items)?exact.items:[];
+  row.returnOrderItems=mergeReturnDraftItemsWithSoldItems(row, Array.isArray(exact.items)?exact.items:[]);
   row.deliveryReturnItems=row.returnOrderItems;
   row.returnItems=row.returnOrderItems;
   row.returnAmount=Number(exact.totalReturnAmount ?? exact.totalAmount ?? exact.amount ?? 0)||0;
