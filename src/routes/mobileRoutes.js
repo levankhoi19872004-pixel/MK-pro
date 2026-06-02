@@ -1268,11 +1268,12 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
     const isMerged = raw.masterOrderId || raw.masterOrderCode || raw.masterOrderNo || String(raw.mergeStatus || 'unmerged') === 'merged';
     if (isMerged) return fail(res, 403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
 
-    order.status = 'void';
-    order.deliveryStatus = 'void';
-    order.deletedAt = new Date().toISOString();
-    order.deleteReason = 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng';
-    order.updatedAt = new Date().toISOString();
+    const deliveryStatus = String(raw.deliveryStatus || raw.status || '').toLowerCase();
+    const accountingStatus = String(raw.accountingStatus || raw.arStatus || '').toLowerCase();
+    const accountingLocked = Boolean(raw.accountingConfirmed)
+      || ['confirmed', 'locked', 'posted'].includes(accountingStatus)
+      || ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
+
     await inventoryService.reverseStockMovement(raw, {
       type: 'SALE',
       reverseType: 'SALE_REVERSAL',
@@ -1283,9 +1284,23 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
       date: dateUtil.todayVN(),
       note: 'Đảo xuất kho khi xóa đơn app bán hàng'
     });
+
+    if (!accountingLocked) {
+      await SalesOrder.deleteOne({ _id: order._id });
+      const deletedOrder = { ...raw, status: 'deleted', deliveryStatus: 'deleted', deletedAt: new Date().toISOString() };
+      return ok(res, { message: `Đã xóa hẳn đơn ${raw.code || ''}`, order: stripMongoFields(deletedOrder), salesOrder: stripMongoFields(deletedOrder), hardDeleted: true });
+    }
+
+    order.status = 'void';
+    order.deliveryStatus = 'void';
+    order.deleted = true;
+    order.isDeleted = true;
+    order.deletedAt = new Date().toISOString();
+    order.deleteReason = 'Xóa mềm từ app bán hàng vì đơn đã phát sinh giao hàng/kế toán';
+    order.updatedAt = new Date().toISOString();
     await order.save();
     const savedOrder = stripMongoFields(order.toObject());
-    return ok(res, { message: `Đã xóa đơn ${savedOrder.code || ''}`, order: savedOrder, salesOrder: savedOrder });
+    return ok(res, { message: `Đã xóa mềm đơn ${savedOrder.code || ''}`, order: savedOrder, salesOrder: savedOrder, hardDeleted: false });
   } catch (err) {
     return fail(res, 500, err.message || 'Không xóa được đơn mobile');
   }

@@ -239,16 +239,27 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   };
 }
 
-async function findExistingOrderCodeSet(orderCodes = []) {
-  const codes = Array.from(new Set((orderCodes || []).map(cleanText).filter(Boolean)));
-  if (!codes.length) return new Set();
-  const rows = await SalesOrder.find({
+function activeOrderDuplicateFilter(codes = []) {
+  return {
+    deleted: { $ne: true },
+    isDeleted: { $ne: true },
+    deletedAt: { $in: [null, ''] },
+    status: { $nin: ['void', 'deleted', 'removed', 'cancelled', 'canceled'] },
     $or: [
       { documentCode: { $in: codes } },
       { invoiceCode: { $in: codes } },
       { code: { $in: codes } }
     ]
-  }).select('documentCode invoiceCode code').lean().catch(() => []);
+  };
+}
+
+async function findExistingOrderCodeSet(orderCodes = []) {
+  const codes = Array.from(new Set((orderCodes || []).map(cleanText).filter(Boolean)));
+  if (!codes.length) return new Set();
+  const rows = await SalesOrder.find(activeOrderDuplicateFilter(codes))
+    .select('documentCode invoiceCode code status deleted isDeleted deletedAt')
+    .lean()
+    .catch(() => []);
   return new Set(rows.flatMap((row) => [row.documentCode, row.invoiceCode, row.code]).map(cleanText).filter(Boolean));
 }
 

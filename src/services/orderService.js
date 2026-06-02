@@ -209,6 +209,26 @@ function isInactiveStatus(row = {}) {
   return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
 }
 
+function isAccountingLockedOrder(order = {}) {
+  const status = String(order.status || '').toLowerCase();
+  const deliveryStatus = String(order.deliveryStatus || '').toLowerCase();
+  const accountingStatus = String(order.accountingStatus || order.arStatus || '').toLowerCase();
+  return Boolean(order.accountingConfirmed)
+    || ['confirmed', 'locked', 'posted'].includes(accountingStatus)
+    || ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus)
+    || ['delivered', 'completed', 'done'].includes(status);
+}
+
+function isMergedOrder(order = {}) {
+  return Boolean(order.masterOrderId || order.masterOrderCode || order.masterOrderNo)
+    || String(order.mergeStatus || '').toLowerCase() === 'merged';
+}
+
+function canHardDeleteSalesOrder(order = {}) {
+  return !isMergedOrder(order) && !isAccountingLockedOrder(order);
+}
+
+
 async function listOrders(query = {}) {
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
   const internalMaxLimit = Math.max(Number(guardedQuery.__internalMaxLimit || 0), 0);
@@ -390,11 +410,32 @@ async function deleteOrder(id, body = {}) {
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
   const returnDraftDelete = await returnOrderService.cancelReturnDraftForSalesOrder(current, { dryRun: true });
   if (returnDraftDelete && returnDraftDelete.error) return returnDraftDelete;
-  // ERP/DMS không xóa vật lý chứng từ đã phát sinh; DELETE chuyển sang void để còn audit và báo cáo.
+
+  if (canHardDeleteSalesOrder(current)) {
+    await withMongoTransaction(async (session) => {
+      await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
+      await reverseSalesOrderPosting(current, { session });
+      await orderRepository.remove(current.id || current.code || id, { session });
+    });
+    return {
+      hardDeleted: true,
+      salesOrder: toClient({
+        ...current,
+        status: 'deleted',
+        deliveryStatus: 'deleted',
+        deletedAt: nowIso(),
+        deleteReason: String(body.reason || body.deleteReason || '').trim()
+      })
+    };
+  }
+
+  // Đơn đã gộp/giao/xác nhận kế toán không xóa vật lý; chỉ void để giữ audit.
   const removed = {
     ...current,
     status: 'void',
     deliveryStatus: 'void',
+    deleted: true,
+    isDeleted: true,
     deletedAt: nowIso(),
     deleteReason: String(body.reason || body.deleteReason || '').trim(),
     updatedAt: nowIso()
@@ -407,7 +448,7 @@ async function deleteOrder(id, body = {}) {
   if (removed.masterOrderId || removed.masterOrderCode) {
     await syncMasterOrderSummary(removed.masterOrderId || removed.masterOrderCode);
   }
-  return { salesOrder: toClient(removed) };
+  return { hardDeleted: false, salesOrder: toClient(removed) };
 }
 
 function compactOrderKeys(order = {}) {

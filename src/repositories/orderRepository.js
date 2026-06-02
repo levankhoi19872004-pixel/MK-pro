@@ -8,7 +8,7 @@ const ORDER_KEY = 'salesOrders';
 function identityFilter(idOrCode) {
   const value = normalizeIdOrCode(idOrCode);
   if (!value) return null;
-  return buildIdentityFilter(value, ['id', 'code']);
+  return buildIdentityFilter(value, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode']);
 }
 
 async function findAll(filter = {}, options = {}) {
@@ -23,7 +23,7 @@ async function findByIdOrCode(idOrCode) {
 }
 
 async function upsert(order, options = {}) {
-  return collectionRepository.upsertByIdentity(ORDER_KEY, order, ['id', 'code'], options);
+  return collectionRepository.upsertByIdentity(ORDER_KEY, order, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
 async function replaceAll(orders) {
@@ -31,7 +31,7 @@ async function replaceAll(orders) {
 }
 
 async function remove(idOrCode, options = {}) {
-  return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code'], options);
+  return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
 module.exports = { findAll, findByIdOrCode, upsert, replaceAll, remove };

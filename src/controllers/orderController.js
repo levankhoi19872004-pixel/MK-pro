@@ -57,7 +57,7 @@ async function cancel(req, res) {
 async function remove(req, res) {
   try {
     const result = await orderService.deleteOrder(req.params.id, req.body || {});
-    return handleServiceResult(res, result, 200, (r) => ({ message: `Đã xóa mềm đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
+    return handleServiceResult(res, result, 200, (r) => ({ message: r.hardDeleted ? `Đã xóa hẳn đơn bán ${r.salesOrder.code}` : `Đã xóa mềm đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không xóa được đơn bán' });
   }
