@@ -12,6 +12,7 @@ const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
+const returnOrderService = require('./returnOrderService');
 
 function today() {
   return dateUtil.todayVN();
@@ -324,6 +325,7 @@ async function createOrder(body = {}) {
   Object.assign(order, applyOrderSourceFields(order));
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(order, { session });
+    await returnOrderService.ensureReturnDraftForSalesOrder(order, { session });
     await applySalesOrderPosting(order, { session });
   });
   return { salesOrder: toClient(order) };
@@ -353,6 +355,7 @@ async function updateOrder(id, body = {}) {
   await withMongoTransaction(async (session) => {
     await reverseSalesOrderPosting(current, { session });
     await orderRepository.upsert(updated, { session });
+    await returnOrderService.syncReturnDraftWithSalesOrder(updated, { session });
     await applySalesOrderPosting(updated, { session });
   });
   return { salesOrder: toClient(updated) };
@@ -361,6 +364,8 @@ async function updateOrder(id, body = {}) {
 async function cancelOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  const returnDraftCancel = await returnOrderService.cancelReturnDraftForSalesOrder(current, { dryRun: true });
+  if (returnDraftCancel && returnDraftCancel.error) return returnDraftCancel;
   const cancelled = {
     ...current,
     status: 'cancelled',
@@ -371,6 +376,7 @@ async function cancelOrder(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(cancelled, { session });
+    await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
     await reverseSalesOrderPosting(current, { session });
   });
   if (cancelled.masterOrderId || cancelled.masterOrderCode) {
@@ -382,6 +388,8 @@ async function cancelOrder(id, body = {}) {
 async function deleteOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  const returnDraftDelete = await returnOrderService.cancelReturnDraftForSalesOrder(current, { dryRun: true });
+  if (returnDraftDelete && returnDraftDelete.error) return returnDraftDelete;
   // ERP/DMS không xóa vật lý chứng từ đã phát sinh; DELETE chuyển sang void để còn audit và báo cáo.
   const removed = {
     ...current,
@@ -393,6 +401,7 @@ async function deleteOrder(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(removed, { session });
+    await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
     await reverseSalesOrderPosting(current, { session });
   });
   if (removed.masterOrderId || removed.masterOrderCode) {

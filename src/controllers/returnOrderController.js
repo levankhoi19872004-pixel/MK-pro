@@ -21,4 +21,14 @@ async function create(req, res) {
   }
 }
 
-module.exports = { list, create };
+async function updateItems(req, res) {
+  try {
+    const result = await returnOrderService.updateReturnDraftItems(req.params.id, req.body || {});
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    res.json({ ok: true, source: 'mongo-route', message: 'Đã cập nhật số lượng trả hàng', returnOrder: result.returnOrder });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không cập nhật được số lượng trả hàng' });
+  }
+}
+
+module.exports = { list, create, updateItems };

@@ -1845,7 +1845,7 @@ async function createMasterOrder(body = {}) {
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(masterOrder, { session });
     for (const child of children) {
-      await orderRepository.upsert({
+      const updatedChild = {
         ...child,
         masterOrderId: masterOrder.id,
         masterOrderCode: masterOrder.code,
@@ -1863,7 +1863,9 @@ async function createMasterOrder(body = {}) {
         routeName: masterOrder.routeName,
         deliveryRoute: masterOrder.routeName,
         updatedAt: nowIso()
-      }, { session });
+      };
+      await orderRepository.upsert(updatedChild, { session });
+      await returnOrderService.attachMasterOrderToReturnDrafts(masterOrder, [updatedChild], { session });
     }
   });
   const updatedChildren = await orderService.getMasterChildren(masterOrder);
@@ -1904,7 +1906,7 @@ async function updateMasterOrder(id, body = {}) {
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(updated, { session });
     for (const child of children) {
-      await orderRepository.upsert({
+      const updatedChild = {
         ...child,
         deliveryDate: updated.deliveryDate,
         deliveryStaffId: updated.deliveryStaffId,
@@ -1913,7 +1915,9 @@ async function updateMasterOrder(id, body = {}) {
         routeName: updated.routeName,
         deliveryRoute: updated.routeName,
         updatedAt: nowIso()
-      }, { session });
+      };
+      await orderRepository.upsert(updatedChild, { session });
+      await returnOrderService.attachMasterOrderToReturnDrafts(updated, [updatedChild], { session });
     }
   });
   const updatedChildren = await orderService.getMasterChildren(updated);
@@ -1933,7 +1937,7 @@ async function cancelMasterOrder(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     for (const child of children) {
-      await orderRepository.upsert({
+      const updatedChild = {
         ...child,
         masterOrderId: '',
         masterOrderCode: '',
@@ -1944,7 +1948,9 @@ async function cancelMasterOrder(id, body = {}) {
         routeName: '',
         deliveryRoute: '',
         updatedAt: nowIso()
-      }, { session });
+      };
+      await orderRepository.upsert(updatedChild, { session });
+      await returnOrderService.detachMasterOrderFromReturnDrafts([updatedChild], { session });
     }
     await masterOrderRepository.upsert(cancelled, { session });
   });
@@ -1964,7 +1970,7 @@ async function deleteMasterOrder(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     for (const child of children) {
-      await orderRepository.upsert({
+      const updatedChild = {
         ...child,
         masterOrderId: '',
         masterOrderCode: '',
@@ -1975,7 +1981,9 @@ async function deleteMasterOrder(id, body = {}) {
         routeName: '',
         deliveryRoute: '',
         updatedAt: nowIso()
-      }, { session });
+      };
+      await orderRepository.upsert(updatedChild, { session });
+      await returnOrderService.detachMasterOrderFromReturnDrafts([updatedChild], { session });
     }
     await masterOrderRepository.upsert(removed, { session });
   });

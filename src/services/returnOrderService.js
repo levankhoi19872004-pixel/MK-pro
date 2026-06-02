@@ -56,6 +56,13 @@ async function listReturnOrders(query = {}) {
     filter.$or = [{ date: range }, { documentDate: range }];
   }
   if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (guardedQuery.masterOrderId) filter.masterOrderId = String(guardedQuery.masterOrderId).trim();
+  if (guardedQuery.masterOrderCode) filter.masterOrderCode = String(guardedQuery.masterOrderCode).trim();
+  if (guardedQuery.salesOrderId) filter.salesOrderId = String(guardedQuery.salesOrderId).trim();
+  if (guardedQuery.salesOrderCode) filter.salesOrderCode = String(guardedQuery.salesOrderCode).trim();
+  if (guardedQuery.deliveryStaffCode) filter.deliveryStaffCode = String(guardedQuery.deliveryStaffCode).trim();
+  if (guardedQuery.salesStaffCode) filter.salesStaffCode = String(guardedQuery.salesStaffCode).trim();
+  if (guardedQuery.customerCode) filter.customerCode = String(guardedQuery.customerCode).trim();
   if (q) {
     const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
     filter.$and = filter.$and || [];
@@ -430,4 +437,262 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
   return { returnOrder: toClient(received), alreadyReceived: false };
 }
 
-module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, toClient };
+
+function returnLineKey(item = {}) {
+  return [
+    String(item.productCode || item.code || item.productId || '').trim(),
+    String(item.unit || item.baseUnit || '').trim(),
+    String(toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0))
+  ].join('|');
+}
+
+function orderItemToReturnDraftItem(item = {}, existedItem = {}) {
+  const soldQty = toNumber(item.quantity ?? item.qty ?? item.totalQty ?? item.soldQty ?? 0);
+  const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? existedItem.price ?? existedItem.salePrice ?? 0);
+  const returnQty = toNumber(existedItem.returnQty ?? existedItem.qtyReturn ?? existedItem.returnQuantity ?? existedItem.quantity ?? 0);
+  return {
+    ...existedItem,
+    productId: item.productId || existedItem.productId || item.productCode || item.code || '',
+    productCode: String(item.productCode || item.code || item.productId || existedItem.productCode || '').trim(),
+    productName: String(item.productName || item.name || existedItem.productName || '').trim(),
+    unit: String(item.unit || item.baseUnit || existedItem.unit || '').trim(),
+    soldQty,
+    price,
+    salePrice: price,
+    unitPrice: price,
+    soldAmount: Math.round(soldQty * price),
+    returnQty,
+    qtyReturn: returnQty,
+    returnQuantity: returnQty,
+    returnedQty: returnQty,
+    quantity: returnQty,
+    qty: returnQty,
+    returnAmount: Math.round(returnQty * price),
+    amount: Math.round(returnQty * price),
+    lineKey: returnLineKey({ ...item, price })
+  };
+}
+
+function hasReturnQuantity(row = {}) {
+  return (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? 0) > 0)
+    || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount ?? row.debtReduction ?? 0) > 0;
+}
+
+function summarizeReturnDraftItems(items = []) {
+  const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount ?? toNumber(item.soldQty) * toNumber(item.price)), 0);
+  const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount ?? toNumber(item.returnQty) * toNumber(item.price)), 0);
+  const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity), 0);
+  return {
+    totalSoldAmount: Math.round(totalSoldAmount),
+    totalReturnAmount: Math.round(totalReturnAmount),
+    totalQuantity,
+    totalAmount: Math.round(totalReturnAmount),
+    amount: Math.round(totalReturnAmount),
+    debtReduction: Math.round(totalReturnAmount)
+  };
+}
+
+async function findBySalesOrder(order = {}) {
+  const salesOrderId = String(order.salesOrderId || order.orderId || order.id || '').trim();
+  const salesOrderCode = String(order.salesOrderCode || order.orderCode || order.code || '').trim();
+  const rows = await returnOrderRepository.findAll();
+  return rows.find((row) => {
+    if (!row) return false;
+    if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
+    if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
+    return false;
+  }) || null;
+}
+
+function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
+  const existingItemsByKey = new Map();
+  for (const item of (Array.isArray(existing?.items) ? existing.items : [])) {
+    existingItemsByKey.set(String(item.lineKey || returnLineKey(item)).trim(), item);
+  }
+  const items = (Array.isArray(order.items) ? order.items : [])
+    .map((item) => {
+      const key = returnLineKey(item);
+      return orderItemToReturnDraftItem(item, existingItemsByKey.get(key) || {});
+    })
+    .filter((item) => item.productCode || item.productName);
+  const summary = summarizeReturnDraftItems(items);
+  const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
+  return {
+    ...(existing || {}),
+    id: String(existing?.id || `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`).trim(),
+    code: String(existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`).trim(),
+    date: dateUtil.toDateOnly(order.deliveryDate || order.date || existing?.date || today()),
+    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || existing?.documentDate || today()),
+    salesOrderId: order.id || existing?.salesOrderId || '',
+    salesOrderCode: order.code || existing?.salesOrderCode || '',
+    orderId: order.id || existing?.orderId || '',
+    orderCode: order.code || existing?.orderCode || '',
+    customerId: order.customerId || existing?.customerId || '',
+    customerCode: order.customerCode || existing?.customerCode || '',
+    customerName: order.customerName || existing?.customerName || '',
+    salesStaffId: order.salesStaffId || order.staffId || existing?.salesStaffId || '',
+    salesStaffCode: order.salesStaffCode || order.staffCode || existing?.salesStaffCode || '',
+    salesStaffName: order.salesStaffName || order.staffName || existing?.salesStaffName || '',
+    staffCode: order.salesStaffCode || order.staffCode || existing?.staffCode || '',
+    staffName: order.salesStaffName || order.staffName || existing?.staffName || '',
+    masterOrderId: order.masterOrderId || existing?.masterOrderId || '',
+    masterOrderCode: order.masterOrderCode || existing?.masterOrderCode || '',
+    deliveryStaffId: order.deliveryStaffId || existing?.deliveryStaffId || '',
+    deliveryStaffCode: order.deliveryStaffCode || existing?.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || existing?.deliveryStaffName || '',
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || today()),
+    routeName: order.routeName || order.deliveryRoute || existing?.routeName || '',
+    deliveryRoute: order.deliveryRoute || order.routeName || existing?.deliveryRoute || '',
+    items,
+    ...summary,
+    status: existing && isPostedReturnStatus(existing.status) ? existing.status : (hasReturn ? 'has_return' : 'draft'),
+    returnStatus: hasReturn ? 'has_return' : 'draft',
+    returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
+    warehouseReceiveStatus: hasReturn ? (existing?.warehouseReceiveStatus || 'waiting_receive') : 'draft',
+    source: existing?.source || 'sales_order_draft',
+    createdFrom: existing?.createdFrom || 'sales_order',
+    accountingStatus: hasReturn ? (existing?.accountingStatus || 'pending') : 'draft',
+    accountingConfirmed: Boolean(existing?.accountingConfirmed),
+    postedAt: existing?.postedAt || '',
+    cancelledAt: '',
+    deletedAt: '',
+    updatedAt: nowIso(),
+    createdAt: existing?.createdAt || nowIso()
+  };
+}
+
+async function ensureReturnDraftForSalesOrder(order = {}, options = {}) {
+  if (!order || (!order.id && !order.code)) return null;
+  const existing = await findBySalesOrder(order);
+  if (existing && isPostedReturnStatus(existing.status)) return { returnOrder: toClient(existing), skipped: 'posted' };
+  const draft = buildReturnDraftFromSalesOrder(order, existing);
+  await returnOrderRepository.upsert(draft, options);
+  return { returnOrder: toClient(draft), updatedExisting: Boolean(existing) };
+}
+
+async function syncReturnDraftWithSalesOrder(order = {}, options = {}) {
+  return ensureReturnDraftForSalesOrder(order, options);
+}
+
+async function cancelReturnDraftForSalesOrder(order = {}, options = {}) {
+  const existing = await findBySalesOrder(order);
+  if (!existing) return { skipped: 'not_found' };
+  if (hasReturnQuantity(existing) || isPostedReturnStatus(existing.status)) {
+    return { error: 'Đơn chờ trả hàng đã phát sinh trả hàng/ghi sổ, không được hủy đơn con trước khi xử lý phiếu trả', status: 400 };
+  }
+  const cancelled = { ...existing, status: 'cancelled', returnStatus: 'cancelled', cancelledAt: nowIso(), updatedAt: nowIso() };
+  if (options.dryRun) return { returnOrder: toClient(cancelled), dryRun: true };
+  await returnOrderRepository.upsert(cancelled, options);
+  return { returnOrder: toClient(cancelled) };
+}
+
+async function restoreReturnDraftForSalesOrder(order = {}, options = {}) {
+  const existing = await findBySalesOrder(order);
+  const draft = buildReturnDraftFromSalesOrder(order, existing);
+  draft.status = hasReturnQuantity(draft) ? 'has_return' : 'draft';
+  draft.returnStatus = draft.status;
+  draft.cancelledAt = '';
+  await returnOrderRepository.upsert(draft, options);
+  return { returnOrder: toClient(draft), updatedExisting: Boolean(existing) };
+}
+
+async function attachMasterOrderToReturnDrafts(masterOrder = {}, childOrders = [], options = {}) {
+  const updated = [];
+  for (const child of (childOrders || [])) {
+    const ensure = await ensureReturnDraftForSalesOrder(child, options);
+    const row = ensure?.returnOrder ? { ...ensure.returnOrder } : await findBySalesOrder(child);
+    if (!row) continue;
+    if (isPostedReturnStatus(row.status)) continue;
+    const next = {
+      ...row,
+      masterOrderId: masterOrder.id || '',
+      masterOrderCode: masterOrder.code || '',
+      deliveryStaffId: masterOrder.deliveryStaffId || '',
+      deliveryStaffCode: masterOrder.deliveryStaffCode || '',
+      deliveryStaffName: masterOrder.deliveryStaffName || '',
+      deliveryDate: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || today()),
+      routeName: masterOrder.routeName || '',
+      deliveryRoute: masterOrder.deliveryRoute || masterOrder.routeName || '',
+      date: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || row.date || today()),
+      updatedAt: nowIso()
+    };
+    await returnOrderRepository.upsert(next, options);
+    updated.push(toClient(next));
+  }
+  return updated;
+}
+
+async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {}) {
+  const updated = [];
+  for (const child of (childOrders || [])) {
+    const row = await findBySalesOrder(child);
+    if (!row || isPostedReturnStatus(row.status)) continue;
+    const next = {
+      ...row,
+      masterOrderId: '',
+      masterOrderCode: '',
+      deliveryStaffId: '',
+      deliveryStaffCode: '',
+      deliveryStaffName: '',
+      deliveryDate: null,
+      routeName: '',
+      deliveryRoute: '',
+      updatedAt: nowIso()
+    };
+    await returnOrderRepository.upsert(next, options);
+    updated.push(toClient(next));
+  }
+  return updated;
+}
+
+async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
+  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy đơn chờ trả hàng', status: 404 };
+  if (isPostedReturnStatus(current.status)) return { error: 'Phiếu trả hàng đã ghi sổ/kho, không được sửa', status: 400 };
+  if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
+    return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả', status: 400 };
+  }
+  const inputItems = Array.isArray(body.items) ? body.items : [];
+  const inputByKey = new Map();
+  for (const raw of inputItems) {
+    const key = String(raw.lineKey || returnLineKey(raw)).trim();
+    if (key) inputByKey.set(key, raw);
+  }
+  const items = (Array.isArray(current.items) ? current.items : []).map((item) => {
+    const key = String(item.lineKey || returnLineKey(item)).trim();
+    const raw = inputByKey.get(key) || inputItems.find((x) => String(x.productCode || x.code || '').trim() === String(item.productCode || '').trim());
+    const nextReturnQty = raw ? toNumber(raw.returnQty ?? raw.qtyReturn ?? raw.returnQuantity ?? raw.quantity ?? 0) : toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity ?? 0);
+    const soldQty = toNumber(item.soldQty ?? item.quantitySold ?? 0);
+    if (nextReturnQty < 0) throw new Error('Số lượng trả không được âm');
+    if (nextReturnQty > soldQty) throw new Error(`Số lượng trả ${item.productCode || item.productName} không được lớn hơn số lượng bán`);
+    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0);
+    return {
+      ...item,
+      returnQty: nextReturnQty,
+      qtyReturn: nextReturnQty,
+      returnQuantity: nextReturnQty,
+      returnedQty: nextReturnQty,
+      quantity: nextReturnQty,
+      qty: nextReturnQty,
+      returnAmount: Math.round(nextReturnQty * price),
+      amount: Math.round(nextReturnQty * price),
+      lineKey: key
+    };
+  });
+  const summary = summarizeReturnDraftItems(items);
+  const status = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0) ? 'has_return' : 'draft';
+  const updated = {
+    ...current,
+    ...summary,
+    items,
+    status,
+    returnStatus: status,
+    warehouseReceiveStatus: status === 'has_return' ? 'waiting_receive' : 'draft',
+    accountingStatus: status === 'has_return' ? 'pending' : 'draft',
+    updatedAt: nowIso()
+  };
+  await returnOrderRepository.upsert(updated, options);
+  return { returnOrder: toClient(updated) };
+}
+
+module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, updateReturnDraftItems, toClient };

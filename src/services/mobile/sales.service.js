@@ -120,6 +120,109 @@ function createMobileSalesService(ctx) {
     writeMobileLog
   } = ctx;
 
+
+  function returnDraftLineKey(item = {}) {
+    return [String(item.productCode || item.code || item.productId || '').trim(), String(item.unit || item.baseUnit || '').trim(), String(toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0))].join('|');
+  }
+
+  function buildReturnDraftForMobileOrder(order = {}, existing = null) {
+    const existingMap = new Map((Array.isArray(existing?.items) ? existing.items : []).map((item) => [String(item.lineKey || returnDraftLineKey(item)), item]));
+    const items = (Array.isArray(order.items) ? order.items : []).map((item) => {
+      const price = toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0);
+      const soldQty = toNumber(item.quantity ?? item.qty ?? 0);
+      const key = returnDraftLineKey({ ...item, salePrice: price });
+      const old = existingMap.get(key) || {};
+      const returnQty = toNumber(old.returnQty ?? old.qtyReturn ?? old.quantity ?? 0);
+      return {
+        ...old,
+        productId: item.productId || item.productCode || '',
+        productCode: item.productCode || item.code || item.productId || '',
+        productName: item.productName || item.name || '',
+        unit: item.unit || item.baseUnit || '',
+        soldQty,
+        price,
+        salePrice: price,
+        soldAmount: Math.round(soldQty * price),
+        returnQty,
+        qtyReturn: returnQty,
+        returnQuantity: returnQty,
+        quantity: returnQty,
+        qty: returnQty,
+        returnAmount: Math.round(returnQty * price),
+        amount: Math.round(returnQty * price),
+        lineKey: key
+      };
+    });
+    const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
+    const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount), 0);
+    const status = totalReturnAmount > 0 ? 'has_return' : 'draft';
+    return {
+      ...(existing || {}),
+      id: existing?.id || `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+      code: existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+      date: order.deliveryDate || order.date || dateUtil.todayVN(),
+      documentDate: order.date || dateUtil.todayVN(),
+      salesOrderId: order.id || '',
+      salesOrderCode: order.code || '',
+      orderId: order.id || '',
+      orderCode: order.code || '',
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || '',
+      salesStaffCode: order.salesStaffCode || order.staffCode || '',
+      salesStaffName: order.salesStaffName || order.staffName || '',
+      staffCode: order.salesStaffCode || order.staffCode || '',
+      staffName: order.salesStaffName || order.staffName || '',
+      masterOrderId: order.masterOrderId || '',
+      masterOrderCode: order.masterOrderCode || '',
+      deliveryStaffId: order.deliveryStaffId || '',
+      deliveryStaffCode: order.deliveryStaffCode || '',
+      deliveryStaffName: order.deliveryStaffName || '',
+      deliveryDate: order.deliveryDate || order.date || dateUtil.todayVN(),
+      items,
+      totalSoldAmount,
+      totalReturnAmount,
+      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.returnQty), 0),
+      totalAmount: totalReturnAmount,
+      amount: totalReturnAmount,
+      debtReduction: totalReturnAmount,
+      status,
+      returnStatus: status,
+      returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
+      warehouseReceiveStatus: status === 'has_return' ? 'waiting_receive' : 'draft',
+      source: existing?.source || 'sales_order_draft',
+      createdFrom: existing?.createdFrom || 'sales_order',
+      accountingStatus: status === 'has_return' ? 'pending' : 'draft',
+      accountingConfirmed: Boolean(existing?.accountingConfirmed),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function syncReturnDraftInSnapshot(data = {}, order = {}) {
+    data.returnOrders = Array.isArray(data.returnOrders) ? data.returnOrders : [];
+    const idx = data.returnOrders.findIndex((row) => String(row.salesOrderId || row.orderId || '').trim() === String(order.id || '').trim() || String(row.salesOrderCode || row.orderCode || '').trim() === String(order.code || '').trim());
+    const existing = idx >= 0 ? data.returnOrders[idx] : null;
+    if (existing && ['posted', 'received', 'warehouse_received', 'completed'].includes(String(existing.status || '').toLowerCase())) return existing;
+    const draft = buildReturnDraftForMobileOrder(order, existing);
+    if (idx >= 0) data.returnOrders[idx] = draft;
+    else data.returnOrders.push(draft);
+    return draft;
+  }
+
+  function cancelReturnDraftInSnapshot(data = {}, order = {}) {
+    const rows = Array.isArray(data.returnOrders) ? data.returnOrders : [];
+    const row = rows.find((item) => String(item.salesOrderId || item.orderId || '').trim() === String(order.id || '').trim() || String(item.salesOrderCode || item.orderCode || '').trim() === String(order.code || '').trim());
+    if (!row) return null;
+    const hasReturn = (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity) > 0) || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount) > 0;
+    if (hasReturn) return { error: 'Đơn chờ trả hàng đã có số lượng trả, không được xóa đơn bán trước khi xử lý phiếu trả' };
+    row.status = 'cancelled';
+    row.returnStatus = 'cancelled';
+    row.cancelledAt = new Date().toISOString();
+    row.updatedAt = new Date().toISOString();
+    return row;
+  }
+
   function isOwnedByMobileUser(order, mobileUser) {
     return normalizeText(order.staffCode || order.salesStaffCode) === normalizeText(mobileUser.code)
       || normalizeText(order.staffName || order.salesStaffName) === normalizeText(mobileUser.name);
@@ -212,6 +315,7 @@ function createMobileSalesService(ctx) {
       };
 
       repo.addSalesOrder(data, salesOrder);
+      syncReturnDraftInSnapshot(data, salesOrder);
       items.forEach((item) => reduceStock(data, item));
       repo.addPayment(data, {
         id: makeId('PM'),
@@ -300,6 +404,7 @@ function createMobileSalesService(ctx) {
         salesStaffName: mobileUser.name || order.salesStaffName || order.staffName || ''
       };
       const salesOrder = updateSalesOrderWithRepost(data, order, patchBody);
+      syncReturnDraftInSnapshot(data, salesOrder);
       writeMobileLog(data, mobileUser, 'mobile_edit_sales_order', {
         refType: 'salesOrder',
         refId: salesOrder.id,
@@ -324,6 +429,9 @@ function createMobileSalesService(ctx) {
       if (order.masterOrderId || order.masterOrderCode || order.masterOrderNo || (order.mergeStatus || 'unmerged') === 'merged') {
         return fail(403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
       }
+
+      const cancelDraft = cancelReturnDraftInSnapshot(data, order);
+      if (cancelDraft && cancelDraft.error) return fail(400, cancelDraft.error);
 
       order.status = 'void';
       order.deliveryStatus = 'void';

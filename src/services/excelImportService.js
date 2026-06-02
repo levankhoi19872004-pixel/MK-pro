@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
+const ReturnOrder = require('../models/ReturnOrder');
 const StockTransaction = require('../models/StockTransaction');
 const InventoryLegacy = require('../models/InventoryLegacy');
 const Inventory = require('../models/Inventory');
@@ -21,6 +22,78 @@ const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.u
 const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
+
+function makeReturnDraftItemFromImportItem(item = {}) {
+  const soldQty = toNumber(item.quantity ?? item.qty ?? item.soldQuantity ?? 0);
+  const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0);
+  return {
+    productId: item.productId || item.productCode || '',
+    productCode: cleanText(item.productCode || item.code || item.productId),
+    productName: cleanText(item.productName || item.name),
+    unit: cleanText(item.unit || item.baseUnit),
+    soldQty,
+    price,
+    salePrice: price,
+    unitPrice: price,
+    soldAmount: Math.round(soldQty * price),
+    returnQty: 0,
+    qtyReturn: 0,
+    returnQuantity: 0,
+    returnedQty: 0,
+    quantity: 0,
+    qty: 0,
+    returnAmount: 0,
+    amount: 0,
+    lineKey: [cleanText(item.productCode || item.code || item.productId), cleanText(item.unit || item.baseUnit), String(price)].join('|')
+  };
+}
+
+function buildReturnDraftFromImportedOrder(order = {}) {
+  const items = (Array.isArray(order.items) ? order.items : []).map(makeReturnDraftItemFromImportItem).filter((item) => item.productCode || item.productName);
+  const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
+  return {
+    id: `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+    code: `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+    date: dateUtil.toDateOnly(order.deliveryDate || order.date || today()),
+    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || today()),
+    salesOrderId: order.id || '',
+    salesOrderCode: order.code || '',
+    orderId: order.id || '',
+    orderCode: order.code || '',
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    salesStaffId: order.salesStaffId || order.staffId || '',
+    salesStaffCode: order.salesStaffCode || order.staffCode || '',
+    salesStaffName: order.salesStaffName || order.staffName || '',
+    staffCode: order.salesStaffCode || order.staffCode || '',
+    staffName: order.salesStaffName || order.staffName || '',
+    masterOrderId: '',
+    masterOrderCode: '',
+    deliveryStaffId: '',
+    deliveryStaffCode: '',
+    deliveryStaffName: '',
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || today()),
+    items,
+    totalSoldAmount,
+    totalReturnAmount: 0,
+    totalQuantity: 0,
+    totalAmount: 0,
+    amount: 0,
+    debtReduction: 0,
+    status: 'draft',
+    returnStatus: 'draft',
+    returnMergeStatus: 'unmerged',
+    warehouseReceiveStatus: 'draft',
+    source: 'sales_order_draft',
+    createdFrom: 'sales_order',
+    accountingStatus: 'draft',
+    accountingConfirmed: false,
+    postedAt: '',
+    createdAt: order.createdAt || nowIso(),
+    updatedAt: nowIso()
+  };
+}
 
 function cleanText(value) {
   return String(value ?? '').trim();
@@ -893,6 +966,7 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     errors: errors.slice(0, 30),
     mode: 'bulkImportOrders',
     batchSize: IMPORT_BATCH_SIZE,
+    returnDrafts: returnDraftDocs.length - returnDraftResult.errors.length,
     stockTransactions: inventoryResult.transactionCount,
     inventoryRows: inventoryResult.inventoryRows,
     shortageCount: shortageReport.length,
@@ -1206,12 +1280,15 @@ async function importSalesOrders(rows = [], options = {}) {
   }
 
   const orderResult = await insertManyInBatches(SalesOrder, orderDocs);
+  const returnDraftDocs = orderDocs.map(buildReturnDraftFromImportedOrder);
+  const returnDraftResult = await insertManyInBatches(ReturnOrder, returnDraftDocs);
   const paymentResult = { errors: [] };
   const cashResult = { errors: [] };
   const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
 
-  skipped += orderResult.errors.length + paymentResult.errors.length + cashResult.errors.length;
+  skipped += orderResult.errors.length + returnDraftResult.errors.length + paymentResult.errors.length + cashResult.errors.length;
   errors.push(...orderResult.errors.map((error) => ({ customerCode: '', message: error.message })));
+  errors.push(...returnDraftResult.errors.map((error) => ({ customerCode: '', message: `ReturnDraft: ${error.message}` })));
   errors.push(...paymentResult.errors.map((error) => ({ customerCode: '', message: `Payment: ${error.message}` })));
   errors.push(...cashResult.errors.map((error) => ({ customerCode: '', message: `Cashbook: ${error.message}` })));
   const imported = Math.max(0, orderDocs.length - orderResult.errors.length);
@@ -1223,6 +1300,7 @@ async function importSalesOrders(rows = [], options = {}) {
     batchSize: IMPORT_BATCH_SIZE,
     payments: paymentDocs.length,
     cashbook: cashbookDocs.length,
+    returnDrafts: returnDraftDocs.length - returnDraftResult.errors.length,
     stockTransactions: inventoryResult.transactionCount,
     inventoryRows: inventoryResult.inventoryRows,
     shortageCount: shortageReport.length,

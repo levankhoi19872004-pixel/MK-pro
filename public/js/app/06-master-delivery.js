@@ -658,7 +658,7 @@ function deliverySummaryParams(){
   params.set('limit','5000');
   return params;
 }
-function deliveryAmountMetricLine(row){
+function deliveryMetricValues(row){
   const pt=Number(row.totalReceivable ?? row.totalAmount ?? 0);
   const tm=Number(row.cashAmount ?? row.cashCollected ?? 0);
   const ck=Number(row.bankAmount ?? row.bankCollected ?? 0);
@@ -666,7 +666,21 @@ function deliveryAmountMetricLine(row){
   // TH/Trả hàng do backend đồng bộ từ returnOrders. Frontend chỉ hiển thị, không tự lấy từ snapshot đơn.
   const th=Number(row.returnAmount ?? 0);
   const cn=Number(row.debtAmount ?? row.remainingAmount ?? Math.max(0,pt-tm-ck-tt-th));
-  return `PT ${deliveryCompactMoney(pt)} | TM ${deliveryCompactMoney(tm)} | CK ${deliveryCompactMoney(ck)} | TT ${deliveryCompactMoney(tt)} | TH ${deliveryCompactMoney(th)} | CN ${deliveryDebtCompactLabel(cn)}`;
+  return { pt, tm, ck, tt, th, cn };
+}
+function deliveryMetricBadge(label,value,cls,title){
+  return `<span class="delivery-mini-metric metric-${cls}" title="${escapeHtml(title||label)}: ${money(value)}"><em>${label}</em><b>${escapeHtml(cls==='cn'?deliveryDebtCompactLabel(value):deliveryCompactMoney(value))}</b></span>`;
+}
+function deliveryAmountMetricBadges(row){
+  const m=deliveryMetricValues(row);
+  return `${deliveryMetricBadge('PT',m.pt,'pt','Tổng phải thu')}${deliveryMetricBadge('TM',m.tm,'tm','Tiền mặt')}${deliveryMetricBadge('CK',m.ck,'ck','Chuyển khoản')}${deliveryMetricBadge('TT',m.tt,'tt','Trả thưởng')}${deliveryMetricBadge('TH',m.th,'th','Trả hàng từ returnOrders')}${deliveryMetricBadge('CN',m.cn,'cn','Công nợ')}`;
+}
+function deliveryMetricBadges(row){
+  return `<span class="delivery-order-count">${Number(row.orderCount||0)}Đ</span><span class="delivery-mini-metrics">${deliveryAmountMetricBadges(row)}</span>`;
+}
+function deliveryAmountMetricLine(row){
+  const m=deliveryMetricValues(row);
+  return `PT ${deliveryCompactMoney(m.pt)} | TM ${deliveryCompactMoney(m.tm)} | CK ${deliveryCompactMoney(m.ck)} | TT ${deliveryCompactMoney(m.tt)} | TH ${deliveryCompactMoney(m.th)} | CN ${deliveryDebtCompactLabel(m.cn)}`;
 }
 function deliveryMetricLine(row){
   return `${Number(row.orderCount||0)}Đ | ${deliveryAmountMetricLine(row)}`;
@@ -696,7 +710,7 @@ function renderDeliveryTodaySummary(){
       <button type="button" class="delivery-accordion-row delivery-staff-summary-row" onclick="toggleDeliveryStaffSummary('${escapeHtml(code)}')">
         <span class="delivery-caret">${open?'▼':'▶'}</span>
         <b>${escapeHtml(row.deliveryStaffName||row.deliveryStaffCode||'Chưa có NVGH')}</b>
-        <span>${escapeHtml(deliveryMetricLine(row))}</span>
+        <span class="delivery-summary-metrics">${deliveryMetricBadges(row)}</span>
       </button>
       <div class="delivery-sales-summary-box" ${open?'':'hidden'}>
         ${open ? renderDeliverySalesSummaryRows(code, salesRows) : ''}
@@ -713,7 +727,7 @@ function renderDeliverySalesSummaryRows(deliveryCode, rows){
       <button type="button" class="delivery-accordion-row delivery-sales-summary-row" onclick="toggleDeliverySalesOrders('${escapeHtml(deliveryCode)}','${escapeHtml(salesCode)}')">
         <span class="delivery-caret">${open?'▼':'▶'}</span>
         <b>${escapeHtml(row.salesStaffName||row.salesStaffCode||'Chưa có NVBH')}</b>
-        <span>${escapeHtml(deliveryMetricLine(row))}</span>
+        <span class="delivery-summary-metrics">${deliveryMetricBadges(row)}</span>
       </button>
       <div class="delivery-sales-orders-box" data-delivery="${escapeHtml(deliveryCode)}" data-sales="${escapeHtml(salesCode)}" ${open?'':'hidden'}>
         ${open?renderCompactDeliveryOrders(deliveryRowsCache):''}
@@ -744,12 +758,12 @@ function renderCompactDeliveryOrders(rows=[]){
         <small>${escapeHtml(row.salesmanName||row.salesmanCode||'')}</small>
       </div>
       <div class="delivery-customer-money one-line-money">
-        <span title="Tổng phải thu: ${money(receivable)}"><em>PT</em><b>${deliveryCompactMoney(receivable)}</b></span>
-        <span title="Tiền mặt: ${money(cash)}"><em>TM</em><b>${deliveryCompactMoney(cash)}</b></span>
-        <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b>${deliveryCompactMoney(bank)}</b></span>
-        <span title="Trả thưởng: ${money(reward)}"><em>TT</em><b>${deliveryCompactMoney(reward)}</b></span>
-        <span title="Trả hàng từ returnOrders: ${money(returned)}"><em>TH</em><b>${deliveryCompactMoney(returned)}</b></span>
-        <span title="Công nợ: ${money(debt)}"><em>CN</em><b class="${deliveryDebtClass(debt)}">${deliveryDebtCompactLabel(debt)}</b></span>
+        <span class="money-pt" title="Tổng phải thu: ${money(receivable)}"><em>PT</em><b>${deliveryCompactMoney(receivable)}</b></span>
+        <span class="money-tm" title="Tiền mặt: ${money(cash)}"><em>TM</em><b>${deliveryCompactMoney(cash)}</b></span>
+        <span class="money-ck" title="Chuyển khoản: ${money(bank)}"><em>CK</em><b>${deliveryCompactMoney(bank)}</b></span>
+        <span class="money-tt" title="Trả thưởng: ${money(reward)}"><em>TT</em><b>${deliveryCompactMoney(reward)}</b></span>
+        <span class="money-th" title="Trả hàng từ returnOrders: ${money(returned)}"><em>TH</em><b>${deliveryCompactMoney(returned)}</b></span>
+        <span class="money-cn" title="Công nợ: ${money(debt)}"><em>CN</em><b class="${deliveryDebtClass(debt)}">${deliveryDebtCompactLabel(debt)}</b></span>
       </div>
     </article>`;
   }).join('');

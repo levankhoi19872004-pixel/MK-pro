@@ -5200,3 +5200,112 @@ button.danger:hover{background:#fecaca}
 .one-line-money{font-size:10px;gap:4px;white-space:nowrap}
 .one-line-money span{display:inline-flex;gap:2px;align-items:center}
 .route-pill.compact-help{opacity:.85}
+
+/* V45 FIX: Delivery today mini metric badges with colored borders like top KPI cards */
+#deliveryTodayTab .delivery-accordion-row{
+  grid-template-columns:18px minmax(120px,1fr) minmax(430px,auto)!important;
+  min-height:32px!important;
+  gap:8px!important;
+}
+#deliveryTodayTab .delivery-summary-metrics{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:4px!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  white-space:nowrap!important;
+}
+#deliveryTodayTab .delivery-order-count{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  height:20px!important;
+  min-width:34px!important;
+  padding:0 6px!important;
+  border:1px solid rgba(148,163,184,.45)!important;
+  border-radius:7px!important;
+  background:#fff!important;
+  color:#0f172a!important;
+  font-size:10.5px!important;
+  font-weight:800!important;
+  line-height:1!important;
+}
+#deliveryTodayTab .delivery-mini-metrics{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:4px!important;
+  white-space:nowrap!important;
+}
+#deliveryTodayTab .delivery-mini-metric{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:2px!important;
+  height:20px!important;
+  min-width:48px!important;
+  padding:0 6px!important;
+  border-radius:7px!important;
+  background:#fff!important;
+  font-size:10.5px!important;
+  line-height:1!important;
+  font-weight:700!important;
+  box-sizing:border-box!important;
+}
+#deliveryTodayTab .delivery-mini-metric em{
+  font-style:normal!important;
+  font-size:9px!important;
+  font-weight:700!important;
+  color:#64748b!important;
+}
+#deliveryTodayTab .delivery-mini-metric b{
+  font-size:10.5px!important;
+  font-weight:800!important;
+  color:#0f172a!important;
+}
+#deliveryTodayTab .delivery-mini-metric.metric-pt{border:1px solid #93c5fd!important;background:#eff6ff!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-tm{border:1px solid #bfdbfe!important;background:#eff6ff!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-ck{border:1px solid #86efac!important;background:#f0fdf4!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-tt{border:1px solid #fdba74!important;background:#fff7ed!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-th{border:1px solid #c4b5fd!important;background:#f5f3ff!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-cn{border:1px solid #fca5a5!important;background:#fef2f2!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-tm b{color:#2563eb!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-ck b{color:#059669!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-tt b{color:#ea580c!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-th b{color:#7c3aed!important;}
+#deliveryTodayTab .delivery-mini-metric.metric-cn b{color:#dc2626!important;}
+#deliveryTodayTab .delivery-customer-money .money-pt{border-color:#93c5fd!important;background:#eff6ff!important;}
+#deliveryTodayTab .delivery-customer-money .money-tm{border-color:#bfdbfe!important;background:#eff6ff!important;}
+#deliveryTodayTab .delivery-customer-money .money-ck{border-color:#86efac!important;background:#f0fdf4!important;}
+#deliveryTodayTab .delivery-customer-money .money-tt{border-color:#fdba74!important;background:#fff7ed!important;}
+#deliveryTodayTab .delivery-customer-money .money-th{border-color:#c4b5fd!important;background:#f5f3ff!important;}
+#deliveryTodayTab .delivery-customer-money .money-cn{border-color:#fca5a5!important;background:#fef2f2!important;}
+#deliveryTodayTab .delivery-customer-money .money-tm b{color:#2563eb!important;}
+#deliveryTodayTab .delivery-customer-money .money-ck b{color:#059669!important;}
+#deliveryTodayTab .delivery-customer-money .money-tt b{color:#ea580c!important;}
+#deliveryTodayTab .delivery-customer-money .money-th b{color:#7c3aed!important;}
+#deliveryTodayTab .delivery-customer-money .money-cn b{color:#dc2626!important;}
+@media(max-width:1180px){
+  #deliveryTodayTab .delivery-accordion-row{
+    grid-template-columns:18px minmax(92px,1fr) minmax(330px,auto)!important;
+  }
+  #deliveryTodayTab .delivery-mini-metric{
+    min-width:42px!important;
+    padding:0 4px!important;
+    font-size:9.5px!important;
+  }
+  #deliveryTodayTab .delivery-mini-metric b{font-size:9.8px!important;}
+  #deliveryTodayTab .delivery-mini-metric em{font-size:8.4px!important;}
+}
+@media(max-width:760px){
+  #deliveryTodayTab .delivery-accordion-row{
+    grid-template-columns:16px 1fr!important;
+    align-items:start!important;
+  }
+  #deliveryTodayTab .delivery-summary-metrics{
+    grid-column:2 / -1!important;
+    justify-content:flex-start!important;
+    flex-wrap:wrap!important;
+    white-space:normal!important;
+  }
+}
