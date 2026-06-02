@@ -752,8 +752,11 @@ function renderMasterReturnOrders(rows = []){
       <strong class="erp-doc-value" title="Giá trị">${money(r.debtReduction??r.totalAmount)}</strong>
       <span class="erp-doc-status" title="Trạng thái"><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></span>
       <div class="erp-doc-actions">
+        <button class="secondary small" type="button" onclick="viewMasterReturnOrder('${id}')">Xem</button>
+        ${status==='received'?'<button class="secondary small" type="button" disabled>Đã nhập kho</button>':`<button class="primary small master-return-receive-btn" type="button" onclick="receiveMasterReturnOrder('${id}', this)">Nhập kho</button>`}
+        <button class="secondary small" type="button" onclick="printMasterReturnOrder('${id}')">In</button>
         <button class="secondary small" type="button" onclick="editMasterReturnOrder(${idx})">Sửa</button>
-        <button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>
+        <button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')" ${status==='received'?'disabled title="Đơn đã nhập kho, không nên hủy trực tiếp"':''}>Hủy</button>
       </div>
     </article>`;
   }).join('');
@@ -842,17 +845,24 @@ async function viewMasterReturnOrder(id){
   }catch(err){alert(err.message||'Không tải được chi tiết đơn tổng trả')}
 }
 
-async function receiveMasterReturnOrder(id){
+async function receiveMasterReturnOrder(id, buttonEl){
   if(!id)return;
-  if(!confirm('Xác nhận kho đã kiểm nhận đơn tổng trả hàng này?'))return;
+  if(!confirm('Xác nhận nhập kho toàn bộ hàng trả của đơn tổng này?\n\nSau khi xác nhận, hệ thống sẽ cộng tồn kho theo từng phiếu trả hàng con và chặn nhập kho lặp.'))return;
+  const btn=buttonEl || null;
+  const oldText=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Đang nhập...';}
   try{
     const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivedBy:'Kho'})});
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không cập nhật trạng thái kho');
-    showMessage(masterReturnOrderMessage,json.message||'Đã xác nhận kho nhận hàng trả');
+    if(!json.ok)throw new Error(json.message||'Không nhập kho được đơn tổng trả hàng');
+    showMessage(masterReturnOrderMessage,json.message||'Đã nhập kho hàng trả');
     await loadMasterReturnOrders();
     await loadUnmergedReturnOrders();
-  }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
+    if(typeof loadStock==='function')await loadStock();
+  }catch(err){
+    if(btn){btn.disabled=false;btn.textContent=oldText||'Nhập kho';}
+    showMessage(masterReturnOrderMessage,err.message||'Không nhập kho được đơn tổng trả hàng',true);
+  }
 }
 
 async function printMasterReturnOrder(id){

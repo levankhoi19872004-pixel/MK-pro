@@ -236,8 +236,12 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
     ...current,
     status: 'received',
     warehouseReceiveStatus: 'received',
+    stockReceiveStatus: 'posted',
+    stockPosted: true,
     receivedAt: nowIso(),
+    stockPostedAt: nowIso(),
     receivedBy: String(body.receivedBy || '').trim(),
+    stockPostedBy: String(body.receivedBy || '').trim(),
     updatedAt: nowIso(),
     ...summarizeReturnOrders(receivedChildren)
   };
@@ -264,6 +268,9 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
 async function cancelMasterReturnOrder(id, body = {}) {
   const current = await masterReturnOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
+  if (String(current.status || '').toLowerCase() === 'received' || String(current.warehouseReceiveStatus || '').toLowerCase() === 'received' || current.stockPosted) {
+    return { error: 'Đơn tổng trả hàng đã nhập kho, không được hủy gộp trực tiếp. Muốn sửa phải tạo phiếu điều chỉnh/đảo kho riêng.', status: 400 };
+  }
   const children = await getChildren(current);
   const cancelled = {
     ...current,
