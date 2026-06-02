@@ -290,6 +290,17 @@ function isActiveReturnOrder(row = {}) {
     && !['cancelled', 'canceled', 'void', 'deleted', 'removed', 'cleared'].includes(warehouseStatus);
 }
 
+function returnOrderTotalAmount(row = {}) {
+  const explicit = toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount ?? row.debtReduction ?? row.returnAmount ?? row.returnedAmount);
+  if (explicit > 0) return explicit;
+  return (Array.isArray(row.items) ? row.items : []).reduce((sum, item) => {
+    const qty = toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+    const amount = toNumber(item.returnAmount ?? item.amount ?? NaN);
+    return sum + (Number.isFinite(amount) && amount > 0 ? amount : Math.round(qty * price));
+  }, 0);
+}
+
 function returnAmountForSalesOrder(returnOrders = [], order = {}) {
   const orderId = String(order.id || '').trim();
   const orderCode = String(order.code || '').trim();
@@ -307,7 +318,7 @@ function returnAmountForSalesOrder(returnOrders = [], order = {}) {
         || (masterId && rowMasterId === masterId)
         || (masterCode && rowMasterCode === masterCode);
     })
-    .reduce((sum, row) => sum + toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0), 0);
+    .reduce((sum, row) => sum + returnOrderTotalAmount(row), 0);
 }
 
 function returnOrdersForSalesOrder(returnOrders = [], order = {}) {
@@ -1430,7 +1441,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     return { error: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả`, status: 400 };
   }
   const effectiveReturnItems = lockedReturnOrder ? lockedReturnItems : returnItems;
-  const effectiveReturnAmount = lockedReturnOrder ? toNumber(lockedReturnOrder.totalAmount ?? lockedReturnOrder.amount ?? lockedReturnOrder.debtReduction ?? 0) : returnAmount;
+  const effectiveReturnAmount = lockedReturnOrder ? returnOrderTotalAmount(lockedReturnOrder) : returnAmount;
 
   // Chặn nghiệp vụ trả vượt phải thu ngay tại service để tránh âm công nợ/AR Ledger sai,
   // kể cả khi người dùng bỏ qua kiểm tra ở giao diện.
