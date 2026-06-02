@@ -109,12 +109,12 @@ function calculateDeliveryDebt(order = {}) {
     - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
     - deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
     - deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
-    - deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0)
+    - deliveryReturnAmount(order)
   ));
 }
 
 function deliveryProcessedAmount(order = {}) {
-  return deliveryToNumber(order.cashCollected) + deliveryToNumber(order.bankCollected) + deliveryToNumber(order.rewardAmount) + deliveryToNumber(order.returnAmount);
+  return deliveryToNumber(order.cashCollected) + deliveryToNumber(order.bankCollected) + deliveryToNumber(order.rewardAmount) + deliveryReturnAmount(order);
 }
 
 const list = document.getElementById('deliveryOrders');
@@ -190,6 +190,27 @@ function lineReturnedQty(item = {}) {
   return deliveryToNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? 0);
 }
 
+function deliveryReturnAmount(order = {}) {
+  const returnItems = Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : null);
+  if (Array.isArray(returnItems)) {
+    return Math.round(returnItems.reduce((sum, item) => {
+      const qty = deliveryToNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? item.quantity ?? item.qty ?? 0);
+      const price = deliveryToNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+      const amount = item.amount !== undefined || item.returnAmount !== undefined ? deliveryToNumber(item.amount ?? item.returnAmount) : Math.round(qty * price);
+      return sum + amount;
+    }, 0));
+  }
+  if (Array.isArray(order.items)) {
+    const totalFromLineQty = order.items.reduce((sum, item) => {
+      const qty = lineReturnedQty(item);
+      const price = linePrice(item);
+      return sum + Math.round(qty * price);
+    }, 0);
+    if (totalFromLineQty > 0) return Math.round(totalFromLineQty);
+  }
+  return deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+}
+
 function calculateReturnTotalFromInputs(root = deliveryActionBox) {
   return Array.from(root.querySelectorAll('[data-return-order]')).reduce((sum, input) => {
     const qty = deliveryToNumber(input.value || 0);
@@ -202,7 +223,7 @@ function calculateDraftDebt(order = {}) {
   const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
   const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
   const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
-  const returned = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const returned = deliveryReturnAmount(order);
   return Math.max(0, Math.round(deliveryDebtBase(order) - cash - bank - reward - returned));
 }
 
@@ -229,7 +250,7 @@ function currentOrderDue(order = {}) {
 
 
 function refreshDeliveryDraftTotals(order = {}) {
-  const returned = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const returned = deliveryReturnAmount(order);
   const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
   const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
   const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
@@ -409,7 +430,7 @@ function renderSelectedOrder(order) {
 }
 
 function renderProductForm(order) {
-  const currentReturn = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const currentReturn = deliveryReturnAmount(order);
   const items = Array.isArray(order.items) ? order.items : [];
   const returnLocked = Boolean(order.returnLocked || order.masterReturnOrderId || order.masterReturnOrderCode || String(order.returnMergeStatus || '').toLowerCase() === 'merged');
   const returnLockMessage = order.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
@@ -507,7 +528,7 @@ function renderActionForm(order) {
   const existingCash = deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0);
   const existingBank = deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
   const existingReward = deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
-  const currentReturn = deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const currentReturn = deliveryReturnAmount(order);
   const currentDue = currentOrderDue(order);
   deliveryActionBox.innerHTML = `
     <section class="delivery-block debt-collect-block">
@@ -579,7 +600,7 @@ function renderReport() {
   const oldDebtBank = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0), 0);
   const totalCash = todayCash + oldDebtCash;
   const totalBank = todayBank + oldDebtBank;
-  const returns = completed.reduce((sum, order) => sum + deliveryToNumber(order.returnAmount || 0), 0);
+  const returns = completed.reduce((sum, order) => sum + deliveryReturnAmount(order), 0);
   const debt = completed.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
   if (reportCashAmount) reportCashAmount.textContent = money(totalCash);
   if (reportBankAmount) reportBankAmount.textContent = money(totalBank);
@@ -606,7 +627,7 @@ function renderReport() {
       <div>
         <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
         <span>${statusLabel(order)} · Còn nợ đơn hôm nay: ${money(calculateDeliveryDebt(order))}</span>
-        <span>Thu đơn hôm nay: TM ${money(orderCash)} · CK ${money(orderBank)} · Thưởng ${money(order.rewardAmount || 0)} · Trả ${money(order.returnAmount || 0)}</span>
+        <span>Thu đơn hôm nay: TM ${money(orderCash)} · CK ${money(orderBank)} · Thưởng ${money(order.rewardAmount || 0)} · Trả ${money(deliveryReturnAmount(order))}</span>
         <span>Thu nợ cũ: TM ${money(debtCash)} · CK ${money(debtBank)}</span>
       </div>
       <button class="ghost-btn small-btn" data-edit-report="${escapeHtml(order.id)}">Sửa</button>

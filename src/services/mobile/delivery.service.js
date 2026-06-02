@@ -195,7 +195,7 @@ function createMobileDeliveryService(ctx) {
         const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
         const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
         const row = buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate);
-        row.returnAmount = toNumber(syncedReturn.total || order.returnAmount || 0);
+        row.returnAmount = toNumber(syncedReturn.total);
         row.returnedAmount = row.returnAmount;
         row.returnItems = syncedReturn.returnItems;
         row.deliveryReturnItems = syncedReturn.returnItems;
@@ -269,7 +269,8 @@ function createMobileDeliveryService(ctx) {
 
   async function confirmDelivery({ body = {}, mobileUser }) {
     const orderIdForKey = String(body.orderId || '').trim();
-    const idemKey = getIdempotencyKey(body, ['delivery-confirm', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.status]);
+    const confirmAmountsKey = JSON.stringify({ cashAmount: body.cashAmount, bankAmount: body.bankAmount, rewardAmount: body.rewardAmount, collectAmount: body.collectAmount, debtOrderIds: body.debtOrderIds || [] });
+    const idemKey = getIdempotencyKey(body, ['delivery-confirm', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.status, confirmAmountsKey]);
     const cachedResult = readIdempotentResult(idemKey);
     if (cachedResult) return cachedResult;
     const perf = createStepTimer('delivery.confirm');
@@ -406,7 +407,8 @@ function createMobileDeliveryService(ctx) {
 
   async function createReturnFromDelivery({ body = {}, mobileUser }) {
     const orderIdForKey = String(body.orderId || '').trim();
-    const idemKey = getIdempotencyKey(body, ['delivery-return', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.returnType]);
+    const returnItemsKey = JSON.stringify((Array.isArray(body.items) ? body.items : []).map((item) => ({ productCode: item.productCode || item.code || item.productId || '', qtyReturn: item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty ?? 0 })));
+    const idemKey = getIdempotencyKey(body, ['delivery-return', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.returnType, returnItemsKey]);
     const cachedResult = readIdempotentResult(idemKey);
     if (cachedResult) return cachedResult;
     const perf = createStepTimer('delivery.return');

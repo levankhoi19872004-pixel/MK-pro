@@ -376,7 +376,7 @@ function calculateDeliveryDraftDebt(row){
     - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
     - deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0)
     - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
-    - deliveryToNumber(row?.returnAmount ?? row?.returnedAmount ?? 0)
+    - deliveryReturnAmountFromItems(row)
   ));
 }
 function calculateDeliveryDebt(row){
@@ -386,7 +386,7 @@ function calculateDeliveryDebt(row){
   return calculateDeliveryDraftDebt(row);
 }
 function deliveryRowPaid(row){
-  return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryToNumber(row?.returnAmount||0);
+  return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
 }
 
 
@@ -418,7 +418,17 @@ function getDeliveryReturnItemsPayload(){
       salePrice: Number(input.dataset.price || 0),
       amount: Math.round(qtyReturn * Number(input.dataset.price || 0))
     };
-  }).filter(item=>item.qtyReturn>0);
+  });
+}
+function deliveryReturnAmountFromItems(row){
+  const returnItems=Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:null);
+  if(Array.isArray(returnItems)) return Math.round(returnItems.reduce((sum,item)=>{
+    const qty=Number(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)||0;
+    const price=Number(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0)||0;
+    const amount=Number(item.amount ?? item.returnAmount ?? NaN);
+    return sum+(Number.isFinite(amount)?amount:Math.round(qty*price));
+  },0));
+  return Math.round(Number(row?.returnAmount ?? row?.returnedAmount ?? 0)||0);
 }
 function updateDeliveryReturnTotal(){
   const total=getDeliveryReturnItemsPayload().reduce((sum,item)=>sum+Number(item.amount||0),0);
@@ -525,7 +535,7 @@ function fillDeliveryEditPanel(row){
   if(deliveryEditDebtBefore)deliveryEditDebtBefore.value=Math.round(deliveryDebtBase(row));
   if(deliveryEditCash)deliveryEditCash.value=Math.round(Number(row.cashCollected||0));
   if(deliveryEditBank)deliveryEditBank.value=Math.round(Number(row.bankCollected||0));
-  if(deliveryEditReturn)deliveryEditReturn.value=Math.round(Number(row.returnAmount||0));
+  if(deliveryEditReturn)deliveryEditReturn.value=Math.round(deliveryReturnAmountFromItems(row));
   if(deliveryEditReward)deliveryEditReward.value=Math.round(Number(row.rewardAmount||0));
   if(deliveryEditDebt)deliveryEditDebt.value=calculateDeliveryDebt(row);
   if(deliveryEditNote)deliveryEditNote.value=row.deliveryNote||'';
@@ -651,7 +661,7 @@ async function loadDeliveryToday(){
       acc.cash += deliveryToNumber(row.cashCollected||0);
       acc.bank += deliveryToNumber(row.bankCollected||0);
       acc.reward += deliveryToNumber(row.rewardAmount||0);
-      acc.returned += deliveryToNumber(row.returnAmount||0);
+      acc.returned += deliveryTodeliveryReturnAmountFromItems(row);
       acc.debt += calculateDeliveryDebt(row);
       return acc;
     },{total:0,cash:0,bank:0,reward:0,returned:0,debt:0});
@@ -679,7 +689,7 @@ async function loadDeliveryToday(){
       const cash=Number(row.cashCollected||0);
       const bank=Number(row.bankCollected||0);
       const reward=Number(row.rewardAmount||0);
-      const returned=Number(row.returnAmount||0);
+      const returned=deliveryReturnAmountFromItems(row);
       const rowId=String(row.id||'');
       const locked=Boolean(row.accountingConfirmed||row.editLocked);
       const checked=selectedDeliveryAccountingIds.has(rowId);
