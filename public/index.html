@@ -476,7 +476,7 @@
             </div>
             <div class="delivery-accounting-actions">
               <button id="selectAllDeliveryAccountingButton" class="secondary compact-action" type="button">Chọn tất cả</button>
-              <button id="clearDeliveryAccountingSelectionButton" class="secondary compact-action" type="button">Bỏ chọn</button>
+              <button id="clearDeliveryAccountingSelectionButton" class="secondary compact-action hidden-action" type="button" hidden>Bỏ chọn</button>
               <button id="confirmDeliveryAccountingButton" class="primary compact-action" type="button">Xác nhận của kế toán</button>
               <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
             </div>
@@ -491,8 +491,12 @@
               <input id="deliveryStaffFilter" placeholder="Gõ mã hoặc tên NV giao..." autocomplete="off" />
               <div id="deliveryStaffFilterSuggestions" class="suggestions" hidden></div>
             </label>
-            <label class="delivery-filter-field">Tìm khách hàng
-              <input id="deliverySearchInput" placeholder="Gõ tên / mã / SĐT khách..." autocomplete="off" />
+            <label class="delivery-filter-field">Tình trạng giao hàng
+              <select id="deliveryStatusFilter" title="Tình trạng giao hàng">
+                <option value="">Tất cả</option>
+                <option value="not_delivered">Chưa giao</option>
+                <option value="delivered_group">Đã giao</option>
+              </select>
             </label>
           </div>
 

@@ -310,10 +310,13 @@ function syncDeliveryAccountingSelection(){
   }
   if(selectAllDeliveryAccountingButton){
     selectAllDeliveryAccountingButton.disabled=!selectableCount;
-    selectAllDeliveryAccountingButton.textContent=selectableCount && selectedCount===selectableCount?'Đã chọn tất cả':'Chọn tất cả';
+    const allSelected=Boolean(selectableCount && selectedCount===selectableCount);
+    selectAllDeliveryAccountingButton.textContent=allSelected?'Bỏ chọn tất cả':'Chọn tất cả';
+    selectAllDeliveryAccountingButton.classList.toggle('is-clear-mode', allSelected);
   }
   if(clearDeliveryAccountingSelectionButton){
     clearDeliveryAccountingSelectionButton.disabled=!selectedCount;
+    clearDeliveryAccountingSelectionButton.hidden=true;
   }
 }
 function toggleDeliveryAccountingSelection(id, checked){
@@ -323,7 +326,9 @@ function toggleDeliveryAccountingSelection(id, checked){
   syncDeliveryAccountingSelection();
 }
 function selectAllDeliveryAccounting(){
-  selectedDeliveryAccountingIds=new Set(deliveryAccountingSelectableRows().map(row=>String(row.id)));
+  const selectable=deliveryAccountingSelectableRows().map(row=>String(row.id));
+  const allSelected=Boolean(selectable.length && selectedDeliveryAccountingIds.size===selectable.length && selectable.every(id=>selectedDeliveryAccountingIds.has(id)));
+  selectedDeliveryAccountingIds=allSelected?new Set():new Set(selectable);
   syncDeliveryAccountingSelection();
 }
 function clearDeliveryAccountingSelection(){

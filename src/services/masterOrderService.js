@@ -1193,7 +1193,16 @@ async function listDeliveryToday(query = {}) {
       if (salesman && ![row.salesmanCode, row.salesmanName].some((value) => normalizeText(value).includes(salesman))) continue;
       if (delivery && ![row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(delivery))) continue;
       if (route && !normalizeText(row.routeName).includes(route)) continue;
-      if (status && row.visualStatus !== status && normalizeText(row.deliveryStatus) !== status) continue;
+      if (status) {
+        const visual = normalizeText(row.visualStatus);
+        const rawStatus = normalizeText(row.deliveryStatus);
+        const isDeliveredGroup = ['delivered', 'done', 'completed', 'paid', 'unpaid'].includes(visual)
+          || ['delivered', 'done', 'completed', 'paid'].includes(rawStatus);
+        const isNotDeliveredGroup = !isDeliveredGroup;
+        if (status === 'delivered_group' && !isDeliveredGroup) continue;
+        else if (status === 'not_delivered' && !isNotDeliveredGroup) continue;
+        else if (!['delivered_group', 'not_delivered'].includes(status) && visual !== status && rawStatus !== status) continue;
+      }
       rows.push(row);
     }
   }

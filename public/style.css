@@ -5309,3 +5309,44 @@ button.danger:hover{background:#fecaca}
     white-space:normal!important;
   }
 }
+
+/* V45 FIX 2026-06-02: Đơn đi giao hôm nay 70/30 + bộ lọc 3 trường + 1 nút chọn/bỏ chọn */
+#deliveryTodayTab .delivery-split-layout{
+  grid-template-columns:minmax(680px,70%) minmax(300px,30%)!important;
+  gap:14px!important;
+}
+#deliveryTodayTab .delivery-edit-panel{
+  min-width:0!important;
+  padding:14px!important;
+}
+#deliveryTodayTab .delivery-left-panel{
+  min-width:0!important;
+}
+#deliveryTodayTab .delivery-simple-filter,
+#deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{
+  display:grid!important;
+  grid-template-columns:minmax(160px,.8fr) minmax(250px,1.25fr) minmax(180px,.9fr)!important;
+  gap:10px!important;
+  align-items:end!important;
+}
+#deliveryTodayTab .delivery-filter-field select,
+#deliveryTodayTab .delivery-filter-field input{
+  width:100%!important;
+  min-height:40px!important;
+}
+#deliveryTodayTab .hidden-action[hidden]{display:none!important;}
+#deliveryTodayTab .delivery-edit-head h2{font-size:17px!important;}
+#deliveryTodayTab .delivery-edit-head .muted{font-size:12px!important;}
+#deliveryTodayTab .delivery-return-card{padding:12px!important;}
+#deliveryTodayTab .delivery-return-head h3{font-size:14px!important;}
+#deliveryTodayTab .delivery-edit-form{gap:10px!important;}
+#deliveryTodayTab .selected-delivery-box{padding:10px 12px!important;font-size:13px!important;}
+@media(max-width:1280px){
+  #deliveryTodayTab .delivery-split-layout{grid-template-columns:minmax(620px,68%) minmax(300px,32%)!important;}
+  #deliveryTodayTab .delivery-money-report-grid{grid-template-columns:repeat(3,minmax(110px,1fr))!important;}
+}
+@media(max-width:980px){
+  #deliveryTodayTab .delivery-split-layout{grid-template-columns:1fr!important;}
+  #deliveryTodayTab .delivery-simple-filter,
+  #deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{grid-template-columns:1fr!important;}
+}
