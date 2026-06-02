@@ -700,15 +700,8 @@ function renderDeliveryReturnItems(row){
   const returnLockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
   const currentReturn=deliveryReturnAmountFromItems(row);
   deliveryReturnItems.innerHTML=`
-    <section class="delivery-block return-panel mobile-return-panel web-return-copy-panel">
-      <div class="block-title-row">
-        <div>
-          <h3>Sản phẩm cần giao</h3>
-          <p class="return-help">Hiển thị hàng cần giao cho cửa hàng. Nếu có hàng trả, nhập số lượng ở cột SL trả.</p>
-          ${returnLocked ? `<p class="return-help warn-text">${escapeHtml(returnLockMessage)}</p>` : ''}
-        </div>
-        <b data-product-return-total>${money(currentReturn)}</b>
-      </div>
+    <section class="delivery-block return-panel mobile-return-panel web-return-copy-panel web-return-copy-panel-flat">
+      ${returnLocked ? `<p class="return-help warn-text">${escapeHtml(returnLockMessage)}</p>` : ''}
       <div class="mobile-return-scroll delivery-products-scroll">
         ${items.length ? items.map((item,index)=>{
           const code=deliveryItemCode(item) || `SP${index+1}`;
