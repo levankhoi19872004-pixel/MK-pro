@@ -612,7 +612,7 @@ function renderReport() {
   if (reportOldDebtBankAmount) reportOldDebtBankAmount.textContent = money(oldDebtBank);
 
   if (!completed.length) {
-    reportList.className = 'order-list empty';
+    reportList.className = 'order-list delivery-report-list empty';
     reportList.textContent = 'Chưa có đơn đã giao / đã xử lý trong ngày này.';
     return;
   }
