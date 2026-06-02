@@ -103,7 +103,7 @@ function createMobileDeliveryService(ctx) {
   }
 
   function getReturnLineQty(item = {}) {
-    return toNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+    return toNumber(item.qtyReturn ?? item.returnQty ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
   }
 
   function getReturnLinePrice(item = {}) {
