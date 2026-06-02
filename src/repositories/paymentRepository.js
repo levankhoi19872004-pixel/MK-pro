@@ -2,7 +2,9 @@
 
 const collectionRepository = require('./mongoCollection.repository');
 
-const PAYMENT_KEY = 'payments';
+// V45 canonical AR Ledger collection.
+// Công nợ không còn ghi vào journals/payments; mọi bút toán AR ghi vào arLedgers.
+const PAYMENT_KEY = 'arLedgers';
 
 async function findAll(filter = {}, options = {}) {
   return collectionRepository.findAll(PAYMENT_KEY, filter, options);

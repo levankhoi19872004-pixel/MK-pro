@@ -11,6 +11,7 @@ module.exports = {
   inventoriesLegacy: require('./InventoryLegacy'),
   stockTransactions: require('./StockTransaction'),
   journals: require('./Journal'),
+  arLedgers: require('./ArLedger'),
   importOrders: require('./ImportOrder'),
   salesOrders: require('./SalesOrder'),
   masterOrders: require('./MasterOrder'),

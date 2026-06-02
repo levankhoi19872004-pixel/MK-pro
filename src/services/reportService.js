@@ -8,7 +8,7 @@ const SalesOrder = require('../models/SalesOrder');
 const Customer = require('../models/Customer');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
-const Payment = require('../models/Payment');
+const ArLedger = require('../models/ArLedger');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const ReturnOrder = require('../models/ReturnOrder');
@@ -482,7 +482,7 @@ function buildArLedgerDiagnostics(receipts = [], ledger = []) {
 async function debtReport(query = {}) {
   const [orders, journals, receipts, returns, customers] = await Promise.all([
     SalesOrder.find({}).sort({ date: 1, createdAt: 1 }).lean(),
-    Payment.find({}).lean().catch(() => []),
+    ArLedger.find({}).lean().catch(() => []),
     Receipt.find({}).lean(),
     ReturnOrder.find({}).lean(),
     Customer.find({}).lean().catch(() => [])
@@ -511,7 +511,7 @@ async function debtReport(query = {}) {
   });
   const ledgerKeys = new Set(ledger.map(moneyDocKey).filter(Boolean));
 
-  // ERP/DMS chuẩn: báo cáo công nợ đọc từ AR Ledger (collection journals).
+  // ERP/DMS chuẩn: báo cáo công nợ đọc từ AR Ledger canonical collection arLedgers.
   // Với dữ liệu cũ chưa được rebuild journal, tạo dòng backfill ảo khi báo cáo để không mất số liệu.
   activeOrders.forEach((order) => {
     const hasSaleLedger = ledger.some((row) => String(row.type || '').toLowerCase().includes('sale') && isLedgerForOrder(row, order));
@@ -860,7 +860,7 @@ async function debtReport(query = {}) {
     unappliedCredit: Array.from(unappliedByCustomer.values()).reduce((total, amount) => total + Math.max(0, toNumber(amount)), 0)
   };
 
-  return { source: 'mongo_ar_ledger', ledgerCollection: 'journals', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics, summary };
+  return { source: 'mongo_ar_ledger', ledgerCollection: 'arLedgers', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics, summary };
 }
 
 

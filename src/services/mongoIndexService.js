@@ -127,6 +127,20 @@ const INDEX_DEFINITIONS = {
     [{ method: 1, status: 1 }, { name: 'idx_receipts_method_status' }],
     [{ createdAt: -1 }, { name: 'idx_receipts_created_at' }]
   ],
+  arLedgers: [
+    [{ id: 1 }, { name: 'idx_ar_ledgers_id' }],
+    [{ code: 1 }, { name: 'idx_ar_ledgers_code' }],
+    [{ customerCode: 1 }, { name: 'idx_ar_ledgers_customer_code' }],
+    [{ customerName: 1 }, { name: 'idx_ar_ledgers_customer_name', sparse: true }],
+    [{ orderId: 1 }, { name: 'idx_ar_ledgers_order_id', sparse: true }],
+    [{ orderCode: 1 }, { name: 'idx_ar_ledgers_order_code', sparse: true }],
+    [{ refType: 1, refId: 1 }, { name: 'idx_ar_ledgers_ref' }],
+    [{ refCode: 1 }, { name: 'idx_ar_ledgers_ref_code', sparse: true }],
+    [{ date: 1 }, { name: 'idx_ar_ledgers_date' }],
+    [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledgers_customer_date' }],
+    [{ customerCode: 1, type: 1, date: -1 }, { name: 'idx_ar_ledgers_customer_type_date_desc' }],
+    [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledgers_ref_code_type' }]
+  ],
   payments: [
     [{ id: 1 }, { name: 'idx_payments_id' }],
     [{ code: 1 }, { name: 'idx_payments_code' }],

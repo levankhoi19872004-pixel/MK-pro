@@ -11,7 +11,7 @@ const InventoryLegacy = require('../models/InventoryLegacy');
 const Inventory = require('../models/Inventory');
 const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
-const Payment = require('../models/Payment');
+const ArLedger = require('../models/ArLedger');
 const ImportLog = require('../models/ImportLog');
 const User = require('../models/User');
 const systemService = require('./systemService');
@@ -1267,7 +1267,7 @@ async function importOpeningDebt(rows = []) {
     });
   }
 
-  const result = await insertManyInBatches(Payment, docs);
+  const result = await insertManyInBatches(ArLedger, docs);
   skipped += result.errors.length;
   errors.push(...result.errors.map((e) => ({ customerCode: '', message: e.message })));
   const imported = Math.max(0, docs.length - result.errors.length);

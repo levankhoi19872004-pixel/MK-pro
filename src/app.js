@@ -22,6 +22,7 @@ const { registerApiRoutes } = require('./routes');
 const { registerStaticRoutes } = require('./routes/static.routes');
 const { registerHealthRoutes } = require('./routes/health.routes');
 const { ensureMongoIndexes } = require('./services/mongoIndexService');
+const { ensureArLedgersBackfillFromJournals } = require('./services/arLedgerMigrationService');
 
 const PORT = process.env.PORT || 3000;
 
@@ -161,6 +162,11 @@ async function startServer() {
     console.log(`✅ Mongo indexes ready: ${indexResults.length} indexes checked/created`);
   } else {
     console.log('⏭️ Bỏ qua tạo/check index Mongo khi khởi động (AUTO_ENSURE_MONGO_INDEXES=false)');
+  }
+
+  if (process.env.AUTO_BACKFILL_ARLEDGERS !== 'false') {
+    const arBackfill = await ensureArLedgersBackfillFromJournals({ logger });
+    if (!arBackfill.skipped) console.log(`✅ Backfill arLedgers từ journals: ${arBackfill.inserted || 0} dòng`);
   }
 
   return app.listen(PORT, () => {

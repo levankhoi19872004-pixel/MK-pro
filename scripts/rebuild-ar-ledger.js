@@ -6,7 +6,7 @@ const connectDB = require('../src/config/db');
 const SalesOrder = require('../src/models/SalesOrder');
 const Receipt = require('../src/models/Receipt');
 const ReturnOrder = require('../src/models/ReturnOrder');
-const Payment = require('../src/models/Payment');
+const ArLedger = require('../src/models/ArLedger');
 const postingEngine = require('../src/engines/posting.engine');
 const { toNumber } = require('../src/utils/common.util');
 
@@ -28,7 +28,7 @@ async function main() {
   // Rebuild AR Ledger sạch từ chứng từ gốc.
   // Xóa cả định dạng mới (ar_*) và định dạng cũ từng dùng trong V43/V45
   // như sale_debt, debt_collection để tránh cộng trùng công nợ sau khi rebuild.
-  await Payment.deleteMany({
+  await ArLedger.deleteMany({
     $or: [
       { account: 'AR' },
       { type: { $regex: '^ar_', $options: 'i' } },
@@ -83,7 +83,7 @@ async function main() {
     if (entry) returnCount += 1;
   }
 
-  console.log(JSON.stringify({ ok: true, collection: 'journals', saleCount, receiptCount, receiptVoidCount, returnCount, bonusCount }, null, 2));
+  console.log(JSON.stringify({ ok: true, collection: 'arLedgers', saleCount, receiptCount, receiptVoidCount, returnCount, bonusCount }, null, 2));
 }
 
 main()
