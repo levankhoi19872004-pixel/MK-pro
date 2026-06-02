@@ -29,7 +29,7 @@ function nowIso() {
 
 
 function compactDeliveryOrderKeys(order = {}) {
-  return [order.id, order._id, order.code, order.orderCode, order.documentCode, order.salesOrderId, order.salesOrderCode]
+  return [order.id, order._id, order.code, order.orderCode, order.documentCode, order.salesOrderId, order.salesOrderCode, order.sourceOrderId, order.sourceOrderCode, order.deliveryOrderId, order.deliveryOrderCode, order.masterOrderId, order.masterOrderCode]
     .map((value) => String(value || '').trim())
     .filter(Boolean);
 }
@@ -77,7 +77,7 @@ async function buildMasterChildrenMapFast(masterOrders = []) {
 async function findReturnOrdersForDeliveryChildren(children = []) {
   const keys = [...new Set((children || []).flatMap(compactDeliveryOrderKeys))];
   if (!keys.length) return [];
-  const filter = buildIdentityInFilter(keys, ['salesOrderId', 'orderId', 'sourceOrderId', 'salesOrderCode', 'orderCode', 'sourceOrderCode']);
+  const filter = buildIdentityInFilter(keys, ['salesOrderId', 'orderId', 'sourceOrderId', 'deliveryOrderId', 'masterOrderId', 'salesOrderCode', 'orderCode', 'sourceOrderCode', 'deliveryOrderCode', 'masterOrderCode']);
   return filter ? returnOrderRepository.findAll(filter) : [];
 }
 
@@ -253,7 +253,29 @@ function deliveryDebtBase(order = {}) {
 }
 
 function deliveryReturnAmount(order = {}) {
-  return toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  // V45: trên màn Đơn đi giao hôm nay, giá trị TH/Trả hàng phải là số đã đồng bộ từ returnOrders.
+  // Không lấy snapshot tạm của đơn làm nguồn chính; listDeliveryToday sẽ set returnAmountFromReturnOrders trước khi tính.
+  return toNumber(order.returnAmountFromReturnOrders ?? order.returnAmount ?? order.returnedAmount ?? 0);
+}
+
+function buildDeliveryAmount(order = {}, returnAmountFromReturnOrders = null) {
+  const totalReceivable = Math.max(0, normalizeDebtAmount(Math.round(deliveryDebtBase(order))));
+  const cashAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.cashCollected ?? order.cashAmount ?? 0))));
+  const bankAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0))));
+  const bonusAmount = Math.max(0, normalizeDebtAmount(Math.round(deliveryRewardAmount(order))));
+  const returnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountFromReturnOrders == null ? deliveryReturnAmount(order) : toNumber(returnAmountFromReturnOrders))));
+  const debtAmount = Math.max(0, normalizeDebtAmount(Math.round(totalReceivable - cashAmount - bankAmount - bonusAmount - returnAmount)));
+  return {
+    totalReceivable,
+    cashAmount,
+    bankAmount,
+    bonusAmount,
+    rewardAmount: bonusAmount,
+    returnAmount,
+    debtAmount,
+    remainingAmount: debtAmount,
+    collectedAmount: cashAmount + bankAmount + bonusAmount + returnAmount
+  };
 }
 
 function deliveryRewardAmount(order = {}) {
@@ -261,7 +283,11 @@ function deliveryRewardAmount(order = {}) {
 }
 
 function isActiveReturnOrder(row = {}) {
-  return !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase());
+  const status = String(row.status || '').toLowerCase();
+  const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
+  // cleared cũng không được tính vào TH vì đây là phiếu đã xóa hết hàng trả.
+  return !['cancelled', 'canceled', 'void', 'deleted', 'removed', 'cleared'].includes(status)
+    && !['cancelled', 'canceled', 'void', 'deleted', 'removed', 'cleared'].includes(warehouseStatus);
 }
 
 function returnAmountForSalesOrder(returnOrders = [], order = {}) {
@@ -270,9 +296,16 @@ function returnAmountForSalesOrder(returnOrders = [], order = {}) {
   return returnOrders
     .filter(isActiveReturnOrder)
     .filter((row) => {
-      const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
-      const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
-      return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
+      const rowOrderId = String(row.salesOrderId || row.orderId || row.sourceOrderId || row.deliveryOrderId || '').trim();
+      const rowOrderCode = String(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.deliveryOrderCode || '').trim();
+      const rowMasterId = String(row.masterOrderId || row.masterDeliveryOrderId || '').trim();
+      const rowMasterCode = String(row.masterOrderCode || row.masterDeliveryOrderCode || '').trim();
+      const masterId = String(order.masterOrderId || '').trim();
+      const masterCode = String(order.masterOrderCode || '').trim();
+      return (orderId && rowOrderId === orderId)
+        || (orderCode && rowOrderCode === orderCode)
+        || (masterId && rowMasterId === masterId)
+        || (masterCode && rowMasterCode === masterCode);
     })
     .reduce((sum, row) => sum + toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0), 0);
 }
@@ -283,9 +316,16 @@ function returnOrdersForSalesOrder(returnOrders = [], order = {}) {
   return returnOrders
     .filter(isActiveReturnOrder)
     .filter((row) => {
-      const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
-      const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
-      return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
+      const rowOrderId = String(row.salesOrderId || row.orderId || row.sourceOrderId || row.deliveryOrderId || '').trim();
+      const rowOrderCode = String(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.deliveryOrderCode || '').trim();
+      const rowMasterId = String(row.masterOrderId || row.masterDeliveryOrderId || '').trim();
+      const rowMasterCode = String(row.masterOrderCode || row.masterDeliveryOrderCode || '').trim();
+      const masterId = String(order.masterOrderId || '').trim();
+      const masterCode = String(order.masterOrderCode || '').trim();
+      return (orderId && rowOrderId === orderId)
+        || (orderCode && rowOrderCode === orderCode)
+        || (masterId && rowMasterId === masterId)
+        || (masterCode && rowMasterCode === masterCode);
     });
 }
 
@@ -511,13 +551,7 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
 }
 
 function calculateDeliveryDebt(order = {}) {
-  return Math.max(0, normalizeDebtAmount(
-    deliveryDebtBase(order)
-    - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
-    - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
-    - deliveryRewardAmount(order)
-    - deliveryReturnAmount(order)
-  ));
+  return buildDeliveryAmount(order).debtAmount;
 }
 
 function isDeliveryCompletedStatus(status) {
@@ -1060,7 +1094,19 @@ async function listDeliveryToday(query = {}) {
   });
   const childrenMap = await buildMasterChildrenMapFast(masterOrders);
   const allChildren = Array.from(childrenMap.values()).flat();
-  const returnOrders = await findReturnOrdersForDeliveryChildren(allChildren);
+  const returnLookupChildren = [];
+  for (const master of masterOrders || []) {
+    const masterKey = String(master.id || master.code || '');
+    const children = childrenMap.get(masterKey) || [];
+    for (const child of children) {
+      returnLookupChildren.push({
+        ...child,
+        masterOrderId: master.id || '',
+        masterOrderCode: master.code || ''
+      });
+    }
+  }
+  const returnOrders = await findReturnOrdersForDeliveryChildren(returnLookupChildren.length ? returnLookupChildren : allChildren);
   // Không dùng AR cache cho danh sách giao hàng; dùng công thức giao hàng bình thường.
   const arDebtMap = null;
   const rows = [];
@@ -1073,13 +1119,17 @@ async function listDeliveryToday(query = {}) {
       const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
       if (deliveryDate !== date) continue;
 
+      child.masterOrderId = master.id || '';
+      child.masterOrderCode = master.code || '';
       const syncedReturnAmount = returnAmountForSalesOrder(returnOrders, child);
       const syncedReturnItems = returnItemsForSalesOrder(returnOrders, child);
       const lockedReturnOrder = getLockedReturnOrderForSalesOrder(returnOrders, child);
+      child.returnAmountFromReturnOrders = syncedReturnAmount;
       child.returnAmount = syncedReturnAmount;
       child.returnedAmount = syncedReturnAmount;
       child.returnItems = syncedReturnItems;
       child.deliveryReturnItems = syncedReturnItems;
+      const amount = buildDeliveryAmount(child, syncedReturnAmount);
 
       const row = {
         id: child.id || child.code,
@@ -1097,16 +1147,24 @@ async function listDeliveryToday(query = {}) {
         deliveryDate,
         deliveryStatus: child.deliveryStatus || 'waiting',
         visualStatus: statusForDeliveryRow(child),
-        totalAmount: toNumber(child.totalAmount || 0),
-        debtBeforeCollection: deliveryDebtBase(child),
-        cashCollected: toNumber(child.cashCollected ?? child.cashAmount ?? 0),
-        bankCollected: toNumber(child.bankCollected ?? child.transferAmount ?? child.bankAmount ?? 0),
-        returnAmount: deliveryReturnAmount(child),
-        rewardAmount: deliveryRewardAmount(child),
-        debt: calculateDeliveryDebt(child),
-        debtAmount: calculateDeliveryDebt(child),
-        arBalance: calculateDeliveryDebt(child),
-        arDebtAmount: calculateDeliveryDebt(child),
+        totalAmount: amount.totalReceivable,
+        totalReceivable: amount.totalReceivable,
+        debtBeforeCollection: amount.totalReceivable,
+        cashCollected: amount.cashAmount,
+        cashAmount: amount.cashAmount,
+        bankCollected: amount.bankAmount,
+        bankAmount: amount.bankAmount,
+        transferAmount: amount.bankAmount,
+        returnAmount: amount.returnAmount,
+        returnAmountSource: 'returnOrders',
+        rewardAmount: amount.bonusAmount,
+        bonusAmount: amount.bonusAmount,
+        debt: amount.debtAmount,
+        debtAmount: amount.debtAmount,
+        remainingAmount: amount.debtAmount,
+        collectedAmount: amount.collectedAmount,
+        arBalance: amount.debtAmount,
+        arDebtAmount: amount.debtAmount,
         debtSource: 'delivery_formula',
         arLedgerSynced: false,
         items: Array.isArray(child.items) ? child.items : [],
@@ -1191,12 +1249,15 @@ function buildDeliverySummaryAccumulator(row = {}) {
     deliveredCount: 0,
     pendingCount: 0,
     failedCount: 0,
+    totalReceivable: 0,
     totalAmount: 0,
     cashAmount: 0,
     bankAmount: 0,
+    bonusAmount: 0,
     rewardAmount: 0,
     returnAmount: 0,
     collectedAmount: 0,
+    debtAmount: 0,
     remainingAmount: 0
   };
 }
@@ -1207,18 +1268,22 @@ function addDeliveryRowToSummary(acc, row = {}) {
   if (['delivered', 'done', 'completed'].includes(visual)) acc.deliveredCount += 1;
   else if (['failed', 'cancelled', 'canceled', 'returned', 'delivery_failed'].includes(visual)) acc.failedCount += 1;
   else acc.pendingCount += 1;
-  acc.totalAmount += deliveryDebtBase(row);
-  acc.cashAmount += toNumber(row.cashCollected || 0);
-  acc.bankAmount += toNumber(row.bankCollected || 0);
-  acc.rewardAmount += toNumber(row.rewardAmount || 0);
-  acc.returnAmount += deliveryReturnAmount(row);
-  acc.collectedAmount += deliveryRowCollectedAmount(row);
-  acc.remainingAmount += calculateDeliveryDebt(row);
+  const amount = buildDeliveryAmount(row, row.returnAmount);
+  acc.totalReceivable += amount.totalReceivable;
+  acc.totalAmount += amount.totalReceivable;
+  acc.cashAmount += amount.cashAmount;
+  acc.bankAmount += amount.bankAmount;
+  acc.bonusAmount += amount.bonusAmount;
+  acc.rewardAmount += amount.bonusAmount;
+  acc.returnAmount += amount.returnAmount;
+  acc.collectedAmount += amount.collectedAmount;
+  acc.debtAmount += amount.debtAmount;
+  acc.remainingAmount += amount.debtAmount;
   return acc;
 }
 
 function finalizeDeliverySummaryRow(row = {}) {
-  const roundKeys = ['totalAmount', 'cashAmount', 'bankAmount', 'rewardAmount', 'returnAmount', 'collectedAmount', 'remainingAmount'];
+  const roundKeys = ['totalReceivable', 'totalAmount', 'cashAmount', 'bankAmount', 'bonusAmount', 'rewardAmount', 'returnAmount', 'collectedAmount', 'debtAmount', 'remainingAmount'];
   for (const key of roundKeys) row[key] = Math.max(0, normalizeDebtAmount(Math.round(toNumber(row[key]))));
   return row;
 }
@@ -1238,7 +1303,7 @@ async function listDeliveryTodaySummary(query = {}) {
     addDeliveryRowToSummary(map.get(key), row);
   }
   const rows = Array.from(map.values()).map(finalizeDeliverySummaryRow)
-    .sort((a, b) => b.totalAmount - a.totalAmount || String(a.deliveryStaffName).localeCompare(String(b.deliveryStaffName), 'vi'));
+    .sort((a, b) => b.totalReceivable - a.totalReceivable || String(a.deliveryStaffName).localeCompare(String(b.deliveryStaffName), 'vi'));
   return {
     date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
     formula: 'Tổng hợp tầng 1 theo nhân viên giao hàng; chưa render danh sách đơn để tối ưu tốc độ.',
@@ -1249,15 +1314,18 @@ async function listDeliveryTodaySummary(query = {}) {
       acc.delivered += row.deliveredCount;
       acc.pending += row.pendingCount;
       acc.failed += row.failedCount;
-      acc.totalAmount += row.totalAmount;
+      acc.totalReceivable += row.totalReceivable || row.totalAmount || 0;
+      acc.totalAmount += row.totalReceivable || row.totalAmount || 0;
       acc.collectedAmount += row.collectedAmount;
-      acc.remainingAmount += row.remainingAmount;
+      acc.debtAmount += row.debtAmount || row.remainingAmount || 0;
+      acc.remainingAmount += row.debtAmount || row.remainingAmount || 0;
       acc.cashAmount += row.cashAmount;
       acc.bankAmount += row.bankAmount;
-      acc.rewardAmount += row.rewardAmount;
+      acc.bonusAmount += row.bonusAmount || row.rewardAmount || 0;
+      acc.rewardAmount += row.bonusAmount || row.rewardAmount || 0;
       acc.returnAmount += row.returnAmount;
       return acc;
-    }, { totalOrders: 0, delivered: 0, pending: 0, failed: 0, totalAmount: 0, collectedAmount: 0, remainingAmount: 0, cashAmount: 0, bankAmount: 0, rewardAmount: 0, returnAmount: 0 })
+    }, { totalOrders: 0, delivered: 0, pending: 0, failed: 0, totalReceivable: 0, totalAmount: 0, collectedAmount: 0, debtAmount: 0, remainingAmount: 0, cashAmount: 0, bankAmount: 0, bonusAmount: 0, rewardAmount: 0, returnAmount: 0 })
   };
 }
 
@@ -1281,7 +1349,7 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
     addDeliveryRowToSummary(map.get(key), row);
   }
   const rows = Array.from(map.values()).map(finalizeDeliverySummaryRow)
-    .sort((a, b) => b.totalAmount - a.totalAmount || String(a.salesStaffName).localeCompare(String(b.salesStaffName), 'vi'));
+    .sort((a, b) => b.totalReceivable - a.totalReceivable || String(a.salesStaffName).localeCompare(String(b.salesStaffName), 'vi'));
   return {
     date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
     deliveryStaffCode: deliveryKey,
@@ -1307,13 +1375,19 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     deliveryStaffName: row.deliveryStaffName,
     deliveryStatus: row.deliveryStatus,
     visualStatus: row.visualStatus,
-    totalAmount: deliveryDebtBase(row),
-    cashCollected: toNumber(row.cashCollected || 0),
-    bankCollected: toNumber(row.bankCollected || 0),
-    rewardAmount: toNumber(row.rewardAmount || 0),
+    totalAmount: row.totalReceivable || row.totalAmount || 0,
+    totalReceivable: row.totalReceivable || row.totalAmount || 0,
+    cashCollected: toNumber(row.cashCollected || row.cashAmount || 0),
+    cashAmount: toNumber(row.cashCollected || row.cashAmount || 0),
+    bankCollected: toNumber(row.bankCollected || row.bankAmount || 0),
+    bankAmount: toNumber(row.bankCollected || row.bankAmount || 0),
+    rewardAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
+    bonusAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
     returnAmount: deliveryReturnAmount(row),
-    collectedAmount: deliveryRowCollectedAmount(row),
-    debtAmount: calculateDeliveryDebt(row),
+    returnAmountSource: 'returnOrders',
+    collectedAmount: row.collectedAmount || deliveryRowCollectedAmount(row),
+    debtAmount: row.debtAmount ?? calculateDeliveryDebt(row),
+    remainingAmount: row.debtAmount ?? calculateDeliveryDebt(row),
     accountingConfirmed: row.accountingConfirmed,
     editLocked: row.editLocked,
     needReAccounting: row.needReAccounting,

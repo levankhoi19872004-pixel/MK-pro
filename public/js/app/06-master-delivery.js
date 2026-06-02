@@ -658,18 +658,28 @@ function deliverySummaryParams(){
   params.set('limit','5000');
   return params;
 }
+function deliveryAmountMetricLine(row){
+  const pt=Number(row.totalReceivable ?? row.totalAmount ?? 0);
+  const tm=Number(row.cashAmount ?? row.cashCollected ?? 0);
+  const ck=Number(row.bankAmount ?? row.bankCollected ?? 0);
+  const tt=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
+  // TH/Trả hàng do backend đồng bộ từ returnOrders. Frontend chỉ hiển thị, không tự lấy từ snapshot đơn.
+  const th=Number(row.returnAmount ?? 0);
+  const cn=Number(row.debtAmount ?? row.remainingAmount ?? Math.max(0,pt-tm-ck-tt-th));
+  return `PT ${deliveryCompactMoney(pt)} | TM ${deliveryCompactMoney(tm)} | CK ${deliveryCompactMoney(ck)} | TT ${deliveryCompactMoney(tt)} | TH ${deliveryCompactMoney(th)} | CN ${deliveryDebtCompactLabel(cn)}`;
+}
 function deliveryMetricLine(row){
-  return `${Number(row.orderCount||0)}Đ | G${Number(row.deliveredCount||0)}/C${Number(row.pendingCount||0)}${Number(row.failedCount||0)?`/K${Number(row.failedCount||0)}`:''} | H${deliveryCompactMoney(row.totalAmount||0)} | T${deliveryCompactMoney(row.collectedAmount||0)} | N${deliveryCompactMoney(row.remainingAmount||0)}`;
+  return `${Number(row.orderCount||0)}Đ | ${deliveryAmountMetricLine(row)}`;
 }
 function deliveryStaffSafeKey(row){return String(row.deliveryStaffCode||row.deliveryStaffName||'NO_DELIVERY').trim()||'NO_DELIVERY';}
 function deliverySalesSafeKey(row){return String(row.salesStaffCode||row.salesStaffName||'NO_SALES').trim()||'NO_SALES';}
 function updateDeliveryKpiFromSummary(kpi={}){
-  if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(kpi.totalAmount||0);
+  if(deliveryTotalKpi)deliveryTotalKpi.textContent=money(kpi.totalReceivable||kpi.totalAmount||0);
   if(deliveryRunningKpi)deliveryRunningKpi.textContent=money(kpi.cashAmount||0);
   if(deliveryDoneKpi)deliveryDoneKpi.textContent=money(kpi.bankAmount||0);
-  if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=money(kpi.rewardAmount||0);
+  if(deliveryUnpaidKpi)deliveryUnpaidKpi.textContent=money(kpi.bonusAmount||kpi.rewardAmount||0);
   if(deliveryLateKpi)deliveryLateKpi.textContent=money(kpi.returnAmount||0);
-  if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(kpi.remainingAmount||0);
+  if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(kpi.debtAmount||kpi.remainingAmount||0);
 }
 function renderDeliveryTodaySummary(){
   if(!deliveryTodayList)return;
@@ -714,11 +724,13 @@ function renderDeliverySalesSummaryRows(deliveryCode, rows){
 function renderCompactDeliveryOrders(rows=[]){
   if(!rows.length)return '<div class="empty-state compact-empty">Chưa có đơn thuộc nhóm này.</div>';
   return rows.map(row=>{
-    const cash=Number(row.cashCollected||0);
-    const bank=Number(row.bankCollected||0);
-    const reward=Number(row.rewardAmount||0);
+    const receivable=Number(row.totalReceivable ?? row.totalAmount ?? 0);
+    const cash=Number(row.cashAmount ?? row.cashCollected ?? 0);
+    const bank=Number(row.bankAmount ?? row.bankCollected ?? 0);
+    const reward=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
+    // TH lấy từ returnOrders ở backend; không dùng cache/snapshot tạm trên đơn.
     const returned=Number(row.returnAmount||0);
-    const debt=Number(row.debtAmount ?? calculateDeliveryDebt(row));
+    const debt=Number(row.debtAmount ?? row.remainingAmount ?? Math.max(0,receivable-cash-bank-reward-returned));
     const locked=Boolean(row.accountingConfirmed||row.editLocked);
     const rowId=String(row.id||'');
     const checked=selectedDeliveryAccountingIds.has(rowId);
@@ -732,12 +744,12 @@ function renderCompactDeliveryOrders(rows=[]){
         <small>${escapeHtml(row.salesmanName||row.salesmanCode||'')}</small>
       </div>
       <div class="delivery-customer-money one-line-money">
-        <span title="Phải thu: ${money(row.totalAmount||0)}"><em>H</em><b>${deliveryCompactMoney(row.totalAmount||0)}</b></span>
+        <span title="Tổng phải thu: ${money(receivable)}"><em>PT</em><b>${deliveryCompactMoney(receivable)}</b></span>
         <span title="Tiền mặt: ${money(cash)}"><em>TM</em><b>${deliveryCompactMoney(cash)}</b></span>
         <span title="Chuyển khoản: ${money(bank)}"><em>CK</em><b>${deliveryCompactMoney(bank)}</b></span>
-        <span title="Thưởng: ${money(reward)}"><em>Th</em><b>${deliveryCompactMoney(reward)}</b></span>
-        <span title="Trả hàng: ${money(returned)}"><em>Tr</em><b>${deliveryCompactMoney(returned)}</b></span>
-        <span title="Còn nợ: ${money(debt)}"><em>N</em><b class="${deliveryDebtClass(debt)}">${deliveryDebtCompactLabel(debt)}</b></span>
+        <span title="Trả thưởng: ${money(reward)}"><em>TT</em><b>${deliveryCompactMoney(reward)}</b></span>
+        <span title="Trả hàng từ returnOrders: ${money(returned)}"><em>TH</em><b>${deliveryCompactMoney(returned)}</b></span>
+        <span title="Công nợ: ${money(debt)}"><em>CN</em><b class="${deliveryDebtClass(debt)}">${deliveryDebtCompactLabel(debt)}</b></span>
       </div>
     </article>`;
   }).join('');
