@@ -506,18 +506,29 @@ function clearDeliveryEditPanel(){
   if(deliveryEditMessage)deliveryEditMessage.textContent='';
   [deliveryEditCash,deliveryEditBank,deliveryEditReward,deliveryEditNote].forEach(el=>{if(el)el.disabled=false;});
   if(deliveryEditSaveButton)deliveryEditSaveButton.disabled=false;
+  if(typeof deliveryAdminUnlockButton!=='undefined'&&deliveryAdminUnlockButton)deliveryAdminUnlockButton.hidden=true;
+  if(typeof deliveryReAccountingButton!=='undefined'&&deliveryReAccountingButton)deliveryReAccountingButton.hidden=true;
   document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
 }
 window.clearDeliveryEditPanel=clearDeliveryEditPanel;
 
 function setDeliveryEditLocked(locked){
-  [deliveryEditCash,deliveryEditBank,deliveryEditReward,deliveryEditNote].forEach(el=>{if(el)el.disabled=Boolean(locked);});
+  const row=getSelectedDeliveryRow?.();
+  const needReAccounting=Boolean(row?.needReAccounting||row?.adminAdjustmentOpen||String(row?.accountingStatus||'').toLowerCase()==='needs_repost');
+  const lockedNow=Boolean(locked)&&!needReAccounting;
+  [deliveryEditCash,deliveryEditBank,deliveryEditReward,deliveryEditNote].forEach(el=>{if(el)el.disabled=lockedNow;});
   if(deliveryEditSaveButton){
-    deliveryEditSaveButton.disabled=Boolean(locked);
-    deliveryEditSaveButton.textContent=locked?'Đã khóa bởi kế toán':'Lưu chỉnh sửa';
+    deliveryEditSaveButton.disabled=lockedNow;
+    deliveryEditSaveButton.textContent=lockedNow?'Đã khóa bởi kế toán':'Lưu chỉnh sửa';
+  }
+  if(typeof deliveryAdminUnlockButton!=='undefined'&&deliveryAdminUnlockButton){
+    deliveryAdminUnlockButton.hidden=!Boolean(row&&(row.accountingConfirmed||row.editLocked)&&!needReAccounting);
+  }
+  if(typeof deliveryReAccountingButton!=='undefined'&&deliveryReAccountingButton){
+    deliveryReAccountingButton.hidden=!Boolean(row&&needReAccounting);
   }
   const returnInputs=document.querySelectorAll('#deliveryReturnItems input');
-  returnInputs.forEach(input=>{input.disabled=Boolean(locked)||Boolean(input.dataset.locked==='1');});
+  returnInputs.forEach(input=>{input.disabled=lockedNow||Boolean(input.dataset.locked==='1');});
 }
 window.setDeliveryEditLocked=setDeliveryEditLocked;
 
@@ -548,7 +559,10 @@ function fillDeliveryEditPanel(row){
   renderDeliveryReturnItems(row);
   renderDeliveryEditTotal();
   setDeliveryEditLocked(row.editLocked||row.accountingConfirmed);
-  if(deliveryEditMessage)deliveryEditMessage.textContent=(row.editLocked||row.accountingConfirmed)?'Kế toán đã xác nhận, đơn này đã khóa chỉnh sửa và đã đưa vào công nợ.':'';
+  if(deliveryEditMessage){
+    const needReAccounting=Boolean(row.needReAccounting||row.adminAdjustmentOpen||String(row.accountingStatus||'').toLowerCase()==='needs_repost');
+    deliveryEditMessage.textContent=needReAccounting?'Đang điều chỉnh bởi admin. Sau khi lưu phải bấm Xác nhận lại kế toán để reverse/post lại AR Ledger.':((row.editLocked||row.accountingConfirmed)?'Kế toán đã xác nhận, đơn này đã khóa chỉnh sửa và đã đưa vào công nợ.':'');
+  }
   document.querySelectorAll('.delivery-card.selected').forEach(el=>el.classList.remove('selected'));
   const card=document.querySelector(`.delivery-card[data-id="${CSS.escape(String(row.id||''))}"]`);
   if(card)card.classList.add('selected');
@@ -579,8 +593,9 @@ async function submitDeliveryEdit(event){
   const formData=new FormData(deliveryEditForm);
   const payload=Object.fromEntries(formData.entries());
   const selectedRow=deliveryRowsCache.find(item=>String(item.id)===String(payload.orderId));
-  if(selectedRow?.editLocked||selectedRow?.accountingConfirmed){
-    showMessage(deliveryEditMessage,'Kế toán đã xác nhận, đơn giao đã khóa và không được chỉnh sửa',true);
+  const needReAccounting=Boolean(selectedRow?.needReAccounting||selectedRow?.adminAdjustmentOpen||String(selectedRow?.accountingStatus||'').toLowerCase()==='needs_repost');
+  if((selectedRow?.editLocked||selectedRow?.accountingConfirmed)&&!needReAccounting){
+    showMessage(deliveryEditMessage,'Kế toán đã xác nhận, admin cần bấm Mở khóa điều chỉnh trước khi sửa',true);
     return;
   }
   if(selectedRow?.returnLocked){
@@ -700,7 +715,7 @@ async function loadDeliveryToday(){
         <div class="delivery-customer-main">
           <b>${escapeHtml(row.customerName||'Chưa có tên khách')}</b>
           <small>${escapeHtml(row.customerAddress||'Chưa có địa chỉ')}</small>
-          ${row.accountingConfirmed?'<small class="delivery-locked-note">Đã xác nhận kế toán · khóa sửa</small>':'<small class="delivery-open-note">Chưa xác nhận kế toán</small>'}
+          ${(row.needReAccounting||row.adminAdjustmentOpen||String(row.accountingStatus||'').toLowerCase()==='needs_repost')?'<small class="delivery-open-note">Đã điều chỉnh · chờ xác nhận lại kế toán</small>':(row.accountingConfirmed?'<small class="delivery-locked-note">Đã xác nhận kế toán · khóa sửa</small>':'<small class="delivery-open-note">Chưa xác nhận kế toán</small>')}
         </div>
         <div class="delivery-customer-money">
           <span class="money-pt" title="Phải thu: ${money(deliveryDebtBase(row))}"><em>PT</em><b>${deliveryCompactMoney(deliveryDebtBase(row))}</b></span>
@@ -718,6 +733,41 @@ async function loadDeliveryToday(){
     deliveryTodayList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
   }
 }
+
+
+async function adminUnlockSelectedDeliveryOrder(){
+  const row=getSelectedDeliveryRow?.();
+  if(!row){alert('Chưa chọn đơn để mở khóa.');return;}
+  const reason=prompt(`Nhập lý do mở khóa điều chỉnh đơn ${row.orderCode||row.id}:`, 'Điều chỉnh tiền thu / trả thưởng / hàng trả');
+  if(!reason||!reason.trim())return;
+  try{
+    if(deliveryAdminUnlockButton)deliveryAdminUnlockButton.disabled=true;
+    const res=await fetch(`/api/master-orders/delivery-today/${encodeURIComponent(row.id)}/admin-unlock`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reason:reason.trim()})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không mở khóa được đơn');
+    showMessage(deliveryEditMessage,json.message||'Đã mở khóa điều chỉnh');
+    await loadDeliveryToday();
+    selectDeliveryOrder(row.id);
+  }catch(err){showMessage(deliveryEditMessage,err.message,true);}
+  finally{if(deliveryAdminUnlockButton)deliveryAdminUnlockButton.disabled=false;}
+}
+window.adminUnlockSelectedDeliveryOrder=adminUnlockSelectedDeliveryOrder;
+
+async function reAccountingSelectedDeliveryOrder(){
+  const row=getSelectedDeliveryRow?.();
+  if(!row){alert('Chưa chọn đơn để xác nhận lại kế toán.');return;}
+  const ok=confirm(`Xác nhận lại kế toán đơn ${row.orderCode||row.id}?\n\nHệ thống sẽ đảo bút toán AR cũ và ghi lại AR mới theo số liệu vừa sửa.`);
+  if(!ok)return;
+  selectedDeliveryAccountingIds=new Set([String(row.id)]);
+  await confirmDeliveryAccounting();
+}
+window.reAccountingSelectedDeliveryOrder=reAccountingSelectedDeliveryOrder;
+if(typeof deliveryAdminUnlockButton!=='undefined'&&deliveryAdminUnlockButton)deliveryAdminUnlockButton.addEventListener('click',adminUnlockSelectedDeliveryOrder);
+if(typeof deliveryReAccountingButton!=='undefined'&&deliveryReAccountingButton)deliveryReAccountingButton.addEventListener('click',reAccountingSelectedDeliveryOrder);
 
 async function confirmDeliveryAccounting(){
   const date=deliveryDateFilter?.value||today();

@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/unmerged-child-orders', masterOrderController.listUnmergedChildOrders);
 router.get('/delivery-today', masterOrderController.listDeliveryToday);
 router.post('/delivery-today/confirm-accounting', masterOrderController.confirmDeliveryAccounting);
+router.post('/delivery-today/:id/admin-unlock', masterOrderController.adminUnlockDeliveryAccounting);
 router.patch('/delivery-today/:id', masterOrderController.updateDeliveryTodayOrder);
 router.post('/print-aggregate', masterOrderController.printAggregate);
 router.get('/', masterOrderController.list);

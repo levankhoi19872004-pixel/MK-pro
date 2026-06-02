@@ -38,6 +38,16 @@ async function listDeliveryToday(req, res) {
 }
 
 
+
+async function adminUnlockDeliveryAccounting(req, res) {
+  try {
+    const result = await masterOrderService.adminUnlockDeliveryAccounting(req.params.id, req.body || {});
+    return handleServiceResult(res, result, 200, (r) => ({ message: r.message || `Đã mở khóa điều chỉnh đơn giao`, order: r.salesOrder }));
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không mở khóa được đơn giao' });
+  }
+}
+
 async function confirmDeliveryAccounting(req, res) {
   try {
     const result = await masterOrderService.confirmDeliveryAccounting({ ...(req.query || {}), ...(req.body || {}) });
@@ -117,4 +127,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { listUnmergedChildOrders, listDeliveryToday, confirmDeliveryAccounting, updateDeliveryTodayOrder, printAggregate, list, get, create, update, cancel, remove };
+module.exports = { listUnmergedChildOrders, listDeliveryToday, confirmDeliveryAccounting, adminUnlockDeliveryAccounting, updateDeliveryTodayOrder, printAggregate, list, get, create, update, cancel, remove };
