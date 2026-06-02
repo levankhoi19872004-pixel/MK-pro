@@ -700,28 +700,37 @@ function updateDeliveryKpiFromSummary(kpi={}){
   if(deliveryLateKpi)deliveryLateKpi.textContent=money(kpi.returnAmount||0);
   if(typeof deliveryDebtKpi!=='undefined' && deliveryDebtKpi)deliveryDebtKpi.textContent=money(kpi.debtAmount||kpi.remainingAmount||0);
 }
+function buildDeliveryKpiFromRows(rows=[]){
+  return (rows||[]).reduce((sum,row)=>{
+    const m=deliveryMetricValues(row);
+    sum.totalReceivable+=m.pt;
+    sum.cashAmount+=m.tm;
+    sum.bankAmount+=m.ck;
+    sum.bonusAmount+=m.tt;
+    sum.returnAmount+=m.th;
+    sum.debtAmount+=m.cn;
+    return sum;
+  },{totalReceivable:0,cashAmount:0,bankAmount:0,bonusAmount:0,returnAmount:0,debtAmount:0});
+}
+function selectedDeliveryStaffQuery(){
+  return String(deliveryStaffFilter?.value||'').trim();
+}
 function renderDeliveryTodaySummary(){
   if(!deliveryTodayList)return;
-  const rows=deliverySummaryCache||[];
-  if(!rows.length){
-    deliveryTodayList.innerHTML='<div class="empty-state">Không có đơn đi giao theo bộ lọc hiện tại.</div>';
+  const staffQuery=selectedDeliveryStaffQuery();
+  if(!staffQuery){
+    deliveryTodayList.innerHTML='<div class="empty-state compact-empty"><b>Vui lòng chọn nhân viên giao hàng</b><br><small>Danh sách khách hàng chỉ hiển thị sau khi chọn NVGH để tránh rối và tránh tải toàn bộ đơn.</small></div>';
     return;
   }
-  deliveryTodayList.innerHTML=rows.map(row=>{
-    const code=deliveryStaffSafeKey(row);
-    const open=String(deliveryOpenStaffCode)===String(code);
-    const salesRows=deliverySalesSummaryCache.get(code)||[];
-    return `<div class="delivery-accordion-block ${open?'open':''}">
-      <button type="button" class="delivery-accordion-row delivery-staff-summary-row" onclick="toggleDeliveryStaffSummary('${escapeHtml(code)}')">
-        <span class="delivery-caret">${open?'▼':'▶'}</span>
-        <b>${escapeHtml(row.deliveryStaffName||row.deliveryStaffCode||'Chưa có NVGH')}</b>
-        <span class="delivery-summary-metrics">${deliveryMetricBadges(row)}</span>
-      </button>
-      <div class="delivery-sales-summary-box" ${open?'':'hidden'}>
-        ${open ? renderDeliverySalesSummaryRows(code, salesRows) : ''}
-      </div>
-    </div>`;
-  }).join('');
+  const rows=deliveryRowsCache||[];
+  if(!rows.length){
+    deliveryTodayList.innerHTML='<div class="empty-state">Không có khách hàng/đơn giao nào của nhân viên giao hàng đã chọn.</div>';
+    return;
+  }
+  deliveryTodayList.innerHTML=`<div class="delivery-customer-list-head">
+    <span>Khách hàng / đơn giao</span>
+    <span>Thông tin thu tiền</span>
+  </div>${renderCompactDeliveryOrders(rows)}`;
 }
 function renderDeliverySalesSummaryRows(deliveryCode, rows){
   if(!rows||!rows.length)return '<div class="empty-state compact-empty">Đang tải / chưa có chi tiết NVBH.</div>';
@@ -821,36 +830,59 @@ window.toggleDeliverySalesOrders=toggleDeliverySalesOrders;
 async function loadDeliveryToday(){
   if(!deliveryTodayList)return;
   const params=deliverySummaryParams();
+  const staffQuery=selectedDeliveryStaffQuery();
   deliveryRowsCache=[];
   deliverySummaryCache=[];
   deliverySalesSummaryCache=new Map();
   deliveryOpenStaffCode='';
   deliveryOpenSalesCode='';
-  try{
-    deliveryTodayList.innerHTML='<div class="empty-state">Đang tải tổng quan theo nhân viên giao hàng...</div>';
-    const res=await fetch(`/api/master-orders/delivery-today-summary?${params.toString()}`);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được tổng quan đơn đi giao');
-    const accounting=json.accounting||{};
-    deliverySummaryCache=json.summary||[];
-    updateDeliveryKpiFromSummary(json.kpi||{});
+  selectedDeliveryAccountingIds.clear();
+  clearDeliveryEditPanel();
+
+  if(!staffQuery){
+    updateDeliveryKpiFromSummary({});
     if(deliveryAccountingStatus){
-      deliveryAccountingStatus.textContent=accounting.message||'Màn hình đang hiển thị tổng quan theo NVGH. Bấm NVGH để xem NVBH, bấm NVBH để xem đơn.';
-      deliveryAccountingStatus.classList.toggle('confirmed', Boolean(accounting.confirmed));
+      deliveryAccountingStatus.textContent='Chọn nhân viên giao hàng để hiển thị danh sách khách hàng/đơn giao.';
+      deliveryAccountingStatus.classList.remove('confirmed');
     }
     if(confirmDeliveryAccountingButton){
       confirmDeliveryAccountingButton.disabled=true;
-      confirmDeliveryAccountingButton.textContent=accounting.confirmed?'Kế toán đã xác nhận':'Đẩy nhóm đơn đang mở sang công nợ';
+      confirmDeliveryAccountingButton.textContent='Đẩy đơn đã chọn sang công nợ';
     }
     if(deliveryRouteSummary){
-      deliveryRouteSummary.innerHTML='<div class="route-pill compact-help"><strong>Chế độ gọn</strong><span>Click NVGH → NVBH → đơn</span><small>Không tải toàn bộ danh sách đơn ngay từ đầu</small></div>';
+      deliveryRouteSummary.innerHTML='<div class="route-pill compact-help"><strong>Danh sách khách hàng</strong><span>Chỉ hiện sau khi chọn NVGH</span><small>Không còn nhóm accordion theo nhân viên.</small></div>';
     }
     renderDeliveryTodaySummary();
-    selectedDeliveryAccountingIds.clear();
     syncDeliveryAccountingSelection();
-    clearDeliveryEditPanel();
+    return;
+  }
+
+  try{
+    deliveryTodayList.innerHTML='<div class="empty-state">Đang tải danh sách khách hàng của nhân viên giao hàng...</div>';
+    params.set('delivery',staffQuery);
+    params.set('deliveryStaffCode',staffQuery);
+    const res=await fetch(`/api/master-orders/delivery-today-orders?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được danh sách đơn đi giao');
+    deliveryRowsCache=json.orders||[];
+    updateDeliveryKpiFromSummary(buildDeliveryKpiFromRows(deliveryRowsCache));
+    if(deliveryAccountingStatus){
+      deliveryAccountingStatus.textContent=`Đang hiển thị ${deliveryRowsCache.length} đơn/khách hàng của NVGH đã chọn. Có thể tick đơn rồi đẩy sang công nợ.`;
+      deliveryAccountingStatus.classList.remove('confirmed');
+    }
+    if(confirmDeliveryAccountingButton){
+      confirmDeliveryAccountingButton.disabled=!deliveryRowsCache.length;
+      confirmDeliveryAccountingButton.textContent='Đẩy đơn đã chọn sang công nợ';
+    }
+    if(deliveryRouteSummary){
+      deliveryRouteSummary.innerHTML='<div class="route-pill compact-help"><strong>Dạng list khách hàng</strong><span>Mỗi dòng là 1 đơn/khách</span><small>Dễ nhìn hơn nhóm NVGH → NVBH.</small></div>';
+    }
+    renderDeliveryTodaySummary();
+    syncDeliveryAccountingSelection();
   }catch(err){
+    updateDeliveryKpiFromSummary({});
     deliveryTodayList.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
+    syncDeliveryAccountingSelection();
   }
 }
 
