@@ -418,14 +418,20 @@ function getReturnInputRows(){
 function getDeliveryReturnItemsPayload(){
   return getReturnInputRows().map(input=>{
     const qtyReturn=Number(input.value||0);
-    const line=input.closest('.delivery-return-line');
+    const price=Number(input.dataset.price || 0);
     return {
+      lineKey: input.dataset.returnLineKey || '',
       productCode: input.dataset.returnCode || '',
       productName: input.dataset.returnName || '',
-      quantity: Number(input.dataset.orderQty || 0),
+      soldQty: Number(input.dataset.orderQty || 0),
+      quantity: qtyReturn,
+      returnQty: qtyReturn,
       qtyReturn,
-      salePrice: Number(input.dataset.price || 0),
-      amount: Math.round(qtyReturn * Number(input.dataset.price || 0))
+      returnQuantity: qtyReturn,
+      salePrice: price,
+      price,
+      returnAmount: Math.round(qtyReturn * price),
+      amount: Math.round(qtyReturn * price)
     };
   });
 }
@@ -468,28 +474,49 @@ function renderDeliveryEditTotal(){
   const selectedRow=getSelectedDeliveryRow?.();
   deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>Còn nợ tạm tính</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
 }
+function deliveryReturnDraftItems(row){
+  if(Array.isArray(row?.returnOrderItems))return row.returnOrderItems;
+  if(Array.isArray(row?.returnDraftItems))return row.returnDraftItems;
+  if(Array.isArray(row?.returnOrder?.items))return row.returnOrder.items;
+  if(Array.isArray(row?.returnDraft?.items))return row.returnDraft.items;
+  return null;
+}
+
+function deliveryReturnLineSoldQty(item){
+  return Number(item?.soldQty ?? item?.quantitySold ?? item?.orderQty ?? item?.totalQty ?? item?.qtySold ?? deliveryItemQty(item) ?? 0)||0;
+}
+
+function deliveryReturnLineReturnQty(item){
+  return Number(item?.returnQty ?? item?.qtyReturn ?? item?.returnQuantity ?? item?.returnedQty ?? 0)||0;
+}
+
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems)return;
-  const items=Array.isArray(row?.items)?row.items:[];
-  const savedReturnItems=Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:[]);
-  const savedReturns=new Map(savedReturnItems.map(item=>[String(item.productCode||item.code||item.productId||''), Number(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)]));
+  const draftItems=deliveryReturnDraftItems(row);
+  const items=Array.isArray(draftItems)?draftItems:(Array.isArray(row?.items)?row.items:[]);
+  const savedReturnItems=Array.isArray(draftItems)?draftItems:(Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:[]));
+  const savedReturns=new Map(savedReturnItems.map(item=>[String(item.productCode||item.code||item.productId||'').trim(), deliveryReturnLineReturnQty(item)]));
   if(!items.length){
-    deliveryReturnItems.innerHTML='<div class="empty-state">Đơn này chưa có danh sách sản phẩm nên chưa thể chọn hàng trả.</div>';
+    const hint= row?.returnDraftLoaded===false
+      ? 'Đang tải danh sách hàng trả từ returnOrders...'
+      : 'Đơn này chưa có returnOrders/items nên chưa thể chọn hàng trả.';
+    deliveryReturnItems.innerHTML=`<div class="empty-state">${escapeHtml(hint)}</div>`;
     if(deliveryReturnTotalText)deliveryReturnTotalText.textContent='0';
     if(deliveryEditReturn)deliveryEditReturn.value=0;
     return;
   }
-  const returnLocked=Boolean(row?.returnLocked || row?.masterReturnOrderId || row?.masterReturnOrderCode || String(row?.returnMergeStatus||'').toLowerCase()==='merged');
+  const returnLocked=Boolean(row?.returnLocked || row?.masterReturnOrderId || row?.masterReturnOrderCode || row?.returnOrder?.masterReturnOrderId || row?.returnOrder?.masterReturnOrderCode || String(row?.returnMergeStatus||row?.returnOrder?.returnMergeStatus||'').toLowerCase()==='merged');
   const lockMessage=row?.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
   deliveryReturnItems.innerHTML=`${returnLocked?`<div class="empty-state warning-state">${escapeHtml(lockMessage)}</div>`:''}<div class="delivery-return-table">${items.map((item,index)=>{
     const code=deliveryItemCode(item) || `SP${index+1}`;
     const name=deliveryItemName(item);
-    const qty=deliveryItemQty(item);
+    const qty=deliveryReturnLineSoldQty(item);
     const price=deliveryItemPrice(item);
-    const saved=savedReturns.get(code)||0;
+    const saved=savedReturns.get(String(code).trim())||deliveryReturnLineReturnQty(item)||0;
+    const lineKey=String(item.lineKey||`${code}|${item.unit||''}|${price}`).trim();
     return `<div class="delivery-return-line">
-      <div class="delivery-return-product"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span><small>SL đơn: ${qty} · Giá: ${money(price)}</small></div>
-      <input data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" type="number" min="0" max="${qty}" step="1" value="${saved}" placeholder="SL trả" ${returnLocked?'disabled readonly':''} />
+      <div class="delivery-return-product"><strong>${escapeHtml(code)}</strong><span>${escapeHtml(name)}</span><small>SL bán: ${qty} · Giá: ${money(price)}</small></div>
+      <input data-return-code="${escapeHtml(code)}" data-return-line-key="${escapeHtml(lineKey)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" type="number" min="0" max="${qty}" step="1" value="${saved}" placeholder="SL trả" ${returnLocked?'disabled readonly':''} />
     </div>`;
   }).join('')}</div>`;
   getReturnInputRows().forEach(input=>{
@@ -501,6 +528,38 @@ function renderDeliveryReturnItems(row){
     });
   });
   updateDeliveryReturnTotal();
+}
+
+async function loadReturnDraftForDeliveryRow(row){
+  if(!row)return null;
+  const params=new URLSearchParams();
+  const salesOrderId=String(row.salesOrderId||row.orderId||row.id||'').trim();
+  const salesOrderCode=String(row.salesOrderCode||row.orderCode||'').trim();
+  if(salesOrderId)params.set('salesOrderId',salesOrderId);
+  if(salesOrderCode)params.set('salesOrderCode',salesOrderCode);
+  params.set('limit','5');
+  params.set('excludeInactive','1');
+  const res=await fetch(`/api/return-orders?${params.toString()}`);
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.message||'Không tải được returnOrders của đơn đang chọn');
+  const rows=json.returnOrders||json.returns||[];
+  const exact=rows.find(r=>
+    (salesOrderId && String(r.salesOrderId||r.orderId||'').trim()===salesOrderId) ||
+    (salesOrderCode && String(r.salesOrderCode||r.orderCode||'').trim()===salesOrderCode)
+  ) || rows[0] || null;
+  if(!exact)return null;
+  row.returnOrder=exact;
+  row.returnOrderId=exact.id||exact.code||'';
+  row.returnOrderCode=exact.code||exact.id||'';
+  row.returnOrderItems=Array.isArray(exact.items)?exact.items:[];
+  row.deliveryReturnItems=row.returnOrderItems;
+  row.returnItems=row.returnOrderItems;
+  row.returnAmount=Number(exact.totalReturnAmount ?? exact.totalAmount ?? exact.amount ?? 0)||0;
+  row.returnMergeStatus=exact.returnMergeStatus||row.returnMergeStatus||'';
+  row.masterReturnOrderId=exact.masterReturnOrderId||row.masterReturnOrderId||'';
+  row.masterReturnOrderCode=exact.masterReturnOrderCode||row.masterReturnOrderCode||'';
+  row.returnDraftLoaded=true;
+  return exact;
 }
 
 function clearDeliveryEditPanel(){
@@ -577,9 +636,18 @@ function fillDeliveryEditPanel(row){
   if(card)card.classList.add('selected');
 }
 
-function selectDeliveryOrder(id){
+async function selectDeliveryOrder(id){
   const row=deliveryRowsCache.find(item=>String(item.id)===String(id));
-  if(row)fillDeliveryEditPanel(row);
+  if(!row)return;
+  row.returnDraftLoaded=false;
+  fillDeliveryEditPanel(row);
+  try{
+    await loadReturnDraftForDeliveryRow(row);
+    if(String(selectedDeliveryOrderId)===String(row.id))fillDeliveryEditPanel(row);
+  }catch(err){
+    row.returnDraftLoaded=true;
+    if(deliveryReturnItems)deliveryReturnItems.innerHTML=`<div class="empty-state danger-text">${escapeHtml(err.message)}</div>`;
+  }
 }
 window.selectDeliveryOrder=selectDeliveryOrder;
 

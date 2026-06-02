@@ -49,20 +49,27 @@ async function listReturnOrders(query = {}) {
   const excludeInactive = String(guardedQuery.excludeInactive ?? '1') !== '0';
 
   const filter = {};
+  const andFilters = [];
   if (dateFrom || dateTo) {
     const range = {};
     if (dateFrom) range.$gte = dateFrom;
     if (dateTo) range.$lte = dateTo;
-    filter.$or = [{ date: range }, { documentDate: range }];
+    // Return draft sinh từ đơn con có thể lưu ngày ở deliveryDate, không chỉ date/documentDate.
+    andFilters.push({ $or: [{ date: range }, { documentDate: range }, { deliveryDate: range }] });
   }
   if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  const salesOrderId = String(guardedQuery.salesOrderId || guardedQuery.orderId || '').trim();
+  const salesOrderCode = String(guardedQuery.salesOrderCode || guardedQuery.orderCode || '').trim();
+  const deliveryStaffCode = String(guardedQuery.deliveryStaffCode || guardedQuery.staffCode || guardedQuery.delivery || '').trim();
+  const salesStaffCode = String(guardedQuery.salesStaffCode || guardedQuery.salesman || '').trim();
   if (guardedQuery.masterOrderId) filter.masterOrderId = String(guardedQuery.masterOrderId).trim();
   if (guardedQuery.masterOrderCode) filter.masterOrderCode = String(guardedQuery.masterOrderCode).trim();
-  if (guardedQuery.salesOrderId) filter.salesOrderId = String(guardedQuery.salesOrderId).trim();
-  if (guardedQuery.salesOrderCode) filter.salesOrderCode = String(guardedQuery.salesOrderCode).trim();
-  if (guardedQuery.deliveryStaffCode) filter.deliveryStaffCode = String(guardedQuery.deliveryStaffCode).trim();
-  if (guardedQuery.salesStaffCode) filter.salesStaffCode = String(guardedQuery.salesStaffCode).trim();
+  if (salesOrderId) andFilters.push({ $or: [{ salesOrderId }, { orderId: salesOrderId }] });
+  if (salesOrderCode) andFilters.push({ $or: [{ salesOrderCode }, { orderCode: salesOrderCode }] });
+  if (deliveryStaffCode) filter.deliveryStaffCode = deliveryStaffCode;
+  if (salesStaffCode) filter.salesStaffCode = salesStaffCode;
   if (guardedQuery.customerCode) filter.customerCode = String(guardedQuery.customerCode).trim();
+  if (andFilters.length) filter.$and = [...(filter.$and || []), ...andFilters];
   if (q) {
     const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
     filter.$and = filter.$and || [];
