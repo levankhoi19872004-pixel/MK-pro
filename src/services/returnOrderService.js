@@ -39,7 +39,9 @@ function isInactiveStatus(row = {}) {
 }
 
 async function listReturnOrders(query = {}) {
-  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const dateMode = String(query.dateMode || query.mode || '').toLowerCase();
+  const shouldDefaultToday = dateMode === 'today' || (!dateMode && String(query.defaultToday || '') === '1');
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: shouldDefaultToday });
   const page = queryGuard.getPagination(guardedQuery);
   const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);

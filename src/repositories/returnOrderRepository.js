@@ -26,8 +26,8 @@ async function upsert(returnOrder, options = {}) {
   return collectionRepository.upsertByIdentity(RETURN_ORDER_KEY, returnOrder, ['id', 'code'], options);
 }
 
-async function replaceAll(returnOrders) {
-  return collectionRepository.replaceAll(RETURN_ORDER_KEY, returnOrders || []);
+async function replaceAll() {
+  throw new Error('returnOrders không được replaceAll. Chỉ được ghi bằng returnOrderRepository.upsert().');
 }
 
 module.exports = { findAll, findByIdOrCode, upsert, replaceAll };

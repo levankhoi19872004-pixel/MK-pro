@@ -202,6 +202,7 @@ const debtPanels=[...document.querySelectorAll('.debt-panel[data-debt-panel-id]'
 const bankbookTable=document.getElementById('bankbookTable');
 const returnOrderTable=document.getElementById('returnOrderTable');
 const returnOrderSearchInput=document.getElementById('returnOrderSearchInput');
+const returnOrderDateMode=document.getElementById('returnOrderDateMode');
 const returnOrderDateFrom=document.getElementById('returnOrderDateFrom');
 const returnOrderDateTo=document.getElementById('returnOrderDateTo');
 const reloadReturnOrdersButton=document.getElementById('reloadReturnOrdersButton');

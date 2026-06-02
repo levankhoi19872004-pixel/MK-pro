@@ -10,13 +10,11 @@ const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempo
 function createMobileDeliveryService(ctx) {
   const repo = createMobileDeliveryRepository(ctx);
   async function persistDeliverySnapshotSafely(data = {}) {
-    // returnOrders is managed by returnOrderService/returnOrderRepository.
-    // Refresh it right before persisting the mobile delivery snapshot so an old
-    // snapshot from one order cannot overwrite/hide return orders created by another order.
-    if (data && Object.prototype.hasOwnProperty.call(data, 'returnOrders')) {
-      data.returnOrders = await returnOrderRepository.findAll();
-    }
-    return (repo.persistDeliverySnapshotSafely ? repo.persistDeliverySnapshotSafely(data) : repo.persistPrimaryDataSnapshot(data));
+    // returnOrders is managed by returnOrderService/returnOrderRepository only.
+    // Never send returnOrders into primary-data snapshot persistence.
+    const snapshot = data ? { ...data } : data;
+    if (snapshot) delete snapshot.returnOrders;
+    return (repo.persistDeliverySnapshotSafely ? repo.persistDeliverySnapshotSafely(snapshot) : repo.persistPrimaryDataSnapshot(snapshot));
   }
 
   const {

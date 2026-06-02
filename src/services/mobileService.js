@@ -83,7 +83,9 @@ function createMobileService(ctx) {
     };
 
     writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng Mongo staffs' });
-    await persistPrimaryDataSnapshot(data);
+    const loginSnapshot = { ...data };
+    delete loginSnapshot.returnOrders;
+    await persistPrimaryDataSnapshot(loginSnapshot);
     return { body: { ok: true, success: true, source: 'mongo-route', token: encodeMobileToken(user), refreshToken: encodeMobileRefreshToken(user), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user } };
   }
 

@@ -705,6 +705,11 @@
           </div>
           <div class="sales-history-filters return-order-filters">
             <input id="returnOrderSearchInput" placeholder="Tìm mã trả hàng, khách, đơn bán, NV giao..." />
+            <select id="returnOrderDateMode" title="Chế độ lọc ngày">
+              <option value="today">Hôm nay</option>
+              <option value="all">Tất cả</option>
+              <option value="range">Từ ngày đến ngày</option>
+            </select>
             <input id="returnOrderDateFrom" type="date" title="Từ ngày" />
             <input id="returnOrderDateTo" type="date" title="Đến ngày" />
             <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>

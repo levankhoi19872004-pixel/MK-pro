@@ -400,8 +400,15 @@ async function loadReturnOrders(){
   const q=returnOrderSearchInput?returnOrderSearchInput.value.trim():'';
   const params=new URLSearchParams();
   if(q)params.set('q',q);
-  params.set('dateFrom', returnOrderDateFrom?.value || today());
-  params.set('dateTo', returnOrderDateTo?.value || returnOrderDateFrom?.value || today());
+  const mode=returnOrderDateMode?String(returnOrderDateMode.value||'today'):'today';
+  params.set('dateMode',mode);
+  if(mode==='today'){
+    params.set('dateFrom', today());
+    params.set('dateTo', today());
+  }else if(mode==='range'){
+    if(returnOrderDateFrom?.value)params.set('dateFrom',returnOrderDateFrom.value);
+    if(returnOrderDateTo?.value)params.set('dateTo',returnOrderDateTo.value);
+  }
   params.set('page','1');
   params.set('limit','50');
   params.set('excludeInactive','1');
@@ -412,7 +419,8 @@ async function loadReturnOrders(){
     if(!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
     const rows=(json.returnOrders||json.returns||[]).filter(isActiveDocument);
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · Tổng giảm nợ ${money(totalValue)} · Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>`;
+    const modeLabel=returnOrderDateMode?.value==='all'?'Tất cả':(returnOrderDateMode?.value==='range'?'Theo khoảng ngày':'Hôm nay');
+    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>`;
     if(!rows.length){returnOrderTable.innerHTML='<tr><td colspan="9">Chưa có đơn trả hàng.</td></tr>';return}
     returnOrderTable.innerHTML=rows.map(r=>{
       const staff=debtPersonLabel(r.staffCode||r.deliveryStaffCode||r.salesmanCode,r.staffName||r.deliveryStaffName||r.salesmanName);
@@ -798,6 +806,18 @@ function exportSelectedMasterReturnOrders(){
   if(!orders.length){alert('Chưa chọn đơn tổng trả để xuất Excel');return}
   exportErpRows('don-tong-tra-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(r=>[r.code||r.id||'', debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName), r.returnDate||r.date||'', Number(r.debtReduction??r.totalAmount??0), String(r.status||'pending_warehouse_receive')]));
 }
+
+if(returnOrderDateMode) returnOrderDateMode.addEventListener('change',()=>{
+  const mode=String(returnOrderDateMode.value||'today');
+  if(returnOrderDateFrom) returnOrderDateFrom.disabled=(mode==='all');
+  if(returnOrderDateTo) returnOrderDateTo.disabled=(mode==='all');
+  loadReturnOrders();
+});
+if(returnOrderDateFrom) returnOrderDateFrom.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
+if(returnOrderDateTo) returnOrderDateTo.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
+if(returnOrderSearchInput) returnOrderSearchInput.addEventListener('input',()=>{ clearTimeout(window.__returnOrderSearchTimer); window.__returnOrderSearchTimer=setTimeout(loadReturnOrders,250); });
+if(reloadReturnOrdersButton) reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
+
 window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
 window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;
 window.exportSelectedMasterReturnOrders=exportSelectedMasterReturnOrders;

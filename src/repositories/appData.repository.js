@@ -15,8 +15,12 @@ class AppDataRepository {
 
   async replaceAll(data) {
     const result = [];
+    const source = data || {};
     for (const key of this.collectionKeys) {
-      result.push(await collectionRepository.replaceAll(key, data[key] || []));
+      // Không replace collection nếu snapshot không chủ động mang key đó.
+      // Điều này cho phép loại returnOrders khỏi snapshot mà không bị xóa sạch.
+      if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+      result.push(await collectionRepository.replaceAll(key, source[key] || []));
     }
     return result;
   }

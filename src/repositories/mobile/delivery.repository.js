@@ -1,6 +1,4 @@
 'use strict';
-const returnOrderRepository = require('../returnOrderRepository');
-
 /**
  * Repository tầng dữ liệu cho mobile delivery.
  * Dùng Mongo primary data snapshot từ legacy context, không đọc/ghi JSON trực tiếp.
@@ -12,16 +10,14 @@ function createMobileDeliveryRepository(ctx) {
 
   async function persistDeliverySnapshotSafely(data = {}) {
       if (!data) return;
-      data.returnOrders = await returnOrderRepository.findAll();
-      const seen = new Map();
-      data.returnOrders = (data.returnOrders || []).filter((row) => {
-        const key = String(row.id || row.code || '');
-        if (!key) return true;
-        if (seen.has(key)) return false;
-        seen.set(key,true);
-        return true;
-      });
-      return ctx.persistPrimaryDataSnapshot(data);
+      const snapshot = { ...data };
+
+      // returnOrders không đi qua persistPrimaryDataSnapshot.
+      // Phiếu trả hàng chỉ được ghi bằng returnOrderRepository.upsert()
+      // để tránh snapshot mobile cũ replaceAll làm mất phiếu trả mới.
+      delete snapshot.returnOrders;
+
+      return ctx.persistPrimaryDataSnapshot(snapshot);
     }
 
   return {

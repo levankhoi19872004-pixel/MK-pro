@@ -45,7 +45,9 @@ function createMobileAuthService(ctx) {
     };
 
     writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng Mongo staffs' });
-    await repo.persistPrimaryDataSnapshot(data);
+    const loginSnapshot = { ...data };
+    delete loginSnapshot.returnOrders;
+    await repo.persistPrimaryDataSnapshot(loginSnapshot);
     return {
       body: {
         ok: true,
