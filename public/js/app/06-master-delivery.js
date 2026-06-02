@@ -416,6 +416,29 @@ function getReturnInputRows(){
   return Array.from(deliveryReturnItems.querySelectorAll('[data-return-code]'));
 }
 function getDeliveryReturnItemsPayload(){
+  const inputRows=getReturnInputRows();
+  if(inputRows.length){
+    return inputRows.map((input,index)=>{
+      const qtyReturn=Math.max(0,Number(input.value||0)||0);
+      const price=Number(input.dataset.price||0)||0;
+      const code=String(input.dataset.returnCode||`SP${index+1}`).trim();
+      const soldQty=Number(input.dataset.orderQty||0)||0;
+      return {
+        lineKey: input.dataset.lineKey || `${code}||${price}`,
+        productCode: code,
+        productName: String(input.dataset.returnName||'').trim(),
+        soldQty,
+        quantity: qtyReturn,
+        returnQty: qtyReturn,
+        qtyReturn,
+        returnQuantity: qtyReturn,
+        salePrice: price,
+        price,
+        returnAmount: Math.round(qtyReturn * price),
+        amount: Math.round(qtyReturn * price)
+      };
+    });
+  }
   const row=getSelectedDeliveryRow?.();
   const sourceItems=Array.isArray(row?.deliveryReturnItems)
     ? row.deliveryReturnItems
@@ -701,29 +724,38 @@ function renderDeliveryReturnItems(row){
             </div>
             <label>
               <span>SL trả</span>
-              <input class="return-qty-input" data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-order-qty="${qty}" data-price="${price}" data-return-qty="${returned}" type="number" min="0" max="${qty}" step="1" value="${returned}" inputmode="numeric" disabled readonly data-locked="1" />
+              <input class="return-qty-input" data-return-code="${escapeHtml(code)}" data-return-name="${escapeHtml(name)}" data-line-key="${escapeHtml(item.lineKey||deliveryReturnLineKey(item))}" data-order-qty="${qty}" data-price="${price}" data-return-qty="${returned}" type="number" min="0" max="${qty}" step="1" value="${returned}" inputmode="numeric" ${returnLocked ? 'disabled readonly data-locked="1"' : ''} />
             </label>
           </div>`;
         }).join('') : '<div class="empty-line">Đơn này chưa có danh sách sản phẩm.</div>'}
       </div>
     </section>`;
+  deliveryReturnItems.querySelectorAll('[data-return-code]').forEach(input=>{
+    input.addEventListener('input',()=>{
+      const max=Number(input.max||0);
+      let value=Number(input.value||0);
+      if(!Number.isFinite(value)||value<0)value=0;
+      if(max>0&&value>max)value=max;
+      input.value=Math.round(value);
+      updateDeliveryReturnTotal();
+    });
+  });
   updateDeliveryReturnTotal();
 }
 
 async function loadReturnDraftForDeliveryRow(row){
   if(!row)return null;
-  const params=new URLSearchParams();
   const salesOrderId=String(row.salesOrderId||row.orderId||row.id||row._id||'').trim();
   const salesOrderCode=String(row.salesOrderCode||row.orderCode||row.code||'').trim();
+  const key=salesOrderId||salesOrderCode;
+  if(!key)throw new Error('Không xác định được salesOrderId/salesOrderCode của đơn giao');
+  const params=new URLSearchParams();
   if(salesOrderId)params.set('salesOrderId',salesOrderId);
   if(salesOrderCode)params.set('salesOrderCode',salesOrderCode);
-  params.set('limit','20');
-  params.set('excludeInactive','1');
-  const res=await fetch(`/api/return-orders?${params.toString()}`);
+  const res=await fetch(`/api/return-orders/by-sales-order/${encodeURIComponent(key)}?${params.toString()}`);
   const json=await res.json();
   if(!json.ok)throw new Error(json.message||'Không tải được returnOrders của đơn đang chọn');
-  const rows=json.returnOrders||json.returns||[];
-  const exact=findReturnOrderForDeliveryRow(row,rows);
+  const exact=json.returnOrder||null;
   if(!exact){
     applyReturnOrderToDeliveryRow(row,null);
     return null;
@@ -837,6 +869,47 @@ function recalcDeliveryEditDebt(){
 }
 window.recalcDeliveryEditDebt=recalcDeliveryEditDebt;
 
+function selectedDeliverySalesOrderKey(row = {}){
+  return String(row.salesOrderId||row.orderId||row.id||row._id||row.salesOrderCode||row.orderCode||row.code||'').trim();
+}
+async function saveDeliveryReturnItemsTwoWay(row){
+  if(!row)return null;
+  const items=getDeliveryReturnItemsPayload().map(item=>({
+    lineKey:item.lineKey,
+    productCode:item.productCode,
+    productName:item.productName,
+    soldQty:item.soldQty,
+    quantitySold:item.soldQty,
+    price:item.price,
+    salePrice:item.price,
+    unitPrice:item.price,
+    returnQty:item.returnQty,
+    qtyReturn:item.returnQty,
+    returnQuantity:item.returnQty,
+    quantity:item.returnQty,
+    amount:item.amount,
+    returnAmount:item.amount
+  }));
+  const key=selectedDeliverySalesOrderKey(row);
+  if(!key)throw new Error('Không xác định được đơn giao để lưu hàng trả');
+  const body={
+    salesOrderId:row.salesOrderId||row.orderId||row.id||'',
+    salesOrderCode:row.salesOrderCode||row.orderCode||row.code||'',
+    items,
+    source:'web',
+    updatedFrom:'web'
+  };
+  const res=await fetch(`/api/return-orders/by-sales-order/${encodeURIComponent(key)}/items`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.message||'Không lưu được số lượng hàng trả');
+  applyReturnOrderToDeliveryRow(row,json.returnOrder);
+  return json.returnOrder;
+}
+
 async function submitDeliveryEdit(event){
   event.preventDefault();
   if(!deliveryEditOrderId?.value){showMessage(deliveryEditMessage,'Chưa chọn đơn để sửa',true);return;}
@@ -848,8 +921,9 @@ async function submitDeliveryEdit(event){
     showMessage(deliveryEditMessage,'Kế toán đã xác nhận, admin cần bấm Mở khóa điều chỉnh trước khi sửa',true);
     return;
   }
-  // Phần mềm chỉ xem/duyệt danh sách hàng trả. SL trả chỉ được sửa từ app giao hàng/returnOrders,
-  // nên tuyệt đối không gửi returnItems từ web để tránh ghi đè phiếu trả hàng thật.
+  // Đồng bộ 2 chiều: phần mềm và app cùng sửa vào nguồn duy nhất returnOrders.
+  const returnItemsPayload=getDeliveryReturnItemsPayload();
+  payload.returnAmount=returnItemsPayload.reduce((sum,item)=>sum+Number(item.amount||0),0);
   delete payload.returnItems;
   ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
     if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
@@ -863,6 +937,8 @@ async function submitDeliveryEdit(event){
     return;
   }
   try{
+    showMessage(deliveryEditMessage,'Đang lưu hàng trả vào returnOrders...');
+    await saveDeliveryReturnItemsTwoWay(selectedRow);
     showMessage(deliveryEditMessage,'Đang lưu chỉnh sửa...');
     const res=await fetch(`/api/master-orders/delivery-today/${encodeURIComponent(payload.orderId)}`,{
       method:'PATCH',

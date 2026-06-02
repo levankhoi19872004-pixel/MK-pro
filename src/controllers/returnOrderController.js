@@ -21,6 +21,26 @@ async function create(req, res) {
   }
 }
 
+async function getBySalesOrder(req, res) {
+  try {
+    const result = await returnOrderService.getReturnOrderBySalesOrderKey(req.params.salesOrderId, req.query || {});
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    res.json({ ok: true, source: 'return-orders-by-sales-order', returnOrder: result.returnOrder });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không tải được phiếu trả theo đơn giao' });
+  }
+}
+
+async function updateItemsBySalesOrder(req, res) {
+  try {
+    const result = await returnOrderService.updateReturnDraftItemsBySalesOrder(req.params.salesOrderId, req.body || {});
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    res.json({ ok: true, source: 'return-orders-by-sales-order', message: 'Đã đồng bộ số lượng trả hàng', returnOrder: result.returnOrder });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không cập nhật được số lượng trả hàng' });
+  }
+}
+
 async function updateItems(req, res) {
   try {
     const result = await returnOrderService.updateReturnDraftItems(req.params.id, req.body || {});
@@ -31,4 +51,4 @@ async function updateItems(req, res) {
   }
 }
 
-module.exports = { list, create, updateItems };
+module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems };

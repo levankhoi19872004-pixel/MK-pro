@@ -5514,6 +5514,86 @@
         ]
       }
     },
+    "/api/return-orders/by-sales-order/{salesOrderId}": {
+      "get": {
+        "tags": [
+          "Return Orders"
+        ],
+        "summary": "GET /api/return-orders/by-sales-order/{salesOrderId}",
+        "operationId": "getReturnOrdersBySalesOrderSalesOrderId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/return-orders/by-sales-order/{salesOrderId}/items": {
+      "put": {
+        "tags": [
+          "Return Orders"
+        ],
+        "summary": "PUT /api/return-orders/by-sales-order/{salesOrderId}/items",
+        "operationId": "putReturnOrdersBySalesOrderSalesOrderIdItems",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/returns": {
       "get": {
         "tags": [
@@ -5643,6 +5723,86 @@
         ],
         "summary": "PUT /api/returns/{id}/items",
         "operationId": "putReturnsIdItems",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/returns/by-sales-order/{salesOrderId}": {
+      "get": {
+        "tags": [
+          "Returns"
+        ],
+        "summary": "GET /api/returns/by-sales-order/{salesOrderId}",
+        "operationId": "getReturnsBySalesOrderSalesOrderId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/returns/by-sales-order/{salesOrderId}/items": {
+      "put": {
+        "tags": [
+          "Returns"
+        ],
+        "summary": "PUT /api/returns/by-sales-order/{salesOrderId}/items",
+        "operationId": "putReturnsBySalesOrderSalesOrderIdItems",
         "responses": {
           "200": {
             "description": "Success response",

@@ -652,6 +652,101 @@ async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {})
   return updated;
 }
 
+async function getReturnOrderBySalesOrderKey(salesOrderIdOrCode, query = {}, options = {}) {
+  const key = String(salesOrderIdOrCode || query.salesOrderId || query.salesOrderCode || query.orderId || query.orderCode || '').trim();
+  if (!key) return { error: 'Thiếu salesOrderId/salesOrderCode', status: 400 };
+  const salesOrder = await orderRepository.findByIdOrCode(key);
+  const lookup = {
+    salesOrderId: salesOrder?.id || query.salesOrderId || query.orderId || key,
+    salesOrderCode: salesOrder?.code || query.salesOrderCode || query.orderCode || key
+  };
+  let existing = await findExistingReturnOrder(lookup);
+  if (!existing && salesOrder && options.ensureDraft !== false) {
+    const ensured = await ensureReturnDraftForSalesOrder(salesOrder, options);
+    existing = ensured?.returnOrder || await findExistingReturnOrder(lookup);
+  }
+  if (!existing) return { returnOrder: null };
+  return { returnOrder: toClient(existing) };
+}
+
+async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {}, options = {}) {
+  const key = String(salesOrderIdOrCode || body.salesOrderId || body.salesOrderCode || body.orderId || body.orderCode || '').trim();
+  if (!key) return { error: 'Thiếu salesOrderId/salesOrderCode', status: 400 };
+  const salesOrder = await orderRepository.findByIdOrCode(key);
+  const lookup = {
+    ...body,
+    salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || key,
+    salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || key
+  };
+  let current = await findExistingReturnOrder(lookup);
+  if (!current && salesOrder) {
+    const ensured = await ensureReturnDraftForSalesOrder(salesOrder, options);
+    current = ensured?.returnOrder || await findExistingReturnOrder(lookup);
+  }
+  if (!current) return { error: 'Không tìm thấy đơn gốc để tạo/cập nhật phiếu trả hàng', status: 404 };
+
+  if (isPostedReturnStatus(current.status)) return { error: 'Phiếu trả hàng đã ghi sổ/kho, không được sửa', status: 400 };
+  if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
+    return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả', status: 400 };
+  }
+
+  const inputItems = Array.isArray(body.items) ? body.items : [];
+  const inputByCode = new Map();
+  const inputByKey = new Map();
+  for (const raw of inputItems) {
+    const code = String(raw.productCode || raw.code || raw.productId || '').trim();
+    const lineKey = String(raw.lineKey || returnLineKey(raw)).trim();
+    if (code) inputByCode.set(code, raw);
+    if (lineKey) inputByKey.set(lineKey, raw);
+  }
+
+  const baseItems = Array.isArray(current.items) && current.items.length
+    ? current.items
+    : (Array.isArray(salesOrder?.items) ? buildReturnDraftFromSalesOrder(salesOrder, current).items : []);
+
+  const items = baseItems.map((item) => {
+    const key = String(item.lineKey || returnLineKey(item)).trim();
+    const code = String(item.productCode || item.code || item.productId || '').trim();
+    const raw = inputByKey.get(key) || inputByCode.get(code) || null;
+    const nextReturnQty = raw ? toNumber(raw.returnQty ?? raw.qtyReturn ?? raw.returnQuantity ?? raw.quantity ?? 0) : toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? 0);
+    const soldQty = toNumber(item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? 0);
+    if (nextReturnQty < 0) throw new Error('Số lượng trả không được âm');
+    if (soldQty > 0 && nextReturnQty > soldQty) throw new Error(`Số lượng trả ${item.productCode || item.productName} không được lớn hơn số lượng giao`);
+    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0);
+    return {
+      ...item,
+      returnQty: nextReturnQty,
+      qtyReturn: nextReturnQty,
+      returnQuantity: nextReturnQty,
+      returnedQty: nextReturnQty,
+      quantity: nextReturnQty,
+      qty: nextReturnQty,
+      returnAmount: Math.round(nextReturnQty * price),
+      amount: Math.round(nextReturnQty * price),
+      lineKey: key
+    };
+  });
+
+  const summary = summarizeReturnDraftItems(items);
+  const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
+  const status = hasReturn ? 'has_return' : 'draft';
+  const updated = {
+    ...current,
+    ...summary,
+    items,
+    status,
+    returnStatus: status,
+    warehouseReceiveStatus: hasReturn ? 'waiting_receive' : 'draft',
+    accountingStatus: hasReturn ? 'pending' : 'draft',
+    source: body.source || current.source || 'returnOrders',
+    updatedFrom: body.source || body.updatedFrom || 'unknown',
+    updatedBy: body.updatedBy || body.user || current.updatedBy || '',
+    updatedAt: nowIso()
+  };
+  await returnOrderRepository.upsert(updated, options);
+  return { returnOrder: toClient(updated) };
+}
+
 async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
   const current = await returnOrderRepository.findByIdOrCode(idOrCode);
   if (!current) return { error: 'Không tìm thấy đơn chờ trả hàng', status: 404 };
@@ -702,4 +797,4 @@ async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
   return { returnOrder: toClient(updated) };
 }
 
-module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, updateReturnDraftItems, toClient };
+module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, toClient };
