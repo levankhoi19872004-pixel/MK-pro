@@ -27,6 +27,7 @@
       <button class="tab-button" data-tab="masterReturnOrdersTab">Đơn tổng trả hàng</button>
       <button class="tab-button" data-tab="deliveryTodayTab">Đơn đi giao hôm nay</button>
       <button class="tab-button" data-tab="debtTab">Công nợ</button>
+      <button class="tab-button" data-tab="fundsTab">Quỹ tiền</button>
       <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
       <button class="tab-button" data-tab="usersTab">Tài khoản</button>
       <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
@@ -478,6 +479,7 @@
               <button id="selectAllDeliveryAccountingButton" class="secondary compact-action" type="button">Chọn / Bỏ chọn tất cả</button>
               <button id="clearDeliveryAccountingSelectionButton" class="secondary compact-action hidden-action" type="button" hidden>Bỏ chọn</button>
               <button id="confirmDeliveryAccountingButton" class="primary compact-action" type="button">Xác nhận của kế toán</button>
+              <button id="createDeliveryCashSubmissionButton" class="primary compact-action" type="button">Nộp quỹ</button>
               <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
             </div>
           </div>
@@ -759,6 +761,85 @@
         </div>
       </section>
     </section>
+
+    <section id="fundsTab" class="tab-content">
+      <main class="grid funds-layout">
+        <section class="card full-width">
+          <div class="toolbar">
+            <div>
+              <h2>Sổ quỹ fundLedgers</h2>
+              <p id="fundSummary" class="muted">Tồn quỹ lấy từ fundLedgers: thu - chi theo tiền mặt/ngân hàng.</p>
+            </div>
+            <div class="form-actions compact-actions">
+              <input id="fundSearchInput" placeholder="Tìm mã phiếu / NVGH / ghi chú" />
+              <button id="reloadFundLedgerButton" class="secondary" type="button">Tải sổ quỹ</button>
+            </div>
+          </div>
+          <div class="kpi-row debt-v2-kpis debt-v2-kpis-4">
+            <div><span>Tồn tiền mặt</span><b id="fundCashBalanceKpi">0</b></div>
+            <div><span>Tồn ngân hàng</span><b id="fundBankBalanceKpi">0</b></div>
+            <div><span>Tổng thu</span><b id="fundTotalInKpi">0</b></div>
+            <div><span>Tổng chi</span><b id="fundTotalOutKpi">0</b></div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Ngày</th><th>Mã</th><th>Quỹ</th><th>Thu</th><th>Chi</th><th>Nguồn</th><th>NVGH/KH</th><th>Ghi chú</th></tr></thead>
+              <tbody id="fundLedgerTable"><tr><td colspan="8">Đang tải sổ quỹ...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Phiếu nộp quỹ giao hàng</h3>
+          <p class="muted">Có thể tạo nhanh từ màn Đơn đi giao hôm nay theo ngày + NVGH, hoặc tạo tại đây.</p>
+          <form id="deliveryCashSubmissionForm" class="form">
+            <label>Ngày giao<input name="deliveryDate" type="date" /></label>
+            <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: ghth" /></label>
+            <label>Thực nộp tiền mặt<input name="submittedCashAmount" type="number" min="0" step="1" placeholder="Để trống = theo báo cáo" /></label>
+            <label>Đối soát chuyển khoản<input name="submittedBankAmount" type="number" min="0" step="1" placeholder="Để trống = theo báo cáo" /></label>
+            <label>Ghi chú<input name="note" placeholder="Ghi chú nộp quỹ" /></label>
+            <div class="form-actions">
+              <button type="submit">Tạo phiếu nộp quỹ</button>
+            </div>
+            <p id="deliveryCashSubmissionMessage" class="message"></p>
+          </form>
+          <div class="table-scroll compact-table-scroll">
+            <table>
+              <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh</th><th>TT</th><th></th></tr></thead>
+              <tbody id="deliveryCashSubmissionTable"><tr><td colspan="8">Chưa tải phiếu nộp quỹ.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3>Phiếu chi / Nộp ngân hàng</h3>
+          <form id="expenseVoucherForm" class="form">
+            <h4>Phiếu chi</h4>
+            <label>Ngày chi<input name="date" type="date" /></label>
+            <label>Quỹ chi<select name="fundType"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
+            <label>Loại chi<input name="expenseType" placeholder="xang_xe / boc_vac / khac" /></label>
+            <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+            <label>Người nhận<input name="receiverName" /></label>
+            <label>Ghi chú<input name="note" /></label>
+            <button type="submit">Ghi phiếu chi</button>
+            <p id="expenseVoucherMessage" class="message"></p>
+          </form>
+          <hr />
+          <form id="fundTransferForm" class="form">
+            <h4>Chuyển quỹ / Nộp ngân hàng</h4>
+            <label>Ngày<input name="date" type="date" /></label>
+            <label>Từ quỹ<select name="fromFund"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
+            <label>Đến quỹ<select name="toFund"><option value="bank">Ngân hàng</option><option value="cash">Tiền mặt</option></select></label>
+            <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+            <label>Ngân hàng<input name="bankName" placeholder="VCB / BIDV..." /></label>
+            <label>Ghi chú<input name="note" /></label>
+            <button type="submit">Ghi chuyển quỹ</button>
+            <p id="fundTransferMessage" class="message"></p>
+          </form>
+        </section>
+      </main>
+    </section>
+
 
     <section id="reportsTab" class="tab-content">
       <section class="card report-hero">

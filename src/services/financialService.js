@@ -13,6 +13,7 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const postingEngine = require('../engines/posting.engine');
+const fundLedgerRepository = require('../repositories/fundLedgerRepository');
 
 function today() {
   return dateUtil.todayVN();
@@ -115,6 +116,45 @@ async function buildCashCode(type = 'in') {
 async function buildBankCode() {
   const rows = await bankbookRepository.findAll();
   return buildRunningCode('NH', rows);
+}
+
+async function buildFundLedgerCode() {
+  const rows = await fundLedgerRepository.findAll();
+  return buildRunningCode('FL', rows);
+}
+
+async function postReceiptFundLedger(input = {}, options = {}) {
+  const fundType = String(input.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
+  const direction = String(input.direction || 'in').toLowerCase() === 'out' ? 'out' : 'in';
+  const sourceType = String(input.sourceType || 'AR_RECEIPT').trim();
+  const sourceCode = String(input.sourceCode || input.refCode || '').trim();
+  if (sourceCode) {
+    const existed = await fundLedgerRepository.findAll({ sourceType, sourceCode, fundType, direction }, { limit: 1, session: options.session });
+    if (existed[0]) return existed[0];
+  }
+  const entry = {
+    id: makeId('FL'),
+    code: await buildFundLedgerCode(),
+    date: dateUtil.toDateOnly(input.date || today()),
+    fundType,
+    direction,
+    amount: toNumber(input.amount),
+    sourceType,
+    sourceId: String(input.sourceId || '').trim(),
+    sourceCode,
+    refType: String(input.refType || sourceType).trim(),
+    refId: String(input.refId || input.sourceId || '').trim(),
+    refCode: String(input.refCode || sourceCode).trim(),
+    customerCode: String(input.customerCode || '').trim(),
+    customerName: String(input.customerName || '').trim(),
+    staffName: String(input.staffName || '').trim(),
+    note: String(input.note || '').trim(),
+    status: 'posted',
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+  await fundLedgerRepository.upsert(entry, options);
+  return entry;
 }
 
 
@@ -394,6 +434,23 @@ async function createReceipt(body = {}) {
     await applyReceiptToOrderDebts(receipt, { session });
     if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
     else await cashbookRepository.upsert(moneyEntry, { session });
+    // V45 Fund Ledger: mọi khoản thu tiền phải vào fundLedgers để sổ quỹ là nguồn chuẩn.
+    await postReceiptFundLedger({
+      date: receipt.date,
+      fundType: method === 'transfer' ? 'bank' : 'cash',
+      direction: 'in',
+      amount: receipt.amount,
+      sourceType: 'AR_RECEIPT',
+      sourceId: receipt.id,
+      sourceCode: receipt.code,
+      refType: 'RECEIPT',
+      refId: receipt.id,
+      refCode: receipt.code,
+      customerCode: receipt.customerCode,
+      customerName: receipt.customerName,
+      staffName: receipt.staffName,
+      note: receipt.note || `Thu công nợ ${receipt.code}`
+    }, { session });
   });
 
   return { receipt };
@@ -440,6 +497,10 @@ async function voidReceipt(id, body = {}, query = {}) {
       ...cashbooks.filter(sameReceiptRef).map((entry) => cashbookRepository.upsert({ ...entry, status: 'void', voidReason: voided.voidReason, voidedAt: now, updatedAt: now }, { session })),
       ...bankbooks.filter(sameReceiptRef).map((entry) => bankbookRepository.upsert({ ...entry, status: 'void', voidReason: voided.voidReason, voidedAt: now, updatedAt: now }, { session }))
     ]);
+
+    const fundRows = await fundLedgerRepository.findAll({ sourceType: 'AR_RECEIPT', sourceCode: receipt.code }, { session });
+    await Promise.all(fundRows.map((entry) => fundLedgerRepository.upsert({ ...entry, status: 'void', voidReason: voided.voidReason, voidedAt: now, updatedAt: now }, { session })));
+
   });
   return { receipt: voided };
 }

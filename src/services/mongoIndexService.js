@@ -179,6 +179,33 @@ const INDEX_DEFINITIONS = {
     [{ date: 1, status: 1 }, { name: 'idx_bankbooks_date_status' }],
     [{ createdAt: -1 }, { name: 'idx_bankbooks_created_at' }]
   ],
+
+  fundLedgers: [
+    [{ id: 1 }, { name: 'idx_fund_ledgers_id' }],
+    [{ code: 1 }, { name: 'idx_fund_ledgers_code' }],
+    [{ date: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_date_fund_direction' }],
+    [{ sourceType: 1, sourceCode: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_source_unique_guard' }],
+    [{ deliveryDate: 1, deliveryStaffCode: 1 }, { name: 'idx_fund_ledgers_delivery_staff_date' }],
+    [{ createdAt: -1 }, { name: 'idx_fund_ledgers_created_at' }]
+  ],
+  deliveryCashSubmissions: [
+    [{ id: 1 }, { name: 'idx_delivery_cash_submissions_id' }],
+    [{ code: 1 }, { name: 'idx_delivery_cash_submissions_code' }],
+    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_delivery_cash_submissions_date_staff_status' }],
+    [{ createdAt: -1 }, { name: 'idx_delivery_cash_submissions_created_at' }]
+  ],
+  expenseVouchers: [
+    [{ id: 1 }, { name: 'idx_expense_vouchers_id' }],
+    [{ code: 1 }, { name: 'idx_expense_vouchers_code' }],
+    [{ date: 1, fundType: 1, status: 1 }, { name: 'idx_expense_vouchers_date_fund_status' }],
+    [{ createdAt: -1 }, { name: 'idx_expense_vouchers_created_at' }]
+  ],
+  fundTransfers: [
+    [{ id: 1 }, { name: 'idx_fund_transfers_id' }],
+    [{ code: 1 }, { name: 'idx_fund_transfers_code' }],
+    [{ date: 1, fromFund: 1, toFund: 1, status: 1 }, { name: 'idx_fund_transfers_date_funds_status' }],
+    [{ createdAt: -1 }, { name: 'idx_fund_transfers_created_at' }]
+  ],
   stock: [
     [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventory_snapshot_product_warehouse' }],
     [{ warehouseCode: 1 }, { name: 'idx_inventory_snapshot_warehouse' }]

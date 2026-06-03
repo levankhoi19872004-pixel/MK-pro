@@ -961,3 +961,111 @@ window.exportSelectedMasterReturnOrders=exportSelectedMasterReturnOrders;
 if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.addEventListener('click',toggleSelectAllMasterReturnOrders);
 if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',printSelectedMasterReturnOrders);
 if(exportSelectedMasterReturnOrdersButton)exportSelectedMasterReturnOrdersButton.addEventListener('click',exportSelectedMasterReturnOrders);
+
+// Fund Ledger V45 - nguồn tiền chuẩn duy nhất cho thu/chi/chuyển quỹ.
+async function loadFundLedger(){
+  if(!fundLedgerTable && !fundSummary)return;
+  const params=new URLSearchParams();
+  const q=fundSearchInput?fundSearchInput.value.trim():'';
+  if(q)params.set('q',q);
+  try{
+    const res=await fetch(`/api/funds/ledger?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được fundLedgers');
+    const rows=json.fundLedgers||[];
+    const s=json.summary||{};
+    if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(s.cashBalance||0);
+    if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(s.bankBalance||0);
+    if(fundTotalInKpi)fundTotalInKpi.textContent=money(s.totalIn||0);
+    if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(s.totalOut||0);
+    if(fundSummary)fundSummary.textContent=`Tiền mặt: thu ${money(s.cashIn||0)} · chi ${money(s.cashOut||0)} · tồn ${money(s.cashBalance||0)} | Ngân hàng: thu ${money(s.bankIn||0)} · chi ${money(s.bankOut||0)} · tồn ${money(s.bankBalance||0)}`;
+    if(fundLedgerTable){
+      fundLedgerTable.innerHTML=rows.length?rows.map(e=>{
+        const isIn=String(e.direction)==='in';
+        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(e.fundType==='bank'?'Ngân hàng':'Tiền mặt')}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml((e.deliveryStaffCode||e.staffCode||e.customerCode||'')+' '+(e.deliveryStaffName||e.staffName||e.customerName||''))}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
+      }).join(''):'<tr><td colspan="8">Chưa có phát sinh fundLedgers.</td></tr>';
+    }
+  }catch(err){
+    if(fundSummary)fundSummary.textContent='Lỗi tải sổ quỹ fundLedgers';
+    if(fundLedgerTable)fundLedgerTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Lỗi tải fundLedgers')}</td></tr>`;
+  }
+}
+
+async function loadDeliveryCashSubmissions(){
+  if(!deliveryCashSubmissionTable)return;
+  try{
+    const res=await fetch('/api/funds/delivery-cash-submissions?limit=500');
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được phiếu nộp quỹ');
+    const rows=json.submissions||[];
+    deliveryCashSubmissionTable.innerHTML=rows.length?rows.map(r=>{
+      const diff=Number(r.differenceCashAmount||0);
+      const canConfirm=!r.fundPosted && !['confirmed','cancelled','canceled','void'].includes(String(r.status||'').toLowerCase());
+      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.deliveryDate||'')}</td><td>${escapeHtml((r.deliveryStaffCode||'')+' '+(r.deliveryStaffName||''))}</td><td class="price">${money(r.reportCashAmount||0)}</td><td class="price">${money(r.submittedCashAmount||0)}</td><td class="price ${diff===0?'cash-in':'cash-out'}">${diff>0?'+':''}${money(diff)}</td><td>${escapeHtml(r.status||'')}</td><td>${canConfirm?`<button type="button" class="secondary compact-action" onclick="confirmDeliveryCashSubmission('${escapeHtml(r.code||r.id)}')">Xác nhận</button>`:''}</td></tr>`;
+    }).join(''):'<tr><td colspan="8">Chưa có phiếu nộp quỹ giao hàng.</td></tr>';
+  }catch(err){
+    deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Lỗi tải phiếu nộp quỹ')}</td></tr>`;
+  }
+}
+
+async function submitDeliveryCashSubmission(event){
+  event.preventDefault();
+  const payload=Object.fromEntries(new FormData(deliveryCashSubmissionForm).entries());
+  ['submittedCashAmount','submittedBankAmount'].forEach(k=>{ if(payload[k]!==''&&payload[k]!=null)payload[k]=Number(payload[k]||0); else delete payload[k]; });
+  try{
+    const res=await fetch('/api/funds/delivery-cash-submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tạo được phiếu nộp quỹ');
+    showMessage(deliveryCashSubmissionMessage,json.message||'Đã tạo phiếu nộp quỹ');
+    await loadDeliveryCashSubmissions();
+  }catch(err){showMessage(deliveryCashSubmissionMessage,err.message,true)}
+}
+
+async function confirmDeliveryCashSubmission(code){
+  if(!code)return;
+  if(!confirm(`Xác nhận phiếu nộp quỹ ${code} và ghi vào fundLedgers?`))return;
+  try{
+    const res=await fetch(`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu nộp quỹ');
+    await loadDeliveryCashSubmissions();
+    await loadFundLedger();
+    alert(json.message||'Đã ghi sổ quỹ');
+  }catch(err){alert(err.message||'Không xác nhận được phiếu nộp quỹ')}
+}
+window.confirmDeliveryCashSubmission=confirmDeliveryCashSubmission;
+
+async function submitExpenseVoucher(event){
+  event.preventDefault();
+  const payload=Object.fromEntries(new FormData(expenseVoucherForm).entries());
+  payload.amount=Number(payload.amount||0);
+  try{
+    const res=await fetch('/api/funds/expenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const json=await res.json(); if(!json.ok)throw new Error(json.message||'Không ghi được phiếu chi');
+    expenseVoucherForm.reset(); if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();
+    showMessage(expenseVoucherMessage,json.message||'Đã ghi phiếu chi');
+    await loadFundLedger();
+  }catch(err){showMessage(expenseVoucherMessage,err.message,true)}
+}
+
+async function submitFundTransfer(event){
+  event.preventDefault();
+  const payload=Object.fromEntries(new FormData(fundTransferForm).entries());
+  payload.amount=Number(payload.amount||0);
+  try{
+    const res=await fetch('/api/funds/transfers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const json=await res.json(); if(!json.ok)throw new Error(json.message||'Không ghi được chuyển quỹ');
+    fundTransferForm.reset(); if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today();
+    showMessage(fundTransferMessage,json.message||'Đã ghi chuyển quỹ');
+    await loadFundLedger();
+  }catch(err){showMessage(fundTransferMessage,err.message,true)}
+}
+
+if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',()=>{loadFundLedger();loadDeliveryCashSubmissions();});
+if(fundSearchInput)fundSearchInput.addEventListener('input',debounce(loadFundLedger,300));
+if(deliveryCashSubmissionForm)deliveryCashSubmissionForm.addEventListener('submit',submitDeliveryCashSubmission);
+if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpenseVoucher);
+if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfer);
+[deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); });
+loadFundLedger();
+loadDeliveryCashSubmissions();

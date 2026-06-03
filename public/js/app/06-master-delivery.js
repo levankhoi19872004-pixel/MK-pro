@@ -379,21 +379,11 @@ function deliveryDebtCompactLabel(value){
   if(n<0)return `Dư ${deliveryCompactMoney(Math.abs(n))}`;
   return deliveryCompactMoney(n);
 }
-function deliveryCashForCurrentOrder(row){
-  const grossCash=deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0);
-  const oldDebtCash=deliveryToNumber(row?.oldDebtCashCollected ?? row?.debtCashCollected ?? 0);
-  return Math.max(0, grossCash-oldDebtCash);
-}
-function deliveryBankForCurrentOrder(row){
-  const grossBank=deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0);
-  const oldDebtBank=deliveryToNumber(row?.oldDebtBankCollected ?? row?.debtBankCollected ?? 0);
-  return Math.max(0, grossBank-oldDebtBank);
-}
 function calculateDeliveryDraftDebt(row){
   return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(row)
-    - deliveryCashForCurrentOrder(row)
-    - deliveryBankForCurrentOrder(row)
+    - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
+    - deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0)
     - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
     - deliveryReturnAmountFromItems(row)
   ));
@@ -405,7 +395,7 @@ function calculateDeliveryDebt(row){
   return calculateDeliveryDraftDebt(row);
 }
 function deliveryRowPaid(row){
-  return deliveryCashForCurrentOrder(row)+deliveryBankForCurrentOrder(row)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
+  return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
 }
 
 
@@ -990,7 +980,7 @@ function deliverySummaryParams(){
 }
 function deliveryMetricValues(row){
   const pt=Number(row.totalReceivable ?? row.totalAmount ?? 0);
-  const tm=deliveryCashForCurrentOrder(row);
+  const tm=Number(row.cashAmount ?? row.cashCollected ?? 0);
   const ck=Number(row.bankAmount ?? row.bankCollected ?? 0);
   const tt=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
   const th=deliveryReturnAmountFromItems(row);
@@ -1079,7 +1069,7 @@ function renderCompactDeliveryOrders(rows=[]){
   if(!rows.length)return '<div class="empty-state compact-empty">Chưa có đơn thuộc nhóm này.</div>';
   return rows.map(row=>{
     const receivable=Number(row.totalReceivable ?? row.totalAmount ?? 0);
-    const cash=deliveryCashForCurrentOrder(row);
+    const cash=Number(row.cashAmount ?? row.cashCollected ?? 0);
     const bank=Number(row.bankAmount ?? row.bankCollected ?? 0);
     const reward=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
     const returned=deliveryReturnAmountFromItems(row);
@@ -1294,3 +1284,27 @@ if(confirmDeliveryAccountingButton)confirmDeliveryAccountingButton.addEventListe
 if(selectAllDeliveryAccountingButton)selectAllDeliveryAccountingButton.addEventListener('click',selectAllDeliveryAccounting);
 if(clearDeliveryAccountingSelectionButton)clearDeliveryAccountingSelectionButton.addEventListener('click',clearDeliveryAccountingSelection);
 
+
+async function createDeliveryCashSubmissionFromToday(){
+  const date=deliveryDateFilter?.value||today();
+  const deliveryStaffCode=selectedDeliveryStaffQuery();
+  if(!deliveryStaffCode){alert('Cần chọn nhân viên giao hàng trước khi tạo phiếu nộp quỹ.');return;}
+  const ok=confirm(`Tạo phiếu nộp quỹ giao hàng?\n\nNgày giao: ${date}\nNVGH: ${deliveryStaffCode}\n\nHệ thống sẽ lấy số tiền phải nộp từ báo cáo Đơn đi giao hôm nay và tạo phiếu NQGH.`);
+  if(!ok)return;
+  try{
+    if(createDeliveryCashSubmissionButton)createDeliveryCashSubmissionButton.disabled=true;
+    const res=await fetch('/api/funds/delivery-cash-submissions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({deliveryDate:date,deliveryStaffCode})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tạo được phiếu nộp quỹ');
+    alert(json.message||`Đã tạo phiếu nộp quỹ ${json.submission?.code||''}`);
+    if(typeof loadDeliveryCashSubmissions==='function')await loadDeliveryCashSubmissions();
+    if(typeof loadFundLedger==='function')await loadFundLedger();
+  }catch(err){alert(err.message||'Không tạo được phiếu nộp quỹ');}
+  finally{if(createDeliveryCashSubmissionButton)createDeliveryCashSubmissionButton.disabled=false;}
+}
+window.createDeliveryCashSubmissionFromToday=createDeliveryCashSubmissionFromToday;
+if(typeof createDeliveryCashSubmissionButton!=='undefined'&&createDeliveryCashSubmissionButton)createDeliveryCashSubmissionButton.addEventListener('click',createDeliveryCashSubmissionFromToday);

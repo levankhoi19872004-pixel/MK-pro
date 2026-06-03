@@ -22,6 +22,7 @@ const swaggerRoutes = require('./swaggerRoutes');
 const mobileRoutes = require('./mobileRoutes');
 const searchRoutes = require('./searchRoutes');
 const catalogRoutes = require('./catalogRoutes');
+const fundRoutes = require('./fundRoutes');
 
 function registerApiRoutes(app) {
   // API docs must be mounted before legacy guard.
@@ -64,6 +65,7 @@ function registerApiRoutes(app) {
   app.post('/api/debt-collections', receiptController.createDebtCollection);
   app.use('/api/cashbook', cashbookRoutes);
   app.use('/api/bankbook', bankbookRoutes);
+  app.use('/api/funds', fundRoutes);
 
   // Step 5: Promotions / Reports / Import Templates
   app.use('/api/promotions', promotionRoutes);
