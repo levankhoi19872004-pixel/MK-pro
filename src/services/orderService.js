@@ -48,11 +48,23 @@ function deliveryDebtBase(order = {}) {
   return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? 0);
 }
 
+function deliveryCashForCurrentOrder(order = {}) {
+  const grossCash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
+  const oldDebtCash = toNumber(order.oldDebtCashCollected ?? order.debtCashCollected ?? 0);
+  return Math.max(0, grossCash - oldDebtCash);
+}
+
+function deliveryBankForCurrentOrder(order = {}) {
+  const grossBank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
+  const oldDebtBank = toNumber(order.oldDebtBankCollected ?? order.debtBankCollected ?? 0);
+  return Math.max(0, grossBank - oldDebtBank);
+}
+
 function calculateDeliveryDebt(order = {}) {
   return Math.max(0, Math.round(
     deliveryDebtBase(order)
-    - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
-    - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+    - deliveryCashForCurrentOrder(order)
+    - deliveryBankForCurrentOrder(order)
     - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
     - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
   ));

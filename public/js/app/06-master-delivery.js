@@ -379,11 +379,21 @@ function deliveryDebtCompactLabel(value){
   if(n<0)return `Dư ${deliveryCompactMoney(Math.abs(n))}`;
   return deliveryCompactMoney(n);
 }
+function deliveryCashForCurrentOrder(row){
+  const grossCash=deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0);
+  const oldDebtCash=deliveryToNumber(row?.oldDebtCashCollected ?? row?.debtCashCollected ?? 0);
+  return Math.max(0, grossCash-oldDebtCash);
+}
+function deliveryBankForCurrentOrder(row){
+  const grossBank=deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0);
+  const oldDebtBank=deliveryToNumber(row?.oldDebtBankCollected ?? row?.debtBankCollected ?? 0);
+  return Math.max(0, grossBank-oldDebtBank);
+}
 function calculateDeliveryDraftDebt(row){
   return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(row)
-    - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
-    - deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0)
+    - deliveryCashForCurrentOrder(row)
+    - deliveryBankForCurrentOrder(row)
     - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
     - deliveryReturnAmountFromItems(row)
   ));
@@ -395,7 +405,7 @@ function calculateDeliveryDebt(row){
   return calculateDeliveryDraftDebt(row);
 }
 function deliveryRowPaid(row){
-  return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
+  return deliveryCashForCurrentOrder(row)+deliveryBankForCurrentOrder(row)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
 }
 
 
@@ -980,7 +990,7 @@ function deliverySummaryParams(){
 }
 function deliveryMetricValues(row){
   const pt=Number(row.totalReceivable ?? row.totalAmount ?? 0);
-  const tm=Number(row.cashAmount ?? row.cashCollected ?? 0);
+  const tm=deliveryCashForCurrentOrder(row);
   const ck=Number(row.bankAmount ?? row.bankCollected ?? 0);
   const tt=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
   const th=deliveryReturnAmountFromItems(row);
@@ -1069,7 +1079,7 @@ function renderCompactDeliveryOrders(rows=[]){
   if(!rows.length)return '<div class="empty-state compact-empty">Chưa có đơn thuộc nhóm này.</div>';
   return rows.map(row=>{
     const receivable=Number(row.totalReceivable ?? row.totalAmount ?? 0);
-    const cash=Number(row.cashAmount ?? row.cashCollected ?? 0);
+    const cash=deliveryCashForCurrentOrder(row);
     const bank=Number(row.bankAmount ?? row.bankCollected ?? 0);
     const reward=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
     const returned=deliveryReturnAmountFromItems(row);

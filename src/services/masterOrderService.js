@@ -258,10 +258,36 @@ function deliveryReturnAmount(order = {}) {
   return toNumber(order.returnAmountFromReturnOrders ?? order.returnAmount ?? order.returnedAmount ?? 0);
 }
 
+function deliveryOldDebtCashAmount(order = {}) {
+  return Math.max(0, normalizeDebtAmount(Math.round(toNumber(
+    order.oldDebtCashCollected ?? order.debtCashCollected ?? 0
+  ))));
+}
+
+function deliveryOldDebtBankAmount(order = {}) {
+  return Math.max(0, normalizeDebtAmount(Math.round(toNumber(
+    order.oldDebtBankCollected ?? order.debtBankCollected ?? 0
+  ))));
+}
+
+function deliveryCashForCurrentOrder(order = {}) {
+  const grossCash = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.cashCollected ?? order.cashAmount ?? 0))));
+  const oldDebtCash = deliveryOldDebtCashAmount(order);
+  return Math.max(0, normalizeDebtAmount(Math.round(grossCash - oldDebtCash)));
+}
+
+function deliveryBankForCurrentOrder(order = {}) {
+  const grossBank = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0))));
+  const oldDebtBank = deliveryOldDebtBankAmount(order);
+  return Math.max(0, normalizeDebtAmount(Math.round(grossBank - oldDebtBank)));
+}
+
 function buildDeliveryAmount(order = {}, returnAmountFromReturnOrders = null) {
   const totalReceivable = Math.max(0, normalizeDebtAmount(Math.round(deliveryDebtBase(order))));
-  const cashAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.cashCollected ?? order.cashAmount ?? 0))));
-  const bankAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0))));
+  // V45: tiền thu công nợ cũ có thể được lưu chung trong cashCollected/bankCollected.
+  // Màn Đơn đi giao hôm nay chỉ được tính phần tiền phân bổ cho chính đơn đang giao.
+  const cashAmount = deliveryCashForCurrentOrder(order);
+  const bankAmount = deliveryBankForCurrentOrder(order);
   const bonusAmount = Math.max(0, normalizeDebtAmount(Math.round(deliveryRewardAmount(order))));
   const returnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountFromReturnOrders == null ? deliveryReturnAmount(order) : toNumber(returnAmountFromReturnOrders))));
   const debtAmount = Math.max(0, normalizeDebtAmount(Math.round(totalReceivable - cashAmount - bankAmount - bonusAmount - returnAmount)));
@@ -712,8 +738,8 @@ async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, batchId = '
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
   const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(order)));
-  const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-  const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
+  const cashAmount = deliveryCashForCurrentOrder(order);
+  const bankAmount = deliveryBankForCurrentOrder(order);
   const rewardAmount = deliveryRewardAmount(order);
   const returnAmount = deliveryReturnAmount(order);
   const rows = [];
@@ -770,8 +796,8 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
   ]);
 
   const paymentRows = [
-    { method: 'cash', label: 'tiền mặt', amount: toNumber(order.cashCollected ?? order.cashAmount ?? 0) },
-    { method: 'transfer', label: 'chuyển khoản', amount: toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0) }
+    { method: 'cash', label: 'tiền mặt', amount: deliveryCashForCurrentOrder(order) },
+    { method: 'transfer', label: 'chuyển khoản', amount: deliveryBankForCurrentOrder(order) }
   ];
 
   for (const row of paymentRows) {
@@ -918,8 +944,8 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     const key = orderKey(order) || orderDisplayCode(order);
     const code = orderDisplayCode(order) || key;
     const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(order)));
-    const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-    const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
+    const cashAmount = deliveryCashForCurrentOrder(order);
+    const bankAmount = deliveryBankForCurrentOrder(order);
     const rewardAmount = deliveryRewardAmount(order);
     const returnAmount = Math.max(deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
     const idSeed = key || code || makeId('AR');
@@ -1406,10 +1432,10 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     visualStatus: row.visualStatus,
     totalAmount: row.totalReceivable || row.totalAmount || 0,
     totalReceivable: row.totalReceivable || row.totalAmount || 0,
-    cashCollected: toNumber(row.cashCollected || row.cashAmount || 0),
-    cashAmount: toNumber(row.cashCollected || row.cashAmount || 0),
-    bankCollected: toNumber(row.bankCollected || row.bankAmount || 0),
-    bankAmount: toNumber(row.bankCollected || row.bankAmount || 0),
+    cashCollected: deliveryCashForCurrentOrder(row),
+    cashAmount: deliveryCashForCurrentOrder(row),
+    bankCollected: deliveryBankForCurrentOrder(row),
+    bankAmount: deliveryBankForCurrentOrder(row),
     rewardAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
     bonusAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
     returnAmount: deliveryReturnAmount(row),
