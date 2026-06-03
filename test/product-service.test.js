@@ -63,7 +63,7 @@ test('ProductService.listProducts maps stock display fields for frontend', async
   });
 
   try {
-    const result = await productService.listProducts({});
+    const result = await productService.listProducts({ allowAll: '1' });
     assert.equal(result.products.length, 1);
     assert.equal(result.products[0].id, 'P002');
     assert.equal(result.products[0].stockQuantity, 25);

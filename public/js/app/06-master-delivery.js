@@ -1000,8 +1000,8 @@ function deliveryMetricBadges(row){
   return `<span class="delivery-order-count">${Number(row.orderCount||0)}Đ</span><span class="delivery-mini-metrics">${deliveryAmountMetricBadges(row)}</span>`;
 }
 function deliveryAmountMetricLine(row){
-  const m=deliveryMetricValues(row);
-  return `PT ${deliveryCompactMoney(m.pt)} | TM ${deliveryCompactMoney(m.tm)} | CK ${deliveryCompactMoney(m.ck)} | TT ${deliveryCompactMoney(m.tt)} | TH ${deliveryCompactMoney(m.th)} | CN ${deliveryDebtCompactLabel(m.cn)}`;
+  const { pt, tm, ck, tt, th, cn } = deliveryMetricValues(row);
+  return `PT ${deliveryCompactMoney(pt)} | TM ${deliveryCompactMoney(tm)} | CK ${deliveryCompactMoney(ck)} | TT ${deliveryCompactMoney(tt)} | TH ${deliveryCompactMoney(th)} | CN ${deliveryDebtCompactLabel(cn)}`;
 }
 function deliveryMetricLine(row){
   return `${Number(row.orderCount||0)}Đ | ${deliveryAmountMetricLine(row)}`;

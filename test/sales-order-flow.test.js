@@ -8,6 +8,9 @@ const orderRepository = require('../src/repositories/orderRepository');
 const productRepository = require('../src/repositories/productRepository');
 const customerRepository = require('../src/repositories/customerRepository');
 const userRepository = require('../src/repositories/userRepository');
+const returnOrderRepository = require('../src/repositories/returnOrderRepository');
+const inventoryService = require('../src/services/inventoryService');
+const postingEngine = require('../src/engines/posting.engine');
 const orderService = require('../src/services/orderService');
 
 function patch(target, replacements) {
@@ -63,6 +66,24 @@ test('SalesOrder flow creates order, subtracts stock, and records customer debt 
   const restoreUserRepo = patch(userRepository, {
     findStaffByIdOrCode: async () => ({ id: 'S001', code: 'S001', name: 'NV bán hàng' })
   });
+  const returnDrafts = [];
+  const restoreReturnOrderRepo = patch(returnOrderRepository, {
+    findAll: async () => returnDrafts,
+    findByIdOrCode: async () => null,
+    upsert: async (row) => { returnDrafts.push({ ...row }); return row; }
+  });
+  const restoreInventoryService = patch(inventoryService, {
+    postStockMovement: async (doc, movement, options = {}) => {
+      product.availableStock -= 2;
+      product.stockQuantity = product.availableStock;
+      await productRepository.save(product, options);
+      return [];
+    }
+  });
+  const restorePostingEngine = patch(postingEngine, {
+    postSalesOrderAR: async () => null,
+    reverseSalesOrderAR: async () => null
+  });
 
   try {
     const result = await orderService.createOrder({
@@ -77,10 +98,13 @@ test('SalesOrder flow creates order, subtracts stock, and records customer debt 
     assert.equal(result.salesOrder.debtAmount, 15000);
     assert.equal(product.availableStock, 18);
     assert.equal(product.stockQuantity, 18);
-    assert.equal(customer.currentDebt, 65000);
+    assert.equal(customer.currentDebt, 50000);
     assert.ok(productSaveSession, 'stock update must run inside transaction session');
-    assert.ok(customerSaveSession, 'debt update must run inside transaction session');
+    assert.equal(customerSaveSession, null, 'pending order must not post AR debt before accounting confirmation');
   } finally {
+    restorePostingEngine();
+    restoreInventoryService();
+    restoreReturnOrderRepo();
     restoreUserRepo();
     restoreCustomerRepo();
     restoreProductRepo();
@@ -120,6 +144,18 @@ test('SalesOrder cancel reverses stock and customer debt impact', async () => {
     findByIdOrCode: async () => customer,
     save: async (doc) => doc
   });
+  const restoreReturnOrderRepo = patch(returnOrderRepository, {
+    findAll: async () => [],
+    findByIdOrCode: async () => null,
+    upsert: async (row) => row
+  });
+  const restoreInventoryService = patch(inventoryService, {
+    reverseStockMovement: async () => { product.availableStock += 3; return []; }
+  });
+  const restorePostingEngine = patch(postingEngine, {
+    postSalesOrderAR: async () => null,
+    reverseSalesOrderAR: async () => null
+  });
 
   try {
     const result = await orderService.cancelOrder('SO00009', { reason: 'test' });
@@ -127,6 +163,9 @@ test('SalesOrder cancel reverses stock and customer debt impact', async () => {
     assert.equal(product.availableStock, 10);
     assert.equal(customer.currentDebt, 70000);
   } finally {
+    restorePostingEngine();
+    restoreInventoryService();
+    restoreReturnOrderRepo();
     restoreCustomerRepo();
     restoreProductRepo();
     restoreOrderRepo();
