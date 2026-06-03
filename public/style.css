@@ -6252,3 +6252,77 @@ body::after{
     grid-template-columns:1fr!important;
   }
 }
+
+
+/* ===== V45 SALES HISTORY GRID LINES - column guide refinement ===== */
+#salesTab .sales-order-list-head,
+#salesTab .sales-order-row{
+  column-gap:0!important;
+  border-radius:10px!important;
+  overflow:hidden!important;
+}
+
+/* faint vertical guide lines for every column except last */
+#salesTab .sales-order-list-head > *,
+#salesTab .sales-order-row > *{
+  min-height:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  padding:0 9px!important;
+  border-right:1px solid rgba(148,163,184,.24)!important;
+}
+#salesTab .sales-order-list-head > *:last-child,
+#salesTab .sales-order-row > *:last-child{
+  border-right:none!important;
+}
+
+/* header: clearer but still light */
+#salesTab .sales-order-list-head{
+  background:#f8fafc!important;
+  border:1px solid #dbe7f5!important;
+  border-bottom-color:#cbd5e1!important;
+}
+
+/* body rows: table-like rhythm */
+#salesTab .sales-order-row{
+  border:1px solid #e2e8f0!important;
+  border-bottom-color:#dbe7f5!important;
+}
+#salesTab #salesOrderList.order-list .sales-order-row:nth-child(even){
+  background:#fbfdff!important;
+}
+#salesTab #salesOrderList.order-list .sales-order-row:nth-child(odd){
+  background:#ffffff!important;
+}
+#salesTab #salesOrderList.order-list .sales-order-row:hover{
+  background:#f1f7ff!important;
+}
+
+/* numeric/date alignment */
+#salesTab .sales-order-date{
+  justify-content:center!important;
+  text-align:center!important;
+}
+#salesTab .sales-order-total-one-line{
+  justify-content:flex-end!important;
+  text-align:right!important;
+}
+#salesTab .sales-order-source-one-line{
+  justify-content:center!important;
+  justify-self:stretch!important;
+  width:max-content!important;
+  margin:auto!important;
+}
+#salesTab .sales-order-actions-one-line{
+  justify-content:center!important;
+}
+
+/* checkbox column stays compact */
+#salesTab .sales-order-select{
+  padding:0!important;
+}
+
+/* avoid heavy card feeling, keep list dense */
+#salesTab #salesOrderList.order-list{
+  gap:5px!important;
+}
