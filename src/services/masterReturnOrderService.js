@@ -17,6 +17,21 @@ function isInactiveStatus(row = {}) {
   return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
 }
 
+const GROUPABLE_RETURN_STATUSES = ['has_return', 'waiting_receive', 'pending_warehouse_receive', 'pending'];
+
+function getReturnOrderValue(row = {}) {
+  return toNumber(row.debtReduction ?? row.totalAmount ?? row.amount ?? row.totalValue);
+}
+
+function hasPositiveReturnValue(row = {}) {
+  return getReturnOrderValue(row) > 0;
+}
+
+function isGroupableReturnStatus(row = {}) {
+  const status = String(row.status || row.returnStatus || row.warehouseReceiveStatus || 'waiting_receive').toLowerCase();
+  return GROUPABLE_RETURN_STATUSES.includes(status);
+}
+
 function buildMasterReturnCode(existingRows = []) {
   const max = existingRows.reduce((result, row) => {
     const match = String(row.code || '').match(/(\d+)$/);
@@ -66,7 +81,8 @@ async function listUnmergedReturnOrders(query = {}) {
   const rows = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
   return rows
     .filter((row) => !isInactiveStatus(row))
-    .filter((row) => ['waiting_receive', 'pending_warehouse_receive', 'pending'].includes(String(row.status || 'waiting_receive').toLowerCase()))
+    .filter((row) => isGroupableReturnStatus(row))
+    .filter((row) => hasPositiveReturnValue(row))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
     .filter((row) => !date || dateUtil.toDateOnly(row.date || row.documentDate || row.createdAt) === date)
     .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
@@ -127,8 +143,11 @@ async function createMasterReturnOrder(body = {}) {
   const children = allReturnOrders.filter((row) => returnOrderIds.includes(String(row.id)) || returnOrderIds.includes(String(row.code)));
   if (children.length !== returnOrderIds.length) return { error: 'Một số phiếu trả hàng không tồn tại', status: 400 };
   if (children.some((row) => isInactiveStatus(row))) return { error: 'Có phiếu trả hàng đã hủy/xóa', status: 400 };
-  if (children.some((row) => !['waiting_receive', 'pending_warehouse_receive', 'pending'].includes(String(row.status || 'waiting_receive').toLowerCase()))) {
-    return { error: 'Chỉ được gộp phiếu trả hàng đang chờ kho nhận', status: 400 };
+  if (children.some((row) => !isGroupableReturnStatus(row))) {
+    return { error: 'Chỉ được gộp phiếu trả hàng có trạng thái đã phát sinh/chờ kho nhận', status: 400 };
+  }
+  if (children.some((row) => !hasPositiveReturnValue(row))) {
+    return { error: 'Không được gộp phiếu trả hàng có giá trị bằng 0', status: 400 };
   }
   if (children.some((row) => row.masterReturnOrderId || row.masterReturnOrderCode || (row.returnMergeStatus || 'unmerged') === 'merged')) {
     return { error: 'Có phiếu trả hàng đã được gộp trước đó', status: 400 };

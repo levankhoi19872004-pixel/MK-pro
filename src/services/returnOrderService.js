@@ -38,6 +38,14 @@ function isInactiveStatus(row = {}) {
   return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
 }
 
+function getReturnOrderValue(row = {}) {
+  return toNumber(row.debtReduction ?? row.totalAmount ?? row.amount ?? row.totalValue);
+}
+
+function hasPositiveReturnValue(row = {}) {
+  return getReturnOrderValue(row) > 0;
+}
+
 async function listReturnOrders(query = {}) {
   const dateMode = String(query.dateMode || query.mode || '').toLowerCase();
   const shouldDefaultToday = dateMode === 'today' || (!dateMode && String(query.defaultToday || '') === '1');
@@ -87,10 +95,12 @@ async function listReturnOrders(query = {}) {
   }
 
   const orders = await returnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
+  const includeZeroValue = String(guardedQuery.includeZeroValue ?? guardedQuery.showZero ?? '0') === '1';
   const seenSalesReturns = new Set();
   return orders
     .map(toClient)
     .filter((order) => !excludeInactive || !isInactiveStatus(order))
+    .filter((order) => includeZeroValue || hasPositiveReturnValue(order))
     .filter((order) => {
       const salesKey = String(order.salesOrderId || order.salesOrderCode || order.orderId || order.orderCode || '').trim();
       if (!salesKey) return true;
