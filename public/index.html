@@ -328,6 +328,17 @@
               </div>
             </div>
           </div>
+          <div class="sales-order-list-head" aria-hidden="true">
+            <span></span>
+            <span>Mã đơn</span>
+            <span>Khách hàng</span>
+            <span>Ngày bán</span>
+            <span>Ngày giao</span>
+            <span>Giá trị</span>
+            <span>Nguồn</span>
+            <span>Trạng thái</span>
+            <span>Thao tác</span>
+          </div>
           <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
         </section>
       </main>
@@ -578,15 +589,15 @@
               </div>
             </div>
 
-            <div class="form-grid two-cols delivery-money-grid">
+            <div class="form-grid two-cols delivery-money-grid delivery-payment-form-section">
               <label>Tiền mặt<input id="deliveryEditCash" name="cashCollected" type="number" min="0" step="1" /></label>
               <label>Chuyển khoản<input id="deliveryEditBank" name="bankCollected" type="number" min="0" step="1" /></label>
               <label>Tiền trả thưởng<input id="deliveryEditReward" name="rewardAmount" type="number" min="0" step="1" value="0" /></label>
             </div>
-            <div class="delivery-edit-total-box" id="deliveryEditTotalBox">Chọn đơn để xem tổng kết.</div>
-            <label>Ghi chú sai sót / ghi chú giao hàng
+            <label class="delivery-payment-note">Ghi chú sai sót / ghi chú giao hàng
               <textarea id="deliveryEditNote" name="deliveryNote" rows="3" placeholder="Ví dụ: khách trả thiếu, sai NV giao, sai ngày giao..."></textarea>
             </label>
+            <div class="delivery-edit-total-box" id="deliveryEditTotalBox">Chọn đơn để xem tổng kết.</div>
             <div class="form-actions delivery-edit-actions">
               <button type="submit" id="deliveryEditSaveButton">Lưu chỉnh sửa</button>
               <button type="button" class="secondary" id="deliveryAdminUnlockButton" hidden>Mở khóa điều chỉnh</button>
@@ -1097,6 +1108,7 @@
               <option value="openingStock">Tồn kho ban đầu</option>
               <option value="importOrders">Phiếu nhập kho</option>
               <option value="salesOrders">Đơn con DMS / đơn bán DMS</option>
+              <option value="salesOrdersS3">Đơn S3 rút gọn</option>
               <option value="openingDebt">Công nợ ban đầu</option>
               <option value="debtCollections">Phiếu thu công nợ</option>
               <option value="cashbook">Quỹ tiền</option>

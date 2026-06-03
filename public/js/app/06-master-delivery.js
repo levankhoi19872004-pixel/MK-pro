@@ -596,7 +596,8 @@ function renderDeliveryEditTotal(){
   if(!deliveryEditTotalBox)return;
   const state=getDeliveryEditPaymentState();
   const selectedRow=getSelectedDeliveryRow?.();
-  deliveryEditTotalBox.innerHTML=`<div><span>Phải thu</span><b>${money(state.before)}</b></div><div><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div><span>Hàng trả</span><b>${money(state.returned)}</b></div><div><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="total-debt"><span>Còn nợ tạm tính</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}`;
+  const matched=Number(state.debt||0)===0&&Number(state.over||0)===0;
+  deliveryEditTotalBox.innerHTML=`<div class="delivery-total-chip total-receivable"><span>Phải thu</span><b>${money(state.before)}</b></div><div class="delivery-total-chip"><span>Tiền mặt</span><b>${money(state.cash)}</b></div><div class="delivery-total-chip"><span>Chuyển khoản</span><b>${money(state.bank)}</b></div><div class="delivery-total-chip"><span>Hàng trả</span><b>${money(state.returned)}</b></div><div class="delivery-total-chip"><span>Trả thưởng</span><b>${money(state.reward)}</b></div><div class="delivery-total-chip"><span>Đã nhập</span><b>${money(state.paid)}</b></div><div class="delivery-total-chip total-debt"><span>Còn nợ tạm tính</span><b>${money(state.debt)}</b></div>${state.over>0?`<div class="delivery-total-chip total-overpay"><span>Trả vượt</span><b>${money(state.over)}</b></div>`:''}<div class="delivery-total-chip total-match ${matched?'is-matched':'is-unmatched'}"><span>Đối soát</span><b>${matched?'Đã khớp':'Chưa khớp'}</b></div>`;
 }
 function deliveryReturnLineKey(item = {}){
   const code=deliveryItemCode(item);
@@ -818,7 +819,18 @@ function fillDeliveryEditPanel(row){
   if(deliverySelectedSummary){
     const calcDebt=calculateDeliveryDebt(row);
     const debtLabel='Còn nợ tạm tính';
-    deliverySelectedSummary.innerHTML=`<strong>${escapeHtml(row.orderCode||'')} · ${escapeHtml(row.customerName||'')}</strong><span>${escapeHtml(row.customerCode||'')} · ${escapeHtml(row.customerPhone||'')} ${row.customerAddress?'· '+escapeHtml(row.customerAddress):''}</span><span><b>Phải thu: ${money(deliveryDebtBase(row))}</b> · <b class="${calcDebt>0?'debt-positive':'debt-zero'}">${debtLabel}: ${money(calcDebt)}</b></span>`;
+    deliverySelectedSummary.innerHTML=`
+      <div class="delivery-selected-title">
+        <strong>${escapeHtml(row.orderCode||'')}</strong>
+        <span class="delivery-selected-status ${calcDebt>0?'debt-positive':'debt-zero'}">${debtLabel}: ${money(calcDebt)}</span>
+      </div>
+      <div class="delivery-selected-customer"><b>${escapeHtml(row.customerCode||'')}</b> · ${escapeHtml(row.customerName||'')}${row.customerPhone?' · '+escapeHtml(row.customerPhone):''}</div>
+      ${row.customerAddress?`<div class="delivery-selected-address">${escapeHtml(row.customerAddress)}</div>`:''}
+      <div class="delivery-selected-meta">
+        <span>Phải thu: <b>${money(deliveryDebtBase(row))}</b></span>
+        <span>NVBH: <b>${escapeHtml(row.salesmanCode||row.salesStaffCode||'')}</b></span>
+        <span>NVGH: <b>${escapeHtml(row.deliveryStaffCode||'')}</b></span>
+      </div>`;
   }
   renderDeliveryReturnItems(row);
   renderDeliveryEditTotal();

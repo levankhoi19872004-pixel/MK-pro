@@ -65,9 +65,10 @@ function parseVietnamDate(value, fallback = '') {
     return fallback || raw.slice(0, 10);
   }
 
-  // Vietnamese import/display format: DD/MM/YYYY or DD-MM-YYYY.
+  // Vietnamese import/display format: DD/MM/YYYY, DD-MM-YYYY or DD.MM.YYYY.
   // Do not auto-flip to MM/DD/YYYY; 01/06/2026 is always 1 June 2026.
-  const vn = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4}|\d{2})/);
+  // S3/Unilever thường xuất ngày dạng 03.06.2026 nên cho phép dấu chấm.
+  const vn = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})/);
   if (vn) {
     const day = Number(vn[1]);
     const month = Number(vn[2]);

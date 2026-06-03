@@ -69,6 +69,28 @@ const TEMPLATE_DEFINITIONS = {
     ]
   },
 
+
+  salesOrdersS3: {
+    title: 'Mẫu import đơn S3 rút gọn',
+    fileName: 'mau-import-don-s3-rut-gon.xlsx',
+    columns: ['date', 'documentCode', 'staffCode', 'staffName', 'customerCode', 'customerName', 'productCode', 'productName', 'packingQty', 'isPromo', 'quantity', 'salePrice', 'amount', 'warehouseCode'],
+    headers: ['Ngày', 'Số Đơn', 'Mã Nv', 'Tên NV', 'Mã Khách', 'Tên Khách', 'Mã hàng', 'Tên hàng', 'QC', 'Là KM', 'Số lượng', 'Đơn giá sau KM/Ck', 'Thành tiền', 'Mã Kho'],
+    sample: [
+      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330134', 'SUNLIGHT NRC Thiên Nhiên Lô Hội 750g/15 Chai', 15, '', 45, 28093, 1264169, 'KHOCHINH'],
+      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330146', 'SUNLIGHT NRC Chanh 750g/15 Chai', 15, '', 45, 28093, 1264169, 'KHOCHINH'],
+      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330148', 'SUNLIGHT NRC Túi 3.6kg/4 Túi', 4, '', 15, 93425, 1401375, 'KHOCHINH']
+    ],
+    notes: [
+      'Mẫu S3 dùng đúng các cột bôi vàng: Ngày, Số Đơn, Mã Nv, Mã Khách, Tên Khách, Mã hàng, Tên hàng, Số lượng, Đơn giá sau KM/Ck, Thành tiền.',
+      'Các dòng cùng Số Đơn + Ngày + Mã Khách sẽ được gộp thành một đơn con.',
+      'Mã Nv là mã NVBH bắt buộc; hệ thống tra trong Users/Tài khoản. Nếu mã sai hoặc không tồn tại thì đơn bị báo lỗi.',
+      'Mã Khách và Mã hàng là khóa chính để tra danh mục; tên khách/tên hàng chỉ dùng để đối chiếu.',
+      'Ngày chấp nhận dạng DD.MM.YYYY, DD/MM/YYYY hoặc YYYY-MM-DD.',
+      'Đơn giá sau KM/Ck là giá bán cuối cùng của dòng; Thành tiền dùng để kiểm tra/tính tổng dòng.',
+      'Nếu cột Là KM có giá trị 1/Y/KM/Có thì dòng đó được hiểu là hàng khuyến mại, trừ tồn nhưng không tính doanh thu.'
+    ]
+  },
+
   promotionProductRules: {
     title: 'Mẫu import CK sản phẩm',
     fileName: 'mau-import-ck-san-pham.xlsx',

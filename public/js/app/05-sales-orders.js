@@ -307,13 +307,45 @@ async function loadImportOrders(){
 }
 function normalizeOrderSourceClient(order){
   const raw=[order?.orderSource,order?.source,order?.sourceType,order?.orderSourceName,order?.importSource,order?.importType,order?.origin,order?.note].filter(Boolean).join(' ').toUpperCase();
-  return /(^|[^A-Z])DMS([^A-Z]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(raw)?'DMS':'NVBH';
+  if(/(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(raw))return 'DMS';
+  if(/(^|[^A-Z0-9])S3([^A-Z0-9]|$)|S3_IMPORT|IMPORT EXCEL S3|FILE S3/.test(raw))return 'S3';
+  if(/MANUAL|THU CONG|THỦ CÔNG/.test(raw))return 'MANUAL';
+  if(/SALES_APP|APP_SALES|MOBILE_SALES|NVBH|SALE APP|APP BÁN|APP BAN/.test(raw))return 'APP';
+  return 'APP';
 }
 function getOrderSourceText(order){
-  return normalizeOrderSourceClient(order)==='DMS'?'Từ DMS':'Từ NVBH';
+  const src=normalizeOrderSourceClient(order);
+  if(src==='DMS')return 'DMS';
+  if(src==='S3')return 'S3';
+  if(src==='MANUAL')return 'Thủ công';
+  return 'APP';
 }
 function getOrderSourceClass(order){
-  return normalizeOrderSourceClient(order)==='DMS'?'source-dms':'source-nvbh';
+  const src=normalizeOrderSourceClient(order);
+  if(src==='DMS')return 'source-dms';
+  if(src==='S3')return 'source-s3';
+  if(src==='MANUAL')return 'source-manual';
+  return 'source-nvbh';
+}
+function getSalesOrderStatusLabel(order){
+  const status=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(order):(order?.status||'pending');
+  const merge=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(order):(order?.mergeStatus||'unmerged');
+  const accounting=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(order):(order?.accountingStatus||'pending');
+  if(status==='cancelled')return 'Đã hủy';
+  if(accounting==='confirmed')return 'Đã CN';
+  if(status==='delivered')return 'Đã giao';
+  if(merge==='merged'||status==='assigned')return 'Đã gộp';
+  return 'Chờ gộp';
+}
+function getSalesOrderStatusClass(order){
+  const status=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(order):(order?.status||'pending');
+  const merge=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(order):(order?.mergeStatus||'unmerged');
+  const accounting=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(order):(order?.accountingStatus||'pending');
+  if(status==='cancelled')return 'status-cancelled';
+  if(accounting==='confirmed')return 'status-accounted';
+  if(status==='delivered')return 'status-delivered';
+  if(merge==='merged'||status==='assigned')return 'status-assigned';
+  return 'status-pending';
 }
 function isOrderMerged(order){
   return String(order?.mergeStatus||'unmerged')==='merged' && Boolean(order?.masterOrderId || order?.masterOrderCode);
@@ -475,24 +507,28 @@ async function loadSalesOrders(){
       const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress,o.masterOrderCode].join(' ').toLowerCase();
       return !q || text.includes(q);
     });
-    salesOrderCount.textContent=`${orders.length} / ${allOrders.length} đơn bán`;
+    const totalAmount=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
+    const deliveredCount=orders.filter(o=>(window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(o):(o.status||''))==='delivered').length;
+    const pendingCount=orders.length-deliveredCount;
+    salesOrderCount.innerHTML=`<strong>${orders.length}</strong> đơn · <strong>${money(totalAmount)}</strong> · Đã giao ${deliveredCount} · Chưa giao ${pendingCount}`;
     if(!orders.length){salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';return}
     window.__salesOrdersCache=orders;
     if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
     salesOrderList.innerHTML=orders.map((o,idx)=>{
-      const statusText=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(o):(o.status||'pending');
-      const mergeText=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(o):(o.mergeStatus||'unmerged');
-      const accountingText=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(o):(o.accountingStatus||'pending');
+      const statusLabel=getSalesOrderStatusLabel(o);
+      const statusClass=getSalesOrderStatusClass(o);
+      const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
+      const deliveryDateText=typeof formatDateVN==='function'?formatDateVN(o.deliveryDate||''):(o.deliveryDate||'');
       return `
-      <article class="sales-order-card sales-order-card-compact sales-order-one-line">
+      <article class="sales-order-row">
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
-        <strong class="sales-order-code-text" title="Mã đơn">${o.code||o.id}</strong>
-        <span class="sales-order-customer-inline" title="Khách hàng">${o.customerName||o.customerCode||''}</span>
-        <span class="sales-order-date" title="Ngày bán">${typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'')}</span>
-        <span class="sales-order-date" title="Ngày giao">${typeof formatDateVN==='function'?formatDateVN(o.deliveryDate||''):(o.deliveryDate||'')}</span>
+        <strong class="sales-order-code-text" title="Mã đơn: ${o.code||o.id||''}">${o.code||o.id||''}</strong>
+        <span class="sales-order-customer-inline" title="Khách hàng: ${o.customerName||o.customerCode||''}">${o.customerName||o.customerCode||''}</span>
+        <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
+        <span class="sales-order-date" title="Ngày giao">${deliveryDateText||'-'}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
-        <span class="badge muted" title="Vòng đời">${statusText}${mergeText==='merged'?' · đã gộp':''}${accountingText==='confirmed'?' · đã CN':''}</span>
+        <span class="badge ${statusClass} sales-order-status-badge" title="Trạng thái">${statusLabel}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}

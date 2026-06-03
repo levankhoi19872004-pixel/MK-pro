@@ -297,7 +297,24 @@ function getPromoUnits2FromRow(row = {}) {
   );
 }
 
+function isPromoLineFromRow(row = {}) {
+  const value = cleanText(
+    row.isPromo ??
+    row.promoFlag ??
+    row['Là KM'] ??
+    row['La KM'] ??
+    row['Hàng KM'] ??
+    row['Hang KM'] ??
+    row['Khuyến mại'] ??
+    row['Khuyen mai'] ??
+    ''
+  ).toLowerCase();
+  if (!value) return false;
+  return ['1', 'y', 'yes', 'true', 'x', 'km', 'co', 'có'].includes(value);
+}
+
 function getDmsQuantityFromRow(row = {}, product = null) {
+  if (isPromoLineFromRow(row)) return 0;
   const directQty = toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
   const packing = getPackingFromRow(row, product);
   const cartons = getCartonsFromRow(row);
@@ -324,7 +341,10 @@ function getDmsPromoQuantityFromRow(row = {}, product = null) {
     row['Hang khuyen mai'] ??
     0
   );
-  return promoQty1 + promoQty2 + directPromoQty;
+  const flaggedPromoQty = isPromoLineFromRow(row)
+    ? toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']))
+    : 0;
+  return promoQty1 + promoQty2 + directPromoQty + flaggedPromoQty;
 }
 
 function allocateStockForSaleAndPromo(saleQuantity = 0, promoQuantity = 0, availableQuantity = 0) {
@@ -346,7 +366,8 @@ function allocateStockForSaleAndPromo(saleQuantity = 0, promoQuantity = 0, avail
 }
 
 function getActualAmountFromRow(row = {}) {
-  return toNumber(row.actualAmount ?? row.lineAmount ?? row['Doanh số mỗi ngày'] ?? row['Doanh so moi ngay'] ?? row['Thành tiền thực tế'] ?? row['Thanh tien thuc te'] ?? row['Giá trị bán thực tế'] ?? row['Gia tri ban thuc te']);
+  if (isPromoLineFromRow(row)) return 0;
+  return toNumber(row.actualAmount ?? row.lineAmount ?? row.amount ?? row['Doanh số mỗi ngày'] ?? row['Doanh so moi ngay'] ?? row['Thành tiền'] ?? row['Thanh tien'] ?? row['Thành tiền thực tế'] ?? row['Thanh tien thuc te'] ?? row['Giá trị bán thực tế'] ?? row['Gia tri ban thuc te']);
 }
 
 function getListPriceBeforeVatFromRow(row = {}) {
@@ -374,15 +395,15 @@ function getDmsAmountFromRow(row = {}, quantity = 0, salePrice = 0) {
 }
 
 function getProductCodeFromRow(row = {}) {
-  return cleanText(row.productCode || row.code || row['Mã hàng hóa'] || row['Ma hang hoa'] || row['Mã sản phẩm'] || row['Ma san pham'] || text(row, ['productCode', 'mã hàng hóa', 'ma hang hoa', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'code']));
+  return cleanText(row.productCode || row['Mã hàng'] || row['Ma hang'] || row.code || row['Mã hàng hóa'] || row['Ma hang hoa'] || row['Mã sản phẩm'] || row['Ma san pham'] || text(row, ['productCode', 'mã hàng hóa', 'ma hang hoa', 'mã sản phẩm', 'ma san pham', 'mã hàng', 'ma hang', 'code']));
 }
 
 function getCustomerCodeFromRow(row = {}) {
-  return cleanText(row.customerCode || row['Mã cửa hàng'] || row['Ma cua hang'] || row['Mã khách hàng'] || row['Ma khach hang'] || text(row, ['customerCode', 'mã cửa hàng', 'ma cua hang', 'mã khách hàng', 'ma khach hang', 'mã khách']));
+  return cleanText(row.customerCode || row['Mã Khách'] || row['Ma Khach'] || row['Mã khách'] || row['Ma khach'] || row['Mã cửa hàng'] || row['Ma cua hang'] || row['Mã khách hàng'] || row['Ma khach hang'] || text(row, ['customerCode', 'mã cửa hàng', 'ma cua hang', 'mã khách hàng', 'ma khach hang', 'mã khách', 'ma khach']));
 }
 
 function getCustomerNameFromRow(row = {}) {
-  return cleanText(row.customerName || row['Tên cửa hàng'] || row['Ten cua hang'] || row['Tên khách hàng'] || row['Ten khach hang'] || row['Họ'] || row['Họ'] || row['Ho'] || text(row, ['customerName', 'tên cửa hàng', 'ten cua hang', 'tên khách hàng', 'ten khach hang', 'họ', 'ho']));
+  return cleanText(row.customerName || row['Tên Khách'] || row['Ten Khach'] || row['Tên khách'] || row['Ten khach'] || row['Tên cửa hàng'] || row['Ten cua hang'] || row['Tên khách hàng'] || row['Ten khach hang'] || row['Họ'] || row['Họ'] || row['Ho'] || text(row, ['customerName', 'tên cửa hàng', 'ten cua hang', 'tên khách hàng', 'ten khach hang', 'tên khách', 'ten khach', 'họ', 'ho']));
 }
 
 function getRouteCodeFromRow(row = {}) {
@@ -415,7 +436,7 @@ function getCostFromRow(row = {}) {
 }
 
 function getSalePriceFromRow(row = {}) {
-  return toNumber(row.salePrice ?? row.price ?? row['Giá bán'] ?? row['Gia ban'] ?? row['Đơn giá'] ?? row['Don gia'] ?? number(row, ['salePrice', 'giá bán', 'gia ban', 'đơn giá', 'don gia']));
+  return toNumber(row.salePrice ?? row.price ?? row['Đơn giá sau KM/Ck'] ?? row['Don gia sau KM/Ck'] ?? row['Đơn giá sau KM/CK'] ?? row['Don gia sau KM/CK'] ?? row['Giá bán'] ?? row['Gia ban'] ?? row['Đơn giá'] ?? row['Don gia'] ?? number(row, ['salePrice', 'giá bán', 'gia ban', 'đơn giá sau km ck', 'don gia sau km ck', 'đơn giá', 'don gia']));
 }
 
 function groupRows(rows = [], keyFn) {
@@ -927,7 +948,7 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || today()),
       supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       supplierName: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
-      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN',
+      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'MAIN',
       warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho chính',
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel Mongo-native bulk',
       status: 'posted',
@@ -1085,7 +1106,7 @@ async function importSalesOrders(rows = [], options = {}) {
       const originalPromoQuantity = rawPromoQuantity;
       const salePrice = getDmsPriceFromRow(row, rawSaleQuantity);
       let lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
-      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || first.warehouseCode || first.warehouse || first['Kho'] || product?.warehouseCode) || 'MAIN';
+      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Kho'] || product?.warehouseCode) || 'MAIN';
       const normalizedProductCode = cleanText(product?.code || productCode);
       const stockKey = `${normalizedProductCode}|${warehouseCode}`;
       let availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
@@ -1254,7 +1275,7 @@ async function importSalesOrders(rows = [], options = {}) {
       arStatus: 'pending',
       lifecycleStatus: 'pending',
       status: 'pending',
-      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Kho']) || 'MAIN',
+      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'MAIN',
       warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho chính',
       createdAt: now,
       updatedAt: now
@@ -1534,7 +1555,7 @@ function getRowValueByAliases(row = {}, aliases = []) {
 
 const SALES_STAFF_CODE_ALIASES = [
   'staffCode', 'salesStaffCode', 'salesmanCode', 'employeeCode', 'sellerCode', 'saleCode', 'salesCode',
-  'Mã NVBH', 'Ma NVBH', 'Mã NVTT', 'Ma NVTT', 'Mã NV', 'Ma NV',
+  'Mã NVBH', 'Ma NVBH', 'Mã NVTT', 'Ma NVTT', 'Mã NV', 'Ma NV', 'Mã Nv', 'Ma Nv',
   'Mã nhân viên', 'Ma nhan vien', 'Mã nhân viên TT', 'Ma nhan vien TT',
   'Mã nhân viên bán hàng', 'Ma nhan vien ban hang', 'Mã NV bán hàng', 'Ma NV ban hang',
   'NV bán hàng', 'NV ban hang', 'Nhân viên bán hàng', 'Nhan vien ban hang',
@@ -1544,7 +1565,7 @@ const SALES_STAFF_CODE_ALIASES = [
 
 const SALES_STAFF_NAME_ALIASES = [
   'staffName', 'salesStaffName', 'salesmanName', 'employeeName', 'sellerName',
-  'Tên NVBH', 'Ten NVBH', 'Tên NVTT', 'Ten NVTT', 'Tên NV', 'Ten NV',
+  'Tên NVBH', 'Ten NVBH', 'Tên NVTT', 'Ten NVTT', 'Tên NV', 'Ten NV', 'Tên Nv', 'Ten Nv',
   'Tên nhân viên', 'Ten nhan vien', 'Tên nhân viên bán hàng', 'Ten nhan vien ban hang',
   'Nhân viên bán hàng', 'Nhan vien ban hang', 'NVBH', 'NVTT',
   'Salesman', 'Sales Rep', 'Sales Staff', 'Seller Name', 'Employee Name'
@@ -1635,6 +1656,10 @@ function getOrderDocumentCode(row = {}) {
   // File DMS có thêm cột "Số hóa đơn trong 1 ngày" giá trị 0/1; nếu mapping nhầm
   // cột này vào documentCode thì các dòng sẽ bị gom sai và có thể làm mất đơn Hải Miên.
   const rawInvoiceCode = cleanText(
+    row['Số Đơn'] ||
+    row['So Don'] ||
+    row['Số đơn'] ||
+    row['So don'] ||
     row['Số hóa đơn'] ||
     row['So hoa don'] ||
     row['Số hoá đơn'] ||
@@ -2262,6 +2287,7 @@ function parseExcelFiles({ files = [], buffer = null, fileName = '' } = {}) {
 
 async function preview({ type, files = [], buffer = null, fileName = '', userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
+  if (type === 'salesOrdersS3') type = 'salesOrders';
   const parsed = parseExcelFiles({ files, buffer, fileName });
   if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
   const rows = parsed.rows;
@@ -2313,6 +2339,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
 
 async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
+  if (type === 'salesOrdersS3') type = 'salesOrders';
 
   let sourceRows = Array.isArray(rows) ? rows : [];
   let session = null;
@@ -2399,6 +2426,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
 
 async function importDirect({ type, files = [], buffer = null, fileName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
+  if (type === 'salesOrdersS3') type = 'salesOrders';
   const parsed = parseExcelFiles({ files, buffer, fileName });
   if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
   const rows = parsed.rows;
