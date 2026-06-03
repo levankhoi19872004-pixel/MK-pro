@@ -24,6 +24,18 @@ function masterStatusLabel(status){
   return `<span class="badge source-merged">${value}</span>`;
 }
 window.masterStatusLabel = window.masterStatusLabel || masterStatusLabel;
+
+async function deliveryReadJsonResponse(res, fallbackMessage){
+  const contentType = String(res && res.headers && res.headers.get ? res.headers.get('content-type') || '' : '');
+  const text = await res.text();
+  if(contentType.includes('application/json')){
+    try{return JSON.parse(text || '{}');}
+    catch(err){throw new Error(`API trả JSON lỗi định dạng: ${err.message}`);}
+  }
+  const preview = String(text || '').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
+  throw new Error(`${fallbackMessage || 'API không trả JSON'} (HTTP ${res.status}). Có thể server Render chưa deploy đúng backend/route API. ${preview ? 'Nội dung trả về: '+preview : ''}`);
+}
+
 async function loadUnmergedChildOrders(){
   if(!unmergedOrderList)return;
   const params=new URLSearchParams();
@@ -1310,7 +1322,7 @@ async function createDeliveryCashSubmissionFromToday(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({deliveryDate:date,deliveryStaffCode})
     });
-    const json=await res.json();
+    const json=await deliveryReadJsonResponse(res,'Không tạo được phiếu nộp quỹ');
     if(!json.ok)throw new Error(json.message||'Không tạo được phiếu nộp quỹ');
     alert(json.message||`Đã tạo phiếu nộp quỹ ${json.submission?.code||''}`);
     if(typeof loadDeliveryCashSubmissions==='function')await loadDeliveryCashSubmissions();

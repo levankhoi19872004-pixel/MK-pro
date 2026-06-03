@@ -973,6 +973,18 @@ function fundStatusLabel(diff){
 }
 function fundTypeName(value){return String(value)==='bank'?'Ngân hàng':'Tiền mặt'}
 function directionName(value){return String(value)==='out'?'Chi':'Thu'}
+
+async function fundReadJsonResponse(res, fallbackMessage){
+  const contentType = String(res && res.headers && res.headers.get ? res.headers.get('content-type') || '' : '');
+  const text = await res.text();
+  if(contentType.includes('application/json')){
+    try{return JSON.parse(text || '{}');}
+    catch(err){throw new Error(`API trả JSON lỗi định dạng: ${err.message}`);}
+  }
+  const preview = String(text || '').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180);
+  throw new Error(`${fallbackMessage || 'API không trả JSON'} (HTTP ${res.status}). Có thể server Render chưa deploy đúng backend/route API. ${preview ? 'Nội dung trả về: '+preview : ''}`);
+}
+
 function fundSafeCode(value){return String(value||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ')}
 function setActiveFundTab(tab){
   activeFundTab=tab||'fundLedger';
@@ -1000,7 +1012,7 @@ async function loadFundLedger(){
   if(!fundLedgerTable && !fundSummary)return;
   try{
     const res=await fetch(`/api/funds/ledger?${buildFundLedgerParams().toString()}`);
-    const json=await res.json();
+    const json=await fundReadJsonResponse(res,'Không tải được fundLedgers');
     if(!json.ok)throw new Error(json.message||'Không tải được fundLedgers');
     const rows=json.fundLedgers||[];
     const s=json.summary||{};
@@ -1036,7 +1048,7 @@ async function loadDeliveryCashSubmissions(){
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
     const res=await fetch(`/api/funds/delivery-cash-submissions?${params.toString()}`);
-    const json=await res.json();
+    const json=await fundReadJsonResponse(res,'Không tải được phiếu nộp quỹ');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu nộp quỹ');
     const rows=json.submissions||[];
     deliveryCashSubmissionTable.innerHTML=rows.length?rows.map(r=>{
@@ -1056,7 +1068,7 @@ async function loadExpenseVouchers(){
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
     const res=await fetch(`/api/funds/expenses?${params.toString()}`);
-    const json=await res.json();
+    const json=await fundReadJsonResponse(res,'Không tải được phiếu chi');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu chi');
     const rows=json.vouchers||[];
     expenseVoucherTable.innerHTML=rows.length?rows.map(r=>`<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td>${escapeHtml(r.expenseType||'')}</td><td>${escapeHtml(r.receiverName||'')}</td><td class="price cash-out">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td></tr>`).join(''):'<tr><td colspan="7">Chưa có phiếu chi.</td></tr>';
@@ -1071,7 +1083,7 @@ async function loadFundTransfers(){
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
     const res=await fetch(`/api/funds/transfers?${params.toString()}`);
-    const json=await res.json();
+    const json=await fundReadJsonResponse(res,'Không tải được phiếu chuyển quỹ');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu chuyển quỹ');
     const rows=json.transfers||[];
     fundTransferTable.innerHTML=rows.length?rows.map(r=>`<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(fundTypeName(r.fromFund))}</td><td>${escapeHtml(fundTypeName(r.toFund))}</td><td>${escapeHtml(r.bankName||'')}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td></tr>`).join(''):'<tr><td colspan="7">Chưa có phiếu chuyển quỹ.</td></tr>';
@@ -1086,7 +1098,7 @@ async function submitDeliveryCashSubmission(event){
   ['submittedCashAmount','submittedBankAmount'].forEach(k=>{ if(payload[k]!==''&&payload[k]!=null)payload[k]=Number(payload[k]||0); else delete payload[k]; });
   try{
     const res=await fetch('/api/funds/delivery-cash-submissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const json=await res.json();
+    const json=await fundReadJsonResponse(res,'Không tạo được phiếu nộp quỹ');
     if(!json.ok)throw new Error(json.message||'Không tạo được phiếu nộp quỹ');
     showMessage(deliveryCashSubmissionMessage,json.message||'Đã tạo phiếu nộp quỹ');
     await loadDeliveryCashSubmissions();
@@ -1098,7 +1110,7 @@ async function confirmDeliveryCashSubmission(code){
   if(!confirm(`Xác nhận phiếu nộp quỹ ${code} và ghi vào fundLedgers?`))return;
   try{
     const res=await fetch(`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const json=await res.json();
+    const json=await fundReadJsonResponse(res,'Không xác nhận được phiếu nộp quỹ');
     if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu nộp quỹ');
     await loadDeliveryCashSubmissions();
     await loadFundLedger();
@@ -1113,7 +1125,7 @@ async function submitExpenseVoucher(event){
   payload.amount=Number(payload.amount||0);
   try{
     const res=await fetch('/api/funds/expenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const json=await res.json(); if(!json.ok)throw new Error(json.message||'Không ghi được phiếu chi');
+    const json=await fundReadJsonResponse(res,'Không ghi được phiếu chi'); if(!json.ok)throw new Error(json.message||'Không ghi được phiếu chi');
     expenseVoucherForm.reset(); if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();
     showMessage(expenseVoucherMessage,json.message||'Đã ghi phiếu chi');
     await loadExpenseVouchers();
@@ -1127,7 +1139,7 @@ async function submitFundTransfer(event){
   payload.amount=Number(payload.amount||0);
   try{
     const res=await fetch('/api/funds/transfers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const json=await res.json(); if(!json.ok)throw new Error(json.message||'Không ghi được chuyển quỹ');
+    const json=await fundReadJsonResponse(res,'Không ghi được chuyển quỹ'); if(!json.ok)throw new Error(json.message||'Không ghi được chuyển quỹ');
     fundTransferForm.reset(); if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today();
     showMessage(fundTransferMessage,json.message||'Đã ghi chuyển quỹ');
     await loadFundTransfers();
