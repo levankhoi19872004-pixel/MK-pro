@@ -32,6 +32,9 @@ module.exports = {
   auditLogs: require('./AuditLog'),
   settings: require('./Setting'),
   promotions: require('./Promotion'),
+  promotionProductRules: require('./PromotionProductRule'),
+  promotionGroupItems: require('./PromotionGroupItem'),
+  promotionGroupRules: require('./PromotionGroupRule'),
   importTemplates: require('./ImportTemplate'),
   roles: require('./Role'),
   permissions: require('./Permission')

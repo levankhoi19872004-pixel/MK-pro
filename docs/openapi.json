@@ -1222,6 +1222,44 @@
             "bearerAuth": []
           }
         ]
+      },
+      "get": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "GET /api/funds/expenses",
+        "operationId": "getFundsExpenses",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/funds/ledger": {
@@ -1273,6 +1311,44 @@
         "operationId": "postFundsTransfers",
         "responses": {
           "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "GET /api/funds/transfers",
+        "operationId": "getFundsTransfers",
+        "responses": {
+          "200": {
             "description": "Success response",
             "content": {
               "application/json": {
@@ -5062,6 +5138,400 @@
         ],
         "summary": "DELETE /api/promotions/{id}",
         "operationId": "deletePromotionsId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/calculate": {
+      "post": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "POST /api/promotions/calculate",
+        "operationId": "postPromotionsCalculate",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/group-items": {
+      "get": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "GET /api/promotions/group-items",
+        "operationId": "getPromotionsGroupItems",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "POST /api/promotions/group-items",
+        "operationId": "postPromotionsGroupItems",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/group-items/{id}": {
+      "delete": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "DELETE /api/promotions/group-items/{id}",
+        "operationId": "deletePromotionsGroupItemsId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/group-rules": {
+      "get": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "GET /api/promotions/group-rules",
+        "operationId": "getPromotionsGroupRules",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "POST /api/promotions/group-rules",
+        "operationId": "postPromotionsGroupRules",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/group-rules/{id}": {
+      "delete": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "DELETE /api/promotions/group-rules/{id}",
+        "operationId": "deletePromotionsGroupRulesId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/product-rules": {
+      "get": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "GET /api/promotions/product-rules",
+        "operationId": "getPromotionsProductRules",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "POST /api/promotions/product-rules",
+        "operationId": "postPromotionsProductRules",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/promotions/product-rules/{id}": {
+      "delete": {
+        "tags": [
+          "Promotions"
+        ],
+        "summary": "DELETE /api/promotions/product-rules/{id}",
+        "operationId": "deletePromotionsProductRulesId",
         "responses": {
           "200": {
             "description": "Success response",

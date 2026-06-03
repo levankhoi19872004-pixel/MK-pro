@@ -22,6 +22,7 @@ const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.u
 const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
+const promotionService = require('./promotionService');
 
 function makeReturnDraftItemFromImportItem(item = {}) {
   const soldQty = toNumber(item.quantity ?? item.qty ?? item.soldQuantity ?? 0);
@@ -1806,6 +1807,67 @@ function summarizeOrderShortages(shortages = []) {
 }
 
 
+
+async function preloadPromotionProductsByCode(rows = []) {
+  const codes = Array.from(new Set(rows.map((row) => cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham'] || get(row, ['mã sản phẩm', 'ma san pham', 'productCode']))).filter(Boolean)));
+  if (!codes.length) return new Map();
+  const products = await Product.find({ $or: [{ code: { $in: codes } }, { productCode: { $in: codes } }, { sku: { $in: codes } }, { barcode: { $in: codes } }] }).lean();
+  return new Map(products.map((p) => [cleanText(p.code || p.productCode || p.sku || p.barcode), p]));
+}
+
+function pickPromotionProductRulePayload(row = {}) {
+  const programCode = cleanText(row.programCode || row.code || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã CTKM'] || row['Ma CTKM'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM']);
+  const productCode = cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
+  return {
+    ...rowBase(row),
+    programCode,
+    programName: cleanText(row.programName || row.name || row['Nội dung chương trình'] || row['Noi dung chuong trinh'] || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM']),
+    productCode,
+    productName: cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+    discountPercent: toNumber(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK'])
+  };
+}
+
+function pickPromotionGroupItemPayload(row = {}) {
+  return {
+    ...rowBase(row),
+    programCode: cleanText(row.programCode || row.groupCode || row.code || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh'] || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham']),
+    productCode: cleanText(row.productCode || row['Mã sản phẩm'] || row['Ma san pham']),
+    productName: cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham'])
+  };
+}
+
+function pickPromotionGroupRulePayload(row = {}) {
+  return {
+    ...rowBase(row),
+    programCode: cleanText(row.programCode || row.groupCode || row.code || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh']),
+    programName: cleanText(row.programName || row.name || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM'] || row['Nội dung chương trình'] || row['Noi dung chuong trinh']),
+    minAmount: toNumber(row.minAmount ?? row.requiredAmount ?? row.salesAmount ?? row['Mức doanh số cần lấy'] ?? row['Muc doanh so can lay'] ?? row['Doanh số cần lấy'] ?? row['Doanh so can lay']),
+    discountPercent: toNumber(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK'])
+  };
+}
+
+async function importPromotionProductRules(rows = []) {
+  let imported = 0;
+  for (const row of rows) { await promotionService.saveProductRule(row); imported += 1; }
+  await addImportLog('promotionProductRules', { imported });
+  return { imported, message: `Đã import ${imported} dòng CK sản phẩm` };
+}
+
+async function importPromotionGroupItems(rows = []) {
+  let imported = 0;
+  for (const row of rows) { await promotionService.saveGroupItem(row); imported += 1; }
+  await addImportLog('promotionGroupItems', { imported });
+  return { imported, message: `Đã import ${imported} dòng nhóm sản phẩm KM` };
+}
+
+async function importPromotionGroupRules(rows = []) {
+  let imported = 0;
+  for (const row of rows) { await promotionService.saveGroupRule(row); imported += 1; }
+  await addImportLog('promotionGroupRules', { imported });
+  return { imported, message: `Đã import ${imported} dòng điều kiện nhóm KM` };
+}
+
 async function previewMongoNative(type, rows = []) {
   const safeRows = Array.isArray(rows) ? rows : [];
   let result = [];
@@ -2074,6 +2136,54 @@ async function previewMongoNative(type, rows = []) {
         valid: blockingErrors.length === 0
       };
     });
+  } else if (type === 'promotionProductRules') {
+    const payloads = safeRows.map(pickPromotionProductRulePayload);
+    const productMap = await preloadPromotionProductsByCode(payloads);
+    const seen = new Set();
+    result = payloads.map((item) => {
+      const product = productMap.get(cleanText(item.productCode));
+      item.errors = [];
+      if (!item.programCode) item.errors.push('Thiếu mã chương trình');
+      if (!item.programName) item.errors.push('Thiếu nội dung chương trình');
+      if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
+      if (item.productCode && !product) item.errors.push('Mã sản phẩm không có trong danh mục');
+      if (product) item.productName = cleanText(product.name || item.productName);
+      if (toNumber(item.discountPercent) < 0) item.errors.push('Chiết khấu không được âm');
+      const key = `${item.programCode}__${item.productCode}`;
+      if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã sản phẩm trong file');
+      seen.add(key);
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'promotionGroupItems') {
+    const payloads = safeRows.map(pickPromotionGroupItemPayload);
+    const productMap = await preloadPromotionProductsByCode(payloads);
+    const seen = new Set();
+    result = payloads.map((item) => {
+      const product = productMap.get(cleanText(item.productCode));
+      item.errors = [];
+      if (!item.programCode) item.errors.push('Thiếu mã chương trình KM / mã nhóm');
+      if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
+      if (item.productCode && !product) item.errors.push('Mã sản phẩm không có trong danh mục');
+      if (product) item.productName = cleanText(product.name || item.productName);
+      const key = `${item.programCode}__${item.productCode}`;
+      if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã sản phẩm trong file');
+      seen.add(key);
+      return { ...item, valid: item.errors.length === 0 };
+    });
+  } else if (type === 'promotionGroupRules') {
+    const payloads = safeRows.map(pickPromotionGroupRulePayload);
+    const seen = new Set();
+    result = payloads.map((item) => {
+      item.errors = [];
+      if (!item.programCode) item.errors.push('Thiếu mã nhóm sản phẩm / mã chương trình');
+      if (!item.programName) item.errors.push('Thiếu nội dung chương trình KM');
+      if (toNumber(item.minAmount) <= 0) item.errors.push('Mức doanh số cần lấy phải lớn hơn 0');
+      if (toNumber(item.discountPercent) < 0) item.errors.push('Chiết khấu không được âm');
+      const key = `${item.programCode}__${toNumber(item.minAmount)}`;
+      if (seen.has(key)) item.errors.push('Trùng mã chương trình + mức doanh số trong file');
+      seen.add(key);
+      return { ...item, valid: item.errors.length === 0 };
+    });
   } else if (type === 'openingDebt') {
     const customerMap = await preloadCustomersByCode(safeRows);
     result = safeRows.map((row) => {
@@ -2244,6 +2354,9 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   else if (type === 'openingDebt') result = await importOpeningDebt(commitRows);
   else if (type === 'debtCollections') result = await importDebtCollections(commitRows);
   else if (type === 'cashbook') result = await importCashbook(commitRows);
+  else if (type === 'promotionProductRules') result = await importPromotionProductRules(commitRows);
+  else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(commitRows);
+  else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(commitRows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
   if (session) importSessionService.updateSession(session.id, { status: 'committed', selectedOrderCodes, committedAt: nowIso() });
@@ -2300,6 +2413,9 @@ async function importDirect({ type, files = [], buffer = null, fileName = '' }) 
   else if (type === 'openingDebt') result = await importOpeningDebt(rows);
   else if (type === 'debtCollections') result = await importDebtCollections(rows);
   else if (type === 'cashbook') result = await importCashbook(rows);
+  else if (type === 'promotionProductRules') result = await importPromotionProductRules(rows);
+  else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(rows);
+  else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(rows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
   const shortageRows = type === 'salesOrders' ? normalizeShortageRows(result.shortageReport || []) : [];

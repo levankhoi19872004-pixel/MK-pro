@@ -5894,3 +5894,4 @@ body::after{
 .fund-status.bad{background:#fee2e2;color:#dc2626;}
 .compact-toolbar{margin-bottom:8px;}
 @media(max-width:1100px){.fund-two-column{grid-template-columns:1fr}.fund-filter-row{grid-template-columns:repeat(2,minmax(160px,1fr));}.fund-form-grid{grid-template-columns:1fr}}
+.promotion-inner-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.promotion-panel{display:none}.promotion-panel.active{display:block}.compact-form{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}.compact-form .button-row{align-self:end}.inner-tab.active{background:#0f766e;color:#fff;border-color:#0f766e}

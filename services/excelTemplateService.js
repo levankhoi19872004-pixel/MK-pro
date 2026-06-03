@@ -68,6 +68,40 @@ const TEMPLATE_DEFINITIONS = {
       'Các dòng cùng Số hóa đơn + Ngày lập hóa đơn + Mã cửa hàng được gộp thành một đơn con. Cột Nguồn đơn có thể để trống; hệ thống vẫn tự gán DMS.'
     ]
   },
+
+  promotionProductRules: {
+    title: 'Mẫu import CK sản phẩm',
+    fileName: 'mau-import-ck-san-pham.xlsx',
+    columns: ['programCode', 'programName', 'productCode', 'productName', 'discountPercent'],
+    headers: ['Mã chương trình', 'Nội dung chương trình', 'Mã sản phẩm', 'Tên sản phẩm', 'Chiết khấu'],
+    sample: [
+      ['KM-SP-001', 'CK trực tiếp OMO tháng 6', 'SP001', 'OMO Bột giặt 5.5kg', 5],
+      ['KM-SP-001', 'CK trực tiếp OMO tháng 6', 'SP002', 'Comfort Đậm Đặc 3.8L', 3]
+    ],
+    notes: ['Dùng cho Tab 1: lấy bất kỳ sản phẩm nào trong danh sách thì được chiết khấu %.', 'Mã sản phẩm phải tồn tại trong danh mục sản phẩm.', 'Khi tính khuyến mại, giá trị làm căn cứ luôn lấy theo Giá bán trong danh mục sản phẩm.']
+  },
+  promotionGroupItems: {
+    title: 'Mẫu import nhóm sản phẩm KM',
+    fileName: 'mau-import-nhom-san-pham-km.xlsx',
+    columns: ['programCode', 'productCode'],
+    headers: ['Mã chương trình KM', 'Mã sản phẩm'],
+    sample: [
+      ['KM-NHOM-001', 'SP001'],
+      ['KM-NHOM-001', 'SP002']
+    ],
+    notes: ['Dùng cho Tab 2: chỉ cần 2 cột để gán sản phẩm vào nhóm.', 'Các sản phẩm cùng Mã chương trình KM sẽ tự động được hiểu là một nhóm sản phẩm.', 'Mã sản phẩm phải tồn tại trong danh mục sản phẩm.']
+  },
+  promotionGroupRules: {
+    title: 'Mẫu import điều kiện nhóm KM',
+    fileName: 'mau-import-dieu-kien-nhom-km.xlsx',
+    columns: ['programCode', 'programName', 'minAmount', 'discountPercent'],
+    headers: ['Mã nhóm sản phẩm', 'Nội dung chương trình KM', 'Mức doanh số cần lấy', 'Chiết khấu'],
+    sample: [
+      ['KM-NHOM-001', 'Nhóm giặt tẩy tháng 6', 5000000, 2],
+      ['KM-NHOM-001', 'Nhóm giặt tẩy tháng 6', 10000000, 4]
+    ],
+    notes: ['Dùng cho Tab 3: một mã nhóm có nhiều mức doanh số thì nhập nhiều dòng.', 'Doanh số nhóm được tính bằng số lượng bán × Giá bán trong danh mục sản phẩm.', 'Khi đạt nhiều mức, hệ thống lấy mức doanh số cao nhất đã đạt.']
+  },
   openingDebt: {
     title: 'Mẫu import công nợ ban đầu',
     fileName: 'mau-import-cong-no-ban-dau.xlsx',

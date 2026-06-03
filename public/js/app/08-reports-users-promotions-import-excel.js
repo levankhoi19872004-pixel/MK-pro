@@ -934,3 +934,89 @@ async function commitImportExcel(){
 }
 
 resetButton.addEventListener('click',resetForm);
+
+// V45 Promotion 3-tabs: CK sản phẩm / Nhóm sản phẩm KM / Điều kiện nhóm KM
+(function setupPromotion3Tabs(){
+  const $ = (id)=>document.getElementById(id);
+  const msg = $('promotion3Message');
+  const searchInput = $('promotionSearchAllInput');
+  const productForm = $('promoProductRuleForm');
+  const groupItemForm = $('promoGroupItemForm');
+  const groupRuleForm = $('promoGroupRuleForm');
+  const productTable = $('promoProductRulesTable');
+  const groupItemsTable = $('promoGroupItemsTable');
+  const groupRulesTable = $('promoGroupRulesTable');
+  if(!productTable && !groupItemsTable && !groupRulesTable)return;
+  const state = { productRules: [], groupItems: [], groupRules: [] };
+  const esc = (v)=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  const fmtPct = (v)=>`${Number(v||0).toLocaleString('vi-VN')}%`;
+  const fmtMoney = (v)=>Number(v||0).toLocaleString('vi-VN');
+  const show = (text,isError=false)=>{ if(msg) showMessage(msg,text,isError); };
+
+  function activePanel(panel){
+    document.querySelectorAll('[data-promo-panel]').forEach(btn=>btn.classList.toggle('active',btn.dataset.promoPanel===panel));
+    const map={productRules:'promoProductRulesPanel',groupItems:'promoGroupItemsPanel',groupRules:'promoGroupRulesPanel'};
+    Object.entries(map).forEach(([key,id])=>$(id)?.classList.toggle('active',key===panel));
+  }
+  document.querySelectorAll('[data-promo-panel]').forEach(btn=>btn.addEventListener('click',()=>activePanel(btn.dataset.promoPanel)));
+
+  async function api(url, options={}){
+    const res = await fetch(url, options);
+    const json = await res.json();
+    if(!json.ok)throw new Error(json.message||json.error||'Có lỗi xảy ra');
+    return json;
+  }
+  function q(){ return encodeURIComponent(searchInput?.value||''); }
+
+  async function loadProductRules(){
+    if(!productTable)return;
+    try{
+      const json = await api(`/api/promotions/product-rules?q=${q()}`);
+      state.productRules=json.rows||[];
+      productTable.innerHTML=state.productRules.length?state.productRules.map(r=>`<tr>
+        <td><strong>${esc(r.programCode)}</strong></td><td>${esc(r.programName)}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td>${fmtPct(r.discountPercent)}</td>
+        <td class="row-actions"><button class="small" onclick="editPromoProductRule('${esc(r.id)}')">Sửa</button><button class="small danger" onclick="deletePromoProductRule('${esc(r.id)}')">Xóa</button></td>
+      </tr>`).join(''):'<tr><td colspan="6">Chưa có CK sản phẩm.</td></tr>';
+    }catch(err){ productTable.innerHTML=`<tr><td colspan="6">${esc(err.message)}</td></tr>`; }
+  }
+  async function loadGroupItems(){
+    if(!groupItemsTable)return;
+    try{
+      const json = await api(`/api/promotions/group-items?q=${q()}`);
+      state.groupItems=json.rows||[];
+      groupItemsTable.innerHTML=state.groupItems.length?state.groupItems.map(r=>`<tr>
+        <td><strong>${esc(r.programCode)}</strong></td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td>
+        <td class="row-actions"><button class="small" onclick="editPromoGroupItem('${esc(r.id)}')">Sửa</button><button class="small danger" onclick="deletePromoGroupItem('${esc(r.id)}')">Xóa</button></td>
+      </tr>`).join(''):'<tr><td colspan="4">Chưa có nhóm sản phẩm KM.</td></tr>';
+    }catch(err){ groupItemsTable.innerHTML=`<tr><td colspan="4">${esc(err.message)}</td></tr>`; }
+  }
+  async function loadGroupRules(){
+    if(!groupRulesTable)return;
+    try{
+      const json = await api(`/api/promotions/group-rules?q=${q()}`);
+      state.groupRules=json.rows||[];
+      groupRulesTable.innerHTML=state.groupRules.length?state.groupRules.map(r=>`<tr>
+        <td><strong>${esc(r.programCode)}</strong></td><td>${esc(r.programName)}</td><td>${fmtMoney(r.minAmount)}</td><td>${fmtPct(r.discountPercent)}</td>
+        <td class="row-actions"><button class="small" onclick="editPromoGroupRule('${esc(r.id)}')">Sửa</button><button class="small danger" onclick="deletePromoGroupRule('${esc(r.id)}')">Xóa</button></td>
+      </tr>`).join(''):'<tr><td colspan="5">Chưa có điều kiện nhóm KM.</td></tr>';
+    }catch(err){ groupRulesTable.innerHTML=`<tr><td colspan="5">${esc(err.message)}</td></tr>`; }
+  }
+  async function reloadAll(){ await Promise.all([loadProductRules(),loadGroupItems(),loadGroupRules()]); }
+
+  function setForm(form,row,fields){ if(!form)return; form.reset(); fields.forEach(f=>{ if(form.elements[f])form.elements[f].value=row?.[f]??''; }); }
+  window.editPromoProductRule=(id)=>{const r=state.productRules.find(x=>String(x.id)===String(id));setForm(productForm,r,['id','programCode','programName','productCode','productName','discountPercent']);activePanel('productRules');};
+  window.editPromoGroupItem=(id)=>{const r=state.groupItems.find(x=>String(x.id)===String(id));setForm(groupItemForm,r,['id','programCode','productCode','productName']);activePanel('groupItems');};
+  window.editPromoGroupRule=(id)=>{const r=state.groupRules.find(x=>String(x.id)===String(id));setForm(groupRuleForm,r,['id','programCode','programName','minAmount','discountPercent']);activePanel('groupRules');};
+  window.deletePromoProductRule=async(id)=>{if(!confirm('Xóa CK sản phẩm này?'))return;try{await api(`/api/promotions/product-rules/${encodeURIComponent(id)}`,{method:'DELETE'});show('Đã xóa CK sản phẩm');await loadProductRules();}catch(e){show(e.message,true)}};
+  window.deletePromoGroupItem=async(id)=>{if(!confirm('Xóa sản phẩm khỏi nhóm KM?'))return;try{await api(`/api/promotions/group-items/${encodeURIComponent(id)}`,{method:'DELETE'});show('Đã xóa sản phẩm khỏi nhóm KM');await loadGroupItems();}catch(e){show(e.message,true)}};
+  window.deletePromoGroupRule=async(id)=>{if(!confirm('Xóa điều kiện nhóm KM này?'))return;try{await api(`/api/promotions/group-rules/${encodeURIComponent(id)}`,{method:'DELETE'});show('Đã xóa điều kiện nhóm KM');await loadGroupRules();}catch(e){show(e.message,true)}};
+
+  productForm?.addEventListener('submit',async(e)=>{e.preventDefault();try{await api('/api/promotions/product-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(productForm).entries()))});productForm.reset();show('Đã lưu CK sản phẩm');await loadProductRules();}catch(err){show(err.message,true)}});
+  groupItemForm?.addEventListener('submit',async(e)=>{e.preventDefault();try{await api('/api/promotions/group-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(groupItemForm).entries()))});groupItemForm.reset();show('Đã lưu nhóm sản phẩm KM');await loadGroupItems();}catch(err){show(err.message,true)}});
+  groupRuleForm?.addEventListener('submit',async(e)=>{e.preventDefault();try{await api('/api/promotions/group-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(groupRuleForm).entries()))});groupRuleForm.reset();show('Đã lưu điều kiện nhóm KM');await loadGroupRules();}catch(err){show(err.message,true)}});
+  $('resetPromoProductRuleButton')?.addEventListener('click',()=>productForm?.reset());
+  $('resetPromoGroupItemButton')?.addEventListener('click',()=>groupItemForm?.reset());
+  $('resetPromoGroupRuleButton')?.addEventListener('click',()=>groupRuleForm?.reset());
+  searchInput?.addEventListener('input',reloadAll);
+  reloadAll();
+})();

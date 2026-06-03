@@ -21,6 +21,9 @@ const APP_COLLECTION_KEYS = [
   'mobileLogs',
   'auditLogs',
   'promotions',
+  'promotionProductRules',
+  'promotionGroupItems',
+  'promotionGroupRules',
   'importTemplates',
   'roles',
   'permissions'
