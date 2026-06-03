@@ -17,6 +17,17 @@ async function listDeliverySubmissions(req, res) {
   catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu nộp quỹ giao hàng', error: err.message }); }
 }
 
+
+async function listExpenses(req, res) {
+  try { sendResult(res, await fundService.listExpenseVouchers(req.query || {}), 'Đã tải phiếu chi'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chi', error: err.message }); }
+}
+
+async function listTransfers(req, res) {
+  try { sendResult(res, await fundService.listFundTransfers(req.query || {}), 'Đã tải phiếu chuyển quỹ'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chuyển quỹ', error: err.message }); }
+}
+
 async function previewDeliverySubmission(req, res) {
   try { sendResult(res, await fundService.buildDeliverySubmissionDraft({ ...(req.query || {}), ...(req.body || {}) }), 'Đã lập nháp phiếu nộp quỹ'); }
   catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không lập được nháp nộp quỹ', error: err.message }); }
@@ -42,4 +53,4 @@ async function createTransfer(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, listDeliverySubmissions, previewDeliverySubmission, createDeliverySubmission, confirmDeliverySubmission, createExpense, createTransfer };
+module.exports = { listLedger, listDeliverySubmissions, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, confirmDeliverySubmission, createExpense, createTransfer };

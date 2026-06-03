@@ -184,6 +184,34 @@ async function listDeliveryCashSubmissions(query = {}) {
   return { submissions: rows };
 }
 
+
+async function listExpenseVouchers(query = {}) {
+  const filter = {};
+  if (query.dateFrom || query.dateTo) {
+    const dateFrom = query.dateFrom ? dateOnly(query.dateFrom) : '';
+    const dateTo = query.dateTo ? dateOnly(query.dateTo) : '';
+    filter.date = { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) };
+  }
+  if (query.fundType && query.fundType !== 'all') filter.fundType = String(query.fundType);
+  let rows = await expenseVoucherRepository.findAll(filter, { sort: { date: -1, createdAt: -1, code: -1 }, limit: query.limit || 500 });
+  const q = normalizeText(query.q || query.search || '');
+  if (q) rows = rows.filter((row) => [row.code, row.expenseType, row.receiverName, row.note, row.status].some((value) => normalizeText(value).includes(q)));
+  return { vouchers: rows };
+}
+
+async function listFundTransfers(query = {}) {
+  const filter = {};
+  if (query.dateFrom || query.dateTo) {
+    const dateFrom = query.dateFrom ? dateOnly(query.dateFrom) : '';
+    const dateTo = query.dateTo ? dateOnly(query.dateTo) : '';
+    filter.date = { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) };
+  }
+  let rows = await fundTransferRepository.findAll(filter, { sort: { date: -1, createdAt: -1, code: -1 }, limit: query.limit || 500 });
+  const q = normalizeText(query.q || query.search || '');
+  if (q) rows = rows.filter((row) => [row.code, row.fromFund, row.toFund, row.bankName, row.note, row.status].some((value) => normalizeText(value).includes(q)));
+  return { transfers: rows };
+}
+
 async function confirmDeliveryCashSubmission(idOrCode, body = {}) {
   const submission = await deliveryCashSubmissionRepository.findByIdOrCode(idOrCode);
   if (!submission) return { error: 'Không tìm thấy phiếu nộp quỹ', status: 404 };
@@ -309,6 +337,8 @@ module.exports = {
   buildDeliverySubmissionDraft,
   createDeliveryCashSubmission,
   listDeliveryCashSubmissions,
+  listExpenseVouchers,
+  listFundTransfers,
   confirmDeliveryCashSubmission,
   createExpenseVoucher,
   createFundTransfer,

@@ -5868,3 +5868,29 @@ body::after{
 @media(max-width:1180px){#debtTab .debt-v2-search-grid{grid-template-columns:1fr 1fr!important}#debtTab .debt-v2-clear-btn{grid-column:1/-1}}
 @media(max-width:1000px){#debtTab .debt-v2-search-first{grid-template-columns:1fr!important}#debtTab .debt-v2-list-card,#debtTab .debt-v2-right{min-height:auto!important}#debtTab .debt-v2-customer-list{max-height:420px!important}}
 @media(max-width:720px){#debtTab .debt-v2-search-grid,#debtTab .debt-v2-kpis-4,#debtTab .debt-info-main,#debtTab .debt-v2-pay-row{grid-template-columns:1fr!important}}
+
+/* V45 Fund Ledger 4-tab layout */
+.funds-tabs-layout{display:block;width:100%;}
+.funds-v2-shell{min-height:calc(100vh - 130px);}
+.funds-v2-header{align-items:flex-start;gap:16px;}
+.fund-tab-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px;border-bottom:1px solid #dbe7f6;padding-bottom:8px;}
+.fund-tab-button{border:1px solid #d7e3f2;background:#f8fafc;color:#334155;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer;box-shadow:none;}
+.fund-tab-button.active{background:#2563eb;color:#fff;border-color:#2563eb;box-shadow:0 8px 18px rgba(37,99,235,.18);}
+.fund-tab-panel{display:none;}
+.fund-tab-panel.active{display:block;}
+.funds-kpi-row{margin:8px 0 10px;}
+.fund-filter-row{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:10px;margin-bottom:12px;}
+.fund-filter-row label,.fund-form-grid label{font-weight:800;color:#475569;font-size:13px;}
+.fund-filter-row input,.fund-filter-row select,.fund-form-grid input,.fund-form-grid select{width:100%;margin-top:4px;}
+.funds-main-table-scroll{max-height:calc(100vh - 360px);overflow:auto;border:1px solid #dbe7f6;border-radius:14px;}
+.fund-two-column{display:grid;grid-template-columns:38% 1fr;gap:14px;align-items:start;}
+.fund-form-card,.fund-list-card{border:1px solid #dbe7f6;border-radius:16px;background:#fff;padding:14px;}
+.fund-form-grid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;}
+.fund-form-grid .full-span{grid-column:1/-1;}
+.funds-sub-table-scroll{max-height:calc(100vh - 330px);overflow:auto;border:1px solid #e2e8f0;border-radius:12px;}
+.fund-status{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:900;margin-right:4px;}
+.fund-status.ok{background:#dcfce7;color:#15803d;}
+.fund-status.warn{background:#ffedd5;color:#c2410c;}
+.fund-status.bad{background:#fee2e2;color:#dc2626;}
+.compact-toolbar{margin-bottom:8px;}
+@media(max-width:1100px){.fund-two-column{grid-template-columns:1fr}.fund-filter-row{grid-template-columns:repeat(2,minmax(160px,1fr));}.fund-form-grid{grid-template-columns:1fr}}

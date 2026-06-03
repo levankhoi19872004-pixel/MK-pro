@@ -270,6 +270,14 @@ const expenseVoucherForm=document.getElementById('expenseVoucherForm');
 const expenseVoucherMessage=document.getElementById('expenseVoucherMessage');
 const fundTransferForm=document.getElementById('fundTransferForm');
 const fundTransferMessage=document.getElementById('fundTransferMessage');
+const fundTabButtons=document.querySelectorAll('.fund-tab-button');
+const fundTabPanels=document.querySelectorAll('.fund-tab-panel');
+const fundDateFrom=document.getElementById('fundDateFrom');
+const fundDateTo=document.getElementById('fundDateTo');
+const fundTypeFilter=document.getElementById('fundTypeFilter');
+const fundDirectionFilter=document.getElementById('fundDirectionFilter');
+const expenseVoucherTable=document.getElementById('expenseVoucherTable');
+const fundTransferTable=document.getElementById('fundTransferTable');
 
 const importDataType=document.getElementById('importDataType');
 const importExcelFile=document.getElementById('importExcelFile');
