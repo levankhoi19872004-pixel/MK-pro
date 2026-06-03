@@ -28,20 +28,21 @@ const stockCard = asyncHandler(async (req, res) => {
 });
 
 const debts = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
-  const result = await reportService.debtReport(req.query);
+  // Màn Công nợ phương án 3 không còn lọc ngày.
+  // Công nợ phải lấy theo số dư AR hiện tại và chỉ lọc theo khách/NVBH/NVGH/trạng thái khi người dùng tìm kiếm.
+  const result = await reportService.debtReport(req.query || {});
   res.json({ ok: true, ...result });
 });
 
 const debtsBySalesman = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
-  const result = await reportService.debtBySalesmanReport(req.query);
+  // Tổng hợp công nợ theo NVBH cũng dùng số dư AR hiện tại, không bắt buộc khoảng ngày.
+  const result = await reportService.debtBySalesmanReport(req.query || {});
   res.json({ ok: true, ...result });
 });
 
 const debtsByDelivery = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
-  const result = await reportService.debtByDeliveryReport(req.query);
+  // Tổng hợp công nợ theo NVGH cũng dùng số dư AR hiện tại, không bắt buộc khoảng ngày.
+  const result = await reportService.debtByDeliveryReport(req.query || {});
   res.json({ ok: true, ...result });
 });
 
