@@ -480,9 +480,7 @@ async function loadSalesOrders(){
   try{
     const q=String(salesOrderSearchInput?.value||'').trim().toLowerCase();
     const source=String(salesOrderSourceFilter?.value||'').trim();
-    const dateType=String(salesOrderDateTypeFilter?.value||'orderDate').trim();
-    const status=String(salesOrderStatusFilter?.value||'').trim();
-    const accountingStatus=String(salesOrderAccountingFilter?.value||'').trim();
+    const dateType='orderDate'; // Màn Bán hàng chỉ quản lý ngày bán; ngày giao/công nợ xem ở màn nghiệp vụ riêng.
     const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
     const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
     const params=new URLSearchParams();
@@ -490,12 +488,9 @@ async function loadSalesOrders(){
     if(dateTo)params.set('dateTo',dateTo);
     if(dateType)params.set('dateType',dateType);
     if(source)params.set('source',source);
-    if(status)params.set('status',status);
-    if(accountingStatus)params.set('accountingStatus',accountingStatus);
     if(q)params.set('q',q);
     const staffCodeFilter=getSalesOrderStaffFilterCode();
     if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
-    if(status==='cancelled')params.set('includeCancelled','1');
     params.set('page','1');
     params.set('limit','200');
     const res=await fetch(`/api/sales-orders?${params.toString()}`);
@@ -508,27 +503,20 @@ async function loadSalesOrders(){
       return !q || text.includes(q);
     });
     const totalAmount=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
-    const deliveredCount=orders.filter(o=>(window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(o):(o.status||''))==='delivered').length;
-    const pendingCount=orders.length-deliveredCount;
-    salesOrderCount.innerHTML=`<strong>${orders.length}</strong> đơn · <strong>${money(totalAmount)}</strong> · Đã giao ${deliveredCount} · Chưa giao ${pendingCount}`;
+    salesOrderCount.innerHTML=`<strong>${orders.length}</strong> đơn · Doanh số <strong>${money(totalAmount)}</strong>`;
     if(!orders.length){salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';return}
     window.__salesOrdersCache=orders;
     if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
     salesOrderList.innerHTML=orders.map((o,idx)=>{
-      const statusLabel=getSalesOrderStatusLabel(o);
-      const statusClass=getSalesOrderStatusClass(o);
       const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
-      const deliveryDateText=typeof formatDateVN==='function'?formatDateVN(o.deliveryDate||''):(o.deliveryDate||'');
       return `
       <article class="sales-order-row">
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
         <strong class="sales-order-code-text" title="Mã đơn: ${o.code||o.id||''}">${o.code||o.id||''}</strong>
         <span class="sales-order-customer-inline" title="Khách hàng: ${o.customerName||o.customerCode||''}">${o.customerName||o.customerCode||''}</span>
         <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
-        <span class="sales-order-date" title="Ngày giao">${deliveryDateText||'-'}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
-        <span class="badge ${statusClass} sales-order-status-badge" title="Trạng thái">${statusLabel}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}
@@ -568,4 +556,4 @@ if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 if(exportSelectedSalesOrdersButton)exportSelectedSalesOrdersButton.addEventListener('click',exportSelectedSalesOrders);
 if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
-[salesOrderDateTypeFilter,salesOrderStatusFilter,salesOrderAccountingFilter].forEach(el=>{if(el)el.addEventListener('change',loadSalesOrders);});
+// Các lọc ngày giao/trạng thái giao hàng/công nợ đã bỏ khỏi màn lên đơn.

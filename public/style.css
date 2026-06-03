@@ -5896,7 +5896,7 @@ body::after{
 @media(max-width:1100px){.fund-two-column{grid-template-columns:1fr}.fund-filter-row{grid-template-columns:repeat(2,minmax(160px,1fr));}.fund-form-grid{grid-template-columns:1fr}}
 .promotion-inner-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.promotion-panel{display:none}.promotion-panel.active{display:block}.compact-form{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}.compact-form .button-row{align-self:end}.inner-tab.active{background:#0f766e;color:#fff;border-color:#0f766e}
 
-/* ===== V45 Sales history compact table layout - fixed header, KPI and badges ===== */
+/* ===== V45 Sales history for order-entry screen: only sales fields, no delivery/debt noise ===== */
 #salesTab .sales-history-toolbar{
   grid-template-columns:1fr!important;
   gap:10px!important;
@@ -5918,16 +5918,18 @@ body::after{
 #salesTab .sales-filter-row-main{
   grid-template-columns:minmax(260px,1.35fr) minmax(210px,.75fr)!important;
 }
-#salesTab .sales-filter-row-sub{
-  grid-template-columns:120px 132px 132px 122px 126px 104px 92px 92px 92px!important;
+#salesTab .sales-filter-row-sub.sales-create-order-filters{
+  grid-template-columns:128px 128px 132px 88px 104px 82px 96px!important;
   justify-content:start!important;
-  align-items:center!important;
+  align-items:end!important;
   gap:7px!important;
 }
+#salesTab .sales-date-filter{font-size:11px!important;font-weight:900!important;color:#475569!important;margin:0!important;}
+#salesTab .sales-date-filter input{margin-top:3px!important;width:100%!important;}
 #salesTab .sales-order-list-head,
 #salesTab .sales-order-row{
   display:grid!important;
-  grid-template-columns:26px minmax(105px,125px) minmax(135px,1fr) 92px 92px minmax(92px,115px) 72px 88px 92px!important;
+  grid-template-columns:26px minmax(115px,145px) minmax(150px,1fr) 92px minmax(95px,120px) 72px 92px!important;
   align-items:center!important;
   gap:8px!important;
 }
@@ -5948,12 +5950,12 @@ body::after{
 }
 #salesTab #salesOrderList.order-list{
   gap:6px!important;
-  max-height:calc(100vh - 330px)!important;
+  max-height:calc(100vh - 310px)!important;
   overflow:auto!important;
   padding-right:4px!important;
 }
 #salesTab .sales-order-row{
-  min-height:46px!important;
+  min-height:44px!important;
   padding:7px 10px!important;
   border:1px solid #e5edf7!important;
   border-radius:12px!important;
@@ -5966,8 +5968,7 @@ body::after{
 #salesTab .sales-order-customer-inline,
 #salesTab .sales-order-date,
 #salesTab .sales-order-total-one-line,
-#salesTab .sales-order-source-one-line,
-#salesTab .sales-order-status-badge{
+#salesTab .sales-order-source-one-line{
   min-width:0!important;
   overflow:hidden!important;
   text-overflow:ellipsis!important;
@@ -5982,21 +5983,16 @@ body::after{
 #salesTab .badge.source-nvbh{background:#dbeafe!important;color:#1d4ed8!important;border:1px solid #bfdbfe!important;}
 #salesTab .badge.source-s3{background:#dcfce7!important;color:#15803d!important;border:1px solid #bbf7d0!important;}
 #salesTab .badge.source-manual{background:#ffedd5!important;color:#c2410c!important;border:1px solid #fed7aa!important;}
-#salesTab .badge.status-delivered{background:#dcfce7!important;color:#15803d!important;border:1px solid #bbf7d0!important;}
-#salesTab .badge.status-assigned{background:#fef3c7!important;color:#92400e!important;border:1px solid #fde68a!important;}
-#salesTab .badge.status-pending{background:#e0f2fe!important;color:#0369a1!important;border:1px solid #bae6fd!important;}
-#salesTab .badge.status-accounted{background:#ede9fe!important;color:#6d28d9!important;border:1px solid #ddd6fe!important;}
-#salesTab .badge.status-cancelled{background:#fee2e2!important;color:#991b1b!important;border:1px solid #fecaca!important;}
 #salesTab .sales-order-actions-one-line{display:flex!important;justify-content:flex-end!important;gap:5px!important;}
 #salesTab .sales-order-actions-one-line .small{min-height:26px!important;padding:4px 8px!important;border-radius:8px!important;font-size:11.5px!important;}
 @media(max-width:1280px){
-  #salesTab .sales-filter-row-sub{grid-template-columns:repeat(4,minmax(0,1fr))!important;}
+  #salesTab .sales-filter-row-sub.sales-create-order-filters{grid-template-columns:repeat(4,minmax(0,1fr))!important;}
   #salesTab .sales-order-list-head{display:none!important;}
   #salesTab .sales-order-row{grid-template-columns:26px minmax(95px,1fr) minmax(120px,1.1fr) minmax(80px,.8fr)!important;grid-auto-rows:auto!important;}
   #salesTab .sales-order-row .sales-order-actions-one-line{justify-content:flex-start!important;}
 }
 @media(max-width:720px){
-  #salesTab .sales-filter-row-main,#salesTab .sales-filter-row-sub{grid-template-columns:1fr!important;}
+  #salesTab .sales-filter-row-main,#salesTab .sales-filter-row-sub.sales-create-order-filters{grid-template-columns:1fr!important;}
   #salesTab .sales-order-row{grid-template-columns:26px 1fr!important;}
 }
 
