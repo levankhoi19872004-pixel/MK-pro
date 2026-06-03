@@ -309,8 +309,11 @@ function createMobileSalesService(ctx) {
         totalAmount,
         paidAmount,
         debtAmount: totalAmount - paidAmount,
-        status: 'posted',
+        status: 'pending',
+        lifecycleStatus: 'pending',
+        orderDate: date,
         deliveryStatus: 'pending',
+        accountingStatus: 'pending',
         createdAt: new Date().toISOString()
       };
 

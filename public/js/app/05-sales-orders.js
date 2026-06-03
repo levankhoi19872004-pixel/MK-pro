@@ -447,52 +447,61 @@ function normalizeOrderDateForFilter(value){
 async function loadSalesOrders(){
   try{
     const q=String(salesOrderSearchInput?.value||'').trim().toLowerCase();
-    const source=String(salesOrderSourceFilter?.value||'').trim().toUpperCase();
+    const source=String(salesOrderSourceFilter?.value||'').trim();
+    const dateType=String(salesOrderDateTypeFilter?.value||'orderDate').trim();
+    const status=String(salesOrderStatusFilter?.value||'').trim();
+    const accountingStatus=String(salesOrderAccountingFilter?.value||'').trim();
     const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
     const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
     const params=new URLSearchParams();
     if(dateFrom)params.set('dateFrom',dateFrom);
     if(dateTo)params.set('dateTo',dateTo);
+    if(dateType)params.set('dateType',dateType);
     if(source)params.set('source',source);
+    if(status)params.set('status',status);
+    if(accountingStatus)params.set('accountingStatus',accountingStatus);
     if(q)params.set('q',q);
     const staffCodeFilter=getSalesOrderStaffFilterCode();
     if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
+    if(status==='cancelled')params.set('includeCancelled','1');
     params.set('page','1');
-    params.set('limit','50');
-    params.set('excludeInactive','1');
-    const res=await fetch(`/api/sales-orders?${params.toString()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
-    const allOrders=(json.salesOrders||[]).filter(isActiveDocument);
-    const staff=staffCodeFilter.toLowerCase();
+    params.set('limit','200');
+    const res=await fetch(`/api/sales-orders?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
+    const allOrders=(json.salesOrders||[]);
+    // V45: backend là nguồn lọc chuẩn. Frontend chỉ render, không tự ẩn đơn đã gộp/giao/công nợ nữa.
     const orders=allOrders.filter(o=>{
-      const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress].join(' ').toLowerCase();
-      const sourceOk=!source || normalizeOrderSourceClient(o)===source;
-      const date=normalizeOrderDateForFilter(o.date||o.orderDate||o.deliveryDate||'');
-      const dateOk=(!dateFrom||date>=dateFrom)&&(!dateTo||date<=dateTo);
-      const staffCodes=[o.staffCode,o.salesStaffCode,o.salesPersonCode,o.nvbhCode,o.maNVBH,o.salesmanCode,o.createdBy].map(v=>String(v||'').toLowerCase());
-      const staffText=[...staffCodes,o.staffName,o.salesStaffName,o.createdByName].join(' ').toLowerCase();
-      const staffOk=!staff||staffCodes.includes(staff)||staffText.includes(staff);
-      const searchOk=!q || text.includes(q);
-      return sourceOk && dateOk && staffOk && searchOk;
+      const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress,o.masterOrderCode].join(' ').toLowerCase();
+      return !q || text.includes(q);
     });
     salesOrderCount.textContent=`${orders.length} / ${allOrders.length} đơn bán`;
     if(!orders.length){salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';return}
     window.__salesOrdersCache=orders;
     if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
-    salesOrderList.innerHTML=orders.map((o,idx)=>`
+    salesOrderList.innerHTML=orders.map((o,idx)=>{
+      const statusText=window.OrderStatusUtil?window.OrderStatusUtil.normalizeOrderStatus(o):(o.status||'pending');
+      const mergeText=window.OrderStatusUtil?window.OrderStatusUtil.normalizeMergeStatus(o):(o.mergeStatus||'unmerged');
+      const accountingText=window.OrderStatusUtil?window.OrderStatusUtil.normalizeAccountingStatus(o):(o.accountingStatus||'pending');
+      return `
       <article class="sales-order-card sales-order-card-compact sales-order-one-line">
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
         <strong class="sales-order-code-text" title="Mã đơn">${o.code||o.id}</strong>
         <span class="sales-order-customer-inline" title="Khách hàng">${o.customerName||o.customerCode||''}</span>
-        <span class="sales-order-date" title="Ngày đơn">${typeof formatDateVN==='function'?formatDateVN(o.date||o.orderDate||''):(o.date||o.orderDate||'')}</span>
+        <span class="sales-order-date" title="Ngày bán">${typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'')}</span>
+        <span class="sales-order-date" title="Ngày giao">${typeof formatDateVN==='function'?formatDateVN(o.deliveryDate||''):(o.deliveryDate||'')}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
+        <span class="badge muted" title="Vòng đời">${statusText}${mergeText==='merged'?' · đã gộp':''}${accountingText==='confirmed'?' · đã CN':''}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}
         </div>
-      </article>`).join('');
+      </article>`;
+    }).join('');
   }catch(err){salesOrderCount.textContent='Lỗi tải lịch sử';salesOrderList.innerHTML=err.message}
 }
+
 
 
 // Bảo vệ riêng cho ô gợi ý sản phẩm bán hàng: catalog luôn được tải độc lập với bộ lọc tồn kho/danh sách sản phẩm.
@@ -523,3 +532,4 @@ if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 if(exportSelectedSalesOrdersButton)exportSelectedSalesOrdersButton.addEventListener('click',exportSelectedSalesOrders);
 if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
+[salesOrderDateTypeFilter,salesOrderStatusFilter,salesOrderAccountingFilter].forEach(el=>{if(el)el.addEventListener('change',loadSalesOrders);});

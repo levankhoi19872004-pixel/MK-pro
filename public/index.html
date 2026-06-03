@@ -295,12 +295,31 @@
                 <input id="salesOrderStaffFilter" class="sales-filter-staff" placeholder="Tìm NV bán hàng..." />
               </div>
               <div class="sales-filter-row sales-filter-row-sub">
+                <select id="salesOrderDateTypeFilter" class="sales-filter-source" title="Kiểu ngày">
+                  <option value="orderDate">Ngày bán</option>
+                  <option value="deliveryDate">Ngày giao</option>
+                  <option value="all">Cả 2 ngày</option>
+                </select>
                 <input id="salesOrderDateFrom" class="sales-filter-date" type="date" title="Từ ngày" />
                 <input id="salesOrderDateTo" class="sales-filter-date" type="date" title="Đến ngày" />
                 <select id="salesOrderSourceFilter" class="sales-filter-source">
                   <option value="">Tất cả nguồn</option>
-                  <option value="NVBH">Từ NVBH</option>
-                  <option value="DMS">Từ DMS</option>
+                  <option value="sales_app">Từ NVBH/App</option>
+                  <option value="dms">Từ DMS</option>
+                  <option value="s3">Từ S3</option>
+                  <option value="manual">Thủ công</option>
+                </select>
+                <select id="salesOrderStatusFilter" class="sales-filter-source" title="Trạng thái đơn">
+                  <option value="">Tất cả trạng thái</option>
+                  <option value="pending">Chưa gộp</option>
+                  <option value="assigned">Đã gộp</option>
+                  <option value="delivered">Đã giao</option>
+                  <option value="cancelled">Đã hủy</option>
+                </select>
+                <select id="salesOrderAccountingFilter" class="sales-filter-source" title="Công nợ">
+                  <option value="">Tất cả công nợ</option>
+                  <option value="pending">Chưa xác nhận CN</option>
+                  <option value="confirmed">Đã xác nhận CN</option>
                 </select>
                 <button id="selectAllSalesOrdersButton" class="secondary compact-action" type="button">Chọn tất cả</button>
                 <button id="printSelectedSalesOrdersButton" class="secondary compact-action" type="button">In đơn</button>
@@ -1211,6 +1230,7 @@
   <script src="/js/search/catalogCacheService.js?v=staff-auto-users-v5"></script>
   <script src="/js/search/unifiedSearchEngine.js?v=staff-auto-users-v5"></script>
   <script src="/js/search/productSearchBox.js?v=staff-auto-users-v5"></script>
+  <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
   <script src="/js/app/00-dom-state.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>

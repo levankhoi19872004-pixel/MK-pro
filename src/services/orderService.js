@@ -13,6 +13,7 @@ const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 const returnOrderService = require('./returnOrderService');
+const orderStatusUtil = require('../utils/orderStatus.util');
 
 function today() {
   return dateUtil.todayVN();
@@ -184,8 +185,11 @@ async function reverseSalesOrderPosting(order, options = {}) {
 
 function toClient(order) {
   const normalizedOrderSource = normalizeOrderSourceValue(order);
+  const lifecycle = orderStatusUtil.lifecyclePatch(order, { source: normalizedOrderSource });
+  const merged = orderStatusUtil.normalizeMergeStatus({ ...order, ...lifecycle });
   return {
     ...order,
+    ...lifecycle,
     id: order.id || order.code,
     code: order.code || order.id,
     items: Array.isArray(order.items) ? order.items : [],
@@ -194,7 +198,10 @@ function toClient(order) {
     debtAmount: toNumber(order.debtAmount),
     source: normalizedOrderSource,
     orderSource: normalizedOrderSource,
-    orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH'
+    orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH',
+    mergeStatus: merged,
+    isMerged: merged === 'merged',
+    visibleInHistory: orderStatusUtil.isOrderVisibleInHistory({ ...order, ...lifecycle })
   };
 }
 
@@ -230,42 +237,37 @@ function canHardDeleteSalesOrder(order = {}) {
 
 
 async function listOrders(query = {}) {
+  // Lịch sử bán hàng là góc nhìn toàn bộ orders, không được làm “mất đơn” sau khi gộp/giao/công nợ.
+  // Mặc định vẫn giới hạn ngày để bảo vệ hiệu năng, nhưng frontend có thể truyền dateType=orderDate|deliveryDate|all.
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
   const internalMaxLimit = Math.max(Number(guardedQuery.__internalMaxLimit || 0), 0);
   const page = queryGuard.getPagination(guardedQuery, internalMaxLimit ? { maxLimit: internalMaxLimit, defaultLimit: Math.min(internalMaxLimit, 500) } : {});
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
-  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
-  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
-  const excludeInactive = String(guardedQuery.excludeInactive ?? '0') !== '0';
-  const sourceKey = normalizeText(guardedQuery.source || guardedQuery.orderSource);
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
+  const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
+  const sourceKey = orderStatusUtil.normalizeOrderSource(guardedQuery.source || guardedQuery.orderSource || '');
 
   const filter = {};
   if (dateFrom || dateTo) {
     const range = {};
     if (dateFrom) range.$gte = dateFrom;
     if (dateTo) range.$lte = dateTo;
-    filter.$or = [
-      { date: range },
-      { orderDate: range },
-      { deliveryDate: range }
-    ];
+    const orderDateFields = [{ orderDate: range }, { date: range }, { createdDate: range }];
+    const deliveryDateFields = [{ deliveryDate: range }];
+    if (dateType === 'deliveryDate') filter.$or = deliveryDateFields;
+    else if (dateType === 'all') filter.$or = [...orderDateFields, ...deliveryDateFields, { createdAt: range }];
+    else filter.$or = orderDateFields;
   }
-  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (!includeCancelled) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
   if (q) {
     const rx = queryGuard.buildRegex(q);
     const qOr = [
-      { code: rx },
-      { id: rx },
-      { orderCode: rx },
-      { salesOrderCode: rx },
-      { customerCode: rx },
-      { customerName: rx },
-      { staffCode: rx },
-      { staffName: rx },
-      { salesStaffCode: rx },
-      { salesStaffName: rx },
-      { deliveryStaffCode: rx },
-      { deliveryStaffName: rx }
+      { code: rx }, { id: rx }, { orderCode: rx }, { salesOrderCode: rx },
+      { customerCode: rx }, { customerName: rx }, { customerPhone: rx },
+      { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx },
+      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { masterOrderCode: rx }, { masterOrderId: rx }
     ];
     filter.$and = filter.$and || [];
     filter.$and.push({ $or: qOr });
@@ -278,22 +280,33 @@ async function listOrders(query = {}) {
     filter.$and = filter.$and || [];
     filter.$and.push({
       $or: [
-        { staffCode: staffCodeFilter },
-        { salesStaffCode: staffCodeFilter },
-        { salesPersonCode: staffCodeFilter },
-        { salesmanCode: staffCodeFilter },
-        { nvbhCode: staffCodeFilter },
-        { maNVBH: staffCodeFilter },
-        { 'salesStaff.code': staffCodeFilter },
-        { 'staff.code': staffCodeFilter }
+        { staffCode: staffCodeFilter }, { salesStaffCode: staffCodeFilter }, { salesPersonCode: staffCodeFilter },
+        { salesmanCode: staffCodeFilter }, { nvbhCode: staffCodeFilter }, { maNVBH: staffCodeFilter },
+        { 'salesStaff.code': staffCodeFilter }, { 'staff.code': staffCodeFilter }
       ]
     });
   }
 
+  const deliveryStaffCodeFilter = extractStaffCodeParam(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);
+  if (deliveryStaffCodeFilter) {
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: [{ deliveryStaffCode: deliveryStaffCodeFilter }, { deliveryCode: deliveryStaffCodeFilter }, { 'deliveryStaff.code': deliveryStaffCodeFilter }] });
+  }
+
+  const statusFilter = String(guardedQuery.status || guardedQuery.lifecycleStatus || '').trim();
+  const mergeStatusFilter = String(guardedQuery.mergeStatus || '').trim();
+  const deliveryStatusFilter = String(guardedQuery.deliveryStatus || '').trim();
+  const accountingStatusFilter = String(guardedQuery.accountingStatus || '').trim();
+
   const orders = await orderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
   return orders
     .map(toClient)
-    .filter((order) => !sourceKey || normalizeText(normalizeOrderSourceValue(order)).includes(sourceKey.includes('dms') ? 'dms' : 'nvbh'));
+    .filter((order) => orderStatusUtil.isOrderVisibleInHistory(order, { includeCancelled }))
+    .filter((order) => !sourceKey || sourceKey === 'manual' || orderStatusUtil.normalizeOrderSource(order.source || order.orderSource).includes(sourceKey))
+    .filter((order) => !statusFilter || orderStatusUtil.normalizeOrderStatus(order) === statusFilter)
+    .filter((order) => !mergeStatusFilter || orderStatusUtil.normalizeMergeStatus(order) === mergeStatusFilter)
+    .filter((order) => !deliveryStatusFilter || orderStatusUtil.normalizeDeliveryStatus(order) === deliveryStatusFilter)
+    .filter((order) => !accountingStatusFilter || orderStatusUtil.normalizeAccountingStatus(order) === accountingStatusFilter);
 }
 
 async function createOrder(body = {}) {
@@ -309,8 +322,9 @@ async function createOrder(body = {}) {
     ...body,
     id: String(body.id || makeId('SO')).trim(),
     code: String(body.code || buildOrderCode(existingOrders)).trim(),
-    date: dateUtil.toDateOnly(body.date || today()),
-    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || today()),
+    date: dateUtil.toDateOnly(body.date || body.orderDate || today()),
+    orderDate: dateUtil.toDateOnly(body.orderDate || body.date || today()),
+    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || body.orderDate || today()),
     customerId: customer?.id || body.customerId || body.customerCode || '',
     customerCode: customer?.code || body.customerCode || '',
     customerName: customer?.name || body.customerName || '',
@@ -336,12 +350,14 @@ async function createOrder(body = {}) {
     mergeStatus: body.mergeStatus || 'unmerged',
     deliveryStatus: body.deliveryStatus || 'pending',
     status: body.status || 'pending',
-    lifecycleStatus: body.lifecycleStatus || 'pending',
-    arStatus: body.arStatus || 'not_posted',
+    lifecycleStatus: body.lifecycleStatus || body.status || 'pending',
+    accountingStatus: body.accountingStatus || 'pending',
+    arStatus: body.arStatus || 'pending',
     arBalance: 0,
     createdAt: body.createdAt || nowIso(),
     updatedAt: nowIso()
   };
+  Object.assign(order, orderStatusUtil.lifecyclePatch(order, { source: body.source || body.orderSource || 'sales_app' }));
   Object.assign(order, applyOrderSourceFields(order));
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(order, { session });
@@ -370,6 +386,7 @@ async function updateOrder(id, body = {}) {
     totalAmount,
     paidAmount,
     debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
+    ...orderStatusUtil.lifecyclePatch({ ...current, ...body, items, totalAmount, paidAmount }, current),
     updatedAt: nowIso()
   });
   await withMongoTransaction(async (session) => {
@@ -411,7 +428,7 @@ async function deleteOrder(id, body = {}) {
   const returnDraftDelete = await returnOrderService.cancelReturnDraftForSalesOrder(current, { dryRun: true });
   if (returnDraftDelete && returnDraftDelete.error) return returnDraftDelete;
 
-  if (canHardDeleteSalesOrder(current)) {
+  if (false && canHardDeleteSalesOrder(current)) {
     await withMongoTransaction(async (session) => {
       await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
       await reverseSalesOrderPosting(current, { session });
