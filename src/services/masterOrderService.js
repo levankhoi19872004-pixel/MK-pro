@@ -1848,24 +1848,33 @@ async function buildAggregateMasterPrintDocument(body = {}) {
 }
 
 async function createMasterOrder(body = {}) {
-  const childIds = Array.isArray(body.childOrderIds) ? body.childOrderIds.map(String) : [];
+  const childIds = [...new Set((Array.isArray(body.childOrderIds) ? body.childOrderIds : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
   if (!childIds.length) return { error: 'Chưa chọn đơn con để gộp', status: 400 };
-  const allOrders = await orderRepository.findAll();
-  const children = allOrders
-    .filter((order) => childIds.includes(String(order.id)) || childIds.includes(String(order.code)))
+
+  // Tăng tốc gộp đơn: chỉ query đúng các đơn được tick, không load toàn bộ orders.
+  const children = (await orderRepository.findManyByIdentity(childIds))
     .filter((order) => !isInactiveStatus(order));
-  if (children.length !== childIds.length) return { error: 'Một số đơn con không tồn tại hoặc đã bị hủy/xóa', status: 400 };
+  const foundKeys = new Set(children.flatMap((order) => [order.id, order.code, order.documentCode, order.orderCode, order.salesOrderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)));
+  const missingIds = childIds.filter((id) => !foundKeys.has(id));
+  if (missingIds.length || children.length !== childIds.length) {
+    return { error: `Một số đơn con không tồn tại hoặc đã bị hủy/xóa: ${missingIds.join(', ')}`, status: 400 };
+  }
   if (children.some((order) => order.masterOrderId || order.masterOrderCode || (order.mergeStatus || 'unmerged') === 'merged')) {
     return { error: 'Có đơn con đã được gộp trước đó', status: 400 };
   }
-  const existingMasterOrders = await masterOrderRepository.findAll();
+
   const deliveryStaff = await resolveStaff(body, 'delivery');
   const salesStaff = await resolveStaff(body, 'sales');
   const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || today());
   const masterOrder = {
     ...body,
     id: String(body.id || makeId('MO')).trim(),
-    code: String(body.code || buildMasterOrderCode(existingMasterOrders)).trim(),
+    // Không quét toàn bộ master_orders để sinh mã vì thao tác này rất chậm khi dữ liệu lớn.
+    code: String(body.code || makeId('DT')).trim(),
     date: dateUtil.toDateOnly(body.date || deliveryDate),
     deliveryDate,
     routeName: String(body.routeName || '').trim(),
@@ -1884,32 +1893,80 @@ async function createMasterOrder(body = {}) {
     createdAt: body.createdAt || nowIso(),
     updatedAt: nowIso()
   };
+
+  const childOrderKeys = [...new Set(children.flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)))];
+  const childCodes = [...new Set(children.map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
+  const now = nowIso();
+
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(masterOrder, { session });
-    for (const child of children) {
-      const updatedChild = {
-        ...child,
-        masterOrderId: masterOrder.id,
-        masterOrderCode: masterOrder.code,
-        mergeStatus: 'merged',
-        deliveryStatus: child.deliveryStatus || 'pending',
-        status: 'assigned',
-        lifecycleStatus: 'assigned',
-        arStatus: 'pending',
-        accountingStatus: 'pending',
-        accountingConfirmed: false,
-        deliveryDate: masterOrder.deliveryDate,
-        deliveryStaffId: masterOrder.deliveryStaffId,
-        deliveryStaffCode: masterOrder.deliveryStaffCode,
-        deliveryStaffName: masterOrder.deliveryStaffName,
-        routeName: masterOrder.routeName,
-        deliveryRoute: masterOrder.routeName,
-        updatedAt: nowIso()
-      };
-      await orderRepository.upsert(updatedChild, { session });
-      await returnOrderService.attachMasterOrderToReturnDrafts(masterOrder, [updatedChild], { session });
+
+    const setPatch = {
+      masterOrderId: masterOrder.id,
+      masterOrderCode: masterOrder.code,
+      mergeStatus: 'merged',
+      status: 'assigned',
+      lifecycleStatus: 'assigned',
+      arStatus: 'pending',
+      accountingStatus: 'pending',
+      accountingConfirmed: false,
+      deliveryDate: masterOrder.deliveryDate,
+      deliveryStaffId: masterOrder.deliveryStaffId,
+      deliveryStaffCode: masterOrder.deliveryStaffCode,
+      deliveryStaffName: masterOrder.deliveryStaffName,
+      routeName: masterOrder.routeName,
+      deliveryRoute: masterOrder.routeName,
+      updatedAt: now
+    };
+
+    await MongoStore.salesOrders.bulkWrite(children.map((child) => ({
+      updateOne: {
+        filter: { $or: [
+          { id: child.id },
+          { code: child.code },
+          { documentCode: child.documentCode },
+          { orderCode: child.orderCode },
+          { salesOrderCode: child.salesOrderCode }
+        ].filter((item) => Object.values(item)[0]) },
+        update: { $set: { ...setPatch, deliveryStatus: child.deliveryStatus || 'pending' } }
+      }
+    })), { ordered: false, session });
+
+    // Sync returnOrders bằng một lệnh bulk, không gọi từng đơn trong vòng lặp.
+    if (childOrderKeys.length || childCodes.length) {
+      await MongoStore.returnOrders.updateMany(
+        {
+          $or: [
+            { salesOrderId: { $in: childOrderKeys } },
+            { orderId: { $in: childOrderKeys } },
+            { sourceOrderId: { $in: childOrderKeys } },
+            { deliveryOrderId: { $in: childOrderKeys } },
+            { salesOrderCode: { $in: childCodes } },
+            { orderCode: { $in: childCodes } },
+            { sourceOrderCode: { $in: childCodes } },
+            { deliveryOrderCode: { $in: childCodes } }
+          ],
+          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted'] }
+        },
+        {
+          $set: {
+            masterOrderId: masterOrder.id,
+            masterOrderCode: masterOrder.code,
+            deliveryStaffId: masterOrder.deliveryStaffId,
+            deliveryStaffCode: masterOrder.deliveryStaffCode,
+            deliveryStaffName: masterOrder.deliveryStaffName,
+            deliveryDate: masterOrder.deliveryDate,
+            routeName: masterOrder.routeName,
+            updatedAt: now
+          }
+        },
+        { session }
+      );
     }
   });
+
   const updatedChildren = await orderService.getMasterChildren(masterOrder);
   return { masterOrder: toClient(masterOrder, updatedChildren) };
 }

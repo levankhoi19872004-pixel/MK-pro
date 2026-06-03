@@ -148,6 +148,24 @@ async function search(query = {}) {
   return sortRankedProducts(candidates, q).slice(0, limit);
 }
 
+
+async function findByCodes(codes = []) {
+  const values = [...new Set((Array.isArray(codes) ? codes : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+  if (!values.length) return [];
+  return Product.find({
+    $or: [
+      { code: { $in: values } },
+      { sku: { $in: values } },
+      { productCode: { $in: values } },
+      { barcode: { $in: values } }
+    ]
+  })
+    .select('id code sku productCode name unit baseUnit conversionRate packing barcode category brand warehouseCode warehouseName salePrice costPrice isActive')
+    .lean();
+}
+
 async function findByIdOrCode(idOrCode) {
   return Product.findOne(buildMongoFilter(idOrCode));
 }
@@ -178,6 +196,7 @@ module.exports = {
   buildMongoFilter,
   findAll,
   search,
+  findByCodes,
   findByIdOrCode,
   findDuplicateCode,
   findDuplicateBarcode,

@@ -104,22 +104,33 @@ async function resolveStaff(body = {}) {
 }
 
 async function hydrateItemNames(items, saleMode = 'direct') {
-  const products = await productRepository.findAll({});
-  const byCode = new Map(products.map((p) => [String(p.code || p.sku || p.id || '').trim(), p]));
+  const productKeys = [...new Set((Array.isArray(items) ? items : [])
+    .flatMap((item) => [item.productCode, item.code, item.sku, item.productId, item.barcode])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+  const products = await productRepository.findByCodes(productKeys);
+  const byCode = new Map();
+  for (const product of products || []) {
+    [product.code, product.sku, product.productCode, product.barcode, product.id]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .forEach((key) => byCode.set(key, product));
+  }
   return items.map((item) => {
-    const product = byCode.get(String(item.productCode || item.productId || '').trim());
+    const product = byCode.get(String(item.productCode || item.code || item.sku || item.productId || item.barcode || '').trim());
     if (!product) return item;
+    const price = toNumber(item.price || item.salePrice || product.salePrice || 0);
     return {
       ...item,
       productId: item.productId || product.id || product.code,
-      productCode: item.productCode || product.code,
+      productCode: item.productCode || product.code || product.sku || product.productCode,
       productName: item.productName || product.name,
-      price: toNumber(item.price || item.salePrice || product.salePrice || 0),
-      salePrice: toNumber(item.salePrice || item.price || product.salePrice || 0),
-      amount: toNumber(item.quantity) * toNumber(item.salePrice || item.price || product.salePrice || 0),
+      price,
+      salePrice: price,
+      amount: toNumber(item.quantity) * price,
       saleMode: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode),
       pricingMode: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode),
-      priceLocked: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode) === 'promotion' 
+      priceLocked: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode) === 'promotion'
     };
   });
 }
@@ -310,7 +321,6 @@ async function listOrders(query = {}) {
 }
 
 async function createOrder(body = {}) {
-  const existingOrders = await orderRepository.findAll();
   const customer = await resolveCustomer(body);
   const staff = await resolveStaff(body);
   const saleMode = normalizeSaleMode(body.saleMode || body.pricingMode || body.orderPricingMode || body.priceMode || 'direct');
@@ -321,7 +331,7 @@ async function createOrder(body = {}) {
   const order = {
     ...body,
     id: String(body.id || makeId('SO')).trim(),
-    code: String(body.code || buildOrderCode(existingOrders)).trim(),
+    code: String(body.code || makeId('SO')).trim(),
     date: dateUtil.toDateOnly(body.date || body.orderDate || today()),
     orderDate: dateUtil.toDateOnly(body.orderDate || body.date || today()),
     deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || body.orderDate || today()),
@@ -361,8 +371,9 @@ async function createOrder(body = {}) {
   Object.assign(order, applyOrderSourceFields(order));
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(order, { session });
+    // Tăng tốc lưu đơn: chỉ lưu đơn và tạo phiếu trả nháp.
+    // Không xuất kho/không post AR ở bước tạo đơn; các bút toán này chỉ chạy ở luồng giao hàng/kế toán xác nhận.
     await returnOrderService.ensureReturnDraftForSalesOrder(order, { session });
-    await applySalesOrderPosting(order, { session });
   });
   return { salesOrder: toClient(order) };
 }
@@ -492,7 +503,7 @@ async function getMasterChildren(masterOrder = {}) {
   const ids = masterChildIdSet(masterOrder);
   if (!ids.size) return [];
 
-  const orders = await orderRepository.findAll();
+  const orders = await orderRepository.findManyByIdentity(Array.from(ids));
   const byKey = new Map();
   for (const order of orders) {
     if (isInactiveOrder(order)) continue;

@@ -22,6 +22,24 @@ async function findByIdOrCode(idOrCode) {
   return rows[0] || null;
 }
 
+
+async function findManyByIdentity(keys = [], options = {}) {
+  const values = [...new Set((Array.isArray(keys) ? keys : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
+  if (!values.length) return [];
+  return collectionRepository.findAll(ORDER_KEY, {
+    $or: [
+      { id: { $in: values } },
+      { code: { $in: values } },
+      { documentCode: { $in: values } },
+      { invoiceCode: { $in: values } },
+      { orderCode: { $in: values } },
+      { salesOrderCode: { $in: values } }
+    ]
+  }, options);
+}
+
 async function upsert(order, options = {}) {
   return collectionRepository.upsertByIdentity(ORDER_KEY, order, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
@@ -34,4 +52,4 @@ async function remove(idOrCode, options = {}) {
   return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
-module.exports = { findAll, findByIdOrCode, upsert, replaceAll, remove };
+module.exports = { findAll, findByIdOrCode, findManyByIdentity, upsert, replaceAll, remove };
