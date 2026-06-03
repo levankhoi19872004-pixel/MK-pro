@@ -491,11 +491,19 @@
               <input id="deliveryStaffFilter" placeholder="Gõ mã hoặc tên NV giao..." autocomplete="off" />
               <div id="deliveryStaffFilterSuggestions" class="suggestions" hidden></div>
             </label>
-            <label class="delivery-filter-field">Tình trạng giao hàng
-              <select id="deliveryStatusFilter" title="Tình trạng giao hàng">
+            <label class="delivery-filter-field autocomplete">Nhân viên bán hàng
+              <input id="deliverySalesmanFilter" placeholder="Gõ mã hoặc tên NV bán..." autocomplete="off" />
+              <div id="deliverySalesmanFilterSuggestions" class="suggestions" hidden></div>
+            </label>
+            <label class="delivery-filter-field">Trạng thái đơn
+              <select id="deliveryStatusFilter" title="Trạng thái đơn">
                 <option value="">Tất cả</option>
                 <option value="not_delivered">Chưa giao</option>
+                <option value="delivering">Đang giao</option>
                 <option value="delivered_group">Đã giao</option>
+                <option value="returned">Có trả hàng</option>
+                <option value="accounting_confirmed">Đã xác nhận kế toán</option>
+                <option value="accounting_pending">Chưa xác nhận kế toán</option>
               </select>
             </label>
           </div>

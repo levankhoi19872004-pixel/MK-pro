@@ -195,6 +195,22 @@
       afterSelect: 'loadDeliveryToday',
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
+    ,{
+      key: 'deliverySalesmanFilter',
+      type: 'staff',
+      inputId: 'deliverySalesmanFilter',
+      boxId: 'deliverySalesmanFilterSuggestions',
+      source: 'users',
+      roles: ['sales','admin'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'deliverySalesmanFilter', value: 'codeOrUsernameOrId' }
+      ],
+      afterSelect: 'loadDeliveryToday',
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    }
 
     ,{
       key: 'salesOrderStaffFilter',

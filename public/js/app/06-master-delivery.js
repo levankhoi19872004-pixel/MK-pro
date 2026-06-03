@@ -962,11 +962,17 @@ function deliverySummaryParams(){
   const date=deliveryDateFilter?.value||today();
   const q=deliverySearchInput?.value.trim()||'';
   const delivery=deliveryStaffFilter?.value.trim()||'';
+  const salesman=deliverySalesmanFilter?.value.trim()||'';
   const route=deliveryRouteFilter?.value?.trim?.()||'';
   const status=deliveryStatusFilter?.value||'';
   if(date)params.set('date',date);
   if(q)params.set('q',q);
   if(delivery)params.set('delivery',delivery);
+  if(salesman){
+    params.set('salesman',salesman);
+    params.set('salesStaff',salesman);
+    params.set('salesStaffCode',salesman);
+  }
   if(route)params.set('route',route);
   if(status)params.set('status',status);
   params.set('limit','5000');

@@ -1214,9 +1214,14 @@ async function listDeliveryToday(query = {}) {
         const isDeliveredGroup = ['delivered', 'done', 'completed', 'paid', 'unpaid'].includes(visual)
           || ['delivered', 'done', 'completed', 'paid'].includes(rawStatus);
         const isNotDeliveredGroup = !isDeliveredGroup;
+        const hasReturn = toNumber(row.returnAmount) > 0 || (Array.isArray(row.returnItems) && row.returnItems.length > 0);
+        const isAccountingConfirmedGroup = Boolean(row.accountingConfirmed);
         if (status === 'delivered_group' && !isDeliveredGroup) continue;
         else if (status === 'not_delivered' && !isNotDeliveredGroup) continue;
-        else if (!['delivered_group', 'not_delivered'].includes(status) && visual !== status && rawStatus !== status) continue;
+        else if (status === 'returned' && !hasReturn) continue;
+        else if (status === 'accounting_confirmed' && !isAccountingConfirmedGroup) continue;
+        else if (status === 'accounting_pending' && isAccountingConfirmedGroup) continue;
+        else if (!['delivered_group', 'not_delivered', 'returned', 'accounting_confirmed', 'accounting_pending'].includes(status) && visual !== status && rawStatus !== status) continue;
       }
       rows.push(row);
     }
