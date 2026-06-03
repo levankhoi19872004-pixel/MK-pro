@@ -649,6 +649,7 @@ async function debtReport(query = {}) {
         credit: 0,
         receiptAmount: 0,
         returnAmount: 0,
+        bonusAmount: 0,
         ledgerEntries: []
       });
     }
@@ -695,6 +696,7 @@ async function debtReport(query = {}) {
     target.credit += credit;
     if (type.includes('receipt') || type === 'debt') target.receiptAmount += credit - debit;
     if (type.includes('return')) target.returnAmount += credit - debit;
+    if (type.includes('bonus') || type.includes('allowance') || type.includes('discount')) target.bonusAmount += credit - debit;
     target.ledgerEntries.push(entry);
   });
 
@@ -728,6 +730,7 @@ async function debtReport(query = {}) {
       paidOnOrder: 0,
       receiptAmount: Math.max(0, toNumber(row.receiptAmount)),
       returnAmount: Math.max(0, toNumber(row.returnAmount)),
+      bonusAmount: Math.max(0, toNumber(row.bonusAmount)),
       debt,
       rawDebt: debt,
       overpaidAmount,
@@ -781,6 +784,7 @@ async function debtReport(query = {}) {
         credit: 0,
         receiptAmount: 0,
         returnAmount: 0,
+        bonusAmount: 0,
         debt: 0,
         orderCount: 0,
         overdueCount: 0,
@@ -794,6 +798,7 @@ async function debtReport(query = {}) {
     target.credit += toNumber(row.credit);
     target.receiptAmount += toNumber(row.receiptAmount);
     target.returnAmount += toNumber(row.returnAmount);
+    target.bonusAmount += toNumber(row.bonusAmount);
     target.debt += normalizeDebtAmount(row.debt);
     target.orderCount += 1;
     target.orders.push({
@@ -805,6 +810,7 @@ async function debtReport(query = {}) {
       credit: toNumber(row.credit),
       receiptAmount: toNumber(row.receiptAmount),
       returnAmount: toNumber(row.returnAmount),
+      bonusAmount: toNumber(row.bonusAmount),
       debt: normalizeDebtAmount(row.debt),
       overdueDays: toNumber(row.overdueDays),
       agingDays: toNumber(row.agingDays),
@@ -890,6 +896,7 @@ function buildDebtPersonSummary(rows = [], options = {}) {
         credit: 0,
         receiptAmount: 0,
         returnAmount: 0,
+        bonusAmount: 0,
         debt: 0,
         maxOverdueDays: 0,
         maxAgingDays: 0
@@ -907,6 +914,7 @@ function buildDebtPersonSummary(rows = [], options = {}) {
     target.credit += toNumber(row.credit);
     target.receiptAmount += toNumber(row.receiptAmount);
     target.returnAmount += toNumber(row.returnAmount);
+    target.bonusAmount += toNumber(row.bonusAmount);
     target.debt += normalizeDebtAmount(row.debt);
     target.maxOverdueDays = Math.max(target.maxOverdueDays, toNumber(row.overdueDays));
     target.maxAgingDays = Math.max(target.maxAgingDays, toNumber(row.agingDays));

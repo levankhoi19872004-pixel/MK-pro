@@ -45,8 +45,13 @@ setDefaultDocumentDateFilters();
 
 if(stockSearchInput)stockSearchInput.addEventListener('input',loadStock);
 if(typeof resetDebtFilters==='function')resetDebtFilters({load:false});
-if(debtSearchInput)debtSearchInput.addEventListener('input',loadDebts);
-[debtSalesmanFilter,debtDeliveryFilter,debtStatusFilter,debtDateFrom,debtDateTo].forEach(el=>{if(el)el.addEventListener('input',loadDebts);if(el)el.addEventListener('change',loadDebts);});
+const debouncedLoadDebts=debounce(()=>loadDebts(),300);
+if(debtSearchInput){
+  debtSearchInput.addEventListener('input',debouncedLoadDebts);
+  debtSearchInput.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();loadDebts();}});
+}
+[debtSalesmanFilter,debtDeliveryFilter].forEach(el=>{if(el)el.addEventListener('input',debouncedLoadDebts);});
+if(debtStatusFilter)debtStatusFilter.addEventListener('change',loadDebts);
 if(debtClearFiltersButton)debtClearFiltersButton.addEventListener('click',()=>resetDebtFilters());
 if(receiptSearchInput)receiptSearchInput.addEventListener('input',loadReceipts);
 if(returnOrderSearchInput)returnOrderSearchInput.addEventListener('input',loadReturnOrders);

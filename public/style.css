@@ -5828,3 +5828,43 @@ body::after{
 #deliveryTodayTab #deliveryReturnItems::-webkit-scrollbar{
   width:8px;
 }
+
+/* V45 debt workspace - search first layout, no date filter */
+#debtTab .debt-v2-search-first{grid-template-columns:minmax(340px,34%) minmax(0,66%);gap:14px;align-items:start}
+#debtTab .debt-v2-topbar{grid-column:1/-1;min-height:auto!important}
+#debtTab .debt-v2-head-clean{margin-bottom:10px!important;align-items:center!important}
+#debtTab .debt-v2-search-grid{display:grid!important;grid-template-columns:minmax(320px,1.5fr) minmax(180px,.85fr) minmax(180px,.85fr) minmax(140px,.65fr) auto!important;gap:10px!important;align-items:end!important;margin-bottom:10px!important}
+#debtTab .debt-v2-search-grid label{margin:0!important;min-width:0!important}
+#debtTab .debt-v2-search-grid input,#debtTab .debt-v2-search-grid select{min-height:38px!important;padding:8px 11px!important;border-radius:12px!important}
+#debtTab .debt-main-search input{font-weight:800;background:#fff!important;border-color:#bfdbfe!important;box-shadow:0 0 0 3px rgba(37,99,235,.06)!important}
+#debtTab .debt-v2-clear-btn{min-height:38px!important;margin:0!important;white-space:nowrap!important}
+#debtTab .debt-v2-kpis-4{grid-template-columns:repeat(4,minmax(0,1fr))!important;margin:8px 0 0!important}
+#debtTab .debt-v2-kpis-4>div{padding:9px 11px!important;background:#fff!important}
+#debtTab .debt-v2-kpis-4 span{font-size:11.5px!important}
+#debtTab .debt-v2-kpis-4 b{font-size:18px!important}
+#debtTab .debt-v2-list-card,#debtTab .debt-v2-right{min-height:calc(100vh - 255px)!important}
+#debtTab .debt-v2-list-head{margin-bottom:8px!important;align-items:center!important}
+#debtTab .debt-v2-customer-list{max-height:calc(100vh - 340px)!important;overflow:auto!important;display:grid!important;gap:7px!important;padding-right:4px!important}
+#debtTab .debt-v2-customer-card{padding:9px 10px!important;border-radius:14px!important;box-shadow:none!important}
+#debtTab .debt-v2-card-top{align-items:center!important}
+#debtTab .debt-v2-card-top b{font-size:14px!important;line-height:1.15!important}
+#debtTab .debt-v2-card-top strong{font-size:17px!important;white-space:nowrap!important}
+#debtTab .debt-v2-card-meta,#debtTab .debt-v2-card-staff{margin-top:5px!important;font-size:11px!important;gap:5px!important}
+#debtTab .debt-v2-card-meta span,#debtTab .debt-v2-card-staff span{padding:3px 7px!important}
+#debtTab .debt-v2-detail-head-compact{margin-bottom:8px!important}
+#debtTab .debt-customer-info-box{margin:8px 0 10px!important;padding:10px!important;border-radius:14px!important}
+#debtTab .debt-info-main{grid-template-columns:.8fr 1.5fr 1fr!important;gap:8px!important}
+#debtTab .debt-info-main b,#debtTab .debt-info-main strong{font-size:16px!important}
+#debtTab .debt-v2-order-box{max-height:260px!important;overflow:auto!important;border-style:solid!important;padding:0!important;background:#fff!important}
+#debtTab .debt-v2-order-table-wrap{overflow:auto;max-height:258px;border-radius:14px}
+#debtTab .debt-v2-order-table{width:100%;border-collapse:collapse;font-size:12px;min-width:780px;background:#fff}
+#debtTab .debt-v2-order-table th,#debtTab .debt-v2-order-table td{padding:7px 8px;border-bottom:1px solid #edf2f7;text-align:left;white-space:nowrap;vertical-align:middle}
+#debtTab .debt-v2-order-table th{position:sticky;top:0;background:#f8fbff;color:#475569;font-size:11px;z-index:1}
+#debtTab .debt-v2-order-table td.price{text-align:right;font-variant-numeric:tabular-nums}
+#debtTab .debt-v2-order-table td small{display:block;color:#ef4444;font-size:10.5px;margin-top:2px}
+#debtTab .debt-v2-selected-summary{margin:9px 0!important}
+#debtTab .debt-v2-selected-summary>div{padding:8px 10px!important}
+#debtTab .debt-v2-pay-row{grid-template-columns:2fr 1fr!important}
+@media(max-width:1180px){#debtTab .debt-v2-search-grid{grid-template-columns:1fr 1fr!important}#debtTab .debt-v2-clear-btn{grid-column:1/-1}}
+@media(max-width:1000px){#debtTab .debt-v2-search-first{grid-template-columns:1fr!important}#debtTab .debt-v2-list-card,#debtTab .debt-v2-right{min-height:auto!important}#debtTab .debt-v2-customer-list{max-height:420px!important}}
+@media(max-width:720px){#debtTab .debt-v2-search-grid,#debtTab .debt-v2-kpis-4,#debtTab .debt-info-main,#debtTab .debt-v2-pay-row{grid-template-columns:1fr!important}}
