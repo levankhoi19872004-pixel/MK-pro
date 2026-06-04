@@ -34,6 +34,77 @@ function compactJson(value, maxLength = MAX_QUERY_TRACE_LABEL) {
   }
 }
 
+const ORDER_KEY_FIELDS = new Set([
+  'salesOrderId',
+  'salesOrderCode',
+  'orderId',
+  'orderCode',
+  'sourceOrderId',
+  'sourceOrderCode',
+  'refId',
+  'refCode',
+  'erpDeliveryReturnKey'
+]);
+
+function isDirtyOrderInputKey(value) {
+  const text = String(value == null ? '' : value).trim();
+  if (!text) return false;
+  // Khóa nghiệp vụ hợp lệ trong V45 chỉ nên là SO... hoặc HU...
+  // Các chuỗi nhị phân/rác kiểu "j �b�d-?oP..." sẽ bị đánh dấu đỏ.
+  return !/^(SO|HU)\d+$/i.test(text);
+}
+
+function pushOrderInputValue(result, value) {
+  if (value == null) return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => pushOrderInputValue(result, item));
+    return;
+  }
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.$in)) {
+      value.$in.forEach((item) => pushOrderInputValue(result, item));
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(value, '$eq')) {
+      pushOrderInputValue(result, value.$eq);
+      return;
+    }
+    return;
+  }
+  const text = String(value).trim();
+  if (!text) return;
+  if (!result.inputKeys.includes(text)) result.inputKeys.push(text);
+  if (isDirtyOrderInputKey(text) && !result.dirtyInputKeys.includes(text)) {
+    result.dirtyInputKeys.push(text);
+  }
+}
+
+function collectOrderInputKeys(query, result = { inputKeys: [], dirtyInputKeys: [] }) {
+  if (!query || typeof query !== 'object') return result;
+  if (Array.isArray(query)) {
+    query.forEach((item) => collectOrderInputKeys(item, result));
+    return result;
+  }
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (ORDER_KEY_FIELDS.has(key)) {
+      pushOrderInputValue(result, value);
+      return;
+    }
+    if (key === '$or' || key === '$and' || key === '$nor') {
+      collectOrderInputKeys(value, result);
+      return;
+    }
+    if (value && typeof value === 'object') {
+      collectOrderInputKeys(value, result);
+    }
+  });
+
+  result.inputKeys = result.inputKeys.slice(0, 50);
+  result.dirtyInputKeys = result.dirtyInputKeys.slice(0, 50);
+  return result;
+}
+
 function resultRows(result) {
   if (Array.isArray(result)) return result.length;
   if (result && Array.isArray(result.docs)) return result.docs.length;
@@ -50,15 +121,32 @@ function describeMongooseExec(ctx) {
     const model = ctx?.model?.modelName || ctx?._model?.modelName || collection || 'Mongo';
     const op = ctx?.op || (ctx?._pipeline ? 'aggregate' : 'query');
     let filter = '';
+    let inputKeys = [];
+    let dirtyInputKeys = [];
+
     if (typeof ctx?.getQuery === 'function') {
-      filter = compactJson(ctx.getQuery());
+      const query = ctx.getQuery();
+      filter = compactJson(query);
+      const collected = collectOrderInputKeys(query);
+      inputKeys = collected.inputKeys;
+      dirtyInputKeys = collected.dirtyInputKeys;
     } else if (Array.isArray(ctx?._pipeline)) {
-      filter = compactJson(ctx._pipeline.slice(0, 3));
+      const pipeline = ctx._pipeline.slice(0, 3);
+      filter = compactJson(pipeline);
+      const collected = collectOrderInputKeys(pipeline);
+      inputKeys = collected.inputKeys;
+      dirtyInputKeys = collected.dirtyInputKeys;
     }
+
     const label = `${model}.${op}${filter ? ` ${filter}` : ''}`;
-    return label.length > MAX_QUERY_TRACE_LABEL ? `${label.slice(0, MAX_QUERY_TRACE_LABEL)}...` : label;
+    return {
+      label: label.length > MAX_QUERY_TRACE_LABEL ? `${label.slice(0, MAX_QUERY_TRACE_LABEL)}...` : label,
+      inputKeys,
+      dirtyInputKeys,
+      hasDirtyInputKeys: dirtyInputKeys.length > 0
+    };
   } catch (err) {
-    return 'Mongo.query';
+    return { label: 'Mongo.query', inputKeys: [], dirtyInputKeys: [], hasDirtyInputKeys: false };
   }
 }
 
@@ -93,11 +181,14 @@ function patchMongooseApiMonitor() {
     const originalExec = proto.exec;
     function monitoredExec(...args) {
       const started = nowMs();
-      const label = describeMongooseExec(this);
+      const queryInfo = describeMongooseExec(this);
       const finalizeTrace = (result, err = null) => {
         const ms = Math.round(nowMs() - started);
         addMongoMetric(ms, {
-          label,
+          label: queryInfo.label,
+          inputKeys: queryInfo.inputKeys || [],
+          dirtyInputKeys: queryInfo.dirtyInputKeys || [],
+          hasDirtyInputKeys: !!queryInfo.hasDirtyInputKeys,
           ms,
           rows: resultRows(result),
           error: err ? (err.message || String(err)) : undefined

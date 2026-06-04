@@ -6453,3 +6453,27 @@ body::after{
 }
 .api-monitor-tab-panel { display: none; }
 .api-monitor-tab-panel.active { display: block; }
+
+
+.api-monitor-input-keys-cell {
+  min-width: 220px;
+  max-width: 360px;
+  white-space: normal;
+}
+.api-monitor-input-keys-cell code {
+  display: inline-block;
+  margin: 1px 3px 1px 0;
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.api-monitor-clean-key {
+  background: rgba(22, 163, 74, 0.10);
+  color: #166534;
+}
+.api-monitor-dirty-key {
+  background: rgba(220, 38, 38, 0.16);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  font-weight: 800;
+}

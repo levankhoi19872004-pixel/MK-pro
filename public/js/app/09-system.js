@@ -158,6 +158,25 @@ function apiMonitorTraceRowsText(row = {}) {
 }
 
 
+function apiMonitorSlowestTrace(row = {}) {
+  const traces = Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length
+    ? row.maxQueryTraces
+    : (Array.isArray(row.lastQueryTraces) ? row.lastQueryTraces : []);
+  return traces.slice().sort((a, b) => Number(b.ms || 0) - Number(a.ms || 0))[0] || null;
+}
+
+function apiMonitorTraceInputKeysHtml(row = {}) {
+  const trace = apiMonitorSlowestTrace(row);
+  const keys = Array.isArray(trace?.inputKeys) ? trace.inputKeys : [];
+  const dirtySet = new Set(Array.isArray(trace?.dirtyInputKeys) ? trace.dirtyInputKeys.map(String) : []);
+  if (!keys.length) return '<span class="muted">-</span>';
+  return keys.slice(0, 12).map((key) => {
+    const text = String(key || '');
+    const isDirty = dirtySet.has(text);
+    return `<code class="${isDirty ? 'api-monitor-dirty-key' : 'api-monitor-clean-key'}" title="${apiMonitorSafeText(text)}">${apiMonitorSafeText(text)}</code>`;
+  }).join(' ');
+}
+
 function renderApiMonitorTopSlowRows(rows = []) {
   if (!apiTopSlowTable) return;
   apiTopSlowTable.innerHTML = rows.length ? rows.map(row => `
@@ -214,19 +233,23 @@ function renderApiMonitorTopRowsRows(rows = []) {
 function renderApiMonitorTopQueryTraceRows(rows = []) {
   if (typeof apiTopQueryTraceTable === 'undefined' || !apiTopQueryTraceTable) return;
   const filtered = rows.filter(row => Number(row.slowestQueryMs || 0) > 0 || (Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length));
-  apiTopQueryTraceTable.innerHTML = filtered.length ? filtered.map(row => `
-    <tr class="${Number(row.slowestQueryMs || 0) >= 1000 ? 'row-danger' : ''}">
+  apiTopQueryTraceTable.innerHTML = filtered.length ? filtered.map(row => {
+    const trace = apiMonitorSlowestTrace(row);
+    const hasDirtyKeys = !!trace?.hasDirtyInputKeys || (Array.isArray(trace?.dirtyInputKeys) && trace.dirtyInputKeys.length > 0);
+    return `
+    <tr class="${Number(row.slowestQueryMs || 0) >= 1000 || hasDirtyKeys ? 'row-danger' : ''}">
       <td>${apiMonitorSafeText(row.module || '')}</td>
       <td><code title="${apiMonitorSafeText(row.maxOriginalUrl || row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
       <td><code title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorSlowestQueryText(row)}</code></td>
+      <td class="${hasDirtyKeys ? 'api-monitor-input-keys-cell dirty' : 'api-monitor-input-keys-cell'}">${apiMonitorTraceInputKeysHtml(row)}</td>
       <td><strong>${apiMonitorFormatMs(row.slowestQueryMs || 0)}</strong></td>
       <td>${apiMonitorTraceRowsText(row)}</td>
       <td>${apiMonitorFormatMs(row.maxMongoMs || 0)}</td>
       <td>${apiMonitorFormatMs(row.maxMs || 0)}</td>
       <td>${systemFormatNumber(row.lastDbQueries || 0)}</td>
       <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
-    </tr>
-  `).join('') : '<tr><td colspan="9">Chưa có Query Trace. Hãy thao tác API rồi bấm tải lại.</td></tr>';
+    </tr>`;
+  }).join('') : '<tr><td colspan="10">Chưa có Query Trace. Hãy thao tác API rồi bấm tải lại.</td></tr>';
 }
 
 function setupApiMonitorTabs() {

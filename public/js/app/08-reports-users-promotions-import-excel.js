@@ -40,12 +40,12 @@ async function loadReports(){
     reportStockSummary.textContent='Đang tải tồn kho...';
     reportDebtSummary.textContent='Đang tải công nợ...';
     reportCashSummary.textContent='Đang tải quỹ tiền...';
-    const [salesJson,stockJson,debtJson,cashJson]=await Promise.all([
+    const [salesJson,stockJson,cashJson]=await Promise.all([
       fetchJson('/api/sales-orders'),
       fetchJson(`/api/stock?dateFrom=${encodeURIComponent(fromDate||new Date().toISOString().slice(0,10))}&dateTo=${encodeURIComponent(toDate||fromDate||new Date().toISOString().slice(0,10))}`),
-      fetchJson(`/api/debts?dateFrom=${encodeURIComponent(fromDate||new Date().toISOString().slice(0,10))}&dateTo=${encodeURIComponent(toDate||fromDate||new Date().toISOString().slice(0,10))}`),
       fetchJson('/api/cashbook')
     ]);
+    const debtJson={ debts: [] };
 
     const salesOrders=(salesJson.salesOrders||[]).filter(order=>reportDateInRange(order.date||order.createdAt,fromDate,toDate));
     const stockRows=stockJson.stock||[];

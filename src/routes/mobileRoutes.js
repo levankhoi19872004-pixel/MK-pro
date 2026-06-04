@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeText } = require('../utils/search.util');
+const { normalizeOrderCodes } = require('../utils/orderKey.util');
 
 const deliveryFinance = require('../utils/deliveryFinance.util');
 
@@ -234,7 +235,13 @@ function orderDeliveryDate(order) {
 function toCleanDocKey(value) {
   if (value == null) return '';
   if (typeof value === 'object') {
-    const picked = value.id ?? value.code ?? value.orderId ?? value.orderCode ?? value.salesOrderId ?? value.salesOrderCode ?? value._id;
+    const picked =
+  value.code ??
+  value.orderCode ??
+  value.salesOrderCode ??
+  value.id ??
+  value.orderId ??
+  value.salesOrderId;
     return picked == null ? '' : String(picked).trim();
   }
   const text = String(value).trim();
@@ -252,7 +259,11 @@ function masterChildIds(master) {
 }
 
 function orderIdKeys(order = {}) {
-  return compactKeys([order.id, order._id, order.salesOrderId, order.orderId]);
+  return compactKeys([
+    order.id,
+    order.salesOrderId,
+    order.orderId
+  ]);
 }
 
 function orderCodeKeys(order = {}) {
@@ -263,14 +274,28 @@ function buildSalesOrderLookupKeys(order = {}) {
   return compactKeys([...orderIdKeys(order), ...orderCodeKeys(order)]);
 }
 
-function buildReturnOrderFilter(orderIds = [], orderCodes = []) {
-  const or = [];
-  if (orderIds.length) or.push({ salesOrderId: { $in: orderIds } });
-  if (orderCodes.length) or.push({ salesOrderCode: { $in: orderCodes } });
-  if (!or.length) return null;
+function buildReturnOrderFilter(orderIds = [], orderCodeValues = []) {
+  const orderCodes = normalizeOrderCodes([
+    ...orderIds,
+    ...orderCodeValues
+  ]);
+
+  if (!orderCodes.length) return null;
+
   return {
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
-    $or: or
+    $or: [
+      {
+        salesOrderId: {
+          $in: orderCodes
+        }
+      },
+      {
+        salesOrderCode: {
+          $in: orderCodes
+        }
+      }
+    ]
   };
 }
 

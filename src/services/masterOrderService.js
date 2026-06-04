@@ -230,9 +230,15 @@ async function listMasterOrders(query = {}) {
   }
 
   const masterOrders = await masterOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
+
+  // Tối ưu hiệu năng: không gọi getMasterChildren() trong vòng for vì sẽ tạo N+1 query.
+  // buildMasterChildrenMapFast() gom toàn bộ childOrderIds của trang hiện tại và chỉ query orders một lần.
+  const childrenMap = await buildMasterChildrenMapFast(masterOrders);
+
   const result = [];
   for (const masterOrder of masterOrders) {
-    const children = await orderService.getMasterChildren(masterOrder);
+    const masterKey = String(masterOrder.id || masterOrder.code || '').trim();
+    const children = childrenMap.get(masterKey) || [];
     const order = toClient(masterOrder, children);
     const d = dateUtil.toDateOnly(order.deliveryDate || order.date);
     if (excludeInactive && isInactiveStatus(order)) continue;

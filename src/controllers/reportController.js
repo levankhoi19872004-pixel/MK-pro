@@ -27,11 +27,43 @@ const stockCard = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+function isTruthyFlag(value) {
+  return ['1', 'true', 'yes', 'full'].includes(String(value || '').trim().toLowerCase());
+}
+
+function hasCustomerDetailQuery(query = {}) {
+  return Boolean(
+    query.customerCode ||
+    query.code ||
+    query.customerId ||
+    query.id ||
+    query.orderCode ||
+    query.orderId ||
+    query.detail === '1' ||
+    query.mode === 'detail'
+  );
+}
+
 const debts = asyncHandler(async (req, res) => {
-  // Màn Công nợ phương án 3 không còn lọc ngày.
-  // Công nợ phải lấy theo số dư AR hiện tại và chỉ lọc theo khách/NVBH/NVGH/trạng thái khi người dùng tìm kiếm.
-  const result = await reportService.debtReport(req.query || {});
-  res.json({ ok: true, ...result });
+  // V45 compatibility endpoint:
+  // /api/debts vẫn được giữ cho UI cũ, nhưng mặc định KHÔNG còn tính toàn bộ AR Ledger.
+  // - Cần danh sách khách công nợ: dùng chung logic /api/debts/customers
+  // - Cần chi tiết 1 khách/1 đơn: dùng chung logic /api/debts/customer-detail
+  // - Chỉ khi gọi rõ legacyFull/full=1 mới trả payload đầy đủ kiểu cũ.
+  const query = req.query || {};
+
+  if (isTruthyFlag(query.legacyFull) || isTruthyFlag(query.full)) {
+    const result = await reportService.debtReport(query);
+    return res.json({ ok: true, compatibility: 'legacy-full', ...result });
+  }
+
+  if (hasCustomerDetailQuery(query)) {
+    const result = await reportService.debtCustomerDetail(query);
+    return res.json({ ok: true, compatibility: 'customer-detail', redirectedFrom: '/api/debts', ...result });
+  }
+
+  const result = await reportService.debtCustomers(query);
+  return res.json({ ok: true, compatibility: 'customers-light', redirectedFrom: '/api/debts', ...result });
 });
 
 const debtsInit = asyncHandler(async (req, res) => {
