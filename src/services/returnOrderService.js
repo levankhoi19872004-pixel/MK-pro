@@ -480,15 +480,16 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
   const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
 
-  // V45 chuẩn: khi app giao hàng sửa toàn bộ SL trả về 0 thì KHÔNG sinh thêm bản RO-MOBILE/clear mới.
+  // V45 chuẩn: khi app/phần mềm sửa toàn bộ SL trả về 0 thì KHÔNG sinh thêm bản RO-MOBILE/RO-DRAFT/clear mới.
   // Phải clear trực tiếp các returnOrders tạm đang có của cùng salesOrderId/salesOrderCode
   // để không còn bản RO-DRAFT cũ làm lệch "hàng trả" và "còn nợ tạm tính".
-  if (totalAmount <= 0 && String(body.refType || '') === 'mobileDeliveryReturnClear') {
+  if (totalQuantity <= 0) {
     const clearResult = await clearExistingDeliveryReturnOrders({ ...body, salesOrderId, salesOrderCode });
     return {
       returnOrder: clearResult.returnOrder,
       updatedExisting: clearResult.cleared > 0,
-      cleared: clearResult.cleared
+      cleared: clearResult.cleared,
+      skippedCreate: clearResult.cleared <= 0
     };
   }
 
@@ -549,6 +550,20 @@ async function createPendingReturnOrder(body = {}, options = {}) {
   });
   if (built.error) return built;
   const { returnOrder, existing } = built;
+  const pendingQty = toNumber(returnOrder.totalQuantity ?? 0)
+    || (Array.isArray(returnOrder.items) ? returnOrder.items.reduce((sum, item) => sum + toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty ?? 0), 0) : 0);
+
+  // Nếu nguồn web/ERP gửi danh sách trả = 0 thì không được tạo lại RO-DRAFT waiting_receive.
+  // Chỉ clear phiếu tạm cũ nếu có, rồi trả về.
+  if (pendingQty <= 0) {
+    const clearResult = await clearExistingDeliveryReturnOrders(returnOrder);
+    return {
+      returnOrder: clearResult.returnOrder || toClient({ ...returnOrder, items: [], totalQuantity: 0, totalAmount: 0, amount: 0, debtReduction: 0, status: 'cleared', returnStatus: 'cleared', warehouseReceiveStatus: 'cleared', accountingStatus: 'cleared' }),
+      updatedExisting: clearResult.cleared > 0,
+      cleared: clearResult.cleared,
+      skippedCreate: clearResult.cleared <= 0
+    };
+  }
 
   if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
     return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
@@ -755,20 +770,30 @@ async function ensureReturnDraftForSalesOrder(order = {}, options = {}) {
   if (isPostedReturnStatus(existing.status)) return { returnOrder: toClient(existing), skipped: 'posted' };
   const draft = buildReturnDraftFromSalesOrder(order, existing);
   if (!hasReturnQuantity(draft)) {
-    const cancelled = {
+    const cleared = {
       ...draft,
-      status: 'cancelled',
-      returnStatus: 'cancelled',
-      cancelReason: 'Đồng bộ đơn bán: không còn số lượng trả',
-      cancelledAt: dateUtil.nowIso(),
-      updatedAt: dateUtil.nowIso()
+      items: [],
+      totalQuantity: 0,
+      totalReturnAmount: 0,
+      totalAmount: 0,
+      amount: 0,
+      debtReduction: 0,
+      status: 'cleared',
+      returnStatus: 'cleared',
+      warehouseReceiveStatus: 'cleared',
+      accountingStatus: 'cleared',
+      cancelReason: '',
+      cancelledAt: '',
+      clearedAt: dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso(),
+      note: 'Đồng bộ đơn bán: không còn số lượng trả'
     };
     if (!options.dryRun) {
-      await returnOrderRepository.upsert(cancelled, options);
+      await returnOrderRepository.upsert(cleared, options);
       await updateSalesOrderReturnLink(order, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
-      await auditReturnOrder('cancel_return_order', existing, cancelled, cancelled.cancelReason);
+      await auditReturnOrder('clear_return_order', existing, cleared, cleared.note);
     }
-    return { returnOrder: toClient(cancelled), cancelled: true };
+    return { returnOrder: toClient(cleared), cleared: true };
   }
   await returnOrderRepository.upsert(draft, options);
   await updateSalesOrderReturnLink(order, {
@@ -976,27 +1001,27 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
   };
 
   if (!hasReturn) {
-    const cancelled = {
+    const clearResult = await clearExistingDeliveryReturnOrders({ ...lookup, ...body, note: body.note || 'Đã sửa hàng trả về 0 từ phần mềm' });
+    const cleared = {
       ...baseUpdated,
-      status: 'cancelled',
-      returnStatus: 'cancelled',
-      warehouseReceiveStatus: 'cancelled',
-      accountingStatus: 'cancelled',
-      cancelReason: cancelReasonFrom(body, 'Khách lấy lại hàng'),
-      cancelledAt: dateUtil.nowIso(),
+      items: [],
       totalQuantity: 0,
       totalReturnAmount: 0,
       totalAmount: 0,
       amount: 0,
-      debtReduction: 0
+      debtReduction: 0,
+      status: 'cleared',
+      returnStatus: 'cleared',
+      warehouseReceiveStatus: 'cleared',
+      accountingStatus: 'cleared',
+      cancelReason: '',
+      cancelledAt: '',
+      clearedAt: dateUtil.nowIso(),
+      note: body.note || 'Đã sửa hàng trả về 0 từ phần mềm'
     };
-    const existedInMongo = Boolean(await findExistingReturnOrder(lookup));
-    if (existedInMongo) {
-      await returnOrderRepository.upsert(cancelled, options);
-      await auditReturnOrder('cancel_return_order', current, cancelled, cancelled.cancelReason);
-    }
     if (salesOrder) await updateSalesOrderReturnLink(salesOrder, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
-    return { returnOrder: toClient(cancelled), cancelled: existedInMongo, skippedCreate: !existedInMongo };
+    if (clearResult.cleared > 0) await auditReturnOrder('clear_return_order', current, clearResult.returnOrder || cleared, cleared.note);
+    return { returnOrder: clearResult.returnOrder || toClient(cleared), cleared: clearResult.cleared > 0, skippedCreate: clearResult.cleared <= 0 };
   }
 
   const updated = {
@@ -1083,23 +1108,28 @@ async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
     };
   });
   const summary = summarizeReturnDraftItems(items);
-  const status = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0) ? 'has_return' : 'draft';
+  const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
+  const status = hasReturn ? 'has_return' : 'cleared';
   const returnDate = resolveReturnDocumentDate(body, {}, current || {});
   const updated = {
     ...current,
-    ...summary,
+    ...(hasReturn ? summary : { totalQuantity: 0, totalReturnAmount: 0, totalAmount: 0, amount: 0, debtReduction: 0 }),
     date: returnDate,
     deliveryDate: returnDate,
     documentDate: returnDate,
-    items,
+    items: hasReturn ? items : [],
     status,
     returnStatus: status,
-    warehouseReceiveStatus: status === 'has_return' ? 'waiting_receive' : 'draft',
-    accountingStatus: status === 'has_return' ? 'pending' : 'draft',
+    warehouseReceiveStatus: hasReturn ? 'waiting_receive' : 'cleared',
+    accountingStatus: hasReturn ? 'pending' : 'cleared',
+    cancelReason: '',
+    cancelledAt: '',
+    clearedAt: hasReturn ? '' : dateUtil.nowIso(),
+    note: hasReturn ? current.note : (body.note || 'Đã sửa hàng trả về 0'),
     updatedAt: dateUtil.nowIso()
   };
   await returnOrderRepository.upsert(updated, options);
-  return { returnOrder: toClient(updated) };
+  return { returnOrder: toClient(updated), cleared: !hasReturn };
 }
 
 module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, cancelReturnOrderById, toClient };

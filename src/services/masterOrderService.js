@@ -572,19 +572,26 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
   const totalAmount = Math.round(items.reduce((sum, item) => sum + toNumber(item.amount), 0));
   const existing = await findErpDeliveryReturnOrder(updatedOrder);
 
-  // Nếu người dùng xóa hết hàng trả trước khi gộp, hủy phiếu trả ERP đang chờ gộp để không còn hiện ở Đơn trả hàng.
+  // Nếu người dùng xóa hết hàng trả trước khi gộp, clear trực tiếp phiếu tạm cũ.
+  // Không tạo bản cancel mới và không để RO-DRAFT waiting_receive còn tiền.
   if (!items.length || totalAmount <= 0) {
     if (existing && (existing.returnMergeStatus || 'unmerged') !== 'merged' && !existing.masterReturnOrderId && !existing.masterReturnOrderCode) {
       await returnOrderRepository.upsert({
         ...existing,
-        status: 'cancelled',
-        cancelledAt: dateUtil.nowIso(),
-        cancelReason: 'ERP delivery return items cleared',
+        status: 'cleared',
+        returnStatus: 'cleared',
+        warehouseReceiveStatus: 'cleared',
+        accountingStatus: 'cleared',
+        clearedAt: dateUtil.nowIso(),
+        cancelledAt: '',
+        cancelReason: '',
         totalQuantity: 0,
+        totalReturnAmount: 0,
         totalAmount: 0,
         amount: 0,
         debtReduction: 0,
         items: [],
+        note: 'ERP delivery return items cleared',
         updatedAt: dateUtil.nowIso()
       }, options);
     }
