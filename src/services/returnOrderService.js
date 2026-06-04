@@ -565,6 +565,20 @@ async function findBySalesOrder(order = {}) {
   return rows.find((row) => row && !isInactiveStatus(row)) || null;
 }
 
+function resolveReturnDocumentDate(body = {}, salesOrder = {}, existing = {}) {
+  return dateUtil.toDateOnly(
+    body.deliveryDate ||
+    body.date ||
+    body.documentDate ||
+    salesOrder.deliveryDate ||
+    salesOrder.date ||
+    existing.deliveryDate ||
+    existing.date ||
+    existing.documentDate ||
+    dateUtil.todayVN()
+  );
+}
+
 function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
   const existingItemsByKey = new Map();
   for (const item of (Array.isArray(existing?.items) ? existing.items : [])) {
@@ -799,9 +813,13 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
   const summary = summarizeReturnDraftItems(items);
   const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
   const status = hasReturn ? 'has_return' : 'draft';
+  const returnDate = resolveReturnDocumentDate(body, salesOrder || {}, current || {});
   const updated = {
     ...current,
     ...summary,
+    date: returnDate,
+    deliveryDate: returnDate,
+    documentDate: returnDate,
     items,
     status,
     returnStatus: status,
@@ -852,9 +870,13 @@ async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
   });
   const summary = summarizeReturnDraftItems(items);
   const status = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0) ? 'has_return' : 'draft';
+  const returnDate = resolveReturnDocumentDate(body, {}, current || {});
   const updated = {
     ...current,
     ...summary,
+    date: returnDate,
+    deliveryDate: returnDate,
+    documentDate: returnDate,
     items,
     status,
     returnStatus: status,

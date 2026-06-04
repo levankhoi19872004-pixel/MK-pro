@@ -883,6 +883,19 @@ window.recalcDeliveryEditDebt=recalcDeliveryEditDebt;
 function selectedDeliverySalesOrderKey(row = {}){
   return String(row.salesOrderId||row.orderId||row.id||row._id||row.salesOrderCode||row.orderCode||row.code||'').trim();
 }
+function selectedDeliveryReturnDate(row = {}){
+  // V45: hàng trả phải đi theo đúng ngày giao đang lọc trên màn Đơn đi giao hôm nay.
+  // Không để API tự lấy ngày hiện tại, vì sẽ làm phiếu trả bị lệch ngày khi xem/lọc.
+  return String(
+    deliveryDateFilter?.value ||
+    row.deliveryDate ||
+    row.date ||
+    row.documentDate ||
+    row.orderDate ||
+    today() ||
+    ''
+  ).trim();
+}
 async function saveDeliveryReturnItemsTwoWay(row){
   if(!row)return null;
   const items=getDeliveryReturnItemsPayload().map(item=>({
@@ -903,9 +916,19 @@ async function saveDeliveryReturnItemsTwoWay(row){
   }));
   const key=selectedDeliverySalesOrderKey(row);
   if(!key)throw new Error('Không xác định được đơn giao để lưu hàng trả');
+  const returnDate=selectedDeliveryReturnDate(row);
   const body={
     salesOrderId:row.salesOrderId||row.orderId||row.id||'',
     salesOrderCode:row.salesOrderCode||row.orderCode||row.code||'',
+    date:returnDate,
+    deliveryDate:returnDate,
+    documentDate:returnDate,
+    deliveryStaffId:row.deliveryStaffId||'',
+    deliveryStaffCode:row.deliveryStaffCode||'',
+    deliveryStaffName:row.deliveryStaffName||'',
+    salesStaffId:row.salesStaffId||row.staffId||'',
+    salesStaffCode:row.salesStaffCode||row.staffCode||'',
+    salesStaffName:row.salesStaffName||row.staffName||'',
     items,
     source:'web',
     updatedFrom:'web'
