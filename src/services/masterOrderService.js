@@ -1238,9 +1238,14 @@ async function listDeliveryToday(query = {}) {
       child.deliveryReturnItems = syncedReturnItems;
       const amount = buildDeliveryAmount(child, syncedReturnAmount);
 
+      const displayOrderCode = child.code || child.orderCode || child.salesOrderCode || child.invoiceCode || child.documentCode || child.id || '';
       const row = {
         id: child.id || child.code,
-        orderCode: child.code || child.id || '',
+        code: displayOrderCode,
+        orderCode: displayOrderCode,
+        salesOrderId: child.id || '',
+        salesOrderCode: displayOrderCode,
+        displayOrderCode,
         masterOrderCode: master.code || master.id || '',
         customerCode: child.customerCode || '',
         customerName: child.customerName || '',
@@ -2123,9 +2128,14 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         ? Math.max(0, toNumber(directDebtAmount))
         : Math.max(0, totalAmount - cashAmount - bankAmount - bonusAmount - returnAmount);
 
+      const displayOrderCode = child.code || child.orderCode || child.salesOrderCode || child.invoiceCode || child.documentCode || child.id || '';
       const row = {
         id: child.id || '',
-        code: child.code || child.orderCode || child.documentCode || child.salesOrderCode || child.id || '',
+        code: displayOrderCode,
+        orderCode: displayOrderCode,
+        salesOrderId: child.id || '',
+        salesOrderCode: displayOrderCode,
+        displayOrderCode,
         customerCode: child.customerCode || '',
         customerName: child.customerName || '',
         salesStaffCode: child.salesStaffCode || child.salesmanCode || child.staffCode || master.salesStaffCode || '',

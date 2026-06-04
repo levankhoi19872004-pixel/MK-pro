@@ -488,6 +488,21 @@ function calcReturnAmountFromReturnOrder(returnOrder){
   },0));
 }
 
+
+function deliveryDisplayOrderCode(row={}){
+  // V45: id dạng SO178... là khóa nội bộ. Màn hình chỉ hiển thị mã đơn bán/DMS nếu có.
+  return String(
+    row.displayOrderCode ||
+    row.code ||
+    row.orderCode ||
+    row.salesOrderCode ||
+    row.invoiceCode ||
+    row.documentCode ||
+    row.id ||
+    ''
+  ).trim();
+}
+
 function deliveryRowOrderKeys(row={}){
   return [
     row.id,row._id,row.code,row.orderCode,row.salesOrderCode,row.salesOrderId,row.orderId,row.refCode,row.refId
@@ -791,7 +806,7 @@ function fillDeliveryEditPanel(row){
   if(!row)return clearDeliveryEditPanel();
   selectedDeliveryOrderId=String(row.id||'');
   if(deliveryEditOrderId)deliveryEditOrderId.value=row.id||'';
-  if(deliveryEditOrderCode)deliveryEditOrderCode.value=row.orderCode||'';
+  if(deliveryEditOrderCode)deliveryEditOrderCode.value=deliveryDisplayOrderCode(row);
   if(deliveryEditCustomerName)deliveryEditCustomerName.value=row.customerName||'';
   if(deliveryEditDate)deliveryEditDate.value=row.deliveryDate||'';
   if(deliveryEditDeliveryStatus)deliveryEditDeliveryStatus.value=row.deliveryStatus||row.visualStatus||'waiting';
@@ -811,7 +826,7 @@ function fillDeliveryEditPanel(row){
     const debtLabel='Còn nợ tạm tính';
     deliverySelectedSummary.innerHTML=`
       <div class="delivery-selected-title">
-        <strong>${escapeHtml(row.orderCode||'')}</strong>
+        <strong>${escapeHtml(deliveryDisplayOrderCode(row))}</strong>
         <span class="delivery-selected-status ${calcDebt>0?'debt-positive':'debt-zero'}">${debtLabel}: ${money(calcDebt)}</span>
       </div>
       <div class="delivery-selected-customer"><b>${escapeHtml(row.customerCode||'')}</b> · ${escapeHtml(row.customerName||'')}${row.customerPhone?' · '+escapeHtml(row.customerPhone):''}</div>
@@ -1086,7 +1101,7 @@ function renderCompactDeliveryOrders(rows=[]){
         <input class="delivery-accounting-checkbox" type="checkbox" value="${escapeHtml(rowId)}" ${checked?'checked':''} ${locked?'disabled':''} onchange="toggleDeliveryAccountingSelection(this.value,this.checked)" />
       </label>
       <div class="delivery-customer-main one-line">
-        <b>${escapeHtml(row.orderCode||row.id||'')}</b>
+        <b>${escapeHtml(deliveryDisplayOrderCode(row))}</b>
         <span>${escapeHtml(row.customerName||'Chưa có khách')}</span>
         <small>${escapeHtml(row.salesmanName||row.salesmanCode||'')}</small>
       </div>
@@ -1220,7 +1235,7 @@ async function loadDeliveryToday(){
 async function adminUnlockSelectedDeliveryOrder(){
   const row=getSelectedDeliveryRow?.();
   if(!row){alert('Chưa chọn đơn để mở khóa.');return;}
-  const reason=prompt(`Nhập lý do mở khóa điều chỉnh đơn ${row.orderCode||row.id}:`, 'Điều chỉnh tiền thu / trả thưởng / hàng trả');
+  const reason=prompt(`Nhập lý do mở khóa điều chỉnh đơn ${deliveryDisplayOrderCode(row)}:`, 'Điều chỉnh tiền thu / trả thưởng / hàng trả');
   if(!reason||!reason.trim())return;
   try{
     if(deliveryAdminUnlockButton)deliveryAdminUnlockButton.disabled=true;
@@ -1242,7 +1257,7 @@ window.adminUnlockSelectedDeliveryOrder=adminUnlockSelectedDeliveryOrder;
 async function reAccountingSelectedDeliveryOrder(){
   const row=getSelectedDeliveryRow?.();
   if(!row){alert('Chưa chọn đơn để xác nhận lại kế toán.');return;}
-  const ok=confirm(`Xác nhận lại kế toán đơn ${row.orderCode||row.id}?\n\nHệ thống sẽ đảo bút toán AR cũ và ghi lại AR mới theo số liệu vừa sửa.`);
+  const ok=confirm(`Xác nhận lại kế toán đơn ${deliveryDisplayOrderCode(row)}?\n\nHệ thống sẽ đảo bút toán AR cũ và ghi lại AR mới theo số liệu vừa sửa.`);
   if(!ok)return;
   selectedDeliveryAccountingIds=new Set([String(row.id)]);
   await confirmDeliveryAccounting();

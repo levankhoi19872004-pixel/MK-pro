@@ -173,6 +173,12 @@ function toMobileProduct(product = {}) {
 
 function resetSelectedProduct() {
   selectedProduct = null;
+  if (productSearch) {
+    productSearch.dataset.id = '';
+    productSearch.dataset.code = '';
+    productSearch.dataset.name = '';
+    productSearch.dataset.type = '';
+  }
   selectedProductBox.textContent = 'Chưa chọn sản phẩm';
   selectedProductBox.classList.add('muted');
 }
@@ -180,17 +186,65 @@ function resetSelectedProduct() {
 function pickProduct(product) {
   const p = toMobileProduct(product);
   selectedProduct = p;
+
+  // V45 Unified Search V2: input chỉ là phần hiển thị, dữ liệu chọn thật phải lưu ở dataset.
+  // Nếu chỉ set productSearch.value thì khi thêm hàng app không biết chắc sản phẩm đã chọn từ gợi ý nào.
+  productSearch.dataset.id = p.id || '';
+  productSearch.dataset.code = p.code || '';
+  productSearch.dataset.name = p.name || '';
+  productSearch.dataset.type = 'product';
+  productSearch.value = p.label || [p.code, p.name].filter(Boolean).join(' - ');
+
   selectedProductBox.innerHTML = `\n    <div class="product-suggest-title">${p.code || ''} | ${p.name || ''}</div>\n    <div class="product-suggest-meta"><span class="stock-badge">Tồn: ${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)}</span><span class="price-badge">Giá bán: ${money(p.salePrice || p.price || 0)}</span></div>\n  `;
   selectedProductBox.classList.remove('muted');
-  productSearch.value = p.name || p.code || '';
   productSuggestions.innerHTML = '';
   productSuggestions.classList.remove('has-many');
+  productSuggestions.hidden = true;
+  productSuggestions.style.display = 'none';
   looseQtyInput.focus();
 }
 
 async function preloadUnifiedProducts(force = false) {
   if (!window.UnifiedProductSearch) throw new Error('Thiếu UnifiedProductSearch. Kiểm tra sales.html đã nhúng productSearchBox.js chưa.');
   if (force && window.CatalogCache) window.CatalogCache.invalidate('products');
+  return [];
+}
+
+function normalizeProductSearchResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+  const rows = data.items || data.products || data.rows || data.data || data.result || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function searchMobileProducts(keyword = '') {
+  const q = String(keyword || '').trim();
+  if (q.length < 2) return [];
+
+  // Ưu tiên API mobile vì có kèm Authorization token.
+  // Sau lần chuẩn hóa Unified Search V2, một số màn đang đọc nhầm data.products/data.rows
+  // trong khi API mới trả data.items, làm có request 200 nhưng không render gợi ý.
+  try {
+    const data = await mobileApi.getProducts(q, { limit: 50 });
+    const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
+    if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') {
+      window.UnifiedProductSearch.sync(rows);
+    }
+    return rows;
+  } catch (err) {
+    console.warn('[mobile-sales] mobile product search fallback:', err.message || err);
+  }
+
+  if (window.UnifiedSearchEngine && typeof window.UnifiedSearchEngine.searchProduct === 'function') {
+    const rows = await window.UnifiedSearchEngine.searchProduct(q, { limit: 50, mode: 'sales', includeStock: 1 });
+    return normalizeProductSearchResponse(rows).map(toMobileProduct);
+  }
+
+  if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.search === 'function') {
+    const rows = await window.UnifiedProductSearch.search(q, { limit: 50, mode: 'sales' });
+    return normalizeProductSearchResponse(rows).map(toMobileProduct);
+  }
+
   return [];
 }
 
@@ -205,10 +259,10 @@ function initProductAutocomplete() {
   window.SearchAutocomplete.wire({
     input: productSearch,
     box: productSuggestions,
-    getItems: () => window.UnifiedSearchEngine
-      ? window.UnifiedSearchEngine.searchProduct(productSearch.value.trim(), { limit: 50, mode: 'sales', inStockOnly: true })
-      : window.UnifiedProductSearch.search(productSearch.value.trim(), { limit: 50, mode: 'sales' }),
-    label: (product) => window.UnifiedProductSearch.label(product, 'sales'),
+    getItems: () => searchMobileProducts(productSearch.value.trim()),
+    label: (product) => (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.label === 'function')
+      ? window.UnifiedProductSearch.label(product, 'sales')
+      : (product.label || [product.code, product.name].filter(Boolean).join(' - ')),
     select: pickProduct,
     emptyText: 'Không tìm thấy sản phẩm phù hợp'
   });
