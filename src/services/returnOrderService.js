@@ -12,6 +12,8 @@ const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 const ReturnOrder = require('../models/ReturnOrder');
 
+const ACTIVE_RETURN_ORDER_STATUSES = ['pending', 'active', 'merged', 'delivered', 'completed'];
+
 
 function buildReturnCode(existingOrders = []) {
   const max = existingOrders.reduce((result, order) => {
@@ -132,7 +134,7 @@ async function listReturnOrders(query = {}) {
     // Return draft sinh từ đơn con có thể lưu ngày ở deliveryDate, không chỉ date/documentDate.
     andFilters.push({ $or: [{ date: range }, { documentDate: range }, { deliveryDate: range }] });
   }
-  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (excludeInactive) filter.status = { $in: ACTIVE_RETURN_ORDER_STATUSES };
   const salesOrderId = String(guardedQuery.salesOrderId || guardedQuery.orderId || '').trim();
   const salesOrderCode = String(guardedQuery.salesOrderCode || guardedQuery.orderCode || '').trim();
   const deliveryStaffCode = String(guardedQuery.deliveryStaffCode || guardedQuery.staffCode || guardedQuery.delivery || '').trim();
@@ -683,7 +685,7 @@ async function attachMasterOrderToReturnDrafts(masterOrder = {}, childOrders = [
     }
   };
   await ReturnOrder.updateMany(
-    { $or: or, status: { $nin: ['posted', 'received', 'warehouse_received', 'completed', 'cancelled', 'canceled', 'void', 'deleted'] } },
+    { $or: or, status: { $in: ACTIVE_RETURN_ORDER_STATUSES } },
     update,
     options.session ? { session: options.session } : {}
   );
@@ -705,7 +707,7 @@ async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {})
   }
   if (!or.length) return [];
   await ReturnOrder.updateMany(
-    { $or: or, status: { $nin: ['posted', 'received', 'warehouse_received', 'completed', 'cancelled', 'canceled', 'void', 'deleted'] } },
+    { $or: or, status: { $in: ACTIVE_RETURN_ORDER_STATUSES } },
     { $set: { masterOrderId: '', masterOrderCode: '', deliveryStaffId: '', deliveryStaffCode: '', deliveryStaffName: '', deliveryDate: null, routeName: '', deliveryRoute: '', updatedAt: dateUtil.nowIso() } },
     options.session ? { session: options.session } : {}
   );

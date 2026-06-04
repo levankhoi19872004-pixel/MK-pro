@@ -26,6 +26,7 @@ const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const ReturnOrder = require('../models/ReturnOrder');
+const ACTIVE_RETURN_ORDER_STATUSES = ['pending', 'active', 'merged', 'delivered', 'completed'];
 const ArLedger = require('../models/ArLedger');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
@@ -283,7 +284,7 @@ function buildReturnOrderFilter(orderIds = [], orderCodeValues = []) {
   if (!orderCodes.length) return null;
 
   return {
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    status: { $in: ACTIVE_RETURN_ORDER_STATUSES },
     $or: [
       {
         salesOrderId: {
@@ -580,7 +581,7 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
   // Chỉ hủy phiếu trùng khi có khóa đơn bán rõ ràng.
   // Không dùng orderId/orderCode và không chạy updateMany nếu dedupOr rỗng.
   const duplicateFilter = {
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    status: { $in: ACTIVE_RETURN_ORDER_STATUSES },
     returnMergeStatus: { $ne: 'merged' },
     masterReturnOrderId: { $in: [null, '', undefined] },
     masterReturnOrderCode: { $in: [null, '', undefined] },
@@ -828,7 +829,7 @@ async function activeReturnSummaryForOrder(order = {}) {
   const rows = filter
     ? await ReturnOrder.find(filter).sort({ updatedAt: -1, createdAt: -1 }).lean()
     : [];
-  const active = rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase())) || null;
+  const active = rows.find((row) => ACTIVE_RETURN_ORDER_STATUSES.includes(String(row.status || '').toLowerCase())) || null;
   const items = Array.isArray(active?.items) ? active.items : [];
   const amount = items.length
     ? items.reduce((sum, item) => sum + toNumber(item.amount ?? returnLineQty(item) * returnLinePrice(item)), 0)
