@@ -8,6 +8,15 @@ function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
 }
 function hasOpenDebt(value){ return normalizeDebtAmount(value) > 0; }
 
+function readDeliveryMoneyClient(order){
+  order = order || {};
+  return {
+    cashAmount: Number(order.cashAmount ?? order.cashCollected ?? 0) || 0,
+    bankAmount: Number(order.bankAmount ?? order.bankCollected ?? order.transferAmount ?? 0) || 0,
+    rewardAmount: Number(order.rewardAmount ?? order.bonusAmount ?? order.displayRewardAmount ?? 0) || 0
+  };
+}
+
 function mergeStatusLabel(status, row){
   const value = String(status || row?.mergeStatus || 'unmerged').toLowerCase();
   const isMerged = ['merged','mastered','grouped'].includes(value) || Boolean(row?.masterOrderId || row?.masterOrderCode || row?.masterOrderNo);
@@ -396,16 +405,18 @@ function deliveryDebtCompactLabel(value){
   return deliveryCompactMoney(n);
 }
 function calculateDeliveryDraftDebt(row){
+  const m = readDeliveryMoneyClient(row);
   return Math.max(0, normalizeDebtAmount(
     deliveryDebtBase(row)
-    - deliveryToNumber(row?.cashCollected ?? row?.cashAmount ?? 0)
-    - deliveryToNumber(row?.bankCollected ?? row?.transferAmount ?? row?.bankAmount ?? 0)
-    - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
+    - deliveryToNumber(m.cashAmount)
+    - deliveryToNumber(m.bankAmount)
+    - deliveryToNumber(m.rewardAmount)
     - deliveryReturnAmountFromItems(row)
   ));
 }
 function deliveryRowPaid(row){
-  return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
+  const m = readDeliveryMoneyClient(row);
+  return deliveryToNumber(m.cashAmount)+deliveryToNumber(m.bankAmount)+deliveryToNumber(m.rewardAmount)+deliveryReturnAmountFromItems(row);
 }
 
 
@@ -814,10 +825,10 @@ function fillDeliveryEditPanel(row){
   if(deliveryEditStaffName)deliveryEditStaffName.value=row.deliveryStaffName||'';
   if(deliveryEditRouteName)deliveryEditRouteName.value=row.routeName||'';
   if(deliveryEditDebtBefore)deliveryEditDebtBefore.value=Math.round(deliveryDebtBase(row));
-  if(deliveryEditCash)deliveryEditCash.value=Math.round(Number(row.cashCollected||0));
-  if(deliveryEditBank)deliveryEditBank.value=Math.round(Number(row.bankCollected||0));
+  if(deliveryEditCash)deliveryEditCash.value=Math.round(readDeliveryMoneyClient(row).cashAmount);
+  if(deliveryEditBank)deliveryEditBank.value=Math.round(readDeliveryMoneyClient(row).bankAmount);
   if(deliveryEditReturn)deliveryEditReturn.value=Math.round(deliveryReturnAmountFromItems(row));
-  if(deliveryEditReward)deliveryEditReward.value=Math.round(Number(row.rewardAmount||0));
+  if(deliveryEditReward)deliveryEditReward.value=Math.round(readDeliveryMoneyClient(row).rewardAmount);
   if(deliveryEditDebt)deliveryEditDebt.value=calculateDeliveryDebt(row);
   if(deliveryEditNote)deliveryEditNote.value=row.deliveryNote||'';
   if(deliveryEditStatus)deliveryEditStatus.textContent=deliveryStatusLabel(row.visualStatus||row.deliveryStatus);
@@ -959,7 +970,7 @@ async function submitDeliveryEdit(event){
   const returnItemsPayload=getDeliveryReturnItemsPayload();
   payload.returnAmount=returnItemsPayload.reduce((sum,item)=>sum+Number(item.amount||0),0);
   delete payload.returnItems;
-  ['debtBeforeCollection','cashCollected','bankCollected','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
+  ['debtBeforeCollection','cashAmount','bankAmount','returnAmount','debtAmount','rewardAmount'].forEach(key=>{
     if(payload[key]!==undefined)payload[key]=Number(payload[key]||0);
   });
   const paymentState=getDeliveryEditPaymentState();
@@ -1020,9 +1031,10 @@ function deliverySummaryParams(){
 }
 function deliveryMetricValues(row){
   const pt=Number(row.totalReceivable ?? row.totalAmount ?? 0);
-  const tm=Number(row.cashAmount ?? row.cashCollected ?? 0);
-  const ck=Number(row.bankAmount ?? row.bankCollected ?? 0);
-  const tt=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
+  const moneyFields=readDeliveryMoneyClient(row);
+  const tm=moneyFields.cashAmount;
+  const ck=moneyFields.bankAmount;
+  const tt=moneyFields.rewardAmount;
   const th=deliveryReturnAmountFromItems(row);
   const cn=isDeliveryArLedgerSynced(row)
     ? deliveryArLedgerDebt(row)
@@ -1109,9 +1121,10 @@ function renderCompactDeliveryOrders(rows=[]){
   if(!rows.length)return '<div class="empty-state compact-empty">Chưa có đơn thuộc nhóm này.</div>';
   return rows.map(row=>{
     const receivable=Number(row.totalReceivable ?? row.totalAmount ?? 0);
-    const cash=Number(row.cashAmount ?? row.cashCollected ?? 0);
-    const bank=Number(row.bankAmount ?? row.bankCollected ?? 0);
-    const reward=Number(row.bonusAmount ?? row.rewardAmount ?? 0);
+    const moneyFields=readDeliveryMoneyClient(row);
+    const cash=moneyFields.cashAmount;
+    const bank=moneyFields.bankAmount;
+    const reward=moneyFields.rewardAmount;
     const returned=deliveryReturnAmountFromItems(row);
     const debt=isDeliveryArLedgerSynced(row)
       ? deliveryArLedgerDebt(row)

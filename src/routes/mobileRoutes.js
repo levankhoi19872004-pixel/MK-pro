@@ -4,6 +4,7 @@ const { normalizeText } = require('../utils/search.util');
 const { normalizeOrderCodes } = require('../utils/orderKey.util');
 
 const deliveryFinance = require('../utils/deliveryFinance.util');
+const { normalizeDeliveryMoney, readDeliveryMoney } = require('../utils/deliveryMoney.util');
 
 const dateUtil = require('../utils/date.util');
 /**
@@ -709,14 +710,15 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
   const syncedReturnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.amount ?? returnLineQty(item) * returnLinePrice(item)), 0);
   const totalAmount = toNumber(sourceOrder.totalAmount || sourceOrder.amount || sourceOrder.grandTotal || sourceOrder.payableAmount);
   const paidAmount = toNumber(sourceOrder.paidAmount || sourceOrder.paid || sourceOrder.collectedAmount);
-  const cashCollected = toNumber(sourceOrder.cashCollected || sourceOrder.cashAmount);
-  const bankCollected = toNumber(sourceOrder.bankCollected || sourceOrder.bankAmount || sourceOrder.transferAmount);
+  const money = readDeliveryMoney(sourceOrder);
+  const cashCollected = money.cashAmount;
+  const bankCollected = money.bankAmount;
   // returnOrders là nguồn sự thật duy nhất cho tiền/số lượng hàng trả.
   const returnAmount = syncedReturnAmount;
-  const rewardAmount = toNumber(sourceOrder.rewardAmount || sourceOrder.displayRewardAmount);
+  const rewardAmount = money.rewardAmount;
   const debtBeforeCollection = deliveryFinance.deliveryDebtBase({ ...sourceOrder, totalAmount });
   const arDebtRow = findArDebtRow(arDebtMap, order, sourceOrder);
-  const formulaDebtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  const formulaDebtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashAmount: cashCollected, bankAmount: bankCollected, returnAmount, rewardAmount });
   // Nếu đã có bút toán AR cho đơn này thì dùng AR Ledger làm nguồn hiển thị công nợ duy nhất.
   // Nếu chưa có AR thì vẫn dùng công thức tạm tính để NVGH biết còn phải thu bao nhiêu trước khi đẩy kế toán.
   const debtAmount = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : formulaDebtAmount;
@@ -749,11 +751,15 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     debtSource,
     arLedgerSynced: Boolean(arDebtRow),
     debtBeforeCollection,
+    cashAmount: cashCollected,
+    bankAmount: bankCollected,
+    rewardAmount,
     cashCollected,
     bankCollected,
+    bonusAmount: rewardAmount,
+    displayRewardAmount: rewardAmount,
     returnAmount,
     returnedAmount: returnAmount,
-    rewardAmount,
     returnItems,
     deliveryReturnItems: returnItems,
     status: sourceOrder.status || '',
@@ -793,12 +799,13 @@ async function findOrderByIdOrCode(idOrCode) {
 
 
 function deliveryPaymentPatchFromOrder(order = {}) {
-  const cash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-  const bank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
-  const reward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
+  const money = readDeliveryMoney(order);
+  const cash = money.cashAmount;
+  const bank = money.bankAmount;
+  const reward = money.rewardAmount;
   const debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
   const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
-  const debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashCollected: cash, bankCollected: bank, returnAmount, rewardAmount: reward });
+  const debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashAmount: cash, bankAmount: bank, returnAmount, rewardAmount: reward });
   return {
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
     deliveryStatus: order.deliveryStatus || 'delivered',
@@ -808,13 +815,9 @@ function deliveryPaymentPatchFromOrder(order = {}) {
     routeName: order.routeName || order.deliveryRoute || '',
     deliveryRoute: order.deliveryRoute || order.routeName || '',
     debtBeforeCollection,
-    cashCollected: cash,
     cashAmount: cash,
-    bankCollected: bank,
     bankAmount: bank,
-    transferAmount: bank,
     rewardAmount: reward,
-    displayRewardAmount: reward,
     returnAmount,
     returnedAmount: returnAmount,
     paidAmount: cash + bank,
@@ -827,6 +830,7 @@ function deliveryPaymentPatchFromOrder(order = {}) {
     updatedAt: new Date().toISOString()
   };
 }
+
 
 function orderIdentityKeys(...sources) {
   return compactKeys(sources.flatMap((source) => {
@@ -1607,10 +1611,18 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     if (!order) return fail(res, 404, 'Không tìm thấy đơn giao hàng');
     const status = String(req.body?.status || '').trim();
     if (!['success', 'failed'].includes(status)) return fail(res, 400, 'Trạng thái giao hàng không hợp lệ');
-    const hasSplitAmounts = req.body?.cashAmount !== undefined || req.body?.bankAmount !== undefined || req.body?.rewardAmount !== undefined;
-    const cashAmount = hasSplitAmounts ? Math.max(0, toNumber(req.body?.cashAmount)) : 0;
-    const bankAmount = hasSplitAmounts ? Math.max(0, toNumber(req.body?.bankAmount)) : 0;
-    const rewardAmount = hasSplitAmounts ? Math.max(0, toNumber(req.body?.rewardAmount)) : 0;
+    const moneyInput = normalizeDeliveryMoney(req.body || {});
+    const hasSplitAmounts = req.body?.cashAmount !== undefined
+      || req.body?.bankAmount !== undefined
+      || req.body?.rewardAmount !== undefined
+      || req.body?.cashCollected !== undefined
+      || req.body?.bankCollected !== undefined
+      || req.body?.transferAmount !== undefined
+      || req.body?.bonusAmount !== undefined
+      || req.body?.displayRewardAmount !== undefined;
+    const cashAmount = hasSplitAmounts ? Math.max(0, moneyInput.cashAmount) : 0;
+    const bankAmount = hasSplitAmounts ? Math.max(0, moneyInput.bankAmount) : 0;
+    const rewardAmount = hasSplitAmounts ? Math.max(0, moneyInput.rewardAmount) : 0;
     const legacyCollectAmount = Math.max(0, toNumber(req.body?.collectAmount));
     const collectAmount = hasSplitAmounts ? cashAmount + bankAmount + rewardAmount : legacyCollectAmount;
     const method = String(req.body?.collectionMethod || req.body?.paymentMethod || 'cash').trim() === 'transfer' ? 'transfer' : 'cash';
@@ -1650,9 +1662,10 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     if (status === 'success') {
       // App giao hàng có thể thu cả nợ cũ của khách ở tab Thu tiền.
       // Số tiền thực thu được phân bổ ưu tiên vào đơn nợ cũ đã tick, sau đó mới tới đơn đang giao.
-      const previousCash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-      const previousBank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
-      const previousReward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
+      const previousMoney = readDeliveryMoney(order);
+      const previousCash = previousMoney.cashAmount;
+      const previousBank = previousMoney.bankAmount;
+      const previousReward = previousMoney.rewardAmount;
       const inputCash = hasSplitAmounts ? cashAmount : (method === 'cash' ? legacyCollectAmount : previousCash);
       const inputBank = hasSplitAmounts ? bankAmount : (method === 'transfer' ? legacyCollectAmount : previousBank);
       const nextReward = hasSplitAmounts ? rewardAmount : previousReward;
@@ -1707,11 +1720,8 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
         { method: 'transfer', amount: bankDeltaTotal, allocations: bankSplit.allocations, note: note || `App giao hàng thu chuyển khoản khách ${order.customerName || order.customerCode || ''}` }
       ].filter(line => line.amount > 0 && Array.isArray(line.allocations) && line.allocations.length);
 
-      order.cashCollected = nextCash;
       order.cashAmount = nextCash;
-      order.bankCollected = nextBank;
       order.bankAmount = nextBank;
-      order.transferAmount = nextBank;
       order.oldDebtCashCollected = toNumber(order.oldDebtCashCollected || order.debtCashCollected || 0) + oldDebtCashDelta;
       order.debtCashCollected = order.oldDebtCashCollected;
       order.oldDebtBankCollected = toNumber(order.oldDebtBankCollected || order.debtBankCollected || 0) + oldDebtBankDelta;
@@ -1723,7 +1733,6 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
         ...bankSplit.allocations.filter((row) => !(currentKeys.has(String(row.orderId || '').trim()) || currentKeys.has(String(row.orderCode || '').trim()))).map((row) => ({ ...row, method: 'transfer', date: dateUtil.todayVN(), sourceOrderId: getDocId(order), sourceOrderCode: orderCode(order) }))
       ];
       order.rewardAmount = nextReward;
-      order.displayRewardAmount = nextReward;
       order.paidAmount = nextCash + nextBank;
       order.collectedAmount = nextCash + nextBank;
       order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);

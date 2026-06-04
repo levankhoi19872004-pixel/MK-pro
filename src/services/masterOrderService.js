@@ -1,6 +1,7 @@
 'use strict';
 
 const deliveryFinance = require('../utils/deliveryFinance.util');
+const { normalizeDeliveryMoney, readDeliveryMoney } = require('../utils/deliveryMoney.util');
 
 const dateUtil = require('../utils/date.util');
 const queryGuard = require('../utils/queryGuard.util');
@@ -2251,9 +2252,19 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   if (isAccountingConfirmed(current) && !isAccountingReopenPending(current)) return { error: 'Kế toán đã xác nhận, đơn giao đã khóa. Admin phải bấm mở khóa điều chỉnh trước khi sửa', status: 400 };
 
   const debtBeforeCollection = deliveryFinance.deliveryDebtBase({ ...current, ...body });
-  const cashCollected = toNumber(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0);
-  const bankCollected = toNumber(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0);
-  const rewardAmount = toNumber(body.rewardAmount ?? current.rewardAmount ?? current.displayRewardAmount ?? 0);
+  const currentMoney = readDeliveryMoney(current);
+  const bodyMoney = normalizeDeliveryMoney(body);
+  const hasMoneyInput = body.cashAmount !== undefined
+    || body.bankAmount !== undefined
+    || body.rewardAmount !== undefined
+    || body.cashCollected !== undefined
+    || body.bankCollected !== undefined
+    || body.transferAmount !== undefined
+    || body.bonusAmount !== undefined
+    || body.displayRewardAmount !== undefined;
+  const cashCollected = hasMoneyInput ? bodyMoney.cashAmount : currentMoney.cashAmount;
+  const bankCollected = hasMoneyInput ? bodyMoney.bankAmount : currentMoney.bankAmount;
+  const rewardAmount = hasMoneyInput ? bodyMoney.rewardAmount : currentMoney.rewardAmount;
 
   // Danh sách trả hàng trên phần mềm là read-only. Nguồn chuẩn luôn là returnOrders,
   // không nhận returnItems/returnAmount từ form web để tránh ghi đè dữ liệu app giao hàng.
@@ -2282,7 +2293,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
   // Công thức chuẩn duy nhất cho toàn bộ luồng giao hàng:
   // Còn nợ = Phải thu - Tiền mặt - Chuyển khoản - Trả thưởng - Tổng tiền hàng trả
-  let debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
+  let debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashAmount: cashCollected, bankAmount: bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
   debtAmount = Math.max(0, normalizeDebtAmount(debtAmount));
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
 
@@ -2296,10 +2307,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     routeName: String(body.routeName ?? current.routeName ?? current.deliveryRoute ?? '').trim(),
     deliveryRoute: String(body.routeName ?? current.deliveryRoute ?? current.routeName ?? '').trim(),
     debtBeforeCollection,
-    cashCollected,
     cashAmount: cashCollected,
-    bankCollected,
-    transferAmount: bankCollected,
     bankAmount: bankCollected,
     returnAmount: effectiveReturnAmount,
     returnedAmount: effectiveReturnAmount,

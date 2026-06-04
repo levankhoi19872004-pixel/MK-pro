@@ -2,6 +2,7 @@
 
 const { toNumber } = require('./common.util');
 const { normalizeDebtAmount } = require('../constants/finance.constants');
+const { readDeliveryMoney } = require('./deliveryMoney.util');
 
 function firstPositiveAmount(...values) {
   for (const value of values) {
@@ -64,9 +65,10 @@ function deliveryArLedgerDebt(order = {}) {
 
 function buildDeliveryAmount(order = {}, returnAmountOverride = null) {
   const totalReceivable = Math.max(0, normalizeDebtAmount(Math.round(deliveryDebtBase(order))));
-  const cashAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.cashCollected ?? order.cashAmount ?? 0))));
-  const bankAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0))));
-  const bonusAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0))));
+  const money = readDeliveryMoney(order);
+  const cashAmount = Math.max(0, normalizeDebtAmount(Math.round(money.cashAmount)));
+  const bankAmount = Math.max(0, normalizeDebtAmount(Math.round(money.bankAmount)));
+  const bonusAmount = Math.max(0, normalizeDebtAmount(Math.round(money.rewardAmount)));
   const returnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountOverride == null ? deliveryReturnAmount(order) : toNumber(returnAmountOverride))));
   const debtAmount = Math.max(0, normalizeDebtAmount(Math.round(totalReceivable - cashAmount - bankAmount - bonusAmount - returnAmount)));
   return { totalReceivable, cashAmount, bankAmount, bonusAmount, returnAmount, debtAmount };

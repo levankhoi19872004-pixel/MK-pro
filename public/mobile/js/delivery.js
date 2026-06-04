@@ -110,6 +110,14 @@ function deliveryToNumber(value) {
   const n = Number(text);
   return Number.isFinite(n) ? Math.max(0, Math.round(n * multiplier)) : 0;
 }
+function readDeliveryMoneyClient(order = {}) {
+  return {
+    cashAmount: deliveryToNumber(order.cashAmount ?? order.cashCollected ?? 0),
+    bankAmount: deliveryToNumber(order.bankAmount ?? order.bankCollected ?? order.transferAmount ?? 0),
+    rewardAmount: deliveryToNumber(order.rewardAmount ?? order.bonusAmount ?? order.displayRewardAmount ?? 0)
+  };
+}
+
 
 function normalizeMoneyInput(input) {
   // Ô nhập tiền trên app giao hàng dùng số thuần để sửa tăng/giảm ổn định.
@@ -510,9 +518,10 @@ function debtRowsHtml(order = {}) {
 }
 
 function renderActionForm(order) {
-  const existingCash = deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0);
-  const existingBank = deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
-  const existingReward = deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
+  const existingMoney = readDeliveryMoneyClient(order);
+  const existingCash = existingMoney.cashAmount;
+  const existingBank = existingMoney.bankAmount;
+  const existingReward = existingMoney.rewardAmount;
   const currentReturn = deliveryReturnAmount(order);
   const currentDue = currentOrderDue(order);
   deliveryActionBox.innerHTML = `
@@ -579,8 +588,8 @@ function renderActionForm(order) {
 
 function renderReport() {
   const completed = state.orders.filter(isCompleted);
-  const todayCash = completed.reduce((sum, order) => sum + deliveryToNumber(order.cashCollected || 0), 0);
-  const todayBank = completed.reduce((sum, order) => sum + deliveryToNumber(order.bankCollected || 0), 0);
+  const todayCash = completed.reduce((sum, order) => sum + readDeliveryMoneyClient(order).cashAmount, 0);
+  const todayBank = completed.reduce((sum, order) => sum + readDeliveryMoneyClient(order).bankAmount, 0);
   const oldDebtCash = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtCashCollected || order.debtCashCollected || 0), 0);
   const oldDebtBank = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0), 0);
   const totalCash = todayCash + oldDebtCash;
@@ -603,8 +612,9 @@ function renderReport() {
   }
   reportList.className = 'order-list delivery-report-list';
   reportList.innerHTML = completed.map(order => {
-    const orderCash = deliveryToNumber(order.cashCollected || 0);
-    const orderBank = deliveryToNumber(order.bankCollected || 0);
+    const orderMoney = readDeliveryMoneyClient(order);
+    const orderCash = orderMoney.cashAmount;
+    const orderBank = orderMoney.bankAmount;
     const debtCash = deliveryToNumber(order.oldDebtCashCollected || order.debtCashCollected || 0);
     const debtBank = deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0);
     return `
@@ -612,7 +622,7 @@ function renderReport() {
       <div>
         <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
         <span>${statusLabel(order)} · Còn nợ đơn hôm nay: ${money(calculateDeliveryDebt(order))}</span>
-        <span>Thu đơn hôm nay: TM ${money(orderCash)} · CK ${money(orderBank)} · Thưởng ${money(order.rewardAmount || 0)} · Trả ${money(deliveryReturnAmount(order))}</span>
+        <span>Thu đơn hôm nay: TM ${money(orderCash)} · CK ${money(orderBank)} · Thưởng ${money(orderMoney.rewardAmount || 0)} · Trả ${money(deliveryReturnAmount(order))}</span>
         <span>Thu nợ cũ: TM ${money(debtCash)} · CK ${money(debtBank)}</span>
       </div>
       <button class="ghost-btn small-btn" data-edit-report="${escapeHtml(order.id)}">Sửa</button>
@@ -725,11 +735,11 @@ async function saveDeliveryProducts(orderId) {
     const result = await mobileApi.confirmDelivery({
       orderId,
       status: 'success',
-      cashAmount: deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0),
-      bankAmount: deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
-      rewardAmount: deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
-      collectAmount: deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0) + deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
-      collectionMethod: deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0) > 0 ? 'transfer' : 'cash',
+      cashAmount: readDeliveryMoneyClient(order).cashAmount,
+      bankAmount: readDeliveryMoneyClient(order).bankAmount,
+      rewardAmount: readDeliveryMoneyClient(order).rewardAmount,
+      collectAmount: readDeliveryMoneyClient(order).cashAmount + readDeliveryMoneyClient(order).bankAmount,
+      collectionMethod: readDeliveryMoneyClient(order).bankAmount > 0 ? 'transfer' : 'cash',
       note: noteInput?.value || ''
     });
     mergeSavedDeliveryOrder(result.order);
