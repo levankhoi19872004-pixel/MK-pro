@@ -9,6 +9,60 @@ const user = getUser();
 document.getElementById('staffInfo').textContent = `${user.name || user.username || 'Nhân viên'} · ${user.role || 'delivery'}`;
 
 
+const v45Common = window.V45Common || {};
+const firstPositiveAmount = typeof v45Common.firstPositiveAmount === 'function'
+  ? v45Common.firstPositiveAmount
+  : (...values) => values.map(deliveryToNumber).find((n) => n > 0) || 0;
+const deliveryDebtBase = typeof v45Common.deliveryDebtBase === 'function'
+  ? v45Common.deliveryDebtBase
+  : (order = {}) => firstPositiveAmount(
+    order.totalAmount,
+    order.total,
+    order.amount,
+    order.grandTotal,
+    order.payableAmount,
+    order.orderAmount,
+    order.debtBeforeCollection,
+    order.debtAmount,
+    order.debt
+  );
+const deliveryReturnAmount = typeof v45Common.deliveryReturnAmount === 'function'
+  ? v45Common.deliveryReturnAmount
+  : (order = {}) => Math.round(deliveryToNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0));
+const calculateDeliveryDebt = typeof v45Common.calculateDeliveryDebt === 'function'
+  ? v45Common.calculateDeliveryDebt
+  : (order = {}, options = {}) => Math.max(0, Math.round(
+    deliveryDebtBase(order)
+    - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
+    - deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+    - deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+    - (options.returnAmountOverride == null ? deliveryReturnAmount(order) : deliveryToNumber(options.returnAmountOverride))
+  ));
+const todayValue = typeof v45Common.todayValue === 'function'
+  ? v45Common.todayValue
+  : () => new Date().toISOString().slice(0, 10);
+const toDateOnly = typeof v45Common.toDateOnly === 'function'
+  ? v45Common.toDateOnly
+  : (value) => String(value || '').slice(0, 10);
+const escapeHtml = typeof v45Common.escapeHtml === 'function'
+  ? v45Common.escapeHtml
+  : (value = '') => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+const calculateCartonUnit = typeof v45Common.calculateCartonUnit === 'function'
+  ? v45Common.calculateCartonUnit
+  : (quantity, packing = 1) => {
+    const qty = Math.max(0, deliveryToNumber(quantity));
+    const rate = Math.max(1, deliveryToNumber(packing) || 1);
+    const cartons = Math.floor(qty / rate);
+    const units = qty % rate;
+    return { cartons, units, packing: rate, display: `${cartons}/${units}` };
+  };
+
+
 function setButtonBusy(button, busy, busyText = 'Đang lưu...') {
   if (!button) return;
   if (busy) {
@@ -39,18 +93,7 @@ function deliveryToNumber(value) {
     text = text.slice(0, -1);
   }
   
-
-const v45Common = window.V45Common || {};
-const firstPositiveAmount = v45Common.firstPositiveAmount;
-const deliveryDebtBase = v45Common.deliveryDebtBase;
-const calculateDeliveryDebt = v45Common.calculateDeliveryDebt;
-const deliveryReturnAmount = v45Common.deliveryReturnAmount;
-const todayValue = v45Common.todayValue;
-const toDateOnly = v45Common.toDateOnly;
-const escapeHtml = v45Common.escapeHtml;
-const calculateCartonUnit = v45Common.calculateCartonUnit;
-
-text = text.replace(/\s/g, '');
+  text = text.replace(/\s/g, '');
   if (text.includes(',') && text.includes('.')) {
     // 1,234,567.89 hoặc 1.234.567,89: giữ dấu thập phân cuối cùng.
     const lastComma = text.lastIndexOf(',');
