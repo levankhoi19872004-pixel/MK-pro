@@ -26,7 +26,16 @@ const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const ReturnOrder = require('../models/ReturnOrder');
-const ACTIVE_RETURN_ORDER_STATUSES = ['pending', 'active', 'merged', 'delivered', 'completed'];
+const ACTIVE_RETURN_ORDER_STATUSES = [
+  'draft',
+  'pending',
+  'active',
+  'waiting_receive',
+  'pending_warehouse_receive',
+  'merged',
+  'delivered',
+  'completed'
+];
 const ArLedger = require('../models/ArLedger');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');

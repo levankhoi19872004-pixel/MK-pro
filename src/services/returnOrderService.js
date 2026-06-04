@@ -12,7 +12,16 @@ const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 const ReturnOrder = require('../models/ReturnOrder');
 
-const ACTIVE_RETURN_ORDER_STATUSES = ['pending', 'active', 'merged', 'delivered', 'completed'];
+const ACTIVE_RETURN_ORDER_STATUSES = [
+  'draft',
+  'pending',
+  'active',
+  'waiting_receive',
+  'pending_warehouse_receive',
+  'merged',
+  'delivered',
+  'completed'
+];
 
 
 function buildReturnCode(existingOrders = []) {
