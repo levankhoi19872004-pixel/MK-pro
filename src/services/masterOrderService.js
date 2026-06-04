@@ -102,8 +102,6 @@ function normalizeMasterSalesOrderRefs(masterOrder = {}) {
   const salesOrderCodes = [...new Set(acc.salesOrderCodes.filter(isCleanOrderCode))];
 
   return {
-    summary,
-
     salesOrderIds,
     salesOrderCodes,
     refs: [...new Set([...salesOrderIds, ...salesOrderCodes])]
