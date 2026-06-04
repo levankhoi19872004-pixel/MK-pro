@@ -499,7 +499,7 @@ function renderReturnOrderDetail(order){
       </div>
     </div>
     <div class="return-detail-grid">
-      <div><span>Ngày trả</span><strong>${escapeHtml(order.date||order.documentDate||order.returnDate||'')}</strong></div>
+      <div><span>Ngày trả</span><strong>${escapeHtml(order.deliveryDate||order.returnDate||order.date||order.documentDate||'')}</strong></div>
       <div><span>Đơn bán</span><strong>${escapeHtml(order.salesOrderCode||order.orderCode||order.refCode||'')}</strong></div>
       <div><span>Khách hàng</span><strong>${escapeHtml((order.customerCode||'')+' '+(order.customerName||''))}</strong></div>
       <div><span>NV liên quan</span><strong>${escapeHtml(staff)}</strong></div>
@@ -754,7 +754,7 @@ function renderUnmergedReturnOrders(rows = []){
       <input type="checkbox" class="master-return-check" data-id="${escapeHtml(id)}" ${checked}>
       <strong class="return-row-code">${escapeHtml(r.code||r.id||'')}</strong>
       <span class="return-row-customer">${escapeHtml(customer||'Không rõ khách')}</span>
-      <span class="return-row-date">${escapeHtml(r.date||r.documentDate||'')}</span>
+      <span class="return-row-date">${escapeHtml(r.deliveryDate||r.returnDate||r.date||r.documentDate||'')}</span>
       <span class="return-row-staff">${escapeHtml(staff)}</span>
       <span class="return-row-qty">SL ${money(r.totalQuantity)}</span>
       <strong class="return-row-money">${money(r.debtReduction??r.totalAmount)}</strong>

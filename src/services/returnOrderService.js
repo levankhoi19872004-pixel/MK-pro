@@ -464,13 +464,15 @@ async function buildReturnOrderDocument(body = {}) {
 
   const existing = await findExistingReturnOrder(body);
   const totalAmount = toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0));
+  const returnDate = resolveReturnDocumentDate(body, salesOrder || {}, existing || {});
   const returnOrder = {
     ...(existing || {}),
     ...body,
     id: String(buildCanonicalReturnCode(salesOrder || {}, body) || existing?.id || body.id || makeId('RO')).trim(),
     code: buildFastReturnCode(body, existing, salesOrder),
-    date: dateUtil.toDateOnly(body.date || existing?.date || dateUtil.todayVN()),
-    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || dateUtil.todayVN()),
+    date: returnDate,
+    documentDate: returnDate,
+    deliveryDate: returnDate,
     salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
     salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || existing?.salesOrderCode || '',
     orderId: salesOrder?.id || body.orderId || body.salesOrderId || existing?.orderId || existing?.salesOrderId || '',
@@ -839,8 +841,8 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
     ...(existing || {}),
     id: String(buildCanonicalReturnCode(order, existing) || existing?.id || makeId('RO')).trim(),
     code: String(buildCanonicalReturnCode(order, existing) || existing?.code || makeId('RO')).trim(),
-    date: dateUtil.toDateOnly(order.deliveryDate || order.date || existing?.date || dateUtil.todayVN()),
-    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || existing?.documentDate || dateUtil.todayVN()),
+    date: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || existing?.date || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || order.orderDate || existing?.documentDate || existing?.date || dateUtil.todayVN()),
     salesOrderId: order.id || existing?.salesOrderId || '',
     salesOrderCode: order.code || existing?.salesOrderCode || '',
     orderId: order.id || existing?.orderId || '',

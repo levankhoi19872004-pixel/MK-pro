@@ -45,10 +45,19 @@ async function resolveDeliveryStaff(body = {}) {
 }
 
 function toClient(masterReturnOrder, children = []) {
+  const resolvedReturnDate = dateUtil.toDateOnly(
+    masterReturnOrder.deliveryDate ||
+    masterReturnOrder.returnDate ||
+    masterReturnOrder.date ||
+    masterReturnOrder.documentDate ||
+    masterReturnOrder.createdAt
+  );
   return {
     ...masterReturnOrder,
     id: masterReturnOrder.id || masterReturnOrder.code,
     code: masterReturnOrder.code || masterReturnOrder.id,
+    returnDate: resolvedReturnDate,
+    displayDate: resolvedReturnDate,
     children,
     returnOrderIds: Array.isArray(masterReturnOrder.returnOrderIds)
       ? masterReturnOrder.returnOrderIds
@@ -82,9 +91,14 @@ async function listUnmergedReturnOrders(query = {}) {
     .filter((row) => isGroupableReturnStatus(row))
     .filter((row) => hasPositiveReturnValue(row))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
-    .filter((row) => !date || dateUtil.toDateOnly(row.date || row.documentDate || row.createdAt) === date)
+    .filter((row) => !date || dateUtil.toDateOnly(row.deliveryDate || row.date || row.documentDate || row.createdAt) === date)
     .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
-    .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)));
+    .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)))
+    .map((row) => ({
+      ...row,
+      returnDate: dateUtil.toDateOnly(row.deliveryDate || row.returnDate || row.date || row.documentDate || row.createdAt),
+      displayDate: dateUtil.toDateOnly(row.deliveryDate || row.returnDate || row.date || row.documentDate || row.createdAt)
+    }));
 }
 
 async function listMasterReturnOrders(query = {}) {
