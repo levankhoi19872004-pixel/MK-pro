@@ -37,6 +37,53 @@
       return normalizeText(item && item[field]).includes(q);
     });
   }
+  function suggestionParts(item) {
+    return [
+      item && item.code,
+      item && item.staffCode,
+      item && item.customerCode,
+      item && item.productCode,
+      item && item.sku,
+      item && item.username,
+      item && item.name,
+      item && item.fullName,
+      item && item.customerName,
+      item && item.productName,
+      item && item.phone,
+      item && item.mobile
+    ].filter(Boolean);
+  }
+
+  function normalizeSuggestion(item, fallbackType) {
+    if (!item || typeof item !== 'object') return item;
+    const code = String(item.code || item.staffCode || item.customerCode || item.productCode || item.sku || item.username || item.id || '').trim();
+    const name = String(item.name || item.fullName || item.customerName || item.productName || item.displayName || item.username || '').trim();
+    const phone = String(item.phone || item.mobile || item.customerPhone || '').trim();
+    const type = item.type || fallbackType || '';
+    const aliases = Array.isArray(item.aliases) && item.aliases.length
+      ? item.aliases
+      : suggestionParts({ ...item, code, name, phone });
+    const label = item.label || [code, name, phone].filter(Boolean).join(' - ');
+    return {
+      ...item,
+      type,
+      id: String(item.id || item._id || code || '').trim(),
+      code,
+      name,
+      phone,
+      label,
+      value: item.value || code,
+      aliases,
+      searchText: item.searchText || normalizeText(aliases.join(' '))
+    };
+  }
+
+  function normalizeSuggestions(rows, fallbackType) {
+    return (Array.isArray(rows) ? rows : []).map(function (item) {
+      return normalizeSuggestion(item, fallbackType);
+    });
+  }
+
 
   async function requestSearch(path, keyword = '', options = {}) {
     const q = String(keyword || '').trim();
@@ -60,11 +107,13 @@
     });
     const json = await res.json().catch(function () { return {}; });
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tìm được dữ liệu');
-    return json.items || json.products || json.customers || json.users || json.staffs || json.orders || json.masterOrders || json.arLedger || json.debts || [];
+    const rows = json.items || json.products || json.customers || json.users || json.staffs || json.orders || json.masterOrders || json.arLedger || json.debts || [];
+    return normalizeSuggestions(rows, options.type || path);
   }
 
   function searchCustomer(keyword = '', options = {}) {
     return requestSearch('customers', keyword, {
+      type: 'customer',
       minChars: 0,
       allowEmpty: '1',
       showOnFocus: '1',
@@ -75,6 +124,7 @@
 
   function searchProduct(keyword = '', options = {}) {
     return requestSearch('products', keyword, {
+      type: 'product',
       ...options,
       limit: normalizeLimit(options.limit, 20),
       includeStock: options.includeStock ?? '1',
@@ -97,6 +147,7 @@
 
   function searchSalesStaff(keyword = '', options = {}) {
     return requestSearch('sales-staff', keyword, {
+      type: 'salesStaff',
       minChars: 0,
       allowEmpty: '1',
       ...options,
@@ -106,6 +157,7 @@
 
   function searchDeliveryStaff(keyword = '', options = {}) {
     return requestSearch('delivery-staff', keyword, {
+      type: 'deliveryStaff',
       minChars: 0,
       allowEmpty: '1',
       ...options,
@@ -114,15 +166,34 @@
   }
 
   function searchOrder(keyword = '', options = {}) {
-    return requestSearch('orders', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+    return requestSearch('orders', keyword, { type: 'order', ...options, limit: normalizeLimit(options.limit, 20) });
   }
 
   function searchMasterOrder(keyword = '', options = {}) {
-    return requestSearch('master-orders', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+    return requestSearch('master-orders', keyword, { type: 'masterOrder', ...options, limit: normalizeLimit(options.limit, 20) });
   }
 
   function searchDebt(keyword = '', options = {}) {
-    return requestSearch('ar-ledger', keyword, { ...options, limit: normalizeLimit(options.limit, 20) });
+    return requestSearch('ar-ledger', keyword, { type: 'arLedger', ...options, limit: normalizeLimit(options.limit, 20) });
+  }
+
+
+  function search(options = {}) {
+    const type = String(options.type || '').trim();
+    const keyword = options.q ?? options.keyword ?? options.search ?? '';
+    const rest = { ...options };
+    delete rest.type;
+    delete rest.q;
+    delete rest.keyword;
+    delete rest.search;
+    if (['customer', 'customers'].includes(type)) return searchCustomer(keyword, rest);
+    if (['product', 'products'].includes(type)) return searchProduct(keyword, rest);
+    if (['salesStaff', 'sales-staff', 'sales_staff', 'sales'].includes(type)) return searchSalesStaff(keyword, rest);
+    if (['deliveryStaff', 'delivery-staff', 'delivery_staff', 'delivery'].includes(type)) return searchDeliveryStaff(keyword, rest);
+    if (['order', 'orders'].includes(type)) return searchOrder(keyword, rest);
+    if (['masterOrder', 'master-orders', 'master_orders'].includes(type)) return searchMasterOrder(keyword, rest);
+    if (['arLedger', 'debt', 'debts'].includes(type)) return searchDebt(keyword, rest);
+    return requestSearch(type || 'customers', keyword, rest);
   }
 
   // Giữ hàm này để frontend cũ không vỡ, nhưng không còn dùng cache làm nguồn tìm kiếm.
@@ -134,6 +205,8 @@
     normalizeText,
     includesAny,
     getCatalog,
+    search,
+    normalizeSuggestion,
     searchCustomer,
     searchProduct,
     searchSalesStaff,

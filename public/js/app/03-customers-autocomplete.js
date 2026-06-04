@@ -269,7 +269,18 @@ function applyConfiguredSelect(config, item){
   });
   const input=getSuggestElement(config,'inputId','inputSelector');
   if(input){
-    input.dataset.selectedId=getSuggestValue(item,'idOrCode',config) || getSuggestValue(item,'codeOrUsernameOrId',config) || '';
+    const itemCode = String(item.code || item.staffCode || item.customerCode || item.productCode || item.sku || item.username || '').trim();
+    const itemName = String(item.name || item.fullName || item.customerName || item.productName || item.displayName || item.username || '').trim();
+    const itemId = String(item.id || item._id || itemCode || '').trim();
+    const itemType = String(item.type || config.type || '').trim();
+    const itemLabel = getConfiguredLabel(item, config);
+    input.dataset.selectedId = itemId;
+    input.dataset.id = itemId;
+    input.dataset.code = itemCode;
+    input.dataset.name = itemName;
+    input.dataset.type = itemType;
+    input.dataset.label = itemLabel;
+    input.dataset.selectedLabel = itemLabel;
     const hiddenRule=(config.fill||[]).find(rule=>rule.targetId && rule.targetId!==config.inputId);
     if(hiddenRule) input.dataset.targetHidden=hiddenRule.targetId;
   }

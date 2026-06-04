@@ -468,30 +468,35 @@ function extractStaffCodeFromDisplay(value){
   const m=first.match(/[A-Za-z0-9_.-]+/);
   return (m?m[0]:first).trim();
 }
+
+function isSalesOrderStaffDatasetCurrent(){
+  if(!salesOrderStaffFilter)return false;
+  const value=String(salesOrderStaffFilter.value||'').trim();
+  const label=String(salesOrderStaffFilter.dataset?.label || salesOrderStaffFilter.dataset?.selectedLabel || '').trim();
+  return !!value && !!label && value===label;
+}
+
 function getSalesOrderStaffFilterCode(){
   if(!salesOrderStaffFilter)return '';
-  // Ưu tiên text đang hiển thị trong ô vì dataset.selectedId có thể là Mongo _id.
-  // Nếu lấy _id để gửi salesStaffCode thì backend sẽ không lọc đúng NVBH.
-  const visibleValue=String(salesOrderStaffFilter.value||'').trim();
-  const selected=String(salesOrderStaffFilter.dataset?.selectedId||'').trim();
-  return extractStaffCodeFromDisplay(visibleValue || selected || '');
+  // Chuẩn Unified Search V2: code phải lấy từ dataset.code sau khi chọn gợi ý.
+  // Không dùng input.value để lọc vì input.value chỉ là label hiển thị.
+  if(isSalesOrderStaffDatasetCurrent()){
+    const code=String(salesOrderStaffFilter.dataset?.code || '').trim();
+    if(code)return code;
+  }
+  // Fallback cho trường hợp người dùng tự gõ mã NVBH mà chưa chọn gợi ý.
+  return extractStaffCodeFromDisplay(salesOrderStaffFilter.value || '');
 }
-function getSalesOrderStaffFilterText(){
+
+function getSalesOrderStaffFilterName(){
   if(!salesOrderStaffFilter)return '';
-
-  const raw=String(
-    salesOrderStaffFilter.value ||
-    salesOrderStaffFilter.dataset?.selectedLabel ||
-    ''
-  ).trim();
+  if(isSalesOrderStaffDatasetCurrent()){
+    return String(salesOrderStaffFilter.dataset?.name || '').trim();
+  }
+  const raw=String(salesOrderStaffFilter.value || '').trim();
   if(!raw)return '';
-
   const parts=raw.split(/\s+-\s+/).map(s=>s.trim()).filter(Boolean);
-  // Dạng autocomplete: 33955 - Đỗ Thị Mừng - Bán hàng - 0962033288
-  // Backend chỉ cần tên NVBH, không gửi nguyên label dài.
-  if(parts.length>=2)return parts[1];
-
-  return raw;
+  return parts.length>=2 ? parts[1] : raw;
 }
 
 function normalizeOrderDateForFilter(value){
@@ -519,13 +524,13 @@ function buildSalesOrderSearchParams(page = 1){
   if(source)params.set('source',source);
   if(q)params.set('q',q);
   const staffCodeFilter=getSalesOrderStaffFilterCode();
-  const staffTextFilter=getSalesOrderStaffFilterText();
+  const staffTextFilter=getSalesOrderStaffFilterName();
   if(staffCodeFilter){
     params.set('salesStaffCode',staffCodeFilter);
     // Bật alias để đơn DMS/import cũ dùng staffCode/salesmanCode vẫn lọc đúng.
     params.set('includeStaffAliases','1');
   }
-  if(staffTextFilter)params.set('salesStaffText',staffTextFilter);
+  if(staffTextFilter)params.set('salesStaffName',staffTextFilter);
   params.set('page',String(page));
   params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
   return params;

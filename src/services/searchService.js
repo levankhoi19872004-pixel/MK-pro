@@ -32,6 +32,20 @@ function cleanKey(value) {
   return String(value || '').trim();
 }
 
+function compactTextParts(parts = []) {
+  return [...new Set((parts || [])
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean))];
+}
+
+function buildSuggestionMeta(parts = []) {
+  const aliases = compactTextParts(parts);
+  return {
+    aliases,
+    searchText: normalizeSearchText(aliases.join(' '))
+  };
+}
+
 function buildInventoryMap(products = [], inventories = []) {
   const productKeysByCode = new Map();
 
@@ -108,6 +122,11 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
   const availableQty = inventory?.matched ? toNumber(inventory.qty) : baseProductQty(product);
   const stockDisplay = formatCaseLooseQty(availableQty, conversionRate);
   const salePrice = toNumber(product.salePrice || product.price);
+  const meta = buildSuggestionMeta([
+    code, product.sku, product.productCode, productNameOf(product),
+    product.barcode, product.category, product.brand, product.packing,
+    product.unit, product.baseUnit
+  ]);
   const row = {
     ...raw,
     type: 'product',
@@ -131,9 +150,10 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
     stockDisplay,
     isOutOfStock: availableQty <= 0,
 
-    label: `${code} - ${productNameOf(product)}`,
+    label: [code, productNameOf(product)].filter(Boolean).join(' - '),
     value: code,
-    searchText: normalizeSearchText([code, product.sku, product.productCode, productNameOf(product), product.barcode, product.category, product.brand, product.packing, product.unit, product.baseUnit].filter(Boolean).join(' '))
+    aliases: meta.aliases,
+    searchText: meta.searchText
   };
   if (options.compact) delete row.searchText;
   return row;
@@ -160,21 +180,28 @@ function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
   const raw = stripMongoFields(customer);
   const code = String(customer.code || customer.customerCode || customer.id || customer._id || '').trim();
   const name = String(customer.name || customer.customerName || '').trim();
+  const phone = String(customer.phone || customer.mobile || customer.customerPhone || '').trim();
   const debt = toNumber(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.balance ?? customer.openingDebt ?? 0);
+  const meta = buildSuggestionMeta([
+    code, name, phone, customer.address, customer.area, customer.route,
+    customer.routeName, customer.staffCode, customer.staffName
+  ]);
   return {
     ...raw,
     type: 'customer',
-    id: code,
+    id: String(customer._id || customer.id || code || '').trim(),
     code,
     customerCode: customer.customerCode || code,
     name,
     customerName: customer.customerName || name,
+    phone,
     debtAmount: debt,
     currentDebt: debt,
     monthRevenue: toNumber(revenueByCustomer.get(code)),
-    label: `${code} - ${name}`,
+    label: [code, name, phone].filter(Boolean).join(' - '),
     value: code,
-    searchText: normalizeSearchText([code, name, customer.phone, customer.address, customer.area, customer.route, customer.staffCode, customer.staffName].filter(Boolean).join(' '))
+    aliases: meta.aliases,
+    searchText: meta.searchText
   };
 }
 
@@ -205,25 +232,36 @@ async function searchCustomers(query = {}) {
 
 function toStaffSuggestion(staff = {}) {
   const raw = stripMongoFields(staff);
-  const role = ['admin', 'accountant', 'sales', 'delivery'].includes(String(staff.role || staff.type || '').trim())
-    ? String(staff.role || staff.type).trim()
-    : (staff.isDelivery ? 'delivery' : staff.isSalesman ? 'sales' : 'sales');
+  const roleRaw = String(staff.role || staff.type || staff.roleCode || '').trim().toLowerCase();
+  const role = ['admin', 'accountant', 'sales', 'delivery'].includes(roleRaw)
+    ? roleRaw
+    : (staff.isDelivery ? 'delivery' : staff.isSalesman || staff.isSalesStaff ? 'sales' : 'sales');
   const code = String(staff.code || staff.staffCode || staff.username || staff._id || '').trim();
   const username = String(staff.username || code || '').trim();
-  const name = String(staff.name || staff.fullName || username || code || '').trim();
+  const name = String(staff.name || staff.fullName || staff.displayName || username || code || '').trim();
+  const phone = String(staff.phone || staff.mobile || staff.tel || '').trim();
+  const type = role === 'delivery' ? 'deliveryStaff' : 'salesStaff';
+  const meta = buildSuggestionMeta([
+    code, username, name, staff.fullName, staff.displayName, phone,
+    role, ROLE_LABELS[role], staff.position, staff.department
+  ]);
   return {
     ...raw,
-    type: 'staff',
-    id: code,
+    type,
+    staffType: type,
+    id: String(staff._id || staff.id || code || username || '').trim(),
     code,
+    staffCode: staff.staffCode || code,
     username,
     name,
     fullName: staff.fullName || name,
+    phone,
     role,
     roleLabel: ROLE_LABELS[role] || role,
-    label: `${code || username} - ${name}`,
+    label: [code || username, name, phone].filter(Boolean).join(' - '),
     value: code || username,
-    searchText: normalizeSearchText([code, username, name, staff.fullName, staff.phone, role, ROLE_LABELS[role]].filter(Boolean).join(' '))
+    aliases: meta.aliases,
+    searchText: meta.searchText
   };
 }
 

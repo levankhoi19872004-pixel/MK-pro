@@ -14,7 +14,7 @@ async function list(req, res) {
 async function search(req, res) {
   try {
     const products = await productService.searchProducts(req.query);
-    res.json({ ok: true, source: 'mongo-search', products });
+    res.json({ ok: true, source: 'mongo-search', items: products, products });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không tìm kiếm được sản phẩm từ MongoDB', error: err.message });
   }
