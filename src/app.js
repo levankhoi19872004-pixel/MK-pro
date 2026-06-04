@@ -69,6 +69,58 @@ function responseFormatter(req, res, next) {
   next();
 }
 
+
+function apiPerformanceProbe(req, res, next) {
+  const startedAt = process.hrtime.bigint();
+  const perfPaths = [
+    '/api/sales-orders/search',
+    '/api/mobile/sales/orders',
+    '/api/mobile/delivery/orders',
+    '/api/mobile/delivery-orders',
+    '/api/master-orders/delivery-today',
+    '/api/master-orders/delivery-today-orders',
+    '/api/master-orders/delivery-today-summary'
+  ];
+  const shouldMeasure = req.path && perfPaths.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`));
+  const originalJson = res.json.bind(res);
+
+  res.json = (body) => {
+    if (shouldMeasure && body && typeof body === 'object' && !Buffer.isBuffer(body)) {
+      const serverMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      const roundedMs = Math.round(serverMs);
+      res.set('X-Response-Time-Ms', String(roundedMs));
+      body.serverMs = body.serverMs ?? roundedMs;
+      body.ms = body.ms ?? roundedMs;
+      body.perf = {
+        ...(body.perf && typeof body.perf === 'object' ? body.perf : {}),
+        serverMs: roundedMs,
+        route: req.originalUrl || req.url,
+        method: req.method
+      };
+    }
+    return originalJson(body);
+  };
+
+  res.on('finish', () => {
+    if (!shouldMeasure) return;
+    const serverMs = Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6);
+    const payload = {
+      method: req.method,
+      route: req.originalUrl || req.url,
+      statusCode: res.statusCode,
+      serverMs,
+      contentLength: res.getHeader('content-length') || 0
+    };
+    if (serverMs >= Number(process.env.API_PERF_WARN_MS || 800)) {
+      req.log?.warn(payload, '[API_PERF_SLOW]');
+    } else if (process.env.API_PERF_LOG !== '0') {
+      req.log?.info(payload, '[API_PERF]');
+    }
+  });
+
+  next();
+}
+
 function createApiLimiter() {
   return rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -102,6 +154,7 @@ function createApp() {
 
   app.use(inputSanitizer);
   app.use(responseFormatter);
+  app.use(apiPerformanceProbe);
 
   registerApiRoutes(app);
 

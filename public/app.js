@@ -1,7 +1,7 @@
 // App bootstrap: module files are loaded before this file in index.html.
 // Product/customer list uses server-side pagination; search resets to page 1.
 // Không dùng popup autocomplete ở màn danh sách; gõ là lọc trực tiếp bảng.
-const debounce = window.debounce || function(fn, wait=250){let t;return (...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),wait)}}
+function debounce(fn, wait=250){let t;return (...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),wait)}}
 const debouncedLoadProducts=debounce(()=>loadProducts({resetPage:true}),250);
 const debouncedLoadCustomers=debounce(()=>loadCustomers({resetPage:true}),250);
 if(searchInput)searchInput.addEventListener('input',()=>{if(window.SearchAutocomplete){window.SearchAutocomplete.hide(document.getElementById('productListSuggestions'));}debouncedLoadProducts();});
@@ -104,14 +104,14 @@ if(downloadCustomImportTemplateButton)downloadCustomImportTemplateButton.addEven
 if(deleteCustomImportTemplateButton)deleteCustomImportTemplateButton.addEventListener('click',deleteCustomImportTemplate);
 if(importDataType)importDataType.addEventListener('change',async()=>{importPreviewRows=[];if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr>';if(commitImportButton){commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);commitImportButton.textContent='Xem trước đơn import';}resetImportPreviewMessage();await loadImportFieldOptions();await loadCustomImportTemplates();});
 if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',loadImportOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(salesOrderSearchInput)salesOrderSearchInput.addEventListener('input',loadSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(salesOrderSourceFilter)salesOrderSourceFilter.addEventListener('change',loadSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(salesOrderDateFrom)salesOrderDateFrom.addEventListener('change',loadSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(salesOrderDateTo)salesOrderDateTo.addEventListener('change',loadSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(salesOrderStaffFilter)salesOrderStaffFilter.addEventListener('input',loadSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
-// V45: sales order events are wired in 05-sales-orders.js to avoid duplicate requests. // if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
+if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
+if(salesOrderSearchInput)salesOrderSearchInput.addEventListener('input',loadSalesOrders);
+if(salesOrderSourceFilter)salesOrderSourceFilter.addEventListener('change',loadSalesOrders);
+if(salesOrderDateFrom)salesOrderDateFrom.addEventListener('change',loadSalesOrders);
+if(salesOrderDateTo)salesOrderDateTo.addEventListener('change',loadSalesOrders);
+if(salesOrderStaffFilter)salesOrderStaffFilter.addEventListener('input',loadSalesOrders);
+if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
+if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 
 if(reloadMasterOrdersButton)reloadMasterOrdersButton.addEventListener('click',loadMasterOrderModule);
 if(masterOrderForm){masterOrderForm.addEventListener('submit',submitMasterOrder);if(masterOrderForm.elements.deliveryDate)masterOrderForm.elements.deliveryDate.value=today();else if(masterOrderForm.elements.date)masterOrderForm.elements.date.value=today()}
@@ -150,31 +150,24 @@ if(createSystemBackupButton)createSystemBackupButton.addEventListener('click',cr
 if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSystemData);
 
 setupTabs();
+loadImportFieldOptions();
+loadCustomImportTemplates();
+checkServer();
+loadProducts();
+loadCustomers();
+loadStock();
+loadImportOrders();
+loadSalesOrders();
+loadMasterOrderModule();
+loadUnmergedReturnOrders();
+loadMasterReturnOrders();
+loadDeliveryToday();
+loadDebts();
+loadReceipts();
+loadCashbook();
+loadUsers();
+loadPromotions();
+if(typeof loadSystemStatus==='function')loadSystemStatus();
 setReportDefaults();
 renderImportItems();
 renderSalesItems();
-
-// V45 chống đơ: không khởi động toàn bộ module cùng lúc.
-// Trước đây app gọi products/customers/stock/orders/master/delivery/debt/report/users... ngay khi mở trang,
-// khiến trình duyệt bị treo và server bị bắn nhiều request nặng song song.
-checkServer();
-Promise.resolve(loadImportFieldOptions()).catch(()=>{});
-Promise.resolve(loadCustomImportTemplates()).catch(()=>{});
-
-// Chỉ tải màn đang mở. Các màn khác tải lazy khi bấm tab trong setupTabs().
-(function bootActiveTabOnly(){
-  const active = document.querySelector('.tab-button.active')?.dataset?.tab || 'productsTab';
-  try{
-    if(active==='productsTab') loadProducts({allowEmpty:false});
-    else if(active==='customersTab') loadCustomers({resetPage:true});
-    else if(active==='stockTab') loadStock();
-    else if(active==='salesTab') loadSalesOrders({page:1,append:false});
-    else if(active==='masterOrdersTab') loadMasterOrderModule();
-    else if(active==='deliveryTodayTab') loadDeliveryToday();
-    else if(active==='debtTab'){ loadDebts(); loadReceipts(); loadCashbook(); }
-    else if(active==='reportsTab') loadReports();
-    else if(active==='systemTab' && typeof loadSystemStatus==='function') loadSystemStatus();
-  }catch(err){
-    console.error('[BOOT_ACTIVE_TAB_ERROR]', err);
-  }
-})();

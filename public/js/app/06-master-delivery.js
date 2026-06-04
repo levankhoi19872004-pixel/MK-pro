@@ -1123,8 +1123,11 @@ async function toggleDeliveryStaffSummary(deliveryCode){
   renderDeliveryTodaySummary();
   if(!deliverySalesSummaryCache.has(deliveryCode)){
     const params=deliverySummaryParams();
+    const clientStartedAt=performance.now();
     const res=await fetch(`/api/master-orders/delivery-today-summary/${encodeURIComponent(deliveryCode)}?${params.toString()}`);
     const json=await res.json();
+    const clientMs=Math.round(performance.now()-clientStartedAt);
+    console.log('[DELIVERY_TODAY_SUMMARY_PERF]', { deliveryCode, clientMs, serverMs: json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms'), perf: json.perf });
     if(!json.ok)throw new Error(json.message||'Không tải được chi tiết NVBH');
     deliverySalesSummaryCache.set(deliveryCode,json.summary||[]);
   }
@@ -1146,8 +1149,11 @@ async function toggleDeliverySalesOrders(deliveryCode,salesCode){
   params.set('delivery',deliveryCode);
   params.set('salesStaffCode',salesCode);
   params.set('salesman',salesCode);
+  const clientStartedAt=performance.now();
   const res=await fetch(`/api/master-orders/delivery-today-orders?${params.toString()}`);
   const json=await res.json();
+  const clientMs=Math.round(performance.now()-clientStartedAt);
+  console.log('[DELIVERY_TODAY_ORDERS_PERF]', { deliveryCode, salesCode, clientMs, serverMs: json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms'), perf: json.perf, returned: (json.orders||[]).length });
   if(!json.ok)throw new Error(json.message||'Không tải được danh sách đơn');
   deliveryRowsCache=json.orders||[];
   renderDeliveryTodaySummary();
@@ -1189,8 +1195,12 @@ async function loadDeliveryToday(){
     deliveryTodayList.innerHTML='<div class="empty-state">Đang tải danh sách khách hàng của nhân viên giao hàng...</div>';
     params.set('delivery',staffQuery);
     params.set('deliveryStaffCode',staffQuery);
+    const clientStartedAt=performance.now();
     const res=await fetch(`/api/master-orders/delivery-today-orders?${params.toString()}`);
     const json=await res.json();
+    const clientMs=Math.round(performance.now()-clientStartedAt);
+    const serverMs=Number(json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms')||0);
+    console.log('[DELIVERY_TODAY_LIST_PERF]', { clientMs, serverMs, perf: json.perf, returned: (json.orders||[]).length });
     if(!json.ok)throw new Error(json.message||'Không tải được danh sách đơn đi giao');
     deliveryRowsCache=json.orders||[];
     try{
@@ -1201,7 +1211,7 @@ async function loadDeliveryToday(){
     }
     updateDeliveryKpiFromSummary(buildDeliveryKpiFromRows(deliveryRowsCache));
     if(deliveryAccountingStatus){
-      deliveryAccountingStatus.textContent=`Đang hiển thị ${deliveryRowsCache.length} đơn/khách hàng của NVGH đã chọn. Có thể tick đơn rồi đẩy sang công nợ.`;
+      deliveryAccountingStatus.textContent=`Đang hiển thị ${deliveryRowsCache.length} đơn/khách hàng của NVGH đã chọn. API ${serverMs}ms · Trình duyệt ${clientMs}ms. Có thể tick đơn rồi đẩy sang công nợ.`;
       deliveryAccountingStatus.classList.remove('confirmed');
     }
     if(confirmDeliveryAccountingButton){

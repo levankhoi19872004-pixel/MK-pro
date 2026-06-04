@@ -51,12 +51,19 @@ export async function apiRequest(path, options = {}) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const clientStartedAt = performance.now();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers
   });
+  const clientMs = Math.round(performance.now() - clientStartedAt);
 
   let data = await res.json().catch(() => ({}));
+  const serverMs = Number(data.serverMs || data.ms || res.headers.get('X-Response-Time-Ms') || 0);
+  data.__clientPerf = { path, clientMs, serverMs, perf: data.perf || null };
+  if (/\/api\/mobile\/(sales\/orders|delivery\/orders|delivery-orders)/.test(path)) {
+    console.log('[MOBILE_API_PERF]', data.__clientPerf);
+  }
   if (res.status === 401 && path !== MOBILE_ROUTES.login && path !== MOBILE_ROUTES.refresh && getRefreshToken()) {
     const refreshed = await refreshSession().catch(() => null);
     if (refreshed?.token) {

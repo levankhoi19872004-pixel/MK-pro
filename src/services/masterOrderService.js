@@ -1050,6 +1050,9 @@ function findMasterDeliveryArDebtRow(arDebtMap, ...sources) {
 }
 
 async function listDeliveryToday(query = {}) {
+  const perfStartedAt = Date.now();
+  const perf = { startedAt: perfStartedAt };
+  const mark = (name) => { perf[name] = Date.now() - perfStartedAt; };
   const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
   const q = normalizeText(query.q);
   const salesman = normalizeText(query.salesman || query.salesStaff);
@@ -1067,7 +1070,9 @@ async function listDeliveryToday(query = {}) {
     skip: page.skip,
     limit: page.limit
   });
+  mark('masterQueryMs');
   const childrenMap = await buildMasterChildrenMapFast(masterOrders);
+  mark('childrenQueryMs');
   const allChildren = Array.from(childrenMap.values()).flat();
   const returnLookupChildren = [];
   for (const master of masterOrders || []) {
@@ -1082,6 +1087,7 @@ async function listDeliveryToday(query = {}) {
     }
   }
   const returnOrders = await findReturnOrdersForDeliveryChildren(returnLookupChildren.length ? returnLookupChildren : allChildren);
+  mark('returnOrdersQueryMs');
   // Không dùng AR cache cho danh sách giao hàng; dùng công thức giao hàng bình thường.
   const arDebtMap = null;
   const rows = [];
@@ -1191,6 +1197,7 @@ async function listDeliveryToday(query = {}) {
     }
   }
 
+  mark('buildRowsMs');
   const routeMap = new Map();
   for (const row of rows) {
     const key = row.routeName || 'Chưa có tuyến';
@@ -1204,8 +1211,19 @@ async function listDeliveryToday(query = {}) {
   }
 
   const accountingConfirmed = rows.length > 0 && rows.every((row) => row.accountingConfirmed || row.editLocked);
+  const totalMs = Date.now() - perfStartedAt;
+  perf.totalMs = totalMs;
+  perf.masterCount = masterOrders.length;
+  perf.childCount = allChildren.length;
+  perf.returnOrderCount = returnOrders.length;
+  perf.rowCount = rows.length;
+  if (process.env.API_PERF_LOG !== '0') {
+    console.log('[DELIVERY_TODAY_PERF]', perf);
+  }
   return {
     formula: 'Lấy đơn con đã gộp theo Ngày giao hàng trong đơn tổng/đơn con; không lấy theo ngày tạo đơn. Công nợ chỉ phát sinh sau khi kế toán xác nhận.',
+    perf,
+    ms: totalMs,
     accounting: {
       date,
       confirmed: accountingConfirmed,
@@ -1352,6 +1370,7 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
 }
 
 async function listDeliveryTodayOrdersCompact(query = {}) {
+  const compactStartedAt = Date.now();
   const base = await listDeliveryToday({ ...(query || {}), page: 1, limit: query.limit || 5000 });
   const sales = normalizeText(query.salesStaffCode || query.salesStaff || query.salesman || '');
   let rows = base.orders || [];
@@ -1399,10 +1418,13 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     returnItems: Array.isArray(row.returnItems) ? row.returnItems : [],
     deliveryReturnItems: Array.isArray(row.deliveryReturnItems) ? row.deliveryReturnItems : []
   }));
+  const compactMs = Date.now() - compactStartedAt;
   return {
     date: base.accounting?.date || dateUtil.toDateOnly(query.date || dateUtil.todayVN()),
     formula: 'Danh sách đơn chỉ tải sau khi chọn NVGH/NVBH.',
-    orders: rows
+    orders: rows,
+    ms: compactMs,
+    perf: { ...(base.perf || {}), compactMs, compactRowCount: rows.length }
   };
 }
 

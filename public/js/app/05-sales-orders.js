@@ -470,12 +470,8 @@ function extractStaffCodeFromDisplay(value){
 }
 function getSalesOrderStaffFilterCode(){
   if(!salesOrderStaffFilter)return '';
-  const rawValue=String(salesOrderStaffFilter.value||'').trim();
   const selected=String(salesOrderStaffFilter.dataset?.selectedId||'').trim();
-  const code=extractStaffCodeFromDisplay(selected || rawValue || '');
-  // Đồng bộ lại dataset để bấm Tải lại vẫn gửi đúng mã NVBH, không gửi cả chuỗi label.
-  if(code) salesOrderStaffFilter.dataset.selectedId=code;
-  return code;
+  return extractStaffCodeFromDisplay(selected || salesOrderStaffFilter.value || '');
 }
 
 function normalizeOrderDateForFilter(value){
@@ -503,7 +499,7 @@ function buildSalesOrderSearchParams(page = 1){
   if(source)params.set('source',source);
   if(q)params.set('q',q);
   const staffCodeFilter=getSalesOrderStaffFilterCode();
-  if(staffCodeFilter){params.set('salesStaffCode',staffCodeFilter);params.set('includeStaffAliases','1');}
+  if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
   params.set('page',String(page));
   params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
   return params;
@@ -571,8 +567,12 @@ async function loadSalesOrders({page=1, append=false} = {}){
       salesOrderDetailCache.clear();
     }
     const params=buildSalesOrderSearchParams(page);
+    const clientStartedAt=performance.now();
     const res=await fetch(`/api/sales-orders/search?${params.toString()}`);
     const json=await res.json();
+    const clientMs=Math.round(performance.now()-clientStartedAt);
+    const serverMs=Number(json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms')||0);
+    console.log('[SALES_ORDER_LIST_PERF]', { clientMs, serverMs, queryMs: json.queryMs, countMs: json.countMs, mapMs: json.mapMs, page, total: json.total, returned: (json.salesOrders||json.rows||[]).length });
     if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
     const orders=json.salesOrders||json.rows||[];
     salesOrderCurrentPage=Number(json.page||page||1);
@@ -580,7 +580,8 @@ async function loadSalesOrders({page=1, append=false} = {}){
     salesOrderHasMore=Boolean(json.hasMore);
     const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
     const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
-    salesOrderCount.innerHTML=`<strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn · Trang này <strong>${money(totalAmountPage)}</strong>${json.ms?` · ${json.ms}ms`:''}`;
+    const perfText=` · API ${serverMs||json.ms||0}ms · Trình duyệt ${clientMs}ms${json.queryMs?` · Query ${json.queryMs}ms`:''}${json.countMs?` · Count ${json.countMs}ms`:''}`;
+    salesOrderCount.innerHTML=`<strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn · Trang này <strong>${money(totalAmountPage)}</strong>${perfText}`;
     renderSalesOrderRows(orders,{append});
     updateSalesOrderLoadMoreButton();
   }catch(err){
@@ -590,7 +591,8 @@ async function loadSalesOrders({page=1, append=false} = {}){
     updateSalesOrderLoadMoreButton();
   }
 }
-window.loadSalesOrders=loadSalesOrders;
+
+
 
 // Bảo vệ riêng cho ô gợi ý sản phẩm bán hàng: catalog luôn được tải độc lập với bộ lọc tồn kho/danh sách sản phẩm.
 if(typeof salesProductSearch !== 'undefined' && salesProductSearch){

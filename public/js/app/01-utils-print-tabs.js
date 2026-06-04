@@ -3,23 +3,6 @@ const v45PrintCommon = window.V45Common || {};
 const calculateCartonUnit = v45PrintCommon.calculateCartonUnit;
 const today = v45PrintCommon.todayValue;
 const toDateOnly = v45PrintCommon.toDateOnly;
-
-// Global debounce dùng chung cho toàn bộ app. Đặt ở file utils vì 07-debt-cashbook.js dùng trước app.js.
-(function ensureGlobalDebounce(){
-  if (typeof window !== 'undefined' && typeof window.debounce !== 'function') {
-    window.debounce = function debounce(fn, wait = 300) {
-      let timer = null;
-      return function debouncedHandler(...args) {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn.apply(this, args), wait);
-      };
-    };
-  }
-})();
-const debounce = (typeof window !== 'undefined' && window.debounce) ? window.debounce : function(fn, wait = 300){
-  let timer = null;
-  return function(...args){ clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), wait); };
-};
 function money(value){return Number(value||0).toLocaleString('vi-VN')}
 function productPackingText(p){
   if(!p)return '';

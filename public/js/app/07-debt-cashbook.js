@@ -1155,7 +1155,7 @@ function reloadActiveFundTab(){
 }
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
 if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',()=>{loadFundLedger();loadDeliveryCashSubmissions();loadExpenseVouchers();loadFundTransfers();});
-if(fundSearchInput)fundSearchInput.addEventListener('input',(window.debounce||function(fn){return fn;})(reloadActiveFundTab,300));
+if(fundSearchInput)fundSearchInput.addEventListener('input',debounce(reloadActiveFundTab,300));
 [fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter].forEach(el=>{if(el)el.addEventListener('change',loadFundLedger)});
 if(deliveryCashSubmissionForm)deliveryCashSubmissionForm.addEventListener('submit',submitDeliveryCashSubmission);
 if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpenseVoucher);
