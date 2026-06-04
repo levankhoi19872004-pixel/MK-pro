@@ -538,7 +538,12 @@ async function loadReturnOrders(){
     const res=await fetch(url);
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
-    const rows=(json.returnOrders||json.returns||[]).filter(isActiveDocument);
+    const rawRows = Array.isArray(json.returnOrders) ? json.returnOrders :
+      Array.isArray(json.returns) ? json.returns :
+      Array.isArray(json.rows) ? json.rows :
+      Array.isArray(json.items) ? json.items :
+      Array.isArray(json.data) ? json.data : [];
+    const rows = rawRows.filter(row => (typeof isActiveDocument === 'function' ? isActiveDocument(row) : true));
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
     const modeLabel=returnOrderDateMode?.value==='all'?'Tất cả':(returnOrderDateMode?.value==='range'?'Theo khoảng ngày':'Hôm nay');
     if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Chọn một phiếu để xem sản phẩm trả · <strong>Readonly</strong>`;
