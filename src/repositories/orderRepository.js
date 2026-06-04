@@ -15,6 +15,10 @@ async function findAll(filter = {}, options = {}) {
   return collectionRepository.findAll(ORDER_KEY, filter, options);
 }
 
+async function count(filter = {}, options = {}) {
+  return collectionRepository.count(ORDER_KEY, filter, options);
+}
+
 async function findByIdOrCode(idOrCode) {
   const filter = identityFilter(idOrCode);
   if (!filter) return null;
@@ -52,4 +56,4 @@ async function remove(idOrCode, options = {}) {
   return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
-module.exports = { findAll, findByIdOrCode, findManyByIdentity, upsert, replaceAll, remove };
+module.exports = { findAll, count, findByIdOrCode, findManyByIdentity, upsert, replaceAll, remove };

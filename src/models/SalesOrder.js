@@ -1,5 +1,5 @@
 const flexModel = require('./_flexModel');
-module.exports = flexModel('SalesOrder', 'orders', {
+const SalesOrder = flexModel('SalesOrder', 'orders', {
   id: String,
   code: String,
   customerId: String,
@@ -29,3 +29,18 @@ module.exports = flexModel('SalesOrder', 'orders', {
   createdAt: String,
   updatedAt: String
 });
+
+// V45 tốc độ danh sách đơn: index theo đúng các bộ lọc thường dùng.
+SalesOrder.schema.index({ orderDate: -1, createdAt: -1 });
+SalesOrder.schema.index({ date: -1, createdAt: -1 });
+SalesOrder.schema.index({ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 });
+SalesOrder.schema.index({ salesStaffCode: 1, orderDate: -1 });
+SalesOrder.schema.index({ staffCode: 1, orderDate: -1 });
+SalesOrder.schema.index({ customerCode: 1, orderDate: -1 });
+SalesOrder.schema.index({ status: 1, orderDate: -1 });
+SalesOrder.schema.index({ source: 1, orderDate: -1 });
+SalesOrder.schema.index({ orderSource: 1, orderDate: -1 });
+SalesOrder.schema.index({ masterOrderId: 1 });
+SalesOrder.schema.index({ masterOrderCode: 1 });
+
+module.exports = SalesOrder;

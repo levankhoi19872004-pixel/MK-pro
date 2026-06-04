@@ -5,6 +5,7 @@ const orderController = require('../controllers/orderController');
 
 const router = express.Router();
 
+router.get('/search', orderController.search);
 router.get('/', orderController.list);
 router.post('/', orderController.create);
 router.get('/:id', orderController.get);

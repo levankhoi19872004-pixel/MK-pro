@@ -97,6 +97,7 @@ const reloadImportOrdersButton=document.getElementById('reloadImportOrdersButton
 const salesOrderList=document.getElementById('salesOrderList');
 const salesOrderCount=document.getElementById('salesOrderCount');
 const reloadSalesOrdersButton=document.getElementById('reloadSalesOrdersButton');
+const loadMoreSalesOrdersButton=document.getElementById('loadMoreSalesOrdersButton');
 const salesOrderSearchInput=document.getElementById('salesOrderSearchInput');
 const salesOrderSourceFilter=document.getElementById('salesOrderSourceFilter');
 const salesOrderDateTypeFilter=document.getElementById('salesOrderDateTypeFilter');

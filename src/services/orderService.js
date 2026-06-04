@@ -247,6 +247,142 @@ function canHardDeleteSalesOrder(order = {}) {
 }
 
 
+
+
+function buildOrderSearchFilter(query = {}) {
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
+  const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
+  const filter = {};
+
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    const orderDateFields = [{ orderDate: range }, { date: range }, { createdDate: range }];
+    const deliveryDateFields = [{ deliveryDate: range }];
+    if (dateType === 'deliveryDate') filter.$or = deliveryDateFields;
+    else if (dateType === 'all') filter.$or = [...orderDateFields, ...deliveryDateFields, { createdAt: range }];
+    else filter.$or = orderDateFields;
+  }
+
+  if (!includeCancelled) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+
+  const and = [];
+  if (q) {
+    const rx = queryGuard.buildRegex(q);
+    and.push({ $or: [
+      { code: rx }, { id: rx }, { orderCode: rx }, { salesOrderCode: rx }, { invoiceCode: rx },
+      { customerCode: rx }, { customerName: rx }, { customerPhone: rx },
+      { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx },
+      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { masterOrderCode: rx }, { masterOrderId: rx }
+    ] });
+  }
+
+  const staffCodeFilter = extractStaffCodeParam(
+    guardedQuery.salesStaffCode || guardedQuery.staffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+  );
+  if (staffCodeFilter) {
+    and.push({ $or: [
+      { staffCode: staffCodeFilter }, { salesStaffCode: staffCodeFilter }, { salesPersonCode: staffCodeFilter },
+      { salesmanCode: staffCodeFilter }, { nvbhCode: staffCodeFilter }, { maNVBH: staffCodeFilter },
+      { 'salesStaff.code': staffCodeFilter }, { 'staff.code': staffCodeFilter }
+    ] });
+  }
+
+  const deliveryStaffCodeFilter = extractStaffCodeParam(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);
+  if (deliveryStaffCodeFilter) {
+    and.push({ $or: [{ deliveryStaffCode: deliveryStaffCodeFilter }, { deliveryCode: deliveryStaffCodeFilter }, { 'deliveryStaff.code': deliveryStaffCodeFilter }] });
+  }
+
+  const sourceKey = orderStatusUtil.normalizeOrderSource(guardedQuery.source || guardedQuery.orderSource || '');
+  if (sourceKey && sourceKey !== 'manual') {
+    and.push({ $or: [{ source: sourceKey }, { orderSource: sourceKey }, { source: new RegExp(sourceKey, 'i') }, { orderSource: new RegExp(sourceKey, 'i') }] });
+  }
+
+  const deliveryStatusFilter = String(guardedQuery.deliveryStatus || '').trim();
+  if (deliveryStatusFilter) filter.deliveryStatus = deliveryStatusFilter;
+
+  const accountingStatusFilter = String(guardedQuery.accountingStatus || '').trim();
+  if (accountingStatusFilter) filter.accountingStatus = accountingStatusFilter;
+
+  const rawStatus = String(guardedQuery.status || guardedQuery.lifecycleStatus || '').trim();
+  if (rawStatus && rawStatus !== 'cancelled') filter.status = rawStatus;
+
+  if (and.length) filter.$and = and;
+  return { filter, guardedQuery };
+}
+
+const ORDER_LIST_PROJECTION = {
+  _id: 0,
+  id: 1,
+  code: 1,
+  documentCode: 1,
+  invoiceCode: 1,
+  orderCode: 1,
+  salesOrderCode: 1,
+  date: 1,
+  orderDate: 1,
+  deliveryDate: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  customerId: 1,
+  customerCode: 1,
+  customerName: 1,
+  customerPhone: 1,
+  staffCode: 1,
+  staffName: 1,
+  salesStaffCode: 1,
+  salesStaffName: 1,
+  deliveryStaffCode: 1,
+  deliveryStaffName: 1,
+  masterOrderId: 1,
+  masterOrderCode: 1,
+  status: 1,
+  lifecycleStatus: 1,
+  deliveryStatus: 1,
+  mergeStatus: 1,
+  accountingStatus: 1,
+  accountingConfirmed: 1,
+  source: 1,
+  orderSource: 1,
+  totalAmount: 1,
+  paidAmount: 1,
+  debtAmount: 1,
+  amount: 1,
+  total: 1
+};
+
+async function searchOrders(query = {}) {
+  const startedAt = Date.now();
+  const { filter, guardedQuery } = buildOrderSearchFilter(query);
+  const page = queryGuard.getPagination(guardedQuery, { defaultLimit: 50, maxLimit: 100 });
+  const [orders, total] = await Promise.all([
+    orderRepository.findAll(filter, {
+      projection: ORDER_LIST_PROJECTION,
+      sort: { orderDate: -1, date: -1, createdAt: -1, code: -1 },
+      skip: page.skip,
+      limit: page.limit
+    }),
+    orderRepository.count(filter)
+  ]);
+  const rows = orders.map(toClient);
+  return {
+    rows,
+    salesOrders: rows,
+    orders: rows,
+    total,
+    page: page.page,
+    limit: page.limit,
+    returned: rows.length,
+    hasMore: page.skip + rows.length < total,
+    ms: Date.now() - startedAt
+  };
+}
+
 async function listOrders(query = {}) {
   // Lịch sử bán hàng là góc nhìn toàn bộ orders, không được làm “mất đơn” sau khi gộp/giao/công nợ.
   // Mặc định vẫn giới hạn ngày để bảo vệ hiệu năng, nhưng frontend có thể truyền dateType=orderDate|deliveryDate|all.
@@ -555,6 +691,7 @@ async function syncMasterOrderSummary(masterIdOrCode, options = {}) {
 
 module.exports = {
   listOrders,
+  searchOrders,
   getOrder,
   createOrder,
   updateOrder,

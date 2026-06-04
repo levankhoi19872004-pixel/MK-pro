@@ -9,6 +9,16 @@ function handleServiceResult(res, result, successStatus = 200, successPayload = 
   return res.status(successStatus).json({ ok: true, source: 'mongo-route', ...successPayload(result) });
 }
 
+
+async function search(req, res) {
+  try {
+    const result = await orderService.searchOrders(req.query || {});
+    res.json({ ok: true, source: 'mongo-route', ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không tìm kiếm được danh sách đơn bán', error: err.message });
+  }
+}
+
 async function list(req, res) {
   try {
     const salesOrders = await orderService.listOrders(req.query || {});
@@ -63,4 +73,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { list, get, create, update, cancel, remove };
+module.exports = { list, search, get, create, update, cancel, remove };

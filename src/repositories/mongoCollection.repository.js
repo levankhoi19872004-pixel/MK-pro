@@ -15,7 +15,9 @@ function getModel(collectionKey) {
 
 async function findAll(collectionKey, filter = {}, options = {}) {
   const Model = getModel(collectionKey);
-  let query = Model.find(filter).lean();
+  let query = Model.find(filter);
+  if (options.projection) query = query.select(options.projection);
+  query = query.lean();
   if (options.sort) query = query.sort(options.sort);
   if (options.skip) query = query.skip(Math.max(0, Number.parseInt(options.skip, 10) || 0));
   if (options.limit) query = query.limit(clampLimit(options.limit));
@@ -24,8 +26,10 @@ async function findAll(collectionKey, filter = {}, options = {}) {
   return rows.map(stripMongoFields);
 }
 
-async function count(collectionKey, filter = {}) {
-  return getModel(collectionKey).countDocuments(filter);
+async function count(collectionKey, filter = {}, options = {}) {
+  let query = getModel(collectionKey).countDocuments(filter);
+  if (options.session) query = query.session(options.session);
+  return query;
 }
 
 async function replaceAll(collectionKey, rows = [], options = {}) {

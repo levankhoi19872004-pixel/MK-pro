@@ -404,7 +404,8 @@ async function printSelectedSalesOrders(){
     if(!orders.length){alert('Chưa chọn đơn con để in');return}
     const bodies=[];
     for(const order of orders){
-      bodies.push(extractPrintBody(await renderSalesOrderPrintHtml(order)));
+      const detail=await fetchSalesOrderDetail(order);
+      bodies.push(extractPrintBody(await renderSalesOrderPrintHtml(detail)));
     }
     const w=window.open('','_blank');
     if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
@@ -415,9 +416,10 @@ async function printSelectedSalesOrders(){
 }
 window.printSelectedSalesOrders=printSelectedSalesOrders;
 
-function openSalesOrderEdit(idx){
-  const order=window.__salesOrdersCache?.[idx];
+async function openSalesOrderEdit(idx){
+  let order=window.__salesOrdersCache?.[idx];
   if(!order)return;
+  try{order=await fetchSalesOrderDetail(order)}catch(err){alert(err.message||'Không tải được chi tiết đơn');return;}
   editingSalesOrderId=order.id||order.code||'';
   const editMode=order.saleMode||order.pricingMode||order.orderPricingMode||'direct';
   const modeInput=salesForm.querySelector(`input[name="saleMode"][value="${editMode==='promotion'?'promotion':'direct'}"]`);
@@ -476,40 +478,60 @@ function normalizeOrderDateForFilter(value){
   return toDateOnly(value);
 }
 
-async function loadSalesOrders(){
-  try{
-    const q=String(salesOrderSearchInput?.value||'').trim().toLowerCase();
-    const source=String(salesOrderSourceFilter?.value||'').trim();
-    const dateType='orderDate'; // Màn Bán hàng chỉ quản lý ngày bán; ngày giao/công nợ xem ở màn nghiệp vụ riêng.
-    const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
-    const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
-    const params=new URLSearchParams();
-    if(dateFrom)params.set('dateFrom',dateFrom);
-    if(dateTo)params.set('dateTo',dateTo);
-    if(dateType)params.set('dateType',dateType);
-    if(source)params.set('source',source);
-    if(q)params.set('q',q);
-    const staffCodeFilter=getSalesOrderStaffFilterCode();
-    if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
-    params.set('page','1');
-    params.set('limit','200');
-    const res=await fetch(`/api/sales-orders?${params.toString()}`);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
-    const allOrders=(json.salesOrders||[]);
-    // V45: backend là nguồn lọc chuẩn. Frontend chỉ render, không tự ẩn đơn đã gộp/giao/công nợ nữa.
-    const orders=allOrders.filter(o=>{
-      const text=[o.code,o.customerCode,o.customerName,o.customerPhone,o.customerAddress,o.masterOrderCode].join(' ').toLowerCase();
-      return !q || text.includes(q);
-    });
-    const totalAmount=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
-    salesOrderCount.innerHTML=`<strong>${orders.length}</strong> đơn · Doanh số <strong>${money(totalAmount)}</strong>`;
-    if(!orders.length){salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';return}
-    window.__salesOrdersCache=orders;
+
+const SALES_ORDER_PAGE_LIMIT = 50;
+let salesOrderCurrentPage = 1;
+let salesOrderTotalRows = 0;
+let salesOrderHasMore = false;
+let salesOrderSearchTimer = null;
+const salesOrderDetailCache = new Map();
+
+function buildSalesOrderSearchParams(page = 1){
+  const q=String(salesOrderSearchInput?.value||'').trim();
+  const source=String(salesOrderSourceFilter?.value||'').trim();
+  const dateType='orderDate';
+  const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
+  const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
+  const params=new URLSearchParams();
+  if(dateFrom)params.set('dateFrom',dateFrom);
+  if(dateTo)params.set('dateTo',dateTo);
+  if(dateType)params.set('dateType',dateType);
+  if(source)params.set('source',source);
+  if(q)params.set('q',q);
+  const staffCodeFilter=getSalesOrderStaffFilterCode();
+  if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
+  params.set('page',String(page));
+  params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
+  return params;
+}
+
+async function fetchSalesOrderDetail(order){
+  const key=String(order?.id||order?.code||'').trim();
+  if(!key)return order;
+  if(salesOrderDetailCache.has(key))return salesOrderDetailCache.get(key);
+  const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}`);
+  const json=await res.json();
+  if(!json.ok)throw new Error(json.message||'Không tải được chi tiết đơn');
+  const detail=json.salesOrder||json.order||order;
+  salesOrderDetailCache.set(key,detail);
+  return detail;
+}
+
+function renderSalesOrderRows(orders, {append=false} = {}){
+  if(!append){
+    window.__salesOrdersCache=[];
     if(typeof selectAllSalesOrdersButton!=='undefined' && selectAllSalesOrdersButton)selectAllSalesOrdersButton.textContent='Chọn tất cả';
-    salesOrderList.innerHTML=orders.map((o,idx)=>{
-      const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
-      return `
+  }
+  const startIndex=(window.__salesOrdersCache||[]).length;
+  window.__salesOrdersCache=(window.__salesOrdersCache||[]).concat(orders||[]);
+  if(!window.__salesOrdersCache.length){
+    salesOrderList.innerHTML='<div class="empty-state">Không có đơn bán phù hợp bộ lọc.</div>';
+    return;
+  }
+  const html=(orders||[]).map((o,localIdx)=>{
+    const idx=startIndex+localIdx;
+    const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
+    return `
       <article class="sales-order-row">
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
         <strong class="sales-order-code-text" title="Mã đơn: ${o.code||o.id||''}">${o.code||o.id||''}</strong>
@@ -522,8 +544,47 @@ async function loadSalesOrders(){
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}
         </div>
       </article>`;
-    }).join('');
-  }catch(err){salesOrderCount.textContent='Lỗi tải lịch sử';salesOrderList.innerHTML=err.message}
+  }).join('');
+  if(append)salesOrderList.insertAdjacentHTML('beforeend',html);
+  else salesOrderList.innerHTML=html;
+}
+
+function updateSalesOrderLoadMoreButton(){
+  if(!loadMoreSalesOrdersButton)return;
+  loadMoreSalesOrdersButton.style.display=salesOrderHasMore?'inline-flex':'none';
+  loadMoreSalesOrdersButton.textContent=salesOrderHasMore?`Tải thêm (${(window.__salesOrdersCache||[]).length}/${salesOrderTotalRows})`:'Đã tải hết';
+}
+
+function debounceLoadSalesOrders(){
+  clearTimeout(salesOrderSearchTimer);
+  salesOrderSearchTimer=setTimeout(()=>loadSalesOrders({page:1,append:false}),300);
+}
+
+async function loadSalesOrders({page=1, append=false} = {}){
+  try{
+    if(!append){
+      salesOrderList.innerHTML='<div class="empty-state">Đang tải danh sách đơn...</div>';
+      salesOrderDetailCache.clear();
+    }
+    const params=buildSalesOrderSearchParams(page);
+    const res=await fetch(`/api/sales-orders/search?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
+    const orders=json.salesOrders||json.rows||[];
+    salesOrderCurrentPage=Number(json.page||page||1);
+    salesOrderTotalRows=Number(json.total||orders.length||0);
+    salesOrderHasMore=Boolean(json.hasMore);
+    const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
+    const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
+    salesOrderCount.innerHTML=`<strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn · Trang này <strong>${money(totalAmountPage)}</strong>${json.ms?` · ${json.ms}ms`:''}`;
+    renderSalesOrderRows(orders,{append});
+    updateSalesOrderLoadMoreButton();
+  }catch(err){
+    salesOrderCount.textContent='Lỗi tải lịch sử';
+    salesOrderList.innerHTML=err.message;
+    salesOrderHasMore=false;
+    updateSalesOrderLoadMoreButton();
+  }
 }
 
 
@@ -555,5 +616,8 @@ window.exportSelectedSalesOrders=exportSelectedSalesOrders;
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 if(exportSelectedSalesOrdersButton)exportSelectedSalesOrdersButton.addEventListener('click',exportSelectedSalesOrders);
-if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
+if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',()=>loadSalesOrders({page:1,append:false}));
+if(loadMoreSalesOrdersButton)loadMoreSalesOrdersButton.addEventListener('click',()=>loadSalesOrders({page:salesOrderCurrentPage+1,append:true}));
+[salesOrderSearchInput,salesOrderStaffFilter].forEach(input=>{if(input)input.addEventListener('input',debounceLoadSalesOrders)});
+[salesOrderDateFrom,salesOrderDateTo,salesOrderSourceFilter].forEach(input=>{if(input)input.addEventListener('change',()=>loadSalesOrders({page:1,append:false}))});
 // Các lọc ngày giao/trạng thái giao hàng/công nợ đã bỏ khỏi màn lên đơn.
