@@ -34,7 +34,8 @@ const ACTIVE_RETURN_ORDER_STATUSES = [
   'pending_warehouse_receive',
   'merged',
   'delivered',
-  'completed'
+  'completed',
+  'has_return'
 ];
 const ArLedger = require('../models/ArLedger');
 const Cashbook = require('../models/Cashbook');
@@ -518,7 +519,7 @@ function mergeOrderItemsWithReturnItems(order = {}, returnItems = []) {
 }
 
 function stableReturnIdForOrder(order = {}) {
-  return `RO-MOBILE-${String(getDocId(order) || orderCode(order)).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  return `RO-${String(orderCode(order) || getDocId(order)).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
 }
 
 async function upsertMobileReturnOrder(order, items, req, returnType = 'partial') {
@@ -1202,7 +1203,7 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
     const q = normalizeText(req.query.q);
     const targetDate = dateUtil.toDateOnly(req.query.date || dateUtil.todayVN());
     const filter = {
-      status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] },
+      status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
       $or: [{ date: targetDate }, { orderDate: targetDate }]
     };
     if (mine && user.role !== 'admin') {

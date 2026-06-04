@@ -203,7 +203,7 @@ async function resolveStaff(body = {}, prefix = 'delivery') {
 
 function isInactiveStatus(row = {}) {
   const status = String(row.status || '').toLowerCase();
-  return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status) || Boolean(row.deletedAt);
 }
 
 function toClient(masterOrder, children = []) {
@@ -301,7 +301,7 @@ async function listMasterOrders(query = {}) {
     if (dateTo) range.$lte = dateTo;
     filter.$or = [{ date: range }, { deliveryDate: range }];
   }
-  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] };
   if (q) {
     const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
     filter.$and = filter.$and || [];
@@ -1189,7 +1189,7 @@ async function listDeliveryToday(query = {}) {
   const page = queryGuard.getPagination({ page: query.page || 1, limit: query.limit || 50 }, { defaultLimit: 50, maxLimit: 5000 });
   const masterFilter = {
     $or: [{ date }, { deliveryDate: date }],
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
   };
   const masterQueryStartedAt = Date.now();
   const masterOrders = await masterOrderRepository.findAll(masterFilter, {
@@ -1456,7 +1456,7 @@ async function listDeliveryTodaySummaryFast(query = {}) {
   // Không query returnOrders/items/AR Ledger/accounting/full rows.
   const masterFilter = {
     $or: [{ date }, { deliveryDate: date }],
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
   };
 
   const masterQueryStartedAt = Date.now();
@@ -1681,7 +1681,7 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
   // Không query returnOrders/items/AR Ledger/accounting/full rows.
   const masterFilter = {
     $or: [{ date }, { deliveryDate: date }],
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
   };
 
   if (delivery) {
@@ -1729,7 +1729,7 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
   if (delivery && !(masterOrders || []).length) {
     const fallbackFilter = {
       $or: [{ date }, { deliveryDate: date }],
-      status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+      status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
     };
     masterOrders = await masterOrderRepository.findAll(fallbackFilter, {
       projection: {
@@ -1947,7 +1947,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
   // listDeliveryToday() build đủ returnOrders/items/KPI/accounting nên gây chậm cho màn chỉ cần danh sách dòng đơn.
   const masterFilter = {
     $or: [{ date }, { deliveryDate: date }],
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
   };
 
   const masterQueryStartedAt = Date.now();
@@ -2751,7 +2751,7 @@ async function createMasterOrder(body = {}) {
             { sourceOrderCode: { $in: childCodes } },
             { deliveryOrderCode: { $in: childCodes } }
           ],
-          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted'] }
+          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted', 'duplicate_cancelled'] }
         },
         {
           $set: {
@@ -2852,7 +2852,7 @@ async function updateMasterOrder(id, body = {}) {
             { sourceOrderCode: { $in: childCodes } },
             { deliveryOrderCode: { $in: childCodes } }
           ],
-          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted'] }
+          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted', 'duplicate_cancelled'] }
         },
         {
           $set: {

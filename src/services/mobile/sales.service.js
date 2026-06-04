@@ -158,8 +158,8 @@ function createMobileSalesService(ctx) {
     const status = totalReturnAmount > 0 ? 'has_return' : 'draft';
     return {
       ...(existing || {}),
-      id: existing?.id || `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
-      code: existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+      id: existing?.id || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
+      code: existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
       date: order.deliveryDate || order.date || dateUtil.todayVN(),
       documentDate: order.date || dateUtil.todayVN(),
       salesOrderId: order.id || '',

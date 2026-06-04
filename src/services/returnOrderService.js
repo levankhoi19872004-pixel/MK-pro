@@ -21,7 +21,8 @@ const ACTIVE_RETURN_ORDER_STATUSES = [
   'pending_warehouse_receive',
   'merged',
   'delivered',
-  'completed'
+  'completed',
+  'has_return'
 ];
 
 
@@ -46,7 +47,7 @@ function toClient(order) {
 
 function isInactiveStatus(row = {}) {
   const status = String(row.status || '').toLowerCase();
-  return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status) || Boolean(row.deletedAt);
 }
 
 function getReturnOrderValue(row = {}) {
@@ -82,6 +83,118 @@ function buildReturnOrderLookupFilter(body = {}) {
     or.push({ deliveryOrderCode: salesOrderCode });
   }
   return or.length ? { $or: or } : null;
+}
+
+
+function canonicalOrderCodeFromSalesOrder(salesOrder = {}, fallback = {}) {
+  return String(
+    salesOrder.code ||
+    salesOrder.orderCode ||
+    salesOrder.salesOrderCode ||
+    fallback.salesOrderCode ||
+    fallback.orderCode ||
+    fallback.code ||
+    ''
+  ).trim();
+}
+
+function canonicalOrderIdFromSalesOrder(salesOrder = {}, fallback = {}) {
+  return String(
+    salesOrder.id ||
+    salesOrder._id ||
+    fallback.salesOrderId ||
+    fallback.orderId ||
+    fallback.id ||
+    ''
+  ).trim();
+}
+
+function buildCanonicalReturnCode(salesOrder = {}, fallback = {}) {
+  const code = canonicalOrderCodeFromSalesOrder(salesOrder, fallback);
+  if (!code) return '';
+  const clean = String(code).replace(/^RO[-_]?/i, '').trim();
+  return clean ? `RO-${clean}` : '';
+}
+
+function buildCanonicalReturnLookup({ salesOrderId = '', salesOrderCode = '', returnCode = '' } = {}) {
+  const or = [];
+  if (returnCode) {
+    or.push({ code: returnCode });
+    or.push({ id: returnCode });
+  }
+  if (salesOrderId) {
+    or.push({ salesOrderId });
+    or.push({ orderId: salesOrderId });
+    or.push({ sourceOrderId: salesOrderId });
+    or.push({ deliveryOrderId: salesOrderId });
+  }
+  if (salesOrderCode) {
+    or.push({ salesOrderCode });
+    or.push({ orderCode: salesOrderCode });
+    or.push({ sourceOrderCode: salesOrderCode });
+    or.push({ deliveryOrderCode: salesOrderCode });
+    or.push({ code: `RO-${String(salesOrderCode).replace(/^RO[-_]?/i, '')}` });
+  }
+  return or.length ? { $or: or, status: { $nin: ['deleted'] } } : null;
+}
+
+function scoreReturnOrderCandidate(row = {}, returnCode = '') {
+  const status = String(row.status || row.returnStatus || '').toLowerCase();
+  let score = 0;
+  if (returnCode && (String(row.code || '') === returnCode || String(row.id || '') === returnCode)) score += 1000;
+  if (String(row.code || '').startsWith('RO-')) score += 200;
+  if (String(row.id || '').startsWith('RO-')) score += 100;
+  if (['waiting_receive', 'pending', 'draft', 'active', 'has_return'].includes(status)) score += 80;
+  if (status === 'cleared') score += 40;
+  if (String(row.id || '').startsWith('RO-DRAFT-')) score += 10;
+  if (String(row.id || '').startsWith('RO-MOBILE-')) score -= 20;
+  if (String(row.code || '').startsWith('THH')) score -= 80;
+  if (status === 'duplicate_cancelled') score -= 500;
+  return score;
+}
+
+async function findExistingReturnOrderForSalesOrder({ salesOrderId = '', salesOrderCode = '', returnCode = '' } = {}) {
+  const filter = buildCanonicalReturnLookup({ salesOrderId, salesOrderCode, returnCode });
+  if (!filter) return null;
+  const rows = await returnOrderRepository.findAll(filter, { sort: { createdAt: 1 }, limit: 50 });
+  return (rows || [])
+    .filter((row) => row && !['deleted', 'duplicate_cancelled'].includes(String(row.status || '').toLowerCase()))
+    .sort((a, b) => scoreReturnOrderCandidate(b, returnCode) - scoreReturnOrderCandidate(a, returnCode))[0] || null;
+}
+
+async function cancelDuplicateReturnOrders({ keepId, keepCode = '', salesOrderId = '', salesOrderCode = '', returnCode = '' } = {}) {
+  const filter = buildCanonicalReturnLookup({ salesOrderId, salesOrderCode, returnCode });
+  if (!filter) return { cancelled: 0 };
+  const candidates = await returnOrderRepository.findAll(filter, { sort: { createdAt: 1 }, limit: 100 });
+  const now = dateUtil.nowIso();
+  let cancelled = 0;
+  for (const row of candidates || []) {
+    if (!row) continue;
+    const sameKeep = (keepId && String(row._id || row.id || '') === String(keepId))
+      || (keepCode && (String(row.code || '') === String(keepCode) || String(row.id || '') === String(keepCode)));
+    if (sameKeep) continue;
+    const status = String(row.status || '').toLowerCase();
+    if (['deleted', 'duplicate_cancelled'].includes(status)) continue;
+    if ((row.returnMergeStatus || 'unmerged') === 'merged' || row.masterReturnOrderId || row.masterReturnOrderCode) continue;
+    if (isPostedReturnStatus(row.status) || String(row.warehouseReceiveStatus || '').toLowerCase() === 'received') continue;
+    await returnOrderRepository.upsert({
+      ...row,
+      status: 'duplicate_cancelled',
+      returnStatus: 'duplicate_cancelled',
+      warehouseReceiveStatus: 'duplicate_cancelled',
+      accountingStatus: 'duplicate_cancelled',
+      items: [],
+      amount: 0,
+      totalAmount: 0,
+      totalQuantity: 0,
+      debtReduction: 0,
+      totalReturnAmount: 0,
+      duplicateReason: 'Trùng phiếu trả cùng salesOrderId/salesOrderCode',
+      updatedAt: now
+    });
+    cancelled += 1;
+  }
+  return { cancelled };
 }
 
 async function findReturnOrdersBySalesOrderRefs(orders = [], options = {}) {
@@ -121,8 +234,9 @@ async function findReturnOrdersBySalesOrderRefs(orders = [], options = {}) {
   });
 }
 
-function buildFastReturnCode(body = {}, existing = null) {
-  return String(existing?.code || body.code || `THH${makeId('')}`).trim();
+function buildFastReturnCode(body = {}, existing = null, salesOrder = null) {
+  const canonical = buildCanonicalReturnCode(salesOrder || {}, body || {});
+  return String(canonical || existing?.code || body.code || `THH${makeId('')}`).trim();
 }
 
 async function listReturnOrders(query = {}) {
@@ -225,11 +339,18 @@ function normalizeItems(rawItems = [], salesOrder = null) {
 }
 
 async function findExistingReturnOrder(body = {}) {
+  const salesOrder = await resolveSalesOrder(body).catch(() => null);
+  const salesOrderId = canonicalOrderIdFromSalesOrder(salesOrder || {}, body || {});
+  const salesOrderCode = canonicalOrderCodeFromSalesOrder(salesOrder || {}, body || {});
+  const returnCode = buildCanonicalReturnCode(salesOrder || {}, { ...body, salesOrderCode });
+  const canonical = await findExistingReturnOrderForSalesOrder({ salesOrderId, salesOrderCode, returnCode });
+  if (canonical) return canonical;
   const filter = buildReturnOrderLookupFilter(body);
   if (!filter) return null;
   const candidates = await returnOrderRepository.findAll(filter, { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 });
   return candidates.find((row) => !isInactiveStatus(row)) || null;
 }
+
 
 async function clearExistingDeliveryReturnOrders(body = {}) {
   const filter = buildReturnOrderLookupFilter(body);
@@ -346,8 +467,8 @@ async function buildReturnOrderDocument(body = {}) {
   const returnOrder = {
     ...(existing || {}),
     ...body,
-    id: String(existing?.id || body.id || makeId('RO')).trim(),
-    code: buildFastReturnCode(body, existing),
+    id: String(buildCanonicalReturnCode(salesOrder || {}, body) || existing?.id || body.id || makeId('RO')).trim(),
+    code: buildFastReturnCode(body, existing, salesOrder),
     date: dateUtil.toDateOnly(body.date || existing?.date || dateUtil.todayVN()),
     documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || dateUtil.todayVN()),
     salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
@@ -457,18 +578,19 @@ function normalizeDeliveryReturnItems(rawItems = [], salesOrder = null) {
 
 async function upsertDeliveryReturnOrder(body = {}, options = {}) {
   const salesOrder = await resolveSalesOrder(body);
-  const salesOrderId = String(body.salesOrderId || body.orderId || salesOrder?.id || '').trim();
-  const salesOrderCode = String(body.salesOrderCode || body.orderCode || salesOrder?.code || '').trim();
+  const salesOrderId = canonicalOrderIdFromSalesOrder(salesOrder || {}, body || {});
+  const salesOrderCode = canonicalOrderCodeFromSalesOrder(salesOrder || {}, body || {});
   if (!salesOrderId && !salesOrderCode) {
     return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
   }
 
+  const returnCode = buildCanonicalReturnCode(salesOrder || {}, { ...body, salesOrderCode });
   const customer = await resolveCustomer(body, salesOrder);
   if (!customer && !body.customerName && !salesOrder?.customerName) {
     return { error: 'Không tìm thấy khách hàng', status: 404 };
   }
 
-  const existing = await findExistingReturnOrder({ ...body, salesOrderId, salesOrderCode });
+  const existing = await findExistingReturnOrderForSalesOrder({ salesOrderId, salesOrderCode, returnCode });
   if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
     return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
   }
@@ -479,32 +601,16 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
   const items = normalizeDeliveryReturnItems(body.items, salesOrder);
   const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
-
-  // V45 chuẩn: khi app/phần mềm sửa toàn bộ SL trả về 0 thì KHÔNG sinh thêm bản RO-MOBILE/RO-DRAFT/clear mới.
-  // Phải clear trực tiếp các returnOrders tạm đang có của cùng salesOrderId/salesOrderCode
-  // để không còn bản RO-DRAFT cũ làm lệch "hàng trả" và "còn nợ tạm tính".
-  if (totalQuantity <= 0) {
-    const clearResult = await clearExistingDeliveryReturnOrders({ ...body, salesOrderId, salesOrderCode });
-    return {
-      returnOrder: clearResult.returnOrder,
-      updatedExisting: clearResult.cleared > 0,
-      cleared: clearResult.cleared,
-      skippedCreate: clearResult.cleared <= 0
-    };
-  }
-
   const now = dateUtil.nowIso();
-  const id = String(existing?.id || body.id || `RO-MOBILE-${String(salesOrderId || salesOrderCode).replace(/[^a-zA-Z0-9_-]/g, '')}` || makeId('RO')).trim();
-  const code = buildFastReturnCode(body, existing);
-  const status = totalAmount > 0 ? (body.status || 'waiting_receive') : 'cleared';
 
-  const returnOrder = {
+  const payload = {
     ...(existing || {}),
     ...body,
-    id,
-    code,
-    date: dateUtil.toDateOnly(body.date || body.documentDate || existing?.date || dateUtil.todayVN()),
-    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || dateUtil.todayVN()),
+    id: returnCode || existing?.id || body.id || makeId('RO'),
+    code: returnCode || existing?.code || body.code || makeId('RO'),
+    date: dateUtil.toDateOnly(body.date || body.documentDate || existing?.date || salesOrder?.deliveryDate || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || salesOrder?.date || dateUtil.todayVN()),
+    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || salesOrder?.deliveryDate || existing?.deliveryDate || body.date || dateUtil.todayVN()),
     salesOrderId,
     salesOrderCode,
     orderId: salesOrderId,
@@ -515,31 +621,45 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
     deliveryStaffId: body.deliveryStaffId || existing?.deliveryStaffId || salesOrder?.deliveryStaffId || '',
     deliveryStaffCode: body.deliveryStaffCode || existing?.deliveryStaffCode || salesOrder?.deliveryStaffCode || '',
     deliveryStaffName: body.deliveryStaffName || existing?.deliveryStaffName || salesOrder?.deliveryStaffName || '',
+    salesStaffId: body.salesStaffId || existing?.salesStaffId || salesOrder?.salesStaffId || salesOrder?.staffId || '',
+    salesStaffCode: body.salesStaffCode || existing?.salesStaffCode || salesOrder?.salesStaffCode || salesOrder?.staffCode || '',
+    salesStaffName: body.salesStaffName || existing?.salesStaffName || salesOrder?.salesStaffName || salesOrder?.staffName || '',
     staffCode: body.staffCode || body.deliveryStaffCode || existing?.staffCode || existing?.deliveryStaffCode || '',
     staffName: body.staffName || body.deliveryStaffName || existing?.staffName || existing?.deliveryStaffName || '',
-    items,
-    totalQuantity,
-    totalAmount,
-    amount: totalAmount,
-    debtReduction: totalAmount,
-    status,
-    returnStatus: status,
+    items: totalQuantity > 0 ? items : [],
+    totalQuantity: totalQuantity > 0 ? totalQuantity : 0,
+    totalAmount: totalQuantity > 0 ? totalAmount : 0,
+    amount: totalQuantity > 0 ? totalAmount : 0,
+    debtReduction: totalQuantity > 0 ? totalAmount : 0,
+    totalReturnAmount: totalQuantity > 0 ? totalAmount : 0,
+    status: totalQuantity > 0 ? 'waiting_receive' : 'cleared',
+    returnStatus: totalQuantity > 0 ? 'waiting_receive' : 'cleared',
     returnMergeStatus: existing?.returnMergeStatus || body.returnMergeStatus || 'unmerged',
-    warehouseReceiveStatus: totalAmount > 0 ? (body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || 'waiting_receive') : 'cleared',
+    warehouseReceiveStatus: totalQuantity > 0 ? 'waiting_receive' : 'cleared',
     source: body.source || existing?.source || 'mobile_delivery',
-    accountingStatus: totalAmount > 0 ? (body.accountingStatus || existing?.accountingStatus || 'pending') : 'cleared',
+    accountingStatus: totalQuantity > 0 ? 'pending' : 'cleared',
     accountingConfirmed: false,
     postedAt: '',
     receivedAt: '',
     note: String(body.note ?? existing?.note ?? '').trim(),
-    clearedAt: totalAmount > 0 ? '' : now,
+    clearedAt: totalQuantity > 0 ? '' : now,
     updatedAt: now,
     createdAt: existing?.createdAt || body.createdAt || now
   };
 
-  await returnOrderRepository.upsert(returnOrder, options);
-  return { returnOrder: toClient(returnOrder), updatedExisting: Boolean(existing) };
+  await returnOrderRepository.upsert(payload, options);
+  await cancelDuplicateReturnOrders({
+    keepId: existing?._id || payload.id,
+    keepCode: payload.code,
+    salesOrderId,
+    salesOrderCode,
+    returnCode: payload.code
+  });
+
+  const saved = await findExistingReturnOrderForSalesOrder({ salesOrderId, salesOrderCode, returnCode: payload.code }) || payload;
+  return { returnOrder: toClient(saved), updatedExisting: Boolean(existing), canonicalCode: payload.code };
 }
+
 
 async function createPendingReturnOrder(body = {}, options = {}) {
   const built = await buildReturnOrderDocument({
@@ -717,8 +837,8 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
   const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
   return {
     ...(existing || {}),
-    id: String(existing?.id || `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`).trim(),
-    code: String(existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`).trim(),
+    id: String(buildCanonicalReturnCode(order, existing) || existing?.id || makeId('RO')).trim(),
+    code: String(buildCanonicalReturnCode(order, existing) || existing?.code || makeId('RO')).trim(),
     date: dateUtil.toDateOnly(order.deliveryDate || order.date || existing?.date || dateUtil.todayVN()),
     documentDate: dateUtil.toDateOnly(order.date || order.orderDate || existing?.documentDate || dateUtil.todayVN()),
     salesOrderId: order.id || existing?.salesOrderId || '',
@@ -1132,4 +1252,4 @@ async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
   return { returnOrder: toClient(updated), cleared: !hasReturn };
 }
 
-module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, cancelReturnOrderById, toClient };
+module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, buildCanonicalReturnCode, findExistingReturnOrderForSalesOrder, cancelDuplicateReturnOrders, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, cancelReturnOrderById, toClient };

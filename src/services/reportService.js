@@ -26,7 +26,7 @@ function daysBetween(from, to) {
 }
 
 function isActive(row = {}) {
-  return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase());
+  return !['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'].includes(String(row.status || '').toLowerCase());
 }
 
 function matchDate(row, query = {}) {
@@ -498,7 +498,7 @@ function pushDebtLedgerAnd(match, condition) {
 
 function buildDebtLedgerMatch(query = {}, customerCodes = []) {
   const match = {
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] }
   };
   if (query.dateFrom || query.dateTo || query.date) {
     match.date = {};

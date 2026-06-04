@@ -54,8 +54,8 @@ function buildReturnDraftFromImportedOrder(order = {}) {
   const items = (Array.isArray(order.items) ? order.items : []).map(makeReturnDraftItemFromImportItem).filter((item) => item.productCode || item.productName);
   const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
   return {
-    id: `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
-    code: `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
+    id: `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
+    code: `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
     date: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
     documentDate: dateUtil.toDateOnly(order.date || order.orderDate || dateUtil.todayVN()),
     salesOrderId: order.id || '',

@@ -353,7 +353,7 @@ function createMobileDeliveryService(ctx) {
       if (fullItems.length) {
         const date = dateUtil.todayVN();
         const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
-        const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
+        const stableReturnId = `RO-${String(order.code || order.orderCode || order.salesOrderCode || order.id || '').replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
         const result = await returnOrderService.upsertDeliveryReturnOrder({
           id: stableReturnId,
           salesOrderId: order.id,
@@ -475,7 +475,7 @@ function createMobileDeliveryService(ctx) {
       }
       const activeReturnOrder = getActiveReturnOrdersForSalesOrder(data, order)[0];
       const clearResult = await returnOrderService.upsertDeliveryReturnOrder({
-        id: activeReturnOrder?.id || `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
+        id: activeReturnOrder?.id || `RO-${String(order.code || order.orderCode || order.salesOrderCode || order.id || '').replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
         code: activeReturnOrder?.code || '',
         salesOrderId: order.id,
         salesOrderCode: order.code,
@@ -514,7 +514,7 @@ function createMobileDeliveryService(ctx) {
 
     // App giao hàng chỉ lập phiếu trả ở trạng thái chờ kho nhận.
     // Chỉ khi Đơn tổng trả hàng được kho xác nhận mới nhập tồn và giảm công nợ/doanh thu.
-    const stableReturnId = `RO-MOBILE-${String(order.id || order.code || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
+    const stableReturnId = `RO-${String(order.code || order.orderCode || order.salesOrderCode || order.id || '').replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
     const result = await returnOrderService.upsertDeliveryReturnOrder({
       id: stableReturnId,
       salesOrderId: order.id,
