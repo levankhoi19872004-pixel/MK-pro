@@ -231,9 +231,47 @@ function orderDeliveryDate(order) {
   return dateUtil.toDateOnly(order.deliveryDate || order.ngayGiao || order.shipDate || order.orderDate || order.date);
 }
 
+function toCleanDocKey(value) {
+  if (value == null) return '';
+  if (typeof value === 'object') {
+    const picked = value.id ?? value.code ?? value.orderId ?? value.orderCode ?? value.salesOrderId ?? value.salesOrderCode ?? value._id;
+    return picked == null ? '' : String(picked).trim();
+  }
+  const text = String(value).trim();
+  if (!text || text === '[object Object]') return '';
+  return text;
+}
+
+function compactKeys(values = []) {
+  return [...new Set((values || []).map(toCleanDocKey).filter(Boolean))];
+}
+
 function masterChildIds(master) {
   const raw = master.childOrderIds || master.childOrders || master.orderIds || master.orders || [];
-  return Array.isArray(raw) ? raw.map((item) => String(item?.id || item?.code || item?._id || item).trim()).filter(Boolean) : [];
+  return Array.isArray(raw) ? compactKeys(raw) : [];
+}
+
+function orderIdKeys(order = {}) {
+  return compactKeys([order.id, order._id, order.salesOrderId, order.orderId]);
+}
+
+function orderCodeKeys(order = {}) {
+  return compactKeys([order.code, order.orderNo, order.orderCode, order.salesOrderCode]);
+}
+
+function buildSalesOrderLookupKeys(order = {}) {
+  return compactKeys([...orderIdKeys(order), ...orderCodeKeys(order)]);
+}
+
+function buildReturnOrderFilter(orderIds = [], orderCodes = []) {
+  const or = [];
+  if (orderIds.length) or.push({ salesOrderId: { $in: orderIds } });
+  if (orderCodes.length) or.push({ salesOrderCode: { $in: orderCodes } });
+  if (!or.length) return null;
+  return {
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    $or: or
+  };
 }
 
 function masterCode(master) {
@@ -346,21 +384,23 @@ function returnLinePrice(item = {}) {
 }
 
 function orderMatchKeys(order = {}, master = null, masterChild = null) {
-  const values = [
-    getDocId(order), orderCode(order), order.orderNo, order.orderCode, order.id, order._id,
-    getDocId(masterChild), orderCode(masterChild || {}), masterChild?.orderNo, masterChild?.orderCode, masterChild?.id, masterChild?._id,
-    getDocId(master), masterCode(master), master?.orderNo, master?.masterOrderNo
-  ];
-  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
+  return compactKeys([
+    ...buildSalesOrderLookupKeys(order),
+    ...buildSalesOrderLookupKeys(masterChild || {}),
+    getDocId(master),
+    masterCode(master),
+    master?.orderNo,
+    master?.masterOrderNo
+  ]);
 }
 
 function returnOrderMatchesOrder(row = {}, order = {}, master = null, masterChild = null) {
   if (!isActiveReturnOrder(row)) return false;
   const keys = orderMatchKeys(order, master, masterChild);
-  const rowKeys = [
-    row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.sourceOrderCode, row.refId, row.refCode,
-    row.erpDeliveryReturnKey
-  ].map((value) => String(value || '').trim()).filter(Boolean);
+  const rowKeys = compactKeys([
+    row.salesOrderId,
+    row.salesOrderCode
+  ]);
   if (rowKeys.some((key) => keys.includes(key))) return true;
 
   // Fallback an toàn cho dữ liệu cũ: cùng khách + cùng ngày + cùng mã đơn hiển thị trong ghi chú.
@@ -548,53 +588,26 @@ function putDebtMapEntry(map, row = {}) {
 
 async function buildArDebtMapForOrders(orders = []) {
   const map = new Map();
-  const wanted = new Set();
+  const orderIds = compactKeys((orders || []).flatMap((order) => orderIdKeys(order)));
+  const orderCodes = compactKeys((orders || []).flatMap((order) => orderCodeKeys(order)));
 
-  (orders || []).forEach((order) => {
-    orderMatchKeys(order).forEach((key) => {
-      const normalized = buildDebtMapKey(key);
-      if (normalized) wanted.add(normalized);
-    });
-  });
+  const or = [];
+  if (orderIds.length) or.push({ salesOrderId: { $in: orderIds } });
+  if (orderCodes.length) or.push({ salesOrderCode: { $in: orderCodes } });
+  if (!or.length) return map;
 
-  if (!wanted.size) return map;
-
-  const orderKeys = Array.from(wanted);
+  const wanted = new Set([...orderIds, ...orderCodes]);
 
   try {
-    // Tuyệt đối không gọi reportService.debtReport() ở API app giao hàng.
-    // debtReport() phải load toàn bộ SalesOrder/ArLedger/Receipt/ReturnOrder/Customer,
-    // làm API /api/mobile/delivery/orders bị chậm dù chỉ trả 24 đơn.
-    // Ở đây chỉ query AR Ledger theo đúng các đơn đang giao trong request hiện tại.
-    const rows = await ArLedger.find({
-      $or: [
-        { orderId: { $in: orderKeys } },
-        { orderCode: { $in: orderKeys } },
-        { salesOrderId: { $in: orderKeys } },
-        { salesOrderCode: { $in: orderKeys } },
-        { refId: { $in: orderKeys } },
-        { refCode: { $in: orderKeys } }
-      ]
-    }).lean();
+    // Query AR theo 2 khóa chuẩn salesOrderId/salesOrderCode để tránh 6 nhánh OR làm Mongo scan chậm.
+    const rows = await ArLedger.find({ $or: or }).lean();
 
     const balanceByKey = new Map();
 
     for (const row of Array.isArray(rows) ? rows : []) {
-      const rowKeys = [
-        row.orderId,
-        row.orderCode,
-        row.salesOrderId,
-        row.salesOrderCode,
-        row.refId,
-        row.refCode,
-        row.id,
-        row.code
-      ].map(buildDebtMapKey).filter(Boolean);
-
+      const rowKeys = compactKeys([row.salesOrderId, row.salesOrderCode]);
       if (!rowKeys.length) continue;
 
-      // AR Ledger chuẩn: debit làm tăng công nợ, credit làm giảm công nợ.
-      // Nếu dữ liệu cũ chỉ có amount thì vẫn fallback theo type để tránh mất số liệu.
       let delta = toNumber(row.debit) - toNumber(row.credit);
       if (!delta && row.amount !== undefined) {
         const type = normalizeText(row.type || row.refType || row.source);
@@ -610,7 +623,7 @@ async function buildArDebtMapForOrders(orders = []) {
       }
     }
 
-    for (const key of orderKeys) {
+    for (const key of wanted) {
       if (!balanceByKey.has(key)) continue;
       const debt = normalizeDebtAmount(Math.max(0, toNumber(balanceByKey.get(key))));
       const row = { orderId: key, orderCode: key, id: key, code: key, debt, source: 'ar_ledger_batch' };
@@ -622,6 +635,7 @@ async function buildArDebtMapForOrders(orders = []) {
 
   return map;
 }
+
 
 function findArDebtRow(arDebtMap, order = {}, sourceOrder = {}) {
   if (!arDebtMap || !arDebtMap.size) return null;
@@ -704,17 +718,26 @@ function buildCode(prefix) {
 }
 
 async function findOrderByIdOrCode(idOrCode) {
-  const key = String(idOrCode || '').trim();
+  const key = toCleanDocKey(idOrCode);
   if (!key) return null;
-  return SalesOrder.findOne({
-    $or: [
-      { id: key },
-      { code: key },
-      { orderNo: key },
-      { orderCode: key },
-      ...(key.match(/^[a-f\d]{24}$/i) ? [{ _id: key }] : [])
-    ]
-  });
+
+  // Ưu tiên 2 khóa chuẩn có index. Chỉ fallback các khóa cũ khi thật sự không thấy.
+  let order = await SalesOrder.findOne({ id: key });
+  if (order) return order;
+
+  order = await SalesOrder.findOne({ code: key });
+  if (order) return order;
+
+  order = await SalesOrder.findOne({ orderCode: key });
+  if (order) return order;
+
+  order = await SalesOrder.findOne({ orderNo: key });
+  if (order) return order;
+
+  if (key.match(/^[a-f\d]{24}$/i)) {
+    return SalesOrder.findById(key);
+  }
+  return null;
 }
 
 
@@ -756,33 +779,30 @@ function deliveryPaymentPatchFromOrder(order = {}) {
 }
 
 function orderIdentityKeys(...sources) {
-  return [...new Set(sources.flatMap((source) => [
-    source,
-    source && source.id,
-    source && source._id,
-    source && source.code,
-    source && source.orderNo,
-    source && source.orderCode,
-    source && source.documentCode,
-    source && source.salesOrderId,
-    source && source.salesOrderCode
-  ]).map((value) => String(value || '').trim()).filter(Boolean))];
+  return compactKeys(sources.flatMap((source) => {
+    if (!source || typeof source !== 'object') return [source];
+    return [
+      source.id,
+      source._id,
+      source.code,
+      source.orderNo,
+      source.orderCode,
+      source.documentCode,
+      source.salesOrderId,
+      source.salesOrderCode
+    ];
+  }));
 }
 
 async function activeReturnSummaryForOrder(order = {}) {
   const keys = orderIdentityKeys(order);
   if (!keys.length) return { items: [], amount: 0, returnOrder: null };
-  const rows = await ReturnOrder.find({
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
-    $or: [
-      { salesOrderId: { $in: keys } },
-      { salesOrderCode: { $in: keys } },
-      { orderId: { $in: keys } },
-      { orderCode: { $in: keys } },
-      { refId: { $in: keys } },
-      { refCode: { $in: keys } }
-    ]
-  }).sort({ updatedAt: -1, createdAt: -1 }).lean();
+  const orderIds = compactKeys([order.id, order._id, order.salesOrderId, order.orderId]);
+  const orderCodes = compactKeys([order.code, order.orderNo, order.orderCode, order.salesOrderCode, order.documentCode]);
+  const filter = buildReturnOrderFilter(orderIds.length ? orderIds : keys, orderCodes.length ? orderCodes : keys);
+  const rows = filter
+    ? await ReturnOrder.find(filter).sort({ updatedAt: -1, createdAt: -1 }).lean()
+    : [];
   const active = rows.find((row) => !['cancelled', 'canceled', 'void', 'deleted'].includes(String(row.status || '').toLowerCase())) || null;
   const items = Array.isArray(active?.items) ? active.items : [];
   const amount = items.length
@@ -1367,21 +1387,39 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       });
     }
 
-    const objectIdKeys = childKeys.filter((key) => /^[a-f\d]{24}$/i.test(key));
-    const orderFilter = {
-      $or: [
-        { id: { $in: childKeys } },
-        { code: { $in: childKeys } },
-        { orderNo: { $in: childKeys } },
-        { orderCode: { $in: childKeys } },
-        ...(objectIdKeys.length ? [{ _id: { $in: objectIdKeys } }] : [])
-      ]
+    // Query SalesOrder theo khóa chuẩn từng bước để Mongo dùng index rõ ràng, tránh 5 nhánh $or + $in bị scan chậm.
+    const orders = [];
+    const orderByKey = new Map();
+    const addOrders = (rows = []) => {
+      for (const order of rows || []) {
+        const keys = buildSalesOrderLookupKeys(order);
+        const stableKey = keys[0] || toCleanDocKey(order._id);
+        if (stableKey && orderByKey.has(stableKey)) continue;
+        orders.push(order);
+        for (const key of keys) orderByKey.set(String(key), order);
+      }
     };
 
-    const orders = await SalesOrder.find(orderFilter).lean();
-    const orderByKey = new Map();
-    for (const order of orders) {
-      for (const key of orderMatchKeys(order)) orderByKey.set(String(key), order);
+    addOrders(await SalesOrder.find({ id: { $in: childKeys } }).lean());
+
+    const missingAfterId = childKeys.filter((key) => !orderByKey.has(key));
+    if (missingAfterId.length) {
+      addOrders(await SalesOrder.find({ code: { $in: missingAfterId } }).lean());
+    }
+
+    const missingAfterCode = childKeys.filter((key) => !orderByKey.has(key));
+    if (missingAfterCode.length) {
+      addOrders(await SalesOrder.find({ orderCode: { $in: missingAfterCode } }).lean());
+    }
+
+    const missingAfterOrderCode = childKeys.filter((key) => !orderByKey.has(key));
+    if (missingAfterOrderCode.length) {
+      addOrders(await SalesOrder.find({ orderNo: { $in: missingAfterOrderCode } }).lean());
+    }
+
+    const objectIdKeys = childKeys.filter((key) => !orderByKey.has(key) && /^[a-f\d]{24}$/i.test(key));
+    if (objectIdKeys.length) {
+      addOrders(await SalesOrder.find({ _id: { $in: objectIdKeys } }).lean());
     }
 
     const deliveryPairs = [];
@@ -1398,30 +1436,12 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       deliveryPairs.push({ order, master, masterChild });
     }
 
-    const returnOrderKeys = [...new Set(
-      deliveryPairs
-        .flatMap(({ order, master, masterChild }) => orderMatchKeys(order, master, masterChild))
-        .map((value) => String(value || '').trim())
-        .filter(Boolean)
-    )];
+    const returnOrderIds = compactKeys(deliveryPairs.flatMap(({ order }) => orderIdKeys(order)));
+    const returnOrderCodes = compactKeys(deliveryPairs.flatMap(({ order }) => orderCodeKeys(order)));
+    const returnOrderFilter = buildReturnOrderFilter(returnOrderIds, returnOrderCodes);
 
-    // Không lấy toàn bộ returnOrders nữa. Chỉ lấy phiếu trả liên quan tới các đơn đang giao.
-    const returnOrders = returnOrderKeys.length
-      ? await ReturnOrder.find({
-          status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
-          $or: [
-            { salesOrderId: { $in: returnOrderKeys } },
-            { salesOrderCode: { $in: returnOrderKeys } },
-            { orderId: { $in: returnOrderKeys } },
-            { orderCode: { $in: returnOrderKeys } },
-            { sourceOrderId: { $in: returnOrderKeys } },
-            { sourceOrderCode: { $in: returnOrderKeys } },
-            { refId: { $in: returnOrderKeys } },
-            { refCode: { $in: returnOrderKeys } },
-            { erpDeliveryReturnKey: { $in: returnOrderKeys } }
-          ]
-        }).lean()
-      : [];
+    // Không lấy toàn bộ returnOrders nữa. Chỉ lấy theo 2 khóa chuẩn salesOrderId/salesOrderCode.
+    const returnOrders = returnOrderFilter ? await ReturnOrder.find(returnOrderFilter).lean() : [];
 
     const customerCodes = [...new Set(deliveryPairs.map(({ order, masterChild }) => order.customerCode || masterChild?.customerCode).filter(Boolean))];
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
