@@ -34,6 +34,27 @@ const debts = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+const debtsInit = asyncHandler(async (req, res) => {
+  const result = await reportService.debtInit(req.query || {});
+  res.json({ ok: true, ...result });
+});
+
+const debtsCustomers = asyncHandler(async (req, res) => {
+  const result = await reportService.debtCustomers(req.query || {});
+  res.json({ ok: true, ...result });
+});
+
+const debtsCustomerDetail = asyncHandler(async (req, res) => {
+  const query = { ...(req.query || {}), customerCode: req.params.customerCode || req.query.customerCode || req.query.code };
+  const result = await reportService.debtCustomerDetail(query);
+  res.json({ ok: true, ...result });
+});
+
+const debtsArLedger = asyncHandler(async (req, res) => {
+  const result = await reportService.debtArLedger(req.query || {});
+  res.json({ ok: true, ...result });
+});
+
 const debtsBySalesman = asyncHandler(async (req, res) => {
   // Tổng hợp công nợ theo NVBH cũng dùng số dư AR hiện tại, không bắt buộc khoảng ngày.
   const result = await reportService.debtBySalesmanReport(req.query || {});
@@ -73,6 +94,10 @@ module.exports = {
   stock,
   stockCard,
   debts,
+  debtsInit,
+  debtsCustomers,
+  debtsCustomerDetail,
+  debtsArLedger,
   debtsBySalesman,
   debtsByDelivery,
   dashboard,

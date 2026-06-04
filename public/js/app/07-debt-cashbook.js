@@ -85,7 +85,7 @@ async function loadDebts(){
   params.set('page','1');
   params.set('limit','50');
   params.set('includePaid',criteria.status==='paid'?'1':'0');
-  const url=`/api/debts?${params.toString()}`;
+  const url=`/api/debts/customers?${params.toString()}`;
   try{
     if(debtCount)debtCount.textContent='Đang tra cứu công nợ...';
     const res=await fetch(url);
@@ -612,7 +612,7 @@ async function loadArLedger(){
     params.set('dateFrom',d);
   }
   if(!params.has('dateTo')) params.set('dateTo',params.get('dateFrom'));
-  const url=`/api/debts?${params.toString()}`;
+  const url=`/api/debts/ar-ledger?${params.toString()}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được AR Ledger');
     const rows=json.arLedger||[];

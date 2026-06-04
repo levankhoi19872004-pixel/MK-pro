@@ -473,294 +473,259 @@ function buildArLedgerDiagnostics(receipts = [], ledger = []) {
   return diagnostics;
 }
 
-async function debtReport(query = {}) {
-  const [orders, journals, receipts, returns, customers] = await Promise.all([
-    SalesOrder.find({}).sort({ date: 1, createdAt: 1 }).lean(),
-    ArLedger.find({}).lean().catch(() => []),
-    Receipt.find({}).lean(),
-    ReturnOrder.find({}).lean(),
-    Customer.find({}).lean().catch(() => [])
-  ]);
 
-  const activeOrders = orders.filter(isActive).filter((order) => matchDate(order, query));
-  const orderByKey = new Map();
-  activeOrders.forEach((order) => {
-    const id = String(order.id || order._id || '').trim();
-    const code = String(order.code || order.orderCode || '').trim();
-    if (id) orderByKey.set(id, order);
-    if (code) orderByKey.set(code, order);
-  });
-  const ledger = activeLedgerRows(journals).filter((entry) => {
-    const type = String(entry.type || '').toLowerCase();
-    if (isLedgerReturnOrMobileMoneyBlocked(entry, orderByKey)) return false;
-    if (isMobileDeliveryMoneyDoc(entry)) {
-      const order = findOrderForMoneyDoc(entry, orderByKey);
-      return order ? isDeliveredForAR(order) : false;
-    }
-    const isSaleDebit = type.includes('sale') && toNumber(entry.debit || entry.amount) > 0;
-    if (!isSaleDebit) return true;
-    const orderKey = getLedgerOrderKey(entry);
-    const order = orderByKey.get(orderKey);
-    return order ? isDeliveredForAR(order) : true;
-  });
-  const ledgerKeys = new Set(ledger.map(moneyDocKey).filter(Boolean));
+function escapeRegExp(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-  // ERP/DMS chuẩn: báo cáo công nợ đọc từ AR Ledger canonical collection arLedgers.
-  // Với dữ liệu cũ chưa được rebuild journal, tạo dòng backfill ảo khi báo cáo để không mất số liệu.
-  activeOrders.forEach((order) => {
-    const hasSaleLedger = ledger.some((row) => String(row.type || '').toLowerCase().includes('sale') && isLedgerForOrder(row, order));
-    if (!hasSaleLedger) {
-      const row = makeVirtualSaleLedger(order);
-      if (row) ledger.push(row);
-    }
-  });
+function getSafeLimit(value, defaultLimit = 50, maxLimit = 100) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return defaultLimit;
+  return Math.min(Math.max(1, Math.floor(n)), maxLimit);
+}
 
-  returns.filter(isActive).forEach((row) => {
-    if (!isReturnDocAllowedForAR(row, orderByKey)) return;
-    const key = moneyDocKey(row);
-    const returnOrderKeys = [
-      row.id, row._id, row.code, row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.sourceOrderCode
-    ].map((value) => String(value || '').trim()).filter(Boolean);
-    const hasReturnLedger = ledger.some((entry) => {
-      const type = String(entry.type || '').toLowerCase();
-      const refType = String(entry.refType || '').toLowerCase();
-      if (!type.includes('return') && !refType.includes('return')) return false;
-      if (entry.refId === row.id || entry.refCode === row.code || moneyDocKey(entry) === key) return true;
-      const entryKeys = [entry.orderId, entry.orderCode, entry.salesOrderId, entry.salesOrderCode, entry.refId, entry.refCode]
-        .map((value) => String(value || '').trim())
-        .filter(Boolean);
-      return entryKeys.some((entryKey) => returnOrderKeys.includes(entryKey));
+function getPage(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.max(1, Math.floor(n));
+}
+
+function buildDebtLedgerMatch(query = {}, customerCodes = []) {
+  const match = {
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
+  };
+  if (query.dateFrom || query.dateTo || query.date) {
+    match.date = {};
+    if (query.dateFrom) match.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) match.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) match.date = dateUtil.toDateOnly(query.date);
+  }
+  if (customerCodes.length) {
+    match.customerCode = { $in: customerCodes };
+  }
+  return match;
+}
+
+async function findDebtCustomersForFilter(query = {}, hardLimit = 500) {
+  const filters = [];
+  const q = String(query.q || query.keyword || query.search || '').trim();
+  if (q) {
+    const rx = new RegExp(escapeRegExp(q), 'i');
+    filters.push({ $or: [
+      { code: rx }, { customerCode: rx }, { name: rx }, { customerName: rx }, { phone: rx }, { customerPhone: rx }
+    ] });
+  }
+  if (query.salesman) {
+    const rx = new RegExp(escapeRegExp(query.salesman), 'i');
+    filters.push({ $or: [
+      { salesmanCode: rx }, { salesmanName: rx }, { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx }
+    ] });
+  }
+  if (query.delivery) {
+    const rx = new RegExp(escapeRegExp(query.delivery), 'i');
+    filters.push({ $or: [
+      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }, { deliveryStaff: rx }
+    ] });
+  }
+  const filter = filters.length ? { $and: filters } : {};
+  const rows = await Customer.find(filter)
+    .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName staffCode staffName salesStaffCode salesStaffName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
+    .limit(hardLimit)
+    .lean()
+    .catch(() => []);
+  return rows.filter(isActive);
+}
+
+function makeCustomerDebtMeta(customer = {}) {
+  return {
+    customerId: String(customer.id || customer._id || '').trim(),
+    customerCode: String(customer.code || customer.customerCode || '').trim(),
+    customerName: customer.name || customer.customerName || '',
+    phone: customer.phone || customer.customerPhone || '',
+    address: customer.address || customer.customerAddress || '',
+    salesmanCode: customer.salesmanCode || customer.staffCode || customer.salesStaffCode || '',
+    salesmanName: customer.salesmanName || customer.staffName || customer.salesStaffName || '',
+    deliveryStaffCode: customer.deliveryStaffCode || customer.deliveryCode || customer.deliveryStaff || '',
+    deliveryStaffName: customer.deliveryStaffName || customer.deliveryName || ''
+  };
+}
+
+function buildCustomerMetaMap(customers = []) {
+  const map = new Map();
+  customers.forEach((customer) => {
+    const meta = makeCustomerDebtMeta(customer);
+    [meta.customerId, meta.customerCode, meta.customerName].forEach((key) => {
+      const cleanKey = String(key || '').trim();
+      if (cleanKey && !map.has(cleanKey)) map.set(cleanKey, meta);
     });
-    if (!hasReturnLedger) {
-      const virtual = makeVirtualReturnLedger(row);
-      if (virtual) ledger.push(virtual);
-    }
   });
+  return map;
+}
 
-  receipts.filter(isActive).forEach((row) => {
-    if (!isMoneyDocAllowedForAR(row, orderByKey)) return;
-    const hasReceiptLedger = ledgerKeys.has(String(row.id || '').trim()) || ledgerKeys.has(String(row.code || '').trim()) || ledger.some((entry) => entry.refId === row.id || entry.refCode === row.code);
-    if (!hasReceiptLedger) {
-      const virtual = makeVirtualReceiptLedger(row);
-      if (virtual) ledger.push(virtual);
-    }
-  });
+function applyDebtStatusFilter(rows = [], query = {}) {
+  const status = String(query.status || '').trim();
+  const includePaid = String(query.includePaid || '').trim() === '1' || status === 'paid';
+  if (includePaid) return rows;
+  if (!status || status === 'all' || status === 'unpaid' || status === 'open') {
+    return rows.filter((row) => hasOpenDebt(row.debt) || isOverpaid(row.debt));
+  }
+  if (status === 'overdue') return rows.filter((row) => row.status === 'overdue');
+  return rows.filter((row) => row.status === status);
+}
 
+async function debtReport(query = {}) {
+  // V45 FAST PATH: /api/debts không được load toàn bộ orders/arLedgers/receipts/returns/customers.
+  // API này chỉ đọc AR Ledger theo bộ lọc, phân trang thật, và chỉ lấy customer meta liên quan.
+  const page = getPage(query.page);
+  const limit = getSafeLimit(query.limit, 50, 100);
+  const skip = (page - 1) * limit;
+  const hasSearchCriteria = Boolean(query.q || query.keyword || query.search || query.salesman || query.delivery || query.customerCode || query.customerId || query.dateFrom || query.dateTo || query.date);
 
-  const seenReturnLedger = new Map();
-  for (let i = ledger.length - 1; i >= 0; i -= 1) {
-    const entry = ledger[i] || {};
-    const type = String(entry.type || '').toLowerCase();
-    const refType = String(entry.refType || '').toLowerCase();
-    if (!type.includes('return') && !refType.includes('return')) continue;
-    const orderKey = getLedgerOrderKey(entry);
-    const credit = Math.round(toNumber(entry.credit ?? entry.amount));
-    if (!orderKey || credit <= 0) continue;
-    const signature = `${orderKey}::${credit}`;
-    const isPreferred = isAccountingConfirmedDoc(entry) || String(entry.source || '').toLowerCase().includes('accounting_confirmed');
-    const previousIndex = seenReturnLedger.get(signature);
-    if (previousIndex === undefined) {
-      seenReturnLedger.set(signature, i);
-      continue;
-    }
-    const previous = ledger[previousIndex] || {};
-    const previousPreferred = isAccountingConfirmedDoc(previous) || String(previous.source || '').toLowerCase().includes('accounting_confirmed');
-    if (isPreferred && !previousPreferred) {
-      ledger.splice(previousIndex, 1);
-      seenReturnLedger.set(signature, i);
-    } else {
-      ledger.splice(i, 1);
+  let seedCustomers = [];
+  if (query.q || query.keyword || query.search || query.salesman || query.delivery) {
+    seedCustomers = await findDebtCustomersForFilter(query, 500);
+    // Nếu người dùng đã lọc mà không có khách phù hợp thì trả nhanh, không quét AR Ledger toàn hệ thống.
+    if (!seedCustomers.length) {
+      const emptySummary = {
+        page,
+        limit,
+        hasMore: false,
+        orderCount: 0,
+        customerCount: 0,
+        overdueCount: 0,
+        totalDebit: 0,
+        totalCredit: 0,
+        totalDebt: 0,
+        totalPositiveDebt: 0,
+        totalOverpaid: 0,
+        debtZeroTolerance: DEBT_ZERO_TOLERANCE,
+        journalCount: 0,
+        arLedgerCount: 0,
+        arWarningCount: 0,
+        optimized: true
+      };
+      return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts: [], customerSummary: [], bySalesman: [], byDelivery: [], arLedger: [], arDiagnostics: [], summary: emptySummary };
     }
   }
 
-  const customerMeta = new Map();
-  customers.filter(isActive).forEach((customer) => {
-    const meta = {
-      customerId: String(customer.id || customer._id || '').trim(),
-      customerCode: String(customer.code || customer.customerCode || '').trim(),
-      customerName: customer.name || customer.customerName || '',
-      phone: customer.phone || customer.customerPhone || '',
-      address: customer.address || customer.customerAddress || '',
-      salesmanCode: customer.salesmanCode || customer.staffCode || customer.salesStaffCode || '',
-      salesmanName: customer.salesmanName || customer.staffName || customer.salesStaffName || '',
-      deliveryStaffCode: customer.deliveryStaffCode || customer.deliveryCode || customer.deliveryStaff || '',
-      deliveryStaffName: customer.deliveryStaffName || customer.deliveryName || ''
-    };
-    [meta.customerId, meta.customerCode, meta.customerName].forEach((key) => {
-      const cleanKey = String(key || '').trim();
-      if (cleanKey && !customerMeta.has(cleanKey)) customerMeta.set(cleanKey, meta);
-    });
-  });
+  const seedCodes = seedCustomers.map((c) => String(c.code || c.customerCode || '').trim()).filter(Boolean);
+  if (query.customerCode) seedCodes.push(String(query.customerCode).trim());
+  if (query.customerId) seedCodes.push(String(query.customerId).trim());
+  const customerCodes = Array.from(new Set(seedCodes));
+  const match = buildDebtLedgerMatch(query, customerCodes);
 
-  const orderMeta = new Map();
-  activeOrders.forEach((order) => {
-    const id = String(order.id || order._id || '').trim();
-    const code = String(order.code || order.orderCode || '').trim();
-    const cmeta = customerMeta.get(String(order.customerId || '').trim())
-      || customerMeta.get(String(order.customerCode || '').trim())
-      || customerMeta.get(String(order.customerName || '').trim())
-      || {};
-    const meta = {
-      orderId: id || code,
-      orderCode: code || id,
-      documentDate: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
-      dueDate: dateUtil.toDateOnly(order.dueDate || order.paymentDueDate || order.date || order.createdAt),
-      customerId: order.customerId || cmeta.customerId || '',
-      customerCode: order.customerCode || cmeta.customerCode || '',
-      customerName: order.customerName || cmeta.customerName || '',
-      phone: order.phone || order.customerPhone || cmeta.phone || '',
-      address: order.address || order.customerAddress || cmeta.address || '',
-      salesmanCode: order.salesmanCode || order.staffCode || order.salesStaffCode || cmeta.salesmanCode || '',
-      salesmanName: order.salesmanName || order.staffName || order.salesStaffName || cmeta.salesmanName || '',
-      deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || cmeta.deliveryStaffCode || '',
-      deliveryStaffName: order.deliveryStaffName || order.deliveryName || cmeta.deliveryStaffName || ''
-    };
-    if (id) orderMeta.set(id, meta);
-    if (code) orderMeta.set(code, meta);
-  });
+  // Nếu không có tiêu chí, chỉ đọc trang nhỏ gần nhất thay vì tính toàn bộ hệ thống.
+  if (!hasSearchCriteria) {
+    match.date = match.date || { $gte: dateUtil.toDateOnly(dateUtil.todayVN()) };
+  }
 
-  const byOrder = new Map();
-  const unappliedByCustomer = new Map();
-  const ensureOrder = (key, seed = {}) => {
-    const cleanKey = String(key || seed.orderId || seed.orderCode || '').trim();
-    if (!cleanKey) return null;
-    if (!byOrder.has(cleanKey)) {
-      byOrder.set(cleanKey, {
-        orderId: seed.orderId || cleanKey,
-        orderCode: seed.orderCode || cleanKey,
-        documentDate: seed.documentDate || '',
-        dueDate: seed.dueDate || seed.documentDate || '',
-        customerId: seed.customerId || '',
-        customerCode: seed.customerCode || '',
-        customerName: seed.customerName || '',
-        phone: seed.phone || '',
-        address: seed.address || '',
-        salesmanCode: seed.salesmanCode || '',
-        salesmanName: seed.salesmanName || '',
-        deliveryStaffCode: seed.deliveryStaffCode || '',
-        deliveryStaffName: seed.deliveryStaffName || '',
-        debit: 0,
-        credit: 0,
-        receiptAmount: 0,
-        returnAmount: 0,
-        bonusAmount: 0,
-        ledgerEntries: []
-      });
-    }
-    return byOrder.get(cleanKey);
-  };
+  const grouped = await ArLedger.aggregate([
+    { $match: match },
+    { $project: {
+      date: { $ifNull: ['$date', '$createdAt'] },
+      code: 1,
+      type: 1,
+      refType: 1,
+      refId: 1,
+      refCode: 1,
+      orderId: { $ifNull: ['$orderId', '$salesOrderId'] },
+      orderCode: { $ifNull: ['$orderCode', '$salesOrderCode'] },
+      customerId: 1,
+      customerCode: 1,
+      customerName: 1,
+      salesmanCode: 1,
+      salesmanName: 1,
+      salesStaffCode: 1,
+      salesStaffName: 1,
+      deliveryStaffCode: 1,
+      deliveryStaffName: 1,
+      debit: { $ifNull: ['$debit', 0] },
+      credit: { $ifNull: ['$credit', 0] },
+      amount: { $ifNull: ['$amount', 0] },
+      status: 1,
+      source: 1,
+      note: 1,
+      createdAt: 1
+    } },
+    { $group: {
+      _id: {
+        customerCode: '$customerCode',
+        customerId: '$customerId',
+        customerName: '$customerName',
+        orderCode: '$orderCode',
+        orderId: '$orderId'
+      },
+      firstDate: { $min: '$date' },
+      lastDate: { $max: '$date' },
+      debit: { $sum: { $cond: [{ $gt: ['$debit', 0] }, '$debit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, '$amount', 0] }] } },
+      credit: { $sum: { $cond: [{ $gt: ['$credit', 0] }, '$credit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, 0, '$amount'] }] } },
+      receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
+      returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
+      bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
+      salesmanCode: { $first: { $ifNull: ['$salesmanCode', '$salesStaffCode'] } },
+      salesmanName: { $first: { $ifNull: ['$salesmanName', '$salesStaffName'] } },
+      deliveryStaffCode: { $first: '$deliveryStaffCode' },
+      deliveryStaffName: { $first: '$deliveryStaffName' }
+    } },
+    { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
+    { $sort: { debt: -1, lastDate: -1 } },
+    { $limit: Math.max(skip + limit + 1, limit + 1) }
+  ]).allowDiskUse(true).exec().catch(() => []);
 
-  ledger.filter(isActive).forEach((entry) => {
-    const orderKey = getLedgerOrderKey(entry);
-    const meta = orderMeta.get(orderKey) || {};
-    const debit = toNumber(entry.debit || (String(entry.type || '').toLowerCase().includes('sale') ? entry.amount : 0));
-    const credit = toNumber(entry.credit || (!String(entry.type || '').toLowerCase().includes('sale') ? entry.amount : 0));
-    const type = String(entry.type || '').toLowerCase();
-    const customerKey = getLedgerCustomerKey(entry);
-
-    if (!orderKey && customerKey && (credit > 0 || debit > 0)) {
-      // Phiếu thu không gắn đơn được phân bổ theo khách.
-      // Nếu phiếu thu bị hủy, bút toán đảo RECEIPT_VOID là debit và sẽ triệt tiêu credit gốc.
-      unappliedByCustomer.set(customerKey, (unappliedByCustomer.get(customerKey) || 0) + credit - debit);
-      return;
-    }
-
-    if (orderKey && !orderMeta.has(orderKey)) {
-      // Không đưa bút toán mồ côi vào báo cáo công nợ theo đơn.
-      // Đây là nguyên nhân làm danh sách đơn bán một số lượng nhưng báo cáo công nợ lại ra số khác.
-      return;
-    }
-
-    const target = ensureOrder(orderKey, {
-      ...meta,
-      orderId: meta.orderId || entry.orderId || entry.refId || '',
-      orderCode: meta.orderCode || entry.orderCode || entry.refCode || '',
-      documentDate: meta.documentDate || dateUtil.toDateOnly(entry.date || entry.createdAt),
-      dueDate: meta.dueDate || dateUtil.toDateOnly(entry.dueDate || entry.date || entry.createdAt),
-      customerId: meta.customerId || entry.customerId || '',
-      customerCode: meta.customerCode || entry.customerCode || '',
-      customerName: meta.customerName || entry.customerName || '',
-      salesmanCode: meta.salesmanCode || entry.salesmanCode || '',
-      salesmanName: meta.salesmanName || entry.salesmanName || '',
-      deliveryStaffCode: meta.deliveryStaffCode || entry.deliveryStaffCode || '',
-      deliveryStaffName: meta.deliveryStaffName || entry.deliveryStaffName || ''
-    });
-    if (!target) return;
-    target.debit += debit;
-    target.credit += credit;
-    if (type.includes('receipt') || type === 'debt') target.receiptAmount += credit - debit;
-    if (type.includes('return')) target.returnAmount += credit - debit;
-    if (type.includes('bonus') || type.includes('allowance') || type.includes('discount')) target.bonusAmount += credit - debit;
-    target.ledgerEntries.push(entry);
-  });
-
-  // Phân bổ khoản thu theo khách chưa gắn đơn vào các đơn còn nợ cũ nhất của khách.
-  Array.from(byOrder.values())
-    .sort((a, b) => String(a.documentDate).localeCompare(String(b.documentDate)))
-    .forEach((row) => {
-      const keys = [row.customerId, row.customerCode, row.customerName].map((v) => String(v || '').trim()).filter(Boolean);
-      for (const key of keys) {
-        let available = toNumber(unappliedByCustomer.get(key));
-        if (available <= 0) continue;
-        const currentDebt = Math.max(0, row.debit - row.credit);
-        const applied = Math.min(currentDebt, available);
-        if (applied > 0) {
-          row.credit += applied;
-          row.receiptAmount += applied;
-          unappliedByCustomer.set(key, available - applied);
-        }
-      }
-    });
+  const usedCustomerKeys = Array.from(new Set(grouped.flatMap((row) => [row._id.customerCode, row._id.customerId, row._id.customerName]).map((v) => String(v || '').trim()).filter(Boolean)));
+  const extraCustomers = usedCustomerKeys.length
+    ? await Customer.find({ $or: [{ code: { $in: usedCustomerKeys } }, { customerCode: { $in: usedCustomerKeys } }, { name: { $in: usedCustomerKeys } }, { customerName: { $in: usedCustomerKeys } }] })
+      .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName staffCode staffName salesStaffCode salesStaffName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
+      .limit(usedCustomerKeys.length + 50)
+      .lean()
+      .catch(() => [])
+    : [];
+  const customerMeta = buildCustomerMetaMap([...seedCustomers, ...extraCustomers]);
 
   const now = dateUtil.todayVN();
-  let debts = Array.from(byOrder.values()).map((row) => {
-    const rawDebt = toNumber(row.debit) - toNumber(row.credit);
-    const debt = normalizeDebtAmount(rawDebt);
-    const overpaidAmount = Math.max(0, -debt);
-    const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, row.dueDate || row.documentDate)) : 0;
+  let debts = grouped.map((row) => {
+    const id = row._id || {};
+    const cmeta = customerMeta.get(String(id.customerCode || '').trim()) || customerMeta.get(String(id.customerId || '').trim()) || customerMeta.get(String(id.customerName || '').trim()) || {};
+    const debt = normalizeDebtAmount(toNumber(row.debit) - toNumber(row.credit));
+    const documentDate = dateUtil.toDateOnly(row.firstDate || row.lastDate || new Date());
+    const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, documentDate)) : 0;
     const status = isOverpaid(debt) ? 'overpaid' : (hasOpenDebt(debt) ? (overdueDays > 0 ? 'overdue' : 'open') : 'paid');
     return {
-      ...row,
-      paidOnOrder: 0,
+      orderId: id.orderId || id.orderCode || '',
+      orderCode: id.orderCode || id.orderId || '',
+      customerId: cmeta.customerId || id.customerId || '',
+      customerCode: cmeta.customerCode || id.customerCode || '',
+      customerName: cmeta.customerName || id.customerName || 'Chưa rõ khách',
+      phone: cmeta.phone || '',
+      address: cmeta.address || '',
+      salesmanCode: cmeta.salesmanCode || row.salesmanCode || '',
+      salesmanName: cmeta.salesmanName || row.salesmanName || '',
+      deliveryStaffCode: cmeta.deliveryStaffCode || row.deliveryStaffCode || '',
+      deliveryStaffName: cmeta.deliveryStaffName || row.deliveryStaffName || '',
+      documentDate,
+      dueDate: documentDate,
+      debit: toNumber(row.debit),
+      credit: toNumber(row.credit),
       receiptAmount: Math.max(0, toNumber(row.receiptAmount)),
       returnAmount: Math.max(0, toNumber(row.returnAmount)),
       bonusAmount: Math.max(0, toNumber(row.bonusAmount)),
       debt,
       rawDebt: debt,
-      overpaidAmount,
+      overpaidAmount: Math.max(0, -debt),
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
       overdueDays,
-      agingDays: row.documentDate ? Math.max(0, daysBetween(now, row.documentDate)) : 0,
+      agingDays: documentDate ? Math.max(0, daysBetween(now, documentDate)) : 0,
       status
     };
   });
 
-  debts = filterByQuery(debts, query, ['orderCode', 'customerCode', 'customerName', 'salesmanName', 'deliveryStaffName', 'salesmanCode', 'deliveryStaffCode']);
-  if (query.salesman) {
-    const s = normalizeText(query.salesman);
-    debts = debts.filter((row) => [row.salesmanCode, row.salesmanName].some((value) => normalizeText(value).includes(s)));
-  }
-  if (query.delivery) {
-    const d = normalizeText(query.delivery);
-    debts = debts.filter((row) => [row.deliveryStaffCode, row.deliveryStaffName].some((value) => normalizeText(value).includes(d)));
-  }
-  if (query.status && query.status !== 'all') {
-    if (query.status === 'unpaid' || query.status === 'open') {
-      debts = debts.filter((row) => hasOpenDebt(row.debt) || isOverpaid(row.debt));
-    } else {
-      debts = debts.filter((row) => row.status === query.status);
-    }
-  }
-
-  // Tab Tổng công nợ là báo cáo quản trị: mặc định chỉ hiển thị khách còn nợ > 0.
-  // Khách đã tất toán chỉ xuất hiện khi người dùng lọc trạng thái "Đã tất toán" hoặc truyền includePaid=1.
-  const includePaidCustomers = String(query.includePaid || '').trim() === '1' || String(query.status || '') === 'paid';
-  // Mặc định hiển thị cả dòng nợ âm để kế toán thấy lỗi thu vượt/thiếu bút toán phát sinh nợ,
-  // không che âm về 0.
-  const reportDebtRows = includePaidCustomers ? debts : debts.filter((row) => hasOpenDebt(row.debt) || isOverpaid(row.debt));
+  debts = applyDebtStatusFilter(debts, query);
+  if (skip) debts = debts.slice(skip);
+  const hasMore = debts.length > limit;
+  debts = debts.slice(0, limit);
 
   const customerMap = new Map();
-  reportDebtRows.forEach((row) => {
+  debts.forEach((row) => {
     const key = String(row.customerCode || row.customerId || row.customerName || '').trim();
     if (!key) return;
     if (!customerMap.has(key)) {
@@ -816,14 +781,6 @@ async function debtReport(query = {}) {
     });
     target.overdueDays = Math.max(toNumber(target.overdueDays), toNumber(row.overdueDays));
     target.agingDays = Math.max(toNumber(target.agingDays), toNumber(row.agingDays));
-    if (!target.salesmanCode && !target.salesmanName) {
-      target.salesmanCode = row.salesmanCode || '';
-      target.salesmanName = row.salesmanName || '';
-    }
-    if (!target.deliveryStaffCode && !target.deliveryStaffName) {
-      target.deliveryStaffCode = row.deliveryStaffCode || '';
-      target.deliveryStaffName = row.deliveryStaffName || '';
-    }
     if (row.status === 'overdue') target.overdueCount += 1;
   });
 
@@ -835,34 +792,92 @@ async function debtReport(query = {}) {
       status: isOverpaid(row.debt) ? 'overpaid' : (hasOpenDebt(row.debt) ? (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open') : 'paid'),
       debtZeroTolerance: DEBT_ZERO_TOLERANCE
     }))
-    .filter((row) => includePaidCustomers ? (row.debit || row.credit || row.debt) : (hasOpenDebt(row.debt) || isOverpaid(row.debt)))
     .sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
 
-  const bySalesman = buildDebtPersonSummary(reportDebtRows, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
-  const byDelivery = buildDebtPersonSummary(reportDebtRows, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
-  let arLedger = ledger.map(normalizeArLedgerEntry).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.code).localeCompare(String(a.code)));
+  const arLedgerRows = await ArLedger.find(match)
+    .sort({ date: -1, createdAt: -1 })
+    .limit(200)
+    .lean()
+    .catch(() => []);
+  let arLedger = arLedgerRows.map(normalizeArLedgerEntry);
   arLedger = filterByQuery(arLedger, query, ['code', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note']);
-  const arDiagnostics = buildArLedgerDiagnostics(receipts.filter((row) => isMoneyDocAllowedForAR(row, orderByKey)), ledger);
 
+  const bySalesman = buildDebtPersonSummary(debts, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
+  const byDelivery = buildDebtPersonSummary(debts, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
   const summary = {
-    orderCount: reportDebtRows.length,
+    page,
+    limit,
+    hasMore,
+    orderCount: debts.length,
     customerCount: customerSummary.length,
-    overdueCount: reportDebtRows.filter((row) => row.status === 'overdue').length,
-    totalDebit: sum(reportDebtRows, (row) => row.debit),
-    totalCredit: sum(reportDebtRows, (row) => row.credit),
-    totalDebt: sum(reportDebtRows, (row) => normalizeDebtAmount(row.debt)),
-    totalPositiveDebt: sum(reportDebtRows.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
-    totalOverpaid: sum(reportDebtRows.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
+    overdueCount: debts.filter((row) => row.status === 'overdue').length,
+    totalDebit: sum(debts, (row) => row.debit),
+    totalCredit: sum(debts, (row) => row.credit),
+    totalDebt: sum(debts, (row) => normalizeDebtAmount(row.debt)),
+    totalPositiveDebt: sum(debts.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
+    totalOverpaid: sum(debts.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
     debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-    journalCount: ledger.length,
+    journalCount: grouped.length,
     arLedgerCount: arLedger.length,
-    arWarningCount: arDiagnostics.length,
-    unappliedCredit: Array.from(unappliedByCustomer.values()).reduce((total, amount) => total + Math.max(0, toNumber(amount)), 0)
+    arWarningCount: 0,
+    optimized: true
   };
 
-  return { source: 'mongo_ar_ledger', ledgerCollection: 'arLedgers', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics, summary };
+  return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics: [], summary };
 }
 
+async function debtInit(query = {}) {
+  return {
+    source: 'mongo_ar_ledger_fast',
+    summary: {
+      totalDebt: 0,
+      customerDebt: 0,
+      orderDebt: 0,
+      overdueDebt: 0,
+      note: 'Màn công nợ chỉ tải danh sách khi người dùng nhập khách/NVBH/NVGH để tránh quét toàn bộ AR Ledger.'
+    },
+    filters: {
+      maxListLimit: 100,
+      maxAutocompleteLimit: 20
+    }
+  };
+}
+
+async function debtCustomers(query = {}) {
+  return debtReport({ ...query, limit: getSafeLimit(query.limit, 50, 100) });
+}
+
+async function debtCustomerDetail(query = {}) {
+  const customerCode = query.customerCode || query.code || query.customerId || query.id || query.q;
+  return debtReport({ ...query, customerCode, q: query.q || customerCode, includePaid: query.includePaid || '1', limit: getSafeLimit(query.limit, 100, 100) });
+}
+
+async function debtArLedger(query = {}) {
+  const page = getPage(query.page);
+  const limit = getSafeLimit(query.limit, 100, 200);
+  const skip = (page - 1) * limit;
+  const match = buildDebtLedgerMatch(query, []);
+  if (query.q || query.keyword || query.search) {
+    const rx = new RegExp(escapeRegExp(query.q || query.keyword || query.search), 'i');
+    match.$or = [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { type: rx }, { note: rx }];
+  }
+  const rows = await ArLedger.find(match).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit + 1).lean().catch(() => []);
+  const hasMore = rows.length > limit;
+  const data = hasMore ? rows.slice(0, limit) : rows;
+  const arLedger = data.map(normalizeArLedgerEntry);
+  const summary = {
+    page,
+    limit,
+    hasMore,
+    arLedgerCount: arLedger.length,
+    totalDebit: sum(arLedger, (row) => row.debit),
+    totalCredit: sum(arLedger, (row) => row.credit),
+    totalDebt: sum(arLedger, (row) => row.balanceEffect),
+    arWarningCount: 0,
+    optimized: true
+  };
+  return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts: [], customerSummary: [], bySalesman: [], byDelivery: [], arLedger, arDiagnostics: [], summary };
+}
 
 function buildDebtPersonSummary(rows = [], options = {}) {
   const codeKey = options.codeKey || 'salesmanCode';
@@ -1101,6 +1116,10 @@ module.exports = {
   stockReport,
   stockCardReport,
   debtReport,
+  debtInit,
+  debtCustomers,
+  debtCustomerDetail,
+  debtArLedger,
   debtBySalesmanReport,
   debtByDeliveryReport,
   dashboardReport,
