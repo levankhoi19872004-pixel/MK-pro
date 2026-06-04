@@ -10,6 +10,7 @@ const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
+const ReturnOrder = require('../models/ReturnOrder');
 
 
 function buildReturnCode(existingOrders = []) {
@@ -42,6 +43,74 @@ function getReturnOrderValue(row = {}) {
 
 function hasPositiveReturnValue(row = {}) {
   return getReturnOrderValue(row) > 0;
+}
+
+function uniqueStrings(values = []) {
+  return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
+}
+
+function buildReturnOrderLookupFilter(body = {}) {
+  const id = String(body.id || '').trim();
+  const code = String(body.code || '').trim();
+  const salesOrderId = String(body.salesOrderId || body.orderId || body.sourceOrderId || body.deliveryOrderId || '').trim();
+  const salesOrderCode = String(body.salesOrderCode || body.orderCode || body.sourceOrderCode || body.deliveryOrderCode || '').trim();
+  const or = [];
+  if (id) or.push({ id });
+  if (code) or.push({ code });
+  if (salesOrderId) {
+    or.push({ salesOrderId });
+    or.push({ orderId: salesOrderId });
+    or.push({ sourceOrderId: salesOrderId });
+    or.push({ deliveryOrderId: salesOrderId });
+  }
+  if (salesOrderCode) {
+    or.push({ salesOrderCode });
+    or.push({ orderCode: salesOrderCode });
+    or.push({ sourceOrderCode: salesOrderCode });
+    or.push({ deliveryOrderCode: salesOrderCode });
+  }
+  return or.length ? { $or: or } : null;
+}
+
+async function findReturnOrdersBySalesOrderRefs(orders = [], options = {}) {
+  const ids = [];
+  const codes = [];
+  for (const order of orders || []) {
+    ids.push(order?.salesOrderId, order?.orderId, order?.sourceOrderId, order?.deliveryOrderId, order?.id, order?._id);
+    codes.push(order?.salesOrderCode, order?.orderCode, order?.sourceOrderCode, order?.deliveryOrderCode, order?.code);
+  }
+  const orderIds = uniqueStrings(ids);
+  const orderCodes = uniqueStrings(codes);
+  const or = [];
+  if (orderIds.length) {
+    or.push({ salesOrderId: { $in: orderIds } });
+    or.push({ orderId: { $in: orderIds } });
+    or.push({ sourceOrderId: { $in: orderIds } });
+    or.push({ deliveryOrderId: { $in: orderIds } });
+  }
+  if (orderCodes.length) {
+    or.push({ salesOrderCode: { $in: orderCodes } });
+    or.push({ orderCode: { $in: orderCodes } });
+    or.push({ sourceOrderCode: { $in: orderCodes } });
+    or.push({ deliveryOrderCode: { $in: orderCodes } });
+  }
+  if (!or.length) return [];
+  return returnOrderRepository.findAll({ $or: or }, {
+    ...options,
+    projection: {
+      id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
+      sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
+      masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
+      customerId: 1, customerCode: 1, customerName: 1, deliveryStaffId: 1, deliveryStaffCode: 1, deliveryStaffName: 1,
+      staffCode: 1, staffName: 1, items: 1, totalQuantity: 1, totalAmount: 1, amount: 1, debtReduction: 1,
+      status: 1, returnStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
+      date: 1, documentDate: 1, deliveryDate: 1, routeName: 1, deliveryRoute: 1, createdAt: 1, updatedAt: 1
+    }
+  });
+}
+
+function buildFastReturnCode(body = {}, existing = null) {
+  return String(existing?.code || body.code || `THH${makeId('')}`).trim();
 }
 
 async function listReturnOrders(query = {}) {
@@ -144,26 +213,10 @@ function normalizeItems(rawItems = [], salesOrder = null) {
 }
 
 async function findExistingReturnOrder(body = {}) {
-  const candidates = await returnOrderRepository.findAll();
-  const id = String(body.id || '').trim();
-  const code = String(body.code || '').trim();
-  const salesOrderId = String(body.salesOrderId || '').trim();
-  const salesOrderCode = String(body.salesOrderCode || '').trim();
-
-  return candidates.find((row) => {
-    if (isInactiveStatus(row)) return false;
-
-    // Ưu tiên cập nhật đúng chứng từ khi có id/code phiếu trả.
-    if (id && String(row.id || '').trim() === id) return true;
-    if (code && String(row.code || '').trim() === code) return true;
-
-    // V45 chuẩn: app và ERP cùng 1 nguồn returnOrders.
-    // 1 đơn bán = 1 phiếu trả hiệu lực, chỉ dedup theo salesOrderId/salesOrderCode chuẩn.
-    if (salesOrderId && String(row.salesOrderId || '').trim() === salesOrderId) return true;
-    if (salesOrderCode && String(row.salesOrderCode || '').trim() === salesOrderCode) return true;
-
-    return false;
-  }) || null;
+  const filter = buildReturnOrderLookupFilter(body);
+  if (!filter) return null;
+  const candidates = await returnOrderRepository.findAll(filter, { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 });
+  return candidates.find((row) => !isInactiveStatus(row)) || null;
 }
 
 
@@ -191,14 +244,13 @@ async function buildReturnOrderDocument(body = {}) {
     return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
   }
 
-  const existingOrders = await returnOrderRepository.findAll();
   const existing = await findExistingReturnOrder(body);
   const totalAmount = toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0));
   const returnOrder = {
     ...(existing || {}),
     ...body,
     id: String(existing?.id || body.id || makeId('RO')).trim(),
-    code: String(existing?.code || body.code || buildReturnCode(existingOrders)).trim(),
+    code: buildFastReturnCode(body, existing),
     date: dateUtil.toDateOnly(body.date || existing?.date || dateUtil.todayVN()),
     documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || dateUtil.todayVN()),
     salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
@@ -327,13 +379,12 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
     return { error: 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng', status: 400 };
   }
 
-  const existingOrders = await returnOrderRepository.findAll();
   const items = normalizeDeliveryReturnItems(body.items, salesOrder);
   const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
   const now = dateUtil.nowIso();
   const id = String(existing?.id || body.id || `RO-MOBILE-${String(salesOrderId || salesOrderCode).replace(/[^a-zA-Z0-9_-]/g, '')}` || makeId('RO')).trim();
-  const code = String(existing?.code || body.code || buildReturnCode(existingOrders)).trim();
+  const code = buildFastReturnCode(body, existing);
   const status = totalAmount > 0 ? (body.status || 'waiting_receive') : 'cleared';
 
   const returnOrder = {
@@ -508,15 +559,8 @@ function summarizeReturnDraftItems(items = []) {
 }
 
 async function findBySalesOrder(order = {}) {
-  const salesOrderId = String(order.salesOrderId || order.orderId || order.id || '').trim();
-  const salesOrderCode = String(order.salesOrderCode || order.orderCode || order.code || '').trim();
-  const rows = await returnOrderRepository.findAll();
-  return rows.find((row) => {
-    if (!row) return false;
-    if (salesOrderId && String(row.salesOrderId || row.orderId || '').trim() === salesOrderId) return true;
-    if (salesOrderCode && String(row.salesOrderCode || row.orderCode || '').trim() === salesOrderCode) return true;
-    return false;
-  }) || null;
+  const rows = await findReturnOrdersBySalesOrderRefs([order], { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 });
+  return rows.find((row) => row && !isInactiveStatus(row)) || null;
 }
 
 function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
@@ -612,14 +656,20 @@ async function restoreReturnDraftForSalesOrder(order = {}, options = {}) {
 }
 
 async function attachMasterOrderToReturnDrafts(masterOrder = {}, childOrders = [], options = {}) {
-  const updated = [];
-  for (const child of (childOrders || [])) {
-    const ensure = await ensureReturnDraftForSalesOrder(child, options);
-    const row = ensure?.returnOrder ? { ...ensure.returnOrder } : await findBySalesOrder(child);
-    if (!row) continue;
-    if (isPostedReturnStatus(row.status)) continue;
-    const next = {
-      ...row,
+  const orderIds = uniqueStrings((childOrders || []).flatMap((child) => [child?.id, child?._id, child?.salesOrderId, child?.orderId]));
+  const orderCodes = uniqueStrings((childOrders || []).flatMap((child) => [child?.code, child?.orderCode, child?.salesOrderCode]));
+  const or = [];
+  if (orderIds.length) {
+    or.push({ salesOrderId: { $in: orderIds } });
+    or.push({ orderId: { $in: orderIds } });
+  }
+  if (orderCodes.length) {
+    or.push({ salesOrderCode: { $in: orderCodes } });
+    or.push({ orderCode: { $in: orderCodes } });
+  }
+  if (!or.length) return [];
+  const update = {
+    $set: {
       masterOrderId: masterOrder.id || '',
       masterOrderCode: masterOrder.code || '',
       deliveryStaffId: masterOrder.deliveryStaffId || '',
@@ -628,37 +678,40 @@ async function attachMasterOrderToReturnDrafts(masterOrder = {}, childOrders = [
       deliveryDate: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || dateUtil.todayVN()),
       routeName: masterOrder.routeName || '',
       deliveryRoute: masterOrder.deliveryRoute || masterOrder.routeName || '',
-      date: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || row.date || dateUtil.todayVN()),
+      date: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || dateUtil.todayVN()),
       updatedAt: dateUtil.nowIso()
-    };
-    await returnOrderRepository.upsert(next, options);
-    updated.push(toClient(next));
-  }
-  return updated;
+    }
+  };
+  await ReturnOrder.updateMany(
+    { $or: or, status: { $nin: ['posted', 'received', 'warehouse_received', 'completed', 'cancelled', 'canceled', 'void', 'deleted'] } },
+    update,
+    options.session ? { session: options.session } : {}
+  );
+  return findReturnOrdersBySalesOrderRefs(childOrders);
 }
 
+
 async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {}) {
-  const updated = [];
-  for (const child of (childOrders || [])) {
-    const row = await findBySalesOrder(child);
-    if (!row || isPostedReturnStatus(row.status)) continue;
-    const next = {
-      ...row,
-      masterOrderId: '',
-      masterOrderCode: '',
-      deliveryStaffId: '',
-      deliveryStaffCode: '',
-      deliveryStaffName: '',
-      deliveryDate: null,
-      routeName: '',
-      deliveryRoute: '',
-      updatedAt: dateUtil.nowIso()
-    };
-    await returnOrderRepository.upsert(next, options);
-    updated.push(toClient(next));
+  const orderIds = uniqueStrings((childOrders || []).flatMap((child) => [child?.id, child?._id, child?.salesOrderId, child?.orderId]));
+  const orderCodes = uniqueStrings((childOrders || []).flatMap((child) => [child?.code, child?.orderCode, child?.salesOrderCode]));
+  const or = [];
+  if (orderIds.length) {
+    or.push({ salesOrderId: { $in: orderIds } });
+    or.push({ orderId: { $in: orderIds } });
   }
-  return updated;
+  if (orderCodes.length) {
+    or.push({ salesOrderCode: { $in: orderCodes } });
+    or.push({ orderCode: { $in: orderCodes } });
+  }
+  if (!or.length) return [];
+  await ReturnOrder.updateMany(
+    { $or: or, status: { $nin: ['posted', 'received', 'warehouse_received', 'completed', 'cancelled', 'canceled', 'void', 'deleted'] } },
+    { $set: { masterOrderId: '', masterOrderCode: '', deliveryStaffId: '', deliveryStaffCode: '', deliveryStaffName: '', deliveryDate: null, routeName: '', deliveryRoute: '', updatedAt: dateUtil.nowIso() } },
+    options.session ? { session: options.session } : {}
+  );
+  return findReturnOrdersBySalesOrderRefs(childOrders);
 }
+
 
 async function getReturnOrderBySalesOrderKey(salesOrderIdOrCode, query = {}, options = {}) {
   const key = String(salesOrderIdOrCode || query.salesOrderId || query.salesOrderCode || query.orderId || query.orderCode || '').trim();

@@ -73,8 +73,30 @@ async function buildMasterChildrenMapFast(masterOrders = []) {
 async function findReturnOrdersForDeliveryChildren(children = []) {
   const keys = [...new Set((children || []).flatMap(compactDeliveryOrderKeys))];
   if (!keys.length) return [];
-  const filter = buildIdentityInFilter(keys, ['salesOrderId', 'orderId', 'sourceOrderId', 'deliveryOrderId', 'masterOrderId', 'salesOrderCode', 'orderCode', 'sourceOrderCode', 'deliveryOrderCode', 'masterOrderCode']);
-  return filter ? returnOrderRepository.findAll(filter) : [];
+  const filter = buildIdentityInFilter(keys, [
+    'salesOrderId',
+    'salesOrderCode',
+    'orderId',
+    'orderCode',
+    'sourceOrderId',
+    'sourceOrderCode',
+    'deliveryOrderId',
+    'deliveryOrderCode',
+    'masterOrderId',
+    'masterOrderCode'
+  ]);
+  if (!filter) return [];
+  // Chỉ lấy returnOrders liên quan đến các đơn đang hiển thị. Tuyệt đối không findAll() toàn bộ.
+  return returnOrderRepository.findAll(filter, {
+    projection: {
+      id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
+      sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
+      masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
+      customerCode: 1, customerName: 1, totalAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
+      items: 1, status: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
+      deliveryDate: 1, deliveryStaffCode: 1, deliveryStaffName: 1
+    }
+  });
 }
 
 function buildMasterOrderCode(existingMasterOrders = []) {
@@ -408,15 +430,19 @@ function buildErpDeliveryReturnKey(order = {}) {
 
 async function findErpDeliveryReturnOrders(order = {}) {
   const key = buildErpDeliveryReturnKey(order);
-  const rows = await returnOrderRepository.findAll();
-  return rows.filter((row) => {
-    if (!isActiveReturnOrder(row)) return false;
-    const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
-    const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
-    return row.erpDeliveryReturnKey === key
-      || (order.id && rowOrderId === String(order.id || '').trim())
-      || (order.code && rowOrderCode === String(order.code || '').trim());
-  });
+  const ids = [order.id, order._id, order.salesOrderId, order.orderId].map((v) => String(v || '').trim()).filter(Boolean);
+  const codes = [order.code, order.orderCode, order.salesOrderCode].map((v) => String(v || '').trim()).filter(Boolean);
+  const or = [{ erpDeliveryReturnKey: key }];
+  if (ids.length) {
+    or.push({ salesOrderId: { $in: [...new Set(ids)] } });
+    or.push({ orderId: { $in: [...new Set(ids)] } });
+  }
+  if (codes.length) {
+    or.push({ salesOrderCode: { $in: [...new Set(codes)] } });
+    or.push({ orderCode: { $in: [...new Set(codes)] } });
+  }
+  const rows = await returnOrderRepository.findAll({ $or: or }, { limit: 50 });
+  return rows.filter((row) => isActiveReturnOrder(row));
 }
 
 async function findErpDeliveryReturnOrder(order = {}) {
@@ -1086,8 +1112,14 @@ async function listDeliveryToday(query = {}) {
       });
     }
   }
+  const tReturnStart = Date.now();
   const returnOrders = await findReturnOrdersForDeliveryChildren(returnLookupChildren.length ? returnLookupChildren : allChildren);
   mark('returnOrdersQueryMs');
+  console.log('[DELIVERY_TODAY_RETURN_ORDERS]', {
+    returnMs: Date.now() - tReturnStart,
+    orderCount: (returnLookupChildren.length ? returnLookupChildren : allChildren).length,
+    returnCount: returnOrders.length
+  });
   // Không dùng AR cache cho danh sách giao hàng; dùng công thức giao hàng bình thường.
   const arDebtMap = null;
   const rows = [];
@@ -1442,7 +1474,8 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
   // Danh sách trả hàng trên phần mềm là read-only. Nguồn chuẩn luôn là returnOrders,
   // không nhận returnItems/returnAmount từ form web để tránh ghi đè dữ liệu app giao hàng.
-  const relatedReturnOrders = await returnOrderRepository.findAll();
+  // V45 speed fix: chỉ query returnOrders theo đúng đơn đang sửa, không load toàn bộ collection.
+  const relatedReturnOrders = await findReturnOrdersForDeliveryChildren([current]);
   const lockedReturnOrder = getLockedReturnOrderForSalesOrder(relatedReturnOrders, current);
   const syncedReturnItems = returnItemsForSalesOrder(relatedReturnOrders, current);
   const syncedReturnAmount = returnAmountForSalesOrder(relatedReturnOrders, current);

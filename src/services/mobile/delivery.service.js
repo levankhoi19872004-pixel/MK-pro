@@ -45,6 +45,33 @@ function createMobileDeliveryService(ctx) {
   
 
 
+  async function findReturnOrdersForOrders(orders = []) {
+    const orderIds = [...new Set((orders || []).flatMap((order) => [order.id, order._id, order.salesOrderId, order.orderId]).map((v) => String(v || '').trim()).filter(Boolean))];
+    const orderCodes = [...new Set((orders || []).flatMap((order) => [order.code, order.orderCode, order.salesOrderCode]).map((v) => String(v || '').trim()).filter(Boolean))];
+    const or = [];
+    if (orderIds.length) {
+      or.push({ salesOrderId: { $in: orderIds } });
+      or.push({ orderId: { $in: orderIds } });
+      or.push({ sourceOrderId: { $in: orderIds } });
+      or.push({ deliveryOrderId: { $in: orderIds } });
+    }
+    if (orderCodes.length) {
+      or.push({ salesOrderCode: { $in: orderCodes } });
+      or.push({ orderCode: { $in: orderCodes } });
+      or.push({ sourceOrderCode: { $in: orderCodes } });
+      or.push({ deliveryOrderCode: { $in: orderCodes } });
+    }
+    if (!or.length) return [];
+    return returnOrderRepository.findAll({ $or: or }, {
+      projection: {
+        id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
+        sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
+        masterReturnOrderId: 1, masterReturnOrderCode: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
+        status: 1, items: 1, totalAmount: 1, amount: 1, debtReduction: 1
+      }
+    });
+  }
+
   function getActiveReturnOrdersForSalesOrder(data = {}, order = {}) {
     const orderId = String(order.id || '').trim();
     const orderCode = String(order.code || '').trim();
@@ -152,8 +179,6 @@ function createMobileDeliveryService(ctx) {
 
   async function listDeliveryOrders({ query = {}, mobileUser }) {
     const data = await repo.getPrimaryDataSnapshot();
-    // returnOrders là nguồn thật; luôn refresh từ Mongo trước khi build danh sách app.
-    data.returnOrders = await returnOrderRepository.findAll();
     const targetDate = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const q = normalizeText(query.q);
     const status = normalizeText(query.status);
@@ -161,10 +186,16 @@ function createMobileDeliveryService(ctx) {
     const ledger = buildDebtLedgerRows(data);
     const debtByOrder = new Map(ledger.map((row) => [String(row.orderId), row]));
 
-    let items = (data.salesOrders || [])
+    let sourceOrders = (data.salesOrders || [])
       .filter((order) => isOrderApprovedForDelivery(order))
       .filter((order) => getOrderDeliveryDate(data, order) === targetDate)
-      .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser))
+      .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser));
+
+    // V45 speed fix: chỉ refresh returnOrders liên quan đến các đơn app đang hiển thị.
+    // Không load toàn bộ returnOrders từ Mongo.
+    data.returnOrders = await findReturnOrdersForOrders(sourceOrders);
+
+    let items = sourceOrders
       .map((order) => {
         const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
         const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
@@ -177,6 +208,12 @@ function createMobileDeliveryService(ctx) {
         row.debtBeforeCollection = deliveryFinance.deliveryDebtBase(row);
         row.debtAmount = deliveryFinance.calculateDeliveryDebt(row);
         row.debt = row.debtAmount;
+        row.returnLocked = Boolean(lockedReturnOrder);
+        row.returnLockMessage = lockedReturnOrder ? `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả.` : '';
+        row.returnMergeStatus = lockedReturnOrder ? (lockedReturnOrder.returnMergeStatus || 'merged') : 'unmerged';
+        row.masterReturnOrderId = lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '';
+        row.masterReturnOrderCode = lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '';
+        row.warehouseReceiveStatus = lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '';
         return row;
       })
       .filter((order) => includeCompleted || isDeliveryOrderActive(order.deliveryStatus));
@@ -220,12 +257,12 @@ function createMobileDeliveryService(ctx) {
         rewardAmount: toNumber(order.rewardAmount),
         returnAmount: toNumber(order.returnAmount),
         returnedAmount: toNumber(order.returnAmount),
-        returnLocked: Boolean(lockedReturnOrder),
-        returnLockMessage: lockedReturnOrder ? `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả.` : '',
-        returnMergeStatus: lockedReturnOrder ? (lockedReturnOrder.returnMergeStatus || 'merged') : 'unmerged',
-        masterReturnOrderId: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '',
-        masterReturnOrderCode: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '',
-        warehouseReceiveStatus: lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '',
+        returnLocked: Boolean(order.returnLocked),
+        returnLockMessage: order.returnLockMessage || '',
+        returnMergeStatus: order.returnMergeStatus || 'unmerged',
+        masterReturnOrderId: order.masterReturnOrderId || '',
+        masterReturnOrderCode: order.masterReturnOrderCode || '',
+        warehouseReceiveStatus: order.warehouseReceiveStatus || '',
         returnItems: Array.isArray(order.returnItems) ? order.returnItems : [],
         deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : [],
         status: order.status,

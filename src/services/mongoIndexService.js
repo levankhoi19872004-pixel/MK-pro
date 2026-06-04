@@ -93,12 +93,15 @@ const INDEX_DEFINITIONS = {
     [{ sourceOrderCode: 1 }, { name: 'idx_return_orders_source_order_code', sparse: true }],
     [{ status: 1 }, { name: 'idx_return_orders_status' }],
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
+    [{ masterReturnOrderId: 1 }, { name: 'idx_return_orders_master_return_id', sparse: true }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
+    [{ masterOrderId: 1 }, { name: 'idx_return_orders_master_order_id', sparse: true }],
     [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
     [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }],
     // V45 Performance Turbo: index cho sync returnOrders khi gộp đơn.
     [{ masterOrderCode: 1 }, { name: 'idx_return_orders_master_order_code', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_return_orders_delivery_staff_date_desc' }],
+    [{ status: 1, deliveryDate: -1 }, { name: 'idx_return_orders_status_delivery_date_desc' }],
     [{ deliveryOrderId: 1 }, { name: 'idx_return_orders_delivery_order_id', sparse: true }],
     [{ deliveryOrderCode: 1 }, { name: 'idx_return_orders_delivery_order_code', sparse: true }]
   ],

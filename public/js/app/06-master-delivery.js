@@ -555,18 +555,9 @@ function mergeReturnOrdersIntoDeliveryRows(rows=[],returnOrders=[]){
 }
 
 async function fetchReturnOrdersForDeliveryFilter(){
-  const params=deliverySummaryParams();
-  const staffQuery=selectedDeliveryStaffQuery();
-  if(staffQuery){
-    params.set('deliveryStaffCode',staffQuery);
-    params.set('delivery',staffQuery);
-  }
-  params.set('excludeInactive','1');
-  params.set('limit','5000');
-  const res=await fetch(`/api/return-orders?${params.toString()}`);
-  const json=await res.json();
-  if(!json.ok)throw new Error(json.message||'Không tải được returnOrders theo bộ lọc giao hàng');
-  return json.returnOrders||json.returns||[];
+  // V45 speed fix: không còn tải returnOrders riêng ở màn Đơn đi giao hôm nay.
+  // Backend đã merge returnOrders theo danh sách đơn đang hiển thị.
+  return [];
 }
 function updateDeliveryReturnTotal(){
   const total=getDeliveryReturnItemsPayload().reduce((sum,item)=>sum+Number(item.amount||0),0);
@@ -1203,12 +1194,8 @@ async function loadDeliveryToday(){
     console.log('[DELIVERY_TODAY_LIST_PERF]', { clientMs, serverMs, perf: json.perf, returned: (json.orders||[]).length });
     if(!json.ok)throw new Error(json.message||'Không tải được danh sách đơn đi giao');
     deliveryRowsCache=json.orders||[];
-    try{
-      const returnOrders=await fetchReturnOrdersForDeliveryFilter();
-      deliveryRowsCache=mergeReturnOrdersIntoDeliveryRows(deliveryRowsCache,returnOrders);
-    }catch(returnErr){
-      console.warn('[deliveryToday] Không merge được returnOrders vào danh sách đơn:', returnErr);
-    }
+    // V45 speed fix: /api/master-orders/delivery-today-orders đã trả sẵn returnItems/returnAmount.
+    // Không gọi thêm /api/return-orders?limit=5000 vì gây chậm 6-8 giây và trùng dữ liệu.
     updateDeliveryKpiFromSummary(buildDeliveryKpiFromRows(deliveryRowsCache));
     if(deliveryAccountingStatus){
       deliveryAccountingStatus.textContent=`Đang hiển thị ${deliveryRowsCache.length} đơn/khách hàng của NVGH đã chọn. API ${serverMs}ms · Trình duyệt ${clientMs}ms. Có thể tick đơn rồi đẩy sang công nợ.`;
