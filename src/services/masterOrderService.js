@@ -30,10 +30,88 @@ function compactDeliveryOrderKeys(order = {}) {
     .filter(Boolean);
 }
 
+const VALID_SALES_ORDER_ID_RE = /^SO\d+$/i;
+
+function isCleanOrderCode(value = '') {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (/[\u0000-\u001F\u007F\uFFFD]/.test(text)) return false;
+  return text.length <= 80;
+}
+
+function pushMasterSalesOrderRef(acc, value) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => pushMasterSalesOrderRef(acc, item));
+    return acc;
+  }
+
+  if (value && typeof value === 'object') {
+    [
+      value.id,
+      value._id,
+      value.salesOrderId,
+      value.orderId,
+      value.sourceOrderId,
+      value.deliveryOrderId
+    ].forEach((item) => {
+      const text = String(item || '').trim();
+      if (VALID_SALES_ORDER_ID_RE.test(text)) acc.salesOrderIds.push(text);
+    });
+
+    [
+      value.code,
+      value.orderCode,
+      value.documentCode,
+      value.invoiceCode,
+      value.salesOrderCode,
+      value.sourceOrderCode,
+      value.deliveryOrderCode
+    ].forEach((item) => {
+      const text = String(item || '').trim();
+      if (isCleanOrderCode(text)) acc.salesOrderCodes.push(text);
+    });
+
+    return acc;
+  }
+
+  const text = String(value || '').trim();
+  if (!text) return acc;
+  if (VALID_SALES_ORDER_ID_RE.test(text)) acc.salesOrderIds.push(text);
+  else if (isCleanOrderCode(text)) acc.salesOrderCodes.push(text);
+  return acc;
+}
+
+function normalizeMasterSalesOrderRefs(masterOrder = {}) {
+  const acc = {
+    salesOrderIds: [],
+    salesOrderCodes: []
+  };
+
+  [
+    masterOrder.children,
+    masterOrder.childOrders,
+    masterOrder.orderIds,
+    masterOrder.childOrderIds,
+    masterOrder.salesOrderIds,
+    masterOrder.salesOrders,
+    masterOrder.orderCodes,
+    masterOrder.salesOrderCodes
+  ].forEach((value) => pushMasterSalesOrderRef(acc, value));
+
+  const salesOrderIds = [...new Set(acc.salesOrderIds.filter((value) => VALID_SALES_ORDER_ID_RE.test(String(value || '').trim())))];
+  const salesOrderCodes = [...new Set(acc.salesOrderCodes.filter(isCleanOrderCode))];
+
+  return {
+    summary,
+
+    salesOrderIds,
+    salesOrderCodes,
+    refs: [...new Set([...salesOrderIds, ...salesOrderCodes])]
+  };
+}
+
 function masterChildOrderRefs(masterOrder = {}) {
-  return [...new Set((Array.isArray(masterOrder.childOrderIds) ? masterOrder.childOrderIds : [])
-    .map((item) => String(item?.id || item?.code || item?._id || item || '').trim())
-    .filter(Boolean))];
+  return normalizeMasterSalesOrderRefs(masterOrder).refs;
 }
 
 function buildIdentityInFilter(keys = [], fields = ['id', 'code']) {
@@ -1409,63 +1487,304 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
 
 async function listDeliveryTodayOrdersCompact(query = {}) {
   const compactStartedAt = Date.now();
-  const base = await listDeliveryToday({ ...(query || {}), page: 1, limit: query.limit || 5000 });
+  const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
+  const limit = Math.min(Math.max(Number.parseInt(query.limit, 10) || 5000, 1), 5000);
+  const q = normalizeText(query.q || '');
   const sales = normalizeText(query.salesStaffCode || query.salesStaff || query.salesman || '');
-  let rows = base.orders || [];
-  if (sales) rows = rows.filter((row) => [row.salesmanCode, row.salesmanName].some((value) => normalizeText(value).includes(sales)));
-  rows = rows.map((row) => ({
-    id: row.id,
-    orderCode: row.orderCode,
-    masterOrderCode: row.masterOrderCode,
-    customerCode: row.customerCode,
-    customerName: row.customerName,
-    salesmanCode: row.salesmanCode,
-    salesmanName: row.salesmanName,
-    deliveryStaffCode: row.deliveryStaffCode,
-    deliveryStaffName: row.deliveryStaffName,
-    deliveryStatus: row.deliveryStatus,
-    visualStatus: row.visualStatus,
-    totalAmount: row.totalReceivable || row.totalAmount || 0,
-    totalReceivable: row.totalReceivable || row.totalAmount || 0,
-    cashCollected: toNumber(row.cashCollected || row.cashAmount || 0),
-    cashAmount: toNumber(row.cashCollected || row.cashAmount || 0),
-    bankCollected: toNumber(row.bankCollected || row.bankAmount || 0),
-    bankAmount: toNumber(row.bankCollected || row.bankAmount || 0),
-    rewardAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
-    bonusAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
-    returnAmount: deliveryFinance.deliveryReturnAmount(row),
-    returnAmountSource: 'returnOrders',
-    collectedAmount: row.collectedAmount || deliveryRowCollectedAmount(row),
-    debtAmount: row.debtAmount ?? deliveryFinance.calculateDeliveryDebt(row),
-    remainingAmount: row.debtAmount ?? deliveryFinance.calculateDeliveryDebt(row),
-    accountingConfirmed: row.accountingConfirmed,
-    editLocked: row.editLocked,
-    needReAccounting: row.needReAccounting,
-    adminAdjustmentOpen: row.adminAdjustmentOpen,
-    returnLocked: row.returnLocked,
-    returnLockMessage: row.returnLockMessage || '',
-    returnMergeStatus: row.returnMergeStatus || '',
-    masterReturnOrderId: row.masterReturnOrderId || '',
-    masterReturnOrderCode: row.masterReturnOrderCode || '',
-    // Bắt buộc trả về sản phẩm gốc của đơn cho màn phần mềm.
-    // Nếu không có các mảng này, frontend chỉ còn returnOrders.items nên sẽ mất dòng SL trả = 0.
-    items: Array.isArray(row.items) ? row.items : [],
-    orderItems: Array.isArray(row.orderItems) ? row.orderItems : (Array.isArray(row.items) ? row.items : []),
-    soldItems: Array.isArray(row.soldItems) ? row.soldItems : (Array.isArray(row.items) ? row.items : []),
-    originalItems: Array.isArray(row.originalItems) ? row.originalItems : (Array.isArray(row.items) ? row.items : []),
-    returnItems: Array.isArray(row.returnItems) ? row.returnItems : [],
-    deliveryReturnItems: Array.isArray(row.deliveryReturnItems) ? row.deliveryReturnItems : []
-  }));
-  const compactMs = Date.now() - compactStartedAt;
+  const delivery = normalizeText(query.deliveryStaffCode || query.deliveryStaff || query.delivery || '');
+  const route = normalizeText(query.route || query.routeName || '');
+  const status = normalizeText(query.status || '');
+
+  // Compact endpoint phải query nhẹ trực tiếp, không gọi listDeliveryToday().
+  // listDeliveryToday() build đủ returnOrders/items/KPI/accounting nên gây chậm cho màn chỉ cần danh sách dòng đơn.
+  const masterFilter = {
+    $or: [{ date }, { deliveryDate: date }],
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
+  };
+
+  const masterOrders = await masterOrderRepository.findAll(masterFilter, {
+    projection: {
+      id: 1,
+      code: 1,
+      date: 1,
+      deliveryDate: 1,
+      deliveryStaffCode: 1,
+      deliveryStaffName: 1,
+      salesStaffCode: 1,
+      salesStaffName: 1,
+      routeName: 1,
+      children: 1,
+      childOrders: 1,
+      orderIds: 1,
+      childOrderIds: 1,
+      salesOrderIds: 1,
+      salesOrders: 1,
+      orderCodes: 1,
+      salesOrderCodes: 1,
+      accountingConfirmed: 1,
+      accountingStatus: 1,
+      status: 1,
+      createdAt: 1
+    },
+    sort: { deliveryDate: -1, createdAt: -1, code: -1 },
+    limit
+  });
+
+  const normalizedMasterRefs = (masterOrders || []).map(normalizeMasterSalesOrderRefs);
+  const salesOrderIds = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderIds))];
+  const salesOrderCodes = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderCodes))];
+  const allRefs = [...new Set([...salesOrderIds, ...salesOrderCodes])];
+
+  const childFilterParts = [];
+  if (salesOrderIds.length) {
+    childFilterParts.push({
+      $or: [
+        { id: { $in: salesOrderIds } },
+        { salesOrderId: { $in: salesOrderIds } },
+        { sourceOrderId: { $in: salesOrderIds } },
+        { deliveryOrderId: { $in: salesOrderIds } }
+      ]
+    });
+  }
+  if (salesOrderCodes.length) {
+    childFilterParts.push({
+      $or: [
+        { code: { $in: salesOrderCodes } },
+        { orderCode: { $in: salesOrderCodes } },
+        { documentCode: { $in: salesOrderCodes } },
+        { invoiceCode: { $in: salesOrderCodes } },
+        { salesOrderCode: { $in: salesOrderCodes } },
+        { sourceOrderCode: { $in: salesOrderCodes } },
+        { deliveryOrderCode: { $in: salesOrderCodes } }
+      ]
+    });
+  }
+  const childFilter = childFilterParts.length ? { $or: childFilterParts } : null;
+
+  const children = childFilter ? await orderRepository.findAll(childFilter, {
+    projection: {
+      id: 1,
+      code: 1,
+      orderCode: 1,
+      documentCode: 1,
+      invoiceCode: 1,
+      salesOrderCode: 1,
+      customerCode: 1,
+      customerName: 1,
+      customerPhone: 1,
+      customerAddress: 1,
+      salesStaffCode: 1,
+      salesStaffName: 1,
+      staffCode: 1,
+      staffName: 1,
+      salesmanCode: 1,
+      salesmanName: 1,
+      deliveryStaffCode: 1,
+      deliveryStaffName: 1,
+      routeName: 1,
+      deliveryRoute: 1,
+      deliveryDate: 1,
+      date: 1,
+      deliveryStatus: 1,
+      status: 1,
+      totalAmount: 1,
+      totalReceivable: 1,
+      receivableAmount: 1,
+      grandTotal: 1,
+      amount: 1,
+      cashCollected: 1,
+      cashAmount: 1,
+      bankCollected: 1,
+      bankAmount: 1,
+      transferAmount: 1,
+      rewardAmount: 1,
+      displayRewardAmount: 1,
+      bonusAmount: 1,
+      bonusReturnAmount: 1,
+      returnAmount: 1,
+      returnedAmount: 1,
+      returnAmountFromReturnOrders: 1,
+      debtAmount: 1,
+      remainingAmount: 1,
+      collectedAmount: 1,
+      accountingConfirmed: 1,
+      accountingStatus: 1,
+      needReAccounting: 1,
+      reAccountingRequired: 1,
+      adminAdjustmentOpen: 1,
+      editLocked: 1,
+      isLate: 1,
+      deletedAt: 1
+    },
+    limit: Math.max(allRefs.length, limit)
+  }) : [];
+
+  const childByKey = new Map();
+  for (const child of children || []) {
+    if (isInactiveStatus(child)) continue;
+    for (const key of compactDeliveryOrderKeys(child)) childByKey.set(key, child);
+  }
+
+  // Query ReturnOrder đúng 1 lần và map theo các khóa chuẩn.
+  const ReturnOrder = require('../models/ReturnOrder');
+  const returnOrders = (salesOrderIds.length || salesOrderCodes.length)
+    ? await ReturnOrder.find({
+        $or: [
+          { salesOrderId: { $in: salesOrderIds } },
+          { salesOrderCode: { $in: salesOrderCodes } }
+        ],
+        status: {
+          $in: ['pending', 'active', 'merged', 'delivered', 'completed', 'cleared']
+        }
+      }).lean()
+    : [];
+
+  const returnOrderMap = new Map();
+  for (const ro of returnOrders || []) {
+    const keys = [
+      ro.salesOrderId,
+      ro.salesOrderCode,
+      ro.orderId,
+      ro.orderCode
+    ].filter(Boolean);
+    for (const k of keys) {
+      const key = String(k);
+      const arr = returnOrderMap.get(key) || [];
+      arr.push(ro);
+      returnOrderMap.set(key, arr);
+    }
+  }
+
+  const rows = [];
+  const used = new Set();
+  for (const master of masterOrders || []) {
+    if (isInactiveStatus(master)) continue;
+    for (const ref of masterChildOrderRefs(master)) {
+      const child = childByKey.get(ref);
+      if (!child || isInactiveStatus(child)) continue;
+      const uniqueKey = String(child.id || child.code || child.orderCode || ref);
+      const masterKey = String(master.id || master.code || '');
+      const usedKey = `${masterKey}::${uniqueKey}`;
+      if (used.has(usedKey)) continue;
+      used.add(usedKey);
+
+      const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
+      if (deliveryDate !== date) continue;
+
+      // Bước 6: build rows nhẹ, không gọi các hàm tổng hợp nặng.
+      // Chỉ lấy các field màn danh sách đang dùng và lookup returnOrders qua Map O(1).
+      const returnKeys = compactDeliveryOrderKeys(child);
+      const relatedReturnOrders = [];
+      const seenReturnIds = new Set();
+      for (const key of returnKeys) {
+        for (const ro of returnOrderMap.get(key) || []) {
+          const roKey = String(ro.id || ro.code || ro._id || `${key}-${relatedReturnOrders.length}`);
+          if (seenReturnIds.has(roKey)) continue;
+          seenReturnIds.add(roKey);
+          relatedReturnOrders.push(ro);
+        }
+      }
+      const returnOrderCode = relatedReturnOrders
+        .map((ro) => ro.code || ro.returnOrderCode || ro.id || '')
+        .find(Boolean) || '';
+      const returnAmount = relatedReturnOrders.reduce((sum, ro) => sum + toNumber(
+        ro.returnAmount ?? ro.totalAmount ?? ro.amount ?? ro.totalReturnAmount ?? ro.value ?? 0
+      ), 0);
+
+      const totalAmount = toNumber(
+        child.totalAmount ?? child.totalReceivable ?? child.receivableAmount ?? child.grandTotal ?? child.amount ?? 0
+      );
+      const cashAmount = toNumber(child.cashAmount ?? child.cashCollected ?? 0);
+      const bankAmount = toNumber(child.bankAmount ?? child.bankCollected ?? child.transferAmount ?? 0);
+      const bonusAmount = toNumber(child.bonusAmount ?? child.rewardAmount ?? child.displayRewardAmount ?? child.bonusReturnAmount ?? 0);
+      const directDebtAmount = child.debtAmount ?? child.remainingAmount;
+      const debtAmount = directDebtAmount != null
+        ? Math.max(0, toNumber(directDebtAmount))
+        : Math.max(0, totalAmount - cashAmount - bankAmount - bonusAmount - returnAmount);
+
+      const row = {
+        id: child.id || '',
+        code: child.code || child.orderCode || child.documentCode || child.salesOrderCode || child.id || '',
+        customerCode: child.customerCode || '',
+        customerName: child.customerName || '',
+        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.staffCode || master.salesStaffCode || '',
+        salesStaffName: child.salesStaffName || child.salesmanName || child.staffName || master.salesStaffName || '',
+        deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
+        deliveryDate,
+        totalAmount,
+        cashAmount,
+        bankAmount,
+        bonusAmount,
+        returnAmount,
+        debtAmount,
+        status: child.status || '',
+        deliveryStatus: child.deliveryStatus || 'waiting',
+        hasReturn: relatedReturnOrders.length > 0 || returnAmount > 0,
+        returnOrderCode
+      };
+
+      if (q && ![row.code, row.customerCode, row.customerName].some((value) => normalizeText(value).includes(q))) continue;
+      if (sales && ![row.salesStaffCode, row.salesStaffName].some((value) => normalizeText(value).includes(sales))) continue;
+      if (delivery && !normalizeText(row.deliveryStaffCode).includes(delivery)) continue;
+      if (route) {
+        const rowRoute = child.routeName || child.deliveryRoute || master.routeName || '';
+        if (!normalizeText(rowRoute).includes(route)) continue;
+      }
+      if (status) {
+        const rawStatus = normalizeText(row.status);
+        const rawDeliveryStatus = normalizeText(row.deliveryStatus);
+        const isDeliveredGroup = ['delivered', 'done', 'completed', 'paid'].includes(rawStatus)
+          || ['delivered', 'done', 'completed', 'paid'].includes(rawDeliveryStatus);
+        const isNotDeliveredGroup = !isDeliveredGroup;
+        if (status === 'delivered_group' && !isDeliveredGroup) continue;
+        else if (status === 'not_delivered' && !isNotDeliveredGroup) continue;
+        else if (status === 'returned' && !row.hasReturn) continue;
+        else if (!['delivered_group', 'not_delivered', 'returned', 'accounting_confirmed', 'accounting_pending'].includes(status) && rawStatus !== status && rawDeliveryStatus !== status) continue;
+      }
+
+      rows.push(row);
+      if (rows.length >= limit) break;
+    }
+    if (rows.length >= limit) break;
+  }
+
+  const summary = rows.reduce((acc, row) => {
+    acc.totalReceivable += toNumber(row.totalAmount);
+    acc.cashAmount += toNumber(row.cashAmount);
+    acc.bankAmount += toNumber(row.bankAmount);
+    acc.bonusAmount += toNumber(row.bonusAmount);
+    acc.returnAmount += toNumber(row.returnAmount);
+    acc.debtAmount += toNumber(row.debtAmount);
+    return acc;
+  }, {
+    totalReceivable: 0,
+    cashAmount: 0,
+    bankAmount: 0,
+    bonusAmount: 0,
+    returnAmount: 0,
+    debtAmount: 0
+  });
+
+  const ms = Date.now() - compactStartedAt;
+  const perf = {
+    compactMs: ms,
+    masterCount: masterOrders.length,
+    childRefCount: allRefs.length,
+    childCount: children.length,
+    returnOrderCount: returnOrders.length,
+    compactRowCount: rows.length
+  };
+
   return {
-    date: base.accounting?.date || dateUtil.toDateOnly(query.date || dateUtil.todayVN()),
-    formula: 'Danh sách đơn chỉ tải sau khi chọn NVGH/NVBH.',
+    ok: true,
     orders: rows,
-    ms: compactMs,
-    perf: { ...(base.perf || {}), compactMs, compactRowCount: rows.length }
+    rows,
+    summary,
+    total: rows.length,
+    ms,
+    perf
   };
 }
-
 
 async function updateDeliveryTodayOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
@@ -2166,7 +2485,20 @@ async function deleteMasterOrder(id, body = {}) {
     }
     await masterOrderRepository.upsert(removed, { session });
   });
-  return { masterOrder: toClient(removed, []) };
+  
+const summary = rows.reduce((acc,row)=>{
+  acc.totalReceivable += Number(row.totalAmount||0);
+  acc.cashAmount += Number(row.cashAmount||0);
+  acc.bankAmount += Number(row.bankAmount||0);
+  acc.bonusAmount += Number(row.bonusAmount||0);
+  acc.returnAmount += Number(row.returnAmount||0);
+  acc.debtAmount += Number(row.debtAmount||0);
+  return acc;
+},{
+ totalReceivable:0,cashAmount:0,bankAmount:0,bonusAmount:0,returnAmount:0,debtAmount:0
+});
+
+return { masterOrder: toClient(removed, []) };
 }
 
 module.exports = {
