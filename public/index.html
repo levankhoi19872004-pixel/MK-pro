@@ -1251,6 +1251,7 @@
             <button type="button" class="api-monitor-tab" data-api-monitor-tab="slowest">Tab 2. Top API chậm nhất</button>
             <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-called">Tab 3. Top API gọi nhiều nhất</button>
             <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-rows">Tab 4. API nhiều rows nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="query-trace">Tab 5. Query Trace</button>
           </div>
 
           <div class="api-monitor-tab-panel active" data-api-monitor-panel="all">
@@ -1268,12 +1269,13 @@
                     <th>TB Query</th>
                     <th>Max Total</th>
                     <th>Max Mongo</th>
+                    <th>Query chậm nhất</th>
                     <th>Rows cuối</th>
                     <th>Chậm</th>
                     <th>Trạng thái</th>
                   </tr>
                 </thead>
-                <tbody id="apiMonitorTable"><tr><td colspan="12">Bấm Tải API Monitor để xem.</td></tr></tbody>
+                <tbody id="apiMonitorTable"><tr><td colspan="13">Bấm Tải API Monitor để xem.</td></tr></tbody>
               </table>
             </div>
 
@@ -1289,11 +1291,12 @@
                     <th>Mongo</th>
                     <th>JS</th>
                     <th>DB Queries</th>
+                    <th>Query chậm nhất</th>
                     <th>Rows</th>
                     <th>Status</th>
                   </tr>
                 </thead>
-                <tbody id="apiSlowTable"><tr><td colspan="9">Chưa có dữ liệu API chậm.</td></tr></tbody>
+                <tbody id="apiSlowTable"><tr><td colspan="10">Chưa có dữ liệu API chậm.</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1310,12 +1313,13 @@
                     <th>TB Total</th>
                     <th>TB Mongo</th>
                     <th>TB JS</th>
+                    <th>Query chậm nhất</th>
                     <th>Gọi</th>
                     <th>Chậm</th>
                     <th>Status</th>
                   </tr>
                 </thead>
-                <tbody id="apiTopSlowTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+                <tbody id="apiTopSlowTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -1360,6 +1364,29 @@
                   </tr>
                 </thead>
                 <tbody id="apiTopRowsTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="query-trace">
+            <h4>Tab 5. Query Trace - query Mongo chậm nhất theo API</h4>
+            <p class="muted">Dùng tab này để biết trong một API, query Mongo nào đang kéo chậm: MasterOrder.find, SalesOrder.find, ReturnOrder.find, ArLedger.find...</p>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Query chậm nhất</th>
+                    <th>MS</th>
+                    <th>Rows</th>
+                    <th>Max Mongo</th>
+                    <th>Max Total</th>
+                    <th>DB Query cuối</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopQueryTraceTable"><tr><td colspan="9">Chưa có dữ liệu Query Trace.</td></tr></tbody>
               </table>
             </div>
           </div>

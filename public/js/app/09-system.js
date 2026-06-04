@@ -138,6 +138,26 @@ function apiMonitorSafeText(value) {
 }
 
 
+function apiMonitorSlowestQueryText(row = {}) {
+  const traces = Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length
+    ? row.maxQueryTraces
+    : (Array.isArray(row.lastQueryTraces) ? row.lastQueryTraces : []);
+  const trace = traces.slice().sort((a, b) => Number(b.ms || 0) - Number(a.ms || 0))[0] || null;
+  const label = row.slowestQueryLabel || trace?.label || '';
+  const ms = Number(row.slowestQueryMs || trace?.ms || 0);
+  if (!label && !ms) return '';
+  return `${apiMonitorSafeText(label)}${ms ? ` (${apiMonitorFormatMs(ms)})` : ''}`;
+}
+
+function apiMonitorTraceRowsText(row = {}) {
+  const traces = Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length
+    ? row.maxQueryTraces
+    : (Array.isArray(row.lastQueryTraces) ? row.lastQueryTraces : []);
+  const trace = traces.slice().sort((a, b) => Number(b.ms || 0) - Number(a.ms || 0))[0] || null;
+  return systemFormatNumber(trace?.rows || 0);
+}
+
+
 function renderApiMonitorTopSlowRows(rows = []) {
   if (!apiTopSlowTable) return;
   apiTopSlowTable.innerHTML = rows.length ? rows.map(row => `
@@ -148,11 +168,12 @@ function renderApiMonitorTopSlowRows(rows = []) {
       <td>${apiMonitorFormatMs(row.avgMs || 0)}</td>
       <td>${apiMonitorFormatMs(row.avgMongoMs || 0)}</td>
       <td>${apiMonitorFormatMs(row.avgJsMs || 0)}</td>
+      <td><code title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorSlowestQueryText(row)}</code></td>
       <td>${systemFormatNumber(row.count || 0)}</td>
       <td>${systemFormatNumber(row.slowCount || 0)}</td>
       <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
     </tr>
-  `).join('') : '<tr><td colspan="9">Chưa có dữ liệu API chậm nhất.</td></tr>';
+  `).join('') : '<tr><td colspan="10">Chưa có dữ liệu API chậm nhất.</td></tr>';
 }
 
 function renderApiMonitorTopCalledRows(rows = []) {
@@ -189,6 +210,25 @@ function renderApiMonitorTopRowsRows(rows = []) {
   `).join('') : '<tr><td colspan="9">Chưa có dữ liệu API nhiều rows nhất.</td></tr>';
 }
 
+
+function renderApiMonitorTopQueryTraceRows(rows = []) {
+  if (typeof apiTopQueryTraceTable === 'undefined' || !apiTopQueryTraceTable) return;
+  const filtered = rows.filter(row => Number(row.slowestQueryMs || 0) > 0 || (Array.isArray(row.maxQueryTraces) && row.maxQueryTraces.length));
+  apiTopQueryTraceTable.innerHTML = filtered.length ? filtered.map(row => `
+    <tr class="${Number(row.slowestQueryMs || 0) >= 1000 ? 'row-danger' : ''}">
+      <td>${apiMonitorSafeText(row.module || '')}</td>
+      <td><code title="${apiMonitorSafeText(row.maxOriginalUrl || row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
+      <td><code title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorSlowestQueryText(row)}</code></td>
+      <td><strong>${apiMonitorFormatMs(row.slowestQueryMs || 0)}</strong></td>
+      <td>${apiMonitorTraceRowsText(row)}</td>
+      <td>${apiMonitorFormatMs(row.maxMongoMs || 0)}</td>
+      <td>${apiMonitorFormatMs(row.maxMs || 0)}</td>
+      <td>${systemFormatNumber(row.lastDbQueries || 0)}</td>
+      <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="9">Chưa có Query Trace. Hãy thao tác API rồi bấm tải lại.</td></tr>';
+}
+
 function setupApiMonitorTabs() {
   if (!apiMonitorTabButtons || !apiMonitorTabButtons.length) return;
   apiMonitorTabButtons.forEach((button) => {
@@ -222,15 +262,17 @@ function renderApiMonitor(json = {}) {
         <td>${apiMonitorFormatMs(item.mongoMs || 0)}</td>
         <td>${apiMonitorFormatMs(item.jsMs || 0)}</td>
         <td>${systemFormatNumber(item.dbQueries || 0)}</td>
+        <td><code title="${apiMonitorSafeText((item.queryTraces && item.queryTraces[0] && item.queryTraces[0].label) || '')}">${apiMonitorSafeText((item.queryTraces && item.queryTraces[0] && item.queryTraces[0].label) || '')} ${item.queryTraces && item.queryTraces[0] ? '(' + apiMonitorFormatMs(item.queryTraces[0].ms || 0) + ')' : ''}</code></td>
         <td>${systemFormatNumber(item.rows || 0)}</td>
         <td>${apiMonitorSafeText(item.statusCode || '')}</td>
       </tr>
-    `).join('') : '<tr><td colspan="9">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
+    `).join('') : '<tr><td colspan="10">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
   }
 
   renderApiMonitorTopSlowRows(Array.isArray(json.topSlowestApis) ? json.topSlowestApis : []);
   renderApiMonitorTopCalledRows(Array.isArray(json.topCalledApis) ? json.topCalledApis : []);
   renderApiMonitorTopRowsRows(Array.isArray(json.topRowsApis) ? json.topRowsApis : []);
+  renderApiMonitorTopQueryTraceRows(Array.isArray(json.topQueryTraceApis) ? json.topQueryTraceApis : []);
 
   const rows = Array.isArray(json.data) ? json.data : [];
   if (apiMonitorTable) {
@@ -245,11 +287,12 @@ function renderApiMonitor(json = {}) {
         <td>${systemFormatNumber(row.avgDbQueries || 0)}</td>
         <td><strong>${apiMonitorFormatMs(row.maxMs || 0)}</strong></td>
         <td>${apiMonitorFormatMs(row.maxMongoMs || 0)}</td>
+        <td><code title="${apiMonitorSafeText(row.slowestQueryLabel || '')}">${apiMonitorSlowestQueryText(row)}</code></td>
         <td>${systemFormatNumber(row.lastRows || 0)}</td>
         <td>${systemFormatNumber(row.slowCount || 0)}</td>
         <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
       </tr>
-    `).join('') : '<tr><td colspan="12">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
+    `).join('') : '<tr><td colspan="13">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
   }
 }
 
@@ -257,13 +300,13 @@ async function loadApiMonitor() {
   if (!apiMonitorTable && !apiSlowTable) return;
   try {
     const slowOnly = apiMonitorFilter && apiMonitorFilter.value === 'slow' ? '1' : '0';
-    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="12">Đang tải API Monitor...</td></tr>';
+    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="13">Đang tải API Monitor...</td></tr>';
     const res = await fetch(`/api/system/api-monitor?limit=200&slowOnly=${slowOnly}`);
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được API Monitor');
     renderApiMonitor(json);
   } catch (err) {
-    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="12">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
+    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="13">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
   }
 }
 
@@ -274,7 +317,7 @@ async function resetApiMonitorStats() {
     const res = await fetch('/api/system/api-monitor/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không xóa được API Monitor');
-    renderApiMonitor({ summary: {}, data: [], topSlowestApis: [], topCalledApis: [], topRowsApis: [], slowApis: [] });
+    renderApiMonitor({ summary: {}, data: [], topSlowestApis: [], topCalledApis: [], topRowsApis: [], topQueryTraceApis: [], slowApis: [] });
     setSystemMessage('Đã xóa thống kê API Monitor. Hãy thao tác lại các màn để đo mới.', 'success');
   } catch (err) {
     setSystemMessage(err.message || 'Không xóa được API Monitor', 'error');

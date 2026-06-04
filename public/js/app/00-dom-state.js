@@ -369,6 +369,7 @@ const apiSlowTable=document.getElementById('apiSlowTable');
 const apiTopSlowTable=document.getElementById('apiTopSlowTable');
 const apiTopCalledTable=document.getElementById('apiTopCalledTable');
 const apiTopRowsTable=document.getElementById('apiTopRowsTable');
+const apiTopQueryTraceTable=document.getElementById('apiTopQueryTraceTable');
 const apiMonitorTabButtons=document.querySelectorAll('[data-api-monitor-tab]');
 const apiMonitorTabPanels=document.querySelectorAll('[data-api-monitor-panel]');
 const apiMonitorTotalRoutes=document.getElementById('apiMonitorTotalRoutes');
