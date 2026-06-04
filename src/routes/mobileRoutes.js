@@ -1,5 +1,9 @@
 'use strict';
 
+const { normalizeText } = require('../utils/search.util');
+
+const deliveryFinance = require('../utils/deliveryFinance.util');
+
 const dateUtil = require('../utils/date.util');
 /**
  * Mobile API V45 - standalone Mongo routes.
@@ -50,15 +54,6 @@ function jwtSecret() {
   return process.env.JWT_SECRET || process.env.MOBILE_JWT_SECRET || 'mk-pro-v45-mobile-secret-change-me';
 }
 
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .trim()
-    .toLowerCase();
-}
 
 function getDocId(doc) {
   return String(doc?.id || doc?._id || '').trim();
@@ -294,39 +289,8 @@ function isActiveDeliveryStatus(order) {
   return !['delivered', 'success', 'returned', 'cancelled', 'void'].includes(status);
 }
 
-function firstPositiveAmount(...values) {
-  for (const value of values) {
-    const n = toNumber(value);
-    if (n > 0) return n;
-  }
-  return 0;
-}
 
-function deliveryDebtBase(order = {}) {
-  // Giá trị phải thu gốc của đơn đang giao phải ưu tiên giá trị đơn hàng thật.
-  // Không ưu tiên debtBeforeCollection/debtAmount nếu chúng đang là cache AR = 0.
-  return firstPositiveAmount(
-    order.totalAmount,
-    order.total,
-    order.amount,
-    order.grandTotal,
-    order.payableAmount,
-    order.orderAmount,
-    order.debtBeforeCollection,
-    order.debtAmount,
-    order.debt
-  );
-}
 
-function calculateDeliveryDebt(order = {}) {
-  return Math.max(0, normalizeDebtAmount(
-    deliveryDebtBase(order)
-    - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
-    - toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0)
-    - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
-    - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
-  ));
-}
 
 function isDeliveryCompletedStatus(status) {
   return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
@@ -627,9 +591,9 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
   // returnOrders là nguồn sự thật duy nhất cho tiền/số lượng hàng trả.
   const returnAmount = syncedReturnAmount;
   const rewardAmount = toNumber(sourceOrder.rewardAmount || sourceOrder.displayRewardAmount);
-  const debtBeforeCollection = deliveryDebtBase({ ...sourceOrder, totalAmount });
+  const debtBeforeCollection = deliveryFinance.deliveryDebtBase({ ...sourceOrder, totalAmount });
   const arDebtRow = findArDebtRow(arDebtMap, order, sourceOrder);
-  const formulaDebtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
+  const formulaDebtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount, rewardAmount });
   // Nếu đã có bút toán AR cho đơn này thì dùng AR Ledger làm nguồn hiển thị công nợ duy nhất.
   // Nếu chưa có AR thì vẫn dùng công thức tạm tính để NVGH biết còn phải thu bao nhiêu trước khi đẩy kế toán.
   const debtAmount = arDebtRow ? normalizeDebtAmount(arDebtRow.debt) : formulaDebtAmount;
@@ -700,9 +664,9 @@ function deliveryPaymentPatchFromOrder(order = {}) {
   const cash = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
   const bank = toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0);
   const reward = toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0);
-  const debtBeforeCollection = deliveryDebtBase(order);
+  const debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
   const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
-  const debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected: cash, bankCollected: bank, returnAmount, rewardAmount: reward });
+  const debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashCollected: cash, bankCollected: bank, returnAmount, rewardAmount: reward });
   return {
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
     deliveryStatus: order.deliveryStatus || 'delivered',
@@ -854,7 +818,7 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '', options 
     patch.returnedAmount = canonicalReturnAmount;
     patch.returnItems = canonicalReturnItems;
     patch.deliveryReturnItems = canonicalReturnItems;
-    patch.debtAmount = calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: canonicalReturnAmount });
+    patch.debtAmount = deliveryFinance.calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: canonicalReturnAmount });
     patch.debt = patch.debtAmount;
     patch.arBalance = patch.debtAmount;
   } else {
@@ -864,7 +828,7 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '', options 
     delete patch.returnedAmount;
     delete patch.returnItems;
     delete patch.deliveryReturnItems;
-    patch.debtAmount = calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: 0 });
+    patch.debtAmount = deliveryFinance.calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: 0 });
     patch.debt = patch.debtAmount;
     patch.arBalance = patch.debtAmount;
   }
@@ -944,7 +908,7 @@ async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = [], option
     deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []),
     paidAmount: toNumber(order.paidAmount ?? order.collectedAmount ?? 0),
     collectedAmount: toNumber(order.collectedAmount ?? order.paidAmount ?? 0),
-    debtBeforeCollection: deliveryDebtBase(order),
+    debtBeforeCollection: deliveryFinance.deliveryDebtBase(order),
     debtAmount: toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
     debt: toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? 0),
     arBalance: toNumber(order.arBalance ?? order.debtAmount ?? order.debt ?? 0),
@@ -1566,7 +1530,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
             })
         : [];
 
-      const currentOrderDebtSeed = Math.max(0, deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0) - nextReward);
+      const currentOrderDebtSeed = Math.max(0, deliveryFinance.deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0) - nextReward);
       const priorityRowsBase = [
         ...selectedDebtRows,
         { orderId: getDocId(order), orderCode: orderCode(order), debt: currentOrderDebtSeed, documentDate: order.date || order.orderDate || order.deliveryDate || '' }
@@ -1621,8 +1585,8 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       order.displayRewardAmount = nextReward;
       order.paidAmount = nextCash + nextBank;
       order.collectedAmount = nextCash + nextBank;
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
+      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
       order.arBalance = order.debtAmount;
       applyOrderDebtLifecycle(order);
@@ -1695,8 +1659,8 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
       order.returnedAmount = 0;
       order.returnItems = [];
       order.deliveryReturnItems = [];
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
+      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
       order.updatedAt = new Date().toISOString();
       await order.save();
@@ -1716,8 +1680,8 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     order.returnedAmount = returnAmount;
     order.returnItems = savedReturnItems;
     order.deliveryReturnItems = savedReturnItems;
-    order.debtBeforeCollection = deliveryDebtBase(order);
-    order.debtAmount = calculateDeliveryDebt(order);
+    order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+    order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
     order.debt = order.debtAmount;
     order.deliveryStatus = returnType === 'full' ? 'returned' : 'partial_return';
     order.status = returnType === 'full' ? 'returned' : 'partial_return';

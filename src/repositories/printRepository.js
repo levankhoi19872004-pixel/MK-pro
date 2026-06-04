@@ -1,5 +1,7 @@
 'use strict';
 
+const { toNumber } = require('../utils/common.util');
+
 const orderRepository = require('./orderRepository');
 const masterOrderRepository = require('./masterOrderRepository');
 const importOrderRepository = require('./importOrderRepository');
@@ -34,10 +36,6 @@ function cleanText(value) {
   return String(value ?? '').trim();
 }
 
-function toNumber(value) {
-  const n = Number(String(value ?? 0).replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(n) ? n : 0;
-}
 
 function normalizeWarehouseCode(value) {
   const raw = cleanText(value).toUpperCase().replace(/[\s-]+/g, '_');

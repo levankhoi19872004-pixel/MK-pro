@@ -1,5 +1,7 @@
 'use strict';
 
+const deliveryFinance = require('../../utils/deliveryFinance.util');
+
 const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileDeliveryRepository } = require('../../repositories/mobile/delivery.repository');
@@ -36,39 +38,11 @@ function createMobileDeliveryService(ctx) {
     buildCashCode
   } = ctx;
 
-  function firstPositiveAmount(...values) {
-    for (const value of values) {
-      const n = toNumber(value);
-      if (n > 0) return n;
-    }
-    return 0;
-  }
+  
 
-  function deliveryDebtBase(order = {}) {
-    // Công nợ gốc của đơn đang giao phải lấy theo giá trị đơn hàng.
-    // Không ưu tiên debtBeforeCollection nếu trường đó đang bị lưu/cached = 0.
-    return firstPositiveAmount(
-      order.totalAmount,
-      order.total,
-      order.amount,
-      order.grandTotal,
-      order.payableAmount,
-      order.orderAmount,
-      order.debtBeforeCollection,
-      order.debtAmount,
-      order.debt
-    );
-  }
+  
 
-  function calculateDeliveryDebt(order = {}) {
-    return Math.max(0, Math.round(
-      deliveryDebtBase(order)
-      - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
-      - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
-      - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
-      - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
-    ));
-  }
+  
 
 
   function getActiveReturnOrdersForSalesOrder(data = {}, order = {}) {
@@ -170,8 +144,8 @@ function createMobileDeliveryService(ctx) {
     order.returnAmount = total;
     order.returnedAmount = total;
     order.items = mergeOrderItemsWithReturnItems(order, returnItems);
-    order.debtBeforeCollection = deliveryDebtBase(order);
-    order.debtAmount = calculateDeliveryDebt(order);
+    order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+    order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
     order.debt = order.debtAmount;
     return { total, returnItems };
   }
@@ -200,8 +174,8 @@ function createMobileDeliveryService(ctx) {
         row.returnItems = syncedReturn.returnItems;
         row.deliveryReturnItems = syncedReturn.returnItems;
         row.items = mergeOrderItemsWithReturnItems(row, syncedReturn.returnItems);
-        row.debtBeforeCollection = deliveryDebtBase(row);
-        row.debtAmount = calculateDeliveryDebt(row);
+        row.debtBeforeCollection = deliveryFinance.deliveryDebtBase(row);
+        row.debtAmount = deliveryFinance.calculateDeliveryDebt(row);
         row.debt = row.debtAmount;
         return row;
       })
@@ -236,11 +210,11 @@ function createMobileDeliveryService(ctx) {
         salesmanCode: order.salesmanCode,
         deliveryStaffName: order.deliveryStaffName,
         deliveryStaffCode: order.deliveryStaffCode,
-        amount: calculateDeliveryDebt(order),
+        amount: deliveryFinance.calculateDeliveryDebt(order),
         totalAmount: toNumber(order.totalAmount),
         paidAmount: toNumber(order.paidAmount),
-        debtBeforeCollection: deliveryDebtBase(order),
-        debtAmount: calculateDeliveryDebt(order),
+        debtBeforeCollection: deliveryFinance.deliveryDebtBase(order),
+        debtAmount: deliveryFinance.calculateDeliveryDebt(order),
         cashCollected: toNumber(order.cashCollected),
         bankCollected: toNumber(order.bankCollected),
         rewardAmount: toNumber(order.rewardAmount),
@@ -297,7 +271,7 @@ function createMobileDeliveryService(ctx) {
     perf('sync_return_amount');
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
     if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
-    const orderDueLimit = Math.max(0, deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0));
+    const orderDueLimit = Math.max(0, deliveryFinance.deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0));
     if (status === 'success' && collectAmount > orderDueLimit) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn giá trị phải thu của đơn' } };
 
     order.deliveryStatus = status === 'success' ? 'delivered' : 'failed';
@@ -344,8 +318,8 @@ function createMobileDeliveryService(ctx) {
         order.returnAmount = toNumber(result.returnOrder.totalAmount || result.returnOrder.amount);
         order.returnedAmount = order.returnAmount;
       }
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
+      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
     }
 
@@ -385,8 +359,8 @@ function createMobileDeliveryService(ctx) {
         order.paidAmount = legacyCollectAmount + toNumber(order.bankCollected);
         order.collectedAmount = order.paidAmount;
       }
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
+      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
     }
 
@@ -464,8 +438,8 @@ function createMobileDeliveryService(ctx) {
       order.returnedAmount = 0;
       order.returnItems = [];
       order.deliveryReturnItems = [];
-      order.debtBeforeCollection = deliveryDebtBase(order);
-      order.debtAmount = calculateDeliveryDebt(order);
+      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
       order.updatedAt = new Date().toISOString();
       await persistDeliverySnapshotSafely(data);
@@ -507,8 +481,8 @@ function createMobileDeliveryService(ctx) {
     const returnOrder = result.returnOrder;
     order.returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount);
     order.returnedAmount = order.returnAmount;
-    order.debtBeforeCollection = deliveryDebtBase(order);
-    order.debtAmount = calculateDeliveryDebt(order);
+    order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
+    order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
     order.debt = order.debtAmount;
     if (returnType === 'partial') {
       order.deliveryStatus = 'partial_return';

@@ -16,17 +16,11 @@ const ImportOrder = require('../models/ImportOrder');
 const { normalizeText, toNumber } = require('../utils/common.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
 
-function today() {
-  return dateUtil.todayVN();
-}
 
-function toDateOnly(value) {
-  return dateUtil.toDateOnly(value);
-}
 
 function daysBetween(from, to) {
-  const a = new Date(toDateOnly(from));
-  const b = new Date(toDateOnly(to));
+  const a = new Date(dateUtil.toDateOnly(from));
+  const b = new Date(dateUtil.toDateOnly(to));
   if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
   return Math.floor((a.getTime() - b.getTime()) / 86400000);
 }
@@ -36,7 +30,7 @@ function isActive(row = {}) {
 }
 
 function matchDate(row, query = {}) {
-  const value = toDateOnly(row.date || row.documentDate || row.orderDate || row.deliveryDate || row.createdAt);
+  const value = dateUtil.toDateOnly(row.date || row.documentDate || row.orderDate || row.deliveryDate || row.createdAt);
   if (query.dateFrom && value < query.dateFrom) return false;
   if (query.dateTo && value > query.dateTo) return false;
   if (query.date && value !== query.date) return false;
@@ -63,9 +57,9 @@ function buildStockTxFilter(query = {}) {
   if (query.warehouseCode) filter.warehouseCode = String(query.warehouseCode).trim();
   if (query.date || query.dateFrom || query.dateTo) {
     filter.date = {};
-    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
-    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
-    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
+    if (query.dateFrom) filter.date.$gte = dateUtil.dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) filter.date.$lte = dateUtil.dateUtil.toDateOnly(query.dateTo);
+    if (query.date) filter.date = dateUtil.dateUtil.toDateOnly(query.date);
   }
   return filter;
 }
@@ -86,8 +80,8 @@ async function stockReport(query = {}) {
   const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
 
   if (hasPeriod) {
-    const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
-    const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || today());
+    const dateFrom = dateUtil.dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
+    const dateTo = dateUtil.dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
     const [transactions, products] = await Promise.all([
       StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
       Product.find({}).lean()
@@ -96,7 +90,7 @@ async function stockReport(query = {}) {
     const byKey = new Map();
 
     transactions.forEach((tx) => {
-      const txDate = toDateOnly(tx.date || tx.createdAt);
+      const txDate = dateUtil.toDateOnly(tx.date || tx.createdAt);
       if (txDate > dateTo) return;
       const productCode = String(tx.productCode || tx.productId || '').trim();
       const warehouseCode = String(tx.warehouseCode || 'MAIN').trim();
@@ -208,7 +202,7 @@ async function stockCardReport(query = {}) {
     runningByKey.set(key, running);
     return {
       id: tx.id || String(tx._id || ''),
-      date: toDateOnly(tx.date || tx.createdAt),
+      date: dateUtil.toDateOnly(tx.date || tx.createdAt),
       productCode: tx.productCode || '',
       productName: tx.productName || '',
       warehouseCode: tx.warehouseCode || 'MAIN',
@@ -340,7 +334,7 @@ function makeVirtualSaleLedger(order = {}) {
   return {
     id: `VIRTUAL-AR-SALE-${order.id || order.code}`,
     code: `VIRTUAL-AR-SALE-${order.code || order.id}`,
-    date: toDateOnly(order.date || order.orderDate || order.createdAt),
+    date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
     type: 'ar_sale_virtual_backfill',
     account: 'AR',
     refType: 'SALES_ORDER',
@@ -369,7 +363,7 @@ function makeVirtualReturnLedger(row = {}) {
   return {
     id: `VIRTUAL-AR-RETURN-${row.id || row.code}`,
     code: `VIRTUAL-AR-RETURN-${row.code || row.id}`,
-    date: toDateOnly(row.date || row.createdAt),
+    date: dateUtil.toDateOnly(row.date || row.createdAt),
     type: 'ar_return_virtual_backfill',
     account: 'AR',
     refType: 'RETURN_ORDER',
@@ -394,7 +388,7 @@ function makeVirtualReceiptLedger(row = {}) {
   return {
     id: `VIRTUAL-AR-RECEIPT-${row.id || row.code}`,
     code: `VIRTUAL-AR-RECEIPT-${row.code || row.id}`,
-    date: toDateOnly(row.date || row.createdAt),
+    date: dateUtil.toDateOnly(row.date || row.createdAt),
     type: 'ar_receipt_virtual_backfill',
     account: 'AR',
     refType: 'RECEIPT',
@@ -421,7 +415,7 @@ function normalizeArLedgerEntry(row = {}) {
   return {
     id: row.id || String(row._id || ''),
     code: row.code || '',
-    date: toDateOnly(row.date || row.createdAt),
+    date: dateUtil.toDateOnly(row.date || row.createdAt),
     type: row.type || '',
     account: row.account || 'AR',
     refType: row.refType || '',
@@ -458,7 +452,7 @@ function buildArLedgerDiagnostics(receipts = [], ledger = []) {
       diagnostics.push({
         level: 'danger',
         code: receipt.code || receipt.id || '',
-        date: toDateOnly(receipt.date || receipt.createdAt),
+        date: dateUtil.toDateOnly(receipt.date || receipt.createdAt),
         customerCode: receipt.customerCode || '',
         customerName: receipt.customerName || '',
         amount,
@@ -468,7 +462,7 @@ function buildArLedgerDiagnostics(receipts = [], ledger = []) {
       diagnostics.push({
         level: 'warning',
         code: receipt.code || receipt.id || '',
-        date: toDateOnly(receipt.date || receipt.createdAt),
+        date: dateUtil.toDateOnly(receipt.date || receipt.createdAt),
         customerCode: receipt.customerCode || '',
         customerName: receipt.customerName || '',
         amount,
@@ -609,8 +603,8 @@ async function debtReport(query = {}) {
     const meta = {
       orderId: id || code,
       orderCode: code || id,
-      documentDate: toDateOnly(order.date || order.orderDate || order.createdAt),
-      dueDate: toDateOnly(order.dueDate || order.paymentDueDate || order.date || order.createdAt),
+      documentDate: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
+      dueDate: dateUtil.toDateOnly(order.dueDate || order.paymentDueDate || order.date || order.createdAt),
       customerId: order.customerId || cmeta.customerId || '',
       customerCode: order.customerCode || cmeta.customerCode || '',
       customerName: order.customerName || cmeta.customerName || '',
@@ -681,8 +675,8 @@ async function debtReport(query = {}) {
       ...meta,
       orderId: meta.orderId || entry.orderId || entry.refId || '',
       orderCode: meta.orderCode || entry.orderCode || entry.refCode || '',
-      documentDate: meta.documentDate || toDateOnly(entry.date || entry.createdAt),
-      dueDate: meta.dueDate || toDateOnly(entry.dueDate || entry.date || entry.createdAt),
+      documentDate: meta.documentDate || dateUtil.toDateOnly(entry.date || entry.createdAt),
+      dueDate: meta.dueDate || dateUtil.toDateOnly(entry.dueDate || entry.date || entry.createdAt),
       customerId: meta.customerId || entry.customerId || '',
       customerCode: meta.customerCode || entry.customerCode || '',
       customerName: meta.customerName || entry.customerName || '',
@@ -718,7 +712,7 @@ async function debtReport(query = {}) {
       }
     });
 
-  const now = today();
+  const now = dateUtil.todayVN();
   let debts = Array.from(byOrder.values()).map((row) => {
     const rawDebt = toNumber(row.debit) - toNumber(row.credit);
     const debt = normalizeDebtAmount(rawDebt);
@@ -963,7 +957,7 @@ async function salesReport(query = {}) {
   const rows = orders.map((order) => ({
     id: order.id || String(order._id || ''),
     code: order.code || order.orderCode || '',
-    date: toDateOnly(order.date || order.orderDate || order.createdAt),
+    date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
     salesmanCode: order.salesmanCode || order.staffCode || '',
@@ -1043,7 +1037,7 @@ async function deliveryReport(query = {}) {
   const rows = masterOrders.map((order) => ({
     id: order.id || String(order._id || ''),
     code: order.code || order.masterOrderCode || '',
-    deliveryDate: toDateOnly(order.deliveryDate || order.date || order.createdAt),
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || order.createdAt),
     deliveryStaffCode: order.deliveryStaffCode || order.staffCode || '',
     deliveryStaffName: order.deliveryStaffName || order.staffName || '',
     orderCount: toNumber(order.orderCount || (Array.isArray(order.childOrders) ? order.childOrders.length : 0)),

@@ -1,3 +1,7 @@
+
+const v45Common = window.V45Common || {};
+const todayValue = v45Common.todayValue;
+const calculateCartonUnit = v45Common.calculateCartonUnit;
 import { mobileApi, getUser } from './api.js';
 import { bindLogout, debounce, money, requireLogin, requireRole, setMessage } from './ui.js';
 
@@ -55,9 +59,6 @@ function switchTab(tabId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function todayValue() {
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-}
 function formatShortDate(value) {
   const raw = String(value || todayValue()).trim();
   let m = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
@@ -142,7 +143,6 @@ function selectCustomer(customer) {
 }
 
 
-function calculateCartonUnit(quantity, packing){ const qty=Math.max(0,Number(quantity||0)); const rate=Math.max(1,Number(packing||1)); const cartons=Math.floor(qty/rate); const units=qty%rate; return {cartons,units,packing:rate,display:`${cartons}/${units}`}; }
 function formatStockTL(qty, rate){ return calculateCartonUnit(qty, rate).display; }
 
 function toMobileProduct(product = {}) {

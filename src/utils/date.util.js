@@ -18,6 +18,10 @@ function formatDateOnly(year, month, day) {
   return `${year}-${pad2(month)}-${pad2(day)}`;
 }
 
+function nowIso(date = new Date()) {
+  return date.toISOString();
+}
+
 function todayVN(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: VIETNAM_TIME_ZONE,
@@ -102,6 +106,7 @@ module.exports = {
   parseVietnamDate,
   toDateOnly,
   todayVN,
+  nowIso,
   isDateInRange,
   excelSerialToDate
 };

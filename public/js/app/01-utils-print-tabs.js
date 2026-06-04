@@ -1,3 +1,8 @@
+
+const v45PrintCommon = window.V45Common || {};
+const calculateCartonUnit = v45PrintCommon.calculateCartonUnit;
+const today = v45PrintCommon.todayValue;
+const toDateOnly = v45PrintCommon.toDateOnly;
 function money(value){return Number(value||0).toLocaleString('vi-VN')}
 function productPackingText(p){
   if(!p)return '';
@@ -43,13 +48,6 @@ function findProductByKey(key){
   }
   return null;
 }
-function calculateCartonUnit(quantity, packing){
-  const qty=Math.max(0,Number(quantity||0));
-  const rate=Math.max(1,Number(packing||1));
-  const cartons=Math.floor(qty/rate);
-  const units=qty%rate;
-  return {cartons,units,packing:rate,display:`${cartons}/${units}`};
-}
 function formatCaseLooseStock(quantity, conversionRate){
   return calculateCartonUnit(quantity, conversionRate).display;
 }
@@ -80,18 +78,6 @@ function productStockStatusText(p){
   return productHasStock(p) ? `Tồn: ${productStockDisplay(p)}` : `Hết tồn · Tồn: ${productStockDisplay(p)}`;
 }
 
-function today(){
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-}
-function toDateOnly(value){
-  const raw=String(value||'').trim();
-  if(!raw)return '';
-  let m=raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
-  m=raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4}|\d{2})/);
-  if(m){let d=Number(m[1]),mo=Number(m[2]),y=Number(m[3]); if(y<100)y+=y>=70?1900:2000; if(mo>=1&&mo<=12&&d>=1&&d<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
-  return raw.slice(0,10);
-}
 function isDateInRange(value,fromDate,toDate){
   const d=toDateOnly(value); const f=toDateOnly(fromDate); const t=toDateOnly(toDate);
   if(!d)return false; if(f&&d<f)return false; if(t&&d>t)return false; return true;

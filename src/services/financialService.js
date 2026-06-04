@@ -15,13 +15,7 @@ const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.const
 const postingEngine = require('../engines/posting.engine');
 const fundLedgerRepository = require('../repositories/fundLedgerRepository');
 
-function today() {
-  return dateUtil.todayVN();
-}
 
-function nowIso() {
-  return new Date().toISOString();
-}
 
 // Chặn chứng từ nhập sai định dạng tiền gây lệch sổ công nợ.
 // Có thể nâng ngưỡng này sau, nhưng một chứng từ thu công nợ thông thường không nên vượt 1 tỷ.
@@ -79,8 +73,8 @@ async function syncOrderDebtCacheFromAR(orderOrKey, options = {}) {
     arBalance: nextDebt,
     arStatus: hasOpenDebt(nextDebt) ? 'ar_posted' : 'paid',
     lifecycleStatus: hasOpenDebt(nextDebt) ? (order.lifecycleStatus || 'ar_posted') : 'paid',
-    paidAt: !hasOpenDebt(nextDebt) ? (order.paidAt || nowIso()) : (order.paidAt || ''),
-    updatedAt: nowIso()
+    paidAt: !hasOpenDebt(nextDebt) ? (order.paidAt || dateUtil.nowIso()) : (order.paidAt || ''),
+    updatedAt: dateUtil.nowIso()
   };
   await orderRepository.upsert(updated, options);
   return updated;
@@ -135,7 +129,7 @@ async function postReceiptFundLedger(input = {}, options = {}) {
   const entry = {
     id: makeId('FL'),
     code: await buildFundLedgerCode(),
-    date: dateUtil.toDateOnly(input.date || today()),
+    date: dateUtil.toDateOnly(input.date || dateUtil.todayVN()),
     fundType,
     direction,
     amount: toNumber(input.amount),
@@ -150,8 +144,8 @@ async function postReceiptFundLedger(input = {}, options = {}) {
     staffName: String(input.staffName || '').trim(),
     note: String(input.note || '').trim(),
     status: 'posted',
-    createdAt: nowIso(),
-    updatedAt: nowIso()
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await fundLedgerRepository.upsert(entry, options);
   return entry;
@@ -263,7 +257,7 @@ async function createCashbook(body = {}) {
   const entry = {
     id: String(body.id || makeId('CB')).trim(),
     code: String(body.code || await buildCashCode(type)).trim(),
-    date: dateUtil.toDateOnly(body.date || today()),
+    date: dateUtil.toDateOnly(body.date || dateUtil.todayVN()),
     type,
     source: String(body.source || 'manual_cashbook').trim(),
     refType: String(body.refType || 'manual_cashbook').trim(),
@@ -277,8 +271,8 @@ async function createCashbook(body = {}) {
     amount,
     note: String(body.note || '').trim(),
     status: body.status || 'posted',
-    createdAt: body.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: body.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     await cashbookRepository.upsert(entry, { session });
@@ -355,12 +349,12 @@ async function createReceipt(body = {}) {
   const method = ['transfer', 'bank'].includes(String(body.method || '').toLowerCase()) ? 'transfer' : 'cash';
   const allocations = splitAllocationsByAmount(body.allocations, amount);
   const primaryAllocation = allocationPrimary(allocations);
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const receipt = {
     ...body,
     id: String(body.id || makeId('RC')).trim(),
     code: String(body.code || await buildReceiptCode()).trim(),
-    date: dateUtil.toDateOnly(body.date || today()),
+    date: dateUtil.toDateOnly(body.date || dateUtil.todayVN()),
     customerId: customer.id || body.customerId || customer.code || '',
     customerCode: customer.code || body.customerCode || '',
     customerName: customer.name || body.customerName || '',
@@ -463,7 +457,7 @@ async function voidReceipt(id, body = {}, query = {}) {
     return { error: 'Phiếu thu đã hủy trước đó, không được hủy lặp', status: 409 };
   }
 
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const voided = {
     ...receipt,
     status: 'void',
@@ -528,7 +522,7 @@ async function createDebtCollection(body = {}) {
   const customer = await resolveCustomer(body);
   if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
 
-  const date = dateUtil.toDateOnly(body.date || today());
+  const date = dateUtil.toDateOnly(body.date || dateUtil.todayVN());
   const staffName = String(body.staffName || '').trim();
   const note = String(body.note || '').trim();
   const allAllocations = parseAllocations(body.allocations);
@@ -587,7 +581,7 @@ async function createDebtCollection(body = {}) {
   }
 
   if (returnAmount > 0) {
-    const now = nowIso();
+    const now = dateUtil.nowIso();
     const returnAllocations = takeAllocations(returnAmount);
     const primaryReturnAllocation = allocationPrimary(returnAllocations);
     const returnOrder = {

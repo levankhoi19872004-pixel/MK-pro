@@ -12,29 +12,23 @@
  * Không màn hình nào tự load toàn bộ catalog để tìm kiếm.
  */
 (function () {
+  const common = window.V45Common || {};
+  const normalizeText = common.normalizeText;
+  const toNumber = common.toNumber;
+
   'use strict';
 
   const MAX_LIMIT = 50;
   const DEFAULT_LIMIT = 20;
 
-  function normalizeText(value) {
-    return String(value ?? '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .trim();
-  }
+  
 
   function normalizeLimit(value, fallback = DEFAULT_LIMIT) {
     const n = Number.parseInt(value, 10);
     return Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(n) ? n : fallback));
   }
 
-  function toNumber(value) {
-    const n = Number(value || 0);
-    return Number.isFinite(n) ? n : 0;
-  }
+  
 
   function includesAny(item, keyword, fields) {
     const q = normalizeText(keyword);

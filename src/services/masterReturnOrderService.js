@@ -9,8 +9,6 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const returnOrderService = require('./returnOrderService');
 
-function today() { return dateUtil.todayVN(); }
-function nowIso() { return new Date().toISOString(); }
 
 function isInactiveStatus(row = {}) {
   const status = String(row.status || '').toLowerCase();
@@ -156,7 +154,7 @@ async function createMasterReturnOrder(body = {}) {
   const existing = await masterReturnOrderRepository.findAll();
   const deliveryStaff = await resolveDeliveryStaff(body);
   const first = children[0] || {};
-  const returnDate = dateUtil.toDateOnly(body.returnDate || body.date || first.date || today());
+  const returnDate = dateUtil.toDateOnly(body.returnDate || body.date || first.date || dateUtil.todayVN());
   const summary = summarizeReturnOrders(children);
   const masterReturnOrder = {
     ...body,
@@ -172,8 +170,8 @@ async function createMasterReturnOrder(body = {}) {
     note: String(body.note || '').trim(),
     source: body.source || 'master_return_order_route',
     ...summary,
-    createdAt: body.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: body.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 
   await withMongoTransaction(async (session) => {
@@ -188,7 +186,7 @@ async function createMasterReturnOrder(body = {}) {
         deliveryStaffId: masterReturnOrder.deliveryStaffId,
         deliveryStaffCode: masterReturnOrder.deliveryStaffCode,
         deliveryStaffName: masterReturnOrder.deliveryStaffName,
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       }, { session });
     }
   });
@@ -206,15 +204,15 @@ async function updateMasterReturnOrder(id, body = {}) {
   const updated = {
     ...current,
     ...body,
-    returnDate: dateUtil.toDateOnly(body.returnDate || body.date || current.returnDate || current.date || today()),
-    date: dateUtil.toDateOnly(body.date || current.date || body.returnDate || current.returnDate || today()),
+    returnDate: dateUtil.toDateOnly(body.returnDate || body.date || current.returnDate || current.date || dateUtil.todayVN()),
+    date: dateUtil.toDateOnly(body.date || current.date || body.returnDate || current.returnDate || dateUtil.todayVN()),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',
     note: String(body.note ?? current.note ?? '').trim(),
     status: String(body.status === 'received' ? current.status : (body.status || current.status || 'pending_warehouse_receive')).trim(),
     ...summarizeReturnOrders(children),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     await masterReturnOrderRepository.upsert(updated, { session });
@@ -225,7 +223,7 @@ async function updateMasterReturnOrder(id, body = {}) {
         deliveryStaffCode: updated.deliveryStaffCode,
         deliveryStaffName: updated.deliveryStaffName,
         warehouseReceiveStatus: updated.status,
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       }, { session });
     }
   });
@@ -257,11 +255,11 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
     warehouseReceiveStatus: 'received',
     stockReceiveStatus: 'posted',
     stockPosted: true,
-    receivedAt: nowIso(),
-    stockPostedAt: nowIso(),
+    receivedAt: dateUtil.nowIso(),
+    stockPostedAt: dateUtil.nowIso(),
     receivedBy: String(body.receivedBy || '').trim(),
     stockPostedBy: String(body.receivedBy || '').trim(),
-    updatedAt: nowIso(),
+    updatedAt: dateUtil.nowIso(),
     ...summarizeReturnOrders(receivedChildren)
   };
 
@@ -275,7 +273,7 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
         returnMergeStatus: 'merged',
         masterReturnOrderId: received.id,
         masterReturnOrderCode: received.code,
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       }, { session });
     }
   });
@@ -295,8 +293,8 @@ async function cancelMasterReturnOrder(id, body = {}) {
     ...current,
     status: 'cancelled',
     cancelReason: String(body.reason || body.cancelReason || '').trim(),
-    cancelledAt: nowIso(),
-    updatedAt: nowIso()
+    cancelledAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     for (const child of children) {
@@ -306,7 +304,7 @@ async function cancelMasterReturnOrder(id, body = {}) {
         masterReturnOrderCode: '',
         returnMergeStatus: 'unmerged',
         warehouseReceiveStatus: '',
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       }, { session });
     }
     await masterReturnOrderRepository.upsert(cancelled, { session });

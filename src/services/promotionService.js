@@ -8,7 +8,6 @@ const PromotionGroupItem = require('../models/PromotionGroupItem');
 const PromotionGroupRule = require('../models/PromotionGroupRule');
 const { makeId, toNumber } = require('../utils/common.util');
 
-function nowIso() { return new Date().toISOString(); }
 function clean(value) { return String(value ?? '').trim(); }
 function rx(q) { return new RegExp(String(q || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
 
@@ -20,7 +19,7 @@ function normalizeProductCodes(value) {
 async function listPromotions(query = {}) { return promotionRepository.findAll(query); }
 
 async function savePromotion(body = {}) {
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const payload = {
     ...body,
     id: clean(body.id || makeId('PR')),
@@ -83,7 +82,7 @@ async function saveProductRule(body = {}) {
   if (!productCode) return { error: 'Thiếu mã sản phẩm', status: 400 };
   if (!product) return { error: `Không tìm thấy sản phẩm ${productCode} trong danh mục`, status: 400 };
   if (discountPercent < 0) return { error: 'Chiết khấu không được âm', status: 400 };
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const id = clean(body.id) || `${programCode}__${productCode}`;
   const existing = await PromotionProductRule.findOne({ $or: [{ id }, { programCode, productCode }] });
   const payload = { id, programCode, programName, productCode, productName, discountPercent, isActive: body.isActive !== false && body.isActive !== 'false', updatedAt: now };
@@ -109,7 +108,7 @@ async function saveGroupItem(body = {}) {
   if (!programCode) return { error: 'Thiếu mã chương trình KM / mã nhóm', status: 400 };
   if (!productCode) return { error: 'Thiếu mã sản phẩm', status: 400 };
   if (!product) return { error: `Không tìm thấy sản phẩm ${productCode} trong danh mục`, status: 400 };
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const id = clean(body.id) || `${programCode}__${productCode}`;
   const existing = await PromotionGroupItem.findOne({ $or: [{ id }, { programCode, productCode }] });
   const payload = { id, programCode, productCode, productName, isActive: body.isActive !== false && body.isActive !== 'false', updatedAt: now };
@@ -138,7 +137,7 @@ async function saveGroupRule(body = {}) {
   if (!programName) return { error: 'Thiếu nội dung chương trình KM', status: 400 };
   if (minAmount <= 0) return { error: 'Mức doanh số cần lấy phải lớn hơn 0', status: 400 };
   if (discountPercent < 0) return { error: 'Chiết khấu không được âm', status: 400 };
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const id = clean(body.id) || `${programCode}__${minAmount}`;
   const existing = await PromotionGroupRule.findOne({ $or: [{ id }, { programCode, minAmount }] });
   const payload = { id, programCode, programName, minAmount, discountPercent, isActive: body.isActive !== false && body.isActive !== 'false', updatedAt: now };

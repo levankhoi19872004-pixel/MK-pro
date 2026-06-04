@@ -9,9 +9,7 @@ const SalesOrder = require('../models/SalesOrder');
 const ReturnOrder = require('../models/ReturnOrder');
 const { makeId, toNumber, normalizeText } = require('../utils/common.util');
 
-function nowIso() { return new Date().toISOString(); }
-function today() { return dateUtil.todayVN(); }
-function dateOnly(value) { return dateUtil.toDateOnly(value || today()); }
+function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
 
 function getProductKey(item = {}) {
@@ -59,7 +57,7 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
   const refId = String(movement.refId || document.id || document._id || document.code || '').trim();
   const refCode = String(movement.refCode || document.code || document.orderCode || document.id || '').trim();
   const txDate = dateOnly(movement.date || document.date || document.orderDate || document.documentDate || document.createdAt);
-  const postedAt = nowIso();
+  const postedAt = dateUtil.nowIso();
   const transactions = [];
 
   for (const item of items) {
@@ -215,8 +213,8 @@ function makeStockTx({ date, productId, productCode, productName, quantity, type
     refId: String(refId || '').trim(),
     refCode: String(refCode || refId || '').trim(),
     note,
-    createdAt: nowIso(),
-    updatedAt: nowIso()
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 }
 
@@ -232,7 +230,7 @@ async function rebuildSnapshotsFromTransactions() {
     const warehouseCode = String(row.warehouseCode || 'MAIN').trim() || 'MAIN';
     const key = `${productCode}@@${warehouseCode}`;
     balances.set(key, toNumber(balances.get(key)) + toNumber(row.quantity ?? row.qty));
-    lastTxAt.set(key, row.updatedAt || row.createdAt || nowIso());
+    lastTxAt.set(key, row.updatedAt || row.createdAt || dateUtil.nowIso());
   }
 
   const docs = [];
@@ -260,8 +258,8 @@ async function rebuildSnapshotsFromTransactions() {
       onHand: qty,
       reservedQty: 0,
       availableQty: qty,
-      lastTransactionAt: lastTxAt.get(key) || nowIso(),
-      updatedAt: nowIso()
+      lastTransactionAt: lastTxAt.get(key) || dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso()
     });
 
     // Không cập nhật tồn vào products.

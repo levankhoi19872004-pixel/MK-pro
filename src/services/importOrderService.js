@@ -8,8 +8,6 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
 
-function today() { return dateUtil.todayVN(); }
-function nowIso() { return new Date().toISOString(); }
 
 function buildImportCode(existingOrders = []) {
   const max = existingOrders.reduce((result, order) => {
@@ -89,7 +87,7 @@ async function createImportOrder(body = {}) {
     ...body,
     id: String(body.id || makeId('IM')).trim(),
     code: String(body.code || buildImportCode(existingOrders)).trim(),
-    date: dateUtil.toDateOnly(body.date || today()),
+    date: dateUtil.toDateOnly(body.date || dateUtil.todayVN()),
     supplier: String(body.supplier || body.supplierName || '').trim(),
     supplierName: String(body.supplierName || body.supplier || '').trim(),
     note: String(body.note || '').trim(),
@@ -98,8 +96,8 @@ async function createImportOrder(body = {}) {
     totalAmount: toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0)),
     status: body.status || 'posted',
     source: body.source || 'mongo_import_order_route',
-    createdAt: body.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: body.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     await importOrderRepository.upsert(importOrder, { session });
@@ -126,14 +124,14 @@ async function updateImportOrder(id, body = {}) {
     ...body,
     id: current.id || body.id,
     code: current.code || body.code,
-    date: dateUtil.toDateOnly(body.date || current.date || today()),
+    date: dateUtil.toDateOnly(body.date || current.date || dateUtil.todayVN()),
     supplier: String(body.supplier ?? body.supplierName ?? current.supplier ?? '').trim(),
     supplierName: String(body.supplierName ?? body.supplier ?? current.supplierName ?? '').trim(),
     note: String(body.note ?? current.note ?? '').trim(),
     items,
     totalQuantity: toNumber(body.totalQuantity ?? items.reduce((sum, item) => sum + toNumber(item.quantity), 0)),
     totalAmount: toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0)),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     await inventoryService.reverseStockMovement(current, {
@@ -143,7 +141,7 @@ async function updateImportOrder(id, body = {}) {
       refType: 'IMPORT_ORDER',
       refId: current.id || current.code,
       refCode: current.code || current.id,
-      date: today(),
+      date: dateUtil.todayVN(),
       note: 'Đảo nhập kho phiếu nhập cũ'
     }, { session });
     await importOrderRepository.upsert(updated, { session });

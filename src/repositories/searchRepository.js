@@ -1,5 +1,7 @@
 'use strict';
 
+const { normalizeText } = require('../utils/search.util');
+
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
@@ -13,15 +15,6 @@ const { escapeRegex } = require('../utils/query.util');
 
 const SEARCH_RETURN_MAX = 50;
 
-function normalizeText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-}
 
 function isNumericKeyword(value = '') {
   return /^\d+$/.test(String(value || '').trim());

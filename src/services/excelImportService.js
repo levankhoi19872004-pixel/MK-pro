@@ -1,5 +1,7 @@
 'use strict';
 
+const { normalizeSearchText } = require('../utils/search.util');
+
 const dateUtil = require('../utils/date.util');
 const { parseExcelBuffer } = require('../../utils/excelParser');
 const Product = require('../models/Product');
@@ -55,8 +57,8 @@ function buildReturnDraftFromImportedOrder(order = {}) {
   return {
     id: `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
     code: `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`,
-    date: dateUtil.toDateOnly(order.deliveryDate || order.date || today()),
-    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || today()),
+    date: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || dateUtil.todayVN()),
     salesOrderId: order.id || '',
     salesOrderCode: order.code || '',
     orderId: order.id || '',
@@ -74,7 +76,7 @@ function buildReturnDraftFromImportedOrder(order = {}) {
     deliveryStaffId: '',
     deliveryStaffCode: '',
     deliveryStaffName: '',
-    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || today()),
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
     items,
     totalSoldAmount,
     totalReturnAmount: 0,
@@ -91,8 +93,8 @@ function buildReturnDraftFromImportedOrder(order = {}) {
     accountingStatus: 'draft',
     accountingConfirmed: false,
     postedAt: '',
-    createdAt: order.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: order.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 }
 
@@ -100,13 +102,7 @@ function cleanText(value) {
   return String(value ?? '').trim();
 }
 
-function today() {
-  return dateUtil.todayVN();
-}
 
-function nowIso() {
-  return new Date().toISOString();
-}
 
 function isValidDateParts(year, month, day) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
@@ -124,7 +120,7 @@ function normalizeImportDate(value) {
 }
 
 function dateOnly(value) {
-  return normalizeImportDate(value || today());
+  return normalizeImportDate(value || dateUtil.todayVN());
 }
 
 function isObjectIdLike(value) {
@@ -217,7 +213,7 @@ async function addImportLog(type, summary) {
     id: makeId('IL'),
     type,
     summary,
-    createdAt: nowIso()
+    createdAt: dateUtil.nowIso()
   }).catch(() => null);
 }
 
@@ -509,15 +505,6 @@ async function insertManyInBatches(Model, docs = [], options = {}) {
   return { inserted, errors };
 }
 
-function normalizeSearchText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-}
 
 function productSearchText(payload = {}) {
   return normalizeSearchText([
@@ -603,7 +590,7 @@ function pushInventoryMovement({ movements, inventoryDeltas, item, direction, ty
   const whName = cleanText(warehouseName) || 'Kho chính';
   const sign = direction === 'OUT' ? -1 : 1;
   const qty = Math.abs(rawQty) * sign;
-  const now = nowIso();
+  const now = dateUtil.nowIso();
 
   movements.push({
     id: makeId('ST'),
@@ -647,7 +634,7 @@ function pushInventoryMovement({ movements, inventoryDeltas, item, direction, ty
 async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new Map()) {
   if (movements.length) await insertManyInBatches(StockTransaction, movements);
   const ops = [];
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   for (const delta of inventoryDeltas.values()) {
     const qty = toNumber(delta.qty);
     if (!qty) continue;
@@ -696,7 +683,7 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
 
 async function setOpeningStockInventoriesBulk(rows = []) {
   const ops = [];
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   for (const row of rows) {
     const quantity = toNumber(row.quantity);
     const reservedQty = toNumber(row.reservedQty);
@@ -843,7 +830,7 @@ async function importOpeningStock(rows = []) {
       errors.push({ productCode, message: 'Không tìm thấy sản phẩm trong danh mục. Tồn kho ban đầu chỉ nhận mã sản phẩm đã có.' });
       continue;
     }
-    const date = dateOnly(row.date || row.documentDate || row['Ngày'] || row['Ngay'] || today());
+    const date = dateOnly(row.date || row.documentDate || row['Ngày'] || row['Ngay'] || dateUtil.todayVN());
     const docCode = cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || codeList[codeIndex++] || makeId('TD');
     const warehouseCode = cleanText(product.warehouseCode || product.defaultWarehouseCode) || 'KHO_HC';
     const warehouseName = cleanText(product.warehouseName || product.defaultWarehouseName) || productWarehouseName(warehouseCode);
@@ -871,8 +858,8 @@ async function importOpeningStock(rows = []) {
       refId: makeId('OS'),
       refCode: docCode,
       note,
-      createdAt: nowIso(),
-      updatedAt: nowIso()
+      createdAt: dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso()
     });
     snapshotRows.push({
       productId,
@@ -909,7 +896,7 @@ async function importImportOrders(rows = []) {
   const importDocumentCodes = Array.from(new Set(rows.map(r => cleanText(r.documentCode || r.code || r['Số hóa đơn'] || r['So hoa don'] || r['Mã đơn'] || r['Ma don'])).filter(Boolean)));
   const existingOrders = await SalesOrder.find({ documentCode: { $in: importDocumentCodes } }).select('documentCode').lean().catch(() => []);
   const existingDocumentSet = new Set(existingOrders.map(o => cleanText(o.documentCode)));
-const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã phiếu'] || r['Ma phieu']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || today())}|${cleanText(r.supplier || r.supplierName || r['Nhà cung cấp'] || r['Nha cung cap']) || 'Import Excel'}`);
+const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r['Mã phiếu'] || r['Ma phieu']) || 'AUTO'}|${dateOnly(r.date || r['Ngày'] || r['Ngay'] || dateUtil.todayVN())}|${cleanText(r.supplier || r.supplierName || r['Nhà cung cấp'] || r['Nha cung cap']) || 'Import Excel'}`);
   const autoCodes = await buildRunningCodes(ImportOrder, 'PN', groups.length);
   let autoIdx = 0;
   const docs = [];
@@ -941,11 +928,11 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       });
     }
     if (!items.length) continue;
-    const now = nowIso();
+    const now = dateUtil.nowIso();
     const doc = {
       id: makeId('IM'),
       code: cleanText(first.documentCode || first.code || first['Mã phiếu'] || first['Ma phieu']) || autoCodes[autoIdx++] || makeId('PN'),
-      date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || today()),
+      date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || dateUtil.todayVN()),
       supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       supplierName: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'MAIN',
@@ -1225,7 +1212,7 @@ async function importSalesOrders(rows = [], options = {}) {
     const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
     const paidAmount = Math.min(toNumber(first.paidAmount ?? first['Đã thu'] ?? first['Da thu']), totalAmount);
-    const now = nowIso();
+    const now = dateUtil.nowIso();
     const doc = {
       id: makeId('SO'),
       code: docCodeCheck === 'AUTO' ? (autoOrderCodes[autoOrderIdx++] || makeId('BH')) : docCodeCheck,
@@ -1346,10 +1333,10 @@ async function importOpeningDebt(rows = []) {
       errors.push({ customerCode, message: !customer ? 'Không tìm thấy khách hàng' : 'Công nợ đầu không được âm' });
       continue;
     }
-    const now = nowIso();
+    const now = dateUtil.nowIso();
     docs.push({
       id: makeId('PM'),
-      date: dateOnly(row.date || today()),
+      date: dateOnly(row.date || dateUtil.todayVN()),
       type: 'opening_debt',
       refType: 'opening',
       refId: '',
@@ -1396,12 +1383,12 @@ async function importDebtCollections(rows = []) {
       errors.push({ customerCode, message: !customer ? 'Không tìm thấy khách hàng' : 'Số tiền thu phải lớn hơn 0' });
       continue;
     }
-    const now = nowIso();
+    const now = dateUtil.nowIso();
     const code = cleanText(row.code || row.receiptCode || row['Mã phiếu'] || row['Ma phieu']) || receiptCodes[codeIdx++] || `TH${Date.now()}${codeIdx}`;
     const receipt = {
       id: makeId('RC'),
       code,
-      date: dateOnly(row.date || today()),
+      date: dateOnly(row.date || dateUtil.todayVN()),
       customerId: String(customer.id || customer._id || customer.code),
       customerCode: customer.code,
       customerName: customer.name,
@@ -1490,11 +1477,11 @@ async function importCashbook(rows = []) {
       errors.push({ message: 'Số tiền phải lớn hơn 0' });
       continue;
     }
-    const now = nowIso();
+    const now = dateUtil.nowIso();
     docs.push({
       id: makeId('CB'),
       code: cleanText(row.code || row['Mã phiếu'] || row['Ma phieu']) || (type === 'out' ? outCodes[outIdx++] : inCodes[inIdx++]),
-      date: dateOnly(row.date || row['Ngày'] || row['Ngay'] || today()),
+      date: dateOnly(row.date || row['Ngày'] || row['Ngay'] || dateUtil.todayVN()),
       type,
       source: cleanText(row.source || row['Nguồn'] || row['Nguon'] || row['Nhóm tiền']) || 'import_excel',
       refType: 'manual_import',
@@ -2386,7 +2373,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(commitRows);
   else return { error: 'Loại import không hợp lệ', status: 400 };
 
-  if (session) importSessionService.updateSession(session.id, { status: 'committed', selectedOrderCodes, committedAt: nowIso() });
+  if (session) importSessionService.updateSession(session.id, { status: 'committed', selectedOrderCodes, committedAt: dateUtil.nowIso() });
   await auditService.log('IMPORT_COMMIT', {
     refType: 'importSession',
     refId: session?.id || '',

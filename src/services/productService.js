@@ -1,20 +1,13 @@
 'use strict';
 
+const { normalizeSearchText } = require('../utils/search.util');
+
 const productRepository = require('../repositories/productRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
 const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
 
-function normalizeSearchText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-}
 
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
 

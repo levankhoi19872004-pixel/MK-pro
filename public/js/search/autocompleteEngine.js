@@ -4,23 +4,16 @@
  */
 (function(){
   'use strict';
+  const common = window.V45Common || {};
+  const normalizeText = common.normalizeText;
+  const escapeHtml = common.escapeHtml;
+
 
   const wiredInputs = new WeakMap();
 
-  function normalizeText(value){
-    return String(value ?? '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g,'')
-      .replace(/đ/g,'d')
-      .trim();
-  }
+  
 
-  function escapeHtml(value){
-    return String(value ?? '').replace(/[&<>"']/g, char => ({
-      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    }[char]));
-  }
+  
 
   function matchText(keyword, terms){
     const q = normalizeText(keyword);

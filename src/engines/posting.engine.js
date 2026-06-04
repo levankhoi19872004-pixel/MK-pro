@@ -4,19 +4,13 @@ const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
 
-function today() {
-  return dateUtil.todayVN();
-}
 
-function nowIso() {
-  return new Date().toISOString();
-}
 
 function baseJournal(doc = {}, extra = {}) {
   return {
     id: extra.id || makeId('JR'),
     code: extra.code || `${extra.prefix || 'JR'}-${doc.code || doc.id || Date.now()}`,
-    date: dateUtil.toDateOnly(extra.date || doc.date || doc.documentDate || doc.orderDate || doc.createdAt || today()),
+    date: dateUtil.toDateOnly(extra.date || doc.date || doc.documentDate || doc.orderDate || doc.createdAt || dateUtil.todayVN()),
     type: extra.type || 'ar',
     account: extra.account || 'AR',
     refType: extra.refType || doc.refType || 'DOCUMENT',
@@ -37,8 +31,8 @@ function baseJournal(doc = {}, extra = {}) {
     note: String(extra.note || doc.note || '').trim(),
     status: extra.status || 'posted',
     source: extra.source || 'posting_engine',
-    createdAt: extra.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: extra.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 }
 

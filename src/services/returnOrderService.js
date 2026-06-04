@@ -11,8 +11,6 @@ const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 
-function today() { return dateUtil.todayVN(); }
-function nowIso() { return new Date().toISOString(); }
 
 function buildReturnCode(existingOrders = []) {
   const max = existingOrders.reduce((result, order) => {
@@ -201,8 +199,8 @@ async function buildReturnOrderDocument(body = {}) {
     ...body,
     id: String(existing?.id || body.id || makeId('RO')).trim(),
     code: String(existing?.code || body.code || buildReturnCode(existingOrders)).trim(),
-    date: dateUtil.toDateOnly(body.date || existing?.date || today()),
-    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || today()),
+    date: dateUtil.toDateOnly(body.date || existing?.date || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || dateUtil.todayVN()),
     salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
     salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || existing?.salesOrderCode || '',
     orderId: salesOrder?.id || body.orderId || body.salesOrderId || existing?.orderId || existing?.salesOrderId || '',
@@ -227,8 +225,8 @@ async function buildReturnOrderDocument(body = {}) {
     source: body.source || existing?.source || 'returnOrders',
     accountingStatus: body.accountingStatus || existing?.accountingStatus || '',
     accountingConfirmed: Boolean(body.accountingConfirmed ?? existing?.accountingConfirmed ?? false),
-    createdAt: existing?.createdAt || body.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: existing?.createdAt || body.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   return { returnOrder, existing };
 }
@@ -259,7 +257,7 @@ async function createReturnOrder(body = {}) {
       ...returnOrder,
       status: 'posted',
       warehouseReceiveStatus: 'received',
-      postedAt: returnOrder.postedAt || nowIso()
+      postedAt: returnOrder.postedAt || dateUtil.nowIso()
     }, { session });
     await inventoryService.postStockMovement(returnOrder, {
       type: 'RETURN',
@@ -333,7 +331,7 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
   const items = normalizeDeliveryReturnItems(body.items, salesOrder);
   const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const id = String(existing?.id || body.id || `RO-MOBILE-${String(salesOrderId || salesOrderCode).replace(/[^a-zA-Z0-9_-]/g, '')}` || makeId('RO')).trim();
   const code = String(existing?.code || body.code || buildReturnCode(existingOrders)).trim();
   const status = totalAmount > 0 ? (body.status || 'waiting_receive') : 'cleared';
@@ -343,8 +341,8 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
     ...body,
     id,
     code,
-    date: dateUtil.toDateOnly(body.date || body.documentDate || existing?.date || today()),
-    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || today()),
+    date: dateUtil.toDateOnly(body.date || body.documentDate || existing?.date || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || existing?.date || dateUtil.todayVN()),
     salesOrderId,
     salesOrderCode,
     orderId: salesOrderId,
@@ -430,9 +428,9 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
     ...current,
     status: 'received',
     warehouseReceiveStatus: 'received',
-    receivedAt: nowIso(),
-    postedAt: current.postedAt || nowIso(),
-    updatedAt: nowIso()
+    receivedAt: dateUtil.nowIso(),
+    postedAt: current.postedAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 
   await withMongoTransaction(async (session) => {
@@ -538,8 +536,8 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
     ...(existing || {}),
     id: String(existing?.id || `RO-DRAFT-${String(order.id || order.code || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`).trim(),
     code: String(existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/[^a-zA-Z0-9_-]/g, '')}`).trim(),
-    date: dateUtil.toDateOnly(order.deliveryDate || order.date || existing?.date || today()),
-    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || existing?.documentDate || today()),
+    date: dateUtil.toDateOnly(order.deliveryDate || order.date || existing?.date || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(order.date || order.orderDate || existing?.documentDate || dateUtil.todayVN()),
     salesOrderId: order.id || existing?.salesOrderId || '',
     salesOrderCode: order.code || existing?.salesOrderCode || '',
     orderId: order.id || existing?.orderId || '',
@@ -557,7 +555,7 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
     deliveryStaffId: order.deliveryStaffId || existing?.deliveryStaffId || '',
     deliveryStaffCode: order.deliveryStaffCode || existing?.deliveryStaffCode || '',
     deliveryStaffName: order.deliveryStaffName || existing?.deliveryStaffName || '',
-    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || today()),
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || dateUtil.todayVN()),
     routeName: order.routeName || order.deliveryRoute || existing?.routeName || '',
     deliveryRoute: order.deliveryRoute || order.routeName || existing?.deliveryRoute || '',
     items,
@@ -573,8 +571,8 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
     postedAt: existing?.postedAt || '',
     cancelledAt: '',
     deletedAt: '',
-    updatedAt: nowIso(),
-    createdAt: existing?.createdAt || nowIso()
+    updatedAt: dateUtil.nowIso(),
+    createdAt: existing?.createdAt || dateUtil.nowIso()
   };
 }
 
@@ -597,7 +595,7 @@ async function cancelReturnDraftForSalesOrder(order = {}, options = {}) {
   if (hasReturnQuantity(existing) || isPostedReturnStatus(existing.status)) {
     return { error: 'Đơn chờ trả hàng đã phát sinh trả hàng/ghi sổ, không được hủy đơn con trước khi xử lý phiếu trả', status: 400 };
   }
-  const cancelled = { ...existing, status: 'cancelled', returnStatus: 'cancelled', cancelledAt: nowIso(), updatedAt: nowIso() };
+  const cancelled = { ...existing, status: 'cancelled', returnStatus: 'cancelled', cancelledAt: dateUtil.nowIso(), updatedAt: dateUtil.nowIso() };
   if (options.dryRun) return { returnOrder: toClient(cancelled), dryRun: true };
   await returnOrderRepository.upsert(cancelled, options);
   return { returnOrder: toClient(cancelled) };
@@ -627,11 +625,11 @@ async function attachMasterOrderToReturnDrafts(masterOrder = {}, childOrders = [
       deliveryStaffId: masterOrder.deliveryStaffId || '',
       deliveryStaffCode: masterOrder.deliveryStaffCode || '',
       deliveryStaffName: masterOrder.deliveryStaffName || '',
-      deliveryDate: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || today()),
+      deliveryDate: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || dateUtil.todayVN()),
       routeName: masterOrder.routeName || '',
       deliveryRoute: masterOrder.deliveryRoute || masterOrder.routeName || '',
-      date: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || row.date || today()),
-      updatedAt: nowIso()
+      date: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || row.date || dateUtil.todayVN()),
+      updatedAt: dateUtil.nowIso()
     };
     await returnOrderRepository.upsert(next, options);
     updated.push(toClient(next));
@@ -654,7 +652,7 @@ async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {})
       deliveryDate: null,
       routeName: '',
       deliveryRoute: '',
-      updatedAt: nowIso()
+      updatedAt: dateUtil.nowIso()
     };
     await returnOrderRepository.upsert(next, options);
     updated.push(toClient(next));
@@ -757,7 +755,7 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
     source: body.source || current.source || 'returnOrders',
     updatedFrom: body.source || body.updatedFrom || 'unknown',
     updatedBy: body.updatedBy || body.user || current.updatedBy || '',
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await returnOrderRepository.upsert(updated, options);
   return { returnOrder: toClient(updated) };
@@ -807,7 +805,7 @@ async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
     returnStatus: status,
     warehouseReceiveStatus: status === 'has_return' ? 'waiting_receive' : 'draft',
     accountingStatus: status === 'has_return' ? 'pending' : 'draft',
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await returnOrderRepository.upsert(updated, options);
   return { returnOrder: toClient(updated) };

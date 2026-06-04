@@ -1,5 +1,7 @@
 'use strict';
 
+const deliveryFinance = require('../utils/deliveryFinance.util');
+
 const dateUtil = require('../utils/date.util');
 const queryGuard = require('../utils/queryGuard.util');
 const orderRepository = require('../repositories/orderRepository');
@@ -13,19 +15,13 @@ const reportService = require('./reportService');
 const postingEngine = require('../engines/posting.engine');
 const paymentRepository = require('../repositories/paymentRepository');
 const MongoStore = require('../models');
-const { makeId, normalizeText } = require('../utils/common.util');
+const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const { normalizeOrderSourceValue } = require('../utils/orderSource.util');
 const Product = require('../models/Product');
 
-function today() {
-  return dateUtil.todayVN();
-}
 
-function nowIso() {
-  return new Date().toISOString();
-}
 
 
 function compactDeliveryOrderKeys(order = {}) {
@@ -225,45 +221,16 @@ async function listMasterOrders(query = {}) {
   return result;
 }
 
-function toNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
 
-function firstPositiveAmount(...values) {
-  for (const value of values) {
-    const n = toNumber(value);
-    if (n > 0) return n;
-  }
-  return 0;
-}
 
-function deliveryDebtBase(order = {}) {
-  return firstPositiveAmount(
-    order.totalAmount,
-    order.total,
-    order.amount,
-    order.grandTotal,
-    order.payableAmount,
-    order.orderAmount,
-    order.debtBeforeCollection,
-    order.debtAmount,
-    order.debt
-  );
-}
 
-function deliveryReturnAmount(order = {}) {
-  // V45: trên màn Đơn đi giao hôm nay, giá trị TH/Trả hàng phải là số đã đồng bộ từ returnOrders.
-  // Không lấy snapshot tạm của đơn làm nguồn chính; listDeliveryToday sẽ set returnAmountFromReturnOrders trước khi tính.
-  return toNumber(order.returnAmountFromReturnOrders ?? order.returnAmount ?? order.returnedAmount ?? 0);
-}
 
 function buildDeliveryAmount(order = {}, returnAmountFromReturnOrders = null) {
-  const totalReceivable = Math.max(0, normalizeDebtAmount(Math.round(deliveryDebtBase(order))));
+  const totalReceivable = Math.max(0, normalizeDebtAmount(Math.round(deliveryFinance.deliveryDebtBase(order))));
   const cashAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.cashCollected ?? order.cashAmount ?? 0))));
   const bankAmount = Math.max(0, normalizeDebtAmount(Math.round(toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0))));
   const bonusAmount = Math.max(0, normalizeDebtAmount(Math.round(deliveryRewardAmount(order))));
-  const returnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountFromReturnOrders == null ? deliveryReturnAmount(order) : toNumber(returnAmountFromReturnOrders))));
+  const returnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountFromReturnOrders == null ? deliveryFinance.deliveryReturnAmount(order) : toNumber(returnAmountFromReturnOrders))));
   const debtAmount = Math.max(0, normalizeDebtAmount(Math.round(totalReceivable - cashAmount - bankAmount - bonusAmount - returnAmount)));
   return {
     totalReceivable,
@@ -474,9 +441,9 @@ async function cancelDuplicateErpReturnOrders(order = {}, keep = null, options =
     await returnOrderRepository.upsert({
       ...row,
       status: 'cancelled',
-      cancelledAt: nowIso(),
+      cancelledAt: dateUtil.nowIso(),
       cancelReason: `Hủy phiếu trả trùng của đơn giao ${order.code || order.id || ''}`,
-      updatedAt: nowIso()
+      updatedAt: dateUtil.nowIso()
     }, options);
   }
 }
@@ -492,14 +459,14 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
       await returnOrderRepository.upsert({
         ...existing,
         status: 'cancelled',
-        cancelledAt: nowIso(),
+        cancelledAt: dateUtil.nowIso(),
         cancelReason: 'ERP delivery return items cleared',
         totalQuantity: 0,
         totalAmount: 0,
         amount: 0,
         debtReduction: 0,
         items: [],
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       }, options);
     }
     return null;
@@ -516,8 +483,8 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
     customerId: updatedOrder.customerId || '',
     customerCode: updatedOrder.customerCode || '',
     customerName: updatedOrder.customerName || '',
-    date: dateUtil.toDateOnly(updatedOrder.deliveryDate || updatedOrder.date || today()),
-    documentDate: dateUtil.toDateOnly(updatedOrder.deliveryDate || updatedOrder.date || today()),
+    date: dateUtil.toDateOnly(updatedOrder.deliveryDate || updatedOrder.date || dateUtil.todayVN()),
+    documentDate: dateUtil.toDateOnly(updatedOrder.deliveryDate || updatedOrder.date || dateUtil.todayVN()),
     items,
     totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
     totalAmount,
@@ -544,7 +511,7 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
       ...payload,
       id: existing.id,
       code: existing.code,
-      createdAt: existing.createdAt || nowIso(),
+      createdAt: existing.createdAt || dateUtil.nowIso(),
       note: payload.note || `ERP cập nhật phiếu trả từ đơn giao ${updatedOrder.code || updatedOrder.id || ''}`
     });
     if (result.error) throw new Error(result.error);
@@ -561,9 +528,6 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
   return result.returnOrder;
 }
 
-function calculateDeliveryDebt(order = {}) {
-  return buildDeliveryAmount(order).debtAmount;
-}
 
 function isDeliveryCompletedStatus(status) {
   return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
@@ -613,7 +577,7 @@ function makeArBaseRow(order = {}, extra = {}) {
   return {
     id: extra.id,
     code: extra.code || extra.id,
-    date: dateUtil.toDateOnly(extra.date || order.deliveryDate || order.date || today()),
+    date: dateUtil.toDateOnly(extra.date || order.deliveryDate || order.date || dateUtil.todayVN()),
     account: 'AR',
     type: extra.type,
     refType: extra.refType || 'MOBILE_DELIVERY_RE_ACCOUNTING',
@@ -637,8 +601,8 @@ function makeArBaseRow(order = {}, extra = {}) {
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
     reAccountingBatchId: extra.reAccountingBatchId || '',
-    createdAt: nowIso(),
-    updatedAt: nowIso()
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 }
 
@@ -690,18 +654,18 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
       reversedFromCode: old.code || '',
       reAccountingBatchId: batchId,
       createdBy: user.id || user.code || user.name || 'admin',
-      createdAt: nowIso(),
-      updatedAt: nowIso()
+      createdAt: dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso()
     };
     await paymentRepository.upsert(reversal, options);
     await paymentRepository.upsert({
       ...old,
       reversed: true,
       status: 'reversed',
-      reversedAt: nowIso(),
+      reversedAt: dateUtil.nowIso(),
       reversedBy: user.id || user.code || user.name || 'admin',
       reAccountingBatchId: batchId,
-      updatedAt: nowIso()
+      updatedAt: dateUtil.nowIso()
     }, options);
     reversedRows.push(reversal);
   }
@@ -711,11 +675,11 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
 async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, batchId = '', options = {}) {
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
-  const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(order)));
+  const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
   const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
   const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
   const rewardAmount = deliveryRewardAmount(order);
-  const returnAmount = deliveryReturnAmount(order);
+  const returnAmount = deliveryFinance.deliveryReturnAmount(order);
   const rows = [];
   const add = async (suffix, row) => {
     if (toNumber(row.amount) <= 0 && !row.postZero) return null;
@@ -781,7 +745,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     const entry = await postingEngine.postReceiptAR({
       id: `MOBILE-DELIVERY-${row.method.toUpperCase()}-${key || code}`,
       code: `MOBILE-DELIVERY-${row.method.toUpperCase()}-${code || key}`,
-      date: order.deliveryDate || order.date || today(),
+      date: order.deliveryDate || order.date || dateUtil.todayVN(),
       customerId: order.customerId || '',
       customerCode: order.customerCode || '',
       customerName: order.customerName || '',
@@ -804,7 +768,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     const entry = await postingEngine.postReturnOrderAR({
       id: `MOBILE-DELIVERY-RETURN-${key || code}`,
       code: `MOBILE-DELIVERY-RETURN-${code || key}`,
-      date: order.deliveryDate || order.date || today(),
+      date: order.deliveryDate || order.date || dateUtil.todayVN(),
       customerId: order.customerId || '',
       customerCode: order.customerCode || '',
       customerName: order.customerName || '',
@@ -831,7 +795,7 @@ function makeBatchArRow(order = {}, extra = {}) {
   return makeArBaseRow(order, {
     id: extra.id,
     code: extra.code || extra.id,
-    date: extra.date || order.deliveryDate || order.date || today(),
+    date: extra.date || order.deliveryDate || order.date || dateUtil.todayVN(),
     type: extra.type,
     refType: extra.refType,
     refId: key,
@@ -917,11 +881,11 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
 
     const key = orderKey(order) || orderDisplayCode(order);
     const code = orderDisplayCode(order) || key;
-    const baseAmount = Math.max(0, normalizeDebtAmount(deliveryDebtBase(order)));
+    const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
     const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
     const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
     const rewardAmount = deliveryRewardAmount(order);
-    const returnAmount = Math.max(deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
+    const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
     const idSeed = key || code || makeId('AR');
 
     ledgerRows.push(makeBatchArRow(order, {
@@ -1016,7 +980,7 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
     debtBeforeCollection: baseAmount,
     debtAmount: baseAmount,
     paidAmount: 0,
-    arPostedAt: order.arPostedAt || nowIso()
+    arPostedAt: order.arPostedAt || dateUtil.nowIso()
   }, { ...options, postZero: true, skipIfExists: true });
 
   await postDeliveryCollectionsAfterAccountingConfirmed(order, options);
@@ -1029,7 +993,7 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
 
 function statusForDeliveryRow(order = {}) {
   const raw = String(order.deliveryStatus || order.status || 'pending').toLowerCase();
-  const debt = calculateDeliveryDebt(order);
+  const debt = deliveryFinance.calculateDeliveryDebt(order);
   if (['delivered', 'done', 'completed', 'paid'].includes(raw)) return hasOpenDebt(debt) ? 'unpaid' : 'delivered';
   if (['delivering', 'shipping', 'on_route'].includes(raw)) return 'delivering';
   if (['returned', 'partial_return'].includes(raw)) return raw;
@@ -1086,7 +1050,7 @@ function findMasterDeliveryArDebtRow(arDebtMap, ...sources) {
 }
 
 async function listDeliveryToday(query = {}) {
-  const date = dateUtil.toDateOnly(query.date || today());
+  const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
   const q = normalizeText(query.q);
   const salesman = normalizeText(query.salesman || query.salesStaff);
   const delivery = normalizeText(query.delivery || query.deliveryStaff);
@@ -1269,7 +1233,7 @@ function deliveryRowCollectedAmount(row = {}) {
   return toNumber(row.cashCollected || 0)
     + toNumber(row.bankCollected || 0)
     + toNumber(row.rewardAmount || 0)
-    + deliveryReturnAmount(row);
+    + deliveryFinance.deliveryReturnAmount(row);
 }
 
 function buildDeliverySummaryAccumulator(row = {}) {
@@ -1334,7 +1298,7 @@ async function listDeliveryTodaySummary(query = {}) {
   const rows = Array.from(map.values()).map(finalizeDeliverySummaryRow)
     .sort((a, b) => b.totalReceivable - a.totalReceivable || String(a.deliveryStaffName).localeCompare(String(b.deliveryStaffName), 'vi'));
   return {
-    date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
+    date: base.accounting?.date || dateUtil.toDateOnly(query.date || dateUtil.todayVN()),
     formula: 'Tổng hợp tầng 1 theo nhân viên giao hàng; chưa render danh sách đơn để tối ưu tốc độ.',
     accounting: base.accounting,
     summary: rows,
@@ -1380,7 +1344,7 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
   const rows = Array.from(map.values()).map(finalizeDeliverySummaryRow)
     .sort((a, b) => b.totalReceivable - a.totalReceivable || String(a.salesStaffName).localeCompare(String(b.salesStaffName), 'vi'));
   return {
-    date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
+    date: base.accounting?.date || dateUtil.toDateOnly(query.date || dateUtil.todayVN()),
     deliveryStaffCode: deliveryKey,
     formula: 'Tổng hợp tầng 2 theo nhân viên bán hàng nằm trong nhân viên giao hàng đã chọn.',
     summary: rows
@@ -1412,11 +1376,11 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     bankAmount: toNumber(row.bankCollected || row.bankAmount || 0),
     rewardAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
     bonusAmount: toNumber(row.rewardAmount || row.bonusAmount || 0),
-    returnAmount: deliveryReturnAmount(row),
+    returnAmount: deliveryFinance.deliveryReturnAmount(row),
     returnAmountSource: 'returnOrders',
     collectedAmount: row.collectedAmount || deliveryRowCollectedAmount(row),
-    debtAmount: row.debtAmount ?? calculateDeliveryDebt(row),
-    remainingAmount: row.debtAmount ?? calculateDeliveryDebt(row),
+    debtAmount: row.debtAmount ?? deliveryFinance.calculateDeliveryDebt(row),
+    remainingAmount: row.debtAmount ?? deliveryFinance.calculateDeliveryDebt(row),
     accountingConfirmed: row.accountingConfirmed,
     editLocked: row.editLocked,
     needReAccounting: row.needReAccounting,
@@ -1436,7 +1400,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     deliveryReturnItems: Array.isArray(row.deliveryReturnItems) ? row.deliveryReturnItems : []
   }));
   return {
-    date: base.accounting?.date || dateUtil.toDateOnly(query.date || today()),
+    date: base.accounting?.date || dateUtil.toDateOnly(query.date || dateUtil.todayVN()),
     formula: 'Danh sách đơn chỉ tải sau khi chọn NVGH/NVBH.',
     orders: rows
   };
@@ -1449,7 +1413,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
   if (isInactiveStatus(current)) return { error: 'Đơn đã hủy/xóa, không thể chỉnh sửa giao hàng', status: 400 };
   if (isAccountingConfirmed(current) && !isAccountingReopenPending(current)) return { error: 'Kế toán đã xác nhận, đơn giao đã khóa. Admin phải bấm mở khóa điều chỉnh trước khi sửa', status: 400 };
 
-  const debtBeforeCollection = deliveryDebtBase({ ...current, ...body });
+  const debtBeforeCollection = deliveryFinance.deliveryDebtBase({ ...current, ...body });
   const cashCollected = toNumber(body.cashCollected ?? current.cashCollected ?? current.cashAmount ?? 0);
   const bankCollected = toNumber(body.bankCollected ?? current.bankCollected ?? current.transferAmount ?? current.bankAmount ?? 0);
   const rewardAmount = toNumber(body.rewardAmount ?? current.rewardAmount ?? current.displayRewardAmount ?? 0);
@@ -1480,13 +1444,13 @@ async function updateDeliveryTodayOrder(id, body = {}) {
 
   // Công thức chuẩn duy nhất cho toàn bộ luồng giao hàng:
   // Còn nợ = Phải thu - Tiền mặt - Chuyển khoản - Trả thưởng - Tổng tiền hàng trả
-  let debtAmount = calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
+  let debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashCollected, bankCollected, returnAmount: effectiveReturnAmount, rewardAmount });
   debtAmount = Math.max(0, normalizeDebtAmount(debtAmount));
   const deliveryStatus = String(body.deliveryStatus || current.deliveryStatus || 'waiting').trim();
 
   const updated = {
     ...current,
-    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || current.date || today()),
+    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || current.date || dateUtil.todayVN()),
     deliveryStatus,
     status: deliveryStatus === 'delivered' ? 'delivered' : (current.status || 'posted'),
     deliveryStaffCode: String(body.deliveryStaffCode ?? current.deliveryStaffCode ?? '').trim(),
@@ -1519,7 +1483,7 @@ async function updateDeliveryTodayOrder(id, body = {}) {
       : (current.lifecycleStatus || 'assigned_delivery')),
     arPostedAt: isAccountingReopenPending(current) ? '' : (current.arPostedAt || ''),
     deliveryNote: String(body.deliveryNote ?? current.deliveryNote ?? '').trim(),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
 
   await withMongoTransaction(async (session) => {
@@ -1545,7 +1509,7 @@ async function adminUnlockDeliveryAccounting(id, body = {}) {
   }
   const reason = String(body.reason || body.unlockReason || '').trim();
   if (!reason) return { error: 'Vui lòng nhập lý do mở khóa điều chỉnh', status: 400 };
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const unlocked = {
     ...current,
     accountingLocked: false,
@@ -1570,7 +1534,7 @@ async function adminUnlockDeliveryAccounting(id, body = {}) {
 }
 
 async function confirmDeliveryAccounting(body = {}) {
-  const date = dateUtil.toDateOnly(body.date || today());
+  const date = dateUtil.toDateOnly(body.date || dateUtil.todayVN());
   const selectedOrderIds = Array.isArray(body.orderIds)
     ? body.orderIds.map((id) => String(id || '').trim()).filter(Boolean)
     : [];
@@ -1584,7 +1548,7 @@ async function confirmDeliveryAccounting(body = {}) {
 
   const selectedIdSet = new Set(selectedOrderIds);
   const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
-  const now = nowIso();
+  const now = dateUtil.nowIso();
   const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
   const targetMasters = new Map();
   const targetChildren = [];
@@ -1653,7 +1617,7 @@ async function confirmDeliveryAccounting(body = {}) {
     for (const { child } of targetChildren) {
       const alreadyConfirmed = isAccountingConfirmed(child);
       const requiresReAccounting = isAccountingReopenPending(child);
-      const debtAmount = Math.max(0, normalizeDebtAmount(child.debtAmount ?? child.debt ?? calculateDeliveryDebt(child)));
+      const debtAmount = Math.max(0, normalizeDebtAmount(child.debtAmount ?? child.debt ?? deliveryFinance.calculateDeliveryDebt(child)));
       const updated = {
         ...child,
         accountingConfirmed: true,
@@ -1826,8 +1790,8 @@ async function buildAggregateMasterPrintDocument(body = {}) {
     document: {
       id: `PRINT_AGG_${Date.now()}`,
       code: masterCodes.length <= 3 ? masterCodes.join(', ') : `${masterCodes.slice(0, 3).join(', ')} +${masterCodes.length - 3}`,
-      date: dateUtil.toDateOnly(body.date || firstMaster.deliveryDate || firstMaster.date || today()),
-      deliveryDate: dateUtil.toDateOnly(body.date || firstMaster.deliveryDate || firstMaster.date || today()),
+      date: dateUtil.toDateOnly(body.date || firstMaster.deliveryDate || firstMaster.date || dateUtil.todayVN()),
+      deliveryDate: dateUtil.toDateOnly(body.date || firstMaster.deliveryDate || firstMaster.date || dateUtil.todayVN()),
       routeName: masterOrders.map((order) => cleanMasterPrintText(order.routeName)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
       deliveryStaffCode: masterOrders.map((order) => cleanMasterPrintText(order.deliveryStaffCode)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
       deliveryStaffName: masterOrders.map((order) => cleanMasterPrintText(order.deliveryStaffName)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
@@ -1870,7 +1834,7 @@ async function createMasterOrder(body = {}) {
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
   const salesStaff = await resolveStaff(body, 'sales');
-  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || today());
+  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || dateUtil.todayVN());
   const masterOrder = {
     ...body,
     id: String(body.id || makeId('MO')).trim(),
@@ -1891,15 +1855,15 @@ async function createMasterOrder(body = {}) {
     children: [],
     status: body.status || 'assigned',
     ...orderService.summarizeOrders(children),
-    createdAt: body.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: body.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
 
   const childOrderKeys = [...new Set(children.flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
     .map((value) => String(value || '').trim())
     .filter(Boolean)))];
   const childCodes = [...new Set(children.map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
-  const now = nowIso();
+  const now = dateUtil.nowIso();
 
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(masterOrder, { session });
@@ -1982,7 +1946,7 @@ async function updateMasterOrder(id, body = {}) {
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
   const salesStaff = await resolveStaff(body, 'sales');
-  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || today());
+  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || dateUtil.todayVN());
   const updated = {
     ...current,
     ...body,
@@ -1997,7 +1961,7 @@ async function updateMasterOrder(id, body = {}) {
     salesStaffId: salesStaff?.id || body.salesStaffId || current.salesStaffId || '',
     salesStaffCode: salesStaff?.code || body.salesStaffCode || current.salesStaffCode || '',
     salesStaffName: salesStaff?.name || body.salesStaffName || current.salesStaffName || '',
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
 
   const children = await orderService.getMasterChildren(current);
@@ -2008,7 +1972,7 @@ async function updateMasterOrder(id, body = {}) {
     .map((value) => String(value || '').trim())
     .filter(Boolean)))];
   const childCodes = [...new Set((children || []).map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
-  const now = nowIso();
+  const now = dateUtil.nowIso();
 
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(updated, { session });
@@ -2080,8 +2044,8 @@ async function cancelMasterOrder(id, body = {}) {
     ...masterOrder,
     status: 'cancelled',
     cancelReason: String(body.reason || body.cancelReason || '').trim(),
-    cancelledAt: nowIso(),
-    updatedAt: nowIso()
+    cancelledAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     for (const child of children) {
@@ -2098,7 +2062,7 @@ async function cancelMasterOrder(id, body = {}) {
         deliveryStaffName: '',
         routeName: '',
         deliveryRoute: '',
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       };
       await orderRepository.upsert(updatedChild, { session });
       await returnOrderService.detachMasterOrderFromReturnDrafts([updatedChild], { session });
@@ -2115,9 +2079,9 @@ async function deleteMasterOrder(id, body = {}) {
   const removed = {
     ...current,
     status: 'void',
-    deletedAt: nowIso(),
+    deletedAt: dateUtil.nowIso(),
     deleteReason: String(body.reason || body.deleteReason || '').trim(),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     for (const child of children) {
@@ -2134,7 +2098,7 @@ async function deleteMasterOrder(id, body = {}) {
         deliveryStaffName: '',
         routeName: '',
         deliveryRoute: '',
-        updatedAt: nowIso()
+        updatedAt: dateUtil.nowIso()
       };
       await orderRepository.upsert(updatedChild, { session });
       await returnOrderService.detachMasterOrderFromReturnDrafts([updatedChild], { session });

@@ -1,5 +1,7 @@
 'use strict';
 
+const { normalizeSearchText } = require('../utils/search.util');
+
 function normalizeCode(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
@@ -8,19 +10,10 @@ function normalizeCode(value) {
   return raw.toUpperCase();
 }
 
-function normalizeText(value) {
+function normalizeRuleText(value) {
   return String(value ?? '').trim();
 }
 
-function normalizeSearchText(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .trim()
-    .toLowerCase();
-}
 
 function normalizeMoney(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -55,4 +48,4 @@ function normalizePhone(value) {
   return String(value ?? '').replace(/\D/g, '');
 }
 
-module.exports = { normalizeCode, normalizeText, normalizeSearchText, normalizeMoney, normalizeQuantity, normalizeDate, normalizePhone };
+module.exports = { normalizeCode, normalizeText: normalizeRuleText, normalizeSearchText, normalizeMoney, normalizeQuantity, normalizeDate, normalizePhone };

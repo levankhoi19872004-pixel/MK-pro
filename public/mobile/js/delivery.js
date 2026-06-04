@@ -38,7 +38,19 @@ function deliveryToNumber(value) {
     multiplier = 1000;
     text = text.slice(0, -1);
   }
-  text = text.replace(/\s/g, '');
+  
+
+const v45Common = window.V45Common || {};
+const firstPositiveAmount = v45Common.firstPositiveAmount;
+const deliveryDebtBase = v45Common.deliveryDebtBase;
+const calculateDeliveryDebt = v45Common.calculateDeliveryDebt;
+const deliveryReturnAmount = v45Common.deliveryReturnAmount;
+const todayValue = v45Common.todayValue;
+const toDateOnly = v45Common.toDateOnly;
+const escapeHtml = v45Common.escapeHtml;
+const calculateCartonUnit = v45Common.calculateCartonUnit;
+
+text = text.replace(/\s/g, '');
   if (text.includes(',') && text.includes('.')) {
     // 1,234,567.89 hoặc 1.234.567,89: giữ dấu thập phân cuối cùng.
     const lastComma = text.lastIndexOf(',');
@@ -68,30 +80,7 @@ function normalizeMoneyInput(input) {
 }
 
 
-function firstPositiveAmount(...values) {
-  for (const value of values) {
-    const n = deliveryToNumber(value);
-    if (n > 0) return n;
-  }
-  return 0;
-}
 
-function deliveryDebtBase(order = {}) {
-  // Công nợ gốc của đơn đang giao phải lấy theo giá trị đơn hàng.
-  // Không được ưu tiên debtBeforeCollection nếu trường đó đang bị lưu/cached = 0,
-  // vì sẽ làm phần Tổng kết hiển thị Phải thu = 0 dù đơn vẫn có tiền.
-  return firstPositiveAmount(
-    order.totalAmount,
-    order.total,
-    order.amount,
-    order.grandTotal,
-    order.payableAmount,
-    order.orderAmount,
-    order.debtBeforeCollection,
-    order.debtAmount,
-    order.debt
-  );
-}
 
 function isArLedgerSynced(order = {}) {
   return order?.arLedgerSynced === true || String(order?.debtSource || '').toLowerCase() === 'ar_ledger';
@@ -100,18 +89,6 @@ function deliveryArLedgerDebt(order = {}) {
   return Math.round(deliveryToNumber(order.arDebtAmount ?? order.arBalance ?? order.debtAmount ?? order.debt ?? 0));
 }
 
-function calculateDeliveryDebt(order = {}) {
-  // Nếu backend đã gắn nguồn AR Ledger thì dùng cùng số công nợ với ERP.
-  // Nếu chưa có AR, fallback công thức tạm tính của đơn giao.
-  if (isArLedgerSynced(order)) return deliveryArLedgerDebt(order);
-  return Math.max(0, Math.round(
-    deliveryDebtBase(order)
-    - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
-    - deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
-    - deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
-    - deliveryReturnAmount(order)
-  ));
-}
 
 function deliveryProcessedAmount(order = {}) {
   return deliveryToNumber(order.cashCollected) + deliveryToNumber(order.bankCollected) + deliveryToNumber(order.rewardAmount) + deliveryReturnAmount(order);
@@ -150,22 +127,7 @@ document.querySelectorAll('[data-delivery-tab]').forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset.deliveryTab));
 });
 
-function todayValue() {
-  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-}
-function toDateOnly(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  let m = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
-  m = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4}|\d{2})/);
-  if (m) { let d=Number(m[1]), mo=Number(m[2]), y=Number(m[3]); if(y<100)y+=y>=70?1900:2000; if(mo>=1&&mo<=12&&d>=1&&d<=31)return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
-  return raw.slice(0,10);
-}
 
-function escapeHtml(value = '') {
-  return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
-}
 
 function isCompleted(order) {
   const status = String(order.deliveryStatus || order.visualStatus || order.status || '').toLowerCase();
@@ -190,26 +152,6 @@ function lineReturnedQty(item = {}) {
   return deliveryToNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? 0);
 }
 
-function deliveryReturnAmount(order = {}) {
-  const returnItems = Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : null);
-  if (Array.isArray(returnItems)) {
-    return Math.round(returnItems.reduce((sum, item) => {
-      const qty = deliveryToNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? item.quantity ?? item.qty ?? 0);
-      const price = deliveryToNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
-      const amount = item.amount !== undefined || item.returnAmount !== undefined ? deliveryToNumber(item.amount ?? item.returnAmount) : Math.round(qty * price);
-      return sum + amount;
-    }, 0));
-  }
-  if (Array.isArray(order.items)) {
-    const totalFromLineQty = order.items.reduce((sum, item) => {
-      const qty = lineReturnedQty(item);
-      const price = linePrice(item);
-      return sum + Math.round(qty * price);
-    }, 0);
-    if (totalFromLineQty > 0) return Math.round(totalFromLineQty);
-  }
-  return deliveryToNumber(order.returnAmount ?? order.returnedAmount ?? 0);
-}
 
 function calculateReturnTotalFromInputs(root = deliveryActionBox) {
   return Array.from(root.querySelectorAll('[data-return-order]')).reduce((sum, input) => {

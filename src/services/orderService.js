@@ -1,5 +1,7 @@
 'use strict';
 
+const deliveryFinance = require('../utils/deliveryFinance.util');
+
 const dateUtil = require('../utils/date.util');
 const orderRepository = require('../repositories/orderRepository');
 const masterOrderRepository = require('../repositories/masterOrderRepository');
@@ -15,13 +17,7 @@ const postingEngine = require('../engines/posting.engine');
 const returnOrderService = require('./returnOrderService');
 const orderStatusUtil = require('../utils/orderStatus.util');
 
-function today() {
-  return dateUtil.todayVN();
-}
 
-function nowIso() {
-  return new Date().toISOString();
-}
 
 function normalizeOrderDate(value) {
   return dateUtil.toDateOnly(value);
@@ -43,19 +39,7 @@ function buildOrderCode() {
 }
 
 
-function deliveryDebtBase(order = {}) {
-  return toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.debtAmount ?? 0);
-}
 
-function calculateDeliveryDebt(order = {}) {
-  return Math.max(0, Math.round(
-    deliveryDebtBase(order)
-    - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
-    - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
-    - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
-    - toNumber(order.returnAmount ?? order.returnedAmount ?? 0)
-  ));
-}
 
 function normalizeSaleMode(value, fallback = 'direct') {
   const raw = normalizeText(value || fallback);
@@ -597,9 +581,9 @@ async function createOrder(body = {}) {
     code: generatedOrderCode,
     orderCode: String(body.orderCode || generatedOrderCode).trim(),
     salesOrderCode: String(body.salesOrderCode || generatedOrderCode).trim(),
-    date: dateUtil.toDateOnly(body.date || body.orderDate || today()),
-    orderDate: dateUtil.toDateOnly(body.orderDate || body.date || today()),
-    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || body.orderDate || today()),
+    date: dateUtil.toDateOnly(body.date || body.orderDate || dateUtil.todayVN()),
+    orderDate: dateUtil.toDateOnly(body.orderDate || body.date || dateUtil.todayVN()),
+    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || body.orderDate || dateUtil.todayVN()),
     customerId: customer?.id || body.customerId || body.customerCode || '',
     customerCode: customer?.code || body.customerCode || '',
     customerName: customer?.name || body.customerName || '',
@@ -629,8 +613,8 @@ async function createOrder(body = {}) {
     accountingStatus: body.accountingStatus || 'pending',
     arStatus: body.arStatus || 'pending',
     arBalance: 0,
-    createdAt: body.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: body.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   Object.assign(order, orderStatusUtil.lifecyclePatch(order, { source: body.source || body.orderSource || 'sales_app' }));
   Object.assign(order, applyOrderSourceFields(order));
@@ -666,7 +650,7 @@ async function updateOrder(id, body = {}) {
     paidAmount,
     debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
     ...orderStatusUtil.lifecyclePatch({ ...current, ...body, items, totalAmount, paidAmount }, current),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   });
   await withMongoTransaction(async (session) => {
     const currentWasPosted = Boolean(current.stockPosted || current.arPosted || current.accountingConfirmed)
@@ -698,8 +682,8 @@ async function cancelOrder(id, body = {}) {
     status: 'cancelled',
     deliveryStatus: 'cancelled',
     cancelReason: String(body.reason || body.cancelReason || '').trim(),
-    cancelledAt: nowIso(),
-    updatedAt: nowIso()
+    cancelledAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(cancelled, { session });
@@ -730,7 +714,7 @@ async function deleteOrder(id, body = {}) {
         ...current,
         status: 'deleted',
         deliveryStatus: 'deleted',
-        deletedAt: nowIso(),
+        deletedAt: dateUtil.nowIso(),
         deleteReason: String(body.reason || body.deleteReason || '').trim()
       })
     };
@@ -743,9 +727,9 @@ async function deleteOrder(id, body = {}) {
     deliveryStatus: 'void',
     deleted: true,
     isDeleted: true,
-    deletedAt: nowIso(),
+    deletedAt: dateUtil.nowIso(),
     deleteReason: String(body.reason || body.deleteReason || '').trim(),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(removed, { session });
@@ -804,7 +788,7 @@ function summarizeOrders(children = []) {
   }, 0);
   const totalAmount = active.reduce((sum, order) => sum + toNumber(order.totalAmount), 0);
   const paidAmount = active.reduce((sum, order) => sum + toNumber(order.paidAmount), 0);
-  const debtAmount = active.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
+  const debtAmount = active.reduce((sum, order) => sum + deliveryFinance.calculateDeliveryDebt(order), 0);
   return {
     orderCount: totalOrders,
     totalOrders,
@@ -826,7 +810,7 @@ async function syncMasterOrderSummary(masterIdOrCode, options = {}) {
     childOrderIds,
     children: [],
     ...summarizeOrders(children),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   await masterOrderRepository.upsert(updated, options);
   return updated;

@@ -9,9 +9,7 @@ const expenseVoucherRepository = require('../repositories/expenseVoucherReposito
 const fundTransferRepository = require('../repositories/fundTransferRepository');
 const masterOrderService = require('./masterOrderService');
 
-function today() { return dateUtil.todayVN(); }
-function nowIso() { return new Date().toISOString(); }
-function dateOnly(value) { return dateUtil.toDateOnly(value || today()); }
+function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function money(value) { return Math.max(0, Math.round(toNumber(value))); }
 function activeStatus(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
 
@@ -99,8 +97,8 @@ async function postFundLedger(input = {}, options = {}) {
     note: String(input.note || '').trim(),
     status: String(input.status || 'posted').trim(),
     createdBy: String(input.createdBy || '').trim(),
-    createdAt: input.createdAt || nowIso(),
-    updatedAt: nowIso()
+    createdAt: input.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   await fundLedgerRepository.upsert(entry, options);
   return entry;
@@ -154,8 +152,8 @@ async function buildDeliverySubmissionDraft(query = {}) {
       fundPosted: false,
       note: String(query.note || '').trim(),
       createdBy: String(query.createdBy || '').trim(),
-      createdAt: nowIso(),
-      updatedAt: nowIso()
+      createdAt: dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso()
     },
     orders,
     deliverySummary: data.kpi || {}
@@ -227,9 +225,9 @@ async function confirmDeliveryCashSubmission(idOrCode, body = {}) {
     differenceBankAmount: submittedBankAmount - money(submission.reportBankAmount),
     status: 'confirmed',
     fundPosted: true,
-    postedAt: nowIso(),
+    postedAt: dateUtil.nowIso(),
     note: String(body.note ?? submission.note ?? '').trim(),
-    updatedAt: nowIso()
+    updatedAt: dateUtil.nowIso()
   };
   const ledgers = [];
   await withMongoTransaction(async (session) => {
@@ -279,8 +277,8 @@ async function createExpenseVoucher(body = {}) {
     status: body.status || 'confirmed',
     fundPosted: false,
     createdBy: String(body.createdBy || '').trim(),
-    createdAt: nowIso(),
-    updatedAt: nowIso()
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   const result = { voucher, ledger: null };
   await withMongoTransaction(async (session) => {
@@ -288,7 +286,7 @@ async function createExpenseVoucher(body = {}) {
     if (voucher.status === 'confirmed') {
       result.ledger = await postFundLedger({ date: voucher.date, fundType: voucher.fundType, direction: 'out', amount, sourceType: 'EXPENSE_VOUCHER', sourceId: voucher.id, sourceCode: voucher.code, note: voucher.note || `Phiếu chi ${voucher.code}` }, { session });
       voucher.fundPosted = true;
-      voucher.postedAt = nowIso();
+      voucher.postedAt = dateUtil.nowIso();
       await expenseVoucherRepository.upsert(voucher, { session });
     }
   });
@@ -314,8 +312,8 @@ async function createFundTransfer(body = {}) {
     status: body.status || 'confirmed',
     fundPosted: false,
     createdBy: String(body.createdBy || '').trim(),
-    createdAt: nowIso(),
-    updatedAt: nowIso()
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
   };
   const ledgers = [];
   await withMongoTransaction(async (session) => {
@@ -324,7 +322,7 @@ async function createFundTransfer(body = {}) {
       ledgers.push(await postFundLedger({ date: transfer.date, fundType: fromFund, direction: 'out', amount, sourceType: 'FUND_TRANSFER', sourceId: transfer.id, sourceCode: transfer.code, note: transfer.note || `Chuyển quỹ ${fromFund} sang ${toFund}` }, { session }));
       ledgers.push(await postFundLedger({ date: transfer.date, fundType: toFund, direction: 'in', amount, sourceType: 'FUND_TRANSFER', sourceId: transfer.id, sourceCode: transfer.code, note: transfer.note || `Nhận chuyển quỹ từ ${fromFund}` }, { session }));
       transfer.fundPosted = true;
-      transfer.postedAt = nowIso();
+      transfer.postedAt = dateUtil.nowIso();
       await fundTransferRepository.upsert(transfer, { session });
     }
   });

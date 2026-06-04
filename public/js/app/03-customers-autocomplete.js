@@ -1,3 +1,4 @@
+const escapeHtml = (window.V45Common || {}).escapeHtml;
 let customerListRequestSeq = 0;
 async function loadCustomers(options = {}){
   const requestSeq = ++customerListRequestSeq;
@@ -190,9 +191,6 @@ function selectCustomerFromListSuggestion(c){
   if(customerSearchInput)customerSearchInput.value=c.code||c.name||'';
   hideSuggestions(customerListSuggestions);
   loadCustomers();
-}
-function escapeHtml(value){
-  return SearchAutocomplete.escapeHtml(value);
 }
 function hideSuggestions(box){
   SearchAutocomplete.hide(box);

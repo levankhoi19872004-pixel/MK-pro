@@ -1,18 +1,11 @@
 'use strict';
 
+const { normalizeSearchText } = require('../utils/search.util');
+
 const Product = require('../models/Product');
 const { buildIdentityFilter } = require('../utils/identity.util');
 const { getPagination, wantsPagination, buildPageMeta, escapeRegex } = require('../utils/query.util');
 
-function normalizeSearchText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-}
 
 function buildMongoFilter(idOrCode) {
   return buildIdentityFilter(idOrCode, ['code']);

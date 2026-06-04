@@ -1,5 +1,7 @@
 'use strict';
 
+const { normalizeSearchText } = require('../utils/search.util');
+
 const searchRepository = require('../repositories/searchRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../utils/common.util');
@@ -11,15 +13,6 @@ const ROLE_LABELS = {
   delivery: 'Giao hàng'
 };
 
-function normalizeSearchText(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .trim()
-    .toLowerCase();
-}
 
 function productCodeOf(product = {}) {
   return String(product.code || product.sku || product.productCode || product.id || product._id || '').trim();

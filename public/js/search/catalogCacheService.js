@@ -4,6 +4,9 @@
  * cache theo từ khóa để lần gõ lại không gọi API nữa.
  */
 (function(){
+  const common = window.V45Common || {};
+  const normalizeText = common.normalizeText;
+
   'use strict';
 
   const TTL = 5 * 60 * 1000;
@@ -18,19 +21,9 @@
     pending: new Map()
   };
 
-  function normalizeText(value){
-    return String(value ?? '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g,'')
-      .replace(/đ/g,'d')
-      .trim();
-  }
+  
 
-  function toNumber(value){
-    const n = Number(value || 0);
-    return Number.isFinite(n) ? n : 0;
-  }
+  
 
   function dedupe(rows, keys){
     const map = new Map();

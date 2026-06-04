@@ -356,6 +356,13 @@ function deliveryToNumber(value){
   return Number.isFinite(n)?n:0;
 }
 
+
+
+const v45DeliveryCommon = window.V45Common || {};
+const deliveryDebtBase = v45DeliveryCommon.deliveryDebtBase;
+const calculateDeliveryDebt = v45DeliveryCommon.calculateDeliveryDebt;
+const deliveryReturnAmountFromItems = v45DeliveryCommon.deliveryReturnAmount;
+
 function deliveryCompactMoney(value){
   const n=Math.round(deliveryToNumber(value));
   const sign=n<0?'-':'';
@@ -369,9 +376,6 @@ function deliveryCompactMoney(value){
     return `${sign}${Math.round(abs/1000)}k`;
   }
   return `${sign}${abs}`;
-}
-function deliveryDebtBase(row){
-  return deliveryToNumber(row?.debtBeforeCollection ?? row?.totalAmount ?? row?.amount ?? row?.debtAmount ?? row?.debt ?? 0);
 }
 function isDeliveryArLedgerSynced(row){
   return row?.arLedgerSynced === true || String(row?.debtSource || '').toLowerCase() === 'ar_ledger';
@@ -399,12 +403,6 @@ function calculateDeliveryDraftDebt(row){
     - deliveryToNumber(row?.rewardAmount ?? row?.displayRewardAmount ?? 0)
     - deliveryReturnAmountFromItems(row)
   ));
-}
-function calculateDeliveryDebt(row){
-  // Sau khi đơn đã được đẩy sang công nợ, chỉ hiển thị một nguồn duy nhất: AR Ledger.
-  // Không trộn số tạm tính từ form với số công nợ đã ghi sổ, tránh cùng một đơn hiện 2 số khác nhau.
-  if(isDeliveryArLedgerSynced(row)) return deliveryArLedgerDebt(row);
-  return calculateDeliveryDraftDebt(row);
 }
 function deliveryRowPaid(row){
   return deliveryToNumber(row?.cashCollected||0)+deliveryToNumber(row?.bankCollected||0)+deliveryToNumber(row?.rewardAmount||0)+deliveryReturnAmountFromItems(row);
@@ -475,17 +473,6 @@ function getDeliveryReturnItemsPayload(){
       amount: Math.round(qtyReturn * price)
     };
   });
-}
-function deliveryReturnAmountFromItems(row){
-  const returnItems=Array.isArray(row?.deliveryReturnItems)?row.deliveryReturnItems:(Array.isArray(row?.returnItems)?row.returnItems:null);
-  if(Array.isArray(returnItems)) return Math.round(returnItems.reduce((sum,item)=>{
-    const qty=Number(item.qtyReturn ?? item.returnQty ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0)||0;
-    const price=Number(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0)||0;
-    const amount=Number(item.returnAmount ?? item.amount ?? NaN);
-    return sum+(Number.isFinite(amount)?amount:Math.round(qty*price));
-  },0));
-  if(row?.returnOrder) return calcReturnAmountFromReturnOrder(row.returnOrder);
-  return Math.round(Number(row?.returnAmount ?? row?.totalReturnAmount ?? row?.returnedAmount ?? 0)||0);
 }
 
 function calcReturnAmountFromReturnOrder(returnOrder){

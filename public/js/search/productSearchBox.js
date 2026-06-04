@@ -4,15 +4,17 @@
  */
 (function(){
   'use strict';
+  const common = window.V45Common || {};
+  const normalizeText = common.normalizeText;
+  const toNumber = common.toNumber;
+  const escapeHtml = common.escapeHtml;
+
 
   const state = { catalog: [] };
 
   function catalogCache(){ return window.CatalogCache || null; }
-  function normalizeText(value){
-    return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').trim();
-  }
-  function toNumber(value){ const n=Number(value||0); return Number.isFinite(n)?n:0; }
-  function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
+  
+function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
   function productKey(product){ return String(product?.code || product?.productCode || product?.sku || product?.id || product?._id || '').trim(); }
   function availableQty(product){
     if(typeof window.productAvailableQty === 'function') return window.productAvailableQty(product);
@@ -155,12 +157,8 @@
     return `${code} - ${name}${packingLabel} · ${stockText(product)}${priceLabel}`;
   }
 
-  function escapeHtml(value){
-    return String(value ?? '').replace(/[&<>"']/g, char => ({
-      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-    }[char]));
-  }
-  function labelHtml(product, mode='sales'){
+  
+function labelHtml(product, mode='sales'){
     const code = product.code || product.productCode || product.sku || '';
     const name = product.name || product.productName || '';
     const price = mode === 'import' ? product.costPrice : product.salePrice;
