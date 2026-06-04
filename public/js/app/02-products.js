@@ -46,7 +46,7 @@ async function loadProducts(options = {}){
     // Phase 3.6 clean separation:
     // Bảng danh sách sản phẩm PHẢI gọi thẳng API /api/products để lấy Mongo + phân trang thật.
     // Không đi qua CatalogCache vì CatalogCache chỉ dùng cho autocomplete/lazy search.
-    const result = await fetch(`/api/products?page=${productPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`)
+    const result = await (window.fetchWithTimeout||fetch)(`/api/products?page=${productPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`, {}, 10000)
       .then(async res=>{
         const json=await res.json();
         if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');

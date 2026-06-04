@@ -1,7 +1,7 @@
 // App bootstrap: module files are loaded before this file in index.html.
 // Product/customer list uses server-side pagination; search resets to page 1.
 // Không dùng popup autocomplete ở màn danh sách; gõ là lọc trực tiếp bảng.
-function debounce(fn, wait=250){let t;return (...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),wait)}}
+const debounce = window.debounce || ((fn, wait=250)=>{let t;return (...args)=>{clearTimeout(t);t=setTimeout(()=>fn(...args),wait)}});
 const debouncedLoadProducts=debounce(()=>loadProducts({resetPage:true}),250);
 const debouncedLoadCustomers=debounce(()=>loadCustomers({resetPage:true}),250);
 if(searchInput)searchInput.addEventListener('input',()=>{if(window.SearchAutocomplete){window.SearchAutocomplete.hide(document.getElementById('productListSuggestions'));}debouncedLoadProducts();});
@@ -150,24 +150,121 @@ if(createSystemBackupButton)createSystemBackupButton.addEventListener('click',cr
 if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSystemData);
 
 setupTabs();
-loadImportFieldOptions();
-loadCustomImportTemplates();
-checkServer();
-loadProducts();
-loadCustomers();
-loadStock();
-loadImportOrders();
-loadSalesOrders();
-loadMasterOrderModule();
-loadUnmergedReturnOrders();
-loadMasterReturnOrders();
-loadDeliveryToday();
-loadDebts();
-loadReceipts();
-loadCashbook();
-loadUsers();
-loadPromotions();
-if(typeof loadSystemStatus==='function')loadSystemStatus();
-setReportDefaults();
-renderImportItems();
-renderSalesItems();
+
+// V45 performance fix: không load toàn bộ module khi mở trang.
+// Mở tab nào thì mới gọi API của tab đó; server health/import config chạy nền, không khóa UI.
+const V45_BOOT_LOADED_TABS = window.V45_BOOT_LOADED_TABS || (window.V45_BOOT_LOADED_TABS = new Set());
+function getActiveTabName(){
+  return document.querySelector('.tab-content.active')?.id
+    || document.querySelector('.tab-button.active')?.dataset?.tab
+    || 'productsTab';
+}
+function markTabLoading(tabName, isLoading){
+  const tab = document.getElementById(tabName);
+  if(!tab) return;
+  tab.dataset.loading = isLoading ? '1' : '0';
+}
+async function loadTabDataOnce(tabName, options = {}){
+  if(!tabName) return;
+  const force = options.force === true;
+  if(!force && V45_BOOT_LOADED_TABS.has(tabName)) return;
+  V45_BOOT_LOADED_TABS.add(tabName);
+  markTabLoading(tabName, true);
+  try{
+    switch(tabName){
+      case 'productsTab':
+        if(typeof loadProducts === 'function') await loadProducts({allowEmpty:true});
+        break;
+      case 'customersTab':
+        if(typeof loadCustomers === 'function') await loadCustomers({resetPage:true});
+        break;
+      case 'importTab':
+        await Promise.allSettled([
+          typeof loadProducts === 'function' ? loadProducts({allowEmpty:true}) : null,
+          typeof loadImportOrders === 'function' ? loadImportOrders() : null
+        ]);
+        if(typeof renderImportProductSelect === 'function') renderImportProductSelect();
+        break;
+      case 'salesTab':
+        await Promise.allSettled([
+          typeof loadUsers === 'function' ? loadUsers() : null,
+          typeof loadSalesOrders === 'function' ? loadSalesOrders() : null
+        ]);
+        // Danh mục sản phẩm/khách hàng cho form bán hàng chỉ đồng bộ nền sau khi danh sách đơn đã hiện.
+        setTimeout(()=>{
+          Promise.allSettled([
+            typeof loadProducts === 'function' ? loadProducts({allowEmpty:true}) : null,
+            typeof loadCustomers === 'function' ? loadCustomers({resetPage:true}) : null
+          ]).then(()=>{
+            if(typeof renderSalesProductSelect === 'function') renderSalesProductSelect();
+            if(typeof renderSalesCustomerSelect === 'function') renderSalesCustomerSelect();
+            if(typeof renderSalesStaffSelect === 'function') renderSalesStaffSelect();
+          });
+        }, 50);
+        break;
+      case 'masterOrdersTab':
+        await Promise.allSettled([
+          typeof loadUsers === 'function' ? loadUsers() : null,
+          typeof loadMasterOrderModule === 'function' ? loadMasterOrderModule() : null
+        ]);
+        break;
+      case 'returnOrdersTab':
+        if(typeof loadReturnOrders === 'function') await loadReturnOrders();
+        break;
+      case 'masterReturnOrdersTab':
+        await Promise.allSettled([
+          typeof loadUnmergedReturnOrders === 'function' ? loadUnmergedReturnOrders() : null,
+          typeof loadMasterReturnOrders === 'function' ? loadMasterReturnOrders() : null
+        ]);
+        break;
+      case 'deliveryTodayTab':
+        await Promise.allSettled([
+          typeof loadUsers === 'function' ? loadUsers() : null,
+          typeof loadDeliveryToday === 'function' ? loadDeliveryToday() : null
+        ]);
+        break;
+      case 'stockTab':
+        if(typeof loadStock === 'function') await loadStock();
+        break;
+      case 'debtTab':
+        await Promise.allSettled([
+          typeof loadUsers === 'function' ? loadUsers() : null,
+          typeof loadDebts === 'function' ? loadDebts() : null,
+          typeof loadReceipts === 'function' ? loadReceipts() : null,
+          typeof loadCashbook === 'function' ? loadCashbook() : null
+        ]);
+        if(typeof renderCollectionCustomerSelect === 'function') renderCollectionCustomerSelect();
+        break;
+      case 'reportsTab':
+        if(typeof loadReports === 'function') await loadReports();
+        break;
+      case 'usersTab':
+      case 'promotionsTab':
+        await Promise.allSettled([
+          typeof loadUsers === 'function' ? loadUsers() : null,
+          typeof loadPromotions === 'function' ? loadPromotions() : null
+        ]);
+        break;
+      case 'systemTab':
+        if(typeof loadSystemStatus === 'function') await loadSystemStatus();
+        break;
+    }
+  }catch(error){
+    console.warn('[V45_TAB_LOAD_ERROR]', tabName, error);
+  }finally{
+    markTabLoading(tabName, false);
+  }
+}
+window.V45LoadTabDataOnce = loadTabDataOnce;
+
+if(typeof setReportDefaults === 'function') setReportDefaults();
+if(typeof renderImportItems === 'function') renderImportItems();
+if(typeof renderSalesItems === 'function') renderSalesItems();
+
+// Các tác vụ nền nhẹ, không await để tránh treo giao diện.
+setTimeout(()=>{ if(typeof checkServer === 'function') checkServer().catch?.(console.warn); }, 0);
+setTimeout(()=>{ if(typeof loadImportFieldOptions === 'function') loadImportFieldOptions().catch?.(console.warn); }, 200);
+setTimeout(()=>{ if(typeof loadCustomImportTemplates === 'function') loadCustomImportTemplates().catch?.(console.warn); }, 400);
+
+// Chỉ load tab đang mở ban đầu.
+setTimeout(()=>loadTabDataOnce(getActiveTabName()), 0);

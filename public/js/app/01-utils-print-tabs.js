@@ -165,32 +165,32 @@ window.printDocument=printDocument;
 
 function setupTabs(){
   document.querySelectorAll('.tab-button').forEach(button=>{
-    button.addEventListener('click',async()=>{
+    button.addEventListener('click',()=>{
       document.querySelectorAll('.tab-button').forEach(btn=>btn.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(tab=>tab.classList.remove('active'));
       button.classList.add('active');
-      document.getElementById(button.dataset.tab).classList.add('active');
+      const tab=document.getElementById(button.dataset.tab);
+      if(tab) tab.classList.add('active');
 
-      if(button.dataset.tab==='customersTab') await loadCustomers();
-      if(button.dataset.tab==='stockTab') await loadStock();
-      if(button.dataset.tab==='salesTab'){ await loadUsers(); await loadSalesOrders(); }
-      if(button.dataset.tab==='masterOrdersTab'){ await loadUsers(); await loadMasterOrderModule(); }
-      if(button.dataset.tab==='returnOrdersTab') await loadReturnOrders();
-      if(button.dataset.tab==='deliveryTodayTab'){ await loadUsers(); await loadDeliveryToday(); }
-      if(button.dataset.tab==='debtTab'){await loadUsers();await loadDebts();await loadReceipts();await loadCashbook();renderCollectionCustomerSelect()}
-      if(button.dataset.tab==='reportsTab') await loadReports();
-      if(button.dataset.tab==='importDataTab'){resetImportPreviewMessage();}
-      if(button.dataset.tab==='systemTab' && typeof loadSystemStatus==='function') await loadSystemStatus();
-      if(button.dataset.tab==='importTab'){await loadProducts();renderImportProductSelect();await loadImportOrders()}
-      if(button.dataset.tab==='salesTab'){await loadProducts();await loadCustomers();await loadUsers();renderSalesProductSelect();renderSalesCustomerSelect();renderSalesStaffSelect()}
+      if(button.dataset.tab==='importDataTab' && typeof resetImportPreviewMessage==='function') resetImportPreviewMessage();
+      if(typeof window.V45LoadTabDataOnce==='function'){
+        window.V45LoadTabDataOnce(button.dataset.tab).catch?.(console.warn);
+      }
     });
   });
 }
 
 async function checkServer(){
+  if(!serverStatus) return;
+  serverStatus.textContent='Đang kiểm tra server...';
+  serverStatus.className='status';
   try{
-    const res=await fetch('/api/health');const json=await res.json();
+    const fetcher=window.fetchWithTimeout||fetch;
+    const res=await fetcher('/api/health',{},5000);
+    const json=await res.json();
     if(json.ok){serverStatus.textContent='Server đang chạy';serverStatus.className='status ok'}else throw new Error();
-  }catch{serverStatus.textContent='Server lỗi';serverStatus.className='status error'}
+  }catch{
+    serverStatus.textContent='Server lỗi / phản hồi chậm';serverStatus.className='status error'
+  }
 }
 

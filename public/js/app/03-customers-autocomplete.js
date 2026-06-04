@@ -22,7 +22,7 @@ async function loadCustomers(options = {}){
     // Phase 3.6 clean separation:
     // Bảng danh sách khách hàng PHẢI gọi thẳng API /api/customers để lấy Mongo + phân trang thật.
     // Không đi qua CatalogCache vì CatalogCache chỉ dùng cho autocomplete/lazy search.
-    const result = await fetch(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`)
+    const result = await (window.fetchWithTimeout||fetch)(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`, {}, 10000)
       .then(async res=>{
         const json=await res.json();
         if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');

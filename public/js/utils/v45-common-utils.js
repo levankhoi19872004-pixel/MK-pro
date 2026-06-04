@@ -128,6 +128,37 @@
     ));
   }
 
+
+
+  function debounce(fn, wait = 250) {
+    let timer = null;
+    return function debouncedFn(...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
+
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  function runSoon(fn, delay = 0) {
+    return setTimeout(() => {
+      try {
+        const result = typeof fn === 'function' ? fn() : null;
+        if (result && typeof result.catch === 'function') result.catch(console.warn);
+      } catch (error) {
+        console.warn('[V45_RUN_SOON_ERROR]', error);
+      }
+    }, delay);
+  }
+
   global.V45Common = Object.assign({}, global.V45Common || {}, {
     toNumber,
     normalizeText,
@@ -141,6 +172,13 @@
     amountFromReturnOrder,
     calculateDeliveryDebt,
     isDeliveryArLedgerSynced,
-    deliveryArLedgerDebt
+    deliveryArLedgerDebt,
+    debounce,
+    fetchWithTimeout,
+    runSoon
   });
+
+  if (typeof global.debounce !== 'function') global.debounce = debounce;
+  if (typeof global.fetchWithTimeout !== 'function') global.fetchWithTimeout = fetchWithTimeout;
+  if (typeof global.runSoon !== 'function') global.runSoon = runSoon;
 })(window);
