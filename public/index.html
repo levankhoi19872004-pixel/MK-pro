@@ -1219,7 +1219,7 @@
           <div class="toolbar compact-toolbar">
             <div>
               <h3>API Monitor toàn phần mềm</h3>
-              <p class="muted">Theo dõi toàn bộ API đang chạy, API chậm, số lần gọi và số dòng trả về.</p>
+              <p class="muted">Theo dõi toàn bộ API đang chạy: Total, Mongo Time, JS Time, số query DB, số dòng trả về.</p>
             </div>
             <div class="toolbar-actions">
               <label class="inline-filter">
@@ -1240,42 +1240,127 @@
             <span>API chậm: <strong id="apiMonitorSlowRoutes">0</strong></span>
             <span>Lượt chậm: <strong id="apiMonitorSlowCalls">0</strong></span>
             <span>Lỗi: <strong id="apiMonitorErrorCalls">0</strong></span>
+            <span>Mongo: <strong id="apiMonitorTotalMongoMs">0ms</strong></span>
+            <span>JS: <strong id="apiMonitorTotalJsMs">0ms</strong></span>
+            <span>DB Queries: <strong id="apiMonitorTotalDbQueries">0</strong></span>
           </div>
 
-          <h4>Báo cáo API chạy chậm gần nhất</h4>
-          <div class="table-wrap api-monitor-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Thời gian</th>
-                  <th>Module</th>
-                  <th>API</th>
-                  <th>MS</th>
-                  <th>Rows</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="apiSlowTable"><tr><td colspan="6">Chưa có dữ liệu API chậm.</td></tr></tbody>
-            </table>
+          <div class="api-monitor-tabs" id="apiMonitorTabs">
+            <button type="button" class="api-monitor-tab active" data-api-monitor-tab="all">Tab 1. Tất cả API</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="slowest">Tab 2. Top API chậm nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-called">Tab 3. Top API gọi nhiều nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-rows">Tab 4. API nhiều rows nhất</button>
           </div>
 
-          <h4>Thống kê API toàn hệ thống</h4>
-          <div class="table-wrap api-monitor-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Module</th>
-                  <th>API</th>
-                  <th>Lần gọi</th>
-                  <th>TB</th>
-                  <th>Max</th>
-                  <th>Rows cuối</th>
-                  <th>Chậm</th>
-                  <th>Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody id="apiMonitorTable"><tr><td colspan="8">Bấm Tải API Monitor để xem.</td></tr></tbody>
-            </table>
+          <div class="api-monitor-tab-panel active" data-api-monitor-panel="all">
+            <h4>Tab 1. Tất cả API</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>TB Query</th>
+                    <th>Max Total</th>
+                    <th>Max Mongo</th>
+                    <th>Rows cuối</th>
+                    <th>Chậm</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiMonitorTable"><tr><td colspan="12">Bấm Tải API Monitor để xem.</td></tr></tbody>
+              </table>
+            </div>
+
+            <h4>Báo cáo API chạy chậm gần nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Thời gian</th>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Total</th>
+                    <th>Mongo</th>
+                    <th>JS</th>
+                    <th>DB Queries</th>
+                    <th>Rows</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiSlowTable"><tr><td colspan="9">Chưa có dữ liệu API chậm.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="slowest">
+            <h4>Tab 2. Top API chậm nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Max Total</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>Gọi</th>
+                    <th>Chậm</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopSlowTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="most-called">
+            <h4>Tab 3. Top API gọi nhiều nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>TB Query</th>
+                    <th>Max Total</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopCalledTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="most-rows">
+            <h4>Tab 4. API có nhiều rows nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Max Rows</th>
+                    <th>TB Rows</th>
+                    <th>Rows cuối</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopRowsTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </div>
         <p id="systemMessage" class="message"></p>

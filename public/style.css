@@ -6429,3 +6429,27 @@ body::after{
 .status-pill.warn { background: rgba(217, 119, 6, 0.14); color: #b45309; }
 .status-pill.danger { background: rgba(220, 38, 38, 0.14); color: #b91c1c; }
 .danger-light { border-color: rgba(220, 38, 38, 0.35); color: #b91c1c; }
+
+/* V45 API Monitor Tabs */
+.api-monitor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+.api-monitor-tab {
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.api-monitor-tab.active {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+.api-monitor-tab-panel { display: none; }
+.api-monitor-tab-panel.active { display: block; }

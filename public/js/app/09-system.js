@@ -107,9 +107,76 @@ function systemFormatTime(value) {
   }
 }
 
+function apiMonitorFormatMs(value) {
+  return `${systemFormatNumber(Math.max(0, Math.round(Number(value) || 0)))}ms`;
+}
+
 function apiMonitorSafeText(value) {
   if (typeof escapeHtml === 'function') return escapeHtml(value == null ? '' : String(value));
   return String(value == null ? '' : value).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] || c));
+}
+
+
+function renderApiMonitorTopSlowRows(rows = []) {
+  if (!apiTopSlowTable) return;
+  apiTopSlowTable.innerHTML = rows.length ? rows.map(row => `
+    <tr class="${Number(row.maxMs || 0) >= 5000 ? 'row-danger' : ''}">
+      <td>${apiMonitorSafeText(row.module || '')}</td>
+      <td><code title="${apiMonitorSafeText(row.maxOriginalUrl || row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
+      <td><strong>${apiMonitorFormatMs(row.maxMs || 0)}</strong></td>
+      <td>${apiMonitorFormatMs(row.avgMs || 0)}</td>
+      <td>${apiMonitorFormatMs(row.avgMongoMs || 0)}</td>
+      <td>${apiMonitorFormatMs(row.avgJsMs || 0)}</td>
+      <td>${systemFormatNumber(row.count || 0)}</td>
+      <td>${systemFormatNumber(row.slowCount || 0)}</td>
+      <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="9">Chưa có dữ liệu API chậm nhất.</td></tr>';
+}
+
+function renderApiMonitorTopCalledRows(rows = []) {
+  if (!apiTopCalledTable) return;
+  apiTopCalledTable.innerHTML = rows.length ? rows.map(row => `
+    <tr class="${Number(row.count || 0) >= 300 ? 'row-danger' : ''}">
+      <td>${apiMonitorSafeText(row.module || '')}</td>
+      <td><code title="${apiMonitorSafeText(row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
+      <td><strong>${systemFormatNumber(row.count || 0)}</strong></td>
+      <td>${apiMonitorFormatMs(row.avgMs || 0)}</td>
+      <td>${apiMonitorFormatMs(row.avgMongoMs || 0)}</td>
+      <td>${apiMonitorFormatMs(row.avgJsMs || 0)}</td>
+      <td>${systemFormatNumber(row.avgDbQueries || 0)}</td>
+      <td>${apiMonitorFormatMs(row.maxMs || 0)}</td>
+      <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="9">Chưa có dữ liệu API gọi nhiều nhất.</td></tr>';
+}
+
+function renderApiMonitorTopRowsRows(rows = []) {
+  if (!apiTopRowsTable) return;
+  apiTopRowsTable.innerHTML = rows.length ? rows.map(row => `
+    <tr class="${Number(row.maxRows || 0) >= 1000 ? 'row-danger' : ''}">
+      <td>${apiMonitorSafeText(row.module || '')}</td>
+      <td><code title="${apiMonitorSafeText(row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
+      <td><strong>${systemFormatNumber(row.maxRows || 0)}</strong></td>
+      <td>${systemFormatNumber(row.avgRows || 0)}</td>
+      <td>${systemFormatNumber(row.lastRows || 0)}</td>
+      <td>${systemFormatNumber(row.count || 0)}</td>
+      <td>${apiMonitorFormatMs(row.avgMs || 0)}</td>
+      <td>${apiMonitorFormatMs(row.avgMongoMs || 0)}</td>
+      <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="9">Chưa có dữ liệu API nhiều rows nhất.</td></tr>';
+}
+
+function setupApiMonitorTabs() {
+  if (!apiMonitorTabButtons || !apiMonitorTabButtons.length) return;
+  apiMonitorTabButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const tab = button.dataset.apiMonitorTab || 'all';
+      apiMonitorTabButtons.forEach(btn => btn.classList.toggle('active', btn === button));
+      apiMonitorTabPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.apiMonitorPanel === tab));
+    });
+  });
 }
 
 function renderApiMonitor(json = {}) {
@@ -119,6 +186,9 @@ function renderApiMonitor(json = {}) {
   if (apiMonitorSlowRoutes) apiMonitorSlowRoutes.textContent = systemFormatNumber(summary.slowRoutes || 0);
   if (apiMonitorSlowCalls) apiMonitorSlowCalls.textContent = systemFormatNumber(summary.slowCalls || 0);
   if (apiMonitorErrorCalls) apiMonitorErrorCalls.textContent = systemFormatNumber(summary.errorCalls || 0);
+  if (typeof apiMonitorTotalMongoMs !== 'undefined' && apiMonitorTotalMongoMs) apiMonitorTotalMongoMs.textContent = apiMonitorFormatMs(summary.totalMongoMs || 0);
+  if (typeof apiMonitorTotalJsMs !== 'undefined' && apiMonitorTotalJsMs) apiMonitorTotalJsMs.textContent = apiMonitorFormatMs(summary.totalJsMs || 0);
+  if (typeof apiMonitorTotalDbQueries !== 'undefined' && apiMonitorTotalDbQueries) apiMonitorTotalDbQueries.textContent = systemFormatNumber(summary.totalDbQueries || 0);
 
   const slowApis = Array.isArray(json.slowApis) ? json.slowApis : [];
   if (apiSlowTable) {
@@ -127,12 +197,19 @@ function renderApiMonitor(json = {}) {
         <td>${apiMonitorSafeText(systemFormatTime(item.at))}</td>
         <td>${apiMonitorSafeText(item.module || '')}</td>
         <td><code>${apiMonitorSafeText(item.method || '')} ${apiMonitorSafeText(item.originalUrl || item.path || '')}</code></td>
-        <td><strong>${systemFormatNumber(item.ms || 0)}ms</strong></td>
+        <td><strong>${apiMonitorFormatMs(item.ms || 0)}</strong></td>
+        <td>${apiMonitorFormatMs(item.mongoMs || 0)}</td>
+        <td>${apiMonitorFormatMs(item.jsMs || 0)}</td>
+        <td>${systemFormatNumber(item.dbQueries || 0)}</td>
         <td>${systemFormatNumber(item.rows || 0)}</td>
         <td>${apiMonitorSafeText(item.statusCode || '')}</td>
       </tr>
-    `).join('') : '<tr><td colspan="6">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
+    `).join('') : '<tr><td colspan="9">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
   }
+
+  renderApiMonitorTopSlowRows(Array.isArray(json.topSlowestApis) ? json.topSlowestApis : []);
+  renderApiMonitorTopCalledRows(Array.isArray(json.topCalledApis) ? json.topCalledApis : []);
+  renderApiMonitorTopRowsRows(Array.isArray(json.topRowsApis) ? json.topRowsApis : []);
 
   const rows = Array.isArray(json.data) ? json.data : [];
   if (apiMonitorTable) {
@@ -141,13 +218,17 @@ function renderApiMonitor(json = {}) {
         <td>${apiMonitorSafeText(row.module || '')}</td>
         <td><code title="${apiMonitorSafeText(row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
         <td>${systemFormatNumber(row.count || 0)}</td>
-        <td>${systemFormatNumber(row.avgMs || 0)}ms</td>
-        <td><strong>${systemFormatNumber(row.maxMs || 0)}ms</strong></td>
+        <td>${apiMonitorFormatMs(row.avgMs || 0)}</td>
+        <td>${apiMonitorFormatMs(row.avgMongoMs || 0)}</td>
+        <td>${apiMonitorFormatMs(row.avgJsMs || 0)}</td>
+        <td>${systemFormatNumber(row.avgDbQueries || 0)}</td>
+        <td><strong>${apiMonitorFormatMs(row.maxMs || 0)}</strong></td>
+        <td>${apiMonitorFormatMs(row.maxMongoMs || 0)}</td>
         <td>${systemFormatNumber(row.lastRows || 0)}</td>
         <td>${systemFormatNumber(row.slowCount || 0)}</td>
         <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
       </tr>
-    `).join('') : '<tr><td colspan="8">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
+    `).join('') : '<tr><td colspan="12">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
   }
 }
 
@@ -155,13 +236,13 @@ async function loadApiMonitor() {
   if (!apiMonitorTable && !apiSlowTable) return;
   try {
     const slowOnly = apiMonitorFilter && apiMonitorFilter.value === 'slow' ? '1' : '0';
-    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="8">Đang tải API Monitor...</td></tr>';
+    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="12">Đang tải API Monitor...</td></tr>';
     const res = await fetch(`/api/system/api-monitor?limit=200&slowOnly=${slowOnly}`);
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được API Monitor');
     renderApiMonitor(json);
   } catch (err) {
-    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="8">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
+    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="12">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
   }
 }
 
@@ -172,7 +253,7 @@ async function resetApiMonitorStats() {
     const res = await fetch('/api/system/api-monitor/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không xóa được API Monitor');
-    renderApiMonitor({ summary: {}, data: [], slowApis: [] });
+    renderApiMonitor({ summary: {}, data: [], topSlowestApis: [], topCalledApis: [], topRowsApis: [], slowApis: [] });
     setSystemMessage('Đã xóa thống kê API Monitor. Hãy thao tác lại các màn để đo mới.', 'success');
   } catch (err) {
     setSystemMessage(err.message || 'Không xóa được API Monitor', 'error');

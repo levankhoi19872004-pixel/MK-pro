@@ -1,5 +1,16 @@
 'use strict';
 
+const { AsyncLocalStorage } = require('async_hooks');
+let mongoose = null;
+try {
+  mongoose = require('mongoose');
+} catch (err) {
+  mongoose = null;
+}
+
+const apiMonitorStore = new AsyncLocalStorage();
+let mongooseApiMonitorPatched = false;
+
 const DEFAULT_SLOW_MS = Number(process.env.API_MONITOR_SLOW_MS || 1000);
 const MAX_RECENT_SLOW = Number(process.env.API_MONITOR_MAX_SLOW || 200);
 const MAX_ROUTE_STATS = Number(process.env.API_MONITOR_MAX_ROUTES || 500);
@@ -10,6 +21,49 @@ const recentSlowApis = [];
 function nowMs() {
   return Number(process.hrtime.bigint()) / 1e6;
 }
+
+
+function getActiveMetric() {
+  return apiMonitorStore.getStore() || null;
+}
+
+function addMongoMetric(ms) {
+  const store = getActiveMetric();
+  if (!store) return;
+  store.dbQueries += 1;
+  store.mongoMs += ms;
+}
+
+function patchMongooseApiMonitor() {
+  if (!mongoose || mongooseApiMonitorPatched) return;
+  mongooseApiMonitorPatched = true;
+
+  const patchExec = (proto) => {
+    if (!proto || typeof proto.exec !== 'function' || proto.exec.__apiMonitorPatched) return;
+    const originalExec = proto.exec;
+    function monitoredExec(...args) {
+      const started = nowMs();
+      try {
+        const result = originalExec.apply(this, args);
+        if (result && typeof result.then === 'function') {
+          return result.finally(() => addMongoMetric(Math.round(nowMs() - started)));
+        }
+        addMongoMetric(Math.round(nowMs() - started));
+        return result;
+      } catch (err) {
+        addMongoMetric(Math.round(nowMs() - started));
+        throw err;
+      }
+    }
+    monitoredExec.__apiMonitorPatched = true;
+    proto.exec = monitoredExec;
+  };
+
+  patchExec(mongoose.Query && mongoose.Query.prototype);
+  patchExec(mongoose.Aggregate && mongoose.Aggregate.prototype);
+}
+
+patchMongooseApiMonitor();
 
 function normalizePath(req) {
   const base = req.baseUrl || '';
@@ -83,6 +137,17 @@ function recordMetric(metric) {
     slowCount: 0,
     errorCount: 0,
     lastMs: 0,
+    lastMongoMs: 0,
+    lastJsMs: 0,
+    lastDbQueries: 0,
+    totalMongoMs: 0,
+    totalJsMs: 0,
+    totalDbQueries: 0,
+    maxMongoMs: 0,
+    maxJsMs: 0,
+    maxDbQueries: 0,
+    totalRows: 0,
+    maxRows: 0,
     lastRows: 0,
     lastStatus: 0,
     lastAt: null,
@@ -92,9 +157,20 @@ function recordMetric(metric) {
 
   current.count += 1;
   current.totalMs += metric.ms;
+  current.totalMongoMs += metric.mongoMs || 0;
+  current.totalJsMs += metric.jsMs || 0;
+  current.totalDbQueries += metric.dbQueries || 0;
   current.maxMs = Math.max(current.maxMs || 0, metric.ms);
   current.minMs = current.minMs == null ? metric.ms : Math.min(current.minMs, metric.ms);
   current.lastMs = metric.ms;
+  current.lastMongoMs = metric.mongoMs || 0;
+  current.lastJsMs = metric.jsMs || 0;
+  current.lastDbQueries = metric.dbQueries || 0;
+  current.maxMongoMs = Math.max(current.maxMongoMs || 0, metric.mongoMs || 0);
+  current.maxJsMs = Math.max(current.maxJsMs || 0, metric.jsMs || 0);
+  current.maxDbQueries = Math.max(current.maxDbQueries || 0, metric.dbQueries || 0);
+  current.totalRows += metric.rows || 0;
+  current.maxRows = Math.max(current.maxRows || 0, metric.rows || 0);
   current.lastRows = metric.rows;
   current.lastStatus = metric.statusCode;
   current.lastAt = metric.at;
@@ -114,19 +190,30 @@ function recordMetric(metric) {
 function apiMonitor(req, res, next) {
   if (!shouldMeasure(req)) return next();
 
+  patchMongooseApiMonitor();
   const startedAt = nowMs();
+  const metricStore = { mongoMs: 0, dbQueries: 0 };
   const originalJson = res.json.bind(res);
   let responseRows = 0;
 
   res.json = (body) => {
     const ms = Math.round(nowMs() - startedAt);
+    const mongoMs = Math.round(metricStore.mongoMs || 0);
+    const dbQueries = Math.round(metricStore.dbQueries || 0);
+    const jsMs = Math.max(0, ms - mongoMs);
     responseRows = countRows(body);
     res.set('X-Response-Time-Ms', String(ms));
+    res.set('X-Mongo-Time-Ms', String(mongoMs));
+    res.set('X-JS-Time-Ms', String(jsMs));
+    res.set('X-DB-Queries', String(dbQueries));
     res.set('X-API-Monitor', '1');
     if (body && typeof body === 'object' && !Buffer.isBuffer(body)) {
       body.perf = {
         ...(body.perf && typeof body.perf === 'object' ? body.perf : {}),
         serverMs: body.perf?.serverMs ?? ms,
+        mongoMs: body.perf?.mongoMs ?? mongoMs,
+        jsMs: body.perf?.jsMs ?? jsMs,
+        dbQueries: body.perf?.dbQueries ?? dbQueries,
         rows: body.perf?.rows ?? responseRows
       };
     }
@@ -135,6 +222,9 @@ function apiMonitor(req, res, next) {
 
   res.on('finish', () => {
     const ms = Math.round(nowMs() - startedAt);
+    const mongoMs = Math.round(metricStore.mongoMs || 0);
+    const dbQueries = Math.round(metricStore.dbQueries || 0);
+    const jsMs = Math.max(0, ms - mongoMs);
     const path = normalizePath(req);
     const slowMs = DEFAULT_SLOW_MS;
     const metric = {
@@ -145,6 +235,9 @@ function apiMonitor(req, res, next) {
       module: moduleName(path),
       statusCode: res.statusCode,
       ms,
+      mongoMs,
+      jsMs,
+      dbQueries,
       rows: responseRows,
       slowMs,
       contentLength: Number(res.getHeader('content-length') || 0)
@@ -158,6 +251,9 @@ function apiMonitor(req, res, next) {
       module: metric.module,
       statusCode: metric.statusCode,
       serverMs: metric.ms,
+      mongoMs: metric.mongoMs,
+      jsMs: metric.jsMs,
+      dbQueries: metric.dbQueries,
       rows: metric.rows,
       contentLength: metric.contentLength
     };
@@ -168,7 +264,7 @@ function apiMonitor(req, res, next) {
     }
   });
 
-  next();
+  apiMonitorStore.run(metricStore, next);
 }
 
 function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}) {
@@ -179,9 +275,20 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     module: s.module,
     count: s.count,
     avgMs: Math.round(s.totalMs / Math.max(1, s.count)),
+    avgMongoMs: Math.round((s.totalMongoMs || 0) / Math.max(1, s.count)),
+    avgJsMs: Math.round((s.totalJsMs || 0) / Math.max(1, s.count)),
+    avgDbQueries: Math.round((s.totalDbQueries || 0) / Math.max(1, s.count)),
+    avgRows: Math.round((s.totalRows || 0) / Math.max(1, s.count)),
+    maxRows: s.maxRows || 0,
     maxMs: s.maxMs,
+    maxMongoMs: s.maxMongoMs || 0,
+    maxJsMs: s.maxJsMs || 0,
+    maxDbQueries: s.maxDbQueries || 0,
     minMs: s.minMs || 0,
     lastMs: s.lastMs,
+    lastMongoMs: s.lastMongoMs || 0,
+    lastJsMs: s.lastJsMs || 0,
+    lastDbQueries: s.lastDbQueries || 0,
     lastRows: s.lastRows,
     lastStatus: s.lastStatus,
     lastAt: s.lastAt,
@@ -195,6 +302,10 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     .filter((row) => (module ? row.module === module : true))
     .sort((a, b) => (b.maxMs - a.maxMs) || (b.avgMs - a.avgMs));
 
+  const topSlowestApis = rows.slice().sort((a, b) => (b.maxMs - a.maxMs) || (b.avgMs - a.avgMs)).slice(0, 30);
+  const topCalledApis = rows.slice().sort((a, b) => (b.count - a.count) || (b.maxMs - a.maxMs)).slice(0, 30);
+  const topRowsApis = rows.slice().sort((a, b) => (b.maxRows - a.maxRows) || (b.avgRows - a.avgRows) || (b.lastRows - a.lastRows)).slice(0, 30);
+
   const slowRows = rows.filter((row) => row.status === 'slow');
   const summary = {
     totalRoutes: apiStats.size,
@@ -203,15 +314,22 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     slowCalls: Array.from(apiStats.values()).reduce((sum, s) => sum + s.slowCount, 0),
     errorCalls: Array.from(apiStats.values()).reduce((sum, s) => sum + s.errorCount, 0),
     slowMs: DEFAULT_SLOW_MS,
+    totalMongoMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalMongoMs || 0), 0),
+    totalJsMs: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalJsMs || 0), 0),
+    totalDbQueries: Array.from(apiStats.values()).reduce((sum, s) => sum + (s.totalDbQueries || 0), 0),
     generatedAt: new Date().toISOString()
   };
 
   const moduleStats = Array.from(apiStats.values()).reduce((acc, s) => {
     const key = s.module || 'Khác';
-    acc[key] = acc[key] || { module: key, count: 0, totalMs: 0, maxMs: 0, slowCount: 0, routes: 0 };
+    acc[key] = acc[key] || { module: key, count: 0, totalMs: 0, totalMongoMs: 0, totalJsMs: 0, totalDbQueries: 0, maxMs: 0, maxMongoMs: 0, slowCount: 0, routes: 0 };
     acc[key].count += s.count;
     acc[key].totalMs += s.totalMs;
+    acc[key].totalMongoMs += s.totalMongoMs || 0;
+    acc[key].totalJsMs += s.totalJsMs || 0;
+    acc[key].totalDbQueries += s.totalDbQueries || 0;
     acc[key].maxMs = Math.max(acc[key].maxMs, s.maxMs || 0);
+    acc[key].maxMongoMs = Math.max(acc[key].maxMongoMs, s.maxMongoMs || 0);
     acc[key].slowCount += s.slowCount || 0;
     acc[key].routes += 1;
     return acc;
@@ -223,9 +341,15 @@ function getApiMonitorReport({ limit = 100, slowOnly = false, module = '' } = {}
     summary,
     modules: Object.values(moduleStats).map((x) => ({
       ...x,
-      avgMs: Math.round(x.totalMs / Math.max(1, x.count))
+      avgMs: Math.round(x.totalMs / Math.max(1, x.count)),
+      avgMongoMs: Math.round((x.totalMongoMs || 0) / Math.max(1, x.count)),
+      avgJsMs: Math.round((x.totalJsMs || 0) / Math.max(1, x.count)),
+      avgDbQueries: Math.round((x.totalDbQueries || 0) / Math.max(1, x.count))
     })).sort((a, b) => b.maxMs - a.maxMs),
     data: rows.slice(0, Math.max(1, Math.min(Number(limit) || 100, 500))),
+    topSlowestApis,
+    topCalledApis,
+    topRowsApis,
     slowApis: recentSlowApis.slice(0, 100)
   };
 }

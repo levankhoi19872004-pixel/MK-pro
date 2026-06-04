@@ -151,6 +151,7 @@ if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSys
 if(reloadApiMonitorButton)reloadApiMonitorButton.addEventListener('click',loadApiMonitor);
 if(resetApiMonitorButton)resetApiMonitorButton.addEventListener('click',resetApiMonitorStats);
 if(apiMonitorFilter)apiMonitorFilter.addEventListener('change',loadApiMonitor);
+if(typeof setupApiMonitorTabs==='function')setupApiMonitorTabs();
 
 setupTabs();
 
