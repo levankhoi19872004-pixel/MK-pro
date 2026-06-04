@@ -1020,3 +1020,25 @@ resetButton.addEventListener('click',resetForm);
   searchInput?.addEventListener('input',reloadAll);
   reloadAll();
 })();
+
+// Xuất hóa đơn VAT TT78: Sheet1 sau đối trừ hàng trả.
+(function initVatInvoiceTT78Export(){
+  const button=document.getElementById('exportVatInvoiceTT78Button');
+  const summary=document.getElementById('vatInvoiceExportSummary');
+  if(!button)return;
+  function buildUrl(){
+    const params=new URLSearchParams();
+    const from=document.getElementById('reportFromDate')?.value||'';
+    const to=document.getElementById('reportToDate')?.value||'';
+    if(from)params.set('dateFrom',from);
+    if(to)params.set('dateTo',to);
+    params.set('limit','100000');
+    return `/api/export/vatInvoiceTT78.xlsx?${params.toString()}`;
+  }
+  button.addEventListener('click',()=>{
+    const url=buildUrl();
+    if(summary)summary.textContent='Đang tạo file Excel TT78...';
+    window.location.href=url;
+    setTimeout(()=>{if(summary)summary.textContent='Đã gửi yêu cầu xuất Excel TT78. Kiểm tra file tải về của trình duyệt.';},800);
+  });
+})();
