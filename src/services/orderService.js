@@ -247,7 +247,7 @@ function buildOrderSearchFilter(query = {}) {
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
-  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'deliveryDate').trim();
   const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
   const filter = {};
   const and = [];
@@ -533,7 +533,7 @@ async function listOrders(query = {}) {
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
-  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'deliveryDate').trim();
   const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
   const sourceKey = orderStatusUtil.normalizeOrderSource(guardedQuery.source || guardedQuery.orderSource || '');
 
