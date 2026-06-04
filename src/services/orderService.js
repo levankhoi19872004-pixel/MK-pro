@@ -247,7 +247,7 @@ function buildOrderSearchFilter(query = {}) {
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
-  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'deliveryDate').trim();
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
   const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
   const filter = {};
   const and = [];
@@ -354,8 +354,21 @@ function buildOrderSearchFilter(query = {}) {
   const exactSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
   const sourceKey = orderStatusUtil.normalizeOrderSource(exactSource);
   if (sourceKey && sourceKey !== 'manual') {
-    // Không dùng regex nếu không cần; exact match giúp ăn index source/orderSource + orderDate.
-    pushAnd(and, { $or: [{ source: sourceKey }, { orderSource: sourceKey }] });
+    // Nhận cả chữ thường/chữ hoa để lọc đúng dữ liệu cũ: DMS/dms, NVBH/nvbh.
+    const sourceVariants = Array.from(new Set([
+      sourceKey,
+      sourceKey.toUpperCase(),
+      sourceKey.toLowerCase(),
+      exactSource,
+      exactSource.toUpperCase(),
+      exactSource.toLowerCase()
+    ].filter(Boolean)));
+    pushAnd(and, {
+      $or: [
+        { source: { $in: sourceVariants } },
+        { orderSource: { $in: sourceVariants } }
+      ]
+    });
   }
 
   const deliveryStatusFilter = String(guardedQuery.deliveryStatus || '').trim();
@@ -369,12 +382,33 @@ function buildOrderSearchFilter(query = {}) {
 
   if (q) {
     const rx = queryGuard.buildRegex(q);
-    pushAnd(and, { $or: [
-      { code: rx }, { id: rx }, { orderCode: rx }, { salesOrderCode: rx }, { invoiceCode: rx },
-      { customerCode: rx }, { customerName: rx }, { customerPhone: rx },
-      { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx },
-      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { masterOrderCode: rx }, { masterOrderId: rx }
-    ] });
+    const isLikelyOrderCode = /^[A-Z0-9_-]{5,}$/i.test(q);
+    const qOr = isLikelyOrderCode
+      ? [
+          // Mã đơn ưu tiên exact match để tìm HU90202627 nhanh hơn và tránh regex lan rộng.
+          { code: q },
+          { id: q },
+          { orderCode: q },
+          { salesOrderCode: q },
+          { invoiceCode: q },
+          { documentCode: q },
+          { customerCode: rx },
+          { customerName: rx },
+          { customerId: rx },
+          { staffName: rx },
+          { salesStaffName: rx }
+        ]
+      : [
+          { customerCode: rx },
+          { customerName: rx },
+          { customerId: rx },
+          { customerPhone: rx },
+          { staffName: rx },
+          { salesStaffName: rx },
+          { deliveryStaffName: rx },
+          { masterOrderCode: rx }
+        ];
+    pushAnd(and, { $or: qOr });
   }
 
   if (and.length) filter.$and = and;
@@ -533,7 +567,7 @@ async function listOrders(query = {}) {
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
-  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'deliveryDate').trim();
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
   const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
   const sourceKey = orderStatusUtil.normalizeOrderSource(guardedQuery.source || guardedQuery.orderSource || '');
 
