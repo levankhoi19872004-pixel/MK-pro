@@ -4349,6 +4349,46 @@
         ]
       }
     },
+    "/api/orders/search": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "GET /api/orders/search",
+        "operationId": "getOrdersSearch",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/permissions": {
       "get": {
         "tags": [
@@ -7149,6 +7189,46 @@
             }
           }
         }
+      }
+    },
+    "/api/sales-orders/search": {
+      "get": {
+        "tags": [
+          "Sales Orders"
+        ],
+        "summary": "GET /api/sales-orders/search",
+        "operationId": "getSalesOrdersSearch",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/search/{type}": {

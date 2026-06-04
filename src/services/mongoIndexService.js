@@ -73,7 +73,17 @@ const INDEX_DEFINITIONS = {
     [{ deliveryDate: 1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_mobile_delivery_fast' }],
     [{ deliveryDate: 1, status: 1 }, { name: 'idx_orders_delivery_date_status' }],
     [{ arStatus: 1, deliveryDate: 1 }, { name: 'idx_orders_ar_status_delivery_date' }],
-    [{ createdAt: -1 }, { name: 'idx_orders_created_at' }]
+    [{ createdAt: -1 }, { name: 'idx_orders_created_at' }],
+    // V45 Performance Turbo: index cho API danh sách đơn nhẹ /api/sales-orders/search.
+    [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_search_order_date_created_desc' }],
+    [{ date: -1, createdAt: -1 }, { name: 'idx_orders_search_date_created_desc' }],
+    [{ salesStaffCode: 1, orderDate: -1 }, { name: 'idx_orders_search_sales_staff_order_date' }],
+    [{ salesStaffCode: 1, date: -1 }, { name: 'idx_orders_search_sales_staff_date' }],
+    [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_search_customer_order_date' }],
+    [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_orders_search_delivery_staff_date_desc' }],
+    [{ deliveryStatus: 1, deliveryDate: -1 }, { name: 'idx_orders_search_delivery_status_date_desc' }],
+    [{ masterOrderCode: 1 }, { name: 'idx_orders_search_master_order_code', sparse: true }],
+    [{ source: 1, orderDate: -1 }, { name: 'idx_orders_search_source_order_date' }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'idx_master_orders_id' }],
@@ -91,7 +101,10 @@ const INDEX_DEFINITIONS = {
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
     [{ 'children.id': 1 }, { name: 'idx_master_orders_children_id' }],
     [{ 'children.code': 1 }, { name: 'idx_master_orders_children_code' }],
-    [{ createdAt: -1 }, { name: 'idx_master_orders_created_at' }]
+    [{ createdAt: -1 }, { name: 'idx_master_orders_created_at' }],
+    // V45 Performance Turbo: index cho tạo/cập nhật/lọc đơn tổng.
+    [{ deliveryDate: -1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_perf_delivery_staff_status' }],
+    [{ date: -1, deliveryStaffCode: 1 }, { name: 'idx_master_orders_perf_date_staff' }]
   ],
   importOrders: [
     [{ id: 1 }, { name: 'idx_import_orders_id' }],
@@ -114,7 +127,12 @@ const INDEX_DEFINITIONS = {
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
     [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
-    [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }]
+    [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }],
+    // V45 Performance Turbo: index cho sync returnOrders khi gộp đơn.
+    [{ masterOrderCode: 1 }, { name: 'idx_return_orders_master_order_code', sparse: true }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_return_orders_delivery_staff_date_desc' }],
+    [{ deliveryOrderId: 1 }, { name: 'idx_return_orders_delivery_order_id', sparse: true }],
+    [{ deliveryOrderCode: 1 }, { name: 'idx_return_orders_delivery_order_code', sparse: true }]
   ],
   masterReturnOrders: [
     [{ id: 1 }, { name: 'idx_master_return_orders_id' }],

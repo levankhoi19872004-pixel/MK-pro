@@ -36,12 +36,10 @@ function extractStaffCodeParam(value) {
   return String(match ? match[0] : first).trim();
 }
 
-function buildOrderCode(existingOrders = []) {
-  const max = existingOrders.reduce((result, order) => {
-    const match = String(order.code || '').match(/(\d+)$/);
-    return Math.max(result, match ? Number(match[1]) : 0);
-  }, 0);
-  return `SO${String(max + 1).padStart(5, '0')}`;
+function buildOrderCode() {
+  // V45 performance: không quét toàn bộ orders để sinh mã.
+  // Mã tự sinh theo timestamp/random bằng makeId('SO') ở createOrder().
+  return makeId('SO');
 }
 
 
@@ -271,6 +269,14 @@ function buildOrderSearchFilter(query = {}) {
 
   if (!includeCancelled) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
 
+  const exactCustomerCode = String(guardedQuery.customerCode || guardedQuery.maKhachHang || guardedQuery.maKH || '').trim();
+  if (exactCustomerCode) filter.customerCode = exactCustomerCode;
+
+  const exactMasterOrderCode = String(guardedQuery.masterOrderCode || guardedQuery.masterCode || '').trim();
+  if (exactMasterOrderCode) filter.masterOrderCode = exactMasterOrderCode;
+
+  const exactSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
+
   const and = [];
   if (q) {
     const rx = queryGuard.buildRegex(q);
@@ -298,7 +304,7 @@ function buildOrderSearchFilter(query = {}) {
     and.push({ $or: [{ deliveryStaffCode: deliveryStaffCodeFilter }, { deliveryCode: deliveryStaffCodeFilter }, { 'deliveryStaff.code': deliveryStaffCodeFilter }] });
   }
 
-  const sourceKey = orderStatusUtil.normalizeOrderSource(guardedQuery.source || guardedQuery.orderSource || '');
+  const sourceKey = orderStatusUtil.normalizeOrderSource(exactSource);
   if (sourceKey && sourceKey !== 'manual') {
     and.push({ $or: [{ source: sourceKey }, { orderSource: sourceKey }, { source: new RegExp(sourceKey, 'i') }, { orderSource: new RegExp(sourceKey, 'i') }] });
   }
@@ -457,6 +463,7 @@ async function listOrders(query = {}) {
 }
 
 async function createOrder(body = {}) {
+  const startedAt = Date.now();
   const customer = await resolveCustomer(body);
   const staff = await resolveStaff(body);
   const saleMode = normalizeSaleMode(body.saleMode || body.pricingMode || body.orderPricingMode || body.priceMode || 'direct');
@@ -464,10 +471,14 @@ async function createOrder(body = {}) {
   if (!items.length) return { error: 'Đơn bán chưa có sản phẩm', status: 400 };
   const totalAmount = toNumber(body.totalAmount || items.reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount || body.paid || 0);
+  const generatedOrderCode = String(body.code || body.orderCode || body.salesOrderCode || body.documentCode || buildOrderCode()).trim();
+  const generatedOrderId = String(body.id || generatedOrderCode).trim();
   const order = {
     ...body,
-    id: String(body.id || makeId('SO')).trim(),
-    code: String(body.code || makeId('SO')).trim(),
+    id: generatedOrderId,
+    code: generatedOrderCode,
+    orderCode: String(body.orderCode || generatedOrderCode).trim(),
+    salesOrderCode: String(body.salesOrderCode || generatedOrderCode).trim(),
     date: dateUtil.toDateOnly(body.date || body.orderDate || today()),
     orderDate: dateUtil.toDateOnly(body.orderDate || body.date || today()),
     deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || body.orderDate || today()),
@@ -509,8 +520,11 @@ async function createOrder(body = {}) {
     await orderRepository.upsert(order, { session });
     // Tăng tốc lưu đơn: chỉ lưu đơn và tạo phiếu trả nháp.
     // Không xuất kho/không post AR ở bước tạo đơn; các bút toán này chỉ chạy ở luồng giao hàng/kế toán xác nhận.
-    await returnOrderService.ensureReturnDraftForSalesOrder(order, { session });
+    if (body.ensureReturnDraft !== false) {
+      await returnOrderService.ensureReturnDraftForSalesOrder(order, { session });
+    }
   });
+  console.log('[CREATE_ORDER_DONE]', { ms: Date.now() - startedAt, code: order.code, itemCount: items.length });
   return { salesOrder: toClient(order) };
 }
 
@@ -537,10 +551,21 @@ async function updateOrder(id, body = {}) {
     updatedAt: nowIso()
   });
   await withMongoTransaction(async (session) => {
-    await reverseSalesOrderPosting(current, { session });
+    const currentWasPosted = Boolean(current.stockPosted || current.arPosted || current.accountingConfirmed)
+      || ['confirmed', 'locked', 'posted'].includes(String(current.accountingStatus || current.arStatus || '').toLowerCase());
+    const shouldPostAfterUpdate = body.postImmediately === true || currentWasPosted;
+
+    if (currentWasPosted) {
+      await reverseSalesOrderPosting(current, { session });
+    }
+
     await orderRepository.upsert(updated, { session });
     await returnOrderService.syncReturnDraftWithSalesOrder(updated, { session });
-    await applySalesOrderPosting(updated, { session });
+
+    // V45 Performance Turbo: đơn pending/sales_app chỉ cập nhật dữ liệu, không xuất kho/post AR ngay.
+    if (shouldPostAfterUpdate) {
+      await applySalesOrderPosting(updated, { session });
+    }
   });
   return { salesOrder: toClient(updated) };
 }

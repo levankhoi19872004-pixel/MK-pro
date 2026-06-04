@@ -1848,6 +1848,7 @@ async function buildAggregateMasterPrintDocument(body = {}) {
 }
 
 async function createMasterOrder(body = {}) {
+  const startedAt = Date.now();
   const childIds = [...new Set((Array.isArray(body.childOrderIds) ? body.childOrderIds : [])
     .map((value) => String(value || '').trim())
     .filter(Boolean))];
@@ -1968,6 +1969,7 @@ async function createMasterOrder(body = {}) {
   });
 
   const updatedChildren = await orderService.getMasterChildren(masterOrder);
+  console.log('[CREATE_MASTER_ORDER_DONE]', { ms: Date.now() - startedAt, code: masterOrder.code, childCount: children.length });
   return { masterOrder: toClient(masterOrder, updatedChildren) };
 }
 
@@ -2002,21 +2004,68 @@ async function updateMasterOrder(id, body = {}) {
   const summary = orderService.summarizeOrders(children);
   Object.assign(updated, summary);
 
+  const childOrderKeys = [...new Set((children || []).flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)))];
+  const childCodes = [...new Set((children || []).map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
+  const now = nowIso();
+
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(updated, { session });
-    for (const child of children) {
-      const updatedChild = {
-        ...child,
-        deliveryDate: updated.deliveryDate,
-        deliveryStaffId: updated.deliveryStaffId,
-        deliveryStaffCode: updated.deliveryStaffCode,
-        deliveryStaffName: updated.deliveryStaffName,
-        routeName: updated.routeName,
-        deliveryRoute: updated.routeName,
-        updatedAt: nowIso()
-      };
-      await orderRepository.upsert(updatedChild, { session });
-      await returnOrderService.attachMasterOrderToReturnDrafts(updated, [updatedChild], { session });
+
+    if (children.length) {
+      await MongoStore.salesOrders.bulkWrite(children.map((child) => ({
+        updateOne: {
+          filter: { $or: [
+            { id: child.id },
+            { code: child.code },
+            { documentCode: child.documentCode },
+            { orderCode: child.orderCode },
+            { salesOrderCode: child.salesOrderCode }
+          ].filter((item) => Object.values(item)[0]) },
+          update: { $set: {
+            deliveryDate: updated.deliveryDate,
+            deliveryStaffId: updated.deliveryStaffId,
+            deliveryStaffCode: updated.deliveryStaffCode,
+            deliveryStaffName: updated.deliveryStaffName,
+            routeName: updated.routeName,
+            deliveryRoute: updated.routeName,
+            updatedAt: now
+          } }
+        }
+      })), { ordered: false, session });
+    }
+
+    // Sync returnOrders bằng updateMany, không gọi attachMasterOrderToReturnDrafts từng đơn.
+    if (childOrderKeys.length || childCodes.length) {
+      await MongoStore.returnOrders.updateMany(
+        {
+          $or: [
+            { salesOrderId: { $in: childOrderKeys } },
+            { orderId: { $in: childOrderKeys } },
+            { sourceOrderId: { $in: childOrderKeys } },
+            { deliveryOrderId: { $in: childOrderKeys } },
+            { salesOrderCode: { $in: childCodes } },
+            { orderCode: { $in: childCodes } },
+            { sourceOrderCode: { $in: childCodes } },
+            { deliveryOrderCode: { $in: childCodes } }
+          ],
+          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted'] }
+        },
+        {
+          $set: {
+            masterOrderId: updated.id,
+            masterOrderCode: updated.code,
+            deliveryStaffId: updated.deliveryStaffId,
+            deliveryStaffCode: updated.deliveryStaffCode,
+            deliveryStaffName: updated.deliveryStaffName,
+            deliveryDate: updated.deliveryDate,
+            routeName: updated.routeName,
+            updatedAt: now
+          }
+        },
+        { session }
+      );
     }
   });
   const updatedChildren = await orderService.getMasterChildren(updated);
