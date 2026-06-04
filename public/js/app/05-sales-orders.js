@@ -470,8 +470,12 @@ function extractStaffCodeFromDisplay(value){
 }
 function getSalesOrderStaffFilterCode(){
   if(!salesOrderStaffFilter)return '';
+  const rawValue=String(salesOrderStaffFilter.value||'').trim();
   const selected=String(salesOrderStaffFilter.dataset?.selectedId||'').trim();
-  return extractStaffCodeFromDisplay(selected || salesOrderStaffFilter.value || '');
+  const code=extractStaffCodeFromDisplay(selected || rawValue || '');
+  // Đồng bộ lại dataset để bấm Tải lại vẫn gửi đúng mã NVBH, không gửi cả chuỗi label.
+  if(code) salesOrderStaffFilter.dataset.selectedId=code;
+  return code;
 }
 
 function normalizeOrderDateForFilter(value){
@@ -499,7 +503,7 @@ function buildSalesOrderSearchParams(page = 1){
   if(source)params.set('source',source);
   if(q)params.set('q',q);
   const staffCodeFilter=getSalesOrderStaffFilterCode();
-  if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
+  if(staffCodeFilter){params.set('salesStaffCode',staffCodeFilter);params.set('includeStaffAliases','1');}
   params.set('page',String(page));
   params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
   return params;
@@ -586,8 +590,7 @@ async function loadSalesOrders({page=1, append=false} = {}){
     updateSalesOrderLoadMoreButton();
   }
 }
-
-
+window.loadSalesOrders=loadSalesOrders;
 
 // Bảo vệ riêng cho ô gợi ý sản phẩm bán hàng: catalog luôn được tải độc lập với bộ lọc tồn kho/danh sách sản phẩm.
 if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
