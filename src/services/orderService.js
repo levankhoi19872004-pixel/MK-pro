@@ -286,11 +286,12 @@ function buildOrderSearchFilter(query = {}) {
   const staffCodeFilter = extractStaffCodeParam(
     guardedQuery.salesStaffCode || guardedQuery.staffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
   );
+  const staffTextFilter = String(guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.staffName || guardedQuery.salesmanName || '').trim();
   if (staffCodeFilter) {
     // Ưu tiên field chuẩn salesStaffCode để ăn index { salesStaffCode, orderDate }.
-    // Chỉ bật alias legacy khi frontend truyền includeStaffAliases=1.
+    // Khi frontend truyền includeStaffAliases=1 thì lọc thêm các field DMS/import cũ.
     if (String(guardedQuery.includeStaffAliases || '0') === '1') {
-      pushAnd(and, { $or: [
+      const staffOr = [
         { salesStaffCode: staffCodeFilter },
         { staffCode: staffCodeFilter },
         { salesPersonCode: staffCodeFilter },
@@ -299,10 +300,42 @@ function buildOrderSearchFilter(query = {}) {
         { maNVBH: staffCodeFilter },
         { 'salesStaff.code': staffCodeFilter },
         { 'staff.code': staffCodeFilter }
-      ] });
+      ];
+      if (staffTextFilter) {
+        const staffRx = queryGuard.buildRegex(staffTextFilter);
+        staffOr.push(
+          { salesStaffName: staffRx },
+          { staffName: staffRx },
+          { salesPersonName: staffRx },
+          { salesmanName: staffRx },
+          { 'salesStaff.name': staffRx },
+          { 'staff.name': staffRx },
+          { 'salesStaff.fullName': staffRx },
+          { 'staff.fullName': staffRx }
+        );
+      }
+      pushAnd(and, { $or: staffOr });
     } else {
       filter.salesStaffCode = staffCodeFilter;
     }
+  } else if (staffTextFilter) {
+    const staffRx = queryGuard.buildRegex(staffTextFilter);
+    pushAnd(and, { $or: [
+      { salesStaffCode: staffRx },
+      { staffCode: staffRx },
+      { salesStaffName: staffRx },
+      { staffName: staffRx },
+      { salesPersonCode: staffRx },
+      { salesPersonName: staffRx },
+      { salesmanCode: staffRx },
+      { salesmanName: staffRx },
+      { nvbhCode: staffRx },
+      { maNVBH: staffRx },
+      { 'salesStaff.code': staffRx },
+      { 'salesStaff.name': staffRx },
+      { 'staff.code': staffRx },
+      { 'staff.name': staffRx }
+    ] });
   }
 
   const deliveryStaffCodeFilter = extractStaffCodeParam(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);

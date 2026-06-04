@@ -470,8 +470,15 @@ function extractStaffCodeFromDisplay(value){
 }
 function getSalesOrderStaffFilterCode(){
   if(!salesOrderStaffFilter)return '';
+  // Ưu tiên text đang hiển thị trong ô vì dataset.selectedId có thể là Mongo _id.
+  // Nếu lấy _id để gửi salesStaffCode thì backend sẽ không lọc đúng NVBH.
+  const visibleValue=String(salesOrderStaffFilter.value||'').trim();
   const selected=String(salesOrderStaffFilter.dataset?.selectedId||'').trim();
-  return extractStaffCodeFromDisplay(selected || salesOrderStaffFilter.value || '');
+  return extractStaffCodeFromDisplay(visibleValue || selected || '');
+}
+function getSalesOrderStaffFilterText(){
+  if(!salesOrderStaffFilter)return '';
+  return String(salesOrderStaffFilter.value||salesOrderStaffFilter.dataset?.selectedId||'').trim();
 }
 
 function normalizeOrderDateForFilter(value){
@@ -499,7 +506,13 @@ function buildSalesOrderSearchParams(page = 1){
   if(source)params.set('source',source);
   if(q)params.set('q',q);
   const staffCodeFilter=getSalesOrderStaffFilterCode();
-  if(staffCodeFilter)params.set('salesStaffCode',staffCodeFilter);
+  const staffTextFilter=getSalesOrderStaffFilterText();
+  if(staffCodeFilter){
+    params.set('salesStaffCode',staffCodeFilter);
+    // Bật alias để đơn DMS/import cũ dùng staffCode/salesmanCode vẫn lọc đúng.
+    params.set('includeStaffAliases','1');
+  }
+  if(staffTextFilter)params.set('salesStaffText',staffTextFilter);
   params.set('page',String(page));
   params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
   return params;

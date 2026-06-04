@@ -104,12 +104,8 @@ if(downloadCustomImportTemplateButton)downloadCustomImportTemplateButton.addEven
 if(deleteCustomImportTemplateButton)deleteCustomImportTemplateButton.addEventListener('click',deleteCustomImportTemplate);
 if(importDataType)importDataType.addEventListener('change',async()=>{importPreviewRows=[];if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr>';if(commitImportButton){commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);commitImportButton.textContent='Xem trước đơn import';}resetImportPreviewMessage();await loadImportFieldOptions();await loadCustomImportTemplates();});
 if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',loadImportOrders);
-if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',loadSalesOrders);
-if(salesOrderSearchInput)salesOrderSearchInput.addEventListener('input',loadSalesOrders);
-if(salesOrderSourceFilter)salesOrderSourceFilter.addEventListener('change',loadSalesOrders);
-if(salesOrderDateFrom)salesOrderDateFrom.addEventListener('change',loadSalesOrders);
-if(salesOrderDateTo)salesOrderDateTo.addEventListener('change',loadSalesOrders);
-if(salesOrderStaffFilter)salesOrderStaffFilter.addEventListener('input',loadSalesOrders);
+// Sales order history events are bound in /js/app/05-sales-orders.js.
+// Không bind lại ở app.js để tránh gọi API 2 lần và tránh chạy trước khi autocomplete set dataset.
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 
