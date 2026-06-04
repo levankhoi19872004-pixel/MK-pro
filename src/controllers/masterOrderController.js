@@ -62,7 +62,12 @@ async function listDeliveryTodayOrdersCompact(req, res) {
     const result = await masterOrderService.listDeliveryTodayOrdersCompact(req.query || {});
     res.json({ ok: true, source: 'mongo-route', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được danh sách đơn theo NVGH/NVBH', error: err.message });
+    console.error('[DELIVERY_TODAY_ORDERS]', err.stack || err);
+    res.status(500).json({
+      ok: false,
+      message: 'Không tải được danh sách đơn theo NVGH/NVBH',
+      error: err.message
+    });
   }
 }
 

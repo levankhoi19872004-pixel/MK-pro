@@ -2191,6 +2191,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         salesStaffCode: child.salesStaffCode || child.salesmanCode || child.staffCode || master.salesStaffCode || '',
         salesStaffName: child.salesStaffName || child.salesmanName || child.staffName || master.salesStaffName || '',
         deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
+        deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || '',
         deliveryDate,
         totalAmount,
         cashAmount,
@@ -2206,7 +2207,19 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
 
       if (q && ![row.code, row.customerCode, row.customerName].some((value) => normalizeText(value).includes(q))) continue;
       if (sales && ![row.salesStaffCode, row.salesStaffName].some((value) => normalizeText(value).includes(sales))) continue;
-      if (delivery && !normalizeText(row.deliveryStaffCode).includes(delivery)) continue;
+      if (
+        delivery &&
+        ![
+          row.deliveryStaffCode,
+          row.deliveryStaffName,
+          master.deliveryStaffCode,
+          master.deliveryStaffName
+        ]
+          .filter(Boolean)
+          .some((value) => normalizeText(value).includes(delivery))
+      ) {
+        continue;
+      }
       if (route) {
         const rowRoute = child.routeName || child.deliveryRoute || master.routeName || '';
         if (!normalizeText(rowRoute).includes(route)) continue;

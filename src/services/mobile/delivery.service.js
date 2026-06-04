@@ -178,23 +178,34 @@ function createMobileDeliveryService(ctx) {
   }
 
   async function listDeliveryOrders({ query = {}, mobileUser }) {
+    const totalStartedAt = Date.now();
+
+    const snapshotStartedAt = Date.now();
     const data = await repo.getPrimaryDataSnapshot();
+    const snapshotMs = Date.now() - snapshotStartedAt;
     const targetDate = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const q = normalizeText(query.q);
     const status = normalizeText(query.status);
     const includeCompleted = String(query.includeCompleted || '') === '1';
+    const ledgerStartedAt = Date.now();
     const ledger = buildDebtLedgerRows(data);
+    const ledgerMs = Date.now() - ledgerStartedAt;
     const debtByOrder = new Map(ledger.map((row) => [String(row.orderId), row]));
 
+    const sourceOrdersStartedAt = Date.now();
     let sourceOrders = (data.salesOrders || [])
       .filter((order) => isOrderApprovedForDelivery(order))
       .filter((order) => getOrderDeliveryDate(data, order) === targetDate)
       .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser));
+    const sourceOrdersMs = Date.now() - sourceOrdersStartedAt;
 
     // V45 speed fix: chỉ refresh returnOrders liên quan đến các đơn app đang hiển thị.
     // Không load toàn bộ returnOrders từ Mongo.
+    const returnStartedAt = Date.now();
     data.returnOrders = await findReturnOrdersForOrders(sourceOrders);
+    const returnQueryMs = Date.now() - returnStartedAt;
 
+    const buildRowsStartedAt = Date.now();
     let items = sourceOrders
       .map((order) => {
         const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
@@ -217,6 +228,7 @@ function createMobileDeliveryService(ctx) {
         return row;
       })
       .filter((order) => includeCompleted || isDeliveryOrderActive(order.deliveryStatus));
+    const buildRowsMs = Date.now() - buildRowsStartedAt;
 
     if (q) {
       items = items.filter((order) => [order.code, order.customerCode, order.customerName, order.phone, order.address, order.routeName].some((value) => normalizeText(value).includes(q)));
@@ -229,6 +241,7 @@ function createMobileDeliveryService(ctx) {
       });
     }
 
+    const sortStartedAt = Date.now();
     items = items
       .sort((a, b) => String(a.routeName).localeCompare(String(b.routeName)) || String(a.createdAt).localeCompare(String(b.createdAt)))
       .slice(0, 100)
@@ -268,13 +281,25 @@ function createMobileDeliveryService(ctx) {
         status: order.status,
         items: order.items || []
       }));
+    const sortMs = Date.now() - sortStartedAt;
 
     return {
       ok: true,
       date: targetDate,
       user: { id: mobileUser.id, code: mobileUser.code, name: mobileUser.name },
       formula: 'deliveryDate = ngày được chọn + deliveryStaff = nhân viên đang đăng nhập + deliveryStatus chưa hoàn tất/hủy',
-      items
+      items,
+      perf: {
+        snapshotMs,
+        ledgerMs,
+        sourceOrdersMs,
+        returnQueryMs,
+        buildRowsMs,
+        sortMs,
+        totalMs: Date.now() - totalStartedAt,
+        sourceOrders: sourceOrders.length,
+        rows: items.length
+      }
     };
   }
 
