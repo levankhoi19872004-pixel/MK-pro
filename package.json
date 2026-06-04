@@ -15,7 +15,9 @@
     "test:openapi": "node --test test/openapi.test.js",
     "docs:generate": "node scripts/generate-openapi.js",
     "docs:check": "node scripts/generate-openapi.js --check",
-    "rebuild:ar-ledger": "node scripts/rebuild-ar-ledger.js"
+    "rebuild:ar-ledger": "node scripts/rebuild-ar-ledger.js",
+    "mongo:drop-redundant-indexes": "node scripts/drop-redundant-indexes.js",
+    "mongo:drop-redundant-indexes:dry": "node scripts/drop-redundant-indexes.js --dry-run"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

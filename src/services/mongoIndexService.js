@@ -5,30 +5,20 @@ const MongoStore = require('../models');
 const INDEX_DEFINITIONS = {
   products: [
     [{ code: 1 }, { name: 'idx_products_code' }],
-    [{ name: 1 }, { name: 'idx_products_name' }],
     [{ barcode: 1 }, { name: 'idx_products_barcode', sparse: true }],
-    [{ category: 1 }, { name: 'idx_products_category' }],
-    [{ brand: 1 }, { name: 'idx_products_brand' }],
-    [{ salePrice: 1 }, { name: 'idx_products_sale_price', sparse: true }],
-    [{ warehouseCode: 1 }, { name: 'idx_products_warehouse_code' }],
-    [{ warehouseCode: 1, code: 1 }, { name: 'idx_products_warehouse_code_code' }],
     [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }],
     [{ isActive: 1, category: 1 }, { name: 'idx_products_active_category' }],
-    [{ searchText: 1 }, { name: 'idx_products_search_text' }],
+    [{ brand: 1 }, { name: 'idx_products_brand', sparse: true }],
+    [{ warehouseCode: 1, code: 1 }, { name: 'idx_products_warehouse_code_code' }],
     [{ searchText: 'text' }, { name: 'txt_products_search_text', default_language: 'none' }]
   ],
   customers: [
     [{ code: 1 }, { name: 'idx_customers_code' }],
     [{ customerCode: 1 }, { name: 'idx_customers_customer_code', sparse: true }],
-    [{ name: 1 }, { name: 'idx_customers_name' }],
-    [{ customerName: 1 }, { name: 'idx_customers_customer_name', sparse: true }],
-    [{ phone: 1 }, { name: 'idx_customers_phone' }],
-    [{ staffCode: 1 }, { name: 'idx_customers_staff_code' }],
-    [{ route: 1 }, { name: 'idx_customers_route' }],
-    [{ routeName: 1 }, { name: 'idx_customers_route_name', sparse: true }],
-    [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }],
+    [{ phone: 1 }, { name: 'idx_customers_phone', sparse: true }],
     [{ staffCode: 1, route: 1, isActive: 1 }, { name: 'idx_customers_staff_route_active' }],
-    [{ searchText: 1 }, { name: 'idx_customers_search_text' }],
+    [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }],
+    [{ routeName: 1 }, { name: 'idx_customers_route_name', sparse: true }],
     [{ searchText: 'text' }, { name: 'txt_customers_search_text', default_language: 'none' }]
   ],
   staffs: [
@@ -39,14 +29,12 @@ const INDEX_DEFINITIONS = {
     [{ role: 1, isActive: 1 }, { name: 'idx_staffs_role_active' }]
   ],
   users: [
-    [{ staffCode: 1 }, { name: 'idx_users_staff_code', sparse: true }],
     [{ username: 1 }, { name: 'idx_users_username_search', sparse: true }],
+    [{ staffCode: 1 }, { name: 'idx_users_staff_code', sparse: true }],
     [{ code: 1 }, { name: 'idx_users_code', sparse: true }],
     [{ employeeCode: 1 }, { name: 'idx_users_employee_code', sparse: true }],
     [{ salesStaffCode: 1 }, { name: 'idx_users_sales_staff_code', sparse: true }],
     [{ deliveryStaffCode: 1 }, { name: 'idx_users_delivery_staff_code', sparse: true }],
-    [{ fullName: 1 }, { name: 'idx_users_full_name', sparse: true }],
-    [{ role: 1, isActive: 1 }, { name: 'idx_users_role_active' }],
     [{ role: 1, isActive: 1, staffCode: 1 }, { name: 'idx_users_role_active_staff_code' }]
   ],
   roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
@@ -58,56 +46,33 @@ const INDEX_DEFINITIONS = {
     [{ invoiceCode: 1 }, { name: 'idx_orders_invoice_code', sparse: true }],
     [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
     [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
-    [{ date: 1, status: 1 }, { name: 'idx_orders_date_status' }],
-    [{ status: 1, deliveryStatus: 1, date: -1, customerCode: 1, staffCode: 1, mergeStatus: 1 }, { name: 'idx_orders_hot_list_report' }],
-    [{ mergeStatus: 1, date: -1, staffCode: 1 }, { name: 'idx_orders_merge_date_staff' }],
-    [{ status: 1, date: -1 }, { name: 'idx_orders_status_date_desc' }],
     [{ customerId: 1 }, { name: 'idx_orders_customer_id', sparse: true }],
-    [{ customerCode: 1 }, { name: 'idx_orders_customer_code' }],
-    [{ customerName: 1 }, { name: 'idx_orders_customer_name' }],
-    [{ staffCode: 1 }, { name: 'idx_orders_staff_code' }],
-    [{ staffName: 1 }, { name: 'idx_orders_staff_name', sparse: true }],
-    [{ routeName: 1 }, { name: 'idx_orders_route_name', sparse: true }],
-    [{ deliveryStaffId: 1 }, { name: 'idx_orders_delivery_staff_id', sparse: true }],
-    [{ deliveryStaffCode: 1 }, { name: 'idx_orders_delivery_staff_code' }],
-    [{ deliveryDate: 1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_mobile_delivery_fast' }],
-    [{ deliveryDate: 1, status: 1 }, { name: 'idx_orders_delivery_date_status' }],
+    [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_customer_order_date' }],
+    [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
+    [{ staffCode: 1, orderDate: -1 }, { name: 'idx_orders_staff_order_date', sparse: true }],
+    [{ status: 1, orderDate: -1 }, { name: 'idx_orders_status_order_date' }],
+    [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_date_staff_status_desc' }],
+    [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_staff_date_desc' }],
+    [{ deliveryStatus: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_status_date_desc' }],
     [{ arStatus: 1, deliveryDate: 1 }, { name: 'idx_orders_ar_status_delivery_date' }],
-    [{ createdAt: -1 }, { name: 'idx_orders_created_at' }],
-    // V45 Performance Turbo: index cho API danh sách đơn nhẹ /api/sales-orders/search.
-    [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_search_order_date_created_desc' }],
-    [{ date: -1, createdAt: -1 }, { name: 'idx_orders_search_date_created_desc' }],
-    [{ salesStaffCode: 1, orderDate: -1 }, { name: 'idx_orders_search_sales_staff_order_date' }],
-    [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_search_sales_staff_order_date_status' }],
-    [{ orderDate: -1, salesStaffCode: 1, status: 1 }, { name: 'idx_orders_search_order_date_sales_staff_status' }],
-    [{ orderDate: -1, source: 1, status: 1 }, { name: 'idx_orders_search_order_date_source_status' }],
-    [{ salesStaffCode: 1, date: -1 }, { name: 'idx_orders_search_sales_staff_date' }],
-    [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_search_customer_order_date' }],
-    [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_orders_search_delivery_staff_date_desc' }],
-    [{ deliveryStatus: 1, deliveryDate: -1 }, { name: 'idx_orders_search_delivery_status_date_desc' }],
-    [{ masterOrderCode: 1 }, { name: 'idx_orders_search_master_order_code', sparse: true }],
-    [{ source: 1, orderDate: -1 }, { name: 'idx_orders_search_source_order_date' }]
+    [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
+    [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
+    [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'idx_master_orders_id' }],
     [{ code: 1 }, { name: 'idx_master_orders_code' }],
     [{ deliveryStaffId: 1 }, { name: 'idx_master_orders_delivery_staff_id', sparse: true }],
-    [{ deliveryStaffCode: 1 }, { name: 'idx_master_orders_delivery_staff_code' }],
-    [{ deliveryStaffName: 1 }, { name: 'idx_master_orders_delivery_staff_name', sparse: true }],
-    [{ routeName: 1 }, { name: 'idx_master_orders_route_name', sparse: true }],
-    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_mobile_delivery_fast' }],
-    [{ status: 1, deliveryStatus: 1, date: -1, customerCode: 1, staffCode: 1, mergeStatus: 1 }, { name: 'idx_master_orders_hot_list_report' }],
-    [{ deliveryDate: 1, status: 1 }, { name: 'idx_master_orders_delivery_date_status' }],
+    [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_master_orders_delivery_staff_date_desc' }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_delivery_staff_status_desc' }],
     [{ deliveryStatus: 1, arStatus: 1, deliveryDate: 1 }, { name: 'idx_master_orders_delivery_ar_date' }],
     [{ accountingConfirmed: 1, deliveryDate: 1 }, { name: 'idx_master_orders_accounting_date' }],
-    [{ date: 1 }, { name: 'idx_master_orders_date', sparse: true }],
+    [{ date: -1, deliveryStaffCode: 1 }, { name: 'idx_master_orders_date_staff_desc' }],
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
     [{ 'children.id': 1 }, { name: 'idx_master_orders_children_id' }],
     [{ 'children.code': 1 }, { name: 'idx_master_orders_children_code' }],
-    [{ createdAt: -1 }, { name: 'idx_master_orders_created_at' }],
-    // V45 Performance Turbo: index cho tạo/cập nhật/lọc đơn tổng.
-    [{ deliveryDate: -1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_perf_delivery_staff_status' }],
-    [{ date: -1, deliveryStaffCode: 1 }, { name: 'idx_master_orders_perf_date_staff' }]
+    [{ createdAt: -1 }, { name: 'idx_master_orders_created_at' }]
   ],
   importOrders: [
     [{ id: 1 }, { name: 'idx_import_orders_id' }],
@@ -283,21 +248,35 @@ const INDEX_DEFINITIONS = {
   ]
 };
 
+function sameIndexKey(left, right) {
+  try {
+    return JSON.stringify(left || {}) === JSON.stringify(right || {});
+  } catch {
+    return false;
+  }
+}
+
 async function ensureMongoIndexes({ logger = console } = {}) {
   const results = [];
   for (const [collectionKey, definitions] of Object.entries(INDEX_DEFINITIONS)) {
     const Model = MongoStore[collectionKey];
     if (!Model || !Model.collection) continue;
+
+    let existingIndexes = [];
+    try {
+      // Tối ưu: mỗi collection chỉ đọc danh sách index 1 lần.
+      // Bản cũ gọi indexes() trong từng vòng lặp index, làm khởi động server chậm khi có nhiều index.
+      existingIndexes = await Model.collection.indexes();
+    } catch (err) {
+      const message = `Không đọc được danh sách index ${collectionKey}: ${err.message}`;
+      if (logger?.warn) logger.warn(message);
+      else console.warn(message);
+      continue;
+    }
+
     for (const [fields, options] of definitions) {
       try {
-        const existingIndexes = await Model.collection.indexes();
-        const hasEquivalentIndex = existingIndexes.some((idx) => {
-          try {
-            return JSON.stringify(idx.key) === JSON.stringify(fields);
-          } catch {
-            return false;
-          }
-        });
+        const hasEquivalentIndex = existingIndexes.some((idx) => sameIndexKey(idx.key, fields));
 
         if (hasEquivalentIndex) {
           results.push({
@@ -310,6 +289,7 @@ async function ensureMongoIndexes({ logger = console } = {}) {
         }
 
         const indexName = await Model.collection.createIndex(fields, { background: true, ...options });
+        existingIndexes.push({ key: fields, name: indexName });
         results.push({ collectionKey, collection: Model.collection.name, indexName });
       } catch (err) {
         const message = `Không tạo được index ${collectionKey}.${options?.name || JSON.stringify(fields)}: ${err.message}`;

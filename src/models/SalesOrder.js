@@ -30,19 +30,7 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   updatedAt: String
 });
 
-// V45 tốc độ danh sách đơn: index theo đúng các bộ lọc thường dùng.
-SalesOrder.schema.index({ orderDate: -1, createdAt: -1 });
-SalesOrder.schema.index({ date: -1, createdAt: -1 });
-SalesOrder.schema.index({ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 });
-SalesOrder.schema.index({ salesStaffCode: 1, orderDate: -1 });
-SalesOrder.schema.index({ salesStaffCode: 1, orderDate: -1, status: 1 });
-SalesOrder.schema.index({ orderDate: -1, salesStaffCode: 1, status: 1 });
-SalesOrder.schema.index({ staffCode: 1, orderDate: -1 });
-SalesOrder.schema.index({ customerCode: 1, orderDate: -1 });
-SalesOrder.schema.index({ status: 1, orderDate: -1 });
-SalesOrder.schema.index({ source: 1, orderDate: -1 });
-SalesOrder.schema.index({ orderSource: 1, orderDate: -1 });
-SalesOrder.schema.index({ masterOrderId: 1 });
-SalesOrder.schema.index({ masterOrderCode: 1 });
+// Index được chuẩn hoá tập trung tại src/services/mongoIndexService.js
+// để tránh khai báo trùng ở model và service làm chậm quá trình ghi/import đơn.
 
 module.exports = SalesOrder;

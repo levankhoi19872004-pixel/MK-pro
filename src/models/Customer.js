@@ -26,16 +26,7 @@ const customerSchema = new mongoose.Schema({
   searchText: { type: String, default: '', trim: true }
 }, { timestamps: true, strict: false, versionKey: false });
 
-// Phase 2.6: index cho phân trang, tìm kiếm khách hàng và phân tuyến bán hàng/giao hàng.
-customerSchema.index({ code: 1 });
-customerSchema.index({ name: 1 });
-customerSchema.index({ phone: 1 });
-customerSchema.index({ staffCode: 1 });
-customerSchema.index({ route: 1 });
-customerSchema.index({ isActive: 1, code: 1 });
-customerSchema.index({ staffCode: 1, route: 1, isActive: 1 });
-customerSchema.index({ searchText: 1 });
-customerSchema.index({ searchText: 'text' });
+// Index được chuẩn hoá tập trung tại src/services/mongoIndexService.js.
 
 
 customerSchema.pre('validate', function buildSearchText(next) {

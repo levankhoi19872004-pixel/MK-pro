@@ -16,10 +16,7 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true }
 }, { timestamps: true, strict: false });
 
-userSchema.index({ staffCode: 1 }, { sparse: true });
-userSchema.index({ code: 1 }, { sparse: true });
-userSchema.index({ employeeCode: 1 }, { sparse: true });
-userSchema.index({ role: 1, isActive: 1, staffCode: 1 });
-userSchema.index({ role: 1, staffCode: 1 });
+// Index được chuẩn hoá tập trung tại src/services/mongoIndexService.js.
+// Giữ unique username ở schema field, các index truy vấn khác không khai báo lặp tại model.
 
 module.exports = mongoose.model('User', userSchema);

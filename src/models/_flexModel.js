@@ -6,8 +6,9 @@ function flexModel(modelName, collectionName, definition = {}) {
     versionKey: false,
     timestamps: false
   });
-  schema.index({ id: 1 });
-  schema.index({ code: 1 });
+  // Không khai báo index mặc định tại model.
+  // Index được quản lý tập trung tại src/services/mongoIndexService.js
+  // để tránh trùng index id/code trên nhiều collection.
   return mongoose.models[modelName] || mongoose.model(modelName, schema, collectionName);
 }
 
