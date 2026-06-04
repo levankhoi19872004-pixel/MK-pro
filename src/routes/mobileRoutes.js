@@ -25,6 +25,7 @@ const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const ReturnOrder = require('../models/ReturnOrder');
+const ArLedger = require('../models/ArLedger');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const InventoryLegacy = require('../models/InventoryLegacy');
@@ -357,7 +358,7 @@ function returnOrderMatchesOrder(row = {}, order = {}, master = null, masterChil
   if (!isActiveReturnOrder(row)) return false;
   const keys = orderMatchKeys(order, master, masterChild);
   const rowKeys = [
-    row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.refId, row.refCode,
+    row.salesOrderId, row.salesOrderCode, row.orderId, row.orderCode, row.sourceOrderId, row.sourceOrderCode, row.refId, row.refCode,
     row.erpDeliveryReturnKey
   ].map((value) => String(value || '').trim()).filter(Boolean);
   if (rowKeys.some((key) => keys.includes(key))) return true;
@@ -547,20 +548,78 @@ function putDebtMapEntry(map, row = {}) {
 
 async function buildArDebtMapForOrders(orders = []) {
   const map = new Map();
+  const wanted = new Set();
+
+  (orders || []).forEach((order) => {
+    orderMatchKeys(order).forEach((key) => {
+      const normalized = buildDebtMapKey(key);
+      if (normalized) wanted.add(normalized);
+    });
+  });
+
+  if (!wanted.size) return map;
+
+  const orderKeys = Array.from(wanted);
+
   try {
-    const report = await reportService.debtReport({ includePaid: '1', status: 'all' });
-    const rows = Array.isArray(report?.debts) ? report.debts : [];
-    const wanted = new Set();
-    (orders || []).forEach((order) => {
-      orderMatchKeys(order).forEach((key) => { if (key) wanted.add(String(key)); });
-    });
-    rows.forEach((row) => {
-      const keys = [row.orderId, row.orderCode, row.id, row.code].map(buildDebtMapKey).filter(Boolean);
-      if (!wanted.size || keys.some((key) => wanted.has(key))) putDebtMapEntry(map, row);
-    });
+    // Tuyệt đối không gọi reportService.debtReport() ở API app giao hàng.
+    // debtReport() phải load toàn bộ SalesOrder/ArLedger/Receipt/ReturnOrder/Customer,
+    // làm API /api/mobile/delivery/orders bị chậm dù chỉ trả 24 đơn.
+    // Ở đây chỉ query AR Ledger theo đúng các đơn đang giao trong request hiện tại.
+    const rows = await ArLedger.find({
+      $or: [
+        { orderId: { $in: orderKeys } },
+        { orderCode: { $in: orderKeys } },
+        { salesOrderId: { $in: orderKeys } },
+        { salesOrderCode: { $in: orderKeys } },
+        { refId: { $in: orderKeys } },
+        { refCode: { $in: orderKeys } }
+      ]
+    }).lean();
+
+    const balanceByKey = new Map();
+
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const rowKeys = [
+        row.orderId,
+        row.orderCode,
+        row.salesOrderId,
+        row.salesOrderCode,
+        row.refId,
+        row.refCode,
+        row.id,
+        row.code
+      ].map(buildDebtMapKey).filter(Boolean);
+
+      if (!rowKeys.length) continue;
+
+      // AR Ledger chuẩn: debit làm tăng công nợ, credit làm giảm công nợ.
+      // Nếu dữ liệu cũ chỉ có amount thì vẫn fallback theo type để tránh mất số liệu.
+      let delta = toNumber(row.debit) - toNumber(row.credit);
+      if (!delta && row.amount !== undefined) {
+        const type = normalizeText(row.type || row.refType || row.source);
+        const amount = toNumber(row.amount);
+        delta = ['receipt', 'payment', 'ar-receipt', 'ar_bonus', 'ar-bonus', 'ar_discount', 'ar-discount', 'ar_allowance', 'ar-allowance', 'return', 'sales_return'].some((name) => type.includes(name))
+          ? -amount
+          : amount;
+      }
+
+      for (const key of rowKeys) {
+        if (!wanted.has(key)) continue;
+        balanceByKey.set(key, toNumber(balanceByKey.get(key)) + delta);
+      }
+    }
+
+    for (const key of orderKeys) {
+      if (!balanceByKey.has(key)) continue;
+      const debt = normalizeDebtAmount(Math.max(0, toNumber(balanceByKey.get(key))));
+      const row = { orderId: key, orderCode: key, id: key, code: key, debt, source: 'ar_ledger_batch' };
+      map.set(key, row);
+    }
   } catch (err) {
-    // Nếu báo cáo AR lỗi, app vẫn hiển thị theo cache order để không làm vỡ luồng giao hàng.
+    // Nếu AR lỗi, app vẫn fallback về công thức tạm tính từ đơn để không làm vỡ luồng giao hàng.
   }
+
   return map;
 }
 
@@ -1339,7 +1398,31 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       deliveryPairs.push({ order, master, masterChild });
     }
 
-    const returnOrders = await ReturnOrder.find({ status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }).lean();
+    const returnOrderKeys = [...new Set(
+      deliveryPairs
+        .flatMap(({ order, master, masterChild }) => orderMatchKeys(order, master, masterChild))
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )];
+
+    // Không lấy toàn bộ returnOrders nữa. Chỉ lấy phiếu trả liên quan tới các đơn đang giao.
+    const returnOrders = returnOrderKeys.length
+      ? await ReturnOrder.find({
+          status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+          $or: [
+            { salesOrderId: { $in: returnOrderKeys } },
+            { salesOrderCode: { $in: returnOrderKeys } },
+            { orderId: { $in: returnOrderKeys } },
+            { orderCode: { $in: returnOrderKeys } },
+            { sourceOrderId: { $in: returnOrderKeys } },
+            { sourceOrderCode: { $in: returnOrderKeys } },
+            { refId: { $in: returnOrderKeys } },
+            { refCode: { $in: returnOrderKeys } },
+            { erpDeliveryReturnKey: { $in: returnOrderKeys } }
+          ]
+        }).lean()
+      : [];
+
     const customerCodes = [...new Set(deliveryPairs.map(({ order, masterChild }) => order.customerCode || masterChild?.customerCode).filter(Boolean))];
     const customers = customerCodes.length ? await Customer.find({ code: { $in: customerCodes } }).lean() : [];
     const customerByCode = new Map(customers.map((c) => [String(c.code), c]));
@@ -1371,7 +1454,7 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       source: 'mobile-delivery-mongo-route',
       date: targetDate,
       user: req.mobileUser,
-      formula: 'App giao hàng lấy danh sách đơn từ masterOrder.childOrderIds, nhưng số còn thu/công nợ lấy theo AR Ledger giống màn Công nợ ERP; chỉ fallback order cache khi đơn chưa có AR.',
+      formula: 'App giao hàng lấy danh sách đơn từ masterOrder.childOrderIds, nhưng số còn thu/công nợ lấy theo AR Ledger batch theo đúng các đơn đang giao; không gọi báo cáo công nợ toàn hệ thống.',
       items
     });
   } catch (err) {
