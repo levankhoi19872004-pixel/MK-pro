@@ -1413,7 +1413,8 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       });
     }
 
-    // Query SalesOrder theo khóa chuẩn từng bước để Mongo dùng index rõ ràng, tránh 5 nhánh $or + $in bị scan chậm.
+    // V45 mobile delivery speed fix: gộp 5 lần SalesOrder.find() thành 1 query.
+    // Trước đây query lần lượt theo id/code/orderCode/orderNo/_id, làm API /api/mobile/delivery/orders bị phát sinh nhiều DB query.
     const orders = [];
     const orderByKey = new Map();
     const addOrders = (rows = []) => {
@@ -1426,26 +1427,25 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       }
     };
 
-    addOrders(await SalesOrder.find({ id: { $in: childKeys } }).lean());
+    const objectIdKeys = childKeys.filter((key) => /^[a-f\d]{24}$/i.test(String(key)));
+    const normalKeys = childKeys.filter((key) => !/^[a-f\d]{24}$/i.test(String(key)));
+    const salesOrderOr = [];
 
-    const missingAfterId = childKeys.filter((key) => !orderByKey.has(key));
-    if (missingAfterId.length) {
-      addOrders(await SalesOrder.find({ code: { $in: missingAfterId } }).lean());
+    if (normalKeys.length) {
+      salesOrderOr.push(
+        { id: { $in: normalKeys } },
+        { code: { $in: normalKeys } },
+        { orderCode: { $in: normalKeys } },
+        { orderNo: { $in: normalKeys } }
+      );
     }
 
-    const missingAfterCode = childKeys.filter((key) => !orderByKey.has(key));
-    if (missingAfterCode.length) {
-      addOrders(await SalesOrder.find({ orderCode: { $in: missingAfterCode } }).lean());
-    }
-
-    const missingAfterOrderCode = childKeys.filter((key) => !orderByKey.has(key));
-    if (missingAfterOrderCode.length) {
-      addOrders(await SalesOrder.find({ orderNo: { $in: missingAfterOrderCode } }).lean());
-    }
-
-    const objectIdKeys = childKeys.filter((key) => !orderByKey.has(key) && /^[a-f\d]{24}$/i.test(key));
     if (objectIdKeys.length) {
-      addOrders(await SalesOrder.find({ _id: { $in: objectIdKeys } }).lean());
+      salesOrderOr.push({ _id: { $in: objectIdKeys } });
+    }
+
+    if (salesOrderOr.length) {
+      addOrders(await SalesOrder.find({ $or: salesOrderOr }).lean());
     }
 
     const deliveryPairs = [];
