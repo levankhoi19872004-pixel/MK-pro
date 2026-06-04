@@ -145,9 +145,12 @@ if(userSearchInput)userSearchInput.addEventListener('input',loadUsers);
 if(promotionForm)promotionForm.addEventListener('submit',submitPromotion);
 if(resetPromotionButton)resetPromotionButton.addEventListener('click',resetPromotionForm);
 if(promotionSearchInput)promotionSearchInput.addEventListener('input',loadPromotions);
-if(reloadSystemStatusButton)reloadSystemStatusButton.addEventListener('click',loadSystemStatus);
+if(reloadSystemStatusButton)reloadSystemStatusButton.addEventListener('click',()=>{loadSystemStatus();loadApiMonitor();});
 if(createSystemBackupButton)createSystemBackupButton.addEventListener('click',createSystemBackup);
 if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSystemData);
+if(reloadApiMonitorButton)reloadApiMonitorButton.addEventListener('click',loadApiMonitor);
+if(resetApiMonitorButton)resetApiMonitorButton.addEventListener('click',resetApiMonitorStats);
+if(apiMonitorFilter)apiMonitorFilter.addEventListener('change',loadApiMonitor);
 
 setupTabs();
 
@@ -246,7 +249,10 @@ async function loadTabDataOnce(tabName, options = {}){
         ]);
         break;
       case 'systemTab':
-        if(typeof loadSystemStatus === 'function') await loadSystemStatus();
+        await Promise.allSettled([
+          typeof loadSystemStatus === 'function' ? loadSystemStatus() : null,
+          typeof loadApiMonitor === 'function' ? loadApiMonitor() : null
+        ]);
         break;
     }
   }catch(error){

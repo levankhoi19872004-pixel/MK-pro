@@ -1213,6 +1213,71 @@
             </table>
           </div>
         </div>
+
+
+        <div class="system-panel api-monitor-panel">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>API Monitor toàn phần mềm</h3>
+              <p class="muted">Theo dõi toàn bộ API đang chạy, API chậm, số lần gọi và số dòng trả về.</p>
+            </div>
+            <div class="toolbar-actions">
+              <label class="inline-filter">
+                Lọc
+                <select id="apiMonitorFilter">
+                  <option value="all">Tất cả API</option>
+                  <option value="slow">Chỉ API chậm</option>
+                </select>
+              </label>
+              <button type="button" id="reloadApiMonitorButton" class="secondary">Tải API Monitor</button>
+              <button type="button" id="resetApiMonitorButton" class="secondary danger-light">Xóa thống kê</button>
+            </div>
+          </div>
+
+          <div class="summary-box api-monitor-summary" id="apiMonitorSummary">
+            <span>Tổng API: <strong id="apiMonitorTotalRoutes">0</strong></span>
+            <span>Lượt gọi: <strong id="apiMonitorTotalCalls">0</strong></span>
+            <span>API chậm: <strong id="apiMonitorSlowRoutes">0</strong></span>
+            <span>Lượt chậm: <strong id="apiMonitorSlowCalls">0</strong></span>
+            <span>Lỗi: <strong id="apiMonitorErrorCalls">0</strong></span>
+          </div>
+
+          <h4>Báo cáo API chạy chậm gần nhất</h4>
+          <div class="table-wrap api-monitor-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Thời gian</th>
+                  <th>Module</th>
+                  <th>API</th>
+                  <th>MS</th>
+                  <th>Rows</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="apiSlowTable"><tr><td colspan="6">Chưa có dữ liệu API chậm.</td></tr></tbody>
+            </table>
+          </div>
+
+          <h4>Thống kê API toàn hệ thống</h4>
+          <div class="table-wrap api-monitor-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Module</th>
+                  <th>API</th>
+                  <th>Lần gọi</th>
+                  <th>TB</th>
+                  <th>Max</th>
+                  <th>Rows cuối</th>
+                  <th>Chậm</th>
+                  <th>Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="apiMonitorTable"><tr><td colspan="8">Bấm Tải API Monitor để xem.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
         <p id="systemMessage" class="message"></p>
       </section>
     </section>

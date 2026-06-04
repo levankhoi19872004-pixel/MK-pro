@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const AppDataRepository = require('../repositories/appData.repository');
 const settingRepository = require('../repositories/settingRepository');
 const { APP_COLLECTION_KEYS } = require('../constants/collectionKeys');
+const { getApiMonitorReport, resetApiMonitor } = require('../middlewares/apiMonitor.middleware');
 
 const repository = new AppDataRepository(APP_COLLECTION_KEYS);
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'backups');
@@ -139,6 +140,14 @@ async function resetOperationalData({ confirm, scope = 'operational' } = {}) {
   return { ok: true, scope: resetScope, backup, clearedCollections };
 }
 
+async function getApiMonitor(options = {}) {
+  return getApiMonitorReport(options);
+}
+
+async function clearApiMonitor() {
+  return resetApiMonitor();
+}
+
 module.exports = {
   health,
   dbHealth,
@@ -150,5 +159,7 @@ module.exports = {
   getSetting,
   saveSetting,
   createBackup,
-  resetOperationalData
+  resetOperationalData,
+  getApiMonitor,
+  clearApiMonitor
 };

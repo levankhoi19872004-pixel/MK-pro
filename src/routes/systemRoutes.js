@@ -12,6 +12,8 @@ router.get('/system/data-source', systemController.dataSource);
 
 // Phase 2.9.3 clean system endpoints.
 router.get('/system/status', systemController.status);
+router.get('/system/api-monitor', systemController.apiMonitor);
+router.post('/system/api-monitor/reset', systemController.resetApiMonitor);
 router.get('/system/health', systemController.health);
 router.get('/system/health/db', systemController.dbHealth);
 router.get('/system/settings', systemController.listSettings);

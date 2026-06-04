@@ -82,6 +82,26 @@ async function reset(req, res) {
   }
 }
 
+async function apiMonitor(req, res) {
+  try {
+    res.json(await systemService.getApiMonitor({
+      limit: req.query.limit,
+      slowOnly: req.query.slowOnly === '1' || req.query.slowOnly === 'true',
+      module: req.query.module || ''
+    }));
+  } catch (err) {
+    sendError(res, err, 'Không đọc được API Monitor');
+  }
+}
+
+async function resetApiMonitor(req, res) {
+  try {
+    res.json(await systemService.clearApiMonitor());
+  } catch (err) {
+    sendError(res, err, 'Không xóa được API Monitor');
+  }
+}
+
 module.exports = {
   health,
   dbHealth,
@@ -92,5 +112,7 @@ module.exports = {
   getSetting,
   saveSetting,
   backup,
-  reset
+  reset,
+  apiMonitor,
+  resetApiMonitor
 };

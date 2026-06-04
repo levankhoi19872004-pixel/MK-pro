@@ -89,3 +89,92 @@ async function resetSystemData() {
     setSystemMessage(err.message || 'Không reset được dữ liệu', 'error');
   }
 }
+
+function systemApiMonitorBadge(ms, status) {
+  const n = Number(ms || 0);
+  if (status && Number(status) >= 500) return '<span class="status-pill danger">Lỗi</span>';
+  if (n >= 1000) return '<span class="status-pill danger">Chậm</span>';
+  if (n >= 300) return '<span class="status-pill warn">Theo dõi</span>';
+  return '<span class="status-pill ok">Tốt</span>';
+}
+
+function systemFormatTime(value) {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString('vi-VN');
+  } catch (err) {
+    return String(value || '');
+  }
+}
+
+function apiMonitorSafeText(value) {
+  if (typeof escapeHtml === 'function') return escapeHtml(value == null ? '' : String(value));
+  return String(value == null ? '' : value).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] || c));
+}
+
+function renderApiMonitor(json = {}) {
+  const summary = json.summary || {};
+  if (apiMonitorTotalRoutes) apiMonitorTotalRoutes.textContent = systemFormatNumber(summary.totalRoutes || 0);
+  if (apiMonitorTotalCalls) apiMonitorTotalCalls.textContent = systemFormatNumber(summary.totalCalls || 0);
+  if (apiMonitorSlowRoutes) apiMonitorSlowRoutes.textContent = systemFormatNumber(summary.slowRoutes || 0);
+  if (apiMonitorSlowCalls) apiMonitorSlowCalls.textContent = systemFormatNumber(summary.slowCalls || 0);
+  if (apiMonitorErrorCalls) apiMonitorErrorCalls.textContent = systemFormatNumber(summary.errorCalls || 0);
+
+  const slowApis = Array.isArray(json.slowApis) ? json.slowApis : [];
+  if (apiSlowTable) {
+    apiSlowTable.innerHTML = slowApis.length ? slowApis.slice(0, 30).map(item => `
+      <tr class="${Number(item.ms || 0) >= 1000 || Number(item.statusCode || 0) >= 500 ? 'row-danger' : ''}">
+        <td>${apiMonitorSafeText(systemFormatTime(item.at))}</td>
+        <td>${apiMonitorSafeText(item.module || '')}</td>
+        <td><code>${apiMonitorSafeText(item.method || '')} ${apiMonitorSafeText(item.originalUrl || item.path || '')}</code></td>
+        <td><strong>${systemFormatNumber(item.ms || 0)}ms</strong></td>
+        <td>${systemFormatNumber(item.rows || 0)}</td>
+        <td>${apiMonitorSafeText(item.statusCode || '')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="6">Chưa có API chậm. Hãy thao tác các màn để phần mềm ghi nhận.</td></tr>';
+  }
+
+  const rows = Array.isArray(json.data) ? json.data : [];
+  if (apiMonitorTable) {
+    apiMonitorTable.innerHTML = rows.length ? rows.map(row => `
+      <tr class="${row.status === 'slow' ? 'row-danger' : ''}">
+        <td>${apiMonitorSafeText(row.module || '')}</td>
+        <td><code title="${apiMonitorSafeText(row.lastOriginalUrl || row.route || '')}">${apiMonitorSafeText(row.route || '')}</code></td>
+        <td>${systemFormatNumber(row.count || 0)}</td>
+        <td>${systemFormatNumber(row.avgMs || 0)}ms</td>
+        <td><strong>${systemFormatNumber(row.maxMs || 0)}ms</strong></td>
+        <td>${systemFormatNumber(row.lastRows || 0)}</td>
+        <td>${systemFormatNumber(row.slowCount || 0)}</td>
+        <td>${systemApiMonitorBadge(row.maxMs, row.lastStatus)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="8">Chưa có dữ liệu API Monitor. Hãy thao tác các màn rồi bấm tải lại.</td></tr>';
+  }
+}
+
+async function loadApiMonitor() {
+  if (!apiMonitorTable && !apiSlowTable) return;
+  try {
+    const slowOnly = apiMonitorFilter && apiMonitorFilter.value === 'slow' ? '1' : '0';
+    if (apiMonitorTable) apiMonitorTable.innerHTML = '<tr><td colspan="8">Đang tải API Monitor...</td></tr>';
+    const res = await fetch(`/api/system/api-monitor?limit=200&slowOnly=${slowOnly}`);
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được API Monitor');
+    renderApiMonitor(json);
+  } catch (err) {
+    if (apiMonitorTable) apiMonitorTable.innerHTML = `<tr><td colspan="8">${apiMonitorSafeText(err.message || 'Không tải được API Monitor')}</td></tr>`;
+  }
+}
+
+async function resetApiMonitorStats() {
+  const ok = window.confirm('Xóa thống kê API Monitor hiện tại? Dữ liệu sẽ được đo lại từ đầu.');
+  if (!ok) return;
+  try {
+    const res = await fetch('/api/system/api-monitor/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Không xóa được API Monitor');
+    renderApiMonitor({ summary: {}, data: [], slowApis: [] });
+    setSystemMessage('Đã xóa thống kê API Monitor. Hãy thao tác lại các màn để đo mới.', 'success');
+  } catch (err) {
+    setSystemMessage(err.message || 'Không xóa được API Monitor', 'error');
+  }
+}

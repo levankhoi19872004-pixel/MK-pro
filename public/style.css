@@ -6414,3 +6414,18 @@ body::after{
     flex-wrap: wrap;
   }
 }
+
+/* V45 API Monitor */
+.api-monitor-panel { margin-top: 16px; }
+.compact-toolbar { gap: 12px; align-items: flex-start; }
+.toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; justify-content: flex-end; }
+.inline-filter { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+.api-monitor-summary span strong { font-weight: 800; }
+.api-monitor-table-wrap { max-height: 360px; overflow: auto; }
+.api-monitor-table-wrap code { white-space: nowrap; font-size: 12px; }
+.row-danger { background: rgba(220, 38, 38, 0.08); }
+.status-pill { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+.status-pill.ok { background: rgba(22, 163, 74, 0.12); color: #15803d; }
+.status-pill.warn { background: rgba(217, 119, 6, 0.14); color: #b45309; }
+.status-pill.danger { background: rgba(220, 38, 38, 0.14); color: #b91c1c; }
+.danger-light { border-color: rgba(220, 38, 38, 0.35); color: #b91c1c; }
