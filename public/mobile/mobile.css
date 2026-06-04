@@ -1028,3 +1028,91 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   border-radius:8px!important;
   background:#fff!important;
 }
+
+
+/* V45 response speed monitor */
+.v45-speed-monitor {
+  min-width: 260px;
+  max-width: 520px;
+  border-radius: 14px;
+  padding: 8px 12px;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(255,255,255,0.25);
+  box-shadow: 0 6px 16px rgba(15,23,42,0.12);
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: default;
+  position: relative;
+}
+.v45-speed-monitor.ok { background: rgba(22, 163, 74, 0.35); }
+.v45-speed-monitor.warn { background: rgba(245, 158, 11, 0.42); }
+.v45-speed-monitor.danger { background: rgba(220, 38, 38, 0.45); }
+.v45-speed-main {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.v45-speed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.16);
+  flex: 0 0 auto;
+}
+.v45-speed-monitor.warn .v45-speed-dot { background: #facc15; }
+.v45-speed-monitor.danger .v45-speed-dot { background: #ef4444; }
+.v45-speed-main strong { font-weight: 800; }
+.v45-speed-detail {
+  opacity: .9;
+  margin-top: 2px;
+}
+.v45-speed-list {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 9999;
+  width: min(520px, 92vw);
+  max-height: 340px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e5e7eb;
+  box-shadow: 0 16px 34px rgba(15,23,42,0.28);
+}
+.v45-speed-monitor:hover .v45-speed-list {
+  display: block;
+}
+.v45-speed-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.v45-speed-row:last-child { border-bottom: 0; }
+.v45-speed-row strong { font-weight: 800; }
+.v45-speed-row small {
+  grid-column: 1 / -1;
+  color: #94a3b8;
+  word-break: break-all;
+}
+.v45-speed-row.ok strong { color: #86efac; }
+.v45-speed-row.warn strong { color: #fde68a; }
+.v45-speed-row.danger strong { color: #fca5a5; }
+@media (max-width: 768px) {
+  .v45-speed-monitor {
+    min-width: 0;
+    width: 100%;
+    margin-top: 8px;
+    font-size: 11px;
+  }
+  .v45-speed-main {
+    flex-wrap: wrap;
+  }
+}
