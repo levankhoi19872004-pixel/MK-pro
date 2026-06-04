@@ -41,7 +41,7 @@ async function listDeliveryToday(req, res) {
 
 async function listDeliveryTodaySummary(req, res) {
   try {
-    const result = await masterOrderService.listDeliveryTodaySummary(req.query || {});
+    const result = await masterOrderService.listDeliveryTodaySummaryFast(req.query || {});
     res.json({ ok: true, source: 'mongo-route', ...result });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không tải được tổng hợp NVGH hôm nay', error: err.message });
