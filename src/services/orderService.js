@@ -690,12 +690,15 @@ async function createOrder(body = {}) {
   Object.assign(order, orderStatusUtil.lifecyclePatch(order, { source: body.source || body.orderSource || 'sales_app' }));
   Object.assign(order, applyOrderSourceFields(order));
   await withMongoTransaction(async (session) => {
-    await orderRepository.upsert(order, { session });
-    // Tăng tốc lưu đơn: chỉ lưu đơn và tạo phiếu trả nháp.
-    // Không xuất kho/không post AR ở bước tạo đơn; các bút toán này chỉ chạy ở luồng giao hàng/kế toán xác nhận.
-    if (body.ensureReturnDraft !== false) {
-      await returnOrderService.ensureReturnDraftForSalesOrder(order, { session });
-    }
+    // V45 lazy return-order: chỉ lưu SalesOrder.
+    // Không tạo RO-DRAFT rỗng khi tạo đơn bán; returnOrder chỉ sinh khi NVGH nhập returnQty > 0.
+    await orderRepository.upsert({
+      ...order,
+      hasReturn: Boolean(order.hasReturn),
+      returnOrderId: order.returnOrderId || '',
+      returnOrderCode: order.returnOrderCode || '',
+      returnAmount: toNumber(order.returnAmount || 0)
+    }, { session });
   });
   console.log('[CREATE_ORDER_DONE]', { ms: Date.now() - startedAt, code: order.code, itemCount: items.length });
   return { salesOrder: toClient(order) };

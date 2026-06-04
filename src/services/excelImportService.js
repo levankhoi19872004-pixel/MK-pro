@@ -8,7 +8,6 @@ const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
-const ReturnOrder = require('../models/ReturnOrder');
 const StockTransaction = require('../models/StockTransaction');
 const InventoryLegacy = require('../models/InventoryLegacy');
 const Inventory = require('../models/Inventory');
@@ -1289,15 +1288,15 @@ async function importSalesOrders(rows = [], options = {}) {
   }
 
   const orderResult = await insertManyInBatches(SalesOrder, orderDocs);
-  const returnDraftDocs = orderDocs.map(buildReturnDraftFromImportedOrder);
-  const returnDraftResult = await insertManyInBatches(ReturnOrder, returnDraftDocs);
+  // V45 lazy return-order: import/tạo đơn bán không sinh RO-DRAFT rỗng.
+  // Phiếu trả chỉ được tạo khi có phát sinh returnQty > 0 từ app/phần mềm giao hàng.
+  const returnDraftResult = { errors: [] };
   const paymentResult = { errors: [] };
   const cashResult = { errors: [] };
   const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
 
   skipped += orderResult.errors.length + returnDraftResult.errors.length + paymentResult.errors.length + cashResult.errors.length;
   errors.push(...orderResult.errors.map((error) => ({ customerCode: '', message: error.message })));
-  errors.push(...returnDraftResult.errors.map((error) => ({ customerCode: '', message: `ReturnDraft: ${error.message}` })));
   errors.push(...paymentResult.errors.map((error) => ({ customerCode: '', message: `Payment: ${error.message}` })));
   errors.push(...cashResult.errors.map((error) => ({ customerCode: '', message: `Cashbook: ${error.message}` })));
   const imported = Math.max(0, orderDocs.length - orderResult.errors.length);

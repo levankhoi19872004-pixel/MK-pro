@@ -454,6 +454,17 @@ function returnOrderStatusBadgeClass(status){
   const s=String(status||'').toLowerCase();
   return ['void','cancelled','canceled','deleted'].includes(s)?'out':'in';
 }
+function canCancelReturnOrder(order){
+  const status=String(order?.status||order?.returnStatus||'').toLowerCase();
+  const wh=String(order?.warehouseReceiveStatus||'').toLowerCase();
+  const acc=String(order?.accountingStatus||'').toLowerCase();
+  if(['cancelled','canceled','void','deleted','received','warehouse_received','completed','posted'].includes(status))return false;
+  if(['received','warehouse_received','completed'].includes(wh))return false;
+  if(['posted','completed','confirmed'].includes(acc))return false;
+  if(order?.postedAt||order?.receivedAt)return false;
+  if(order?.masterReturnOrderId||order?.masterReturnOrderCode||String(order?.returnMergeStatus||'').toLowerCase()==='merged')return false;
+  return ['waiting_receive','pending_warehouse_receive','pending','draft','has_return'].includes(status);
+}
 function renderReturnOrderDetail(order){
   const panel=document.getElementById('returnOrderDetailPanel');
   if(!panel) return;
@@ -482,7 +493,10 @@ function renderReturnOrderDetail(order){
         <div class="return-detail-title">Chi tiết đơn trả hàng</div>
         <div class="return-detail-code">${escapeHtml(order.code||order.id||'')}</div>
       </div>
-      <span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span>
+      <div class="return-detail-actions">
+        <span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span>
+        ${canCancelReturnOrder(order)?`<button type="button" class="secondary small danger" onclick="cancelReturnOrder('${escapeHtml(returnOrderRowKey(order))}')">Huỷ trả hàng</button>`:''}
+      </div>
     </div>
     <div class="return-detail-grid">
       <div><span>Ngày trả</span><strong>${escapeHtml(order.date||order.documentDate||order.returnDate||'')}</strong></div>
@@ -490,7 +504,7 @@ function renderReturnOrderDetail(order){
       <div><span>Khách hàng</span><strong>${escapeHtml((order.customerCode||'')+' '+(order.customerName||''))}</strong></div>
       <div><span>NV liên quan</span><strong>${escapeHtml(staff)}</strong></div>
       <div><span>Nguồn</span><strong>${escapeHtml(source)}</strong></div>
-      <div><span>Không chỉnh sửa</span><strong>Readonly</strong></div>
+      <div><span>Thao tác</span><strong>${canCancelReturnOrder(order)?'Có thể hủy':'Readonly'}</strong></div>
     </div>
     <div class="return-detail-summary">
       <div><span>Tổng SL trả</span><strong>${money(totalQty)}</strong></div>
@@ -515,6 +529,26 @@ function selectReturnOrderByKey(key){
   }
   renderReturnOrderDetail(order);
 }
+
+async function cancelReturnOrder(key){
+  const order=returnOrdersCache.find(r=>returnOrderRowKey(r)===String(key||''));
+  if(!order)return;
+  if(!canCancelReturnOrder(order)){alert('Phiếu trả đã nhập kho/ghi sổ/gộp tổng, không thể hủy trực tiếp.');return;}
+  const reason=prompt('Lý do huỷ trả hàng?','Khách lấy lại hàng');
+  if(reason===null)return;
+  try{
+    const res=await fetch(`/api/return-orders/${encodeURIComponent(order.id||order.code||key)}/cancel`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reason})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không hủy được phiếu trả hàng');
+    alert(json.message||'Đã hủy phiếu trả hàng');
+    await loadReturnOrders();
+  }catch(err){alert(err.message||'Không hủy được phiếu trả hàng')}
+}
+window.cancelReturnOrder=cancelReturnOrder;
 
 async function loadReturnOrders(){
   if(!returnOrderTable)return;

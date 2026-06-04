@@ -10,6 +10,7 @@ const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
+const auditService = require('./auditService');
 const ReturnOrder = require('../models/ReturnOrder');
 
 const ACTIVE_RETURN_ORDER_STATUSES = [
@@ -238,6 +239,42 @@ function isPostedReturnStatus(status = '') {
 
 function isPendingReturnStatus(status = '') {
   return ['waiting_receive', 'pending_warehouse_receive', 'pending', 'draft'].includes(String(status || '').toLowerCase());
+}
+
+function isReturnOrderLockedForCancel(row = {}) {
+  const status = String(row.status || row.returnStatus || '').toLowerCase();
+  const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
+  const accountingStatus = String(row.accountingStatus || '').toLowerCase();
+  return isPostedReturnStatus(status)
+    || ['received', 'warehouse_received', 'completed'].includes(warehouseStatus)
+    || ['posted', 'completed', 'confirmed'].includes(accountingStatus)
+    || Boolean(row.postedAt || row.receivedAt);
+}
+
+function cancelReasonFrom(body = {}, fallback = 'Khách lấy lại hàng') {
+  return String(body.cancelReason || body.reason || body.note || fallback).trim();
+}
+
+async function updateSalesOrderReturnLink(salesOrder = null, patch = {}, options = {}) {
+  if (!salesOrder || (!salesOrder.id && !salesOrder.code)) return null;
+  const updated = {
+    ...salesOrder,
+    ...patch,
+    updatedAt: dateUtil.nowIso()
+  };
+  await orderRepository.upsert(updated, options);
+  return updated;
+}
+
+async function auditReturnOrder(action, before = null, after = null, note = '') {
+  await auditService.log(action, {
+    refType: 'returnOrder',
+    refId: (after || before || {}).id || '',
+    refCode: (after || before || {}).code || '',
+    before,
+    after,
+    note
+  });
 }
 
 async function buildReturnOrderDocument(body = {}) {
@@ -648,35 +685,78 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
 async function ensureReturnDraftForSalesOrder(order = {}, options = {}) {
   if (!order || (!order.id && !order.code)) return null;
   const existing = await findBySalesOrder(order);
-  if (existing && isPostedReturnStatus(existing.status)) return { returnOrder: toClient(existing), skipped: 'posted' };
+  if (!existing) {
+    // V45 lazy return-order: không tạo RO-DRAFT rỗng khi chỉ tạo/sửa đơn bán.
+    // Trả draft ảo cho UI nếu cần hiển thị form hàng trả, nhưng không ghi Mongo.
+    return { returnOrder: toClient(buildReturnDraftFromSalesOrder(order, null)), virtualDraft: true, skipped: 'no_return_quantity' };
+  }
+  if (isPostedReturnStatus(existing.status)) return { returnOrder: toClient(existing), skipped: 'posted' };
   const draft = buildReturnDraftFromSalesOrder(order, existing);
+  if (!hasReturnQuantity(draft)) {
+    const cancelled = {
+      ...draft,
+      status: 'cancelled',
+      returnStatus: 'cancelled',
+      cancelReason: 'Đồng bộ đơn bán: không còn số lượng trả',
+      cancelledAt: dateUtil.nowIso(),
+      updatedAt: dateUtil.nowIso()
+    };
+    if (!options.dryRun) {
+      await returnOrderRepository.upsert(cancelled, options);
+      await updateSalesOrderReturnLink(order, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
+      await auditReturnOrder('cancel_return_order', existing, cancelled, cancelled.cancelReason);
+    }
+    return { returnOrder: toClient(cancelled), cancelled: true };
+  }
   await returnOrderRepository.upsert(draft, options);
-  return { returnOrder: toClient(draft), updatedExisting: Boolean(existing) };
+  await updateSalesOrderReturnLink(order, {
+    hasReturn: true,
+    returnOrderId: draft.id || '',
+    returnOrderCode: draft.code || '',
+    returnAmount: toNumber(draft.totalAmount ?? draft.amount ?? 0)
+  }, options);
+  return { returnOrder: toClient(draft), updatedExisting: true };
 }
 
 async function syncReturnDraftWithSalesOrder(order = {}, options = {}) {
+  const existing = await findBySalesOrder(order);
+  if (!existing) return { skipped: 'not_found' };
   return ensureReturnDraftForSalesOrder(order, options);
 }
 
 async function cancelReturnDraftForSalesOrder(order = {}, options = {}) {
   const existing = await findBySalesOrder(order);
   if (!existing) return { skipped: 'not_found' };
-  if (hasReturnQuantity(existing) || isPostedReturnStatus(existing.status)) {
-    return { error: 'Đơn chờ trả hàng đã phát sinh trả hàng/ghi sổ, không được hủy đơn con trước khi xử lý phiếu trả', status: 400 };
+  if (isReturnOrderLockedForCancel(existing)) {
+    return { error: 'Phiếu trả hàng đã nhập kho/ghi sổ. Vui lòng tạo phiếu đảo trước khi hủy đơn.', status: 400 };
   }
-  const cancelled = { ...existing, status: 'cancelled', returnStatus: 'cancelled', cancelledAt: dateUtil.nowIso(), updatedAt: dateUtil.nowIso() };
+  const cancelled = {
+    ...existing,
+    status: 'cancelled',
+    returnStatus: 'cancelled',
+    cancelReason: cancelReasonFrom(options, 'Huỷ theo đơn bán/giao'),
+    cancelledAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
+  };
   if (options.dryRun) return { returnOrder: toClient(cancelled), dryRun: true };
   await returnOrderRepository.upsert(cancelled, options);
+  await updateSalesOrderReturnLink(order, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
+  await auditReturnOrder('cancel_return_order', existing, cancelled, cancelled.cancelReason);
   return { returnOrder: toClient(cancelled) };
 }
 
 async function restoreReturnDraftForSalesOrder(order = {}, options = {}) {
   const existing = await findBySalesOrder(order);
+  if (!existing) {
+    return { returnOrder: toClient(buildReturnDraftFromSalesOrder(order, null)), virtualDraft: true, skipped: 'no_existing_return_order' };
+  }
   const draft = buildReturnDraftFromSalesOrder(order, existing);
+  if (!hasReturnQuantity(draft)) return { returnOrder: toClient(draft), virtualDraft: true, skipped: 'no_return_quantity' };
   draft.status = hasReturnQuantity(draft) ? 'has_return' : 'draft';
   draft.returnStatus = draft.status;
   draft.cancelledAt = '';
   await returnOrderRepository.upsert(draft, options);
+  await updateSalesOrderReturnLink(order, { hasReturn: true, returnOrderId: draft.id || '', returnOrderCode: draft.code || '', returnAmount: toNumber(draft.totalAmount ?? draft.amount ?? 0) }, options);
   return { returnOrder: toClient(draft), updatedExisting: Boolean(existing) };
 }
 
@@ -748,12 +828,10 @@ async function getReturnOrderBySalesOrderKey(salesOrderIdOrCode, query = {}, opt
   };
   let existing = await findExistingReturnOrder(lookup);
 
-  // Đồng bộ 2 chiều cần danh sách chính luôn là order.items gốc.
-  // Vì vậy khi đọc phiếu trả, nếu có đơn gốc thì refresh draft từ salesOrder để bổ sung đủ
-  // các sản phẩm chưa trả (returnQty = 0), thay vì trả về returnOrders.items bị thiếu dòng.
+  // Lazy return-order: GET chỉ trả draft ảo để UI hiển thị đủ dòng hàng, không ghi RO-DRAFT rỗng vào Mongo.
   if (salesOrder && options.ensureDraft !== false && (!existing || !isPostedReturnStatus(existing.status))) {
-    const ensured = await ensureReturnDraftForSalesOrder(salesOrder, options);
-    existing = ensured?.returnOrder || await findExistingReturnOrder(lookup);
+    const virtualDraft = buildReturnDraftFromSalesOrder(salesOrder, existing || null);
+    return { returnOrder: toClient(virtualDraft), virtualDraft: !existing };
   }
   if (!existing) return { returnOrder: null };
   return { returnOrder: toClient(existing) };
@@ -770,12 +848,12 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
   };
   let current = await findExistingReturnOrder(lookup);
   if (!current && salesOrder) {
-    const ensured = await ensureReturnDraftForSalesOrder(salesOrder, options);
-    current = ensured?.returnOrder || await findExistingReturnOrder(lookup);
+    // Chỉ dựng draft trong bộ nhớ. Nếu tổng returnQty > 0 mới upsert sau khi tính xong.
+    current = buildReturnDraftFromSalesOrder(salesOrder, null);
   }
   if (!current) return { error: 'Không tìm thấy đơn gốc để tạo/cập nhật phiếu trả hàng', status: 404 };
 
-  if (isPostedReturnStatus(current.status)) return { error: 'Phiếu trả hàng đã ghi sổ/kho, không được sửa', status: 400 };
+  if (isReturnOrderLockedForCancel(current)) return { error: 'Phiếu trả hàng đã nhập kho/ghi sổ, không được sửa. Vui lòng tạo phiếu đảo nếu khách lấy lại hàng.', status: 400 };
   if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
     return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả', status: 400 };
   }
@@ -821,26 +899,91 @@ async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {},
 
   const summary = summarizeReturnDraftItems(items);
   const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
-  const status = hasReturn ? 'has_return' : 'draft';
   const returnDate = resolveReturnDocumentDate(body, salesOrder || {}, current || {});
-  const updated = {
+  const baseUpdated = {
     ...current,
     ...summary,
     date: returnDate,
     deliveryDate: returnDate,
     documentDate: returnDate,
     items,
-    status,
-    returnStatus: status,
-    warehouseReceiveStatus: hasReturn ? 'waiting_receive' : 'draft',
-    accountingStatus: hasReturn ? 'pending' : 'draft',
     source: body.source || current.source || 'returnOrders',
     updatedFrom: body.source || body.updatedFrom || 'unknown',
     updatedBy: body.updatedBy || body.user || current.updatedBy || '',
     updatedAt: dateUtil.nowIso()
   };
+
+  if (!hasReturn) {
+    const cancelled = {
+      ...baseUpdated,
+      status: 'cancelled',
+      returnStatus: 'cancelled',
+      warehouseReceiveStatus: 'cancelled',
+      accountingStatus: 'cancelled',
+      cancelReason: cancelReasonFrom(body, 'Khách lấy lại hàng'),
+      cancelledAt: dateUtil.nowIso(),
+      totalQuantity: 0,
+      totalReturnAmount: 0,
+      totalAmount: 0,
+      amount: 0,
+      debtReduction: 0
+    };
+    const existedInMongo = Boolean(await findExistingReturnOrder(lookup));
+    if (existedInMongo) {
+      await returnOrderRepository.upsert(cancelled, options);
+      await auditReturnOrder('cancel_return_order', current, cancelled, cancelled.cancelReason);
+    }
+    if (salesOrder) await updateSalesOrderReturnLink(salesOrder, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
+    return { returnOrder: toClient(cancelled), cancelled: existedInMongo, skippedCreate: !existedInMongo };
+  }
+
+  const updated = {
+    ...baseUpdated,
+    status: 'waiting_receive',
+    returnStatus: 'waiting_receive',
+    warehouseReceiveStatus: 'waiting_receive',
+    accountingStatus: 'pending',
+    cancelledAt: '',
+    cancelReason: ''
+  };
   await returnOrderRepository.upsert(updated, options);
+  if (salesOrder) {
+    await updateSalesOrderReturnLink(salesOrder, {
+      hasReturn: true,
+      returnOrderId: updated.id || '',
+      returnOrderCode: updated.code || '',
+      returnAmount: toNumber(updated.totalAmount ?? updated.amount ?? 0)
+    }, options);
+  }
+  await auditReturnOrder(current && current.status === 'cancelled' ? 'restore_return_order' : 'upsert_return_order', current, updated, 'Cập nhật số lượng hàng trả');
   return { returnOrder: toClient(updated) };
+}
+
+async function cancelReturnOrderById(idOrCode, body = {}, options = {}) {
+  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
+  if (isReturnOrderLockedForCancel(current)) {
+    return { error: 'Phiếu trả hàng đã nhập kho/ghi sổ. Vui lòng tạo phiếu đảo nếu khách lấy lại hàng.', status: 400 };
+  }
+  if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
+    return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, cần hủy gộp trước', status: 400 };
+  }
+  const cancelled = {
+    ...current,
+    status: 'cancelled',
+    returnStatus: 'cancelled',
+    warehouseReceiveStatus: 'cancelled',
+    accountingStatus: 'cancelled',
+    cancelReason: cancelReasonFrom(body, 'Khách lấy lại hàng'),
+    cancelledAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
+  };
+  await returnOrderRepository.upsert(cancelled, options);
+  const salesKey = current.salesOrderId || current.orderId || current.salesOrderCode || current.orderCode || '';
+  const salesOrder = salesKey ? await orderRepository.findByIdOrCode(salesKey) : null;
+  if (salesOrder) await updateSalesOrderReturnLink(salesOrder, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
+  await auditReturnOrder('cancel_return_order', current, cancelled, cancelled.cancelReason);
+  return { returnOrder: toClient(cancelled) };
 }
 
 async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
@@ -897,4 +1040,4 @@ async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
   return { returnOrder: toClient(updated) };
 }
 
-module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, toClient };
+module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, confirmReceiveReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, cancelReturnOrderById, toClient };

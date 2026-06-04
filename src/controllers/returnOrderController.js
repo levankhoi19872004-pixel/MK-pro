@@ -41,6 +41,16 @@ async function updateItemsBySalesOrder(req, res) {
   }
 }
 
+async function cancel(req, res) {
+  try {
+    const result = await returnOrderService.cancelReturnOrderById(req.params.id, req.body || {});
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    res.json({ ok: true, source: 'mongo-route', message: 'Đã hủy phiếu trả hàng', returnOrder: result.returnOrder });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không hủy được phiếu trả hàng' });
+  }
+}
+
 async function updateItems(req, res) {
   try {
     const result = await returnOrderService.updateReturnDraftItems(req.params.id, req.body || {});
@@ -51,4 +61,4 @@ async function updateItems(req, res) {
   }
 }
 
-module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems };
+module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems, cancel };
