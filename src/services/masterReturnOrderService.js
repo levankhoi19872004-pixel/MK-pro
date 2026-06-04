@@ -76,13 +76,65 @@ async function listUnmergedReturnOrders(query = {}) {
   const q = normalizeText(query.q);
   const date = dateUtil.toDateOnly(query.date || query.returnDate);
   const delivery = normalizeText(query.delivery || query.deliveryStaff);
-  const rows = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const activeReturnStatuses = Array.from(new Set([
+    'pending',
+    'active',
+    'created',
+    ...GROUPABLE_RETURN_STATUSES
+  ]));
+
+  const filter = {
+    status: { $in: activeReturnStatuses },
+    $and: [
+      {
+        $or: [
+          { masterReturnId: { $exists: false } },
+          { masterReturnId: null },
+          { masterReturnId: '' },
+          { masterReturnOrderId: { $exists: false } },
+          { masterReturnOrderId: null },
+          { masterReturnOrderId: '' }
+        ]
+      },
+      {
+        $or: [
+          { masterReturnCode: { $exists: false } },
+          { masterReturnCode: null },
+          { masterReturnCode: '' },
+          { masterReturnOrderCode: { $exists: false } },
+          { masterReturnOrderCode: null },
+          { masterReturnOrderCode: '' }
+        ]
+      },
+      {
+        $or: [
+          { returnMergeStatus: { $exists: false } },
+          { returnMergeStatus: null },
+          { returnMergeStatus: '' },
+          { returnMergeStatus: { $ne: 'merged' } }
+        ]
+      }
+    ]
+  };
+
+  if (date) {
+    filter.$and.push({
+      $or: [
+        { date },
+        { documentDate: date },
+        { returnDate: date },
+        { deliveryDate: date }
+      ]
+    });
+  }
+
+  const rows = await returnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, limit: 500 });
   return rows
     .filter((row) => !isInactiveStatus(row))
     .filter((row) => isGroupableReturnStatus(row))
     .filter((row) => hasPositiveReturnValue(row))
-    .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
-    .filter((row) => !date || dateUtil.toDateOnly(row.date || row.documentDate || row.createdAt) === date)
+    .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnId && !row.masterReturnCode && !row.masterReturnOrderId && !row.masterReturnOrderCode)
+    .filter((row) => !date || dateUtil.toDateOnly(row.date || row.documentDate || row.returnDate || row.deliveryDate || row.createdAt) === date)
     .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
     .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)));
 }
