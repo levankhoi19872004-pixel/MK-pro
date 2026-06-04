@@ -231,6 +231,55 @@ async function findExistingReturnOrder(body = {}) {
   return candidates.find((row) => !isInactiveStatus(row)) || null;
 }
 
+async function clearExistingDeliveryReturnOrders(body = {}) {
+  const filter = buildReturnOrderLookupFilter(body);
+  if (!filter) return { returnOrder: null, cleared: 0, rows: [] };
+
+  const candidates = await returnOrderRepository.findAll(filter, {
+    sort: { updatedAt: -1, createdAt: -1 },
+    limit: 50
+  });
+
+  const now = dateUtil.nowIso();
+  const note = String(body.note || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng').trim();
+  const clearableRows = (candidates || []).filter((row) => {
+    if (!row || isInactiveStatus(row)) return false;
+    if ((row.returnMergeStatus || 'unmerged') === 'merged' || row.masterReturnOrderId || row.masterReturnOrderCode) return false;
+    if (isPostedReturnStatus(row.status)) return false;
+    return true;
+  });
+
+  let lastCleared = null;
+  for (const row of clearableRows) {
+    const cleared = {
+      ...row,
+      items: [],
+      totalQuantity: 0,
+      totalAmount: 0,
+      amount: 0,
+      debtReduction: 0,
+      status: 'cleared',
+      returnStatus: 'cleared',
+      accountingStatus: 'cleared',
+      warehouseReceiveStatus: 'cleared',
+      refType: row.refType || body.refType || 'mobileDeliveryReturnClear',
+      note,
+      clearedAt: now,
+      postedAt: '',
+      receivedAt: '',
+      updatedAt: now
+    };
+    await returnOrderRepository.upsert(cleared);
+    lastCleared = cleared;
+  }
+
+  return {
+    returnOrder: lastCleared ? toClient(lastCleared) : null,
+    cleared: clearableRows.length,
+    rows: clearableRows
+  };
+}
+
 
 
 function isPostedReturnStatus(status = '') {
@@ -430,6 +479,19 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
   const items = normalizeDeliveryReturnItems(body.items, salesOrder);
   const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
+
+  // V45 chuẩn: khi app giao hàng sửa toàn bộ SL trả về 0 thì KHÔNG sinh thêm bản RO-MOBILE/clear mới.
+  // Phải clear trực tiếp các returnOrders tạm đang có của cùng salesOrderId/salesOrderCode
+  // để không còn bản RO-DRAFT cũ làm lệch "hàng trả" và "còn nợ tạm tính".
+  if (totalAmount <= 0 && String(body.refType || '') === 'mobileDeliveryReturnClear') {
+    const clearResult = await clearExistingDeliveryReturnOrders({ ...body, salesOrderId, salesOrderCode });
+    return {
+      returnOrder: clearResult.returnOrder,
+      updatedExisting: clearResult.cleared > 0,
+      cleared: clearResult.cleared
+    };
+  }
+
   const now = dateUtil.nowIso();
   const id = String(existing?.id || body.id || `RO-MOBILE-${String(salesOrderId || salesOrderCode).replace(/[^a-zA-Z0-9_-]/g, '')}` || makeId('RO')).trim();
   const code = buildFastReturnCode(body, existing);

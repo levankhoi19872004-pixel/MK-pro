@@ -490,6 +490,12 @@ function getPage(value) {
   return Math.max(1, Math.floor(n));
 }
 
+function pushDebtLedgerAnd(match, condition) {
+  if (!condition) return;
+  if (!Array.isArray(match.$and)) match.$and = [];
+  match.$and.push(condition);
+}
+
 function buildDebtLedgerMatch(query = {}, customerCodes = []) {
   const match = {
     status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
@@ -503,6 +509,45 @@ function buildDebtLedgerMatch(query = {}, customerCodes = []) {
   if (customerCodes.length) {
     match.customerCode = { $in: customerCodes };
   }
+
+  // V45 debt filter fix:
+  // Do not rely only on Customer metadata for NVBH/NVGH filters.
+  // Some AR ledger rows store staff codes directly in arLedgers, while Customer may not have
+  // delivery/salesman metadata. Filtering only Customer first makes real debts disappear
+  // (example: NVGH = ghth). Apply the staff filters directly to ArLedger too.
+  if (query.delivery) {
+    const rx = new RegExp(escapeRegExp(query.delivery), 'i');
+    pushDebtLedgerAnd(match, {
+      $or: [
+        { deliveryStaffCode: rx },
+        { deliveryStaffName: rx },
+        { deliveryCode: rx },
+        { deliveryName: rx },
+        { deliveryStaff: rx },
+        { nvghCode: rx },
+        { nvghName: rx },
+        { staffCode: rx },
+        { staffName: rx }
+      ]
+    });
+  }
+
+  if (query.salesman) {
+    const rx = new RegExp(escapeRegExp(query.salesman), 'i');
+    pushDebtLedgerAnd(match, {
+      $or: [
+        { salesmanCode: rx },
+        { salesmanName: rx },
+        { salesStaffCode: rx },
+        { salesStaffName: rx },
+        { nvbhCode: rx },
+        { nvbhName: rx },
+        { staffCode: rx },
+        { staffName: rx }
+      ]
+    });
+  }
+
   return match;
 }
 
@@ -582,10 +627,14 @@ async function debtReport(query = {}) {
   const hasSearchCriteria = Boolean(query.q || query.keyword || query.search || query.salesman || query.delivery || query.customerCode || query.customerId || query.dateFrom || query.dateTo || query.date);
 
   let seedCustomers = [];
+  const hasCustomerTextSearch = Boolean(query.q || query.keyword || query.search);
+  const hasStaffOnlyFilter = Boolean((query.salesman || query.delivery) && !hasCustomerTextSearch && !query.customerCode && !query.customerId);
   if (query.q || query.keyword || query.search || query.salesman || query.delivery) {
     seedCustomers = await findDebtCustomersForFilter(query, 500);
-    // Nếu người dùng đã lọc mà không có khách phù hợp thì trả nhanh, không quét AR Ledger toàn hệ thống.
-    if (!seedCustomers.length) {
+    // Chỉ trả rỗng sớm khi người dùng đang tìm khách hàng thật sự.
+    // Không trả rỗng sớm với lọc NVBH/NVGH, vì AR Ledger có thể có staffCode/deliveryStaffCode
+    // trong khi Customer chưa lưu metadata NVBH/NVGH tương ứng.
+    if (!seedCustomers.length && !hasStaffOnlyFilter) {
       const emptySummary = {
         page,
         limit,
@@ -662,10 +711,10 @@ async function debtReport(query = {}) {
       receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      salesmanCode: { $first: { $ifNull: ['$salesmanCode', '$salesStaffCode'] } },
-      salesmanName: { $first: { $ifNull: ['$salesmanName', '$salesStaffName'] } },
-      deliveryStaffCode: { $first: '$deliveryStaffCode' },
-      deliveryStaffName: { $first: '$deliveryStaffName' }
+      salesmanCode: { $first: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', { $ifNull: ['$nvbhCode', '$staffCode'] }] }] } },
+      salesmanName: { $first: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', { $ifNull: ['$nvbhName', '$staffName'] }] }] } },
+      deliveryStaffCode: { $first: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', { $ifNull: ['$deliveryStaff', { $ifNull: ['$nvghCode', '$staffCode'] }] }] }] } },
+      deliveryStaffName: { $first: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] } }
     } },
     { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
     { $sort: { debt: -1, lastDate: -1 } },
