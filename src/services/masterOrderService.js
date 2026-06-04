@@ -712,6 +712,12 @@ function makeArBaseRow(order = {}, extra = {}) {
     refCode: String(extra.refCode || code || '').trim(),
     orderId: String(extra.orderId || key || '').trim(),
     orderCode: String(extra.orderCode || code || '').trim(),
+    // Chuẩn hóa nguồn đơn gốc trên AR Ledger:
+    // Công nợ luôn truy ngược được về SalesOrder đã khóa sau khi đẩy kế toán.
+    salesOrderId: String(extra.salesOrderId || order.salesOrderId || order.id || key || '').trim(),
+    salesOrderCode: String(extra.salesOrderCode || order.salesOrderCode || order.code || order.orderCode || code || '').trim(),
+    masterOrderId: String(extra.masterOrderId || order.masterOrderId || '').trim(),
+    masterOrderCode: String(extra.masterOrderCode || order.masterOrderCode || '').trim(),
     customerId: String(order.customerId || '').trim(),
     customerCode: String(order.customerCode || '').trim(),
     customerName: String(order.customerName || '').trim(),
@@ -806,7 +812,10 @@ async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, batchId = '
   const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
   const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
   const rewardAmount = deliveryRewardAmount(order);
-  const returnAmount = deliveryFinance.deliveryReturnAmount(order);
+  // Khi mở khóa sửa lại rồi xác nhận lại, giá trị hàng trả vẫn phải lấy từ nguồn chuẩn returnOrders.
+  // Không lấy độc quyền từ field cache trong salesOrders vì có thể đã cũ.
+  const relatedReturnOrders = await findReturnOrdersForDeliveryChildren([order]);
+  const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForSalesOrder(relatedReturnOrders, order));
   const rows = [];
   const add = async (suffix, row) => {
     if (toNumber(row.amount) <= 0 && !row.postZero) return null;
@@ -2043,6 +2052,13 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
       reAccountingRequired: 1,
       adminAdjustmentOpen: 1,
       editLocked: 1,
+      accountingLocked: 1,
+      deliveryLocked: 1,
+      arStatus: 1,
+      lifecycleStatus: 1,
+      arPostedAt: 1,
+      accountingConfirmedAt: 1,
+      accountingConfirmedBy: 1,
       isLate: 1,
       deletedAt: 1
     },
@@ -2200,6 +2216,19 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         remainingAmount: debtAmount,
         status: child.status || '',
         deliveryStatus: child.deliveryStatus || 'waiting',
+        accountingConfirmed: Boolean(child.accountingConfirmed || child.accountingStatus === 'confirmed'),
+        accountingStatus: child.accountingStatus || '',
+        accountingLocked: Boolean(child.accountingLocked || child.accountingConfirmed || child.accountingStatus === 'confirmed'),
+        editLocked: Boolean(child.editLocked || child.accountingLocked || child.accountingConfirmed || child.accountingStatus === 'confirmed'),
+        deliveryLocked: Boolean(child.deliveryLocked || child.accountingLocked || child.accountingConfirmed || child.accountingStatus === 'confirmed'),
+        needReAccounting: Boolean(child.needReAccounting || child.reAccountingRequired || child.adminAdjustmentOpen || String(child.accountingStatus || '').toLowerCase() === 'needs_repost'),
+        reAccountingRequired: Boolean(child.reAccountingRequired),
+        adminAdjustmentOpen: Boolean(child.adminAdjustmentOpen),
+        arStatus: child.arStatus || '',
+        lifecycleStatus: child.lifecycleStatus || '',
+        arPostedAt: child.arPostedAt || '',
+        accountingConfirmedAt: child.accountingConfirmedAt || '',
+        accountingConfirmedBy: child.accountingConfirmedBy || '',
         hasReturn: relatedReturnOrders.length > 0 || returnAmount > 0,
         returnOrderCode
       };
@@ -2232,6 +2261,8 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         if (status === 'delivered_group' && !isDeliveredGroup) continue;
         else if (status === 'not_delivered' && !isNotDeliveredGroup) continue;
         else if (status === 'returned' && !row.hasReturn) continue;
+        else if (status === 'accounting_confirmed' && !(row.accountingConfirmed || row.editLocked || row.accountingLocked)) continue;
+        else if (status === 'accounting_pending' && (row.accountingConfirmed || row.editLocked || row.accountingLocked)) continue;
         else if (!['delivered_group', 'not_delivered', 'returned', 'accounting_confirmed', 'accounting_pending'].includes(status) && rawStatus !== status && rawDeliveryStatus !== status) continue;
       }
 
