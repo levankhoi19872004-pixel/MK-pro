@@ -478,7 +478,20 @@ function getSalesOrderStaffFilterCode(){
 }
 function getSalesOrderStaffFilterText(){
   if(!salesOrderStaffFilter)return '';
-  return String(salesOrderStaffFilter.value||salesOrderStaffFilter.dataset?.selectedId||'').trim();
+
+  const raw=String(
+    salesOrderStaffFilter.value ||
+    salesOrderStaffFilter.dataset?.selectedLabel ||
+    ''
+  ).trim();
+  if(!raw)return '';
+
+  const parts=raw.split(/\s+-\s+/).map(s=>s.trim()).filter(Boolean);
+  // Dạng autocomplete: 33955 - Đỗ Thị Mừng - Bán hàng - 0962033288
+  // Backend chỉ cần tên NVBH, không gửi nguyên label dài.
+  if(parts.length>=2)return parts[1];
+
+  return raw;
 }
 
 function normalizeOrderDateForFilter(value){
