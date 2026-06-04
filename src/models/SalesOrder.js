@@ -35,6 +35,8 @@ SalesOrder.schema.index({ orderDate: -1, createdAt: -1 });
 SalesOrder.schema.index({ date: -1, createdAt: -1 });
 SalesOrder.schema.index({ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 });
 SalesOrder.schema.index({ salesStaffCode: 1, orderDate: -1 });
+SalesOrder.schema.index({ salesStaffCode: 1, orderDate: -1, status: 1 });
+SalesOrder.schema.index({ orderDate: -1, salesStaffCode: 1, status: 1 });
 SalesOrder.schema.index({ staffCode: 1, orderDate: -1 });
 SalesOrder.schema.index({ customerCode: 1, orderDate: -1 });
 SalesOrder.schema.index({ status: 1, orderDate: -1 });

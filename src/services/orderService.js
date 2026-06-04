@@ -247,6 +247,17 @@ function canHardDeleteSalesOrder(order = {}) {
 
 
 
+function pushAnd(and, clause) {
+  if (clause && Object.keys(clause).length) and.push(clause);
+}
+
+function rangeFilter(dateFrom, dateTo) {
+  const range = {};
+  if (dateFrom) range.$gte = dateFrom;
+  if (dateTo) range.$lte = dateTo;
+  return range;
+}
+
 function buildOrderSearchFilter(query = {}) {
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
@@ -255,16 +266,29 @@ function buildOrderSearchFilter(query = {}) {
   const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
   const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
   const filter = {};
+  const and = [];
 
+  // V45 FAST PATH:
+  // Màn lịch sử đơn bán đang lọc theo ngày bán. Không dùng $or qua nhiều trường ngày ở mặc định,
+  // vì Mongo rất dễ bỏ index và quét nhiều document, gây 2.000ms+ dù chỉ trả 50 dòng.
   if (dateFrom || dateTo) {
-    const range = {};
-    if (dateFrom) range.$gte = dateFrom;
-    if (dateTo) range.$lte = dateTo;
-    const orderDateFields = [{ orderDate: range }, { date: range }, { createdDate: range }];
-    const deliveryDateFields = [{ deliveryDate: range }];
-    if (dateType === 'deliveryDate') filter.$or = deliveryDateFields;
-    else if (dateType === 'all') filter.$or = [...orderDateFields, ...deliveryDateFields, { createdAt: range }];
-    else filter.$or = orderDateFields;
+    const range = rangeFilter(dateFrom, dateTo);
+    if (dateType === 'deliveryDate') {
+      filter.deliveryDate = range;
+    } else if (dateType === 'all') {
+      pushAnd(and, { $or: [
+        { orderDate: range },
+        { date: range },
+        { createdDate: range },
+        { deliveryDate: range },
+        { createdAt: range }
+      ] });
+    } else if (dateType === 'date') {
+      filter.date = range;
+    } else {
+      // Mặc định: orderDate. Đây là đường nhanh nhất cho màn Lịch sử đơn bán.
+      filter.orderDate = range;
+    }
   }
 
   if (!includeCancelled) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
@@ -275,38 +299,46 @@ function buildOrderSearchFilter(query = {}) {
   const exactMasterOrderCode = String(guardedQuery.masterOrderCode || guardedQuery.masterCode || '').trim();
   if (exactMasterOrderCode) filter.masterOrderCode = exactMasterOrderCode;
 
-  const exactSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
-
-  const and = [];
-  if (q) {
-    const rx = queryGuard.buildRegex(q);
-    and.push({ $or: [
-      { code: rx }, { id: rx }, { orderCode: rx }, { salesOrderCode: rx }, { invoiceCode: rx },
-      { customerCode: rx }, { customerName: rx }, { customerPhone: rx },
-      { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx },
-      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { masterOrderCode: rx }, { masterOrderId: rx }
-    ] });
-  }
-
   const staffCodeFilter = extractStaffCodeParam(
     guardedQuery.salesStaffCode || guardedQuery.staffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
   );
   if (staffCodeFilter) {
-    and.push({ $or: [
-      { staffCode: staffCodeFilter }, { salesStaffCode: staffCodeFilter }, { salesPersonCode: staffCodeFilter },
-      { salesmanCode: staffCodeFilter }, { nvbhCode: staffCodeFilter }, { maNVBH: staffCodeFilter },
-      { 'salesStaff.code': staffCodeFilter }, { 'staff.code': staffCodeFilter }
-    ] });
+    // Ưu tiên field chuẩn salesStaffCode để ăn index { salesStaffCode, orderDate }.
+    // Chỉ bật alias legacy khi frontend truyền includeStaffAliases=1.
+    if (String(guardedQuery.includeStaffAliases || '0') === '1') {
+      pushAnd(and, { $or: [
+        { salesStaffCode: staffCodeFilter },
+        { staffCode: staffCodeFilter },
+        { salesPersonCode: staffCodeFilter },
+        { salesmanCode: staffCodeFilter },
+        { nvbhCode: staffCodeFilter },
+        { maNVBH: staffCodeFilter },
+        { 'salesStaff.code': staffCodeFilter },
+        { 'staff.code': staffCodeFilter }
+      ] });
+    } else {
+      filter.salesStaffCode = staffCodeFilter;
+    }
   }
 
   const deliveryStaffCodeFilter = extractStaffCodeParam(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);
   if (deliveryStaffCodeFilter) {
-    and.push({ $or: [{ deliveryStaffCode: deliveryStaffCodeFilter }, { deliveryCode: deliveryStaffCodeFilter }, { 'deliveryStaff.code': deliveryStaffCodeFilter }] });
+    if (String(guardedQuery.includeDeliveryAliases || '0') === '1') {
+      pushAnd(and, { $or: [
+        { deliveryStaffCode: deliveryStaffCodeFilter },
+        { deliveryCode: deliveryStaffCodeFilter },
+        { 'deliveryStaff.code': deliveryStaffCodeFilter }
+      ] });
+    } else {
+      filter.deliveryStaffCode = deliveryStaffCodeFilter;
+    }
   }
 
+  const exactSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
   const sourceKey = orderStatusUtil.normalizeOrderSource(exactSource);
   if (sourceKey && sourceKey !== 'manual') {
-    and.push({ $or: [{ source: sourceKey }, { orderSource: sourceKey }, { source: new RegExp(sourceKey, 'i') }, { orderSource: new RegExp(sourceKey, 'i') }] });
+    // Không dùng regex nếu không cần; exact match giúp ăn index source/orderSource + orderDate.
+    pushAnd(and, { $or: [{ source: sourceKey }, { orderSource: sourceKey }] });
   }
 
   const deliveryStatusFilter = String(guardedQuery.deliveryStatus || '').trim();
@@ -318,9 +350,62 @@ function buildOrderSearchFilter(query = {}) {
   const rawStatus = String(guardedQuery.status || guardedQuery.lifecycleStatus || '').trim();
   if (rawStatus && rawStatus !== 'cancelled') filter.status = rawStatus;
 
+  if (q) {
+    const rx = queryGuard.buildRegex(q);
+    pushAnd(and, { $or: [
+      { code: rx }, { id: rx }, { orderCode: rx }, { salesOrderCode: rx }, { invoiceCode: rx },
+      { customerCode: rx }, { customerName: rx }, { customerPhone: rx },
+      { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx },
+      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { masterOrderCode: rx }, { masterOrderId: rx }
+    ] });
+  }
+
   if (and.length) filter.$and = and;
   return { filter, guardedQuery };
 }
+
+function toListClient(order = {}) {
+  const normalizedOrderSource = normalizeOrderSourceValue(order);
+  const mergeStatus = orderStatusUtil.normalizeMergeStatus(order);
+  return {
+    id: order.id || order.code,
+    code: order.code || order.orderCode || order.salesOrderCode || order.id,
+    orderCode: order.orderCode || order.code || order.id,
+    salesOrderCode: order.salesOrderCode || order.code || order.id,
+    date: order.date || order.orderDate || '',
+    orderDate: order.orderDate || order.date || '',
+    deliveryDate: order.deliveryDate || '',
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    customerPhone: order.customerPhone || '',
+    staffCode: order.staffCode || order.salesStaffCode || '',
+    staffName: order.staffName || order.salesStaffName || '',
+    salesStaffCode: order.salesStaffCode || order.staffCode || '',
+    salesStaffName: order.salesStaffName || order.staffName || '',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    masterOrderId: order.masterOrderId || '',
+    masterOrderCode: order.masterOrderCode || '',
+    status: order.status || order.lifecycleStatus || 'pending',
+    lifecycleStatus: order.lifecycleStatus || order.status || 'pending',
+    deliveryStatus: order.deliveryStatus || '',
+    mergeStatus,
+    isMerged: mergeStatus === 'merged',
+    accountingStatus: order.accountingStatus || '',
+    accountingConfirmed: Boolean(order.accountingConfirmed),
+    source: normalizedOrderSource,
+    orderSource: normalizedOrderSource,
+    orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH',
+    totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.total),
+    paidAmount: toNumber(order.paidAmount),
+    debtAmount: toNumber(order.debtAmount),
+    visibleInHistory: true
+  };
+}
+
 
 const ORDER_LIST_PROJECTION = {
   _id: 0,
@@ -366,16 +451,46 @@ async function searchOrders(query = {}) {
   const startedAt = Date.now();
   const { filter, guardedQuery } = buildOrderSearchFilter(query);
   const page = queryGuard.getPagination(guardedQuery, { defaultLimit: 50, maxLimit: 100 });
-  const [orders, total] = await Promise.all([
-    orderRepository.findAll(filter, {
-      projection: ORDER_LIST_PROJECTION,
-      sort: { orderDate: -1, date: -1, createdAt: -1, code: -1 },
-      skip: page.skip,
-      limit: page.limit
-    }),
-    orderRepository.count(filter)
-  ]);
-  const rows = orders.map(toClient);
+  const sort = guardedQuery.dateType === 'deliveryDate'
+    ? { deliveryDate: -1, createdAt: -1, code: -1 }
+    : { orderDate: -1, date: -1, createdAt: -1, code: -1 };
+
+  const queryStartedAt = Date.now();
+  const rowsPromise = orderRepository.findAll(filter, {
+    projection: ORDER_LIST_PROJECTION,
+    sort,
+    skip: page.skip,
+    limit: page.limit
+  }).then((orders) => ({
+    orders,
+    queryMs: Date.now() - queryStartedAt
+  }));
+
+  const countStartedAt = Date.now();
+  const totalPromise = orderRepository.count(filter).then((total) => ({
+    total,
+    countMs: Date.now() - countStartedAt
+  }));
+
+  const [{ orders, queryMs }, { total, countMs }] = await Promise.all([rowsPromise, totalPromise]);
+
+  const mapStartedAt = Date.now();
+  const rows = orders.map(toListClient);
+  const mapMs = Date.now() - mapStartedAt;
+  const ms = Date.now() - startedAt;
+
+  console.log('[ORDER_SEARCH_FAST]', {
+    ms,
+    queryMs,
+    countMs,
+    mapMs,
+    page: page.page,
+    limit: page.limit,
+    total,
+    returned: rows.length,
+    filter
+  });
+
   return {
     rows,
     salesOrders: rows,
@@ -385,7 +500,10 @@ async function searchOrders(query = {}) {
     limit: page.limit,
     returned: rows.length,
     hasMore: page.skip + rows.length < total,
-    ms: Date.now() - startedAt
+    ms,
+    queryMs,
+    countMs,
+    mapMs
   };
 }
 
