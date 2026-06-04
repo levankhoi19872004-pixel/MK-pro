@@ -40,6 +40,7 @@ const INDEX_DEFINITIONS = {
   roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
   permissions: [[{ roleCode: 1, module: 1 }, { name: 'idx_permissions_role_module' }]],
   salesOrders: [
+    [{ id: 1 }, { name: 'idx_sales_orders_id' }],
     [{ id: 1 }, { name: 'idx_orders_id' }],
     [{ code: 1 }, { name: 'idx_orders_code' }],
     [{ documentCode: 1 }, { name: 'idx_orders_document_code', sparse: true }],
@@ -53,6 +54,7 @@ const INDEX_DEFINITIONS = {
     [{ staffCode: 1, orderDate: -1 }, { name: 'idx_orders_staff_order_date', sparse: true }],
     [{ status: 1, orderDate: -1 }, { name: 'idx_orders_status_order_date' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
+    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_sales_orders_delivery_date_staff_status' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_date_staff_status_desc' }],
     [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_staff_date_desc' }],
     [{ deliveryStatus: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_status_date_desc' }],

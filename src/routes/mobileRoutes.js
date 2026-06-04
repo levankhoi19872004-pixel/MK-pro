@@ -254,6 +254,20 @@ function compactKeys(values = []) {
   return [...new Set((values || []).map(toCleanDocKey).filter(Boolean))];
 }
 
+
+const VALID_SALES_ORDER_ID_RE = /^SO\d+$/i;
+
+function normalizeSalesOrderIds(ids = []) {
+  return Array.from(new Set((ids || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => VALID_SALES_ORDER_ID_RE.test(value))));
+}
+
+function buildSalesOrderIdInQuery(ids = []) {
+  const cleanIds = normalizeSalesOrderIds(ids);
+  return { id: { $in: cleanIds } };
+}
+
 function masterChildIds(master) {
   const raw = master.childOrderIds || master.childOrders || master.orderIds || master.orders || [];
   return Array.isArray(raw) ? compactKeys(raw) : [];
@@ -1427,25 +1441,13 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
       }
     };
 
-    const objectIdKeys = childKeys.filter((key) => /^[a-f\d]{24}$/i.test(String(key)));
-    const normalKeys = childKeys.filter((key) => !/^[a-f\d]{24}$/i.test(String(key)));
-    const salesOrderOr = [];
+    const childOrderIds = normalizeSalesOrderIds(childKeys);
+    const salesOrderQuery = buildSalesOrderIdInQuery(childOrderIds);
 
-    if (normalKeys.length) {
-      salesOrderOr.push(
-        { id: { $in: normalKeys } },
-        { code: { $in: normalKeys } },
-        { orderCode: { $in: normalKeys } },
-        { orderNo: { $in: normalKeys } }
-      );
-    }
-
-    if (objectIdKeys.length) {
-      salesOrderOr.push({ _id: { $in: objectIdKeys } });
-    }
-
-    if (salesOrderOr.length) {
-      addOrders(await SalesOrder.find({ $or: salesOrderOr }).lean());
+    if (childOrderIds.length) {
+      addOrders(await SalesOrder.find(salesOrderQuery)
+        .select('id code orderCode orderNo salesOrderCode customerCode customerName customerPhone customerAddress items total totalAmount amount grandTotal deliveryStatus status deliveryDate salesStaffCode salesStaffName staffCode staffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName routeName deliveryRoute cashCollected cashAmount bankCollected bankAmount transferAmount rewardAmount displayRewardAmount bonusAmount bonusReturnAmount returnAmount returnedAmount debtAmount remainingAmount collectedAmount accountingConfirmed accountingStatus needReAccounting reAccountingRequired adminAdjustmentOpen editLocked isLate deletedAt')
+        .lean());
     }
 
     const deliveryPairs = [];

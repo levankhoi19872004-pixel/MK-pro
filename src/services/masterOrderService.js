@@ -32,6 +32,17 @@ function compactDeliveryOrderKeys(order = {}) {
 
 const VALID_SALES_ORDER_ID_RE = /^SO\d+$/i;
 
+function normalizeSalesOrderIds(ids = []) {
+  return Array.from(new Set((ids || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => VALID_SALES_ORDER_ID_RE.test(value))));
+}
+
+function buildSalesOrderIdInQuery(ids = []) {
+  const cleanIds = normalizeSalesOrderIds(ids);
+  return { id: { $in: cleanIds } };
+}
+
 function isCleanOrderCode(value = '') {
   const text = String(value || '').trim();
   if (!text) return false;
@@ -120,11 +131,11 @@ function buildIdentityInFilter(keys = [], fields = ['id', 'code']) {
 
 async function buildMasterChildrenMapFast(masterOrders = []) {
   const allRefs = [...new Set((masterOrders || []).flatMap(masterChildOrderRefs))];
+  const salesOrderIds = normalizeSalesOrderIds(allRefs);
   const map = new Map();
-  if (!allRefs.length) return map;
+  if (!salesOrderIds.length) return map;
 
-  const filter = buildIdentityInFilter(allRefs, ['id', 'code', 'orderCode', 'documentCode']);
-  const orders = filter ? await orderRepository.findAll(filter) : [];
+  const orders = await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds));
   const byKey = new Map();
   for (const order of orders || []) {
     if (isInactiveStatus(order)) continue;
@@ -204,7 +215,7 @@ function toClient(masterOrder, children = []) {
     code: masterOrder.code || masterOrder.id,
     // children chỉ là dữ liệu render tạm lấy từ orders thật. Không coi masterOrder.children là nguồn dữ liệu.
     children,
-    childOrderIds: children.map((order) => order.id || order.code).filter(Boolean)
+    childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id))
   };
 }
 
@@ -1465,35 +1476,12 @@ async function listDeliveryTodaySummaryFast(query = {}) {
   masterQueryMs = Date.now() - masterQueryStartedAt;
 
   const normalizedMasterRefs = (masterOrders || []).map(normalizeMasterSalesOrderRefs);
-  const salesOrderIds = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderIds))];
+  const salesOrderIds = normalizeSalesOrderIds(normalizedMasterRefs.flatMap((item) => item.salesOrderIds));
   const salesOrderCodes = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderCodes))];
-  const allRefs = [...new Set([...salesOrderIds, ...salesOrderCodes])];
+  const allRefs = [...new Set(salesOrderIds)];
 
-  const childFilterParts = [];
-  if (salesOrderIds.length) {
-    childFilterParts.push({
-      $or: [
-        { id: { $in: salesOrderIds } },
-        { salesOrderId: { $in: salesOrderIds } },
-        { sourceOrderId: { $in: salesOrderIds } },
-        { deliveryOrderId: { $in: salesOrderIds } }
-      ]
-    });
-  }
-  if (salesOrderCodes.length) {
-    childFilterParts.push({
-      $or: [
-        { code: { $in: salesOrderCodes } },
-        { orderCode: { $in: salesOrderCodes } },
-        { documentCode: { $in: salesOrderCodes } },
-        { invoiceCode: { $in: salesOrderCodes } },
-        { salesOrderCode: { $in: salesOrderCodes } },
-        { sourceOrderCode: { $in: salesOrderCodes } },
-        { deliveryOrderCode: { $in: salesOrderCodes } }
-      ]
-    });
-  }
-  const childFilter = childFilterParts.length ? { $or: childFilterParts } : null;
+  // Key chuẩn của SalesOrder là id. Không query lồng $or theo code/orderCode nữa để tránh chậm.
+  const childFilter = salesOrderIds.length ? buildSalesOrderIdInQuery(salesOrderIds) : null;
 
   const salesQueryStartedAt = Date.now();
   const children = childFilter ? await orderRepository.findAll(childFilter, {
@@ -1763,35 +1751,12 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
   masterQueryMs = Date.now() - masterQueryStartedAt;
 
   const normalizedMasterRefs = (masterOrders || []).map(normalizeMasterSalesOrderRefs);
-  const salesOrderIds = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderIds))];
+  const salesOrderIds = normalizeSalesOrderIds(normalizedMasterRefs.flatMap((item) => item.salesOrderIds));
   const salesOrderCodes = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderCodes))];
-  const allRefs = [...new Set([...salesOrderIds, ...salesOrderCodes])];
+  const allRefs = [...new Set(salesOrderIds)];
 
-  const childFilterParts = [];
-  if (salesOrderIds.length) {
-    childFilterParts.push({
-      $or: [
-        { id: { $in: salesOrderIds } },
-        { salesOrderId: { $in: salesOrderIds } },
-        { sourceOrderId: { $in: salesOrderIds } },
-        { deliveryOrderId: { $in: salesOrderIds } }
-      ]
-    });
-  }
-  if (salesOrderCodes.length) {
-    childFilterParts.push({
-      $or: [
-        { code: { $in: salesOrderCodes } },
-        { orderCode: { $in: salesOrderCodes } },
-        { documentCode: { $in: salesOrderCodes } },
-        { invoiceCode: { $in: salesOrderCodes } },
-        { salesOrderCode: { $in: salesOrderCodes } },
-        { sourceOrderCode: { $in: salesOrderCodes } },
-        { deliveryOrderCode: { $in: salesOrderCodes } }
-      ]
-    });
-  }
-  const childFilter = childFilterParts.length ? { $or: childFilterParts } : null;
+  // Key chuẩn của SalesOrder là id. Không query lồng $or theo code/orderCode nữa để tránh chậm.
+  const childFilter = salesOrderIds.length ? buildSalesOrderIdInQuery(salesOrderIds) : null;
 
   const salesQueryStartedAt = Date.now();
   const children = childFilter ? await orderRepository.findAll(childFilter, {
@@ -2005,35 +1970,12 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
   masterQueryMs = Date.now() - masterQueryStartedAt;
 
   const normalizedMasterRefs = (masterOrders || []).map(normalizeMasterSalesOrderRefs);
-  const salesOrderIds = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderIds))];
+  const salesOrderIds = normalizeSalesOrderIds(normalizedMasterRefs.flatMap((item) => item.salesOrderIds));
   const salesOrderCodes = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderCodes))];
-  const allRefs = [...new Set([...salesOrderIds, ...salesOrderCodes])];
+  const allRefs = [...new Set(salesOrderIds)];
 
-  const childFilterParts = [];
-  if (salesOrderIds.length) {
-    childFilterParts.push({
-      $or: [
-        { id: { $in: salesOrderIds } },
-        { salesOrderId: { $in: salesOrderIds } },
-        { sourceOrderId: { $in: salesOrderIds } },
-        { deliveryOrderId: { $in: salesOrderIds } }
-      ]
-    });
-  }
-  if (salesOrderCodes.length) {
-    childFilterParts.push({
-      $or: [
-        { code: { $in: salesOrderCodes } },
-        { orderCode: { $in: salesOrderCodes } },
-        { documentCode: { $in: salesOrderCodes } },
-        { invoiceCode: { $in: salesOrderCodes } },
-        { salesOrderCode: { $in: salesOrderCodes } },
-        { sourceOrderCode: { $in: salesOrderCodes } },
-        { deliveryOrderCode: { $in: salesOrderCodes } }
-      ]
-    });
-  }
-  const childFilter = childFilterParts.length ? { $or: childFilterParts } : null;
+  // Key chuẩn của SalesOrder là id. Không query lồng $or theo code/orderCode nữa để tránh chậm.
+  const childFilter = salesOrderIds.length ? buildSalesOrderIdInQuery(salesOrderIds) : null;
 
   const salesQueryStartedAt = Date.now();
   const children = childFilter ? await orderRepository.findAll(childFilter, {
@@ -2730,7 +2672,7 @@ async function createMasterOrder(body = {}) {
     salesStaffId: salesStaff?.id || body.salesStaffId || '',
     salesStaffCode: salesStaff?.code || body.salesStaffCode || '',
     salesStaffName: salesStaff?.name || body.salesStaffName || '',
-    childOrderIds: children.map((order) => order.id || order.code),
+    childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
     children: [],
     status: body.status || 'assigned',
     ...orderService.summarizeOrders(children),
