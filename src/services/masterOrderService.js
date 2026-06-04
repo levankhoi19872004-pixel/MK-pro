@@ -2061,13 +2061,48 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
   const returnQueryStartedAt = Date.now();
   const returnOrders = (salesOrderIds.length || salesOrderCodes.length)
     ? await ReturnOrder.find({
-        $or: [
-          { salesOrderId: { $in: salesOrderIds } },
-          { salesOrderCode: { $in: salesOrderCodes } }
-        ],
-        status: {
-          $in: ['pending', 'active', 'merged', 'delivered', 'completed', 'cleared']
-        }
+        $and: [
+          {
+            $or: [
+              { salesOrderId: { $in: salesOrderIds } },
+              { salesOrderCode: { $in: salesOrderCodes } },
+              { orderId: { $in: salesOrderIds } },
+              { orderCode: { $in: salesOrderCodes } }
+            ]
+          },
+          {
+            status: {
+              $in: [
+                'draft',
+                'pending',
+                'active',
+                'has_return',
+                'waiting_receive',
+                'pending_warehouse_receive',
+                'received',
+                'warehouse_received',
+                'merged',
+                'delivered',
+                'completed',
+                'cleared'
+              ]
+            }
+          },
+          {
+            $or: [
+              { cancelledAt: { $exists: false } },
+              { cancelledAt: null },
+              { cancelledAt: '' }
+            ]
+          },
+          {
+            $or: [
+              { deletedAt: { $exists: false } },
+              { deletedAt: null },
+              { deletedAt: '' }
+            ]
+          }
+        ]
       }).lean()
     : [];
   returnQueryMs = Date.now() - returnQueryStartedAt;
@@ -2121,20 +2156,22 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
       const returnOrderCode = relatedReturnOrders
         .map((ro) => ro.code || ro.returnOrderCode || ro.id || '')
         .find(Boolean) || '';
-      const returnAmount = relatedReturnOrders.reduce((sum, ro) => sum + toNumber(
-        ro.returnAmount ?? ro.totalAmount ?? ro.amount ?? ro.totalReturnAmount ?? ro.value ?? 0
-      ), 0);
+      const returnAmount = relatedReturnOrders.reduce((sum, ro) => {
+        if (!isActiveReturnOrder(ro)) return sum;
+        return sum + returnOrderTotalAmount(ro);
+      }, 0);
 
       const totalAmount = toNumber(
         child.totalAmount ?? child.totalReceivable ?? child.receivableAmount ?? child.grandTotal ?? child.amount ?? 0
       );
-      const cashAmount = toNumber(child.cashAmount ?? child.cashCollected ?? 0);
-      const bankAmount = toNumber(child.bankAmount ?? child.bankCollected ?? child.transferAmount ?? 0);
-      const bonusAmount = toNumber(child.bonusAmount ?? child.rewardAmount ?? child.displayRewardAmount ?? child.bonusReturnAmount ?? 0);
-      const directDebtAmount = child.debtAmount ?? child.remainingAmount;
-      const debtAmount = directDebtAmount != null
-        ? Math.max(0, toNumber(directDebtAmount))
-        : Math.max(0, totalAmount - cashAmount - bankAmount - bonusAmount - returnAmount);
+      const deliveryMoney = readDeliveryMoney(child);
+      const cashAmount = deliveryMoney.cashAmount;
+      const bankAmount = deliveryMoney.bankAmount;
+      const bonusAmount = deliveryMoney.rewardAmount;
+      const debtAmount = Math.max(
+        0,
+        totalAmount - cashAmount - bankAmount - bonusAmount - returnAmount
+      );
 
       const displayOrderCode = child.code || child.orderCode || child.salesOrderCode || child.invoiceCode || child.documentCode || child.id || '';
       const row = {
@@ -2155,8 +2192,12 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         cashAmount,
         bankAmount,
         bonusAmount,
+        rewardAmount: bonusAmount,
         returnAmount,
+        returnAmountFromReturnOrders: returnAmount,
+        returnAmountSource: 'returnOrders',
         debtAmount,
+        remainingAmount: debtAmount,
         status: child.status || '',
         deliveryStatus: child.deliveryStatus || 'waiting',
         hasReturn: relatedReturnOrders.length > 0 || returnAmount > 0,
