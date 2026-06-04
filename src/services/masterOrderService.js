@@ -1175,6 +1175,7 @@ async function listDeliveryToday(query = {}) {
     $or: [{ date }, { deliveryDate: date }],
     status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] }
   };
+  const masterQueryStartedAt = Date.now();
   const masterOrders = await masterOrderRepository.findAll(masterFilter, {
     sort: { deliveryDate: -1, createdAt: -1, code: -1 },
     skip: page.skip,
@@ -1495,6 +1496,11 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
   const route = normalizeText(query.route || query.routeName || '');
   const status = normalizeText(query.status || '');
 
+  let masterQueryMs = 0;
+  let salesQueryMs = 0;
+  let returnQueryMs = 0;
+  let buildRowsMs = 0;
+
   // Compact endpoint phải query nhẹ trực tiếp, không gọi listDeliveryToday().
   // listDeliveryToday() build đủ returnOrders/items/KPI/accounting nên gây chậm cho màn chỉ cần danh sách dòng đơn.
   const masterFilter = {
@@ -1529,6 +1535,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     sort: { deliveryDate: -1, createdAt: -1, code: -1 },
     limit
   });
+  masterQueryMs = Date.now() - masterQueryStartedAt;
 
   const normalizedMasterRefs = (masterOrders || []).map(normalizeMasterSalesOrderRefs);
   const salesOrderIds = [...new Set(normalizedMasterRefs.flatMap((item) => item.salesOrderIds))];
@@ -1561,6 +1568,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
   }
   const childFilter = childFilterParts.length ? { $or: childFilterParts } : null;
 
+  const salesQueryStartedAt = Date.now();
   const children = childFilter ? await orderRepository.findAll(childFilter, {
     projection: {
       id: 1,
@@ -1618,6 +1626,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     },
     limit: Math.max(allRefs.length, limit)
   }) : [];
+  salesQueryMs = Date.now() - salesQueryStartedAt;
 
   const childByKey = new Map();
   for (const child of children || []) {
@@ -1627,6 +1636,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
 
   // Query ReturnOrder đúng 1 lần và map theo các khóa chuẩn.
   const ReturnOrder = require('../models/ReturnOrder');
+  const returnQueryStartedAt = Date.now();
   const returnOrders = (salesOrderIds.length || salesOrderCodes.length)
     ? await ReturnOrder.find({
         $or: [
@@ -1638,7 +1648,9 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         }
       }).lean()
     : [];
+  returnQueryMs = Date.now() - returnQueryStartedAt;
 
+  const buildRowsStartedAt = Date.now();
   const returnOrderMap = new Map();
   for (const ro of returnOrders || []) {
     const keys = [
@@ -1765,8 +1777,15 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
     debtAmount: 0
   });
 
+  buildRowsMs = Date.now() - buildRowsStartedAt;
   const ms = Date.now() - compactStartedAt;
+  const totalMs = ms;
   const perf = {
+    masterQueryMs,
+    salesQueryMs,
+    returnQueryMs,
+    buildRowsMs,
+    totalMs,
     compactMs: ms,
     masterCount: masterOrders.length,
     childRefCount: allRefs.length,
