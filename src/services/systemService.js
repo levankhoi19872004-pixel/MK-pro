@@ -45,10 +45,11 @@ async function getDataSourceStatus() {
 }
 
 async function status() {
-  const [dataSource, settings] = await Promise.all([
-    getDataSourceStatus(),
-    settingRepository.findAll()
-  ]);
+  // V45 API performance rule:
+  // /api/system/status is a lightweight health/status endpoint.
+  // It must not count collections or load settings, because that made this API
+  // run 26+ Mongo queries every time the System screen opened.
+  const mongo = mongoState();
   return {
     ok: true,
     app: 'KHO Minh Khai Pro V45',
@@ -57,8 +58,10 @@ async function status() {
     env: process.env.NODE_ENV || 'development',
     legacyJsonEnabled: process.env.ENABLE_LEGACY_JSON === 'true',
     resetEnabled: process.env.ALLOW_SYSTEM_RESET === 'true',
-    dataSource,
-    settingCount: settings.length
+    mongoReadyState: mongoose.connection.readyState,
+    mongoState: mongo.state,
+    mongoOk: mongo.ok,
+    primaryDataSource: 'mongodb'
   };
 }
 

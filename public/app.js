@@ -146,6 +146,7 @@ if(promotionForm)promotionForm.addEventListener('submit',submitPromotion);
 if(resetPromotionButton)resetPromotionButton.addEventListener('click',resetPromotionForm);
 if(promotionSearchInput)promotionSearchInput.addEventListener('input',loadPromotions);
 if(reloadSystemStatusButton)reloadSystemStatusButton.addEventListener('click',()=>{loadSystemStatus();loadApiMonitor();});
+if(typeof reloadSystemDataSourceButton!=='undefined'&&reloadSystemDataSourceButton)reloadSystemDataSourceButton.addEventListener('click',loadSystemDataSource);
 if(createSystemBackupButton)createSystemBackupButton.addEventListener('click',createSystemBackup);
 if(resetSystemDataButton)resetSystemDataButton.addEventListener('click',resetSystemData);
 if(reloadApiMonitorButton)reloadApiMonitorButton.addEventListener('click',loadApiMonitor);

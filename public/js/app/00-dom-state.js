@@ -351,6 +351,7 @@ let customImportFields=[];
 let customImportTemplates=[];
 
 const reloadSystemStatusButton=document.getElementById('reloadSystemStatusButton');
+const reloadSystemDataSourceButton=document.getElementById('reloadSystemDataSourceButton');
 const createSystemBackupButton=document.getElementById('createSystemBackupButton');
 const resetSystemDataButton=document.getElementById('resetSystemDataButton');
 const systemResetScope=document.getElementById('systemResetScope');

@@ -33,14 +33,33 @@ async function loadSystemStatus() {
     const res = await fetch('/api/system/status');
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được trạng thái hệ thống');
-    const ds = json.dataSource || {};
-    if (systemMongoState) systemMongoState.textContent = ds.mongoState || (ds.mongoReadyState === 1 ? 'connected' : 'unknown');
+
+    if (systemMongoState) systemMongoState.textContent = json.mongoState || (json.mongoReadyState === 1 ? 'connected' : 'unknown');
     if (systemResetState) systemResetState.textContent = json.resetEnabled ? 'Đang bật' : 'Đang khóa';
-    if (systemDataSource) systemDataSource.textContent = ds.primaryDataSource || 'mongodb';
-    renderSystemCounts(ds.mongoCounts || {});
+    if (systemDataSource) systemDataSource.textContent = json.primaryDataSource || 'mongodb';
+
+    // Không tự tải số lượng collection ở API status.
+    // Muốn xem số lượng dữ liệu thì bấm nút “Tải số lượng dữ liệu”.
     setSystemMessage(json.resetEnabled ? 'Hệ thống sẵn sàng. Vẫn nên backup trước khi reset.' : 'Reset đang bị khóa. Muốn reset, bật ALLOW_SYSTEM_RESET=true trên server rồi deploy lại.', json.resetEnabled ? 'success' : '');
   } catch (err) {
     setSystemMessage(err.message || 'Không tải được trạng thái hệ thống', 'error');
+  }
+}
+
+async function loadSystemDataSource() {
+  try {
+    if (systemCountsTable) systemCountsTable.innerHTML = '<tr><td colspan="2">Đang tải số lượng dữ liệu...</td></tr>';
+    const res = await fetch('/api/system/data-source');
+    const json = await res.json();
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được số lượng dữ liệu');
+
+    if (systemMongoState) systemMongoState.textContent = json.mongoState || (json.mongoReadyState === 1 ? 'connected' : 'unknown');
+    if (systemDataSource) systemDataSource.textContent = json.primaryDataSource || 'mongodb';
+    renderSystemCounts(json.mongoCounts || {});
+    setSystemMessage('Đã tải số lượng dữ liệu hiện tại.', 'success');
+  } catch (err) {
+    if (systemCountsTable) systemCountsTable.innerHTML = `<tr><td colspan="2">${apiMonitorSafeText(err.message || 'Không tải được số lượng dữ liệu')}</td></tr>`;
+    setSystemMessage(err.message || 'Không tải được số lượng dữ liệu', 'error');
   }
 }
 
@@ -53,6 +72,7 @@ async function createSystemBackup() {
     const fileName = json.data?.fileName || json.backup?.fileName || 'backup json';
     setSystemMessage(`Đã tạo backup: ${fileName}`, 'success');
     await loadSystemStatus();
+    if (typeof loadSystemDataSource === 'function') await loadSystemDataSource();
   } catch (err) {
     setSystemMessage(err.message || 'Không tạo được backup', 'error');
   }
@@ -80,6 +100,7 @@ async function resetSystemData() {
     if (systemResetConfirm) systemResetConfirm.value = '';
     setSystemMessage(`Đã reset xong (${json.scope || scope}). Đã backup trước khi reset.`, 'success');
     await loadSystemStatus();
+    if (typeof loadSystemDataSource === 'function') await loadSystemDataSource();
     if (typeof loadProducts === 'function') loadProducts();
     if (typeof loadCustomers === 'function') loadCustomers();
     if (typeof loadStock === 'function') loadStock();
