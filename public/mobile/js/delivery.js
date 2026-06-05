@@ -700,8 +700,8 @@ async function saveDeliveryProducts(orderId) {
     return;
   }
   const noteInput = deliveryProductBox?.querySelector(`[data-product-note="${orderId}"]`);
-  // Gửi đầy đủ các dòng SL trả, kể cả dòng = 0.
-  // Nếu NVGH nhập nhầm rồi sửa về 0, backend cần nhận được lệnh ghi đè/xóa hàng trả cũ.
+  // Chỉ gửi các dòng thật sự có SL trả > 0.
+  // Tránh bấm Xác nhận giao làm tạo phiếu trả ảo khi toàn bộ ô SL trả đang = 0.
   const items = Array.from(deliveryProductBox?.querySelectorAll(`[data-return-order="${orderId}"]`) || [])
     .map(input => {
       const maxQty = deliveryToNumber(input.getAttribute('max') || 0);
@@ -711,14 +711,15 @@ async function saveDeliveryProducts(orderId) {
         qtyReturn,
         maxQty
       };
-    });
+    })
+    .filter(item => item.qtyReturn > 0);
   const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
   if (invalidItem) {
     setMessage(productMessage || actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng giao`, 'error');
     return;
   }
   try {
-    if (!order.returnLocked) {
+    if (!order.returnLocked && items.length > 0) {
       const returnResult = await mobileApi.createDeliveryReturn({
         orderId,
         returnType: 'partial',

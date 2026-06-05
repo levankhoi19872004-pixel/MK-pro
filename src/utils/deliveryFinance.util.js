@@ -13,14 +13,23 @@ function firstPositiveAmount(...values) {
 }
 
 function deliveryDebtBase(order = {}) {
+  // V45 accounting rule:
+  // AR-SALE phải lấy theo tổng phải thu ban đầu của đơn giao, không lấy theo còn nợ.
+  // Nhiều đơn thu đủ có debtAmount = 0 nhưng vẫn bắt buộc phải post AR-SALE + các dòng credit
+  // để màn Công nợ có lịch sử đủ và đối soát về 0.
   return firstPositiveAmount(
+    order.totalReceivable,
+    order.receivableAmount,
+    order.debtBeforeCollection,
     order.totalAmount,
     order.total,
     order.amount,
     order.grandTotal,
     order.payableAmount,
     order.orderAmount,
-    order.debtBeforeCollection,
+    order.originalAmount,
+    order.invoiceAmount,
+    // debtAmount/debt chỉ là fallback cuối cho dữ liệu cũ thiếu tổng phải thu.
     order.debtAmount,
     order.debt
   );
