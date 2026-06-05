@@ -13,6 +13,95 @@ function norm(value) { return lower(value).normalize('NFD').replace(/[\u0300-\u0
 function compact(value) { return norm(value).replace(/[^a-z0-9]/g, ''); }
 function truthy(value) { return ['1', 'true', 'yes', 'y'].includes(lower(value)); }
 
+function queryKeyword(query = {}, keys = []) {
+  for (const key of keys) {
+    const value = text(query[key]);
+    if (value && !['all', 'tat ca', 'tất cả', '*'].includes(norm(value))) return value;
+  }
+  return '';
+}
+
+function staffValues(row = {}, fields = []) {
+  return fields
+    .flatMap((field) => {
+      const value = row[field];
+      if (Array.isArray(value)) return value;
+      return [value];
+    })
+    .map(text)
+    .filter(Boolean);
+}
+
+function matchesStaff(row = {}, keyword = '', fields = []) {
+  const q = compact(keyword);
+  const qText = norm(keyword);
+  if (!q && !qText) return true;
+  const values = staffValues(row, fields);
+  return values.some((value) => {
+    const valueCompact = compact(value);
+    const valueText = norm(value);
+    return (q && valueCompact.includes(q)) || (qText && valueText.includes(qText));
+  });
+}
+
+const DELIVERY_STAFF_FIELDS = [
+  'deliveryStaffCode',
+  'deliveryStaffName',
+  'deliveryCode',
+  'deliveryName',
+  'shipperCode',
+  'shipperName',
+  'nvghCode',
+  'nvghName',
+  'staffDeliveryCode',
+  'staffDeliveryName'
+];
+
+const SALES_STAFF_FIELDS = [
+  'salesStaffCode',
+  'salesStaffName',
+  'salesmanCode',
+  'salesmanName',
+  'staffCode',
+  'staffName',
+  'saleCode',
+  'saleName',
+  'nvbhCode',
+  'nvbhName'
+];
+
+function applyStaffFilters(rows = [], query = {}) {
+  const deliveryKeyword = queryKeyword(query, [
+    'deliveryStaffCode',
+    'deliveryStaffName',
+    'deliveryStaff',
+    'deliveryStaffKeyword',
+    'deliveryCode',
+    'deliveryName',
+    'nvgh',
+    'nvghCode',
+    'nvghName'
+  ]);
+  const salesKeyword = queryKeyword(query, [
+    'salesStaffCode',
+    'salesStaffName',
+    'salesStaff',
+    'salesStaffKeyword',
+    'salesCode',
+    'salesName',
+    'nvbh',
+    'nvbhCode',
+    'nvbhName'
+  ]);
+
+  return rows.filter((row) => {
+    if (deliveryKeyword && !matchesStaff(row, deliveryKeyword, DELIVERY_STAFF_FIELDS)) return false;
+    if (salesKeyword && !matchesStaff(row, salesKeyword, SALES_STAFF_FIELDS)) return false;
+    return true;
+  });
+}
+
+
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
 function productCodeOf(item = {}) { return text(item.productCode || item.code || item.productId || item.sku || item.id || item._id); }
@@ -284,25 +373,49 @@ class DeliveryEngine {
     const date = text(query.date || query.deliveryDate || today());
     const filter = {};
     if (date) filter.deliveryDate = date;
-    if (text(query.deliveryStaffCode)) filter.deliveryStaffCode = text(query.deliveryStaffCode);
-    if (text(query.salesStaffCode)) filter.$or = [{ salesStaffCode: text(query.salesStaffCode) }, { staffCode: text(query.salesStaffCode) }];
-    if (text(query.status)) filter.deliveryStatus = text(query.status);
 
-    let orders = await this.SalesOrder.find(filter).sort({ deliveryStaffCode: 1, customerName: 1, code: 1 }).limit(500).lean();
+    const status = norm(query.status);
+    if (status && !['all', 'tat ca', 'tất cả', '*'].includes(status)) {
+      filter.deliveryStatus = text(query.status);
+    }
+
+    // Không lọc NVGH/NVBH trực tiếp bằng 1 field Mongo ở đây.
+    // Dữ liệu cũ có nhiều tên field khác nhau (salesStaffCode/staffCode/salesmanCode,
+    // deliveryStaffCode/shipperCode/staffDeliveryCode...). Nếu query DB theo 1 field,
+    // hệ thống dễ trả sai hoặc rơi vào nhánh masterOrder và bỏ qua lọc NVBH.
+    let orders = await this.SalesOrder.find(filter)
+      .sort({ deliveryStaffCode: 1, customerName: 1, code: 1 })
+      .limit(1000)
+      .lean();
 
     if (!orders.length && date && this.MasterOrder) {
-      const masterFilter = { deliveryDate: date };
-      if (text(query.deliveryStaffCode)) masterFilter.deliveryStaffCode = text(query.deliveryStaffCode);
-      const masters = await this.MasterOrder.find(masterFilter).lean();
-      const childIds = unique(masters.flatMap((m) => Array.isArray(m.childOrderIds) ? m.childOrderIds : []));
+      const masters = await this.MasterOrder.find({ deliveryDate: date }).lean();
+      const filteredMasters = applyStaffFilters(masters, query);
+      const childIds = unique(filteredMasters.flatMap((m) => Array.isArray(m.childOrderIds) ? m.childOrderIds : []));
       if (childIds.length) {
-        orders = await this.SalesOrder.find({ $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] }).limit(500).lean();
+        orders = await this.SalesOrder.find({ $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] })
+          .limit(1000)
+          .lean();
       }
     }
 
-    const q = lower(query.q || query.keyword);
+    orders = applyStaffFilters(orders, query);
+
+    const q = norm(query.q || query.keyword);
     if (q) {
-      orders = orders.filter((o) => [o.code, o.orderCode, o.customerCode, o.customerName, o.salesStaffName, o.deliveryStaffName].some((v) => lower(v).includes(q)));
+      orders = orders.filter((o) => [
+        o.code,
+        o.orderCode,
+        o.salesOrderCode,
+        o.customerCode,
+        o.customerName,
+        o.salesStaffCode,
+        o.salesStaffName,
+        o.staffCode,
+        o.staffName,
+        o.deliveryStaffCode,
+        o.deliveryStaffName
+      ].some((v) => norm(v).includes(q)));
     }
     return orders;
   }

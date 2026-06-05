@@ -26,3 +26,81 @@ test('DeliveryEngine reconciliation detects money mismatch', () => {
   assert.equal(r.balanced, false);
   assert.equal(r.difference, 20000);
 });
+
+
+test('DeliveryEngine.listOrders filters NVBH and NVGH after loading canonical orders', async () => {
+  const rows = [
+    {
+      id: 'SO1',
+      code: 'SO001',
+      deliveryDate: '2026-06-05',
+      deliveryStaffCode: 'ghkx',
+      deliveryStaffName: 'Nguyễn Đức Hào',
+      salesStaffCode: '35128',
+      salesStaffName: 'Nguyễn Thị Thùy',
+      customerName: 'Khách sai'
+    },
+    {
+      id: 'SO2',
+      code: 'SO002',
+      deliveryDate: '2026-06-05',
+      deliveryStaffCode: 'ghkx',
+      deliveryStaffName: 'Nguyễn Đức Hào',
+      salesStaffCode: '33955',
+      salesStaffName: 'Lương Thị Kiều',
+      customerName: 'Khách đúng'
+    },
+    {
+      id: 'SO3',
+      code: 'SO003',
+      deliveryDate: '2026-06-05',
+      deliveryStaffCode: 'gh01',
+      deliveryStaffName: 'Nhân viên khác',
+      salesStaffCode: '33955',
+      salesStaffName: 'Lương Thị Kiều',
+      customerName: 'Sai NVGH'
+    }
+  ];
+
+  const fakeModel = {
+    find() {
+      return {
+        sort() {
+          return {
+            limit() {
+              return {
+                lean: async () => rows
+              };
+            }
+          };
+        }
+      };
+    }
+  };
+
+  const emptyReturnModel = {
+    find() {
+      return { lean: async () => [] };
+    }
+  };
+
+  const { DeliveryEngine } = require('../src/engines/delivery.engine');
+  const engine = new DeliveryEngine({
+    SalesOrder: fakeModel,
+    ReturnOrder: emptyReturnModel,
+    MasterOrder: null,
+    StockTransaction: {},
+    ArLedger: {},
+    User: {}
+  });
+
+  const result = await engine.listOrders({
+    date: '2026-06-05',
+    deliveryStaffCode: 'ghkx',
+    salesStaffCode: '33955',
+    checkStaffAssignment: '0',
+    staffCheck: '0'
+  });
+
+  assert.deepEqual(result.rows.map((row) => row.orderCode), ['SO002']);
+});
