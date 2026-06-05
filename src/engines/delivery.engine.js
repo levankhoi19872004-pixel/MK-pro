@@ -110,6 +110,41 @@ function qtyOf(item = {}) { return toNumber(item.deliveredQty ?? item.soldQty ??
 function returnQtyOf(item = {}) { return toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantityReturn ?? 0); }
 function priceOf(item = {}) { return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0); }
 
+function orderItemIndex(order = {}) {
+  const map = new Map();
+  for (const item of Array.isArray(order.items) ? order.items : []) {
+    const code = productCodeOf(item);
+    if (code && !map.has(code)) map.set(code, item);
+  }
+  return map;
+}
+
+function resolveReturnItemWithOrderLine(item = {}, orderLine = {}) {
+  const productCode = productCodeOf(item) || productCodeOf(orderLine);
+  const returnQty = returnQtyOf(item);
+  const price = priceOf(item) || priceOf(orderLine);
+  const productName = productNameOf(item) || productNameOf(orderLine);
+  const returnAmount = Math.max(0, Math.round(returnQty * price));
+  return {
+    ...orderLine,
+    ...item,
+    productId: text(item.productId || orderLine.productId || productCode),
+    productCode,
+    code: productCode,
+    productName,
+    name: productName,
+    returnQty,
+    qtyReturn: returnQty,
+    returnQuantity: returnQty,
+    returnedQty: returnQty,
+    price,
+    salePrice: price,
+    unitPrice: price,
+    returnAmount,
+    amount: returnAmount
+  };
+}
+
 function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }; }
 
 function buildOrderLookup(value) {
@@ -449,28 +484,13 @@ class DeliveryEngine {
     return { rows, summary: summarizeOrders(rows), reconciliation: this.reconcileRows(rows) };
   }
 
-  normalizeReturnItems(sourceItems = []) {
+  normalizeReturnItems(sourceItems = [], order = {}) {
+    const soldByCode = orderItemIndex(order);
     return (Array.isArray(sourceItems) ? sourceItems : [])
       .map((item) => {
         const productCode = productCodeOf(item);
-        const returnQty = returnQtyOf(item);
-        const price = priceOf(item);
-        return {
-          productId: text(item.productId || productCode),
-          productCode,
-          code: productCode,
-          productName: productNameOf(item),
-          name: productNameOf(item),
-          returnQty,
-          qtyReturn: returnQty,
-          returnQuantity: returnQty,
-          returnedQty: returnQty,
-          price,
-          salePrice: price,
-          unitPrice: price,
-          returnAmount: Math.round(returnQty * price),
-          amount: Math.round(returnQty * price)
-        };
+        const orderLine = soldByCode.get(productCode) || {};
+        return resolveReturnItemWithOrderLine(item, orderLine);
       })
       .filter((item) => item.productCode && item.returnQty > 0);
   }
@@ -484,7 +504,7 @@ class DeliveryEngine {
       throw err;
     }
 
-    const items = this.normalizeReturnItems(body.items);
+    const items = this.normalizeReturnItems(body.items, order);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
     const stableId = `RO-${orderCodeOf(order).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
     const patch = {
@@ -529,6 +549,22 @@ class DeliveryEngine {
       { $set: patch, $setOnInsert: { createdAt: new Date().toISOString() } },
       { upsert: true, new: true, lean: true }
     );
+
+    // Mirror canonical return fields onto the sales order for legacy delivery screens only.
+    // ReturnOrder remains the source of truth; this prevents the current row from looking unsaved
+    // and keeps old master-delivery snapshots consistent until they are fully migrated.
+    await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), {
+      $set: {
+        deliveryReturnItems: items,
+        returnItems: items,
+        returnAmount: totalAmount,
+        returnedAmount: totalAmount,
+        totalReturnAmount: totalAmount,
+        returnOrderId: returnOrder && (returnOrder.id || returnOrder._id || ''),
+        returnOrderCode: returnOrder && (returnOrder.code || ''),
+        updatedAt: new Date().toISOString()
+      }
+    }, { new: false, lean: true });
 
     const canonical = await this.getCanonicalOrderByKey(orderIdOf(order));
     return { order: canonical, returnOrder, message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0' };

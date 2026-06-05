@@ -308,9 +308,45 @@ function isPromoLineFromRow(row = {}) {
   return ['1', 'y', 'yes', 'true', 'x', 'km', 'co', 'có'].includes(value);
 }
 
+function hasOwnImportValue(row = {}, keys = []) {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null && row[key] !== '');
+}
+
+function getRawDmsQuantityValue(row = {}) {
+  return toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
+}
+
+function hasExplicitDmsAmount(row = {}) {
+  return hasOwnImportValue(row, [
+    'actualAmount',
+    'lineAmount',
+    'amount',
+    'Doanh số mỗi ngày',
+    'Doanh so moi ngay',
+    'Thành tiền',
+    'Thanh tien',
+    'Thành tiền thực tế',
+    'Thanh tien thuc te',
+    'Giá trị bán thực tế',
+    'Gia tri ban thuc te'
+  ]);
+}
+
+function getExplicitDmsAmount(row = {}) {
+  return toNumber(row.actualAmount ?? row.lineAmount ?? row.amount ?? row['Doanh số mỗi ngày'] ?? row['Doanh so moi ngay'] ?? row['Thành tiền'] ?? row['Thanh tien'] ?? row['Thành tiền thực tế'] ?? row['Thanh tien thuc te'] ?? row['Giá trị bán thực tế'] ?? row['Gia tri ban thuc te']);
+}
+
+function isZeroAmountPromoLineFromRow(row = {}) {
+  if (isPromoLineFromRow(row)) return true;
+  const qty = getRawDmsQuantityValue(row);
+  if (qty <= 0) return false;
+  if (!hasExplicitDmsAmount(row)) return false;
+  return getExplicitDmsAmount(row) === 0;
+}
+
 function getDmsQuantityFromRow(row = {}, product = null) {
-  if (isPromoLineFromRow(row)) return 0;
-  const directQty = toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']));
+  if (isZeroAmountPromoLineFromRow(row)) return 0;
+  const directQty = getRawDmsQuantityValue(row);
   const packing = getPackingFromRow(row, product);
   const cartons = getCartonsFromRow(row);
   const units = getUnitsFromRow(row);
@@ -336,8 +372,8 @@ function getDmsPromoQuantityFromRow(row = {}, product = null) {
     row['Hang khuyen mai'] ??
     0
   );
-  const flaggedPromoQty = isPromoLineFromRow(row)
-    ? toNumber(row.quantity ?? row.qty ?? row['Số lượng'] ?? row['So luong'] ?? row.sl ?? number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'sl']))
+  const flaggedPromoQty = isZeroAmountPromoLineFromRow(row)
+    ? getRawDmsQuantityValue(row)
     : 0;
   return promoQty1 + promoQty2 + directPromoQty + flaggedPromoQty;
 }
@@ -361,8 +397,8 @@ function allocateStockForSaleAndPromo(saleQuantity = 0, promoQuantity = 0, avail
 }
 
 function getActualAmountFromRow(row = {}) {
-  if (isPromoLineFromRow(row)) return 0;
-  return toNumber(row.actualAmount ?? row.lineAmount ?? row.amount ?? row['Doanh số mỗi ngày'] ?? row['Doanh so moi ngay'] ?? row['Thành tiền'] ?? row['Thanh tien'] ?? row['Thành tiền thực tế'] ?? row['Thanh tien thuc te'] ?? row['Giá trị bán thực tế'] ?? row['Gia tri ban thuc te']);
+  if (isZeroAmountPromoLineFromRow(row)) return 0;
+  return getExplicitDmsAmount(row);
 }
 
 function getListPriceBeforeVatFromRow(row = {}) {
