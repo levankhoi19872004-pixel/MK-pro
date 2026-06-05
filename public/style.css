@@ -6517,3 +6517,19 @@ body::after{
     justify-content:flex-start!important;
   }
 }
+
+/* ===== V45 delivery edit totals: keep debt/overpay/match in the same horizontal row ===== */
+#deliveryTodayTab .delivery-edit-total-box .summary-inline-item{
+  display:block!important;
+  min-width:0!important;
+}
+#deliveryTodayTab .delivery-edit-total-box .total-debt,
+#deliveryTodayTab .delivery-edit-total-box .total-overpay,
+#deliveryTodayTab .delivery-edit-total-box .total-match{
+  grid-column:auto!important;
+}
+@media(max-width:560px){
+  #deliveryTodayTab .delivery-edit-total-box{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+}
