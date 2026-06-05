@@ -1,5 +1,421 @@
-function buildDeliveryAssignment(order = {}) {
-  return order;
+'use strict';
+
+const { toNumber, makeId } = require('../utils/common.util');
+const deliveryFinance = require('../utils/deliveryFinance.util');
+const dateUtil = require('../utils/date.util');
+
+function text(value) { return String(value == null ? '' : value).trim(); }
+function lower(value) { return text(value).toLowerCase(); }
+function unique(values = []) { return [...new Set(values.map(text).filter(Boolean))]; }
+function today() { return dateUtil.todayVN ? dateUtil.todayVN() : new Date().toISOString().slice(0, 10); }
+function num(value) { const n = Number(value || 0); return Number.isFinite(n) ? n : 0; }
+
+function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
+function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
+function productCodeOf(item = {}) { return text(item.productCode || item.code || item.productId || item.sku || item.id || item._id); }
+function productNameOf(item = {}) { return text(item.productName || item.name || item.product || ''); }
+function qtyOf(item = {}) { return toNumber(item.deliveredQty ?? item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? item.quantity ?? item.qty ?? 0); }
+function returnQtyOf(item = {}) { return toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantityReturn ?? 0); }
+function priceOf(item = {}) { return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0); }
+
+function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }; }
+
+function buildOrderLookup(value) {
+  const key = text(value);
+  if (!key) return null;
+  const or = [{ id: key }, { code: key }, { orderCode: key }, { salesOrderId: key }, { salesOrderCode: key }];
+  if (/^[a-f\d]{24}$/i.test(key)) or.push({ _id: key });
+  return { $or: or };
 }
 
-module.exports = { buildDeliveryAssignment };
+function returnMatchesOrder(ret = {}, order = {}) {
+  const ids = unique([orderIdOf(order), order.salesOrderId, order.orderId]);
+  const codes = unique([orderCodeOf(order), order.salesOrderCode, order.orderCode, order.code]);
+  const retIds = unique([ret.salesOrderId, ret.orderId, ret.sourceOrderId, ret.deliveryOrderId]);
+  const retCodes = unique([ret.salesOrderCode, ret.orderCode, ret.sourceOrderCode, ret.deliveryOrderCode, ret.code && String(ret.code).replace(/^RO[-_]?/i, '')]);
+  return ids.some((id) => retIds.includes(id)) || codes.some((code) => retCodes.includes(code));
+}
+
+function normalizeReturnItemsFromOrders(returnOrders = []) {
+  const byCode = new Map();
+  for (const ret of returnOrders || []) {
+    const status = lower(ret.status);
+    if (['cancelled', 'canceled', 'void', 'deleted'].includes(status)) continue;
+    for (const raw of Array.isArray(ret.items) ? ret.items : []) {
+      const productCode = productCodeOf(raw);
+      if (!productCode) continue;
+      const prev = byCode.get(productCode) || {
+        productCode,
+        code: productCode,
+        productName: productNameOf(raw),
+        name: productNameOf(raw),
+        returnQty: 0,
+        qtyReturn: 0,
+        returnQuantity: 0,
+        returnedQty: 0,
+        price: priceOf(raw),
+        salePrice: priceOf(raw),
+        unitPrice: priceOf(raw),
+        returnAmount: 0,
+        amount: 0
+      };
+      const qty = returnQtyOf(raw) || qtyOf(raw);
+      const price = priceOf(raw) || prev.price || 0;
+      prev.productName = prev.productName || productNameOf(raw);
+      prev.name = prev.productName;
+      prev.returnQty += qty;
+      prev.qtyReturn = prev.returnQty;
+      prev.returnQuantity = prev.returnQty;
+      prev.returnedQty = prev.returnQty;
+      prev.price = price;
+      prev.salePrice = price;
+      prev.unitPrice = price;
+      prev.returnAmount = Math.round(prev.returnQty * price);
+      prev.amount = prev.returnAmount;
+      byCode.set(productCode, prev);
+    }
+  }
+  return Array.from(byCode.values());
+}
+
+function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
+  const returnItems = normalizeReturnItemsFromOrders(relatedReturnOrders);
+  const returnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
+  const canonical = deliveryFinance.buildCanonicalDeliveryOrder(order, { returnItems, returnAmountOverride: returnAmount });
+  const amounts = canonical.amounts || {};
+  return {
+    ...canonical,
+    orderId: orderIdOf(order),
+    orderCode: orderCodeOf(order),
+    salesOrderId: text(order.salesOrderId || order.id || order._id),
+    salesOrderCode: text(order.salesOrderCode || order.orderCode || order.code || orderCodeOf(order)),
+    customerCode: text(order.customerCode),
+    customerName: text(order.customerName),
+    deliveryDate: text(order.deliveryDate || order.date || order.documentDate),
+    salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.staffCode),
+    salesStaffName: text(order.salesStaffName || order.salesmanName || order.staffName),
+    deliveryStaffCode: text(order.deliveryStaffCode),
+    deliveryStaffName: text(order.deliveryStaffName),
+    items: canonical.items,
+    returnItems: canonical.items,
+    amounts: {
+      receivable: toNumber(amounts.receivable ?? amounts.totalReceivable),
+      cash: toNumber(amounts.cash ?? amounts.cashAmount),
+      bank: toNumber(amounts.bank ?? amounts.bankAmount),
+      reward: toNumber(amounts.reward ?? amounts.rewardAmount),
+      returnAmount: toNumber(amounts.returnAmount),
+      processed: toNumber(amounts.processed),
+      debt: toNumber(amounts.debt ?? amounts.debtAmount)
+    },
+    reconciliation: buildOrderReconciliation(amounts),
+    status: {
+      deliveryStatus: text(order.deliveryStatus || order.status || 'pending'),
+      paymentStatus: (amounts.debt || 0) <= 0 ? 'paid' : ((amounts.processed || 0) > 0 ? 'partial' : 'unpaid'),
+      returnStatus: (amounts.returnAmount || 0) > 0 ? 'has_return' : 'none',
+      accountingStatus: text(order.accountingStatus || '')
+    }
+  };
+}
+
+function buildOrderReconciliation(amounts = {}) {
+  const receivable = toNumber(amounts.receivable ?? amounts.totalReceivable);
+  const cash = toNumber(amounts.cash ?? amounts.cashAmount);
+  const bank = toNumber(amounts.bank ?? amounts.bankAmount);
+  const reward = toNumber(amounts.reward ?? amounts.rewardAmount);
+  const returnAmount = toNumber(amounts.returnAmount);
+  const debt = toNumber(amounts.debt ?? amounts.debtAmount);
+  const processed = cash + bank + reward + returnAmount + debt;
+  const difference = Math.round(receivable - processed);
+  return {
+    receivable,
+    cash,
+    bank,
+    reward,
+    returnAmount,
+    debt,
+    processed,
+    difference,
+    balanced: Math.abs(difference) <= 1000,
+    message: Math.abs(difference) <= 1000 ? 'Đối soát OK' : `Chênh lệch ${difference.toLocaleString('vi-VN')}`
+  };
+}
+
+function summarizeOrders(rows = []) {
+  return rows.reduce((acc, order) => {
+    const a = order.amounts || {};
+    acc.receivable += toNumber(a.receivable);
+    acc.cash += toNumber(a.cash);
+    acc.bank += toNumber(a.bank);
+    acc.reward += toNumber(a.reward);
+    acc.returnAmount += toNumber(a.returnAmount);
+    acc.debt += toNumber(a.debt);
+    return acc;
+  }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
+}
+
+class DeliveryEngine {
+  constructor(models = {}) {
+    this.SalesOrder = models.SalesOrder;
+    this.MasterOrder = models.MasterOrder;
+    this.ReturnOrder = models.ReturnOrder;
+    this.StockTransaction = models.StockTransaction;
+    this.ArLedger = models.ArLedger;
+  }
+
+  async findOrders(query = {}) {
+    const date = text(query.date || query.deliveryDate || today());
+    const filter = {};
+    if (date) filter.deliveryDate = date;
+    if (text(query.deliveryStaffCode)) filter.deliveryStaffCode = text(query.deliveryStaffCode);
+    if (text(query.salesStaffCode)) filter.$or = [{ salesStaffCode: text(query.salesStaffCode) }, { staffCode: text(query.salesStaffCode) }];
+    if (text(query.status)) filter.deliveryStatus = text(query.status);
+
+    let orders = await this.SalesOrder.find(filter).sort({ deliveryStaffCode: 1, customerName: 1, code: 1 }).limit(500).lean();
+
+    if (!orders.length && date && this.MasterOrder) {
+      const masterFilter = { deliveryDate: date };
+      if (text(query.deliveryStaffCode)) masterFilter.deliveryStaffCode = text(query.deliveryStaffCode);
+      const masters = await this.MasterOrder.find(masterFilter).lean();
+      const childIds = unique(masters.flatMap((m) => Array.isArray(m.childOrderIds) ? m.childOrderIds : []));
+      if (childIds.length) {
+        orders = await this.SalesOrder.find({ $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] }).limit(500).lean();
+      }
+    }
+
+    const q = lower(query.q || query.keyword);
+    if (q) {
+      orders = orders.filter((o) => [o.code, o.orderCode, o.customerCode, o.customerName, o.salesStaffName, o.deliveryStaffName].some((v) => lower(v).includes(q)));
+    }
+    return orders;
+  }
+
+  async findReturnOrdersFor(orders = []) {
+    const ids = unique(orders.flatMap((o) => [orderIdOf(o), o.id, o._id, o.salesOrderId, o.orderId]));
+    const codes = unique(orders.flatMap((o) => [orderCodeOf(o), o.code, o.orderCode, o.salesOrderCode]));
+    const or = [];
+    if (ids.length) or.push({ salesOrderId: { $in: ids } }, { orderId: { $in: ids } }, { sourceOrderId: { $in: ids } }, { deliveryOrderId: { $in: ids } });
+    if (codes.length) or.push({ salesOrderCode: { $in: codes } }, { orderCode: { $in: codes } }, { sourceOrderCode: { $in: codes } }, { deliveryOrderCode: { $in: codes } });
+    if (!or.length) return [];
+    return this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean();
+  }
+
+  async getCanonicalOrderByKey(key) {
+    const lookup = buildOrderLookup(key);
+    if (!lookup) return null;
+    const order = await this.SalesOrder.findOne(lookup).lean();
+    if (!order) return null;
+    const returns = await this.findReturnOrdersFor([order]);
+    return buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order)));
+  }
+
+  async listOrders(query = {}) {
+    const orders = await this.findOrders(query);
+    const returns = await this.findReturnOrdersFor(orders);
+    const rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    return { rows, summary: summarizeOrders(rows), reconciliation: this.reconcileRows(rows) };
+  }
+
+  normalizeReturnItems(sourceItems = []) {
+    return (Array.isArray(sourceItems) ? sourceItems : [])
+      .map((item) => {
+        const productCode = productCodeOf(item);
+        const returnQty = returnQtyOf(item);
+        const price = priceOf(item);
+        return {
+          productId: text(item.productId || productCode),
+          productCode,
+          code: productCode,
+          productName: productNameOf(item),
+          name: productNameOf(item),
+          returnQty,
+          qtyReturn: returnQty,
+          returnQuantity: returnQty,
+          returnedQty: returnQty,
+          price,
+          salePrice: price,
+          unitPrice: price,
+          returnAmount: Math.round(returnQty * price),
+          amount: Math.round(returnQty * price)
+        };
+      })
+      .filter((item) => item.productCode && item.returnQty > 0);
+  }
+
+  async saveReturn(body = {}) {
+    const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
+    const order = await this.SalesOrder.findOne(buildOrderLookup(key)).lean();
+    if (!order) {
+      const err = new Error('Không tìm thấy đơn giao hàng');
+      err.status = 404;
+      throw err;
+    }
+
+    const items = this.normalizeReturnItems(body.items);
+    const totalAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
+    const stableId = `RO-${orderCodeOf(order).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
+    const patch = {
+      id: stableId,
+      code: stableId,
+      salesOrderId: orderIdOf(order),
+      salesOrderCode: orderCodeOf(order),
+      orderId: orderIdOf(order),
+      orderCode: orderCodeOf(order),
+      customerId: text(order.customerId),
+      customerCode: text(order.customerCode),
+      customerName: text(order.customerName),
+      deliveryDate: text(order.deliveryDate || body.deliveryDate || today()),
+      date: text(body.date || order.deliveryDate || today()),
+      documentDate: text(body.documentDate || body.date || order.deliveryDate || today()),
+      deliveryStaffCode: text(body.deliveryStaffCode || order.deliveryStaffCode),
+      deliveryStaffName: text(body.deliveryStaffName || order.deliveryStaffName),
+      salesStaffCode: text(body.salesStaffCode || order.salesStaffCode || order.staffCode),
+      salesStaffName: text(body.salesStaffName || order.salesStaffName || order.staffName),
+      staffCode: text(body.deliveryStaffCode || order.deliveryStaffCode),
+      staffName: text(body.deliveryStaffName || order.deliveryStaffName),
+      source: 'canonical_delivery_engine',
+      refType: items.length ? 'canonicalDeliveryReturn' : 'canonicalDeliveryReturnClear',
+      returnType: text(body.returnType || 'partial') || 'partial',
+      returnStatus: items.length ? 'active' : 'cleared',
+      status: items.length ? 'active' : 'cleared',
+      accountingConfirmed: false,
+      accountingStatus: items.length ? 'pending' : 'cleared',
+      items,
+      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.returnQty), 0),
+      totalAmount,
+      totalReturnAmount: totalAmount,
+      amount: totalAmount,
+      debtReduction: totalAmount,
+      note: text(body.note) || (items.length ? 'Cập nhật hàng trả từ DeliveryEngine' : 'Xóa hàng trả về 0 từ DeliveryEngine'),
+      updatedAt: new Date().toISOString(),
+      clearedAt: items.length ? '' : new Date().toISOString()
+    };
+
+    const returnOrder = await this.ReturnOrder.findOneAndUpdate(
+      { $or: [{ id: stableId }, { code: stableId }, { salesOrderId: orderIdOf(order), salesOrderCode: orderCodeOf(order) }, { orderId: orderIdOf(order), orderCode: orderCodeOf(order) }] },
+      { $set: patch, $setOnInsert: { createdAt: new Date().toISOString() } },
+      { upsert: true, new: true, lean: true }
+    );
+
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(order));
+    return { order: canonical, returnOrder, message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0' };
+  }
+
+  async savePayment(body = {}) {
+    const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
+    const current = await this.getCanonicalOrderByKey(key);
+    if (!current) {
+      const err = new Error('Không tìm thấy đơn giao hàng');
+      err.status = 404;
+      throw err;
+    }
+    const cashAmount = Math.max(0, num(body.cashAmount ?? body.cashCollected));
+    const bankAmount = Math.max(0, num(body.bankAmount ?? body.bankCollected ?? body.transferAmount));
+    const rewardAmount = Math.max(0, num(body.rewardAmount ?? body.bonusAmount));
+    const returnAmount = toNumber(current.amounts && current.amounts.returnAmount);
+    const receivable = toNumber(current.amounts && current.amounts.receivable);
+    const paidByCurrentRequest = cashAmount + bankAmount + rewardAmount + returnAmount;
+    if (paidByCurrentRequest - receivable > 1000) {
+      const err = new Error(`Tổng thu/trả (${paidByCurrentRequest.toLocaleString('vi-VN')}) vượt phải thu (${receivable.toLocaleString('vi-VN')})`);
+      err.status = 400;
+      throw err;
+    }
+
+    const allocation = {
+      type: 'delivery_collection',
+      source: 'DeliveryEngine',
+      date: text(body.date || today()),
+      cashAmount,
+      bankAmount,
+      rewardAmount,
+      returnAmount,
+      amount: cashAmount + bankAmount + rewardAmount,
+      salesOrderId: current.salesOrderId,
+      salesOrderCode: current.salesOrderCode,
+      orderId: current.orderId,
+      orderCode: current.orderCode,
+      createdAt: new Date().toISOString()
+    };
+
+    const patch = {
+      deliveryPayment: allocation,
+      paymentAllocations: [allocation],
+      deliveryPaymentSource: 'DeliveryEngine',
+      // Legacy mirrors kept for old reports only. Canonical reads still go through DeliveryEngine.
+      cashCollected: cashAmount,
+      cashAmount,
+      bankCollected: bankAmount,
+      bankAmount,
+      transferAmount: bankAmount,
+      rewardAmount,
+      displayRewardAmount: rewardAmount,
+      paidAmount: cashAmount + bankAmount,
+      collectedAmount: cashAmount + bankAmount,
+      updatedAt: new Date().toISOString()
+    };
+    const updated = await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), { $set: patch }, { new: true, lean: true });
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(updated));
+    return { order: canonical, allocation, message: 'Đã lưu thu tiền' };
+  }
+
+  async confirm(body = {}) {
+    const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
+    const current = await this.getCanonicalOrderByKey(key);
+    if (!current) {
+      const err = new Error('Không tìm thấy đơn giao hàng');
+      err.status = 404;
+      throw err;
+    }
+    if (current.reconciliation && !current.reconciliation.balanced) {
+      const err = new Error(current.reconciliation.message || 'Đơn chưa cân đối, không thể xác nhận giao');
+      err.status = 400;
+      throw err;
+    }
+    const deliveryStatus = text(body.deliveryStatus || body.status || 'delivered');
+    const isDelivered = ['delivered', 'success', 'done', 'completed'].includes(lower(deliveryStatus));
+    const patch = {
+      deliveryStatus: isDelivered ? 'delivered' : deliveryStatus,
+      status: isDelivered ? 'delivered' : deliveryStatus,
+      deliveryNote: text(body.note || body.deliveryNote),
+      deliveredAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const updated = await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), { $set: patch }, { new: true, lean: true });
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(updated));
+    return { order: canonical, message: 'Đã xác nhận giao hàng' };
+  }
+
+  reconcileRows(rows = []) {
+    const summary = summarizeOrders(rows);
+    const difference = Math.round(summary.receivable - summary.cash - summary.bank - summary.reward - summary.returnAmount - summary.debt);
+    return {
+      ...summary,
+      difference,
+      balanced: Math.abs(difference) <= 1000,
+      message: Math.abs(difference) <= 1000 ? 'Đối soát OK' : `Chênh lệch ${difference.toLocaleString('vi-VN')}`
+    };
+  }
+
+  async reconciliation(query = {}) {
+    const result = await this.listOrders(query);
+    return result.reconciliation;
+  }
+}
+
+function buildDeliveryAssignment(order = {}) { return order; }
+
+module.exports = {
+  DeliveryEngine,
+  buildDeliveryAssignment,
+  buildCanonicalOrder,
+  buildOrderReconciliation,
+  summarizeOrders,
+  helpers: {
+    text,
+    unique,
+    orderIdOf,
+    orderCodeOf,
+    productCodeOf,
+    returnMatchesOrder,
+    buildOrderLookup
+  }
+};

@@ -120,6 +120,8 @@
       });
       var json = await this.api('/api/delivery/orders' + (params.toString() ? '?' + params.toString() : ''));
       var rows = json.orders || json.rows || json.items || [];
+      this.state.summary = json.summary || {};
+      this.state.reconciliation = json.reconciliation || {};
       this.state.orders = rows.map(normalizeOrder);
       if (this.state.selectedOrder) {
         var key = orderKey(this.state.selectedOrder);
@@ -190,6 +192,18 @@
       var json = await this.api('/api/delivery/payment', { method: 'POST', body: JSON.stringify(this.buildPaymentPayload(order, payment)) });
       if (json.order) this.patchOrder(json.order);
       return json;
+    },
+
+    async loadReconciliation(filters) {
+      filters = Object.assign({}, this.state.filters, filters || {});
+      var params = new URLSearchParams();
+      Object.keys(filters).forEach(function (key) {
+        var value = filters[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') params.set(key, value);
+      });
+      var json = await this.api('/api/delivery/reconciliation' + (params.toString() ? '?' + params.toString() : ''));
+      this.state.reconciliation = json.reconciliation || json.summary || {};
+      return this.state.reconciliation;
     },
 
     async confirmDelivery(order, payload) {

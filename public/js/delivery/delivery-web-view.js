@@ -31,7 +31,7 @@
       '<section class="delivery-v46-header card">' +
         '<div>' +
           '<h2>Đơn giao hôm nay</h2>' +
-          '<p class="muted">Web và app dùng chung lõi <b>DeliveryCore</b> + API <b>/api/delivery/*</b>. Hàng trả đọc/ghi một nguồn: <b>returnOrders</b>.</p>' +
+          '<p class="muted">Luồng chuẩn: <b>Giao hàng → Thu tiền → Hoàn tất</b>. Web và app dùng chung <b>DeliveryCore</b>, hàng trả một nguồn <b>returnOrders</b>.</p>' +
         '</div>' +
         '<div class="delivery-v46-filters">' +
           '<label>Ngày giao<input id="deliveryCoreDate" type="date"></label>' +
@@ -40,6 +40,7 @@
           '<label>Trạng thái<select id="deliveryCoreStatus"><option value="">Tất cả</option><option value="pending">Chờ giao</option><option value="assigned">Đã gán</option><option value="delivered">Đã giao</option></select></label>' +
           '<label>Tìm kiếm<input id="deliveryCoreSearch" placeholder="Mã đơn / khách hàng"></label>' +
           '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
+          '<button id="deliveryCoreReconcile" type="button" class="secondary">Đối soát</button>' +
         '</div>' +
       '</section>' +
       '<section class="delivery-v46-kpis">' +
@@ -63,6 +64,7 @@
 
     byId('deliveryCoreDate').value = today();
     byId('deliveryCoreReload').addEventListener('click', load);
+    if (byId('deliveryCoreReconcile')) byId('deliveryCoreReconcile').addEventListener('click', reconcile);
     ['deliveryCoreDate', 'deliveryCoreDeliveryStaff', 'deliveryCoreSalesStaff', 'deliveryCoreStatus', 'deliveryCoreSearch'].forEach(function (id) {
       var input = byId(id);
       if (!input) return;
@@ -144,12 +146,8 @@
             '<span>' + esc(order.customerName || order.customerCode || '') + '</span>' +
             '<em>' + esc(statusText(order)) + ' · NVBH ' + esc(order.salesStaffCode || '') + ' · NVGH ' + esc(order.deliveryStaffCode || '') + '</em>' +
           '</div>' +
-          '<div class="delivery-v46-row-kpis">' +
+          '<div class="delivery-v46-row-kpis delivery-v46-row-kpis-compact">' +
             '<span class="metric-pt"><em>PT</em><b>' + money(amount(order, 'receivable')) + '</b></span>' +
-            '<span class="metric-tm"><em>TM</em><b>' + money(amount(order, 'cash')) + '</b></span>' +
-            '<span class="metric-ck"><em>CK</em><b>' + money(amount(order, 'bank')) + '</b></span>' +
-            '<span class="metric-th"><em>TH</em><b>' + money(amount(order, 'reward')) + '</b></span>' +
-            '<span class="metric-ht"><em>HT</em><b>' + money(amount(order, 'returnAmount')) + '</b></span>' +
             '<span class="metric-cn' + debtClass + '"><em>CN</em><b>' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</b></span>' +
           '</div>' +
         '</button>';
@@ -211,7 +209,7 @@
               '</div>';
           }).join('') +
         '</div>' +
-        '<div class="delivery-v46-actions"><button type="submit">Lưu hàng trả</button><button type="button" id="deliveryClearReturnButton" class="secondary">Xóa hàng trả</button></div>' +
+        '<div class="delivery-v46-actions"><button type="submit">Lưu nháp hàng trả</button><button type="button" id="deliveryClearReturnButton" class="secondary">Xóa hàng trả</button></div>' +
       '</form>';
   }
 
@@ -230,7 +228,11 @@
   }
 
   function summaryHtml(order) {
+    var r = (order && order.reconciliation) || {};
+    var cls = r.balanced === false ? ' danger-text' : ' success-text';
+    var msg = r.message || (amount(order, 'debt') > 0 ? 'Còn công nợ' : 'Đối soát OK');
     return '' +
+      '<div class="delivery-v46-reconcile' + cls + '"><b>' + esc(msg) + '</b></div>' +
       '<div class="delivery-v46-summary-grid">' +
         '<div><span>Phải thu</span><b>' + money(amount(order, 'receivable')) + '</b></div>' +
         '<div><span>Tiền mặt</span><b>' + money(amount(order, 'cash')) + '</b></div>' +
@@ -288,6 +290,18 @@
       state.selectedKey = orderKey(window.DeliveryCore.state.selectedOrder);
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
+    } catch (err) { message(err.message, true); }
+  }
+
+
+  async function reconcile() {
+    try {
+      message('Đang đối soát cuối ngày...');
+      var r = await window.DeliveryCore.loadReconciliation(filters());
+      var msg = r && r.message ? r.message : 'Đã đối soát';
+      message(msg, r && r.balanced === false);
+      renderKpis();
+      if (window.DeliveryCore.state.selectedOrder) renderDetail(window.DeliveryCore.state.selectedOrder);
     } catch (err) { message(err.message, true); }
   }
 
