@@ -6664,20 +6664,21 @@ body::after{
   font-size:11.5px!important;
   font-weight:900!important;
 }
-#deliveryTodayTab .delivery-kpi-row .metric-pt{border:1px solid #93c5fd!important;background:#eff6ff!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-tm{border:1px solid #86efac!important;background:#f0fdf4!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-ck{border:1px solid #67e8f9!important;background:#ecfeff!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-th{border:1px solid #fdba74!important;background:#fff7ed!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-ht{border:1px solid #c4b5fd!important;background:#f5f3ff!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-cn.debt-open{border:1px solid #fca5a5!important;background:#fef2f2!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-cn.debt-done{border:1px solid #86efac!important;background:#f0fdf4!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-pt b{color:#1d4ed8!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-tm b{color:#16a34a!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-ck b{color:#0891b2!important;}
+/* V45/V46 FIX: màu KPI trong danh sách đơn phải trùng màu các ô báo cáo phía trên */
+#deliveryTodayTab .delivery-kpi-row .metric-pt{border:1px solid var(--line,#dbe4f0)!important;background:var(--panel-soft,#f8fafc)!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-tm{border:1px solid #bfdbfe!important;background:#eff6ff!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-ck{border:1px solid #bbf7d0!important;background:#ecfdf5!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-th{border:1px solid #fed7aa!important;background:#fff7ed!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-ht{border:1px solid var(--line,#dbe4f0)!important;background:var(--panel-soft,#f8fafc)!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-cn.debt-open{border:1px solid #fecaca!important;background:#fef2f2!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-cn.debt-done{border:1px solid #bbf7d0!important;background:#ecfdf5!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-pt b{color:var(--text,#0f172a)!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-tm b{color:#1d4ed8!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-ck b{color:#047857!important;}
 #deliveryTodayTab .delivery-kpi-row .metric-th b{color:#ea580c!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-ht b{color:#7c3aed!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-ht b{color:var(--text,#0f172a)!important;}
 #deliveryTodayTab .delivery-kpi-row .metric-cn.debt-open b{color:#dc2626!important;}
-#deliveryTodayTab .delivery-kpi-row .metric-cn.debt-done b{color:#16a34a!important;}
+#deliveryTodayTab .delivery-kpi-row .metric-cn.debt-done b{color:#047857!important;}
 @media(max-width:1320px){
   #deliveryTodayTab .delivery-card.delivery-list-row.delivery-kpi-row{
     grid-template-columns:22px minmax(160px,.95fr) minmax(390px,2.2fr)!important;
