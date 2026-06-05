@@ -7027,3 +7027,75 @@ body::after{
     grid-template-columns:repeat(2,minmax(90px,1fr));
   }
 }
+
+
+/* V46 final isolated fix: delivery list without staff column + full payment chips. */
+#deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment{
+  display:grid !important;
+  grid-template-columns:minmax(240px,1fr) minmax(520px,1.9fr) !important;
+  gap:12px !important;
+  align-items:center !important;
+  padding:0 14px 8px 50px !important;
+  margin:0 8px 8px 0 !important;
+}
+#deliveryTodayTab .delivery-v46-row.delivery-v46-order-card{
+  display:grid !important;
+  grid-template-columns:24px minmax(250px,1fr) minmax(520px,1.9fr) !important;
+  grid-template-areas:none !important;
+  gap:12px !important;
+  min-height:74px !important;
+  height:auto !important;
+  align-items:center !important;
+  overflow:visible !important;
+}
+#deliveryTodayTab .delivery-v46-order-card .delivery-v46-check{
+  grid-column:auto !important;
+  grid-area:auto !important;
+}
+#deliveryTodayTab .delivery-v46-order-card .delivery-v46-order-main{
+  grid-column:auto !important;
+  grid-area:auto !important;
+}
+#deliveryTodayTab .delivery-v46-payment-cell{
+  grid-column:auto !important;
+  grid-area:auto !important;
+  min-width:0 !important;
+  width:100% !important;
+}
+#deliveryTodayTab .delivery-v46-payment-chips{
+  display:grid !important;
+  grid-template-columns:repeat(6,minmax(72px,1fr)) !important;
+  gap:6px !important;
+  align-items:center !important;
+  min-width:0 !important;
+}
+#deliveryTodayTab .delivery-v46-pay-chip{
+  min-width:0 !important;
+  min-height:34px !important;
+}
+#deliveryTodayTab .delivery-v46-pay-chip b{
+  font-size:11px !important;
+}
+@media(max-width:1280px){
+  #deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment{
+    grid-template-columns:minmax(220px,.9fr) minmax(420px,1.8fr) !important;
+  }
+  #deliveryTodayTab .delivery-v46-row.delivery-v46-order-card{
+    grid-template-columns:24px minmax(220px,.9fr) minmax(420px,1.8fr) !important;
+    min-height:90px !important;
+  }
+  #deliveryTodayTab .delivery-v46-payment-chips{
+    grid-template-columns:repeat(3,minmax(92px,1fr)) !important;
+  }
+}
+@media(max-width:980px){
+  #deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment{display:none !important;}
+  #deliveryTodayTab .delivery-v46-row.delivery-v46-order-card{
+    grid-template-columns:24px 1fr !important;
+    min-height:0 !important;
+  }
+  #deliveryTodayTab .delivery-v46-payment-cell{grid-column:2 !important;}
+  #deliveryTodayTab .delivery-v46-payment-chips{
+    grid-template-columns:repeat(2,minmax(96px,1fr)) !important;
+  }
+}

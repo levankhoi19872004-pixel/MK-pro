@@ -230,8 +230,46 @@ function createMobileDeliveryService(ctx) {
       .filter((order) => includeCompleted || isDeliveryOrderActive(order.deliveryStatus));
     const buildRowsMs = Date.now() - buildRowsStartedAt;
 
+    const deliveryStaffKeyword = normalizeText(
+      query.deliveryStaffCode || query.deliveryStaffName || query.deliveryStaff || query.nvgh || query.deliveryStaffKeyword
+    );
+    const salesStaffKeyword = normalizeText(
+      query.salesStaffCode || query.salesStaffName || query.salesStaff || query.nvbh || query.salesStaffKeyword
+    );
+
+    if (deliveryStaffKeyword) {
+      items = items.filter((order) => [
+        order.deliveryStaffCode,
+        order.deliveryStaffName,
+        order.shipperCode,
+        order.shipperName,
+        order.staffDeliveryCode,
+        order.staffDeliveryName
+      ].some((value) => normalizeText(value).includes(deliveryStaffKeyword)));
+    }
+
+    if (salesStaffKeyword) {
+      items = items.filter((order) => [
+        order.salesStaffCode,
+        order.salesStaffName,
+        order.staffCode,
+        order.staffName,
+        order.saleCode,
+        order.saleName
+      ].some((value) => normalizeText(value).includes(salesStaffKeyword)));
+    }
+
     if (q) {
-      items = items.filter((order) => [order.code, order.customerCode, order.customerName, order.phone, order.address, order.routeName].some((value) => normalizeText(value).includes(q)));
+      items = items.filter((order) => [
+        order.code,
+        order.orderCode,
+        order.salesOrderCode,
+        order.customerCode,
+        order.customerName,
+        order.phone,
+        order.address,
+        order.routeName
+      ].some((value) => normalizeText(value).includes(q)));
     }
     if (status) {
       items = items.filter((order) => {
