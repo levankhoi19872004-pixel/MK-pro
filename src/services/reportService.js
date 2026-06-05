@@ -498,7 +498,9 @@ function pushDebtLedgerAnd(match, condition) {
 
 function buildDebtLedgerMatch(query = {}, customerCodes = []) {
   const match = {
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] }
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
+    reversed: { $ne: true },
+    type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
   };
   if (query.dateFrom || query.dateTo || query.date) {
     match.date = {};

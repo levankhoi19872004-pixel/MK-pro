@@ -986,9 +986,19 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     ]
   }, options);
 
-  const postedKeySet = new Set();
+  // V45 accounting source fix:
+  // Khi đẩy đơn sang công nợ, AR Ledger phải phản ánh đúng snapshot cuối cùng của SalesOrder
+  // và returnOrders tại thời điểm kế toán xác nhận. Các bản trước có thể đã sinh AR-SALE
+  // sớm/thiếu AR-RECEIPT/AR-BONUS/AR-RETURN; nếu chỉ thấy một dòng AR cũ rồi skip toàn bộ
+  // thì màn Công nợ sẽ giữ số sai. Vì vậy với đơn được chọn lần đầu, nếu đã có AR active
+  // thì đảo các dòng cũ rồi post lại bộ bút toán chuẩn cho đúng nguồn đơn đã khóa.
+  const existingRowsByOrderKey = new Map();
   for (const row of existingLedgers || []) {
-    for (const key of masterDeliveryOrderKeys(row)) postedKeySet.add(key);
+    const rowKeys = masterDeliveryOrderKeys(row);
+    for (const key of rowKeys) {
+      if (!existingRowsByOrderKey.has(key)) existingRowsByOrderKey.set(key, []);
+      existingRowsByOrderKey.get(key).push(row);
+    }
   }
 
   const returnOrders = await findReturnOrdersForDeliveryChildren(children);
@@ -1004,15 +1014,23 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
   }
 
   const ledgerRows = [];
+  const reversalRows = [];
+  const reverseUpdateOps = [];
   const postedOrderKeys = new Set();
   const skippedPostedKeys = new Set();
 
   for (const order of children) {
     if (!isDeliveryCompletedStatus(order.deliveryStatus || order.status)) continue;
     const keys = compactDeliveryOrderKeys(order);
-    if (keys.some((key) => postedKeySet.has(key))) {
-      for (const key of keys) skippedPostedKeys.add(key);
-      continue;
+    const existingForOrder = [];
+    const usedExistingIds = new Set();
+    for (const keyItem of keys) {
+      for (const oldRow of existingRowsByOrderKey.get(keyItem) || []) {
+        const oldId = String(oldRow.id || oldRow.code || oldRow._id || '').trim();
+        if (oldId && usedExistingIds.has(oldId)) continue;
+        if (oldId) usedExistingIds.add(oldId);
+        existingForOrder.push(oldRow);
+      }
     }
 
     const key = orderKey(order) || orderDisplayCode(order);
@@ -1023,10 +1041,52 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     const rewardAmount = deliveryRewardAmount(order);
     const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
     const idSeed = key || code || makeId('AR');
+    const repostSuffix = existingForOrder.length ? `-REPOST-${Date.now()}` : '';
+
+    if (existingForOrder.length) {
+      const reverseBatchId = `AUTO-REPOST-${idSeed}-${Date.now()}`;
+      for (const oldRow of existingForOrder) {
+        const oldDebit = toNumber(oldRow.debit);
+        const oldCredit = toNumber(oldRow.credit);
+        const oldAmount = Math.max(oldDebit, oldCredit, toNumber(oldRow.amount));
+        if (oldAmount <= 0) continue;
+        reversalRows.push({
+          ...oldRow,
+          id: `AR-REVERSAL-${oldRow.id || oldRow.code || makeId('AR')}-${reverseBatchId}`,
+          code: `AR-REVERSAL-${oldRow.code || oldRow.id || makeId('AR')}-${reverseBatchId}`,
+          type: 'ar_reversal',
+          refType: 'AR_LEDGER_REVERSAL',
+          debit: oldCredit,
+          credit: oldDebit,
+          amount: oldAmount,
+          status: 'posted',
+          source: 'delivery_accounting_confirm_repost',
+          note: `Đảo bút toán AR cũ ${oldRow.code || oldRow.id || ''} trước khi post lại đúng nguồn đơn ${code || key}`,
+          reversedFromId: oldRow.id || '',
+          reversedFromCode: oldRow.code || '',
+          reAccountingBatchId: reverseBatchId,
+          createdBy: confirmedBy,
+          createdAt: dateUtil.nowIso(),
+          updatedAt: dateUtil.nowIso()
+        });
+        const identity = [];
+        if (oldRow.id) identity.push({ id: oldRow.id });
+        if (oldRow.code) identity.push({ code: oldRow.code });
+        if (oldRow._id) identity.push({ _id: oldRow._id });
+        if (identity.length) {
+          reverseUpdateOps.push({
+            updateOne: {
+              filter: { $or: identity },
+              update: { $set: { reversed: true, status: 'reversed', reversedAt: dateUtil.nowIso(), reversedBy: confirmedBy, reAccountingBatchId: reverseBatchId, updatedAt: dateUtil.nowIso() } }
+            }
+          });
+        }
+      }
+    }
 
     ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-SALE-${idSeed}`,
-      code: `AR-SALE-${code || idSeed}`,
+      id: `AR-SALE-${idSeed}${repostSuffix}`,
+      code: `AR-SALE-${code || idSeed}${repostSuffix}`,
       type: 'ar_sale',
       refType: 'SALES_ORDER',
       debit: baseAmount,
@@ -1037,8 +1097,8 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     }));
 
     if (cashAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-RECEIPT-CASH-${idSeed}`,
-      code: `AR-RECEIPT-CASH-${code || idSeed}`,
+      id: `AR-RECEIPT-CASH-${idSeed}${repostSuffix}`,
+      code: `AR-RECEIPT-CASH-${code || idSeed}${repostSuffix}`,
       type: 'ar_receipt',
       refType: 'RECEIPT',
       debit: 0,
@@ -1049,8 +1109,8 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     }));
 
     if (bankAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-RECEIPT-BANK-${idSeed}`,
-      code: `AR-RECEIPT-BANK-${code || idSeed}`,
+      id: `AR-RECEIPT-BANK-${idSeed}${repostSuffix}`,
+      code: `AR-RECEIPT-BANK-${code || idSeed}${repostSuffix}`,
       type: 'ar_receipt',
       refType: 'RECEIPT',
       debit: 0,
@@ -1061,8 +1121,8 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     }));
 
     if (rewardAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-BONUS-${idSeed}`,
-      code: `AR-BONUS-${code || idSeed}`,
+      id: `AR-BONUS-${idSeed}${repostSuffix}`,
+      code: `AR-BONUS-${code || idSeed}${repostSuffix}`,
       type: 'ar_bonus',
       refType: 'BONUS_ALLOWANCE',
       debit: 0,
@@ -1073,8 +1133,8 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     }));
 
     if (returnAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-RETURN-${idSeed}`,
-      code: `AR-RETURN-${code || idSeed}`,
+      id: `AR-RETURN-${idSeed}${repostSuffix}`,
+      code: `AR-RETURN-${code || idSeed}${repostSuffix}`,
       type: 'ar_return',
       refType: 'RETURN_ORDER',
       debit: 0,
@@ -1087,11 +1147,19 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     for (const keyItem of keys) postedOrderKeys.add(keyItem);
   }
 
+  if (reversalRows.length) {
+    await MongoStore.arLedgers.insertMany(reversalRows, { ordered: false, session: options.session });
+  }
+
+  if (reverseUpdateOps.length) {
+    await MongoStore.arLedgers.bulkWrite(reverseUpdateOps, { ordered: false, session: options.session });
+  }
+
   if (ledgerRows.length) {
     await MongoStore.arLedgers.insertMany(ledgerRows, { ordered: false, session: options.session });
   }
 
-  return { ledgerRows, postedOrderKeys, skippedPostedKeys };
+  return { ledgerRows, reversalRows, postedOrderKeys, skippedPostedKeys };
 }
 
 async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
