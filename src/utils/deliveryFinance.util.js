@@ -79,6 +79,167 @@ function calculateDeliveryDebt(order = {}, options = {}) {
   return buildDeliveryAmount(order, options.returnAmountOverride).debtAmount;
 }
 
+function deliveryLineCode(item = {}) {
+  return String(item.productCode || item.code || item.productId || item.sku || '').trim();
+}
+
+function deliveryLineName(item = {}) {
+  return item.productName || item.name || item.product || '';
+}
+
+function deliveryLineQty(item = {}) {
+  return toNumber(item.deliveredQty ?? item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? item.quantity ?? item.qty ?? 0);
+}
+
+function deliveryLineReturnQty(item = {}) {
+  return toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? 0);
+}
+
+function deliveryLinePrice(item = {}) {
+  return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+}
+
+function canonicalReturnItemFromLine(item = {}, fallback = {}) {
+  const productCode = deliveryLineCode(item) || deliveryLineCode(fallback);
+  const productName = deliveryLineName(item) || deliveryLineName(fallback);
+  const deliveredQty = deliveryLineQty(fallback) || deliveryLineQty(item);
+  const returnQty = deliveryLineReturnQty(item);
+  const price = deliveryLinePrice(item) || deliveryLinePrice(fallback);
+  const returnAmount = Math.max(0, Math.round(returnQty * price));
+  return {
+    ...fallback,
+    ...item,
+    productCode,
+    productName,
+    code: productCode,
+    name: productName,
+    deliveredQty,
+    soldQty: deliveredQty,
+    quantitySold: deliveredQty,
+    qty: deliveredQty,
+    quantity: deliveredQty,
+    price,
+    salePrice: price,
+    unitPrice: price,
+    returnQty,
+    qtyReturn: returnQty,
+    returnQuantity: returnQty,
+    returnedQty: returnQty,
+    returnAmount,
+    amount: returnAmount
+  };
+}
+
+function buildCanonicalDeliveryItems(order = {}, returnItems = []) {
+  const returnByCode = new Map();
+  for (const item of Array.isArray(returnItems) ? returnItems : []) {
+    const code = deliveryLineCode(item);
+    if (!code) continue;
+    const prev = returnByCode.get(code);
+    if (!prev) {
+      returnByCode.set(code, canonicalReturnItemFromLine(item));
+      continue;
+    }
+    const qty = deliveryLineReturnQty(item);
+    const price = deliveryLinePrice(item) || deliveryLinePrice(prev);
+    prev.returnQty += qty;
+    prev.qtyReturn = prev.returnQty;
+    prev.returnQuantity = prev.returnQty;
+    prev.returnedQty = prev.returnQty;
+    prev.price = price;
+    prev.salePrice = price;
+    prev.unitPrice = price;
+    prev.returnAmount = Math.round(prev.returnQty * price);
+    prev.amount = prev.returnAmount;
+  }
+  const soldItems = Array.isArray(order.items) ? order.items : [];
+  const used = new Set();
+  const merged = soldItems.map((sold, index) => {
+    const code = deliveryLineCode(sold) || `SP${index + 1}`;
+    const returned = returnByCode.get(code) || {};
+    used.add(code);
+    return canonicalReturnItemFromLine(returned, { ...sold, productCode: code });
+  });
+  for (const [code, item] of returnByCode.entries()) {
+    if (!used.has(code)) merged.push(canonicalReturnItemFromLine(item));
+  }
+  return merged;
+}
+
+function buildCanonicalDeliveryAmounts(order = {}, returnAmountOverride = null) {
+  const amount = buildDeliveryAmount(order, returnAmountOverride);
+  const processed = Math.max(0, normalizeDebtAmount(Math.round(amount.cashAmount + amount.bankAmount + amount.bonusAmount + amount.returnAmount)));
+  return {
+    receivable: amount.totalReceivable,
+    totalReceivable: amount.totalReceivable,
+    cash: amount.cashAmount,
+    cashAmount: amount.cashAmount,
+    bank: amount.bankAmount,
+    bankAmount: amount.bankAmount,
+    reward: amount.bonusAmount,
+    rewardAmount: amount.bonusAmount,
+    bonusAmount: amount.bonusAmount,
+    returnAmount: amount.returnAmount,
+    processed,
+    collectedAmount: processed,
+    debt: amount.debtAmount,
+    debtAmount: amount.debtAmount,
+    remainingAmount: amount.debtAmount
+  };
+}
+
+function buildCanonicalDeliveryOrder(order = {}, options = {}) {
+  const returnItems = Array.isArray(options.returnItems) ? options.returnItems : (Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []));
+  const items = buildCanonicalDeliveryItems(order, returnItems);
+  const returnAmount = options.returnAmountOverride == null
+    ? items.reduce((sum, item) => sum + Math.max(0, Math.round(deliveryLineReturnQty(item) * deliveryLinePrice(item))), 0)
+    : toNumber(options.returnAmountOverride);
+  const amounts = buildCanonicalDeliveryAmounts(order, returnAmount);
+  const orderCode = order.displayOrderCode || order.salesOrderCode || order.orderCode || order.code || order.id || '';
+  const delivered = ['delivered', 'done', 'completed', 'paid'].includes(String(order.deliveryStatus || order.status || '').toLowerCase());
+  return {
+    ...order,
+    orderId: order.id || order.orderId || order.salesOrderId || '',
+    orderCode,
+    salesOrderId: order.salesOrderId || order.id || order.orderId || '',
+    salesOrderCode: order.salesOrderCode || order.orderCode || order.code || orderCode,
+    displayOrderCode: orderCode,
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    deliveryDate: order.deliveryDate || order.date || '',
+    salesStaffCode: order.salesStaffCode || order.salesmanCode || order.staffCode || '',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    items,
+    returnItems: items,
+    deliveryReturnItems: items,
+    returnOrderItems: items,
+    amounts,
+    totalAmount: amounts.receivable,
+    totalReceivable: amounts.receivable,
+    debtBeforeCollection: amounts.receivable,
+    cashAmount: amounts.cash,
+    cashCollected: amounts.cash,
+    bankAmount: amounts.bank,
+    bankCollected: amounts.bank,
+    transferAmount: amounts.bank,
+    rewardAmount: amounts.reward,
+    bonusAmount: amounts.reward,
+    returnAmount: amounts.returnAmount,
+    returnedAmount: amounts.returnAmount,
+    returnAmountFromReturnOrders: amounts.returnAmount,
+    processedAmount: amounts.processed,
+    collectedAmount: amounts.processed,
+    debtAmount: amounts.debt,
+    debt: amounts.debt,
+    remainingAmount: amounts.debt,
+    statusInfo: {
+      delivered,
+      paymentStatus: amounts.debt <= 0 ? 'paid' : (amounts.processed > 0 ? 'partial' : 'unpaid'),
+      returnStatus: amounts.returnAmount > 0 ? 'has_return' : 'none'
+    }
+  };
+}
+
 module.exports = {
   firstPositiveAmount,
   deliveryDebtBase,
@@ -88,5 +249,13 @@ module.exports = {
   isDeliveryArLedgerSynced,
   deliveryArLedgerDebt,
   buildDeliveryAmount,
-  calculateDeliveryDebt
+  calculateDeliveryDebt,
+  deliveryLineCode,
+  deliveryLineName,
+  deliveryLineQty,
+  deliveryLineReturnQty,
+  deliveryLinePrice,
+  buildCanonicalDeliveryItems,
+  buildCanonicalDeliveryAmounts,
+  buildCanonicalDeliveryOrder
 };

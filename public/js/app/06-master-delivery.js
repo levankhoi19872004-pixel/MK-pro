@@ -297,10 +297,10 @@ function deliveryMoney(value){
 }
 function deliveryText(value){ return escapeHtml(String(value ?? '')); }
 function deliveryCode(row={}){ return row.displayOrderCode || row.salesOrderCode || row.orderCode || row.code || row.id || ''; }
-function deliveryDebtBase(row={}){ return deliveryToNumber(row.totalReceivable ?? row.totalAmount ?? row.amount ?? row.debtBeforeCollection ?? 0); }
-function deliveryCash(row={}){ return deliveryToNumber(row.cashAmount ?? row.cashCollected ?? 0); }
-function deliveryBank(row={}){ return deliveryToNumber(row.bankAmount ?? row.bankCollected ?? row.transferAmount ?? 0); }
-function deliveryReward(row={}){ return deliveryToNumber(row.rewardAmount ?? row.bonusAmount ?? row.displayRewardAmount ?? 0); }
+function deliveryDebtBase(row={}){ return deliveryToNumber(row.amounts?.receivable ?? row.amounts?.totalReceivable ?? row.totalReceivable ?? row.totalAmount ?? row.amount ?? row.debtBeforeCollection ?? 0); }
+function deliveryCash(row={}){ return deliveryToNumber(row.amounts?.cash ?? row.amounts?.cashAmount ?? row.cashAmount ?? row.cashCollected ?? 0); }
+function deliveryBank(row={}){ return deliveryToNumber(row.amounts?.bank ?? row.amounts?.bankAmount ?? row.bankAmount ?? row.bankCollected ?? row.transferAmount ?? 0); }
+function deliveryReward(row={}){ return deliveryToNumber(row.amounts?.reward ?? row.amounts?.rewardAmount ?? row.rewardAmount ?? row.bonusAmount ?? row.displayRewardAmount ?? 0); }
 function deliveryLineCode(item={}){ return String(item.productCode || item.code || item.productId || item.sku || '').trim(); }
 function deliveryLineName(item={}){ return item.productName || item.name || item.product || ''; }
 function deliveryLineQty(item={}){ return deliveryToNumber(item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? item.quantity ?? item.qty ?? 0); }
@@ -308,12 +308,12 @@ function deliveryLineReturnQty(item={}){ return deliveryToNumber(item.returnQty 
 function deliveryLinePrice(item={}){ return deliveryToNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0); }
 function deliveryLineKey(item={}){ return `${deliveryLineCode(item)}|${item.unit||item.baseUnit||''}|${deliveryLinePrice(item)}`; }
 function deliveryReturnAmount(row={}){
+  if(row.amounts && row.amounts.returnAmount !== undefined) return deliveryToNumber(row.amounts.returnAmount);
   const items = Array.isArray(row.returnOrderItems) ? row.returnOrderItems : (Array.isArray(row.deliveryReturnItems) ? row.deliveryReturnItems : (Array.isArray(row.items) ? row.items : []));
-  const fromItems = items.reduce((sum,item)=>sum + Math.round(deliveryLineReturnQty(item) * deliveryLinePrice(item)), 0);
-  if(fromItems > 0) return fromItems;
-  return deliveryToNumber(row.returnAmountFromReturnOrders ?? row.returnAmount ?? row.returnedAmount ?? row.totalReturnAmount ?? 0);
+  return items.reduce((sum,item)=>sum + Math.round(deliveryLineReturnQty(item) * deliveryLinePrice(item)), 0);
 }
 function deliveryDebt(row={}){
+  if(row.amounts && row.amounts.debt !== undefined) return Math.max(0, normalizeDebtAmount(deliveryToNumber(row.amounts.debt)));
   const debt = deliveryDebtBase(row) - deliveryCash(row) - deliveryBank(row) - deliveryReward(row) - deliveryReturnAmount(row);
   return Math.max(0, normalizeDebtAmount(debt));
 }

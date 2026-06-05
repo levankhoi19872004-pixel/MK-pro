@@ -2309,7 +2309,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
       );
 
       const displayOrderCode = child.code || child.orderCode || child.salesOrderCode || child.invoiceCode || child.documentCode || child.id || '';
-      const row = {
+      let row = {
         id: child.id || '',
         code: displayOrderCode,
         orderCode: displayOrderCode,
@@ -2356,6 +2356,11 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         returnOrderItems: mergedItems,
         returnOrderCode
       };
+
+      row = deliveryFinance.buildCanonicalDeliveryOrder(row, {
+        returnItems: mergedItems,
+        returnAmountOverride: returnAmount
+      });
 
       if (q && ![row.code, row.customerCode, row.customerName].some((value) => normalizeText(value).includes(q))) continue;
       if (sales && ![row.salesStaffCode, row.salesStaffName].some((value) => normalizeText(value).includes(sales))) continue;

@@ -16,6 +16,7 @@ export const MOBILE_ROUTES = {
   deliveryOrders: '/api/mobile/delivery/orders',
   deliveryConfirm: '/api/mobile/delivery/confirm',
   deliveryReturn: '/api/mobile/delivery/return',
+  deliveryPayment: '/api/mobile/delivery/payment',
   deliveryCustomerDebts: '/api/mobile/delivery/customer-debts',
   cashSubmit: '/api/mobile/cash/submit',
   refresh: '/api/mobile/refresh'

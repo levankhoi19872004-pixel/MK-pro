@@ -151,6 +151,9 @@ export const mobileApi = {
   createDeliveryReturn(payload) {
     return apiRequest(MOBILE_ROUTES.deliveryReturn, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-return')) });
   },
+  submitDeliveryPayment(payload) {
+    return apiRequest(MOBILE_ROUTES.deliveryPayment || MOBILE_ROUTES.deliveryConfirm, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-payment')) });
+  },
   getDeliveryCustomerDebts(params = {}) {
     const query = new URLSearchParams(params);
     const suffix = query.toString() ? `?${query.toString()}` : '';

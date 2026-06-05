@@ -38,6 +38,16 @@ function createMobileDeliveryRouter(ctx) {
     body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ], validateRequest, controller.createReturn);
 
+
+  router.post('/delivery/payment', ...onlyDelivery, [
+    body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
+    body('cashAmount').optional().isFloat({ min: 0 }).withMessage('Tiền mặt không được âm'),
+    body('bankAmount').optional().isFloat({ min: 0 }).withMessage('Chuyển khoản không được âm'),
+    body('rewardAmount').optional().isFloat({ min: 0 }).withMessage('Tiền trả thưởng không được âm'),
+    body('note').optional().isString().trim(),
+    body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
+  ], validateRequest, controller.submitPayment);
+
   router.post('/cash/submit', ...onlyDelivery, [
     body('amount').isFloat({ gt: 0 }).withMessage('Số tiền nộp quỹ phải lớn hơn 0'),
     body('note').optional().isString().trim(),

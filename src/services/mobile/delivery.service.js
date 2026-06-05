@@ -225,7 +225,7 @@ function createMobileDeliveryService(ctx) {
         row.masterReturnOrderId = lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '';
         row.masterReturnOrderCode = lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '';
         row.warehouseReceiveStatus = lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '';
-        return row;
+        return deliveryFinance.buildCanonicalDeliveryOrder(row, { returnItems: syncedReturn.returnItems, returnAmountOverride: syncedReturn.total });
       })
       .filter((order) => includeCompleted || isDeliveryOrderActive(order.deliveryStatus));
     const buildRowsMs = Date.now() - buildRowsStartedAt;
@@ -245,41 +245,9 @@ function createMobileDeliveryService(ctx) {
     items = items
       .sort((a, b) => String(a.routeName).localeCompare(String(b.routeName)) || String(a.createdAt).localeCompare(String(b.createdAt)))
       .slice(0, 100)
-      .map((order) => ({
-        id: order.id,
-        code: order.code,
-        deliveryDate: order.deliveryDate,
-        deliveryStatus: order.deliveryStatus || 'pending',
-        visualStatus: order.visualStatus || order.deliveryStatus || 'pending',
-        routeName: order.routeName || '',
-        customerName: order.customerName,
-        customerCode: order.customerCode,
-        phone: order.phone,
-        address: order.address,
-        salesmanName: order.salesmanName,
-        salesmanCode: order.salesmanCode,
-        deliveryStaffName: order.deliveryStaffName,
-        deliveryStaffCode: order.deliveryStaffCode,
-        amount: deliveryFinance.calculateDeliveryDebt(order),
-        totalAmount: toNumber(order.totalAmount),
-        paidAmount: toNumber(order.paidAmount),
-        debtBeforeCollection: deliveryFinance.deliveryDebtBase(order),
-        debtAmount: deliveryFinance.calculateDeliveryDebt(order),
-        cashCollected: toNumber(order.cashCollected),
-        bankCollected: toNumber(order.bankCollected),
-        rewardAmount: toNumber(order.rewardAmount),
-        returnAmount: toNumber(order.returnAmount),
-        returnedAmount: toNumber(order.returnAmount),
-        returnLocked: Boolean(order.returnLocked),
-        returnLockMessage: order.returnLockMessage || '',
-        returnMergeStatus: order.returnMergeStatus || 'unmerged',
-        masterReturnOrderId: order.masterReturnOrderId || '',
-        masterReturnOrderCode: order.masterReturnOrderCode || '',
-        warehouseReceiveStatus: order.warehouseReceiveStatus || '',
-        returnItems: Array.isArray(order.returnItems) ? order.returnItems : [],
-        deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : [],
-        status: order.status,
-        items: order.items || []
+      .map((order) => deliveryFinance.buildCanonicalDeliveryOrder(order, {
+        returnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []),
+        returnAmountOverride: order.amounts && order.amounts.returnAmount != null ? order.amounts.returnAmount : order.returnAmount
       }));
     const sortMs = Date.now() - sortStartedAt;
 
@@ -465,7 +433,8 @@ function createMobileDeliveryService(ctx) {
       return { statusCode: 400, body: { ok: false, message: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả` } };
     }
 
-    const items = buildReturnItemsFromRequest(order, body.items || [], returnType);
+    const items = buildReturnItemsFromRequest(order, body.items || [], returnType)
+      .filter((item) => getReturnLineQty(item) > 0);
 
     // Cho phép app gửi danh sách SL trả = 0 để ghi đè/xóa phiếu trả tạm cũ.
     // Tiền hàng trả không lưu ở ô Thu tiền; nó lấy từ returnOrders.totalAmount/debtReduction.
@@ -616,7 +585,12 @@ function createMobileDeliveryService(ctx) {
     return rememberIdempotentResult(idemKey, result);
   }
 
-  return { listDeliveryOrders, confirmDelivery, createReturnFromDelivery, submitCash };
+  async function submitDeliveryPayment(args = {}) {
+    const body = { ...(args.body || {}), status: (args.body && args.body.status) || 'success' };
+    return confirmDelivery({ ...args, body });
+  }
+
+  return { listDeliveryOrders, confirmDelivery, createReturnFromDelivery, submitDeliveryPayment, submitCash };
 }
 
 module.exports = { createMobileDeliveryService };

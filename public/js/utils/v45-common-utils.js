@@ -70,6 +70,7 @@
 
   function deliveryDebtBase(order = {}) {
     return firstPositiveAmount(
+      order.amounts && (order.amounts.receivable ?? order.amounts.totalReceivable),
       order.totalAmount,
       order.total,
       order.amount,
@@ -98,6 +99,7 @@
   }
 
   function deliveryReturnAmount(order = {}) {
+    if (order.amounts && order.amounts.returnAmount !== undefined) return Math.round(toNumber(order.amounts.returnAmount));
     if (order.returnAmountFromReturnOrders !== undefined && order.returnAmountFromReturnOrders !== null) {
       return Math.round(toNumber(order.returnAmountFromReturnOrders));
     }
@@ -106,7 +108,7 @@
       : (Array.isArray(order.returnItems) ? order.returnItems : null);
     if (Array.isArray(returnItems)) return Math.round(returnItems.reduce((sum, item) => sum + lineReturnAmount(item), 0));
     if (order.returnOrder) return amountFromReturnOrder(order.returnOrder);
-    return Math.round(toNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0));
+    return 0;
   }
 
   function isDeliveryArLedgerSynced(order = {}) {
@@ -121,9 +123,9 @@
     if (options.useArLedgerIfSynced !== false && isDeliveryArLedgerSynced(order)) return deliveryArLedgerDebt(order);
     return Math.max(0, Math.round(
       deliveryDebtBase(order)
-      - toNumber(order.cashCollected ?? order.cashAmount ?? 0)
-      - toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
-      - toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+      - toNumber(order.amounts?.cash ?? order.amounts?.cashAmount ?? order.cashCollected ?? order.cashAmount ?? 0)
+      - toNumber(order.amounts?.bank ?? order.amounts?.bankAmount ?? order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+      - toNumber(order.amounts?.reward ?? order.amounts?.rewardAmount ?? order.rewardAmount ?? order.displayRewardAmount ?? 0)
       - (options.returnAmountOverride == null ? deliveryReturnAmount(order) : toNumber(options.returnAmountOverride))
     ));
   }
