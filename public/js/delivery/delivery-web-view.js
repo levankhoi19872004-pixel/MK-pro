@@ -54,6 +54,7 @@
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
           '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
+          '<div class="delivery-v46-list-head"><span>Đơn / Khách hàng</span><span>Nhân sự</span><span>Phải thu</span><span>Còn nợ</span></div>' +
           '<div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
         '</section>' +
         '<aside class="card delivery-v46-detail-panel">' +
@@ -137,19 +138,26 @@
     list.innerHTML = rows.map(function (order) {
       var key = orderKey(order);
       var selected = key === state.selectedKey ? ' selected' : '';
-      var debtClass = amount(order, 'debt') > 0 ? ' debt-open' : ' debt-done';
+      var debtValue = amount(order, 'debt');
+      var debtClass = debtValue > 0 ? ' debt-open' : ' debt-done';
+      var orderCode = order.orderCode || order.salesOrderCode || order.code || order.id || '';
+      var customerLabel = (order.customerName || '') + (order.customerCode ? ' · ' + order.customerCode : '');
+      var salesStaff = order.salesStaffName || order.salesStaffCode || '';
+      var deliveryStaff = order.deliveryStaffName || order.deliveryStaffCode || '';
       return '' +
-        '<button type="button" class="delivery-v46-row' + selected + '" data-key="' + esc(key) + '">' +
+        '<button type="button" class="delivery-v46-row delivery-v46-order-card' + selected + '" data-key="' + esc(key) + '">' +
           '<div class="delivery-v46-check">' + (selected ? '✓' : '') + '</div>' +
           '<div class="delivery-v46-order-main">' +
-            '<strong>' + esc(order.orderCode || order.salesOrderCode || order.id) + '</strong>' +
-            '<span>' + esc(order.customerName || order.customerCode || '') + '</span>' +
-            '<em>' + esc(statusText(order)) + ' · NVBH ' + esc(order.salesStaffCode || '') + ' · NVGH ' + esc(order.deliveryStaffCode || '') + '</em>' +
+            '<strong>' + esc(orderCode) + '</strong>' +
+            '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
+            '<em>' + esc(statusText(order)) + '</em>' +
           '</div>' +
-          '<div class="delivery-v46-row-kpis delivery-v46-row-kpis-compact">' +
-            '<span class="metric-pt"><em>PT</em><b>' + money(amount(order, 'receivable')) + '</b></span>' +
-            '<span class="metric-cn' + debtClass + '"><em>CN</em><b>' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</b></span>' +
+          '<div class="delivery-v46-staff-cell">' +
+            '<span>NVBH: <b>' + esc(salesStaff || '-') + '</b></span>' +
+            '<span>NVGH: <b>' + esc(deliveryStaff || '-') + '</b></span>' +
           '</div>' +
+          '<div class="delivery-v46-amount-cell metric-pt"><em>PT</em><b>' + money(amount(order, 'receivable')) + '</b></div>' +
+          '<div class="delivery-v46-amount-cell metric-cn' + debtClass + '"><em>CN</em><b>' + (debtValue > 0 ? money(debtValue) : 'Đủ') + '</b></div>' +
         '</button>';
     }).join('');
     list.querySelectorAll('[data-key]').forEach(function (button) {
