@@ -7099,3 +7099,25 @@ body::after{
     grid-template-columns:repeat(2,minmax(96px,1fr)) !important;
   }
 }
+
+/* V46 delivery staff system check + staff autocomplete (scoped) */
+.delivery-v46-filter-suggest{position:relative;}
+.delivery-v46-suggest-box{display:none;position:absolute;left:0;right:0;top:100%;z-index:50;margin-top:6px;background:#fff;border:1px solid #d8e3f3;border-radius:12px;box-shadow:0 14px 28px rgba(15,35,75,.16);padding:6px;max-height:260px;overflow:auto;}
+.delivery-v46-suggest-box.show{display:block;}
+.delivery-v46-suggest-box button{width:100%;border:0;background:#fff;border-radius:9px;padding:8px 10px;text-align:left;display:flex;flex-direction:column;gap:2px;cursor:pointer;color:#14213d;}
+.delivery-v46-suggest-box button:hover{background:#edf4ff;}
+.delivery-v46-suggest-box button b{font-size:12px;color:#0b4dbb;}
+.delivery-v46-suggest-box button span{font-size:11px;color:#53657f;}
+.delivery-v46-suggest-empty{color:#7a8799!important;font-style:italic;}
+.delivery-v46-staff-check{display:inline-flex;align-items:center;width:max-content;margin-top:4px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:800;line-height:1.4;}
+.delivery-v46-staff-check.ok{background:#ecfdf3;color:#057a43;border:1px solid #a8f0c6;}
+.delivery-v46-staff-check.warn{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;}
+.delivery-v46-staff-check-box{margin:8px 0 12px;padding:10px;border:1px solid #d8e3f3;border-radius:14px;background:#f8fbff;}
+.delivery-v46-staff-check-box h4{margin:0 0 8px;font-size:12px;color:#354562;}
+.delivery-v46-staff-check-line{display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;padding:6px 0;border-top:1px dashed #dbe5f2;font-size:11px;}
+.delivery-v46-staff-check-line:first-of-type{border-top:0;}
+.delivery-v46-staff-check-line b{font-weight:900;}
+.delivery-v46-staff-check-line span{color:#42526d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.delivery-v46-staff-check-line em{grid-column:2/4;font-style:normal;font-weight:800;}
+.delivery-v46-staff-check-line.ok em{color:#07834a;}
+.delivery-v46-staff-check-line.warn em{color:#c2410c;}

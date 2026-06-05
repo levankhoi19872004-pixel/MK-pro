@@ -6,10 +6,11 @@ const MasterOrder = require('../models/MasterOrder');
 const ReturnOrder = require('../models/ReturnOrder');
 const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
+const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
 
 const router = express.Router();
-const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger });
+const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
 
 function sendError(res, err, fallback) {
   const status = Number(err && err.status) || 500;

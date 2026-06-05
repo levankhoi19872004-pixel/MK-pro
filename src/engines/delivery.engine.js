@@ -9,6 +9,9 @@ function lower(value) { return text(value).toLowerCase(); }
 function unique(values = []) { return [...new Set(values.map(text).filter(Boolean))]; }
 function today() { return dateUtil.todayVN ? dateUtil.todayVN() : new Date().toISOString().slice(0, 10); }
 function num(value) { const n = Number(value || 0); return Number.isFinite(n) ? n : 0; }
+function norm(value) { return lower(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim(); }
+function compact(value) { return norm(value).replace(/[^a-z0-9]/g, ''); }
+function truthy(value) { return ['1', 'true', 'yes', 'y'].includes(lower(value)); }
 
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
@@ -160,6 +163,121 @@ class DeliveryEngine {
     this.ReturnOrder = models.ReturnOrder;
     this.StockTransaction = models.StockTransaction;
     this.ArLedger = models.ArLedger;
+    this.User = models.User;
+  }
+
+
+  staffCodeOf(user = {}) {
+    return text(user.staffCode || user.code || user.employeeCode || user.salesStaffCode || user.deliveryStaffCode || user.maNhanVien || user.employeeId || user.staffId || user.username || user.id || user._id);
+  }
+
+  staffNameOf(user = {}) {
+    return text(user.fullName || user.name || user.staffName || user.displayName || user.username || this.staffCodeOf(user));
+  }
+
+  staffRoleOk(user = {}, type = '') {
+    const roleText = norm([user.role, user.type, user.position, user.department, user.roleLabel].filter(Boolean).join(' '));
+    const boolOk = type === 'delivery'
+      ? Boolean(user.isDelivery || user.isDeliveryStaff || user.deliveryStaff)
+      : Boolean(user.isSalesman || user.isSalesStaff || user.salesStaff);
+    if (boolOk) return true;
+    if (type === 'delivery') return ['delivery', 'shipper', 'nvgh', 'giao hang', 'giaohang'].some((key) => roleText.includes(norm(key)));
+    return ['sales', 'sale', 'nvbh', 'ban hang', 'banhang', 'salesman'].some((key) => roleText.includes(norm(key)));
+  }
+
+  orderStaffCode(order = {}, type = '') {
+    if (type === 'delivery') return text(order.deliveryStaffCode || order.shipperCode || order.driverCode || order.staffDeliveryCode);
+    return text(order.salesStaffCode || order.salesmanCode || order.staffCode || order.saleCode || order.sellerCode);
+  }
+
+  orderStaffName(order = {}, type = '') {
+    if (type === 'delivery') return text(order.deliveryStaffName || order.shipperName || order.driverName || order.staffDeliveryName);
+    return text(order.salesStaffName || order.salesmanName || order.staffName || order.saleName || order.sellerName);
+  }
+
+  async buildStaffSystemIndex(orders = []) {
+    const empty = { byCode: new Map(), byName: new Map() };
+    if (!this.User || !orders.length) return empty;
+    const keys = unique(orders.flatMap((order) => [
+      this.orderStaffCode(order, 'sales'),
+      this.orderStaffName(order, 'sales'),
+      this.orderStaffCode(order, 'delivery'),
+      this.orderStaffName(order, 'delivery')
+    ])).filter(Boolean);
+    if (!keys.length) return empty;
+    const regexes = keys.map((key) => new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+    const users = await this.User.find({
+      isActive: { $ne: false },
+      $or: [
+        { staffCode: { $in: regexes } },
+        { code: { $in: regexes } },
+        { employeeCode: { $in: regexes } },
+        { salesStaffCode: { $in: regexes } },
+        { deliveryStaffCode: { $in: regexes } },
+        { username: { $in: regexes } },
+        { fullName: { $in: regexes } },
+        { name: { $in: regexes } }
+      ]
+    }).select('id staffCode code employeeCode salesStaffCode deliveryStaffCode username name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []);
+    const byCode = new Map();
+    const byName = new Map();
+    for (const user of users || []) {
+      const code = this.staffCodeOf(user);
+      const name = this.staffNameOf(user);
+      const codeKeys = unique([user.staffCode, user.code, user.employeeCode, user.salesStaffCode, user.deliveryStaffCode, user.username, user.maNhanVien, user.employeeId, user.staffId, code]).map(compact).filter(Boolean);
+      const nameKeys = unique([user.fullName, user.name, user.staffName, user.displayName, name]).map(norm).filter(Boolean);
+      for (const key of codeKeys) byCode.set(key, user);
+      for (const key of nameKeys) byName.set(key, user);
+    }
+    return { byCode, byName };
+  }
+
+  verifyAssignedStaff(order = {}, staffIndex = { byCode: new Map(), byName: new Map() }, type = '') {
+    const assignedCode = this.orderStaffCode(order, type);
+    const assignedName = this.orderStaffName(order, type);
+    const label = type === 'delivery' ? 'NVGH' : 'NVBH';
+    let systemUser = assignedCode ? staffIndex.byCode.get(compact(assignedCode)) : null;
+    if (!systemUser && assignedName) systemUser = staffIndex.byName.get(norm(assignedName));
+    const systemCode = systemUser ? this.staffCodeOf(systemUser) : '';
+    const systemName = systemUser ? this.staffNameOf(systemUser) : '';
+    const codeMatches = Boolean(systemUser && assignedCode && compact(systemCode) === compact(assignedCode));
+    const nameMatches = Boolean(systemUser && assignedName && norm(systemName) === norm(assignedName));
+    const roleOk = Boolean(systemUser && this.staffRoleOk(systemUser, type));
+    const ok = Boolean(systemUser && roleOk && (codeMatches || (!assignedCode && nameMatches)));
+    let message = `${label} đúng mã hệ thống`;
+    if (!assignedCode && !assignedName) message = `Thiếu ${label}`;
+    else if (!systemUser) message = `${label} không tồn tại trong mục Tài khoản/Hệ thống`;
+    else if (!roleOk) message = `${label} có mã hệ thống nhưng sai vai trò`;
+    else if (!codeMatches && assignedCode) message = `${label} không khớp mã hệ thống`;
+    return {
+      type,
+      label,
+      ok,
+      exists: Boolean(systemUser),
+      roleOk,
+      codeMatches,
+      nameMatches,
+      assignedCode,
+      assignedName,
+      systemCode,
+      systemName,
+      message
+    };
+  }
+
+  async enrichStaffAssignment(rows = []) {
+    const staffIndex = await this.buildStaffSystemIndex(rows);
+    return rows.map((row) => {
+      const sales = this.verifyAssignedStaff(row, staffIndex, 'sales');
+      const delivery = this.verifyAssignedStaff(row, staffIndex, 'delivery');
+      const ok = sales.ok && delivery.ok;
+      return {
+        ...row,
+        staffAssignment: { ok, sales, delivery },
+        staffAssignmentStatus: ok ? 'valid' : 'warning',
+        staffAssignmentMessage: ok ? 'Đơn đã gán đúng NVBH/NVGH theo mã hệ thống' : [sales, delivery].filter((item) => !item.ok).map((item) => item.message).join('; ')
+      };
+    });
   }
 
   async findOrders(query = {}) {
@@ -211,7 +329,10 @@ class DeliveryEngine {
   async listOrders(query = {}) {
     const orders = await this.findOrders(query);
     const returns = await this.findReturnOrdersFor(orders);
-    const rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    let rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || query.staffCheck !== '0') {
+      rows = await this.enrichStaffAssignment(rows);
+    }
     return { rows, summary: summarizeOrders(rows), reconciliation: this.reconcileRows(rows) };
   }
 

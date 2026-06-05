@@ -12,6 +12,16 @@
   function amount(order, key) { return num(order && order.amounts && order.amounts[key]); }
   function orderKey(order) { return window.DeliveryCore.orderKey(order); }
   function today() { return new Date().toISOString().slice(0, 10); }
+  function staffLabel(item) {
+    item = item || {};
+    var code = item.staffCode || item.code || item.employeeCode || item.username || item.id || '';
+    var name = item.fullName || item.name || item.staffName || item.username || '';
+    return [code, name].filter(Boolean).join(' - ');
+  }
+  function staffCode(item) {
+    item = item || {};
+    return item.staffCode || item.code || item.employeeCode || item.username || item.id || '';
+  }
 
   var state = { selectedKey: '', activeTab: 'products' };
 
@@ -35,8 +45,8 @@
         '</div>' +
         '<div class="delivery-v46-filters">' +
           '<label>Ngày giao<input id="deliveryCoreDate" type="date"></label>' +
-          '<label>NVGH<input id="deliveryCoreDeliveryStaff" placeholder="Mã/tên NVGH"></label>' +
-          '<label>NVBH<input id="deliveryCoreSalesStaff" placeholder="Mã/tên NVBH"></label>' +
+          '<label class="delivery-v46-filter-suggest">NVGH<input id="deliveryCoreDeliveryStaff" autocomplete="off" placeholder="Mã/tên NVGH"><div id="deliveryCoreDeliveryStaffSuggestions" class="delivery-v46-suggest-box"></div></label>' +
+          '<label class="delivery-v46-filter-suggest">NVBH<input id="deliveryCoreSalesStaff" autocomplete="off" placeholder="Mã/tên NVBH"><div id="deliveryCoreSalesStaffSuggestions" class="delivery-v46-suggest-box"></div></label>' +
           '<label>Trạng thái<select id="deliveryCoreStatus"><option value="">Tất cả</option><option value="pending">Chờ giao</option><option value="assigned">Đã gán</option><option value="delivered">Đã giao</option></select></label>' +
           '<label>Tìm kiếm<input id="deliveryCoreSearch" placeholder="Mã đơn / khách hàng"></label>' +
           '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
@@ -69,8 +79,70 @@
     ['deliveryCoreDate', 'deliveryCoreDeliveryStaff', 'deliveryCoreSalesStaff', 'deliveryCoreStatus', 'deliveryCoreSearch'].forEach(function (id) {
       var input = byId(id);
       if (!input) return;
-      input.addEventListener(id === 'deliveryCoreSearch' ? 'input' : 'change', debounce(load, 250));
+      input.addEventListener((id === 'deliveryCoreSearch' || id === 'deliveryCoreDeliveryStaff' || id === 'deliveryCoreSalesStaff') ? 'input' : 'change', debounce(load, 300));
     });
+    attachStaffSuggest('deliveryCoreDeliveryStaff', 'deliveryCoreDeliveryStaffSuggestions', 'delivery');
+    attachStaffSuggest('deliveryCoreSalesStaff', 'deliveryCoreSalesStaffSuggestions', 'sales');
+  }
+
+
+  function attachStaffSuggest(inputId, boxId, type) {
+    var input = byId(inputId);
+    var box = byId(boxId);
+    if (!input || !box) return;
+    var lastRun = 0;
+    async function searchNow() {
+      var q = String(input.value || '').trim();
+      var stamp = Date.now();
+      lastRun = stamp;
+      if (!q && document.activeElement !== input) {
+        box.innerHTML = '';
+        box.classList.remove('show');
+        return;
+      }
+      try {
+        var rows = [];
+        if (window.UnifiedSearchEngine) {
+          rows = type === 'delivery'
+            ? await window.UnifiedSearchEngine.searchDeliveryStaff(q, { limit: 12, minChars: 0, allowEmpty: '1' })
+            : await window.UnifiedSearchEngine.searchSalesStaff(q, { limit: 12, minChars: 0, allowEmpty: '1' });
+        } else {
+          var path = type === 'delivery' ? 'delivery-staff' : 'sales-staff';
+          var res = await fetch('/api/search/' + path + '?q=' + encodeURIComponent(q) + '&limit=12&allowEmpty=1&activeOnly=1', { headers: { Accept: 'application/json' } });
+          var json = await res.json().catch(function () { return {}; });
+          rows = json.items || json.users || json.staffs || [];
+        }
+        if (stamp !== lastRun) return;
+        rows = (rows || []).filter(function (item) { return staffCode(item); }).slice(0, 12);
+        if (!rows.length) {
+          box.innerHTML = '<button type="button" class="delivery-v46-suggest-empty">Không có nhân viên trong Hệ thống</button>';
+          box.classList.add('show');
+          return;
+        }
+        box.innerHTML = rows.map(function (item, idx) {
+          var code = staffCode(item);
+          var name = item.fullName || item.name || item.staffName || item.username || '';
+          return '<button type="button" data-staff-idx="' + idx + '"><b>' + esc(code) + '</b><span>' + esc(name) + '</span></button>';
+        }).join('');
+        box.classList.add('show');
+        box.querySelectorAll('[data-staff-idx]').forEach(function (button) {
+          button.addEventListener('mousedown', function (ev) {
+            ev.preventDefault();
+            var item = rows[Number(button.getAttribute('data-staff-idx'))] || {};
+            input.value = staffCode(item);
+            input.dataset.staffName = item.fullName || item.name || item.staffName || item.username || '';
+            box.classList.remove('show');
+            load();
+          });
+        });
+      } catch (err) {
+        box.innerHTML = '<button type="button" class="delivery-v46-suggest-empty">Không tải được gợi ý</button>';
+        box.classList.add('show');
+      }
+    }
+    input.addEventListener('focus', searchNow);
+    input.addEventListener('input', debounce(searchNow, 220));
+    input.addEventListener('blur', function () { setTimeout(function () { box.classList.remove('show'); }, 160); });
   }
 
   function debounce(fn, wait) {
@@ -88,7 +160,8 @@
       deliveryStaffCode: byId('deliveryCoreDeliveryStaff') && byId('deliveryCoreDeliveryStaff').value,
       salesStaffCode: byId('deliveryCoreSalesStaff') && byId('deliveryCoreSalesStaff').value,
       status: byId('deliveryCoreStatus') && byId('deliveryCoreStatus').value,
-      q: byId('deliveryCoreSearch') && byId('deliveryCoreSearch').value
+      q: byId('deliveryCoreSearch') && byId('deliveryCoreSearch').value,
+      checkStaffAssignment: '1'
     };
   }
 
@@ -126,6 +199,29 @@
     return 'Chờ giao';
   }
 
+
+
+  function staffAssignmentBadge(order) {
+    var check = order && order.staffAssignment;
+    if (!check) return '';
+    if (check.ok) return '<small class="delivery-v46-staff-check ok">NV đúng hệ thống</small>';
+    return '<small class="delivery-v46-staff-check warn" title="' + esc(order.staffAssignmentMessage || 'Kiểm tra lại NVBH/NVGH') + '">Kiểm tra NV</small>';
+  }
+
+  function staffAssignmentDetailHtml(order) {
+    var check = order && order.staffAssignment;
+    if (!check) return '';
+    function line(item) {
+      item = item || {};
+      return '<div class="delivery-v46-staff-check-line ' + (item.ok ? 'ok' : 'warn') + '">' +
+        '<b>' + esc(item.label || '') + '</b>' +
+        '<span>Đơn: ' + esc([item.assignedCode, item.assignedName].filter(Boolean).join(' - ') || 'thiếu') + '</span>' +
+        '<span>Hệ thống: ' + esc([item.systemCode, item.systemName].filter(Boolean).join(' - ') || 'không tìm thấy') + '</span>' +
+        '<em>' + esc(item.message || '') + '</em>' +
+      '</div>';
+    }
+    return '<div class="delivery-v46-staff-check-box"><h4>Kiểm tra nhân viên theo Hệ thống</h4>' + line(check.sales) + line(check.delivery) + '</div>';
+  }
 
   function paymentChip(label, value, className, emptyText) {
     var n = num(value);
@@ -173,7 +269,7 @@
           '<div class="delivery-v46-order-main">' +
             '<strong>' + esc(orderCode) + '</strong>' +
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
-            '<em>' + esc(statusText(order)) + '</em>' +
+            '<em>' + esc(statusText(order)) + '</em>' + staffAssignmentBadge(order) +
           '</div>' +
           '<div class="delivery-v46-payment-cell">' + paymentChipsHtml(order) + '</div>' +
         '</button>';
@@ -196,6 +292,7 @@
         '<div><h3>' + esc(order.orderCode) + '</h3><p>' + esc(order.customerName) + ' · ' + esc(order.customerCode) + '</p></div>' +
         '<button id="deliveryConfirmButton" type="button" class="success">Xác nhận giao</button>' +
       '</div>' +
+      staffAssignmentDetailHtml(order) +
       '<div class="delivery-v46-tabs">' +
         '<button type="button" data-delivery-detail-tab="products" class="' + (state.activeTab === 'products' ? 'active' : '') + '">Sản phẩm giao</button>' +
         '<button type="button" data-delivery-detail-tab="payment" class="' + (state.activeTab === 'payment' ? 'active' : '') + '">Thu tiền</button>' +
