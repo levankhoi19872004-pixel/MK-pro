@@ -434,7 +434,13 @@
     var list = byId('deliveryCoreList');
     if (list) list.innerHTML = '<div class="empty-state">Đang tải...</div>';
     try {
-      await window.DeliveryCore.loadOrders(filters());
+      var f = filters();
+      var hasFilter = (f.q || f.salesStaffCode || f.deliveryStaffCode || f.status);
+      if (!hasFilter) {
+        if (list) list.innerHTML = '<div class="empty-state">Vui lòng nhập mã đơn, khách hàng, NVGH/NVBH hoặc chọn bộ lọc để tải dữ liệu.</div>';
+        return;
+      }
+      await window.DeliveryCore.loadOrders(f);
       if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = orderKey(window.DeliveryCore.state.orders[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
       renderList();
