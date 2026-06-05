@@ -431,20 +431,25 @@ function renderDeliveryTodaySummary(){
     const locked = Boolean(row.accountingConfirmed || row.editLocked || row.accountingLocked);
     const checked = selectedDeliveryAccountingIds.has(String(row.id));
     const selected = String(row.id) === String(selectedDeliveryOrderId);
-    return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row ${selected?'selected':''} ${locked?'accounting-locked':''}" data-id="${deliveryText(row.id)}" onclick="selectDeliveryOrder(this.dataset.id)">
-      <label class="delivery-select-cell" onclick="event.stopPropagation()">
+    const debt = deliveryDebt(row);
+    const customerLine = [row.customerCode || row.customerId || '', row.customerName || ''].filter(Boolean).join(' - ');
+    const staffLine = [row.salesStaffCode ? `NVBH: ${row.salesStaffCode}` : '', row.deliveryStaffCode ? `NVGH: ${row.deliveryStaffCode}` : ''].filter(Boolean).join(' · ');
+    return `<article class="delivery-card delivery-compact-card delivery-customer-card delivery-list-row delivery-kpi-row ${selected?'selected':''} ${locked?'accounting-locked':''} ${debt > 0 ? 'has-debt' : 'no-debt'}" data-id="${deliveryText(row.id)}" onclick="selectDeliveryOrder(this.dataset.id)">
+      <label class="delivery-kpi-check" onclick="event.stopPropagation()" title="Chọn đẩy sang công nợ">
         <input class="delivery-accounting-checkbox" type="checkbox" value="${deliveryText(row.id)}" ${checked?'checked':''} ${locked?'disabled':''} onchange="toggleDeliveryAccountingSelection(this.value,this.checked)" />
       </label>
-      <div class="delivery-card-main">
-        <strong>${deliveryText(deliveryCode(row))}</strong>
-        <span>${deliveryText(row.customerName || '')}</span>
+      <div class="delivery-kpi-main">
+        <div class="delivery-kpi-title"><strong>${deliveryText(deliveryCode(row))}</strong><span>${deliveryText(customerLine || 'Không rõ khách')}</span></div>
+        <div class="delivery-kpi-sub">${deliveryText(staffLine || deliveryStatusLabel(row.status || row.deliveryStatus))}</div>
       </div>
-      <span class="delivery-mini-metric metric-pt"><em>PT</em><b>${deliveryMoney(deliveryDebtBase(row))}</b></span>
-      <span class="delivery-mini-metric metric-tm"><em>TM</em><b>${deliveryMoney(deliveryCash(row))}</b></span>
-      <span class="delivery-mini-metric metric-ck"><em>CK</em><b>${deliveryMoney(deliveryBank(row))}</b></span>
-      <span class="delivery-mini-metric metric-tt"><em>TT</em><b>${deliveryMoney(deliveryReward(row))}</b></span>
-      <span class="delivery-mini-metric metric-th"><em>TH</em><b>${deliveryMoney(deliveryReturnAmount(row))}</b></span>
-      <span class="delivery-mini-metric metric-cn"><em>CN</em><b>${deliveryMoney(deliveryDebt(row))}</b></span>
+      <div class="delivery-kpi-metrics" aria-label="Chỉ số giao hàng">
+        <span class="delivery-mini-metric metric-pt" title="Phải thu"><em>PT</em><b>${deliveryMoney(deliveryDebtBase(row))}</b></span>
+        <span class="delivery-mini-metric metric-tm" title="Tiền mặt"><em>TM</em><b>${deliveryMoney(deliveryCash(row))}</b></span>
+        <span class="delivery-mini-metric metric-ck" title="Chuyển khoản"><em>CK</em><b>${deliveryMoney(deliveryBank(row))}</b></span>
+        <span class="delivery-mini-metric metric-th" title="Trả thưởng"><em>TH</em><b>${deliveryMoney(deliveryReward(row))}</b></span>
+        <span class="delivery-mini-metric metric-ht" title="Hàng trả"><em>HT</em><b>${deliveryMoney(deliveryReturnAmount(row))}</b></span>
+        <span class="delivery-mini-metric metric-cn ${debt > 0 ? 'debt-open' : 'debt-done'}" title="Còn nợ"><em>CN</em><b>${debt > 0 ? deliveryMoney(debt) : 'Đủ'}</b></span>
+      </div>
     </article>`;
   }).join('');
   syncDeliveryAccountingSelection();
