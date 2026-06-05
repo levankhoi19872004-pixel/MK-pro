@@ -13,23 +13,14 @@ function firstPositiveAmount(...values) {
 }
 
 function deliveryDebtBase(order = {}) {
-  // V45 accounting rule:
-  // AR-SALE phải lấy theo tổng phải thu ban đầu của đơn giao, không lấy theo còn nợ.
-  // Nhiều đơn thu đủ có debtAmount = 0 nhưng vẫn bắt buộc phải post AR-SALE + các dòng credit
-  // để màn Công nợ có lịch sử đủ và đối soát về 0.
   return firstPositiveAmount(
-    order.totalReceivable,
-    order.receivableAmount,
-    order.debtBeforeCollection,
     order.totalAmount,
     order.total,
     order.amount,
     order.grandTotal,
     order.payableAmount,
     order.orderAmount,
-    order.originalAmount,
-    order.invoiceAmount,
-    // debtAmount/debt chỉ là fallback cuối cho dữ liệu cũ thiếu tổng phải thu.
+    order.debtBeforeCollection,
     order.debtAmount,
     order.debt
   );
@@ -54,12 +45,14 @@ function deliveryReturnAmount(order = {}) {
   if (order.returnAmountFromReturnOrders !== undefined && order.returnAmountFromReturnOrders !== null) {
     return Math.round(toNumber(order.returnAmountFromReturnOrders));
   }
-
   const returnItems = Array.isArray(order.deliveryReturnItems)
     ? order.deliveryReturnItems
-    : (Array.isArray(order.returnItems) ? order.returnItems : []);
-
-  return Math.round(returnItems.reduce((sum, item) => sum + lineReturnAmount(item), 0));
+    : (Array.isArray(order.returnItems) ? order.returnItems : null);
+  if (Array.isArray(returnItems)) {
+    return Math.round(returnItems.reduce((sum, item) => sum + lineReturnAmount(item), 0));
+  }
+  if (order.returnOrder) return amountFromReturnOrder(order.returnOrder);
+  return Math.round(toNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0));
 }
 
 function isDeliveryArLedgerSynced(order = {}) {
