@@ -465,7 +465,11 @@ function createMobileDeliveryService(ctx) {
       return { statusCode: 400, body: { ok: false, message: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả` } };
     }
 
-    const items = buildReturnItemsFromRequest(order, body.items || [], returnType);
+    // App có thể gửi đủ danh sách sản phẩm nhưng tất cả SL trả = 0.
+    // Phải lọc lại sau buildReturnItemsFromRequest(), nếu không backend vẫn hiểu là có items
+    // và có thể giữ/tính lại giá trị hàng trả cũ thay vì clear về 0.
+    const items = buildReturnItemsFromRequest(order, body.items || [], returnType)
+      .filter((item) => getReturnLineQty(item) > 0);
 
     // Cho phép app gửi danh sách SL trả = 0 để ghi đè/xóa phiếu trả tạm cũ.
     // Tiền hàng trả không lưu ở ô Thu tiền; nó lấy từ returnOrders.totalAmount/debtReduction.
