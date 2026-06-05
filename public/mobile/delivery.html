@@ -3,115 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>V45 Mobile - Giao hàng 4 tab</title>
-  <link rel="stylesheet" href="./mobile.css?v=speed-monitor-v1" />
+  <title>App giao hàng</title>
+  <link rel="stylesheet" href="./mobile.css?v=canonical-delivery-v1" />
 </head>
 <body>
-  <main class="mobile-page delivery-app-page">
-    <header class="mobile-header delivery-main-header">
-      <div>
-        <h1>App giao hàng V45</h1>
-        <p id="staffInfo">Đang tải...</p><small class="version-badge">Giao hàng 4 tab: Đơn giao · Hàng giao · Thu tiền · Báo cáo</small>
-      </div>
-      <button id="logoutBtn" class="ghost-btn">Thoát</button>
-    </header>
-
-    <nav class="delivery-bottom-tabs delivery-bottom-tabs-4" aria-label="Điều hướng app giao hàng">
-      <button class="delivery-tab active" data-delivery-tab="list" type="button">Đơn giao</button>
-      <button class="delivery-tab" data-delivery-tab="products" type="button">Hàng giao</button>
-      <button class="delivery-tab" data-delivery-tab="collect" type="button">Thu tiền</button>
-      <button class="delivery-tab" data-delivery-tab="report" type="button">Báo cáo</button>
-    </nav>
-
-    <section id="deliveryListPanel" class="delivery-panel active">
-      <section class="card">
-        <div class="section-title-row">
-          <div>
-            <h2>Danh sách đơn giao trong ngày</h2>
-            <p>Mặc định là hôm nay, có thể chọn ngày khác để xem lại.</p>
-          </div>
-          <button id="reloadOrdersBtn" class="ghost-btn small-btn">Tải lại</button>
-        </div>
-        <div class="delivery-date-toolbar">
-          <label for="deliveryDateInput">Ngày giao</label>
-          <input id="deliveryDateInput" type="date" />
-          <button id="todayOrdersBtn" class="ghost-btn small-btn" type="button">Hôm nay</button>
-        </div>
-        <p id="deliveryFormula" class="formula-note">App lọc theo ngày giao + nhân viên giao đang đăng nhập.</p>
-        <div id="deliveryKpiGrid" class="delivery-mobile-kpis">
-          <div><span>Tổng đơn</span><strong id="kpiTotalOrders">0</strong></div>
-          <div><span>Đã giao</span><strong id="kpiDoneOrders">0</strong></div>
-          <div><span>Còn xử lý</span><strong id="kpiPendingOrders">0</strong></div>
-          <div><span>Phải thu</span><strong id="kpiDebtAmount">0</strong></div>
-        </div>
-        <div id="deliveryOrders" class="order-list empty">Chưa có đơn</div>
-        <p id="deliveryMessage" class="message"></p>
-      </section>
-    </section>
-
-
-    <section id="deliveryProductsPanel" class="delivery-panel">
-      <section class="card">
-        <div class="section-title-row">
-          <div>
-            <h2>Sản phẩm cần giao / hàng trả</h2>
-            <p>Chọn đơn ở tab Đơn giao. Kiểm hàng cần giao, nhập số lượng hàng trả nếu có rồi xác nhận giao.</p>
-          </div>
-        </div>
-        <div id="productSelectedOrderBox" class="selected-delivery-box empty">Chưa chọn đơn giao hàng.</div>
-        <div id="deliveryProductBox" class="delivery-action-box"></div>
-        <p id="deliveryProductMessage" class="message"></p>
-      </section>
-    </section>
-
-    <section id="deliveryCollectPanel" class="delivery-panel">
-      <section class="card">
-        <div class="section-title-row">
-          <div>
-            <h2>Thu tiền</h2>
-            <p>Nhập tiền mặt, chuyển khoản, trả thưởng sau khi đã xác nhận hàng giao ở tab Hàng giao.</p>
-          </div>
-        </div>
-        <div id="selectedOrderBox" class="selected-delivery-box empty">Chưa chọn đơn giao hàng.</div>
-        <div id="deliveryActionBox" class="delivery-action-box"></div>
-        <p id="deliveryActionMessage" class="message"></p>
-      </section>
-
-      <section class="card">
-        <h2>Nộp tiền mặt về quỹ</h2>
-        <input id="cashAmountInput" type="number" min="0" placeholder="Số tiền mặt nộp về thủ quỹ" />
-        <textarea id="cashNoteInput" rows="2" placeholder="Ghi chú nếu có"></textarea>
-        <button id="submitCashBtn" class="primary-btn full-btn">Ghi nhận nộp quỹ</button>
-        <p id="cashMessage" class="message"></p>
-      </section>
-    </section>
-
-    <section id="deliveryReportPanel" class="delivery-panel">
-      <section class="card">
-        <div class="section-title-row">
-          <div>
-            <h2>Báo cáo giao hàng</h2>
-            <p>Tổng hợp theo ngày đang chọn và danh sách đơn đã giao.</p>
-          </div>
-        </div>
-        <div class="delivery-report-grid">
-          <div><span>Tổng tiền mặt</span><strong id="reportCashAmount">0</strong></div>
-          <div><span>Tổng chuyển khoản</span><strong id="reportBankAmount">0</strong></div>
-          <div><span>Trả hàng</span><strong id="reportReturnAmount">0</strong></div>
-          <div><span>Còn nợ</span><strong id="reportDebtAmount">0</strong></div>
-          <div><span>Thu đơn hôm nay - TM</span><strong id="reportTodayCashAmount">0</strong></div>
-          <div><span>Thu đơn hôm nay - CK</span><strong id="reportTodayBankAmount">0</strong></div>
-          <div><span>Thu nợ cũ - TM</span><strong id="reportOldDebtCashAmount">0</strong></div>
-          <div><span>Thu nợ cũ - CK</span><strong id="reportOldDebtBankAmount">0</strong></div>
-        </div>
-        <h2 class="sub-title">Danh sách đơn đã giao / đã xử lý</h2>
-        <div id="deliveryReportList" class="order-list delivery-report-list empty">Chưa có dữ liệu báo cáo.</div>
-      </section>
-    </section>
+  <main id="mobileDeliveryRoot" class="mobile-page">
+    <section class="mobile-card"><h1>App giao hàng</h1><p>Đang tải...</p></section>
   </main>
-
-      <script src="../js/utils/v45-speed-monitor.js?v=speed-monitor-v1"></script>
-<script src="/js/utils/v45-common-utils.js?v=v45-common-utils"></script>
-<script type="module" src="./js/delivery.js?v=queryguard-v45-20260601"></script>
+  <script src="/js/delivery/delivery-core.js?v=canonical-delivery-v1"></script>
+  <script src="/mobile/js/delivery-mobile-view.js?v=canonical-delivery-v1"></script>
+  <script src="/mobile/js/delivery.js?v=canonical-delivery-v1"></script>
 </body>
 </html>

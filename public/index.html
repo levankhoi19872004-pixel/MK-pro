@@ -25,7 +25,6 @@
       <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
       <button class="tab-button" data-tab="returnOrdersTab">Đơn trả hàng</button>
       <button class="tab-button" data-tab="masterReturnOrdersTab">Đơn tổng trả hàng</button>
-      <button class="tab-button" data-tab="deliveryTodayTab">Đơn đi giao hôm nay</button>
       <button class="tab-button" data-tab="debtTab">Công nợ</button>
       <button class="tab-button" data-tab="fundsTab">Quỹ tiền</button>
       <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
@@ -476,117 +475,6 @@
           <strong id="masterReturnKpiMasterCount">0</strong>
           <strong id="masterReturnKpiMasterValue">0</strong>
         </div>
-      </main>
-    </section>
-
-    <section id="deliveryTodayTab" class="tab-content">
-      <main class="delivery-split-layout">
-        <section class="card delivery-left-panel">
-          <div class="delivery-head">
-            <div>
-              <h2>Đơn đi giao hôm nay</h2>
-              <p class="muted">Bên trái theo dõi danh sách + báo cáo. Chọn một đơn để chỉnh sửa ở bên phải.</p>
-            </div>
-            <div class="delivery-accounting-actions">
-              <button id="selectAllDeliveryAccountingButton" class="secondary compact-action" type="button">Chọn / Bỏ chọn tất cả</button>
-              <button id="clearDeliveryAccountingSelectionButton" class="secondary compact-action hidden-action" type="button" hidden>Bỏ chọn</button>
-              <button id="confirmDeliveryAccountingButton" class="primary compact-action" type="button">Xác nhận của kế toán</button>
-              <button id="createDeliveryCashSubmissionButton" class="primary compact-action" type="button">Nộp quỹ</button>
-              <button id="reloadDeliveryTodayButton" class="secondary compact-action" type="button">Tải lại</button>
-            </div>
-          </div>
-          <div id="deliveryAccountingStatus" class="delivery-accounting-status">Chưa xác nhận kế toán: đơn còn được sửa và chưa đưa vào công nợ.</div>
-
-          <div class="delivery-filter-bar sticky-filter-bar delivery-simple-filter">
-            <label class="delivery-filter-field">Ngày giao hàng
-              <input id="deliveryDateFilter" type="date" title="Ngày giao" />
-            </label>
-            <label class="delivery-filter-field autocomplete">Nhân viên giao hàng
-              <input id="deliveryStaffFilter" placeholder="Gõ mã hoặc tên NV giao..." autocomplete="off" />
-              <div id="deliveryStaffFilterSuggestions" class="suggestions" hidden></div>
-            </label>
-            <label class="delivery-filter-field autocomplete">Nhân viên bán hàng
-              <input id="deliverySalesmanFilter" placeholder="Gõ mã hoặc tên NV bán..." autocomplete="off" />
-              <div id="deliverySalesmanFilterSuggestions" class="suggestions" hidden></div>
-            </label>
-            <label class="delivery-filter-field">Trạng thái đơn
-              <select id="deliveryStatusFilter" title="Trạng thái đơn">
-                <option value="">Tất cả</option>
-                <option value="not_delivered">Chưa giao</option>
-                <option value="delivering">Đang giao</option>
-                <option value="delivered_group">Đã giao</option>
-                <option value="returned">Có trả hàng</option>
-                <option value="accounting_confirmed">Đã xác nhận kế toán</option>
-                <option value="accounting_pending">Chưa xác nhận kế toán</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="delivery-kpi-grid compact-delivery-kpis delivery-money-report-grid">
-            <div class="delivery-kpi-card"><span>Tổng phải thu</span><strong id="deliveryTotalKpi">0</strong></div>
-            <div class="delivery-kpi-card status-delivering"><span>Tiền mặt</span><strong id="deliveryRunningKpi">0</strong></div>
-            <div class="delivery-kpi-card status-done"><span>Chuyển khoản</span><strong id="deliveryDoneKpi">0</strong></div>
-            <div class="delivery-kpi-card status-collect"><span>Trả thưởng</span><strong id="deliveryUnpaidKpi">0</strong></div>
-            <div class="delivery-kpi-card"><span>Hàng trả</span><strong id="deliveryLateKpi">0</strong></div>
-            <div class="delivery-kpi-card status-late"><span>Công nợ</span><strong id="deliveryDebtKpi">0</strong></div>
-          </div>
-
-          <div id="deliveryRouteSummary" class="delivery-route-summary"></div>
-          <div id="deliveryTodayList" class="delivery-card-list delivery-compact-list"><div class="empty-state">Đang tải đơn đi giao...</div></div>
-        </section>
-
-        <aside class="card delivery-edit-panel">
-          <div class="delivery-edit-head">
-            <div>
-              <h2>Xử lý / chỉnh sửa đơn giao</h2>
-              <p class="muted">Chọn một đơn bên trái để sửa sai sót giao hàng.</p>
-            </div>
-            <span id="deliveryEditStatus" class="delivery-badge">Chưa chọn đơn</span>
-          </div>
-
-          <form id="deliveryEditForm" class="form compact-form delivery-edit-form">
-            <input type="hidden" id="deliveryEditOrderId" name="orderId" />
-            <div class="selected-delivery-box" id="deliverySelectedSummary">
-              Chưa chọn đơn giao hàng.
-            </div>
-
-            <input id="deliveryEditOrderCode" name="orderCode" type="hidden" />
-            <input id="deliveryEditCustomerName" name="customerName" type="hidden" />
-            <input id="deliveryEditStaffCode" name="deliveryStaffCode" type="hidden" />
-            <input id="deliveryEditRouteName" name="routeName" type="hidden" />
-            <input id="deliveryEditDebtBefore" name="debtBeforeCollection" type="hidden" />
-            <input id="deliveryEditDebt" name="debtAmount" type="hidden" />
-            <input id="deliveryEditReturn" name="returnAmount" type="hidden" value="0" />
-
-            <div class="delivery-return-card">
-              <div class="delivery-return-head">
-                <div>
-                  <h3>Sản phẩm cần giao / hàng trả</h3>
-                  <p class="muted">Danh sách copy theo mẫu app giao hàng. App và phần mềm cùng sửa SL trả, đồng bộ về returnOrders.</p>
-                </div>
-                <strong id="deliveryReturnTotalText">0</strong>
-              </div>
-              <div id="deliveryReturnItems">
-                <div class="empty-state">Chọn đơn để hiển thị sản phẩm.</div>
-              </div>
-            </div>
-
-            <div class="form-grid two-cols delivery-money-grid delivery-payment-form-section">
-              <label>Tiền mặt<input id="deliveryEditCash" name="cashCollected" type="number" min="0" step="1" /></label>
-              <label>Chuyển khoản<input id="deliveryEditBank" name="bankCollected" type="number" min="0" step="1" /></label>
-              <label>Tiền trả thưởng<input id="deliveryEditReward" name="rewardAmount" type="number" min="0" step="1" value="0" /></label>
-            </div>
-            <input type="hidden" id="deliveryEditNote" name="deliveryNote" value="" />
-            <div class="delivery-edit-total-box" id="deliveryEditTotalBox">Chọn đơn để xem tổng kết.</div>
-            <div class="form-actions delivery-edit-actions">
-              <button type="submit" id="deliveryEditSaveButton">Lưu chỉnh sửa</button>
-              <button type="button" class="secondary" id="deliveryAdminUnlockButton" hidden>Mở khóa điều chỉnh</button>
-              <button type="button" class="primary" id="deliveryReAccountingButton" hidden>Xác nhận lại kế toán</button>
-              <button type="button" class="secondary" id="deliveryEditResetButton">Bỏ chọn</button>
-            </div>
-            <p id="deliveryEditMessage" class="form-message"></p>
-          </form>
-        </aside>
       </main>
     </section>
 
@@ -1425,7 +1313,9 @@
   <script src="/js/app/03-customers-autocomplete.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/04-import-orders.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/05-sales-orders.js?v=staff-auto-users-v5"></script>
-  <script src="/js/app/06-master-delivery.js?v=staff-auto-users-v5"></script>
+  <script src="/js/delivery/delivery-core.js?v=canonical-delivery-v1"></script>
+  <script src="/js/delivery/delivery-web-view.js?v=canonical-delivery-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=canonical-delivery-v1"></script>
   <script src="/js/app/07-debt-cashbook.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/08-reports-users-promotions-import-excel.js?v=vat-tt78-export-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
