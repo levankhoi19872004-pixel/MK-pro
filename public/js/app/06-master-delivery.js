@@ -42,48 +42,6 @@ function masterOrderChildDebt(row = {}) {
   return Number(row.debtAmount ?? row.remainingDebt ?? row.receivableAmount ?? row.totalDebt ?? 0) || 0;
 }
 
-
-function deliveryCompactMoney(value) {
-  const n = Number(value || 0);
-  if (typeof money === 'function') return money(n);
-  return Math.round(n).toLocaleString('vi-VN');
-}
-
-function deliveryDebtCompactLabel(value) {
-  const n = Number(value || 0);
-  return n > 0 ? deliveryCompactMoney(n) : 'Đủ';
-}
-
-function deliveryAmountValue(row = {}, keys = []) {
-  for (const key of keys) {
-    const direct = row[key];
-    const nested = row.amounts && row.amounts[key];
-    const value = direct !== undefined && direct !== null && direct !== '' ? direct : nested;
-    const n = Number(value || 0);
-    if (Number.isFinite(n) && n !== 0) return n;
-  }
-  return 0;
-}
-
-function deliveryAmountMetricLine(row) {
-  row = row || {};
-  const pt = deliveryAmountValue(row, ['totalReceivable', 'receivable', 'receivableAmount', 'totalAmount', 'amount']);
-  const tm = deliveryAmountValue(row, ['cashAmount', 'cash', 'cashCollected', 'paidCash']);
-  const ck = deliveryAmountValue(row, ['bankAmount', 'bank', 'transferAmount', 'bankCollected']);
-  const tt = deliveryAmountValue(row, ['bonusAmount', 'rewardAmount', 'reward', 'discountAmount']);
-  const th = deliveryAmountValue(row, ['returnAmountFromReturnOrders', 'returnAmount', 'returnedAmount']);
-  const cn = deliveryAmountValue(row, ['debtAmount', 'debt', 'remainingDebt', 'arDebtAmount']);
-  const returnSource = row.returnAmountSource || (row.returnAmountFromReturnOrders != null ? 'returnOrders' : '');
-  const thTitle = returnSource === 'returnOrders' ? 'Trả hàng từ returnOrders' : 'Trả hàng';
-  return `<span class="metric-pt">PT ${deliveryCompactMoney(pt)}</span>`
-    + `<span class="metric-tm">TM ${deliveryCompactMoney(tm)}</span>`
-    + `<span class="metric-ck">CK ${deliveryCompactMoney(ck)}</span>`
-    + `<span class="metric-tt">TT ${deliveryCompactMoney(tt)}</span>`
-    + `<span class="metric-th" title="${thTitle}">TH ${deliveryCompactMoney(th)}</span>`
-    + `<span class="metric-cn">CN ${deliveryDebtCompactLabel(cn)}</span>`;
-}
-window.deliveryAmountMetricLine = deliveryAmountMetricLine;
-
 function updateSelectedChildOrderSummary() {
   const selected = (unmergedOrdersCache || []).filter((row) => selectedChildOrderIds.has(salesOrderIdentity(row)));
   const totalAmount = selected.reduce((sum, row) => sum + masterOrderChildAmount(row), 0);
@@ -311,6 +269,46 @@ if (masterOrderList) {
     printMasterOrderIds([btn.dataset.id]);
   });
 }
+
+
+
+// V45 canonical delivery finance display helpers.
+// PT: phải thu, TM: tiền mặt, CK: chuyển khoản, TT: trả thưởng, TH: trả hàng, CN: công nợ còn lại.
+function deliveryCompactMoney(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return '0';
+  if (Math.abs(num) >= 1000000) return `${Math.round(num / 100000) / 10}tr`;
+  if (Math.abs(num) >= 1000) return `${Math.round(num / 1000)}k`;
+  return String(Math.round(num));
+}
+window.deliveryCompactMoney = window.deliveryCompactMoney || deliveryCompactMoney;
+
+function deliveryDebtCompactLabel(value) {
+  const num = Number(value || 0);
+  if (Math.abs(num) <= 1000) return '0';
+  return deliveryCompactMoney(num);
+}
+window.deliveryDebtCompactLabel = window.deliveryDebtCompactLabel || deliveryDebtCompactLabel;
+
+function deliveryAmountMetricLine(row) {
+  const amount = row && typeof row.deliveryAmount === 'object' ? row.deliveryAmount : row || {};
+  const pt = Number(amount.totalReceivable ?? row?.totalReceivable ?? row?.receivableAmount ?? row?.totalAmount ?? 0) || 0;
+  const tm = Number(amount.cashAmount ?? row?.cashAmount ?? row?.cashCollected ?? 0) || 0;
+  const ck = Number(amount.bankAmount ?? row?.bankAmount ?? row?.bankCollected ?? row?.transferAmount ?? 0) || 0;
+  const tt = Number(amount.bonusAmount ?? amount.rewardAmount ?? row?.bonusAmount ?? row?.rewardAmount ?? 0) || 0;
+  const th = Number(amount.returnAmount ?? row?.returnAmount ?? row?.totalReturnAmount ?? 0) || 0;
+  const cn = Number(amount.debtAmount ?? amount.remainingAmount ?? row?.debtAmount ?? row?.remainingAmount ?? Math.max(0, pt - tm - ck - tt - th)) || 0;
+  const title = 'Trả hàng từ returnOrders';
+  return `<div class="delivery-amount-metrics" title="${title}">
+    <span>PT ${deliveryCompactMoney(pt)}</span>
+    <span>TM ${deliveryCompactMoney(tm)}</span>
+    <span>CK ${deliveryCompactMoney(ck)}</span>
+    <span>TT ${deliveryCompactMoney(tt)}</span>
+    <span>TH ${deliveryCompactMoney(th)}</span>
+    <span>CN ${deliveryDebtCompactLabel(cn)}</span>
+  </div>`;
+}
+window.deliveryAmountMetricLine = deliveryAmountMetricLine;
 
 // V46 canonical delivery: old web delivery logic removed.
 // Web UI now delegates to public/js/delivery/delivery-core.js + delivery-web-view.js.
