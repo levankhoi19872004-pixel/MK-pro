@@ -54,7 +54,7 @@
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
           '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
-          '<div class="delivery-v46-list-head delivery-v46-list-head-payment"><span>Đơn / Khách hàng</span><span>Nhân sự</span><span>Thanh toán</span></div>' +
+          '<div class="delivery-v46-list-head delivery-v46-list-head-payment"><span>Đơn / Khách hàng</span><span>Thanh toán</span></div>' +
           '<div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
         '</section>' +
         '<aside class="card delivery-v46-detail-panel">' +
@@ -174,10 +174,6 @@
             '<strong>' + esc(orderCode) + '</strong>' +
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
             '<em>' + esc(statusText(order)) + '</em>' +
-          '</div>' +
-          '<div class="delivery-v46-staff-cell">' +
-            '<span>NVBH: <b>' + esc(salesStaff || '-') + '</b></span>' +
-            '<span>NVGH: <b>' + esc(deliveryStaff || '-') + '</b></span>' +
           '</div>' +
           '<div class="delivery-v46-payment-cell">' + paymentChipsHtml(order) + '</div>' +
         '</button>';
