@@ -1,0 +1,26 @@
+'use strict';
+
+const express = require('express');
+const promotionController = require('../controllers/promotionController');
+
+const router = express.Router();
+
+router.get('/product-rules', promotionController.listProductRules);
+router.post('/product-rules', promotionController.saveProductRule);
+router.delete('/product-rules/:id', promotionController.deleteProductRule);
+
+router.get('/group-items', promotionController.listGroupItems);
+router.post('/group-items', promotionController.saveGroupItem);
+router.delete('/group-items/:id', promotionController.deleteGroupItem);
+
+router.get('/group-rules', promotionController.listGroupRules);
+router.post('/group-rules', promotionController.saveGroupRule);
+router.delete('/group-rules/:id', promotionController.deleteGroupRule);
+
+router.post('/calculate', promotionController.calculate);
+
+router.get('/', promotionController.list);
+router.post('/', promotionController.save);
+router.delete('/:id', promotionController.remove);
+
+module.exports = router;

@@ -1,0 +1,340 @@
+const escapeHtml = (window.V45Common || {}).escapeHtml;
+let customerListRequestSeq = 0;
+async function loadCustomers(options = {}){
+  const requestSeq = ++customerListRequestSeq;
+  const q=customerSearchInput?customerSearchInput.value.trim():'';
+  const resetPage=options.resetPage===true;
+  const allowEmpty = options.allowEmpty === true;
+  if(!allowEmpty && q.length < 2){
+    customersCache=[];
+    customerTotal=0;
+    customerTotalPages=1;
+    if(customerCount)customerCount.textContent='Nhập ít nhất 2 ký tự để tìm khách hàng';
+    if(customerTable)customerTable.innerHTML='<tr><td colspan="8" class="empty-cell">Nhập ít nhất 2 ký tự để tải danh sách khách hàng.</td></tr>';
+    renderCustomerPagination();
+    return;
+  }
+  if(resetPage) customerPage=1;
+  if(customerPage<1) customerPage=1;
+  const limit=Number(customerPageSize||50);
+  try{
+    if(customerTable) customerTable.innerHTML='<tr><td colspan="8">Đang tải khách hàng...</td></tr>';
+    // Phase 3.6 clean separation:
+    // Bảng danh sách khách hàng PHẢI gọi thẳng API /api/customers để lấy Mongo + phân trang thật.
+    // Không đi qua CatalogCache vì CatalogCache chỉ dùng cho autocomplete/lazy search.
+    const result = await (window.fetchWithTimeout||fetch)(`/api/customers?page=${customerPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}&_t=${Date.now()}`, {}, 10000)
+      .then(async res=>{
+        const json=await res.json();
+        if(!json.ok)throw new Error(json.message||'Không tải được khách hàng');
+        return {rows:json.customers||[],meta:json.meta||null};
+      });
+    if(requestSeq !== customerListRequestSeq) return;
+    customersCache = Array.isArray(result.rows) ? result.rows : [];
+    customerTotal = Number(result.meta?.total ?? customersCache.length);
+    customerTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(customerTotal/limit) ?? 1));
+    if(customerPage>customerTotalPages && customerTotalPages>0){
+      customerPage=customerTotalPages;
+      return loadCustomers();
+    }
+    if(customerCount)customerCount.textContent=`${customerTotal} khách hàng`;
+    renderCustomerTable();renderSalesCustomerSelect();renderCollectionCustomerSelect();
+  }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`}
+}
+function getCustomerTotalPages(){
+  return Math.max(1,Number(customerTotalPages||1));
+}
+function getCustomerPageRows(){
+  if(customerPage<1)customerPage=1;
+  if(customerPage>getCustomerTotalPages())customerPage=getCustomerTotalPages();
+  return customersCache || [];
+}
+function renderCustomerPagination(){
+  if(!customerPagination)return;
+  const total=Number(customerTotal||customersCache.length||0);
+  const totalPages=getCustomerTotalPages();
+  const start=total && customersCache.length ? ((customerPage-1)*customerPageSize+1) : 0;
+  const end=Math.min(total,(customerPage-1)*customerPageSize+(customersCache?customersCache.length:0));
+  if(customerPageInfo)customerPageInfo.textContent=`Hiển thị ${start}-${end} / ${total} khách hàng · Trang ${customerPage}/${totalPages}`;
+  if(customerPrevPage)customerPrevPage.disabled=customerPage<=1;
+  if(customerNextPage)customerNextPage.disabled=customerPage>=totalPages;
+  if(customerPageSizeSelect&&Number(customerPageSizeSelect.value)!==customerPageSize)customerPageSizeSelect.value=String(customerPageSize);
+}
+function updateCustomerBulkUI(){
+  if(customerSelectedCount)customerSelectedCount.textContent=`${selectedCustomerIds.size} khách đã chọn`;
+  if(customerBulkActions)customerBulkActions.hidden=selectedCustomerIds.size===0;
+  if(customerCheckAll){
+    const ids=getCustomerPageRows().map(c=>c.id).filter(Boolean);
+    customerCheckAll.checked=ids.length>0 && ids.every(id=>selectedCustomerIds.has(id));
+  }
+  renderCustomerPagination();
+}
+function renderCustomerTable(){
+  if(!customerTable)return;
+  if(!customersCache.length){
+    selectedCustomerIds.clear();
+    const q=customerSearchInput?customerSearchInput.value.trim():'';
+    customerTable.innerHTML=`<tr><td colspan="8">${q?'Không tìm thấy khách hàng phù hợp':'Chưa có khách hàng'}</td></tr>`;
+    updateCustomerBulkUI();
+    return;
+  }
+  selectedCustomerIds=new Set([...selectedCustomerIds].filter(id=>customersCache.some(c=>c.id===id)));
+  const rows=getCustomerPageRows();
+  customerTable.innerHTML=rows.map(c=>`<tr class="${selectedCustomerIds.has(c.id)?'selected':''}">
+    <td><input type="checkbox" class="customer-row-check" data-id="${c.id}" ${selectedCustomerIds.has(c.id)?'checked':''} /></td>
+    <td><strong>${c.code||''}</strong></td>
+    <td>${c.name||''}</td>
+    <td>${c.phone||''}</td>
+    <td>${c.address||''}</td>
+    <td>${c.area||''}</td>
+    <td>${c.staffName||''}</td>
+    <td class="row-actions"><button type="button" class="small" onclick="editCustomer('${c.id}')">Sửa</button><button type="button" class="small danger" onclick="deleteCustomer('${c.id}')">Xóa</button></td>
+  </tr>`).join('');
+  updateCustomerBulkUI();
+}
+function fillCustomerForm(c){
+  if(!customerForm||!c)return;
+  ['code','name','phone','area','address','staffName'].forEach(k=>{if(customerForm.elements[k])customerForm.elements[k].value=c[k]||''});
+  customerForm.dataset.editingId=c.id||'';
+  const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Cập nhật khách hàng';
+}
+window.editCustomer=id=>{const c=customersCache.find(x=>x.id===id);if(c)fillCustomerForm(c)};
+window.deleteCustomer=async id=>{
+  if(!confirm('Xóa khách hàng này?'))return;
+  try{
+    const res=await fetch(`/api/customers/${encodeURIComponent(id)}`,{method:'DELETE'});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không xóa được khách hàng');
+    selectedCustomerIds.delete(id);showMessage(customerMessage,json.message||'Đã xóa khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
+  }catch(err){showMessage(customerMessage,err.message,true)}
+};
+async function bulkDeleteCustomers(){
+  const ids=[...selectedCustomerIds];
+  if(!ids.length)return;
+  if(!confirm(`Xóa ${ids.length} khách hàng đã chọn?`))return;
+  try{
+    const res=await fetch('/api/customers/bulk-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không xóa được khách hàng');
+    selectedCustomerIds.clear();showMessage(customerMessage,json.message||'Đã xóa khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
+  }catch(err){showMessage(customerMessage,err.message,true)}
+}
+customerForm.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const payload=Object.fromEntries(new FormData(customerForm).entries());
+  try{
+    const editingId=customerForm.dataset.editingId;
+    const res=await fetch(editingId?`/api/customers/${encodeURIComponent(editingId)}`:'/api/customers',{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được khách hàng');
+    customerForm.reset();customerForm.dataset.editingId='';const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Lưu khách hàng';showMessage(customerMessage,json.message||'Đã lưu khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
+  }catch(err){showMessage(customerMessage,err.message,true)}
+});
+
+
+const SearchAutocomplete = window.SearchAutocomplete;
+
+function matchSearch(value, terms){
+  return SearchAutocomplete.matchText(value, terms);
+}
+function productSuggestionLabel(p){
+  const stockText=` · ${productStockStatusText(p)}`;
+  const packingText=p.packing?` · ${p.packing}`:(p.unit?` · ${p.unit}`:'');
+  return `${p.code||''} - ${p.name||''}${packingText}${stockText}`;
+}
+function staffSuggestionLabel(u){
+  const role=u.roleLabel||u.role||'';
+  const phone=u.phone?` · ${u.phone}`:'';
+  return `${u.code||u.username||''} - ${u.name||u.fullName||u.username||''}${role?` · ${role}`:''}${phone}`;
+}
+function customerSuggestionLabel(c){
+  const phone=c.phone?` · ${c.phone}`:'';
+  const address=c.address?` · ${c.address}`:'';
+  return `${c.code||''} - ${c.name||''}${phone}${address}`;
+}
+function debtCustomerSuggestionLabel(d){
+  return `${d.customerCode||''} - ${d.customerName||''} · Nợ: ${money(d.debt||0)}`;
+}
+function debtStatusLabel(status){
+  if(status==='paid')return 'Đã tất toán';
+  if(status==='overdue')return 'Quá hạn';
+  if(status==='void')return 'Void/Cancel';
+  return 'Còn nợ';
+}
+function debtFinanceClass(row){
+  if(row.status==='void')return 'finance-gray';
+  if(row.status==='paid' || Number(row.debt||0)<=0)return 'finance-green';
+  if(row.status==='overdue' || Number(row.overdueDays||0)>0)return 'finance-orange';
+  return 'finance-red';
+}
+function debtPersonLabel(code,name){
+  return [code,name].filter(Boolean).join(' - ') || 'Chưa gán';
+}
+function getProductListMatches(){
+  const q=searchInput?searchInput.value.trim():'';
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchProduct(q,{limit:20,mode:'sales'});
+  return productsCache
+    .filter(p=>p.isActive!==false)
+    .filter(p=>!q || matchSearch(q,[p.code,p.name,p.barcode,p.category,p.packing,p.unit,p.baseUnit]))
+    .slice(0,20);
+}
+function selectProductFromListSuggestion(p){
+  if(!p)return;
+  if(searchInput)searchInput.value=p.code||p.name||'';
+  hideSuggestions(productListSuggestions);
+  loadProducts();
+}
+function getCustomerListMatches(){
+  const q=customerSearchInput?customerSearchInput.value.trim():'';
+  if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20});
+  if(!q)return customersCache.filter(c=>c.isActive!==false).slice(0,10);
+  return customersCache.filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route,c.staffName]));
+}
+function selectCustomerFromListSuggestion(c){
+  if(!c)return;
+  if(customerSearchInput)customerSearchInput.value=c.code||c.name||'';
+  hideSuggestions(customerListSuggestions);
+  loadCustomers();
+}
+function hideSuggestions(box){
+  SearchAutocomplete.hide(box);
+}
+function showSuggestionsBox(box){
+  SearchAutocomplete.show(box);
+}
+function wireAutocomplete(options){
+  SearchAutocomplete.wire(options);
+}
+
+
+// Centralized autocomplete binding from /js/search/searchFieldsConfig.js
+function getSuggestElement(rule, propId='targetId', propSelector='targetSelector'){
+  if(!rule) return null;
+  if(rule[propId]) return document.getElementById(rule[propId]);
+  if(rule[propSelector]) return document.querySelector(rule[propSelector]);
+  return null;
+}
+function getConfiguredSource(config){
+  const input=getSuggestElement(config,'inputId','inputSelector');
+  const q=input?input.value.trim():'';
+
+  // V45 Unified Search Engine: mọi autocomplete nghiệp vụ đi qua 1 lớp trung gian.
+  if(window.UnifiedSearchEngine){
+    const limit=Number(config.limit||50);
+    if(config.type==='product'){
+      const mode=config.key==='importProduct'?'import':'sales';
+      return window.UnifiedSearchEngine.searchProduct(q,{limit,mode,inStockOnly:!!config.onlyInStock});
+    }
+    if(config.type==='customer'){
+      return window.UnifiedSearchEngine.searchCustomer(q,{limit,minChars:0,allowEmpty:'1',showOnFocus:'1'});
+    }
+    if(config.type==='staff'){
+      const roles=(config.roles||[]).map(role=>String(role).toLowerCase());
+      const staffOptions={limit,minChars:0,allowEmpty:'1',showOnFocus:'1'};
+      if(roles.includes('delivery')) return window.UnifiedSearchEngine.searchDeliveryStaff(q,staffOptions);
+      return window.UnifiedSearchEngine.searchSalesStaff(q,staffOptions);
+    }
+  }
+
+  const map={products:productsCache,customers:customersCache,users:usersCache,debts:debtsCache};
+  let rows=Array.isArray(map[config.source])?map[config.source]:[];
+  if(config.onlyActive) rows=rows.filter(item=>item.isActive!==false);
+  if(config.roles && config.roles.length){
+    const roles=config.roles.map(r=>String(r).toLowerCase());
+    rows=rows.filter(item=>roles.includes(String(item.role||'').toLowerCase()));
+  }
+  if(config.onlyInStock) rows=rows.filter(item=>productHasStock(item));
+  if(config.source==='debts') rows=rows.filter(item=>Number(item.debt||0)>0);
+  rows=rows.filter(item=>matchSearch(q,(config.searchKeys||[]).map(key=>item[key])));
+  return rows.slice(0, Number(config.limit||10));
+}
+function getSuggestValue(item, valueType, config){
+  if(valueType==='label') return getConfiguredLabel(item, config);
+  if(valueType==='id') return item.id||'';
+  if(valueType==='idOrCode') return getProductKey(item) || item.id || item.code || '';
+  if(valueType==='codeOrUsernameOrId') return item.code||item.staffCode||item.username||item.id||'';
+  if(valueType==='nameOrFullNameOrUsername') return item.name||item.fullName||item.username||'';
+  if(valueType==='customerIdOrCode') return item.customerId||item.customerCode||'';
+  return item[valueType] ?? '';
+}
+function getConfiguredLabel(item, config){
+  if(!item) return '';
+  if(config.type==='product' && window.UnifiedProductSearch) return window.UnifiedProductSearch.label(item, config.key==='importProduct'?'import':'sales');
+  if(config.type==='product') return productSuggestionLabel(item);
+  if(config.type==='customer') return customerSuggestionLabel(item);
+  if(config.type==='staff') return staffSuggestionLabel(item);
+  if(config.type==='debtCustomer') return debtCustomerSuggestionLabel(item);
+  return [item.code,item.name,item.phone].filter(Boolean).join(' - ');
+}
+function applyConfiguredSelect(config, item){
+  (config.fill||[]).forEach(rule=>{
+    const target=getSuggestElement(rule);
+    if(target) target.value=getSuggestValue(item, rule.value, config);
+  });
+  const input=getSuggestElement(config,'inputId','inputSelector');
+  if(input){
+    const itemCode = String(item.code || item.staffCode || item.customerCode || item.productCode || item.sku || item.username || '').trim();
+    const itemName = String(item.name || item.fullName || item.customerName || item.productName || item.displayName || item.username || '').trim();
+    const itemId = String(item.id || item._id || itemCode || '').trim();
+    const itemType = String(item.type || config.type || '').trim();
+    const itemLabel = getConfiguredLabel(item, config);
+    input.dataset.selectedId = itemId;
+    input.dataset.id = itemId;
+    input.dataset.code = itemCode;
+    input.dataset.name = itemName;
+    input.dataset.type = itemType;
+    input.dataset.label = itemLabel;
+    input.dataset.selectedLabel = itemLabel;
+    const hiddenRule=(config.fill||[]).find(rule=>rule.targetId && rule.targetId!==config.inputId);
+    if(hiddenRule) input.dataset.targetHidden=hiddenRule.targetId;
+  }
+  // Lưu object sản phẩm vừa chọn cho màn Bán hàng.
+  // Một số kết quả search đến từ /api/search/products chưa kịp nằm trong catalog cache,
+  // khiến nút Thêm vào đơn báo chưa chọn sản phẩm dù input đã có label.
+  if(config.key==='salesProduct' || config.inputId==='salesProductSearch'){
+    window.__selectedSalesProduct = item || null;
+    if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync([item]);
+  }
+  if(config.afterSelect==='reloadProducts') loadProducts();
+  if(config.afterSelect==='reloadCustomers') loadCustomers();
+  if(config.afterSelect==='setImportCostPrice' && importCostPrice) importCostPrice.value=Number(item.costPrice||0);
+  if(config.afterSelect==='setSalesPrice' && salesPrice) salesPrice.value=Number(item.salePrice||0);
+  if(config.afterSelect==='loadDeliveryToday' && typeof loadDeliveryToday==='function') loadDeliveryToday();
+  if(config.afterSelect==='loadSalesOrders' && typeof loadSalesOrders==='function') loadSalesOrders();
+  if(config.afterSelect==='loadDebts' && typeof loadDebts==='function') loadDebts();
+  if(config.afterSelect==='loadUnmergedChildOrders' && typeof loadUnmergedChildOrders==='function') loadUnmergedChildOrders();
+  if(config.afterSelect==='loadUnmergedReturnOrders' && typeof loadUnmergedReturnOrders==='function') loadUnmergedReturnOrders();
+  if(config.afterSelect==='setCollectionAmount'){
+    if(collectionCustomerSelect) collectionCustomerSelect.dataset.debt=String(item.debt||0);
+    updateSelectedCustomerDebt();
+  }
+}
+function ensureSuggestionBox(config){
+  const input=getSuggestElement(config,'inputId','inputSelector');
+  if(!input) return null;
+  let box=config.boxId?document.getElementById(config.boxId):null;
+  if(!box){
+    box=document.createElement('div');
+    box.id=`${config.key||input.id||input.name}Suggestions`;
+    box.className='suggestions';
+    box.hidden=true;
+    input.insertAdjacentElement('afterend',box);
+  }
+  return box;
+}
+function initConfiguredAutocomplete(){
+  (window.SEARCH_FIELD_CONFIGS||[]).forEach(config=>{
+    const input=getSuggestElement(config,'inputId','inputSelector');
+    const box=ensureSuggestionBox(config);
+    if(!input || !box) return;
+    const shouldRequireKeyword = ['product','debtCustomer'].includes(config.type);
+    wireAutocomplete({
+      input,
+      box,
+      getItems:()=>getConfiguredSource(config),
+      label:item=>getConfiguredLabel(item,config),
+      select:item=>applyConfiguredSelect(config,item),
+      emptyText:config.emptyText||'Không tìm thấy dữ liệu',
+      minChars: Number(config.minChars ?? (shouldRequireKeyword ? 2 : 0))
+    });
+    // Staff/Customer UX: focus/click vào ô NVBH/NVGH/Khách hàng sẽ hiện 20 gợi ý đầu tiên. Product vẫn yêu cầu gõ tối thiểu 2 ký tự.
+  });
+}
+
+// Import

@@ -1,0 +1,56 @@
+'use strict';
+
+const fundService = require('../services/fundService');
+
+function sendResult(res, result, successMessage = 'OK', statusCode = 200) {
+  if (result?.error) return res.status(result.status || 400).json({ ok: false, success: false, message: result.error, ...result });
+  return res.status(statusCode).json({ ok: true, success: true, message: result?.message || successMessage, ...result });
+}
+
+async function listLedger(req, res) {
+  try { sendResult(res, await fundService.listFundLedgers(req.query || {}), 'Đã tải sổ quỹ'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được sổ quỹ fundLedgers', error: err.message }); }
+}
+
+async function listDeliverySubmissions(req, res) {
+  try { sendResult(res, await fundService.listDeliveryCashSubmissions(req.query || {}), 'Đã tải phiếu nộp quỹ giao hàng'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu nộp quỹ giao hàng', error: err.message }); }
+}
+
+
+async function listExpenses(req, res) {
+  try { sendResult(res, await fundService.listExpenseVouchers(req.query || {}), 'Đã tải phiếu chi'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chi', error: err.message }); }
+}
+
+async function listTransfers(req, res) {
+  try { sendResult(res, await fundService.listFundTransfers(req.query || {}), 'Đã tải phiếu chuyển quỹ'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chuyển quỹ', error: err.message }); }
+}
+
+async function previewDeliverySubmission(req, res) {
+  try { sendResult(res, await fundService.buildDeliverySubmissionDraft({ ...(req.query || {}), ...(req.body || {}) }), 'Đã lập nháp phiếu nộp quỹ'); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không lập được nháp nộp quỹ', error: err.message }); }
+}
+
+async function createDeliverySubmission(req, res) {
+  try { sendResult(res, await fundService.createDeliveryCashSubmission(req.body || {}), 'Đã tạo phiếu nộp quỹ giao hàng', 201); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu nộp quỹ' }); }
+}
+
+async function confirmDeliverySubmission(req, res) {
+  try { sendResult(res, await fundService.confirmDeliveryCashSubmission(req.params.id, req.body || {}), 'Đã xác nhận phiếu nộp quỹ'); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu nộp quỹ' }); }
+}
+
+async function createExpense(req, res) {
+  try { sendResult(res, await fundService.createExpenseVoucher(req.body || {}), 'Đã tạo phiếu chi và ghi sổ quỹ', 201); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu chi' }); }
+}
+
+async function createTransfer(req, res) {
+  try { sendResult(res, await fundService.createFundTransfer(req.body || {}), 'Đã tạo phiếu chuyển quỹ và ghi sổ quỹ', 201); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu chuyển quỹ' }); }
+}
+
+module.exports = { listLedger, listDeliverySubmissions, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, confirmDeliverySubmission, createExpense, createTransfer };

@@ -1,0 +1,533 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5px;
+  line-height: 1.22;
+}
+
+.print-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 9mm 8mm;
+  background: #fff;
+}
+
+.compact-print {
+  padding: 6mm 7mm;
+  font-size: 9.8px;
+}
+
+.simple-print-header,
+.print-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1.5px solid #111;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.simple-print-header h2,
+.print-header h2 {
+  margin: 0 0 3px;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.simple-print-header p,
+.print-header p {
+  margin: 2px 0;
+}
+
+.print-code {
+  min-width: 32mm;
+  border: 1px solid #111;
+  padding: 5px;
+  text-align: center;
+}
+
+.print-code b,
+.print-code span {
+  display: block;
+}
+
+.print-code span {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.print-title {
+  text-align: center;
+  font-size: 18px;
+  margin: 12px 0;
+  text-transform: uppercase;
+}
+
+.document-top {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr 1fr;
+  gap: 7mm;
+  align-items: start;
+  margin-bottom: 7mm;
+}
+
+.document-top h1 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.1px;
+}
+
+.doc-left div,
+.doc-right div,
+.doc-title div {
+  margin-bottom: 2.3px;
+}
+
+.doc-title {
+  text-align: center;
+  padding-top: 2mm;
+}
+
+.doc-right {
+  text-align: left;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+}
+
+.info-grid .full {
+  grid-column: 1 / -1;
+}
+
+.info-strip {
+  display: grid;
+  grid-template-columns: 0.7fr 1.1fr 1fr 1fr;
+  gap: 7px;
+  border: 1px solid #111;
+  padding: 5px;
+  margin-bottom: 7px;
+}
+
+.print-table,
+.invoice-table,
+.promotion-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  page-break-inside: auto;
+}
+
+.print-table th,
+.print-table td,
+.invoice-table th,
+.invoice-table td,
+.promotion-table th,
+.promotion-table td {
+  border: 1px solid #000;
+  padding: 3px 3.5px;
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+.print-table th,
+.invoice-table th,
+.promotion-table th {
+  text-align: center;
+  font-weight: 700;
+  background: #f6f6f6;
+}
+
+.invoice-table {
+  font-size: 9.2px;
+}
+
+.invoice-table th {
+  font-size: 8.6px;
+  line-height: 1.12;
+}
+
+.invoice-table td {
+  height: 7.5mm;
+}
+
+.product-name {
+  font-weight: 600;
+  line-height: 1.18;
+}
+
+.invoice-total-row td {
+  font-weight: 700;
+  background: #fbfbfb;
+}
+
+.center {
+  text-align: center;
+}
+
+.right {
+  text-align: right;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.mono {
+  font-weight: 700;
+}
+
+.muted {
+  color: #555;
+  font-size: 9px;
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+.invoice-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.98fr;
+  gap: 7mm;
+  margin-top: 5mm;
+  align-items: start;
+}
+
+.amount-in-words {
+  min-height: 22mm;
+  padding-top: 4mm;
+  font-size: 9.5px;
+}
+
+.calculation-box {
+  width: 100%;
+}
+
+.calculation-box div {
+  display: grid;
+  grid-template-columns: 1fr 28mm;
+  gap: 4mm;
+  padding: 1.5px 0;
+}
+
+.calculation-box span {
+  text-align: left;
+}
+
+.calculation-box b {
+  text-align: right;
+  font-size: 10.5px;
+}
+
+.total-box {
+  width: 76mm;
+  margin-left: auto;
+  margin-top: 6mm;
+  border: 1px solid #111;
+}
+
+.total-box div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px;
+  border-bottom: 1px solid #111;
+}
+
+.total-box div:last-child {
+  border-bottom: none;
+}
+
+.receipt-money {
+  margin: 18px 0;
+  padding: 12px;
+  border: 2px solid #111;
+  text-align: center;
+  font-size: 16px;
+}
+
+.receipt-money b {
+  margin-left: 8px;
+  font-size: 20px;
+}
+
+.note {
+  margin-top: 10px;
+}
+
+.signature-row,
+.invoice-signature {
+  display: grid;
+  gap: 0;
+  margin-top: 6mm;
+  text-align: center;
+  border: 1px solid #111;
+  border-right: none;
+}
+
+.signature-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.invoice-signature {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.signature-row div,
+.invoice-signature div {
+  min-height: 18mm;
+  padding-top: 2mm;
+  border-right: 1px solid #111;
+}
+
+.signature-row b,
+.signature-row span,
+.invoice-signature b,
+.invoice-signature span {
+  display: block;
+}
+
+.signature-row span,
+.invoice-signature span {
+  margin-top: 2px;
+  font-size: 9px;
+  font-style: italic;
+}
+
+.section-title {
+  margin-top: 6mm;
+  margin-bottom: 2mm;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.promotion-table {
+  font-size: 8.8px;
+}
+
+.promotion-table td {
+  min-height: 7mm;
+}
+
+.print-footer {
+  margin-top: 5mm;
+  font-size: 8.5px;
+  text-align: right;
+  color: #555;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm;
+    min-height: 297mm;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    page-break-after: always;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
+
+/* DMS/Unilever delivery invoice print template */
+.dms-print-body {
+  background: #fff;
+}
+
+.dms-print-page {
+  padding: 6mm 5mm 5mm;
+  font-size: 9.2px;
+  line-height: 1.14;
+}
+
+.dms-document-top {
+  display: grid;
+  grid-template-columns: 1.08fr 0.82fr 1.08fr;
+  gap: 5mm;
+  align-items: start;
+  margin-bottom: 7mm;
+}
+
+.dms-document-top div {
+  margin-bottom: 1.6px;
+}
+
+.dms-title-block {
+  text-align: center;
+  padding-top: 4mm;
+}
+
+.dms-title-block h1 {
+  margin: 0 0 3px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dms-copy {
+  text-align: center;
+  font-size: 11px;
+}
+
+.dms-invoice-table,
+.dms-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.dms-invoice-table th,
+.dms-invoice-table td,
+.dms-detail-table th,
+.dms-detail-table td {
+  border: 0.6px solid #9ca3af;
+  padding: 2.2px 2.5px;
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+.dms-invoice-table th,
+.dms-detail-table th {
+  text-align: center;
+  font-weight: 700;
+  background: #fff;
+}
+
+.dms-invoice-table th {
+  font-size: 8px;
+  line-height: 1.06;
+}
+
+.dms-invoice-table td {
+  min-height: 6.8mm;
+}
+
+.dms-invoice-table tbody tr:not(.dms-total-row) td,
+.dms-detail-table tbody tr td {
+  border-color: #b6beca;
+}
+
+.dms-invoice-table thead th,
+.dms-detail-table thead th,
+.dms-total-row td,
+.dms-total-row th {
+  border-color: #8f99a8;
+}
+
+.dms-formula-row th {
+  font-size: 8px;
+  padding: 1px 2px;
+}
+
+.dms-product-name {
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.dms-total-row td,
+.dms-total-row th {
+  font-weight: 700;
+  background: #fff;
+}
+
+.dms-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.98fr;
+  gap: 8mm;
+  margin-top: 5mm;
+}
+
+.dms-amount-words {
+  padding-top: 3mm;
+  min-height: 18mm;
+}
+
+.dms-calculation-box div {
+  display: grid;
+  grid-template-columns: 1fr 26mm;
+  gap: 4mm;
+  padding: 1px 0;
+}
+
+.dms-calculation-box b {
+  text-align: right;
+}
+
+.dms-signature {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid #000;
+  border-right: 0;
+  margin-top: 5mm;
+  text-align: center;
+}
+
+.dms-signature div {
+  min-height: 18mm;
+  border-right: 1px solid #000;
+  padding-top: 2mm;
+}
+
+.dms-signature b,
+.dms-signature span {
+  display: block;
+}
+
+.dms-section-title {
+  margin-top: 6mm;
+  margin-bottom: 2mm;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.dms-detail-table {
+  font-size: 8.4px;
+}
+
+.dms-detail-table td {
+  min-height: 7mm;
+}
+
+@media print {
+  .dms-print-page {
+    page-break-after: always;
+  }
+}

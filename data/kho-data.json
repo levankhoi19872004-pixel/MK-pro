@@ -1,0 +1,92 @@
+{
+  "products": [
+    {
+      "id": "P001",
+      "code": "SP001",
+      "name": "Sản phẩm mẫu 1",
+      "unit": "Thùng",
+      "barcode": "",
+      "category": "Hàng mẫu",
+      "salePrice": 100000,
+      "costPrice": 80000,
+      "isActive": true,
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "minStock": 0,
+      "maxStock": 0,
+      "updatedAt": "2026-05-26T00:00:00.000Z"
+    },
+    {
+      "id": "P002",
+      "code": "SP002",
+      "name": "Sản phẩm mẫu 2",
+      "unit": "Lốc",
+      "barcode": "",
+      "category": "Hàng mẫu",
+      "salePrice": 50000,
+      "costPrice": 40000,
+      "isActive": true,
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "minStock": 0,
+      "maxStock": 0,
+      "updatedAt": "2026-05-26T00:00:00.000Z"
+    }
+  ],
+  "customers": [],
+  "staffs": [
+    {
+      "id": "U_ADMIN",
+      "code": "ADMIN",
+      "username": "admin",
+      "password": "admin",
+      "name": "Quản trị hệ thống",
+      "role": "admin",
+      "roleLabel": "Admin - toàn quyền",
+      "isActive": true,
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "updatedAt": "2026-05-26T00:00:00.000Z"
+    },
+    {
+      "id": "U_KT01",
+      "code": "KT01",
+      "username": "ketoan",
+      "password": "123456",
+      "name": "Tài khoản kế toán",
+      "role": "accountant",
+      "roleLabel": "Kế toán",
+      "isActive": true,
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "updatedAt": "2026-05-26T00:00:00.000Z"
+    },
+    {
+      "id": "U_BH01",
+      "code": "BH01",
+      "username": "banhang",
+      "password": "123456",
+      "name": "Tài khoản bán hàng",
+      "role": "sales",
+      "roleLabel": "Bán hàng",
+      "isActive": true,
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "updatedAt": "2026-05-26T00:00:00.000Z"
+    },
+    {
+      "id": "U_GH01",
+      "code": "GH01",
+      "username": "giaohang",
+      "password": "123456",
+      "name": "Tài khoản giao hàng",
+      "role": "delivery",
+      "roleLabel": "Giao hàng",
+      "isActive": true,
+      "createdAt": "2026-05-26T00:00:00.000Z",
+      "updatedAt": "2026-05-26T00:00:00.000Z"
+    }
+  ],
+  "warehouses": [],
+  "stock": [],
+  "importOrders": [],
+  "salesOrders": [],
+  "payments": [],
+  "cashbook": [],
+  "importLogs": []
+}
