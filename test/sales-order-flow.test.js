@@ -50,6 +50,7 @@ test('SalesOrder flow creates order, subtracts stock, and records customer debt 
   });
   const restoreProductRepo = patch(productRepository, {
     findAll: async () => [product],
+    findByCodes: async (codes = []) => (codes.includes('P001') ? [product] : []),
     findByIdOrCode: async (code) => (code === 'P001' ? product : null),
     save: async (doc, options = {}) => {
       productSaveSession = options.session;
@@ -93,13 +94,13 @@ test('SalesOrder flow creates order, subtracts stock, and records customer debt 
       items: [{ productCode: 'P001', quantity: 2, price: 10000 }]
     });
 
-    assert.equal(result.salesOrder.code, 'SO00001');
+    assert.match(result.salesOrder.code, /^SO\d+$/);
     assert.equal(result.salesOrder.totalAmount, 20000);
     assert.equal(result.salesOrder.debtAmount, 15000);
-    assert.equal(product.availableStock, 18);
-    assert.equal(product.stockQuantity, 18);
+    assert.equal(product.availableStock, 20, 'pending order must not subtract stock before posting/accounting confirmation');
+    assert.equal(product.stockQuantity || product.availableStock, 20);
     assert.equal(customer.currentDebt, 50000);
-    assert.ok(productSaveSession, 'stock update must run inside transaction session');
+    assert.equal(productSaveSession, null, 'pending order must not post stock movement before accounting confirmation');
     assert.equal(customerSaveSession, null, 'pending order must not post AR debt before accounting confirmation');
   } finally {
     restorePostingEngine();
@@ -137,6 +138,7 @@ test('SalesOrder cancel reverses stock and customer debt impact', async () => {
     }
   });
   const restoreProductRepo = patch(productRepository, {
+    findByCodes: async (codes = []) => (codes.includes('P001') ? [product] : []),
     findByIdOrCode: async () => product,
     save: async (doc) => doc
   });

@@ -376,6 +376,8 @@ async function clearExistingDeliveryReturnOrders(body = {}) {
       ...row,
       items: [],
       totalQuantity: 0,
+      totalReturnAmount: 0,
+      returnAmount: 0,
       totalAmount: 0,
       amount: 0,
       debtReduction: 0,

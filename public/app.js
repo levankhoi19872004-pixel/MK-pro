@@ -109,18 +109,20 @@ if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',lo
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 
-if(reloadMasterOrdersButton)reloadMasterOrdersButton.addEventListener('click',loadMasterOrderModule);
-if(masterOrderForm){masterOrderForm.addEventListener('submit',submitMasterOrder);if(masterOrderForm.elements.deliveryDate)masterOrderForm.elements.deliveryDate.value=today();else if(masterOrderForm.elements.date)masterOrderForm.elements.date.value=today()}
-if(unmergedOrderSearch)unmergedOrderSearch.addEventListener('input',loadUnmergedChildOrders);
-if(unmergedSourceFilter)unmergedSourceFilter.addEventListener('change',loadUnmergedChildOrders);
-if(unmergedDateFrom)unmergedDateFrom.addEventListener('change',loadUnmergedChildOrders);
-if(unmergedDateTo)unmergedDateTo.addEventListener('change',loadUnmergedChildOrders);
-if(unmergedSalesStaffFilter)unmergedSalesStaffFilter.addEventListener('input',loadUnmergedChildOrders);
-if(selectAllUnmergedOrdersButton)selectAllUnmergedOrdersButton.addEventListener('click',toggleSelectAllUnmergedOrders);
-if(masterOrderSearch)masterOrderSearch.addEventListener('input',loadMasterOrders);
-if(masterOrderDateFrom)masterOrderDateFrom.addEventListener('change',loadMasterOrders);
-if(masterOrderDateTo)masterOrderDateTo.addEventListener('change',loadMasterOrders);
-if(printSelectedMasterOrdersButton)printSelectedMasterOrdersButton.addEventListener('click',printSelectedMasterOrders);
+if(reloadMasterOrdersButton && typeof loadMasterOrderModule==='function')reloadMasterOrdersButton.addEventListener('click',loadMasterOrderModule);
+if(masterOrderForm){if(typeof submitMasterOrder==='function')masterOrderForm.addEventListener('submit',submitMasterOrder);if(masterOrderForm.elements.deliveryDate)masterOrderForm.elements.deliveryDate.value=today();else if(masterOrderForm.elements.date)masterOrderForm.elements.date.value=today()}
+if(unmergedOrderSearch && typeof loadUnmergedChildOrders==='function')unmergedOrderSearch.addEventListener('input',loadUnmergedChildOrders);
+if(unmergedSourceFilter && typeof loadUnmergedChildOrders==='function')unmergedSourceFilter.addEventListener('change',loadUnmergedChildOrders);
+if(unmergedDateFrom && typeof loadUnmergedChildOrders==='function')unmergedDateFrom.addEventListener('change',loadUnmergedChildOrders);
+if(unmergedDateTo && typeof loadUnmergedChildOrders==='function')unmergedDateTo.addEventListener('change',loadUnmergedChildOrders);
+if(unmergedSalesStaffFilter && typeof loadUnmergedChildOrders==='function')unmergedSalesStaffFilter.addEventListener('input',loadUnmergedChildOrders);
+if(selectAllUnmergedOrdersButton && typeof toggleSelectAllUnmergedOrders==='function')selectAllUnmergedOrdersButton.addEventListener('click',toggleSelectAllUnmergedOrders);
+if(masterOrderSearch && typeof loadMasterOrders==='function')masterOrderSearch.addEventListener('input',loadMasterOrders);
+if(masterOrderDateFrom && typeof loadMasterOrders==='function')masterOrderDateFrom.addEventListener('change',loadMasterOrders);
+if(masterOrderDateTo && typeof loadMasterOrders==='function')masterOrderDateTo.addEventListener('change',loadMasterOrders);
+if(selectAllMasterOrdersButton && typeof toggleSelectAllMasterOrders==='function')selectAllMasterOrdersButton.addEventListener('click',toggleSelectAllMasterOrders);
+if(printSelectedMasterOrdersButton && typeof printSelectedMasterOrders==='function')printSelectedMasterOrdersButton.addEventListener('click',printSelectedMasterOrders);
+if(exportSelectedMasterOrdersButton && typeof exportSelectedMasterOrders==='function')exportSelectedMasterOrdersButton.addEventListener('click',exportSelectedMasterOrders);
 if(unmergedOrderList)unmergedOrderList.addEventListener('change',event=>{const check=event.target.closest('.child-order-check');if(!check)return;if(check.checked)selectedChildOrderIds.add(check.dataset.id);else selectedChildOrderIds.delete(check.dataset.id);renderUnmergedChildOrders();});
 if(reloadDeliveryTodayButton)reloadDeliveryTodayButton.addEventListener('click',loadDeliveryToday);
 if(deliveryDateFilter){if(!deliveryDateFilter.value)deliveryDateFilter.value=today();deliveryDateFilter.addEventListener('change',loadDeliveryToday);}
