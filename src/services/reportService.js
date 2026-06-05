@@ -500,6 +500,7 @@ function buildDebtLedgerMatch(query = {}, customerCodes = []) {
   const match = {
     status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
     reversed: { $ne: true },
+    refType: { $ne: 'AR_LEDGER_REVERSAL' },
     type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
   };
   if (query.dateFrom || query.dateTo || query.date) {

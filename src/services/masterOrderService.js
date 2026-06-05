@@ -733,6 +733,7 @@ function makeArBaseRow(order = {}, extra = {}) {
     source: extra.source || 'mobile_delivery_re_accounting',
     accountingConfirmed: true,
     accountingStatus: 'confirmed',
+    accountingBatchId: extra.accountingBatchId || extra.batchId || '',
     reAccountingBatchId: extra.reAccountingBatchId || '',
     createdAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
@@ -758,13 +759,18 @@ async function findActiveArLedgersForOrder(order = {}, options = {}) {
   return (rows || []).filter((row) => {
     const status = String(row.status || '').toLowerCase();
     const type = String(row.type || '').toLowerCase();
-    return !row.reversed && status !== 'reversed' && !type.includes('reversal');
+    const refType = String(row.refType || '').toLowerCase();
+    return !row.reversed
+      && status !== 'reversed'
+      && !type.includes('reversal')
+      && refType !== 'ar_ledger_reversal';
   });
 }
 
 async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {}) {
   const oldRows = await findActiveArLedgersForOrder(order, options);
-  const batchId = `READJ-${orderKey(order) || orderDisplayCode(order)}-${Date.now()}`;
+  const reverseBatchId = `REV-${orderKey(order) || orderDisplayCode(order)}-${Date.now()}`;
+  const accountingBatchId = `ACC-${orderKey(order) || orderDisplayCode(order)}-${Date.now()}`;
   const reversedRows = [];
   for (const old of oldRows) {
     const debit = toNumber(old.debit);
@@ -773,7 +779,7 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
     if (amount <= 0) continue;
     const reversal = {
       ...old,
-      id: `AR-REVERSAL-${old.id || old.code || makeId('AR')}-${batchId}`,
+      id: `AR-REVERSAL-${old.id || old.code || makeId('AR')}-${reverseBatchId}`,
       code: `AR-REVERSAL-${old.code || old.id || makeId('AR')}`,
       type: 'ar_reversal',
       refType: 'AR_LEDGER_REVERSAL',
@@ -785,7 +791,8 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
       note: `Đảo bút toán ${old.code || old.id || ''} do admin mở khóa điều chỉnh đơn giao ${orderDisplayCode(order)}`,
       reversedFromId: old.id || '',
       reversedFromCode: old.code || '',
-      reAccountingBatchId: batchId,
+      accountingBatchId: reverseBatchId,
+      reAccountingBatchId: reverseBatchId,
       createdBy: user.id || user.code || user.name || 'admin',
       createdAt: dateUtil.nowIso(),
       updatedAt: dateUtil.nowIso()
@@ -797,15 +804,16 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
       status: 'reversed',
       reversedAt: dateUtil.nowIso(),
       reversedBy: user.id || user.code || user.name || 'admin',
-      reAccountingBatchId: batchId,
+      accountingBatchId: reverseBatchId,
+      reAccountingBatchId: reverseBatchId,
       updatedAt: dateUtil.nowIso()
     }, options);
     reversedRows.push(reversal);
   }
-  return { batchId, reversedRows, oldRows };
+  return { reverseBatchId, accountingBatchId, reversedRows, oldRows };
 }
 
-async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, batchId = '', options = {}) {
+async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, accountingBatchId = '', options = {}) {
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
   const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
@@ -821,9 +829,10 @@ async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, batchId = '
     if (toNumber(row.amount) <= 0 && !row.postZero) return null;
     const entry = makeArBaseRow(order, {
       ...row,
-      id: `${suffix}-${key}-${batchId}`,
-      code: `${suffix}-${code}-${batchId}`,
-      reAccountingBatchId: batchId
+      id: `${suffix}-${key}-${accountingBatchId}`,
+      code: `${suffix}-${code}`,
+      accountingBatchId,
+      reAccountingBatchId: ''
     });
     await paymentRepository.upsert(entry, options);
     rows.push(entry);
@@ -944,6 +953,7 @@ function makeBatchArRow(order = {}, extra = {}) {
     note: extra.note,
     source: extra.source || 'delivery_batch_post',
     createdBy: extra.createdBy || '',
+    accountingBatchId: extra.accountingBatchId || extra.batchId || '',
     reAccountingBatchId: extra.reAccountingBatchId || ''
   });
 }
@@ -978,6 +988,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     status: { $ne: 'reversed' },
     reversed: { $ne: true },
     type: { $in: ['ar_sale', 'ar_receipt', 'ar_bonus', 'ar_return'] },
+    refType: { $ne: 'AR_LEDGER_REVERSAL' },
     $or: [
       { orderId: { $in: allKeys } },
       { orderCode: { $in: allKeys } },
@@ -1041,7 +1052,8 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     const rewardAmount = deliveryRewardAmount(order);
     const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
     const idSeed = key || code || makeId('AR');
-    const repostSuffix = existingForOrder.length ? `-REPOST-${Date.now()}` : '';
+    const accountingBatchId = `ACC-${idSeed}-${Date.now()}`;
+    const repostSuffix = existingForOrder.length ? `-${accountingBatchId}` : '';
 
     if (existingForOrder.length) {
       const reverseBatchId = `AUTO-REPOST-${idSeed}-${Date.now()}`;
@@ -1064,6 +1076,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
           note: `Đảo bút toán AR cũ ${oldRow.code || oldRow.id || ''} trước khi post lại đúng nguồn đơn ${code || key}`,
           reversedFromId: oldRow.id || '',
           reversedFromCode: oldRow.code || '',
+          accountingBatchId: reverseBatchId,
           reAccountingBatchId: reverseBatchId,
           createdBy: confirmedBy,
           createdAt: dateUtil.nowIso(),
@@ -1077,7 +1090,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
           reverseUpdateOps.push({
             updateOne: {
               filter: { $or: identity },
-              update: { $set: { reversed: true, status: 'reversed', reversedAt: dateUtil.nowIso(), reversedBy: confirmedBy, reAccountingBatchId: reverseBatchId, updatedAt: dateUtil.nowIso() } }
+              update: { $set: { reversed: true, status: 'reversed', reversedAt: dateUtil.nowIso(), reversedBy: confirmedBy, accountingBatchId: reverseBatchId, reAccountingBatchId: reverseBatchId, updatedAt: dateUtil.nowIso() } }
             }
           });
         }
@@ -1086,62 +1099,67 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
 
     ledgerRows.push(makeBatchArRow(order, {
       id: `AR-SALE-${idSeed}${repostSuffix}`,
-      code: `AR-SALE-${code || idSeed}${repostSuffix}`,
+      code: `AR-SALE-${code || idSeed}`,
       type: 'ar_sale',
       refType: 'SALES_ORDER',
       debit: baseAmount,
       credit: 0,
       amount: baseAmount,
       note: `Ghi nhận công nợ đơn bán ${code || key}`,
-      createdBy: confirmedBy
+      createdBy: confirmedBy,
+      accountingBatchId
     }));
 
     if (cashAmount > 0) ledgerRows.push(makeBatchArRow(order, {
       id: `AR-RECEIPT-CASH-${idSeed}${repostSuffix}`,
-      code: `AR-RECEIPT-CASH-${code || idSeed}${repostSuffix}`,
+      code: `AR-RECEIPT-CASH-${code || idSeed}`,
       type: 'ar_receipt',
       refType: 'RECEIPT',
       debit: 0,
       credit: cashAmount,
       amount: cashAmount,
       note: `Thu tiền mặt đơn giao ${code || key}`,
-      createdBy: confirmedBy
+      createdBy: confirmedBy,
+      accountingBatchId
     }));
 
     if (bankAmount > 0) ledgerRows.push(makeBatchArRow(order, {
       id: `AR-RECEIPT-BANK-${idSeed}${repostSuffix}`,
-      code: `AR-RECEIPT-BANK-${code || idSeed}${repostSuffix}`,
+      code: `AR-RECEIPT-BANK-${code || idSeed}`,
       type: 'ar_receipt',
       refType: 'RECEIPT',
       debit: 0,
       credit: bankAmount,
       amount: bankAmount,
       note: `Thu chuyển khoản đơn giao ${code || key}`,
-      createdBy: confirmedBy
+      createdBy: confirmedBy,
+      accountingBatchId
     }));
 
     if (rewardAmount > 0) ledgerRows.push(makeBatchArRow(order, {
       id: `AR-BONUS-${idSeed}${repostSuffix}`,
-      code: `AR-BONUS-${code || idSeed}${repostSuffix}`,
+      code: `AR-BONUS-${code || idSeed}`,
       type: 'ar_bonus',
       refType: 'BONUS_ALLOWANCE',
       debit: 0,
       credit: rewardAmount,
       amount: rewardAmount,
       note: `Cấn trừ trả thưởng đơn giao ${code || key}`,
-      createdBy: confirmedBy
+      createdBy: confirmedBy,
+      accountingBatchId
     }));
 
     if (returnAmount > 0) ledgerRows.push(makeBatchArRow(order, {
       id: `AR-RETURN-${idSeed}${repostSuffix}`,
-      code: `AR-RETURN-${code || idSeed}${repostSuffix}`,
+      code: `AR-RETURN-${code || idSeed}`,
       type: 'ar_return',
       refType: 'RETURN_ORDER',
       debit: 0,
       credit: returnAmount,
       amount: returnAmount,
       note: `Cấn trừ hàng trả đơn giao ${code || key}`,
-      createdBy: confirmedBy
+      createdBy: confirmedBy,
+      accountingBatchId
     }));
 
     for (const keyItem of keys) postedOrderKeys.add(keyItem);
@@ -2631,7 +2649,7 @@ async function confirmDeliveryAccounting(body = {}) {
       if (requiresReAccounting) {
         // Đơn đã mở khóa/sửa sau khi post AR: giữ đúng luồng kế toán bằng reversal trước, sau đó post lại.
         const reverseResult = await reverseActiveArLedgersForOrder(child, { name: confirmedBy }, { session });
-        await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.batchId, { session });
+        await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.accountingBatchId, { session });
       } else if (!alreadyConfirmed) {
         // Đơn mới xác nhận lần đầu: gom lại để ghi AR Ledger bằng insertMany một lần.
         normalPostChildren.push(updated);
