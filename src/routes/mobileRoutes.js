@@ -419,7 +419,7 @@ async function postDeliveryArForMobile(order) {
 
 function isActiveReturnOrder(row = {}) {
   const status = normalizeText(row.status || row.state || row.returnStatus);
-  return !['cancelled', 'canceled', 'void', 'deleted', 'inactive', 'archived'].includes(status);
+  return !['cancelled', 'canceled', 'void', 'deleted', 'removed', 'inactive', 'archived', 'cleared'].includes(status);
 }
 
 function returnLineCode(item = {}) {

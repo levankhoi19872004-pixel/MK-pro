@@ -2146,6 +2146,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
       accountingConfirmedAt: 1,
       accountingConfirmedBy: 1,
       isLate: 1,
+      items: 1,
       deletedAt: 1
     },
     limit: Math.max(allRefs.length, limit)
@@ -2255,13 +2256,45 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
           relatedReturnOrders.push(ro);
         }
       }
-      const returnOrderCode = relatedReturnOrders
+      const activeReturnOrders = relatedReturnOrders.filter((ro) => isActiveReturnOrder(ro) && returnOrderTotalAmount(ro) > 0);
+      const returnOrderCode = activeReturnOrders
         .map((ro) => ro.code || ro.returnOrderCode || ro.id || '')
         .find(Boolean) || '';
-      const returnAmount = relatedReturnOrders.reduce((sum, ro) => {
-        if (!isActiveReturnOrder(ro)) return sum;
-        return sum + returnOrderTotalAmount(ro);
-      }, 0);
+      const returnAmount = activeReturnOrders.reduce((sum, ro) => sum + returnOrderTotalAmount(ro), 0);
+      const returnItemsRaw = activeReturnOrders.flatMap((ro) => Array.isArray(ro.items) ? ro.items : []);
+      const returnByCode = new Map();
+      for (const item of returnItemsRaw) {
+        const code = String(item.productCode || item.code || item.productId || item.sku || '').trim();
+        if (!code) continue;
+        const qty = toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+        if (qty <= 0) continue;
+        returnByCode.set(code, item);
+      }
+      const soldItems = Array.isArray(child.items) ? child.items : [];
+      const mergedItems = soldItems.map((sold, index) => {
+        const code = String(sold.productCode || sold.code || sold.productId || sold.sku || '').trim();
+        const saved = returnByCode.get(code) || {};
+        const price = toNumber(sold.price ?? sold.salePrice ?? sold.unitPrice ?? sold.finalPrice ?? saved.price ?? saved.salePrice ?? saved.unitPrice ?? 0);
+        const soldQty = toNumber(sold.soldQty ?? sold.quantitySold ?? sold.orderQty ?? sold.totalQty ?? sold.qtySold ?? sold.quantity ?? sold.qty ?? 0);
+        const returnQty = toNumber(saved.returnQty ?? saved.qtyReturn ?? saved.returnQuantity ?? saved.returnedQty ?? 0);
+        return {
+          ...sold,
+          productCode: code || String(saved.productCode || saved.code || saved.productId || `SP${index + 1}`),
+          productName: sold.productName || sold.name || saved.productName || saved.name || '',
+          unit: sold.unit || sold.baseUnit || saved.unit || '',
+          soldQty,
+          quantitySold: soldQty,
+          price,
+          salePrice: price,
+          unitPrice: price,
+          returnQty,
+          qtyReturn: returnQty,
+          returnQuantity: returnQty,
+          returnedQty: returnQty,
+          amount: Math.round(returnQty * price),
+          returnAmount: Math.round(returnQty * price)
+        };
+      });
 
       const totalAmount = toNumber(
         child.totalAmount ?? child.totalReceivable ?? child.receivableAmount ?? child.grandTotal ?? child.amount ?? 0
@@ -2315,7 +2348,12 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         arPostedAt: child.arPostedAt || '',
         accountingConfirmedAt: child.accountingConfirmedAt || '',
         accountingConfirmedBy: child.accountingConfirmedBy || '',
-        hasReturn: relatedReturnOrders.length > 0 || returnAmount > 0,
+        hasReturn: returnAmount > 0,
+        items: mergedItems,
+        orderItems: soldItems,
+        returnItems: returnItemsRaw,
+        deliveryReturnItems: mergedItems,
+        returnOrderItems: mergedItems,
         returnOrderCode
       };
 

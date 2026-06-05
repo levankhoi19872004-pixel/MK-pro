@@ -77,7 +77,7 @@ function createMobileDeliveryService(ctx) {
     const orderCode = String(order.code || '').trim();
     return (Array.isArray(data.returnOrders) ? data.returnOrders : []).filter((row) => {
       const status = String(row.status || '').toLowerCase();
-      if (['cancelled', 'canceled', 'void', 'deleted', 'cleared', 'clear'].includes(status)) return false;
+      if (['cancelled', 'canceled', 'void', 'deleted'].includes(status)) return false;
       const rowOrderId = String(row.salesOrderId || row.orderId || '').trim();
       const rowOrderCode = String(row.salesOrderCode || row.orderCode || '').trim();
       return (orderId && rowOrderId === orderId) || (orderCode && rowOrderCode === orderCode);
@@ -329,9 +329,6 @@ function createMobileDeliveryService(ctx) {
     perf('find_order');
 
     if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
-    // App giao hàng có thể vừa gọi /delivery/return ngay trước /delivery/confirm.
-    // Không dùng returnOrders trong snapshot cũ vì dễ kéo lại số hàng trả cũ sau khi NVGH sửa về 0.
-    data.returnOrders = await findReturnOrdersForOrders([order]);
     syncOrderReturnAmountFromReturnOrders(data, order);
     perf('sync_return_amount');
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
@@ -468,10 +465,7 @@ function createMobileDeliveryService(ctx) {
       return { statusCode: 400, body: { ok: false, message: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả` } };
     }
 
-    const rawItems = buildReturnItemsFromRequest(order, body.items || [], returnType);
-    // Chỉ những dòng có số lượng trả > 0 mới được coi là hàng trả thật.
-    // Nếu app gửi đủ danh sách sản phẩm nhưng tất cả qtyReturn = 0, phải chuyển sang nhánh clear.
-    const items = rawItems.filter((item) => getReturnLineQty(item) > 0);
+    const items = buildReturnItemsFromRequest(order, body.items || [], returnType);
 
     // Cho phép app gửi danh sách SL trả = 0 để ghi đè/xóa phiếu trả tạm cũ.
     // Tiền hàng trả không lưu ở ô Thu tiền; nó lấy từ returnOrders.totalAmount/debtReduction.

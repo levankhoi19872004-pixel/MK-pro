@@ -8,37 +8,83 @@ bindLogout(document.getElementById('logoutBtn'));
 const user = getUser();
 document.getElementById('staffInfo').textContent = `${user.name || user.username || 'Nhân viên'} · ${user.role || 'delivery'}`;
 
-const els = {
-  list: document.getElementById('deliveryOrders'),
-  reportList: document.getElementById('deliveryReportList'),
-  message: document.getElementById('deliveryMessage'),
-  productMessage: document.getElementById('deliveryProductMessage'),
-  actionMessage: document.getElementById('deliveryActionMessage'),
-  cashMessage: document.getElementById('cashMessage'),
-  date: document.getElementById('deliveryDateInput'),
-  formula: document.getElementById('deliveryFormula'),
-  selectedOrderBox: document.getElementById('selectedOrderBox'),
-  productSelectedOrderBox: document.getElementById('productSelectedOrderBox'),
-  productBox: document.getElementById('deliveryProductBox'),
-  actionBox: document.getElementById('deliveryActionBox'),
-  kpiTotalOrders: document.getElementById('kpiTotalOrders'),
-  kpiDoneOrders: document.getElementById('kpiDoneOrders'),
-  kpiPendingOrders: document.getElementById('kpiPendingOrders'),
-  kpiDebtAmount: document.getElementById('kpiDebtAmount'),
-  reportCashAmount: document.getElementById('reportCashAmount'),
-  reportBankAmount: document.getElementById('reportBankAmount'),
-  reportReturnAmount: document.getElementById('reportReturnAmount'),
-  reportDebtAmount: document.getElementById('reportDebtAmount'),
-  reportTodayCashAmount: document.getElementById('reportTodayCashAmount'),
-  reportTodayBankAmount: document.getElementById('reportTodayBankAmount'),
-  reportOldDebtCashAmount: document.getElementById('reportOldDebtCashAmount'),
-  reportOldDebtBankAmount: document.getElementById('reportOldDebtBankAmount')
+
+const v45Common = window.V45Common || {};
+const firstPositiveAmount = typeof v45Common.firstPositiveAmount === 'function'
+  ? v45Common.firstPositiveAmount
+  : (...values) => values.map(deliveryToNumber).find((n) => n > 0) || 0;
+const deliveryDebtBase = typeof v45Common.deliveryDebtBase === 'function'
+  ? v45Common.deliveryDebtBase
+  : (order = {}) => firstPositiveAmount(
+    order.totalAmount,
+    order.total,
+    order.amount,
+    order.grandTotal,
+    order.payableAmount,
+    order.orderAmount,
+    order.debtBeforeCollection,
+    order.debtAmount,
+    order.debt
+  );
+const deliveryReturnAmount = typeof v45Common.deliveryReturnAmount === 'function'
+  ? v45Common.deliveryReturnAmount
+  : (order = {}) => Math.round(deliveryToNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0));
+const calculateDeliveryDebt = typeof v45Common.calculateDeliveryDebt === 'function'
+  ? v45Common.calculateDeliveryDebt
+  : (order = {}, options = {}) => Math.max(0, Math.round(
+    deliveryDebtBase(order)
+    - deliveryToNumber(order.cashCollected ?? order.cashAmount ?? 0)
+    - deliveryToNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0)
+    - deliveryToNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0)
+    - (options.returnAmountOverride == null ? deliveryReturnAmount(order) : deliveryToNumber(options.returnAmountOverride))
+  ));
+const todayValue = typeof v45Common.todayValue === 'function'
+  ? v45Common.todayValue
+  : () => new Date().toISOString().slice(0, 10);
+const toDateOnly = typeof v45Common.toDateOnly === 'function'
+  ? v45Common.toDateOnly
+  : (value) => String(value || '').slice(0, 10);
+const escapeHtml = typeof v45Common.escapeHtml === 'function'
+  ? v45Common.escapeHtml
+  : (value = '') => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+const calculateCartonUnit = typeof v45Common.calculateCartonUnit === 'function'
+  ? v45Common.calculateCartonUnit
+  : (quantity, packing = 1) => {
+    const qty = Math.max(0, deliveryToNumber(quantity));
+    const rate = Math.max(1, deliveryToNumber(packing) || 1);
+    const cartons = Math.floor(qty / rate);
+    const units = qty % rate;
+    return { cartons, units, packing: rate, display: `${cartons}/${units}` };
+  };
+
+
+function setButtonBusy(button, busy, busyText = 'Đang lưu...') {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalText = button.dataset.originalText || button.textContent || '';
+    button.disabled = true;
+    button.textContent = busyText;
+  } else {
+    button.disabled = false;
+    if (button.dataset.originalText) button.textContent = button.dataset.originalText;
+    delete button.dataset.originalText;
+  }
+}
+
+const state = {
+  orders: [],
+  selectedOrderId: '',
+  customerDebtRows: [],
+  customerDebtLoading: false
 };
 
-const state = { orders: [], selectedOrderId: '' };
-
-function toNumber(value) {
-  if (typeof value === 'number') return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+function deliveryToNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   let text = String(value ?? '').trim().toLowerCase();
   if (!text) return 0;
   let multiplier = 1;
@@ -46,14 +92,17 @@ function toNumber(value) {
     multiplier = 1000;
     text = text.slice(0, -1);
   }
+  
   text = text.replace(/\s/g, '');
   if (text.includes(',') && text.includes('.')) {
+    // 1,234,567.89 hoặc 1.234.567,89: giữ dấu thập phân cuối cùng.
     const lastComma = text.lastIndexOf(',');
     const lastDot = text.lastIndexOf('.');
     const decimalSep = lastComma > lastDot ? ',' : '.';
     const thousandSep = decimalSep === ',' ? '.' : ',';
     text = text.split(thousandSep).join('').replace(decimalSep, '.');
   } else if (/^\d{1,3}([.,]\d{3})+$/.test(text)) {
+    // 500.000 hoặc 500,000 là phân tách hàng nghìn, không phải số thập phân.
     text = text.replace(/[.,]/g, '');
   } else {
     text = text.replace(',', '.');
@@ -61,490 +110,767 @@ function toNumber(value) {
   const n = Number(text);
   return Number.isFinite(n) ? Math.max(0, Math.round(n * multiplier)) : 0;
 }
-
-function escapeHtml(value = '') {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function readDeliveryMoneyClient(order = {}) {
+  return {
+    cashAmount: deliveryToNumber(order.cashAmount ?? order.cashCollected ?? 0),
+    bankAmount: deliveryToNumber(order.bankAmount ?? order.bankCollected ?? order.transferAmount ?? 0),
+    rewardAmount: deliveryToNumber(order.rewardAmount ?? order.bonusAmount ?? order.displayRewardAmount ?? 0)
+  };
 }
 
-function todayValue() {
-  return new Date().toISOString().slice(0, 10);
+
+function normalizeMoneyInput(input) {
+  // Ô nhập tiền trên app giao hàng dùng số thuần để sửa tăng/giảm ổn định.
+  // Không format 100.000 trong lúc gõ vì dễ làm con trỏ nhảy và không xóa/giảm được giá trị.
+  if (!input) return;
+  const raw = String(input.value ?? '');
+  const keepK = /k$/i.test(raw.trim());
+  let cleaned = raw.replace(/[^0-9kK]/g, '');
+  if (keepK && cleaned && !/k$/i.test(cleaned)) cleaned += 'k';
+  input.value = cleaned;
 }
 
-function orderKey(order = {}) {
-  return String(order.id || order._id || order.code || order.orderCode || '').trim();
+
+
+
+function isArLedgerSynced(order = {}) {
+  return order?.arLedgerSynced === true || String(order?.debtSource || '').toLowerCase() === 'ar_ledger';
+}
+function deliveryArLedgerDebt(order = {}) {
+  return Math.round(deliveryToNumber(order.arDebtAmount ?? order.arBalance ?? order.debtAmount ?? order.debt ?? 0));
 }
 
-function lineCode(item = {}) {
-  return String(item.productCode || item.code || item.productId || item.sku || '').trim();
+
+function deliveryProcessedAmount(order = {}) {
+  return deliveryToNumber(order.cashCollected) + deliveryToNumber(order.bankCollected) + deliveryToNumber(order.rewardAmount) + deliveryReturnAmount(order);
 }
 
-function lineName(item = {}) {
-  return String(item.productName || item.name || item.product || '').trim();
+const list = document.getElementById('deliveryOrders');
+const reportList = document.getElementById('deliveryReportList');
+const message = document.getElementById('deliveryMessage');
+const actionMessage = document.getElementById('deliveryActionMessage');
+const cashMessage = document.getElementById('cashMessage');
+const deliveryDateInput = document.getElementById('deliveryDateInput');
+const todayOrdersBtn = document.getElementById('todayOrdersBtn');
+const deliveryFormula = document.getElementById('deliveryFormula');
+const selectedOrderBox = document.getElementById('selectedOrderBox');
+const deliveryActionBox = document.getElementById('deliveryActionBox');
+const productSelectedOrderBox = document.getElementById('productSelectedOrderBox');
+const deliveryProductBox = document.getElementById('deliveryProductBox');
+const productMessage = document.getElementById('deliveryProductMessage');
+
+const kpiTotalOrders = document.getElementById('kpiTotalOrders');
+const kpiDoneOrders = document.getElementById('kpiDoneOrders');
+const kpiPendingOrders = document.getElementById('kpiPendingOrders');
+const kpiDebtAmount = document.getElementById('kpiDebtAmount');
+const reportCashAmount = document.getElementById('reportCashAmount');
+const reportBankAmount = document.getElementById('reportBankAmount');
+const reportReturnAmount = document.getElementById('reportReturnAmount');
+const reportDebtAmount = document.getElementById('reportDebtAmount');
+const reportTodayCashAmount = document.getElementById('reportTodayCashAmount');
+const reportTodayBankAmount = document.getElementById('reportTodayBankAmount');
+const reportOldDebtCashAmount = document.getElementById('reportOldDebtCashAmount');
+const reportOldDebtBankAmount = document.getElementById('reportOldDebtBankAmount');
+
+document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadOrders);
+document.getElementById('submitCashBtn')?.addEventListener('click', submitCash);
+document.querySelectorAll('[data-delivery-tab]').forEach(btn => {
+  btn.addEventListener('click', () => showTab(btn.dataset.deliveryTab));
+});
+
+
+
+function isCompleted(order) {
+  const status = String(order.deliveryStatus || order.visualStatus || order.status || '').toLowerCase();
+  return ['delivered', 'success', 'partial_return', 'returned', 'failed', 'delivery_failed'].includes(status);
 }
 
-function lineQty(item = {}) {
-  return toNumber(item.quantity ?? item.qty ?? item.qtyOrder ?? item.orderQty ?? 0);
+function isDelivered(order) {
+  const status = String(order.deliveryStatus || order.visualStatus || order.status || '').toLowerCase();
+  return ['delivered', 'success'].includes(status) || deliveryProcessedAmount(order) > 0;
+}
+
+
+function lineQuantity(item = {}) {
+  return deliveryToNumber(item.quantity ?? item.qty ?? item.qtyOrder ?? item.orderQty ?? 0);
 }
 
 function linePrice(item = {}) {
-  return toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+  return deliveryToNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
 }
 
-function lineReturnQty(item = {}) {
-  return toNumber(item.qtyReturn ?? item.returnQty ?? item.returnQuantity ?? item.returnedQty ?? 0);
+function lineReturnedQty(item = {}) {
+  return deliveryToNumber(item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.returnQty ?? 0);
 }
 
-function returnAmount(order = {}) {
-  return toNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0);
+
+function calculateReturnTotalFromInputs(root = deliveryActionBox) {
+  return Array.from(root.querySelectorAll('[data-return-order]')).reduce((sum, input) => {
+    const qty = deliveryToNumber(input.value || 0);
+    const price = deliveryToNumber(input.dataset.returnPrice || 0);
+    return sum + Math.round(qty * price);
+  }, 0);
 }
 
-function cashAmount(order = {}) {
-  return toNumber(order.cashCollected ?? order.cashAmount ?? 0);
+function calculateDraftDebt(order = {}) {
+  const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
+  const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
+  const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
+  const returned = deliveryReturnAmount(order);
+  return Math.max(0, Math.round(deliveryDebtBase(order) - cash - bank - reward - returned));
 }
 
-function bankAmount(order = {}) {
-  return toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
+function selectedOldDebtRows() {
+  return Array.from(deliveryActionBox.querySelectorAll('[data-old-debt-check]:checked')).map((input) => {
+    const key = String(input.value || '').trim();
+    return state.customerDebtRows.find((row) => [row.orderId, row.orderCode].map((v) => String(v || '').trim()).includes(key));
+  }).filter(Boolean);
 }
 
-function rewardAmount(order = {}) {
-  return toNumber(order.rewardAmount ?? order.bonusAmount ?? 0);
+function selectedOldDebtTotal() {
+  return selectedOldDebtRows().reduce((sum, row) => sum + deliveryToNumber(row.debt), 0);
 }
 
-function totalAmount(order = {}) {
-  return toNumber(order.totalAmount ?? order.total ?? order.amount ?? order.grandTotal ?? 0);
+function selectedOldDebtIds() {
+  return selectedOldDebtRows().map((row) => String(row.orderId || row.orderCode || '').trim()).filter(Boolean);
 }
 
-function debtAmount(order = {}) {
-  const backendDebt = toNumber(order.debtAmount ?? order.debt ?? 0);
-  if (backendDebt > 0) return backendDebt;
-  return Math.max(0, totalAmount(order) - cashAmount(order) - bankAmount(order) - rewardAmount(order) - returnAmount(order));
+function currentOrderDue(order = {}) {
+  // Dòng 'Phải thu đơn đang giao' phải luôn là giá trị gốc của đơn.
+  // Không lấy AR cache và không trừ hàng trả ở đây; hàng trả nằm trong 'Đã nhập thanh toán'.
+  return deliveryDebtBase(order);
 }
 
-function processedAmount(order = {}) {
-  return cashAmount(order) + bankAmount(order) + rewardAmount(order) + returnAmount(order);
+
+function refreshDeliveryDraftTotals(order = {}) {
+  const returned = deliveryReturnAmount(order);
+  const cash = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${order.id}"]`)?.value || 0);
+  const bank = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${order.id}"]`)?.value || 0);
+  const reward = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${order.id}"]`)?.value || 0);
+  const oldDebt = selectedOldDebtTotal();
+  const currentDue = currentOrderDue(order);
+  const totalDue = currentDue + oldDebt;
+  // Tổng đã nhập phải gồm cả hàng trả. Không trừ alreadySaved theo AR,
+  // vì trên màn hình sửa đơn các ô đang là tổng giá trị hiện tại của đơn.
+  const collected = cash + bank + reward + returned;
+  const debt = Math.max(0, Math.round(totalDue - collected));
+  const oldDebtEls = deliveryActionBox.querySelectorAll('[data-old-debt-total]');
+  const totalDueEl = deliveryActionBox.querySelector('[data-total-due]');
+  const returnEl = deliveryActionBox.querySelector('[data-return-total]');
+  const collectedEl = deliveryActionBox.querySelector('[data-collected-total]');
+  const debtEl = deliveryActionBox.querySelector('[data-draft-debt]');
+  const statusEl = deliveryActionBox.querySelector('[data-draft-status]');
+  oldDebtEls.forEach((el) => { el.textContent = money(oldDebt); });
+  if (totalDueEl) totalDueEl.textContent = money(totalDue);
+  if (returnEl) returnEl.textContent = money(returned);
+  if (collectedEl) collectedEl.textContent = money(collected);
+  if (debtEl) debtEl.textContent = money(debt);
+  if (statusEl) {
+    statusEl.textContent = debt <= 0 ? 'Đủ tiền' : `Còn nợ ${money(debt)}`;
+    statusEl.className = debt <= 0 ? 'settlement-status ok' : 'settlement-status warn';
+  }
 }
 
-function statusText(order = {}) {
+function statusLabel(order) {
   const status = String(order.deliveryStatus || order.visualStatus || order.status || '').toLowerCase();
-  if (['delivered', 'success'].includes(status)) return 'Đã giao';
-  if (['partial_return'].includes(status)) return 'Trả một phần';
-  if (['returned'].includes(status)) return 'Trả cả đơn';
-  if (['failed', 'delivery_failed'].includes(status)) return 'Không giao';
-  if (processedAmount(order) > 0) return 'Đã xử lý';
+  if (status === 'delivered' || status === 'success') return 'Đã giao';
+  if (status === 'failed' || status === 'delivery_failed') return 'Giao thất bại';
+  if (status === 'partial_return') return 'Trả một phần';
+  if (status === 'returned') return 'Trả cả đơn';
+  if (status === 'delivering') return 'Đang giao';
   return 'Chờ giao';
 }
 
-function isDone(order = {}) {
-  const status = String(order.deliveryStatus || order.visualStatus || order.status || '').toLowerCase();
-  return ['delivered', 'success', 'partial_return', 'returned', 'failed', 'delivery_failed'].includes(status) || processedAmount(order) > 0;
-}
-
 function showTab(tabName) {
-  document.querySelectorAll('[data-delivery-tab]').forEach((btn) => btn.classList.toggle('active', btn.dataset.deliveryTab === tabName));
-  document.querySelectorAll('.delivery-panel').forEach((panel) => panel.classList.remove('active'));
+  document.querySelectorAll('[data-delivery-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.deliveryTab === tabName));
+  document.querySelectorAll('.delivery-panel').forEach(panel => panel.classList.remove('active'));
   document.getElementById(`delivery${tabName.charAt(0).toUpperCase()}${tabName.slice(1)}Panel`)?.classList.add('active');
   if (tabName === 'report') renderReport();
 }
 
-function setBusy(button, busy, text = 'Đang lưu...') {
-  if (!button) return;
-  if (busy) {
-    button.dataset.oldText = button.textContent || '';
-    button.disabled = true;
-    button.textContent = text;
-  } else {
-    button.disabled = false;
-    if (button.dataset.oldText) button.textContent = button.dataset.oldText;
-    delete button.dataset.oldText;
-  }
+if (deliveryDateInput) {
+  deliveryDateInput.value = todayValue();
+  deliveryDateInput.addEventListener('change', loadOrders);
 }
 
-function mergeOrder(saved = {}) {
-  const keys = [saved.id, saved._id, saved.code, saved.orderCode, saved.salesOrderCode].map((v) => String(v || '').trim()).filter(Boolean);
-  if (!keys.length) return;
-  state.orders = state.orders.map((order) => {
-    const orderKeys = [order.id, order._id, order.code, order.orderCode, order.salesOrderCode].map((v) => String(v || '').trim()).filter(Boolean);
-    return orderKeys.some((key) => keys.includes(key)) ? { ...order, ...saved, id: order.id || saved.id || saved._id } : order;
-  });
-}
+todayOrdersBtn?.addEventListener('click', () => {
+  if (deliveryDateInput) deliveryDateInput.value = todayValue();
+  loadOrders();
+});
+
+loadOrders();
 
 async function loadOrders() {
   try {
-    setMessage(els.message, 'Đang tải đơn...');
-    const selectedDate = els.date?.value || todayValue();
+    setMessage(message, 'Đang tải đơn...');
+    const selectedDate = deliveryDateInput?.value || todayValue();
     const data = await mobileApi.getDeliveryOrders({ date: selectedDate, includeCompleted: '1' });
-    state.orders = Array.isArray(data.items) ? data.items : [];
-    if (els.formula) els.formula.textContent = data.formula || 'App lọc theo ngày giao + nhân viên giao đang đăng nhập.';
-    renderOrders();
+    state.orders = data.items || [];
+    if (deliveryFormula) deliveryFormula.textContent = data.formula || 'App lọc theo ngày giao + nhân viên giao đang đăng nhập.';
+    renderOrders(state.orders, data.date || selectedDate);
     renderKpis();
     renderReport();
     if (state.selectedOrderId) selectOrder(state.selectedOrderId, false);
-    setMessage(els.message, '');
+    setMessage(message, '');
   } catch (err) {
-    setMessage(els.message, err.message || 'Không tải được đơn', 'error');
+    setMessage(message, err.message, 'error');
   }
+}
+
+
+function mergeSavedDeliveryOrder(savedOrder = {}) {
+  if (!savedOrder || !savedOrder.id && !savedOrder.code && !savedOrder._id) return;
+  const keys = [savedOrder.id, savedOrder._id, savedOrder.code, savedOrder.orderNo, savedOrder.orderCode].map(value => String(value || '')).filter(Boolean);
+  state.orders = state.orders.map(order => {
+    const orderKeys = [order.id, order._id, order.code, order.orderNo, order.orderCode].map(value => String(value || '')).filter(Boolean);
+    return orderKeys.some(key => keys.includes(key)) ? { ...order, ...savedOrder, id: order.id || savedOrder.id || savedOrder._id } : order;
+  });
+}
+
+
+function refreshDeliveryViews() {
+  renderOrders(state.orders, deliveryDateInput?.value || todayValue());
+  renderKpis();
+  renderReport();
+  if (state.selectedOrderId) selectOrder(state.selectedOrderId, false);
 }
 
 function renderKpis() {
   const total = state.orders.length;
-  const done = state.orders.filter(isDone).length;
-  const pending = Math.max(0, total - done);
-  const debt = state.orders.reduce((sum, order) => sum + debtAmount(order), 0);
-  if (els.kpiTotalOrders) els.kpiTotalOrders.textContent = total;
-  if (els.kpiDoneOrders) els.kpiDoneOrders.textContent = done;
-  if (els.kpiPendingOrders) els.kpiPendingOrders.textContent = pending;
-  if (els.kpiDebtAmount) els.kpiDebtAmount.textContent = money(debt);
+  const done = state.orders.filter(isDelivered).length;
+  const pending = state.orders.filter(order => !isCompleted(order)).length;
+  const debt = state.orders.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
+  if (kpiTotalOrders) kpiTotalOrders.textContent = total;
+  if (kpiDoneOrders) kpiDoneOrders.textContent = done;
+  if (kpiPendingOrders) kpiPendingOrders.textContent = pending;
+  if (kpiDebtAmount) kpiDebtAmount.textContent = money(debt);
 }
 
-function renderOrders() {
-  if (!els.list) return;
-  if (!state.orders.length) {
-    els.list.className = 'order-list empty';
-    els.list.textContent = `Không có đơn giao trong ngày ${els.date?.value || ''}`;
+function renderOrders(items, selectedDate = '') {
+  if (!items.length) {
+    list.className = 'order-list empty';
+    list.textContent = `Không có đơn giao trong ngày ${selectedDate || 'đã chọn'}`;
     return;
   }
-  els.list.className = 'order-list delivery-list-cards';
-  els.list.innerHTML = state.orders.map((order) => `
-    <article class="delivery-mini-card ${isDone(order) ? 'done' : 'pending'}">
+
+  list.className = 'order-list delivery-list-cards';
+  list.innerHTML = items.map(order => `
+    <article class="delivery-mini-card ${isCompleted(order) ? 'done' : 'pending'}">
       <div class="delivery-mini-head">
         <div>
           <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
           <span>${escapeHtml(order.phone || '')} · ${escapeHtml(order.address || '')}</span>
         </div>
-        <b>${statusText(order)}</b>
+        <b>${statusLabel(order)}</b>
       </div>
       <div class="delivery-mini-money">
-        <span>Tổng: ${money(totalAmount(order))}</span>
-        <span>Hàng trả: ${money(returnAmount(order))}</span>
-        <span>Còn thu: ${money(debtAmount(order))}</span>
+        <span>Tổng: ${money(order.totalAmount)}</span>
+        <span>Còn thu: ${money(calculateDeliveryDebt(order))}</span>
       </div>
       <div class="delivery-mini-meta">
-        <span>Ngày giao: ${escapeHtml(order.deliveryDate || els.date?.value || '')}</span>
-        <span>NVBH: ${escapeHtml(order.salesmanName || order.salesStaffName || '')}</span>
+        <span>Ngày giao: ${escapeHtml(order.deliveryDate || selectedDate)}</span>
+        <span>Tuyến: ${escapeHtml(order.routeName || 'Chưa gán')}</span>
       </div>
-      <button class="primary-btn full-btn" data-select-order="${escapeHtml(orderKey(order))}" type="button">Xem hàng giao</button>
+      <button class="primary-btn full-btn" data-select-order="${escapeHtml(order.id)}">Xem hàng giao</button>
     </article>
   `).join('');
-  els.list.querySelectorAll('[data-select-order]').forEach((btn) => btn.addEventListener('click', () => selectOrder(btn.dataset.selectOrder, true)));
+
+  list.querySelectorAll('[data-select-order]').forEach(btn => {
+    btn.addEventListener('click', () => selectOrder(btn.dataset.selectOrder, true));
+  });
 }
 
-function findOrder(id) {
-  return state.orders.find((order) => [order.id, order._id, order.code, order.orderCode, order.salesOrderCode].map((v) => String(v || '').trim()).includes(String(id || '').trim()));
+function selectOrder(orderId, openCollectTab = true) {
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (!order) {
+    state.selectedOrderId = '';
+    selectedOrderBox.className = 'selected-delivery-box empty';
+    selectedOrderBox.textContent = 'Đơn đã chọn không còn trong danh sách ngày này.';
+    if (productSelectedOrderBox) {
+      productSelectedOrderBox.className = 'selected-delivery-box empty';
+      productSelectedOrderBox.textContent = 'Đơn đã chọn không còn trong danh sách ngày này.';
+    }
+    deliveryActionBox.innerHTML = '';
+    if (deliveryProductBox) deliveryProductBox.innerHTML = '';
+    return;
+  }
+  state.selectedOrderId = order.id;
+  renderSelectedOrder(order);
+  renderProductForm(order);
+  state.customerDebtRows = [];
+  renderActionForm(order);
+  loadCustomerDebtsForOrder(order);
+  if (openCollectTab) showTab('products');
 }
 
-function summaryHtml(order = {}) {
+function deliveryOrderSummaryHtml(order) {
   return `
     <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
     <span>${escapeHtml(order.phone || '')} · ${escapeHtml(order.address || '')}</span>
-    <span>Tổng tiền: ${money(totalAmount(order))} · Đã xử lý: ${money(processedAmount(order))} · Hàng trả: ${money(returnAmount(order))} · Còn thu: ${money(debtAmount(order))}</span>
-    <span>Trạng thái: <b>${statusText(order)}</b></span>
+    <span>Ngày giao: ${escapeHtml(order.deliveryDate || '')} · Tuyến: ${escapeHtml(order.routeName || 'Chưa gán')}</span>
+    <span>Tổng tiền: ${money(order.totalAmount)} · Đã xử lý: ${money(deliveryProcessedAmount(order))} · Còn thu: ${money(calculateDeliveryDebt(order))}${isArLedgerSynced(order) ? ' · AR' : ''}</span>
+    <span>Trạng thái: <b>${statusLabel(order)}</b></span>
   `;
 }
 
-function selectOrder(id, openProducts = true) {
-  const order = findOrder(id);
-  if (!order) {
-    state.selectedOrderId = '';
-    if (els.selectedOrderBox) {
-      els.selectedOrderBox.className = 'selected-delivery-box empty';
-      els.selectedOrderBox.textContent = 'Đơn đã chọn không còn trong danh sách.';
-    }
-    if (els.productSelectedOrderBox) {
-      els.productSelectedOrderBox.className = 'selected-delivery-box empty';
-      els.productSelectedOrderBox.textContent = 'Đơn đã chọn không còn trong danh sách.';
-    }
-    if (els.productBox) els.productBox.innerHTML = '';
-    if (els.actionBox) els.actionBox.innerHTML = '';
-    return;
+function renderSelectedOrder(order) {
+  selectedOrderBox.className = 'selected-delivery-box';
+  selectedOrderBox.innerHTML = deliveryOrderSummaryHtml(order);
+  if (productSelectedOrderBox) {
+    productSelectedOrderBox.className = 'selected-delivery-box';
+    productSelectedOrderBox.innerHTML = deliveryOrderSummaryHtml(order);
   }
-  state.selectedOrderId = orderKey(order);
-  if (els.selectedOrderBox) {
-    els.selectedOrderBox.className = 'selected-delivery-box';
-    els.selectedOrderBox.innerHTML = summaryHtml(order);
-  }
-  if (els.productSelectedOrderBox) {
-    els.productSelectedOrderBox.className = 'selected-delivery-box';
-    els.productSelectedOrderBox.innerHTML = summaryHtml(order);
-  }
-  renderProductForm(order);
-  renderCollectForm(order);
-  if (openProducts) showTab('products');
 }
 
-function renderProductForm(order = {}) {
-  if (!els.productBox) return;
+function renderProductForm(order) {
+  const currentReturn = deliveryReturnAmount(order);
   const items = Array.isArray(order.items) ? order.items : [];
-  if (!items.length) {
-    els.productBox.innerHTML = '<div class="empty">Đơn này chưa có danh sách sản phẩm.</div>';
-    return;
-  }
-  const locked = Boolean(order.returnLocked);
-  els.productBox.innerHTML = `
-    ${locked ? `<p class="message error">${escapeHtml(order.returnLockMessage || 'Phiếu trả hàng đã khóa, không được sửa.')}</p>` : ''}
-    <div class="delivery-product-list">
-      ${items.map((item) => {
-        const code = lineCode(item);
-        const qty = lineQty(item);
-        const price = linePrice(item);
-        return `
-          <div class="delivery-product-row">
-            <div>
-              <strong>${escapeHtml(lineName(item) || code)}</strong>
-              <span>Mã: ${escapeHtml(code)} · SL giao: ${qty} · Giá: ${money(price)}</span>
-            </div>
-            <label>SL trả
-              <input type="number" min="0" max="${qty}" step="1" value="${lineReturnQty(item)}" data-return-input="1" data-code="${escapeHtml(code)}" data-max="${qty}" data-price="${price}" ${locked ? 'disabled' : ''} />
-            </label>
-          </div>
-        `;
-      }).join('')}
-    </div>
-    <textarea rows="2" data-product-note placeholder="Ghi chú hàng giao / hàng trả"></textarea>
-    <div class="delivery-settlement-total">Tổng hàng trả đang nhập: <strong data-product-return-total>${money(0)}</strong></div>
-    <button class="primary-btn full-btn" data-save-products="${escapeHtml(orderKey(order))}" type="button" ${locked ? 'disabled' : ''}>Xác nhận hàng giao</button>
-    <button class="ghost-btn full-btn" data-return-full="${escapeHtml(orderKey(order))}" type="button" ${locked ? 'disabled' : ''}>Không giao - trả cả đơn</button>
-  `;
-  const refresh = () => {
-    const total = readPositiveReturnItems().reduce((sum, item) => sum + item.qtyReturn * item.price, 0);
-    const target = els.productBox.querySelector('[data-product-return-total]');
-    if (target) target.textContent = money(total);
-  };
-  els.productBox.querySelectorAll('[data-return-input]').forEach((input) => input.addEventListener('input', refresh));
-  els.productBox.querySelector('[data-save-products]')?.addEventListener('click', (event) => saveProducts(event.currentTarget.dataset.saveProducts, event.currentTarget));
-  els.productBox.querySelector('[data-return-full]')?.addEventListener('click', (event) => returnFullOrder(event.currentTarget.dataset.returnFull, event.currentTarget));
-  refresh();
-}
-
-function readPositiveReturnItems() {
-  return Array.from(els.productBox?.querySelectorAll('[data-return-input]') || []).map((input) => {
-    const qtyReturn = toNumber(input.value || 0);
-    const maxQty = toNumber(input.dataset.max || 0);
-    return {
-      productCode: input.dataset.code || '',
-      qtyReturn,
-      maxQty,
-      price: toNumber(input.dataset.price || 0)
-    };
-  }).filter((item) => item.qtyReturn > 0);
-}
-
-async function saveProducts(orderId, button) {
-  const order = findOrder(orderId);
-  if (!order) return setMessage(els.productMessage, 'Không tìm thấy đơn đang chọn', 'error');
-  if (order.returnLocked) return setMessage(els.productMessage, order.returnLockMessage || 'Phiếu trả đã khóa', 'error');
-  const items = readPositiveReturnItems();
-  const invalid = items.find((item) => item.qtyReturn > item.maxQty);
-  if (invalid) return setMessage(els.productMessage, `Số lượng trả của ${invalid.productCode} lớn hơn số lượng giao`, 'error');
-  const note = els.productBox?.querySelector('[data-product-note]')?.value || '';
-  try {
-    setBusy(button, true);
-    // Luồng mới: chỉ gửi dòng có SL trả > 0. Nếu không có hàng trả, gửi items rỗng để backend clear sạch phiếu cũ.
-    const ret = await mobileApi.createDeliveryReturn({
-      orderId,
-      returnType: 'partial',
-      items,
-      replaceReturnItems: true,
-      allowEmptyReturn: true,
-      note
-    });
-    if (ret?.order) mergeOrder(ret.order);
-    const confirmed = await mobileApi.confirmDelivery({
-      orderId,
-      status: 'success',
-      cashAmount: cashAmount(order),
-      bankAmount: bankAmount(order),
-      rewardAmount: rewardAmount(order),
-      collectAmount: cashAmount(order) + bankAmount(order),
-      collectionMethod: bankAmount(order) > 0 && cashAmount(order) <= 0 ? 'transfer' : 'cash',
-      note
-    });
-    if (confirmed?.order) mergeOrder(confirmed.order);
-    setMessage(els.productMessage, 'Đã xác nhận hàng giao', 'success');
-    await loadOrders();
-    showTab('collect');
-  } catch (err) {
-    setMessage(els.productMessage, err.message || 'Không lưu được hàng giao', 'error');
-  } finally {
-    setBusy(button, false);
-  }
-}
-
-async function returnFullOrder(orderId, button) {
-  const order = findOrder(orderId);
-  if (!order) return setMessage(els.productMessage, 'Không tìm thấy đơn đang chọn', 'error');
-  if (!confirm('Xác nhận không giao và trả cả đơn?')) return;
-  try {
-    setBusy(button, true);
-    const ret = await mobileApi.createDeliveryReturn({ orderId, returnType: 'full', items: [], note: 'Không giao được - trả cả đơn từ app giao hàng' });
-    if (ret?.order) mergeOrder(ret.order);
-    await loadOrders();
-    setMessage(els.productMessage, 'Đã ghi nhận trả cả đơn', 'success');
-    showTab('report');
-  } catch (err) {
-    setMessage(els.productMessage, err.message || 'Không tạo được phiếu trả cả đơn', 'error');
-  } finally {
-    setBusy(button, false);
-  }
-}
-
-function renderCollectForm(order = {}) {
-  if (!els.actionBox) return;
-  els.actionBox.innerHTML = `
-    <div class="delivery-money-form">
-      <label>Tiền mặt
-        <input type="number" min="0" step="1000" data-cash-input value="${cashAmount(order)}" />
-      </label>
-      <label>Chuyển khoản
-        <input type="number" min="0" step="1000" data-bank-input value="${bankAmount(order)}" />
-      </label>
-      <label>Trả thưởng
-        <input type="number" min="0" step="1000" data-reward-input value="${rewardAmount(order)}" />
-      </label>
-      <textarea rows="2" data-collect-note placeholder="Ghi chú thu tiền"></textarea>
-      <div class="delivery-settlement-total">
-        <span>Tổng đơn: <strong>${money(totalAmount(order))}</strong></span>
-        <span>Hàng trả: <strong>${money(returnAmount(order))}</strong></span>
-        <span>Còn nợ dự kiến: <strong data-collect-debt>${money(debtAmount(order))}</strong></span>
+  const returnLocked = Boolean(order.returnLocked || order.masterReturnOrderId || order.masterReturnOrderCode || String(order.returnMergeStatus || '').toLowerCase() === 'merged');
+  const returnLockMessage = order.returnLockMessage || (returnLocked ? 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.' : '');
+  if (!deliveryProductBox) return;
+  deliveryProductBox.innerHTML = `
+    <section class="delivery-block return-panel mobile-return-panel">
+      <div class="block-title-row">
+        <div>
+          <h3>Sản phẩm cần giao</h3>
+          <p class="return-help">Hiển thị hàng cần giao cho cửa hàng. Nếu có hàng trả, nhập số lượng ở cột SL trả.</p>
+          ${returnLocked ? `<p class="return-help warn-text">${escapeHtml(returnLockMessage)}</p>` : ''}
+        </div>
+        <b data-product-return-total>${money(currentReturn)}</b>
       </div>
-      <button class="primary-btn full-btn" data-save-collect="${escapeHtml(orderKey(order))}" type="button">Lưu thu tiền</button>
-      <button class="ghost-btn full-btn" data-failed="${escapeHtml(orderKey(order))}" type="button">Không giao được</button>
+      <div class="mobile-return-scroll delivery-products-scroll">
+        ${items.length ? items.map(item => {
+          const qty = lineQuantity(item);
+          const price = linePrice(item);
+          return `
+          <div class="mobile-return-line delivery-product-line">
+            <div class="return-product">
+              <strong>${escapeHtml(item.productCode || '')}</strong>
+              <span>${escapeHtml(item.productName || '')}</span>
+              <small>SL giao: ${money(qty)} · Giá bán: ${money(price)}</small>
+            </div>
+            <label>
+              <span>SL trả</span>
+              <input class="return-qty-input" data-return-order="${escapeHtml(order.id)}" data-return-code="${escapeHtml(item.productCode || item.productId || '')}" data-return-price="${price}" type="number" min="0" max="${qty}" step="1" value="${lineReturnedQty(item)}" inputmode="numeric" ${returnLocked ? 'disabled readonly' : ''} />
+            </label>
+          </div>`;
+        }).join('') : '<div class="empty-line">Đơn này chưa có danh sách sản phẩm.</div>'}
+      </div>
+    </section>
+
+    <input class="note-input" data-product-note="${escapeHtml(order.id)}" type="text" placeholder="Ghi chú giao hàng / lý do trả hàng" />
+
+    <div class="mobile-sticky-actions two-actions">
+      <button class="primary-btn" data-confirm-products="${escapeHtml(order.id)}">Xác nhận giao</button>
+      <button class="danger-btn" data-no-delivery="${escapeHtml(order.id)}">Không giao</button>
     </div>
   `;
+
   const refresh = () => {
-    const cash = toNumber(els.actionBox.querySelector('[data-cash-input]')?.value || 0);
-    const bank = toNumber(els.actionBox.querySelector('[data-bank-input]')?.value || 0);
-    const reward = toNumber(els.actionBox.querySelector('[data-reward-input]')?.value || 0);
-    const debt = Math.max(0, totalAmount(order) - returnAmount(order) - cash - bank - reward);
-    const target = els.actionBox.querySelector('[data-collect-debt]');
-    if (target) target.textContent = money(debt);
+    const total = calculateReturnTotalFromInputs(deliveryProductBox);
+    const returnEl = deliveryProductBox.querySelector('[data-product-return-total]');
+    if (returnEl) returnEl.textContent = money(total);
   };
-  els.actionBox.querySelectorAll('input').forEach((input) => input.addEventListener('input', refresh));
-  els.actionBox.querySelector('[data-save-collect]')?.addEventListener('click', (event) => saveCollect(event.currentTarget.dataset.saveCollect, event.currentTarget));
-  els.actionBox.querySelector('[data-failed]')?.addEventListener('click', (event) => markFailed(event.currentTarget.dataset.failed, event.currentTarget));
+  deliveryProductBox.querySelectorAll('[data-return-order]').forEach(input => input.addEventListener('input', refresh));
   refresh();
+  deliveryProductBox.querySelector('[data-confirm-products]')?.addEventListener('click', btnEvent => saveDeliveryProducts(btnEvent.currentTarget.dataset.confirmProducts));
+  deliveryProductBox.querySelector('[data-no-delivery]')?.addEventListener('click', btnEvent => markWholeOrderReturned(btnEvent.currentTarget.dataset.noDelivery));
 }
 
-async function saveCollect(orderId, button) {
-  const order = findOrder(orderId);
-  if (!order) return setMessage(els.actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
-  const cash = toNumber(els.actionBox.querySelector('[data-cash-input]')?.value || 0);
-  const bank = toNumber(els.actionBox.querySelector('[data-bank-input]')?.value || 0);
-  const reward = toNumber(els.actionBox.querySelector('[data-reward-input]')?.value || 0);
-  const note = els.actionBox.querySelector('[data-collect-note]')?.value || '';
+async function loadCustomerDebtsForOrder(order = {}) {
+  if (!order?.id) return;
+  state.customerDebtLoading = true;
+  renderActionForm(order);
   try {
-    setBusy(button, true);
-    // Luồng mới: tab Thu tiền chỉ lưu tiền, tuyệt đối không tạo/sửa phiếu hàng trả.
-    const result = await mobileApi.confirmDelivery({
-      orderId,
-      status: 'success',
-      cashAmount: cash,
-      bankAmount: bank,
-      rewardAmount: reward,
-      collectAmount: cash + bank,
-      collectionMethod: bank > 0 && cash <= 0 ? 'transfer' : 'cash',
-      note
+    const data = await mobileApi.getDeliveryCustomerDebts({
+      currentOrderId: order.id,
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || ''
     });
-    if (result?.order) mergeOrder(result.order);
-    setMessage(els.actionMessage, 'Đã lưu thu tiền', 'success');
-    await loadOrders();
-    showTab('report');
+    if (String(state.selectedOrderId) !== String(order.id)) return;
+    state.customerDebtRows = Array.isArray(data.items) ? data.items : [];
   } catch (err) {
-    setMessage(els.actionMessage, err.message || 'Không lưu được thu tiền', 'error');
+    state.customerDebtRows = [];
+    setMessage(actionMessage, err.message || 'Không tải được danh sách đơn nợ cũ', 'error');
   } finally {
-    setBusy(button, false);
+    state.customerDebtLoading = false;
+    if (String(state.selectedOrderId) === String(order.id)) renderActionForm(order);
   }
 }
 
-async function markFailed(orderId, button) {
-  try {
-    setBusy(button, true);
-    const result = await mobileApi.confirmDelivery({ orderId, status: 'failed', cashAmount: 0, bankAmount: 0, rewardAmount: 0, collectAmount: 0, note: 'Không giao được từ app giao hàng' });
-    if (result?.order) mergeOrder(result.order);
-    setMessage(els.actionMessage, 'Đã ghi nhận không giao được', 'success');
-    await loadOrders();
-    showTab('report');
-  } catch (err) {
-    setMessage(els.actionMessage, err.message || 'Không lưu được trạng thái không giao', 'error');
-  } finally {
-    setBusy(button, false);
-  }
+function debtRowsHtml(order = {}) {
+  if (state.customerDebtLoading) return '<div class="empty-line">Đang tải danh sách đơn nợ cũ...</div>';
+  const rows = state.customerDebtRows || [];
+  if (!rows.length) return '<div class="empty-line">Khách này không còn đơn nợ cũ.</div>';
+  return rows.map((row) => {
+    const key = escapeHtml(row.orderId || row.orderCode || '');
+    return `
+      <label class="old-debt-line">
+        <input type="checkbox" data-old-debt-check value="${key}" />
+        <span class="old-debt-info">
+          <strong>${escapeHtml(row.orderCode || row.orderId || '')}</strong>
+          <small>Ngày nợ: ${escapeHtml(toDateOnly(row.documentDate) || 'Chưa rõ ngày')}</small>
+        </span>
+        <b>${money(row.debt || 0)}</b>
+      </label>`;
+  }).join('');
+}
+
+function renderActionForm(order) {
+  const existingMoney = readDeliveryMoneyClient(order);
+  const existingCash = existingMoney.cashAmount;
+  const existingBank = existingMoney.bankAmount;
+  const existingReward = existingMoney.rewardAmount;
+  const currentReturn = deliveryReturnAmount(order);
+  const currentDue = currentOrderDue(order);
+  deliveryActionBox.innerHTML = `
+    <section class="delivery-block debt-collect-block">
+      <div class="block-title-row">
+        <div>
+          <h3>Đơn nợ cũ của khách</h3>
+          <p class="return-help">Tích đơn khách đồng ý trả. Khi thiếu tiền, hệ thống ưu tiên trừ đơn nợ cũ trước rồi mới trừ đơn đang giao.</p>
+        </div>
+        <b data-old-debt-total>0</b>
+      </div>
+      <div class="old-debt-scroll">
+        ${debtRowsHtml(order)}
+      </div>
+    </section>
+
+    <section class="delivery-block payment-block">
+      <h3>Thu tiền</h3>
+      <div class="payment-grid">
+        <label>Tiền mặt<input data-cash="${escapeHtml(order.id)}" type="text" value="${existingCash || 0}" inputmode="numeric" autocomplete="off" /></label>
+        <label>Chuyển khoản<input data-bank="${escapeHtml(order.id)}" type="text" value="${existingBank || 0}" inputmode="numeric" autocomplete="off" /></label>
+        <label>Trả thưởng<input data-reward="${escapeHtml(order.id)}" type="text" value="${existingReward || 0}" inputmode="numeric" autocomplete="off" /></label>
+        <label>Hàng trả<input data-return-readonly type="text" value="${money(currentReturn)}" readonly /></label>
+      </div>
+    </section>
+
+    <section class="delivery-block settlement-block">
+      <h3>Tổng kết</h3>
+      <div class="settlement-row"><span>Phải thu đơn đang giao</span><b>${money(currentDue)}</b></div>
+      <div class="settlement-row"><span>Nợ cũ đã tích</span><b data-old-debt-total>0</b></div>
+      <div class="settlement-row"><span>Tổng phải thu</span><b data-total-due>${money(currentDue)}</b></div>
+      <div class="settlement-row"><span>Đã nhập thanh toán</span><b data-collected-total>${money(existingCash + existingBank + existingReward + currentReturn)}</b></div>
+      <div class="settlement-row"><span>Còn nợ sau thu</span><b data-draft-debt>${money(calculateDeliveryDebt(order))}</b></div>
+      <div data-draft-status class="settlement-status ${calculateDeliveryDebt(order) <= 0 ? 'ok' : 'warn'}">${calculateDeliveryDebt(order) <= 0 ? 'Đủ tiền' : `Còn nợ ${money(calculateDeliveryDebt(order))}`}</div>
+    </section>
+
+    <input class="note-input" data-note="${escapeHtml(order.id)}" type="text" placeholder="Ghi chú thu tiền" />
+
+    <div class="mobile-sticky-actions">
+      <button class="primary-btn" data-save-delivery="${escapeHtml(order.id)}">Lưu thu tiền</button>
+      <button class="danger-btn" data-fail="${escapeHtml(order.id)}">Không giao được</button>
+    </div>
+  `;
+
+  deliveryActionBox.querySelectorAll('[data-cash], [data-bank], [data-reward]').forEach(input => {
+    input.addEventListener('input', () => {
+      normalizeMoneyInput(input);
+      refreshDeliveryDraftTotals(order);
+    });
+    input.addEventListener('change', () => {
+      normalizeMoneyInput(input);
+      refreshDeliveryDraftTotals(order);
+    });
+  });
+  deliveryActionBox.querySelectorAll('[data-old-debt-check]').forEach(input => {
+    input.addEventListener('input', () => refreshDeliveryDraftTotals(order));
+    input.addEventListener('change', () => refreshDeliveryDraftTotals(order));
+  });
+  refreshDeliveryDraftTotals(order);
+
+  deliveryActionBox.querySelector('[data-save-delivery]')?.addEventListener('click', btnEvent => saveDeliverySettlement(btnEvent.currentTarget.dataset.saveDelivery));
+  deliveryActionBox.querySelector('[data-fail]')?.addEventListener('click', btnEvent => confirmDelivery(btnEvent.currentTarget.dataset.fail, 'failed'));
 }
 
 function renderReport() {
-  const totals = state.orders.reduce((acc, order) => {
-    acc.cash += cashAmount(order);
-    acc.bank += bankAmount(order);
-    acc.reward += rewardAmount(order);
-    acc.returns += returnAmount(order);
-    acc.debt += debtAmount(order);
-    return acc;
-  }, { cash: 0, bank: 0, reward: 0, returns: 0, debt: 0 });
-  if (els.reportCashAmount) els.reportCashAmount.textContent = money(totals.cash);
-  if (els.reportBankAmount) els.reportBankAmount.textContent = money(totals.bank);
-  if (els.reportReturnAmount) els.reportReturnAmount.textContent = money(totals.returns);
-  if (els.reportDebtAmount) els.reportDebtAmount.textContent = money(totals.debt);
-  if (els.reportTodayCashAmount) els.reportTodayCashAmount.textContent = money(totals.cash);
-  if (els.reportTodayBankAmount) els.reportTodayBankAmount.textContent = money(totals.bank);
-  if (els.reportOldDebtCashAmount) els.reportOldDebtCashAmount.textContent = money(0);
-  if (els.reportOldDebtBankAmount) els.reportOldDebtBankAmount.textContent = money(0);
+  const completed = state.orders.filter(isCompleted);
+  const todayCash = completed.reduce((sum, order) => sum + readDeliveryMoneyClient(order).cashAmount, 0);
+  const todayBank = completed.reduce((sum, order) => sum + readDeliveryMoneyClient(order).bankAmount, 0);
+  const oldDebtCash = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtCashCollected || order.debtCashCollected || 0), 0);
+  const oldDebtBank = completed.reduce((sum, order) => sum + deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0), 0);
+  const totalCash = todayCash + oldDebtCash;
+  const totalBank = todayBank + oldDebtBank;
+  const returns = completed.reduce((sum, order) => sum + deliveryReturnAmount(order), 0);
+  const debt = completed.reduce((sum, order) => sum + calculateDeliveryDebt(order), 0);
+  if (reportCashAmount) reportCashAmount.textContent = money(totalCash);
+  if (reportBankAmount) reportBankAmount.textContent = money(totalBank);
+  if (reportReturnAmount) reportReturnAmount.textContent = money(returns);
+  if (reportDebtAmount) reportDebtAmount.textContent = money(debt);
+  if (reportTodayCashAmount) reportTodayCashAmount.textContent = money(todayCash);
+  if (reportTodayBankAmount) reportTodayBankAmount.textContent = money(todayBank);
+  if (reportOldDebtCashAmount) reportOldDebtCashAmount.textContent = money(oldDebtCash);
+  if (reportOldDebtBankAmount) reportOldDebtBankAmount.textContent = money(oldDebtBank);
 
-  if (!els.reportList) return;
-  const rows = state.orders.filter(isDone);
-  if (!rows.length) {
-    els.reportList.className = 'order-list delivery-report-list empty';
-    els.reportList.textContent = 'Chưa có dữ liệu báo cáo.';
+  if (!completed.length) {
+    reportList.className = 'order-list delivery-report-list empty';
+    reportList.textContent = 'Chưa có đơn đã giao / đã xử lý trong ngày này.';
     return;
   }
-  els.reportList.className = 'order-list delivery-report-list';
-  els.reportList.innerHTML = rows.map((order) => `
-    <article class="delivery-mini-card done">
-      <div class="delivery-mini-head">
-        <div>
-          <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
-          <span>${statusText(order)}</span>
-        </div>
-        <b>${money(processedAmount(order))}</b>
+  reportList.className = 'order-list delivery-report-list';
+  reportList.innerHTML = completed.map(order => {
+    const orderMoney = readDeliveryMoneyClient(order);
+    const orderCash = orderMoney.cashAmount;
+    const orderBank = orderMoney.bankAmount;
+    const debtCash = deliveryToNumber(order.oldDebtCashCollected || order.debtCashCollected || 0);
+    const debtBank = deliveryToNumber(order.oldDebtBankCollected || order.debtBankCollected || 0);
+    return `
+    <article class="delivery-report-item">
+      <div>
+        <strong>${escapeHtml(order.code || order.id)} - ${escapeHtml(order.customerName || '')}</strong>
+        <span>${statusLabel(order)} · Còn nợ đơn hôm nay: ${money(calculateDeliveryDebt(order))}</span>
+        <span>Thu đơn hôm nay: TM ${money(orderCash)} · CK ${money(orderBank)} · Thưởng ${money(orderMoney.rewardAmount || 0)} · Trả ${money(deliveryReturnAmount(order))}</span>
+        <span>Thu nợ cũ: TM ${money(debtCash)} · CK ${money(debtBank)}</span>
       </div>
-      <div class="delivery-mini-money">
-        <span>TM ${money(cashAmount(order))}</span>
-        <span>CK ${money(bankAmount(order))}</span>
-        <span>Trả ${money(returnAmount(order))}</span>
-        <span>Còn nợ ${money(debtAmount(order))}</span>
-      </div>
-      <button class="ghost-btn small-btn" data-edit-report="${escapeHtml(orderKey(order))}" type="button">Sửa</button>
-    </article>
-  `).join('');
-  els.reportList.querySelectorAll('[data-edit-report]').forEach((btn) => btn.addEventListener('click', () => selectOrder(btn.dataset.editReport, true)));
+      <button class="ghost-btn small-btn" data-edit-report="${escapeHtml(order.id)}">Sửa</button>
+    </article>`;
+  }).join('');
+
+  reportList.querySelectorAll('[data-edit-report]').forEach(btn => {
+    btn.addEventListener('click', () => selectOrder(btn.dataset.editReport, true));
+  });
+}
+
+async function confirmDelivery(orderId, status, amounts = null) {
+  const activeButton = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+  setButtonBusy(activeButton, true);
+  const noteInput = deliveryActionBox.querySelector(`[data-note="${orderId}"]`);
+  const cashAmount = amounts ? deliveryToNumber(amounts.cashAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${orderId}"]`)?.value || 0);
+  const bankAmount = amounts ? deliveryToNumber(amounts.bankAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${orderId}"]`)?.value || 0);
+  const rewardAmount = amounts ? deliveryToNumber(amounts.rewardAmount) : deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${orderId}"]`)?.value || 0);
+  try {
+    const result = await mobileApi.confirmDelivery({
+      orderId,
+      status,
+      cashAmount,
+      bankAmount,
+      rewardAmount,
+      debtOrderIds: selectedOldDebtIds(),
+      collectAmount: cashAmount + bankAmount,
+      collectionMethod: bankAmount > 0 && cashAmount <= 0 ? 'transfer' : 'cash',
+      note: noteInput?.value || ''
+    });
+    mergeSavedDeliveryOrder(result.order);
+    setMessage(actionMessage, status === 'failed' ? 'Đã ghi nhận không giao được' : 'Đã lưu xử lý giao hàng', 'success');
+    refreshDeliveryViews();
+    showTab('report');
+  } catch (err) {
+    setMessage(actionMessage, err.message, 'error');
+  } finally {
+    setButtonBusy(activeButton, false);
+  }
+}
+
+
+async function markWholeOrderReturned(orderId) {
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (!order) {
+    setMessage(productMessage || actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
+    return;
+  }
+  if (order.returnLocked) {
+    setMessage(productMessage || actionMessage, order.returnLockMessage || 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.', 'error');
+    return;
+  }
+  const noteInput = deliveryProductBox?.querySelector(`[data-product-note="${orderId}"]`);
+  try {
+    await mobileApi.createDeliveryReturn({
+      orderId,
+      returnType: 'full',
+      items: [],
+      note: noteInput?.value || 'Không giao được - trả cả đơn từ app giao hàng'
+    });
+    setMessage(productMessage || actionMessage, 'Đã ghi nhận không giao và trả cả đơn', 'success');
+    await loadOrders();
+    showTab('report');
+  } catch (err) {
+    setMessage(productMessage || actionMessage, err.message, 'error');
+  }
+}
+
+async function saveDeliveryProducts(orderId) {
+  const activeButton = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+  setButtonBusy(activeButton, true);
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (!order) {
+    setMessage(productMessage || actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
+    return;
+  }
+  const noteInput = deliveryProductBox?.querySelector(`[data-product-note="${orderId}"]`);
+  // Gửi đầy đủ các dòng SL trả, kể cả dòng = 0.
+  // Nếu NVGH nhập nhầm rồi sửa về 0, backend cần nhận được lệnh ghi đè/xóa hàng trả cũ.
+  const items = Array.from(deliveryProductBox?.querySelectorAll(`[data-return-order="${orderId}"]`) || [])
+    .map(input => {
+      const maxQty = deliveryToNumber(input.getAttribute('max') || 0);
+      const qtyReturn = deliveryToNumber(input.value || 0);
+      return {
+        productCode: input.dataset.returnCode,
+        qtyReturn,
+        maxQty
+      };
+    });
+  const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
+  if (invalidItem) {
+    setMessage(productMessage || actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng giao`, 'error');
+    return;
+  }
+  try {
+    if (!order.returnLocked) {
+      const returnResult = await mobileApi.createDeliveryReturn({
+        orderId,
+        returnType: 'partial',
+        items,
+        replaceReturnItems: true,
+        allowEmptyReturn: true,
+        note: noteInput?.value || ''
+      });
+      if (returnResult?.order) {
+        mergeSavedDeliveryOrder(returnResult.order);
+        Object.assign(order, returnResult.order);
+      }
+    }
+    const result = await mobileApi.confirmDelivery({
+      orderId,
+      status: 'success',
+      cashAmount: readDeliveryMoneyClient(order).cashAmount,
+      bankAmount: readDeliveryMoneyClient(order).bankAmount,
+      rewardAmount: readDeliveryMoneyClient(order).rewardAmount,
+      collectAmount: readDeliveryMoneyClient(order).cashAmount + readDeliveryMoneyClient(order).bankAmount,
+      collectionMethod: readDeliveryMoneyClient(order).bankAmount > 0 ? 'transfer' : 'cash',
+      note: noteInput?.value || ''
+    });
+    mergeSavedDeliveryOrder(result.order);
+    setMessage(productMessage || actionMessage, 'Đã xác nhận hàng giao và hàng trả', 'success');
+    refreshDeliveryViews();
+    showTab('collect');
+  } catch (err) {
+    setMessage(productMessage || actionMessage, err.message, 'error');
+  } finally {
+    setButtonBusy(activeButton, false);
+  }
+}
+
+async function saveDeliverySettlement(orderId) {
+  const activeButton = document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null;
+  setButtonBusy(activeButton, true);
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (!order) {
+    setMessage(actionMessage, 'Không tìm thấy đơn đang chọn', 'error');
+    return;
+  }
+  const noteInput = deliveryActionBox.querySelector(`[data-note="${orderId}"]`);
+  const items = Array.from(deliveryActionBox.querySelectorAll(`[data-return-order="${orderId}"]`))
+    .map(input => {
+      const maxQty = deliveryToNumber(input.getAttribute('max') || 0);
+      const qtyReturn = deliveryToNumber(input.value || 0);
+      return {
+        productCode: input.dataset.returnCode,
+        qtyReturn,
+        maxQty
+      };
+    });
+  const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
+  if (invalidItem) {
+    setMessage(actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng đặt`, 'error');
+    return;
+  }
+  const cashAmount = deliveryToNumber(deliveryActionBox.querySelector(`[data-cash="${orderId}"]`)?.value || 0);
+  const bankAmount = deliveryToNumber(deliveryActionBox.querySelector(`[data-bank="${orderId}"]`)?.value || 0);
+  const rewardAmount = deliveryToNumber(deliveryActionBox.querySelector(`[data-reward="${orderId}"]`)?.value || 0);
+  try {
+    if (items.length && !order.returnLocked) {
+      await mobileApi.createDeliveryReturn({
+        orderId,
+        returnType: 'partial',
+        items,
+        replaceReturnItems: true,
+        allowEmptyReturn: true,
+        note: noteInput?.value || ''
+      });
+    }
+    const result = await mobileApi.confirmDelivery({
+      orderId,
+      status: 'success',
+      cashAmount,
+      bankAmount,
+      rewardAmount,
+      debtOrderIds: selectedOldDebtIds(),
+      collectAmount: cashAmount + bankAmount,
+      collectionMethod: bankAmount > 0 && cashAmount <= 0 ? 'transfer' : 'cash',
+      note: noteInput?.value || ''
+    });
+    mergeSavedDeliveryOrder(result.order);
+    setMessage(actionMessage, 'Đã lưu thu tiền', 'success');
+    refreshDeliveryViews();
+    showTab('report');
+  } catch (err) {
+    setMessage(actionMessage, err.message, 'error');
+  } finally {
+    setButtonBusy(activeButton, false);
+  }
+}
+
+async function createReturn(orderId, returnType) {
+  const noteInput = deliveryActionBox.querySelector(`[data-note="${orderId}"]`);
+  const items = Array.from(deliveryActionBox.querySelectorAll(`[data-return-order="${orderId}"]`))
+    .map(input => {
+      const reasonInput = deliveryActionBox.querySelector(`[data-return-reason-order="${orderId}"][data-return-reason-code="${input.dataset.returnCode}"]`);
+      const maxQty = Number(input.getAttribute('max') || 0);
+      const qtyReturn = Number(input.value || 0);
+      return {
+        productCode: input.dataset.returnCode,
+        qtyReturn,
+        maxQty,
+        reason: reasonInput?.value || ''
+      };
+    });
+  const invalidItem = items.find(item => item.qtyReturn > item.maxQty);
+  if (invalidItem) {
+    setMessage(actionMessage, `Số lượng trả của ${invalidItem.productCode} không được lớn hơn số lượng trong đơn`, 'error');
+    return;
+  }
+  const order = state.orders.find(item => String(item.id) === String(orderId) || String(item.code) === String(orderId));
+  if (order?.returnLocked) {
+    setMessage(actionMessage, order.returnLockMessage || 'Phiếu trả hàng đã gộp đơn tổng/kho đang xử lý, không được sửa hàng trả.', 'error');
+    return;
+  }
+  if (returnType === 'partial' && !items.length) {
+    setMessage(actionMessage, 'Hãy nhập số lượng trả ở ít nhất 1 dòng hàng', 'error');
+    return;
+  }
+  if (returnType === 'full' && !confirm('Xác nhận trả cả đơn? Hệ thống sẽ nhập lại tồn, giảm công nợ/doanh thu và đánh dấu đơn trả toàn bộ.')) return;
+  try {
+    await mobileApi.createDeliveryReturn({
+      orderId,
+      returnType,
+      items,
+      replaceReturnItems: true,
+      allowEmptyReturn: true,
+      note: noteInput?.value || ''
+    });
+    setMessage(actionMessage, returnType === 'full' ? 'Đã tạo phiếu trả cả đơn' : 'Đã tạo phiếu trả hàng một phần', 'success');
+    await loadOrders();
+    showTab('report');
+  } catch (err) {
+    setMessage(actionMessage, err.message, 'error');
+  }
 }
 
 async function submitCash() {
-  const amountInput = document.getElementById('cashAmountInput');
-  const noteInput = document.getElementById('cashNoteInput');
-  const amount = toNumber(amountInput?.value || 0);
-  if (amount <= 0) return setMessage(els.cashMessage, 'Nhập số tiền nộp quỹ lớn hơn 0', 'error');
+  const amountEl = document.getElementById('cashAmountInput');
+  const noteEl = document.getElementById('cashNoteInput');
   try {
-    const result = await mobileApi.submitCash({ amount, note: noteInput?.value || '' });
-    setMessage(els.cashMessage, result.message || 'Đã ghi nhận nộp quỹ', 'success');
-    if (amountInput) amountInput.value = '';
-    if (noteInput) noteInput.value = '';
+    await mobileApi.submitCash({
+      amount: Number(amountEl.value || 0),
+      note: noteEl.value || ''
+    });
+    amountEl.value = '';
+    noteEl.value = '';
+    setMessage(cashMessage, 'Đã ghi nhận nộp tiền về quỹ', 'success');
   } catch (err) {
-    setMessage(els.cashMessage, err.message || 'Không nộp được quỹ', 'error');
+    setMessage(cashMessage, err.message, 'error');
   }
 }
-
-document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadOrders);
-document.getElementById('submitCashBtn')?.addEventListener('click', submitCash);
-document.getElementById('todayOrdersBtn')?.addEventListener('click', () => {
-  if (els.date) els.date.value = todayValue();
-  loadOrders();
-});
-els.date?.addEventListener('change', loadOrders);
-document.querySelectorAll('[data-delivery-tab]').forEach((btn) => btn.addEventListener('click', () => showTab(btn.dataset.deliveryTab)));
-
-if (els.date) els.date.value = todayValue();
-loadOrders();
