@@ -524,16 +524,64 @@ function renderDeliveryEditTotal(){
     <div class="delivery-total-chip summary-inline-item total-overpay"><span>Trả vượt</span><b>${deliveryMoney(s.over)}</b></div>`;
 }
 
+function buildDeliveryReturnEditItems(row = {}){
+  const orderItems = Array.isArray(row.items) ? row.items : [];
+  const returnItems = Array.isArray(row.returnOrderItems) ? row.returnOrderItems : [];
+  const returnByKey = new Map();
+  const returnByCode = new Map();
+
+  returnItems.forEach((item) => {
+    const key = String(item.lineKey || deliveryLineKey(item) || '').trim();
+    const code = String(deliveryLineCode(item) || '').trim();
+    if(key) returnByKey.set(key, item);
+    if(code) returnByCode.set(code, item);
+  });
+
+  const baseItems = orderItems.length ? orderItems : returnItems;
+  return baseItems.map((item, index) => {
+    const key = String(item.lineKey || deliveryLineKey(item) || '').trim();
+    const code = String(deliveryLineCode(item) || '').trim();
+    const returnedItem = returnByKey.get(key) || returnByCode.get(code) || null;
+    const qty = deliveryLineQty(item) || deliveryLineQty(returnedItem || {}) || deliveryToNumber(item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? 0);
+    const price = deliveryLinePrice(item) || deliveryLinePrice(returnedItem || {});
+    const returned = returnedItem ? deliveryLineReturnQty(returnedItem) : deliveryLineReturnQty(item);
+
+    return {
+      ...item,
+      lineKey: key || deliveryLineKey(item) || `${code}|${index}`,
+      productCode: code || item.productCode || item.code || item.productId || '',
+      productName: deliveryLineName(item) || deliveryLineName(returnedItem || {}),
+      soldQty: qty,
+      quantitySold: qty,
+      orderQty: qty,
+      totalQty: qty,
+      price,
+      salePrice: price,
+      unitPrice: price,
+      returnQty: returned,
+      qtyReturn: returned,
+      returnQuantity: returned,
+      returnedQty: returned,
+      amount: Math.round(returned * price),
+      returnAmount: Math.round(returned * price)
+    };
+  });
+}
+
 function renderDeliveryReturnItems(row){
   if(!deliveryReturnItems) return;
-  const items = Array.isArray(row.returnOrderItems) && row.returnOrderItems.length ? row.returnOrderItems : (Array.isArray(row.items) ? row.items : []);
+  const items = buildDeliveryReturnEditItems(row);
   if(!items.length){
     deliveryReturnItems.innerHTML = '<div class="empty-state">Đơn này chưa có danh sách sản phẩm.</div>';
     if(deliveryReturnTotalText) deliveryReturnTotalText.textContent = '0';
     if(deliveryEditReturn) deliveryEditReturn.value = 0;
     return;
   }
-  const locked = Boolean(row.accountingConfirmed || row.editLocked || row.accountingLocked || row.masterReturnOrderId || row.masterReturnOrderCode);
+
+  // Chỉ khóa sửa SL trả khi phiếu trả đã gộp/nhập kho/ghi sổ thật.
+  // Không khóa theo accountingConfirmed của đơn bán, vì web vẫn phải sửa được hàng trả để đồng bộ với app giao hàng.
+  const locked = Boolean(row.editLocked || row.returnEditLocked || row.returnAccountingLocked || row.masterReturnOrderId || row.masterReturnOrderCode || row.returnMergeStatus === 'merged');
+
   deliveryReturnItems.innerHTML = `<div class="delivery-return-list">${items.map((item,index)=>{
     const code = deliveryLineCode(item) || `SP${index+1}`;
     const name = deliveryLineName(item);
