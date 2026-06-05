@@ -490,6 +490,33 @@ function getPage(value) {
   return Math.max(1, Math.floor(n));
 }
 
+function debtKeyword(query = {}, keys = []) {
+  for (const key of keys) {
+    const value = String(query[key] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function withNormalizedDebtStaffQuery(query = {}) {
+  return {
+    ...query,
+    salesman: debtKeyword(query, ['salesman', 'salesmanCode', 'salesStaff', 'salesStaffCode', 'nvbh', 'nvbhCode']),
+    delivery: debtKeyword(query, ['delivery', 'deliveryStaff', 'deliveryStaffCode', 'deliveryCode', 'nvgh', 'nvghCode'])
+  };
+}
+
+function debtTextMatch(value, keyword) {
+  const needle = normalizeText(keyword);
+  if (!needle) return true;
+  return normalizeText(value).includes(needle);
+}
+
+function debtRowMatchesStaff(row = {}, keyword = '', codeKeys = [], nameKeys = []) {
+  if (!String(keyword || '').trim()) return true;
+  return [...codeKeys, ...nameKeys].some((key) => debtTextMatch(row[key], keyword));
+}
+
 function pushDebtLedgerAnd(match, condition) {
   if (!condition) return;
   if (!Array.isArray(match.$and)) match.$and = [];
@@ -497,6 +524,7 @@ function pushDebtLedgerAnd(match, condition) {
 }
 
 function buildDebtLedgerMatch(query = {}, customerCodes = []) {
+  query = withNormalizedDebtStaffQuery(query);
   const match = {
     status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
     reversed: { $ne: true },
@@ -513,48 +541,16 @@ function buildDebtLedgerMatch(query = {}, customerCodes = []) {
     match.customerCode = { $in: customerCodes };
   }
 
-  // V45 debt filter fix:
-  // Do not rely only on Customer metadata for NVBH/NVGH filters.
-  // Some AR ledger rows store staff codes directly in arLedgers, while Customer may not have
-  // delivery/salesman metadata. Filtering only Customer first makes real debts disappear
-  // (example: NVGH = ghth). Apply the staff filters directly to ArLedger too.
-  if (query.delivery) {
-    const rx = new RegExp(escapeRegExp(query.delivery), 'i');
-    pushDebtLedgerAnd(match, {
-      $or: [
-        { deliveryStaffCode: rx },
-        { deliveryStaffName: rx },
-        { deliveryCode: rx },
-        { deliveryName: rx },
-        { deliveryStaff: rx },
-        { nvghCode: rx },
-        { nvghName: rx },
-        { staffCode: rx },
-        { staffName: rx }
-      ]
-    });
-  }
-
-  if (query.salesman) {
-    const rx = new RegExp(escapeRegExp(query.salesman), 'i');
-    pushDebtLedgerAnd(match, {
-      $or: [
-        { salesmanCode: rx },
-        { salesmanName: rx },
-        { salesStaffCode: rx },
-        { salesStaffName: rx },
-        { nvbhCode: rx },
-        { nvbhName: rx },
-        { staffCode: rx },
-        { staffName: rx }
-      ]
-    });
-  }
+  // Không lọc NVBH/NVGH quá sớm ở tầng ArLedger match.
+  // Một đơn có thể có AR-SALE thiếu tên NVGH nhưng AR-RECEIPT/BONUS lại có mã NVGH,
+  // hoặc danh mục khách hàng lưu nhân viên khác với bút toán thực tế.
+  // Staff filter sẽ được áp dụng sau khi group, dựa trên cả bút toán và metadata khách.
 
   return match;
 }
 
 async function findDebtCustomersForFilter(query = {}, hardLimit = 500) {
+  query = withNormalizedDebtStaffQuery(query);
   const filters = [];
   const q = String(query.q || query.keyword || query.search || '').trim();
   if (q) {
@@ -622,6 +618,7 @@ function applyDebtStatusFilter(rows = [], query = {}) {
 }
 
 async function debtReport(query = {}) {
+  query = withNormalizedDebtStaffQuery(query);
   // V45 FAST PATH: /api/debts không được load toàn bộ orders/arLedgers/receipts/returns/customers.
   // API này chỉ đọc AR Ledger theo bộ lọc, phân trang thật, và chỉ lấy customer meta liên quan.
   const page = getPage(query.page);
@@ -660,7 +657,9 @@ async function debtReport(query = {}) {
     }
   }
 
-  const seedCodes = seedCustomers.map((c) => String(c.code || c.customerCode || '').trim()).filter(Boolean);
+  // Nếu chỉ lọc NVBH/NVGH thì không dùng customerCodes lấy từ danh mục khách để khóa ArLedger.
+  // Danh mục khách có thể thiếu/sai nhân viên, trong khi bút toán AR mới là nguồn đúng.
+  const seedCodes = hasStaffOnlyFilter ? [] : seedCustomers.map((c) => String(c.code || c.customerCode || '').trim()).filter(Boolean);
   if (query.customerCode) seedCodes.push(String(query.customerCode).trim());
   if (query.customerId) seedCodes.push(String(query.customerId).trim());
   const customerCodes = Array.from(new Set(seedCodes));
@@ -750,10 +749,10 @@ async function debtReport(query = {}) {
       customerName: cmeta.customerName || id.customerName || 'Chưa rõ khách',
       phone: cmeta.phone || '',
       address: cmeta.address || '',
-      salesmanCode: cmeta.salesmanCode || row.salesmanCode || '',
-      salesmanName: cmeta.salesmanName || row.salesmanName || '',
-      deliveryStaffCode: cmeta.deliveryStaffCode || row.deliveryStaffCode || '',
-      deliveryStaffName: cmeta.deliveryStaffName || row.deliveryStaffName || '',
+      salesmanCode: row.salesmanCode || cmeta.salesmanCode || '',
+      salesmanName: row.salesmanName || cmeta.salesmanName || '',
+      deliveryStaffCode: row.deliveryStaffCode || cmeta.deliveryStaffCode || '',
+      deliveryStaffName: row.deliveryStaffName || cmeta.deliveryStaffName || '',
       documentDate,
       dueDate: documentDate,
       debit: toNumber(row.debit),
@@ -770,6 +769,15 @@ async function debtReport(query = {}) {
       status
     };
   });
+
+  const beforeStaffFilterCount = debts.length;
+  if (query.delivery) {
+    debts = debts.filter((row) => debtRowMatchesStaff(row, query.delivery, ['deliveryStaffCode', 'deliveryCode', 'deliveryStaff', 'nvghCode'], ['deliveryStaffName', 'deliveryName', 'nvghName']));
+  }
+  if (query.salesman) {
+    debts = debts.filter((row) => debtRowMatchesStaff(row, query.salesman, ['salesmanCode', 'salesStaffCode', 'staffCode', 'nvbhCode'], ['salesmanName', 'salesStaffName', 'staffName', 'nvbhName']));
+  }
+  const afterStaffFilterCount = debts.length;
 
   debts = applyDebtStatusFilter(debts, query);
   if (skip) debts = debts.slice(skip);
@@ -872,7 +880,14 @@ async function debtReport(query = {}) {
     journalCount: grouped.length,
     arLedgerCount: arLedger.length,
     arWarningCount: 0,
-    optimized: true
+    optimized: true,
+    filterDebug: {
+      salesmanKeyword: query.salesman || '',
+      deliveryKeyword: query.delivery || '',
+      totalAfterGroup: beforeStaffFilterCount,
+      totalAfterStaffFilter: afterStaffFilterCount,
+      totalAfterStatusFilter: debts.length
+    }
   };
 
   return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics: [], summary };
