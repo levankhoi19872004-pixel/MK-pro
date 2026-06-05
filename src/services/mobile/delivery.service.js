@@ -166,10 +166,9 @@ function createMobileDeliveryService(ctx) {
   function syncOrderReturnAmountFromReturnOrders(data = {}, order = {}) {
     const returnItems = getReturnOrderItemsForSalesOrder(data, order);
     const total = returnItems.reduce((sum, item) => sum + toNumber(item.amount ?? getReturnLineQty(item) * getReturnLinePrice(item)), 0);
+    order.returnAmountFromReturnOrders = total;
     order.returnItems = returnItems;
     order.deliveryReturnItems = returnItems;
-    order.returnAmount = total;
-    order.returnedAmount = total;
     order.items = mergeOrderItemsWithReturnItems(order, returnItems);
     order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
     order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
@@ -211,8 +210,7 @@ function createMobileDeliveryService(ctx) {
         const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
         const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
         const row = buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate);
-        row.returnAmount = toNumber(syncedReturn.total);
-        row.returnedAmount = row.returnAmount;
+        row.returnAmountFromReturnOrders = toNumber(syncedReturn.total);
         row.returnItems = syncedReturn.returnItems;
         row.deliveryReturnItems = syncedReturn.returnItems;
         row.items = mergeOrderItemsWithReturnItems(row, syncedReturn.returnItems);
@@ -268,8 +266,7 @@ function createMobileDeliveryService(ctx) {
         cashCollected: toNumber(order.cashCollected),
         bankCollected: toNumber(order.bankCollected),
         rewardAmount: toNumber(order.rewardAmount),
-        returnAmount: toNumber(order.returnAmount),
-        returnedAmount: toNumber(order.returnAmount),
+        returnAmountFromReturnOrders: deliveryFinance.deliveryReturnAmount(order),
         returnLocked: Boolean(order.returnLocked),
         returnLockMessage: order.returnLockMessage || '',
         returnMergeStatus: order.returnMergeStatus || 'unmerged',
@@ -333,7 +330,7 @@ function createMobileDeliveryService(ctx) {
     perf('sync_return_amount');
     if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
     if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
-    const orderDueLimit = Math.max(0, deliveryFinance.deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0));
+    const orderDueLimit = Math.max(0, deliveryFinance.deliveryDebtBase(order) - deliveryFinance.deliveryReturnAmount(order));
     if (status === 'success' && collectAmount > orderDueLimit) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn giá trị phải thu của đơn' } };
 
     order.deliveryStatus = status === 'success' ? 'delivered' : 'failed';
@@ -377,8 +374,9 @@ function createMobileDeliveryService(ctx) {
           returnType: 'full'
         });
         if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
-        order.returnAmount = toNumber(result.returnOrder.totalAmount || result.returnOrder.amount);
-        order.returnedAmount = order.returnAmount;
+        order.returnAmountFromReturnOrders = toNumber(result.returnOrder.totalAmount || result.returnOrder.amount);
+        delete order.returnAmount;
+        delete order.returnedAmount;
       }
       order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
       order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
@@ -496,8 +494,9 @@ function createMobileDeliveryService(ctx) {
         returnType
       });
       if (clearResult.error) return { statusCode: clearResult.status || 400, body: { ok: false, message: clearResult.error } };
-      order.returnAmount = 0;
-      order.returnedAmount = 0;
+      order.returnAmountFromReturnOrders = 0;
+      delete order.returnAmount;
+      delete order.returnedAmount;
       order.returnItems = [];
       order.deliveryReturnItems = [];
       order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
@@ -541,8 +540,9 @@ function createMobileDeliveryService(ctx) {
     if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
 
     const returnOrder = result.returnOrder;
-    order.returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount);
-    order.returnedAmount = order.returnAmount;
+    order.returnAmountFromReturnOrders = toNumber(returnOrder.totalAmount || returnOrder.amount);
+    delete order.returnAmount;
+    delete order.returnedAmount;
     order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
     order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
     order.debt = order.debtAmount;

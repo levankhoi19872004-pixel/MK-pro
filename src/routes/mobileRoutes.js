@@ -540,7 +540,7 @@ async function upsertMobileReturnOrder(order, items, req, returnType = 'partial'
       const code = returnLineCode(item);
       const qty = returnLineQty(item);
       const sourceLine = (Array.isArray(order.items) ? order.items : []).find((line) => returnLineCode(line) === code) || {};
-      const price = returnLinePrice(item) || returnLinePrice(sourceLine);
+      const price = returnLinePrice(sourceLine) || returnLinePrice(item);
       return {
         productId: item.productId || sourceLine.productId || code,
         productCode: code,
@@ -758,6 +758,7 @@ function buildDeliveryRow(order, customer, master, date, returnOrders = [], mast
     bankCollected,
     bonusAmount: rewardAmount,
     displayRewardAmount: rewardAmount,
+    returnAmountFromReturnOrders: returnAmount,
     returnAmount,
     returnedAmount: returnAmount,
     returnItems,
@@ -804,7 +805,7 @@ function deliveryPaymentPatchFromOrder(order = {}) {
   const bank = money.bankAmount;
   const reward = money.rewardAmount;
   const debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
-  const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const returnAmount = deliveryFinance.deliveryReturnAmount(order);
   const debtAmount = deliveryFinance.calculateDeliveryDebt({ debtBeforeCollection, cashAmount: cash, bankAmount: bank, returnAmount, rewardAmount: reward });
   return {
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || dateUtil.todayVN()),
@@ -818,8 +819,7 @@ function deliveryPaymentPatchFromOrder(order = {}) {
     cashAmount: cash,
     bankAmount: bank,
     rewardAmount: reward,
-    returnAmount,
-    returnedAmount: returnAmount,
+    returnAmountFromReturnOrders: returnAmount,
     paidAmount: cash + bank,
     collectedAmount: cash + bank,
     debtAmount,
@@ -947,25 +947,34 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '', options 
   if (shouldSyncReturn) {
     canonicalReturnItems = activeReturnSummary.returnOrder ? activeReturnSummary.items : canonicalReturnItems;
     canonicalReturnAmount = activeReturnSummary.returnOrder ? activeReturnSummary.amount : canonicalReturnAmount;
-    patch.returnAmount = canonicalReturnAmount;
-    patch.returnedAmount = canonicalReturnAmount;
+    patch.returnAmountFromReturnOrders = canonicalReturnAmount;
     patch.returnItems = canonicalReturnItems;
     patch.deliveryReturnItems = canonicalReturnItems;
-    patch.debtAmount = deliveryFinance.calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: canonicalReturnAmount });
+    delete patch.returnAmount;
+    delete patch.returnedAmount;
+    patch.debtAmount = deliveryFinance.calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmountFromReturnOrders: canonicalReturnAmount });
     patch.debt = patch.debtAmount;
     patch.arBalance = patch.debtAmount;
   } else {
     // returnOrders là nguồn thật. Nếu request chỉ lưu tiền và không có phiếu trả đang hiệu lực,
     // không được đẩy returnItems/returnAmount cũ trong SalesOrder hoặc snapshot lên ghi đè hiển thị.
+    patch.returnAmountFromReturnOrders = 0;
+    patch.returnItems = [];
+    patch.deliveryReturnItems = [];
     delete patch.returnAmount;
     delete patch.returnedAmount;
-    delete patch.returnItems;
-    delete patch.deliveryReturnItems;
-    patch.debtAmount = deliveryFinance.calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmount: 0 });
+    patch.debtAmount = deliveryFinance.calculateDeliveryDebt({ ...order.toObject?.() || order, ...patch, returnAmountFromReturnOrders: 0 });
     patch.debt = patch.debtAmount;
     patch.arBalance = patch.debtAmount;
   }
-  await SalesOrder.updateOne(filter, { $set: patch });
+  await SalesOrder.updateOne(filter, {
+    $set: patch,
+    $unset: {
+      returnAmount: '',
+      returnedAmount: '',
+      totalReturnAmount: ''
+    }
+  });
 
   const snapshotOrder = {
     ...(order.toObject?.() || order),
@@ -987,13 +996,15 @@ async function saveDeliveryPaymentCanonical(order, requestOrderId = '', options 
       orderId: keys[0] || getDocId(order)
     };
     if (shouldSyncReturn) {
+      servicePayload.returnAmountFromReturnOrders = canonicalReturnAmount;
       servicePayload.returnItems = canonicalReturnItems;
       servicePayload.deliveryReturnItems = canonicalReturnItems;
-      servicePayload.returnAmount = canonicalReturnAmount;
-      servicePayload.returnedAmount = canonicalReturnAmount;
+      delete servicePayload.returnAmount;
+      delete servicePayload.returnedAmount;
     } else {
-      delete servicePayload.returnItems;
-      delete servicePayload.deliveryReturnItems;
+      servicePayload.returnAmountFromReturnOrders = 0;
+      servicePayload.returnItems = [];
+      servicePayload.deliveryReturnItems = [];
       delete servicePayload.returnAmount;
       delete servicePayload.returnedAmount;
     }
@@ -1035,8 +1046,7 @@ async function syncDeliveryPaymentToMasterSnapshot(order, extraKeys = [], option
     transferAmount: toNumber(order.bankCollected ?? order.transferAmount ?? order.bankAmount ?? 0),
     rewardAmount: toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
     displayRewardAmount: toNumber(order.rewardAmount ?? order.displayRewardAmount ?? 0),
-    returnAmount: toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
-    returnedAmount: toNumber(order.returnAmount ?? order.returnedAmount ?? 0),
+    returnAmountFromReturnOrders: deliveryFinance.deliveryReturnAmount(order),
     returnItems: Array.isArray(order.returnItems) ? order.returnItems : [],
     deliveryReturnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []),
     paidAmount: toNumber(order.paidAmount ?? order.collectedAmount ?? 0),
@@ -1648,8 +1658,9 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
       if (fullItems.length) {
         const returnOrder = await upsertMobileReturnOrder(order, fullItems, req, 'full');
         const savedReturnItems = Array.isArray(returnOrder.items) ? returnOrder.items : [];
-        order.returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
-        order.returnedAmount = order.returnAmount;
+        order.returnAmountFromReturnOrders = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
+        delete order.returnAmount;
+        delete order.returnedAmount;
         order.returnItems = savedReturnItems;
         order.deliveryReturnItems = savedReturnItems;
       }
@@ -1684,7 +1695,7 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
             })
         : [];
 
-      const currentOrderDebtSeed = Math.max(0, deliveryFinance.deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0) - nextReward);
+      const currentOrderDebtSeed = Math.max(0, deliveryFinance.deliveryDebtBase(order) - deliveryFinance.deliveryReturnAmount(order) - nextReward);
       const priorityRowsBase = [
         ...selectedDebtRows,
         { orderId: getDocId(order), orderCode: orderCode(order), debt: currentOrderDebtSeed, documentDate: order.date || order.orderDate || order.deliveryDate || '' }
@@ -1805,10 +1816,11 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     if (!items.length) {
       if (returnType === 'full') return fail(res, 400, 'Đơn không có hàng để trả');
       const clearResult = await clearMobileReturnOrderForSalesOrder(order, req.body?.note || '');
-      order.returnAmount = 0;
-      order.returnedAmount = 0;
+      order.returnAmountFromReturnOrders = 0;
       order.returnItems = [];
       order.deliveryReturnItems = [];
+      order.set?.('returnAmount', undefined, { strict: false });
+      order.set?.('returnedAmount', undefined, { strict: false });
       order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
       order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
       order.debt = order.debtAmount;
@@ -1826,10 +1838,11 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
     const returnOrder = await upsertMobileReturnOrder(order, items, req, returnType);
     const returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
     const savedReturnItems = Array.isArray(returnOrder.items) ? returnOrder.items : [];
-    order.returnAmount = returnAmount;
-    order.returnedAmount = returnAmount;
+    order.returnAmountFromReturnOrders = returnAmount;
     order.returnItems = savedReturnItems;
     order.deliveryReturnItems = savedReturnItems;
+    order.set?.('returnAmount', undefined, { strict: false });
+    order.set?.('returnedAmount', undefined, { strict: false });
     order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
     order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
     order.debt = order.debtAmount;

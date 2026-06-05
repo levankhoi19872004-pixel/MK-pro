@@ -28,7 +28,21 @@ const deliveryDebtBase = typeof v45Common.deliveryDebtBase === 'function'
   );
 const deliveryReturnAmount = typeof v45Common.deliveryReturnAmount === 'function'
   ? v45Common.deliveryReturnAmount
-  : (order = {}) => Math.round(deliveryToNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0));
+  : (order = {}) => {
+    if (order.returnAmountFromReturnOrders !== undefined && order.returnAmountFromReturnOrders !== null) {
+      return Math.round(deliveryToNumber(order.returnAmountFromReturnOrders));
+    }
+    const returnItems = Array.isArray(order.deliveryReturnItems)
+      ? order.deliveryReturnItems
+      : (Array.isArray(order.returnItems) ? order.returnItems : []);
+    return Math.round(returnItems.reduce((sum, item) => {
+      const qty = deliveryToNumber(item.qtyReturn ?? item.returnQty ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+      const price = deliveryToNumber(item.salePrice ?? item.price ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+      const explicit = item.returnAmount ?? item.amount;
+      const amount = explicit === undefined || explicit === null || explicit === '' ? NaN : deliveryToNumber(explicit);
+      return sum + (Number.isFinite(amount) && amount !== 0 ? amount : Math.round(qty * price));
+    }, 0));
+  };
 const calculateDeliveryDebt = typeof v45Common.calculateDeliveryDebt === 'function'
   ? v45Common.calculateDeliveryDebt
   : (order = {}, options = {}) => Math.max(0, Math.round(

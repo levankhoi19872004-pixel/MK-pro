@@ -54,14 +54,12 @@ function deliveryReturnAmount(order = {}) {
   if (order.returnAmountFromReturnOrders !== undefined && order.returnAmountFromReturnOrders !== null) {
     return Math.round(toNumber(order.returnAmountFromReturnOrders));
   }
+
   const returnItems = Array.isArray(order.deliveryReturnItems)
     ? order.deliveryReturnItems
-    : (Array.isArray(order.returnItems) ? order.returnItems : null);
-  if (Array.isArray(returnItems)) {
-    return Math.round(returnItems.reduce((sum, item) => sum + lineReturnAmount(item), 0));
-  }
-  if (order.returnOrder) return amountFromReturnOrder(order.returnOrder);
-  return Math.round(toNumber(order.returnAmount ?? order.totalReturnAmount ?? order.returnedAmount ?? 0));
+    : (Array.isArray(order.returnItems) ? order.returnItems : []);
+
+  return Math.round(returnItems.reduce((sum, item) => sum + lineReturnAmount(item), 0));
 }
 
 function isDeliveryArLedgerSynced(order = {}) {
