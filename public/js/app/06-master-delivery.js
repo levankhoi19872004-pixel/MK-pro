@@ -716,3 +716,6 @@ if(createDeliveryCashSubmissionButton) createDeliveryCashSubmissionButton.addEve
 [deliveryStaffFilter, deliverySalesmanFilter].forEach(input=>{
   if(input) input.addEventListener('keyup', ()=>{ clearTimeout(input.__deliveryTimer); input.__deliveryTimer = setTimeout(loadDeliveryToday, 350); });
 });
+
+
+window.clearDeliveryEditPanel = window.clearDeliveryEditPanel || function () {};
