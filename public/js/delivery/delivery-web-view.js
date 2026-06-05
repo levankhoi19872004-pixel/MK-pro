@@ -192,20 +192,13 @@
     if (byId('deliveryCoreCount')) byId('deliveryCoreCount').textContent = rows.length + ' đơn';
   }
 
-  function statusText(order) {
-    var st = (order.status && order.status.deliveryStatus) || order.deliveryStatus || order.status || 'pending';
-    if (st === 'delivered') return 'Đã giao';
-    if (st === 'assigned') return 'Đã gán';
-    return 'Chờ giao';
-  }
-
-
+  function statusText(order){ return ''; }
 
   function staffAssignmentBadge(order) {
     var check = order && order.staffAssignment;
     if (!check) return '';
-    if (check.ok) return '<small class="delivery-v46-staff-check ok">NV đúng hệ thống</small>';
-    return '<small class="delivery-v46-staff-check warn" title="' + esc(order.staffAssignmentMessage || 'Kiểm tra lại NVBH/NVGH') + '">Kiểm tra NV</small>';
+    return '';
+    return '';
   }
 
   function staffAssignmentDetailHtml(order) {
