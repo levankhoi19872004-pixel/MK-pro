@@ -719,3 +719,16 @@ if(createDeliveryCashSubmissionButton) createDeliveryCashSubmissionButton.addEve
 
 
 window.clearDeliveryEditPanel = window.clearDeliveryEditPanel || function () {};
+
+
+window.clearDeliveryEditPanel =
+  window.clearDeliveryEditPanel || function () {};
+
+window.recalcDeliveryEditDebt =
+  window.recalcDeliveryEditDebt || function () {};
+
+window.renderDeliveryEditPanel =
+  window.renderDeliveryEditPanel || function () {};
+
+window.selectDeliveryOrder =
+  window.selectDeliveryOrder || function () {};
