@@ -68,14 +68,19 @@
   function normalizeItem(item) {
     item = item || {};
     var productCode = text(item.productCode || item.code || item.productId || item.sku || item.id);
-    var returnQty = toNumber(item.returnQty || item.qtyReturn || item.returnQuantity || item.returnedQty);
-    var price = toNumber(item.price || item.salePrice || item.unitPrice || item.finalPrice || item.giaBan);
+    var returnQty = toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? 0);
+    var price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+    var quantity = toNumber(item.quantity ?? item.deliveredQty ?? item.qty ?? item.orderQty ?? item.soldQty ?? item.totalQty ?? 0);
     return Object.assign({}, item, {
       productId: text(item.productId || productCode),
       productCode: productCode,
       code: productCode,
       productName: text(item.productName || item.name || item.product),
       name: text(item.productName || item.name || item.product),
+      quantity: quantity,
+      deliveredQty: toNumber(item.deliveredQty ?? quantity),
+      orderQty: toNumber(item.orderQty ?? quantity),
+      lineAmount: toNumber(item.lineAmount ?? item.totalAmount ?? quantity * price),
       returnQty: returnQty,
       qtyReturn: returnQty,
       returnQuantity: returnQty,

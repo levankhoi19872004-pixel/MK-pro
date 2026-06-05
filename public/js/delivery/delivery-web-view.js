@@ -1,191 +1,294 @@
 (function () {
   'use strict';
 
-  function $(id) { return document.getElementById(id); }
+  function byId(id) { return document.getElementById(id); }
   function esc(value) {
-    return String(value == null ? '' : value).replace(/[&<>"]/g, function (ch) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch];
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
     });
   }
-  function money(value) { return window.DeliveryCore ? window.DeliveryCore.money(value) : String(value || 0); }
-  function amount(order, key) { return Number((order && order.amounts && order.amounts[key]) || 0); }
+  function num(value) { return window.DeliveryCore ? window.DeliveryCore.toNumber(value) : Number(value || 0); }
+  function money(value) { return window.DeliveryCore ? window.DeliveryCore.money(value) : String(Math.round(Number(value || 0))); }
+  function amount(order, key) { return num(order && order.amounts && order.amounts[key]); }
+  function orderKey(order) { return window.DeliveryCore.orderKey(order); }
+  function today() { return new Date().toISOString().slice(0, 10); }
 
-  var state = { selectedKey: '' };
+  var state = { selectedKey: '', activeTab: 'products' };
 
   function ensureRoot() {
-    var root = $('canonicalDeliveryWebRoot') || $('deliveryTodayTab') || $('deliveryTodaySection');
-    if (!root) {
-      root = document.createElement('section');
-      root.id = 'canonicalDeliveryWebRoot';
-      root.className = 'card';
-      var container = document.querySelector('.container') || document.body;
-      container.appendChild(root);
-    }
-    return root;
-  }
-
-  function filtersFromDom() {
-    return {
-      date: ($('deliveryDateFilter') && $('deliveryDateFilter').value) || new Date().toISOString().slice(0, 10),
-      deliveryStaffCode: ($('deliveryStaffFilter') && $('deliveryStaffFilter').value) || '',
-      salesStaffCode: ($('deliverySalesmanFilter') && $('deliverySalesmanFilter').value) || '',
-      status: ($('deliveryStatusFilter') && $('deliveryStatusFilter').value) || ''
-    };
+    var root = byId('deliveryTodayRoot');
+    if (root) return root;
+    var tab = byId('deliveryTodayTab');
+    if (!tab) return null;
+    tab.innerHTML = '<section id="deliveryTodayRoot" class="delivery-v46-shell"></section>';
+    return byId('deliveryTodayRoot');
   }
 
   function renderShell() {
     var root = ensureRoot();
-    root.innerHTML = '<h2>Đơn đi giao hôm nay</h2>' +
-      '<div class="delivery-core-filters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
-      '<input id="deliveryCoreDate" type="date" />' +
-      '<input id="deliveryCoreStaff" placeholder="Mã NVGH" />' +
-      '<input id="deliveryCoreSales" placeholder="Mã NVBH" />' +
-      '<select id="deliveryCoreStatus"><option value="">Tất cả trạng thái</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option></select>' +
-      '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
-      '</div>' +
-      '<div class="delivery-core-layout" style="display:grid;grid-template-columns:minmax(360px,42%) 1fr;gap:12px;align-items:start">' +
-      '<div><div id="deliveryCoreKpi" class="muted"></div><div id="deliveryCoreList" class="delivery-core-list"></div></div>' +
-      '<div id="deliveryCoreDetail" class="delivery-core-detail empty-state">Chọn đơn để xem chi tiết</div>' +
-      '</div>';
-    var f = filtersFromDom();
-    $('deliveryCoreDate').value = f.date;
-    $('deliveryCoreStaff').value = f.deliveryStaffCode;
-    $('deliveryCoreSales').value = f.salesStaffCode;
-    $('deliveryCoreStatus').value = f.status;
-    $('deliveryCoreReload').addEventListener('click', load);
+    if (!root) return;
+    root.innerHTML = '' +
+      '<section class="delivery-v46-header card">' +
+        '<div>' +
+          '<h2>Đơn giao hôm nay</h2>' +
+          '<p class="muted">Web và app dùng chung lõi <b>DeliveryCore</b> + API <b>/api/delivery/*</b>. Hàng trả đọc/ghi một nguồn: <b>returnOrders</b>.</p>' +
+        '</div>' +
+        '<div class="delivery-v46-filters">' +
+          '<label>Ngày giao<input id="deliveryCoreDate" type="date"></label>' +
+          '<label>NVGH<input id="deliveryCoreDeliveryStaff" placeholder="Mã/tên NVGH"></label>' +
+          '<label>NVBH<input id="deliveryCoreSalesStaff" placeholder="Mã/tên NVBH"></label>' +
+          '<label>Trạng thái<select id="deliveryCoreStatus"><option value="">Tất cả</option><option value="pending">Chờ giao</option><option value="assigned">Đã gán</option><option value="delivered">Đã giao</option></select></label>' +
+          '<label>Tìm kiếm<input id="deliveryCoreSearch" placeholder="Mã đơn / khách hàng"></label>' +
+          '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
+        '</div>' +
+      '</section>' +
+      '<section class="delivery-v46-kpis">' +
+        '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryKpiReceivable">0</b></div>' +
+        '<div class="delivery-v46-kpi kpi-tm"><span>Tiền mặt</span><b id="deliveryKpiCash">0</b></div>' +
+        '<div class="delivery-v46-kpi kpi-ck"><span>Chuyển khoản</span><b id="deliveryKpiBank">0</b></div>' +
+        '<div class="delivery-v46-kpi kpi-th"><span>Trả thưởng</span><b id="deliveryKpiReward">0</b></div>' +
+        '<div class="delivery-v46-kpi kpi-ht"><span>Hàng trả</span><b id="deliveryKpiReturn">0</b></div>' +
+        '<div class="delivery-v46-kpi kpi-cn"><span>Còn nợ</span><b id="deliveryKpiDebt">0</b></div>' +
+      '</section>' +
+      '<main class="delivery-v46-layout">' +
+        '<section class="card delivery-v46-list-panel">' +
+          '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
+          '<div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
+        '</section>' +
+        '<aside class="card delivery-v46-detail-panel">' +
+          '<div id="deliveryCoreDetail" class="delivery-v46-detail-empty">Chọn đơn bên trái để xem chi tiết.</div>' +
+        '</aside>' +
+      '</main>' +
+      '<p id="deliveryCoreMessage" class="message"></p>';
+
+    byId('deliveryCoreDate').value = today();
+    byId('deliveryCoreReload').addEventListener('click', load);
+    ['deliveryCoreDate', 'deliveryCoreDeliveryStaff', 'deliveryCoreSalesStaff', 'deliveryCoreStatus', 'deliveryCoreSearch'].forEach(function (id) {
+      var input = byId(id);
+      if (!input) return;
+      input.addEventListener(id === 'deliveryCoreSearch' ? 'input' : 'change', debounce(load, 250));
+    });
   }
 
-  function readFilters() {
-    return {
-      date: ($('deliveryCoreDate') && $('deliveryCoreDate').value) || (filtersFromDom().date),
-      deliveryStaffCode: ($('deliveryCoreStaff') && $('deliveryCoreStaff').value.trim()) || '',
-      salesStaffCode: ($('deliveryCoreSales') && $('deliveryCoreSales').value.trim()) || '',
-      status: ($('deliveryCoreStatus') && $('deliveryCoreStatus').value) || ''
+  function debounce(fn, wait) {
+    var timer = null;
+    return function () {
+      clearTimeout(timer);
+      var args = arguments;
+      timer = setTimeout(function () { fn.apply(null, args); }, wait);
     };
   }
 
+  function filters() {
+    return {
+      date: byId('deliveryCoreDate') && byId('deliveryCoreDate').value,
+      deliveryStaffCode: byId('deliveryCoreDeliveryStaff') && byId('deliveryCoreDeliveryStaff').value,
+      salesStaffCode: byId('deliveryCoreSalesStaff') && byId('deliveryCoreSalesStaff').value,
+      status: byId('deliveryCoreStatus') && byId('deliveryCoreStatus').value,
+      q: byId('deliveryCoreSearch') && byId('deliveryCoreSearch').value
+    };
+  }
+
+  function message(text, isError) {
+    var node = byId('deliveryCoreMessage');
+    if (!node) return;
+    node.textContent = text || '';
+    node.className = 'message ' + (isError ? 'danger-text' : '');
+  }
+
+  function renderKpis() {
+    var rows = window.DeliveryCore.state.orders || [];
+    var sum = rows.reduce(function (acc, order) {
+      acc.receivable += amount(order, 'receivable');
+      acc.cash += amount(order, 'cash');
+      acc.bank += amount(order, 'bank');
+      acc.reward += amount(order, 'reward');
+      acc.returnAmount += amount(order, 'returnAmount');
+      acc.debt += amount(order, 'debt');
+      return acc;
+    }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
+    if (byId('deliveryKpiReceivable')) byId('deliveryKpiReceivable').textContent = money(sum.receivable);
+    if (byId('deliveryKpiCash')) byId('deliveryKpiCash').textContent = money(sum.cash);
+    if (byId('deliveryKpiBank')) byId('deliveryKpiBank').textContent = money(sum.bank);
+    if (byId('deliveryKpiReward')) byId('deliveryKpiReward').textContent = money(sum.reward);
+    if (byId('deliveryKpiReturn')) byId('deliveryKpiReturn').textContent = money(sum.returnAmount);
+    if (byId('deliveryKpiDebt')) byId('deliveryKpiDebt').textContent = money(sum.debt);
+    if (byId('deliveryCoreCount')) byId('deliveryCoreCount').textContent = rows.length + ' đơn';
+  }
+
+  function statusText(order) {
+    var st = (order.status && order.status.deliveryStatus) || order.deliveryStatus || order.status || 'pending';
+    if (st === 'delivered') return 'Đã giao';
+    if (st === 'assigned') return 'Đã gán';
+    return 'Chờ giao';
+  }
+
   function renderList() {
-    var list = $('deliveryCoreList');
-    var kpi = $('deliveryCoreKpi');
+    renderKpis();
+    var list = byId('deliveryCoreList');
     if (!list) return;
     var rows = window.DeliveryCore.state.orders || [];
-    if (kpi) {
-      var total = rows.reduce(function (s, o) { return s + amount(o, 'receivable'); }, 0);
-      var ret = rows.reduce(function (s, o) { return s + amount(o, 'returnAmount'); }, 0);
-      var debt = rows.reduce(function (s, o) { return s + amount(o, 'debt'); }, 0);
-      kpi.innerHTML = 'Tổng đơn: <b>' + rows.length + '</b> · Phải thu: <b>' + money(total) + '</b> · Hàng trả: <b>' + money(ret) + '</b> · Còn nợ: <b>' + money(debt) + '</b>';
-    }
     if (!rows.length) {
-      list.innerHTML = '<div class="empty-state">Không có đơn giao.</div>';
+      list.innerHTML = '<div class="empty-state">Không có đơn giao theo bộ lọc.</div>';
       return;
     }
-    list.innerHTML = rows.map(function (o) {
-      var key = window.DeliveryCore.orderKey(o);
+    list.innerHTML = rows.map(function (order) {
+      var key = orderKey(order);
       var selected = key === state.selectedKey ? ' selected' : '';
-      return '<button type="button" class="delivery-core-order' + selected + '" data-key="' + esc(key) + '" style="display:block;width:100%;text-align:left;margin:0 0 6px;padding:8px;border:1px solid #e5e7eb;border-radius:10px;background:#fff">' +
-        '<div><b>' + esc(o.orderCode) + '</b> | ' + esc(o.customerName || o.customerCode) + '</div>' +
-        '<div style="font-size:12px;display:flex;gap:6px;flex-wrap:wrap">' +
-        '<span>PT <b>' + money(amount(o, 'receivable')) + '</b></span>' +
-        '<span>TM <b>' + money(amount(o, 'cash')) + '</b></span>' +
-        '<span>CK <b>' + money(amount(o, 'bank')) + '</b></span>' +
-        '<span>TH <b>' + money(amount(o, 'reward')) + '</b></span>' +
-        '<span>HT <b>' + money(amount(o, 'returnAmount')) + '</b></span>' +
-        '<span>CN <b>' + money(amount(o, 'debt')) + '</b></span>' +
-        '</div>' +
+      var debtClass = amount(order, 'debt') > 0 ? ' debt-open' : ' debt-done';
+      return '' +
+        '<button type="button" class="delivery-v46-row' + selected + '" data-key="' + esc(key) + '">' +
+          '<div class="delivery-v46-check">' + (selected ? '✓' : '') + '</div>' +
+          '<div class="delivery-v46-order-main">' +
+            '<strong>' + esc(order.orderCode || order.salesOrderCode || order.id) + '</strong>' +
+            '<span>' + esc(order.customerName || order.customerCode || '') + '</span>' +
+            '<em>' + esc(statusText(order)) + ' · NVBH ' + esc(order.salesStaffCode || '') + ' · NVGH ' + esc(order.deliveryStaffCode || '') + '</em>' +
+          '</div>' +
+          '<div class="delivery-v46-row-kpis">' +
+            '<span class="metric-pt"><em>PT</em><b>' + money(amount(order, 'receivable')) + '</b></span>' +
+            '<span class="metric-tm"><em>TM</em><b>' + money(amount(order, 'cash')) + '</b></span>' +
+            '<span class="metric-ck"><em>CK</em><b>' + money(amount(order, 'bank')) + '</b></span>' +
+            '<span class="metric-th"><em>TH</em><b>' + money(amount(order, 'reward')) + '</b></span>' +
+            '<span class="metric-ht"><em>HT</em><b>' + money(amount(order, 'returnAmount')) + '</b></span>' +
+            '<span class="metric-cn' + debtClass + '"><em>CN</em><b>' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</b></span>' +
+          '</div>' +
         '</button>';
     }).join('');
-    list.querySelectorAll('[data-key]').forEach(function (btn) {
-      btn.addEventListener('click', function () { select(btn.getAttribute('data-key')); });
+    list.querySelectorAll('[data-key]').forEach(function (button) {
+      button.addEventListener('click', function () { select(button.getAttribute('data-key')); });
     });
   }
 
   function renderDetail(order) {
-    var detail = $('deliveryCoreDetail');
+    var detail = byId('deliveryCoreDetail');
     if (!detail) return;
     if (!order) {
-      detail.innerHTML = '<div class="empty-state">Chọn đơn để xem chi tiết</div>';
+      detail.innerHTML = '<div class="delivery-v46-detail-empty">Chọn đơn bên trái để xem chi tiết.</div>';
       return;
     }
     var items = Array.isArray(order.items) ? order.items : [];
-    detail.innerHTML = '<h3>' + esc(order.orderCode) + ' - ' + esc(order.customerName) + '</h3>' +
-      '<form id="deliveryCoreReturnForm">' +
-      '<div style="max-height:340px;overflow:auto;border:1px solid #e5e7eb;border-radius:10px">' +
-      '<table style="width:100%"><thead><tr><th>Mã</th><th>Sản phẩm</th><th>SL giao</th><th>SL trả</th><th>Giá</th></tr></thead><tbody>' +
-      items.map(function (it, idx) {
-        return '<tr>' +
-          '<td>' + esc(it.productCode || it.code) + '<input type="hidden" data-return-field="productCode" data-idx="' + idx + '" value="' + esc(it.productCode || it.code) + '"></td>' +
-          '<td>' + esc(it.productName || it.name) + '<input type="hidden" data-return-field="productName" data-idx="' + idx + '" value="' + esc(it.productName || it.name) + '"></td>' +
-          '<td>' + esc(it.deliveredQty || it.quantity || it.qty || 0) + '</td>' +
-          '<td><input type="number" min="0" step="1" data-return-field="returnQty" data-idx="' + idx + '" value="' + esc(it.returnQty || it.qtyReturn || 0) + '" style="width:80px"></td>' +
-          '<td>' + money(it.price || it.salePrice) + '<input type="hidden" data-return-field="price" data-idx="' + idx + '" value="' + esc(it.price || it.salePrice || 0) + '"></td>' +
-          '</tr>';
-      }).join('') +
-      '</tbody></table></div>' +
-      '<div style="display:flex;gap:8px;margin-top:10px"><button type="submit">Lưu hàng trả</button><button id="deliveryCoreConfirm" type="button">Xác nhận giao</button></div>' +
-      '</form>' +
-      '<form id="deliveryCorePaymentForm" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
-      '<input name="cash" type="number" placeholder="Tiền mặt" value="' + esc(amount(order, 'cash')) + '">' +
-      '<input name="bank" type="number" placeholder="Chuyển khoản" value="' + esc(amount(order, 'bank')) + '">' +
-      '<input name="reward" type="number" placeholder="Trả thưởng" value="' + esc(amount(order, 'reward')) + '">' +
-      '<button type="submit">Lưu thu tiền</button>' +
-      '</form>' +
-      '<p id="deliveryCoreMessage" class="message"></p>';
-
-    $('deliveryCoreReturnForm').addEventListener('submit', saveReturn);
-    $('deliveryCorePaymentForm').addEventListener('submit', savePayment);
-    $('deliveryCoreConfirm').addEventListener('click', confirmDelivery);
+    detail.innerHTML = '' +
+      '<div class="delivery-v46-detail-head">' +
+        '<div><h3>' + esc(order.orderCode) + '</h3><p>' + esc(order.customerName) + ' · ' + esc(order.customerCode) + '</p></div>' +
+        '<button id="deliveryConfirmButton" type="button" class="success">Xác nhận giao</button>' +
+      '</div>' +
+      '<div class="delivery-v46-tabs">' +
+        '<button type="button" data-delivery-detail-tab="products" class="' + (state.activeTab === 'products' ? 'active' : '') + '">Sản phẩm giao</button>' +
+        '<button type="button" data-delivery-detail-tab="payment" class="' + (state.activeTab === 'payment' ? 'active' : '') + '">Thu tiền</button>' +
+        '<button type="button" data-delivery-detail-tab="summary" class="' + (state.activeTab === 'summary' ? 'active' : '') + '">Tổng kết</button>' +
+      '</div>' +
+      '<div class="delivery-v46-tab-body">' +
+        (state.activeTab === 'payment' ? paymentHtml(order) : (state.activeTab === 'summary' ? summaryHtml(order) : productsHtml(items))) +
+      '</div>';
+    detail.querySelectorAll('[data-delivery-detail-tab]').forEach(function (button) {
+      button.addEventListener('click', function () { state.activeTab = button.getAttribute('data-delivery-detail-tab'); renderDetail(order); });
+    });
+    if (byId('deliveryReturnForm')) byId('deliveryReturnForm').addEventListener('submit', saveReturn);
+    if (byId('deliveryPaymentForm')) byId('deliveryPaymentForm').addEventListener('submit', savePayment);
+    if (byId('deliveryClearReturnButton')) byId('deliveryClearReturnButton').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
+    if (byId('deliveryConfirmButton')) byId('deliveryConfirmButton').addEventListener('click', confirmDelivery);
   }
 
-  function collectReturnItems() {
+  function productsHtml(items) {
+    return '' +
+      '<form id="deliveryReturnForm">' +
+        '<div class="delivery-v46-return-scroll">' +
+          '<div class="delivery-v46-product-head"><span>Sản phẩm</span><span>SL giao</span><span>Giá</span><span>SL trả</span></div>' +
+          items.map(function (item, idx) {
+            var code = item.productCode || item.code || item.productId || '';
+            var name = item.productName || item.name || '';
+            var qty = num(item.quantity || item.deliveredQty || item.qty || item.orderQty || item.soldQty);
+            var price = num(item.price || item.salePrice || item.unitPrice || item.finalPrice);
+            var returnQty = num(item.returnQty || item.qtyReturn || item.returnQuantity || item.returnedQty);
+            return '' +
+              '<div class="delivery-v46-product-row">' +
+                '<div><b>' + esc(code) + '</b><small>' + esc(name) + '</small>' +
+                  hidden(idx, 'productCode', code) + hidden(idx, 'productName', name) + hidden(idx, 'price', price) +
+                '</div>' +
+                '<span>' + money(qty) + '</span>' +
+                '<span>' + money(price) + '</span>' +
+                '<input data-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(returnQty) + '">' +
+              '</div>';
+          }).join('') +
+        '</div>' +
+        '<div class="delivery-v46-actions"><button type="submit">Lưu hàng trả</button><button type="button" id="deliveryClearReturnButton" class="secondary">Xóa hàng trả</button></div>' +
+      '</form>';
+  }
+
+  function hidden(idx, field, value) {
+    return '<input type="hidden" data-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">';
+  }
+
+  function paymentHtml(order) {
+    return '' +
+      '<form id="deliveryPaymentForm" class="delivery-v46-payment-form">' +
+        '<label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label>' +
+        '<label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label>' +
+        '<label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label>' +
+        '<button type="submit">Lưu thu tiền</button>' +
+      '</form>';
+  }
+
+  function summaryHtml(order) {
+    return '' +
+      '<div class="delivery-v46-summary-grid">' +
+        '<div><span>Phải thu</span><b>' + money(amount(order, 'receivable')) + '</b></div>' +
+        '<div><span>Tiền mặt</span><b>' + money(amount(order, 'cash')) + '</b></div>' +
+        '<div><span>Chuyển khoản</span><b>' + money(amount(order, 'bank')) + '</b></div>' +
+        '<div><span>Trả thưởng</span><b>' + money(amount(order, 'reward')) + '</b></div>' +
+        '<div><span>Hàng trả</span><b>' + money(amount(order, 'returnAmount')) + '</b></div>' +
+        '<div><span>Còn nợ</span><b>' + money(amount(order, 'debt')) + '</b></div>' +
+      '</div>';
+  }
+
+  function collectReturnItems(forceZero) {
     var byIdx = {};
-    document.querySelectorAll('[data-return-field]').forEach(function (el) {
-      var idx = el.getAttribute('data-idx');
-      var field = el.getAttribute('data-return-field');
+    document.querySelectorAll('[data-return-field]').forEach(function (input) {
+      var idx = input.getAttribute('data-idx');
+      var field = input.getAttribute('data-return-field');
       byIdx[idx] = byIdx[idx] || {};
-      byIdx[idx][field] = el.value;
+      byIdx[idx][field] = field === 'returnQty' && forceZero ? 0 : input.value;
     });
     return Object.keys(byIdx).map(function (idx) { return byIdx[idx]; });
   }
 
-  function msg(text, bad) {
-    var el = $('deliveryCoreMessage');
-    if (el) { el.textContent = text || ''; el.className = bad ? 'message error' : 'message'; }
-  }
-
   async function saveReturn(event) {
-    event.preventDefault();
+    if (event && event.preventDefault) event.preventDefault();
+    var forceZero = (event && event.forceZero) || (event && event.submitter && event.submitter.id === 'deliveryClearReturnButton');
     try {
-      msg('Đang lưu hàng trả...');
-      var json = await window.DeliveryCore.saveReturn(window.DeliveryCore.state.selectedOrder, collectReturnItems());
-      msg(json.message || 'Đã lưu hàng trả');
-      state.selectedKey = window.DeliveryCore.orderKey(window.DeliveryCore.state.selectedOrder);
+      message('Đang lưu hàng trả...');
+      var json = await window.DeliveryCore.saveReturn(window.DeliveryCore.state.selectedOrder, collectReturnItems(forceZero));
+      message(json.message || 'Đã lưu hàng trả');
+      state.selectedKey = orderKey(window.DeliveryCore.state.selectedOrder);
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
-    } catch (err) { msg(err.message, true); }
+    } catch (err) { message(err.message, true); }
   }
 
   async function savePayment(event) {
-    event.preventDefault();
+    if (event && event.preventDefault) event.preventDefault();
     var form = new FormData(event.target);
     try {
-      msg('Đang lưu thu tiền...');
-      var json = await window.DeliveryCore.savePayment(window.DeliveryCore.state.selectedOrder, { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
-      msg(json.message || 'Đã lưu thu tiền');
-      state.selectedKey = window.DeliveryCore.orderKey(window.DeliveryCore.state.selectedOrder);
+      message('Đang lưu thu tiền...');
+      var json = await window.DeliveryCore.savePayment(window.DeliveryCore.state.selectedOrder, {
+        cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward')
+      });
+      message(json.message || 'Đã lưu thu tiền');
+      state.selectedKey = orderKey(window.DeliveryCore.state.selectedOrder);
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
-    } catch (err) { msg(err.message, true); }
+    } catch (err) { message(err.message, true); }
   }
 
   async function confirmDelivery() {
     try {
-      msg('Đang xác nhận giao...');
+      message('Đang xác nhận giao...');
       var json = await window.DeliveryCore.confirmDelivery(window.DeliveryCore.state.selectedOrder, { deliveryStatus: 'delivered' });
-      msg(json.message || 'Đã xác nhận giao');
-      state.selectedKey = window.DeliveryCore.orderKey(window.DeliveryCore.state.selectedOrder);
+      message(json.message || 'Đã xác nhận giao');
+      state.selectedKey = orderKey(window.DeliveryCore.state.selectedOrder);
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
-    } catch (err) { msg(err.message, true); }
+    } catch (err) { message(err.message, true); }
   }
 
   function select(key) {
@@ -197,30 +300,33 @@
 
   async function load() {
     if (!window.DeliveryCore) return;
-    if (!$('deliveryCoreList')) renderShell();
-    var list = $('deliveryCoreList');
+    if (!byId('deliveryCoreList')) renderShell();
+    var list = byId('deliveryCoreList');
     if (list) list.innerHTML = '<div class="empty-state">Đang tải...</div>';
     try {
-      await window.DeliveryCore.loadOrders(readFilters());
-      if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = window.DeliveryCore.orderKey(window.DeliveryCore.state.orders[0]);
+      await window.DeliveryCore.loadOrders(filters());
+      if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = orderKey(window.DeliveryCore.state.orders[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
+      message('');
     } catch (err) {
       if (list) list.innerHTML = '<div class="empty-state danger-text">' + esc(err.message) + '</div>';
+      message(err.message, true);
     }
   }
 
   window.DeliveryWebView = { load: load, select: select, renderShell: renderShell };
   window.loadDeliveryTodayOrders = function () { return load(); };
   window.loadDeliveryToday = function () { return load(); };
-  window.submitDeliveryEdit = function (event) { if (event && event.preventDefault) event.preventDefault(); return saveReturn(event || { preventDefault: function () {} }); };
-  window.clearDeliveryEditPanel = window.clearDeliveryEditPanel || function () { renderDetail(null); };
-  window.recalcDeliveryEditDebt = window.recalcDeliveryEditDebt || function () {};
-  window.renderDeliveryEditPanel = window.renderDeliveryEditPanel || function () { renderDetail(window.DeliveryCore && window.DeliveryCore.state.selectedOrder); };
+  window.submitDeliveryEdit = function (event) { return saveReturn(event); };
+  window.clearDeliveryEditPanel = function () { renderDetail(null); };
+  window.recalcDeliveryEditDebt = function () {};
+  window.renderDeliveryEditPanel = function () { renderDetail(window.DeliveryCore && window.DeliveryCore.state.selectedOrder); };
   window.selectDeliveryOrder = function (key) { return select(key); };
 
   document.addEventListener('DOMContentLoaded', function () {
-    if (document.body && (document.getElementById('deliveryTodayTab') || document.getElementById('canonicalDeliveryWebRoot'))) load();
+    renderShell();
+    if (byId('deliveryTodayTab') && byId('deliveryTodayTab').classList.contains('active')) load();
   });
 }());

@@ -2,96 +2,213 @@
   'use strict';
 
   function el(id) { return document.getElementById(id); }
-  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
-  function money(v) { return window.DeliveryCore ? window.DeliveryCore.money(v) : String(v || 0); }
-  function amount(o, k) { return Number((o && o.amounts && o.amounts[k]) || 0); }
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+  function num(v) { return window.DeliveryCore ? window.DeliveryCore.toNumber(v) : Number(v || 0); }
+  function money(v) { return window.DeliveryCore ? window.DeliveryCore.money(v) : String(Math.round(Number(v || 0))); }
+  function amount(o, k) { return num(o && o.amounts && o.amounts[k]); }
+  function keyOf(o) { return window.DeliveryCore.orderKey(o); }
+  function today() { return new Date().toISOString().slice(0, 10); }
 
-  var state = { selectedKey: '' };
+  var state = { selectedKey: '', tab: 'orders' };
 
   function root() {
     var r = el('mobileDeliveryRoot');
     if (!r) {
       r = document.createElement('main');
       r.id = 'mobileDeliveryRoot';
-      r.className = 'mobile-page';
       document.body.innerHTML = '';
       document.body.appendChild(r);
     }
+    r.className = 'mobile-delivery-v46';
     return r;
   }
 
   function renderShell() {
-    root().innerHTML = '<section class="mobile-card"><h1>App giao hàng</h1>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><input id="mDeliveryDate" type="date"><button id="mDeliveryReload" type="button">Tải đơn</button></div>' +
-      '<div id="mDeliveryList"></div></section><section class="mobile-card"><div id="mDeliveryDetail">Chọn đơn</div></section>';
-    el('mDeliveryDate').value = new Date().toISOString().slice(0, 10);
-    el('mDeliveryReload').addEventListener('click', load);
+    root().innerHTML = '' +
+      '<header class="m-delivery-header">' +
+        '<div><h1>App giao hàng</h1><p>Đồng bộ 100% với Đơn giao hôm nay</p></div>' +
+        '<button id="mReload" type="button">Tải</button>' +
+      '</header>' +
+      '<section class="m-delivery-filter"><input id="mDate" type="date"><input id="mStaff" placeholder="NVGH"><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
+      '<section class="m-delivery-kpis">' +
+        '<div><span>PT</span><b id="mKpiPt">0</b></div><div><span>TM</span><b id="mKpiTm">0</b></div><div><span>CK</span><b id="mKpiCk">0</b></div>' +
+        '<div><span>TH</span><b id="mKpiTh">0</b></div><div><span>HT</span><b id="mKpiHt">0</b></div><div><span>CN</span><b id="mKpiCn">0</b></div>' +
+      '</section>' +
+      '<nav class="m-delivery-tabs">' +
+        '<button data-m-tab="orders" class="active">Đơn giao</button>' +
+        '<button data-m-tab="products">Sản phẩm giao</button>' +
+        '<button data-m-tab="payment">Thu tiền</button>' +
+        '<button data-m-tab="report">Báo cáo</button>' +
+      '</nav>' +
+      '<section id="mBody" class="m-delivery-body">Đang tải...</section>' +
+      '<p id="mMsg" class="m-delivery-msg"></p>';
+    el('mDate').value = today();
+    el('mReload').addEventListener('click', load);
+    el('mDate').addEventListener('change', load);
+    el('mStaff').addEventListener('change', load);
+    el('mSearch').addEventListener('input', debounce(load, 250));
+    document.querySelectorAll('[data-m-tab]').forEach(function (button) {
+      button.addEventListener('click', function () { state.tab = button.getAttribute('data-m-tab'); render(); });
+    });
   }
 
-  function renderList() {
-    var list = el('mDeliveryList');
+  function debounce(fn, wait) {
+    var timer = null;
+    return function () { clearTimeout(timer); timer = setTimeout(fn, wait); };
+  }
+
+  function msg(text, danger) {
+    var node = el('mMsg');
+    if (!node) return;
+    node.textContent = text || '';
+    node.className = 'm-delivery-msg ' + (danger ? 'danger' : '');
+  }
+
+  function filters() {
+    return { date: el('mDate') && el('mDate').value, deliveryStaffCode: el('mStaff') && el('mStaff').value, q: el('mSearch') && el('mSearch').value };
+  }
+
+  function renderKpis() {
     var rows = window.DeliveryCore.state.orders || [];
-    if (!rows.length) { list.innerHTML = '<p>Không có đơn giao.</p>'; return; }
-    list.innerHTML = rows.map(function (o) {
-      var key = window.DeliveryCore.orderKey(o);
-      return '<button type="button" data-key="' + esc(key) + '" class="mobile-order-card" style="width:100%;text-align:left;margin:8px 0;padding:10px;border-radius:12px;border:1px solid #ddd;background:#fff">' +
-        '<b>' + esc(o.orderCode) + '</b> · ' + esc(o.customerName || o.customerCode) + '<br>' +
-        '<small>PT ' + money(amount(o, 'receivable')) + ' | TM ' + money(amount(o, 'cash')) + ' | CK ' + money(amount(o, 'bank')) + ' | HT ' + money(amount(o, 'returnAmount')) + ' | CN ' + money(amount(o, 'debt')) + '</small>' +
-        '</button>';
-    }).join('');
-    list.querySelectorAll('[data-key]').forEach(function (b) { b.addEventListener('click', function () { select(b.getAttribute('data-key')); }); });
+    var s = rows.reduce(function (a, o) {
+      a.pt += amount(o, 'receivable'); a.tm += amount(o, 'cash'); a.ck += amount(o, 'bank'); a.th += amount(o, 'reward'); a.ht += amount(o, 'returnAmount'); a.cn += amount(o, 'debt'); return a;
+    }, { pt: 0, tm: 0, ck: 0, th: 0, ht: 0, cn: 0 });
+    if (el('mKpiPt')) el('mKpiPt').textContent = money(s.pt);
+    if (el('mKpiTm')) el('mKpiTm').textContent = money(s.tm);
+    if (el('mKpiCk')) el('mKpiCk').textContent = money(s.ck);
+    if (el('mKpiTh')) el('mKpiTh').textContent = money(s.th);
+    if (el('mKpiHt')) el('mKpiHt').textContent = money(s.ht);
+    if (el('mKpiCn')) el('mKpiCn').textContent = money(s.cn);
   }
 
-  function renderDetail(order) {
-    var d = el('mDeliveryDetail');
-    if (!order) { d.innerHTML = 'Chọn đơn'; return; }
+  function render() {
+    renderKpis();
+    document.querySelectorAll('[data-m-tab]').forEach(function (button) { button.classList.toggle('active', button.getAttribute('data-m-tab') === state.tab); });
+    var body = el('mBody');
+    if (!body) return;
+    if (state.tab === 'products') return renderProducts(body);
+    if (state.tab === 'payment') return renderPayment(body);
+    if (state.tab === 'report') return renderReport(body);
+    return renderOrders(body);
+  }
+
+  function renderOrders(body) {
+    var rows = window.DeliveryCore.state.orders || [];
+    if (!rows.length) { body.innerHTML = '<div class="m-empty">Không có đơn giao.</div>'; return; }
+    body.innerHTML = rows.map(function (order) {
+      var key = keyOf(order);
+      var selected = key === state.selectedKey ? ' selected' : '';
+      return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
+        '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName || order.customerCode) + '</span></div>' +
+        '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'reward')) + '</span><span>HT ' + money(amount(order, 'returnAmount')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
+      '</button>';
+    }).join('');
+    body.querySelectorAll('[data-order-key]').forEach(function (button) { button.addEventListener('click', function () { select(button.getAttribute('data-order-key')); }); });
+  }
+
+  function currentOrder() { return window.DeliveryCore.state.selectedOrder; }
+
+  function renderProducts(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
     var items = Array.isArray(order.items) ? order.items : [];
-    d.innerHTML = '<h2>' + esc(order.orderCode) + '</h2><p>' + esc(order.customerName) + '</p>' +
-      '<form id="mReturnForm"><div style="max-height:42vh;overflow:auto;border:1px solid #ddd;border-radius:12px;padding:8px">' +
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
+      '<form id="mReturnForm"><div class="m-return-scroll">' +
       items.map(function (it, idx) {
-        return '<div style="display:grid;grid-template-columns:1fr 80px;gap:8px;margin-bottom:8px">' +
-          '<div><b>' + esc(it.productCode || it.code) + '</b><br><small>' + esc(it.productName || it.name) + '</small><input type="hidden" data-m-field="productCode" data-idx="' + idx + '" value="' + esc(it.productCode || it.code) + '"><input type="hidden" data-m-field="productName" data-idx="' + idx + '" value="' + esc(it.productName || it.name) + '"><input type="hidden" data-m-field="price" data-idx="' + idx + '" value="' + esc(it.price || it.salePrice || 0) + '"></div>' +
-          '<input type="number" min="0" step="1" data-m-field="returnQty" data-idx="' + idx + '" value="' + esc(it.returnQty || it.qtyReturn || 0) + '">' +
-          '</div>';
-      }).join('') + '</div><button type="submit">Lưu hàng trả</button></form>' +
-      '<form id="mPaymentForm" style="margin-top:10px"><input name="cash" type="number" placeholder="Tiền mặt" value="' + esc(amount(order, 'cash')) + '"><input name="bank" type="number" placeholder="Chuyển khoản" value="' + esc(amount(order, 'bank')) + '"><input name="reward" type="number" placeholder="Trả thưởng" value="' + esc(amount(order, 'reward')) + '"><button type="submit">Lưu thu tiền</button></form>' +
-      '<button id="mConfirm" type="button">Xác nhận giao</button><p id="mMsg"></p>';
+        var code = it.productCode || it.code || it.productId || '';
+        var name = it.productName || it.name || '';
+        var price = num(it.price || it.salePrice || it.unitPrice || it.finalPrice);
+        var qty = num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty);
+        var rqty = num(it.returnQty || it.qtyReturn || it.returnQuantity || it.returnedQty);
+        return '<div class="m-product-row"><div><b>' + esc(code) + '</b><small>' + esc(name) + '</small><em>SL giao ' + money(qty) + ' · Giá ' + money(price) + '</em>' + hidden(idx, 'productCode', code) + hidden(idx, 'productName', name) + hidden(idx, 'price', price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(rqty) + '"></div>';
+      }).join('') + '</div><div class="m-action-row"><button type="submit">Lưu hàng trả</button><button id="mClearReturn" type="button" class="secondary">Xóa trả</button></div></form>';
     el('mReturnForm').addEventListener('submit', saveReturn);
+    el('mClearReturn').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
+  }
+
+  function hidden(idx, field, value) { return '<input type="hidden" data-m-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">'; }
+
+  function renderPayment(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
+      '<form id="mPaymentForm" class="m-payment-form"><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>' +
+      '<button id="mConfirm" type="button" class="m-confirm">Xác nhận giao</button>';
     el('mPaymentForm').addEventListener('submit', savePayment);
     el('mConfirm').addEventListener('click', confirmDelivery);
   }
 
-  function collectItems() {
+  function renderReport(body) {
+    var rows = window.DeliveryCore.state.orders || [];
+    var delivered = rows.filter(function (o) { return o.status && o.status.deliveryStatus === 'delivered'; }).length;
+    var hasReturn = rows.filter(function (o) { return amount(o, 'returnAmount') > 0; }).length;
+    var debt = rows.filter(function (o) { return amount(o, 'debt') > 0; }).length;
+    body.innerHTML = '<div class="m-report-grid"><div><span>Tổng đơn</span><b>' + rows.length + '</b></div><div><span>Đã giao</span><b>' + delivered + '</b></div><div><span>Có hàng trả</span><b>' + hasReturn + '</b></div><div><span>Còn nợ</span><b>' + debt + '</b></div></div>';
+  }
+
+  function collectReturnItems(forceZero) {
     var byIdx = {};
-    document.querySelectorAll('[data-m-field]').forEach(function (input) {
-      var idx = input.getAttribute('data-idx'); var field = input.getAttribute('data-m-field');
-      byIdx[idx] = byIdx[idx] || {}; byIdx[idx][field] = input.value;
+    document.querySelectorAll('[data-m-return-field]').forEach(function (input) {
+      var idx = input.getAttribute('data-idx');
+      var field = input.getAttribute('data-m-return-field');
+      byIdx[idx] = byIdx[idx] || {};
+      byIdx[idx][field] = (forceZero && field === 'returnQty') ? 0 : input.value;
     });
     return Object.keys(byIdx).map(function (idx) { return byIdx[idx]; });
   }
-  function msg(v) { if (el('mMsg')) el('mMsg').textContent = v || ''; }
 
-  async function saveReturn(e) {
-    e.preventDefault();
-    try { msg('Đang lưu...'); await window.DeliveryCore.saveReturn(window.DeliveryCore.state.selectedOrder, collectItems()); msg('Đã lưu hàng trả'); renderList(); renderDetail(window.DeliveryCore.state.selectedOrder); } catch (err) { msg(err.message); }
+  async function saveReturn(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    try {
+      msg('Đang lưu hàng trả...');
+      await window.DeliveryCore.saveReturn(currentOrder(), collectReturnItems(event && event.forceZero));
+      msg('Đã lưu hàng trả');
+      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      render();
+    } catch (err) { msg(err.message, true); }
   }
-  async function savePayment(e) {
-    e.preventDefault();
-    var form = new FormData(e.target);
-    try { msg('Đang lưu...'); await window.DeliveryCore.savePayment(window.DeliveryCore.state.selectedOrder, { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') }); msg('Đã lưu thu tiền'); renderList(); renderDetail(window.DeliveryCore.state.selectedOrder); } catch (err) { msg(err.message); }
+
+  async function savePayment(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    var form = new FormData(event.target);
+    try {
+      msg('Đang lưu thu tiền...');
+      await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
+      msg('Đã lưu thu tiền');
+      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      render();
+    } catch (err) { msg(err.message, true); }
   }
+
   async function confirmDelivery() {
-    try { msg('Đang xác nhận...'); await window.DeliveryCore.confirmDelivery(window.DeliveryCore.state.selectedOrder, { deliveryStatus: 'delivered' }); msg('Đã xác nhận giao'); renderList(); renderDetail(window.DeliveryCore.state.selectedOrder); } catch (err) { msg(err.message); }
-  }
-  function select(key) { state.selectedKey = key; window.DeliveryCore.selectOrder(key); renderList(); renderDetail(window.DeliveryCore.state.selectedOrder); }
-  async function load() {
-    if (!el('mDeliveryList')) renderShell();
-    var date = (el('mDeliveryDate') && el('mDeliveryDate').value) || new Date().toISOString().slice(0, 10);
-    el('mDeliveryList').innerHTML = 'Đang tải...';
-    try { await window.DeliveryCore.loadOrders({ date: date }); if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = window.DeliveryCore.orderKey(window.DeliveryCore.state.orders[0]); if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey); renderList(); renderDetail(window.DeliveryCore.state.selectedOrder); } catch (err) { el('mDeliveryList').innerHTML = esc(err.message); }
+    try {
+      msg('Đang xác nhận giao...');
+      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      msg('Đã xác nhận giao');
+      render();
+    } catch (err) { msg(err.message, true); }
   }
 
-  window.DeliveryMobileView = { load: load, select: select };
+  function select(key) {
+    state.selectedKey = key;
+    window.DeliveryCore.selectOrder(key);
+    state.tab = 'products';
+    render();
+  }
+
+  async function load() {
+    if (!el('mBody')) renderShell();
+    el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
+    try {
+      await window.DeliveryCore.loadOrders(filters());
+      if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
+      if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
+      render();
+      msg('');
+    } catch (err) { el('mBody').innerHTML = '<div class="m-empty danger">' + esc(err.message) + '</div>'; msg(err.message, true); }
+  }
+
+  window.DeliveryMobileView = { load: load, select: select, renderShell: renderShell };
   window.loadDeliveryOrders = function () { return load(); };
   document.addEventListener('DOMContentLoaded', load);
 }());
