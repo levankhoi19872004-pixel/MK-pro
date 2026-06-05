@@ -162,7 +162,7 @@ test('SalesOrder cancel reverses stock and customer debt impact', async () => {
     const result = await orderService.cancelOrder('SO00009', { reason: 'test' });
     assert.equal(result.salesOrder.status, 'cancelled');
     assert.equal(product.availableStock, 10);
-    assert.equal(customer.currentDebt, 70000);
+    assert.equal(customer.currentDebt, 90000, 'cancel order must not mutate customer debt cache directly; AR reversal is canonical');
   } finally {
     restorePostingEngine();
     restoreInventoryService();

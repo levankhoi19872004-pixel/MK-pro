@@ -12,6 +12,7 @@ const orderRepository = require('../repositories/orderRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
+const arLedgerUtil = require('../utils/arLedger.util');
 const postingEngine = require('../engines/posting.engine');
 const fundLedgerRepository = require('../repositories/fundLedgerRepository');
 
@@ -348,6 +349,8 @@ async function createReceipt(body = {}) {
   if (!customer) return { error: 'Không tìm thấy khách hàng', status: 404 };
   const method = ['transfer', 'bank'].includes(String(body.method || '').toLowerCase()) ? 'transfer' : 'cash';
   const allocations = splitAllocationsByAmount(body.allocations, amount);
+  const allocationGuard = await arLedgerUtil.validateAllocationsDoNotOverpay(allocations, paymentRepository);
+  if (!allocationGuard.ok) return { error: allocationGuard.error, status: allocationGuard.status || 400, detail: allocationGuard.detail };
   const primaryAllocation = allocationPrimary(allocations);
   const now = dateUtil.nowIso();
   const receipt = {
@@ -526,6 +529,8 @@ async function createDebtCollection(body = {}) {
   const staffName = String(body.staffName || '').trim();
   const note = String(body.note || '').trim();
   const allAllocations = parseAllocations(body.allocations);
+  const allocationGuard = await arLedgerUtil.validateAllocationsDoNotOverpay(allAllocations, paymentRepository);
+  if (!allocationGuard.ok) return { error: allocationGuard.error, status: allocationGuard.status || 400, detail: allocationGuard.detail };
   const allocatedTotal = allAllocations.reduce((total, row) => total + toNumber(row.amount), 0);
   if (allAllocations.length && allocatedTotal + 0.0001 < totalAmount) {
     return { error: 'Tổng tiền phân bổ theo đơn nhỏ hơn tổng tiền cần thu/trả.', status: 400 };

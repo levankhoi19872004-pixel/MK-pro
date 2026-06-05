@@ -138,15 +138,8 @@ async function applySalesOrderPosting(order, options = {}) {
   const accountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
   if (!isDeliveryCompleted || !accountingConfirmed) return;
 
-  const customerKey = order.customerCode || order.customerId || order.customerName;
-  if (!customerKey) return;
-  const customer = await customerRepository.findByIdOrCode(customerKey);
-  if (!customer) return;
-  const currentDebt = toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.openingDebt);
-  const nextDebt = currentDebt + toNumber(order.debtAmount);
-  customer.currentDebt = nextDebt;
-  customer.debtAmount = nextDebt;
-  await customerRepository.save(customer, options);
+  // Chuẩn nghiệp vụ: công nợ chỉ phát sinh qua AR Ledger.
+  // Không cộng trực tiếp vào customer.currentDebt/debtAmount để tránh hai nguồn sự thật.
   await postingEngine.postSalesOrderAR(order, { ...options, postZero: true });
 }
 
@@ -162,15 +155,7 @@ async function reverseSalesOrderPosting(order, options = {}) {
     note: 'Đảo xuất kho đơn bán'
   }, options);
 
-  const customerKey = order.customerCode || order.customerId || order.customerName;
-  if (!customerKey) return;
-  const customer = await customerRepository.findByIdOrCode(customerKey);
-  if (!customer) return;
-  const currentDebt = toNumber(customer.currentDebt ?? customer.debtAmount ?? customer.openingDebt);
-  const nextDebt = Math.max(0, currentDebt - toNumber(order.debtAmount));
-  customer.currentDebt = nextDebt;
-  customer.debtAmount = nextDebt;
-  await customerRepository.save(customer, options);
+  // Chuẩn nghiệp vụ: hủy đơn ghi bút toán đảo AR Ledger, không sửa công nợ trực tiếp trên customer.
   await postingEngine.reverseSalesOrderAR(order, options);
 }
 
