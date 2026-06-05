@@ -657,7 +657,9 @@ async function syncErpDeliveryReturnOrder(updatedOrder = {}, returnItems = [], o
 
 
 function isDeliveryCompletedStatus(status) {
-  return ['delivered', 'success', 'completed', 'done'].includes(String(status || '').toLowerCase());
+  // paid/unpaid/partial_return vẫn là các trạng thái đã giao xong ở màn giao hàng.
+  // Nếu bỏ qua paid thì các đơn đã thu đủ (CN = 0) sẽ không được post sang AR Ledger.
+  return ['delivered', 'success', 'completed', 'done', 'paid', 'unpaid', 'partial_return'].includes(String(status || '').toLowerCase());
 }
 
 function isAccountingConfirmed(row = {}) {
@@ -816,10 +818,14 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
 async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, accountingBatchId = '', options = {}) {
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
-  const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
-  const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-  const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
-  const rewardAmount = deliveryRewardAmount(order);
+  const deliveryAmounts = buildDeliveryAmount(order);
+  const baseAmount = deliveryAmounts.totalReceivable;
+  const cashAmount = deliveryAmounts.cashAmount;
+  const bankAmount = deliveryAmounts.bankAmount;
+  const rewardAmount = deliveryAmounts.bonusAmount;
+  if (baseAmount <= 0) return [];
+  // Không dùng debtAmount để quyết định có post AR hay không.
+  // Đơn đã thu đủ có debtAmount = 0 vẫn phải có AR-SALE và các dòng credit.
   // Khi mở khóa sửa lại rồi xác nhận lại, giá trị hàng trả vẫn phải lấy từ nguồn chuẩn returnOrders.
   // Không lấy độc quyền từ field cache trong salesOrders vì có thể đã cũ.
   const relatedReturnOrders = await findReturnOrdersForDeliveryChildren([order]);
@@ -1046,10 +1052,16 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
 
     const key = orderKey(order) || orderDisplayCode(order);
     const code = orderDisplayCode(order) || key;
-    const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
-    const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-    const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
-    const rewardAmount = deliveryRewardAmount(order);
+    const deliveryAmounts = buildDeliveryAmount(order);
+    const baseAmount = deliveryAmounts.totalReceivable;
+    const cashAmount = deliveryAmounts.cashAmount;
+    const bankAmount = deliveryAmounts.bankAmount;
+    const rewardAmount = deliveryAmounts.bonusAmount;
+    if (baseAmount <= 0) {
+      // Chỉ bỏ qua đơn không có phát sinh phải thu. Tuyệt đối không bỏ qua vì debtAmount = 0.
+      for (const keyItem of keys) skippedPostedKeys.add(keyItem);
+      continue;
+    }
     const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
     const idSeed = key || code || makeId('AR');
     const accountingBatchId = `ACC-${idSeed}-${Date.now()}`;
@@ -1186,16 +1198,8 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
 
   // AR-SALE phải là phát sinh phải thu ban đầu của đơn đã giao.
   // Tiền mặt/chuyển khoản/hàng trả/trả thưởng chỉ được ghi credit sau khi kế toán xác nhận.
-  const baseAmount = Math.max(0, normalizeDebtAmount(
-    order.debtBeforeCollection
-    ?? order.totalAmount
-    ?? order.amount
-    ?? order.grandTotal
-    ?? order.payableAmount
-    ?? order.debtAmount
-    ?? order.debt
-    ?? 0
-  ));
+  const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
+  if (baseAmount <= 0) return null;
 
   const saleEntry = await postingEngine.postSalesOrderAR({
     ...order,
