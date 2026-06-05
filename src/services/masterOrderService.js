@@ -994,7 +994,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     status: { $ne: 'reversed' },
     reversed: { $ne: true },
     type: { $in: ['ar_sale', 'ar_receipt', 'ar_bonus', 'ar_return'] },
-    refType: { $ne: 'AR_LEDGER_REVERSAL' },
+    refType: { $nin: ['AR_LEDGER_REVERSAL', 'SALES_ORDER_REVERSAL'] },
     $or: [
       { orderId: { $in: allKeys } },
       { orderCode: { $in: allKeys } },

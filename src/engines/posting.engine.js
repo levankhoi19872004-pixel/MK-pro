@@ -47,6 +47,9 @@ async function hasExistingSalesOrderAR(order = {}, options = {}) {
   if (!keys.length) return false;
   const rows = await paymentRepository.findAll({
     type: 'ar_sale',
+    status: { $ne: 'reversed' },
+    reversed: { $ne: true },
+    refType: { $nin: ['AR_LEDGER_REVERSAL', 'SALES_ORDER_REVERSAL'] },
     $or: [
       { id: { $in: keys.map((key) => `AR-SALE-${key}`) } },
       { orderId: { $in: keys } },
@@ -141,6 +144,10 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
     debit: 0,
     credit: amount,
     amount,
+    status: 'reversed',
+    reversed: true,
+    reversedAt: dateUtil.nowIso(),
+    reversedBy: options.userId || options.userCode || options.updatedBy || 'system',
     note: `Đảo công nợ đơn bán ${order.code || order.id}`
   });
   await paymentRepository.upsert(entry, options);
