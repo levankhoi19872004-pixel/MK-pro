@@ -1777,18 +1777,6 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
     // Không query lại toàn bộ đơn và không đồng bộ snapshot trong luồng chờ của app.
     // saveDeliveryPaymentCanonical đã trả về bản đã patch và tự đẩy đồng bộ phụ chạy nền.
     const warnings = [receiptWarning, postingWarning].filter(Boolean);
-
-    console.log(
-      'CONFIRM_RESPONSE',
-      finalOrder?.code,
-      'returnAmount=',
-      finalOrder?.returnAmount,
-      'returnedAmount=',
-      finalOrder?.returnedAmount,
-      'returnItems=',
-      Array.isArray(finalOrder?.returnItems) ? finalOrder.returnItems.length : 0
-    );
-
     return ok(res, {
       message: warnings.length
         ? `Đã lưu tiền trên đơn giao. Cảnh báo chứng từ: ${warnings.join(' | ')}`
