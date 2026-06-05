@@ -576,9 +576,7 @@
               <label>Chuyển khoản<input id="deliveryEditBank" name="bankCollected" type="number" min="0" step="1" /></label>
               <label>Tiền trả thưởng<input id="deliveryEditReward" name="rewardAmount" type="number" min="0" step="1" value="0" /></label>
             </div>
-            <label class="delivery-payment-note">Ghi chú sai sót / ghi chú giao hàng
-              <textarea id="deliveryEditNote" name="deliveryNote" rows="3" placeholder="Ví dụ: khách trả thiếu, sai NV giao, sai ngày giao..."></textarea>
-            </label>
+            <input type="hidden" id="deliveryEditNote" name="deliveryNote" value="" />
             <div class="delivery-edit-total-box" id="deliveryEditTotalBox">Chọn đơn để xem tổng kết.</div>
             <div class="form-actions delivery-edit-actions">
               <button type="submit" id="deliveryEditSaveButton">Lưu chỉnh sửa</button>
