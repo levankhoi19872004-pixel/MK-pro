@@ -148,6 +148,8 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
     reversed: true,
     reversedAt: dateUtil.nowIso(),
     reversedBy: options.userId || options.userCode || options.updatedBy || 'system',
+    reversedFromOrderId: order.id || order._id || order.orderId || '',
+    reversedFromOrderCode: order.code || order.orderCode || '',
     note: `Đảo công nợ đơn bán ${order.code || order.id}`
   });
   await paymentRepository.upsert(entry, options);
