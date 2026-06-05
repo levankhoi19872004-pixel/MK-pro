@@ -54,7 +54,7 @@
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
           '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
-          '<div class="delivery-v46-list-head"><span>Đơn / Khách hàng</span><span>Nhân sự</span><span>Phải thu</span><span>Còn nợ</span></div>' +
+          '<div class="delivery-v46-list-head delivery-v46-list-head-payment"><span>Đơn / Khách hàng</span><span>Nhân sự</span><span>Thanh toán</span></div>' +
           '<div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
         '</section>' +
         '<aside class="card delivery-v46-detail-panel">' +
@@ -126,6 +126,29 @@
     return 'Chờ giao';
   }
 
+
+  function paymentChip(label, value, className, emptyText) {
+    var n = num(value);
+    var active = n > 0;
+    var display = active ? money(n) : (emptyText || '0');
+    return '<span class="delivery-v46-pay-chip ' + esc(className || '') + (active ? ' is-active' : ' is-zero') + '">' +
+      '<em>' + esc(label) + '</em><b>' + esc(display) + '</b>' +
+    '</span>';
+  }
+
+  function paymentChipsHtml(order) {
+    var debt = amount(order, 'debt');
+    return '' +
+      '<div class="delivery-v46-payment-chips">' +
+        paymentChip('PT', amount(order, 'receivable'), 'chip-pt') +
+        paymentChip('TM', amount(order, 'cash'), 'chip-tm') +
+        paymentChip('CK', amount(order, 'bank'), 'chip-ck') +
+        paymentChip('TH', amount(order, 'reward'), 'chip-th') +
+        paymentChip('HT', amount(order, 'returnAmount'), 'chip-ht') +
+        paymentChip('CN', debt, 'chip-cn', 'Đủ') +
+      '</div>';
+  }
+
   function renderList() {
     renderKpis();
     var list = byId('deliveryCoreList');
@@ -156,8 +179,7 @@
             '<span>NVBH: <b>' + esc(salesStaff || '-') + '</b></span>' +
             '<span>NVGH: <b>' + esc(deliveryStaff || '-') + '</b></span>' +
           '</div>' +
-          '<div class="delivery-v46-amount-cell metric-pt"><em>PT</em><b>' + money(amount(order, 'receivable')) + '</b></div>' +
-          '<div class="delivery-v46-amount-cell metric-cn' + debtClass + '"><em>CN</em><b>' + (debtValue > 0 ? money(debtValue) : 'Đủ') + '</b></div>' +
+          '<div class="delivery-v46-payment-cell">' + paymentChipsHtml(order) + '</div>' +
         '</button>';
     }).join('');
     list.querySelectorAll('[data-key]').forEach(function (button) {
