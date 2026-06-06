@@ -12,7 +12,7 @@
 
 1. Danh sách đơn giao: đọc `salesOrders` + `masterOrders` qua DeliveryEngine.
 2. Sản phẩm cần giao: đọc từ `order.items`, nhập số lượng trả nhưng chưa lưu DB.
-3. Hàng trả: hiển thị draft vừa nhập, cho sửa SL; bấm Lưu đơn trả mới ghi `returnOrders`.
+3. Hàng trả: đọc lại từ `returnOrders`, cho sửa SL; bấm Cập nhật hàng trả sẽ ghi lại `returnOrders`.
 4. Thu tiền: giữ luồng hiện tại, tiền hàng trả lấy từ `returnOrders`.
 5. Báo cáo: giữ luồng hiện tại.
 

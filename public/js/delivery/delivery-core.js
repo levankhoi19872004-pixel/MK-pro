@@ -111,17 +111,13 @@
     });
   }
 
-  function currentOrderDraftKey(order) {
-    return orderKey(normalizeOrder(order));
-  }
 
   var DeliveryCore = {
     state: {
       orders: [],
       returns: [],
       selectedOrder: null,
-      filters: {},
-      returnDraftByOrderKey: {}
+      filters: {}
     },
 
     money: money,
@@ -131,20 +127,6 @@
     normalizeReturnRow: normalizeReturnRow,
     orderKey: orderKey,
 
-    setReturnDraft(order, items) {
-      var key = currentOrderDraftKey(order);
-      this.state.returnDraftByOrderKey[key] = (Array.isArray(items) ? items : []).map(normalizeItem).filter(function (item) { return toNumber(item.returnQty) > 0; });
-      return this.state.returnDraftByOrderKey[key];
-    },
-
-    getReturnDraft(order) {
-      var key = currentOrderDraftKey(order);
-      return (this.state.returnDraftByOrderKey[key] || []).map(normalizeItem);
-    },
-
-    clearReturnDraft(order) {
-      delete this.state.returnDraftByOrderKey[currentOrderDraftKey(order)];
-    },
 
     async api(path, options) {
       var res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options || {}));
@@ -238,7 +220,7 @@
     async saveReturn(order, items) {
       var json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(this.buildReturnPayload(order, items)) });
       if (json.order) this.patchOrder(json.order);
-      this.clearReturnDraft(order);
+      await this.loadReturns(this.state.filters || {});
       return json;
     },
 

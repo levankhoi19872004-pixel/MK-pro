@@ -299,6 +299,8 @@
       button.addEventListener('click', function () { state.activeTab = button.getAttribute('data-delivery-detail-tab'); renderDetail(order); });
     });
     if (byId('deliveryReturnForm')) byId('deliveryReturnForm').addEventListener('submit', saveReturn);
+    if (byId('deliveryReturnUpdateForm')) byId('deliveryReturnUpdateForm').addEventListener('submit', saveReturn);
+    if (byId('deliveryBackProductsButton')) byId('deliveryBackProductsButton').addEventListener('click', function () { state.activeTab = 'products'; renderDetail(order); });
     if (byId('deliveryPaymentForm')) byId('deliveryPaymentForm').addEventListener('submit', savePayment);
     if (byId('deliveryClearReturnButton')) byId('deliveryClearReturnButton').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
     if (byId('deliveryConfirmButton')) byId('deliveryConfirmButton').addEventListener('click', confirmDelivery);
@@ -326,7 +328,7 @@
               '</div>';
           }).join('') +
         '</div>' +
-        '<div class="delivery-v46-actions"><button type="submit">Lưu nháp hàng trả</button><button type="button" id="deliveryClearReturnButton" class="secondary">Xóa hàng trả</button></div>' +
+        '<div class="delivery-v46-actions"><button type="submit">Lưu hàng trả</button><button type="button" id="deliveryClearReturnButton" class="secondary">Xóa hàng trả</button></div>' +
       '</form>';
   }
 
@@ -345,25 +347,28 @@
   function returnsHtml(order) {
     var rows = returnsForOrder(order);
     if (!rows.length) {
-      return '<div class="empty-state">Đơn này chưa có phiếu trả trong returnOrders.</div>';
+      return '<div class="empty-state">Đơn này chưa có phiếu trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả.</div>';
     }
     var total = rows.reduce(function (sum, row) { return sum + num(row.amount); }, 0);
     return '' +
-      '<div class="delivery-v46-return-list-title"><b>Danh sách hàng trả từ returnOrders</b><span>Tổng: ' + money(total) + '</span></div>' +
-      '<div class="delivery-v46-return-table">' +
-        '<div class="delivery-v46-return-head"><span>Mã đơn</span><span>Khách hàng</span><span>Sản phẩm</span><span>SL</span><span>Giá</span><span>Thành tiền</span><span>Trạng thái</span></div>' +
-        rows.map(function (row) {
-          return '<div class="delivery-v46-return-row">' +
-            '<span>' + esc(row.salesOrderCode || row.returnOrderCode) + '</span>' +
-            '<span>' + esc(row.customerName || row.customerCode) + '</span>' +
-            '<span><b>' + esc(row.productCode) + '</b><small>' + esc(row.productName) + '</small></span>' +
-            '<span>' + money(row.returnQty) + '</span>' +
-            '<span>' + money(row.price) + '</span>' +
-            '<span>' + money(row.amount) + '</span>' +
-            '<span>' + esc(row.status || '') + '</span>' +
-          '</div>';
-        }).join('') +
-      '</div>';
+      '<form id="deliveryReturnUpdateForm">' +
+        '<div class="delivery-v46-return-list-title"><b>Hàng trả đã lưu trong returnOrders</b><span>Tổng: ' + money(total) + '</span></div>' +
+        '<div class="delivery-v46-return-table">' +
+          '<div class="delivery-v46-return-head"><span>Mã đơn</span><span>Khách hàng</span><span>Sản phẩm</span><span>SL</span><span>Giá</span><span>Thành tiền</span><span>Trạng thái</span></div>' +
+          rows.map(function (row, idx) {
+            return '<div class="delivery-v46-return-row">' +
+              '<span>' + esc(row.salesOrderCode || row.returnOrderCode) + '</span>' +
+              '<span>' + esc(row.customerName || row.customerCode) + '</span>' +
+              '<span><b>' + esc(row.productCode) + '</b><small>' + esc(row.productName) + '</small>' + hidden(idx, 'productCode', row.productCode) + hidden(idx, 'productName', row.productName) + hidden(idx, 'price', row.price) + '</span>' +
+              '<span><input data-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(row.returnQty) + '"></span>' +
+              '<span>' + money(row.price) + '</span>' +
+              '<span>' + money(row.amount) + '</span>' +
+              '<span>' + esc(row.status || '') + '</span>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+        '<div class="delivery-v46-actions"><button type="submit">Cập nhật hàng trả</button><button type="button" id="deliveryBackProductsButton" class="secondary">Sửa từ sản phẩm giao</button></div>' +
+      '</form>';
   }
 
   function paymentHtml(order) {
@@ -409,8 +414,9 @@
     try {
       message('Đang lưu hàng trả...');
       var json = await window.DeliveryCore.saveReturn(window.DeliveryCore.state.selectedOrder, collectReturnItems(forceZero));
-      message(json.message || 'Đã lưu hàng trả');
+      message(json.message || 'Đã lưu hàng trả vào returnOrders');
       state.selectedKey = orderKey(window.DeliveryCore.state.selectedOrder);
+      state.activeTab = forceZero ? 'products' : 'returns';
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
     } catch (err) { message(err.message, true); }

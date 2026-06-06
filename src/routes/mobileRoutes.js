@@ -47,6 +47,7 @@ const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
 const returnOrderService = require('../services/returnOrderService');
 const postingEngine = require('../engines/posting.engine');
+const { DeliveryEngine } = require('../engines/delivery.engine');
 const financialService = require('../services/financialService');
 const masterOrderService = require('../services/masterOrderService');
 const reportService = require('../services/reportService');
@@ -1791,60 +1792,27 @@ router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['deliver
 
 router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
-    const order = await findOrderByIdOrCode(req.body?.orderId);
-    if (!order) return fail(res, 404, 'Không tìm thấy đơn giao hàng');
-    const returnType = String(req.body?.returnType || 'partial') === 'full' ? 'full' : 'partial';
-    const sourceItems = Array.isArray(order.items) ? order.items : [];
-    const reqItems = Array.isArray(req.body?.items) ? req.body.items : [];
-    const items = returnType === 'full'
-      ? sourceItems.map((item) => ({ ...item, qtyReturn: toNumber(item.quantity || item.qty), reason: req.body?.note || '' }))
-      : reqItems.filter((item) => toNumber(item.qtyReturn) > 0);
-
-    // Cho phép app gửi danh sách rỗng khi NVGH sửa toàn bộ SL trả về 0.
-    // Trường hợp này phải hủy/clear phiếu trả tạm cũ, đồng thời đưa returnAmount của SalesOrder về 0.
-    if (!items.length) {
-      if (returnType === 'full') return fail(res, 400, 'Đơn không có hàng để trả');
-      const clearResult = await clearMobileReturnOrderForSalesOrder(order, req.body?.note || '');
-      order.returnAmount = 0;
-      order.returnedAmount = 0;
-      order.returnItems = [];
-      order.deliveryReturnItems = [];
-      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
-      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
-      order.debt = order.debtAmount;
-      order.updatedAt = new Date().toISOString();
-      await order.save();
-      const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId, { syncReturn: true });
-      return ok(res, {
-        message: clearResult.cleared ? 'Đã xóa/cập nhật hàng trả về 0' : 'Đơn không có hàng trả cần cập nhật',
-        returnOrder: clearResult.returnOrder ? stripMongoFields(clearResult.returnOrder) : null,
-        order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder)
-      });
-    }
-
-    // Idempotent: 1 đơn giao chỉ có 1 returnOrder. Lưu lại là cập nhật phiếu cũ bằng số lượng mới.
-    const returnOrder = await upsertMobileReturnOrder(order, items, req, returnType);
-    const returnAmount = toNumber(returnOrder.totalAmount || returnOrder.amount || 0);
-    const savedReturnItems = Array.isArray(returnOrder.items) ? returnOrder.items : [];
-    order.returnAmount = returnAmount;
-    order.returnedAmount = returnAmount;
-    order.returnItems = savedReturnItems;
-    order.deliveryReturnItems = savedReturnItems;
-    order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
-    order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
-    order.debt = order.debtAmount;
-    order.deliveryStatus = returnType === 'full' ? 'returned' : 'partial_return';
-    order.status = returnType === 'full' ? 'returned' : 'partial_return';
-    order.updatedAt = new Date().toISOString();
-    await order.save();
-    // Đồng bộ ngay nguồn hiển thị app/web sau khi tạo hàng trả.
-    // Nếu không, lần bấm Lưu tiền kế tiếp có thể đọc snapshot/patch cũ và đẩy ngược returnAmount về 0.
-    const finalOrder = await saveDeliveryPaymentCanonical(order, req.body?.orderId, { syncReturn: true });
-    return ok(res, { message: returnType === 'full' ? 'Đã tạo/cập nhật phiếu trả cả đơn' : 'Đã tạo/cập nhật phiếu trả hàng một phần', returnOrder: stripMongoFields(returnOrder.toObject ? returnOrder.toObject() : returnOrder), order: stripMongoFields(finalOrder.toObject ? finalOrder.toObject() : finalOrder) }, 201);
+    const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, ArLedger, User: Staff });
+    const result = await engine.saveReturn({
+      ...(req.body || {}),
+      orderId: req.body?.orderId || req.body?.salesOrderId || req.body?.orderCode || req.body?.salesOrderCode,
+      salesOrderId: req.body?.salesOrderId || req.body?.orderId,
+      salesOrderCode: req.body?.salesOrderCode || req.body?.orderCode,
+      deliveryStaffCode: req.mobileUser?.code || req.user?.code || req.body?.deliveryStaffCode,
+      deliveryStaffName: req.mobileUser?.name || req.user?.name || req.body?.deliveryStaffName,
+      source: 'mobile_delivery_canonical_route'
+    });
+    return ok(res, {
+      source: 'returnOrders',
+      message: result.message || 'Đã lưu hàng trả vào returnOrders',
+      returnOrder: stripMongoFields(result.returnOrder || {}),
+      order: stripMongoFields(result.order || {})
+    });
   } catch (err) {
-    return fail(res, 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');
+    return fail(res, err.status || 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');
   }
 });
+
 
 router.post('/cash/submit', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
