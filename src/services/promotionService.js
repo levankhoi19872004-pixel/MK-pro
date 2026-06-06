@@ -11,6 +11,13 @@ const { makeId, toNumber } = require('../utils/common.util');
 function clean(value) { return String(value ?? '').trim(); }
 function rx(q) { return new RegExp(String(q || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
 
+function normalizeDiscountPercent(value) {
+  const raw = toNumber(value);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  if (raw <= 1) return Math.round(raw * 10000) / 100;
+  return Math.round(raw * 100) / 100;
+}
+
 function normalizeProductCodes(value) {
   if (Array.isArray(value)) return value.map((item) => clean(item)).filter(Boolean);
   return clean(value).split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
@@ -75,19 +82,30 @@ async function listProductRules(query = {}) {
 async function saveProductRule(body = {}) {
   const programCode = clean(body.programCode || body.code);
   const programName = clean(body.programName || body.name || body.content || body.programContent);
-  const discountPercent = toNumber(body.discountPercent ?? body.discount ?? body.ck);
-  const { product, productCode, productName } = await hydrateProduct(body.productCode || body.codeProduct);
+  const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck ?? body['Chiết khấu'] ?? body['Chiet khau'] ?? body['CK']);
+  const { product, productCode, productName: catalogProductName } = await hydrateProduct(body.productCode || body.codeProduct || body['Mã sản phẩm'] || body['Ma san pham']);
+  const productName = clean(catalogProductName || body.productName || body['Tên sản phẩm'] || body['Ten san pham'] || '');
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   if (!programName) return { error: 'Thiếu nội dung chương trình', status: 400 };
   if (!productCode) return { error: 'Thiếu mã sản phẩm', status: 400 };
-  if (!product) return { error: `Không tìm thấy sản phẩm ${productCode} trong danh mục`, status: 400 };
-  if (discountPercent < 0) return { error: 'Chiết khấu không được âm', status: 400 };
   const now = dateUtil.nowIso();
   const id = clean(body.id) || `${programCode}__${productCode}`;
   const existing = await PromotionProductRule.findOne({ $or: [{ id }, { programCode, productCode }] });
-  const payload = { id, programCode, programName, productCode, productName, discountPercent, isActive: body.isActive !== false && body.isActive !== 'false', updatedAt: now };
-  if (existing) { Object.assign(existing, payload); return { rule: await existing.save() }; }
-  return { rule: await PromotionProductRule.create({ ...payload, createdAt: now }) };
+  const payload = {
+    id,
+    programCode,
+    programName,
+    productCode,
+    productName,
+    discountPercent,
+    productMatched: Boolean(product),
+    missingProduct: !product,
+    source: clean(body.source || body.importSource || 'excel-import'),
+    isActive: body.isActive !== false && body.isActive !== 'false',
+    updatedAt: now
+  };
+  if (existing) { Object.assign(existing, payload); return { rule: await existing.save(), warning: product ? '' : `Mã sản phẩm ${productCode} chưa có trong danh mục` }; }
+  return { rule: await PromotionProductRule.create({ ...payload, createdAt: now }), warning: product ? '' : `Mã sản phẩm ${productCode} chưa có trong danh mục` };
 }
 
 async function deleteProductRule(id) {
@@ -104,16 +122,26 @@ async function listGroupItems(query = {}) {
 
 async function saveGroupItem(body = {}) {
   const programCode = clean(body.programCode || body.groupCode || body.code);
-  const { product, productCode, productName } = await hydrateProduct(body.productCode || body.codeProduct);
+  const { product, productCode, productName: catalogProductName } = await hydrateProduct(body.productCode || body.codeProduct || body['Mã sản phẩm'] || body['Ma san pham']);
+  const productName = clean(catalogProductName || body.productName || body['Tên sản phẩm'] || body['Ten san pham'] || '');
   if (!programCode) return { error: 'Thiếu mã chương trình KM / mã nhóm', status: 400 };
   if (!productCode) return { error: 'Thiếu mã sản phẩm', status: 400 };
-  if (!product) return { error: `Không tìm thấy sản phẩm ${productCode} trong danh mục`, status: 400 };
   const now = dateUtil.nowIso();
   const id = clean(body.id) || `${programCode}__${productCode}`;
   const existing = await PromotionGroupItem.findOne({ $or: [{ id }, { programCode, productCode }] });
-  const payload = { id, programCode, productCode, productName, isActive: body.isActive !== false && body.isActive !== 'false', updatedAt: now };
-  if (existing) { Object.assign(existing, payload); return { item: await existing.save() }; }
-  return { item: await PromotionGroupItem.create({ ...payload, createdAt: now }) };
+  const payload = {
+    id,
+    programCode,
+    productCode,
+    productName,
+    productMatched: Boolean(product),
+    missingProduct: !product,
+    source: clean(body.source || body.importSource || 'excel-import'),
+    isActive: body.isActive !== false && body.isActive !== 'false',
+    updatedAt: now
+  };
+  if (existing) { Object.assign(existing, payload); return { item: await existing.save(), warning: product ? '' : `Mã sản phẩm ${productCode} chưa có trong danh mục` }; }
+  return { item: await PromotionGroupItem.create({ ...payload, createdAt: now }), warning: product ? '' : `Mã sản phẩm ${productCode} chưa có trong danh mục` };
 }
 
 async function deleteGroupItem(id) {
@@ -132,7 +160,7 @@ async function saveGroupRule(body = {}) {
   const programCode = clean(body.programCode || body.groupCode || body.code);
   const programName = clean(body.programName || body.name || body.content || body.programContent);
   const minAmount = toNumber(body.minAmount ?? body.requiredAmount ?? body.salesAmount);
-  const discountPercent = toNumber(body.discountPercent ?? body.discount ?? body.ck);
+  const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck ?? body['Chiết khấu'] ?? body['Chiet khau'] ?? body['CK']);
   if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm / mã chương trình', status: 400 };
   if (!programName) return { error: 'Thiếu nội dung chương trình KM', status: 400 };
   if (minAmount <= 0) return { error: 'Mức doanh số cần lấy phải lớn hơn 0', status: 400 };
@@ -201,6 +229,7 @@ async function calculatePromotions(items = []) {
 }
 
 module.exports = {
+  normalizeDiscountPercent,
   listPromotions, savePromotion, deletePromotion,
   listProductRules, saveProductRule, deleteProductRule,
   listGroupItems, saveGroupItem, deleteGroupItem,

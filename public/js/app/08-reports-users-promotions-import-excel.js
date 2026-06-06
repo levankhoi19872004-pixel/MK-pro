@@ -801,7 +801,7 @@ function renderImportPreview(result){
           <td>${row.rowNo||''}</td>
           <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
           <td>${importRowToText(row)}</td>
-          <td>${(row.errors||[]).join('; ')}</td>
+          <td>${[(row.errors||[]).join('; '),(row.warnings||[]).join('; ')].filter(Boolean).join(' | ')}</td>
         </tr>`).join('')+hiddenNote;
     }
     bindImportInlinePreviewChecks();
@@ -924,6 +924,9 @@ async function commitImportExcel(){
     }
 
     await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
+    if(['promotionProductRules','promotionGroupItems','promotionGroupRules'].includes(importDataType.value) && typeof window.reloadPromotionRules === 'function'){
+      await window.reloadPromotionRules();
+    }
   }catch(err){
     if(commitImportButton){
       commitImportButton.disabled=false;
@@ -1002,6 +1005,7 @@ resetButton.addEventListener('click',resetForm);
     }catch(err){ groupRulesTable.innerHTML=`<tr><td colspan="5">${esc(err.message)}</td></tr>`; }
   }
   async function reloadAll(){ await Promise.all([loadProductRules(),loadGroupItems(),loadGroupRules()]); }
+  window.reloadPromotionRules = reloadAll;
 
   function setForm(form,row,fields){ if(!form)return; form.reset(); fields.forEach(f=>{ if(form.elements[f])form.elements[f].value=row?.[f]??''; }); }
   window.editPromoProductRule=(id)=>{const r=state.productRules.find(x=>String(x.id)===String(id));setForm(productForm,r,['id','programCode','programName','productCode','productName','discountPercent']);activePanel('productRules');};

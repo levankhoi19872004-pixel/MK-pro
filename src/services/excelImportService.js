@@ -1871,7 +1871,10 @@ function pickPromotionProductRulePayload(row = {}) {
     programName: cleanText(row.programName || row.name || row['Nội dung chương trình'] || row['Noi dung chuong trinh'] || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM']),
     productCode,
     productName: cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
-    discountPercent: toNumber(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK'])
+    discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK']),
+    productMatched: false,
+    missingProduct: false,
+    source: 'excel-import'
   };
 }
 
@@ -1890,29 +1893,67 @@ function pickPromotionGroupRulePayload(row = {}) {
     programCode: cleanText(row.programCode || row.groupCode || row.code || row['Mã nhóm sản phẩm'] || row['Ma nhom san pham'] || row['Mã chương trình KM'] || row['Ma chuong trinh KM'] || row['Mã chương trình'] || row['Ma chuong trinh']),
     programName: cleanText(row.programName || row.name || row['Nội dung chương trình KM'] || row['Noi dung chuong trinh KM'] || row['Nội dung chương trình'] || row['Noi dung chuong trinh']),
     minAmount: toNumber(row.minAmount ?? row.requiredAmount ?? row.salesAmount ?? row['Mức doanh số cần lấy'] ?? row['Muc doanh so can lay'] ?? row['Doanh số cần lấy'] ?? row['Doanh so can lay']),
-    discountPercent: toNumber(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK'])
+    discountPercent: promotionService.normalizeDiscountPercent(row.discountPercent ?? row.discount ?? row['Chiết khấu'] ?? row['Chiet khau'] ?? row['CK']),
+    source: 'excel-import'
   };
 }
 
 async function importPromotionProductRules(rows = []) {
   let imported = 0;
-  for (const row of rows) { await promotionService.saveProductRule(row); imported += 1; }
-  await addImportLog('promotionProductRules', { imported });
-  return { imported, message: `Đã import ${imported} dòng CK sản phẩm` };
+  let skipped = 0;
+  const errors = [];
+  const warnings = [];
+  for (const row of rows) {
+    const payload = pickPromotionProductRulePayload(row);
+    const result = await promotionService.saveProductRule(payload);
+    if (result?.error) {
+      skipped += 1;
+      errors.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, error: result.error });
+    } else {
+      imported += 1;
+      if (result?.warning) warnings.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, warning: result.warning });
+    }
+  }
+  await addImportLog('promotionProductRules', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
+  return { imported, skipped, errors, warnings, message: `Đã import ${imported} dòng CK sản phẩm${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function importPromotionGroupItems(rows = []) {
   let imported = 0;
-  for (const row of rows) { await promotionService.saveGroupItem(row); imported += 1; }
-  await addImportLog('promotionGroupItems', { imported });
-  return { imported, message: `Đã import ${imported} dòng nhóm sản phẩm KM` };
+  let skipped = 0;
+  const errors = [];
+  const warnings = [];
+  for (const row of rows) {
+    const payload = pickPromotionGroupItemPayload(row);
+    const result = await promotionService.saveGroupItem(payload);
+    if (result?.error) {
+      skipped += 1;
+      errors.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, error: result.error });
+    } else {
+      imported += 1;
+      if (result?.warning) warnings.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, warning: result.warning });
+    }
+  }
+  await addImportLog('promotionGroupItems', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
+  return { imported, skipped, errors, warnings, message: `Đã import ${imported} dòng nhóm sản phẩm KM${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function importPromotionGroupRules(rows = []) {
   let imported = 0;
-  for (const row of rows) { await promotionService.saveGroupRule(row); imported += 1; }
-  await addImportLog('promotionGroupRules', { imported });
-  return { imported, message: `Đã import ${imported} dòng điều kiện nhóm KM` };
+  let skipped = 0;
+  const errors = [];
+  for (const row of rows) {
+    const payload = pickPromotionGroupRulePayload(row);
+    const result = await promotionService.saveGroupRule(payload);
+    if (result?.error) {
+      skipped += 1;
+      errors.push({ row: row.__rowNumber || row.rowNumber || '', programCode: payload.programCode, error: result.error });
+    } else {
+      imported += 1;
+    }
+  }
+  await addImportLog('promotionGroupRules', { imported, skipped, errors: errors.slice(0, 50) });
+  return { imported, skipped, errors, message: `Đã import ${imported} dòng điều kiện nhóm KM${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function previewMongoNative(type, rows = []) {
@@ -2190,10 +2231,14 @@ async function previewMongoNative(type, rows = []) {
     result = payloads.map((item) => {
       const product = productMap.get(cleanText(item.productCode));
       item.errors = [];
+      item.warnings = [];
       if (!item.programCode) item.errors.push('Thiếu mã chương trình');
       if (!item.programName) item.errors.push('Thiếu nội dung chương trình');
       if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
-      if (item.productCode && !product) item.errors.push('Mã sản phẩm không có trong danh mục');
+      if (item.productCode && !product) item.warnings.push('Mã sản phẩm chưa có trong danh mục');
+      item.productMatched = Boolean(product);
+      item.missingProduct = Boolean(item.productCode && !product);
+      item.source = item.source || 'excel-import';
       if (product) item.productName = cleanText(product.name || item.productName);
       if (toNumber(item.discountPercent) < 0) item.errors.push('Chiết khấu không được âm');
       const key = `${item.programCode}__${item.productCode}`;
@@ -2208,9 +2253,13 @@ async function previewMongoNative(type, rows = []) {
     result = payloads.map((item) => {
       const product = productMap.get(cleanText(item.productCode));
       item.errors = [];
+      item.warnings = [];
       if (!item.programCode) item.errors.push('Thiếu mã chương trình KM / mã nhóm');
       if (!item.productCode) item.errors.push('Thiếu mã sản phẩm');
-      if (item.productCode && !product) item.errors.push('Mã sản phẩm không có trong danh mục');
+      if (item.productCode && !product) item.warnings.push('Mã sản phẩm chưa có trong danh mục');
+      item.productMatched = Boolean(product);
+      item.missingProduct = Boolean(item.productCode && !product);
+      item.source = item.source || 'excel-import';
       if (product) item.productName = cleanText(product.name || item.productName);
       const key = `${item.programCode}__${item.productCode}`;
       if (seen.has(key)) item.errors.push('Trùng mã chương trình + mã sản phẩm trong file');

@@ -6,6 +6,7 @@ module.exports = flexModel('PromotionGroupRule', 'promotionGroupRules', {
   programName: String,
   minAmount: Number,
   discountPercent: Number,
+  source: String,
   isActive: Boolean,
   createdAt: String,
   updatedAt: String

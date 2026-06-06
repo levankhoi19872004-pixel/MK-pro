@@ -7,6 +7,9 @@ module.exports = flexModel('PromotionProductRule', 'promotionProductRules', {
   productCode: String,
   productName: String,
   discountPercent: Number,
+  productMatched: Boolean,
+  missingProduct: Boolean,
+  source: String,
   isActive: Boolean,
   createdAt: String,
   updatedAt: String

@@ -237,6 +237,20 @@ const INDEX_DEFINITIONS = {
     [{ isActive: 1, startDate: 1, endDate: 1 }, { name: 'idx_promotions_active_dates' }],
     [{ productCodes: 1 }, { name: 'idx_promotions_product_codes' }]
   ],
+  promotionProductRules: [
+    [{ programCode: 1, productCode: 1 }, { name: 'uniq_promotion_product_rules_program_product', unique: true, sparse: true }],
+    [{ productCode: 1, isActive: 1 }, { name: 'idx_promotion_product_rules_product_active' }],
+    [{ missingProduct: 1, programCode: 1 }, { name: 'idx_promotion_product_rules_missing_program' }]
+  ],
+  promotionGroupItems: [
+    [{ programCode: 1, productCode: 1 }, { name: 'uniq_promotion_group_items_program_product', unique: true, sparse: true }],
+    [{ productCode: 1, isActive: 1 }, { name: 'idx_promotion_group_items_product_active' }],
+    [{ missingProduct: 1, programCode: 1 }, { name: 'idx_promotion_group_items_missing_program' }]
+  ],
+  promotionGroupRules: [
+    [{ programCode: 1, minAmount: 1 }, { name: 'idx_promotion_group_rules_program_min_amount' }],
+    [{ programCode: 1, isActive: 1 }, { name: 'idx_promotion_group_rules_program_active' }]
+  ],
   importTemplates: [[{ type: 1, name: 1 }, { name: 'idx_import_templates_type_name' }]],
   auditLogs: [
     [{ refType: 1, refId: 1 }, { name: 'idx_audit_logs_ref' }],
