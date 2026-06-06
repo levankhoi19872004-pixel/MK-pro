@@ -196,7 +196,7 @@
         var qty = num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty);
         var rqty = num(it.returnQty || it.qtyReturn || it.returnQuantity || it.returnedQty);
         return '<div class="m-product-row"><div><b>' + esc(code) + '</b><small>' + esc(name) + '</small><em>SL giao ' + money(qty) + ' · Giá cố định ' + money(price) + '</em>' + hidden(idx, 'productCode', code) + hidden(idx, 'productName', name) + hidden(idx, 'price', price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(rqty) + '"></div>';
-      }).join('') + '</div><div class="m-action-row"><button type="submit">Lưu hàng trả</button><button id="mClearReturn" type="button" class="secondary">Xóa hàng trả</button></div></form>';
+      }).join('') + '</div><div class="m-action-row"><button type="submit">Lưu hàng trả</button><button id="mClearReturn" type="button" class="secondary">Bỏ qua hàng trả</button></div></form>';
     el('mReturnForm').addEventListener('submit', saveReturn);
     el('mClearReturn').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
   }
@@ -242,8 +242,9 @@
       return;
     }
     if (!rows.length) {
-      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả.</div><div class="m-action-row"><button id="mGoProducts" type="button">Quay lại sản phẩm</button></div>';
+      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả hoặc bấm Bỏ qua hàng trả để sang Thu tiền.</div><div class="m-action-row"><button id="mGoProducts" type="button">Quay lại sản phẩm</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div>';
       el('mGoProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
+      el('mSkipReturns').addEventListener('click', function () { state.tab = 'payment'; render(); });
       return;
     }
     body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
@@ -292,7 +293,7 @@
       await window.DeliveryCore.saveReturn(currentOrder(), collectReturnItems(event && event.forceZero));
       msg('Đã lưu hàng trả vào returnOrders');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
-      state.tab = (event && event.forceZero) ? 'products' : 'returns';
+      state.tab = 'payment';
       render();
     } catch (err) { msg(err.message, true); }
   }
@@ -305,6 +306,7 @@
       await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
       msg('Đã lưu thu tiền');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      state.tab = 'report';
       render();
     } catch (err) { msg(err.message, true); }
   }
@@ -314,6 +316,8 @@
       msg('Đang xác nhận giao...');
       await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
       msg('Đã xác nhận giao');
+      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      state.tab = 'report';
       render();
     } catch (err) { msg(err.message, true); }
   }
