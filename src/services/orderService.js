@@ -47,16 +47,29 @@ function normalizeSaleMode(value, fallback = DIRECT_PRICE) {
   return normalizePricingMode(value || fallback);
 }
 
-function isDmsDirectPriceOrder(order = {}) {
-  const rawMode = order.saleMethod ?? order.saleMode ?? order.pricingMode ?? order.orderPricingMode ?? order.priceMode;
-  const hasExplicitMode = rawMode !== undefined && rawMode !== null && String(rawMode).trim() !== '';
-  const explicitDirectPrice = hasExplicitMode && normalizeSaleMode(rawMode) === DIRECT_PRICE;
+function getRawSaleMode(order = {}) {
+  return order.saleMethod ?? order.saleMode ?? order.pricingMode ?? order.orderPricingMode ?? order.priceMode;
+}
+
+function hasExplicitSaleMode(order = {}) {
+  const rawMode = getRawSaleMode(order);
+  return rawMode !== undefined && rawMode !== null && String(rawMode).trim() !== '';
+}
+
+function isImportOrDmsSource(order = {}) {
   const sourceText = [order.source, order.orderSource, order.sourceType, order.importSource, order.orderSourceName]
     .filter(Boolean)
     .join(' ')
     .toUpperCase();
-  const isDmsSource = /(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|EXCEL_DMS|IMPORT EXCEL DMS/.test(sourceText);
-  return explicitDirectPrice || order.isImported === true || isDmsSource;
+  return order.isImported === true || /(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|EXCEL_DMS|IMPORT EXCEL DMS|IMPORT|EXCEL/.test(sourceText);
+}
+
+function isDmsDirectPriceOrder(order = {}) {
+  // Quy tắc mới:
+  // - Có lựa chọn rõ ràng trên đơn thì tôn trọng lựa chọn đó (không khóa theo nguồn import/DMS).
+  // - Không có lựa chọn thì import Excel/DMS mặc định bán thẳng.
+  if (hasExplicitSaleMode(order)) return normalizeSaleMode(getRawSaleMode(order)) === DIRECT_PRICE;
+  return isImportOrDmsSource(order);
 }
 
 function calculateItems(items = [], saleMode = DIRECT_PRICE, order = {}) {
@@ -695,7 +708,9 @@ async function createOrder(body = {}) {
   const startedAt = Date.now();
   const customer = await resolveCustomer(body);
   const staff = await resolveStaff(body);
-  const saleMode = isDmsDirectPriceOrder(body) ? DIRECT_PRICE : normalizeSaleMode(body.saleMethod || body.saleMode || body.pricingMode || body.orderPricingMode || body.priceMode || PROMOTION);
+  const saleMode = hasExplicitSaleMode(body)
+    ? normalizeSaleMode(getRawSaleMode(body))
+    : (isImportOrDmsSource(body) ? DIRECT_PRICE : PROMOTION);
   const items = await hydrateItemNames(await applyPromotionPricing(body.items, saleMode, body), saleMode);
   if (!items.length) return { error: 'Đơn bán chưa có sản phẩm', status: 400 };
   const totalAmount = toNumber(body.totalAmount || items.reduce((sum, item) => sum + toNumber(item.amount), 0));
@@ -767,8 +782,11 @@ async function updateOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
   if (current.masterOrderId || current.mergeStatus === 'merged') return { error: 'Đơn đã gộp, không nên sửa trực tiếp đơn con', status: 400 };
-  const keepOriginalPrice = isDmsDirectPriceOrder(current) || isDmsDirectPriceOrder(body);
-  const saleMode = keepOriginalPrice ? DIRECT_PRICE : normalizeSaleMode(body.saleMethod || body.saleMode || body.pricingMode || body.orderPricingMode || current.saleMethod || current.saleMode || current.pricingMode || PROMOTION);
+  const bodyHasExplicitSaleMode = hasExplicitSaleMode(body);
+  const keepOriginalPrice = !bodyHasExplicitSaleMode && (isDmsDirectPriceOrder(current) || isDmsDirectPriceOrder(body));
+  const saleMode = bodyHasExplicitSaleMode
+    ? normalizeSaleMode(getRawSaleMode(body))
+    : (keepOriginalPrice ? DIRECT_PRICE : normalizeSaleMode(current.saleMethod || current.saleMode || current.pricingMode || current.orderPricingMode || PROMOTION));
   const items = body.items
     ? await hydrateItemNames(await applyPromotionPricing(body.items, saleMode, { ...current, ...body, saleMode }), saleMode)
     : current.items;

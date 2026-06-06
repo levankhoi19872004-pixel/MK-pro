@@ -4982,7 +4982,7 @@ button.danger:hover{background:#fecaca}
 /* Đơn con chưa gộp: chuẩn 1 dòng theo mẫu ☑ | Mã đơn | Khách hàng | NVBH | Ngày bán | Giá trị */
 #masterOrdersTab .master-child-one-line{
   display:grid!important;
-  grid-template-columns:4% 20% 25% 20% 12% 19%!important;
+  grid-template-columns:28px 145px minmax(130px,1fr) minmax(120px,1fr) 90px 95px!important;
   gap:8px!important;
   align-items:center!important;
   min-height:38px!important;
@@ -5024,7 +5024,7 @@ button.danger:hover{background:#fecaca}
 #masterOrdersTab .master-child-code{font-weight:900!important;color:#0f172a!important;}
 #masterOrdersTab .master-child-customer{font-weight:700!important;color:#111827!important;}
 #masterOrdersTab .master-child-date,#masterOrdersTab .master-child-staff{font-weight:700!important;color:#64748b!important;}
-#masterOrdersTab .master-child-money{text-align:right!important;color:#047857!important;font-weight:900!important;}
+#masterOrdersTab .master-child-money{text-align:right!important;justify-self:end!important;max-width:95px!important;color:#047857!important;font-weight:900!important;}
 @media (max-width:1100px){
   #masterOrdersTab .master-child-one-line{
     grid-template-columns:28px 145px minmax(130px,1fr) minmax(120px,1fr) 90px 105px!important;

@@ -4,10 +4,6 @@ function normalizePricingModeClient(value){
   const raw=String(value||'').trim().toUpperCase();
   return raw==='PROMOTION'||raw==='PROMO'||raw==='KM'||raw.includes('KHUYEN')?PRICING_PROMOTION:PRICING_DIRECT_PRICE;
 }
-function pricingModeLabel(value){
-  return normalizePricingModeClient(value)===PRICING_PROMOTION?'Khuyến mại':'Giá DMS';
-}
-
 let editingSalesOrderId = '';
 
 function getSalesProductCatalog(){
@@ -149,8 +145,13 @@ function getSelectedSalesProduct(){
   return null;
 }
 function getSalesMode(){
-  // Quy tắc chuẩn: đơn tạo từ app/web bán hàng luôn tính theo khuyến mại đã cài.
-  return PRICING_PROMOTION;
+  const checked=salesForm?.querySelector('input[name="saleMode"]:checked');
+  return checked && checked.value==='promotion' ? PRICING_PROMOTION : PRICING_DIRECT_PRICE;
+}
+function setSalesMode(mode){
+  const normalized=normalizePricingModeClient(mode);
+  const input=salesForm?.querySelector(`input[name="saleMode"][value="${normalized===PRICING_PROMOTION?'promotion':'direct'}"]`);
+  if(input)input.checked=true;
 }
 function isDirectSaleMode(){return getSalesMode()===PRICING_DIRECT_PRICE}
 function recalcSalesItem(index){
@@ -260,8 +261,8 @@ function resetSalesFormAfterSave(){
   salesItems=[];
   salesForm.reset();
   salesForm.elements.date.value=today();
-  const promotionMode=salesForm.querySelector('input[name="saleMode"][value="promotion"]');
-  if(promotionMode)promotionMode.checked=true;
+  // Đơn tạo tay/App mặc định bán theo khuyến mại; radio vẫn mở để kế toán/admin đổi linh động.
+  setSalesMode(PRICING_PROMOTION);
   salesForm.elements.paidAmount.value=0;
   if(salesCustomerSearch)salesCustomerSearch.value='';
   salesCustomerSelect.value='';
@@ -270,6 +271,7 @@ function resetSalesFormAfterSave(){
   if(salesStaffName)salesStaffName.value='';
   const submitBtn=salesForm.querySelector('[type="submit"]');
   if(submitBtn)submitBtn.textContent='Tạo đơn bán hàng';
+  syncSalesModeUi();
   renderSalesItems();
 }
 async function submitSalesOrder(event){
@@ -279,11 +281,12 @@ async function submitSalesOrder(event){
   const payload=Object.fromEntries(new FormData(salesForm).entries());
   if(salesStaffSelect)payload.salesStaffCode=salesStaffSelect.value||'';
   if(salesStaffName)payload.salesStaffName=salesStaffName.value||'';
-  payload.saleMethod=PRICING_PROMOTION;
-  payload.saleMode=PRICING_PROMOTION;
-  payload.pricingMode=PRICING_PROMOTION;
-  payload.orderPricingMode=PRICING_PROMOTION;
-  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:PRICING_PROMOTION,saleMode:PRICING_PROMOTION,pricingMode:PRICING_PROMOTION,priceLocked:true}));
+  const saleMode=getSalesMode();
+  payload.saleMethod=saleMode;
+  payload.saleMode=saleMode;
+  payload.pricingMode=saleMode;
+  payload.orderPricingMode=saleMode;
+  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:saleMode,saleMode:saleMode,pricingMode:saleMode,priceLocked:saleMode!==PRICING_DIRECT_PRICE}));
   payload.paidAmount=Number(payload.paidAmount||0);
   if(editingSalesOrderId)payload.actorRole='admin';
   try{
@@ -465,8 +468,8 @@ async function openSalesOrderEdit(idx){
   try{order=await fetchSalesOrderDetail(order)}catch(err){alert(err.message||'Không tải được chi tiết đơn');return;}
   editingSalesOrderId=order.id||order.code||'';
   const editMode=normalizePricingModeClient(order.saleMethod||order.saleMode||order.pricingMode||order.orderPricingMode);
-  const modeInput=salesForm.querySelector(`input[name="saleMode"][value="${editMode===PRICING_PROMOTION?'promotion':'direct'}"]`);
-  if(modeInput)modeInput.checked=true;
+  // Khi sửa đơn: giữ đúng phương thức đã lưu trên đơn, không ép lại theo nguồn.
+  setSalesMode(editMode);
   salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}));
   salesForm.elements.date.value=toDateOnly(order.date||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
@@ -613,7 +616,6 @@ function renderSalesOrderRows(orders, {append=false} = {}){
         <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
-        <span class="badge sales-order-pricing-mode" title="Phương thức bán">${pricingModeLabel(o.saleMethod||o.saleMode||o.pricingMode||o.orderPricingMode)}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}
@@ -679,7 +681,11 @@ if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
 
 
 if(salesForm){
-  salesForm.querySelectorAll('input[name="saleMode"]').forEach(input=>input.addEventListener('change',syncSalesModeUi));
+  salesForm.querySelectorAll('input[name="saleMode"]').forEach(input=>input.addEventListener('change',async()=>{
+    syncSalesModeUi();
+    await recalculateSalesPromotionPrices();
+    renderSalesItems();
+  }));
   syncSalesModeUi();
 }
 
