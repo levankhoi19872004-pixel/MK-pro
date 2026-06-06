@@ -733,6 +733,8 @@ class DeliveryEngine {
       salesOrderCode: current.salesOrderCode,
       orderId: current.orderId,
       orderCode: current.orderCode,
+      deliveryStaffCode: text(body.deliveryStaffCode || current.deliveryStaffCode),
+      deliveryStaffName: text(body.deliveryStaffName || current.deliveryStaffName),
       createdAt: new Date().toISOString()
     };
 
@@ -775,6 +777,10 @@ class DeliveryEngine {
     const patch = {
       deliveryStatus: isDelivered ? 'delivered' : deliveryStatus,
       status: isDelivered ? 'delivered' : deliveryStatus,
+      deliveryStaffCode: text(body.deliveryStaffCode || current.deliveryStaffCode),
+      deliveryStaffName: text(body.deliveryStaffName || current.deliveryStaffName),
+      staffCode: text(body.staffCode || body.deliveryStaffCode || current.staffCode || current.deliveryStaffCode),
+      staffName: text(body.staffName || body.deliveryStaffName || current.staffName || current.deliveryStaffName),
       deliveryNote: text(body.note || body.deliveryNote),
       deliveredAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

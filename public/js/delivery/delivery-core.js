@@ -176,7 +176,16 @@
     },
 
     async loadOrders(filters) {
+      filters = Object.assign({}, filters || {});
+      delete filters.deliveryStaffCode;
+      delete filters.deliveryStaffName;
+      delete filters.staffCode;
+      delete filters.staffName;
       this.state.filters = Object.assign({}, this.state.filters, filters || {});
+      delete this.state.filters.deliveryStaffCode;
+      delete this.state.filters.deliveryStaffName;
+      delete this.state.filters.staffCode;
+      delete this.state.filters.staffName;
       var params = new URLSearchParams();
       Object.keys(this.state.filters).forEach(function (key) {
         var value = DeliveryCore.state.filters[key];

@@ -44,7 +44,7 @@
         '<div><h1>App giao hàng</h1><p>Đồng bộ 100% với Đơn giao hôm nay</p></div>' +
         '<div style="display:flex;gap:8px;align-items:center"><button id="mReload" type="button">Tải</button><button id="mLogout" type="button">Thoát</button></div>' +
       '</header>' +
-      '<section class="m-delivery-filter"><input id="mDate" type="date"><input id="mStaff" placeholder="NVGH"><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
+      '<section class="m-delivery-filter"><input id="mDate" type="date"><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
       '<section class="m-delivery-kpis">' +
         '<div><span>PT</span><b id="mKpiPt">0</b></div><div><span>TM</span><b id="mKpiTm">0</b></div><div><span>CK</span><b id="mKpiCk">0</b></div>' +
         '<div><span>TH</span><b id="mKpiTh">0</b></div><div><span>HT</span><b id="mKpiHt">0</b></div><div><span>CN</span><b id="mKpiCn">0</b></div>' +
@@ -62,7 +62,6 @@
     el('mReload').addEventListener('click', load);
     el('mLogout').addEventListener('click', logout);
     el('mDate').addEventListener('change', load);
-    el('mStaff').addEventListener('change', load);
     el('mSearch').addEventListener('input', debounce(load, 250));
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -86,7 +85,10 @@
   }
 
   function filters() {
-    return { date: el('mDate') && el('mDate').value, deliveryStaffCode: el('mStaff') && el('mStaff').value, q: el('mSearch') && el('mSearch').value };
+    return {
+      date: el('mDate') && el('mDate').value,
+      q: el('mSearch') && el('mSearch').value
+    };
   }
 
   function renderKpis() {

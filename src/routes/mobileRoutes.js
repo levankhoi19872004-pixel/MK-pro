@@ -97,12 +97,15 @@ function buildSafeUser(staff) {
   const role = ['admin', 'manager', 'accountant', 'warehouse', 'sales', 'delivery'].includes(String(staff.role || staff.type || '').trim())
     ? String(staff.role || staff.type).trim()
     : (staff.isDelivery ? 'delivery' : staff.isSalesman ? 'sales' : 'sales');
-  const code = String(staff.code || staff.staffCode || staff.username || staff._id || '').trim();
+  const staffCode = String(staff.staffCode || staff.code || staff.username || '').trim();
+  const fullName = String(staff.fullName || staff.name || staff.username || staffCode).trim();
   return {
-    id: String(staff.id || code || staff._id || '').trim(),
-    code,
-    username: String(staff.username || code || '').trim(),
-    name: String(staff.name || staff.fullName || staff.username || code || '').trim(),
+    id: String(staff.id || staff._id || staffCode).trim(),
+    code: staffCode,
+    staffCode,
+    username: String(staff.username || staffCode).trim(),
+    name: fullName,
+    fullName,
     role,
     roleLabel: ROLE_LABELS[role] || role
   };
@@ -144,7 +147,11 @@ function createCanonicalDeliveryEngine() {
 // nhưng toàn bộ business logic đi qua DeliveryEngine giống /api/delivery/*.
 router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
-    const result = await createCanonicalDeliveryEngine().listOrders({ ...(req.query || {}), deliveryStaffCode: req.query.deliveryStaffCode || req.mobileUser?.code });
+    const mobileUser = req.mobileUser || {};
+    const boundQuery = mobileUser.role === 'delivery'
+      ? { ...(req.query || {}), deliveryStaffCode: mobileUser.staffCode || mobileUser.code, deliveryStaffName: mobileUser.fullName || mobileUser.name }
+      : { ...(req.query || {}) };
+    const result = await createCanonicalDeliveryEngine().listOrders(boundQuery);
     return ok(res, { source: 'delivery-engine-mobile-bridge', orders: result.rows, rows: result.rows, items: result.rows, total: result.rows.length, summary: result.summary, reconciliation: result.reconciliation });
   } catch (err) {
     return fail(res, err.status || 500, err.message || 'Không tải được đơn giao hàng mobile');
@@ -153,7 +160,11 @@ router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery'
 
 router.get('/delivery/returns', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
-    const result = await createCanonicalDeliveryEngine().listReturns(req.query || {});
+    const mobileUser = req.mobileUser || {};
+    const boundQuery = mobileUser.role === 'delivery'
+      ? { ...(req.query || {}), deliveryStaffCode: mobileUser.staffCode || mobileUser.code, deliveryStaffName: mobileUser.fullName || mobileUser.name }
+      : { ...(req.query || {}) };
+    const result = await createCanonicalDeliveryEngine().listReturns(boundQuery);
     return ok(res, { source: 'returnOrders', returns: result.rows, returnOrders: result.rows, rows: result.rows, total: result.rows.length, summary: result.summary });
   } catch (err) {
     return fail(res, err.status || 500, err.message || 'Không tải được hàng trả mobile');
@@ -167,8 +178,8 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
       orderId: req.body?.orderId || req.body?.salesOrderId || req.body?.orderCode || req.body?.salesOrderCode,
       salesOrderId: req.body?.salesOrderId || req.body?.orderId,
       salesOrderCode: req.body?.salesOrderCode || req.body?.orderCode,
-      deliveryStaffCode: req.body?.deliveryStaffCode || req.mobileUser?.code,
-      deliveryStaffName: req.body?.deliveryStaffName || req.mobileUser?.name,
+      deliveryStaffCode: req.mobileUser?.role === 'delivery' ? (req.mobileUser?.staffCode || req.mobileUser?.code) : (req.body?.deliveryStaffCode || req.mobileUser?.staffCode || req.mobileUser?.code),
+      deliveryStaffName: req.mobileUser?.role === 'delivery' ? (req.mobileUser?.fullName || req.mobileUser?.name) : (req.body?.deliveryStaffName || req.mobileUser?.fullName || req.mobileUser?.name),
       source: 'mobile_delivery_engine_bridge'
     });
     const rows = result.rows || result.returns || result.returnOrders || [];
@@ -180,7 +191,11 @@ router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery
 
 router.post('/delivery/payment', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
-    const result = await createCanonicalDeliveryEngine().savePayment(req.body || {});
+    const mobileUser = req.mobileUser || {};
+    const body = mobileUser.role === 'delivery'
+      ? { ...(req.body || {}), deliveryStaffCode: mobileUser.staffCode || mobileUser.code, deliveryStaffName: mobileUser.fullName || mobileUser.name, staffCode: mobileUser.staffCode || mobileUser.code, staffName: mobileUser.fullName || mobileUser.name }
+      : { ...(req.body || {}) };
+    const result = await createCanonicalDeliveryEngine().savePayment(body);
     return ok(res, { source: 'delivery-engine-mobile-bridge', message: result.message, order: result.order, allocation: result.allocation });
   } catch (err) {
     return fail(res, err.status || 500, err.message || 'Không lưu được tiền thu app giao hàng');
@@ -189,7 +204,11 @@ router.post('/delivery/payment', requireMobileLogin, requireMobileRole(['deliver
 
 router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
   try {
-    const result = await createCanonicalDeliveryEngine().confirm(req.body || {});
+    const mobileUser = req.mobileUser || {};
+    const body = mobileUser.role === 'delivery'
+      ? { ...(req.body || {}), deliveryStaffCode: mobileUser.staffCode || mobileUser.code, deliveryStaffName: mobileUser.fullName || mobileUser.name, staffCode: mobileUser.staffCode || mobileUser.code, staffName: mobileUser.fullName || mobileUser.name }
+      : { ...(req.body || {}) };
+    const result = await createCanonicalDeliveryEngine().confirm(body);
     return ok(res, { source: 'delivery-engine-mobile-bridge', message: result.message, order: result.order });
   } catch (err) {
     return fail(res, err.status || 500, err.message || 'Không cập nhật được giao hàng mobile');
@@ -1172,6 +1191,9 @@ router.post('/login', async (req, res) => {
     }
 
     const user = buildSafeUser(staff);
+    if (user.role === 'delivery' && !user.staffCode) {
+      return fail(res, 400, 'Tài khoản giao hàng chưa được gán mã nhân viên giao hàng');
+    }
     return ok(res, {
       source: 'mobile-users-auth-route',
       token: signToken(user),
