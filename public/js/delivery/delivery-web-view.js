@@ -9,6 +9,13 @@
   }
   function num(value) { return window.DeliveryCore ? window.DeliveryCore.toNumber(value) : Number(value || 0); }
   function money(value) { return window.DeliveryCore ? window.DeliveryCore.money(value) : String(Math.round(Number(value || 0))); }
+  function normalizeDebtAmount(value) {
+    if (window.DeliveryCore && typeof window.DeliveryCore.normalizeDebtAmount === 'function') {
+      return window.DeliveryCore.normalizeDebtAmount(value);
+    }
+    var n = Math.round(num(value));
+    return Math.abs(n) <= 1000 ? 0 : n;
+  }
   function baseAmount(order, key) { return num(order && order.amounts && order.amounts[key]); }
   function returnAmountFromReturnOrders(order) {
     var rows = returnsForOrder(order);
@@ -23,7 +30,7 @@
     if (key === 'debt') {
       var receivable = baseAmount(order, 'receivable');
       var paid = baseAmount(order, 'cash') + baseAmount(order, 'bank') + baseAmount(order, 'reward') + returnAmountFromReturnOrders(order);
-      return Math.max(0, receivable - paid);
+      return normalizeDebtAmount(Math.max(0, receivable - paid));
     }
     if (key === 'processed') return baseAmount(order, 'cash') + baseAmount(order, 'bank') + baseAmount(order, 'reward') + returnAmountFromReturnOrders(order);
     return baseAmount(order, key);
@@ -219,7 +226,7 @@
       if (statusFilter === 'delivered') return isDelivered(order);
       if (statusFilter === 'pending') return !isDelivered(order);
       if (statusFilter === 'return') return amount(order, 'returnAmount') > 0;
-      if (statusFilter === 'debt') return amount(order, 'debt') > 0;
+      if (statusFilter === 'debt') return normalizeDebtAmount(amount(order, 'debt')) > 0;
       return true;
     });
   }
@@ -239,7 +246,7 @@
       acc.bank += amount(order, 'bank');
       acc.reward += amount(order, 'reward');
       acc.returnAmount += amount(order, 'returnAmount');
-      acc.debt += amount(order, 'debt');
+      acc.debt += normalizeDebtAmount(amount(order, 'debt'));
       return acc;
     }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
     if (byId('deliveryKpiReceivable')) byId('deliveryKpiReceivable').textContent = money(sum.receivable);
@@ -278,7 +285,7 @@
   function paymentValueCell(order, key, className) {
     var value = amount(order, key);
     var extraClass = className || '';
-    if (key === 'debt') extraClass += value > 0 ? ' debt-open' : ' debt-done';
+    if (key === 'debt') { value = normalizeDebtAmount(value); extraClass += value > 0 ? ' debt-open' : ' debt-done'; }
     return '<span class="mk-delivery-money ' + esc(extraClass) + '" title="' + esc(money(value)) + '">' + esc(money(value)) + '</span>';
   }
 
@@ -294,7 +301,7 @@
     list.innerHTML = rows.map(function (order) {
       var key = orderKey(order);
       var selected = key === state.selectedKey ? ' selected' : '';
-      var debtValue = amount(order, 'debt');
+      var debtValue = normalizeDebtAmount(amount(order, 'debt'));
       var debtClass = debtValue > 0 ? ' debt-open' : ' debt-done';
       var orderCode = order.orderCode || order.salesOrderCode || order.code || order.id || '';
       var customerLabel = (order.customerName || '') + (order.customerCode ? ' · ' + order.customerCode : '');
@@ -429,8 +436,9 @@
 
   function paymentSummaryHtml(order) {
     var r = (order && order.reconciliation) || {};
-    var cls = r.balanced === false ? ' danger-text' : (amount(order, 'debt') > 0 ? ' danger-text' : ' success-text');
-    var msg = r.message || (amount(order, 'debt') > 0 ? 'Còn công nợ' : 'Đối soát OK');
+    var debtForStatus = normalizeDebtAmount(amount(order, 'debt'));
+    var cls = r.balanced === false ? ' danger-text' : (debtForStatus > 0 ? ' danger-text' : ' success-text');
+    var msg = r.message || (debtForStatus > 0 ? 'Còn công nợ' : 'Đối soát OK');
     var returnAmount = returnAmountFromReturnOrders(order);
     return '' +
       '<div class="delivery-v46-payment-summary-tab">' +
@@ -450,7 +458,7 @@
             '<div><span>Chuyển khoản</span><b>' + money(baseAmount(order, 'bank')) + '</b></div>' +
             '<div><span>Trả thưởng</span><b>' + money(baseAmount(order, 'reward')) + '</b></div>' +
             '<div class="returnorders-source"><span>Hàng trả</span><b>' + money(returnAmount) + '</b><small>Nguồn: returnOrders</small></div>' +
-            '<div><span>Còn nợ</span><b>' + money(amount(order, 'debt')) + '</b></div>' +
+            '<div><span>Còn nợ</span><b>' + money(normalizeDebtAmount(amount(order, 'debt'))) + '</b></div>' +
           '</div>' +
         '</section>' +
       '</div>';

@@ -15,6 +15,13 @@
     catch (err) { return String(Math.round(toNumber(value))); }
   }
 
+  var DEBT_ZERO_TOLERANCE = 1000;
+
+  function normalizeDebtAmount(value) {
+    var n = Math.round(toNumber(value));
+    return Math.abs(n) <= DEBT_ZERO_TOLERANCE ? 0 : n;
+  }
+
   async function readJson(res, fallbackMessage) {
     var contentType = String(res.headers && res.headers.get ? res.headers.get('content-type') || '' : '');
     var raw = await res.text();
@@ -54,7 +61,7 @@
         reward: toNumber(amounts.reward || amounts.rewardAmount || order.rewardAmount || order.bonusAmount),
         returnAmount: toNumber(amounts.returnAmount || order.returnAmount || order.returnedAmount),
         processed: toNumber(amounts.processed || order.processedAmount || order.collectedAmount),
-        debt: toNumber(amounts.debt || amounts.debtAmount || order.debtAmount || order.debt)
+        debt: normalizeDebtAmount(amounts.debt || amounts.debtAmount || order.debtAmount || order.debt)
       },
       status: order.status && typeof order.status === 'object' ? order.status : {
         deliveryStatus: text(order.deliveryStatus || order.status || 'pending'),
@@ -160,6 +167,7 @@
 
     money: money,
     toNumber: toNumber,
+    normalizeDebtAmount: normalizeDebtAmount,
     normalizeOrder: normalizeOrder,
     normalizeItem: normalizeItem,
     normalizeReturnRow: normalizeReturnRow,
@@ -264,7 +272,7 @@
       order = normalizeOrder(order);
       var amounts = order.amounts || {};
       var processed = toNumber(amounts.cash) + toNumber(amounts.bank) + toNumber(amounts.reward) + toNumber(amounts.returnAmount);
-      var debt = Math.max(0, toNumber(amounts.receivable) - processed);
+      var debt = normalizeDebtAmount(Math.max(0, toNumber(amounts.receivable) - processed));
       return Object.assign({}, amounts, { processed: processed, debt: debt });
     },
 

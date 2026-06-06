@@ -3,6 +3,7 @@
 const { toNumber, makeId } = require('../utils/common.util');
 const deliveryFinance = require('../utils/deliveryFinance.util');
 const dateUtil = require('../utils/date.util');
+const { normalizeDebtAmount } = require('../constants/finance.constants');
 
 function text(value) { return String(value == null ? '' : value).trim(); }
 function lower(value) { return text(value).toLowerCase(); }
@@ -353,12 +354,12 @@ function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
       reward: toNumber(amounts.reward ?? amounts.rewardAmount),
       returnAmount: toNumber(amounts.returnAmount),
       processed: toNumber(amounts.processed),
-      debt: toNumber(amounts.debt ?? amounts.debtAmount)
+      debt: normalizeDebtAmount(amounts.debt ?? amounts.debtAmount)
     },
     reconciliation: buildOrderReconciliation(amounts),
     status: {
       deliveryStatus: text(order.deliveryStatus || order.status || 'pending'),
-      paymentStatus: (amounts.debt || 0) <= 0 ? 'paid' : ((amounts.processed || 0) > 0 ? 'partial' : 'unpaid'),
+      paymentStatus: normalizeDebtAmount(amounts.debt ?? amounts.debtAmount) <= 0 ? 'paid' : ((amounts.processed || 0) > 0 ? 'partial' : 'unpaid'),
       returnStatus: (amounts.returnAmount || 0) > 0 ? 'has_return' : 'none',
       accountingStatus: text(order.accountingStatus || '')
     }
@@ -371,7 +372,7 @@ function buildOrderReconciliation(amounts = {}) {
   const bank = toNumber(amounts.bank ?? amounts.bankAmount);
   const reward = toNumber(amounts.reward ?? amounts.rewardAmount);
   const returnAmount = toNumber(amounts.returnAmount);
-  const debt = toNumber(amounts.debt ?? amounts.debtAmount);
+  const debt = normalizeDebtAmount(amounts.debt ?? amounts.debtAmount);
   const processed = cash + bank + reward + returnAmount + debt;
   const difference = Math.round(receivable - processed);
   return {
@@ -396,7 +397,7 @@ function summarizeOrders(rows = []) {
     acc.bank += toNumber(a.bank);
     acc.reward += toNumber(a.reward);
     acc.returnAmount += toNumber(a.returnAmount);
-    acc.debt += toNumber(a.debt);
+    acc.debt += normalizeDebtAmount(a.debt);
     return acc;
   }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
 }
@@ -427,7 +428,7 @@ function applyDeliveryStatusFilter(rows = [], query = {}) {
   }
 
   if (['debt', 'cong no', 'công nợ'].includes(statusFilter)) {
-    return rows.filter((row) => toNumber(row.amounts && row.amounts.debt) > 0 || toNumber(row.debtAmount || row.debt) > 0);
+    return rows.filter((row) => normalizeDebtAmount((row.amounts && row.amounts.debt) ?? row.debtAmount ?? row.debt) > 0);
   }
 
   return rows;
