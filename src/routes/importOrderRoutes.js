@@ -9,5 +9,6 @@ router.get('/', importOrderController.list);
 router.post('/', importOrderController.create);
 router.put('/:id', importOrderController.update);
 router.post('/:id/post', importOrderController.post);
+router.post('/:id/cancel', importOrderController.cancel);
 
 module.exports = router;

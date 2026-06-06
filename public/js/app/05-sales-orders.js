@@ -362,12 +362,14 @@ async function openImportOrderDetail(idx){
 }
 window.openImportOrderDetail=openImportOrderDetail;
 function getImportItemWarehouse(item, order){
-  const code=String(item?.warehouseCode||item?.warehouse||order?.warehouseCode||order?.warehouse||'KHO_HC').trim()||'KHO_HC';
-  return {code,name:String(item?.warehouseName||order?.warehouseName||(code==='KHO_PC'?'KHO PC':'KHO HC')).trim()};
+  const product = findProductByKey(item?.productCode || item?.productId || '');
+  const rawCode = String(item?.warehouseCode || item?.warehouse || order?.warehouseCode || order?.warehouse || product?.defaultWarehouse || product?.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
+  const code = rawCode === 'KHO_PC' ? 'KHO_PC' : 'KHO_HC';
+  return {code,name:String(item?.warehouseName||order?.warehouseName||product?.warehouseName||(code==='KHO_PC'?'KHO PC':'KHO HC')).trim()};
 }
 function printSelectedImportOrders(){
   const checks=[...document.querySelectorAll('.import-order-check:checked')];
-  const orders=checks.map(ch=>window.__importOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+  const orders=checks.map(ch=>window.__importOrdersCache?.[Number(ch.dataset.idx)]).filter(isActiveDocument);
   if(!orders.length){alert('Chưa chọn phiếu nhập để in gộp');return}
   const groups=new Map();
   orders.forEach(o=>{
@@ -410,6 +412,19 @@ async function postImportOrder(idx){
 }
 window.postImportOrder=postImportOrder;
 
+async function cancelImportOrder(idx){
+  const order=window.__importOrdersCache?.[idx];if(!order)return;
+  if(String(order.status||'draft').toLowerCase()==='posted'){alert('Phiếu đã nhập kho, không được huỷ');return}
+  if(!confirm(`Huỷ phiếu nhập ${order.code||order.id}? Phiếu nháp sẽ không được cộng tồn kho.`))return;
+  try{
+    const res=await fetch(`/api/import-orders/${encodeURIComponent(order.id||order.code)}/cancel`,{method:'POST',headers:{'Content-Type':'application/json','X-User-Role':'admin'}});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không huỷ được phiếu nhập');
+    alert(json.message||'Đã huỷ phiếu nhập');
+    await loadImportOrders();
+  }catch(err){alert(err.message)}
+}
+window.cancelImportOrder=cancelImportOrder;
+
 async function loadImportOrders(){
   try{
     const res=await fetch('/api/import-orders?excludeInactive=1');const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
@@ -417,7 +432,7 @@ async function loadImportOrders(){
     if(!orders.length){importOrderList.innerHTML='Chưa có phiếu nhập nào.';return}
     window.__importOrdersCache=orders;
     importOrderList.innerHTML=`<div class="bulk-actions"><button class="secondary small" onclick="printSelectedImportOrders()">In gộp phiếu đã chọn</button></div>`+orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';return `<div class="order-card">
-      <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong> <span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span></label><div><button class="small" onclick="openImportOrderDetail(${idx})">Xem đơn nhập</button> ${posted?'':`<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button>`}</div></div>
+      <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong> <span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span></label><div>${posted?'<span class="status-badge ok">Đã nhập kho</span>':`<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ đơn</button>`}</div></div>
       <div class="order-meta">Ngày nhập: ${o.date||''} · Nhà cung cấp: ${o.supplier||'Chưa khai báo'} · Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</div>
       ${o.note?`<div class="order-meta">Ghi chú: ${o.note}</div>`:''}
       <div data-import-detail="${idx}"></div>

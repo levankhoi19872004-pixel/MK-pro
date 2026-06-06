@@ -41,4 +41,14 @@ async function post(req, res) {
   }
 }
 
-module.exports = { list, create, update, post };
+async function cancel(req, res) {
+  try {
+    const result = await importOrderService.cancelImportOrder(req.params.id, req.user || req.headers || {});
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    res.json({ ok: true, source: 'mongo-route', message: `Đã huỷ phiếu nhập ${result.importOrder.code}`, importOrder: result.importOrder });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không huỷ được phiếu nhập' });
+  }
+}
+
+module.exports = { list, create, update, post, cancel };

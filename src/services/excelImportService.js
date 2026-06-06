@@ -963,8 +963,8 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
       const quantity = getQtyFromRow(row);
-      const costPrice = getCostFromRow(row);
-      if (!product || quantity <= 0 || costPrice < 0) {
+      const costPrice = toNumber(product?.costPrice || 0);
+      if (!product || quantity <= 0) {
         skipped += 1;
         errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Dòng nhập kho không hợp lệ' });
         continue;
@@ -2060,13 +2060,12 @@ async function previewMongoNative(type, rows = []) {
         const productCode = getProductCodeFromRow(row);
         const product = productMap.get(cleanText(productCode));
         const quantity = getQtyFromRow(row);
-        const costPrice = getCostFromRow(row);
+        const costPrice = toNumber(product?.costPrice || 0);
         const amount = quantity * costPrice;
         const lineErrors = [];
         if (!productCode) lineErrors.push('Thiếu mã sản phẩm');
         if (!product) lineErrors.push('Không tìm thấy sản phẩm');
         if (quantity <= 0) lineErrors.push('Số lượng nhập phải lớn hơn 0');
-        if (costPrice < 0) lineErrors.push('Giá nhập không được âm');
         if (lineErrors.length) detailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, productName: product?.name || '', errors: lineErrors });
 
         totalQuantity += Math.max(0, quantity);

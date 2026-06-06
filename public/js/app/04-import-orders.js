@@ -30,11 +30,14 @@ function renderImportItems(){
 window.removeImportItem=index=>{importItems.splice(index,1);renderImportItems()};
 function addImportItem(){
   const p=findProductByKey(importProductSelect.value);if(!p){showMessage(importMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
-  const quantity=Number(importQuantity.value||0);const costPrice=Number(importCostPrice.value||0);
+  const quantity=Number(importQuantity.value||0);const costPrice=Number(p.costPrice||0);
+  if(importCostPrice)importCostPrice.value=costPrice;
   if(quantity<=0){showMessage(importMessage,'Số lượng nhập phải lớn hơn 0',true);return}
-  if(costPrice<0){showMessage(importMessage,'Giá nhập không được âm',true);return}
-  const existed=importItems.find(i=>i.productCode===p.code&&i.costPrice===costPrice);
-  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.costPrice}else importItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,costPrice,amount:quantity*costPrice});
+  const meta=productLineMeta(p);
+  const warehouseCode=meta.warehouseCode||p.defaultWarehouse||p.warehouseCode||'KHO_HC';
+  const warehouseName=meta.warehouseName||(warehouseCode==='KHO_PC'?'KHO PC':'KHO HC');
+  const existed=importItems.find(i=>i.productCode===p.code&&i.costPrice===costPrice&&String(i.warehouseCode||'KHO_HC')===String(warehouseCode));
+  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.costPrice}else importItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...meta,warehouseCode,warehouseName,quantity,costPrice,amount:quantity*costPrice});
   importQuantity.value=1;importProductSelect.value='';if(importProductSearch){importProductSearch.value='';importProductSearch.dataset.selectedId='';}showMessage(importMessage,'');renderImportItems();
 }
 function resetImportFormAfterSave(){
@@ -76,7 +79,7 @@ async function submitImportOrder(event){
   event.preventDefault();
   if(!importItems.length){showMessage(importMessage,'Phiếu nhập chưa có dòng hàng',true);return}
   const payload=Object.fromEntries(new FormData(importForm).entries());
-  payload.items=importItems.map(i=>({productCode:i.productCode,quantity:i.quantity,costPrice:i.costPrice}));
+  payload.items=importItems.map(i=>({productCode:i.productCode,quantity:i.quantity,warehouseCode:i.warehouseCode,warehouseName:i.warehouseName}));
   try{
     const url=editingImportOrderId?`/api/import-orders/${encodeURIComponent(editingImportOrderId)}`:'/api/import-orders';
     const method=editingImportOrderId?'PUT':'POST';

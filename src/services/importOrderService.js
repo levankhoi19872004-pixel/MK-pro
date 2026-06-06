@@ -60,7 +60,7 @@ async function hydrateItems(rawItems = []) {
       const productKey = String(raw.productCode || raw.code || raw.productId || raw.sku || '').trim();
       const product = byCode.get(productKey);
       const quantity = toNumber(raw.quantity ?? raw.qty ?? raw.totalQty);
-      const costPrice = toNumber(raw.costPrice ?? raw.price ?? raw.unitPrice ?? product?.costPrice ?? 0);
+      const costPrice = toNumber(product?.costPrice || 0);
       const productCode = String(raw.productCode || raw.code || product?.code || productKey).trim();
       return {
         ...raw,
@@ -73,7 +73,7 @@ async function hydrateItems(rawItems = []) {
         quantity,
         qty: quantity,
         costPrice,
-        amount: toNumber(raw.amount ?? quantity * costPrice),
+        amount: quantity * costPrice,
         warehouseCode: String(raw.warehouseCode || raw.warehouse || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
         warehouseName: String(raw.warehouseName || product?.warehouseName || ((String(raw.warehouseCode || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim()
       };
@@ -171,4 +171,25 @@ async function postImportOrder(id, actor = {}) {
   return { importOrder: toClient(posted) };
 }
 
-module.exports = { listImportOrders, createImportOrder, updateImportOrder, postImportOrder, toClient };
+async function cancelImportOrder(id, actor = {}) {
+  const current = await importOrderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy phiếu nhập', status: 404 };
+  const status = String(current.status || 'draft').toLowerCase();
+  if (status === 'posted') {
+    return { error: 'Phiếu đã nhập kho, không được huỷ để tránh lệch tồn kho', status: 409 };
+  }
+  if (status === 'cancelled' || status === 'canceled') {
+    return { error: 'Phiếu nhập đã huỷ trước đó', status: 409 };
+  }
+  const cancelled = {
+    ...current,
+    status: 'cancelled',
+    cancelledAt: dateUtil.nowIso(),
+    cancelledBy: String(actor.username || actor.name || actor.id || 'admin').trim(),
+    updatedAt: dateUtil.nowIso()
+  };
+  await importOrderRepository.upsert(cancelled);
+  return { importOrder: toClient(cancelled) };
+}
+
+module.exports = { listImportOrders, createImportOrder, updateImportOrder, postImportOrder, cancelImportOrder, toClient };

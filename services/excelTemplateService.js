@@ -42,13 +42,13 @@ const TEMPLATE_DEFINITIONS = {
   importOrders: {
     title: 'Mẫu import phiếu nhập kho',
     fileName: 'mau-import-phieu-nhap-kho.xlsx',
-    columns: ['documentCode', 'date', 'supplier', 'productCode', 'quantity', 'costPrice', 'note'],
-    headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Số lượng', 'Giá nhập', 'Ghi chú'],
+    columns: ['documentCode', 'date', 'supplier', 'productCode', 'quantity', 'warehouseCode', 'note'],
+    headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Số lượng', 'Kho', 'Ghi chú'],
     sample: [
-      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 50, 145000, 'Nhập theo hóa đơn'],
-      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 30, 115000, 'Cùng phiếu nhập']
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 50, 'KHO_HC', 'Nhập theo hóa đơn'],
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 30, 'KHO_PC', 'Cùng phiếu nhập']
     ],
-    notes: ['Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.', 'Mã sản phẩm sẽ tự tạo nếu chưa tồn tại trong danh mục.', 'Định dạng ngày chuẩn: DD/MM/YYYY (ví dụ 26/05/2026).']
+    notes: ['Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.', 'Giá nhập tự lấy từ trường giá nhập đã lưu trong danh mục sản phẩm.', 'Định dạng ngày chuẩn: DD/MM/YYYY (ví dụ 26/05/2026).']
   },
   salesOrders: {
     title: 'Mẫu import đơn con DMS Unilever',
