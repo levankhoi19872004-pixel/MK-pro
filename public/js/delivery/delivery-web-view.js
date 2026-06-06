@@ -82,15 +82,15 @@
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
           '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
-          '<div class="delivery-fixed-head delivery-fixed-grid">' +
-            '<span class="delivery-v46-grid-check-head"></span>' +
+          '<div class="mk-delivery-list-head mk-delivery-list-grid">' +
+            '<span class="mk-delivery-check-head"></span>' +
             '<span>Đơn / Khách hàng</span>' +
-            '<span class="delivery-v46-money-head">PT</span>' +
-            '<span class="delivery-v46-money-head">TM</span>' +
-            '<span class="delivery-v46-money-head">CK</span>' +
-            '<span class="delivery-v46-money-head">TH</span>' +
-            '<span class="delivery-v46-money-head">HT</span>' +
-            '<span class="delivery-v46-money-head">CN</span>' +
+            '<span>PT</span>' +
+            '<span>TM</span>' +
+            '<span>CK</span>' +
+            '<span>TH</span>' +
+            '<span>HT</span>' +
+            '<span>CN</span>' +
           '</div>' +
           '<div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
         '</section>' +
@@ -279,7 +279,7 @@
     var value = amount(order, key);
     var extraClass = className || '';
     if (key === 'debt') extraClass += value > 0 ? ' debt-open' : ' debt-done';
-    return '<div class="delivery-v46-money-cell ' + esc(extraClass) + '" title="' + esc(money(value)) + '">' + esc(money(value)) + '</div>';
+    return '<span class="mk-delivery-money ' + esc(extraClass) + '" title="' + esc(money(value)) + '">' + esc(money(value)) + '</span>';
   }
 
   function renderList() {
@@ -301,13 +301,13 @@
       var salesStaff = order.salesStaffName || order.salesStaffCode || '';
       var deliveryStaff = order.deliveryStaffName || order.deliveryStaffCode || '';
       return '' +
-        '<button type="button" class="delivery-v46-row delivery-v46-order-card delivery-fixed-grid' + selected + '" data-key="' + esc(key) + '">' +
-          '<div class="delivery-v46-check">' + (selected ? '✓' : '') + '</div>' +
-          '<div class="delivery-v46-order-main">' +
+        '<button type="button" class="mk-delivery-order-row mk-delivery-list-grid' + selected + '" data-key="' + esc(key) + '">' +
+          '<span class="mk-delivery-check">' + (selected ? '✓' : '') + '</span>' +
+          '<span class="mk-delivery-order-main">' +
             '<strong>' + esc(orderCode) + '</strong>' +
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
             '<em>' + esc(statusText(order)) + '</em>' + staffAssignmentBadge(order) +
-          '</div>' +
+          '</span>' +
           paymentValueCell(order, 'receivable', 'cell-pt') +
           paymentValueCell(order, 'cash', 'cell-tm') +
           paymentValueCell(order, 'bank', 'cell-ck') +
