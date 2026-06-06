@@ -698,29 +698,39 @@ class DeliveryEngine {
     let result = null;
     let orders = [];
 
-    // V46 professional rule:
-    // Tab Hàng trả must reload by every possible selected-order key. Older data may have SO id,
-    // HU code, orderCode, or salesOrderCode inconsistently, so never stop at the first key.
+    // V46 single-source rule:
+    // When a selected order asks for returns, read returnOrders directly first.
+    // Do not depend on SalesOrder resolution, date filters, or preloaded list cache.
     if (directKeys.length) {
+      const or = [];
+      for (const rawKey of directKeys) {
+        const key = text(rawKey);
+        const cleanKey = key.replace(/^RO[-_]?/i, '');
+        const roKey = `RO-${cleanKey}`;
+        for (const value of unique([key, cleanKey, roKey])) {
+          or.push(
+            { salesOrderId: value }, { orderId: value }, { salesOrderCode: value }, { orderCode: value },
+            { sourceOrderId: value }, { sourceOrderCode: value }, { deliveryOrderId: value }, { deliveryOrderCode: value },
+            { id: value }, { code: value }
+          );
+        }
+      }
+      const directReturns = or.length ? await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean() : [];
+      if (directReturns.length) {
+        let fallbackOrder = {};
+        for (const key of directKeys) {
+          fallbackOrder = await this.getCanonicalOrderByKey(key) || {};
+          if (fallbackOrder && (fallbackOrder.orderId || fallbackOrder.orderCode)) break;
+        }
+        const directRows = directReturns.flatMap((ro) => flattenReturnOrderRows(ro, fallbackOrder));
+        return { rows: directRows, summary: directRows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
+      }
+
       for (const key of directKeys) {
         const order = await this.getCanonicalOrderByKey(key);
         if (order) { orders = [order]; break; }
       }
       result = { rows: orders };
-
-      // If the order cannot be resolved but the caller supplied a direct key, still read returnOrders
-      // directly from returnOrders. This prevents the Hàng trả tab from showing blank after save.
-      if (!orders.length) {
-        const or = [];
-        for (const key of directKeys) {
-          or.push({ salesOrderId: key }, { orderId: key }, { salesOrderCode: key }, { orderCode: key });
-          or.push({ sourceOrderId: key }, { sourceOrderCode: key }, { deliveryOrderId: key }, { deliveryOrderCode: key });
-          or.push({ id: key }, { code: key }, { id: `RO-${key}` }, { code: `RO-${key}` });
-        }
-        const directReturns = or.length ? await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean() : [];
-        const directRows = directReturns.flatMap((ro) => flattenReturnOrderRows(ro, {}));
-        return { rows: directRows, summary: directRows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
-      }
     } else {
       result = await this.listOrders(query);
       orders = result.rows || [];

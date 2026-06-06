@@ -153,6 +153,25 @@
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
     var rows = returnsForOrder(order);
+    // Safety fallback: /api/delivery/orders already overlays returnItems from returnOrders.
+    // If the direct return list is late or mismatched by legacy key, still show the selected order's official returnItems.
+    if (!rows.length && Array.isArray(order.returnItems) && order.returnItems.length) {
+      rows = order.returnItems.map(function (item) {
+        return Object.assign({}, item, {
+          salesOrderId: order.salesOrderId,
+          salesOrderCode: order.salesOrderCode,
+          orderId: order.orderId,
+          orderCode: order.orderCode,
+          customerCode: order.customerCode,
+          customerName: order.customerName
+        });
+      });
+    }
+    if (!rows.length && amount(order, 'returnAmount') > 0) {
+      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Đơn có tiền hàng trả ' + money(amount(order, 'returnAmount')) + ' nhưng app chưa lấy được dòng sản phẩm. Bấm Tải lại hàng trả để gọi trực tiếp returnOrders.</div><div class="m-action-row"><button id="mReloadReturns" type="button">Tải lại hàng trả</button></div>';
+      el('mReloadReturns').addEventListener('click', loadSelectedReturnsDirect);
+      return;
+    }
     if (!rows.length) {
       body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả.</div><div class="m-action-row"><button id="mGoProducts" type="button">Quay lại sản phẩm</button></div>';
       el('mGoProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
@@ -259,8 +278,12 @@
       await window.DeliveryCore.loadReturns(filters());
       if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
-      render();
-      msg('');
+      if (state.tab === 'returns') {
+        await loadSelectedReturnsDirect();
+      } else {
+        render();
+        msg('');
+      }
     } catch (err) { el('mBody').innerHTML = '<div class="m-empty danger">' + esc(err.message) + '</div>'; msg(err.message, true); }
   }
 
