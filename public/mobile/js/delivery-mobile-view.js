@@ -111,11 +111,39 @@
     };
   }
 
+  function buildOrderKpi(order) {
+    return {
+      pt: amount(order, 'receivable'),
+      tm: amount(order, 'cash'),
+      ck: amount(order, 'bank'),
+      // TH = tiền hàng trả, HT = trả thưởng. Không đảo nhãn giữa return/reward.
+      th: amount(order, 'returnAmount'),
+      ht: amount(order, 'reward'),
+      cn: amount(order, 'debt')
+    };
+  }
+
+  function buildRouteKpi(rows) {
+    return (rows || []).reduce(function (a, o) {
+      a.pt += amount(o, 'receivable');
+      a.tm += amount(o, 'cash');
+      a.ck += amount(o, 'bank');
+      // TH = tiền hàng trả, HT = trả thưởng.
+      a.th += amount(o, 'returnAmount');
+      a.ht += amount(o, 'reward');
+      a.cn += amount(o, 'debt');
+      return a;
+    }, { pt: 0, tm: 0, ck: 0, th: 0, ht: 0, cn: 0 });
+  }
+
+  function shouldUseSelectedOrderKpi() {
+    return !!currentOrder() && ['products', 'returns', 'payment'].indexOf(state.tab) >= 0;
+  }
+
   function renderKpis() {
     var rows = window.DeliveryCore.state.orders || [];
-    var s = rows.reduce(function (a, o) {
-      a.pt += amount(o, 'receivable'); a.tm += amount(o, 'cash'); a.ck += amount(o, 'bank'); a.th += amount(o, 'reward'); a.ht += amount(o, 'returnAmount'); a.cn += amount(o, 'debt'); return a;
-    }, { pt: 0, tm: 0, ck: 0, th: 0, ht: 0, cn: 0 });
+    var selected = currentOrder();
+    var s = shouldUseSelectedOrderKpi() ? buildOrderKpi(selected) : buildRouteKpi(rows);
     if (el('mKpiPt')) el('mKpiPt').textContent = money(s.pt);
     if (el('mKpiTm')) el('mKpiTm').textContent = money(s.tm);
     if (el('mKpiCk')) el('mKpiCk').textContent = money(s.ck);
@@ -147,7 +175,7 @@
       var dotTitle = delivered ? 'Đã giao' : 'Chưa giao';
       return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
         '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i>' + esc(order.customerName || order.customerCode) + '</span></div>' +
-        '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'reward')) + '</span><span>HT ' + money(amount(order, 'returnAmount')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
+        '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'returnAmount')) + '</span><span>HT ' + money(amount(order, 'reward')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
       '</button>';
     }).join('');
     body.querySelectorAll('[data-order-key]').forEach(function (button) { button.addEventListener('click', function () { select(button.getAttribute('data-order-key')); }); });
