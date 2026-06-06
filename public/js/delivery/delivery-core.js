@@ -177,15 +177,10 @@
 
     async loadOrders(filters) {
       filters = Object.assign({}, filters || {});
-      delete filters.deliveryStaffCode;
-      delete filters.deliveryStaffName;
-      delete filters.staffCode;
-      delete filters.staffName;
+      // Web admin cần được lọc theo NVGH/NVBH.
+      // App giao hàng nếu user role=delivery thì backend /api/delivery/* sẽ tự ép NVGH theo token,
+      // nên không cần xóa deliveryStaffCode ở core chung.
       this.state.filters = Object.assign({}, this.state.filters, filters || {});
-      delete this.state.filters.deliveryStaffCode;
-      delete this.state.filters.deliveryStaffName;
-      delete this.state.filters.staffCode;
-      delete this.state.filters.staffName;
       var params = new URLSearchParams();
       Object.keys(this.state.filters).forEach(function (key) {
         var value = DeliveryCore.state.filters[key];

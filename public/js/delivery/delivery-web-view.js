@@ -65,7 +65,7 @@
           '<label>Ngày giao<input id="deliveryCoreDate" type="date"></label>' +
           '<label class="delivery-v46-filter-suggest">NVGH<input id="deliveryCoreDeliveryStaff" autocomplete="off" placeholder="Mã/tên NVGH"><div id="deliveryCoreDeliveryStaffSuggestions" class="delivery-v46-suggest-box"></div></label>' +
           '<label class="delivery-v46-filter-suggest">NVBH<input id="deliveryCoreSalesStaff" autocomplete="off" placeholder="Mã/tên NVBH"><div id="deliveryCoreSalesStaffSuggestions" class="delivery-v46-suggest-box"></div></label>' +
-          '<label>Trạng thái<select id="deliveryCoreStatus"><option value="">Tất cả</option><option value="pending">Chờ giao</option><option value="assigned">Đã gán</option><option value="delivered">Đã giao</option></select></label>' +
+          '<label>Trạng thái<select id="deliveryCoreStatus"><option value="all">Tất cả</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select></label>' +
           '<label>Tìm kiếm<input id="deliveryCoreSearch" placeholder="Mã đơn / khách hàng"></label>' +
           '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
           '<button id="deliveryCoreReconcile" type="button" class="secondary">Đối soát</button>' +
@@ -177,10 +177,42 @@
       date: byId('deliveryCoreDate') && byId('deliveryCoreDate').value,
       deliveryStaffCode: byId('deliveryCoreDeliveryStaff') && byId('deliveryCoreDeliveryStaff').value,
       salesStaffCode: byId('deliveryCoreSalesStaff') && byId('deliveryCoreSalesStaff').value,
-      status: byId('deliveryCoreStatus') && byId('deliveryCoreStatus').value,
+      statusFilter: byId('deliveryCoreStatus') && byId('deliveryCoreStatus').value,
       q: byId('deliveryCoreSearch') && byId('deliveryCoreSearch').value,
       checkStaffAssignment: '1'
     };
+  }
+
+
+  function isDelivered(order) {
+    var st = order && order.status && typeof order.status === 'object' ? order.status : {};
+    var value = String(st.deliveryStatus || order.deliveryStatus || order.status || '').toLowerCase();
+    return ['delivered', 'success', 'done', 'completed'].indexOf(value) >= 0;
+  }
+
+  function orderSearchText(order) {
+    order = order || {};
+    return [
+      order.orderCode, order.salesOrderCode, order.code, order.id,
+      order.customerCode, order.customerName,
+      order.salesStaffCode, order.salesStaffName, order.staffCode, order.staffName,
+      order.deliveryStaffCode, order.deliveryStaffName
+    ].join(' ').toLowerCase();
+  }
+
+  function getVisibleOrders() {
+    var rows = (window.DeliveryCore && window.DeliveryCore.state && window.DeliveryCore.state.orders) || [];
+    var f = filters();
+    var q = String(f.q || '').trim().toLowerCase();
+    var statusFilter = String(f.statusFilter || 'all').trim().toLowerCase();
+    return rows.filter(function (order) {
+      if (q && orderSearchText(order).indexOf(q) < 0) return false;
+      if (statusFilter === 'delivered') return isDelivered(order);
+      if (statusFilter === 'pending') return !isDelivered(order);
+      if (statusFilter === 'return') return amount(order, 'returnAmount') > 0;
+      if (statusFilter === 'debt') return amount(order, 'debt') > 0;
+      return true;
+    });
   }
 
   function message(text, isError) {
@@ -191,7 +223,7 @@
   }
 
   function renderKpis() {
-    var rows = window.DeliveryCore.state.orders || [];
+    var rows = getVisibleOrders();
     var sum = rows.reduce(function (acc, order) {
       acc.receivable += amount(order, 'receivable');
       acc.cash += amount(order, 'cash');
@@ -260,7 +292,7 @@
     renderKpis();
     var list = byId('deliveryCoreList');
     if (!list) return;
-    var rows = window.DeliveryCore.state.orders || [];
+    var rows = getVisibleOrders();
     if (!rows.length) {
       list.innerHTML = '<div class="empty-state">Không có đơn giao theo bộ lọc.</div>';
       return;
