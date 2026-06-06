@@ -174,7 +174,7 @@
       var dotClass = delivered ? 'delivered' : 'pending';
       var dotTitle = delivered ? 'Đã giao' : 'Chưa giao';
       return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
-        '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i>' + esc(order.customerName || order.customerCode) + '</span></div>' +
+        '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span class="m-order-customer"><span class="m-customer-name">' + esc(order.customerName || order.customerCode) + '</span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i></span></div>' +
         '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'returnAmount')) + '</span><span>HT ' + money(amount(order, 'reward')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
       '</button>';
     }).join('');
