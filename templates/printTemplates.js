@@ -19,6 +19,53 @@ function getDmsPayload(data) {
   return data.erpInvoiceV46 || {};
 }
 
+function getDmsHeader(data) {
+  const payload = getDmsPayload(data);
+  const header = payload.header || {};
+  return {
+    invoiceCode: header.invoiceCode || data.document?.invoiceCode || data.document?.code || '',
+    orderCode: header.orderCode || data.document?.customerOrderCode || data.document?.code || '',
+    orderDateTime: header.orderDateTime || data.document?.dateTime || data.document?.date || '',
+    invoiceType: header.invoiceType || data.document?.type || 'Từ NVTT',
+    paymentTerm: header.paymentTerm || data.document?.terms || 'đáo hạn trong 7 ngày',
+    truckNo: header.truckNo || data.document?.vehicleNo || '',
+    taxCode: header.taxCode || data.customer?.taxCode || ''
+  };
+}
+
+function getDmsDistributor(data) {
+  const payload = getDmsPayload(data);
+  const distributor = payload.distributor || {};
+  return {
+    code: distributor.code || data.company?.code || '3293',
+    name: distributor.name || data.company?.name || 'Công Ty TNHH MTV Minh Khai',
+    phone: distributor.phone || data.company?.phone || '',
+    address: distributor.address || data.company?.address || ''
+  };
+}
+
+function getDmsCustomer(data) {
+  const payload = getDmsPayload(data);
+  const customer = payload.customer || {};
+  return {
+    customerCode: customer.customerCode || data.customer?.code || '',
+    customerName: customer.customerName || data.customer?.name || '',
+    phone: customer.phone || data.customer?.phone || '',
+    deliveryAddress: customer.deliveryAddress || data.customer?.address || '',
+    taxCode: customer.taxCode || data.customer?.taxCode || ''
+  };
+}
+
+function getDmsSalesStaff(data) {
+  const payload = getDmsPayload(data);
+  const staff = payload.salesStaff || {};
+  return {
+    staffCode: staff.staffCode || data.staff?.code || '',
+    staffName: staff.staffName || data.staff?.name || '',
+    phone: staff.phone || data.staff?.phone || ''
+  };
+}
+
 function getDmsItems(data) {
   const payload = getDmsPayload(data);
   if (Array.isArray(payload.items) && payload.items.length) return payload.items;
@@ -64,7 +111,13 @@ function getDmsOffsets(data) {
 
 function getDmsSummary(data) {
   const payload = getDmsPayload(data);
-  return payload.summary || data.totals || {};
+  const summary = payload.summary || {};
+  return {
+    ...(data.totals || {}),
+    ...summary,
+    totalVatAmount: summary.totalVatAmount || data.totals?.tax || 0,
+    amountInWords: summary.amountInWords || data.totals?.totalAmountText || ''
+  };
 }
 
 function getDmsPagination(data) {
@@ -73,7 +126,7 @@ function getDmsPagination(data) {
   const promotions = getDmsPromotions(data);
   const offsets = getDmsOffsets(data);
   const items = getDmsItems(data);
-  const pagesPerCopy = pagination.pagesPerCopy || ((offsets.length || promotions.length > 4 || items.length > 12) ? 2 : 1);
+  const pagesPerCopy = pagination.pagesPerCopy || ((offsets.length || promotions.length > 4 || items.length > 18) ? 2 : 1);
   return {
     pagesPerCopy,
     copies: pagination.copies || ['Liên 1', 'Liên 2'],
@@ -84,6 +137,19 @@ function getDmsPagination(data) {
 function formatPercent(value) {
   const n = Number(String(value || 0).replace(',', '.')) || 0;
   return n ? n.toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+}
+
+function normalizeCopyLabel(copyLabel) {
+  const raw = String(copyLabel || 'Liên 1').replace(/[()]/g, '').trim();
+  return `(${raw})`;
+}
+
+function formatDmsPage(pageNo, pageCount) {
+  return `${pageNo}/ ${pageCount}`;
+}
+
+function dmsMoney(data, value) {
+  return money(data, value || 0);
 }
 
 function renderDmsPromotionHeaderOnly() {
@@ -482,12 +548,12 @@ function renderDmsInvoiceItemsTable(data) {
         <tr>
           <th style="width:4%">STT</th>
           <th style="width:8%">Mã hàng</th>
-          <th style="width:37%">Tên sản phẩm</th>
+          <th style="width:36%">Tên sản phẩm</th>
           <th style="width:7%">Số lượng<br/>(CS/SU)</th>
           <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
-          <th style="width:7%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
           <th style="width:10%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
-          <th style="width:7%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
           <th style="width:7%">Thuế<br/>GTGT</th>
           <th style="width:10%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
         </tr>
@@ -499,10 +565,10 @@ function renderDmsInvoiceItemsTable(data) {
         ${rows}
         <tr class="dms-total-row">
           <td colspan="4" class="center strong">Tổng cộng (A)</td>
-          <td class="right strong">${money(data, summary.totalQty)}</td>
+          <td class="right strong">${dmsMoney(data, summary.totalQty)}</td>
           <td></td><td></td><td></td>
-          <td class="right strong">${money(data, summary.totalVatAmount || data.totals.tax)}</td>
-          <td class="right strong">${money(data, summary.goodsAmountAfterPromotion)}</td>
+          <td class="right strong">${dmsMoney(data, summary.totalVatAmount ?? data.totals?.tax)}</td>
+          <td class="right strong">${dmsMoney(data, summary.goodsAmountAfterPromotion)}</td>
         </tr>
       </tbody>
     </table>`;
@@ -511,16 +577,17 @@ function renderDmsInvoiceItemsTable(data) {
 function renderDmsPromotionTable(data) {
   const promotions = getDmsPromotions(data);
   const summary = getDmsSummary(data);
-  if (!promotions.length) return '';
-  const rows = promotions.map((promo) => `
-    <tr>
-      <td class="mono">${text(promo.promotionCode)}</td>
-      <td>${text(promo.description)}</td>
-      <td class="right">${money(data, promo.qualifiedAmount)}</td>
-      <td class="right">${formatPercent(promo.discountPercent)}</td>
-      <td class="right">${money(data, promo.discountBeforeTax)}</td>
-      <td class="right strong">${money(data, promo.discountAfterTax)}</td>
-    </tr>`).join('');
+  const rows = promotions.length
+    ? promotions.map((promo) => `
+      <tr>
+        <td class="mono">${text(promo.promotionCode)}</td>
+        <td>${text(promo.description)}</td>
+        <td class="right">${dmsMoney(data, promo.qualifiedAmount)}</td>
+        <td class="right">${formatPercent(promo.discountPercent)}</td>
+        <td class="right">${dmsMoney(data, promo.discountBeforeTax)}</td>
+        <td class="right strong">${dmsMoney(data, promo.discountAfterTax)}</td>
+      </tr>`).join('')
+    : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
   return `
     <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
     <table class="dms-detail-table dms-promotion-table">
@@ -536,7 +603,7 @@ function renderDmsPromotionTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị khuyến mãi tiền (C)</td><td class="right strong">${money(data, summary.totalPromotionAmount || summary.promotionAmount || data.totals.promotionValue)}</td></tr>
+        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị khuyến mãi tiền (C)</td><td class="right strong">${dmsMoney(data, summary.totalPromotionAmount ?? summary.promotionAmount ?? data.totals?.promotionValue)}</td></tr>
       </tbody>
     </table>`;
 }
@@ -544,16 +611,19 @@ function renderDmsPromotionTable(data) {
 function renderDmsRewardTable(data) {
   const offsets = getDmsOffsets(data);
   const summary = getDmsSummary(data);
-  if (!offsets.length) return '';
-  const rows = offsets.map((row) => `
-    <tr>
-      <td class="mono">${text(row.programCode)}</td>
-      <td>${text(row.description)}</td>
-      <td class="center">${text(row.displayMonth || row.month)}</td>
-      <td class="right">${row.goodsAmount ? money(data, row.goodsAmount) : ''}</td>
-      <td class="center">${text(row.quantityText)}</td>
-      <td class="right strong">${money(data, row.offsetAmount)}</td>
-    </tr>`).join('');
+  const totalOffset = Number(summary.totalOffsetAmount ?? summary.displayRewardOffset ?? data.totals?.displayRewardTotal ?? 0) || 0;
+  if (!offsets.length && !totalOffset) return '';
+  const rows = offsets.length
+    ? offsets.map((row) => `
+      <tr>
+        <td class="mono">${text(row.programCode)}</td>
+        <td>${text(row.description)}</td>
+        <td class="center">${text(row.displayMonth || row.month)}</td>
+        <td class="right">${row.goodsAmount ? dmsMoney(data, row.goodsAmount) : ''}</td>
+        <td class="center">${text(row.quantityText)}</td>
+        <td class="right strong">${dmsMoney(data, row.offsetAmount)}</td>
+      </tr>`).join('')
+    : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
   return `
     <div class="dms-section-title">CHI TIẾT CẤN TRỪ NỢ:(D+E)</div>
     <table class="dms-detail-table dms-reward-table">
@@ -569,36 +639,40 @@ function renderDmsRewardTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right strong">${money(data, summary.totalOffsetAmount || summary.displayRewardOffset || data.totals.displayRewardTotal)}</td></tr>
+        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right strong">${dmsMoney(data, totalOffset)}</td></tr>
       </tbody>
     </table>`;
 }
 
 function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
+  const header = getDmsHeader(data);
+  const distributor = getDmsDistributor(data);
+  const customer = getDmsCustomer(data);
+  const staff = getDmsSalesStaff(data);
   return `
     <div class="dms-document-top">
       <div class="dms-left">
-        <div><b>Số hóa đơn:</b> ${text(data.document.invoiceCode || data.document.code)}</div>
-        <div><b>Số đơn hàng:</b> ${text(data.document.customerOrderCode || data.document.code)}</div>
-        <div><b>NVBH:</b> ${text(data.staff.code)} - ${text(data.staff.name)}${data.staff.phone ? ` - ${text(data.staff.phone)}` : ''}</div>
-        <div><b>Khách hàng - Điện thoại:</b> ${text(data.customer.code)} - ${text(data.customer.name)} - ${text(data.customer.phone)}</div>
-        <div><b>Địa chỉ giao hàng:</b> ${text(data.customer.address)}</div>
-        <div><b>Điều khoản thanh toán:</b> ${text(data.document.terms)}</div>
-        <div><b>MST:</b> ${text(data.customer.taxCode)}</div>
+        <div><b>Số hóa đơn:</b> ${text(header.invoiceCode)}</div>
+        <div><b>Số đơn hàng:</b> ${text(header.orderCode)}</div>
+        <div><b>NVBH:</b> ${text(staff.staffCode)}${staff.staffName ? ` - ${text(staff.staffName)}` : ''}${staff.phone ? ` - ${text(staff.phone)}` : ''}</div>
+        <div><b>Khách hàng - Điện thoại:</b> ${text(customer.customerCode)}${customer.customerName ? ` - ${text(customer.customerName)}` : ''}${customer.phone ? ` - ${text(customer.phone)}` : ''}</div>
+        <div><b>Địa chỉ giao hàng:</b> ${text(customer.deliveryAddress)}</div>
+        <div><b>Điều khoản thanh toán:</b> ${text(header.paymentTerm)}</div>
+        <div><b>MST:</b> ${text(header.taxCode || customer.taxCode)}</div>
       </div>
       <div class="dms-title-block">
         <h1>PHIẾU GIAO NHẬN VÀ THANH TOÁN</h1>
-        <div><b>Loại hóa đơn:</b> ${text(data.document.type || 'Từ NVTT')}</div>
+        <div><b>Loại hóa đơn:</b> ${text(header.invoiceType)}</div>
       </div>
       <div class="dms-right">
-        <div><b>Số xe tải:</b> ${text(data.document.vehicleNo)}</div>
-        <div class="dms-copy"><b>${text(copyLabel)}</b></div>
-        <div><b>Trang:</b> ${pageNo} / ${pageCount}</div>
-        <br/>
-        <div><b>Thời gian đặt hàng:</b> ${text(data.document.dateTime)}</div>
-        <div><b>Nhà phân phối:</b> ${text(data.company.code || '3293')} - ${text(data.company.name || 'Công Ty TNHH MTV Minh Khai')}</div>
-        <div><b>Địa chỉ:</b> ${text(data.company.address)}</div>
-        <div><b>Điện thoại:</b> ${text(data.company.phone)}</div>
+        <div><b>Số xe tải:</b> ${text(header.truckNo)}</div>
+        <div class="dms-copy"><b>${text(normalizeCopyLabel(copyLabel))}</b></div>
+        <div><b>Trang:</b> ${formatDmsPage(pageNo, pageCount)}</div>
+        <div class="dms-header-spacer"></div>
+        <div><b>Thời gian đặt hàng:</b> ${text(header.orderDateTime)}</div>
+        <div><b>Nhà phân phối:</b> ${text(distributor.code)} - ${text(distributor.name)}</div>
+        <div><b>Địa chỉ:</b> ${text(distributor.address)}</div>
+        <div><b>Điện thoại:</b> ${text(distributor.phone)}</div>
       </div>
     </div>`;
 }
@@ -610,12 +684,12 @@ function dmsDeliveryInvoiceTemplate(data) {
       <div class="dms-summary-grid">
         <div class="dms-amount-words"><b>Số tiền viết bằng chữ :</b> ${text(summary.amountInWords || data.totals.totalAmountText)}</div>
         <div class="dms-calculation-box">
-          <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${money(data, summary.payableAmount || data.totals.payable || data.totals.totalAmount)}</b></div>
-          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><b>${money(data, summary.grossAmountBeforePromotion || data.totals.goodsAmount)}</b></div>
-          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><b>${money(data, summary.totalPromotionAmount || data.totals.promotionValue)}</b></div>
-          <div><span>Cấn trừ tiền (D+E+H):</span><b>${money(data, summary.totalOffsetAmount || data.totals.displayRewardTotal)}</b></div>
-          <div><span>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</span><b>${money(data, summary.nppDiscountAmount)}</b></div>
-          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><b>${formatPercent(summary.promotionRate || data.totals.promotionRate)}%</b></div>
+          <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${dmsMoney(data, summary.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount)}</b></div>
+          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><b>${dmsMoney(data, summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount)}</b></div>
+          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><b>${dmsMoney(data, summary.totalPromotionAmount ?? data.totals?.promotionValue)}</b></div>
+          <div><span>Cấn trừ tiền (D+E+H):</span><b>${dmsMoney(data, summary.totalOffsetAmount ?? data.totals?.displayRewardTotal)}</b></div>
+          <div><span>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</span><b>${dmsMoney(data, summary.nppDiscountAmount)}</b></div>
+          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><b>${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</b></div>
         </div>
       </div>
       <div class="dms-signature">
@@ -628,7 +702,7 @@ function dmsDeliveryInvoiceTemplate(data) {
   const renderCopy = (copyLabel) => {
     if (pagination.pagesPerCopy <= 1) {
       return `
-        <section class="print-page dms-print-page compact-print">
+        <section class="print-page dms-print-page">
           ${renderDmsHeader(data, copyLabel, 1, 1)}
           ${renderDmsInvoiceItemsTable(data)}
           ${renderSummaryAndSignature()}
@@ -638,13 +712,13 @@ function dmsDeliveryInvoiceTemplate(data) {
     }
 
     return `
-      <section class="print-page dms-print-page compact-print">
+      <section class="print-page dms-print-page">
         ${renderDmsHeader(data, copyLabel, 1, pagination.pagesPerCopy)}
         ${renderDmsInvoiceItemsTable(data)}
         ${renderSummaryAndSignature()}
         ${pagination.showPromotionHeaderOnFirstPage ? renderDmsPromotionHeaderOnly() : ''}
       </section>
-      <section class="print-page dms-print-page compact-print">
+      <section class="print-page dms-print-page">
         ${renderDmsHeader(data, copyLabel, 2, pagination.pagesPerCopy)}
         ${renderDmsPromotionTable(data)}
         ${renderDmsRewardTable(data)}

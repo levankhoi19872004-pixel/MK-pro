@@ -662,6 +662,31 @@ function buildPrintData(document = {}, options = {}) {
   const promotionRate = toNumber(pick(document.promotionRate, document.summary?.promotionRate, goodsAmount ? ((promotionValue + nppDiscountAmount) / goodsAmount) * 100 : 0));
   const structuredInvoicePayload = buildDeliveryInvoicePayload({
     ...document,
+    invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
+    orderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
+    orderDateTime: formatDateTime(pick(document.orderDateTime, document.date, document.createdAt)),
+    invoiceType: pick(document.invoiceType, document.invoiceTypeName, document.orderSourceName, 'Từ NVTT'),
+    paymentTerm: pick(document.terms, document.paymentTerms, document.paymentTerm, 'đáo hạn trong 7 ngày'),
+    truckNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
+    taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst),
+    distributor: {
+      code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
+      name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
+      address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
+      phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, '')
+    },
+    customer: {
+      customerCode: pick(document.customerCode, document.customer?.code, document.customerId),
+      customerName: pick(document.customerName, document.customer?.name, document.supplier, document.supplierName),
+      deliveryAddress: pick(document.customerAddress, document.customer?.address, document.address),
+      phone: pick(document.customerPhone, document.customer?.phone, document.phone),
+      taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst)
+    },
+    salesStaff: {
+      staffCode: pick(document.staffCode, document.salesStaffCode, document.salesCode, document.salesStaffId),
+      staffName: pick(document.staffName, document.salesStaffName, document.salesName, document.createdBy),
+      phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
+    },
     items,
     promotions,
     offsets: displayRewards,

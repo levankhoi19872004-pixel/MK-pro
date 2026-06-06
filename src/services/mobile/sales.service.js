@@ -6,6 +6,8 @@ const { createMobileSalesRepository } = require('../../repositories/mobile/sales
 const Inventory = require('../../models/Inventory');
 const InventoryLegacy = require('../../models/InventoryLegacy');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
+const promotionService = require('../promotionService');
+const { PROMOTION } = require('../../constants/pricingModes');
 
 
 function openSaleQtyFromRows(rows = []) {
@@ -263,7 +265,7 @@ function createMobileSalesService(ctx) {
       const stockByProduct = await getSnapshotQtyByProducts(Array.from(productByCode.values()));
       perf('batch_stock_check', { products: productByCode.size });
 
-      const items = [];
+      const baseItems = [];
       for (const row of preparedRows) {
         const { product, quantity, salePrice } = row;
         const stockKey = String(product.code || product.productCode || product.id || '').trim();
@@ -271,16 +273,53 @@ function createMobileSalesService(ctx) {
         if (availableQty < quantity) {
           return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
         }
-        items.push({
+        baseItems.push({
           productId: product.id,
           productCode: product.code,
           productName: product.name,
           ...buildProductLineMeta(product),
           quantity,
+          grossPrice: salePrice,
+          catalogSalePrice: salePrice,
           salePrice,
+          price: salePrice,
           amount: quantity * salePrice
         });
       }
+
+      const promotionResult = await promotionService.calculatePromotions(baseItems);
+      const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
+      const items = baseItems.map((item) => {
+        const line = promotionByCode.get(String(item.productCode || '').trim()) || {};
+        const grossPrice = toNumber(line.catalogSalePrice || item.grossPrice || item.salePrice);
+        const grossAmount = Math.round(item.quantity * grossPrice);
+        const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
+        const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
+        const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
+        const amount = Math.max(0, grossAmount - discountAmount);
+        const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
+        return {
+          ...item,
+          grossPrice,
+          grossAmount,
+          directDiscountPercent: toNumber(line.directDiscountPercent || 0),
+          groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
+          discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
+          directDiscountAmount,
+          groupDiscountAmount,
+          discountAmount,
+          totalDiscountAmount: discountAmount,
+          finalPrice,
+          salePrice: finalPrice,
+          price: finalPrice,
+          amount,
+          saleMethod: PROMOTION,
+          saleMode: PROMOTION,
+          pricingMode: PROMOTION,
+          priceLocked: true,
+          promotionCalculated: true
+        };
+      });
 
       const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
       const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
@@ -300,6 +339,12 @@ function createMobileSalesService(ctx) {
         source: 'mobile_sales_app',
         orderSource: 'NVBH',
         orderSourceName: 'Từ NVBH',
+        saleMethod: PROMOTION,
+        saleMode: PROMOTION,
+        pricingMode: PROMOTION,
+        orderPricingMode: PROMOTION,
+        isPromotionSale: true,
+        promotionCalculated: true,
         isChildOrder: true,
         masterOrderId: '',
         mergeStatus: 'unmerged',

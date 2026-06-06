@@ -1,3 +1,13 @@
+const PRICING_DIRECT_PRICE='DIRECT_PRICE';
+const PRICING_PROMOTION='PROMOTION';
+function normalizePricingModeClient(value){
+  const raw=String(value||'').trim().toUpperCase();
+  return raw==='PROMOTION'||raw==='PROMO'||raw==='KM'||raw.includes('KHUYEN')?PRICING_PROMOTION:PRICING_DIRECT_PRICE;
+}
+function pricingModeLabel(value){
+  return normalizePricingModeClient(value)===PRICING_PROMOTION?'Khuyến mại':'Giá DMS';
+}
+
 let editingSalesOrderId = '';
 
 function getSalesProductCatalog(){
@@ -139,10 +149,10 @@ function getSelectedSalesProduct(){
   return null;
 }
 function getSalesMode(){
-  const checked=document.querySelector('input[name="saleMode"]:checked');
-  return checked?.value === 'promotion' ? 'promotion' : 'direct';
+  // Quy tắc chuẩn: đơn tạo từ app/web bán hàng luôn tính theo khuyến mại đã cài.
+  return PRICING_PROMOTION;
 }
-function isDirectSaleMode(){return getSalesMode()==='direct'}
+function isDirectSaleMode(){return getSalesMode()===PRICING_DIRECT_PRICE}
 function recalcSalesItem(index){
   const item=salesItems[index];
   if(!item)return;
@@ -151,13 +161,43 @@ function recalcSalesItem(index){
   item.price=item.salePrice;
   item.amount=item.quantity*item.salePrice;
 }
-function updateSalesItemQuantity(index,value){
+async function recalculateSalesPromotionPrices(){
+  if(!salesItems.length)return;
+  if(getSalesMode()!==PRICING_PROMOTION)return;
+  try{
+    const res=await fetch('/api/promotions/calculate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({items:salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity}))})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tính được khuyến mại');
+    const lines=((json.result&&json.result.lines)||[]);
+    const byCode=new Map(lines.map(line=>[String(line.productCode||'').trim(),line]));
+    salesItems=salesItems.map(item=>{
+      const line=byCode.get(String(item.productCode||'').trim())||{};
+      const quantity=Number(item.quantity||0);
+      const grossPrice=Number(line.catalogSalePrice||item.grossPrice||item.salePrice||item.price||0);
+      const grossAmount=Math.round(quantity*grossPrice);
+      const directDiscountAmount=Number(line.directDiscountAmount||0);
+      const groupDiscountAmount=Number(line.groupDiscountAmount||0);
+      const discountAmount=Math.min(grossAmount,directDiscountAmount+groupDiscountAmount);
+      const amount=Math.max(0,grossAmount-discountAmount);
+      const finalPrice=quantity>0?Math.round(amount/quantity):0;
+      return {...item,grossPrice,catalogSalePrice:grossPrice,grossAmount,directDiscountPercent:Number(line.directDiscountPercent||0),groupDiscountPercent:Number(line.groupDiscountPercent||0),discountPercent:grossAmount>0?(discountAmount/grossAmount)*100:0,directDiscountAmount,groupDiscountAmount,discountAmount,totalDiscountAmount:discountAmount,finalPrice,salePrice:finalPrice,price:finalPrice,amount,saleMethod:PRICING_PROMOTION,saleMode:PRICING_PROMOTION,pricingMode:PRICING_PROMOTION,priceLocked:true,promotionCalculated:true};
+    });
+  }catch(err){
+    showMessage(salesMessage,err.message||'Không tính được khuyến mại',true);
+  }
+}
+async function updateSalesItemQuantity(index,value){
   const item=salesItems[index];
   if(!item)return;
   const next=Number(value||0);
   if(next<0)return;
   item.quantity=next;
   recalcSalesItem(index);
+  await recalculateSalesPromotionPrices();
   renderSalesItems();
 }
 function updateSalesItemPrice(index,value){
@@ -196,8 +236,8 @@ function renderSalesItems(){
     <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>
   </tr>`).join('');
 }
-window.removeSalesItem=index=>{salesItems.splice(index,1);renderSalesItems()};
-function addSalesItem(){
+window.removeSalesItem=async index=>{salesItems.splice(index,1);await recalculateSalesPromotionPrices();renderSalesItems()};
+async function addSalesItem(){
   const p=getSelectedSalesProduct();if(!p){showMessage(salesMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
   const caseQty=Number(salesQuantityCase?.value||0);
   const looseQty=Number(salesQuantityLoose?.value||0);
@@ -210,8 +250,9 @@ function addSalesItem(){
   if(quantity>availableQty){showMessage(salesMessage,`Số lượng bán vượt tồn mở bán. Tồn mở bán hiện tại: ${money(availableQty)} lẻ.`,true);return}
   if(salePrice<0){showMessage(salesMessage,'Giá bán không được âm',true);return}
   const lineMode=getSalesMode();
-  const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&String(i.saleMode||'direct')===lineMode);
-  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,salePrice,price:salePrice,amount:quantity*salePrice,saleMode:lineMode,priceLocked:lineMode==='promotion'});
+  const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&normalizePricingModeClient(i.saleMode)===lineMode);
+  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,grossPrice:salePrice,salePrice,price:salePrice,finalPrice:salePrice,discountPercent:0,discountAmount:0,amount:quantity*salePrice,saleMethod:lineMode,saleMode:lineMode,pricingMode:lineMode,priceLocked:true});
+  await recalculateSalesPromotionPrices();
   if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';window.__selectedSalesProduct=null;if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
 }
 function resetSalesFormAfterSave(){
@@ -219,8 +260,8 @@ function resetSalesFormAfterSave(){
   salesItems=[];
   salesForm.reset();
   salesForm.elements.date.value=today();
-  const directMode=salesForm.querySelector('input[name="saleMode"][value="direct"]');
-  if(directMode)directMode.checked=true;
+  const promotionMode=salesForm.querySelector('input[name="saleMode"][value="promotion"]');
+  if(promotionMode)promotionMode.checked=true;
   salesForm.elements.paidAmount.value=0;
   if(salesCustomerSearch)salesCustomerSearch.value='';
   salesCustomerSelect.value='';
@@ -238,9 +279,11 @@ async function submitSalesOrder(event){
   const payload=Object.fromEntries(new FormData(salesForm).entries());
   if(salesStaffSelect)payload.salesStaffCode=salesStaffSelect.value||'';
   if(salesStaffName)payload.salesStaffName=salesStaffName.value||'';
-  payload.saleMode=getSalesMode();
-  payload.pricingMode=payload.saleMode;
-  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,salePrice:i.salePrice,price:i.salePrice,saleMode:i.saleMode||getSalesMode(),priceLocked:(i.saleMode||getSalesMode())==='promotion'}));
+  payload.saleMethod=PRICING_PROMOTION;
+  payload.saleMode=PRICING_PROMOTION;
+  payload.pricingMode=PRICING_PROMOTION;
+  payload.orderPricingMode=PRICING_PROMOTION;
+  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:PRICING_PROMOTION,saleMode:PRICING_PROMOTION,pricingMode:PRICING_PROMOTION,priceLocked:true}));
   payload.paidAmount=Number(payload.paidAmount||0);
   if(editingSalesOrderId)payload.actorRole='admin';
   try{
@@ -421,10 +464,10 @@ async function openSalesOrderEdit(idx){
   if(!order)return;
   try{order=await fetchSalesOrderDetail(order)}catch(err){alert(err.message||'Không tải được chi tiết đơn');return;}
   editingSalesOrderId=order.id||order.code||'';
-  const editMode=order.saleMode||order.pricingMode||order.orderPricingMode||'direct';
-  const modeInput=salesForm.querySelector(`input[name="saleMode"][value="${editMode==='promotion'?'promotion':'direct'}"]`);
+  const editMode=normalizePricingModeClient(order.saleMethod||order.saleMode||order.pricingMode||order.orderPricingMode);
+  const modeInput=salesForm.querySelector(`input[name="saleMode"][value="${editMode===PRICING_PROMOTION?'promotion':'direct'}"]`);
   if(modeInput)modeInput.checked=true;
-  salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMode:i.saleMode||editMode,priceLocked:Boolean(i.priceLocked)||editMode==='promotion'}));
+  salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}));
   salesForm.elements.date.value=toDateOnly(order.date||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
@@ -570,6 +613,7 @@ function renderSalesOrderRows(orders, {append=false} = {}){
         <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
+        <span class="badge sales-order-pricing-mode" title="Phương thức bán">${pricingModeLabel(o.saleMethod||o.saleMode||o.pricingMode||o.orderPricingMode)}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}

@@ -15,7 +15,9 @@ const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/
 const inventoryService = require('./inventoryService');
 const postingEngine = require('../engines/posting.engine');
 const returnOrderService = require('./returnOrderService');
+const promotionService = require('./promotionService');
 const orderStatusUtil = require('../utils/orderStatus.util');
+const { DIRECT_PRICE, PROMOTION, normalizePricingMode } = require('../constants/pricingModes');
 
 
 
@@ -41,20 +43,34 @@ function buildOrderCode() {
 
 
 
-function normalizeSaleMode(value, fallback = 'direct') {
-  const raw = normalizeText(value || fallback);
-  if (['promotion', 'promo', 'khuyen mai', 'khuyenmai', 'km'].some((token) => raw.includes(token))) return 'promotion';
-  return 'direct';
+function normalizeSaleMode(value, fallback = DIRECT_PRICE) {
+  return normalizePricingMode(value || fallback);
 }
 
-function calculateItems(items = [], saleMode = 'direct') {
+function isDmsDirectPriceOrder(order = {}) {
+  const rawMode = order.saleMethod ?? order.saleMode ?? order.pricingMode ?? order.orderPricingMode ?? order.priceMode;
+  const hasExplicitMode = rawMode !== undefined && rawMode !== null && String(rawMode).trim() !== '';
+  const explicitDirectPrice = hasExplicitMode && normalizeSaleMode(rawMode) === DIRECT_PRICE;
+  const sourceText = [order.source, order.orderSource, order.sourceType, order.importSource, order.orderSourceName]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+  const isDmsSource = /(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|EXCEL_DMS|IMPORT EXCEL DMS/.test(sourceText);
+  return explicitDirectPrice || order.isImported === true || isDmsSource;
+}
+
+function calculateItems(items = [], saleMode = DIRECT_PRICE, order = {}) {
   const normalizedSaleMode = normalizeSaleMode(saleMode);
+  const lockDirectPrice = isDmsDirectPriceOrder({ ...order, saleMode: normalizedSaleMode });
   return (Array.isArray(items) ? items : [])
     .map((item) => {
-      const lineMode = normalizeSaleMode(item.saleMode || item.pricingMode, normalizedSaleMode);
+      const lineMode = lockDirectPrice ? DIRECT_PRICE : normalizeSaleMode(item.saleMethod || item.saleMode || item.pricingMode, normalizedSaleMode);
       const quantity = toNumber(item.quantity ?? item.qty ?? item.totalQty);
-      const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice);
-      const amount = quantity * price;
+      const price = toNumber(item.price ?? item.salePrice ?? item.finalPrice ?? item.unitPrice);
+      const amount = toNumber(item.amount || (quantity * price));
+      const grossPrice = toNumber(item.grossPrice || item.catalogSalePrice || price);
+      const discountAmount = Math.max(0, toNumber(item.discountAmount || item.totalDiscountAmount || (quantity * grossPrice - amount)));
+      const discountPercent = grossPrice > 0 && quantity > 0 ? (discountAmount / (quantity * grossPrice)) * 100 : toNumber(item.discountPercent || 0);
       return {
         ...item,
         productId: String(item.productId || item.id || item.productCode || item.code || '').trim(),
@@ -62,15 +78,66 @@ function calculateItems(items = [], saleMode = 'direct') {
         productName: String(item.productName || item.name || '').trim(),
         quantity,
         qty: quantity,
+        grossPrice,
+        discountPercent,
+        discountAmount,
+        finalPrice: price,
         price,
         salePrice: price,
         amount,
+        saleMethod: lineMode,
         saleMode: lineMode,
         pricingMode: lineMode,
-        priceLocked: lineMode === 'promotion'
+        priceLocked: lockDirectPrice || lineMode === PROMOTION
       };
     })
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
+}
+
+async function applyPromotionPricing(items = [], saleMode = DIRECT_PRICE, order = {}) {
+  const normalizedSaleMode = normalizeSaleMode(saleMode);
+  if (isDmsDirectPriceOrder({ ...order, saleMode: normalizedSaleMode })) {
+    return calculateItems(items, DIRECT_PRICE, { ...order, saleMode: DIRECT_PRICE });
+  }
+  const baseItems = calculateItems(items, PROMOTION, { ...order, saleMode: PROMOTION });
+  if (!baseItems.length) return baseItems;
+  const promo = await promotionService.calculatePromotions(baseItems);
+  const promoLines = new Map((promo.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
+  return baseItems.map((item) => {
+    const line = promoLines.get(String(item.productCode || '').trim()) || {};
+    const quantity = toNumber(item.quantity);
+    const grossPrice = toNumber(line.catalogSalePrice || item.grossPrice || item.salePrice || item.price);
+    const grossAmount = Math.round(quantity * grossPrice);
+    const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
+    const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
+    const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
+    const finalAmount = Math.max(0, grossAmount - discountAmount);
+    const finalPrice = quantity > 0 ? Math.round(finalAmount / quantity) : 0;
+    const discountPercent = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
+    return {
+      ...item,
+      productName: item.productName || line.productName || '',
+      grossPrice,
+      catalogSalePrice: grossPrice,
+      grossAmount,
+      directDiscountPercent: toNumber(line.directDiscountPercent || 0),
+      groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
+      discountPercent,
+      directDiscountAmount,
+      groupDiscountAmount,
+      discountAmount,
+      totalDiscountAmount: discountAmount,
+      finalPrice,
+      salePrice: finalPrice,
+      price: finalPrice,
+      amount: finalAmount,
+      saleMethod: PROMOTION,
+      saleMode: PROMOTION,
+      pricingMode: PROMOTION,
+      priceLocked: true,
+      promotionCalculated: true
+    };
+  });
 }
 
 async function resolveCustomer(body = {}) {
@@ -85,7 +152,7 @@ async function resolveStaff(body = {}) {
   return userRepository.findStaffByIdOrCode(staffId);
 }
 
-async function hydrateItemNames(items, saleMode = 'direct') {
+async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
   const productKeys = [...new Set((Array.isArray(items) ? items : [])
     .flatMap((item) => [item.productCode, item.code, item.sku, item.productId, item.barcode])
     .map((value) => String(value || '').trim())
@@ -101,7 +168,10 @@ async function hydrateItemNames(items, saleMode = 'direct') {
   return items.map((item) => {
     const product = byCode.get(String(item.productCode || item.code || item.sku || item.productId || item.barcode || '').trim());
     if (!product) return item;
-    const price = toNumber(item.price || item.salePrice || product.salePrice || 0);
+    const lineMode = normalizeSaleMode(item.saleMethod || item.saleMode || item.pricingMode, saleMode);
+    const price = lineMode === DIRECT_PRICE
+      ? toNumber(item.price || item.salePrice || product.salePrice || 0)
+      : toNumber(item.price || item.salePrice || product.salePrice || 0);
     return {
       ...item,
       productId: item.productId || product.id || product.code,
@@ -109,10 +179,11 @@ async function hydrateItemNames(items, saleMode = 'direct') {
       productName: item.productName || product.name,
       price,
       salePrice: price,
-      amount: toNumber(item.quantity) * price,
-      saleMode: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode),
-      pricingMode: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode),
-      priceLocked: normalizeSaleMode(item.saleMode || item.pricingMode, saleMode) === 'promotion'
+      amount: toNumber(item.amount || (toNumber(item.quantity) * price)),
+      saleMethod: lineMode,
+      saleMode: lineMode,
+      pricingMode: lineMode,
+      priceLocked: Boolean(item.priceLocked) || lineMode === PROMOTION || lineMode === DIRECT_PRICE
     };
   });
 }
@@ -624,8 +695,8 @@ async function createOrder(body = {}) {
   const startedAt = Date.now();
   const customer = await resolveCustomer(body);
   const staff = await resolveStaff(body);
-  const saleMode = normalizeSaleMode(body.saleMode || body.pricingMode || body.orderPricingMode || body.priceMode || 'direct');
-  const items = await hydrateItemNames(calculateItems(body.items, saleMode), saleMode);
+  const saleMode = isDmsDirectPriceOrder(body) ? DIRECT_PRICE : normalizeSaleMode(body.saleMethod || body.saleMode || body.pricingMode || body.orderPricingMode || body.priceMode || PROMOTION);
+  const items = await hydrateItemNames(await applyPromotionPricing(body.items, saleMode, body), saleMode);
   if (!items.length) return { error: 'Đơn bán chưa có sản phẩm', status: 400 };
   const totalAmount = toNumber(body.totalAmount || items.reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount || body.paid || 0);
@@ -651,10 +722,13 @@ async function createOrder(body = {}) {
     salesStaffId: staff?.id || body.salesStaffId || body.staffId || '',
     salesStaffCode: staff?.code || body.salesStaffCode || body.staffCode || '',
     salesStaffName: staff?.name || body.salesStaffName || body.staffName || '',
+    saleMethod: saleMode,
     saleMode,
     pricingMode: saleMode,
     orderPricingMode: saleMode,
-    isPromotionSale: saleMode === 'promotion',
+    isPromotionSale: saleMode === PROMOTION,
+    priceLocked: saleMode === DIRECT_PRICE,
+    promotionCalculated: saleMode === PROMOTION,
     items,
     totalAmount,
     paidAmount,
@@ -693,17 +767,23 @@ async function updateOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
   if (current.masterOrderId || current.mergeStatus === 'merged') return { error: 'Đơn đã gộp, không nên sửa trực tiếp đơn con', status: 400 };
-  const saleMode = normalizeSaleMode(body.saleMode || body.pricingMode || body.orderPricingMode || current.saleMode || current.pricingMode || 'direct');
-  const items = body.items ? await hydrateItemNames(calculateItems(body.items, saleMode), saleMode) : current.items;
+  const keepOriginalPrice = isDmsDirectPriceOrder(current) || isDmsDirectPriceOrder(body);
+  const saleMode = keepOriginalPrice ? DIRECT_PRICE : normalizeSaleMode(body.saleMethod || body.saleMode || body.pricingMode || body.orderPricingMode || current.saleMethod || current.saleMode || current.pricingMode || PROMOTION);
+  const items = body.items
+    ? await hydrateItemNames(await applyPromotionPricing(body.items, saleMode, { ...current, ...body, saleMode }), saleMode)
+    : current.items;
   const totalAmount = toNumber(body.totalAmount ?? (items || []).reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount ?? current.paidAmount ?? 0);
   const updated = applyOrderSourceFields({
     ...current,
     ...body,
+    saleMethod: saleMode,
     saleMode,
     pricingMode: saleMode,
     orderPricingMode: saleMode,
-    isPromotionSale: saleMode === 'promotion',
+    isPromotionSale: saleMode === PROMOTION,
+    priceLocked: keepOriginalPrice || saleMode === DIRECT_PRICE,
+    promotionCalculated: !keepOriginalPrice && saleMode === PROMOTION,
     items,
     totalAmount,
     paidAmount,

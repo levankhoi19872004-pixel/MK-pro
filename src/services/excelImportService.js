@@ -20,6 +20,7 @@ const systemService = require('./systemService');
 const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
 const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.util');
+const { DIRECT_PRICE } = require('../constants/pricingModes');
 const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
@@ -1272,9 +1273,12 @@ async function importSalesOrders(rows = [], options = {}) {
       sourceType: 'dms_import',
       orderSource: 'DMS',
       orderSourceName: 'Từ DMS',
-      saleMode: 'direct',
-      pricingMode: 'direct',
-      orderPricingMode: 'direct',
+      saleMethod: DIRECT_PRICE,
+      saleMode: DIRECT_PRICE,
+      pricingMode: DIRECT_PRICE,
+      orderPricingMode: DIRECT_PRICE,
+      priceLocked: true,
+      promotionCalculated: false,
       isPromotionSale: false,
       importSource: 'excel_dms',
       isImported: true,
@@ -2200,9 +2204,12 @@ async function previewMongoNative(type, rows = []) {
         salesStaffCode: getSalesStaffCodeFromRow(first),
         staffName: '',
         salesStaffName: '',
-        saleMode: 'direct',
-        pricingMode: 'direct',
-        orderPricingMode: 'direct',
+        saleMethod: DIRECT_PRICE,
+        saleMode: DIRECT_PRICE,
+        pricingMode: DIRECT_PRICE,
+        orderPricingMode: DIRECT_PRICE,
+        priceLocked: true,
+        promotionCalculated: false,
         isPromotionSale: false,
         lineCount: group.length,
         totalQuantity,
