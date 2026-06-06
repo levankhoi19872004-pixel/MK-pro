@@ -82,7 +82,16 @@
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
           '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
-          '<div class="delivery-v46-list-head delivery-v46-list-head-payment"><span>Đơn / Khách hàng</span><span>Thanh toán</span></div>' +
+          '<div class="delivery-v46-list-head delivery-v46-list-head-payment delivery-v46-order-grid delivery-v46-kpi-header">' +
+            '<span class="delivery-v46-grid-check-head"></span>' +
+            '<span>Đơn / Khách hàng</span>' +
+            '<span class="delivery-v46-money-head">PT</span>' +
+            '<span class="delivery-v46-money-head">TM</span>' +
+            '<span class="delivery-v46-money-head">CK</span>' +
+            '<span class="delivery-v46-money-head">TH</span>' +
+            '<span class="delivery-v46-money-head">HT</span>' +
+            '<span class="delivery-v46-money-head">CN</span>' +
+          '</div>' +
           '<div id="deliveryCoreList" class="delivery-v46-list"><div class="empty-state">Chưa tải đơn.</div></div>' +
         '</section>' +
         '<aside class="card delivery-v46-detail-panel">' +
@@ -266,26 +275,11 @@
     return '<div class="delivery-v46-staff-check-box"><h4>Kiểm tra nhân viên theo Hệ thống</h4>' + line(check.sales) + line(check.delivery) + '</div>';
   }
 
-  function paymentChip(label, value, className, emptyText) {
-    var n = num(value);
-    var active = n > 0;
-    var display = active ? money(n) : (emptyText || '0');
-    return '<span class="delivery-v46-pay-chip ' + esc(className || '') + (active ? ' is-active' : ' is-zero') + '">' +
-      '<em>' + esc(label) + '</em><b>' + esc(display) + '</b>' +
-    '</span>';
-  }
-
-  function paymentChipsHtml(order) {
-    var debt = amount(order, 'debt');
-    return '' +
-      '<div class="delivery-v46-payment-chips delivery-v46-payment-grid-inner">' +
-        paymentChip('PT', amount(order, 'receivable'), 'chip-pt') +
-        paymentChip('TM', amount(order, 'cash'), 'chip-tm') +
-        paymentChip('CK', amount(order, 'bank'), 'chip-ck') +
-        paymentChip('TH', amount(order, 'reward'), 'chip-th') +
-        paymentChip('HT', amount(order, 'returnAmount'), 'chip-ht') +
-        paymentChip('CN', debt, 'chip-cn', 'Đủ') +
-      '</div>';
+  function paymentValueCell(order, key, className) {
+    var value = amount(order, key);
+    var extraClass = className || '';
+    if (key === 'debt') extraClass += value > 0 ? ' debt-open' : ' debt-done';
+    return '<div class="delivery-v46-money-cell ' + esc(extraClass) + '" title="' + esc(money(value)) + '">' + esc(money(value)) + '</div>';
   }
 
   function renderList() {
@@ -307,14 +301,19 @@
       var salesStaff = order.salesStaffName || order.salesStaffCode || '';
       var deliveryStaff = order.deliveryStaffName || order.deliveryStaffCode || '';
       return '' +
-        '<button type="button" class="delivery-v46-row delivery-v46-order-card' + selected + '" data-key="' + esc(key) + '">' +
+        '<button type="button" class="delivery-v46-row delivery-v46-order-card delivery-v46-order-grid' + selected + '" data-key="' + esc(key) + '">' +
           '<div class="delivery-v46-check">' + (selected ? '✓' : '') + '</div>' +
           '<div class="delivery-v46-order-main">' +
             '<strong>' + esc(orderCode) + '</strong>' +
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
             '<em>' + esc(statusText(order)) + '</em>' + staffAssignmentBadge(order) +
           '</div>' +
-          '<div class="delivery-v46-payment-grid">' + paymentChipsHtml(order) + '</div>' +
+          paymentValueCell(order, 'receivable', 'cell-pt') +
+          paymentValueCell(order, 'cash', 'cell-tm') +
+          paymentValueCell(order, 'bank', 'cell-ck') +
+          paymentValueCell(order, 'reward', 'cell-th') +
+          paymentValueCell(order, 'returnAmount', 'cell-ht') +
+          paymentValueCell(order, 'debt', 'cell-cn') +
         '</button>';
     }).join('');
     list.querySelectorAll('[data-key]').forEach(function (button) {
@@ -569,30 +568,3 @@
     if (byId('deliveryTodayTab') && byId('deliveryTodayTab').classList.contains('active')) load();
   });
 }());
-
-
-;(function(){
- try{
-  var st=document.createElement('style');
-  st.textContent=`
-  .delivery-v46-payment-grid-inner{
-    display:grid!important;
-    grid-template-columns:repeat(6,minmax(70px,1fr))!important;
-    gap:0!important;
-    width:100%;
-  }
-  .delivery-v46-payment-grid-inner .payment-chip{
-    border-radius:0!important;
-    border-right:1px solid rgba(0,0,0,.08)!important;
-    justify-content:flex-end!important;
-    text-align:right!important;
-  }
-  .delivery-v46-payment-grid-inner .payment-chip:last-child{
-    border-right:none!important;
-  }
-  .delivery-v46-payment-cell,.delivery-v46-payment-grid{
-    width:100%;
-  }`;
-  document.head.appendChild(st);
- }catch(e){}
-})();
