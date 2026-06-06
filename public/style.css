@@ -7769,3 +7769,24 @@ body::after{
   color: #92400e;
   border: 1px solid rgba(245, 158, 11, .25);
 }
+
+
+/* Sales create form actions */
+.sale-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+}
+.sale-actions #btnCancelSale{
+  width:140px;
+  flex:0 0 140px;
+}
+.sale-actions #btnCreateSale{
+  flex:1 1 auto;
+}
+@media(max-width:640px){
+  .sale-actions{flex-direction:column;}
+  .sale-actions #btnCancelSale,
+  .sale-actions #btnCreateSale{width:100%;flex:1 1 auto;}
+}

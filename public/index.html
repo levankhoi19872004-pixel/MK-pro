@@ -280,7 +280,10 @@
             </div>
             <div class="summary-box"><span>Tổng SL: <strong id="salesTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="salesTotalAmount">0</strong></span></div>
             <label>Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
-            <button type="submit">Tạo đơn bán & trừ tồn</button>
+            <div class="sale-actions">
+              <button type="button" class="secondary" id="btnCancelSale">Bỏ qua</button>
+              <button type="submit" id="btnCreateSale">Tạo đơn bán & trừ tồn</button>
+            </div>
           </form>
           <p id="salesMessage" class="message"></p>
         </section>

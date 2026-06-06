@@ -270,10 +270,47 @@ function resetSalesFormAfterSave(){
   if(salesStaffSelect)salesStaffSelect.value='';
   if(salesStaffName)salesStaffName.value='';
   const submitBtn=salesForm.querySelector('[type="submit"]');
-  if(submitBtn)submitBtn.textContent='Tạo đơn bán hàng';
+  if(submitBtn)submitBtn.textContent='Tạo đơn bán & trừ tồn';
   syncSalesModeUi();
   renderSalesItems();
 }
+
+function hasSalesDraftData(){
+  if(!salesForm)return false;
+  const note=String(salesForm.elements.note?.value||'').trim();
+  const paidAmount=Number(salesForm.elements.paidAmount?.value||0);
+  return Boolean(
+    editingSalesOrderId ||
+    salesItems.length ||
+    String(salesCustomerSelect?.value||'').trim() ||
+    String(salesCustomerSearch?.value||'').trim() ||
+    String(salesStaffSelect?.value||'').trim() ||
+    String(salesStaffSearch?.value||'').trim() ||
+    String(salesProductSelect?.value||'').trim() ||
+    String(salesProductSearch?.value||'').trim() ||
+    note ||
+    paidAmount>0
+  );
+}
+
+function cancelSalesDraft(){
+  if(!salesForm)return;
+  if(hasSalesDraftData() && !confirm('Bạn có chắc muốn huỷ đơn đang nhập?'))return;
+
+  // Chỉ xóa dữ liệu nháp trên form, tuyệt đối không gọi API tạo đơn/trừ tồn/ghi sổ.
+  resetSalesFormAfterSave();
+  if(salesProductSelect)salesProductSelect.value='';
+  if(salesProductSearch){
+    salesProductSearch.value='';
+    salesProductSearch.dataset.selectedId='';
+  }
+  if(salesQuantityCase)salesQuantityCase.value='0';
+  if(salesQuantityLoose)salesQuantityLoose.value='1';
+  if(salesPrice)salesPrice.value='0';
+  window.__selectedSalesProduct=null;
+  showMessage(salesMessage,'Đã huỷ tạo đơn');
+}
+window.cancelSalesDraft=cancelSalesDraft;
 async function submitSalesOrder(event){
   event.preventDefault();
   if(!salesItems.length){showMessage(salesMessage,'Đơn bán chưa có dòng hàng',true);return}
@@ -699,6 +736,7 @@ function exportSelectedSalesOrders(){
   exportErpRows('don-ban-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', o.customerName||o.customerCode||'', typeof formatDateVN==='function'?formatDateVN(o.date||o.orderDate||''):(o.date||o.orderDate||''), Number(o.totalAmount||0), getOrderSourceText(o)]));
 }
 window.exportSelectedSalesOrders=exportSelectedSalesOrders;
+if(typeof btnCancelSale!=='undefined' && btnCancelSale)btnCancelSale.addEventListener('click',cancelSalesDraft);
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 if(exportSelectedSalesOrdersButton)exportSelectedSalesOrdersButton.addEventListener('click',exportSelectedSalesOrders);
