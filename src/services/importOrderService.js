@@ -108,11 +108,18 @@ async function listImportOrders(query = {}) {
 
 async function hydrateItems(rawItems = []) {
   const products = await productRepository.findAll({});
-  const byCode = new Map(products.map((p) => [String(p.code || p.sku || p.id || '').trim(), p]));
+  const productMap = new Map();
+  const addProductKey = (key, product) => {
+    const normalized = String(key || '').trim().toLowerCase();
+    if (normalized && !productMap.has(normalized)) productMap.set(normalized, product);
+  };
+  products.forEach((product) => {
+    [product.code, product.sku, product.id, product._id, product.productCode, product.barcode].forEach((key) => addProductKey(key, product));
+  });
   return (Array.isArray(rawItems) ? rawItems : [])
     .map((raw) => {
-      const productKey = String(raw.productCode || raw.code || raw.productId || raw.sku || '').trim();
-      const product = byCode.get(productKey);
+      const productKey = String(raw.productCode || raw.code || raw.productId || raw.sku || raw.barcode || '').trim();
+      const product = productMap.get(productKey.toLowerCase());
       const quantity = toNumber(raw.quantity ?? raw.qty ?? raw.totalQty);
       const costPrice = toNumber(product?.costPrice || 0);
       const productCode = String(raw.productCode || raw.code || product?.code || productKey).trim();

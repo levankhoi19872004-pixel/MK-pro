@@ -65,6 +65,7 @@ const importItemsTable=document.getElementById('importItemsTable');
 const importTotalQuantity=document.getElementById('importTotalQuantity');
 const importTotalAmount=document.getElementById('importTotalAmount');
 const importMessage=document.getElementById('importMessage');
+const skipImportDraftButton=document.getElementById('skipImportDraftButton');
 
 const salesForm=document.getElementById('salesForm');
 const salesCustomerSelect=document.getElementById('salesCustomerSelect');

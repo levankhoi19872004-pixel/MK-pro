@@ -54,7 +54,9 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
     const name = String(product?.name || product?.productName || '').trim();
     const packing = packingText(product);
     const searchKey = normalizeText([code, product?.sku, product?.productCode, product?.barcode, name, product?.category, product?.brand, packing, product?.unit, product?.baseUnit].filter(Boolean).join(' '));
-    return { ...product, code, productCode: product?.productCode || code, sku: product?.sku || code, id: product?.id || code, name, productName: product?.productName || name, _productSearchKey: searchKey, _packingText: packing, _availableQty: availableQty(product) };
+    const costPrice = toNumber(product?.costPrice ?? product?.importPrice ?? product?.purchasePrice ?? product?.lastCostPrice ?? 0);
+    const salePrice = toNumber(product?.salePrice ?? product?.price ?? product?.sellPrice ?? product?.retailPrice ?? 0);
+    return { ...product, code, productCode: product?.productCode || code, sku: product?.sku || code, id: product?.id || code, name, productName: product?.productName || name, costPrice, salePrice, _productSearchKey: searchKey, _packingText: packing, _availableQty: availableQty(product) };
   }
   function dedupe(rows){
     const map = new Map();
@@ -152,7 +154,7 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
     }
 
     const packing = product._packingText || packingText(product);
-    const priceLabel = priceValue ? ` · ${mode === 'import' ? 'Giá nhập gần nhất' : 'Giá bán'}: ${priceValue.toLocaleString('vi-VN')}` : '';
+    const priceLabel = priceValue ? ` · ${mode === 'import' ? 'Giá nhập' : 'Giá bán'}: ${priceValue.toLocaleString('vi-VN')}` : '';
     const packingLabel = packing ? ` · ${packing}` : '';
     return `${code} - ${name}${packingLabel} · ${stockText(product)}${priceLabel}`;
   }

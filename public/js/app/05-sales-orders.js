@@ -461,10 +461,10 @@ function formatImportDateLabel(value){
   const parts=String(value).slice(0,10).split('-');
   return parts.length===3?`${parts[2]}/${parts[1]}/${parts[0]}`:value;
 }
-function syncImportDateFilterFromInputs(forceAll=false){
+function syncImportDateFilterFromInputs(){
   importDateFilter.fromDate=importDateFromFilter?.value||'';
   importDateFilter.toDate=importDateToFilter?.value||'';
-  importDateFilter.all=!!forceAll;
+  importDateFilter.all=false;
 }
 function setImportDateFilter(fromDate,toDate,all=false){
   if(importDateFromFilter)importDateFromFilter.value=fromDate||'';
@@ -480,33 +480,22 @@ function updateImportDateFilterInfo(count){
 }
 function buildImportOrderQuery(){
   const params=new URLSearchParams({excludeInactive:'1',limit:'100'});
-  if(importDateFilter.all){params.set('all','1');return params.toString()}
   if(importDateFilter.fromDate)params.set('fromDate',importDateFilter.fromDate);
   if(importDateFilter.toDate)params.set('toDate',importDateFilter.toDate);
   return params.toString();
 }
-async function applyImportDateFilter(){syncImportDateFilterFromInputs(false);await loadImportOrders()}
-async function clearImportDateFilter(){setImportDateFilter('','',true);await loadImportOrders()}
-async function applyImportDatePreset(preset){
-  const now=new Date();
-  const todayValue=importDateValue(now);
-  if(preset==='all')return clearImportDateFilter();
-  if(preset==='today')setImportDateFilter(todayValue,todayValue,false);
-  else if(preset==='week')setImportDateFilter(startOfCurrentWeek(),todayValue,false);
-  else if(preset==='month')setImportDateFilter(firstDayOfCurrentMonth(),todayValue,false);
-  else if(preset==='quarter')setImportDateFilter(firstDayOfCurrentQuarter(),todayValue,false);
-  await loadImportOrders();
-}
+async function applyImportDateFilter(){syncImportDateFilterFromInputs();await loadImportOrders()}
+async function clearImportDateFilter(){const t=importDateValue(new Date());setImportDateFilter(t,t,false);await loadImportOrders()}
+
 function initImportDateFilterControls(){
   if(importDateFromFilter||importDateToFilter){
-    if(!importDateFromFilter?.value&&!importDateToFilter?.value)setImportDateFilter(firstDayOfCurrentMonth(),importDateValue(new Date()),false);
+    if(!importDateFromFilter?.value&&!importDateToFilter?.value){const t=importDateValue(new Date());setImportDateFilter(t,t,false);}
     else syncImportDateFilterFromInputs();
   }
   if(applyImportDateFilterButton)applyImportDateFilterButton.addEventListener('click',applyImportDateFilter);
   if(clearImportDateFilterButton)clearImportDateFilterButton.addEventListener('click',clearImportDateFilter);
   if(printSelectedImportOrdersButton)printSelectedImportOrdersButton.addEventListener('click',printSelectedImportOrders);
   if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',()=>loadImportOrders());
-  document.querySelectorAll('[data-import-date-preset]').forEach(btn=>btn.addEventListener('click',()=>applyImportDatePreset(btn.dataset.importDatePreset)));
 }
 async function loadImportOrders(){
   try{

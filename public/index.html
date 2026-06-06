@@ -212,7 +212,10 @@
               </table>
             </div>
             <div class="summary-box"><span>Tổng SL: <strong id="importTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="importTotalAmount">0</strong></span></div>
-            <button type="submit">Lưu phiếu nhập nháp</button>
+            <div class="form-actions import-form-actions">
+              <button type="submit">Lưu phiếu nhập nháp</button>
+              <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
+            </div>
           </form>
           <p id="importMessage" class="message"></p>
         </section>
@@ -241,13 +244,6 @@
               </label>
               <button type="button" class="primary small" id="applyImportDateFilterButton">Lọc</button>
               <button type="button" class="secondary small" id="clearImportDateFilterButton">Xóa lọc</button>
-            </div>
-            <div class="import-date-preset-row">
-              <button type="button" class="secondary mini" data-import-date-preset="today">Hôm nay</button>
-              <button type="button" class="secondary mini" data-import-date-preset="week">Tuần này</button>
-              <button type="button" class="secondary mini" data-import-date-preset="month">Tháng này</button>
-              <button type="button" class="secondary mini" data-import-date-preset="quarter">Quý này</button>
-              <button type="button" class="secondary mini" data-import-date-preset="all">Tất cả</button>
             </div>
             <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
           </div>

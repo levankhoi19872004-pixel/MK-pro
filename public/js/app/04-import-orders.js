@@ -1,13 +1,25 @@
 // Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
+function importProductCost(p){
+  return Number(p?.costPrice ?? p?.importPrice ?? p?.purchasePrice ?? p?.lastCostPrice ?? 0);
+}
+function getSelectedImportProduct(){
+  const selected=window.__selectedImportProduct;
+  const selectedKey=getProductKey(selected);
+  const hiddenKey=String(importProductSelect?.value||'').trim();
+  if(selected && (!hiddenKey || selectedKey===hiddenKey || [selected.code,selected.id,selected._id,selected.productCode,selected.sku,selected.barcode].map(v=>String(v||'').trim()).includes(hiddenKey))) return selected;
+  return findProductByKey(hiddenKey || importProductSearch?.value || '');
+}
 function selectImportProduct(p){
   if(!p)return;
+  window.__selectedImportProduct=p;
+  if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync==='function') window.UnifiedProductSearch.sync([p]);
   importProductSelect.value=getProductKey(p);
   if(importProductSearch){
     importProductSearch.value=productSuggestionLabel(p);
     importProductSearch.dataset.selectedId=getProductKey(p);
     importProductSearch.dataset.targetHidden='importProductSelect';
   }
-  if(importCostPrice)importCostPrice.value=Number(p.costPrice||0);
+  if(importCostPrice)importCostPrice.value=importProductCost(p);
   hideSuggestions(importProductSuggestions);
 }
 function renderImportProductSelect(){
@@ -18,8 +30,8 @@ function renderImportProductSelect(){
   importProductSearch.placeholder=has?'Gõ mã/tên/barcode sản phẩm...':'Đang tải sản phẩm, bấm vào để tải lại...';
 }
 function syncImportCostPrice(){
-  const p=findProductByKey(importProductSelect.value);
-  if(p&&importCostPrice)importCostPrice.value=Number(p.costPrice||0);
+  const p=getSelectedImportProduct();
+  if(p&&importCostPrice)importCostPrice.value=importProductCost(p);
 }
 function renderImportItems(){
   const tq=importItems.reduce((s,i)=>s+Number(i.quantity||0),0);const ta=importItems.reduce((s,i)=>s+Number(i.amount||0),0);
@@ -29,25 +41,34 @@ function renderImportItems(){
 }
 window.removeImportItem=index=>{importItems.splice(index,1);renderImportItems()};
 function addImportItem(){
-  const p=findProductByKey(importProductSelect.value);if(!p){showMessage(importMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
-  const quantity=Number(importQuantity.value||0);const costPrice=Number(p.costPrice||0);
+  const p=getSelectedImportProduct();if(!p){showMessage(importMessage,'Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.',true);return}
+  const quantity=Number(importQuantity.value||0);const costPrice=importProductCost(p);
   if(importCostPrice)importCostPrice.value=costPrice;
   if(quantity<=0){showMessage(importMessage,'Số lượng nhập phải lớn hơn 0',true);return}
   const meta=productLineMeta(p);
   const warehouseCode=meta.warehouseCode||p.defaultWarehouse||p.warehouseCode||'KHO_HC';
   const warehouseName=meta.warehouseName||(warehouseCode==='KHO_PC'?'KHO PC':'KHO HC');
-  const existed=importItems.find(i=>i.productCode===p.code&&i.costPrice===costPrice&&String(i.warehouseCode||'KHO_HC')===String(warehouseCode));
-  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.costPrice}else importItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...meta,warehouseCode,warehouseName,quantity,costPrice,amount:quantity*costPrice});
-  importQuantity.value=1;importProductSelect.value='';if(importProductSearch){importProductSearch.value='';importProductSearch.dataset.selectedId='';}showMessage(importMessage,'');renderImportItems();
+  const productCode=p.code||p.productCode||p.sku||getProductKey(p);
+  const existed=importItems.find(i=>i.productCode===productCode&&i.costPrice===costPrice&&String(i.warehouseCode||'KHO_HC')===String(warehouseCode));
+  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.costPrice}else importItems.push({productId:getProductKey(p),productCode,productName:p.name||p.productName||'',...meta,warehouseCode,warehouseName,quantity,costPrice,amount:quantity*costPrice});
+  importQuantity.value=1;importProductSelect.value='';window.__selectedImportProduct=null;if(importProductSearch){importProductSearch.value='';importProductSearch.dataset.selectedId='';}if(importCostPrice)importCostPrice.value=0;showMessage(importMessage,'');renderImportItems();
 }
 function resetImportFormAfterSave(){
   editingImportOrderId=null;
   importItems=[];
+  window.__selectedImportProduct=null;
   importForm.reset();
   importForm.elements.date.value=today();
+  if(importProductSelect)importProductSelect.value='';
+  if(importProductSearch){importProductSearch.value='';importProductSearch.dataset.selectedId='';}
+  if(importCostPrice)importCostPrice.value=0;
   const submitButton=importForm.querySelector('button[type="submit"]');
   if(submitButton)submitButton.textContent='Lưu phiếu nhập nháp';
   renderImportItems();
+}
+function skipImportDraft(){
+  resetImportFormAfterSave();
+  showMessage(importMessage,'');
 }
 function editImportOrder(idx){
   const order=window.__importOrdersCache?.[idx];
@@ -64,6 +85,8 @@ function editImportOrder(idx){
     baseUnit:i.baseUnit||'',
     conversionRate:Number(i.conversionRate||1),
     packing:i.packing||'',
+    warehouseCode:i.warehouseCode||'KHO_HC',
+    warehouseName:i.warehouseName||((i.warehouseCode||'KHO_HC')==='KHO_PC'?'KHO PC':'KHO HC'),
     quantity:Number(i.quantity||0),
     costPrice:Number(i.costPrice||0),
     amount:Number(i.amount||Number(i.quantity||0)*Number(i.costPrice||0))
@@ -79,7 +102,7 @@ async function submitImportOrder(event){
   event.preventDefault();
   if(!importItems.length){showMessage(importMessage,'Phiếu nhập chưa có dòng hàng',true);return}
   const payload=Object.fromEntries(new FormData(importForm).entries());
-  payload.items=importItems.map(i=>({productCode:i.productCode,quantity:i.quantity,warehouseCode:i.warehouseCode,warehouseName:i.warehouseName}));
+  payload.items=importItems.map(i=>({productCode:i.productCode,productId:i.productId,quantity:i.quantity,warehouseCode:i.warehouseCode,warehouseName:i.warehouseName}));
   try{
     const url=editingImportOrderId?`/api/import-orders/${encodeURIComponent(editingImportOrderId)}`:'/api/import-orders';
     const method=editingImportOrderId?'PUT':'POST';
@@ -92,3 +115,8 @@ async function submitImportOrder(event){
 }
 
 // Sales
+
+if(importForm)importForm.addEventListener('submit',submitImportOrder);
+if(addImportItemButton)addImportItemButton.addEventListener('click',addImportItem);
+if(skipImportDraftButton)skipImportDraftButton.addEventListener('click',skipImportDraft);
+if(importProductSearch)importProductSearch.addEventListener('change',syncImportCostPrice);

@@ -307,16 +307,20 @@ function applyConfiguredSelect(config, item){
     const hiddenRule=(config.fill||[]).find(rule=>rule.targetId && rule.targetId!==config.inputId);
     if(hiddenRule) input.dataset.targetHidden=hiddenRule.targetId;
   }
-  // Lưu object sản phẩm vừa chọn cho màn Bán hàng.
-  // Một số kết quả search đến từ /api/search/products chưa kịp nằm trong catalog cache,
-  // khiến nút Thêm vào đơn báo chưa chọn sản phẩm dù input đã có label.
+  // Lưu object sản phẩm vừa chọn cho từng màn.
+  // Một số kết quả search đến từ API chưa kịp nằm trong catalog cache,
+  // nếu chỉ lưu hidden id thì add line có thể không tìm thấy costPrice/salePrice.
   if(config.key==='salesProduct' || config.inputId==='salesProductSearch'){
     window.__selectedSalesProduct = item || null;
     if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync([item]);
   }
+  if(config.key==='importProduct' || config.inputId==='importProductSearch'){
+    window.__selectedImportProduct = item || null;
+    if(window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') window.UnifiedProductSearch.sync([item]);
+  }
   if(config.afterSelect==='reloadProducts') loadProducts();
   if(config.afterSelect==='reloadCustomers') loadCustomers();
-  if(config.afterSelect==='setImportCostPrice' && importCostPrice) importCostPrice.value=Number(item.costPrice||0);
+  if(config.afterSelect==='setImportCostPrice' && importCostPrice) importCostPrice.value=Number(item.costPrice ?? item.importPrice ?? item.purchasePrice ?? item.lastCostPrice ?? 0);
   if(config.afterSelect==='setSalesPrice' && salesPrice) salesPrice.value=Number(item.salePrice||0);
   if(config.afterSelect==='loadDeliveryToday' && typeof loadDeliveryToday==='function') loadDeliveryToday();
   if(config.afterSelect==='loadSalesOrders' && typeof loadSalesOrders==='function') loadSalesOrders();
