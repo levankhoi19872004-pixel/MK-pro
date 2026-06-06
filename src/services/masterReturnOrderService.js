@@ -12,10 +12,31 @@ const returnOrderService = require('./returnOrderService');
 
 function isInactiveStatus(row = {}) {
   const status = String(row.status || '').toLowerCase();
-  return ['cancelled', 'canceled', 'void', 'deleted', 'removed'].includes(status) || Boolean(row.deletedAt);
+  const returnStatus = String(row.returnStatus || '').toLowerCase();
+  return BLOCKED_RETURN_STATUSES.has(status) || BLOCKED_RETURN_STATUSES.has(returnStatus) || Boolean(row.deletedAt);
 }
 
-const GROUPABLE_RETURN_STATUSES = ['has_return', 'waiting_receive', 'pending_warehouse_receive', 'pending'];
+const GROUPABLE_RETURN_STATUSES = new Set([
+  'active',
+  'created',
+  'pending',
+  'has_return',
+  'waiting_receive',
+  'pending_warehouse_receive'
+]);
+
+const BLOCKED_RETURN_STATUSES = new Set([
+  'cancelled',
+  'canceled',
+  'void',
+  'deleted',
+  'removed',
+  'duplicate_cancelled',
+  'cleared',
+  'merged',
+  'received',
+  'completed'
+]);
 
 function getReturnOrderValue(row = {}) {
   return toNumber(row.debtReduction ?? row.totalAmount ?? row.amount ?? row.totalValue);
@@ -52,8 +73,18 @@ function hasPositiveReturnItemsOrValue(row = {}) {
 }
 
 function isGroupableReturnStatus(row = {}) {
-  const status = String(row.status || row.returnStatus || row.warehouseReceiveStatus || 'waiting_receive').toLowerCase();
-  return GROUPABLE_RETURN_STATUSES.includes(status);
+  const status = String(row?.status || '').toLowerCase();
+  const returnStatus = String(row?.returnStatus || '').toLowerCase();
+  const warehouseReceiveStatus = String(row?.warehouseReceiveStatus || '').toLowerCase();
+
+  if (BLOCKED_RETURN_STATUSES.has(status) || BLOCKED_RETURN_STATUSES.has(returnStatus) || BLOCKED_RETURN_STATUSES.has(warehouseReceiveStatus)) {
+    return false;
+  }
+
+  return GROUPABLE_RETURN_STATUSES.has(status)
+    || GROUPABLE_RETURN_STATUSES.has(returnStatus)
+    || GROUPABLE_RETURN_STATUSES.has(warehouseReceiveStatus)
+    || (!status && !returnStatus && !warehouseReceiveStatus);
 }
 
 function buildMasterReturnCode(existingRows = []) {
