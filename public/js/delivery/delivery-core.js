@@ -218,9 +218,25 @@
     },
 
     async saveReturn(order, items) {
+      order = normalizeOrder(order || this.state.selectedOrder);
       var json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(this.buildReturnPayload(order, items)) });
       if (json.order) this.patchOrder(json.order);
-      await this.loadReturns(this.state.filters || {});
+
+      // After saving Tab 2, Tab 3 must show the official returnOrder immediately.
+      // Prefer rows returned by POST /return, then force-reload by selected order key.
+      var savedRows = json.returns || json.returnOrders || json.rows || [];
+      if (Array.isArray(savedRows) && savedRows.length) this.mergeReturns(savedRows);
+      try {
+        await this.loadReturns({
+          orderId: order.orderId,
+          orderCode: order.orderCode,
+          salesOrderId: order.salesOrderId,
+          salesOrderCode: order.salesOrderCode
+        });
+      } catch (err) {
+        // Keep returned rows if the direct reload fails; the UI should not look empty after a successful save.
+        if (!Array.isArray(savedRows) || !savedRows.length) throw err;
+      }
       return json;
     },
 
@@ -255,6 +271,20 @@
       var json = await this.api('/api/delivery/confirm', { method: 'POST', body: JSON.stringify(body) });
       if (json.order) this.patchOrder(json.order);
       return json;
+    },
+
+    mergeReturns(rows) {
+      var incoming = (Array.isArray(rows) ? rows : []).map(normalizeReturnRow);
+      var keep = (this.state.returns || []).filter(function (oldRow) {
+        return !incoming.some(function (newRow) {
+          var sameOrder = text(oldRow.salesOrderId) && text(oldRow.salesOrderId) === text(newRow.salesOrderId)
+            || text(oldRow.salesOrderCode) && text(oldRow.salesOrderCode) === text(newRow.salesOrderCode);
+          var sameProduct = text(oldRow.productCode) === text(newRow.productCode);
+          return sameOrder && sameProduct;
+        });
+      });
+      this.state.returns = keep.concat(incoming);
+      return this.state.returns;
     },
 
     patchOrder(order) {

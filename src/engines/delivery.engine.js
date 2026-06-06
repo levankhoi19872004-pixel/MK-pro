@@ -653,15 +653,30 @@ class DeliveryEngine {
   }
 
   async listReturns(query = {}) {
-    const result = await this.listOrders(query);
+    const directKey = text(query.salesOrderId || query.orderId || query.salesOrderCode || query.orderCode || query.orderKey);
+    let result = null;
+    let orders = [];
+
+    // V46 professional rule:
+    // Tab Hàng trả must be able to reload by the selected order key immediately after saving.
+    // Do not depend only on current list filters (date/NVGH/NVBH/status/q), because a stale or
+    // broad filter can hide the just-saved returnOrder and make the UI look like the save failed.
+    if (directKey) {
+      const order = await this.getCanonicalOrderByKey(directKey);
+      orders = order ? [order] : [];
+      result = { rows: orders };
+    } else {
+      result = await this.listOrders(query);
+      orders = result.rows || [];
+    }
+
     const orderById = new Map();
     const orderByCode = new Map();
-    for (const order of result.rows || []) {
+    for (const order of orders || []) {
       for (const id of unique([order.orderId, order.salesOrderId, order.id])) orderById.set(id, order);
       for (const code of unique([order.orderCode, order.salesOrderCode, order.code])) orderByCode.set(code, order);
     }
 
-    const orders = result.rows || [];
     const returnOrders = await this.findReturnOrdersFor(orders);
     const rows = [];
     for (const ro of returnOrders || []) {

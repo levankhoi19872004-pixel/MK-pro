@@ -336,11 +336,18 @@
     return '<input type="hidden" data-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">';
   }
 
+  function cleanReturnCode(value) {
+    return String(value == null ? '' : value).trim().replace(/^RO[-_]?/i, '');
+  }
+
   function returnsForOrder(order) {
-    var ids = [order.orderId, order.salesOrderId, order.id].map(String);
-    var codes = [order.orderCode, order.salesOrderCode, order.code].map(String);
+    order = order || {};
+    var ids = [order.orderId, order.salesOrderId, order.id, order._id].map(String).filter(function (v) { return v && v !== 'undefined' && v !== 'null'; });
+    var codes = [order.orderCode, order.salesOrderCode, order.code, order.displayOrderCode].map(cleanReturnCode).filter(Boolean);
     return (window.DeliveryCore.state.returns || []).filter(function (row) {
-      return ids.indexOf(String(row.salesOrderId || row.orderId || '')) >= 0 || codes.indexOf(String(row.salesOrderCode || row.orderCode || '')) >= 0;
+      var rowIds = [row.salesOrderId, row.orderId, row.sourceOrderId, row.deliveryOrderId].map(String);
+      var rowCodes = [row.salesOrderCode, row.orderCode, row.sourceOrderCode, row.deliveryOrderCode, row.returnOrderCode].map(cleanReturnCode);
+      return ids.some(function (id) { return rowIds.indexOf(id) >= 0; }) || codes.some(function (code) { return rowCodes.indexOf(code) >= 0; });
     });
   }
 
