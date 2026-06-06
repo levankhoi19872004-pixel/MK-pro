@@ -13,6 +13,86 @@ function norm(value) { return lower(value).normalize('NFD').replace(/[\u0300-\u0
 function compact(value) { return norm(value).replace(/[^a-z0-9]/g, ''); }
 function truthy(value) { return ['1', 'true', 'yes', 'y'].includes(lower(value)); }
 
+function escapeRegex(value) { return text(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function cleanOrderCode(value) { return text(value).replace(/^RO[-_]?/i, ''); }
+function prefixedReturnCode(value) { const clean = cleanOrderCode(value); return clean ? `RO-${clean}` : ''; }
+function keyVariants(value) {
+  const raw = text(value);
+  const clean = cleanOrderCode(raw);
+  return unique([raw, clean, prefixedReturnCode(raw)]);
+}
+function keyCompareVariants(value) {
+  return unique(keyVariants(value).flatMap((item) => [item, compact(item), cleanOrderCode(item), compact(cleanOrderCode(item))]));
+}
+function returnOrderAmountFromItems(items = []) {
+  return Math.round((Array.isArray(items) ? items : []).reduce((sum, item) => {
+    const qty = returnQtyOf(item) || qtyOf(item);
+    const price = priceOf(item);
+    const computed = qty > 0 && price > 0 ? qty * price : toNumber(item.returnAmount ?? item.amount ?? 0);
+    return sum + computed;
+  }, 0));
+}
+function returnOrderQtyFromItems(items = []) {
+  return (Array.isArray(items) ? items : []).reduce((sum, item) => sum + (returnQtyOf(item) || qtyOf(item)), 0);
+}
+function hasPositiveReturnDocument(row = {}) {
+  const items = Array.isArray(row.items) ? row.items : [];
+  return returnOrderAmountFromItems(items) > 0 || toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.amount ?? row.debtReduction) > 0;
+}
+function canonicalizeReturnDocument(row = {}) {
+  const items = (Array.isArray(row.items) ? row.items : []).map((item) => {
+    const qty = returnQtyOf(item) || qtyOf(item);
+    const price = priceOf(item);
+    const amount = Math.round(qty > 0 && price > 0 ? qty * price : toNumber(item.returnAmount ?? item.amount ?? 0));
+    return {
+      ...item,
+      productCode: productCodeOf(item),
+      code: productCodeOf(item),
+      productName: productNameOf(item),
+      name: productNameOf(item),
+      returnQty: qty,
+      qtyReturn: qty,
+      returnQuantity: qty,
+      returnedQty: qty,
+      quantity: qty,
+      qty,
+      price,
+      salePrice: price,
+      unitPrice: price,
+      returnAmount: amount,
+      amount
+    };
+  }).filter((item) => item.productCode || item.productName || toNumber(item.returnQty) > 0);
+  const itemAmount = returnOrderAmountFromItems(items);
+  const totalAmount = itemAmount || Math.round(toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.amount ?? row.debtReduction));
+  const totalQuantity = returnOrderQtyFromItems(items) || toNumber(row.totalQuantity ?? row.quantity ?? row.qty);
+  const id = text(row.id || row.code || row._id);
+  const code = text(row.code || row.id || id);
+  return {
+    ...row,
+    id,
+    code,
+    salesOrderId: text(row.salesOrderId || row.orderId || row.sourceOrderId || row.deliveryOrderId),
+    salesOrderCode: text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.deliveryOrderCode || cleanOrderCode(code)),
+    orderId: text(row.orderId || row.salesOrderId || row.sourceOrderId || row.deliveryOrderId),
+    orderCode: text(row.orderCode || row.salesOrderCode || row.sourceOrderCode || row.deliveryOrderCode || cleanOrderCode(code)),
+    items,
+    returnItems: items,
+    totalQuantity,
+    totalAmount,
+    totalReturnAmount: totalAmount,
+    amount: totalAmount,
+    debtReduction: totalAmount
+  };
+}
+function summarizeReturnRows(rows = []) {
+  return rows.reduce((a, r) => {
+    a.returnQty += toNumber(r.returnQty ?? r.totalQuantity);
+    a.amount += toNumber(r.amount ?? r.totalAmount ?? r.debtReduction);
+    return a;
+  }, { returnQty: 0, amount: 0 });
+}
+
 function queryKeyword(query = {}, keys = []) {
   for (const key of keys) {
     const value = text(query[key]);
@@ -145,7 +225,7 @@ function resolveReturnItemWithOrderLine(item = {}, orderLine = {}) {
   };
 }
 
-function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }; }
+function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] } }; }
 
 function buildOrderLookup(value) {
   const key = text(value);
@@ -156,11 +236,18 @@ function buildOrderLookup(value) {
 }
 
 function returnMatchesOrder(ret = {}, order = {}) {
-  const ids = unique([orderIdOf(order), order.salesOrderId, order.orderId]);
-  const codes = unique([orderCodeOf(order), order.salesOrderCode, order.orderCode, order.code]);
-  const retIds = unique([ret.salesOrderId, ret.orderId, ret.sourceOrderId, ret.deliveryOrderId]);
-  const retCodes = unique([ret.salesOrderCode, ret.orderCode, ret.sourceOrderCode, ret.deliveryOrderCode, ret.code && String(ret.code).replace(/^RO[-_]?/i, '')]);
-  return ids.some((id) => retIds.includes(id)) || codes.some((code) => retCodes.includes(code));
+  const orderValues = unique([
+    orderIdOf(order), order.salesOrderId, order.orderId, order.sourceOrderId, order.deliveryOrderId,
+    orderCodeOf(order), order.salesOrderCode, order.orderCode, order.sourceOrderCode, order.deliveryOrderCode,
+    order.id, order.code
+  ]).flatMap(keyCompareVariants);
+  const retValues = unique([
+    ret.salesOrderId, ret.orderId, ret.sourceOrderId, ret.deliveryOrderId,
+    ret.salesOrderCode, ret.orderCode, ret.sourceOrderCode, ret.deliveryOrderCode,
+    ret.id, ret.code
+  ]).flatMap(keyCompareVariants);
+  const retSet = new Set(retValues);
+  return orderValues.some((value) => retSet.has(value));
 }
 
 function normalizeReturnItemsFromOrders(returnOrders = []) {
@@ -233,7 +320,7 @@ function flattenReturnOrderRows(ro = {}, order = {}) {
       productName: productNameOf(item),
       returnQty,
       price,
-      amount: toNumber(item.returnAmount || item.amount || Math.round(returnQty * price))
+      amount: Math.round(returnQty > 0 && price > 0 ? returnQty * price : toNumber(item.returnAmount ?? item.amount ?? 0))
     };
   });
 }
@@ -490,13 +577,28 @@ class DeliveryEngine {
   }
 
   async findReturnOrdersFor(orders = []) {
-    const ids = unique(orders.flatMap((o) => [orderIdOf(o), o.id, o._id, o.salesOrderId, o.orderId]));
-    const codes = unique(orders.flatMap((o) => [orderCodeOf(o), o.code, o.orderCode, o.salesOrderCode]));
+    const ids = unique(orders.flatMap((o) => [orderIdOf(o), o.id, o._id, o.salesOrderId, o.orderId, o.sourceOrderId, o.deliveryOrderId]));
+    const codes = unique(orders.flatMap((o) => [orderCodeOf(o), o.code, o.orderCode, o.salesOrderCode, o.sourceOrderCode, o.deliveryOrderCode]));
+    const idVariants = unique(ids.flatMap(keyVariants));
+    const codeVariants = unique(codes.flatMap(keyVariants));
     const or = [];
-    if (ids.length) or.push({ salesOrderId: { $in: ids } }, { orderId: { $in: ids } }, { sourceOrderId: { $in: ids } }, { deliveryOrderId: { $in: ids } });
-    if (codes.length) or.push({ salesOrderCode: { $in: codes } }, { orderCode: { $in: codes } }, { sourceOrderCode: { $in: codes } }, { deliveryOrderCode: { $in: codes } });
+    if (idVariants.length) {
+      or.push(
+        { salesOrderId: { $in: idVariants } }, { orderId: { $in: idVariants } },
+        { sourceOrderId: { $in: idVariants } }, { deliveryOrderId: { $in: idVariants } },
+        { id: { $in: idVariants } }
+      );
+    }
+    if (codeVariants.length) {
+      or.push(
+        { salesOrderCode: { $in: codeVariants } }, { orderCode: { $in: codeVariants } },
+        { sourceOrderCode: { $in: codeVariants } }, { deliveryOrderCode: { $in: codeVariants } },
+        { code: { $in: codeVariants } }, { id: { $in: codeVariants } }
+      );
+    }
     if (!or.length) return [];
-    return this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean();
+    const docs = await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean();
+    return docs.map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument);
   }
 
   async getCanonicalOrderByKey(key) {
@@ -693,6 +795,61 @@ class DeliveryEngine {
     };
   }
 
+  async listReturnDocuments(query = {}) {
+    const filter = { ...activeReturnFilter() };
+    const and = [];
+    const dateFrom = text(query.dateFrom || query.fromDate || query.from || (query.dateMode === 'today' ? (query.date || today()) : ''));
+    const dateTo = text(query.dateTo || query.toDate || query.to || (query.dateMode === 'today' ? (query.date || today()) : ''));
+    if (dateFrom || dateTo) {
+      const range = {};
+      if (dateFrom) range.$gte = dateFrom;
+      if (dateTo) range.$lte = dateTo;
+      and.push({ $or: [{ date: range }, { documentDate: range }, { deliveryDate: range }, { returnDate: range }] });
+    }
+
+    const directKeys = unique([query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode, query.orderKey, query.code, query.id]);
+    if (directKeys.length) {
+      const values = unique(directKeys.flatMap(keyVariants));
+      and.push({ $or: [
+        { salesOrderId: { $in: values } }, { orderId: { $in: values } },
+        { sourceOrderId: { $in: values } }, { deliveryOrderId: { $in: values } },
+        { salesOrderCode: { $in: values } }, { orderCode: { $in: values } },
+        { sourceOrderCode: { $in: values } }, { deliveryOrderCode: { $in: values } },
+        { id: { $in: values } }, { code: { $in: values } }
+      ] });
+    }
+
+    if (query.masterOrderId) filter.masterOrderId = text(query.masterOrderId);
+    if (query.masterOrderCode) filter.masterOrderCode = text(query.masterOrderCode);
+    if (query.customerCode) filter.customerCode = text(query.customerCode);
+    if (query.deliveryStaffCode || query.staffCode || query.delivery) {
+      const rx = new RegExp(escapeRegex(query.deliveryStaffCode || query.staffCode || query.delivery), 'i');
+      and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { staffCode: rx }, { staffName: rx }] });
+    }
+    if (query.salesStaffCode || query.salesman) {
+      const rx = new RegExp(escapeRegex(query.salesStaffCode || query.salesman), 'i');
+      and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { staffCode: rx }, { staffName: rx }] });
+    }
+    const keyword = text(query.q || query.keyword || query.search);
+    if (keyword) {
+      const rx = new RegExp(escapeRegex(keyword), 'i');
+      and.push({ $or: [
+        { id: rx }, { code: rx }, { salesOrderCode: rx }, { orderCode: rx },
+        { customerCode: rx }, { customerName: rx }, { deliveryStaffCode: rx }, { deliveryStaffName: rx },
+        { staffCode: rx }, { staffName: rx }, { note: rx }
+      ] });
+    }
+    if (and.length) filter.$and = and;
+
+    const page = Math.max(1, Number(query.page || 1));
+    const limit = Math.min(500, Math.max(1, Number(query.limit || 100)));
+    const skip = (page - 1) * limit;
+    const docs = await this.ReturnOrder.find(filter).sort({ createdAt: -1, code: -1 }).skip(skip).limit(limit).lean();
+    const returnOrders = docs.map(canonicalizeReturnDocument).filter((row) => String(query.includeZeroValue ?? query.showZero ?? '0') === '1' || hasPositiveReturnDocument(row));
+    const rows = returnOrders.flatMap((ro) => flattenReturnOrderRows(ro, {}));
+    return { returnOrders, returns: returnOrders, rows, summary: summarizeReturnRows(rows) };
+  }
+
   async listReturns(query = {}) {
     const directKeys = unique([query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode, query.orderKey]);
     let result = null;
@@ -703,19 +860,15 @@ class DeliveryEngine {
     // Do not depend on SalesOrder resolution, date filters, or preloaded list cache.
     if (directKeys.length) {
       const or = [];
-      for (const rawKey of directKeys) {
-        const key = text(rawKey);
-        const cleanKey = key.replace(/^RO[-_]?/i, '');
-        const roKey = `RO-${cleanKey}`;
-        for (const value of unique([key, cleanKey, roKey])) {
-          or.push(
-            { salesOrderId: value }, { orderId: value }, { salesOrderCode: value }, { orderCode: value },
-            { sourceOrderId: value }, { sourceOrderCode: value }, { deliveryOrderId: value }, { deliveryOrderCode: value },
-            { id: value }, { code: value }
-          );
-        }
+      const values = unique(directKeys.flatMap(keyVariants));
+      for (const value of values) {
+        or.push(
+          { salesOrderId: value }, { orderId: value }, { salesOrderCode: value }, { orderCode: value },
+          { sourceOrderId: value }, { sourceOrderCode: value }, { deliveryOrderId: value }, { deliveryOrderCode: value },
+          { id: value }, { code: value }
+        );
       }
-      const directReturns = or.length ? await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean() : [];
+      const directReturns = or.length ? (await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean()).map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument) : [];
       if (directReturns.length) {
         let fallbackOrder = {};
         for (const key of directKeys) {
@@ -723,7 +876,7 @@ class DeliveryEngine {
           if (fallbackOrder && (fallbackOrder.orderId || fallbackOrder.orderCode)) break;
         }
         const directRows = directReturns.flatMap((ro) => flattenReturnOrderRows(ro, fallbackOrder));
-        return { rows: directRows, summary: directRows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
+        return { rows: directRows, returnOrdersRaw: directReturns, summary: summarizeReturnRows(directRows) };
       }
 
       for (const key of directKeys) {
@@ -751,7 +904,7 @@ class DeliveryEngine {
         || {};
       rows.push(...flattenReturnOrderRows(ro, order));
     }
-    return { rows, summary: rows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
+    return { rows, returnOrdersRaw: returnOrders.map(canonicalizeReturnDocument), summary: summarizeReturnRows(rows) };
   }
 
   async reconciliation(query = {}) {
@@ -775,6 +928,8 @@ module.exports = {
     orderCodeOf,
     productCodeOf,
     returnMatchesOrder,
-    buildOrderLookup
+    buildOrderLookup,
+    canonicalizeReturnDocument,
+    summarizeReturnRows
   }
 };

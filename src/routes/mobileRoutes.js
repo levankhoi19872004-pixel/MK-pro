@@ -132,6 +132,67 @@ function requireMobileRole(roles = []) {
   };
 }
 
+
+function createCanonicalDeliveryEngine() {
+  return new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, ArLedger, User: Staff });
+}
+
+// V46 canonical bridge: giữ /api/mobile/delivery/* để tương thích app cũ,
+// nhưng toàn bộ business logic đi qua DeliveryEngine giống /api/delivery/*.
+router.get('/delivery/orders', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
+  try {
+    const result = await createCanonicalDeliveryEngine().listOrders({ ...(req.query || {}), deliveryStaffCode: req.query.deliveryStaffCode || req.mobileUser?.code });
+    return ok(res, { source: 'delivery-engine-mobile-bridge', orders: result.rows, rows: result.rows, items: result.rows, total: result.rows.length, summary: result.summary, reconciliation: result.reconciliation });
+  } catch (err) {
+    return fail(res, err.status || 500, err.message || 'Không tải được đơn giao hàng mobile');
+  }
+});
+
+router.get('/delivery/returns', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
+  try {
+    const result = await createCanonicalDeliveryEngine().listReturns(req.query || {});
+    return ok(res, { source: 'returnOrders', returns: result.rows, returnOrders: result.rows, rows: result.rows, total: result.rows.length, summary: result.summary });
+  } catch (err) {
+    return fail(res, err.status || 500, err.message || 'Không tải được hàng trả mobile');
+  }
+});
+
+router.post('/delivery/return', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
+  try {
+    const result = await createCanonicalDeliveryEngine().saveReturn({
+      ...(req.body || {}),
+      orderId: req.body?.orderId || req.body?.salesOrderId || req.body?.orderCode || req.body?.salesOrderCode,
+      salesOrderId: req.body?.salesOrderId || req.body?.orderId,
+      salesOrderCode: req.body?.salesOrderCode || req.body?.orderCode,
+      deliveryStaffCode: req.body?.deliveryStaffCode || req.mobileUser?.code,
+      deliveryStaffName: req.body?.deliveryStaffName || req.mobileUser?.name,
+      source: 'mobile_delivery_engine_bridge'
+    });
+    const rows = result.rows || result.returns || result.returnOrders || [];
+    return ok(res, { source: 'returnOrders', message: result.message, returnOrder: stripMongoFields(result.returnOrder || {}), returns: rows, returnOrders: rows, rows, order: stripMongoFields(result.order || {}) });
+  } catch (err) {
+    return fail(res, err.status || 500, err.message || 'Không tạo được phiếu trả hàng từ app giao hàng');
+  }
+});
+
+router.post('/delivery/payment', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
+  try {
+    const result = await createCanonicalDeliveryEngine().savePayment(req.body || {});
+    return ok(res, { source: 'delivery-engine-mobile-bridge', message: result.message, order: result.order, allocation: result.allocation });
+  } catch (err) {
+    return fail(res, err.status || 500, err.message || 'Không lưu được tiền thu app giao hàng');
+  }
+});
+
+router.post('/delivery/confirm', requireMobileLogin, requireMobileRole(['delivery', 'admin']), async (req, res) => {
+  try {
+    const result = await createCanonicalDeliveryEngine().confirm(req.body || {});
+    return ok(res, { source: 'delivery-engine-mobile-bridge', message: result.message, order: result.order });
+  } catch (err) {
+    return fail(res, err.status || 500, err.message || 'Không cập nhật được giao hàng mobile');
+  }
+});
+
 function buildRegexFilter(q, fields, base = { isActive: { $ne: false } }) {
   const keyword = String(q || '').trim();
   const filter = { ...base };

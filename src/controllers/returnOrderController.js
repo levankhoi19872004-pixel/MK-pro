@@ -1,6 +1,17 @@
 'use strict';
 
 const returnOrderService = require('../services/returnOrderService');
+const SalesOrder = require('../models/SalesOrder');
+const MasterOrder = require('../models/MasterOrder');
+const ReturnOrder = require('../models/ReturnOrder');
+const StockTransaction = require('../models/StockTransaction');
+const ArLedger = require('../models/ArLedger');
+const User = require('../models/User');
+const { DeliveryEngine } = require('../engines/delivery.engine');
+
+function createEngine() {
+  return new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+}
 
 async function list(req, res) {
   try {
@@ -13,11 +24,22 @@ async function list(req, res) {
 
 async function create(req, res) {
   try {
-    const result = await returnOrderService.createReturnOrder(req.body || {});
-    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.status(201).json({ ok: true, source: 'mongo-route', message: `Đã tạo phiếu trả hàng ${result.returnOrder.code}`, returnOrder: result.returnOrder });
+    // V46 canonical rule: POST /api/return-orders ghi qua DeliveryEngine.saveReturn()
+    // để cùng nguồn với Đơn giao hôm nay và App giao hàng.
+    const result = await createEngine().saveReturn(req.body || {});
+    const rows = result.rows || result.returns || result.returnOrders || [];
+    res.status(201).json({
+      ok: true,
+      source: 'delivery-engine-returnOrders',
+      message: result.message || `Đã tạo/cập nhật phiếu trả hàng ${result.returnOrder?.code || ''}`.trim(),
+      returnOrder: result.returnOrder,
+      returns: rows,
+      returnOrders: rows,
+      rows,
+      order: result.order
+    });
   } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không tạo được phiếu trả hàng' });
+    res.status(err.status || 400).json({ ok: false, message: err.message || 'Không tạo được phiếu trả hàng' });
   }
 }
 

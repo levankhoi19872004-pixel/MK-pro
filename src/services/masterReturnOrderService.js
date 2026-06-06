@@ -25,6 +25,32 @@ function hasPositiveReturnValue(row = {}) {
   return getReturnOrderValue(row) > 0;
 }
 
+function groupableReturnOrderMongoFilter(extra = {}) {
+  return {
+    ...extra,
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled', 'cleared'] },
+    $or: [
+      { masterReturnOrderId: { $exists: false } },
+      { masterReturnOrderId: null },
+      { masterReturnOrderId: '' },
+      { masterReturnOrderCode: { $exists: false } },
+      { masterReturnOrderCode: null },
+      { masterReturnOrderCode: '' },
+      { returnMergeStatus: { $ne: 'merged' } }
+    ]
+  };
+}
+
+function hasPositiveReturnItemsOrValue(row = {}) {
+  const itemAmount = (Array.isArray(row.items) ? row.items : []).reduce((sum, item) => {
+    const qty = toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty);
+    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice);
+    const amount = qty > 0 && price > 0 ? qty * price : toNumber(item.returnAmount ?? item.amount);
+    return sum + amount;
+  }, 0);
+  return itemAmount > 0 || hasPositiveReturnValue(row);
+}
+
 function isGroupableReturnStatus(row = {}) {
   const status = String(row.status || row.returnStatus || row.warehouseReceiveStatus || 'waiting_receive').toLowerCase();
   return GROUPABLE_RETURN_STATUSES.includes(status);
@@ -75,23 +101,30 @@ function summarizeReturnOrders(returnOrders = []) {
 }
 
 async function getChildren(masterReturnOrder = {}) {
-  const ids = Array.isArray(masterReturnOrder.returnOrderIds) ? masterReturnOrder.returnOrderIds.map(String) : [];
+  const ids = Array.isArray(masterReturnOrder.returnOrderIds) ? masterReturnOrder.returnOrderIds.map(String).filter(Boolean) : [];
   if (!ids.length) return [];
-  const all = await returnOrderRepository.findAll();
-  return all.filter((row) => ids.includes(String(row.id)) || ids.includes(String(row.code)));
+  return returnOrderRepository.findAll({
+    $or: [
+      { id: { $in: ids } },
+      { code: { $in: ids } }
+    ]
+  }, { sort: { createdAt: 1 }, limit: Math.max(ids.length, 1) });
 }
 
 async function listUnmergedReturnOrders(query = {}) {
   const q = normalizeText(query.q);
   const date = dateUtil.toDateOnly(query.date || query.returnDate);
   const delivery = normalizeText(query.delivery || query.deliveryStaff);
-  const rows = await returnOrderRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const filter = groupableReturnOrderMongoFilter();
+  if (date) {
+    filter.$and = [{ $or: [{ deliveryDate: date }, { date }, { documentDate: date }, { returnDate: date }] }];
+  }
+  const rows = await returnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, limit: 500 });
   return rows
     .filter((row) => !isInactiveStatus(row))
     .filter((row) => isGroupableReturnStatus(row))
-    .filter((row) => hasPositiveReturnValue(row))
+    .filter((row) => hasPositiveReturnItemsOrValue(row))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
-    .filter((row) => !date || dateUtil.toDateOnly(row.deliveryDate || row.date || row.documentDate || row.createdAt) === date)
     .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
     .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)))
     .map((row) => ({
@@ -151,8 +184,12 @@ async function createMasterReturnOrder(body = {}) {
   const returnOrderIds = Array.isArray(body.returnOrderIds) ? body.returnOrderIds.map(String) : [];
   if (!returnOrderIds.length) return { error: 'Chưa chọn phiếu trả hàng để gộp', status: 400 };
 
-  const allReturnOrders = await returnOrderRepository.findAll();
-  const children = allReturnOrders.filter((row) => returnOrderIds.includes(String(row.id)) || returnOrderIds.includes(String(row.code)));
+  const children = await returnOrderRepository.findAll({
+    ...groupableReturnOrderMongoFilter(),
+    $and: [
+      { $or: [{ id: { $in: returnOrderIds } }, { code: { $in: returnOrderIds } }] }
+    ]
+  }, { limit: Math.max(returnOrderIds.length, 1) });
   if (children.length !== returnOrderIds.length) return { error: 'Một số phiếu trả hàng không tồn tại', status: 400 };
   if (children.some((row) => isInactiveStatus(row))) return { error: 'Có phiếu trả hàng đã hủy/xóa', status: 400 };
   if (children.some((row) => !isGroupableReturnStatus(row))) {

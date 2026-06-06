@@ -13,6 +13,13 @@ const financialService = require('./financialService');
 const auditService = require('./auditService');
 const ReturnOrder = require('../models/ReturnOrder');
 
+const SalesOrder = require('../models/SalesOrder');
+const MasterOrder = require('../models/MasterOrder');
+const StockTransaction = require('../models/StockTransaction');
+const ArLedger = require('../models/ArLedger');
+const User = require('../models/User');
+const { DeliveryEngine } = require('../engines/delivery.engine');
+
 const ACTIVE_RETURN_ORDER_STATUSES = [
   'draft',
   'pending',
@@ -240,66 +247,21 @@ function buildFastReturnCode(body = {}, existing = null, salesOrder = null) {
 }
 
 async function listReturnOrders(query = {}) {
-  const dateMode = String(query.dateMode || query.mode || '').toLowerCase();
-  const shouldDefaultToday = dateMode === 'today' || (!dateMode && String(query.defaultToday || '') === '1');
-  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: shouldDefaultToday });
-  const page = queryGuard.getPagination(guardedQuery);
-  const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
-  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
-  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
-  const excludeInactive = String(guardedQuery.excludeInactive ?? '1') !== '0';
-
-  const filter = {};
-  const andFilters = [];
-  if (dateFrom || dateTo) {
-    const range = {};
-    if (dateFrom) range.$gte = dateFrom;
-    if (dateTo) range.$lte = dateTo;
-    // Return draft sinh từ đơn con có thể lưu ngày ở deliveryDate, không chỉ date/documentDate.
-    andFilters.push({ $or: [{ date: range }, { documentDate: range }, { deliveryDate: range }] });
-  }
-  if (excludeInactive) filter.status = { $in: ACTIVE_RETURN_ORDER_STATUSES };
-  const salesOrderId = String(guardedQuery.salesOrderId || guardedQuery.orderId || '').trim();
-  const salesOrderCode = String(guardedQuery.salesOrderCode || guardedQuery.orderCode || '').trim();
-  const deliveryStaffCode = String(guardedQuery.deliveryStaffCode || guardedQuery.staffCode || guardedQuery.delivery || '').trim();
-  const salesStaffCode = String(guardedQuery.salesStaffCode || guardedQuery.salesman || '').trim();
-  if (guardedQuery.masterOrderId) filter.masterOrderId = String(guardedQuery.masterOrderId).trim();
-  if (guardedQuery.masterOrderCode) filter.masterOrderCode = String(guardedQuery.masterOrderCode).trim();
-  if (salesOrderId) andFilters.push({ $or: [{ salesOrderId }, { orderId: salesOrderId }] });
-  if (salesOrderCode) andFilters.push({ $or: [{ salesOrderCode }, { orderCode: salesOrderCode }] });
-  if (deliveryStaffCode) filter.deliveryStaffCode = deliveryStaffCode;
-  if (salesStaffCode) filter.salesStaffCode = salesStaffCode;
-  if (guardedQuery.customerCode) filter.customerCode = String(guardedQuery.customerCode).trim();
-  if (andFilters.length) filter.$and = [...(filter.$and || []), ...andFilters];
-  if (q) {
-    const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
-    filter.$and = filter.$and || [];
-    filter.$and.push({ $or: [
-      { code: rx },
-      { salesOrderCode: rx },
-      { customerCode: rx },
-      { customerName: rx },
-      { staffCode: rx },
-      { staffName: rx },
-      { deliveryStaffCode: rx },
-      { deliveryStaffName: rx },
-      { note: rx }
-    ] });
-  }
-
-  const orders = await returnOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
-  const includeZeroValue = String(guardedQuery.includeZeroValue ?? guardedQuery.showZero ?? '0') === '1';
-  const seenSalesReturns = new Set();
-  return orders
+  // V46 canonical rule: Đơn trả hàng chỉ là adapter đọc từ DeliveryEngine/returnOrders.
+  // Không tự tính/merge hàng trả riêng trong service này nữa.
+  const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+  const result = await engine.listReturnDocuments(query || {});
+  const includeZeroValue = String(query.includeZeroValue ?? query.showZero ?? '0') === '1';
+  const docs = Array.isArray(result.returnOrders) ? result.returnOrders : [];
+  const seen = new Set();
+  return docs
     .map(toClient)
-    .filter((order) => !excludeInactive || !isInactiveStatus(order))
     .filter((order) => includeZeroValue || hasPositiveReturnValue(order))
     .filter((order) => {
-      const salesKey = String(order.salesOrderId || order.salesOrderCode || order.orderId || order.orderCode || '').trim();
-      if (!salesKey) return true;
-      const stableKey = `${salesKey}|${order.code || order.id || ''}`;
-      if (seenSalesReturns.has(stableKey)) return false;
-      seenSalesReturns.add(stableKey);
+      const stableKey = String(order.id || order.code || order._id || '').trim();
+      if (!stableKey) return true;
+      if (seen.has(stableKey)) return false;
+      seen.add(stableKey);
       return true;
     });
 }

@@ -1205,6 +1205,46 @@
         ]
       }
     },
+    "/api/delivery/returns": {
+      "get": {
+        "tags": [
+          "Delivery"
+        ],
+        "summary": "GET /api/delivery/returns",
+        "operationId": "getDeliveryReturns",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/docs": {
       "get": {
         "tags": [
@@ -3829,6 +3869,46 @@
         "operationId": "postMobileDeliveryReturn",
         "responses": {
           "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/mobile/delivery/returns": {
+      "get": {
+        "tags": [
+          "Mobile"
+        ],
+        "summary": "GET /api/mobile/delivery/returns",
+        "operationId": "getMobileDeliveryReturns",
+        "responses": {
+          "200": {
             "description": "Success response",
             "content": {
               "application/json": {
