@@ -205,6 +205,39 @@ function normalizeReturnItemsFromOrders(returnOrders = []) {
   return Array.from(byCode.values());
 }
 
+
+function flattenReturnOrderRows(ro = {}, order = {}) {
+  const status = text(ro.status || ro.returnStatus || 'active');
+  const base = {
+    returnOrderId: text(ro.id || ro._id),
+    returnOrderCode: text(ro.code || ro.id),
+    salesOrderId: text(ro.salesOrderId || ro.orderId || order.salesOrderId || order.orderId),
+    salesOrderCode: text(ro.salesOrderCode || ro.orderCode || order.salesOrderCode || order.orderCode),
+    orderId: text(ro.orderId || ro.salesOrderId || order.orderId || order.salesOrderId),
+    orderCode: text(ro.orderCode || ro.salesOrderCode || order.orderCode || order.salesOrderCode),
+    customerCode: text(ro.customerCode || order.customerCode),
+    customerName: text(ro.customerName || order.customerName),
+    deliveryDate: text(ro.deliveryDate || ro.date || order.deliveryDate),
+    status
+  };
+  const items = Array.isArray(ro.items) ? ro.items : [];
+  if (!items.length) {
+    return [{ ...base, productCode: '', productName: '', returnQty: 0, price: 0, amount: toNumber(ro.totalAmount || ro.amount || ro.totalReturnAmount || ro.debtReduction) }];
+  }
+  return items.map((item) => {
+    const returnQty = returnQtyOf(item) || qtyOf(item);
+    const price = priceOf(item);
+    return {
+      ...base,
+      productCode: productCodeOf(item),
+      productName: productNameOf(item),
+      returnQty,
+      price,
+      amount: toNumber(item.returnAmount || item.amount || Math.round(returnQty * price))
+    };
+  });
+}
+
 function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
   const returnItems = normalizeReturnItemsFromOrders(relatedReturnOrders);
   const returnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
@@ -554,7 +587,15 @@ class DeliveryEngine {
     // V46 rule: returnOrders is the single source of truth for return goods.
     // Do not mirror returnAmount/returnItems into salesOrders. All delivery views must reload/overlay from returnOrders.
     const canonical = await this.getCanonicalOrderByKey(orderIdOf(order));
-    return { order: canonical, returnOrder, message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0' };
+    const returnRows = flattenReturnOrderRows(returnOrder, canonical || order);
+    return {
+      order: canonical,
+      returnOrder,
+      returns: returnRows,
+      returnOrders: returnRows,
+      rows: returnRows,
+      message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0'
+    };
   }
 
   async savePayment(body = {}) {
@@ -653,18 +694,33 @@ class DeliveryEngine {
   }
 
   async listReturns(query = {}) {
-    const directKey = text(query.salesOrderId || query.orderId || query.salesOrderCode || query.orderCode || query.orderKey);
+    const directKeys = unique([query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode, query.orderKey]);
     let result = null;
     let orders = [];
 
     // V46 professional rule:
-    // Tab Hàng trả must be able to reload by the selected order key immediately after saving.
-    // Do not depend only on current list filters (date/NVGH/NVBH/status/q), because a stale or
-    // broad filter can hide the just-saved returnOrder and make the UI look like the save failed.
-    if (directKey) {
-      const order = await this.getCanonicalOrderByKey(directKey);
-      orders = order ? [order] : [];
+    // Tab Hàng trả must reload by every possible selected-order key. Older data may have SO id,
+    // HU code, orderCode, or salesOrderCode inconsistently, so never stop at the first key.
+    if (directKeys.length) {
+      for (const key of directKeys) {
+        const order = await this.getCanonicalOrderByKey(key);
+        if (order) { orders = [order]; break; }
+      }
       result = { rows: orders };
+
+      // If the order cannot be resolved but the caller supplied a direct key, still read returnOrders
+      // directly from returnOrders. This prevents the Hàng trả tab from showing blank after save.
+      if (!orders.length) {
+        const or = [];
+        for (const key of directKeys) {
+          or.push({ salesOrderId: key }, { orderId: key }, { salesOrderCode: key }, { orderCode: key });
+          or.push({ sourceOrderId: key }, { sourceOrderCode: key }, { deliveryOrderId: key }, { deliveryOrderCode: key });
+          or.push({ id: key }, { code: key }, { id: `RO-${key}` }, { code: `RO-${key}` });
+        }
+        const directReturns = or.length ? await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean() : [];
+        const directRows = directReturns.flatMap((ro) => flattenReturnOrderRows(ro, {}));
+        return { rows: directRows, summary: directRows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
+      }
     } else {
       result = await this.listOrders(query);
       orders = result.rows || [];
@@ -683,45 +739,7 @@ class DeliveryEngine {
       const order = orderById.get(text(ro.salesOrderId || ro.orderId || ro.sourceOrderId || ro.deliveryOrderId))
         || orderByCode.get(text(ro.salesOrderCode || ro.orderCode || ro.sourceOrderCode || ro.deliveryOrderCode))
         || {};
-      const status = text(ro.status || ro.returnStatus || 'active');
-      const items = Array.isArray(ro.items) ? ro.items : [];
-      if (!items.length) {
-        rows.push({
-          returnOrderId: text(ro.id || ro._id),
-          returnOrderCode: text(ro.code || ro.id),
-          salesOrderId: text(ro.salesOrderId || ro.orderId || order.salesOrderId || order.orderId),
-          salesOrderCode: text(ro.salesOrderCode || ro.orderCode || order.salesOrderCode || order.orderCode),
-          customerCode: text(ro.customerCode || order.customerCode),
-          customerName: text(ro.customerName || order.customerName),
-          deliveryDate: text(ro.deliveryDate || ro.date || order.deliveryDate),
-          productCode: '',
-          productName: '',
-          returnQty: 0,
-          price: 0,
-          amount: toNumber(ro.totalAmount || ro.amount || ro.totalReturnAmount || ro.debtReduction),
-          status
-        });
-        continue;
-      }
-      for (const item of items) {
-        const returnQty = returnQtyOf(item) || qtyOf(item);
-        const price = priceOf(item);
-        rows.push({
-          returnOrderId: text(ro.id || ro._id),
-          returnOrderCode: text(ro.code || ro.id),
-          salesOrderId: text(ro.salesOrderId || ro.orderId || order.salesOrderId || order.orderId),
-          salesOrderCode: text(ro.salesOrderCode || ro.orderCode || order.salesOrderCode || order.orderCode),
-          customerCode: text(ro.customerCode || order.customerCode),
-          customerName: text(ro.customerName || order.customerName),
-          deliveryDate: text(ro.deliveryDate || ro.date || order.deliveryDate),
-          productCode: productCodeOf(item),
-          productName: productNameOf(item),
-          returnQty,
-          price,
-          amount: toNumber(item.returnAmount || item.amount || Math.round(returnQty * price)),
-          status
-        });
-      }
+      rows.push(...flattenReturnOrderRows(ro, order));
     }
     return { rows, summary: rows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
   }

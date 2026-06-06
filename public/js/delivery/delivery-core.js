@@ -227,15 +227,21 @@
       var savedRows = json.returns || json.returnOrders || json.rows || [];
       if (Array.isArray(savedRows) && savedRows.length) this.mergeReturns(savedRows);
       try {
-        await this.loadReturns({
+        var loadedRows = await this.loadReturns({
           orderId: order.orderId,
           orderCode: order.orderCode,
           salesOrderId: order.salesOrderId,
           salesOrderCode: order.salesOrderCode
         });
+        // Guard: nếu API reload theo key trả rỗng vì lệch key cũ, không được xóa dữ liệu vừa POST trả về.
+        // Tab Hàng trả phải ưu tiên dữ liệu returnOrders chính thức vừa lưu.
+        if ((!Array.isArray(loadedRows) || !loadedRows.length) && Array.isArray(savedRows) && savedRows.length) {
+          this.mergeReturns(savedRows);
+        }
       } catch (err) {
         // Keep returned rows if the direct reload fails; the UI should not look empty after a successful save.
         if (!Array.isArray(savedRows) || !savedRows.length) throw err;
+        this.mergeReturns(savedRows);
       }
       return json;
     },

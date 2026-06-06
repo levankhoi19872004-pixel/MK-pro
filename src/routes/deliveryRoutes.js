@@ -58,21 +58,16 @@ router.post('/return', async (req, res) => {
   try {
     const result = await engine.saveReturn(req.body || {});
     const order = result.order || {};
-    const returnRows = await engine.listReturns({
-      orderId: order.orderId || req.body.orderId,
-      orderCode: order.orderCode || req.body.orderCode,
-      salesOrderId: order.salesOrderId || req.body.salesOrderId,
-      salesOrderCode: order.salesOrderCode || req.body.salesOrderCode
-    });
+    const rows = result.rows || result.returns || result.returnOrders || [];
     return res.json({
       ok: true,
       success: true,
       message: result.message,
       order,
       returnOrder: result.returnOrder,
-      returns: returnRows.rows,
-      returnOrders: returnRows.rows,
-      rows: returnRows.rows,
+      returns: rows,
+      returnOrders: rows,
+      rows,
       source: 'returnOrders'
     });
   } catch (err) {
