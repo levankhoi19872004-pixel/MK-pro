@@ -190,6 +190,17 @@
       return this.state.orders;
     },
 
+    buildReturnQueryForOrder(order) {
+      order = normalizeOrder(order || this.state.selectedOrder || {});
+      return {
+        orderId: order.orderId,
+        orderCode: order.orderCode,
+        salesOrderId: order.salesOrderId,
+        salesOrderCode: order.salesOrderCode,
+        orderKey: order.orderCode || order.salesOrderCode || order.orderId || order.salesOrderId
+      };
+    },
+
     async loadReturns(filters) {
       filters = Object.assign({}, this.state.filters, filters || {});
       var params = new URLSearchParams();
@@ -202,6 +213,35 @@
       this.state.returns = rows.map(normalizeReturnRow);
       this.state.returnsLoaded = true;
       return this.state.returns;
+    },
+
+    async loadReturnsForOrder(order) {
+      order = normalizeOrder(order || this.state.selectedOrder || {});
+      var directFilters = this.buildReturnQueryForOrder(order);
+      var params = new URLSearchParams();
+      Object.keys(directFilters).forEach(function (key) {
+        var value = directFilters[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') params.set(key, value);
+      });
+      var json = await this.api('/api/delivery/returns' + (params.toString() ? '?' + params.toString() : ''));
+      var rows = extractReturnRows(json, order).map(normalizeReturnRow);
+      var match = this.returnRowMatcher(order);
+      this.state.returns = (this.state.returns || []).filter(function (row) { return !match(row); });
+      if (rows.length) this.mergeReturns(rows);
+      this.state.returnsLoaded = true;
+      return rows;
+    },
+
+    returnRowMatcher(order) {
+      order = normalizeOrder(order || {});
+      var ids = [order.orderId, order.salesOrderId, order.id, order._id].map(text).filter(Boolean);
+      var codes = [order.orderCode, order.salesOrderCode, order.code, order.displayOrderCode].map(function (v) { return text(v).replace(/^RO[-_]?/i, ''); }).filter(Boolean);
+      return function (row) {
+        row = row || {};
+        var rowIds = [row.salesOrderId, row.orderId, row.sourceOrderId, row.deliveryOrderId].map(text);
+        var rowCodes = [row.salesOrderCode, row.orderCode, row.sourceOrderCode, row.deliveryOrderCode, row.returnOrderCode].map(function (v) { return text(v).replace(/^RO[-_]?/i, ''); });
+        return ids.some(function (id) { return rowIds.indexOf(id) >= 0; }) || codes.some(function (code) { return rowCodes.indexOf(code) >= 0; });
+      };
     },
 
     selectOrder(orderKeyValue) {
@@ -266,12 +306,7 @@
       var savedRows = extractReturnRows(json, order);
       if (Array.isArray(savedRows) && savedRows.length) this.mergeReturns(savedRows);
       try {
-        var loadedRows = await this.loadReturns({
-          orderId: order.orderId,
-          orderCode: order.orderCode,
-          salesOrderId: order.salesOrderId,
-          salesOrderCode: order.salesOrderCode
-        });
+        var loadedRows = await this.loadReturnsForOrder(order);
         // Guard: nếu API reload theo key trả rỗng vì lệch key cũ, không được xóa dữ liệu vừa POST trả về.
         // Tab Hàng trả phải ưu tiên dữ liệu returnOrders chính thức vừa lưu.
         if ((!Array.isArray(loadedRows) || !loadedRows.length) && Array.isArray(savedRows) && savedRows.length) {

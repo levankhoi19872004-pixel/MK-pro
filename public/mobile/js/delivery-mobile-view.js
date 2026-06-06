@@ -49,7 +49,11 @@
     el('mStaff').addEventListener('change', load);
     el('mSearch').addEventListener('input', debounce(load, 250));
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
-      button.addEventListener('click', function () { state.tab = button.getAttribute('data-m-tab'); render(); });
+      button.addEventListener('click', function () {
+        state.tab = button.getAttribute('data-m-tab');
+        render();
+        if (state.tab === 'returns') loadSelectedReturnsDirect();
+      });
     });
   }
 
@@ -226,11 +230,25 @@
     } catch (err) { msg(err.message, true); }
   }
 
+  async function loadSelectedReturnsDirect() {
+    var order = currentOrder();
+    if (!order || !window.DeliveryCore || !window.DeliveryCore.loadReturnsForOrder) return;
+    try {
+      msg('Đang tải hàng trả trực tiếp từ returnOrders...');
+      await window.DeliveryCore.loadReturnsForOrder(order);
+      msg('');
+      render();
+    } catch (err) {
+      msg('Không tải trực tiếp được hàng trả: ' + err.message, true);
+    }
+  }
+
   function select(key) {
     state.selectedKey = key;
     window.DeliveryCore.selectOrder(key);
     state.tab = 'products';
     render();
+    loadSelectedReturnsDirect();
   }
 
   async function load() {
