@@ -401,6 +401,38 @@ function summarizeOrders(rows = []) {
   }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
 }
 
+function deliveryStatusOf(row = {}) {
+  const status = row.status && typeof row.status === 'object' ? row.status : {};
+  return lower(status.deliveryStatus || row.deliveryStatus || row.status || 'pending');
+}
+
+function isDeliveredOrder(row = {}) {
+  return ['delivered', 'success', 'done', 'completed'].includes(deliveryStatusOf(row));
+}
+
+function applyDeliveryStatusFilter(rows = [], query = {}) {
+  const statusFilter = lower(query.statusFilter || query.deliveryStatusFilter || query.orderStatusFilter || 'all');
+  if (!statusFilter || ['all', 'tat ca', 'tất cả', '*'].includes(statusFilter)) return rows;
+
+  if (['delivered', 'da giao', 'đã giao'].includes(statusFilter)) {
+    return rows.filter(isDeliveredOrder);
+  }
+
+  if (['pending', 'not_delivered', 'not-delivered', 'chua giao', 'chưa giao'].includes(statusFilter)) {
+    return rows.filter((row) => !isDeliveredOrder(row));
+  }
+
+  if (['return', 'returns', 'has_return', 'tra hang', 'trả hàng'].includes(statusFilter)) {
+    return rows.filter((row) => toNumber(row.amounts && row.amounts.returnAmount) > 0 || toNumber(row.returnAmount || row.returnTotal || row.totalReturnAmount) > 0);
+  }
+
+  if (['debt', 'cong no', 'công nợ'].includes(statusFilter)) {
+    return rows.filter((row) => toNumber(row.amounts && row.amounts.debt) > 0 || toNumber(row.debtAmount || row.debt) > 0);
+  }
+
+  return rows;
+}
+
 class DeliveryEngine {
   constructor(models = {}) {
     this.SalesOrder = models.SalesOrder;
@@ -614,6 +646,7 @@ class DeliveryEngine {
     const orders = await this.findOrders(query);
     const returns = await this.findReturnOrdersFor(orders);
     let rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    rows = applyDeliveryStatusFilter(rows, query);
     if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || query.staffCheck !== '0') {
       rows = await this.enrichStaffAssignment(rows);
     }

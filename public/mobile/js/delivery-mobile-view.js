@@ -12,6 +12,20 @@
   var state = { selectedKey: '', tab: 'orders' };
 
   function readUser() { try { return JSON.parse(localStorage.getItem('v43_mobile_user') || localStorage.getItem('mk_web_user') || '{}'); } catch (err) { return {}; } }
+  function userDisplayName(user) { return String((user && (user.fullName || user.name || user.username || user.staffCode || user.code)) || '').trim(); }
+  function userStaffCode(user) { return String((user && (user.staffCode || user.code || user.username)) || '').trim(); }
+  function userRoleLabel(user) {
+    var role = String((user && user.role) || '').toLowerCase();
+    if (user && user.roleLabel) return String(user.roleLabel);
+    if (role === 'delivery') return 'Nhân viên giao hàng';
+    if (role === 'admin') return 'Admin';
+    return role || 'Tài khoản';
+  }
+  function deliveryStatusOf(order) {
+    var st = order && order.status && typeof order.status === 'object' ? order.status.deliveryStatus : '';
+    return String(st || (order && (order.deliveryStatus || order.status)) || 'pending').toLowerCase();
+  }
+  function isDelivered(order) { return ['delivered', 'success', 'done', 'completed'].indexOf(deliveryStatusOf(order)) >= 0; }
   function requireDeliveryLogin() {
     var token = localStorage.getItem('v43_mobile_token') || localStorage.getItem('mk_web_token') || '';
     var user = readUser();
@@ -39,12 +53,16 @@
   }
 
   function renderShell() {
+    var user = readUser();
+    var displayName = userDisplayName(user);
+    var staffCode = userStaffCode(user);
+    var accountText = displayName ? (displayName + (staffCode && staffCode !== displayName ? ' - ' + staffCode : '')) : 'Chưa xác định tài khoản';
     root().innerHTML = '' +
       '<header class="m-delivery-header">' +
-        '<div><h1>App giao hàng</h1><p>Đồng bộ 100% với Đơn giao hôm nay</p></div>' +
+        '<div><h1>App giao hàng</h1><p>Đồng bộ 100% với Đơn giao hôm nay</p><div class="m-account-info"><b>' + esc(accountText) + '</b><span>' + esc(userRoleLabel(user)) + '</span></div></div>' +
         '<div style="display:flex;gap:8px;align-items:center"><button id="mReload" type="button">Tải</button><button id="mLogout" type="button">Thoát</button></div>' +
       '</header>' +
-      '<section class="m-delivery-filter"><input id="mDate" type="date"><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
+      '<section class="m-delivery-filter"><input id="mDate" type="date"><select id="mStatusFilter"><option value="all">Tất cả</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
       '<section class="m-delivery-kpis">' +
         '<div><span>PT</span><b id="mKpiPt">0</b></div><div><span>TM</span><b id="mKpiTm">0</b></div><div><span>CK</span><b id="mKpiCk">0</b></div>' +
         '<div><span>TH</span><b id="mKpiTh">0</b></div><div><span>HT</span><b id="mKpiHt">0</b></div><div><span>CN</span><b id="mKpiCn">0</b></div>' +
@@ -62,6 +80,7 @@
     el('mReload').addEventListener('click', load);
     el('mLogout').addEventListener('click', logout);
     el('mDate').addEventListener('change', load);
+    el('mStatusFilter').addEventListener('change', load);
     el('mSearch').addEventListener('input', debounce(load, 250));
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -87,7 +106,8 @@
   function filters() {
     return {
       date: el('mDate') && el('mDate').value,
-      q: el('mSearch') && el('mSearch').value
+      q: el('mSearch') && el('mSearch').value,
+      statusFilter: el('mStatusFilter') && el('mStatusFilter').value
     };
   }
 
@@ -122,8 +142,11 @@
     body.innerHTML = rows.map(function (order) {
       var key = keyOf(order);
       var selected = key === state.selectedKey ? ' selected' : '';
+      var delivered = isDelivered(order);
+      var dotClass = delivered ? 'delivered' : 'pending';
+      var dotTitle = delivered ? 'Đã giao' : 'Chưa giao';
       return '<button type="button" class="m-order-card' + selected + '" data-order-key="' + esc(key) + '">' +
-        '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName || order.customerCode) + '</span></div>' +
+        '<div class="m-order-top"><b>' + esc(order.orderCode) + '</b><span><i class="delivery-status-dot ' + dotClass + '" title="' + esc(dotTitle) + '"></i>' + esc(order.customerName || order.customerCode) + '</span></div>' +
         '<div class="m-order-metrics"><span>PT ' + money(amount(order, 'receivable')) + '</span><span>TM ' + money(amount(order, 'cash')) + '</span><span>CK ' + money(amount(order, 'bank')) + '</span><span>TH ' + money(amount(order, 'reward')) + '</span><span>HT ' + money(amount(order, 'returnAmount')) + '</span><span>CN ' + (amount(order, 'debt') > 0 ? money(amount(order, 'debt')) : 'Đủ') + '</span></div>' +
       '</button>';
     }).join('');
@@ -217,7 +240,7 @@
 
   function renderReport(body) {
     var rows = window.DeliveryCore.state.orders || [];
-    var delivered = rows.filter(function (o) { return o.status && o.status.deliveryStatus === 'delivered'; }).length;
+    var delivered = rows.filter(isDelivered).length;
     var hasReturn = rows.filter(function (o) { return amount(o, 'returnAmount') > 0; }).length;
     var debt = rows.filter(function (o) { return amount(o, 'debt') > 0; }).length;
     body.innerHTML = '<div class="m-report-grid"><div><span>Tổng đơn</span><b>' + rows.length + '</b></div><div><span>Đã giao</span><b>' + delivered + '</b></div><div><span>Có hàng trả</span><b>' + hasReturn + '</b></div><div><span>Còn nợ</span><b>' + debt + '</b></div></div>';
