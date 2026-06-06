@@ -7554,7 +7554,7 @@ body::after{
 }
 #deliveryTodayTab .mk-delivery-list-grid{
   display:grid !important;
-  grid-template-columns:40px 230px 100px 100px 100px 100px 100px 120px !important;
+  grid-template-columns:40px 250px 85px 85px 85px 85px 85px 85px !important;
   gap:0 !important;
   align-items:stretch !important;
   width:890px !important;
