@@ -40,6 +40,23 @@
       emptyText: 'Không tìm thấy khách hàng'
     },
     {
+      key: 'customerSalesStaff',
+      type: 'staff',
+      inputId: 'customerStaffSearch',
+      boxId: 'customerStaffSuggestions',
+      source: 'users',
+      roles: ['sales','admin'],
+      searchKeys: ['code','staffCode','username','name','fullName','phone','roleLabel','role','position','department'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'customerStaffCode', value: 'codeOrUsernameOrId' },
+        { targetId: 'customerStaffName', value: 'nameOrFullNameOrUsername' },
+        { targetId: 'customerStaffSearch', value: 'label' }
+      ],
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    },
+    {
       key: 'salesStaff',
       type: 'staff',
       inputId: 'salesStaffSearch',

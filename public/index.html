@@ -135,7 +135,12 @@
               <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
             </div>
             <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
-            <label>Nhân viên phụ trách<input name="staffName" placeholder="Tên nhân viên" /></label>
+            <label>Nhân viên phụ trách
+              <input id="customerStaffSearch" placeholder="Gõ mã/tên NVBH..." autocomplete="off" />
+              <input name="staffCode" id="customerStaffCode" type="hidden" />
+              <input name="staffName" id="customerStaffName" type="hidden" />
+              <div id="customerStaffSuggestions" class="suggestions" hidden></div>
+            </label>
             <button type="submit">Lưu khách hàng</button>
           </form>
           <p id="customerMessage" class="message"></p>

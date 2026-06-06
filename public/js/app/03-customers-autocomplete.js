@@ -86,14 +86,26 @@ function renderCustomerTable(){
     <td>${c.phone||''}</td>
     <td>${c.address||''}</td>
     <td>${c.area||''}</td>
-    <td>${c.staffName||''}</td>
+    <td>${[c.staffCode,c.staffName].filter(Boolean).join(' - ')||''}</td>
     <td class="row-actions"><button type="button" class="small" onclick="editCustomer('${c.id}')">Sửa</button><button type="button" class="small danger" onclick="deleteCustomer('${c.id}')">Xóa</button></td>
   </tr>`).join('');
   updateCustomerBulkUI();
 }
 function fillCustomerForm(c){
   if(!customerForm||!c)return;
-  ['code','name','phone','area','address','staffName'].forEach(k=>{if(customerForm.elements[k])customerForm.elements[k].value=c[k]||''});
+  ['code','name','phone','area','address'].forEach(k=>{if(customerForm.elements[k])customerForm.elements[k].value=c[k]||''});
+  const staffSearch=document.getElementById('customerStaffSearch');
+  const staffCode=document.getElementById('customerStaffCode');
+  const staffName=document.getElementById('customerStaffName');
+  const staffLabel=[c.staffCode,c.staffName].filter(Boolean).join(' - ');
+  if(staffSearch){
+    staffSearch.value=staffLabel;
+    staffSearch.dataset.selectedLabel=staffLabel;
+    staffSearch.dataset.code=c.staffCode||'';
+    staffSearch.dataset.name=c.staffName||'';
+  }
+  if(staffCode)staffCode.value=c.staffCode||'';
+  if(staffName)staffName.value=c.staffName||'';
   customerForm.dataset.editingId=c.id||'';
   const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Cập nhật khách hàng';
 }
@@ -123,10 +135,21 @@ customerForm.addEventListener('submit',async event=>{
     const editingId=customerForm.dataset.editingId;
     const res=await fetch(editingId?`/api/customers/${encodeURIComponent(editingId)}`:'/api/customers',{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được khách hàng');
-    customerForm.reset();customerForm.dataset.editingId='';const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Lưu khách hàng';showMessage(customerMessage,json.message||'Đã lưu khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
+    customerForm.reset();customerForm.dataset.editingId='';const staffSearch=document.getElementById('customerStaffSearch');if(staffSearch)staffSearch.dataset.selectedLabel='';const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Lưu khách hàng';showMessage(customerMessage,json.message||'Đã lưu khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
   }catch(err){showMessage(customerMessage,err.message,true)}
 });
-
+const customerStaffSearchEl=document.getElementById('customerStaffSearch');
+if(customerStaffSearchEl){
+  customerStaffSearchEl.addEventListener('input',()=>{
+    const selectedLabel=String(customerStaffSearchEl.dataset.selectedLabel||'').trim();
+    const current=String(customerStaffSearchEl.value||'').trim();
+    if(current && selectedLabel && current===selectedLabel)return;
+    const codeEl=document.getElementById('customerStaffCode');
+    const nameEl=document.getElementById('customerStaffName');
+    if(codeEl)codeEl.value='';
+    if(nameEl)nameEl.value='';
+  });
+}
 
 const SearchAutocomplete = window.SearchAutocomplete;
 
