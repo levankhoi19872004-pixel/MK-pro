@@ -17,30 +17,78 @@ function buildImportCode(existingOrders = []) {
   return `PN${String(max + 1).padStart(5, '0')}`;
 }
 
-function toClient(order) {
+function getImportOrderDate(order = {}) {
+  return dateUtil.toDateOnly(
+    order.date ||
+    order.documentDate ||
+    order.importDate ||
+    order.createdAt ||
+    ''
+  );
+}
+
+function syncImportOrderDates(order = {}, fallbackDate = dateUtil.todayVN()) {
+  const importDate = dateUtil.toDateOnly(
+    order.date || order.documentDate || order.importDate || order.createdAt || fallbackDate
+  ) || dateUtil.toDateOnly(fallbackDate) || dateUtil.todayVN();
   return {
     ...order,
-    id: order.id || order.code,
-    code: order.code || order.id,
-    items: Array.isArray(order.items) ? order.items : [],
-    totalQuantity: toNumber(order.totalQuantity),
-    totalAmount: toNumber(order.totalAmount)
+    date: importDate,
+    documentDate: importDate,
+    importDate
   };
 }
 
+function toClient(order) {
+  const normalized = syncImportOrderDates(order, order?.createdAt || dateUtil.todayVN());
+  return {
+    ...normalized,
+    id: normalized.id || normalized.code,
+    code: normalized.code || normalized.id,
+    items: Array.isArray(normalized.items) ? normalized.items : [],
+    totalQuantity: toNumber(normalized.totalQuantity),
+    totalAmount: toNumber(normalized.totalAmount),
+    displayDate: getImportOrderDate(normalized)
+  };
+}
+
+function buildImportDateMongoOr(dateFrom, dateTo) {
+  const dateRange = {};
+  if (dateFrom) dateRange.$gte = dateFrom;
+  if (dateTo) dateRange.$lte = dateTo;
+
+  const createdAtRange = {};
+  if (dateFrom) createdAtRange.$gte = `${dateFrom}T00:00:00.000Z`;
+  if (dateTo) createdAtRange.$lte = `${dateTo}T23:59:59.999Z`;
+
+  return [
+    { date: dateRange },
+    { documentDate: dateRange },
+    { importDate: dateRange },
+    { createdAt: createdAtRange }
+  ];
+}
+
+function isImportOrderInDateRange(order, dateFrom, dateTo) {
+  const importDate = getImportOrderDate(order);
+  if (!importDate) return false;
+  if (dateFrom && importDate < dateFrom) return false;
+  if (dateTo && importDate > dateTo) return false;
+  return true;
+}
+
 async function listImportOrders(query = {}) {
-  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: String(query.all || query.showAll || '').trim() !== '1' });
+  const showAll = String(query.all || query.showAll || '').trim() === '1';
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: !showAll });
   const page = queryGuard.getPagination(guardedQuery);
   const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
 
   const filter = {};
-  if (dateFrom || dateTo) {
-    const range = {};
-    if (dateFrom) range.$gte = dateFrom;
-    if (dateTo) range.$lte = dateTo;
-    filter.$or = [{ date: range }, { documentDate: range }];
+  const hasDateRange = Boolean(!showAll && (dateFrom || dateTo));
+  if (hasDateRange) {
+    filter.$or = buildImportDateMongoOr(dateFrom, dateTo);
   }
   if (q) {
     const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
@@ -48,8 +96,14 @@ async function listImportOrders(query = {}) {
     filter.$and.push({ $or: [{ code: rx }, { supplier: rx }, { supplierName: rx }, { note: rx }] });
   }
 
-  const orders = await importOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });
-  return orders.map(toClient);
+  const options = { sort: { createdAt: -1, code: -1 } };
+  if (!hasDateRange) {
+    options.skip = page.skip;
+    options.limit = page.limit;
+  }
+  const orders = await importOrderRepository.findAll(filter, options);
+  const safeFiltered = hasDateRange ? orders.filter((order) => isImportOrderInDateRange(order, dateFrom, dateTo)) : orders;
+  return safeFiltered.slice(hasDateRange ? page.skip : 0, hasDateRange ? page.skip + page.limit : undefined).map(toClient);
 }
 
 async function hydrateItems(rawItems = []) {
@@ -85,11 +139,14 @@ async function createImportOrder(body = {}) {
   const items = await hydrateItems(body.items);
   if (!items.length) return { error: 'Phiếu nhập chưa có dòng hàng', status: 400 };
   const existingOrders = await importOrderRepository.findAll();
+  const importDate = dateUtil.toDateOnly(body.date || body.documentDate || body.importDate || dateUtil.todayVN());
   const importOrder = {
     ...body,
     id: String(body.id || makeId('IM')).trim(),
     code: String(body.code || buildImportCode(existingOrders)).trim(),
-    date: dateUtil.toDateOnly(body.date || dateUtil.todayVN()),
+    date: importDate,
+    documentDate: importDate,
+    importDate,
     supplier: String(body.supplier || body.supplierName || '').trim(),
     supplierName: String(body.supplierName || body.supplier || '').trim(),
     note: String(body.note || '').trim(),
@@ -115,12 +172,15 @@ async function updateImportOrder(id, body = {}) {
   }
   const items = body.items ? await hydrateItems(body.items) : current.items || [];
   if (!items.length) return { error: 'Phiếu nhập chưa có dòng hàng', status: 400 };
+  const importDate = dateUtil.toDateOnly(body.date || body.documentDate || body.importDate || current.date || current.documentDate || current.importDate || dateUtil.todayVN());
   const updated = {
     ...current,
     ...body,
     id: current.id || body.id,
     code: current.code || body.code,
-    date: dateUtil.toDateOnly(body.date || current.date || dateUtil.todayVN()),
+    date: importDate,
+    documentDate: importDate,
+    importDate,
     supplier: String(body.supplier ?? body.supplierName ?? current.supplier ?? '').trim(),
     supplierName: String(body.supplierName ?? body.supplier ?? current.supplierName ?? '').trim(),
     note: String(body.note ?? current.note ?? '').trim(),
@@ -144,8 +204,9 @@ async function postImportOrder(id, actor = {}) {
   }
   const items = await hydrateItems(current.items || []);
   if (!items.length) return { error: 'Phiếu nhập chưa có dòng hàng', status: 400 };
+  const normalizedCurrent = syncImportOrderDates(current, current.date || current.createdAt || dateUtil.todayVN());
   const posted = {
-    ...current,
+    ...normalizedCurrent,
     items,
     totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
     totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0),
@@ -161,7 +222,7 @@ async function postImportOrder(id, actor = {}) {
       refType: 'IMPORT_ORDER',
       refId: posted.id || posted.code,
       refCode: posted.code || posted.id,
-      date: posted.date,
+      date: getImportOrderDate(posted),
       warehouseCode: posted.warehouseCode,
       warehouseName: posted.warehouseName,
       note: 'Nhập kho theo phiếu nhập'
@@ -192,4 +253,4 @@ async function cancelImportOrder(id, actor = {}) {
   return { importOrder: toClient(cancelled) };
 }
 
-module.exports = { listImportOrders, createImportOrder, updateImportOrder, postImportOrder, cancelImportOrder, toClient };
+module.exports = { listImportOrders, createImportOrder, updateImportOrder, postImportOrder, cancelImportOrder, toClient, getImportOrderDate };

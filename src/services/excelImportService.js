@@ -983,10 +983,13 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     }
     if (!items.length) continue;
     const now = dateUtil.nowIso();
+    const importDate = dateOnly(first.date || first.documentDate || first.importDate || first['Ngày'] || first['Ngay'] || dateUtil.todayVN());
     const doc = {
       id: makeId('IM'),
       code: cleanText(first.documentCode || first.code || first['Mã phiếu'] || first['Ma phieu']) || autoCodes[autoIdx++] || makeId('PN'),
-      date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || dateUtil.todayVN()),
+      date: importDate,
+      documentDate: importDate,
+      importDate,
       supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       supplierName: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'KHO_HC',

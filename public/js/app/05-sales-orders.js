@@ -461,10 +461,10 @@ function formatImportDateLabel(value){
   const parts=String(value).slice(0,10).split('-');
   return parts.length===3?`${parts[2]}/${parts[1]}/${parts[0]}`:value;
 }
-function syncImportDateFilterFromInputs(){
+function syncImportDateFilterFromInputs(forceAll=false){
   importDateFilter.fromDate=importDateFromFilter?.value||'';
   importDateFilter.toDate=importDateToFilter?.value||'';
-  importDateFilter.all=!importDateFilter.fromDate&&!importDateFilter.toDate;
+  importDateFilter.all=!!forceAll;
 }
 function setImportDateFilter(fromDate,toDate,all=false){
   if(importDateFromFilter)importDateFromFilter.value=fromDate||'';
@@ -485,7 +485,7 @@ function buildImportOrderQuery(){
   if(importDateFilter.toDate)params.set('toDate',importDateFilter.toDate);
   return params.toString();
 }
-async function applyImportDateFilter(){syncImportDateFilterFromInputs();await loadImportOrders()}
+async function applyImportDateFilter(){syncImportDateFilterFromInputs(false);await loadImportOrders()}
 async function clearImportDateFilter(){setImportDateFilter('','',true);await loadImportOrders()}
 async function applyImportDatePreset(preset){
   const now=new Date();
@@ -516,9 +516,9 @@ async function loadImportOrders(){
     updateImportDateFilterInfo(orders.length);
     window.__importOrdersCache=orders;
     if(!orders.length){importOrderList.innerHTML='Không có phiếu nhập trong khoảng thời gian đã chọn.';return}
-    importOrderList.innerHTML=orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';return `<div class="order-card">
+    importOrderList.innerHTML=orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';return `<div class="order-card">
       <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong> <span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span></label><div>${posted?'<span class="status-badge ok">Đã nhập kho</span>':`<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ đơn</button>`}</div></div>
-      <div class="order-meta">Ngày nhập: ${o.date||''} · Nhà cung cấp: ${o.supplier||'Chưa khai báo'} · Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</div>
+      <div class="order-meta">Ngày nhập: ${displayDate} · Nhà cung cấp: ${o.supplier||'Chưa khai báo'} · Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</div>
       ${o.note?`<div class="order-meta">Ghi chú: ${o.note}</div>`:''}
       <div data-import-detail="${idx}"></div>
     </div>`}).join('');
@@ -645,7 +645,7 @@ async function openSalesOrderEdit(idx){
   // Khi sửa đơn: giữ đúng phương thức đã lưu trên đơn, không ép lại theo nguồn.
   setSalesMode(editMode);
   salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}));
-  salesForm.elements.date.value=toDateOnly(order.date||today());
+  salesForm.elements.date.value=toDateOnly(order.date||order.documentDate||order.importDate||order.displayDate||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
   const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode));
