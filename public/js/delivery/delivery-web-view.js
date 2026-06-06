@@ -278,7 +278,7 @@
   function paymentChipsHtml(order) {
     var debt = amount(order, 'debt');
     return '' +
-      '<div class="delivery-v46-payment-chips">' +
+      '<div class="delivery-v46-payment-chips delivery-v46-payment-grid-inner">' +
         paymentChip('PT', amount(order, 'receivable'), 'chip-pt') +
         paymentChip('TM', amount(order, 'cash'), 'chip-tm') +
         paymentChip('CK', amount(order, 'bank'), 'chip-ck') +
@@ -314,7 +314,7 @@
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
             '<em>' + esc(statusText(order)) + '</em>' + staffAssignmentBadge(order) +
           '</div>' +
-          '<div class="delivery-v46-payment-cell">' + paymentChipsHtml(order) + '</div>' +
+          '<div class="delivery-v46-payment-grid">' + paymentChipsHtml(order) + '</div>' +
         '</button>';
     }).join('');
     list.querySelectorAll('[data-key]').forEach(function (button) {
@@ -569,3 +569,30 @@
     if (byId('deliveryTodayTab') && byId('deliveryTodayTab').classList.contains('active')) load();
   });
 }());
+
+
+;(function(){
+ try{
+  var st=document.createElement('style');
+  st.textContent=`
+  .delivery-v46-payment-grid-inner{
+    display:grid!important;
+    grid-template-columns:repeat(6,minmax(70px,1fr))!important;
+    gap:0!important;
+    width:100%;
+  }
+  .delivery-v46-payment-grid-inner .payment-chip{
+    border-radius:0!important;
+    border-right:1px solid rgba(0,0,0,.08)!important;
+    justify-content:flex-end!important;
+    text-align:right!important;
+  }
+  .delivery-v46-payment-grid-inner .payment-chip:last-child{
+    border-right:none!important;
+  }
+  .delivery-v46-payment-cell,.delivery-v46-payment-grid{
+    width:100%;
+  }`;
+  document.head.appendChild(st);
+ }catch(e){}
+})();
