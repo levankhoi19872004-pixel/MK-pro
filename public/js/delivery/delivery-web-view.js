@@ -82,7 +82,7 @@
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
           '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
-          '<div class="delivery-v46-list-head delivery-v46-list-head-payment delivery-v46-order-grid delivery-v46-kpi-header">' +
+          '<div class="delivery-fixed-head delivery-fixed-grid">' +
             '<span class="delivery-v46-grid-check-head"></span>' +
             '<span>Đơn / Khách hàng</span>' +
             '<span class="delivery-v46-money-head">PT</span>' +
@@ -301,7 +301,7 @@
       var salesStaff = order.salesStaffName || order.salesStaffCode || '';
       var deliveryStaff = order.deliveryStaffName || order.deliveryStaffCode || '';
       return '' +
-        '<button type="button" class="delivery-v46-row delivery-v46-order-card delivery-v46-order-grid' + selected + '" data-key="' + esc(key) + '">' +
+        '<button type="button" class="delivery-v46-row delivery-v46-order-card delivery-fixed-grid' + selected + '" data-key="' + esc(key) + '">' +
           '<div class="delivery-v46-check">' + (selected ? '✓' : '') + '</div>' +
           '<div class="delivery-v46-order-main">' +
             '<strong>' + esc(orderCode) + '</strong>' +
