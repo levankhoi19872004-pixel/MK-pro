@@ -261,10 +261,8 @@
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
     body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
-      '<form id="mPaymentForm" class="m-payment-form"><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>' +
-      '<button id="mConfirm" type="button" class="m-confirm">Xác nhận giao</button>';
+      '<form id="mPaymentForm" class="m-payment-form"><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>';
     el('mPaymentForm').addEventListener('submit', savePayment);
-    el('mConfirm').addEventListener('click', confirmDelivery);
   }
 
   function renderReport(body) {
@@ -304,7 +302,8 @@
     try {
       msg('Đang lưu thu tiền...');
       await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
-      msg('Đã lưu thu tiền');
+      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      msg('Đã lưu thu tiền và xác nhận giao');
       state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
       state.tab = 'report';
       render();
