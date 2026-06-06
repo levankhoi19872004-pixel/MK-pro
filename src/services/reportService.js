@@ -563,6 +563,14 @@ async function findDebtCustomersForFilter(query = {}, hardLimit = 500) {
       { code: rx }, { customerCode: rx }, { name: rx }, { customerName: rx }, { phone: rx }, { customerPhone: rx }
     ] });
   }
+  if (query.customerCode) {
+    const rx = new RegExp(`^${escapeRegExp(query.customerCode)}$`, 'i');
+    filters.push({ $or: [{ code: rx }, { customerCode: rx }] });
+  }
+  if (query.customerId) {
+    const rx = new RegExp(`^${escapeRegExp(query.customerId)}$`, 'i');
+    filters.push({ $or: [{ id: rx }, { customerId: rx }] });
+  }
   if (query.salesman) {
     const rx = new RegExp(escapeRegExp(query.salesman), 'i');
     filters.push({ $or: [
@@ -631,13 +639,25 @@ async function debtReport(query = {}) {
 
   let seedCustomers = [];
   const hasCustomerTextSearch = Boolean(query.q || query.keyword || query.search);
-  const hasStaffOnlyFilter = Boolean((query.salesman || query.delivery) && !hasCustomerTextSearch && !query.customerCode && !query.customerId);
-  if (query.q || query.keyword || query.search || query.salesman || query.delivery) {
-    seedCustomers = await findDebtCustomersForFilter(query, 500);
+  const hasStaffFilter = Boolean(query.salesman || query.delivery);
+  const shouldSearchCustomerMeta = Boolean(hasCustomerTextSearch || query.customerCode || query.customerId);
+
+  // V46 debt filter rule:
+  // - Customer text search (mã/tên/SĐT KH) may use Customer to seed customerCode.
+  // - Staff filters (NVBH/NVGH) must NOT seed from Customer because Customer metadata can be stale/missing.
+  //   Staff filtering is applied directly in buildDebtLedgerMatch() against arLedgers.
+  if (shouldSearchCustomerMeta) {
+    seedCustomers = await findDebtCustomersForFilter({
+      q: query.q,
+      keyword: query.keyword,
+      search: query.search,
+      customerCode: query.customerCode,
+      customerId: query.customerId
+    }, 500);
     // Chỉ trả rỗng sớm khi người dùng đang tìm khách hàng thật sự.
     // Không trả rỗng sớm với lọc NVBH/NVGH, vì AR Ledger có thể có staffCode/deliveryStaffCode
     // trong khi Customer chưa lưu metadata NVBH/NVGH tương ứng.
-    if (!seedCustomers.length && !hasStaffOnlyFilter) {
+    if (!seedCustomers.length && hasCustomerTextSearch && !hasStaffFilter) {
       const emptySummary = {
         page,
         limit,
@@ -689,8 +709,17 @@ async function debtReport(query = {}) {
       salesmanName: 1,
       salesStaffCode: 1,
       salesStaffName: 1,
+      staffCode: 1,
+      staffName: 1,
+      nvbhCode: 1,
+      nvbhName: 1,
       deliveryStaffCode: 1,
       deliveryStaffName: 1,
+      deliveryCode: 1,
+      deliveryName: 1,
+      deliveryStaff: 1,
+      nvghCode: 1,
+      nvghName: 1,
       debit: { $ifNull: ['$debit', 0] },
       credit: { $ifNull: ['$credit', 0] },
       amount: { $ifNull: ['$amount', 0] },
@@ -750,10 +779,10 @@ async function debtReport(query = {}) {
       customerName: cmeta.customerName || id.customerName || 'Chưa rõ khách',
       phone: cmeta.phone || '',
       address: cmeta.address || '',
-      salesmanCode: cmeta.salesmanCode || row.salesmanCode || '',
-      salesmanName: cmeta.salesmanName || row.salesmanName || '',
-      deliveryStaffCode: cmeta.deliveryStaffCode || row.deliveryStaffCode || '',
-      deliveryStaffName: cmeta.deliveryStaffName || row.deliveryStaffName || '',
+      salesmanCode: row.salesmanCode || cmeta.salesmanCode || '',
+      salesmanName: row.salesmanName || cmeta.salesmanName || '',
+      deliveryStaffCode: row.deliveryStaffCode || cmeta.deliveryStaffCode || '',
+      deliveryStaffName: row.deliveryStaffName || cmeta.deliveryStaffName || '',
       documentDate,
       dueDate: documentDate,
       debit: toNumber(row.debit),
