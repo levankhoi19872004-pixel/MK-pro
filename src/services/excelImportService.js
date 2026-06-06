@@ -191,8 +191,8 @@ function pickCustomerPayload(row = {}) {
     address: cleanText(row.address || row.customerAddress || row['Địa chỉ'] || row['Dia chi']),
     area: cleanText(row.area || row['Khu vực'] || row['Khu vuc']),
     route: cleanText(row.route || row['Tuyến'] || row['Tuyen']),
-    staffCode: cleanText(row.staffCode || row.salesmanCode || row['Mã NVBH'] || row['Ma NVBH']),
-    staffName: cleanText(row.staffName || row.salesmanName || row['Tên NVBH'] || row['Ten NVBH']),
+    staffCode: cleanText(row.staffCode || row.salesStaffCode || row.salesmanCode || row['Mã NVBH'] || row['Ma NVBH'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã nhân viên'] || getSalesStaffCodeFromRow(row)),
+    staffName: cleanText(row.staffName || row.salesStaffName || row.salesmanName || row['Tên NVBH'] || row['Ten NVBH']),
     openingDebt: toNumber(row.openingDebt || row['Công nợ đầu kỳ'] || row['Cong no dau ky']),
     debtLimit: toNumber(row.debtLimit || row['Hạn mức nợ'] || row['Han muc no']),
     isActive: row.isActive !== false
@@ -812,6 +812,7 @@ async function upsertCustomers(rows = []) {
   const errors = [];
   const ops = [];
   const seen = new Set();
+  const salesStaffUserMap = await preloadSalesStaffUsersByCode(rows);
 
   for (const row of rows) {
     const payload = pickCustomerPayload(row);
@@ -819,6 +820,21 @@ async function upsertCustomers(rows = []) {
       skipped += 1;
       errors.push({ code: payload.code, message: 'Thiếu mã hoặc tên khách hàng' });
       continue;
+    }
+    if (payload.staffCode) {
+      const resolvedStaff = resolveSalesStaffForImportRow(row, salesStaffUserMap);
+      if (!resolvedStaff.found) {
+        skipped += 1;
+        errors.push({ code: payload.code, message: `Không tìm thấy mã NVBH ${payload.staffCode} trong tài khoản hệ thống` });
+        continue;
+      }
+      if (!resolvedStaff.validRole) {
+        skipped += 1;
+        errors.push({ code: payload.code, message: `Mã ${payload.staffCode} không phải nhân viên bán hàng` });
+        continue;
+      }
+      payload.staffCode = resolvedStaff.staffCode;
+      payload.staffName = resolvedStaff.staffName;
     }
     const codeKey = normalizeText(payload.code);
     if (seen.has(codeKey)) continue;
@@ -1614,6 +1630,15 @@ function getUserStaffName(user = {}) {
   return cleanText(user.fullName || user.name || user.staffName || user.username || '');
 }
 
+function getUserStaffCode(user = {}) {
+  return cleanText(user.staffCode || user.code || user.username || user.id || user._id || '');
+}
+
+function isSalesStaffUser(user = {}) {
+  const role = cleanText(user.role).toLowerCase();
+  return ['sales', 'admin', 'nvbh'].includes(role);
+}
+
 async function preloadSalesStaffUsersByCode(rows = []) {
   const codes = Array.from(new Set((rows || []).map(getSalesStaffCodeFromRow).map(cleanText).filter(Boolean)));
   if (!codes.length) return new Map();
@@ -1645,10 +1670,13 @@ function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) 
   const excelStaffCode = cleanText(getSalesStaffCodeFromRow(row));
   const user = excelStaffCode ? salesStaffUserMap.get(excelStaffCode) : null;
   return {
-    staffCode: excelStaffCode,
-    salesStaffCode: excelStaffCode,
+    staffCode: user ? (getUserStaffCode(user) || excelStaffCode) : excelStaffCode,
+    salesStaffCode: user ? (getUserStaffCode(user) || excelStaffCode) : excelStaffCode,
     staffName: user ? getUserStaffName(user) : '',
-    salesStaffName: user ? getUserStaffName(user) : ''
+    salesStaffName: user ? getUserStaffName(user) : '',
+    user,
+    found: !!user,
+    validRole: !user || isSalesStaffUser(user)
   };
 }
 
@@ -1981,7 +2009,20 @@ async function previewMongoNative(type, rows = []) {
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'customers') {
-    const payloads = safeRows.map((row) => ({ ...rowBase(row), ...pickCustomerPayload(row), errors: [] }));
+    const salesStaffUserMap = await preloadSalesStaffUsersByCode(safeRows);
+    const payloads = safeRows.map((row) => {
+      const payload = { ...rowBase(row), ...pickCustomerPayload(row), errors: [] };
+      if (payload.staffCode) {
+        const resolvedStaff = resolveSalesStaffForImportRow(row, salesStaffUserMap);
+        if (!resolvedStaff.found) payload.errors.push(`Không tìm thấy mã NVBH ${payload.staffCode} trong tài khoản hệ thống`);
+        else if (!resolvedStaff.validRole) payload.errors.push(`Mã ${payload.staffCode} không phải nhân viên bán hàng`);
+        else {
+          payload.staffCode = resolvedStaff.staffCode;
+          payload.staffName = resolvedStaff.staffName;
+        }
+      }
+      return payload;
+    });
     const codes = Array.from(new Set(payloads.map((c) => cleanText(c.code)).filter(Boolean)));
     const existingRows = codes.length ? await Customer.find({ code: { $in: codes } }).select('code').lean() : [];
     const existing = new Set(existingRows.map((c) => cleanText(c.code)));
