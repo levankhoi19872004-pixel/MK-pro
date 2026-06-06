@@ -354,6 +354,31 @@ function renderSignature(labels = ['Người lập phiếu', 'Khách hàng', 'Th
     </div>`;
 }
 
+
+function printPreviewActionsScript() {
+  return `
+  <div class="print-preview-actions">
+    <button type="button" onclick="window.print()">In đơn</button>
+    <button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button>
+  </div>
+  <script>
+    function exportCurrentPrintToExcel(){
+      var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page'));
+      var html = pages.length ? pages.map(function(page){ return page.outerHTML; }).join('') : document.body.innerHTML;
+      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}</style></head><body>' + html + '</body></html>';
+      var blob = new Blob(['\ufeff' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      var title = (document.title || 'ban-in').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'ban-in';
+      a.download = title + '.xls';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }
+  </script>`;
+}
+
 function baseLayout(title, data, bodyHtml, options = {}) {
   const compactClass = options.compact ? ' compact-print' : '';
   return `<!DOCTYPE html>
@@ -365,16 +390,11 @@ function baseLayout(title, data, bodyHtml, options = {}) {
   <link rel="stylesheet" href="/print.css" />
 </head>
 <body>
+  ${printPreviewActionsScript()}
   <div class="print-page${compactClass}">
     ${bodyHtml}
     <div class="print-footer">In lúc: ${text(data.meta.printedAt)}</div>
   </div>
-  <script>
-    window.onload = function(){
-      window.focus();
-      if (!window.location.search.includes('preview=1')) window.print();
-    };
-  </script>
 </body>
 </html>`;
 }
@@ -734,13 +754,8 @@ function dmsDeliveryInvoiceTemplate(data) {
   <link rel="stylesheet" href="/print.css" />
 </head>
 <body class="dms-print-body">
+  ${printPreviewActionsScript()}
   ${pagination.copies.map(renderCopy).join('')}
-  <script>
-    window.onload = function(){
-      window.focus();
-      if (!window.location.search.includes('preview=1')) window.print();
-    };
-  </script>
 </body>
 </html>`;
 }

@@ -361,6 +361,27 @@ async function openImportOrderDetail(idx){
   if(card)card.innerHTML=card.innerHTML?'' : `<ul class="order-items">${lines}</ul>`;
 }
 window.openImportOrderDetail=openImportOrderDetail;
+
+function buildPrintPreviewHtml(title, bodyClass, bodyHtml){
+  return `<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>${title||'Bản in'}</title><link rel="stylesheet" href="/print.css"></head><body class="${bodyClass||''}">
+    <div class="print-preview-actions"><button type="button" onclick="window.print()">In đơn</button><button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button></div>
+    ${bodyHtml||''}
+    <script>
+      function exportCurrentPrintToExcel(){
+        var pages=Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page'));
+        var html=pages.length?pages.map(function(page){return page.outerHTML;}).join(''):document.body.innerHTML;
+        var fullHtml='<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}</style></head><body>'+html+'</body></html>';
+        var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8;'});
+        var a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        var safe=(document.title||'ban-in').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')||'ban-in';
+        a.download=safe+'.xls';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+      }
+    <\/script>
+  </body></html>`;
+}
+
+window.buildPrintPreviewHtml=buildPrintPreviewHtml;
 function getImportItemWarehouse(item, order){
   const product = findProductByKey(item?.productCode || item?.productId || '');
   const rawCode = String(item?.warehouseCode || item?.warehouse || order?.warehouseCode || order?.warehouse || product?.defaultWarehouse || product?.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
@@ -391,7 +412,7 @@ function printSelectedImportOrders(){
     const totalAmount=lines.reduce((sum,i)=>sum+Number(i.amount||0),0);
     return `<section class="print-page"><h2>ĐƠN TỔNG NHẬP KHO - ${g.warehouseName||g.warehouseCode}</h2><p>Gồm các phiếu: ${[...g.sourceCodes].filter(Boolean).join(', ')}</p><p>Tổng SL: ${money(totalQty)} · Tổng tiền: ${money(totalAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>ĐVT</th><th>SL gộp</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${lines.map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${i.unit||''}</td><td>${money(i.quantity)}</td><td>${money(i.costPrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`;
   }).join('');
-  const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In gộp phiếu nhập</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
+  const w=window.open('','_blank');if(!w){alert('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');return;}w.document.write(buildPrintPreviewHtml('In gộp phiếu nhập','',html));w.document.close();
 }
 window.printSelectedImportOrders=printSelectedImportOrders;
 function isActiveDocument(row){
@@ -609,7 +630,7 @@ async function printSelectedSalesOrders(){
     const w=window.open('','_blank');
     if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
     w.document.open();
-    w.document.write(`<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>In nhiều đơn con</title><link rel="stylesheet" href="/print.css"></head><body class="dms-print-body">${bodies.join('')}<script>window.onload=function(){window.focus();window.print()}<\/script></body></html>`);
+    w.document.write(buildPrintPreviewHtml('In nhiều đơn con','dms-print-body',bodies.join('')));
     w.document.close();
   }catch(err){alert(err.message||'Không in được nhiều đơn con')}
 }

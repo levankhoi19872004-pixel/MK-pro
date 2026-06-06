@@ -749,3 +749,33 @@ body.dms-print-body .mono { font-weight: 400; }
     page-break-after: always;
   }
 }
+
+/* Print preview toolbar: hidden on paper, visible only in browser preview */
+.print-preview-actions {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  padding: 10px 14px;
+  text-align: right;
+  border-bottom: 1px solid #ddd;
+  z-index: 9999;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+.print-preview-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-left: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.print-preview-actions button:last-child {
+  background: #059669;
+}
+@media print {
+  .print-preview-actions {
+    display: none !important;
+  }
+}
