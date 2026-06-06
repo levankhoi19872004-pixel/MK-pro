@@ -48,7 +48,7 @@
     return item.staffCode || item.code || item.employeeCode || item.username || item.id || '';
   }
 
-  var state = { selectedKey: '', activeTab: 'products' };
+  var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {} };
 
   function ensureRoot() {
     var root = byId('deliveryTodayRoot');
@@ -88,7 +88,7 @@
       '</section>' +
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
-          '<div class="delivery-v46-panel-title"><h3>Danh sách đơn</h3><span id="deliveryCoreCount">0 đơn</span></div>' +
+          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions"><button id="deliverySelectAllAccounting" type="button" class="secondary">Chọn tất cả</button><button id="deliveryBulkAccountingButton" type="button" class="primary">Đẩy công nợ đã chọn</button><span id="deliveryCoreCount">0 đơn</span></div></div>' +
           '<div class="mk-delivery-list-head mk-delivery-list-grid">' +
             '<span class="mk-delivery-check-head"></span>' +
             '<span>Đơn / Khách hàng</span>' +
@@ -110,6 +110,8 @@
     byId('deliveryCoreDate').value = today();
     byId('deliveryCoreReload').addEventListener('click', load);
     if (byId('deliveryCoreReconcile')) byId('deliveryCoreReconcile').addEventListener('click', reconcile);
+    if (byId('deliverySelectAllAccounting')) byId('deliverySelectAllAccounting').addEventListener('click', toggleSelectAllAccounting);
+    if (byId('deliveryBulkAccountingButton')) byId('deliveryBulkAccountingButton').addEventListener('click', confirmSelectedAccounting);
     ['deliveryCoreDate', 'deliveryCoreDeliveryStaff', 'deliveryCoreSalesStaff', 'deliveryCoreStatus', 'deliveryCoreSearch'].forEach(function (id) {
       var input = byId(id);
       if (!input) return;
@@ -206,6 +208,44 @@
     return ['delivered', 'success', 'done', 'completed'].indexOf(value) >= 0;
   }
 
+  function isAccountingConfirmed(order) {
+    order = order || {};
+    var st = order.status && typeof order.status === 'object' ? order.status : {};
+    var value = String(order.accountingStatus || st.accountingStatus || '').toLowerCase();
+    return Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted', 'done'].indexOf(value) >= 0;
+  }
+
+  function accountingKey(order) {
+    order = order || {};
+    return String(order.orderId || order.id || order.code || order.orderCode || order.salesOrderId || order.salesOrderCode || '').trim();
+  }
+
+  function selectedAccountingIds() {
+    return Object.keys(state.accountingSelectedKeys || {}).filter(function (key) { return state.accountingSelectedKeys[key]; });
+  }
+
+  function syncAccountingSelection(rows) {
+    var keep = {};
+    (rows || []).forEach(function (order) {
+      var key = accountingKey(order);
+      if (key && state.accountingSelectedKeys[key]) keep[key] = true;
+    });
+    state.accountingSelectedKeys = keep;
+  }
+
+  function updateBulkAccountingButton() {
+    var ids = selectedAccountingIds();
+    var bulk = byId('deliveryBulkAccountingButton');
+    var all = byId('deliverySelectAllAccounting');
+    if (bulk) bulk.textContent = ids.length ? ('Đẩy công nợ (' + ids.length + ')') : 'Đẩy công nợ đã chọn';
+    if (all) {
+      var rows = getVisibleOrders();
+      var eligible = rows.filter(function (order) { return accountingKey(order) && !isAccountingConfirmed(order); });
+      var selectedCount = eligible.filter(function (order) { return state.accountingSelectedKeys[accountingKey(order)]; }).length;
+      all.textContent = eligible.length && selectedCount === eligible.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
+    }
+  }
+
   function orderSearchText(order) {
     order = order || {};
     return [
@@ -294,6 +334,8 @@
     var list = byId('deliveryCoreList');
     if (!list) return;
     var rows = getVisibleOrders();
+    syncAccountingSelection(rows);
+    updateBulkAccountingButton();
     if (!rows.length) {
       list.innerHTML = '<div class="empty-state">Không có đơn giao theo bộ lọc.</div>';
       return;
@@ -301,6 +343,9 @@
     list.innerHTML = rows.map(function (order) {
       var key = orderKey(order);
       var selected = key === state.selectedKey ? ' selected' : '';
+      var accKey = accountingKey(order);
+      var accountingSelected = accKey && state.accountingSelectedKeys[accKey];
+      var accountingLocked = isAccountingConfirmed(order);
       var debtValue = normalizeDebtAmount(amount(order, 'debt'));
       var debtClass = debtValue > 0 ? ' debt-open' : ' debt-done';
       var orderCode = order.orderCode || order.salesOrderCode || order.code || order.id || '';
@@ -309,7 +354,7 @@
       var deliveryStaff = order.deliveryStaffName || order.deliveryStaffCode || '';
       return '' +
         '<button type="button" class="mk-delivery-order-row mk-delivery-list-grid' + selected + '" data-key="' + esc(key) + '">' +
-          '<span class="mk-delivery-check">' + (selected ? '✓' : '') + '</span>' +
+          '<span class="mk-delivery-check mk-delivery-accounting-check" data-accounting-key="' + esc(accKey) + '" title="Chọn để đẩy công nợ">' + (accountingLocked ? '✓' : (accountingSelected ? '✓' : '')) + '</span>' +
           '<span class="mk-delivery-order-main">' +
             '<strong>' + esc(orderCode) + '</strong>' +
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
@@ -323,9 +368,40 @@
           paymentValueCell(order, 'debt', 'cell-cn') +
         '</button>';
     }).join('');
+    list.querySelectorAll('[data-accounting-key]').forEach(function (node) {
+      node.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var accKey = node.getAttribute('data-accounting-key');
+        if (!accKey) return;
+        var order = (window.DeliveryCore.state.orders || []).find(function (row) { return accountingKey(row) === accKey; });
+        if (order && isAccountingConfirmed(order)) {
+          message('Đơn này đã vào công nợ, không cần chọn lại');
+          return;
+        }
+        if (state.accountingSelectedKeys[accKey]) delete state.accountingSelectedKeys[accKey];
+        else state.accountingSelectedKeys[accKey] = true;
+        renderList();
+      });
+    });
     list.querySelectorAll('[data-key]').forEach(function (button) {
       button.addEventListener('click', function () { select(button.getAttribute('data-key')); });
     });
+  }
+
+  function detailActionHtml(order) {
+    var delivered = isDelivered(order);
+    var posted = isAccountingConfirmed(order);
+    var html = '<div class="delivery-v46-detail-actions">';
+    if (!delivered) {
+      html += '<button id="deliveryConfirmButton" type="button" class="success">Xác nhận giao</button>';
+    } else if (posted) {
+      html += '<button type="button" class="secondary muted-locked" disabled>Đã vào công nợ</button>';
+    } else {
+      html += '<button id="deliveryAccountingButton" type="button" class="primary">Đẩy sang công nợ</button>';
+    }
+    html += '</div>';
+    return html;
   }
 
   function renderDetail(order) {
@@ -340,7 +416,7 @@
     detail.innerHTML = '' +
       '<div class="delivery-v46-detail-head">' +
         '<div><h3>' + esc(order.orderCode) + '</h3><p>' + esc(order.customerName) + ' · ' + esc(order.customerCode) + '</p></div>' +
-        '<button id="deliveryConfirmButton" type="button" class="success">Xác nhận giao</button>' +
+        detailActionHtml(order) +
       '</div>' +
       staffAssignmentDetailHtml(order) +
       '<div class="delivery-v46-tabs">' +
@@ -360,6 +436,7 @@
     if (byId('deliveryPaymentForm')) byId('deliveryPaymentForm').addEventListener('submit', savePayment);
     if (byId('deliveryClearReturnButton')) byId('deliveryClearReturnButton').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
     if (byId('deliveryConfirmButton')) byId('deliveryConfirmButton').addEventListener('click', confirmDelivery);
+    if (byId('deliveryAccountingButton')) byId('deliveryAccountingButton').addEventListener('click', function () { confirmAccounting(order); });
   }
 
   function productsHtml(items) {
@@ -516,6 +593,54 @@
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
     } catch (err) { message(err.message, true); }
+  }
+
+  async function confirmAccounting(order) {
+    if (!order || !window.DeliveryCore) return;
+    var key = accountingKey(order);
+    if (!key) {
+      message('Không xác định được mã đơn để đẩy công nợ', true);
+      return;
+    }
+    if (isAccountingConfirmed(order)) {
+      message('Đơn này đã vào công nợ');
+      return;
+    }
+    if (!confirm('Xác nhận đẩy đơn này sang công nợ?')) return;
+    try {
+      message('Đang đẩy đơn sang công nợ...');
+      var json = await window.DeliveryCore.confirmAccounting([key], filters());
+      delete state.accountingSelectedKeys[key];
+      message(json.message || 'Đã xác nhận kế toán và đưa đơn vào công nợ');
+      await load();
+    } catch (err) { message(err.message || 'Không đẩy được đơn sang công nợ', true); }
+  }
+
+  function toggleSelectAllAccounting() {
+    var rows = getVisibleOrders().filter(function (order) { return accountingKey(order) && !isAccountingConfirmed(order); });
+    var allSelected = rows.length && rows.every(function (order) { return state.accountingSelectedKeys[accountingKey(order)]; });
+    rows.forEach(function (order) {
+      var key = accountingKey(order);
+      if (allSelected) delete state.accountingSelectedKeys[key];
+      else state.accountingSelectedKeys[key] = true;
+    });
+    renderList();
+  }
+
+  async function confirmSelectedAccounting() {
+    var ids = selectedAccountingIds();
+    if (!ids.length) {
+      message('Vui lòng chọn ít nhất 1 đơn để đẩy sang công nợ', true);
+      return;
+    }
+    if (!confirm('Xác nhận đẩy ' + ids.length + ' đơn đã chọn sang công nợ?')) return;
+    try {
+      message('Đang đẩy ' + ids.length + ' đơn sang công nợ...');
+      var json = await window.DeliveryCore.confirmAccounting(ids, filters());
+      state.accountingSelectedKeys = {};
+      message(json.message || 'Đã xác nhận kế toán và đưa các đơn đã chọn vào công nợ');
+      await load();
+    } catch (err) { message(err.message || 'Không đẩy được đơn đã chọn sang công nợ', true); }
   }
 
 

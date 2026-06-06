@@ -7692,3 +7692,42 @@ body::after{
 }
 
 #deliveryTodayTab .mk-delivery-list-head > span:nth-child(n+3){justify-content:center !important;text-align:center !important;}
+
+/* MK FIX: Delivery Today accounting actions restored */
+#deliveryTodayTab .delivery-v46-panel-title-with-actions{
+  gap:10px !important;
+}
+#deliveryTodayTab .delivery-v46-list-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  flex-wrap:wrap !important;
+}
+#deliveryTodayTab .delivery-v46-list-actions button{
+  white-space:nowrap !important;
+  min-height:30px !important;
+  padding:6px 10px !important;
+  font-size:12px !important;
+}
+#deliveryTodayTab .delivery-v46-detail-actions{
+  display:flex !important;
+  gap:8px !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  flex-wrap:wrap !important;
+}
+#deliveryTodayTab .delivery-v46-detail-actions button{
+  white-space:nowrap !important;
+}
+#deliveryTodayTab .delivery-v46-detail-actions .muted-locked{
+  opacity:.7 !important;
+  cursor:not-allowed !important;
+}
+#deliveryTodayTab .mk-delivery-accounting-check{
+  cursor:pointer !important;
+}
+#deliveryTodayTab .mk-delivery-accounting-check:hover{
+  border-color:#2563eb !important;
+  background:#eff6ff !important;
+}

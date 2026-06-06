@@ -354,6 +354,23 @@
       return this.state.reconciliation;
     },
 
+    async confirmAccounting(orderIds, filters) {
+      filters = filters || this.state.filters || {};
+      var ids = (Array.isArray(orderIds) ? orderIds : [orderIds]).map(text).filter(Boolean);
+      if (!ids.length) throw new Error('Vui lòng chọn ít nhất 1 đơn để đẩy sang công nợ');
+      var body = {
+        date: filters.date || filters.deliveryDate || '',
+        deliveryDate: filters.date || filters.deliveryDate || '',
+        deliveryStaffCode: filters.deliveryStaffCode || '',
+        salesStaffCode: filters.salesStaffCode || '',
+        orderIds: ids
+      };
+      return this.api('/api/master-orders/delivery-today/confirm-accounting', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+    },
+
     async confirmDelivery(order, payload) {
       order = normalizeOrder(order);
       payload = payload || {};
