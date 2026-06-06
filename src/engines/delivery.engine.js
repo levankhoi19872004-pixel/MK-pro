@@ -224,7 +224,8 @@ function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
     deliveryStaffCode: text(order.deliveryStaffCode),
     deliveryStaffName: text(order.deliveryStaffName),
     items: canonical.items,
-    returnItems: canonical.items,
+    returnItems,
+    returnOrders: relatedReturnOrders,
     amounts: {
       receivable: toNumber(amounts.receivable ?? amounts.totalReceivable),
       cash: toNumber(amounts.cash ?? amounts.cashAmount),
@@ -550,22 +551,8 @@ class DeliveryEngine {
       { upsert: true, new: true, lean: true }
     );
 
-    // Mirror canonical return fields onto the sales order for legacy delivery screens only.
-    // ReturnOrder remains the source of truth; this prevents the current row from looking unsaved
-    // and keeps old master-delivery snapshots consistent until they are fully migrated.
-    await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), {
-      $set: {
-        deliveryReturnItems: items,
-        returnItems: items,
-        returnAmount: totalAmount,
-        returnedAmount: totalAmount,
-        totalReturnAmount: totalAmount,
-        returnOrderId: returnOrder && (returnOrder.id || returnOrder._id || ''),
-        returnOrderCode: returnOrder && (returnOrder.code || ''),
-        updatedAt: new Date().toISOString()
-      }
-    }, { new: false, lean: true });
-
+    // V46 rule: returnOrders is the single source of truth for return goods.
+    // Do not mirror returnAmount/returnItems into salesOrders. All delivery views must reload/overlay from returnOrders.
     const canonical = await this.getCanonicalOrderByKey(orderIdOf(order));
     return { order: canonical, returnOrder, message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0' };
   }
@@ -663,6 +650,65 @@ class DeliveryEngine {
       balanced: Math.abs(difference) <= 1000,
       message: Math.abs(difference) <= 1000 ? 'Đối soát OK' : `Chênh lệch ${difference.toLocaleString('vi-VN')}`
     };
+  }
+
+  async listReturns(query = {}) {
+    const result = await this.listOrders(query);
+    const orderById = new Map();
+    const orderByCode = new Map();
+    for (const order of result.rows || []) {
+      for (const id of unique([order.orderId, order.salesOrderId, order.id])) orderById.set(id, order);
+      for (const code of unique([order.orderCode, order.salesOrderCode, order.code])) orderByCode.set(code, order);
+    }
+
+    const orders = result.rows || [];
+    const returnOrders = await this.findReturnOrdersFor(orders);
+    const rows = [];
+    for (const ro of returnOrders || []) {
+      const order = orderById.get(text(ro.salesOrderId || ro.orderId || ro.sourceOrderId || ro.deliveryOrderId))
+        || orderByCode.get(text(ro.salesOrderCode || ro.orderCode || ro.sourceOrderCode || ro.deliveryOrderCode))
+        || {};
+      const status = text(ro.status || ro.returnStatus || 'active');
+      const items = Array.isArray(ro.items) ? ro.items : [];
+      if (!items.length) {
+        rows.push({
+          returnOrderId: text(ro.id || ro._id),
+          returnOrderCode: text(ro.code || ro.id),
+          salesOrderId: text(ro.salesOrderId || ro.orderId || order.salesOrderId || order.orderId),
+          salesOrderCode: text(ro.salesOrderCode || ro.orderCode || order.salesOrderCode || order.orderCode),
+          customerCode: text(ro.customerCode || order.customerCode),
+          customerName: text(ro.customerName || order.customerName),
+          deliveryDate: text(ro.deliveryDate || ro.date || order.deliveryDate),
+          productCode: '',
+          productName: '',
+          returnQty: 0,
+          price: 0,
+          amount: toNumber(ro.totalAmount || ro.amount || ro.totalReturnAmount || ro.debtReduction),
+          status
+        });
+        continue;
+      }
+      for (const item of items) {
+        const returnQty = returnQtyOf(item) || qtyOf(item);
+        const price = priceOf(item);
+        rows.push({
+          returnOrderId: text(ro.id || ro._id),
+          returnOrderCode: text(ro.code || ro.id),
+          salesOrderId: text(ro.salesOrderId || ro.orderId || order.salesOrderId || order.orderId),
+          salesOrderCode: text(ro.salesOrderCode || ro.orderCode || order.salesOrderCode || order.orderCode),
+          customerCode: text(ro.customerCode || order.customerCode),
+          customerName: text(ro.customerName || order.customerName),
+          deliveryDate: text(ro.deliveryDate || ro.date || order.deliveryDate),
+          productCode: productCodeOf(item),
+          productName: productNameOf(item),
+          returnQty,
+          price,
+          amount: toNumber(item.returnAmount || item.amount || Math.round(returnQty * price)),
+          status
+        });
+      }
+    }
+    return { rows, summary: rows.reduce((a, r) => { a.returnQty += toNumber(r.returnQty); a.amount += toNumber(r.amount); return a; }, { returnQty: 0, amount: 0 }) };
   }
 
   async reconciliation(query = {}) {

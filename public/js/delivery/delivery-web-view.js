@@ -288,11 +288,12 @@
       staffAssignmentDetailHtml(order) +
       '<div class="delivery-v46-tabs">' +
         '<button type="button" data-delivery-detail-tab="products" class="' + (state.activeTab === 'products' ? 'active' : '') + '">Sản phẩm giao</button>' +
+        '<button type="button" data-delivery-detail-tab="returns" class="' + (state.activeTab === 'returns' ? 'active' : '') + '">Hàng trả</button>' +
         '<button type="button" data-delivery-detail-tab="payment" class="' + (state.activeTab === 'payment' ? 'active' : '') + '">Thu tiền</button>' +
         '<button type="button" data-delivery-detail-tab="summary" class="' + (state.activeTab === 'summary' ? 'active' : '') + '">Tổng kết</button>' +
       '</div>' +
       '<div class="delivery-v46-tab-body">' +
-        (state.activeTab === 'payment' ? paymentHtml(order) : (state.activeTab === 'summary' ? summaryHtml(order) : productsHtml(items))) +
+        (state.activeTab === 'returns' ? returnsHtml(order) : (state.activeTab === 'payment' ? paymentHtml(order) : (state.activeTab === 'summary' ? summaryHtml(order) : productsHtml(items)))) +
       '</div>';
     detail.querySelectorAll('[data-delivery-detail-tab]').forEach(function (button) {
       button.addEventListener('click', function () { state.activeTab = button.getAttribute('data-delivery-detail-tab'); renderDetail(order); });
@@ -331,6 +332,38 @@
 
   function hidden(idx, field, value) {
     return '<input type="hidden" data-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">';
+  }
+
+  function returnsForOrder(order) {
+    var ids = [order.orderId, order.salesOrderId, order.id].map(String);
+    var codes = [order.orderCode, order.salesOrderCode, order.code].map(String);
+    return (window.DeliveryCore.state.returns || []).filter(function (row) {
+      return ids.indexOf(String(row.salesOrderId || row.orderId || '')) >= 0 || codes.indexOf(String(row.salesOrderCode || row.orderCode || '')) >= 0;
+    });
+  }
+
+  function returnsHtml(order) {
+    var rows = returnsForOrder(order);
+    if (!rows.length) {
+      return '<div class="empty-state">Đơn này chưa có phiếu trả trong returnOrders.</div>';
+    }
+    var total = rows.reduce(function (sum, row) { return sum + num(row.amount); }, 0);
+    return '' +
+      '<div class="delivery-v46-return-list-title"><b>Danh sách hàng trả từ returnOrders</b><span>Tổng: ' + money(total) + '</span></div>' +
+      '<div class="delivery-v46-return-table">' +
+        '<div class="delivery-v46-return-head"><span>Mã đơn</span><span>Khách hàng</span><span>Sản phẩm</span><span>SL</span><span>Giá</span><span>Thành tiền</span><span>Trạng thái</span></div>' +
+        rows.map(function (row) {
+          return '<div class="delivery-v46-return-row">' +
+            '<span>' + esc(row.salesOrderCode || row.returnOrderCode) + '</span>' +
+            '<span>' + esc(row.customerName || row.customerCode) + '</span>' +
+            '<span><b>' + esc(row.productCode) + '</b><small>' + esc(row.productName) + '</small></span>' +
+            '<span>' + money(row.returnQty) + '</span>' +
+            '<span>' + money(row.price) + '</span>' +
+            '<span>' + money(row.amount) + '</span>' +
+            '<span>' + esc(row.status || '') + '</span>' +
+          '</div>';
+        }).join('') +
+      '</div>';
   }
 
   function paymentHtml(order) {
@@ -441,6 +474,7 @@
         return;
       }
       await window.DeliveryCore.loadOrders(f);
+      await window.DeliveryCore.loadReturns(f);
       if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = orderKey(window.DeliveryCore.state.orders[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
       renderList();

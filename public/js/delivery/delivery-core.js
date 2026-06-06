@@ -93,18 +93,58 @@
     });
   }
 
+
+  function normalizeReturnRow(row) {
+    row = row || {};
+    return Object.assign({}, row, {
+      returnOrderId: text(row.returnOrderId || row.id || row._id),
+      returnOrderCode: text(row.returnOrderCode || row.code || row.id),
+      salesOrderId: text(row.salesOrderId || row.orderId),
+      salesOrderCode: text(row.salesOrderCode || row.orderCode),
+      customerCode: text(row.customerCode),
+      customerName: text(row.customerName),
+      productCode: text(row.productCode || row.code || row.productId),
+      productName: text(row.productName || row.name),
+      returnQty: toNumber(row.returnQty || row.qtyReturn || row.quantity),
+      price: toNumber(row.price || row.salePrice || row.unitPrice),
+      amount: toNumber(row.amount || row.returnAmount)
+    });
+  }
+
+  function currentOrderDraftKey(order) {
+    return orderKey(normalizeOrder(order));
+  }
+
   var DeliveryCore = {
     state: {
       orders: [],
+      returns: [],
       selectedOrder: null,
-      filters: {}
+      filters: {},
+      returnDraftByOrderKey: {}
     },
 
     money: money,
     toNumber: toNumber,
     normalizeOrder: normalizeOrder,
     normalizeItem: normalizeItem,
+    normalizeReturnRow: normalizeReturnRow,
     orderKey: orderKey,
+
+    setReturnDraft(order, items) {
+      var key = currentOrderDraftKey(order);
+      this.state.returnDraftByOrderKey[key] = (Array.isArray(items) ? items : []).map(normalizeItem).filter(function (item) { return toNumber(item.returnQty) > 0; });
+      return this.state.returnDraftByOrderKey[key];
+    },
+
+    getReturnDraft(order) {
+      var key = currentOrderDraftKey(order);
+      return (this.state.returnDraftByOrderKey[key] || []).map(normalizeItem);
+    },
+
+    clearReturnDraft(order) {
+      delete this.state.returnDraftByOrderKey[currentOrderDraftKey(order)];
+    },
 
     async api(path, options) {
       var res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options || {}));
@@ -128,6 +168,19 @@
         this.state.selectedOrder = this.state.orders.find(function (row) { return orderKey(row) === key; }) || null;
       }
       return this.state.orders;
+    },
+
+    async loadReturns(filters) {
+      filters = Object.assign({}, this.state.filters, filters || {});
+      var params = new URLSearchParams();
+      Object.keys(filters).forEach(function (key) {
+        var value = filters[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') params.set(key, value);
+      });
+      var json = await this.api('/api/delivery/returns' + (params.toString() ? '?' + params.toString() : ''));
+      var rows = json.returns || json.returnOrders || json.rows || [];
+      this.state.returns = rows.map(normalizeReturnRow);
+      return this.state.returns;
     },
 
     selectOrder(orderKeyValue) {
@@ -185,6 +238,7 @@
     async saveReturn(order, items) {
       var json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(this.buildReturnPayload(order, items)) });
       if (json.order) this.patchOrder(json.order);
+      this.clearReturnDraft(order);
       return json;
     },
 

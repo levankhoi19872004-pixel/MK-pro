@@ -36,6 +36,24 @@ router.get('/orders', async (req, res) => {
   }
 });
 
+router.get('/returns', async (req, res) => {
+  try {
+    const result = await engine.listReturns(req.query || {});
+    return res.json({
+      ok: true,
+      success: true,
+      returns: result.rows,
+      returnOrders: result.rows,
+      rows: result.rows,
+      total: result.rows.length,
+      summary: result.summary,
+      source: 'returnOrders'
+    });
+  } catch (err) {
+    return sendError(res, err, 'Không tải được danh sách hàng trả');
+  }
+});
+
 router.post('/return', async (req, res) => {
   try {
     const result = await engine.saveReturn(req.body || {});

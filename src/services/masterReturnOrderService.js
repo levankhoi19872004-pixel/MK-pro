@@ -171,7 +171,8 @@ async function createMasterReturnOrder(body = {}) {
   const returnDate = dateUtil.toDateOnly(body.returnDate || body.date || first.date || dateUtil.todayVN());
   const summary = summarizeReturnOrders(children);
   const masterReturnOrder = {
-    ...body,
+    // V46 rule: masterReturnOrders stores header + returnOrderIds only.
+    // Do not copy return order items/children/returnOrders into the master document.
     id: String(body.id || makeId('MRO')).trim(),
     code: String(body.code || buildMasterReturnCode(existing)).trim(),
     date: dateUtil.toDateOnly(body.date || returnDate),
@@ -187,6 +188,10 @@ async function createMasterReturnOrder(body = {}) {
     createdAt: body.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+  delete masterReturnOrder.items;
+  delete masterReturnOrder.children;
+  delete masterReturnOrder.returnOrders;
+  delete masterReturnOrder.returnItems;
 
   await withMongoTransaction(async (session) => {
     await masterReturnOrderRepository.upsert(masterReturnOrder, { session });
