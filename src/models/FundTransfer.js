@@ -12,6 +12,8 @@ module.exports = flexModel('FundTransfer', 'fundTransfers', {
   status: String,
   fundPosted: Boolean,
   postedAt: String,
+  confirmedAt: String,
+  confirmedBy: String,
   createdBy: String,
   createdAt: String,
   updatedAt: String

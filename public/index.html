@@ -730,7 +730,7 @@
             <div class="fund-two-column">
               <section class="fund-form-card">
                 <h3>Phiếu nộp quỹ giao hàng</h3>
-                <p class="muted">Tạo phiếu theo ngày giao + NVGH. Hệ thống tự lấy báo cáo giao hàng để đối soát thực nộp.</p>
+                <p class="muted">Tạo phiếu theo ngày giao + NVGH. Phiếu tạo ở trạng thái pending, bấm Xác nhận mới ghi fundLedgers.</p>
                 <form id="deliveryCashSubmissionForm" class="form fund-form-grid">
                   <label>Ngày giao<input name="deliveryDate" type="date" /></label>
                   <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: ghth" /></label>
@@ -747,7 +747,7 @@
                 <div class="toolbar compact-toolbar"><h3>Danh sách phiếu nộp quỹ</h3><span class="muted">Xác nhận mới ghi fundLedgers</span></div>
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh</th><th>Trạng thái</th><th></th></tr></thead>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
                     <tbody id="deliveryCashSubmissionTable"><tr><td colspan="8">Chưa tải phiếu nộp quỹ.</td></tr></tbody>
                   </table>
                 </div>
@@ -759,7 +759,7 @@
             <div class="fund-two-column">
               <section class="fund-form-card">
                 <h3>Phiếu chi</h3>
-                <p class="muted">Ghi nhận các khoản chi tiền mặt/ngân hàng. Khi lưu, hệ thống ghi direction = out vào fundLedgers.</p>
+                <p class="muted">Ghi nhận các khoản chi tiền mặt/ngân hàng. Phiếu tạo ở trạng thái pending, bấm Xác nhận mới ghi direction = out vào fundLedgers.</p>
                 <form id="expenseVoucherForm" class="form fund-form-grid">
                   <label>Ngày chi<input name="date" type="date" /></label>
                   <label>Quỹ chi<select name="fundType"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
@@ -775,8 +775,8 @@
                 <div class="toolbar compact-toolbar"><h3>Danh sách phiếu chi</h3><span class="muted">Nguồn EXPENSE_VOUCHER</span></div>
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã</th><th>Ngày</th><th>Quỹ</th><th>Loại chi</th><th>Người nhận</th><th>Số tiền</th><th>TT</th></tr></thead>
-                    <tbody id="expenseVoucherTable"><tr><td colspan="7">Chưa tải phiếu chi.</td></tr></tbody>
+                    <thead><tr><th>Mã</th><th>Ngày</th><th>Quỹ</th><th>Loại chi</th><th>Người nhận</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                    <tbody id="expenseVoucherTable"><tr><td colspan="8">Chưa tải phiếu chi.</td></tr></tbody>
                   </table>
                 </div>
               </section>
@@ -787,7 +787,7 @@
             <div class="fund-two-column">
               <section class="fund-form-card">
                 <h3>Nộp ngân hàng / Chuyển quỹ</h3>
-                <p class="muted">Nộp tiền mặt vào ngân hàng sẽ ghi 2 dòng: cash out và bank in.</p>
+                <p class="muted">Nộp tiền mặt vào ngân hàng sẽ tạo phiếu pending; bấm Xác nhận mới ghi 2 dòng: cash out và bank in.</p>
                 <form id="fundTransferForm" class="form fund-form-grid">
                   <label>Ngày<input name="date" type="date" /></label>
                   <label>Từ quỹ<select name="fromFund"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
@@ -803,8 +803,8 @@
                 <div class="toolbar compact-toolbar"><h3>Danh sách nộp ngân hàng</h3><span class="muted">Nguồn FUND_TRANSFER</span></div>
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã</th><th>Ngày</th><th>Từ quỹ</th><th>Đến quỹ</th><th>Ngân hàng</th><th>Số tiền</th><th>TT</th></tr></thead>
-                    <tbody id="fundTransferTable"><tr><td colspan="7">Chưa tải phiếu chuyển quỹ.</td></tr></tbody>
+                    <thead><tr><th>Mã</th><th>Ngày</th><th>Từ quỹ</th><th>Đến quỹ</th><th>Ngân hàng</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                    <tbody id="fundTransferTable"><tr><td colspan="8">Chưa tải phiếu chuyển quỹ.</td></tr></tbody>
                   </table>
                 </div>
               </section>

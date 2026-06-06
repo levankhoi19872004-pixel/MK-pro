@@ -11,6 +11,8 @@ module.exports = flexModel('ExpenseVoucher', 'expenseVouchers', {
   status: String,
   fundPosted: Boolean,
   postedAt: String,
+  confirmedAt: String,
+  confirmedBy: String,
   createdBy: String,
   createdAt: String,
   updatedAt: String

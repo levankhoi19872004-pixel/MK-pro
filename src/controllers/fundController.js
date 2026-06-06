@@ -38,19 +38,44 @@ async function createDeliverySubmission(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu nộp quỹ' }); }
 }
 
+async function updateDeliverySubmission(req, res) {
+  try { sendResult(res, await fundService.updateDeliveryCashSubmission(req.params.id, req.body || {}), 'Đã cập nhật phiếu nộp quỹ'); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không cập nhật được phiếu nộp quỹ' }); }
+}
+
 async function confirmDeliverySubmission(req, res) {
   try { sendResult(res, await fundService.confirmDeliveryCashSubmission(req.params.id, req.body || {}), 'Đã xác nhận phiếu nộp quỹ'); }
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu nộp quỹ' }); }
 }
 
 async function createExpense(req, res) {
-  try { sendResult(res, await fundService.createExpenseVoucher(req.body || {}), 'Đã tạo phiếu chi và ghi sổ quỹ', 201); }
+  try { sendResult(res, await fundService.createExpenseVoucher(req.body || {}), 'Đã tạo phiếu chi', 201); }
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu chi' }); }
 }
 
+async function updateExpense(req, res) {
+  try { sendResult(res, await fundService.updateExpenseVoucher(req.params.id, req.body || {}), 'Đã cập nhật phiếu chi'); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không cập nhật được phiếu chi' }); }
+}
+
+async function confirmExpense(req, res) {
+  try { sendResult(res, await fundService.confirmExpenseVoucher(req.params.id, req.body || {}), 'Đã xác nhận phiếu chi'); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chi' }); }
+}
+
 async function createTransfer(req, res) {
-  try { sendResult(res, await fundService.createFundTransfer(req.body || {}), 'Đã tạo phiếu chuyển quỹ và ghi sổ quỹ', 201); }
+  try { sendResult(res, await fundService.createFundTransfer(req.body || {}), 'Đã tạo phiếu chuyển quỹ', 201); }
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, listDeliverySubmissions, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, confirmDeliverySubmission, createExpense, createTransfer };
+async function updateTransfer(req, res) {
+  try { sendResult(res, await fundService.updateFundTransfer(req.params.id, req.body || {}), 'Đã cập nhật phiếu chuyển quỹ'); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không cập nhật được phiếu chuyển quỹ' }); }
+}
+
+async function confirmTransfer(req, res) {
+  try { sendResult(res, await fundService.confirmFundTransfer(req.params.id, req.body || {}), 'Đã xác nhận phiếu chuyển quỹ'); }
+  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chuyển quỹ' }); }
+}
+
+module.exports = { listLedger, listDeliverySubmissions, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };

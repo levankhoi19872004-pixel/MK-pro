@@ -58,8 +58,17 @@ async function listFundLedgers(query = {}) {
   return { fundLedgers: rows, summary: summarizeFundLedgers(rows) };
 }
 
-async function findExistingFundLedger(sourceType, sourceCode, fundType, direction) {
-  const rows = await fundLedgerRepository.findAll({ sourceType, sourceCode, fundType, direction }, { limit: 1 });
+async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '') {
+  const query = {
+    fundType,
+    direction,
+    $or: [
+      { sourceType, sourceCode },
+      { referenceType: sourceType, referenceCode: sourceCode }
+    ]
+  };
+  if (sourceId) query.$or.push({ sourceType, sourceId }, { referenceType: sourceType, referenceId: sourceId });
+  const rows = await fundLedgerRepository.findAll(query, { limit: 1 });
   return rows[0] || null;
 }
 
@@ -71,7 +80,7 @@ async function postFundLedger(input = {}, options = {}) {
   const sourceType = String(input.sourceType || 'MANUAL_FUND').trim();
   const sourceCode = String(input.sourceCode || input.refCode || '').trim();
   if (sourceCode) {
-    const existed = await findExistingFundLedger(sourceType, sourceCode, fundType, direction);
+    const existed = await findExistingFundLedger(sourceType, sourceCode, fundType, direction, String(input.sourceId || input.refId || input.referenceId || '').trim());
     if (existed) return existed;
   }
   const entry = {
@@ -87,6 +96,9 @@ async function postFundLedger(input = {}, options = {}) {
     refType: String(input.refType || sourceType).trim(),
     refId: String(input.refId || input.sourceId || '').trim(),
     refCode: String(input.refCode || sourceCode).trim(),
+    referenceType: String(input.referenceType || input.refType || sourceType).trim(),
+    referenceId: String(input.referenceId || input.refId || input.sourceId || '').trim(),
+    referenceCode: String(input.referenceCode || input.refCode || sourceCode).trim(),
     deliveryDate: String(input.deliveryDate || '').trim(),
     deliveryStaffCode: String(input.deliveryStaffCode || '').trim(),
     deliveryStaffName: String(input.deliveryStaffName || '').trim(),
@@ -148,7 +160,8 @@ async function buildDeliverySubmissionDraft(query = {}) {
       differenceBankAmount: submittedBankAmount - reportBankAmount,
       orderCodes: orders.map((row) => row.orderCode || row.code || '').filter(Boolean),
       orderIds: orders.map((row) => row.id || '').filter(Boolean),
-      status: (submittedCashAmount === reportCashAmount && submittedBankAmount === reportBankAmount) ? 'matched' : 'mismatch',
+      status: String(query.status || 'pending').trim(),
+      matchStatus: (submittedCashAmount === reportCashAmount && submittedBankAmount === reportBankAmount) ? 'matched' : 'mismatch',
       fundPosted: false,
       note: String(query.note || '').trim(),
       createdBy: String(query.createdBy || '').trim(),
@@ -183,6 +196,36 @@ async function listDeliveryCashSubmissions(query = {}) {
 }
 
 
+function isLockedVoucher(row = {}) {
+  return ['confirmed', 'matched', 'posted'].includes(String(row.status || '').toLowerCase()) || row.fundPosted === true;
+}
+
+function lockedError(name) {
+  return { error: `${name} đã xác nhận, không được sửa nghiệp vụ`, status: 409 };
+}
+
+async function updateDeliveryCashSubmission(idOrCode, body = {}) {
+  const current = await deliveryCashSubmissionRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu nộp quỹ', status: 404 };
+  if (isLockedVoucher(current)) return lockedError('Phiếu nộp quỹ');
+  const submittedCashAmount = money(body.submittedCashAmount ?? current.submittedCashAmount ?? current.reportCashAmount);
+  const submittedBankAmount = money(body.submittedBankAmount ?? current.submittedBankAmount ?? current.reportBankAmount);
+  const updated = {
+    ...current,
+    submittedCashAmount,
+    submittedBankAmount,
+    differenceCashAmount: submittedCashAmount - money(current.reportCashAmount),
+    differenceBankAmount: submittedBankAmount - money(current.reportBankAmount),
+    matchStatus: (submittedCashAmount === money(current.reportCashAmount) && submittedBankAmount === money(current.reportBankAmount)) ? 'matched' : 'mismatch',
+    status: 'pending',
+    note: String(body.note ?? current.note ?? '').trim(),
+    updatedAt: dateUtil.nowIso()
+  };
+  await deliveryCashSubmissionRepository.upsert(updated);
+  return { submission: updated, message: 'Đã cập nhật phiếu nộp quỹ' };
+}
+
+
 async function listExpenseVouchers(query = {}) {
   const filter = {};
   if (query.dateFrom || query.dateTo) {
@@ -214,7 +257,7 @@ async function confirmDeliveryCashSubmission(idOrCode, body = {}) {
   const submission = await deliveryCashSubmissionRepository.findByIdOrCode(idOrCode);
   if (!submission) return { error: 'Không tìm thấy phiếu nộp quỹ', status: 404 };
   if (['cancelled', 'canceled', 'void', 'deleted'].includes(String(submission.status || '').toLowerCase())) return { error: 'Phiếu nộp quỹ đã hủy', status: 400 };
-  if (submission.fundPosted) return { submission, ledgers: [], message: 'Phiếu đã ghi sổ quỹ trước đó' };
+  if (submission.fundPosted || String(submission.status || '').toLowerCase() === 'confirmed') return { submission, ledgers: [], message: 'Phiếu đã ghi sổ quỹ trước đó' };
   const submittedCashAmount = money(body.submittedCashAmount ?? submission.submittedCashAmount ?? submission.reportCashAmount);
   const submittedBankAmount = money(body.submittedBankAmount ?? submission.submittedBankAmount ?? submission.reportBankAmount);
   const updated = {
@@ -226,6 +269,8 @@ async function confirmDeliveryCashSubmission(idOrCode, body = {}) {
     status: 'confirmed',
     fundPosted: true,
     postedAt: dateUtil.nowIso(),
+    confirmedAt: dateUtil.nowIso(),
+    confirmedBy: String(body.confirmedBy || body.updatedBy || '').trim(),
     note: String(body.note ?? submission.note ?? '').trim(),
     updatedAt: dateUtil.nowIso()
   };
@@ -262,6 +307,7 @@ async function confirmDeliveryCashSubmission(idOrCode, body = {}) {
   return { submission: updated, ledgers: ledgers.filter(Boolean), message: 'Đã xác nhận phiếu nộp quỹ và ghi fundLedgers' };
 }
 
+
 async function createExpenseVoucher(body = {}) {
   const amount = money(body.amount);
   if (amount <= 0) return { error: 'Số tiền chi phải lớn hơn 0', status: 400 };
@@ -274,23 +320,51 @@ async function createExpenseVoucher(body = {}) {
     expenseType: String(body.expenseType || 'other').trim(),
     receiverName: String(body.receiverName || '').trim(),
     note: String(body.note || '').trim(),
-    status: body.status || 'confirmed',
+    status: 'pending',
     fundPosted: false,
     createdBy: String(body.createdBy || '').trim(),
     createdAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
-  const result = { voucher, ledger: null };
+  await expenseVoucherRepository.upsert(voucher);
+  return { voucher, message: 'Đã tạo phiếu chi, chờ xác nhận ghi sổ quỹ' };
+}
+
+async function updateExpenseVoucher(idOrCode, body = {}) {
+  const current = await expenseVoucherRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu chi', status: 404 };
+  if (isLockedVoucher(current)) return lockedError('Phiếu chi');
+  const amount = money(body.amount ?? current.amount);
+  if (amount <= 0) return { error: 'Số tiền chi phải lớn hơn 0', status: 400 };
+  const updated = {
+    ...current,
+    date: dateOnly(body.date || current.date),
+    fundType: String(body.fundType || current.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash',
+    amount,
+    expenseType: String(body.expenseType ?? current.expenseType ?? 'other').trim(),
+    receiverName: String(body.receiverName ?? current.receiverName ?? '').trim(),
+    note: String(body.note ?? current.note ?? '').trim(),
+    status: 'pending',
+    updatedAt: dateUtil.nowIso()
+  };
+  await expenseVoucherRepository.upsert(updated);
+  return { voucher: updated, message: 'Đã cập nhật phiếu chi' };
+}
+
+async function confirmExpenseVoucher(idOrCode, body = {}) {
+  const voucher = await expenseVoucherRepository.findByIdOrCode(idOrCode);
+  if (!voucher) return { error: 'Không tìm thấy phiếu chi', status: 404 };
+  if (['cancelled', 'canceled', 'void', 'deleted'].includes(String(voucher.status || '').toLowerCase())) return { error: 'Phiếu chi đã hủy', status: 400 };
+  if (voucher.fundPosted || String(voucher.status || '').toLowerCase() === 'confirmed') return { voucher, ledger: null, message: 'Phiếu chi đã ghi sổ quỹ trước đó' };
+  const amount = money(voucher.amount);
+  if (amount <= 0) return { error: 'Số tiền chi phải lớn hơn 0', status: 400 };
+  const updated = { ...voucher, status: 'confirmed', fundPosted: true, postedAt: dateUtil.nowIso(), confirmedAt: dateUtil.nowIso(), confirmedBy: String(body.confirmedBy || body.updatedBy || '').trim(), updatedAt: dateUtil.nowIso() };
+  let ledger = null;
   await withMongoTransaction(async (session) => {
-    await expenseVoucherRepository.upsert(voucher, { session });
-    if (voucher.status === 'confirmed') {
-      result.ledger = await postFundLedger({ date: voucher.date, fundType: voucher.fundType, direction: 'out', amount, sourceType: 'EXPENSE_VOUCHER', sourceId: voucher.id, sourceCode: voucher.code, note: voucher.note || `Phiếu chi ${voucher.code}` }, { session });
-      voucher.fundPosted = true;
-      voucher.postedAt = dateUtil.nowIso();
-      await expenseVoucherRepository.upsert(voucher, { session });
-    }
+    ledger = await postFundLedger({ date: updated.date, fundType: updated.fundType, direction: 'out', amount, sourceType: 'EXPENSE_VOUCHER', sourceId: updated.id, sourceCode: updated.code, referenceType: 'EXPENSE_VOUCHER', referenceId: updated.id, referenceCode: updated.code, note: updated.note || `Phiếu chi ${updated.code}` }, { session });
+    await expenseVoucherRepository.upsert(updated, { session });
   });
-  return result;
+  return { voucher: updated, ledger, message: 'Đã xác nhận phiếu chi và ghi fundLedgers' };
 }
 
 async function createFundTransfer(body = {}) {
@@ -309,24 +383,56 @@ async function createFundTransfer(body = {}) {
     bankName: String(body.bankName || '').trim(),
     accountNumber: String(body.accountNumber || '').trim(),
     note: String(body.note || '').trim(),
-    status: body.status || 'confirmed',
+    status: 'pending',
     fundPosted: false,
     createdBy: String(body.createdBy || '').trim(),
     createdAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+  await fundTransferRepository.upsert(transfer);
+  return { transfer, message: 'Đã tạo phiếu chuyển quỹ, chờ xác nhận ghi sổ quỹ' };
+}
+
+async function updateFundTransfer(idOrCode, body = {}) {
+  const current = await fundTransferRepository.findByIdOrCode(idOrCode);
+  if (!current) return { error: 'Không tìm thấy phiếu chuyển quỹ', status: 404 };
+  if (isLockedVoucher(current)) return lockedError('Phiếu chuyển quỹ');
+  const amount = money(body.amount ?? current.amount);
+  if (amount <= 0) return { error: 'Số tiền chuyển quỹ phải lớn hơn 0', status: 400 };
+  const fromFund = String(body.fromFund || current.fromFund || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
+  const toFund = String(body.toFund || current.toFund || 'bank').toLowerCase() === 'cash' ? 'cash' : 'bank';
+  if (fromFund === toFund) return { error: 'Quỹ nguồn và quỹ đích không được trùng nhau', status: 400 };
+  const updated = {
+    ...current,
+    date: dateOnly(body.date || current.date),
+    fromFund,
+    toFund,
+    amount,
+    bankName: String(body.bankName ?? current.bankName ?? '').trim(),
+    accountNumber: String(body.accountNumber ?? current.accountNumber ?? '').trim(),
+    note: String(body.note ?? current.note ?? '').trim(),
+    status: 'pending',
+    updatedAt: dateUtil.nowIso()
+  };
+  await fundTransferRepository.upsert(updated);
+  return { transfer: updated, message: 'Đã cập nhật phiếu chuyển quỹ' };
+}
+
+async function confirmFundTransfer(idOrCode, body = {}) {
+  const transfer = await fundTransferRepository.findByIdOrCode(idOrCode);
+  if (!transfer) return { error: 'Không tìm thấy phiếu chuyển quỹ', status: 404 };
+  if (['cancelled', 'canceled', 'void', 'deleted'].includes(String(transfer.status || '').toLowerCase())) return { error: 'Phiếu chuyển quỹ đã hủy', status: 400 };
+  if (transfer.fundPosted || String(transfer.status || '').toLowerCase() === 'confirmed') return { transfer, ledgers: [], message: 'Phiếu chuyển quỹ đã ghi sổ quỹ trước đó' };
+  const amount = money(transfer.amount);
+  if (amount <= 0) return { error: 'Số tiền chuyển quỹ phải lớn hơn 0', status: 400 };
+  const updated = { ...transfer, status: 'confirmed', fundPosted: true, postedAt: dateUtil.nowIso(), confirmedAt: dateUtil.nowIso(), confirmedBy: String(body.confirmedBy || body.updatedBy || '').trim(), updatedAt: dateUtil.nowIso() };
   const ledgers = [];
   await withMongoTransaction(async (session) => {
-    await fundTransferRepository.upsert(transfer, { session });
-    if (transfer.status === 'confirmed') {
-      ledgers.push(await postFundLedger({ date: transfer.date, fundType: fromFund, direction: 'out', amount, sourceType: 'FUND_TRANSFER', sourceId: transfer.id, sourceCode: transfer.code, note: transfer.note || `Chuyển quỹ ${fromFund} sang ${toFund}` }, { session }));
-      ledgers.push(await postFundLedger({ date: transfer.date, fundType: toFund, direction: 'in', amount, sourceType: 'FUND_TRANSFER', sourceId: transfer.id, sourceCode: transfer.code, note: transfer.note || `Nhận chuyển quỹ từ ${fromFund}` }, { session }));
-      transfer.fundPosted = true;
-      transfer.postedAt = dateUtil.nowIso();
-      await fundTransferRepository.upsert(transfer, { session });
-    }
+    ledgers.push(await postFundLedger({ date: updated.date, fundType: updated.fromFund, direction: 'out', amount, sourceType: 'FUND_TRANSFER', sourceId: updated.id, sourceCode: updated.code, referenceType: 'FUND_TRANSFER', referenceId: updated.id, referenceCode: updated.code, note: updated.note || `Chuyển quỹ ${updated.fromFund} sang ${updated.toFund}` }, { session }));
+    ledgers.push(await postFundLedger({ date: updated.date, fundType: updated.toFund, direction: 'in', amount, sourceType: 'FUND_TRANSFER', sourceId: updated.id, sourceCode: updated.code, referenceType: 'FUND_TRANSFER', referenceId: updated.id, referenceCode: updated.code, note: updated.note || `Nhận chuyển quỹ từ ${updated.fromFund}` }, { session }));
+    await fundTransferRepository.upsert(updated, { session });
   });
-  return { transfer, ledgers: ledgers.filter(Boolean) };
+  return { transfer: updated, ledgers: ledgers.filter(Boolean), message: 'Đã xác nhận chuyển quỹ và ghi fundLedgers' };
 }
 
 module.exports = {
@@ -338,7 +444,12 @@ module.exports = {
   listExpenseVouchers,
   listFundTransfers,
   confirmDeliveryCashSubmission,
+  updateDeliveryCashSubmission,
   createExpenseVoucher,
+  updateExpenseVoucher,
+  confirmExpenseVoucher,
   createFundTransfer,
+  updateFundTransfer,
+  confirmFundTransfer,
   postFundLedger
 };

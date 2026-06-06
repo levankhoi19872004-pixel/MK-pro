@@ -18,9 +18,12 @@ module.exports = flexModel('DeliveryCashSubmission', 'deliveryCashSubmissions', 
   differenceBankAmount: Number,
   orderCodes: [String],
   orderIds: [String],
-  status: String, // draft | submitted | confirmed | cancelled | matched | mismatch
+  status: String, // pending | confirmed | cancelled
+  matchStatus: String, // matched | mismatch
   fundPosted: Boolean,
   postedAt: String,
+  confirmedAt: String,
+  confirmedBy: String,
   note: String,
   createdBy: String,
   createdAt: String,
