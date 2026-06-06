@@ -116,6 +116,7 @@
     state: {
       orders: [],
       returns: [],
+      returnsLoaded: false,
       selectedOrder: null,
       filters: {}
     },
@@ -162,6 +163,7 @@
       var json = await this.api('/api/delivery/returns' + (params.toString() ? '?' + params.toString() : ''));
       var rows = json.returns || json.returnOrders || json.rows || [];
       this.state.returns = rows.map(normalizeReturnRow);
+      this.state.returnsLoaded = true;
       return this.state.returns;
     },
 

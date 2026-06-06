@@ -7132,3 +7132,12 @@ body::after{
 #deliveryTodayTab .delivery-v46-return-row b,#deliveryTodayTab .delivery-v46-return-row small{display:block}
 #deliveryTodayTab .delivery-v46-return-row small{color:#64748b}
 @media(max-width:900px){#deliveryTodayTab .delivery-v46-return-head,#deliveryTodayTab .delivery-v46-return-row{grid-template-columns:1fr 1fr;}.delivery-v46-return-head span:nth-child(n+3){display:none}}
+
+/* V46: Gộp Thu tiền + Tổng kết; Hàng trả trong tab này lấy từ returnOrders */
+.delivery-v46-payment-summary-tab{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(260px,1.1fr);gap:14px;align-items:start}
+.delivery-v46-payment-summary-tab h4{margin:0 0 8px;color:#0f172a}
+.delivery-v46-summary-box{border:1px solid #dbe4f0;border-radius:14px;background:#fff;padding:12px}
+.delivery-v46-reconcile{border-radius:10px;padding:9px 10px;margin-bottom:10px;background:#f8fafc;border:1px solid #dbe4f0;text-align:center}
+.delivery-v46-summary-grid .returnorders-source{background:#f8fafc;border-color:#bfdbfe}
+.delivery-v46-summary-grid small{display:block;margin-top:4px;color:#2563eb;font-weight:800;font-size:11px}
+@media(max-width:900px){.delivery-v46-payment-summary-tab{grid-template-columns:1fr}}

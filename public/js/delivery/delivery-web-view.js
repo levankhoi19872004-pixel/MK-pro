@@ -9,7 +9,25 @@
   }
   function num(value) { return window.DeliveryCore ? window.DeliveryCore.toNumber(value) : Number(value || 0); }
   function money(value) { return window.DeliveryCore ? window.DeliveryCore.money(value) : String(Math.round(Number(value || 0))); }
-  function amount(order, key) { return num(order && order.amounts && order.amounts[key]); }
+  function baseAmount(order, key) { return num(order && order.amounts && order.amounts[key]); }
+  function returnAmountFromReturnOrders(order) {
+    var rows = returnsForOrder(order);
+    if (rows.length) return rows.reduce(function (sum, row) { return sum + num(row.amount || row.returnAmount || (num(row.returnQty) * num(row.price))); }, 0);
+    // Sau khi load returnOrders thành công, không fallback salesOrders.returnAmount nữa.
+    // Nếu không có phiếu returnOrders thì hàng trả phải là 0.
+    if (window.DeliveryCore && window.DeliveryCore.state && window.DeliveryCore.state.returnsLoaded) return 0;
+    return baseAmount(order, 'returnAmount');
+  }
+  function amount(order, key) {
+    if (key === 'returnAmount') return returnAmountFromReturnOrders(order);
+    if (key === 'debt') {
+      var receivable = baseAmount(order, 'receivable');
+      var paid = baseAmount(order, 'cash') + baseAmount(order, 'bank') + baseAmount(order, 'reward') + returnAmountFromReturnOrders(order);
+      return Math.max(0, receivable - paid);
+    }
+    if (key === 'processed') return baseAmount(order, 'cash') + baseAmount(order, 'bank') + baseAmount(order, 'reward') + returnAmountFromReturnOrders(order);
+    return baseAmount(order, key);
+  }
   function orderKey(order) { return window.DeliveryCore.orderKey(order); }
   function today() { return new Date().toISOString().slice(0, 10); }
   function staffLabel(item) {
@@ -279,6 +297,7 @@
       detail.innerHTML = '<div class="delivery-v46-detail-empty">Chọn đơn bên trái để xem chi tiết.</div>';
       return;
     }
+    if (state.activeTab === 'summary') state.activeTab = 'payment';
     var items = Array.isArray(order.items) ? order.items : [];
     detail.innerHTML = '' +
       '<div class="delivery-v46-detail-head">' +
@@ -289,11 +308,10 @@
       '<div class="delivery-v46-tabs">' +
         '<button type="button" data-delivery-detail-tab="products" class="' + (state.activeTab === 'products' ? 'active' : '') + '">Sản phẩm giao</button>' +
         '<button type="button" data-delivery-detail-tab="returns" class="' + (state.activeTab === 'returns' ? 'active' : '') + '">Hàng trả</button>' +
-        '<button type="button" data-delivery-detail-tab="payment" class="' + (state.activeTab === 'payment' ? 'active' : '') + '">Thu tiền</button>' +
-        '<button type="button" data-delivery-detail-tab="summary" class="' + (state.activeTab === 'summary' ? 'active' : '') + '">Tổng kết</button>' +
+        '<button type="button" data-delivery-detail-tab="payment" class="' + (state.activeTab === 'payment' ? 'active' : '') + '">Thu tiền & Tổng kết</button>' +
       '</div>' +
       '<div class="delivery-v46-tab-body">' +
-        (state.activeTab === 'returns' ? returnsHtml(order) : (state.activeTab === 'payment' ? paymentHtml(order) : (state.activeTab === 'summary' ? summaryHtml(order) : productsHtml(items)))) +
+        (state.activeTab === 'returns' ? returnsHtml(order) : (state.activeTab === 'payment' ? paymentSummaryHtml(order) : productsHtml(items))) +
       '</div>';
     detail.querySelectorAll('[data-delivery-detail-tab]').forEach(function (button) {
       button.addEventListener('click', function () { state.activeTab = button.getAttribute('data-delivery-detail-tab'); renderDetail(order); });
@@ -378,31 +396,37 @@
       '</form>';
   }
 
-  function paymentHtml(order) {
-    return '' +
-      '<form id="deliveryPaymentForm" class="delivery-v46-payment-form">' +
-        '<label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label>' +
-        '<label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label>' +
-        '<label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label>' +
-        '<button type="submit">Lưu thu tiền</button>' +
-      '</form>';
-  }
-
-  function summaryHtml(order) {
+  function paymentSummaryHtml(order) {
     var r = (order && order.reconciliation) || {};
-    var cls = r.balanced === false ? ' danger-text' : ' success-text';
+    var cls = r.balanced === false ? ' danger-text' : (amount(order, 'debt') > 0 ? ' danger-text' : ' success-text');
     var msg = r.message || (amount(order, 'debt') > 0 ? 'Còn công nợ' : 'Đối soát OK');
+    var returnAmount = returnAmountFromReturnOrders(order);
     return '' +
-      '<div class="delivery-v46-reconcile' + cls + '"><b>' + esc(msg) + '</b></div>' +
-      '<div class="delivery-v46-summary-grid">' +
-        '<div><span>Phải thu</span><b>' + money(amount(order, 'receivable')) + '</b></div>' +
-        '<div><span>Tiền mặt</span><b>' + money(amount(order, 'cash')) + '</b></div>' +
-        '<div><span>Chuyển khoản</span><b>' + money(amount(order, 'bank')) + '</b></div>' +
-        '<div><span>Trả thưởng</span><b>' + money(amount(order, 'reward')) + '</b></div>' +
-        '<div><span>Hàng trả</span><b>' + money(amount(order, 'returnAmount')) + '</b></div>' +
-        '<div><span>Còn nợ</span><b>' + money(amount(order, 'debt')) + '</b></div>' +
+      '<div class="delivery-v46-payment-summary-tab">' +
+        '<form id="deliveryPaymentForm" class="delivery-v46-payment-form">' +
+          '<h4>Thu tiền</h4>' +
+          '<label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(baseAmount(order, 'cash')) + '"></label>' +
+          '<label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(baseAmount(order, 'bank')) + '"></label>' +
+          '<label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(baseAmount(order, 'reward')) + '"></label>' +
+          '<button type="submit">Lưu thu tiền</button>' +
+        '</form>' +
+        '<section class="delivery-v46-summary-box">' +
+          '<h4>Tổng kết đơn</h4>' +
+          '<div class="delivery-v46-reconcile' + cls + '"><b>' + esc(msg) + '</b></div>' +
+          '<div class="delivery-v46-summary-grid">' +
+            '<div><span>Phải thu</span><b>' + money(baseAmount(order, 'receivable')) + '</b></div>' +
+            '<div><span>Tiền mặt</span><b>' + money(baseAmount(order, 'cash')) + '</b></div>' +
+            '<div><span>Chuyển khoản</span><b>' + money(baseAmount(order, 'bank')) + '</b></div>' +
+            '<div><span>Trả thưởng</span><b>' + money(baseAmount(order, 'reward')) + '</b></div>' +
+            '<div class="returnorders-source"><span>Hàng trả</span><b>' + money(returnAmount) + '</b><small>Nguồn: returnOrders</small></div>' +
+            '<div><span>Còn nợ</span><b>' + money(amount(order, 'debt')) + '</b></div>' +
+          '</div>' +
+        '</section>' +
       '</div>';
   }
+
+  function paymentHtml(order) { return paymentSummaryHtml(order); }
+  function summaryHtml(order) { return paymentSummaryHtml(order); }
 
   function collectReturnItems(forceZero) {
     var byIdx = {};
