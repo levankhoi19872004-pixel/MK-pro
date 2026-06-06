@@ -228,6 +228,29 @@
             <p><strong>Sửa phiếu nhập ngay trong mục Nhập kho.</strong></p>
             <p>Bấm “Sửa phiếu” để đưa dữ liệu phiếu cũ lên form bên trái, chỉnh lại rồi lưu.</p>
           </div>
+          <div class="import-history-filter">
+            <div class="import-history-filter-top">
+              <button type="button" class="secondary small" id="printSelectedImportOrdersButton">In gộp phiếu đã chọn</button>
+            </div>
+            <div class="import-date-filter-row">
+              <label>Từ ngày
+                <input type="date" id="importDateFromFilter" />
+              </label>
+              <label>Đến ngày
+                <input type="date" id="importDateToFilter" />
+              </label>
+              <button type="button" class="primary small" id="applyImportDateFilterButton">Lọc</button>
+              <button type="button" class="secondary small" id="clearImportDateFilterButton">Xóa lọc</button>
+            </div>
+            <div class="import-date-preset-row">
+              <button type="button" class="secondary mini" data-import-date-preset="today">Hôm nay</button>
+              <button type="button" class="secondary mini" data-import-date-preset="week">Tuần này</button>
+              <button type="button" class="secondary mini" data-import-date-preset="month">Tháng này</button>
+              <button type="button" class="secondary mini" data-import-date-preset="quarter">Quý này</button>
+              <button type="button" class="secondary mini" data-import-date-preset="all">Tất cả</button>
+            </div>
+            <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
+          </div>
           <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
         </section>
       </main>

@@ -29,7 +29,7 @@ function toClient(order) {
 }
 
 async function listImportOrders(query = {}) {
-  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: String(query.all || query.showAll || '').trim() !== '1' });
   const page = queryGuard.getPagination(guardedQuery);
   const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);

@@ -425,20 +425,85 @@ async function cancelImportOrder(idx){
 }
 window.cancelImportOrder=cancelImportOrder;
 
+let importDateFilter={fromDate:'',toDate:'',all:false};
+function importDateValue(date){
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,'0');
+  const d=String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function firstDayOfCurrentMonth(){const d=new Date();return importDateValue(new Date(d.getFullYear(),d.getMonth(),1));}
+function startOfCurrentWeek(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-day+1);return importDateValue(d);}
+function firstDayOfCurrentQuarter(){const d=new Date();const q=Math.floor(d.getMonth()/3)*3;return importDateValue(new Date(d.getFullYear(),q,1));}
+function formatImportDateLabel(value){
+  if(!value)return '';
+  const parts=String(value).slice(0,10).split('-');
+  return parts.length===3?`${parts[2]}/${parts[1]}/${parts[0]}`:value;
+}
+function syncImportDateFilterFromInputs(){
+  importDateFilter.fromDate=importDateFromFilter?.value||'';
+  importDateFilter.toDate=importDateToFilter?.value||'';
+  importDateFilter.all=!importDateFilter.fromDate&&!importDateFilter.toDate;
+}
+function setImportDateFilter(fromDate,toDate,all=false){
+  if(importDateFromFilter)importDateFromFilter.value=fromDate||'';
+  if(importDateToFilter)importDateToFilter.value=toDate||'';
+  importDateFilter={fromDate:fromDate||'',toDate:toDate||'',all:!!all};
+}
+function updateImportDateFilterInfo(count){
+  if(!importDateFilterInfo)return;
+  if(importDateFilter.all){importDateFilterInfo.textContent=`Hiển thị: Tất cả (${count} phiếu nhập)`;return}
+  const from=formatImportDateLabel(importDateFilter.fromDate)||'...';
+  const to=formatImportDateLabel(importDateFilter.toDate)||'...';
+  importDateFilterInfo.textContent=`Hiển thị: ${from} → ${to} (${count} phiếu nhập)`;
+}
+function buildImportOrderQuery(){
+  const params=new URLSearchParams({excludeInactive:'1',limit:'100'});
+  if(importDateFilter.all){params.set('all','1');return params.toString()}
+  if(importDateFilter.fromDate)params.set('fromDate',importDateFilter.fromDate);
+  if(importDateFilter.toDate)params.set('toDate',importDateFilter.toDate);
+  return params.toString();
+}
+async function applyImportDateFilter(){syncImportDateFilterFromInputs();await loadImportOrders()}
+async function clearImportDateFilter(){setImportDateFilter('','',true);await loadImportOrders()}
+async function applyImportDatePreset(preset){
+  const now=new Date();
+  const todayValue=importDateValue(now);
+  if(preset==='all')return clearImportDateFilter();
+  if(preset==='today')setImportDateFilter(todayValue,todayValue,false);
+  else if(preset==='week')setImportDateFilter(startOfCurrentWeek(),todayValue,false);
+  else if(preset==='month')setImportDateFilter(firstDayOfCurrentMonth(),todayValue,false);
+  else if(preset==='quarter')setImportDateFilter(firstDayOfCurrentQuarter(),todayValue,false);
+  await loadImportOrders();
+}
+function initImportDateFilterControls(){
+  if(importDateFromFilter||importDateToFilter){
+    if(!importDateFromFilter?.value&&!importDateToFilter?.value)setImportDateFilter(firstDayOfCurrentMonth(),importDateValue(new Date()),false);
+    else syncImportDateFilterFromInputs();
+  }
+  if(applyImportDateFilterButton)applyImportDateFilterButton.addEventListener('click',applyImportDateFilter);
+  if(clearImportDateFilterButton)clearImportDateFilterButton.addEventListener('click',clearImportDateFilter);
+  if(printSelectedImportOrdersButton)printSelectedImportOrdersButton.addEventListener('click',printSelectedImportOrders);
+  if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',()=>loadImportOrders());
+  document.querySelectorAll('[data-import-date-preset]').forEach(btn=>btn.addEventListener('click',()=>applyImportDatePreset(btn.dataset.importDatePreset)));
+}
 async function loadImportOrders(){
   try{
-    const res=await fetch('/api/import-orders?excludeInactive=1');const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
-    const orders=(json.importOrders||[]).filter(isActiveDocument);importOrderCount.textContent=`${orders.length} phiếu nhập`;
-    if(!orders.length){importOrderList.innerHTML='Chưa có phiếu nhập nào.';return}
+    const res=await fetch(`/api/import-orders?${buildImportOrderQuery()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
+    const orders=(json.importOrders||[]).filter(isActiveDocument);
+    importOrderCount.textContent=`${orders.length} phiếu nhập`;
+    updateImportDateFilterInfo(orders.length);
     window.__importOrdersCache=orders;
-    importOrderList.innerHTML=`<div class="bulk-actions"><button class="secondary small" onclick="printSelectedImportOrders()">In gộp phiếu đã chọn</button></div>`+orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';return `<div class="order-card">
+    if(!orders.length){importOrderList.innerHTML='Không có phiếu nhập trong khoảng thời gian đã chọn.';return}
+    importOrderList.innerHTML=orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';return `<div class="order-card">
       <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong> <span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span></label><div>${posted?'<span class="status-badge ok">Đã nhập kho</span>':`<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ đơn</button>`}</div></div>
       <div class="order-meta">Ngày nhập: ${o.date||''} · Nhà cung cấp: ${o.supplier||'Chưa khai báo'} · Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</div>
       ${o.note?`<div class="order-meta">Ghi chú: ${o.note}</div>`:''}
       <div data-import-detail="${idx}"></div>
     </div>`}).join('');
-  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';importOrderList.innerHTML=err.message}
+  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.innerHTML=err.message}
 }
+initImportDateFilterControls();
 function normalizeOrderSourceClient(order){
   const raw=[order?.orderSource,order?.source,order?.sourceType,order?.orderSourceName,order?.importSource,order?.importType,order?.origin,order?.note].filter(Boolean).join(' ').toUpperCase();
   if(/(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(raw))return 'DMS';

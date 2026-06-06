@@ -95,6 +95,12 @@ const stockSearchInput=document.getElementById('stockSearchInput');
 const importOrderList=document.getElementById('importOrderList');
 const importOrderCount=document.getElementById('importOrderCount');
 const reloadImportOrdersButton=document.getElementById('reloadImportOrdersButton');
+const importDateFromFilter=document.getElementById('importDateFromFilter');
+const importDateToFilter=document.getElementById('importDateToFilter');
+const applyImportDateFilterButton=document.getElementById('applyImportDateFilterButton');
+const clearImportDateFilterButton=document.getElementById('clearImportDateFilterButton');
+const printSelectedImportOrdersButton=document.getElementById('printSelectedImportOrdersButton');
+const importDateFilterInfo=document.getElementById('importDateFilterInfo');
 
 const salesOrderList=document.getElementById('salesOrderList');
 const salesOrderCount=document.getElementById('salesOrderCount');
