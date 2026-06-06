@@ -73,7 +73,9 @@ async function hydrateItems(rawItems = []) {
         quantity,
         qty: quantity,
         costPrice,
-        amount: toNumber(raw.amount ?? quantity * costPrice)
+        amount: toNumber(raw.amount ?? quantity * costPrice),
+        warehouseCode: String(raw.warehouseCode || raw.warehouse || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
+        warehouseName: String(raw.warehouseName || product?.warehouseName || ((String(raw.warehouseCode || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim()
       };
     })
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
@@ -94,29 +96,23 @@ async function createImportOrder(body = {}) {
     items,
     totalQuantity: toNumber(body.totalQuantity ?? items.reduce((sum, item) => sum + toNumber(item.quantity), 0)),
     totalAmount: toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0)),
-    status: body.status || 'posted',
+    status: 'draft',
+    postedAt: '',
+    postedBy: '',
     source: body.source || 'mongo_import_order_route',
     createdAt: body.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
-  await withMongoTransaction(async (session) => {
-    await importOrderRepository.upsert(importOrder, { session });
-    await inventoryService.postStockMovement(importOrder, {
-      type: 'IMPORT',
-      direction: 'IN',
-      refType: 'IMPORT_ORDER',
-      refId: importOrder.id || importOrder.code,
-      refCode: importOrder.code || importOrder.id,
-      date: importOrder.date,
-      note: 'Nhập kho theo phiếu nhập'
-    }, { session });
-  });
+  await importOrderRepository.upsert(importOrder);
   return { importOrder: toClient(importOrder) };
 }
 
 async function updateImportOrder(id, body = {}) {
   const current = await importOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy phiếu nhập', status: 404 };
+  if (String(current.status || 'draft').toLowerCase() === 'posted') {
+    return { error: 'Phiếu đã nhập kho, không được sửa trực tiếp để tránh lệch tồn kho', status: 409 };
+  }
   const items = body.items ? await hydrateItems(body.items) : current.items || [];
   if (!items.length) return { error: 'Phiếu nhập chưa có dòng hàng', status: 400 };
   const updated = {
@@ -133,29 +129,46 @@ async function updateImportOrder(id, body = {}) {
     totalAmount: toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0)),
     updatedAt: dateUtil.nowIso()
   };
-  await withMongoTransaction(async (session) => {
-    await inventoryService.reverseStockMovement(current, {
-      type: 'IMPORT',
-      reverseType: 'IMPORT_REVERSAL',
-      direction: 'IN',
-      refType: 'IMPORT_ORDER',
-      refId: current.id || current.code,
-      refCode: current.code || current.id,
-      date: dateUtil.todayVN(),
-      note: 'Đảo nhập kho phiếu nhập cũ'
-    }, { session });
-    await importOrderRepository.upsert(updated, { session });
-    await inventoryService.postStockMovement(updated, {
-      type: 'IMPORT',
-      direction: 'IN',
-      refType: 'IMPORT_ORDER',
-      refId: updated.id || updated.code,
-      refCode: updated.code || updated.id,
-      date: updated.date,
-      note: 'Nhập kho theo phiếu nhập cập nhật'
-    }, { session });
-  });
+  updated.status = 'draft';
+  updated.postedAt = '';
+  updated.postedBy = '';
+  await importOrderRepository.upsert(updated);
   return { importOrder: toClient(updated) };
 }
 
-module.exports = { listImportOrders, createImportOrder, updateImportOrder, toClient };
+async function postImportOrder(id, actor = {}) {
+  const current = await importOrderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy phiếu nhập', status: 404 };
+  if (String(current.status || '').toLowerCase() === 'posted') {
+    return { error: 'Phiếu này đã nhập kho, không được nhập lại lần 2', status: 409 };
+  }
+  const items = await hydrateItems(current.items || []);
+  if (!items.length) return { error: 'Phiếu nhập chưa có dòng hàng', status: 400 };
+  const posted = {
+    ...current,
+    items,
+    totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
+    totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0),
+    status: 'posted',
+    postedAt: dateUtil.nowIso(),
+    postedBy: String(actor.username || actor.name || actor.id || 'admin').trim(),
+    updatedAt: dateUtil.nowIso()
+  };
+  await withMongoTransaction(async (session) => {
+    await inventoryService.postStockMovement(posted, {
+      type: 'IMPORT',
+      direction: 'IN',
+      refType: 'IMPORT_ORDER',
+      refId: posted.id || posted.code,
+      refCode: posted.code || posted.id,
+      date: posted.date,
+      warehouseCode: posted.warehouseCode,
+      warehouseName: posted.warehouseName,
+      note: 'Nhập kho theo phiếu nhập'
+    }, { session });
+    await importOrderRepository.upsert(posted, { session });
+  });
+  return { importOrder: toClient(posted) };
+}
+
+module.exports = { listImportOrders, createImportOrder, updateImportOrder, postImportOrder, toClient };

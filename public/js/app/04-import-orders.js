@@ -43,7 +43,7 @@ function resetImportFormAfterSave(){
   importForm.reset();
   importForm.elements.date.value=today();
   const submitButton=importForm.querySelector('button[type="submit"]');
-  if(submitButton)submitButton.textContent='Tạo phiếu nhập & cộng tồn';
+  if(submitButton)submitButton.textContent='Lưu phiếu nhập nháp';
   renderImportItems();
 }
 function editImportOrder(idx){
@@ -66,7 +66,7 @@ function editImportOrder(idx){
     amount:Number(i.amount||Number(i.quantity||0)*Number(i.costPrice||0))
   }));
   const submitButton=importForm.querySelector('button[type="submit"]');
-  if(submitButton)submitButton.textContent='Lưu sửa phiếu nhập';
+  if(submitButton)submitButton.textContent='Lưu sửa phiếu nhập nháp';
   renderImportItems();
   showMessage(importMessage,`Đang sửa phiếu nhập ${order.code||order.id}. Kiểm tra lại dòng hàng rồi bấm lưu.`);
   document.getElementById('importTab')?.scrollIntoView({behavior:'smooth',block:'start'});
@@ -83,8 +83,8 @@ async function submitImportOrder(event){
     const res=await fetch(url,{method,headers:{'Content-Type':'application/json','X-User-Role':'admin'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được phiếu nhập');
     resetImportFormAfterSave();
-    showMessage(importMessage,json.message||'Đã lưu phiếu nhập');
-    await loadStock();await loadImportOrders();
+    showMessage(importMessage,json.message||'Đã lưu phiếu nhập nháp');
+    await loadImportOrders();
   }catch(err){showMessage(importMessage,err.message,true)}
 }
 

@@ -11,7 +11,7 @@ function productPackingText(p){
   return '';
 }
 function productLineMeta(p){
-  return {unit:p.unit||'',baseUnit:p.baseUnit||'',conversionRate:Number(p.conversionRate||1),packing:productPackingText(p),units:Array.isArray(p.units)?p.units:[]};
+  return {unit:p.unit||'',baseUnit:p.baseUnit||'',conversionRate:Number(p.conversionRate||1),packing:productPackingText(p),units:Array.isArray(p.units)?p.units:[],warehouseCode:p.warehouseCode||p.defaultWarehouse||'KHO_HC',warehouseName:p.warehouseName||((p.warehouseCode||p.defaultWarehouse)==='KHO_PC'?'KHO PC':'KHO HC')};
 }
 function getProductKey(p){return String(p?.code||p?.id||'')}
 function extractProductCodeFromInput(value){

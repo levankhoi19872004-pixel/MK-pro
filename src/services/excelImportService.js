@@ -976,7 +976,9 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
         unit: product.unit,
         quantity,
         costPrice,
-        amount: quantity * costPrice
+        amount: quantity * costPrice,
+        warehouseCode: cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || row['Kho']) || cleanText(product.warehouseCode || product.defaultWarehouse) || 'KHO_HC',
+        warehouseName: cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || cleanText(product.warehouseName) || ((cleanText(row.warehouseCode || row.warehouse || row['Kho'] || product.warehouseCode || product.defaultWarehouse) === 'KHO_PC') ? 'KHO PC' : 'KHO HC')
       });
     }
     if (!items.length) continue;
@@ -987,10 +989,10 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       date: dateOnly(first.date || first['Ngày'] || first['Ngay'] || dateUtil.todayVN()),
       supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       supplierName: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
-      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'MAIN',
-      warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho chính',
+      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'KHO_HC',
+      warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho HC',
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel Mongo-native bulk',
-      status: 'posted',
+      status: 'draft',
       items,
       totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
       totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0),
@@ -998,26 +1000,11 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       updatedAt: now
     };
     docs.push(doc);
-    for (const item of items) {
-      pushInventoryMovement({
-        movements,
-        inventoryDeltas,
-        item,
-        direction: 'IN',
-        type: 'IMPORT',
-        refType: 'IMPORT_ORDER',
-        refId: doc.id,
-        refCode: doc.code,
-        date: doc.date,
-        warehouseCode: doc.warehouseCode,
-        warehouseName: doc.warehouseName,
-        note: doc.note
-      });
-    }
+    // Phiếu nhập import Excel chỉ tạo bản nháp; chưa ghi tồn kho.
   }
 
   const orderResult = await insertManyInBatches(ImportOrder, docs);
-  const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
+  const inventoryResult = { transactionCount: 0, inventoryRows: 0 };
   skipped += orderResult.errors.length;
   errors.push(...orderResult.errors.map((error) => ({ productCode: '', message: error.message })));
   const imported = Math.max(0, docs.length - orderResult.errors.length);
@@ -1027,7 +1014,6 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     errors: errors.slice(0, 30),
     mode: 'bulkImportOrders',
     batchSize: IMPORT_BATCH_SIZE,
-    returnDrafts: returnDraftDocs.length - returnDraftResult.errors.length,
     stockTransactions: inventoryResult.transactionCount,
     inventoryRows: inventoryResult.inventoryRows,
     shortageCount: shortageReport.length,
@@ -1317,8 +1303,8 @@ async function importSalesOrders(rows = [], options = {}) {
       arStatus: 'pending',
       lifecycleStatus: 'pending',
       status: 'pending',
-      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'MAIN',
-      warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho chính',
+      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'KHO_HC',
+      warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho HC',
       createdAt: now,
       updatedAt: now
     };

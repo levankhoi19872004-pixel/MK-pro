@@ -65,6 +65,166 @@
     }
   ],
   "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /api/auth/login",
+        "operationId": "postAuthLogin",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "GET /api/auth/me",
+        "operationId": "getAuthMe",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /api/auth/refresh",
+        "operationId": "postAuthRefresh",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/auth/roles": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "GET /api/auth/roles",
+        "operationId": "getAuthRoles",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/bankbook": {
       "get": {
         "tags": [
@@ -1504,6 +1664,46 @@
         ]
       }
     },
+    "/api/funds/delivery-cash-submissions/{id}": {
+      "put": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "PUT /api/funds/delivery-cash-submissions/{id}",
+        "operationId": "putFundsDeliveryCashSubmissionsId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/funds/delivery-cash-submissions/{id}/confirm": {
       "post": {
         "tags": [
@@ -1662,6 +1862,86 @@
         ]
       }
     },
+    "/api/funds/expenses/{id}": {
+      "put": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "PUT /api/funds/expenses/{id}",
+        "operationId": "putFundsExpensesId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/funds/expenses/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "POST /api/funds/expenses/{id}/confirm",
+        "operationId": "postFundsExpensesIdConfirm",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/funds/ledger": {
       "get": {
         "tags": [
@@ -1749,6 +2029,86 @@
         "operationId": "getFundsTransfers",
         "responses": {
           "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/funds/transfers/{id}": {
+      "put": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "PUT /api/funds/transfers/{id}",
+        "operationId": "putFundsTransfersId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/funds/transfers/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "POST /api/funds/transfers/{id}/confirm",
+        "operationId": "postFundsTransfersIdConfirm",
+        "responses": {
+          "201": {
             "description": "Success response",
             "content": {
               "application/json": {
@@ -1988,6 +2348,46 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/import-orders/{id}/post": {
+      "post": {
+        "tags": [
+          "Import Orders"
+        ],
+        "summary": "POST /api/import-orders/{id}/post",
+        "operationId": "postImportOrdersIdPost",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [

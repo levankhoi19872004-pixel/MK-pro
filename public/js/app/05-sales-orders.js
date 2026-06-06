@@ -361,11 +361,34 @@ async function openImportOrderDetail(idx){
   if(card)card.innerHTML=card.innerHTML?'' : `<ul class="order-items">${lines}</ul>`;
 }
 window.openImportOrderDetail=openImportOrderDetail;
+function getImportItemWarehouse(item, order){
+  const code=String(item?.warehouseCode||item?.warehouse||order?.warehouseCode||order?.warehouse||'KHO_HC').trim()||'KHO_HC';
+  return {code,name:String(item?.warehouseName||order?.warehouseName||(code==='KHO_PC'?'KHO PC':'KHO HC')).trim()};
+}
 function printSelectedImportOrders(){
   const checks=[...document.querySelectorAll('.import-order-check:checked')];
   const orders=checks.map(ch=>window.__importOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
   if(!orders.length){alert('Chưa chọn phiếu nhập để in gộp');return}
-  const html=orders.map(o=>`<section class="print-page"><h2>Phiếu nhập: ${o.code||o.id}</h2><p>Ngày nhập: ${o.date||''} · Nhà cung cấp: ${o.supplier||''}</p><p>Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${(o.items||[]).map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${money(i.quantity)}</td><td>${money(i.costPrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`).join('');
+  const groups=new Map();
+  orders.forEach(o=>{
+    (o.items||[]).forEach(i=>{
+      const wh=getImportItemWarehouse(i,o);
+      const costPrice=Number(i.costPrice||0);
+      const key=[wh.code,i.productCode||i.productId||'',costPrice].join('@@');
+      if(!groups.has(wh.code))groups.set(wh.code,{warehouseCode:wh.code,warehouseName:wh.name,lines:new Map(),sourceCodes:new Set()});
+      const g=groups.get(wh.code);g.sourceCodes.add(o.code||o.id||'');
+      const line=g.lines.get(key)||{productCode:i.productCode||'',productName:i.productName||'',unit:i.unit||'',quantity:0,costPrice,amount:0};
+      line.quantity+=Number(i.quantity||i.qty||0);
+      line.amount+=Number(i.amount||Number(i.quantity||i.qty||0)*costPrice);
+      g.lines.set(key,line);
+    });
+  });
+  const html=[...groups.values()].map(g=>{
+    const lines=[...g.lines.values()];
+    const totalQty=lines.reduce((sum,i)=>sum+Number(i.quantity||0),0);
+    const totalAmount=lines.reduce((sum,i)=>sum+Number(i.amount||0),0);
+    return `<section class="print-page"><h2>ĐƠN TỔNG NHẬP KHO - ${g.warehouseName||g.warehouseCode}</h2><p>Gồm các phiếu: ${[...g.sourceCodes].filter(Boolean).join(', ')}</p><p>Tổng SL: ${money(totalQty)} · Tổng tiền: ${money(totalAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>ĐVT</th><th>SL gộp</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${lines.map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${i.unit||''}</td><td>${money(i.quantity)}</td><td>${money(i.costPrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`;
+  }).join('');
   const w=window.open('','_blank');w.document.write(`<!doctype html><html><head><title>In gộp phiếu nhập</title><link rel="stylesheet" href="/print.css"></head><body>${html}<script>window.print()<\/script></body></html>`);w.document.close();
 }
 window.printSelectedImportOrders=printSelectedImportOrders;
@@ -374,18 +397,31 @@ function isActiveDocument(row){
   return !['cancelled','canceled','void','deleted','removed'].includes(status) && !row?.deletedAt;
 }
 
+
+async function postImportOrder(idx){
+  const order=window.__importOrdersCache?.[idx];if(!order)return;
+  if(!confirm(`Nhập kho phiếu ${order.code||order.id}? Sau khi nhập kho phiếu sẽ bị khóa sửa trực tiếp.`))return;
+  try{
+    const res=await fetch(`/api/import-orders/${encodeURIComponent(order.id||order.code)}/post`,{method:'POST',headers:{'Content-Type':'application/json','X-User-Role':'admin'}});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không nhập kho được phiếu');
+    alert(json.message||'Đã nhập kho thành công');
+    await loadStock();await loadImportOrders();
+  }catch(err){alert(err.message)}
+}
+window.postImportOrder=postImportOrder;
+
 async function loadImportOrders(){
   try{
     const res=await fetch('/api/import-orders?excludeInactive=1');const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
     const orders=(json.importOrders||[]).filter(isActiveDocument);importOrderCount.textContent=`${orders.length} phiếu nhập`;
     if(!orders.length){importOrderList.innerHTML='Chưa có phiếu nhập nào.';return}
     window.__importOrdersCache=orders;
-    importOrderList.innerHTML=`<div class="bulk-actions"><button class="secondary small" onclick="printSelectedImportOrders()">In gộp phiếu đã chọn</button></div>`+orders.map((o,idx)=>`<div class="order-card">
-      <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong></label><div><button class="small" onclick="openImportOrderDetail(${idx})">Xem đơn nhập</button> <button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small" onclick="printDocument('IMPORT_ORDER', window.__importOrdersCache[${idx}])">In phiếu</button></div></div>
+    importOrderList.innerHTML=`<div class="bulk-actions"><button class="secondary small" onclick="printSelectedImportOrders()">In gộp phiếu đã chọn</button></div>`+orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';return `<div class="order-card">
+      <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong> <span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span></label><div><button class="small" onclick="openImportOrderDetail(${idx})">Xem đơn nhập</button> ${posted?'':`<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button>`}</div></div>
       <div class="order-meta">Ngày nhập: ${o.date||''} · Nhà cung cấp: ${o.supplier||'Chưa khai báo'} · Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</div>
       ${o.note?`<div class="order-meta">Ghi chú: ${o.note}</div>`:''}
       <div data-import-detail="${idx}"></div>
-    </div>`).join('');
+    </div>`}).join('');
   }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';importOrderList.innerHTML=err.message}
 }
 function normalizeOrderSourceClient(order){
