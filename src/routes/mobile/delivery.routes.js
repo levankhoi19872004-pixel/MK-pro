@@ -17,6 +17,16 @@ function createMobileDeliveryRouter(ctx) {
     query('includeCompleted').optional().isIn(['0', '1', 'true', 'false']).withMessage('includeCompleted không hợp lệ')
   ], validateRequest, controller.listOrders);
 
+  router.get('/delivery/returns', ...onlyDelivery, [
+    query('date').optional().isISO8601().withMessage('Ngày giao không hợp lệ'),
+    query('orderId').optional().isString().trim(),
+    query('orderCode').optional().isString().trim(),
+    query('salesOrderId').optional().isString().trim(),
+    query('salesOrderCode').optional().isString().trim(),
+    query('deliveryStaffCode').optional().isString().trim(),
+    query('q').optional().isString().trim()
+  ], validateRequest, controller.listReturns);
+
   router.post('/delivery/confirm', ...onlyDelivery, [
     body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
     body('status').isIn(['success', 'failed']).withMessage('Trạng thái giao hàng không hợp lệ'),

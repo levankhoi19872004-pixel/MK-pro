@@ -112,6 +112,43 @@
   }
 
 
+  function rowsFromReturnOrder(returnOrder, fallbackOrder) {
+    returnOrder = returnOrder || {};
+    fallbackOrder = normalizeOrder(fallbackOrder || {});
+    var base = {
+      returnOrderId: text(returnOrder.returnOrderId || returnOrder.id || returnOrder._id),
+      returnOrderCode: text(returnOrder.returnOrderCode || returnOrder.code || returnOrder.id),
+      salesOrderId: text(returnOrder.salesOrderId || returnOrder.orderId || fallbackOrder.salesOrderId || fallbackOrder.orderId),
+      salesOrderCode: text(returnOrder.salesOrderCode || returnOrder.orderCode || fallbackOrder.salesOrderCode || fallbackOrder.orderCode),
+      orderId: text(returnOrder.orderId || returnOrder.salesOrderId || fallbackOrder.orderId || fallbackOrder.salesOrderId),
+      orderCode: text(returnOrder.orderCode || returnOrder.salesOrderCode || fallbackOrder.orderCode || fallbackOrder.salesOrderCode),
+      customerCode: text(returnOrder.customerCode || fallbackOrder.customerCode),
+      customerName: text(returnOrder.customerName || fallbackOrder.customerName),
+      deliveryDate: text(returnOrder.deliveryDate || returnOrder.date || fallbackOrder.deliveryDate),
+      status: text(returnOrder.status || returnOrder.returnStatus || 'active')
+    };
+    var items = Array.isArray(returnOrder.items) ? returnOrder.items : [];
+    return items.map(function (item) {
+      var normalized = normalizeItem(item);
+      return Object.assign({}, base, {
+        productCode: normalized.productCode,
+        productName: normalized.productName,
+        returnQty: normalized.returnQty,
+        price: normalized.price,
+        amount: normalized.returnAmount || normalized.amount
+      });
+    }).filter(function (row) { return row.productCode && toNumber(row.returnQty) > 0; });
+  }
+
+  function extractReturnRows(json, fallbackOrder) {
+    json = json || {};
+    var rows = json.returns || json.returnOrders || json.rows || [];
+    if (Array.isArray(rows) && rows.length) return rows;
+    if (json.returnOrder) return rowsFromReturnOrder(json.returnOrder, fallbackOrder);
+    return [];
+  }
+
+
   var DeliveryCore = {
     state: {
       orders: [],
@@ -226,7 +263,7 @@
 
       // After saving Tab 2, Tab 3 must show the official returnOrder immediately.
       // Prefer rows returned by POST /return, then force-reload by selected order key.
-      var savedRows = json.returns || json.returnOrders || json.rows || [];
+      var savedRows = extractReturnRows(json, order);
       if (Array.isArray(savedRows) && savedRows.length) this.mergeReturns(savedRows);
       try {
         var loadedRows = await this.loadReturns({

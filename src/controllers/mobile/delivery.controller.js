@@ -7,6 +7,7 @@ function createMobileDeliveryController(ctx) {
   const service = createMobileDeliveryService(ctx);
   return {
     listOrders: wrapMobile(service, 'listDeliveryOrders', 500, 'Không tải được đơn giao hàng mobile'),
+    listReturns: wrapMobile(service, 'listDeliveryReturns', 500, 'Không tải được hàng trả mobile'),
     confirm: wrapMobile(service, 'confirmDelivery', 500, 'Không cập nhật được giao hàng mobile'),
     createReturn: wrapMobile(service, 'createReturnFromDelivery', 400, 'Không tạo được phiếu trả hàng từ app giao hàng'),
     submitPayment: wrapMobile(service, 'submitDeliveryPayment', 500, 'Không lưu được tiền thu app giao hàng'),

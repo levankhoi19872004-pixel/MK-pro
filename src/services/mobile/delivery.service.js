@@ -484,6 +484,9 @@ function createMobileDeliveryService(ctx) {
           source: 'returnOrders',
           message: result.message || 'Đã lưu hàng trả vào returnOrders',
           returnOrder: result.returnOrder || null,
+          returns: result.returns || result.returnOrders || result.rows || [],
+          returnOrders: result.returnOrders || result.returns || result.rows || [],
+          rows: result.rows || result.returns || result.returnOrders || [],
           order: result.order || null
         }
       };
@@ -494,12 +497,30 @@ function createMobileDeliveryService(ctx) {
     }
   }
 
+
+  async function listDeliveryReturns({ query = {} }) {
+    const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+    const result = await engine.listReturns(query || {});
+    return {
+      statusCode: 200,
+      body: {
+        ok: true,
+        source: 'returnOrders',
+        returns: result.rows || [],
+        returnOrders: result.rows || [],
+        rows: result.rows || [],
+        total: (result.rows || []).length,
+        summary: result.summary || {}
+      }
+    };
+  }
+
   async function submitDeliveryPayment(args = {}) {
     const body = { ...(args.body || {}), status: (args.body && args.body.status) || 'success' };
     return confirmDelivery({ ...args, body });
   }
 
-  return { listDeliveryOrders, confirmDelivery, createReturnFromDelivery, submitDeliveryPayment, submitCash };
+  return { listDeliveryOrders, listDeliveryReturns, confirmDelivery, createReturnFromDelivery, submitDeliveryPayment, submitCash };
 }
 
 module.exports = { createMobileDeliveryService };

@@ -148,6 +148,11 @@ export const mobileApi = {
   confirmDelivery(payload) {
     return apiRequest(MOBILE_ROUTES.deliveryConfirm, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-confirm')) });
   },
+  getDeliveryReturns(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.deliveryReturns || '/api/delivery/returns'}${suffix}`);
+  },
   createDeliveryReturn(payload) {
     return apiRequest(MOBILE_ROUTES.deliveryReturn, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-return')) });
   },
