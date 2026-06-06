@@ -393,117 +393,197 @@ function parseCsSu(csSu) {
   };
 }
 
-function buildDeliveryInvoicePayload(raw = {}) {
-  const normalizeItem = (item, index) => {
-    const csSu = parseCsSu(item.csSu || item.quantityCsSu || item.caseDisplay);
-    const quantity = toNumber(pick(item.quantity, item.qty, item.totalQty, item.csSuUnitQty, item.unitQty));
-    const priceAfterTaxBeforePromotion = toNumber(pick(
-      item.priceAfterTaxBeforePromotion,
-      item.priceAfterVatBeforeDiscount,
-      item.salePrice,
-      item.price,
-      item.unitPrice
-    ));
-    const priceBeforeTax = toNumber(pick(
-      item.priceBeforeTax,
-      item.priceBeforeTaxBeforePromotion,
-      item.priceBeforeVat,
-      Math.round(priceAfterTaxBeforePromotion / 1.08)
-    ));
-    const discountPercent = toNumber(item.discountPercent);
-    const priceAfterPromotion = toNumber(pick(
-      item.priceAfterPromotion,
-      item.priceAfterTaxAfterPromotion,
-      item.priceAfterVatAfterDiscount,
-      discountPercent > 0
-        ? Math.floor(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
-        : priceAfterTaxBeforePromotion
-    ));
-    const vatAmount = toNumber(pick(
-      item.vatAmount,
-      item.tax,
-      item.taxAmount,
-      Math.round((priceAfterPromotion - priceAfterPromotion / 1.08) * quantity)
-    ));
-    const lineAmount = toNumber(pick(
-      item.lineAmount,
-      item.amount,
-      Math.round(quantity * priceAfterPromotion)
-    ));
+function normalizeInvoiceItem(item, index) {
+  const csSu = parseCsSu(item.csSu || item.quantityCsSu || item.caseDisplay);
+  const quantity = toNumber(pick(item.quantity, item.qty, item.totalQty, item.csSuUnitQty, item.unitQty));
+  const priceAfterTaxBeforePromotion = toNumber(pick(
+    item.priceAfterTaxBeforePromotion,
+    item.priceAfterVatBeforeDiscount,
+    item.listPriceAfterVat,
+    item.salePrice,
+    item.price,
+    item.unitPrice
+  ));
+  const priceBeforeTaxBeforePromotion = toNumber(pick(
+    item.priceBeforeTaxBeforePromotion,
+    item.priceBeforeTax,
+    item.priceBeforeVat,
+    item.listPriceBeforeVat,
+    Math.round(priceAfterTaxBeforePromotion / 1.08)
+  ));
+  const discountPercent = toNumber(item.discountPercent);
+  const priceAfterTaxAfterPromotion = toNumber(pick(
+    item.priceAfterTaxAfterPromotion,
+    item.priceAfterPromotion,
+    item.priceAfterVatAfterDiscount,
+    item.priceAfterDiscount,
+    discountPercent > 0
+      ? Math.round(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
+      : priceAfterTaxBeforePromotion
+  ));
+  const vatAmount = toNumber(pick(
+    item.vatAmount,
+    item.tax,
+    item.taxAmount,
+    Math.round((priceAfterTaxAfterPromotion - priceAfterTaxAfterPromotion / 1.08) * quantity)
+  ));
+  const lineAmount = toNumber(pick(
+    item.lineAmount,
+    item.amount,
+    Math.round(quantity * priceAfterTaxAfterPromotion)
+  ));
 
-    return {
-      lineNo: item.lineNo || item.stt || index + 1,
-      productCode: String(pick(item.productCode, item.code, item.sku, item.maHang)).trim(),
-      productName: String(pick(item.productName, item.name, item.tenHang)).trim(),
-      quantityCsSu: item.csSu || item.quantityCsSu || item.caseDisplay || `${csSu.cartonQty}/${csSu.csSuUnitQty}`,
-      cartonQty: toNumber(pick(item.cartonQty, item.caseQty, csSu.cartonQty)),
-      unitQty: toNumber(pick(item.unitQty, csSu.csSuUnitQty)),
-      csSuUnitQty: toNumber(pick(item.csSuUnitQty, item.unitQty, csSu.csSuUnitQty)),
-      quantity,
-      priceBeforeTax,
-      priceBeforeTaxBeforePromotion: priceBeforeTax,
-      priceAfterTaxBeforePromotion,
-      priceAfterPromotion,
-      priceAfterTaxAfterPromotion: priceAfterPromotion,
-      discountPercent,
-      vatAmount,
-      lineAmount,
-      isPromotionGift: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO'),
-      promotionCode: item.promotionCode || ''
-    };
+  return {
+    lineNo: item.lineNo || item.stt || index + 1,
+    productCode: String(pick(item.productCode, item.code, item.sku, item.maHang)).trim(),
+    productName: String(pick(item.productName, item.name, item.tenHang)).trim(),
+    quantityCsSu: item.csSu || item.quantityCsSu || item.caseDisplay || `${csSu.cartonQty}/${csSu.csSuUnitQty}`,
+    cartonQty: toNumber(pick(item.cartonQty, item.caseQty, csSu.cartonQty)),
+    unitQtyFromCsSu: toNumber(pick(item.unitQtyFromCsSu, item.unitQty, csSu.csSuUnitQty)),
+    unitQty: toNumber(pick(item.unitQty, csSu.csSuUnitQty)),
+    csSuUnitQty: toNumber(pick(item.csSuUnitQty, item.unitQty, csSu.csSuUnitQty)),
+    quantity,
+    priceBeforeTaxBeforePromotion,
+    priceBeforeTax: priceBeforeTaxBeforePromotion,
+    priceAfterTaxBeforePromotion,
+    priceAfterTaxAfterPromotion,
+    priceAfterPromotion: priceAfterTaxAfterPromotion,
+    discountPercent,
+    vatAmount,
+    lineAmount,
+    isPromotionGift: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO'),
+    promotionCode: item.promotionCode || ''
   };
+}
 
-  const items = Array.isArray(raw.items) ? raw.items.map(normalizeItem) : [];
+function normalizeInvoicePromotion(row = {}) {
+  return {
+    promotionCode: String(row.promotionCode || row.code || '').trim(),
+    description: String(row.description || row.name || '').trim(),
+    qualifiedAmount: toNumber(row.qualifiedAmount || row.basisAmount),
+    discountPercent: toNumber(row.discountPercent || row.percent),
+    discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
+    discountAfterTax: toNumber(row.discountAfterTax || row.afterTax)
+  };
+}
 
-  const promotions = Array.isArray(raw.promotions)
-    ? raw.promotions.map((p) => ({
-        promotionCode: String(p.promotionCode || p.code || '').trim(),
-        description: String(p.description || p.name || '').trim(),
-        qualifiedAmount: toNumber(p.qualifiedAmount),
-        discountPercent: toNumber(p.discountPercent),
-        discountBeforeTax: toNumber(p.discountBeforeTax),
-        discountAfterTax: toNumber(p.discountAfterTax)
-      }))
-    : [];
+function normalizeInvoiceOffset(row = {}) {
+  return {
+    programCode: String(row.programCode || row.code || '').trim(),
+    description: String(row.description || row.name || '').trim(),
+    displayMonth: row.displayMonth || row.month || '',
+    month: row.month || row.displayMonth || '',
+    goodsAmount: toNumber(row.goodsAmount),
+    quantityText: row.quantityText || row.quantity || '',
+    offsetAmount: toNumber(row.offsetAmount)
+  };
+}
 
-  const offsets = Array.isArray(raw.offsets)
-    ? raw.offsets.map((o) => ({
-        programCode: String(o.programCode || o.code || '').trim(),
-        description: String(o.description || o.name || '').trim(),
-        displayMonth: o.displayMonth || o.month || '',
-        month: o.month || o.displayMonth || '',
-        offsetAmount: toNumber(o.offsetAmount)
-      }))
-    : [];
+function calculateDeliveryInvoiceSummary(payload = {}) {
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const promotions = Array.isArray(payload.promotions) ? payload.promotions : [];
+  const offsets = Array.isArray(payload.offsets) ? payload.offsets : [];
 
-  const goodsAmountAfterPromotion = items.reduce((sum, item) => sum + item.lineAmount, 0);
+  const totalQty = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
+  const goodsAmountAfterPromotion = items.reduce((sum, item) => sum + toNumber(item.lineAmount), 0);
   const grossAmountBeforePromotion = items.reduce(
-    (sum, item) => sum + item.quantity * item.priceAfterTaxBeforePromotion,
+    (sum, item) => sum + toNumber(item.quantity) * toNumber(item.priceAfterTaxBeforePromotion),
     0
   );
-  const totalPromotionAmount = raw.totalPromotionAmount !== undefined
-    ? toNumber(raw.totalPromotionAmount)
-    : promotions.reduce((sum, p) => sum + p.discountAfterTax, 0);
-  const totalOffsetAmount = raw.totalOffsetAmount !== undefined
-    ? toNumber(raw.totalOffsetAmount)
-    : offsets.reduce((sum, o) => sum + o.offsetAmount, 0);
-  const nppDiscountAmount = toNumber(raw.nppDiscountAmount);
-  const payableAmount = raw.payableAmount !== undefined
-    ? toNumber(raw.payableAmount)
-    : goodsAmountAfterPromotion - totalOffsetAmount;
+  const totalVatAmount = items.reduce((sum, item) => sum + toNumber(item.vatAmount), 0);
+  const totalPromotionAmount = payload.totalPromotionAmount !== undefined
+    ? toNumber(payload.totalPromotionAmount)
+    : promotions.reduce((sum, item) => sum + toNumber(item.discountAfterTax), 0);
+  const totalOffsetAmount = payload.totalOffsetAmount !== undefined
+    ? toNumber(payload.totalOffsetAmount)
+    : offsets.reduce((sum, item) => sum + toNumber(item.offsetAmount), 0);
+  const nppDiscountAmount = toNumber(payload.nppDiscountAmount || payload.summary?.nppDiscountAmount);
+  const payableAmount = payload.payableAmount !== undefined
+    ? toNumber(payload.payableAmount)
+    : goodsAmountAfterPromotion - totalOffsetAmount - nppDiscountAmount;
   const promotionRate = grossAmountBeforePromotion > 0
     ? Number((((totalPromotionAmount + nppDiscountAmount) / grossAmountBeforePromotion) * 100).toFixed(2))
     : 0;
 
   return {
+    totalQty,
+    totalVatAmount,
+    goodsAmountAfterPromotion,
+    grossAmountBeforePromotion,
+    totalPromotionAmount,
+    promotionAmount: totalPromotionAmount,
+    totalOffsetAmount,
+    displayRewardOffset: totalOffsetAmount,
+    nppDiscountAmount,
+    payableAmount,
+    promotionRate
+  };
+}
+
+function paginateDeliveryInvoice(payload = {}) {
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const promotions = Array.isArray(payload.promotions) ? payload.promotions : [];
+  const offsets = Array.isArray(payload.offsets) ? payload.offsets : [];
+  const detailRows = promotions.length + offsets.length;
+
+  let pagesPerCopy = 1;
+  if (items.length > 18 || detailRows > 4 || (items.length > 12 && detailRows > 0) || offsets.length > 0) {
+    pagesPerCopy = 2;
+  }
+
+  return {
+    pagesPerCopy,
+    copies: ['Liên 1', 'Liên 2'],
+    showPromotionHeaderOnFirstPage: pagesPerCopy > 1,
+    firstPageItems: items,
+    detailPagePromotions: promotions,
+    detailPageOffsets: offsets
+  };
+}
+
+function validateAgainstDmsSample(payload = {}) {
+  const errors = [];
+  const required = [
+    ['header.invoiceCode', payload.header?.invoiceCode],
+    ['header.orderCode', payload.header?.orderCode],
+    ['customer.customerCode', payload.customer?.customerCode],
+    ['customer.customerName', payload.customer?.customerName],
+    ['salesStaff.staffCode', payload.salesStaff?.staffCode],
+    ['items', Array.isArray(payload.items) && payload.items.length]
+  ];
+  for (const [field, value] of required) {
+    if (!value) errors.push(`Thiếu ${field}`);
+  }
+  const recalculated = calculateDeliveryInvoiceSummary(payload);
+  const summary = payload.summary || {};
+  const checks = [
+    ['totalQty', summary.totalQty, recalculated.totalQty],
+    ['goodsAmountAfterPromotion', summary.goodsAmountAfterPromotion, recalculated.goodsAmountAfterPromotion],
+    ['grossAmountBeforePromotion', summary.grossAmountBeforePromotion, recalculated.grossAmountBeforePromotion],
+    ['payableAmount', summary.payableAmount, recalculated.payableAmount]
+  ];
+  for (const [field, actual, expected] of checks) {
+    if (Math.abs(toNumber(actual) - toNumber(expected)) > 1) {
+      errors.push(`${field} lệch: ${actual} != ${expected}`);
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+function buildDeliveryInvoicePayload(raw = {}) {
+  const items = Array.isArray(raw.items) ? raw.items.map(normalizeInvoiceItem) : [];
+  const promotions = Array.isArray(raw.promotions) ? raw.promotions.map(normalizeInvoicePromotion) : [];
+  const offsets = Array.isArray(raw.offsets) ? raw.offsets.map(normalizeInvoiceOffset) : [];
+
+  const payload = {
     documentType: 'DELIVERY_PAYMENT_INVOICE',
     title: 'PHIẾU GIAO NHẬN VÀ THANH TOÁN',
     header: {
       invoiceCode: raw.invoiceCode || raw.header?.invoiceCode || '',
       orderCode: raw.orderCode || raw.header?.orderCode || '',
       orderDateTime: raw.orderDateTime || raw.header?.orderDateTime || '',
-      invoiceType: raw.invoiceType || raw.header?.invoiceType || 'NVTT',
-      paymentTerm: raw.paymentTerm || raw.header?.paymentTerm || 'Đáo hạn trong 7 ngày',
+      invoiceType: raw.invoiceType || raw.header?.invoiceType || 'Từ NVTT',
+      paymentTerm: raw.paymentTerm || raw.header?.paymentTerm || 'đáo hạn trong 7 ngày',
       truckNo: raw.truckNo || raw.header?.truckNo || '',
       taxCode: raw.taxCode || raw.header?.taxCode || ''
     },
@@ -528,19 +608,23 @@ function buildDeliveryInvoicePayload(raw = {}) {
     promotions,
     offsets,
     summary: {
-      totalQty: items.reduce((sum, item) => sum + item.quantity, 0),
-      goodsAmountAfterPromotion,
-      grossAmountBeforePromotion,
-      totalPromotionAmount,
-      promotionAmount: totalPromotionAmount,
-      totalOffsetAmount,
-      displayRewardOffset: totalOffsetAmount,
-      nppDiscountAmount,
-      payableAmount,
-      promotionRate,
-      amountInWords: raw.amountInWords || raw.summary?.amountInWords || ''
+      amountInWords: raw.amountInWords || raw.summary?.amountInWords || '',
+      nppDiscountAmount: toNumber(raw.nppDiscountAmount || raw.summary?.nppDiscountAmount)
     }
   };
+  payload.summary = {
+    ...payload.summary,
+    ...calculateDeliveryInvoiceSummary({
+      ...payload,
+      totalPromotionAmount: raw.totalPromotionAmount,
+      totalOffsetAmount: raw.totalOffsetAmount,
+      nppDiscountAmount: raw.nppDiscountAmount,
+      payableAmount: raw.payableAmount
+    })
+  };
+  payload.pagination = paginateDeliveryInvoice(payload);
+  payload.validation = validateAgainstDmsSample(payload);
+  return payload;
 }
 
 function buildPrintData(document = {}, options = {}) {
@@ -666,4 +750,14 @@ function buildPrintData(document = {}, options = {}) {
   };
 }
 
-module.exports = { buildPrintData, buildDeliveryInvoicePayload, formatMoney, formatDate, formatDateTime, numberToVietnameseWords };
+module.exports = {
+  buildPrintData,
+  buildDeliveryInvoicePayload,
+  calculateDeliveryInvoiceSummary,
+  paginateDeliveryInvoice,
+  validateAgainstDmsSample,
+  formatMoney,
+  formatDate,
+  formatDateTime,
+  numberToVietnameseWords
+};

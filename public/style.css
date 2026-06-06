@@ -4979,35 +4979,57 @@ button.danger:hover{background:#fecaca}
   padding:6px!important;
 }
 
-/* Đơn con chưa gộp: mỗi đơn đúng 1 dòng */
+/* Đơn con chưa gộp: chuẩn 1 dòng theo mẫu ☑ | Mã đơn | Khách hàng | NVBH | Ngày bán | Giá trị */
 #masterOrdersTab .master-child-one-line{
   display:grid!important;
-  grid-template-columns:18px 82px minmax(110px,1fr) 74px minmax(82px,.9fr) 82px 72px!important;
-  gap:5px!important;
+  grid-template-columns:4% 20% 25% 20% 12% 19%!important;
+  gap:8px!important;
   align-items:center!important;
-  min-height:30px!important;
-  padding:4px 6px!important;
+  min-height:38px!important;
+  padding:6px 8px!important;
   margin:0 0 4px!important;
-  border:1px solid #e5edf7!important;
+  border:1px solid #e5e7eb!important;
   border-radius:7px!important;
   background:#fff!important;
   cursor:pointer!important;
 }
-#masterOrdersTab .master-child-one-line:hover{border-color:#93c5fd!important;background:#fff!important;}
+#masterOrdersTab .master-child-one-line:hover{background:#f8fafc!important;border-color:#93c5fd!important;}
 #masterOrdersTab .master-child-one-line.selected{border-color:#2563eb!important;background:#eff6ff!important;}
-#masterOrdersTab .master-child-one-line input{width:15px!important;height:15px!important;}
+#masterOrdersTab .master-child-one-line input{width:16px!important;height:16px!important;}
+#masterOrdersTab .master-child-header{
+  position:sticky!important;
+  top:0!important;
+  z-index:2!important;
+  min-height:30px!important;
+  background:#eef6ff!important;
+  border-color:#bfdbfe!important;
+  cursor:default!important;
+  font-weight:900!important;
+  color:#1e3a8a!important;
+}
+#masterOrdersTab .master-child-header span{
+  font-size:11.5px!important;
+  line-height:1.2!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
 #masterOrdersTab .master-child-code,
 #masterOrdersTab .master-child-customer,
 #masterOrdersTab .master-child-date,
 #masterOrdersTab .master-child-staff,
-#masterOrdersTab .master-child-money,
-#masterOrdersTab .master-child-source{
-  font-size:11.5px!important;line-height:1.2!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
+#masterOrdersTab .master-child-money{
+  font-size:11.8px!important;line-height:1.2!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
 }
 #masterOrdersTab .master-child-code{font-weight:900!important;color:#0f172a!important;}
 #masterOrdersTab .master-child-customer{font-weight:700!important;color:#111827!important;}
 #masterOrdersTab .master-child-date,#masterOrdersTab .master-child-staff{font-weight:700!important;color:#64748b!important;}
 #masterOrdersTab .master-child-money{text-align:right!important;color:#047857!important;font-weight:900!important;}
+@media (max-width:1100px){
+  #masterOrdersTab .master-child-one-line{
+    grid-template-columns:28px 145px minmax(130px,1fr) minmax(120px,1fr) 90px 105px!important;
+  }
+}
 
 /* Danh sách đơn tổng: mỗi đơn 1 dòng, không xổ chi tiết mặc định */
 #masterOrdersTab .master-order-one-line{

@@ -15,6 +15,94 @@ function text(value, fallback = '') {
   return escapeHtml(value || fallback);
 }
 
+function getDmsPayload(data) {
+  return data.erpInvoiceV46 || {};
+}
+
+function getDmsItems(data) {
+  const payload = getDmsPayload(data);
+  if (Array.isArray(payload.items) && payload.items.length) return payload.items;
+  return (data.items || []).map((item) => ({
+    lineNo: item.stt,
+    productCode: item.code,
+    productName: item.name,
+    quantityCsSu: item.caseDisplay,
+    quantity: item.qty,
+    priceBeforeTaxBeforePromotion: item.listPriceBeforeVat || item.priceBeforeVat || item.price,
+    priceAfterTaxBeforePromotion: item.listPriceAfterVat || item.priceAfterVatBeforeDiscount,
+    priceAfterTaxAfterPromotion: item.priceAfterVatAfterDiscount || item.priceAfterDiscount,
+    vatAmount: item.tax,
+    lineAmount: item.amount
+  }));
+}
+
+function getDmsPromotions(data) {
+  const payload = getDmsPayload(data);
+  if (Array.isArray(payload.promotions) && payload.promotions.length) return payload.promotions;
+  return (data.promotions || []).map((promo) => ({
+    promotionCode: promo.code,
+    description: promo.name,
+    qualifiedAmount: promo.basisAmount,
+    discountPercent: promo.percent,
+    discountBeforeTax: promo.beforeTax,
+    discountAfterTax: promo.afterTax
+  }));
+}
+
+function getDmsOffsets(data) {
+  const payload = getDmsPayload(data);
+  if (Array.isArray(payload.offsets) && payload.offsets.length) return payload.offsets;
+  return (data.displayRewards || []).map((row) => ({
+    programCode: row.code,
+    description: row.name,
+    displayMonth: row.month,
+    goodsAmount: row.goodsAmount,
+    quantityText: row.quantityText,
+    offsetAmount: row.offsetAmount
+  }));
+}
+
+function getDmsSummary(data) {
+  const payload = getDmsPayload(data);
+  return payload.summary || data.totals || {};
+}
+
+function getDmsPagination(data) {
+  const payload = getDmsPayload(data);
+  const pagination = payload.pagination || {};
+  const promotions = getDmsPromotions(data);
+  const offsets = getDmsOffsets(data);
+  const items = getDmsItems(data);
+  const pagesPerCopy = pagination.pagesPerCopy || ((offsets.length || promotions.length > 4 || items.length > 12) ? 2 : 1);
+  return {
+    pagesPerCopy,
+    copies: pagination.copies || ['Liên 1', 'Liên 2'],
+    showPromotionHeaderOnFirstPage: pagesPerCopy > 1
+  };
+}
+
+function formatPercent(value) {
+  const n = Number(String(value || 0).replace(',', '.')) || 0;
+  return n ? n.toLocaleString('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+}
+
+function renderDmsPromotionHeaderOnly() {
+  return `
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+    </table>`;
+}
+
 function renderInvoiceItemsTable(data) {
   const rows = data.items.length
     ? data.items.map((item) => `
@@ -370,19 +458,21 @@ function paymentReceiptTemplate(data) {
 }
 
 function renderDmsInvoiceItemsTable(data) {
-  const rows = data.items.length
-    ? data.items.map((item) => `
+  const items = getDmsItems(data);
+  const summary = getDmsSummary(data);
+  const rows = items.length
+    ? items.map((item) => `
       <tr>
-        <td class="center">${item.stt}</td>
-        <td class="mono">${text(item.code)}</td>
-        <td class="dms-product-name">${text(item.name)}</td>
-        <td class="center strong">${text(item.caseDisplay)}</td>
-        <td class="right strong">${money(data, item.qty)}</td>
-        <td class="right">${money(data, item.listPriceBeforeVat || item.priceBeforeVat || item.price)}</td>
-        <td class="right">${money(data, item.listPriceAfterVat || item.priceAfterVatBeforeDiscount)}</td>
-        <td class="right">${money(data, item.priceAfterVatAfterDiscount || item.priceAfterDiscount)}</td>
-        <td class="right">${money(data, item.tax)}</td>
-        <td class="right strong">${money(data, item.amount)}</td>
+        <td class="center">${text(item.lineNo)}</td>
+        <td class="mono">${text(item.productCode)}</td>
+        <td class="dms-product-name">${text(item.productName)}</td>
+        <td class="center strong">${text(item.quantityCsSu)}</td>
+        <td class="right strong">${money(data, item.quantity)}</td>
+        <td class="right">${money(data, item.priceBeforeTaxBeforePromotion)}</td>
+        <td class="right">${money(data, item.priceAfterTaxBeforePromotion)}</td>
+        <td class="right">${money(data, item.priceAfterTaxAfterPromotion)}</td>
+        <td class="right">${money(data, item.vatAmount)}</td>
+        <td class="right strong">${money(data, item.lineAmount)}</td>
       </tr>`).join('')
     : '<tr><td colspan="10" class="center">Chưa có dòng hàng</td></tr>';
 
@@ -409,25 +499,27 @@ function renderDmsInvoiceItemsTable(data) {
         ${rows}
         <tr class="dms-total-row">
           <td colspan="4" class="center strong">Tổng cộng (A)</td>
-          <td class="right strong">${money(data, data.totals.totalQty)}</td>
+          <td class="right strong">${money(data, summary.totalQty)}</td>
           <td></td><td></td><td></td>
-          <td class="right strong">${money(data, data.totals.tax)}</td>
-          <td class="right strong">${money(data, data.totals.totalAmount)}</td>
+          <td class="right strong">${money(data, summary.totalVatAmount || data.totals.tax)}</td>
+          <td class="right strong">${money(data, summary.goodsAmountAfterPromotion)}</td>
         </tr>
       </tbody>
     </table>`;
 }
 
 function renderDmsPromotionTable(data) {
-  if (!data.promotions.length) return '';
-  const rows = data.promotions.map((promo) => `
+  const promotions = getDmsPromotions(data);
+  const summary = getDmsSummary(data);
+  if (!promotions.length) return '';
+  const rows = promotions.map((promo) => `
     <tr>
-      <td class="mono">${text(promo.code)}</td>
-      <td>${text(promo.name)}</td>
-      <td class="right">${money(data, promo.basisAmount)}</td>
-      <td class="right">${promo.percent ? `${money(data, promo.percent)}` : ''}</td>
-      <td class="right">${money(data, promo.beforeTax)}</td>
-      <td class="right strong">${money(data, promo.afterTax)}</td>
+      <td class="mono">${text(promo.promotionCode)}</td>
+      <td>${text(promo.description)}</td>
+      <td class="right">${money(data, promo.qualifiedAmount)}</td>
+      <td class="right">${formatPercent(promo.discountPercent)}</td>
+      <td class="right">${money(data, promo.discountBeforeTax)}</td>
+      <td class="right strong">${money(data, promo.discountAfterTax)}</td>
     </tr>`).join('');
   return `
     <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
@@ -444,19 +536,21 @@ function renderDmsPromotionTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị khuyến mãi tiền (C)</td><td class="right strong">${money(data, data.totals.promotionValue)}</td></tr>
+        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị khuyến mãi tiền (C)</td><td class="right strong">${money(data, summary.totalPromotionAmount || summary.promotionAmount || data.totals.promotionValue)}</td></tr>
       </tbody>
     </table>`;
 }
 
 function renderDmsRewardTable(data) {
-  if (!data.displayRewards.length) return '';
-  const rows = data.displayRewards.map((row) => `
+  const offsets = getDmsOffsets(data);
+  const summary = getDmsSummary(data);
+  if (!offsets.length) return '';
+  const rows = offsets.map((row) => `
     <tr>
-      <td class="mono">${text(row.code)}</td>
-      <td>${text(row.name)}</td>
-      <td class="center">${text(row.month)}</td>
-      <td class="right">${money(data, row.goodsAmount)}</td>
+      <td class="mono">${text(row.programCode)}</td>
+      <td>${text(row.description)}</td>
+      <td class="center">${text(row.displayMonth || row.month)}</td>
+      <td class="right">${row.goodsAmount ? money(data, row.goodsAmount) : ''}</td>
       <td class="center">${text(row.quantityText)}</td>
       <td class="right strong">${money(data, row.offsetAmount)}</td>
     </tr>`).join('');
@@ -475,12 +569,12 @@ function renderDmsRewardTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right strong">${money(data, data.totals.displayRewardTotal)}</td></tr>
+        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right strong">${money(data, summary.totalOffsetAmount || summary.displayRewardOffset || data.totals.displayRewardTotal)}</td></tr>
       </tbody>
     </table>`;
 }
 
-function renderDmsHeader(data, copyLabel) {
+function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
   return `
     <div class="dms-document-top">
       <div class="dms-left">
@@ -499,7 +593,7 @@ function renderDmsHeader(data, copyLabel) {
       <div class="dms-right">
         <div><b>Số xe tải:</b> ${text(data.document.vehicleNo)}</div>
         <div class="dms-copy"><b>${text(copyLabel)}</b></div>
-        <div><b>Trang:</b> 1 / 2</div>
+        <div><b>Trang:</b> ${pageNo} / ${pageCount}</div>
         <br/>
         <div><b>Thời gian đặt hàng:</b> ${text(data.document.dateTime)}</div>
         <div><b>Nhà phân phối:</b> ${text(data.company.code || '3293')} - ${text(data.company.name || 'Công Ty TNHH MTV Minh Khai')}</div>
@@ -510,19 +604,18 @@ function renderDmsHeader(data, copyLabel) {
 }
 
 function dmsDeliveryInvoiceTemplate(data) {
-  const renderCopy = (copyLabel) => `
-    <section class="print-page dms-print-page compact-print">
-      ${renderDmsHeader(data, copyLabel)}
-      ${renderDmsInvoiceItemsTable(data)}
+  const pagination = getDmsPagination(data);
+  const summary = getDmsSummary(data);
+  const renderSummaryAndSignature = () => `
       <div class="dms-summary-grid">
-        <div class="dms-amount-words"><b>Số tiền viết bằng chữ :</b> ${text(data.totals.totalAmountText)}</div>
+        <div class="dms-amount-words"><b>Số tiền viết bằng chữ :</b> ${text(summary.amountInWords || data.totals.totalAmountText)}</div>
         <div class="dms-calculation-box">
-          <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${money(data, data.totals.payable || data.totals.totalAmount)}</b></div>
-          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><b>${money(data, data.totals.goodsAmount || data.totals.totalAmount)}</b></div>
-          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><b>${money(data, data.totals.promotionValue)}</b></div>
-          <div><span>Cấn trừ tiền (D+E+H):</span><b>${money(data, data.totals.displayRewardTotal || data.totals.discount)}</b></div>
-          <div><span>Tổng tiền CK của NPP (F)=...</span><b>0</b></div>
-          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><b>${data.totals.goodsAmount ? ((data.totals.promotionValue / data.totals.goodsAmount) * 100).toFixed(2) : '0.00'}%</b></div>
+          <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${money(data, summary.payableAmount || data.totals.payable || data.totals.totalAmount)}</b></div>
+          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><b>${money(data, summary.grossAmountBeforePromotion || data.totals.goodsAmount)}</b></div>
+          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><b>${money(data, summary.totalPromotionAmount || data.totals.promotionValue)}</b></div>
+          <div><span>Cấn trừ tiền (D+E+H):</span><b>${money(data, summary.totalOffsetAmount || data.totals.displayRewardTotal)}</b></div>
+          <div><span>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</span><b>${money(data, summary.nppDiscountAmount)}</b></div>
+          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><b>${formatPercent(summary.promotionRate || data.totals.promotionRate)}%</b></div>
         </div>
       </div>
       <div class="dms-signature">
@@ -530,10 +623,33 @@ function dmsDeliveryInvoiceTemplate(data) {
         <div><b>Người bán hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
         <div><b>Nhân viên giao hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
         <div><b>Người nhận hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
-      </div>
-      ${renderDmsPromotionTable(data)}
-      ${renderDmsRewardTable(data)}
-    </section>`;
+      </div>`;
+
+  const renderCopy = (copyLabel) => {
+    if (pagination.pagesPerCopy <= 1) {
+      return `
+        <section class="print-page dms-print-page compact-print">
+          ${renderDmsHeader(data, copyLabel, 1, 1)}
+          ${renderDmsInvoiceItemsTable(data)}
+          ${renderSummaryAndSignature()}
+          ${renderDmsPromotionTable(data)}
+          ${renderDmsRewardTable(data)}
+        </section>`;
+    }
+
+    return `
+      <section class="print-page dms-print-page compact-print">
+        ${renderDmsHeader(data, copyLabel, 1, pagination.pagesPerCopy)}
+        ${renderDmsInvoiceItemsTable(data)}
+        ${renderSummaryAndSignature()}
+        ${pagination.showPromotionHeaderOnFirstPage ? renderDmsPromotionHeaderOnly() : ''}
+      </section>
+      <section class="print-page dms-print-page compact-print">
+        ${renderDmsHeader(data, copyLabel, 2, pagination.pagesPerCopy)}
+        ${renderDmsPromotionTable(data)}
+        ${renderDmsRewardTable(data)}
+      </section>`;
+  };
 
   return `<!DOCTYPE html>
 <html lang="vi">
@@ -544,8 +660,7 @@ function dmsDeliveryInvoiceTemplate(data) {
   <link rel="stylesheet" href="/print.css" />
 </head>
 <body class="dms-print-body">
-  ${renderCopy('Liên 1')}
-  ${renderCopy('Liên 2')}
+  ${pagination.copies.map(renderCopy).join('')}
   <script>
     window.onload = function(){
       window.focus();

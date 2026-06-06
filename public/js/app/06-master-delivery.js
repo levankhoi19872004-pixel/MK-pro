@@ -51,30 +51,68 @@ function updateSelectedChildOrderSummary() {
   if (selectedChildOrderDebt) selectedChildOrderDebt.textContent = masterOrderMoney(totalDebt);
 }
 
+function masterOrderEscapeHtml(value) {
+  if (window.V45Common && typeof window.V45Common.escapeHtml === 'function') {
+    return window.V45Common.escapeHtml(value);
+  }
+  return String(value || '').replace(/[&<>'"]/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+  }[ch]));
+}
+
+function masterOrderSaleDateRaw(order = {}) {
+  return order.orderDate || order.documentDate || order.date || order.createdAt || '';
+}
+
+function masterOrderSaleDateTime(order = {}) {
+  const raw = masterOrderSaleDateRaw(order);
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function renderUnmergedChildOrders() {
   if (!unmergedOrderList) return;
-  const rows = Array.isArray(unmergedOrdersCache) ? unmergedOrdersCache : [];
+  const rows = Array.isArray(unmergedOrdersCache) ? [...unmergedOrdersCache] : [];
+  rows.sort((a, b) => masterOrderSaleDateTime(a) - masterOrderSaleDateTime(b));
   updateSelectedChildOrderSummary();
   if (unmergedOrderCount) unmergedOrderCount.textContent = `${rows.length} đơn con chưa gộp`;
   if (!rows.length) {
     unmergedOrderList.innerHTML = '<div class="empty-cell">Không có đơn con chưa gộp phù hợp.</div>';
     return;
   }
-  unmergedOrderList.innerHTML = rows.map((order) => {
+
+  const header = `<div class="master-child-one-line master-child-header" aria-hidden="true">
+    <span></span>
+    <span>Mã đơn</span>
+    <span>Khách hàng</span>
+    <span>NVBH</span>
+    <span>Ngày bán</span>
+    <span>Giá trị</span>
+  </div>`;
+
+  const body = rows.map((order) => {
     const key = salesOrderIdentity(order);
     const checked = selectedChildOrderIds.has(key) ? 'checked' : '';
+    const selectedClass = checked ? ' selected' : '';
     const code = order.code || order.orderCode || order.salesOrderCode || key;
     const customer = order.customerName || order.customerCode || 'Khách hàng';
     const staff = order.salesStaffName || order.staffName || order.salesStaffCode || order.staffCode || '';
-    const date = masterOrderDate(order.deliveryDate || order.date || order.orderDate || order.createdAt);
-    return `<label class="order-row compact-order-row master-child-row">
-      <input type="checkbox" class="child-order-check" data-id="${key}" ${checked} />
-      <span><strong>${code}</strong><small>${customer}</small></span>
-      <span>${staff}</span>
-      <span>${date}</span>
-      <span>${masterOrderMoney(masterOrderChildAmount(order))}</span>
+    const saleDate = masterOrderDate(masterOrderSaleDateRaw(order));
+    return `<label class="master-child-one-line${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
+      <input type="checkbox" class="child-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
+      <span class="master-child-code">${masterOrderEscapeHtml(code)}</span>
+      <span class="master-child-customer">${masterOrderEscapeHtml(customer)}</span>
+      <span class="master-child-staff">${masterOrderEscapeHtml(staff)}</span>
+      <span class="master-child-date">${masterOrderEscapeHtml(saleDate)}</span>
+      <span class="master-child-money">${masterOrderMoney(masterOrderChildAmount(order))}</span>
     </label>`;
   }).join('');
+
+  unmergedOrderList.innerHTML = header + body;
 }
 window.renderUnmergedChildOrders = renderUnmergedChildOrders;
 
