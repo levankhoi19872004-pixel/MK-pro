@@ -4544,7 +4544,7 @@ button.danger:hover{background:#fecaca}
 #masterReturnOrdersTab .return-row-money{text-align:right!important;color:#047857!important;font-weight:900!important;}
 #masterReturnOrdersTab #masterReturnOrderTable.order-list{gap:5px!important;}
 #masterReturnOrdersTab .master-return-one-line{
-  grid-template-columns:22px 92px minmax(110px,1fr) 78px 72px 96px 104px auto!important;
+  grid-template-columns:22px 96px minmax(160px,1fr) 82px 76px 96px 104px 128px!important;
   min-height:34px!important;
   padding:5px 8px!important;
   gap:7px!important;
@@ -4552,6 +4552,8 @@ button.danger:hover{background:#fecaca}
 }
 #masterReturnOrdersTab .master-return-one-line .erp-doc-qty{font-size:12px!important;color:#64748b!important;font-weight:800!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
 #masterReturnOrdersTab .master-return-one-line .erp-doc-actions .small{min-height:24px!important;padding:3px 7px!important;}
+#masterReturnOrdersTab .master-return-one-line .erp-doc-actions{display:flex!important;justify-content:flex-end!important;align-items:center!important;gap:6px!important;white-space:nowrap!important;}
+#masterReturnOrdersTab .master-return-one-line .erp-doc-action-state{font-size:12px!important;font-weight:800!important;color:#64748b!important;white-space:nowrap!important;}
 #masterReturnOrdersTab .master-return-flow{display:none!important;}
 @media(max-width:1280px){
   #masterReturnOrdersTab .master-return-inline-form{grid-template-columns:1fr 1fr 1fr!important;}
