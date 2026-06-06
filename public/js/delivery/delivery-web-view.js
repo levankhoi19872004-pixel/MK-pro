@@ -88,7 +88,7 @@
       '</section>' +
       '<main class="delivery-v46-layout">' +
         '<section class="card delivery-v46-list-panel">' +
-          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions"><button id="deliverySelectAllAccounting" type="button" class="secondary">Chọn tất cả</button><button id="deliveryBulkAccountingButton" type="button" class="primary">Đẩy công nợ đã chọn</button><span id="deliveryCoreCount">0 đơn</span></div></div>' +
+          '<div class="delivery-v46-panel-title delivery-v46-panel-title-with-actions"><h3>Danh sách đơn</h3><div class="delivery-v46-list-actions"><button id="deliverySelectAllAccounting" type="button" class="secondary">Chọn tất cả</button><button id="deliveryBulkAccountingButton" type="button" class="primary">Xác nhận kế toán đã chọn</button><span id="deliveryCoreCount">0 đơn</span></div></div>' +
           '<div class="mk-delivery-list-head mk-delivery-list-grid">' +
             '<span class="mk-delivery-check-head"></span>' +
             '<span>Đơn / Khách hàng</span>' +
@@ -208,11 +208,27 @@
     return ['delivered', 'success', 'done', 'completed'].indexOf(value) >= 0;
   }
 
-  function isAccountingConfirmed(order) {
+  function isAccountingReopenPending(order) {
     order = order || {};
     var st = order.status && typeof order.status === 'object' ? order.status : {};
     var value = String(order.accountingStatus || st.accountingStatus || '').toLowerCase();
+    return Boolean(order.accountingNeedsReconfirm || order.needReAccounting || order.reAccountingRequired || order.adminAdjustmentOpen)
+      || ['reopened', 'needs_reconfirm', 'needs_repost'].indexOf(value) >= 0;
+  }
+
+  function isAccountingConfirmed(order) {
+    order = order || {};
+    if (isAccountingReopenPending(order)) return false;
+    var st = order.status && typeof order.status === 'object' ? order.status : {};
+    var value = String(order.accountingStatus || st.accountingStatus || '').toLowerCase();
     return Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted', 'done'].indexOf(value) >= 0;
+  }
+
+  function isAccountingSelectable(order) {
+    if (!order || !accountingKey(order)) return false;
+    if (!isDelivered(order)) return false;
+    if (isAccountingReopenPending(order)) return true;
+    return !isAccountingConfirmed(order);
   }
 
   function accountingKey(order) {
@@ -228,7 +244,7 @@
     var keep = {};
     (rows || []).forEach(function (order) {
       var key = accountingKey(order);
-      if (key && state.accountingSelectedKeys[key]) keep[key] = true;
+      if (key && state.accountingSelectedKeys[key] && isAccountingSelectable(order)) keep[key] = true;
     });
     state.accountingSelectedKeys = keep;
   }
@@ -237,10 +253,10 @@
     var ids = selectedAccountingIds();
     var bulk = byId('deliveryBulkAccountingButton');
     var all = byId('deliverySelectAllAccounting');
-    if (bulk) bulk.textContent = ids.length ? ('Đẩy công nợ (' + ids.length + ')') : 'Đẩy công nợ đã chọn';
+    if (bulk) bulk.textContent = ids.length ? ('Xác nhận kế toán đã chọn (' + ids.length + ')') : 'Xác nhận kế toán đã chọn';
     if (all) {
       var rows = getVisibleOrders();
-      var eligible = rows.filter(function (order) { return accountingKey(order) && !isAccountingConfirmed(order); });
+      var eligible = rows.filter(isAccountingSelectable);
       var selectedCount = eligible.filter(function (order) { return state.accountingSelectedKeys[accountingKey(order)]; }).length;
       all.textContent = eligible.length && selectedCount === eligible.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
     }
@@ -346,6 +362,8 @@
       var accKey = accountingKey(order);
       var accountingSelected = accKey && state.accountingSelectedKeys[accKey];
       var accountingLocked = isAccountingConfirmed(order);
+      var accountingNeedsReconfirm = isAccountingReopenPending(order);
+      var accountingSelectable = isAccountingSelectable(order);
       var debtValue = normalizeDebtAmount(amount(order, 'debt'));
       var debtClass = debtValue > 0 ? ' debt-open' : ' debt-done';
       var orderCode = order.orderCode || order.salesOrderCode || order.code || order.id || '';
@@ -354,7 +372,7 @@
       var deliveryStaff = order.deliveryStaffName || order.deliveryStaffCode || '';
       return '' +
         '<button type="button" class="mk-delivery-order-row mk-delivery-list-grid' + selected + '" data-key="' + esc(key) + '">' +
-          '<span class="mk-delivery-check mk-delivery-accounting-check" data-accounting-key="' + esc(accKey) + '" title="Chọn để đẩy công nợ">' + (accountingLocked ? '✓' : (accountingSelected ? '✓' : '')) + '</span>' +
+          '<span class="mk-delivery-check mk-delivery-accounting-check" data-accounting-key="' + esc(accKey) + '" title="Chọn để xác nhận kế toán">' + (accountingLocked ? '✓' : (accountingSelected ? '✓' : (accountingNeedsReconfirm ? '!' : ''))) + '</span>' +
           '<span class="mk-delivery-order-main">' +
             '<strong>' + esc(orderCode) + '</strong>' +
             '<span>' + esc(customerLabel || 'Chưa có khách hàng') + '</span>' +
@@ -375,8 +393,8 @@
         var accKey = node.getAttribute('data-accounting-key');
         if (!accKey) return;
         var order = (window.DeliveryCore.state.orders || []).find(function (row) { return accountingKey(row) === accKey; });
-        if (order && isAccountingConfirmed(order)) {
-          message('Đơn này đã vào công nợ, không cần chọn lại');
+        if (order && !isAccountingSelectable(order)) {
+          message(isDelivered(order) ? 'Đơn này đã xác nhận kế toán, không cần chọn lại' : 'Đơn chưa giao, chưa thể xác nhận kế toán');
           return;
         }
         if (state.accountingSelectedKeys[accKey]) delete state.accountingSelectedKeys[accKey];
@@ -392,13 +410,17 @@
   function detailActionHtml(order) {
     var delivered = isDelivered(order);
     var posted = isAccountingConfirmed(order);
+    var needReconfirm = isAccountingReopenPending(order);
     var html = '<div class="delivery-v46-detail-actions">';
     if (!delivered) {
       html += '<button id="deliveryConfirmButton" type="button" class="success">Xác nhận giao</button>';
+    } else if (needReconfirm) {
+      html += '<button id="deliveryAccountingButton" type="button" class="primary">Xác nhận kế toán lại</button>';
+      html += '<span class="delivery-accounting-status warn">Chờ xác nhận lại</span>';
     } else if (posted) {
-      html += '<button type="button" class="secondary muted-locked" disabled>Đã vào công nợ</button>';
+      html += '<button type="button" class="secondary muted-locked" disabled>Đã xác nhận kế toán</button>';
     } else {
-      html += '<button id="deliveryAccountingButton" type="button" class="primary">Đẩy sang công nợ</button>';
+      html += '<button id="deliveryAccountingButton" type="button" class="primary">Xác nhận kế toán</button>';
     }
     html += '</div>';
     return html;
@@ -599,25 +621,25 @@
     if (!order || !window.DeliveryCore) return;
     var key = accountingKey(order);
     if (!key) {
-      message('Không xác định được mã đơn để đẩy công nợ', true);
+      message('Không xác định được mã đơn để xác nhận kế toán', true);
       return;
     }
-    if (isAccountingConfirmed(order)) {
-      message('Đơn này đã vào công nợ');
+    if (!isAccountingSelectable(order)) {
+      message(isDelivered(order) ? 'Đơn này đã xác nhận kế toán' : 'Đơn chưa giao, chưa thể xác nhận kế toán');
       return;
     }
-    if (!confirm('Xác nhận đẩy đơn này sang công nợ?')) return;
+    if (!confirm(isAccountingReopenPending(order) ? 'Xác nhận kế toán lại đơn này?' : 'Xác nhận kế toán đơn này?')) return;
     try {
-      message('Đang đẩy đơn sang công nợ...');
+      message('Đang xác nhận kế toán...');
       var json = await window.DeliveryCore.confirmAccounting([key], filters());
       delete state.accountingSelectedKeys[key];
-      message(json.message || 'Đã xác nhận kế toán và đưa đơn vào công nợ');
+      message(json.message || 'Đã xác nhận kế toán');
       await load();
-    } catch (err) { message(err.message || 'Không đẩy được đơn sang công nợ', true); }
+    } catch (err) { message(err.message || 'Không xác nhận kế toán được', true); }
   }
 
   function toggleSelectAllAccounting() {
-    var rows = getVisibleOrders().filter(function (order) { return accountingKey(order) && !isAccountingConfirmed(order); });
+    var rows = getVisibleOrders().filter(isAccountingSelectable);
     var allSelected = rows.length && rows.every(function (order) { return state.accountingSelectedKeys[accountingKey(order)]; });
     rows.forEach(function (order) {
       var key = accountingKey(order);
@@ -628,19 +650,23 @@
   }
 
   async function confirmSelectedAccounting() {
-    var ids = selectedAccountingIds();
+    var valid = getVisibleOrders().filter(function (order) {
+      var key = accountingKey(order);
+      return key && state.accountingSelectedKeys[key] && isAccountingSelectable(order);
+    });
+    var ids = valid.map(accountingKey);
     if (!ids.length) {
-      message('Vui lòng chọn ít nhất 1 đơn để đẩy sang công nợ', true);
+      message('Vui lòng chọn ít nhất 1 đơn hợp lệ để xác nhận kế toán', true);
       return;
     }
-    if (!confirm('Xác nhận đẩy ' + ids.length + ' đơn đã chọn sang công nợ?')) return;
+    if (!confirm('Xác nhận kế toán ' + ids.length + ' đơn đã chọn?')) return;
     try {
-      message('Đang đẩy ' + ids.length + ' đơn sang công nợ...');
+      message('Đang xác nhận kế toán ' + ids.length + ' đơn...');
       var json = await window.DeliveryCore.confirmAccounting(ids, filters());
       state.accountingSelectedKeys = {};
-      message(json.message || 'Đã xác nhận kế toán và đưa các đơn đã chọn vào công nợ');
+      message(json.message || 'Đã xác nhận kế toán các đơn đã chọn');
       await load();
-    } catch (err) { message(err.message || 'Không đẩy được đơn đã chọn sang công nợ', true); }
+    } catch (err) { message(err.message || 'Không xác nhận kế toán được các đơn đã chọn', true); }
   }
 
 

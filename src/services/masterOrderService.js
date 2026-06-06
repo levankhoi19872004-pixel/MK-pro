@@ -13,6 +13,7 @@ const customerRepository = require('../repositories/customerRepository');
 const orderService = require('./orderService');
 const returnOrderService = require('./returnOrderService');
 const reportService = require('./reportService');
+const auditService = require('./auditService');
 const postingEngine = require('../engines/posting.engine');
 const paymentRepository = require('../repositories/paymentRepository');
 const MongoStore = require('../models');
@@ -695,7 +696,13 @@ function orderDisplayCode(order = {}) {
 
 
 function isAccountingReopenPending(order = {}) {
-  return Boolean(order.needReAccounting || order.reAccountingRequired || order.adminAdjustmentOpen) || String(order.accountingStatus || '').toLowerCase() === 'needs_repost';
+  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
+  return Boolean(
+    order.accountingNeedsReconfirm
+    || order.needReAccounting
+    || order.reAccountingRequired
+    || order.adminAdjustmentOpen
+  ) || ['needs_repost', 'reopened', 'needs_reconfirm'].includes(accountingStatus);
 }
 
 function makeArBaseRow(order = {}, extra = {}) {
@@ -759,11 +766,9 @@ async function findActiveArLedgersForOrder(order = {}, options = {}) {
   return (rows || []).filter((row) => {
     const status = String(row.status || '').toLowerCase();
     const type = String(row.type || '').toLowerCase();
-    const refType = String(row.refType || '').toLowerCase();
     return !row.reversed
       && status !== 'reversed'
-      && !type.includes('reversal')
-      && refType !== 'ar_ledger_reversal';
+      && type === 'ar_sale';
   });
 }
 
@@ -779,10 +784,10 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
     if (amount <= 0) continue;
     const reversal = {
       ...old,
-      id: `AR-REVERSAL-${old.id || old.code || makeId('AR')}-${reverseBatchId}`,
-      code: `AR-REVERSAL-${old.code || old.id || makeId('AR')}`,
-      type: 'ar_reversal',
-      refType: 'AR_LEDGER_REVERSAL',
+      id: `AR-SALE-REV-${old.id || old.code || makeId('AR')}-${reverseBatchId}`,
+      code: `AR-SALE-REV-${old.code || old.id || makeId('AR')}`,
+      type: 'ar_sale_reversal',
+      refType: 'SALES_ORDER',
       debit: credit,
       credit: debit,
       amount,
@@ -817,33 +822,21 @@ async function postDeliveryArLedgerRowsAfterReAccounting(order = {}, accountingB
   const key = orderKey(order) || orderDisplayCode(order);
   const code = orderDisplayCode(order) || key;
   const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
-  const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-  const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
-  const rewardAmount = deliveryRewardAmount(order);
-  // Khi mở khóa sửa lại rồi xác nhận lại, giá trị hàng trả vẫn phải lấy từ nguồn chuẩn returnOrders.
-  // Không lấy độc quyền từ field cache trong salesOrders vì có thể đã cũ.
-  const relatedReturnOrders = await findReturnOrdersForDeliveryChildren([order]);
-  const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForSalesOrder(relatedReturnOrders, order));
-  const rows = [];
-  const add = async (suffix, row) => {
-    if (toNumber(row.amount) <= 0 && !row.postZero) return null;
-    const entry = makeArBaseRow(order, {
-      ...row,
-      id: `${suffix}-${key}-${accountingBatchId}`,
-      code: `${suffix}-${code}`,
-      accountingBatchId,
-      reAccountingBatchId: ''
-    });
-    await paymentRepository.upsert(entry, options);
-    rows.push(entry);
-    return entry;
-  };
-  await add('AR-SALE', { type: 'ar_sale', refType: 'SALES_ORDER', debit: baseAmount, credit: 0, amount: baseAmount, postZero: true, note: `Ghi nhận lại công nợ đơn bán ${code} sau điều chỉnh admin` });
-  await add('AR-RECEIPT-CASH', { type: 'ar_receipt', refType: 'RECEIPT', debit: 0, credit: cashAmount, amount: cashAmount, note: `Ghi nhận lại thu tiền mặt từ app giao hàng ${code}` });
-  await add('AR-RECEIPT-BANK', { type: 'ar_receipt', refType: 'RECEIPT', debit: 0, credit: bankAmount, amount: bankAmount, note: `Ghi nhận lại thu chuyển khoản từ app giao hàng ${code}` });
-  await add('AR-BONUS', { type: 'ar_bonus', refType: 'BONUS_ALLOWANCE', debit: 0, credit: rewardAmount, amount: rewardAmount, note: `Ghi nhận lại cấn trừ trả thưởng ${code}` });
-  await add('AR-RETURN', { type: 'ar_return', refType: 'RETURN_ORDER', debit: 0, credit: returnAmount, amount: returnAmount, note: `Ghi nhận lại hàng trả từ app giao hàng ${code}` });
-  return rows;
+  const entry = makeArBaseRow(order, {
+    id: `AR-SALE-${key}-${accountingBatchId}`,
+    code: `AR-SALE-${code}`,
+    type: 'ar_sale',
+    refType: 'SALES_ORDER',
+    debit: baseAmount,
+    credit: 0,
+    amount: baseAmount,
+    postZero: true,
+    note: `Ghi nhận lại AR-SALE đơn bán ${code} sau điều chỉnh admin`,
+    accountingBatchId,
+    reAccountingBatchId: accountingBatchId
+  });
+  await paymentRepository.upsert(entry, options);
+  return [entry];
 }
 
 function compactAllocations(rows = []) {
@@ -987,8 +980,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
   const existingLedgers = await paymentRepository.findAll({
     status: { $ne: 'reversed' },
     reversed: { $ne: true },
-    type: { $in: ['ar_sale', 'ar_receipt', 'ar_bonus', 'ar_return'] },
-    refType: { $ne: 'AR_LEDGER_REVERSAL' },
+    type: 'ar_sale',
     $or: [
       { orderId: { $in: allKeys } },
       { orderCode: { $in: allKeys } },
@@ -997,30 +989,12 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     ]
   }, options);
 
-  // V45 accounting source fix:
-  // Khi đẩy đơn sang công nợ, AR Ledger phải phản ánh đúng snapshot cuối cùng của SalesOrder
-  // và returnOrders tại thời điểm kế toán xác nhận. Các bản trước có thể đã sinh AR-SALE
-  // sớm/thiếu AR-RECEIPT/AR-BONUS/AR-RETURN; nếu chỉ thấy một dòng AR cũ rồi skip toàn bộ
-  // thì màn Công nợ sẽ giữ số sai. Vì vậy với đơn được chọn lần đầu, nếu đã có AR active
-  // thì đảo các dòng cũ rồi post lại bộ bút toán chuẩn cho đúng nguồn đơn đã khóa.
   const existingRowsByOrderKey = new Map();
   for (const row of existingLedgers || []) {
     const rowKeys = masterDeliveryOrderKeys(row);
     for (const key of rowKeys) {
       if (!existingRowsByOrderKey.has(key)) existingRowsByOrderKey.set(key, []);
       existingRowsByOrderKey.get(key).push(row);
-    }
-  }
-
-  const returnOrders = await findReturnOrdersForDeliveryChildren(children);
-  const returnByOrderKey = new Map();
-  for (const r of returnOrders || []) {
-    for (const key of masterDeliveryOrderKeys(r, {
-      id: r.sourceOrderId || r.salesOrderId || r.orderId,
-      code: r.sourceOrderCode || r.salesOrderCode || r.orderCode
-    })) {
-      if (!returnByOrderKey.has(key)) returnByOrderKey.set(key, []);
-      returnByOrderKey.get(key).push(r);
     }
   }
 
@@ -1047,10 +1021,6 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
     const key = orderKey(order) || orderDisplayCode(order);
     const code = orderDisplayCode(order) || key;
     const baseAmount = Math.max(0, normalizeDebtAmount(deliveryFinance.deliveryDebtBase(order)));
-    const cashAmount = toNumber(order.cashCollected ?? order.cashAmount ?? 0);
-    const bankAmount = toNumber(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
-    const rewardAmount = deliveryRewardAmount(order);
-    const returnAmount = Math.max(deliveryFinance.deliveryReturnAmount(order), returnAmountForOrderFromMap(returnByOrderKey, order));
     const idSeed = key || code || makeId('AR');
     const accountingBatchId = `ACC-${idSeed}-${Date.now()}`;
     const repostSuffix = existingForOrder.length ? `-${accountingBatchId}` : '';
@@ -1064,16 +1034,16 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
         if (oldAmount <= 0) continue;
         reversalRows.push({
           ...oldRow,
-          id: `AR-REVERSAL-${oldRow.id || oldRow.code || makeId('AR')}-${reverseBatchId}`,
-          code: `AR-REVERSAL-${oldRow.code || oldRow.id || makeId('AR')}-${reverseBatchId}`,
-          type: 'ar_reversal',
-          refType: 'AR_LEDGER_REVERSAL',
+          id: `AR-SALE-REV-${oldRow.id || oldRow.code || makeId('AR')}-${reverseBatchId}`,
+          code: `AR-SALE-REV-${oldRow.code || oldRow.id || makeId('AR')}-${reverseBatchId}`,
+          type: 'ar_sale_reversal',
+          refType: 'SALES_ORDER',
           debit: oldCredit,
           credit: oldDebit,
           amount: oldAmount,
           status: 'posted',
           source: 'delivery_accounting_confirm_repost',
-          note: `Đảo bút toán AR cũ ${oldRow.code || oldRow.id || ''} trước khi post lại đúng nguồn đơn ${code || key}`,
+          note: `Đảo AR-SALE cũ ${oldRow.code || oldRow.id || ''} trước khi xác nhận kế toán lại đơn ${code || key}`,
           reversedFromId: oldRow.id || '',
           reversedFromCode: oldRow.code || '',
           accountingBatchId: reverseBatchId,
@@ -1105,59 +1075,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
       debit: baseAmount,
       credit: 0,
       amount: baseAmount,
-      note: `Ghi nhận công nợ đơn bán ${code || key}`,
-      createdBy: confirmedBy,
-      accountingBatchId
-    }));
-
-    if (cashAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-RECEIPT-CASH-${idSeed}${repostSuffix}`,
-      code: `AR-RECEIPT-CASH-${code || idSeed}`,
-      type: 'ar_receipt',
-      refType: 'RECEIPT',
-      debit: 0,
-      credit: cashAmount,
-      amount: cashAmount,
-      note: `Thu tiền mặt đơn giao ${code || key}`,
-      createdBy: confirmedBy,
-      accountingBatchId
-    }));
-
-    if (bankAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-RECEIPT-BANK-${idSeed}${repostSuffix}`,
-      code: `AR-RECEIPT-BANK-${code || idSeed}`,
-      type: 'ar_receipt',
-      refType: 'RECEIPT',
-      debit: 0,
-      credit: bankAmount,
-      amount: bankAmount,
-      note: `Thu chuyển khoản đơn giao ${code || key}`,
-      createdBy: confirmedBy,
-      accountingBatchId
-    }));
-
-    if (rewardAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-BONUS-${idSeed}${repostSuffix}`,
-      code: `AR-BONUS-${code || idSeed}`,
-      type: 'ar_bonus',
-      refType: 'BONUS_ALLOWANCE',
-      debit: 0,
-      credit: rewardAmount,
-      amount: rewardAmount,
-      note: `Cấn trừ trả thưởng đơn giao ${code || key}`,
-      createdBy: confirmedBy,
-      accountingBatchId
-    }));
-
-    if (returnAmount > 0) ledgerRows.push(makeBatchArRow(order, {
-      id: `AR-RETURN-${idSeed}${repostSuffix}`,
-      code: `AR-RETURN-${code || idSeed}`,
-      type: 'ar_return',
-      refType: 'RETURN_ORDER',
-      debit: 0,
-      credit: returnAmount,
-      amount: returnAmount,
-      note: `Cấn trừ hàng trả đơn giao ${code || key}`,
+      note: `Kế toán xác nhận AR-SALE đơn bán ${code || key}`,
       createdBy: confirmedBy,
       accountingBatchId
     }));
@@ -1462,7 +1380,7 @@ async function listDeliveryToday(query = {}) {
       date,
       confirmed: accountingConfirmed,
       editable: !accountingConfirmed,
-      message: accountingConfirmed ? 'Kế toán đã xác nhận. Đơn giao đã khóa chỉnh sửa và đã đưa vào công nợ.' : 'Chưa xác nhận kế toán. Đơn còn được chỉnh sửa và chưa đưa vào công nợ.'
+      message: accountingConfirmed ? 'Kế toán đã xác nhận. Đơn giao đã khóa chỉnh sửa và đã sinh AR-SALE.' : 'Chưa xác nhận kế toán. Đơn còn được chỉnh sửa và chưa sinh AR-SALE.'
     },
     orders: rows,
     routes: Array.from(routeMap.values()),
@@ -2340,7 +2258,7 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         accountingLocked: Boolean(child.accountingLocked || child.accountingConfirmed || child.accountingStatus === 'confirmed'),
         editLocked: Boolean(child.editLocked || child.accountingLocked || child.accountingConfirmed || child.accountingStatus === 'confirmed'),
         deliveryLocked: Boolean(child.deliveryLocked || child.accountingLocked || child.accountingConfirmed || child.accountingStatus === 'confirmed'),
-        needReAccounting: Boolean(child.needReAccounting || child.reAccountingRequired || child.adminAdjustmentOpen || String(child.accountingStatus || '').toLowerCase() === 'needs_repost'),
+        needReAccounting: Boolean(child.accountingNeedsReconfirm || child.needReAccounting || child.reAccountingRequired || child.adminAdjustmentOpen || ['needs_repost', 'reopened', 'needs_reconfirm'].includes(String(child.accountingStatus || '').toLowerCase())),
         reAccountingRequired: Boolean(child.reAccountingRequired),
         adminAdjustmentOpen: Boolean(child.adminAdjustmentOpen),
         arStatus: child.arStatus || '',
@@ -2518,14 +2436,16 @@ async function updateDeliveryTodayOrder(id, body = {}) {
     debtAmount,
     debt: debtAmount,
     arBalance: debtAmount,
-    accountingStatus: isAccountingReopenPending(current) ? 'needs_repost' : (current.accountingStatus || 'draft_delivery'),
+    accountingStatus: isAccountingReopenPending(current) ? 'reopened' : (current.accountingStatus || 'draft_delivery'),
     accountingConfirmed: isAccountingReopenPending(current) ? false : Boolean(current.accountingConfirmed),
     accountingLocked: isAccountingReopenPending(current) ? false : Boolean(current.accountingLocked),
     editLocked: isAccountingReopenPending(current) ? false : Boolean(current.editLocked),
+    accountingNeedsReconfirm: isAccountingReopenPending(current) ? true : Boolean(current.accountingNeedsReconfirm),
     needReAccounting: isAccountingReopenPending(current) ? true : Boolean(current.needReAccounting),
+    reAccountingRequired: isAccountingReopenPending(current) ? true : Boolean(current.reAccountingRequired),
     adminAdjustmentOpen: isAccountingReopenPending(current) ? true : Boolean(current.adminAdjustmentOpen),
-    arStatus: isAccountingReopenPending(current) ? 'needs_repost' : orderDebtLifecycleStatus(debtAmount, deliveryStatus, current),
-    lifecycleStatus: isAccountingReopenPending(current) ? 'needs_repost' : (isDeliveryCompletedStatus(deliveryStatus)
+    arStatus: isAccountingReopenPending(current) ? 'needs_reconfirm' : orderDebtLifecycleStatus(debtAmount, deliveryStatus, current),
+    lifecycleStatus: isAccountingReopenPending(current) ? 'needs_reconfirm' : (isDeliveryCompletedStatus(deliveryStatus)
       ? 'pending_accounting'
       : (current.lifecycleStatus || 'assigned_delivery')),
     arPostedAt: isAccountingReopenPending(current) ? '' : (current.arPostedAt || ''),
@@ -2563,21 +2483,26 @@ async function adminUnlockDeliveryAccounting(id, body = {}) {
     editLocked: false,
     deliveryLocked: false,
     accountingConfirmed: false,
-    accountingStatus: 'needs_repost',
+    accountingStatus: 'reopened',
+    accountingNeedsReconfirm: true,
     needReAccounting: true,
     reAccountingRequired: true,
     adminAdjustmentOpen: true,
     unlockReason: reason,
+    reopenReason: reason,
     unlockedAt: now,
+    reopenedAt: now,
     unlockedBy: String(body.unlockedBy || body.userName || body.adminName || 'admin').trim(),
-    arStatus: 'needs_repost',
-    lifecycleStatus: 'needs_repost',
+    reopenedBy: String(body.unlockedBy || body.userName || body.adminName || 'admin').trim(),
+    arStatus: 'needs_reconfirm',
+    lifecycleStatus: 'needs_reconfirm',
     updatedAt: now
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(unlocked, { session });
   });
-  return { salesOrder: unlocked, message: `Đã mở khóa điều chỉnh đơn ${orderDisplayCode(unlocked)}. Sau khi lưu phải xác nhận lại kế toán để reverse/post lại AR Ledger.` };
+  await auditService.log('ACCOUNTING_UNLOCK', { refType: 'SALES_ORDER', refId: orderKey(unlocked), refCode: orderDisplayCode(unlocked), user: unlocked.reopenedBy, reason, note: `Admin mở khóa kế toán đơn ${orderDisplayCode(unlocked)}` });
+  return { salesOrder: unlocked, message: `Đã mở khóa kế toán đơn ${orderDisplayCode(unlocked)}. Sau khi lưu phải xác nhận lại kế toán để đảo AR-SALE cũ và sinh AR-SALE mới.` };
 }
 
 async function confirmDeliveryAccounting(body = {}) {
@@ -2588,9 +2513,9 @@ async function confirmDeliveryAccounting(body = {}) {
 
   // Bắt buộc phải có danh sách đơn được tick chọn.
   // Trước đây khi orderIds rỗng/mất selection, backend tự hiểu là chọn toàn bộ đơn trong ngày,
-  // dẫn đến lỗi ấn xác nhận một vài đơn nhưng cả ngày bị đẩy sang công nợ.
+  // dẫn đến lỗi ấn xác nhận một vài đơn nhưng cả ngày bị xác nhận kế toán.
   if (!selectedOrderIds.length) {
-    return { error: 'Vui lòng chọn ít nhất một đơn để đẩy sang công nợ', status: 400 };
+    return { error: 'Vui lòng chọn ít nhất một đơn để xác nhận kế toán', status: 400 };
   }
 
   const selectedIdSet = new Set(selectedOrderIds);
@@ -2664,12 +2589,18 @@ async function confirmDeliveryAccounting(body = {}) {
     for (const { child } of targetChildren) {
       const alreadyConfirmed = isAccountingConfirmed(child);
       const requiresReAccounting = isAccountingReopenPending(child);
+      const deliveredForAccounting = isDeliveryCompletedStatus(child.deliveryStatus || child.status);
+      if (!deliveredForAccounting || (alreadyConfirmed && !requiresReAccounting)) {
+        skippedOrders += 1;
+        continue;
+      }
       const debtAmount = Math.max(0, normalizeDebtAmount(child.debtAmount ?? child.debt ?? deliveryFinance.calculateDeliveryDebt(child)));
       const updated = {
         ...child,
         accountingConfirmed: true,
         accountingStatus: 'confirmed',
         accountingLocked: true,
+        accountingNeedsReconfirm: false,
         accountingConfirmedAt: child.accountingConfirmedAt || now,
         accountingConfirmedBy: child.accountingConfirmedBy || confirmedBy,
         editLocked: true,
@@ -2677,6 +2608,11 @@ async function confirmDeliveryAccounting(body = {}) {
         needReAccounting: false,
         reAccountingRequired: false,
         adminAdjustmentOpen: false,
+        reopenedAt: requiresReAccounting ? (child.reopenedAt || child.unlockedAt || '') : (child.reopenedAt || ''),
+        reopenedBy: requiresReAccounting ? (child.reopenedBy || child.unlockedBy || '') : (child.reopenedBy || ''),
+        reopenReason: requiresReAccounting ? (child.reopenReason || child.unlockReason || '') : (child.reopenReason || ''),
+        reconfirmedAt: requiresReAccounting ? now : (child.reconfirmedAt || ''),
+        reconfirmedBy: requiresReAccounting ? confirmedBy : (child.reconfirmedBy || ''),
         debtAmount,
         debt: debtAmount,
         arBalance: debtAmount,
@@ -2693,6 +2629,7 @@ async function confirmDeliveryAccounting(body = {}) {
         // Đơn đã mở khóa/sửa sau khi post AR: giữ đúng luồng kế toán bằng reversal trước, sau đó post lại.
         const reverseResult = await reverseActiveArLedgersForOrder(child, { name: confirmedBy }, { session });
         await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.accountingBatchId, { session });
+        await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: AR-SALE-REV + AR-SALE mới` });
       } else if (!alreadyConfirmed) {
         // Đơn mới xác nhận lần đầu: gom lại để ghi AR Ledger bằng insertMany một lần.
         normalPostChildren.push(updated);
@@ -2706,10 +2643,13 @@ async function confirmDeliveryAccounting(body = {}) {
         }
       });
 
-      if (alreadyConfirmed && !requiresReAccounting) skippedOrders += 1; else confirmedOrders += 1;
+      confirmedOrders += 1;
     }
 
     const batchPostResult = await batchPostDeliveryArLedgers(normalPostChildren, confirmedBy, { session });
+    for (const posted of normalPostChildren) {
+      await auditService.log('ACCOUNTING_CONFIRM', { refType: 'SALES_ORDER', refId: orderKey(posted), refCode: orderDisplayCode(posted), user: confirmedBy, note: `Xác nhận kế toán đơn ${orderDisplayCode(posted)}: sinh AR-SALE` });
+    }
     skippedOrders += batchPostResult.skippedPostedKeys.size;
 
     if (orderUpdateOps.length) {
@@ -2723,7 +2663,7 @@ async function confirmDeliveryAccounting(body = {}) {
     confirmedOrders,
     skippedOrders,
     totalOrders: targetChildren.length,
-    message: `Kế toán đã xác nhận ${targetChildren.length} đơn giao ngày ${date}. Đơn đã khóa chỉnh sửa và đã đưa vào công nợ.`
+    message: `Kế toán đã xác nhận ${confirmedOrders} đơn giao ngày ${date}. Hệ thống đã sinh AR-SALE và khóa kế toán.`
   };
 }
 

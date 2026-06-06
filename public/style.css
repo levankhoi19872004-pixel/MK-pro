@@ -7731,3 +7731,19 @@ body::after{
   border-color:#2563eb !important;
   background:#eff6ff !important;
 }
+
+/* Accounting confirmation status badges */
+.delivery-accounting-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.delivery-accounting-status.warn {
+  background: rgba(245, 158, 11, .12);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, .25);
+}
