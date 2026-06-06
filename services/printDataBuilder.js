@@ -100,8 +100,35 @@ function getItemPack(item) {
   )) || 1;
 }
 
+function getCatalogSalePrice(item) {
+  // Cột 4 của mẫu DMS/V46: giá bán sau thuế, trước khuyến mại.
+  // Ưu tiên giá bán trong danh mục sản phẩm đã được enrich từ Mongo.
+  return toNumber(pick(
+    item.catalogSalePrice,
+    item.product?.salePrice,
+    item.productSnapshot?.salePrice,
+    item.salePrice,
+    item.giaBan,
+    item.price,
+    item.unitPrice,
+    0
+  ));
+}
+
 function getItemPrice(item) {
-  return toNumber(pick(item.price, item.unitPrice, item.salePrice, item.costPrice, item.donGia, item.giaBan));
+  return getCatalogSalePrice(item);
+}
+
+function getDiscountPercent(item) {
+  return toNumber(pick(
+    item.discountPercent,
+    item.promotionDiscountPercent,
+    item.ckPercent,
+    item.percent,
+    item.rate,
+    item.promotion?.discountPercent,
+    0
+  ));
 }
 
 function getItemDiscount(item) {
@@ -117,40 +144,73 @@ function normalizeOneItem(item, index, sourceOrder = null) {
   const warehouseName = pick(item.warehouseName, item.khoName, warehouseCode === 'KHO_PC' ? 'KHO PC' : 'KHO HC');
   const qty = getItemQuantity(item);
   const pack = getItemPack(item);
-  const price = getItemPrice(item);
-  const salePriceAfterDiscount = toNumber(pick(item.netPrice, item.priceAfterDiscount, item.finalPrice, price));
+
+  // Chuẩn cột mẫu đơn DMS/V46:
+  // Cột 1: CS/SU = cột 2 / quy cách.
+  // Cột 2: số lượng lẻ thực tế.
+  // Cột 3: giá trước thuế = cột 4 / 1.08.
+  // Cột 4: giá bán sau thuế, trước KM = products.salePrice.
+  // Cột 5: giá sau thuế, sau KM/CK = cột 4 - cột 4 * %CK, hoặc giá bán thẳng người tạo đơn nhập.
+  const priceAfterTaxBeforePromotion = getCatalogSalePrice(item);
+  const priceBeforeTax = Math.round(priceAfterTaxBeforePromotion / 1.08);
+  const discountPercent = getDiscountPercent(item);
+  const directNetPrice = toNumber(pick(
+    item.priceAfterPromotion,
+    item.priceAfterVatAfterDiscount,
+    item.netPrice,
+    item.priceAfterDiscount,
+    item.finalPrice,
+    item.orderPrice,
+    item.manualPrice,
+    0
+  ));
+  const priceAfterPromotion = discountPercent > 0
+    ? Math.floor(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
+    : (directNetPrice || priceAfterTaxBeforePromotion);
+
   const discount = getItemDiscount(item);
-  const tax = getItemTax(item);
   const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
   const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true;
   const normalizedLineType = isPromo ? 'PROMO' : 'SALE';
   const lineTypeName = isPromo ? 'Xuất khuyến mại' : 'Hàng bán';
-  const rawAmount = toNumber(pick(item.amount, item.total, item.totalAmount, isPromo ? 0 : qty * salePriceAfterDiscount));
-  const amount = isPromo ? 0 : (rawAmount || qty * salePriceAfterDiscount);
+  const tax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
+  const amount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
   const caseInfo = normalizeQuantityByPack(qty, pack);
 
   return {
     stt: index + 1,
     code: pick(item.code, item.productCode, item.sku, item.maHang),
-    name: pick(item.name, item.productName, item.tenHang),
-    unit: pick(item.unit, item.dvt, item.uom, 'Cái'),
+    productCode: pick(item.productCode, item.code, item.sku, item.maHang),
+    name: pick(item.name, item.productName, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    productName: pick(item.productName, item.name, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    unit: pick(item.unit, item.dvt, item.uom, item.productSnapshot?.unit, item.product?.unit, 'Cái'),
     pack,
+    conversionRate: pack,
     qty,
+    quantity: qty,
+    cartonQty: caseInfo.cases,
     caseQty: caseInfo.cases,
     unitQty: caseInfo.units,
-    caseDisplay: caseInfo.display,
-    price,
-    priceBeforeVat: toNumber(pick(item.priceBeforeVat, item.listPriceBeforeVat, item.beforeVatPrice, price)),
-    listPriceBeforeVat: toNumber(pick(item.listPriceBeforeVat, item.priceBeforeVat, item.beforeVatPrice, price)),
-    priceAfterVatBeforeDiscount: toNumber(pick(item.priceAfterVatBeforeDiscount, item.listPriceAfterVat, item.afterVatBeforeDiscountPrice, item.grossPrice, price ? price * 1.08 : 0)),
-    listPriceAfterVat: toNumber(pick(item.listPriceAfterVat, item.priceAfterVatBeforeDiscount, item.afterVatBeforeDiscountPrice, item.grossPrice, price ? price * 1.08 : 0)),
-    priceAfterDiscount: salePriceAfterDiscount,
-    priceAfterVatAfterDiscount: toNumber(pick(item.priceAfterVatAfterDiscount, item.netPrice, item.priceAfterDiscount, item.finalPrice, salePriceAfterDiscount)),
-    gsvAmount: toNumber(pick(item.gsvAmount, item.gsv, item.grossSalesValue)),
-    nivAmount: toNumber(pick(item.nivAmount, item.niv, item.netInvoiceValue)),
+    caseDisplay: `${caseInfo.cases}/${caseInfo.units}`,
+    price: priceAfterTaxBeforePromotion,
+    salePrice: priceAfterTaxBeforePromotion,
+    priceBeforeTax,
+    priceBeforeVat: priceBeforeTax,
+    listPriceBeforeVat: priceBeforeTax,
+    priceAfterTaxBeforePromotion,
+    priceAfterVatBeforeDiscount: priceAfterTaxBeforePromotion,
+    listPriceAfterVat: priceAfterTaxBeforePromotion,
+    discountPercent,
+    priceAfterPromotion,
+    priceAfterDiscount: priceAfterPromotion,
+    priceAfterVatAfterDiscount: priceAfterPromotion,
+    gsvAmount: Math.round(qty * priceAfterTaxBeforePromotion),
+    nivAmount: amount,
     discount,
     tax,
+    vatAmount: tax,
     amount,
+    lineAmount: amount,
     lineType: normalizedLineType,
     isPromo,
     lineTypeName,
@@ -187,36 +247,59 @@ function normalizePromotions(document) {
       : Array.isArray(document.discounts) ? document.discounts
         : [];
 
-  return promotions.map((promo, index) => ({
-    stt: index + 1,
-    code: pick(promo.code, promo.promotionCode, promo.ctkmCode, promo.maCTKM),
-    name: pick(promo.name, promo.title, promo.description, promo.promotionName, promo.tenCTKM),
-    basisAmount: toNumber(pick(promo.basisAmount, promo.baseAmount, promo.giaTriHangHoa, promo.amount)),
-    percent: toNumber(pick(promo.percent, promo.discountPercent, promo.tyLe, promo.rate)),
-    beforeTax: toNumber(pick(promo.beforeTax, promo.amountBeforeTax, promo.tienCKTruocThue)),
-    afterTax: toNumber(pick(promo.afterTax, promo.amountAfterTax, promo.tienCKSauThue, promo.discountAmount)),
-    type: pick(promo.type, promo.kind, promo.loai)
-  }));
+  return promotions.map((promo, index) => {
+    const code = pick(promo.code, promo.promotionCode, promo.ctkmCode, promo.maCTKM);
+    const description = pick(promo.description, promo.name, promo.title, promo.promotionName, promo.tenCTKM);
+    const qualifiedAmount = toNumber(pick(promo.qualifiedAmount, promo.basisAmount, promo.baseAmount, promo.giaTriHangHoa, promo.amount));
+    const discountPercent = toNumber(pick(promo.discountPercent, promo.percent, promo.tyLe, promo.rate));
+    const discountBeforeTax = toNumber(pick(promo.discountBeforeTax, promo.beforeTax, promo.amountBeforeTax, promo.tienCKTruocThue));
+    const discountAfterTax = toNumber(pick(promo.discountAfterTax, promo.afterTax, promo.amountAfterTax, promo.tienCKSauThue, promo.discountAmount));
+    return {
+      stt: index + 1,
+      code,
+      promotionCode: code,
+      name: description,
+      description,
+      basisAmount: qualifiedAmount,
+      qualifiedAmount,
+      percent: discountPercent,
+      discountPercent,
+      beforeTax: discountBeforeTax,
+      discountBeforeTax,
+      afterTax: discountAfterTax,
+      discountAfterTax,
+      type: pick(promo.type, promo.kind, promo.loai)
+    };
+  });
 }
 
 
 function normalizeDisplayRewards(document) {
-  const rows = Array.isArray(document.displayRewards) ? document.displayRewards
+  const rows = Array.isArray(document.offsets) ? document.offsets
+    : Array.isArray(document.displayRewards) ? document.displayRewards
     : Array.isArray(document.rewardRows) ? document.rewardRows
       : Array.isArray(document.displayRewardRows) ? document.displayRewardRows
         : Array.isArray(document.deductions) ? document.deductions
           : Array.isArray(document.offsetRows) ? document.offsetRows
             : [];
 
-  return rows.map((row, index) => ({
-    stt: index + 1,
-    code: pick(row.code, row.rewardCode, row.displayCode, row.cttbCode, row.maCTTrungBay, row.maCT),
-    name: pick(row.name, row.title, row.description, row.programName, row.noiDung, row.content),
-    month: pick(row.month, row.displayMonth, row.thangTrungBay),
-    goodsAmount: toNumber(pick(row.goodsAmount, row.goodsRewardAmount, row.hangHoa, row.chiTraHangHoa)),
-    quantityText: pick(row.quantityText, row.caseUnitText, row.cartonUnitText, row.soLuongThungLe),
-    offsetAmount: toNumber(pick(row.offsetAmount, row.cashAmount, row.debtOffsetAmount, row.canTruNo, row.amount))
-  }));
+  return rows.map((row, index) => {
+    const code = pick(row.programCode, row.code, row.rewardCode, row.displayCode, row.cttbCode, row.maCTTrungBay, row.maCT);
+    const description = pick(row.description, row.name, row.title, row.programName, row.noiDung, row.content);
+    const month = pick(row.month, row.displayMonth, row.thangTrungBay);
+    const offsetAmount = toNumber(pick(row.offsetAmount, row.cashAmount, row.debtOffsetAmount, row.canTruNo, row.amount));
+    return {
+      stt: index + 1,
+      code,
+      programCode: code,
+      name: description,
+      description,
+      month,
+      goodsAmount: toNumber(pick(row.goodsAmount, row.goodsRewardAmount, row.hangHoa, row.chiTraHangHoa)),
+      quantityText: pick(row.quantityText, row.caseUnitText, row.cartonUnitText, row.soLuongThungLe),
+      offsetAmount
+    };
+  });
 }
 
 
@@ -293,22 +376,40 @@ function buildPrintData(document = {}, options = {}) {
   const displayRewards = normalizeDisplayRewards(document);
   const warehouseGroups = buildWarehouseGroups(items);
 
-  const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
-  const goodsAmount = toNumber(pick(document.goodsAmount, document.subTotal, document.subtotal, items.reduce((sum, item) => sum + item.qty * item.price, 0)));
-  const discount = toNumber(pick(document.discount, document.discountAmount, document.totalDiscount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax), 0)));
+  const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, document.summary?.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
+  const grossAmountBeforePromotion = toNumber(pick(
+    document.grossAmountBeforePromotion,
+    document.summary?.grossAmountBeforePromotion,
+    document.goodsAmount,
+    document.subTotal,
+    document.subtotal,
+    items.reduce((sum, item) => sum + item.gsvAmount, 0)
+  ));
+  const goodsAmountAfterPromotion = toNumber(pick(
+    document.goodsAmountAfterPromotion,
+    document.summary?.goodsAmountAfterPromotion,
+    document.totalAmount,
+    document.grandTotal,
+    items.reduce((sum, item) => sum + item.amount, 0)
+  ));
+  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, document.summary?.promotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
+  const displayRewardTotal = toNumber(pick(document.displayRewardTotal, document.totalDisplayReward, document.rewardAmount, document.offsetAmount, document.summary?.displayRewardOffset, displayRewards.reduce((sum, item) => sum + item.offsetAmount, 0)));
+  const nppDiscountAmount = toNumber(pick(document.nppDiscountAmount, document.summary?.nppDiscountAmount, 0));
+  const discount = toNumber(pick(document.discount, document.discountAmount, document.totalDiscount, promotionValue));
   const tax = toNumber(pick(document.tax, document.vat, document.taxAmount, items.reduce((sum, item) => sum + item.tax, 0)));
-  const totalAmount = toNumber(pick(document.totalAmount, document.grandTotal, items.reduce((sum, item) => sum + item.amount, 0)));
+  const totalAmount = goodsAmountAfterPromotion;
+  const goodsAmount = grossAmountBeforePromotion;
   const paid = toNumber(pick(document.paidAmount, document.paid, document.collectedAmount, document.cashReceived));
-  const payable = toNumber(pick(document.payableAmount, document.mustPay, totalAmount - discount));
+  const payable = toNumber(pick(document.payableAmount, document.mustPay, document.summary?.payableAmount, totalAmount - displayRewardTotal));
   const debt = toNumber(pick(document.debtAmount, document.debt, Math.max(payable - paid, 0)));
-  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
-  const displayRewardTotal = toNumber(pick(document.displayRewardTotal, document.totalDisplayReward, document.rewardAmount, document.offsetAmount, displayRewards.reduce((sum, item) => sum + item.offsetAmount, 0)));
+  const promotionRate = toNumber(pick(document.promotionRate, document.summary?.promotionRate, goodsAmount ? ((promotionValue + nppDiscountAmount) / goodsAmount) * 100 : 0));
 
   return {
     company: {
-      name: options.companyName || process.env.PRINT_COMPANY_NAME || 'NHÀ PHÂN PHỐI MINH KHAI',
-      address: options.companyAddress || process.env.PRINT_COMPANY_ADDRESS || 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình',
-      phone: options.companyPhone || process.env.PRINT_COMPANY_PHONE || '',
+      code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
+      name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
+      address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
+      phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, ''),
       taxCode: options.taxCode || process.env.PRINT_COMPANY_TAX || ''
     },
     document: {
@@ -319,7 +420,7 @@ function buildPrintData(document = {}, options = {}) {
       date: formatDate(pick(document.date, document.createdAt)),
       dateTime: formatDateTime(pick(document.date, document.createdAt)),
       rawDate: pick(document.date, document.createdAt),
-      type: pick(document.type, document.invoiceType, document.orderType, document.orderSourceName, ''),
+      type: pick(document.invoiceType, document.type, document.orderType, document.orderSourceName, 'NVTT'),
       note: document.note || '',
       terms: pick(document.terms, document.paymentTerms, 'đáo hạn trong 7 ngày'),
       page: options.page || '1 / 1',
@@ -354,6 +455,12 @@ function buildPrintData(document = {}, options = {}) {
       totalQty,
       goodsAmount,
       totalAmount,
+      goodsAmountAfterPromotion,
+      grossAmountBeforePromotion,
+      promotionAmount: promotionValue,
+      displayRewardOffset: displayRewardTotal,
+      nppDiscountAmount,
+      promotionRate,
       discount,
       tax,
       paid,
@@ -362,12 +469,53 @@ function buildPrintData(document = {}, options = {}) {
       orderCount: toNumber(pick(document.orderCount, document.totalOrders, Array.isArray(document.children) ? document.children.length : 0)),
       promotionValue,
       displayRewardTotal,
-      totalAmountText: document.totalAmountText || numberToVietnameseWords(payable || totalAmount)
+      totalAmountText: pick(document.amountInWords, document.summary?.amountInWords, document.totalAmountText) || numberToVietnameseWords(payable || totalAmount)
     },
     meta: {
       printedAt: new Date().toLocaleString('vi-VN'),
       printedBy: options.printedBy || '',
       copyLabel: options.copyLabel || 'Liên 1'
+    },
+    erpInvoiceV46: {
+      header: {
+        invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
+        orderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
+        orderDateTime: pick(document.orderDateTime, document.date, document.createdAt),
+        invoiceType: pick(document.invoiceType, document.type, document.orderType, document.orderSourceName, 'NVTT'),
+        paymentTerm: pick(document.terms, document.paymentTerms, 'Đáo hạn trong 7 ngày'),
+        truckNo: pick(document.vehicleNo, document.truckNo, document.soXeTai)
+      },
+      customer: {
+        customerCode: pick(document.customerCode, document.customer?.code, document.customerId),
+        customerName: pick(document.customerName, document.customer?.name, document.supplier, document.supplierName),
+        phone: pick(document.customerPhone, document.customer?.phone, document.phone),
+        deliveryAddress: pick(document.customerAddress, document.customer?.address, document.address)
+      },
+      salesStaff: {
+        staffCode: pick(document.staffCode, document.salesStaffCode, document.salesCode, document.salesStaffId),
+        staffName: pick(document.staffName, document.salesStaffName, document.salesName, document.createdBy),
+        phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
+      },
+      distributor: {
+        code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
+        name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
+        phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, ''),
+        address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình')
+      },
+      items,
+      promotions,
+      offsets: displayRewards,
+      summary: {
+        totalQty,
+        goodsAmountAfterPromotion,
+        grossAmountBeforePromotion,
+        promotionAmount: promotionValue,
+        displayRewardOffset: displayRewardTotal,
+        nppDiscountAmount,
+        payableAmount: payable,
+        promotionRate,
+        amountInWords: pick(document.amountInWords, document.summary?.amountInWords, document.totalAmountText) || numberToVietnameseWords(payable || totalAmount)
+      }
     },
     formatMoney
   };

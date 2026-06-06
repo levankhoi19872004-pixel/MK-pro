@@ -146,6 +146,51 @@ async function enrichMasterOrderForPrint(masterOrder = {}) {
   };
 }
 
+
+async function enrichSalesOrderForPrint(order = {}) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  const productCodes = Array.from(new Set(items.map(getItemProductCode).filter(Boolean)));
+  if (!productCodes.length) return order;
+
+  const products = await Product.find({ code: { $in: productCodes } }).lean();
+  const productMap = new Map(products.map((product) => [cleanText(product.code || product.productCode || product.sku), product]));
+
+  const enrichedItems = items.map((item) => {
+    const code = getItemProductCode(item);
+    const product = productMap.get(code) || {};
+    const catalogSalePrice = toNumber(product.salePrice ?? product.giaBan ?? product.price ?? item.catalogSalePrice ?? 0);
+    const catalogConversionRate = getItemPack(item, product);
+    return {
+      ...item,
+      catalogSalePrice,
+      catalogConversionRate,
+      productSnapshot: {
+        ...(item.productSnapshot || {}),
+        code: product.code || code,
+        name: product.name || item.productName || item.name || '',
+        salePrice: catalogSalePrice || item.productSnapshot?.salePrice,
+        conversionRate: catalogConversionRate,
+        unit: product.unit || item.unit || item.productSnapshot?.unit || ''
+      },
+      product: {
+        ...(item.product || {}),
+        code: product.code || code,
+        name: product.name || item.productName || item.name || '',
+        salePrice: catalogSalePrice || item.product?.salePrice,
+        conversionRate: catalogConversionRate,
+        unit: product.unit || item.unit || item.product?.unit || ''
+      }
+    };
+  });
+
+  return {
+    ...order,
+    items: enrichedItems,
+    printPricingSource: 'products.salePrice',
+    printPackSource: 'products.conversionRate'
+  };
+}
+
 function normalizePrintType(type) {
   const key = String(type || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
   return PRINT_TYPE_ALIASES[key] || key;
@@ -162,7 +207,10 @@ async function findDocumentByPrintType(type, idOrCode) {
   if (!idOrCode) return { printType, document: null };
 
   let document = null;
-  if (printType === 'ORDER_SINGLE' || printType === 'DMS_DELIVERY_INVOICE') document = await orderRepository.findByIdOrCode(idOrCode);
+  if (printType === 'ORDER_SINGLE' || printType === 'DMS_DELIVERY_INVOICE') {
+    document = await orderRepository.findByIdOrCode(idOrCode);
+    if (document) document = await enrichSalesOrderForPrint(document);
+  }
   if (printType === 'ORDER_TOTAL') {
     document = await masterOrderRepository.findByIdOrCode(idOrCode);
     if (document) document = await enrichMasterOrderForPrint(document);
