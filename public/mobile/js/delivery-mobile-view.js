@@ -11,6 +11,21 @@
 
   var state = { selectedKey: '', tab: 'orders' };
 
+  function readUser() { try { return JSON.parse(localStorage.getItem('v43_mobile_user') || localStorage.getItem('mk_web_user') || '{}'); } catch (err) { return {}; } }
+  function requireDeliveryLogin() {
+    var token = localStorage.getItem('v43_mobile_token') || localStorage.getItem('mk_web_token') || '';
+    var user = readUser();
+    var role = String(user.role || '').toLowerCase();
+    if (!token) { window.location.href = '/login.html?target=delivery'; return false; }
+    if (role !== 'admin' && role !== 'delivery') { alert('Tài khoản không có quyền vào App giao hàng.'); window.location.href = '/login.html?target=delivery'; return false; }
+    return true;
+  }
+
+  function logout() {
+    ['mk_web_token','mk_web_refresh_token','mk_web_user','v43_mobile_token','v43_mobile_refresh_token','v43_mobile_user'].forEach(function (key) { localStorage.removeItem(key); });
+    window.location.href = '/login.html';
+  }
+
   function root() {
     var r = el('mobileDeliveryRoot');
     if (!r) {
@@ -27,7 +42,7 @@
     root().innerHTML = '' +
       '<header class="m-delivery-header">' +
         '<div><h1>App giao hàng</h1><p>Đồng bộ 100% với Đơn giao hôm nay</p></div>' +
-        '<button id="mReload" type="button">Tải</button>' +
+        '<div style="display:flex;gap:8px;align-items:center"><button id="mReload" type="button">Tải</button><button id="mLogout" type="button">Thoát</button></div>' +
       '</header>' +
       '<section class="m-delivery-filter"><input id="mDate" type="date"><input id="mStaff" placeholder="NVGH"><input id="mSearch" placeholder="Tìm khách/mã đơn"></section>' +
       '<section class="m-delivery-kpis">' +
@@ -45,6 +60,7 @@
       '<p id="mMsg" class="m-delivery-msg"></p>';
     el('mDate').value = today();
     el('mReload').addEventListener('click', load);
+    el('mLogout').addEventListener('click', logout);
     el('mDate').addEventListener('change', load);
     el('mStaff').addEventListener('change', load);
     el('mSearch').addEventListener('input', debounce(load, 250));
@@ -271,6 +287,7 @@
   }
 
   async function load() {
+    if (!requireDeliveryLogin()) return;
     if (!el('mBody')) renderShell();
     el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
     try {

@@ -23,6 +23,7 @@ const bcrypt = require('bcryptjs');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
+const User = require('../models/User');
 const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
@@ -57,7 +58,9 @@ const router = express.Router();
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
+  manager: 'Quản lý',
   accountant: 'Kế toán',
+  warehouse: 'Kho',
   sales: 'Bán hàng',
   delivery: 'Giao hàng'
 };
@@ -91,7 +94,7 @@ function signToken(user, expiresIn = ACCESS_TOKEN_EXPIRES_IN) {
 }
 
 function buildSafeUser(staff) {
-  const role = ['admin', 'accountant', 'sales', 'delivery'].includes(String(staff.role || staff.type || '').trim())
+  const role = ['admin', 'manager', 'accountant', 'warehouse', 'sales', 'delivery'].includes(String(staff.role || staff.type || '').trim())
     ? String(staff.role || staff.type).trim()
     : (staff.isDelivery ? 'delivery' : staff.isSalesman ? 'sales' : 'sales');
   const code = String(staff.code || staff.staffCode || staff.username || staff._id || '').trim();
@@ -1158,9 +1161,11 @@ router.post('/login', async (req, res) => {
     const password = String(req.body?.password || '').trim();
     if (!username || !password) return fail(res, 400, 'Thiếu tài khoản hoặc mật khẩu');
 
-    const staff = await Staff.findOne({
+    // V46 login chuẩn: App bán hàng, App giao hàng và phần mềm đều dùng collection users
+    // được quản trị tại mục Hệ thống/Tài khoản. Không đăng nhập bằng collection staffs nữa.
+    const staff = await User.findOne({
       isActive: { $ne: false },
-      $or: [{ username }, { code: username }, { phone: username }, { name: username }, { fullName: username }]
+      $or: [{ username }, { staffCode: username }, { code: username }, { phone: username }, { name: username }, { fullName: username }]
     }).lean();
     if (!staff || !(await checkPassword(password, staff.password || staff.pass || staff.pin))) {
       return fail(res, 401, 'Sai tài khoản hoặc mật khẩu');
@@ -1168,7 +1173,7 @@ router.post('/login', async (req, res) => {
 
     const user = buildSafeUser(staff);
     return ok(res, {
-      source: 'mobile-mongo-route',
+      source: 'mobile-users-auth-route',
       token: signToken(user),
       refreshToken: signToken(user, REFRESH_TOKEN_EXPIRES_IN),
       expiresIn: ACCESS_TOKEN_EXPIRES_IN,
@@ -1253,7 +1258,7 @@ router.post('/inventory/rebuild', requireMobileLogin, requireMobileRole(['admin'
       resetTransactions: ['1', 'true', 'yes'].includes(String(req.body?.resetTransactions || req.query.resetTransactions || '1').toLowerCase())
     });
     return ok(res, {
-      source: 'mobile-mongo-route',
+      source: 'mobile-users-auth-route',
       message: 'Đã rebuild stockTransactions và inventories. Products chỉ còn là danh mục, không lưu tồn.',
       ...result
     });
@@ -1289,7 +1294,7 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
       canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && String(order.mergeStatus || 'unmerged') !== 'merged'
     }));
     if (q) items = items.filter((o) => [o.code, o.customerCode, o.customerName, o.customerPhone, o.customerAddress].some((v) => normalizeText(v).includes(q)));
-    return ok(res, { source: 'mobile-mongo-route', date: targetDate, items });
+    return ok(res, { source: 'mobile-users-auth-route', date: targetDate, items });
   } catch (err) {
     return fail(res, 500, 'Không tải được đơn mobile');
   }

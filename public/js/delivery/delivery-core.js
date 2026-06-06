@@ -167,7 +167,11 @@
 
 
     async api(path, options) {
-      var res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options || {}));
+      options = options || {};
+      var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+      var token = localStorage.getItem('mk_web_token') || localStorage.getItem('v43_mobile_token') || '';
+      if (token) headers.Authorization = 'Bearer ' + token;
+      var res = await fetch(path, Object.assign({}, options, { headers: headers }));
       return readJson(res, 'Không gọi được API giao hàng');
     },
 

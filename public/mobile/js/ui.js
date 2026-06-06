@@ -39,8 +39,7 @@ export function requireLogin() {
 export function bindLogout(button) {
   if (!button) return;
   button.addEventListener('click', () => {
-    localStorage.removeItem('v43_mobile_token');
-    localStorage.removeItem('v43_mobile_user');
+    ['v43_mobile_token','v43_mobile_refresh_token','v43_mobile_user','mk_web_token','mk_web_refresh_token','mk_web_user'].forEach((key) => localStorage.removeItem(key));
     window.location.href = './login.html';
   });
 }

@@ -3,6 +3,7 @@
 const productRoutes = require('./productRoutes');
 const customerRoutes = require('./customerRoutes');
 const userRoutes = require('./userRoutes');
+const authRoutes = require('./authRoutes');
 const orderRoutes = require('./orderRoutes');
 const masterOrderRoutes = require('./masterOrderRoutes');
 const masterOrderController = require('../controllers/masterOrderController');
@@ -31,6 +32,9 @@ function registerApiRoutes(app) {
 
   // Core system routes must be mounted before legacy guard.
   app.use('/api', systemRoutes);
+
+  // Unified login for web software + sales app + delivery app.
+  app.use('/api/auth', authRoutes);
 
   // Unified search engine for web + mobile autocomplete.
   app.use('/api/search', searchRoutes);

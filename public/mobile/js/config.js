@@ -7,8 +7,8 @@ export const STORAGE_KEYS = {
 };
 
 export const MOBILE_ROUTES = {
-  login: '/api/mobile/login',
-  me: '/api/mobile/me',
+  login: '/api/auth/login',
+  me: '/api/auth/me',
   customers: '/api/mobile/customers',
   products: '/api/mobile/products',
   stock: '/api/mobile/stock',
@@ -20,5 +20,5 @@ export const MOBILE_ROUTES = {
   deliveryPayment: '/api/delivery/payment',
   deliveryCustomerDebts: '/api/mobile/delivery/customer-debts',
   cashSubmit: '/api/mobile/cash/submit',
-  refresh: '/api/mobile/refresh'
+  refresh: '/api/auth/refresh'
 };
