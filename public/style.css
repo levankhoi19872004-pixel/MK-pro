@@ -7801,3 +7801,56 @@ body::after{
 .import-date-filter-row input{height:34px;min-width:150px;border:1px solid #d6e2f2;border-radius:10px;padding:0 10px;background:#fff}
 .import-date-preset-row .mini{padding:6px 10px;font-size:12px}
 #importDateFilterInfo{margin:0}
+
+
+/* V44 master order list compact columns: checkbox | code | delivery staff | date | amount | cancel */
+.master-order-list-head,
+.master-order-row {
+  display: grid !important;
+  grid-template-columns: 34px 2fr 1.5fr 110px 120px 90px !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+.master-order-list-head {
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 700;
+  font-size: 13px;
+}
+.master-order-fixed-list {
+  max-height: 430px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.master-order-row {
+  padding: 10px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  margin-bottom: 8px !important;
+}
+.master-order-row span,
+.master-order-list-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.master-order-code {
+  font-weight: 700;
+  color: #1e40af;
+}
+.master-order-row .money-cell {
+  text-align: right;
+  font-weight: 700;
+  color: #047857;
+}
+.master-order-row .locked-text {
+  color: #6b7280;
+  font-weight: 700;
+}
+.master-order-row .button-row {
+  justify-content: flex-end;
+}

@@ -156,6 +156,11 @@ function toggleSelectAllUnmergedOrders() {
 }
 window.toggleSelectAllUnmergedOrders = toggleSelectAllUnmergedOrders;
 
+function isMasterOrderLocked(order) {
+  const status = String(order.status || order.deliveryStatus || '').toLowerCase();
+  return status === 'delivered' || status === 'completed' || order.accountingConfirmed === true || order.accountingStatus === 'confirmed';
+}
+
 function renderMasterOrders() {
   if (!masterOrderList) return;
   const rows = Array.isArray(masterOrdersCache) ? masterOrdersCache : [];
@@ -169,17 +174,18 @@ function renderMasterOrders() {
     const checked = selectedMasterOrderIds.has(key) ? 'checked' : '';
     const code = order.code || order.id || key;
     const delivery = order.deliveryStaffName || order.deliveryStaffCode || '';
-    const route = order.routeName || order.deliveryRoute || '';
-    const childCount = Number(order.childOrderCount || order.orderCount || (order.childOrderIds || []).length || (order.children || []).length || 0);
     const total = Number(order.totalAmount ?? order.amount ?? order.grandTotal ?? 0) || 0;
+    const locked = isMasterOrderLocked(order);
+    const cancelCell = locked
+      ? '<span class="locked-text">Đã khóa</span>'
+      : `<button type="button" class="secondary small danger cancel-master-order" data-id="${key}">Huỷ</button>`;
     return `<div class="order-row compact-order-row master-order-row">
       <label><input type="checkbox" class="master-order-check" data-id="${key}" ${checked} /></label>
-      <span><strong>${code}</strong><small>${route}</small></span>
-      <span>${delivery}</span>
+      <span class="master-order-code" title="${code}">${code}</span>
+      <span title="${delivery}">${delivery}</span>
       <span>${masterOrderDate(order.deliveryDate || order.date || order.createdAt)}</span>
-      <span>${childCount} đơn</span>
-      <span>${masterOrderMoney(total)}</span>
-      <span class="button-row"><button type="button" class="secondary small print-one-master-order" data-id="${key}">In</button></span>
+      <span class="money-cell">${masterOrderMoney(total)}</span>
+      <span class="button-row">${cancelCell}</span>
     </div>`;
   }).join('');
 }
@@ -278,20 +284,29 @@ function printSelectedMasterOrders() {
 }
 window.printSelectedMasterOrders = printSelectedMasterOrders;
 
-function exportSelectedMasterOrders() {
-  const selected = (masterOrdersCache || []).filter((row) => selectedMasterOrderIds.has(masterOrderIdentity(row)));
-  if (!selected.length) return alert('Chưa chọn đơn tổng để xuất Excel');
-  if (typeof exportErpRows !== 'function') return alert('Chưa sẵn sàng module xuất Excel');
-  exportErpRows('don-tong.csv', ['Mã đơn tổng', 'Ngày giao', 'Tuyến', 'NV giao', 'Số đơn con', 'Tổng tiền'], selected.map((row) => [
-    row.code || row.id || '',
-    masterOrderDate(row.deliveryDate || row.date || row.createdAt),
-    row.routeName || row.deliveryRoute || '',
-    row.deliveryStaffName || row.deliveryStaffCode || '',
-    row.childOrderCount || row.orderCount || (row.childOrderIds || []).length || (row.children || []).length || 0,
-    row.totalAmount || row.amount || row.grandTotal || 0
-  ]));
+
+
+
+async function cancelMasterOrderFromList(id) {
+  if (!id) return;
+  if (!confirm('Huỷ đơn tổng này và trả các đơn con về danh sách chưa gộp?')) return;
+  try {
+    const res = await (window.fetchWithTimeout || fetch)(`/api/master-orders/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Huỷ từ danh sách đơn tổng' })
+    }, 15000);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.ok === false) throw new Error(json.message || json.error || 'Không huỷ được đơn tổng');
+    selectedMasterOrderIds.delete(id);
+    window.__selectedMasterOrderIds = selectedMasterOrderIds;
+    await loadMasterOrderModule();
+  } catch (err) {
+    alert(err.message || 'Không huỷ được đơn tổng');
+  }
 }
-window.exportSelectedMasterOrders = exportSelectedMasterOrders;
+window.cancelMasterOrderFromList = cancelMasterOrderFromList;
+
 
 if (masterOrderList) {
   masterOrderList.addEventListener('change', (event) => {
@@ -302,9 +317,9 @@ if (masterOrderList) {
     window.__selectedMasterOrderIds = selectedMasterOrderIds;
   });
   masterOrderList.addEventListener('click', (event) => {
-    const btn = event.target.closest('.print-one-master-order');
+    const btn = event.target.closest('.cancel-master-order');
     if (!btn) return;
-    printMasterOrderIds([btn.dataset.id]);
+    cancelMasterOrderFromList(btn.dataset.id);
   });
 }
 

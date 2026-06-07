@@ -426,10 +426,17 @@
               <input id="masterOrderDateTo" type="date" title="Đến ngày" />
               <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
               <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>
-              <button id="exportSelectedMasterOrdersButton" class="secondary" type="button">Xuất Excel</button>
             </div>
           </div>
-          <div id="masterOrderList" class="order-list">Đang tải đơn tổng...</div>
+          <div class="master-order-list-head">
+            <span></span>
+            <span>Mã đơn tổng</span>
+            <span>NV giao</span>
+            <span>Ngày giao</span>
+            <span>Giá trị</span>
+            <span>Huỷ đơn</span>
+          </div>
+          <div id="masterOrderList" class="order-list master-order-fixed-list">Đang tải đơn tổng...</div>
         </section>
       </main>
     </section>

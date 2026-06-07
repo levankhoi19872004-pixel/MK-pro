@@ -3026,6 +3026,10 @@ async function updateMasterOrder(id, body = {}) {
 async function cancelMasterOrder(id, body = {}) {
   const masterOrder = await masterOrderRepository.findByIdOrCode(id);
   if (!masterOrder) return { error: 'Không tìm thấy đơn tổng', status: 404 };
+  const status = String(masterOrder.status || masterOrder.deliveryStatus || '').toLowerCase();
+  if (status === 'delivered' || status === 'completed' || masterOrder.accountingConfirmed === true || masterOrder.accountingStatus === 'confirmed') {
+    return { error: 'Đơn tổng đã giao hoặc đã xác nhận kế toán, không thể huỷ', status: 400 };
+  }
   const children = await orderService.getMasterChildren(masterOrder);
   const cancelled = {
     ...masterOrder,

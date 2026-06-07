@@ -122,7 +122,6 @@ if(masterOrderDateFrom && typeof loadMasterOrders==='function')masterOrderDateFr
 if(masterOrderDateTo && typeof loadMasterOrders==='function')masterOrderDateTo.addEventListener('change',loadMasterOrders);
 if(selectAllMasterOrdersButton && typeof toggleSelectAllMasterOrders==='function')selectAllMasterOrdersButton.addEventListener('click',toggleSelectAllMasterOrders);
 if(printSelectedMasterOrdersButton && typeof printSelectedMasterOrders==='function')printSelectedMasterOrdersButton.addEventListener('click',printSelectedMasterOrders);
-if(exportSelectedMasterOrdersButton && typeof exportSelectedMasterOrders==='function')exportSelectedMasterOrdersButton.addEventListener('click',exportSelectedMasterOrders);
 if(unmergedOrderList)unmergedOrderList.addEventListener('change',event=>{const check=event.target.closest('.child-order-check');if(!check)return;if(check.checked)selectedChildOrderIds.add(check.dataset.id);else selectedChildOrderIds.delete(check.dataset.id);renderUnmergedChildOrders();});
 if(reloadDeliveryTodayButton)reloadDeliveryTodayButton.addEventListener('click',loadDeliveryToday);
 if(deliveryDateFilter){if(!deliveryDateFilter.value)deliveryDateFilter.value=today();deliveryDateFilter.addEventListener('change',loadDeliveryToday);}

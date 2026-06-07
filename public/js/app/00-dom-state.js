@@ -188,7 +188,6 @@ const masterOrderDateFrom=document.getElementById('masterOrderDateFrom');
 const masterOrderDateTo=document.getElementById('masterOrderDateTo');
 const printSelectedMasterOrdersButton=document.getElementById('printSelectedMasterOrdersButton');
 const selectAllMasterOrdersButton=document.getElementById('selectAllMasterOrdersButton');
-const exportSelectedMasterOrdersButton=document.getElementById('exportSelectedMasterOrdersButton');
 const reloadMasterOrdersButton=document.getElementById('reloadMasterOrdersButton');
 
 const debtTable=document.getElementById('debtTable');
