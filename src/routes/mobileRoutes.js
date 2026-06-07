@@ -1432,16 +1432,114 @@ function buildSalesMobileCustomerFilter(mobileUser = {}) {
 
 async function buildDebtFirstMobileCustomers(req) {
   const limit = Math.max(1, Math.min(toNumber(req.query.limit || 300), 500));
-  const baseFilter = buildSalesMobileCustomerFilter(req.mobileUser || {});
-  const customers = await Customer.find(baseFilter).limit(limit).lean();
-  const debts = await buildMobileSalesDebtItems(req.mobileUser || {});
-  const withLastOrder = await attachMobileCustomerLastOrderDates(customers, req.mobileUser || {});
+  const mobileUser = req.mobileUser || {};
+  const isSalesUser = String(mobileUser.role || '') === 'sales';
+  const baseFilter = buildSalesMobileCustomerFilter(mobileUser);
+  const debts = await buildMobileSalesDebtItems(mobileUser);
+
+  const staffCode = String(mobileUser.code || mobileUser.staffCode || '').trim();
+  const staffName = String(mobileUser.name || mobileUser.fullName || '').trim();
+  const orderStaffOr = [];
+  if (isSalesUser && staffCode) orderStaffOr.push({ salesStaffCode: staffCode }, { staffCode });
+  if (isSalesUser && staffName) orderStaffOr.push({ salesStaffName: staffName }, { staffName });
+
+  const assignedOrders = orderStaffOr.length
+    ? await SalesOrder.find({ $or: orderStaffOr })
+        .select('customerId customerCode customerName customerPhone customerAddress phone address')
+        .sort({ date: -1, orderDate: -1, createdAt: -1 })
+        .limit(10000)
+        .lean()
+    : [];
+
+  const orderCustomerIds = compactKeys(assignedOrders.map((order) => order.customerId));
+  const orderCustomerCodes = compactKeys(assignedOrders.map((order) => order.customerCode));
+  const orderCustomerNames = compactKeys(assignedOrders.map((order) => order.customerName));
+
+  const customerFilter = {};
+  if (isSalesUser) {
+    const or = [];
+    if (baseFilter && Array.isArray(baseFilter.$or)) or.push(...baseFilter.$or);
+    if (orderCustomerIds.length) or.push({ id: { $in: orderCustomerIds } }, { customerId: { $in: orderCustomerIds } });
+    if (orderCustomerCodes.length) or.push({ code: { $in: orderCustomerCodes } }, { customerCode: { $in: orderCustomerCodes } });
+    if (orderCustomerNames.length) or.push({ name: { $in: orderCustomerNames } }, { customerName: { $in: orderCustomerNames } });
+    if (or.length) customerFilter.$or = or;
+  }
+
+  const maxCustomerRows = Math.max(limit * 5, 1000);
+  let customers = await Customer.find(customerFilter)
+    .sort({ code: 1, customerCode: 1, name: 1, customerName: 1 })
+    .limit(maxCustomerRows)
+    .lean();
+
+  // Nếu danh mục khách chưa gán đúng NVBH và đơn bán cũng không đủ khóa,
+  // fallback lấy danh mục khách để app không bị trắng màn hình.
+  if (!customers.length && isSalesUser) {
+    customers = await Customer.find({})
+      .sort({ code: 1, customerCode: 1, name: 1, customerName: 1 })
+      .limit(maxCustomerRows)
+      .lean();
+  }
+
+  const mergedByKey = new Map();
+  const addCustomer = (customer = {}, sourceRank = 0) => {
+    const keys = mobileCustomerIdentityKeys(customer);
+    const primaryKey = keys[0];
+    if (!primaryKey) return;
+    const existingKey = keys.find((key) => mergedByKey.has(key));
+    const normalized = {
+      ...customer,
+      id: customer.id || customer._id || customer.customerId || '',
+      code: customer.code || customer.customerCode || '',
+      name: customer.name || customer.customerName || '',
+      phone: customer.phone || customer.customerPhone || '',
+      address: customer.address || customer.customerAddress || '',
+      sourceRank
+    };
+    if (existingKey) {
+      const current = mergedByKey.get(existingKey);
+      const merged = {
+        ...normalized,
+        ...current,
+        phone: current.phone || normalized.phone,
+        address: current.address || normalized.address,
+        code: current.code || normalized.code,
+        name: current.name || normalized.name,
+        sourceRank: Math.min(toNumber(current.sourceRank || 0), sourceRank)
+      };
+      for (const key of mobileCustomerIdentityKeys(merged)) mergedByKey.set(key, merged);
+      return;
+    }
+    for (const key of keys) mergedByKey.set(key, normalized);
+  };
+
+  customers.forEach((customer) => addCustomer(customer, 0));
+
+  // Bổ sung khách có phát sinh đơn bán của NVBH nhưng chưa khớp được vào danh mục customers.
+  assignedOrders.forEach((order) => addCustomer({
+    id: order.customerId || '',
+    customerId: order.customerId || '',
+    code: order.customerCode || '',
+    customerCode: order.customerCode || '',
+    name: order.customerName || '',
+    customerName: order.customerName || '',
+    phone: order.customerPhone || order.phone || '',
+    customerPhone: order.customerPhone || order.phone || '',
+    address: order.customerAddress || order.address || '',
+    customerAddress: order.customerAddress || order.address || ''
+  }, 1));
+
+  const uniqueCustomers = Array.from(new Set(Array.from(mergedByKey.values())));
+  const withLastOrder = await attachMobileCustomerLastOrderDates(uniqueCustomers, mobileUser);
   return attachMobileCustomerDebt(withLastOrder, debts)
-    .sort((a,b)=> {
-      const debtDelta = toNumber(b.debtAmount||0)-toNumber(a.debtAmount||0);
+    .sort((a, b) => {
+      const debtDelta = toNumber(b.debtAmount || 0) - toNumber(a.debtAmount || 0);
       if (debtDelta) return debtDelta;
-      return String(a.code||a.customerCode||a.name||'').localeCompare(String(b.code||b.customerCode||b.name||''),'vi');
-    });
+      const sourceDelta = toNumber(a.sourceRank || 0) - toNumber(b.sourceRank || 0);
+      if (sourceDelta) return sourceDelta;
+      return String(a.code || a.customerCode || a.name || '').localeCompare(String(b.code || b.customerCode || b.name || ''), 'vi');
+    })
+    .slice(0, limit)
+    .map(({ sourceRank, ...item }) => item);
 }
 
 router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
