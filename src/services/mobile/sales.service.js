@@ -317,7 +317,8 @@ function createMobileSalesService(ctx) {
           saleMode: PROMOTION,
           pricingMode: PROMOTION,
           priceLocked: true,
-          promotionCalculated: true
+          promotionCalculated: true,
+          promotionRows: Array.isArray(line.promotionRows) ? line.promotionRows : []
         };
       });
 

@@ -201,7 +201,22 @@ async function calculatePromotions(items = []) {
     const groupCode = groupByProduct.get(productCode) || '';
     if (groupCode) groupTotals.set(groupCode, toNumber(groupTotals.get(groupCode)) + promotionBaseAmount);
     const directRule = productRuleMap.get(productCode);
-    return { ...item, productCode, productName: clean(item.productName || product.name), quantity, catalogSalePrice, promotionBaseAmount, directDiscountPercent: toNumber(directRule?.discountPercent), groupCode };
+    const directPromotionRule = directRule ? {
+      programCode: clean(directRule.programCode || directRule.code),
+      programName: clean(directRule.programName || directRule.name || directRule.description || directRule.content),
+      discountPercent: toNumber(directRule.discountPercent)
+    } : null;
+    return {
+      ...item,
+      productCode,
+      productName: clean(item.productName || product.name),
+      quantity,
+      catalogSalePrice,
+      promotionBaseAmount,
+      directDiscountPercent: toNumber(directRule?.discountPercent),
+      directPromotionRule,
+      groupCode
+    };
   });
 
   const bestGroupRule = new Map();
@@ -216,7 +231,48 @@ async function calculatePromotions(items = []) {
     const groupDiscountPercent = toNumber(groupRule?.discountPercent);
     const directDiscountAmount = Math.round(line.promotionBaseAmount * line.directDiscountPercent / 100);
     const groupDiscountAmount = Math.round(line.promotionBaseAmount * groupDiscountPercent / 100);
-    return { ...line, groupDiscountPercent, groupDiscountAmount, directDiscountAmount, totalDiscountAmount: directDiscountAmount + groupDiscountAmount };
+    const promotionRows = [];
+
+    if (line.directPromotionRule && directDiscountAmount > 0) {
+      promotionRows.push({
+        promotionCode: line.directPromotionRule.programCode,
+        code: line.directPromotionRule.programCode,
+        description: line.directPromotionRule.programName,
+        qualifiedAmount: line.promotionBaseAmount,
+        discountPercent: line.directPromotionRule.discountPercent,
+        discountBeforeTax: Math.round(directDiscountAmount / 1.08),
+        discountAfterTax: directDiscountAmount,
+        promotionType: 'product',
+        scope: 'product',
+        productCode: line.productCode,
+        productName: line.productName
+      });
+    }
+
+    if (groupRule && groupDiscountAmount > 0) {
+      promotionRows.push({
+        promotionCode: clean(groupRule.programCode || groupRule.code),
+        code: clean(groupRule.programCode || groupRule.code),
+        description: clean(groupRule.programName || groupRule.name || groupRule.description || groupRule.content),
+        qualifiedAmount: toNumber(groupTotals.get(line.groupCode)),
+        discountPercent: groupDiscountPercent,
+        discountBeforeTax: Math.round(groupDiscountAmount / 1.08),
+        discountAfterTax: groupDiscountAmount,
+        promotionType: 'group',
+        scope: 'group',
+        productCode: line.productCode,
+        productName: line.productName
+      });
+    }
+
+    return {
+      ...line,
+      groupDiscountPercent,
+      groupDiscountAmount,
+      directDiscountAmount,
+      totalDiscountAmount: directDiscountAmount + groupDiscountAmount,
+      promotionRows
+    };
   });
 
   return {
