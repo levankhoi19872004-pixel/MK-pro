@@ -151,16 +151,20 @@ function mergeCustomerDebt(customer = {}, debtLookup = buildDebtLookup()) {
 
 tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
-document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); loadCustomers(customerSearch.value.trim()); });
+document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); await loadDebts({ silent: true }); loadCustomers(customerSearch.value.trim()); });
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
 document.getElementById('reloadDebtsBtn')?.addEventListener('click', loadDebts);
 document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
 
-loadCustomers('');
-loadTodayOrders();
-loadDebts();
-initProductAutocomplete();
-renderCart();
+initSalesApp();
+
+async function initSalesApp() {
+  await loadDebts({ silent: true });
+  await loadCustomers('');
+  loadTodayOrders();
+  initProductAutocomplete();
+  renderCart();
+}
 
 async function preloadCustomers(force = false) {
   // Phase 3.6: không preload toàn bộ khách hàng. Chỉ giữ hàm này để nút Tải lại xóa cache.
@@ -170,9 +174,10 @@ async function preloadCustomers(force = false) {
 }
 
 async function filterCustomers(keyword = '') {
-  if (window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(keyword, { limit: 50, mobile: true });
-  if (window.CatalogCache) return window.CatalogCache.searchCustomers(keyword, { limit: 50, mobile: true });
-  const data = await mobileApi.getCustomers(keyword, { limit: 50 });
+  // App bán hàng phải dùng API mobile/customers để dữ liệu đã được gắn công nợ từ ArLedger
+  // và được sắp xếp theo công nợ giảm dần. Không dùng UnifiedSearchEngine/CatalogCache tại đây
+  // vì cache có thể không có debtAmount chuẩn.
+  const data = await mobileApi.getCustomers(keyword, { limit: 300 });
   return data.items || data.customers || [];
 }
 
@@ -456,18 +461,22 @@ function renderCart() {
 }
 
 
-async function loadDebts() {
-  if (!debtList) return;
+async function loadDebts(options = {}) {
+  const silent = !!options.silent;
   try {
-    debtList.className = 'order-list empty';
-    debtList.textContent = 'Đang tải công nợ...';
+    if (debtList && !silent) {
+      debtList.className = 'order-list empty';
+      debtList.textContent = 'Đang tải công nợ...';
+    }
     const data = await mobileApi.getSalesDebts({});
     debtCache = Array.isArray(data.items) ? data.items : [];
-    renderDebts(debtCache, data.summary || {});
+    if (debtList) renderDebts(debtCache, data.summary || {});
     if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
   } catch (err) {
-    debtList.className = 'order-list empty';
-    debtList.textContent = err.message || 'Không tải được công nợ';
+    if (debtList && !silent) {
+      debtList.className = 'order-list empty';
+      debtList.textContent = err.message || 'Không tải được công nợ';
+    }
   }
 }
 

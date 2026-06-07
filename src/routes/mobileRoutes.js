@@ -1403,12 +1403,13 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
       ...req.query,
       includeMetrics: '1',
       mobile: '1',
-      limit: req.query.limit || 100
+      limit: req.query.limit || 300
     });
     const withLastOrder = await attachMobileCustomerLastOrderDates(rawItems, req.mobileUser || {});
     const debts = await buildMobileSalesDebtItems(req.mobileUser || {});
-    const items = attachMobileCustomerDebt(withLastOrder, debts);
-    return ok(res, { source: 'unified-search-mobile-ar-ledger-debt', items });
+    const items = attachMobileCustomerDebt(withLastOrder, debts)
+      .sort((a, b) => toNumber(b.debtAmount || 0) - toNumber(a.debtAmount || 0));
+    return ok(res, { source: 'mobile-customers-ar-ledger-debt-sorted', items });
   } catch (err) {
     return fail(res, 500, err.message || 'Không tải được khách hàng mobile');
   }
