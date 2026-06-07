@@ -79,7 +79,9 @@ function getDmsItems(data) {
     priceAfterTaxBeforePromotion: item.listPriceAfterVat || item.priceAfterVatBeforeDiscount,
     priceAfterTaxAfterPromotion: item.priceAfterVatAfterDiscount || item.priceAfterDiscount,
     vatAmount: item.tax,
-    lineAmount: item.amount
+    lineAmount: item.amount,
+    isPromotionGift: item.isPromo,
+    promotionRows: item.promotionRows || []
   }));
 }
 
@@ -87,12 +89,17 @@ function getDmsPromotions(data) {
   const payload = getDmsPayload(data);
   if (Array.isArray(payload.promotions) && payload.promotions.length) return payload.promotions;
   return (data.promotions || []).map((promo) => ({
-    promotionCode: promo.code,
-    description: promo.name,
-    qualifiedAmount: promo.basisAmount,
-    discountPercent: promo.percent,
-    discountBeforeTax: promo.beforeTax,
-    discountAfterTax: promo.afterTax
+    productCode: promo.productCode || '',
+    productName: promo.productName || '',
+    lineType: promo.lineType || '',
+    quantity: promo.quantity || promo.qty,
+    promotionCode: promo.promotionCode || promo.code,
+    code: promo.promotionCode || promo.code,
+    description: promo.description || promo.name,
+    qualifiedAmount: promo.qualifiedAmount || promo.basisAmount,
+    discountPercent: promo.discountPercent || promo.percent,
+    discountBeforeTax: promo.discountBeforeTax || promo.beforeTax,
+    discountAfterTax: promo.discountAfterTax || promo.afterTax
   }));
 }
 
@@ -154,12 +161,12 @@ function dmsMoney(data, value) {
 
 function renderDmsPromotionHeaderOnly() {
   return `
-    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI THEO DÒNG SẢN PHẨM: (B+C)</div>
     <table class="dms-detail-table dms-promotion-table">
       <thead>
         <tr>
-          <th style="width:28mm">Mã CTKM Tiền</th>
-          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:28mm">Mã CTKM</th>
+          <th>Diễn giải khuyến mãi theo từng dòng sản phẩm bán / khuyến mại</th>
           <th style="width:25mm">Giá trị hàng hóa mua</th>
           <th style="width:18mm">% chiết khấu</th>
           <th style="width:24mm">Tiền CK trước thuế</th>
@@ -689,23 +696,31 @@ function renderDmsPromotionTable(data) {
   const promotions = getDmsPromotions(data);
   const summary = getDmsSummary(data);
   const rows = promotions.length
-    ? promotions.map((promo) => `
+    ? promotions.map((promo) => {
+      const productInfo = [promo.lineType, promo.productCode, promo.productName]
+        .filter(Boolean)
+        .join(' - ');
+      return `
       <tr>
-        <td class="mono">${text(promo.promotionCode)}</td>
-        <td>${text(promo.description)}</td>
+        <td class="mono">${text(promo.promotionCode || promo.code)}</td>
+        <td>
+          ${productInfo ? `<div class="dms-promo-product">${text(productInfo)}</div>` : ''}
+          <div>${text(promo.description)}</div>
+        </td>
         <td class="right">${dmsMoney(data, promo.qualifiedAmount)}</td>
         <td class="right">${formatPercent(promo.discountPercent)}</td>
         <td class="right">${dmsMoney(data, promo.discountBeforeTax)}</td>
         <td class="right strong">${dmsMoney(data, promo.discountAfterTax)}</td>
-      </tr>`).join('')
+      </tr>`;
+    }).join('')
     : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
   return `
-    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI THEO DÒNG SẢN PHẨM: (B+C)</div>
     <table class="dms-detail-table dms-promotion-table">
       <thead>
         <tr>
-          <th style="width:28mm">Mã CTKM Tiền</th>
-          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:28mm">Mã CTKM</th>
+          <th>Diễn giải khuyến mãi theo từng dòng sản phẩm bán / khuyến mại</th>
           <th style="width:25mm">Giá trị hàng hóa mua</th>
           <th style="width:18mm">% chiết khấu</th>
           <th style="width:24mm">Tiền CK trước thuế</th>

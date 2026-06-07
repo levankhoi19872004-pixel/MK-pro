@@ -935,44 +935,130 @@ function masterReturnItemAmount(item={}){
   if(direct>0)return direct;
   return masterReturnItemQty(item)*masterReturnItemPrice(item);
 }
+function masterReturnFirstValue(...values){
+  for(const value of values){
+    if(value===null||value===undefined)continue;
+    if(typeof value==='string' && !value.trim())continue;
+    return value;
+  }
+  return undefined;
+}
+function masterReturnNormalizeWarehouse(raw){
+  const value=String(raw||'').trim().toUpperCase();
+  if(!value)return '';
+  if(value.includes('KHO_PC')||value.includes('KHO PC')||value==='PC'||value.includes(' PC'))return 'KHO_PC';
+  if(value.includes('KHO_HC')||value.includes('KHO HC')||value==='HC'||value.includes(' HC'))return 'KHO_HC';
+  if(value.includes('PC'))return 'KHO_PC';
+  if(value.includes('HC'))return 'KHO_HC';
+  return '';
+}
 function masterReturnItemPack(item={}){
-  const pack=Number(item.conversionRate??item.packingQty??item.pack??item.unitPerCase??item.unitsPerCase??1)||1;
-  return Math.max(1,Math.round(pack));
+  const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
+  const product=item.product||item.productInfo||{};
+  const direct=masterReturnFirstValue(
+    item.packingQty,
+    item.conversionRate,
+    item.unitsPerCase,
+    item.qtyPerCase,
+    item.unitPerCase,
+    item.pack,
+    productSnapshot.conversionRate,
+    productSnapshot.packingQty,
+    productSnapshot.unitsPerCase,
+    productSnapshot.qtyPerCase,
+    productSnapshot.unitPerCase,
+    productSnapshot.pack,
+    product.conversionRate,
+    product.packingQty,
+    product.unitsPerCase,
+    product.qtyPerCase,
+    product.unitPerCase,
+    product.pack
+  );
+  const pack=Number(direct);
+  return Number.isFinite(pack)&&pack>0?Math.max(1,Math.round(pack)):1;
 }
 function masterReturnCaseDisplay(qty, pack){
-  const q=Math.max(0,Number(qty||0));
-  const p=Math.max(1,Number(pack||1));
+  const q=Math.max(0,Math.round(Number(qty||0)));
+  const p=Math.max(1,Math.round(Number(pack||1)));
   const cases=Math.floor(q/p);
-  const loose=q-(cases*p);
+  const loose=q%p;
   return `${cases}/${loose}`;
 }
 function masterReturnLineAmount(item={}){
   return masterReturnItemQty(item)*masterReturnItemPrice(item);
 }
 function masterReturnWarehouseCode(item={}, child={}){
-  const raw=String(item.warehouseCode||item.defaultWarehouse||item.warehouse||child.warehouseCode||child.defaultWarehouse||'KHO_HC').toUpperCase();
-  return raw.includes('PC')?'KHO_PC':'KHO_HC';
+  const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
+  const product=item.product||item.productInfo||{};
+  const candidates=[
+    item.warehouseCode,
+    item.defaultWarehouse,
+    item.warehouse,
+    item.warehouseId,
+    item.stockWarehouseCode,
+    productSnapshot.defaultWarehouse,
+    productSnapshot.warehouseCode,
+    productSnapshot.warehouse,
+    productSnapshot.warehouseId,
+    product.defaultWarehouse,
+    product.warehouseCode,
+    product.warehouse,
+    product.warehouseId,
+    child.warehouseCode,
+    child.defaultWarehouse,
+    child.warehouse,
+    child.warehouseId
+  ];
+  for(const candidate of candidates){
+    const normalized=masterReturnNormalizeWarehouse(candidate);
+    if(normalized)return normalized;
+  }
+  return 'KHO_HC';
 }
 function buildMasterReturnPrintPages(r={}, children=[]){
-  const byWarehouse={KHO_HC:new Map(),KHO_PC:new Map()};
+  const byWarehouse={};
+  const getWarehouseMap=(warehouseCode)=>{
+    if(!byWarehouse[warehouseCode])byWarehouse[warehouseCode]=new Map();
+    return byWarehouse[warehouseCode];
+  };
   children.forEach(child=>{
     (Array.isArray(child.items)?child.items:[]).forEach(item=>{
       const qty=masterReturnItemQty(item);
       if(qty<=0)return;
       const wh=masterReturnWarehouseCode(item,child);
-      const code=String(item.productCode||item.code||item.sku||item.barcode||'');
-      const name=String(item.productName||item.name||item.description||'');
+      const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
+      const product=item.product||item.productInfo||{};
+      const code=String(masterReturnFirstValue(item.productCode,item.code,item.sku,item.barcode,productSnapshot.productCode,productSnapshot.code,product.code,product.productCode,'')||'').trim();
+      const name=String(masterReturnFirstValue(item.productName,item.name,item.description,productSnapshot.productName,productSnapshot.name,product.name,'')||'').trim();
       const pack=masterReturnItemPack(item);
       const price=masterReturnItemPrice(item);
-      const key=[code,name,pack,price].join('|');
-      const old=byWarehouse[wh].get(key)||{productCode:code,productName:name,pack,qty:0,salePrice:price,amount:0};
+      const normalizedPrice=Math.round(Number(price||0));
+      const key=[wh,code,normalizedPrice].join('|');
+      const map=getWarehouseMap(wh);
+      const old=map.get(key)||{warehouseCode:wh,productCode:code,productName:name,pack,qty:0,salePrice:price,amount:0};
       old.qty+=qty;
+      old.pack=old.pack||pack;
+      if(!old.productName&&name)old.productName=name;
+      old.salePrice=old.salePrice||price;
       old.caseDisplay=masterReturnCaseDisplay(old.qty, old.pack);
       old.amount=old.qty*old.salePrice;
-      byWarehouse[wh].set(key,old);
+      map.set(key,old);
     });
   });
-  return Object.entries(byWarehouse).map(([warehouseCode,map])=>({warehouseCode,warehouseName:warehouseCode==='KHO_PC'?'KHO PC':'KHO HC',items:[...map.values()]})).filter(page=>page.items.length);
+  const order=['KHO_HC','KHO_PC'];
+  return Object.entries(byWarehouse)
+    .sort(([a],[b])=>{
+      const ai=order.indexOf(a), bi=order.indexOf(b);
+      if(ai!==-1||bi!==-1)return (ai===-1?99:ai)-(bi===-1?99:bi);
+      return a.localeCompare(b);
+    })
+    .map(([warehouseCode,map])=>({
+      warehouseCode,
+      warehouseName:warehouseCode==='KHO_PC'?'KHO PC':warehouseCode==='KHO_HC'?'KHO HC':warehouseCode,
+      items:[...map.values()].sort((a,b)=>String(a.productCode||'').localeCompare(String(b.productCode||'')))
+    }))
+    .filter(page=>page.items.length);
 }
 function buildMasterReturnKpiRows(r={}, children=[]){
   const rows=children.map(child=>{

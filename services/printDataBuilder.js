@@ -181,6 +181,200 @@ function getItemDiscount(item) {
   return toNumber(pick(item.discount, item.discountAmount, item.ck, item.ckAmount, 0));
 }
 
+
+function normalizePromotionText(value) {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) return value.map(normalizePromotionText).filter(Boolean).join('; ');
+  if (typeof value === 'object') {
+    return pick(value.description, value.name, value.title, value.content, value.note, value.ruleName, value.programName, value.promotionName, value.dienGiai, value.noiDung);
+  }
+  return String(value || '').trim();
+}
+
+function collectItemPromotionSources(item = {}) {
+  const sources = [];
+  const arrayFields = [
+    item.promotions,
+    item.promotionRows,
+    item.promotionDetails,
+    item.appliedPromotions,
+    item.appliedPromotionRows,
+    item.discountRows,
+    item.discounts,
+    item.productPromotions,
+    item.productSnapshot?.promotions,
+    item.productSnapshot?.promotionRows,
+    item.product?.promotions,
+    item.product?.promotionRows
+  ];
+  for (const value of arrayFields) {
+    if (Array.isArray(value)) sources.push(...value);
+  }
+
+  const singleFields = [
+    item.promotion,
+    item.promotionInfo,
+    item.promotionDetail,
+    item.appliedPromotion,
+    item.discountInfo,
+    item.productSnapshot?.promotion,
+    item.product?.promotion
+  ];
+  for (const value of singleFields) {
+    if (value) sources.push(value);
+  }
+
+  const inlineDescription = pick(
+    item.promotionDescription,
+    item.promotionName,
+    item.promotionText,
+    item.promotionContent,
+    item.promotionNote,
+    item.promoDescription,
+    item.promoName,
+    item.dienGiaiKhuyenMai,
+    item.noiDungKhuyenMai,
+    item.productSnapshot?.promotionDescription,
+    item.productSnapshot?.promotionName,
+    item.productSnapshot?.promotionText,
+    item.product?.promotionDescription,
+    item.product?.promotionName,
+    item.product?.promotionText
+  );
+  const inlineCode = pick(
+    item.promotionCode,
+    item.promoCode,
+    item.ctkmCode,
+    item.maCTKM,
+    item.productSnapshot?.promotionCode,
+    item.product?.promotionCode
+  );
+
+  if (inlineDescription || inlineCode) {
+    sources.push({
+      code: inlineCode,
+      promotionCode: inlineCode,
+      description: inlineDescription,
+      name: inlineDescription,
+      discountPercent: item.discountPercent,
+      percent: item.discountPercent,
+      discountBeforeTax: item.discountBeforeTax,
+      beforeTax: item.discountBeforeTax,
+      discountAfterTax: item.discountAfterTax || item.discount || item.discountAmount,
+      afterTax: item.discountAfterTax || item.discount || item.discountAmount
+    });
+  }
+
+  return sources;
+}
+
+function normalizeItemPromotionRows(item = {}, normalizedLine = {}) {
+  const sources = collectItemPromotionSources(item);
+  const lineProductCode = pick(normalizedLine.productCode, normalizedLine.code, item.productCode, item.code, item.sku, item.maHang);
+  const lineProductName = pick(normalizedLine.productName, normalizedLine.name, item.productName, item.name, item.tenHang);
+  const lineType = normalizedLine.isPromo ? 'KM' : 'Bán';
+  const qty = toNumber(pick(normalizedLine.qty, normalizedLine.quantity, item.qty, item.quantity, item.totalQty));
+  const lineAmount = toNumber(pick(normalizedLine.gsvAmount, normalizedLine.lineAmount, normalizedLine.amount, item.gsvAmount, item.amount));
+  const discountPercent = toNumber(pick(normalizedLine.discountPercent, item.discountPercent, item.percent, item.rate));
+  const discountAfterTax = toNumber(pick(item.discountAfterTax, item.afterTax, item.discountAmount, item.discount, normalizedLine.discount, 0));
+  const discountBeforeTax = toNumber(pick(item.discountBeforeTax, item.beforeTax, discountAfterTax ? Math.round(discountAfterTax / 1.08) : 0));
+
+  if (!sources.length && (discountPercent > 0 || discountAfterTax > 0 || normalizedLine.isPromo)) {
+    sources.push({
+      code: pick(item.promotionCode, item.promoCode, item.ctkmCode, item.maCTKM),
+      description: normalizedLine.isPromo
+        ? `Hàng khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`
+        : `Chiết khấu/khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`,
+      discountPercent,
+      discountBeforeTax,
+      discountAfterTax
+    });
+  }
+
+  const rows = sources.map((source) => {
+    const code = pick(source.promotionCode, source.code, source.ctkmCode, source.maCTKM, source.programCode);
+    const rawDescription = normalizePromotionText(source);
+    const description = rawDescription || (normalizedLine.isPromo
+      ? `Hàng khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`
+      : `Khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`);
+
+    return {
+      productCode: lineProductCode,
+      productName: lineProductName,
+      lineType,
+      quantity: qty,
+      promotionCode: code,
+      code,
+      description,
+      name: description,
+      qualifiedAmount: toNumber(pick(source.qualifiedAmount, source.basisAmount, source.baseAmount, source.giaTriHangHoa, source.amount, lineAmount)),
+      basisAmount: toNumber(pick(source.qualifiedAmount, source.basisAmount, source.baseAmount, source.giaTriHangHoa, source.amount, lineAmount)),
+      discountPercent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
+      percent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
+      discountBeforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),
+      beforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),
+      discountAfterTax: toNumber(pick(source.discountAfterTax, source.afterTax, source.amountAfterTax, source.tienCKSauThue, source.discountAmount, discountAfterTax)),
+      afterTax: toNumber(pick(source.discountAfterTax, source.afterTax, source.amountAfterTax, source.tienCKSauThue, source.discountAmount, discountAfterTax))
+    };
+  });
+
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = [row.productCode, row.lineType, row.promotionCode, row.description, row.discountAfterTax, row.discountPercent].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return row.description || row.promotionCode || row.discountAfterTax || row.discountPercent;
+  });
+}
+
+function buildPromotionsFromInvoiceItems(items = []) {
+  const rows = [];
+  for (const item of items) {
+    const itemRows = Array.isArray(item.promotionRows) ? item.promotionRows : [];
+    for (const row of itemRows) {
+      rows.push({
+        productCode: item.productCode || row.productCode,
+        productName: item.productName || row.productName,
+        lineType: item.isPromotionGift || item.isPromo ? 'KM' : (row.lineType || 'Bán'),
+        quantity: item.quantity || row.quantity,
+        promotionCode: row.promotionCode || row.code || item.promotionCode || '',
+        code: row.promotionCode || row.code || item.promotionCode || '',
+        description: row.description || row.name || '',
+        qualifiedAmount: toNumber(row.qualifiedAmount || row.basisAmount),
+        basisAmount: toNumber(row.qualifiedAmount || row.basisAmount),
+        discountPercent: toNumber(row.discountPercent || row.percent),
+        percent: toNumber(row.discountPercent || row.percent),
+        discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
+        beforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
+        discountAfterTax: toNumber(row.discountAfterTax || row.afterTax),
+        afterTax: toNumber(row.discountAfterTax || row.afterTax)
+      });
+    }
+  }
+  return mergePromotionRows(rows);
+}
+
+function mergePromotionRows(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = [row.productCode || '', row.lineType || '', row.promotionCode || row.code || '', row.description || row.name || '', row.discountPercent || 0].join('|');
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row });
+    } else {
+      existing.qualifiedAmount = toNumber(existing.qualifiedAmount) + toNumber(row.qualifiedAmount);
+      existing.basisAmount = existing.qualifiedAmount;
+      existing.discountBeforeTax = toNumber(existing.discountBeforeTax) + toNumber(row.discountBeforeTax);
+      existing.beforeTax = existing.discountBeforeTax;
+      existing.discountAfterTax = toNumber(existing.discountAfterTax) + toNumber(row.discountAfterTax);
+      existing.afterTax = existing.discountAfterTax;
+      existing.quantity = toNumber(existing.quantity) + toNumber(row.quantity);
+    }
+  }
+  return Array.from(map.values());
+}
+
+
 function getItemTax(item) {
   return toNumber(pick(item.tax, item.vat, item.taxAmount, item.vatAmount, 0));
 }
@@ -222,6 +416,19 @@ function normalizeOneItem(item, index, sourceOrder = null) {
   const tax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
   const amount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
   const caseInfo = normalizeQuantityByPack(qty, pack);
+  const promotionRows = normalizeItemPromotionRows(item, {
+    code: pick(item.code, item.productCode, item.sku, item.maHang),
+    productCode: pick(item.productCode, item.code, item.sku, item.maHang),
+    name: pick(item.name, item.productName, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    productName: pick(item.productName, item.name, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    qty,
+    quantity: qty,
+    gsvAmount: Math.round(qty * priceAfterTaxBeforePromotion),
+    amount,
+    discount,
+    discountPercent,
+    isPromo
+  });
 
   return {
     stt: index + 1,
@@ -264,7 +471,10 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',
     warehouseCode,
     warehouseName,
-    sourceOrderCodes: Array.isArray(item.sourceOrderCodes) ? item.sourceOrderCodes : []
+    sourceOrderCodes: Array.isArray(item.sourceOrderCodes) ? item.sourceOrderCodes : [],
+    promotionCode: pick(item.promotionCode, item.promoCode, item.ctkmCode, item.maCTKM, promotionRows[0]?.promotionCode),
+    promotionDescription: pick(item.promotionDescription, item.promotionName, item.promotionText, promotionRows[0]?.description),
+    promotionRows
   };
 }
 
@@ -534,18 +744,39 @@ function normalizeInvoiceItem(item, index) {
     vatAmount,
     lineAmount,
     isPromotionGift: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO'),
-    promotionCode: item.promotionCode || ''
+    promotionCode: item.promotionCode || '',
+    promotionRows: Array.isArray(item.promotionRows)
+      ? item.promotionRows
+      : normalizeItemPromotionRows(item, {
+          productCode: String(pick(item.productCode, item.code, item.sku, item.maHang)).trim(),
+          productName: String(pick(item.productName, item.name, item.tenHang)).trim(),
+          quantity,
+          qty: quantity,
+          gsvAmount: quantity * priceAfterTaxBeforePromotion,
+          lineAmount,
+          discountPercent,
+          isPromo: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO')
+        })
   };
 }
 
 function normalizeInvoicePromotion(row = {}) {
   return {
+    productCode: String(row.productCode || row.maHang || '').trim(),
+    productName: String(row.productName || row.tenHang || '').trim(),
+    lineType: row.lineType || row.type || '',
+    quantity: toNumber(row.quantity || row.qty),
     promotionCode: String(row.promotionCode || row.code || '').trim(),
+    code: String(row.promotionCode || row.code || '').trim(),
     description: String(row.description || row.name || '').trim(),
     qualifiedAmount: toNumber(row.qualifiedAmount || row.basisAmount),
+    basisAmount: toNumber(row.qualifiedAmount || row.basisAmount),
     discountPercent: toNumber(row.discountPercent || row.percent),
+    percent: toNumber(row.discountPercent || row.percent),
     discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-    discountAfterTax: toNumber(row.discountAfterTax || row.afterTax)
+    beforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
+    discountAfterTax: toNumber(row.discountAfterTax || row.afterTax),
+    afterTax: toNumber(row.discountAfterTax || row.afterTax)
   };
 }
 
@@ -654,7 +885,11 @@ function validateAgainstDmsSample(payload = {}) {
 
 function buildDeliveryInvoicePayload(raw = {}) {
   const items = Array.isArray(raw.items) ? raw.items.map(normalizeInvoiceItem) : [];
-  const promotions = Array.isArray(raw.promotions) ? raw.promotions.map(normalizeInvoicePromotion) : [];
+  const explicitPromotions = Array.isArray(raw.promotions) ? raw.promotions.map(normalizeInvoicePromotion) : [];
+  const itemPromotions = buildPromotionsFromInvoiceItems(items);
+  // Quy tắc in đơn con: phần diễn giải khuyến mãi ưu tiên sinh từ từng dòng sản phẩm bán/KM.
+  // Nếu đơn cũ chưa lưu khuyến mãi ở dòng hàng thì mới dùng danh sách promotions tổng hợp.
+  const promotions = itemPromotions.length ? itemPromotions : explicitPromotions;
   const offsets = Array.isArray(raw.offsets) ? raw.offsets.map(normalizeInvoiceOffset) : [];
 
   const payload = {

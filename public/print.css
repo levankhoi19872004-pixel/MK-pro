@@ -781,3 +781,12 @@ body.dms-print-body .mono { font-weight: 400; }
 }
 .page-break-before{break-before:page;page-break-before:always;}
 @media print{.page-break-before{break-before:page;page-break-before:always;}}
+
+.dms-promo-product {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.dms-promotion-table td {
+  vertical-align: top;
+}
