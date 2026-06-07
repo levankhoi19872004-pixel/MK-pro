@@ -28,12 +28,25 @@
     var json = {};
     if (contentType.indexOf('application/json') >= 0) {
       try { json = JSON.parse(raw || '{}'); }
-      catch (err) { throw new Error('API trả JSON lỗi: ' + err.message); }
+      catch (err) {
+        var parseErr = new Error('API trả JSON lỗi: ' + err.message);
+        parseErr.status = res.status;
+        parseErr.response = res;
+        throw parseErr;
+      }
     } else {
-      throw new Error((fallbackMessage || 'API không trả JSON') + ' (HTTP ' + res.status + ')');
+      var typeErr = new Error((fallbackMessage || 'API không trả JSON') + ' (HTTP ' + res.status + ')');
+      typeErr.status = res.status;
+      typeErr.response = res;
+      typeErr.body = raw;
+      throw typeErr;
     }
     if (!res.ok || json.ok === false || json.success === false) {
-      throw new Error(json.message || fallbackMessage || 'API lỗi');
+      var apiErr = new Error(json.message || fallbackMessage || 'API lỗi');
+      apiErr.status = res.status;
+      apiErr.response = res;
+      apiErr.data = json;
+      throw apiErr;
     }
     return json;
   }
@@ -155,6 +168,63 @@
     return [];
   }
 
+  function sessionToken() {
+    return localStorage.getItem('mk_web_token') || localStorage.getItem('v43_mobile_token') || '';
+  }
+
+  function sessionRefreshToken() {
+    return localStorage.getItem('mk_web_refresh_token') || localStorage.getItem('v43_mobile_refresh_token') || '';
+  }
+
+  function saveSession(data) {
+    data = data || {};
+    if (data.token) {
+      localStorage.setItem('mk_web_token', data.token);
+      localStorage.setItem('v43_mobile_token', data.token);
+    }
+    if (data.refreshToken) {
+      localStorage.setItem('mk_web_refresh_token', data.refreshToken);
+      localStorage.setItem('v43_mobile_refresh_token', data.refreshToken);
+    }
+    if (data.user) {
+      var userJson = JSON.stringify(data.user || {});
+      localStorage.setItem('mk_web_user', userJson);
+      localStorage.setItem('v43_mobile_user', userJson);
+    }
+  }
+
+  function clearSessionAndRedirect() {
+    [
+      'mk_web_token',
+      'mk_web_refresh_token',
+      'mk_web_user',
+      'v43_mobile_token',
+      'v43_mobile_refresh_token',
+      'v43_mobile_user'
+    ].forEach(function (key) { localStorage.removeItem(key); });
+    if (window.location && window.location.pathname !== '/login.html') {
+      window.location.href = '/login.html?next=' + encodeURIComponent(window.location.pathname + window.location.search);
+    }
+  }
+
+  async function refreshSession() {
+    var refreshToken = sessionRefreshToken();
+    if (!refreshToken) return false;
+    try {
+      var res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refreshToken })
+      });
+      var json = await readJson(res, 'Không làm mới được phiên đăng nhập');
+      if (!json || !json.token) return false;
+      saveSession(json);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
 
   var DeliveryCore = {
     state: {
@@ -176,11 +246,25 @@
 
     async api(path, options) {
       options = options || {};
-      var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
-      var token = localStorage.getItem('mk_web_token') || localStorage.getItem('v43_mobile_token') || '';
-      if (token) headers.Authorization = 'Bearer ' + token;
-      var res = await fetch(path, Object.assign({}, options, { headers: headers }));
-      return readJson(res, 'Không gọi được API giao hàng');
+
+      async function sendRequest() {
+        var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+        var token = sessionToken();
+        if (token) headers.Authorization = 'Bearer ' + token;
+        return fetch(path, Object.assign({}, options, { headers: headers }));
+      }
+
+      var res = await sendRequest();
+      if (res.status === 401 && await refreshSession()) {
+        res = await sendRequest();
+      }
+
+      try {
+        return await readJson(res, 'Không gọi được API giao hàng');
+      } catch (err) {
+        if (err && err.status === 401) clearSessionAndRedirect();
+        throw err;
+      }
     },
 
     async loadOrders(filters) {
