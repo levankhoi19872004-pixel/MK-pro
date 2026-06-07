@@ -575,15 +575,18 @@ function renderSalesOrderItems(items){
   return rows+more;
 }
 async function renderSalesOrderPrintHtml(order){
-  const res=await fetch('/api/print/render',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      type:'ORDER_SINGLE',
-      document:order,
-      options:{companyName:'NHÀ PHÂN PHỐI MINH KHAI'}
-    })
-  });
+  const key=String(
+    order?.id ||
+    order?.code ||
+    order?.orderCode ||
+    order?.invoiceCode ||
+    ''
+  ).trim();
+  if(!key)throw new Error('Thiếu mã đơn để in');
+
+  // Luồng in đơn con phải đi qua API theo ID để backend enrich dữ liệu in
+  // từ printRepository.enrichSalesOrderForPrint(), bao gồm fallback CTKM cho đơn cũ.
+  const res=await fetch(`/api/print/orders/${encodeURIComponent(key)}`);
   const html=await res.text();
   if(!res.ok)throw new Error(html||'Không tạo được mẫu in đơn con');
   return html;
@@ -613,8 +616,8 @@ async function printSelectedSalesOrders(){
     if(!orders.length){alert('Chưa chọn đơn con để in');return}
     const bodies=[];
     for(const order of orders){
-      const detail=await fetchSalesOrderDetail(order);
-      bodies.push(extractPrintBody(await renderSalesOrderPrintHtml(detail)));
+      // Gọi trực tiếp API in theo ID/code; không lấy detail từ /api/sales-orders để tránh bỏ qua enrich CTKM.
+      bodies.push(extractPrintBody(await renderSalesOrderPrintHtml(order)));
     }
     const w=window.open('','_blank');
     if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
