@@ -779,3 +779,5 @@ body.dms-print-body .mono { font-weight: 400; }
     display: none !important;
   }
 }
+.page-break-before{break-before:page;page-break-before:always;}
+@media print{.page-break-before{break-before:page;page-break-before:always;}}

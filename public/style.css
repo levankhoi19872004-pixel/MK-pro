@@ -7854,3 +7854,45 @@ body::after{
 .master-order-row .button-row {
   justify-content: flex-end;
 }
+
+/* V46 - Master return canonical columns */
+#masterReturnOrdersTab .return-list-head,
+#masterReturnOrdersTab .return-one-line-row{
+  display:grid!important;
+  grid-template-columns:22px 96px minmax(130px,1fr) minmax(110px,1fr) 86px 54px 92px!important;
+  gap:7px!important;
+  align-items:center!important;
+}
+#masterReturnOrdersTab .return-list-head,
+#masterReturnOrdersTab .master-return-list-head{
+  position:sticky!important;
+  top:0!important;
+  z-index:5!important;
+  min-height:30px!important;
+  padding:5px 8px!important;
+  border:1px solid #bfdbfe!important;
+  border-radius:8px!important;
+  background:#eff6ff!important;
+  color:#1e3a8a!important;
+  font-size:12px!important;
+  font-weight:900!important;
+}
+#masterReturnOrdersTab .master-return-list-head,
+#masterReturnOrdersTab .master-return-one-line{
+  display:grid!important;
+  grid-template-columns:22px minmax(96px,1.25fr) minmax(130px,1.35fr) 90px 100px 78px!important;
+  gap:7px!important;
+  align-items:center!important;
+}
+#masterReturnOrdersTab .master-return-one-line .erp-doc-value{text-align:right!important;color:#047857!important;font-weight:900!important;}
+#masterReturnOrdersTab .master-return-one-line .erp-doc-actions{justify-content:flex-end!important;}
+#masterReturnOrdersTab .return-list-head span,
+#masterReturnOrdersTab .master-return-list-head span,
+#masterReturnOrdersTab .return-one-line-row span,
+#masterReturnOrdersTab .master-return-one-line span,
+#masterReturnOrdersTab .master-return-one-line strong{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}

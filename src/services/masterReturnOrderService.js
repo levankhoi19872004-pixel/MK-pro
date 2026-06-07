@@ -249,7 +249,10 @@ async function createMasterReturnOrder(body = {}) {
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || first.deliveryStaffCode || first.staffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || first.deliveryStaffName || first.staffName || '',
     returnOrderIds: children.map((row) => row.id || row.code),
-    status: body.status || 'pending_warehouse_receive',
+    status: body.status || 'pending',
+    warehouseStatus: body.warehouseStatus || 'pending',
+    warehouseReceiveStatus: body.warehouseReceiveStatus || 'pending',
+    accountingStatus: body.accountingStatus || 'pending',
     note: String(body.note || '').trim(),
     source: body.source || 'master_return_order_route',
     ...summary,
@@ -269,7 +272,9 @@ async function createMasterReturnOrder(body = {}) {
         masterReturnOrderId: masterReturnOrder.id,
         masterReturnOrderCode: masterReturnOrder.code,
         returnMergeStatus: 'merged',
-        warehouseReceiveStatus: masterReturnOrder.status,
+        status: 'grouped',
+        warehouseStatus: masterReturnOrder.warehouseStatus,
+        warehouseReceiveStatus: masterReturnOrder.warehouseReceiveStatus,
         deliveryStaffId: masterReturnOrder.deliveryStaffId,
         deliveryStaffCode: masterReturnOrder.deliveryStaffCode,
         deliveryStaffName: masterReturnOrder.deliveryStaffName,
@@ -297,7 +302,10 @@ async function updateMasterReturnOrder(id, body = {}) {
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',
     note: String(body.note ?? current.note ?? '').trim(),
-    status: String(body.status === 'received' ? current.status : (body.status || current.status || 'pending_warehouse_receive')).trim(),
+    status: String(body.status === 'received' || body.status === 'posted' ? current.status : (body.status || current.status || 'pending')).trim(),
+    warehouseStatus: String(body.warehouseStatus || current.warehouseStatus || current.warehouseReceiveStatus || 'pending').trim(),
+    warehouseReceiveStatus: String(body.warehouseReceiveStatus || current.warehouseReceiveStatus || current.warehouseStatus || 'pending').trim(),
+    accountingStatus: String(body.accountingStatus || current.accountingStatus || 'pending').trim(),
     ...summarizeReturnOrders(children),
     updatedAt: dateUtil.nowIso()
   };
@@ -309,7 +317,8 @@ async function updateMasterReturnOrder(id, body = {}) {
         deliveryStaffId: updated.deliveryStaffId,
         deliveryStaffCode: updated.deliveryStaffCode,
         deliveryStaffName: updated.deliveryStaffName,
-        warehouseReceiveStatus: updated.status,
+        warehouseStatus: updated.warehouseStatus,
+        warehouseReceiveStatus: updated.warehouseReceiveStatus,
         updatedAt: dateUtil.nowIso()
       }, { session });
     }
@@ -322,7 +331,7 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
   const current = await masterReturnOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
   if (isInactiveStatus(current)) return { error: 'Đơn tổng trả hàng đã hủy/xóa, không thể nhập kho', status: 400 };
-  if (String(current.status || '').toLowerCase() === 'received') {
+  if (String(current.warehouseStatus || current.warehouseReceiveStatus || current.status || '').toLowerCase() === 'posted' || String(current.status || '').toLowerCase() === 'received') {
     const children = await getChildren(current);
     return { masterReturnOrder: toClient(current, children), alreadyReceived: true };
   }
@@ -339,7 +348,8 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
   const received = {
     ...current,
     status: 'received',
-    warehouseReceiveStatus: 'received',
+    warehouseStatus: 'posted',
+    warehouseReceiveStatus: 'posted',
     stockReceiveStatus: 'posted',
     stockPosted: true,
     receivedAt: dateUtil.nowIso(),
@@ -356,7 +366,8 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
       await returnOrderRepository.upsert({
         ...child,
         status: 'received',
-        warehouseReceiveStatus: 'received',
+        warehouseStatus: 'posted',
+        warehouseReceiveStatus: 'posted',
         returnMergeStatus: 'merged',
         masterReturnOrderId: received.id,
         masterReturnOrderCode: received.code,
@@ -372,8 +383,10 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
 async function cancelMasterReturnOrder(id, body = {}) {
   const current = await masterReturnOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
-  if (String(current.status || '').toLowerCase() === 'received' || String(current.warehouseReceiveStatus || '').toLowerCase() === 'received' || current.stockPosted) {
-    return { error: 'Đơn tổng trả hàng đã nhập kho, không được hủy gộp trực tiếp. Muốn sửa phải tạo phiếu điều chỉnh/đảo kho riêng.', status: 400 };
+  const warehouseStatus = String(current.warehouseStatus || current.warehouseReceiveStatus || current.status || '').toLowerCase();
+  const accountingStatus = String(current.accountingStatus || '').toLowerCase();
+  if (['posted', 'received', 'confirmed', 'completed'].includes(warehouseStatus) || accountingStatus === 'confirmed' || current.stockPosted) {
+    return { error: 'Đơn tổng trả hàng đã nhập kho hoặc đã xác nhận kế toán, không được hủy gộp trực tiếp. Muốn sửa phải tạo phiếu điều chỉnh/đảo kho riêng.', status: 400 };
   }
   const children = await getChildren(current);
   const cancelled = {
@@ -390,6 +403,8 @@ async function cancelMasterReturnOrder(id, body = {}) {
         masterReturnOrderId: '',
         masterReturnOrderCode: '',
         returnMergeStatus: 'unmerged',
+        status: 'pending',
+        warehouseStatus: '',
         warehouseReceiveStatus: '',
         updatedAt: dateUtil.nowIso()
       }, { session });

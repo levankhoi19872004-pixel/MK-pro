@@ -740,11 +740,12 @@ function renderUnmergedReturnOrders(rows = []){
   if(masterReturnKpiUnmergedQty)masterReturnKpiUnmergedQty.textContent=money(totalQty);
   if(masterReturnKpiUnmergedValue)masterReturnKpiUnmergedValue.textContent=money(totalValue);
   if(unmergedReturnOrderSummary)unmergedReturnOrderSummary.textContent=`${rows.length} phiếu chưa gộp · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)} · Đã chọn ${selectedReturnOrderIdsForMaster.size}`;
+  const head=`<div class="return-list-head"><span></span><span>Mã trả hàng</span><span>Khách hàng</span><span>NV giao</span><span>Ngày trả</span><span>SL</span><span>Giá trị</span></div>`;
   if(!rows.length){
-    unmergedReturnOrderTable.innerHTML='<div class="empty-state">Không có phiếu trả hàng chưa gộp.</div>';
+    unmergedReturnOrderTable.innerHTML=head+'<div class="empty-state">Không có phiếu trả hàng chưa gộp.</div>';
     return;
   }
-  unmergedReturnOrderTable.innerHTML=rows.map(r=>{
+  unmergedReturnOrderTable.innerHTML=head+rows.map(r=>{
     const id=String(r.id||r.code||'');
     const checked=selectedReturnOrderIdsForMaster.has(id)?'checked':'';
     const staff=debtPersonLabel(r.deliveryStaffCode||r.staffCode,r.deliveryStaffName||r.staffName);
@@ -752,11 +753,11 @@ function renderUnmergedReturnOrders(rows = []){
     const selected=checked?' selected':'';
     return `<label class="return-one-line-row${selected}">
       <input type="checkbox" class="master-return-check" data-id="${escapeHtml(id)}" ${checked}>
-      <strong class="return-row-code">${escapeHtml(r.code||r.id||'')}</strong>
-      <span class="return-row-customer">${escapeHtml(customer||'Không rõ khách')}</span>
+      <strong class="return-row-code" title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
+      <span class="return-row-customer" title="${escapeHtml(customer||'Không rõ khách')}">${escapeHtml(customer||'Không rõ khách')}</span>
+      <span class="return-row-staff" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
       <span class="return-row-date">${escapeHtml(r.deliveryDate||r.returnDate||r.date||r.documentDate||'')}</span>
-      <span class="return-row-staff">${escapeHtml(staff)}</span>
-      <span class="return-row-qty">SL ${money(r.totalQuantity)}</span>
+      <span class="return-row-qty">${money(r.totalQuantity)}</span>
       <strong class="return-row-money">${money(r.debtReduction??r.totalAmount)}</strong>
     </label>`;
   }).join('');
@@ -795,33 +796,29 @@ function renderMasterReturnOrders(rows = []){
   if(masterReturnKpiMasterCount)masterReturnKpiMasterCount.textContent=money(rows.length);
   if(masterReturnKpiMasterValue)masterReturnKpiMasterValue.textContent=money(totalValue);
   if(masterReturnOrderCount)masterReturnOrderCount.innerHTML=`${rows.length} đơn tổng · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)}`;
+  const head=`<div class="master-return-list-head"><span></span><span>Mã đơn tổng trả</span><span>NV giao</span><span>Ngày trả</span><span>Giá trị</span><span>Huỷ đơn</span></div>`;
   if(!rows.length){
-    masterReturnOrderTable.innerHTML='<div class="empty-state">Chưa có đơn tổng trả hàng.</div>';
+    masterReturnOrderTable.innerHTML=head+'<div class="empty-state">Chưa có đơn tổng trả hàng.</div>';
     return;
   }
   window.__masterReturnOrdersCache=rows;
   if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.textContent='Chọn tất cả';
-  masterReturnOrderTable.innerHTML=rows.map((r,idx)=>{
-    const status=String(r.status||'pending_warehouse_receive');
-    const statusText=status==='pending_warehouse_receive'?'Chờ kho nhận':(status==='received'?'Kho đã nhận':(status==='cancelled'?'Đã hủy':status));
-    const badgeClass=status==='cancelled'?'out':(status==='received'?'in':'warn');
+  masterReturnOrderTable.innerHTML=head+rows.map((r,idx)=>{
+    const warehouseStatus=String(r.warehouseStatus||r.warehouseReceiveStatus||r.status||'pending').toLowerCase();
+    const accountingStatus=String(r.accountingStatus||'pending').toLowerCase();
+    const locked=['posted','received','confirmed','completed'].includes(warehouseStatus) || accountingStatus==='confirmed' || r.stockPosted;
     const staff=debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName);
     const id=escapeHtml(r.id||r.code||'');
-    const returnCount=Number(r.returnCount || (Array.isArray(r.children)?r.children.length:0));
+    const cancelCell=locked
+      ? `<span class="erp-doc-action-state">Đã khóa</span>`
+      : `<button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>`;
     return `<article class="erp-doc-row master-return-one-line">
       <label class="erp-doc-check"><input type="checkbox" class="master-return-order-check" data-idx="${idx}"></label>
-      <strong class="erp-doc-code" title="Mã chứng từ">${escapeHtml(r.code||r.id||'')}</strong>
-      <span class="erp-doc-party" title="Khách hàng/NV">${escapeHtml(staff)}</span>
-      <span class="erp-doc-date" title="Ngày">${escapeHtml(r.returnDate||r.date||'')}</span>
-      <span class="erp-doc-qty" title="Số phiếu">${money(returnCount)} phiếu</span>
+      <strong class="erp-doc-code" title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
+      <span class="erp-doc-party" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
+      <span class="erp-doc-date" title="Ngày trả">${escapeHtml(r.returnDate||r.date||'')}</span>
       <strong class="erp-doc-value" title="Giá trị">${money(r.debtReduction??r.totalAmount)}</strong>
-      <span class="erp-doc-status" title="Trạng thái"><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></span>
-      <div class="erp-doc-actions">
-        ${status==='pending_warehouse_receive'
-          ? `<button class="primary small master-return-receive-btn" type="button" onclick="receiveMasterReturnOrder('${id}', this)">Nhập kho</button>
-             <button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>`
-          : `<span class="erp-doc-action-state">${escapeHtml(statusText)}</span>`}
-      </div>
+      <div class="erp-doc-actions">${cancelCell}</div>
     </article>`;
   }).join('');
 }
@@ -929,6 +926,60 @@ async function receiveMasterReturnOrder(id, buttonEl){
   }
 }
 
+function masterReturnItemQty(item={}){
+  return Number(item.returnQty??item.qtyReturn??item.returnQuantity??item.returnedQty??item.quantity??item.qty??0)||0;
+}
+function masterReturnItemPrice(item={}){
+  return Number(item.salePrice??item.productSalePrice??item.price??item.unitPrice??0)||0;
+}
+function masterReturnItemAmount(item={}){
+  const direct=Number(item.returnAmount??item.amount??item.totalAmount??0)||0;
+  if(direct>0)return direct;
+  return masterReturnItemQty(item)*masterReturnItemPrice(item);
+}
+function masterReturnWarehouseCode(item={}, child={}){
+  const raw=String(item.warehouseCode||item.defaultWarehouse||item.warehouse||child.warehouseCode||child.defaultWarehouse||'KHO_HC').toUpperCase();
+  return raw.includes('PC')?'KHO_PC':'KHO_HC';
+}
+function buildMasterReturnPrintPages(r={}, children=[]){
+  const byWarehouse={KHO_HC:new Map(),KHO_PC:new Map()};
+  children.forEach(child=>{
+    (Array.isArray(child.items)?child.items:[]).forEach(item=>{
+      const qty=masterReturnItemQty(item);
+      if(qty<=0)return;
+      const wh=masterReturnWarehouseCode(item,child);
+      const code=String(item.productCode||item.code||item.sku||item.barcode||'');
+      const name=String(item.productName||item.name||item.description||'');
+      const unit=String(item.unit||item.uom||'');
+      const price=masterReturnItemPrice(item);
+      const key=[code,name,unit,price].join('|');
+      const old=byWarehouse[wh].get(key)||{productCode:code,productName:name,unit,qty:0,salePrice:price,amount:0};
+      old.qty+=qty;
+      old.amount+=masterReturnItemAmount(item);
+      byWarehouse[wh].set(key,old);
+    });
+  });
+  return Object.entries(byWarehouse).map(([warehouseCode,map])=>({warehouseCode,warehouseName:warehouseCode==='KHO_PC'?'KHO PC':'KHO HC',items:[...map.values()]})).filter(page=>page.items.length);
+}
+function buildMasterReturnKpiRows(r={}, children=[]){
+  const rows=children.map(child=>{
+    const saleAmount=(Array.isArray(child.items)?child.items:[]).reduce((sum,item)=>sum+(masterReturnItemQty(item)*masterReturnItemPrice(item)),0);
+    const payable=Number(child.debtReduction??child.totalAmount??child.amount??0)||0;
+    return {
+      code: child.code||child.id||'',
+      note: child.note||child.customerName||'',
+      saleAmount,
+      discountAmount: Math.max(0,saleAmount-payable),
+      payableAmount: payable
+    };
+  });
+  const totals=rows.reduce((acc,row)=>({
+    saleAmount: acc.saleAmount+row.saleAmount,
+    discountAmount: acc.discountAmount+row.discountAmount,
+    payableAmount: acc.payableAmount+row.payableAmount
+  }),{saleAmount:0,discountAmount:0,payableAmount:0});
+  return {rows,totals};
+}
 async function printMasterReturnOrder(id){
   if(!id)return;
   try{
@@ -937,8 +988,22 @@ async function printMasterReturnOrder(id){
     if(!json.ok)throw new Error(json.message||'Không tải được đơn tổng trả để in');
     const r=json.masterReturnOrder||{};
     const children=Array.isArray(r.children)?r.children:[];
-    const rows=children.map((c,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(c.code||'')}</td><td>${escapeHtml(c.customerName||c.customerCode||'')}</td><td>${money(c.totalQuantity)}</td><td>${money(c.debtReduction??c.totalAmount)}</td></tr>`).join('');
-    const body=`<section class="print-page"><h1>ĐƠN TỔNG TRẢ HÀNG</h1><p><b>Mã:</b> ${escapeHtml(r.code||r.id||'')} &nbsp; <b>Ngày:</b> ${escapeHtml(r.returnDate||r.date||'')} &nbsp; <b>NVGH:</b> ${escapeHtml(debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName))}</p><table class="print-table"><thead><tr><th>STT</th><th>Mã phiếu</th><th>Khách hàng</th><th>SL</th><th>Giá trị</th></tr></thead><tbody>${rows||'<tr><td colspan="5">Không có chi tiết phiếu.</td></tr>'}</tbody></table><p class="total">Tổng SL: ${money(r.totalQuantity)} · Tổng tiền: ${money(r.debtReduction??r.totalAmount)}</p></section>`;
+    const pages=buildMasterReturnPrintPages(r,children);
+    const kpi=buildMasterReturnKpiRows(r,children);
+    const kpiRows=kpi.rows.map(row=>`<tr><td><strong>${escapeHtml(row.code)}</strong><br><small>${escapeHtml(row.note||'')}</small></td><td>${money(row.saleAmount)}</td><td>${money(row.discountAmount)}</td><td>${money(row.payableAmount)}</td></tr>`).join('');
+    const kpiTable=`<h3>BÁO CÁO KPI ĐƠN TỔNG TRẢ ĐÃ GỘP</h3><table class="print-table"><thead><tr><th>Mã đơn + ghi chú</th><th>Giá trị hàng trả theo giá bán</th><th>Tổng giảm trừ/KM</th><th>Tổng giá trị giảm công nợ</th></tr></thead><tbody>${kpiRows||'<tr><td colspan="4">Không có KPI.</td></tr>'}<tr><th>Tổng cộng</th><th>${money(kpi.totals.saleAmount)}</th><th>${money(kpi.totals.discountAmount)}</th><th>${money(kpi.totals.payableAmount)}</th></tr></tbody></table>`;
+    const body=(pages.length?pages:[{warehouseCode:'KHO_HC',warehouseName:'KHO HC',items:[]}]).map((page,pageIdx)=>{
+      const rows=page.items.map((item,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(item.productCode)}</td><td>${escapeHtml(item.productName)}</td><td>${escapeHtml(item.unit)}</td><td>${money(item.qty)}</td><td>${money(item.salePrice)}</td><td>${money(item.amount)}</td></tr>`).join('');
+      const pageBreak=pageIdx>0?' page-break-before':'';
+      return `<section class="print-page${pageBreak}">
+        <h1>ĐƠN TỔNG TRẢ HÀNG - LIÊN ${escapeHtml(page.warehouseName)}</h1>
+        <p><b>Mã:</b> ${escapeHtml(r.code||r.id||'')} &nbsp; <b>Ngày trả:</b> ${escapeHtml(r.returnDate||r.date||'')} &nbsp; <b>NVGH:</b> ${escapeHtml(debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName))}</p>
+        ${pageIdx===0?kpiTable:''}
+        <h3>${escapeHtml(page.warehouseName)} - Hàng trả nhập kho</h3>
+        <table class="print-table"><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>ĐVT</th><th>SL trả</th><th>Giá bán</th><th>Thành tiền</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Không có hàng thuộc kho này.</td></tr>'}</tbody></table>
+        <p class="total">Tổng SL: ${money(page.items.reduce((s,it)=>s+Number(it.qty||0),0))} · Tổng tiền: ${money(page.items.reduce((s,it)=>s+Number(it.amount||0),0))}</p>
+      </section>`;
+    }).join('');
     const html=typeof buildPrintPreviewHtml==='function'
       ? buildPrintPreviewHtml(escapeHtml(r.code||'Đơn tổng trả'),'',body)
       : `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.code||'Đơn tổng trả')}</title><link rel="stylesheet" href="/print.css"></head><body>${body}</body></html>`;
@@ -978,10 +1043,20 @@ async function printSelectedMasterReturnOrders(){
   if(!orders.length){alert('Chưa chọn đơn tổng trả để in');return}
   for(const r of orders){ await printMasterReturnOrder(r.id||r.code); }
 }
-function exportSelectedMasterReturnOrders(){
+async function receiveSelectedMasterReturnOrders(){
   const orders=selectedMasterReturnOrders();
-  if(!orders.length){alert('Chưa chọn đơn tổng trả để xuất Excel');return}
-  exportErpRows('don-tong-tra-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(r=>[r.code||r.id||'', debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName), r.returnDate||r.date||'', Number(r.debtReduction??r.totalAmount??0), String(r.status||'pending_warehouse_receive')]));
+  if(!orders.length){alert('Chưa chọn đơn tổng trả để nhập kho');return}
+  if(!confirm(`Xác nhận nhập kho ${orders.length} đơn tổng trả đã chọn?\n\nSau khi xác nhận, hệ thống sẽ cộng tồn kho hàng trả và chặn nhập kho lặp.`))return;
+  for(const r of orders){
+    const id=r.id||r.code;
+    const result=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivedBy:'Kho'})});
+    const json=await result.json();
+    if(!json.ok)throw new Error(json.message||`Không nhập kho được ${r.code||id}`);
+  }
+  showMessage(masterReturnOrderMessage,'Đã nhập kho các đơn tổng trả đã chọn');
+  await loadMasterReturnOrders();
+  await loadUnmergedReturnOrders();
+  if(typeof loadStock==='function')await loadStock();
 }
 
 if(returnOrderDateMode) returnOrderDateMode.addEventListener('change',()=>{
@@ -998,10 +1073,10 @@ if(returnOrderTable) returnOrderTable.addEventListener('click',event=>{ const tr
 
 window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
 window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;
-window.exportSelectedMasterReturnOrders=exportSelectedMasterReturnOrders;
+window.receiveSelectedMasterReturnOrders=receiveSelectedMasterReturnOrders;
 if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.addEventListener('click',toggleSelectAllMasterReturnOrders);
 if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',printSelectedMasterReturnOrders);
-if(exportSelectedMasterReturnOrdersButton)exportSelectedMasterReturnOrdersButton.addEventListener('click',exportSelectedMasterReturnOrders);
+if(receiveSelectedMasterReturnOrdersButton)receiveSelectedMasterReturnOrdersButton.addEventListener('click',()=>receiveSelectedMasterReturnOrders().catch(err=>showMessage(masterReturnOrderMessage,err.message,true)));
 
 // Fund Ledger V45 - nguồn tiền chuẩn duy nhất cho thu/chi/chuyển quỹ.
 let activeFundTab='fundLedger';
