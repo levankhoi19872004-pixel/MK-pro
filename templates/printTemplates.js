@@ -805,30 +805,60 @@ function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
   const distributor = getDmsDistributor(data);
   const customer = getDmsCustomer(data);
   const staff = getDmsSalesStaff(data);
+  const normalizedCopy = normalizeCopyLabel(copyLabel);
+  const pageText = formatDmsPage(pageNo, pageCount);
+  const staffText = `${text(staff.staffCode)}${staff.staffName ? ` - ${text(staff.staffName)}` : ''}${staff.phone ? ` - ${text(staff.phone)}` : ''}`;
+  const customerText = `${text(customer.customerCode)}${customer.customerName ? ` - ${text(customer.customerName)}` : ''}${customer.phone ? ` - ${text(customer.phone)}` : ''}`;
+  const distributorText = `${text(distributor.code)}${distributor.name ? ` - ${text(distributor.name)}` : ''}`;
+
   return `
-    <div class="dms-document-top">
-      <div class="dms-left">
+    <div class="dms-header-lines">
+      <div class="dms-h-row dms-title-row">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-right-cell"><b>Số xe tải:</b> ${text(header.truckNo)}</div>
+      </div>
+
+      <div class="dms-h-row">
         <div><b>Số hóa đơn:</b> ${text(header.invoiceCode)}</div>
+        <div class="dms-center-cell"><b>Loại hóa đơn:</b> ${text(header.invoiceType)}</div>
+        <div class="dms-copy-page-cell"><b>${text(normalizedCopy)}</b><b>Trang: ${pageText}</b></div>
+      </div>
+
+      <div class="dms-h-row">
         <div><b>Số đơn hàng:</b> ${text(header.orderCode)}</div>
-        <div><b>NVBH:</b> ${text(staff.staffCode)}${staff.staffName ? ` - ${text(staff.staffName)}` : ''}${staff.phone ? ` - ${text(staff.phone)}` : ''}</div>
-        <div><b>Khách hàng - Điện thoại:</b> ${text(customer.customerCode)}${customer.customerName ? ` - ${text(customer.customerName)}` : ''}${customer.phone ? ` - ${text(customer.phone)}` : ''}</div>
-        <div><b>Địa chỉ giao hàng:</b> ${text(customer.deliveryAddress)}</div>
-        <div><b>Điều khoản thanh toán:</b> ${text(header.paymentTerm)}</div>
-        <div><b>MST:</b> ${text(header.taxCode || customer.taxCode)}</div>
-      </div>
-      <div class="dms-title-block">
-        <h1>PHIẾU GIAO NHẬN VÀ THANH TOÁN</h1>
-        <div><b>Loại hóa đơn:</b> ${text(header.invoiceType)}</div>
-      </div>
-      <div class="dms-right">
-        <div><b>Số xe tải:</b> ${text(header.truckNo)}</div>
-        <div class="dms-copy"><b>${text(normalizeCopyLabel(copyLabel))}</b></div>
-        <div><b>Trang:</b> ${formatDmsPage(pageNo, pageCount)}</div>
-        <div class="dms-header-spacer"></div>
         <div><b>Thời gian đặt hàng:</b> ${text(header.orderDateTime)}</div>
-        <div><b>Nhà phân phối:</b> ${text(distributor.code)} - ${text(distributor.name)}</div>
+        <div></div>
+      </div>
+
+      <div class="dms-h-row">
+        <div><b>NVBH:</b> ${staffText}</div>
+        <div><b>Nhà phân phối:</b> ${distributorText}</div>
+        <div></div>
+      </div>
+
+      <div class="dms-h-row">
+        <div><b>Khách hàng - Điện thoại:</b> ${customerText}</div>
         <div><b>Địa chỉ:</b> ${text(distributor.address)}</div>
+        <div></div>
+      </div>
+
+      <div class="dms-h-row">
+        <div><b>Địa chỉ giao hàng:</b> ${text(customer.deliveryAddress)}</div>
         <div><b>Điện thoại:</b> ${text(distributor.phone)}</div>
+        <div></div>
+      </div>
+
+      <div class="dms-h-row dms-single-left-row">
+        <div><b>Điều khoản thanh toán:</b> ${text(header.paymentTerm)}</div>
+        <div></div>
+        <div></div>
+      </div>
+
+      <div class="dms-h-row dms-single-left-row">
+        <div><b>MST:</b> ${text(header.taxCode || customer.taxCode)}</div>
+        <div></div>
+        <div></div>
       </div>
     </div>`;
 }

@@ -422,6 +422,57 @@ body {
 }
 
 /* DMS/Unilever delivery invoice print template */
+
+.dms-header-lines {
+  width: 100%;
+  margin-bottom: 10mm;
+  font-size: 11px;
+  line-height: 1.22;
+}
+
+.dms-h-row {
+  display: grid;
+  grid-template-columns: 34% 46% 20%;
+  min-height: 5.6mm;
+  align-items: center;
+  column-gap: 2mm;
+}
+
+.dms-title-row {
+  min-height: 8.6mm;
+}
+
+.dms-title-line {
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.05;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dms-center-cell {
+  text-align: center;
+}
+
+.dms-right-cell {
+  text-align: left;
+}
+
+.dms-copy-page-cell {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4mm;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dms-single-left-row {
+  grid-template-columns: 34% 46% 20%;
+}
+
 .dms-print-body {
   background: #fff;
 }
@@ -613,48 +664,50 @@ body.dms-print-body .dms-print-page:last-child {
   page-break-after: auto;
 }
 
-body.dms-print-body .dms-document-top {
-  display: grid;
-  grid-template-columns: 38% 24% 38%;
-  gap: 3mm;
-  align-items: start;
-  margin: 0 0 17mm;
-}
-
-body.dms-print-body .dms-document-top div {
-  margin-bottom: 2px;
-}
-
-body.dms-print-body .dms-left,
-body.dms-print-body .dms-right {
+body.dms-print-body .dms-header-lines {
+  width: 100%;
+  margin: 0 0 10mm;
   font-size: 11px;
-  line-height: 1.18;
+  line-height: 1.22;
 }
 
-body.dms-print-body .dms-title-block {
+body.dms-print-body .dms-h-row {
+  display: grid;
+  grid-template-columns: 34% 46% 20%;
+  min-height: 5.6mm;
+  align-items: center;
+  column-gap: 2mm;
+}
+
+body.dms-print-body .dms-title-row {
+  min-height: 8.6mm;
+}
+
+body.dms-print-body .dms-title-line {
   text-align: center;
-  padding-top: 9mm;
-}
-
-body.dms-print-body .dms-title-block h1 {
-  margin: 0 0 4px;
-  font-size: 14px;
-  line-height: 1.02;
+  font-size: 15px;
+  line-height: 1.05;
   font-weight: 700;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-body.dms-print-body .dms-copy {
+body.dms-print-body .dms-center-cell {
   text-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  margin: 1mm 0 3mm;
 }
 
-body.dms-print-body .dms-header-spacer {
-  height: 4mm;
-  margin: 0;
+body.dms-print-body .dms-right-cell {
+  text-align: left;
+}
+
+body.dms-print-body .dms-copy-page-cell {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4mm;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 body.dms-print-body .dms-invoice-table,
