@@ -369,51 +369,6 @@ function renderDmsPromotionHeaderOnly() {
     </table>`;
 }
 
-function renderInvoiceItemsTable(data) {
-  const rows = data.items.length
-    ? data.items.map((item) => `
-      <tr>
-        <td class="center">${item.stt}</td>
-        <td class="mono">${text(item.code)}</td>
-        <td class="product-name">${text(item.name)}${item.sourceOrderCode ? `<div class="muted">Đơn: ${text(item.sourceOrderCode)}</div>` : ''}</td>
-        <td class="center">${text(item.caseDisplay)}</td>
-        <td class="right">${money(data, item.qty)}</td>
-        <td class="right">${money(data, item.price)}</td>
-        <td class="right">${money(data, item.priceAfterDiscount || item.price)}</td>
-        <td class="right">${money(data, item.tax)}</td>
-        <td class="right strong">${money(data, item.amount)}</td>
-      </tr>`).join('')
-    : '<tr><td colspan="9" class="center">Chưa có dòng hàng</td></tr>';
-
-  return `
-    <table class="invoice-table">
-      <thead>
-        <tr>
-          <th style="width:7mm">STT</th>
-          <th style="width:18mm">Mã hàng</th>
-          <th>Tên sản phẩm</th>
-          <th style="width:18mm">Số lượng<br/>(CS/SU)</th>
-          <th style="width:14mm">Số lượng<br/>(lẻ)</th>
-          <th style="width:20mm">Đơn giá<br/>(Trước thuế/KM)</th>
-          <th style="width:20mm">Đơn giá<br/>(Sau thuế/KM)</th>
-          <th style="width:16mm">Thuế<br/>GTGT</th>
-          <th style="width:22mm">Thành tiền<br/>(Sau thuế/KM&CK)</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-        <tr class="invoice-total-row">
-          <td colspan="4" class="center strong">Tổng cộng (A)</td>
-          <td class="right strong">${money(data, data.totals.totalQty)}</td>
-          <td></td>
-          <td></td>
-          <td class="right strong">${money(data, data.totals.tax)}</td>
-          <td class="right strong">${money(data, data.totals.totalAmount)}</td>
-        </tr>
-      </tbody>
-    </table>`;
-}
-
 function renderGenericItemsTable(data) {
   const rows = data.items.length
     ? data.items.map(item => `
@@ -579,38 +534,6 @@ function renderMasterWarehouseTables(data) {
   }).join('');
 }
 
-function renderPromotionTable(data) {
-  if (!data.promotions.length) return '';
-
-  const rows = data.promotions.map((promo) => `
-    <tr>
-      <td class="center">${promo.stt}</td>
-      <td class="mono">${text(promo.code)}</td>
-      <td>${text(promo.name)}</td>
-      <td class="right">${money(data, promo.basisAmount)}</td>
-      <td class="right">${promo.percent ? `${money(data, promo.percent)}%` : ''}</td>
-      <td class="right">${money(data, promo.beforeTax)}</td>
-      <td class="right strong">${money(data, promo.afterTax)}</td>
-    </tr>`).join('');
-
-  return `
-    <div class="section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
-    <table class="promotion-table">
-      <thead>
-        <tr>
-          <th style="width:8mm">STT</th>
-          <th style="width:28mm">Mã CTKM</th>
-          <th>Khuyến mãi bằng tiền / hàng</th>
-          <th style="width:24mm">Giá trị hàng hóa mua</th>
-          <th style="width:18mm">% chiết khấu</th>
-          <th style="width:24mm">Tiền CK trước thuế</th>
-          <th style="width:24mm">Tiền CK sau thuế</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
 function renderSignature(labels = ['Người lập phiếu', 'Khách hàng', 'Thủ kho / Giao hàng']) {
   return `
     <div class="signature-row">
@@ -662,99 +585,6 @@ function baseLayout(title, data, bodyHtml, options = {}) {
   </div>
 </body>
 </html>`;
-}
-
-function renderDocumentHeader(title, data) {
-  const invoiceCode = data.document.invoiceCode || data.document.code;
-  const orderCode = data.document.customerOrderCode || data.document.code;
-  const invoiceType = data.document.type || 'Từ NVTT';
-  const copyLabel = data.meta.copyLabel || '';
-  const pageLabel = data.document.page || '';
-  const distributorName = data.company.name || '3293 - Công Ty TNHH MTV Minh Khai';
-
-  return `
-    <div class="invoice-header-lines">
-      <div class="h-row title-row">
-        <div class="h-cell"></div>
-        <div class="h-cell invoice-title-line">${text(title)}</div>
-        <div class="h-cell right-info"><span>Số xe tải:</span> ${text(data.document.vehicleNo)}</div>
-      </div>
-
-      <div class="h-row">
-        <div class="h-cell"><span>Số hóa đơn:</span> ${text(invoiceCode)}</div>
-        <div class="h-cell center-info"><span>Loại hóa đơn:</span> ${text(invoiceType)}</div>
-        <div class="h-cell copy-page-cell"><span>${text(copyLabel)}</span><span>Trang: ${text(pageLabel)}</span></div>
-      </div>
-
-      <div class="h-row">
-        <div class="h-cell"><span>Số đơn hàng:</span> ${text(orderCode)}</div>
-        <div class="h-cell"><span>Thời gian đặt hàng:</span> ${text(data.document.dateTime)}</div>
-        <div class="h-cell"></div>
-      </div>
-
-      <div class="h-row">
-        <div class="h-cell"><span>NVBH:</span> ${text(data.staff.code)} - ${text(data.staff.name)}</div>
-        <div class="h-cell"><span>Nhà phân phối:</span> ${text(distributorName)}</div>
-        <div class="h-cell"></div>
-      </div>
-
-      <div class="h-row">
-        <div class="h-cell"><span>Khách hàng - Điện thoại:</span> ${text(data.customer.code)} - ${text(data.customer.name)} - ${text(data.customer.phone)}</div>
-        <div class="h-cell"><span>Địa chỉ:</span> ${text(data.company.address)}</div>
-        <div class="h-cell"></div>
-      </div>
-
-      <div class="h-row">
-        <div class="h-cell"><span>Địa chỉ giao hàng:</span> ${text(data.customer.address)}</div>
-        <div class="h-cell"><span>Điện thoại:</span> ${text(data.company.phone)}</div>
-        <div class="h-cell"></div>
-      </div>
-
-      <div class="h-row single-left-row">
-        <div class="h-cell"><span>Điều khoản thanh toán:</span> ${text(data.document.terms)}</div>
-        <div class="h-cell"></div>
-        <div class="h-cell"></div>
-      </div>
-
-      <div class="h-row single-left-row">
-        <div class="h-cell"><span>MST:</span> ${text(data.customer.taxCode)}</div>
-        <div class="h-cell"></div>
-        <div class="h-cell"></div>
-      </div>
-    </div>`;
-}
-
-function orderSingleTemplate(data) {
-  const body = `
-    ${renderDocumentHeader('PHIẾU GIAO NHẬN VÀ THANH TOÁN', data)}
-    ${renderInvoiceItemsTable(data)}
-
-    <div class="invoice-summary-grid">
-      <div class="amount-in-words">
-        <b>Số tiền viết bằng chữ:</b> ${text(data.totals.totalAmountText)}
-      </div>
-
-      <div class="calculation-box">
-        <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${money(data, data.totals.payable || data.totals.totalAmount)}</b></div>
-        <div><span>Tổng tiền sau thuế chưa trừ KM (G)=(2)*(4)</span><b>${money(data, data.totals.goodsAmount || data.totals.totalAmount)}</b></div>
-        <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C)</span><b>${money(data, data.totals.promotionValue)}</b></div>
-        <div><span>Cấn trừ tiền (D+E+H)</span><b>${money(data, data.totals.discount)}</b></div>
-        <div><span>Tổng tiền CK của NPP (F)=...</span><b>${money(data, data.totals.discount)}</b></div>
-        <div><span>Tỉ lệ KM & CK của đơn hàng</span><b>${data.totals.totalAmount ? ((data.totals.discount / data.totals.totalAmount) * 100).toFixed(2) : '0.00'}%</b></div>
-      </div>
-    </div>
-
-    <div class="invoice-signature">
-      <div><b>Người lập biểu</b><span>(Ký, ghi rõ họ tên)</span></div>
-      <div><b>Người bán hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
-      <div><b>Nhân viên giao hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
-      <div><b>Người nhận hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
-    </div>
-
-    ${renderPromotionTable(data)}
-  `;
-
-  return baseLayout('PHIẾU GIAO NHẬN VÀ THANH TOÁN', data, body, { compact: true });
 }
 
 function orderTotalTemplate(data) {
@@ -1151,7 +981,7 @@ function dmsDeliveryInvoiceTemplate(data) {
 }
 
 module.exports = {
-  ORDER_SINGLE: orderSingleTemplate,
+  ORDER_SINGLE: dmsDeliveryInvoiceTemplate,
   DMS_DELIVERY_INVOICE: dmsDeliveryInvoiceTemplate,
   ORDER_TOTAL: orderTotalTemplate,
   IMPORT_ORDER: importOrderTemplate,
