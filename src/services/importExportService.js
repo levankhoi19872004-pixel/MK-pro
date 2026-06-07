@@ -168,20 +168,70 @@ function makeReturnKey(orderKey, productKey, lineKey = '', price = '') {
   ].join('@@');
 }
 
-function addReturnQty(map, key, qty) {
+function returnOrderCodeOf(ro = {}) {
+  return cleanText(ro.code || ro.id || ro.returnOrderCode || ro.documentCode || ro._id);
+}
+
+function returnOrderIdOf(ro = {}) {
+  return cleanText(ro.id || ro._id || ro.code || ro.returnOrderCode || ro.documentCode);
+}
+
+function updatedTimeOf(row = {}) {
+  const raw = row.updatedAt || row.modifiedAt || row.createdAt || row.date || row.documentDate || '';
+  const t = raw ? new Date(raw).getTime() : 0;
+  return Number.isFinite(t) ? t : 0;
+}
+
+function activeReturnOrderFilter() {
+  return {
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] },
+    returnStatus: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] }
+  };
+}
+
+function addReturnQty(map, key, qty, source = {}) {
   if (!key || !qty) return;
   map.set(key, toNumber(map.get(key)) + qty);
+
+  if (!map.__sourceMap) map.__sourceMap = new Map();
+  const existed = map.__sourceMap.get(key) || { codes: new Set(), ids: new Set(), sourceRows: [] };
+  if (source.code) existed.codes.add(source.code);
+  if (source.id) existed.ids.add(source.id);
+  if (source.sourceRow) existed.sourceRows.push(source.sourceRow);
+  map.__sourceMap.set(key, existed);
+}
+
+function sourceInfoForKey(map, key) {
+  const sourceMap = map && map.__sourceMap;
+  if (!sourceMap) return { ReturnOrderCode: '', ReturnOrderId: '', ReturnQtySource: '' };
+  const src = sourceMap.get(key);
+  if (!src) return { ReturnOrderCode: '', ReturnOrderId: '', ReturnQtySource: '' };
+  const codes = Array.from(src.codes || []).filter(Boolean);
+  const ids = Array.from(src.ids || []).filter(Boolean);
+  const sourceRows = Array.from(src.sourceRows || []).filter(Boolean);
+  return {
+    ReturnOrderCode: codes.join(', '),
+    ReturnOrderId: ids.join(', '),
+    ReturnQtySource: sourceRows.join(' | ')
+  };
 }
 
 function buildReturnQtyMap(returnOrders = []) {
   const map = new Map();
+  const latestLineByReturnOrder = new Map();
+
   for (const ro of returnOrders || []) {
     if (!isActiveDoc(ro)) continue;
+    const roCode = returnOrderCodeOf(ro);
+    const roId = returnOrderIdOf(ro);
+    const updatedMs = updatedTimeOf(ro);
     const roKeys = [
       ro.salesOrderId, ro.orderId, ro.sourceOrderId, ro.deliveryOrderId,
       ro.salesOrderCode, ro.orderCode, ro.sourceOrderCode, ro.deliveryOrderCode, ro.originalOrderCode
     ].map(cleanText).filter(Boolean);
     if (!roKeys.length) continue;
+
+    const primaryOrderKey = cleanText(ro.salesOrderCode || ro.orderCode || ro.salesOrderId || ro.orderId || roKeys[0]);
 
     for (const item of Array.isArray(ro.items) ? ro.items : []) {
       const pcode = productCodeOf(item);
@@ -192,37 +242,59 @@ function buildReturnQtyMap(returnOrders = []) {
 
       const lineKey = lineKeyOf(item);
       const priceKey = priceKeyOf(item);
+      const sourceRow = `${roCode || roId || 'RETURN_ORDER'}:${primaryOrderKey}:${pcode}:${qty}`;
 
-      for (const key of roKeys) {
-        if (lineKey && priceKey) {
-          addReturnQty(map, makeReturnKey(key, pcode, lineKey, priceKey), qty);
-          continue;
-        }
+      // Nếu cùng một phiếu trả bị lưu trùng nhiều lần, chỉ lấy bản mới nhất theo updatedAt.
+      // Key cố ý KHÔNG dùng Mongo _id riêng lẻ, vì bản ghi trùng thường khác _id nhưng cùng code/order/product/price.
+      const duplicateKey = [
+        roCode || roId,
+        primaryOrderKey,
+        pcode,
+        lineKey || '',
+        priceKey || ''
+      ].map(cleanText).join('@@');
 
-        if (lineKey) {
-          addReturnQty(map, makeReturnKey(key, pcode, lineKey, ''), qty);
-          continue;
-        }
-
-        if (priceKey) {
-          addReturnQty(map, makeReturnKey(key, pcode, '', priceKey), qty);
-          continue;
-        }
-
-        addReturnQty(map, makeKey(key, pcode), qty);
+      const record = { roKeys, pcode, qty, lineKey, priceKey, roCode, roId, updatedMs, sourceRow };
+      const existed = latestLineByReturnOrder.get(duplicateKey);
+      if (!existed || updatedMs >= existed.updatedMs) {
+        latestLineByReturnOrder.set(duplicateKey, record);
       }
     }
   }
+
+  for (const record of latestLineByReturnOrder.values()) {
+    const { roKeys, pcode, qty, lineKey, priceKey, roCode, roId, sourceRow } = record;
+    const source = { code: roCode, id: roId, sourceRow };
+    for (const key of roKeys) {
+      if (lineKey && priceKey) {
+        addReturnQty(map, makeReturnKey(key, pcode, lineKey, priceKey), qty, source);
+        continue;
+      }
+
+      if (lineKey) {
+        addReturnQty(map, makeReturnKey(key, pcode, lineKey, ''), qty, source);
+        continue;
+      }
+
+      if (priceKey) {
+        addReturnQty(map, makeReturnKey(key, pcode, '', priceKey), qty, source);
+        continue;
+      }
+
+      addReturnQty(map, makeKey(key, pcode), qty, source);
+    }
+  }
+
   return map;
 }
 
-function getReturnQtyForOrderLine(returnQtyMap, order = {}, item = {}) {
+function getReturnInfoForOrderLine(returnQtyMap, order = {}, item = {}) {
   const pcode = productCodeOf(item);
-  if (!pcode) return 0;
+  if (!pcode) return { qty: 0, ReturnOrderCode: '', ReturnOrderId: '', ReturnQtySource: '' };
 
   const lineKey = lineKeyOf(item);
   const priceKey = priceKeyOf(item);
-  let maxQty = 0;
+  let best = { qty: 0, key: '' };
 
   for (const key of orderIdValues(order)) {
     const candidateKeys = [
@@ -233,12 +305,17 @@ function getReturnQtyForOrderLine(returnQtyMap, order = {}, item = {}) {
     ].filter(Boolean);
 
     for (const candidateKey of candidateKeys) {
-      maxQty = Math.max(maxQty, toNumber(returnQtyMap.get(candidateKey)));
-      if (maxQty) break;
+      const qty = toNumber(returnQtyMap.get(candidateKey));
+      if (qty > best.qty) best = { qty, key: candidateKey };
+      if (qty) break;
     }
   }
 
-  return maxQty;
+  return { qty: best.qty, ...sourceInfoForKey(returnQtyMap, best.key) };
+}
+
+function getReturnQtyForOrderLine(returnQtyMap, order = {}, item = {}) {
+  return getReturnInfoForOrderLine(returnQtyMap, order, item).qty;
 }
 
 function customerKey(order = {}) {
@@ -325,7 +402,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
       const product = productMap.get(pcode) || {};
       const productName = productNameOf(item) || cleanText(product.name || product.productName);
       const soldQty = qtyOf(item);
-      const returnQty = getReturnQtyForOrderLine(returnQtyMap, order, item);
+      const returnInfo = getReturnInfoForOrderLine(returnQtyMap, order, item);
+      const returnQty = returnInfo.qty;
       const safeReturnQty = Math.min(soldQty, returnQty);
       const invoiceQty = Math.max(0, soldQty - safeReturnQty);
       const priceInclVat = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
@@ -344,6 +422,9 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
           GiaSauKhuyenMaiCoVAT: priceInclVat,
           DonGiaTruocVAT: '',
           ThanhTienTruocVAT: '',
+          ReturnOrderCode: returnInfo.ReturnOrderCode,
+          ReturnOrderId: returnInfo.ReturnOrderId,
+          ReturnQtySource: returnInfo.ReturnQtySource,
           LyDoBoDong: !pcode ? 'MISSING_PRODUCT_CODE' : 'INVOICE_QTY_ZERO'
         });
         continue;
@@ -361,7 +442,10 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         invoiceQty,
         priceInclVat,
         unitPriceBeforeVat,
-        lineAmountBeforeVat
+        lineAmountBeforeVat,
+        returnOrderCode: returnInfo.ReturnOrderCode,
+        returnOrderId: returnInfo.ReturnOrderId,
+        returnQtySource: returnInfo.ReturnQtySource
       });
     }
     if (!detailLines.length) continue;
@@ -419,6 +503,9 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         GiaSauKhuyenMaiCoVAT: line.priceInclVat,
         DonGiaTruocVAT: line.unitPriceBeforeVat,
         ThanhTienTruocVAT: line.lineAmountBeforeVat,
+        ReturnOrderCode: line.returnOrderCode,
+        ReturnOrderId: line.returnOrderId,
+        ReturnQtySource: line.returnQtySource,
         LyDoBoDong: ''
       });
     });
@@ -439,7 +526,7 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
   }
   const [orders, returnOrders, customers, products] = await Promise.all([
     SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
-    ReturnOrder.find({}).lean(),
+    ReturnOrder.find(activeReturnOrderFilter()).lean(),
     Customer.find({}).lean(),
     Product.find({}).lean()
   ]);
@@ -454,7 +541,7 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
   const auditHeaders = [
     'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSanPham', 'SanPham',
     'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
-    'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'LyDoBoDong'
+    'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
   ];
   const auditSheet = XLSX.utils.aoa_to_sheet([auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
   auditSheet['!cols'] = auditHeaders.map((header) => ({ wch: Math.max(12, Math.min(35, String(header).length + 4)) }));
