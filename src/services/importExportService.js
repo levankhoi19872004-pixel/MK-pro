@@ -119,7 +119,24 @@ function qtyOf(item = {}) {
 }
 
 function returnQtyOf(item = {}) {
-  return toNumber(item.qtyReturn ?? item.returnQty ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
+  return toNumber(
+    item.returnQty
+    ?? item.qtyReturn
+    ?? item.returnQuantity
+    ?? item.returnedQty
+    ?? 0
+  );
+}
+
+function lineKeyOf(item = {}) {
+  return cleanText(
+    item.lineKey
+    || item.orderLineId
+    || item.salesOrderItemId
+    || item.itemId
+    || item._id
+    || ''
+  );
 }
 
 function priceInclVatOf(item = {}) {
@@ -137,6 +154,25 @@ function makeKey(orderKey, productKey) {
   return `${cleanText(orderKey)}@@${cleanText(productKey)}`;
 }
 
+function priceKeyOf(item = {}) {
+  const price = priceInclVatOf(item);
+  return price ? String(roundMoney(price, 6)) : '';
+}
+
+function makeReturnKey(orderKey, productKey, lineKey = '', price = '') {
+  return [
+    cleanText(orderKey),
+    cleanText(productKey),
+    cleanText(lineKey),
+    cleanText(price)
+  ].join('@@');
+}
+
+function addReturnQty(map, key, qty) {
+  if (!key || !qty) return;
+  map.set(key, toNumber(map.get(key)) + qty);
+}
+
 function buildReturnQtyMap(returnOrders = []) {
   const map = new Map();
   for (const ro of returnOrders || []) {
@@ -146,14 +182,34 @@ function buildReturnQtyMap(returnOrders = []) {
       ro.salesOrderCode, ro.orderCode, ro.sourceOrderCode, ro.deliveryOrderCode, ro.originalOrderCode
     ].map(cleanText).filter(Boolean);
     if (!roKeys.length) continue;
+
     for (const item of Array.isArray(ro.items) ? ro.items : []) {
       const pcode = productCodeOf(item);
       if (!pcode) continue;
+
       const qty = returnQtyOf(item);
       if (!qty) continue;
+
+      const lineKey = lineKeyOf(item);
+      const priceKey = priceKeyOf(item);
+
       for (const key of roKeys) {
-        const mapKey = makeKey(key, pcode);
-        map.set(mapKey, toNumber(map.get(mapKey)) + qty);
+        if (lineKey && priceKey) {
+          addReturnQty(map, makeReturnKey(key, pcode, lineKey, priceKey), qty);
+          continue;
+        }
+
+        if (lineKey) {
+          addReturnQty(map, makeReturnKey(key, pcode, lineKey, ''), qty);
+          continue;
+        }
+
+        if (priceKey) {
+          addReturnQty(map, makeReturnKey(key, pcode, '', priceKey), qty);
+          continue;
+        }
+
+        addReturnQty(map, makeKey(key, pcode), qty);
       }
     }
   }
@@ -163,10 +219,25 @@ function buildReturnQtyMap(returnOrders = []) {
 function getReturnQtyForOrderLine(returnQtyMap, order = {}, item = {}) {
   const pcode = productCodeOf(item);
   if (!pcode) return 0;
+
+  const lineKey = lineKeyOf(item);
+  const priceKey = priceKeyOf(item);
   let maxQty = 0;
+
   for (const key of orderIdValues(order)) {
-    maxQty = Math.max(maxQty, toNumber(returnQtyMap.get(makeKey(key, pcode))));
+    const candidateKeys = [
+      lineKey && priceKey ? makeReturnKey(key, pcode, lineKey, priceKey) : '',
+      lineKey ? makeReturnKey(key, pcode, lineKey, '') : '',
+      priceKey ? makeReturnKey(key, pcode, '', priceKey) : '',
+      makeKey(key, pcode)
+    ].filter(Boolean);
+
+    for (const candidateKey of candidateKeys) {
+      maxQty = Math.max(maxQty, toNumber(returnQtyMap.get(candidateKey)));
+      if (maxQty) break;
+    }
   }
+
   return maxQty;
 }
 
@@ -250,7 +321,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
       const product = productMap.get(pcode) || {};
       const soldQty = qtyOf(item);
       const returnQty = getReturnQtyForOrderLine(returnQtyMap, order, item);
-      const invoiceQty = Math.max(0, soldQty - returnQty);
+      const safeReturnQty = Math.min(soldQty, returnQty);
+      const invoiceQty = Math.max(0, soldQty - safeReturnQty);
       if (!pcode || invoiceQty <= 0) continue;
       const priceInclVat = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
       const unitPriceBeforeVat = roundMoney(priceInclVat / (1 + TT78_VAT_RATE), 6);
