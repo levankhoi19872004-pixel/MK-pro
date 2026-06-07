@@ -889,9 +889,11 @@ async function commitImportExcel(){
       if(salesOrderSourceFilter)salesOrderSourceFilter.value='DMS';
     }
 
-    await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
-    if(['promotionProductRules','promotionGroupItems','promotionGroupRules'].includes(importDataType.value) && typeof window.reloadPromotionRules === 'function'){
-      await window.reloadPromotionRules();
+    const isPromotionImport = ['promotionProductRules','promotionGroupItems','promotionGroupRules'].includes(importDataType.value);
+    if(isPromotionImport){
+      if(typeof window.reloadPromotionRules === 'function') await window.reloadPromotionRules();
+    }else{
+      await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
     }
   }catch(err){
     if(commitImportButton){

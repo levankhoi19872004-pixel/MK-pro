@@ -16,6 +16,9 @@ const Cashbook = require('../models/Cashbook');
 const ArLedger = require('../models/ArLedger');
 const ImportLog = require('../models/ImportLog');
 const User = require('../models/User');
+const PromotionProductRule = require('../models/PromotionProductRule');
+const PromotionGroupItem = require('../models/PromotionGroupItem');
+const PromotionGroupRule = require('../models/PromotionGroupRule');
 const systemService = require('./systemService');
 const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
@@ -1919,62 +1922,173 @@ function pickPromotionGroupRulePayload(row = {}) {
   };
 }
 
+function dedupePromotionPayloads(payloads = [], makeKey) {
+  const map = new Map();
+  const duplicated = [];
+  for (const item of payloads) {
+    const key = makeKey(item);
+    if (!key) continue;
+    if (map.has(key)) duplicated.push(key);
+    map.set(key, item); // lấy dòng cuối cùng nếu Excel bị trùng key
+  }
+  return { rows: Array.from(map.values()), duplicateCount: duplicated.length };
+}
+
+function promotionBulkChunks(ops = [], size = 1000) {
+  const chunks = [];
+  for (let i = 0; i < ops.length; i += size) chunks.push(ops.slice(i, i + size));
+  return chunks;
+}
+
 async function importPromotionProductRules(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
   const warnings = [];
-  for (const row of rows) {
-    const payload = pickPromotionProductRulePayload(row);
-    const result = await promotionService.saveProductRule(payload);
-    if (result?.error) {
-      skipped += 1;
-      errors.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, error: result.error });
-    } else {
-      imported += 1;
-      if (result?.warning) warnings.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, warning: result.warning });
-    }
+  const now = dateUtil.nowIso();
+
+  const rawPayloads = rows.map(pickPromotionProductRulePayload);
+  const productMap = await preloadPromotionProductsByCode(rawPayloads);
+  const { rows: payloads, duplicateCount } = dedupePromotionPayloads(rawPayloads, (p) => `${cleanText(p.programCode)}__${cleanText(p.productCode)}`);
+
+  if (duplicateCount) warnings.push({ row: '', productCode: '', warning: `Có ${duplicateCount} dòng trùng mã chương trình + mã sản phẩm trong file. Hệ thống lấy dòng cuối cùng để import nhanh.` });
+
+  const ops = [];
+  for (const payload of payloads) {
+    const rowNo = payload.__rowNumber || payload.rowNumber || '';
+    const programCode = cleanText(payload.programCode);
+    const programName = cleanText(payload.programName);
+    const productCode = cleanText(payload.productCode);
+    const product = productMap.get(productCode);
+
+    if (!programCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã chương trình' }); continue; }
+    if (!programName) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu nội dung chương trình' }); continue; }
+    if (!productCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã sản phẩm' }); continue; }
+    if (toNumber(payload.discountPercent) < 0) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Chiết khấu không được âm' }); continue; }
+
+    const productName = cleanText(product?.name || payload.productName || '');
+    if (!product) warnings.push({ row: rowNo, productCode, warning: `Mã sản phẩm ${productCode} chưa có trong danh mục` });
+
+    const id = cleanText(payload.id) || `${programCode}__${productCode}`;
+    const doc = {
+      ...payload,
+      id,
+      programCode,
+      programName,
+      productCode,
+      productName,
+      discountPercent: promotionService.normalizeDiscountPercent(payload.discountPercent),
+      productMatched: Boolean(product),
+      missingProduct: !product,
+      source: cleanText(payload.source || 'excel-import'),
+      isActive: payload.isActive !== false && payload.isActive !== 'false',
+      updatedAt: now
+    };
+    delete doc.errors; delete doc.warnings; delete doc.valid;
+    ops.push({ updateOne: { filter: { programCode, productCode }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
   }
+
+  for (const chunk of promotionBulkChunks(ops)) {
+    if (chunk.length) await PromotionProductRule.bulkWrite(chunk, { ordered: false });
+  }
+  const imported = ops.length;
   await addImportLog('promotionProductRules', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
-  return { imported, skipped, errors, warnings, message: `Đã import ${imported} dòng CK sản phẩm${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+  return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng CK sản phẩm bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function importPromotionGroupItems(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
   const warnings = [];
-  for (const row of rows) {
-    const payload = pickPromotionGroupItemPayload(row);
-    const result = await promotionService.saveGroupItem(payload);
-    if (result?.error) {
-      skipped += 1;
-      errors.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, error: result.error });
-    } else {
-      imported += 1;
-      if (result?.warning) warnings.push({ row: row.__rowNumber || row.rowNumber || '', productCode: payload.productCode, warning: result.warning });
-    }
+  const now = dateUtil.nowIso();
+
+  const rawPayloads = rows.map(pickPromotionGroupItemPayload);
+  const productMap = await preloadPromotionProductsByCode(rawPayloads);
+  const { rows: payloads, duplicateCount } = dedupePromotionPayloads(rawPayloads, (p) => `${cleanText(p.programCode)}__${cleanText(p.productCode)}`);
+
+  if (duplicateCount) warnings.push({ row: '', productCode: '', warning: `Có ${duplicateCount} dòng trùng mã chương trình + mã sản phẩm trong file. Hệ thống lấy dòng cuối cùng để import nhanh.` });
+
+  const ops = [];
+  for (const payload of payloads) {
+    const rowNo = payload.__rowNumber || payload.rowNumber || '';
+    const programCode = cleanText(payload.programCode);
+    const productCode = cleanText(payload.productCode);
+    const product = productMap.get(productCode);
+
+    if (!programCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã chương trình KM / mã nhóm' }); continue; }
+    if (!productCode) { skipped += 1; errors.push({ row: rowNo, productCode, error: 'Thiếu mã sản phẩm' }); continue; }
+
+    const productName = cleanText(product?.name || payload.productName || '');
+    if (!product) warnings.push({ row: rowNo, productCode, warning: `Mã sản phẩm ${productCode} chưa có trong danh mục` });
+
+    const id = cleanText(payload.id) || `${programCode}__${productCode}`;
+    const doc = {
+      ...payload,
+      id,
+      programCode,
+      productCode,
+      productName,
+      productMatched: Boolean(product),
+      missingProduct: !product,
+      source: cleanText(payload.source || 'excel-import'),
+      isActive: payload.isActive !== false && payload.isActive !== 'false',
+      updatedAt: now
+    };
+    delete doc.errors; delete doc.warnings; delete doc.valid;
+    ops.push({ updateOne: { filter: { programCode, productCode }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
   }
+
+  for (const chunk of promotionBulkChunks(ops)) {
+    if (chunk.length) await PromotionGroupItem.bulkWrite(chunk, { ordered: false });
+  }
+  const imported = ops.length;
   await addImportLog('promotionGroupItems', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
-  return { imported, skipped, errors, warnings, message: `Đã import ${imported} dòng nhóm sản phẩm KM${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+  return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng nhóm sản phẩm KM bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function importPromotionGroupRules(rows = []) {
-  let imported = 0;
   let skipped = 0;
   const errors = [];
-  for (const row of rows) {
-    const payload = pickPromotionGroupRulePayload(row);
-    const result = await promotionService.saveGroupRule(payload);
-    if (result?.error) {
-      skipped += 1;
-      errors.push({ row: row.__rowNumber || row.rowNumber || '', programCode: payload.programCode, error: result.error });
-    } else {
-      imported += 1;
-    }
+  const now = dateUtil.nowIso();
+
+  const rawPayloads = rows.map(pickPromotionGroupRulePayload);
+  const { rows: payloads, duplicateCount } = dedupePromotionPayloads(rawPayloads, (p) => `${cleanText(p.programCode)}__${toNumber(p.minAmount)}`);
+  const warnings = duplicateCount ? [{ row: '', programCode: '', warning: `Có ${duplicateCount} dòng trùng mã chương trình + mức doanh số trong file. Hệ thống lấy dòng cuối cùng để import nhanh.` }] : [];
+
+  const ops = [];
+  for (const payload of payloads) {
+    const rowNo = payload.__rowNumber || payload.rowNumber || '';
+    const programCode = cleanText(payload.programCode);
+    const programName = cleanText(payload.programName);
+    const minAmount = toNumber(payload.minAmount);
+    const discountPercent = promotionService.normalizeDiscountPercent(payload.discountPercent);
+
+    if (!programCode) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu mã nhóm sản phẩm / mã chương trình' }); continue; }
+    if (!programName) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Thiếu nội dung chương trình KM' }); continue; }
+    if (minAmount <= 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Mức doanh số cần lấy phải lớn hơn 0' }); continue; }
+    if (discountPercent < 0) { skipped += 1; errors.push({ row: rowNo, programCode, error: 'Chiết khấu không được âm' }); continue; }
+
+    const id = cleanText(payload.id) || `${programCode}__${minAmount}`;
+    const doc = {
+      ...payload,
+      id,
+      programCode,
+      programName,
+      minAmount,
+      discountPercent,
+      source: cleanText(payload.source || 'excel-import'),
+      isActive: payload.isActive !== false && payload.isActive !== 'false',
+      updatedAt: now
+    };
+    delete doc.errors; delete doc.warnings; delete doc.valid;
+    ops.push({ updateOne: { filter: { programCode, minAmount }, update: { $set: doc, $setOnInsert: { createdAt: now } }, upsert: true } });
   }
-  await addImportLog('promotionGroupRules', { imported, skipped, errors: errors.slice(0, 50) });
-  return { imported, skipped, errors, message: `Đã import ${imported} dòng điều kiện nhóm KM${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+
+  for (const chunk of promotionBulkChunks(ops)) {
+    if (chunk.length) await PromotionGroupRule.bulkWrite(chunk, { ordered: false });
+  }
+  const imported = ops.length;
+  await addImportLog('promotionGroupRules', { imported, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50) });
+  return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng điều kiện nhóm KM bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
 async function previewMongoNative(type, rows = []) {

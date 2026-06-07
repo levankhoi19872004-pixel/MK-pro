@@ -88,6 +88,67 @@ function customerSalesValue(customer = {}) {
   return Number(customer.monthRevenue ?? customer.monthSales ?? customer.salesAmount ?? 0);
 }
 
+
+function cleanCustomerText(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  return text && text !== 'undefined' && text !== 'null' ? text : fallback;
+}
+
+function customerCodeValue(customer = {}) {
+  return cleanCustomerText(customer.code || customer.customerCode || customer.customerId || customer.id || '');
+}
+
+function customerNameValue(customer = {}) {
+  return cleanCustomerText(customer.name || customer.customerName || customer.fullName || '');
+}
+
+function customerPhoneValue(customer = {}) {
+  return cleanCustomerText(customer.phone || customer.customerPhone || customer.mobile || customer.tel || customer.telephone || customer.contactPhone || customer.sdt || '', 'Chưa có SĐT');
+}
+
+function customerAddressValue(customer = {}) {
+  return cleanCustomerText(customer.address || customer.customerAddress || customer.fullAddress || customer.diaChi || customer.routeAddress || '', 'Chưa có địa chỉ');
+}
+
+function debtClassName(customer = {}) {
+  const debt = customerDebtValue(customer);
+  if (debt > 10000000) return 'debt-high';
+  if (debt >= 3000000) return 'debt-mid';
+  if (debt > 0) return 'debt-low';
+  return 'debt-zero';
+}
+
+function customerKeys(customer = {}) {
+  return [
+    customer.id,
+    customer._id,
+    customer.customerId,
+    customer.code,
+    customer.customerCode,
+    customer.name,
+    customer.customerName
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+}
+
+function buildDebtLookup(rows = debtCache) {
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((item) => {
+    customerKeys(item).forEach((key) => map.set(key, item));
+  });
+  return map;
+}
+
+function mergeCustomerDebt(customer = {}, debtLookup = buildDebtLookup()) {
+  const matched = customerKeys(customer).map((key) => debtLookup.get(key)).find(Boolean);
+  if (!matched) return { ...customer, debtAmount: customerDebtValue(customer) };
+  return {
+    ...customer,
+    debtAmount: Number(matched.debtAmount || 0),
+    orderCount: Number(matched.orderCount || 0),
+    oldestDebtDate: matched.oldestDebtDate || customer.oldestDebtDate || ''
+  };
+}
+
 tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
 document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); loadCustomers(customerSearch.value.trim()); });
@@ -128,23 +189,37 @@ async function loadCustomers(q = '') {
 }
 
 function renderCustomerList(items) {
-  if (!items.length) {
+  const debtLookup = buildDebtLookup();
+  const sortedItems = (Array.isArray(items) ? items : [])
+    .map((customer) => mergeCustomerDebt(customer, debtLookup))
+    .sort((a, b) => customerDebtValue(b) - customerDebtValue(a));
+  lastCustomers = sortedItems;
+
+  if (!sortedItems.length) {
     customerList.className = 'customer-list empty';
     customerList.textContent = 'Không có khách hàng phù hợp';
     return;
   }
 
   customerList.className = 'customer-list';
-  customerList.innerHTML = items.map((customer, index) => `
-    <button class="customer-card" data-customer-index="${index}">
-      <strong>${customer.code || ''} - ${customer.name || ''}</strong>
-      <div class="customer-metrics customer-metrics-3">
-        <em>Nợ hiện tại: ${money(customerDebtValue(customer))}</em>
-        <em>DS tháng: ${money(customerSalesValue(customer))}</em>
-        <em>Mua gần nhất: ${formatDisplayDate(customer.lastOrderDate || customer.latestOrderDate || customer.lastSaleDate || '')}</em>
-      </div>
-    </button>
-  `).join('');
+  customerList.innerHTML = sortedItems.map((customer, index) => {
+    const code = customerCodeValue(customer);
+    const name = customerNameValue(customer);
+    const debt = customerDebtValue(customer);
+    const phone = customerPhoneValue(customer);
+    const address = customerAddressValue(customer);
+    return `
+      <button class="customer-card ${debtClassName(customer)}" data-customer-index="${index}">
+        <strong>${code || ''}${code && name ? ' - ' : ''}${name || ''}</strong>
+        <span class="customer-contact">SĐT: ${phone}</span>
+        <span class="customer-contact">ĐC: ${address}</span>
+        <div class="customer-metrics">
+          <em class="metric-debt">Nợ: ${money(debt)}</em>
+          <em>DS tháng: ${money(customerSalesValue(customer))}</em>
+        </div>
+      </button>
+    `;
+  }).join('');
 
   customerList.querySelectorAll('[data-customer-index]').forEach((btn) => {
     btn.addEventListener('click', () => selectCustomer(lastCustomers[Number(btn.dataset.customerIndex)]));
@@ -152,11 +227,15 @@ function renderCustomerList(items) {
 }
 
 function selectCustomer(customer) {
-  selectedCustomer = customer;
+  const mergedCustomer = mergeCustomerDebt(customer);
+  selectedCustomer = mergedCustomer;
+  const code = customerCodeValue(mergedCustomer);
+  const name = customerNameValue(mergedCustomer);
   selectedCustomerBox.innerHTML = `
-    <strong>${customer.code || ''} - ${customer.name || ''}</strong><br />
-    <span>Nợ hiện tại: ${money(customerDebtValue(customer))} · DS tháng: ${money(customerSalesValue(customer))}</span><br />
-    <span>Mua gần nhất: ${formatDisplayDate(customer.lastOrderDate || customer.latestOrderDate || customer.lastSaleDate || '')}</span>
+    <strong>${code || ''}${code && name ? ' - ' : ''}${name || ''}</strong><br />
+    <span>SĐT: ${customerPhoneValue(mergedCustomer)}</span><br />
+    <span>ĐC: ${customerAddressValue(mergedCustomer)}</span><br />
+    <span>Nợ: ${money(customerDebtValue(mergedCustomer))} · DS tháng: ${money(customerSalesValue(mergedCustomer))}</span>
   `;
   selectedCustomerBox.classList.remove('muted');
   setMessage(message, 'Đã chọn khách hàng. Hãy thêm sản phẩm vào giỏ.', 'success');
@@ -385,6 +464,7 @@ async function loadDebts() {
     const data = await mobileApi.getSalesDebts({});
     debtCache = Array.isArray(data.items) ? data.items : [];
     renderDebts(debtCache, data.summary || {});
+    if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
   } catch (err) {
     debtList.className = 'order-list empty';
     debtList.textContent = err.message || 'Không tải được công nợ';

@@ -725,8 +725,8 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   width: 100%;
   text-align: left;
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 12px;
+  border-radius: 14px;
+  padding: 10px 11px;
   background: #fbfcff;
   cursor: pointer;
 }
@@ -735,20 +735,28 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   display: block;
   font-size: 14px;
   color: var(--text);
+  line-height: 1.25;
 }
 
 .customer-card span {
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.25;
+}
+
+.customer-card .customer-contact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .customer-metrics {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 7px;
+  margin-top: 8px;
 }
 
 .customer-metrics em {
@@ -757,9 +765,19 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   font-weight: 800;
   color: var(--primary);
   background: #edf3ff;
-  border-radius: 12px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 7px 8px;
 }
+
+.customer-metrics .metric-debt {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.customer-card.debt-high { border-color: #fecaca; background: #fffafa; }
+.customer-card.debt-mid { border-color: #fde68a; background: #fffdf4; }
+.customer-card.debt-low { border-color: #bbf7d0; background: #f8fffb; }
+.customer-card.debt-zero { border-color: #e2e8f0; background: #fbfcff; }
 
 .qty-row.three-cols {
   grid-template-columns: 1fr 1fr 96px;
@@ -1242,9 +1260,6 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   background: rgba(255,255,255,0.95);
   color: var(--primary);
 }
-.customer-metrics.customer-metrics-3 {
-  grid-template-columns: 1fr 1fr 1fr;
-}
 .debt-card {
   width: 100%;
   text-align: left;
@@ -1268,5 +1283,4 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 @media (max-width: 420px) {
   .mobile-tabs.sales-tabs-5 { grid-template-columns: repeat(5, minmax(54px, 1fr)); overflow-x: auto; }
   .mobile-tabs.sales-tabs-5 .tab-btn { white-space: nowrap; }
-  .customer-metrics.customer-metrics-3 { grid-template-columns: 1fr; }
 }

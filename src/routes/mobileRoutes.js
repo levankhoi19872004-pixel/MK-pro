@@ -1246,6 +1246,116 @@ function arLedgerDate(row = {}) {
   return dateUtil.toDateOnly(row.date || row.documentDate || row.createdAt || row.updatedAt || '');
 }
 
+async function buildMobileSalesDebtItems(mobileUser = {}) {
+  const user = mobileUser || {};
+  const filter = {};
+  if (String(user.role || '') === 'sales') {
+    const staffCode = String(user.code || user.staffCode || '').trim();
+    const staffName = String(user.name || user.fullName || '').trim();
+    const staffOr = [];
+    if (staffCode) staffOr.push({ salesStaffCode: staffCode }, { staffCode });
+    if (staffName) staffOr.push({ salesStaffName: staffName }, { staffName });
+
+    const orderStaffOr = [];
+    if (staffCode) orderStaffOr.push({ salesStaffCode: staffCode }, { staffCode });
+    if (staffName) orderStaffOr.push({ salesStaffName: staffName }, { staffName });
+    if (orderStaffOr.length) {
+      const assignedOrders = await SalesOrder.find({ $or: orderStaffOr })
+        .select('customerId customerCode customerName')
+        .limit(5000)
+        .lean();
+      const customerIds = compactKeys(assignedOrders.map((order) => order.customerId));
+      const customerCodes = compactKeys(assignedOrders.map((order) => order.customerCode));
+      const customerNames = compactKeys(assignedOrders.map((order) => order.customerName));
+      if (customerIds.length) staffOr.push({ customerId: { $in: customerIds } });
+      if (customerCodes.length) staffOr.push({ customerCode: { $in: customerCodes } });
+      if (customerNames.length) staffOr.push({ customerName: { $in: customerNames } });
+    }
+
+    if (staffOr.length) filter.$or = staffOr;
+  }
+
+  const rows = await ArLedger.find(filter)
+    .sort({ date: 1, documentDate: 1, createdAt: 1 })
+    .limit(5000)
+    .lean();
+
+  const byCustomer = new Map();
+  for (const row of rows) {
+    const customerCode = String(row.customerCode || '').trim();
+    const customerName = String(row.customerName || '').trim();
+    const customerId = String(row.customerId || '').trim();
+    const key = customerId || customerCode || customerName;
+    if (!key) continue;
+
+    if (!byCustomer.has(key)) {
+      byCustomer.set(key, {
+        customerId,
+        customerCode,
+        customerName,
+        debtAmount: 0,
+        orderCodes: new Set(),
+        oldestDebtDate: '',
+        ledgers: []
+      });
+    }
+
+    const bucket = byCustomer.get(key);
+    const date = arLedgerDate(row);
+    const { debit, credit, delta } = arLedgerDelta(row);
+    bucket.debtAmount += delta;
+    if (row.salesOrderCode || row.refCode) bucket.orderCodes.add(String(row.salesOrderCode || row.refCode));
+    if (delta > 0 && date && (!bucket.oldestDebtDate || String(date) < String(bucket.oldestDebtDate))) bucket.oldestDebtDate = date;
+    bucket.ledgers.push({
+      id: row.id || row._id,
+      date,
+      type: row.type || row.refType || '',
+      refType: row.refType || '',
+      salesOrderId: row.salesOrderId || '',
+      salesOrderCode: row.salesOrderCode || row.refCode || '',
+      debit,
+      credit
+    });
+  }
+
+  return Array.from(byCustomer.values())
+    .map((item) => ({
+      ...item,
+      debtAmount: normalizeDebtAmount(Math.max(0, toNumber(item.debtAmount))),
+      orderCount: item.orderCodes.size,
+      orderCodes: Array.from(item.orderCodes)
+    }))
+    .filter((item) => hasOpenDebt(item.debtAmount))
+    .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount));
+}
+
+function buildDebtMapByCustomer(items = []) {
+  const map = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    for (const key of compactKeys([item.customerId, item.customerCode, item.customerName])) {
+      map.set(key, item);
+    }
+  }
+  return map;
+}
+
+function attachMobileCustomerDebt(items = [], debts = []) {
+  const debtMap = buildDebtMapByCustomer(debts);
+  return (Array.isArray(items) ? items : [])
+    .map((customer) => {
+      const matched = compactKeys([customer.id, customer._id, customer.customerId, customer.code, customer.customerCode, customer.name, customer.customerName])
+        .map((key) => debtMap.get(key))
+        .find(Boolean);
+      return {
+        ...customer,
+        debtAmount: matched ? toNumber(matched.debtAmount) : 0,
+        orderCount: matched ? toNumber(matched.orderCount) : 0,
+        oldestDebtDate: matched ? matched.oldestDebtDate || '' : ''
+      };
+    })
+    .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount));
+}
+
 async function attachMobileCustomerLastOrderDates(items = [], mobileUser = {}) {
   const rows = Array.isArray(items) ? items : [];
   const customerCodes = compactKeys(rows.map((c) => c.code || c.customerCode));
@@ -1295,8 +1405,10 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
       mobile: '1',
       limit: req.query.limit || 100
     });
-    const items = await attachMobileCustomerLastOrderDates(rawItems, req.mobileUser || {});
-    return ok(res, { source: 'unified-search-mobile', items });
+    const withLastOrder = await attachMobileCustomerLastOrderDates(rawItems, req.mobileUser || {});
+    const debts = await buildMobileSalesDebtItems(req.mobileUser || {});
+    const items = attachMobileCustomerDebt(withLastOrder, debts);
+    return ok(res, { source: 'unified-search-mobile-ar-ledger-debt', items });
   } catch (err) {
     return fail(res, 500, err.message || 'Không tải được khách hàng mobile');
   }
@@ -1304,87 +1416,7 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
 
 router.get('/debts', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'admin']), async (req, res) => {
   try {
-    const user = req.mobileUser || {};
-    const filter = {};
-    if (String(user.role || '') === 'sales') {
-      const staffCode = String(user.code || user.staffCode || '').trim();
-      const staffName = String(user.name || user.fullName || '').trim();
-      const staffOr = [];
-      if (staffCode) staffOr.push({ salesStaffCode: staffCode }, { staffCode });
-      if (staffName) staffOr.push({ salesStaffName: staffName }, { staffName });
-
-      const orderStaffOr = [];
-      if (staffCode) orderStaffOr.push({ salesStaffCode: staffCode }, { staffCode });
-      if (staffName) orderStaffOr.push({ salesStaffName: staffName }, { staffName });
-      if (orderStaffOr.length) {
-        const assignedOrders = await SalesOrder.find({ $or: orderStaffOr })
-          .select('customerId customerCode customerName')
-          .limit(5000)
-          .lean();
-        const customerIds = compactKeys(assignedOrders.map((order) => order.customerId));
-        const customerCodes = compactKeys(assignedOrders.map((order) => order.customerCode));
-        const customerNames = compactKeys(assignedOrders.map((order) => order.customerName));
-        if (customerIds.length) staffOr.push({ customerId: { $in: customerIds } });
-        if (customerCodes.length) staffOr.push({ customerCode: { $in: customerCodes } });
-        if (customerNames.length) staffOr.push({ customerName: { $in: customerNames } });
-      }
-
-      if (staffOr.length) filter.$or = staffOr;
-    }
-
-    const rows = await ArLedger.find(filter)
-      .sort({ date: 1, documentDate: 1, createdAt: 1 })
-      .limit(5000)
-      .lean();
-
-    const byCustomer = new Map();
-    for (const row of rows) {
-      const customerCode = String(row.customerCode || '').trim();
-      const customerName = String(row.customerName || '').trim();
-      const customerId = String(row.customerId || '').trim();
-      const key = customerId || customerCode || customerName;
-      if (!key) continue;
-
-      if (!byCustomer.has(key)) {
-        byCustomer.set(key, {
-          customerId,
-          customerCode,
-          customerName,
-          debtAmount: 0,
-          orderCodes: new Set(),
-          oldestDebtDate: '',
-          ledgers: []
-        });
-      }
-
-      const bucket = byCustomer.get(key);
-      const date = arLedgerDate(row);
-      const { debit, credit, delta } = arLedgerDelta(row);
-      bucket.debtAmount += delta;
-      if (row.salesOrderCode || row.refCode) bucket.orderCodes.add(String(row.salesOrderCode || row.refCode));
-      if (delta > 0 && date && (!bucket.oldestDebtDate || String(date) < String(bucket.oldestDebtDate))) bucket.oldestDebtDate = date;
-      bucket.ledgers.push({
-        id: row.id || row._id,
-        date,
-        type: row.type || row.refType || '',
-        refType: row.refType || '',
-        salesOrderId: row.salesOrderId || '',
-        salesOrderCode: row.salesOrderCode || row.refCode || '',
-        debit,
-        credit
-      });
-    }
-
-    const items = Array.from(byCustomer.values())
-      .map((item) => ({
-        ...item,
-        debtAmount: normalizeDebtAmount(Math.max(0, toNumber(item.debtAmount))),
-        orderCount: item.orderCodes.size,
-        orderCodes: Array.from(item.orderCodes)
-      }))
-      .filter((item) => hasOpenDebt(item.debtAmount))
-      .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount));
-
+    const items = await buildMobileSalesDebtItems(req.mobileUser || {});
     const summary = {
       totalDebt: items.reduce((sum, item) => sum + toNumber(item.debtAmount), 0),
       customerCount: items.length,
@@ -1396,6 +1428,7 @@ router.get('/debts', requireMobileLogin, requireMobileRole(['accountant', 'sales
     return fail(res, 500, err.message || 'Không tải được công nợ mobile');
   }
 });
+
 
 router.get('/products', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
