@@ -114,6 +114,38 @@ function getItemPack(item) {
   )) || 1;
 }
 
+
+function normalizeMergeCode(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase();
+}
+
+function normalizePack(pack) {
+  return String(pack || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '');
+}
+
+function normalizeUnit(unit) {
+  return String(unit || '')
+    .trim()
+    .toUpperCase();
+}
+
+function normalizeMergePrice(price) {
+  return Math.round(toNumber(price));
+}
+
+function comparePrintItems(a, b) {
+  const codeCompare = normalizeMergeCode(a.code).localeCompare(normalizeMergeCode(b.code), 'vi', { numeric: true });
+  if (codeCompare !== 0) return codeCompare;
+  const priceCompare = normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
+  if (priceCompare !== 0) return priceCompare;
+  return String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+}
+
 function getCatalogSalePrice(item) {
   // Cột 4 của mẫu DMS/V46: giá bán sau thuế, trước khuyến mại.
   // Ưu tiên giá bán trong danh mục sản phẩm đã được enrich từ Mongo.
@@ -319,6 +351,8 @@ function normalizeDisplayRewards(document) {
 
 function buildWarehouseGroups(items = []) {
   const map = new Map();
+  const itemMaps = new Map();
+
   for (const item of items) {
     const code = String(item.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
     const name = String(item.warehouseName || (code === 'KHO_PC' ? 'KHO PC' : 'KHO HC')).trim();
@@ -334,37 +368,74 @@ function buildWarehouseGroups(items = []) {
         promoQty: 0,
         totalAmount: 0
       });
+      itemMaps.set(code, new Map());
     }
+
     const group = map.get(code);
+    const groupItemMap = itemMaps.get(code);
     const lineType = item.isPromo || item.lineType === 'PROMO' ? 'PROMO' : 'SALE';
+    const normalizedCode = normalizeMergeCode(pick(item.code, item.productCode));
+    const normalizedPack = normalizePack(item.pack);
+    const normalizedUnit = normalizeUnit(item.unit);
+    const normalizedPrice = lineType === 'PROMO' ? 0 : normalizeMergePrice(item.price);
+
+    // Debug khi cần kiểm tra dữ liệu nguồn bị tách dòng: bật PRINT_DEBUG_MERGE=1.
+    // Không bật mặc định để tránh spam log production.
+    if (process.env.PRINT_DEBUG_MERGE === '1') {
+      console.log('[printDataBuilder.buildWarehouseGroups] source item', {
+        code: item.code,
+        name: item.name,
+        unit: item.unit,
+        pack: item.pack,
+        price: item.price,
+        normalizedCode,
+        normalizedUnit,
+        normalizedPack,
+        normalizedPrice
+      });
+    }
+
+    // Đơn tổng phải gộp theo kho + loại dòng + mã sản phẩm + giá bán.
+    // Không dùng tên hàng/ĐVT/quy cách trong khóa vì các trường này dễ lệch chữ hoa, khoảng trắng, snapshot.
     const mergeKey = [
       code,
       lineType,
-      item.code,
-      item.unit,
-      item.pack,
-      lineType === 'PROMO' ? 0 : item.price
+      normalizedCode,
+      normalizedPrice
     ].join('|');
 
-    let merged = group.items.find((row) => row.__mergeKey === mergeKey);
+    let merged = groupItemMap.get(mergeKey);
     if (!merged) {
       merged = {
         ...item,
+        code: normalizedCode || item.code,
+        productCode: normalizedCode || item.productCode || item.code,
+        unit: item.unit || normalizedUnit,
+        pack: toNumber(item.pack) || toNumber(normalizedPack) || 1,
+        price: normalizedPrice,
+        salePrice: normalizedPrice,
         __mergeKey: mergeKey,
         qty: 0,
         amount: 0,
         sourceOrderCodes: []
       };
+      groupItemMap.set(mergeKey, merged);
       group.items.push(merged);
       if (lineType === 'PROMO') group.promoItems.push(merged);
       else group.saleItems.push(merged);
     }
 
     merged.qty += toNumber(item.qty);
+    merged.quantity = merged.qty;
     merged.amount += toNumber(item.amount);
-    merged.caseQty = normalizeQuantityByPack(merged.qty, merged.pack).cases;
-    merged.unitQty = normalizeQuantityByPack(merged.qty, merged.pack).units;
-    merged.caseDisplay = normalizeQuantityByPack(merged.qty, merged.pack).display;
+    merged.lineAmount = merged.amount;
+
+    const caseInfo = normalizeQuantityByPack(merged.qty, merged.pack);
+    merged.caseQty = caseInfo.cases;
+    merged.cartonQty = caseInfo.cases;
+    merged.unitQty = caseInfo.units;
+    merged.caseDisplay = caseInfo.display;
+
     if (item.sourceOrderCode && !merged.sourceOrderCodes.includes(item.sourceOrderCode)) merged.sourceOrderCodes.push(item.sourceOrderCode);
     for (const sourceCode of item.sourceOrderCodes || []) {
       if (sourceCode && !merged.sourceOrderCodes.includes(sourceCode)) merged.sourceOrderCodes.push(sourceCode);
@@ -375,6 +446,17 @@ function buildWarehouseGroups(items = []) {
     else group.saleQty += toNumber(item.qty);
     group.totalAmount += toNumber(item.amount);
   }
+
+  for (const group of map.values()) {
+    group.saleItems.sort(comparePrintItems);
+    group.promoItems.sort(comparePrintItems);
+    group.items = [...group.saleItems, ...group.promoItems];
+    group.items.forEach((item, index) => {
+      item.stt = index + 1;
+      delete item.__mergeKey;
+    });
+  }
+
   const preferred = ['KHO_HC', 'KHO_PC'];
   return Array.from(map.values()).sort((a, b) => {
     const ai = preferred.indexOf(a.code);
