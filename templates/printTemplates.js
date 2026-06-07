@@ -677,47 +677,47 @@ function renderDocumentHeader(title, data) {
       <div class="h-row title-row">
         <div class="h-cell"></div>
         <div class="h-cell invoice-title-line">${text(title)}</div>
-        <div class="h-cell right-info"><b>Số xe tải:</b> ${text(data.document.vehicleNo)}</div>
+        <div class="h-cell right-info"><span>Số xe tải:</span> ${text(data.document.vehicleNo)}</div>
       </div>
 
       <div class="h-row">
-        <div class="h-cell"><b>Số hóa đơn:</b> ${text(invoiceCode)}</div>
-        <div class="h-cell center-info"><b>Loại hóa đơn:</b> ${text(invoiceType)}</div>
-        <div class="h-cell copy-page-cell"><b>${text(copyLabel)}</b><b>Trang: ${text(pageLabel)}</b></div>
+        <div class="h-cell"><span>Số hóa đơn:</span> ${text(invoiceCode)}</div>
+        <div class="h-cell center-info"><span>Loại hóa đơn:</span> ${text(invoiceType)}</div>
+        <div class="h-cell copy-page-cell"><span>${text(copyLabel)}</span><span>Trang: ${text(pageLabel)}</span></div>
       </div>
 
       <div class="h-row">
-        <div class="h-cell"><b>Số đơn hàng:</b> ${text(orderCode)}</div>
-        <div class="h-cell"><b>Thời gian đặt hàng:</b> ${text(data.document.dateTime)}</div>
+        <div class="h-cell"><span>Số đơn hàng:</span> ${text(orderCode)}</div>
+        <div class="h-cell"><span>Thời gian đặt hàng:</span> ${text(data.document.dateTime)}</div>
         <div class="h-cell"></div>
       </div>
 
       <div class="h-row">
-        <div class="h-cell"><b>NVBH:</b> ${text(data.staff.code)} - ${text(data.staff.name)}</div>
-        <div class="h-cell"><b>Nhà phân phối:</b> ${text(distributorName)}</div>
+        <div class="h-cell"><span>NVBH:</span> ${text(data.staff.code)} - ${text(data.staff.name)}</div>
+        <div class="h-cell"><span>Nhà phân phối:</span> ${text(distributorName)}</div>
         <div class="h-cell"></div>
       </div>
 
       <div class="h-row">
-        <div class="h-cell"><b>Khách hàng - Điện thoại:</b> ${text(data.customer.code)} - ${text(data.customer.name)} - ${text(data.customer.phone)}</div>
-        <div class="h-cell"><b>Địa chỉ:</b> ${text(data.company.address)}</div>
+        <div class="h-cell"><span>Khách hàng - Điện thoại:</span> ${text(data.customer.code)} - ${text(data.customer.name)} - ${text(data.customer.phone)}</div>
+        <div class="h-cell"><span>Địa chỉ:</span> ${text(data.company.address)}</div>
         <div class="h-cell"></div>
       </div>
 
       <div class="h-row">
-        <div class="h-cell"><b>Địa chỉ giao hàng:</b> ${text(data.customer.address)}</div>
-        <div class="h-cell"><b>Điện thoại:</b> ${text(data.company.phone)}</div>
+        <div class="h-cell"><span>Địa chỉ giao hàng:</span> ${text(data.customer.address)}</div>
+        <div class="h-cell"><span>Điện thoại:</span> ${text(data.company.phone)}</div>
         <div class="h-cell"></div>
       </div>
 
       <div class="h-row single-left-row">
-        <div class="h-cell"><b>Điều khoản thanh toán:</b> ${text(data.document.terms)}</div>
+        <div class="h-cell"><span>Điều khoản thanh toán:</span> ${text(data.document.terms)}</div>
         <div class="h-cell"></div>
         <div class="h-cell"></div>
       </div>
 
       <div class="h-row single-left-row">
-        <div class="h-cell"><b>MST:</b> ${text(data.customer.taxCode)}</div>
+        <div class="h-cell"><span>MST:</span> ${text(data.customer.taxCode)}</div>
         <div class="h-cell"></div>
         <div class="h-cell"></div>
       </div>
