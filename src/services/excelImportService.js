@@ -1342,7 +1342,7 @@ async function importSalesOrders(rows = [], options = {}) {
     batchSize: IMPORT_BATCH_SIZE,
     payments: paymentDocs.length,
     cashbook: cashbookDocs.length,
-    returnDrafts: returnDraftDocs.length - returnDraftResult.errors.length,
+    returnDrafts: 0,
     stockTransactions: inventoryResult.transactionCount,
     inventoryRows: inventoryResult.inventoryRows,
     shortageCount: shortageReport.length,
