@@ -852,77 +852,51 @@
         <div class="toolbar report-toolbar">
           <div>
             <h2>Báo cáo quản trị</h2>
-            <p class="muted">Tổng hợp nhanh bán hàng, tồn kho, công nợ, quỹ tiền và giao hàng.</p>
+            <p class="muted">Dashboard chỉ giữ chỉ số nhanh. Báo cáo chi tiết xuất Excel theo khoảng ngày để hệ thống nhẹ và ổn định.</p>
           </div>
           <div class="report-filter">
             <label>Từ ngày<input id="reportFromDate" type="date" /></label>
             <label>Đến ngày<input id="reportToDate" type="date" /></label>
-            <button id="reloadReportsButton" class="secondary" type="button">Tải báo cáo</button>
+            <button id="reloadReportsButton" class="secondary" type="button">Cập nhật nhanh</button>
           </div>
         </div>
 
         <div class="report-kpis">
-          <div class="kpi-card"><span>Doanh thu</span><strong id="reportRevenue">0</strong><small id="reportOrderCount">0 đơn bán</small></div>
-          <div class="kpi-card"><span>Đã thu</span><strong id="reportCollected">0</strong><small>Tiền đã thu theo đơn</small></div>
-          <div class="kpi-card"><span>Công nợ còn lại</span><strong id="reportDebt">0</strong><small>Khách còn nợ</small></div>
-          <div class="kpi-card"><span>Tồn quỹ</span><strong id="reportCashBalance">0</strong><small>Thu - chi</small></div>
+          <div class="kpi-card"><span>Doanh thu hôm nay</span><strong id="reportRevenue">0</strong><small id="reportOrderCount">Dashboard nhẹ</small></div>
+          <div class="kpi-card"><span>Đã thu</span><strong id="reportCollected">0</strong><small>Xuất Excel để xem chi tiết</small></div>
+          <div class="kpi-card"><span>Công nợ hiện tại</span><strong id="reportDebt">0</strong><small>Nguồn AR Ledger</small></div>
+          <div class="kpi-card"><span>Tồn quỹ</span><strong id="reportCashBalance">0</strong><small>Nguồn Fund Ledger</small></div>
         </div>
       </section>
 
-      <main class="grid report-grid">
-        <section class="card">
-          <div class="toolbar"><div><h2>Báo cáo bán hàng</h2><p id="reportSalesSummary" class="muted">Đang tải...</p></div></div>
-          <div class="table-wrap report-table-wrap">
-            <table>
-              <thead><tr><th>Mã đơn</th><th>Nguồn</th><th>Ngày</th><th>Khách hàng</th><th>SL</th><th>Tổng tiền</th><th>Đã thu</th><th>Còn nợ</th><th>Giao hàng</th></tr></thead>
-              <tbody id="reportSalesTable"><tr><td colspan="9">Đang tải báo cáo bán hàng...</td></tr></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="card vat-invoice-export-card">
+      <main class="grid report-grid report-export-grid">
+        <section class="card report-export-card">
           <div class="toolbar">
             <div>
-              <h2>Xuất hóa đơn VAT TT78</h2>
-              <p id="vatInvoiceExportSummary" class="muted">Xuất Sheet1 sau khi đã đối trừ hàng trả từ returnOrders.</p>
+              <h2>Trung tâm xuất báo cáo Excel</h2>
+              <p id="reportSalesSummary" class="muted">Chọn khoảng ngày rồi bấm mẫu báo cáo cần xuất. Không render bảng chi tiết trên web để tránh tải nặng MongoDB.</p>
             </div>
-            <button id="exportVatInvoiceTT78Button" class="secondary" type="button">Xuất Excel TT78</button>
           </div>
           <div class="note-box">
-            <strong>Quy tắc xuất:</strong>
-            Số lượng hóa đơn = số lượng bán - số lượng trả. Đơn giá trước thuế = giá bán sau khuyến mại trên đơn / 1.08.
-            Các cột khách hàng, TienBan, ThueSuat, TienThue, TongCong, DonViTienTe chỉ ghi ở dòng đầu của mỗi hóa đơn.
+            <strong>Quy tắc doanh số:</strong>
+            Các báo cáo liên quan bán hàng luôn có 3 cột: Doanh số trước KM, Doanh số sau KM, Chênh lệch KM.
           </div>
-        </section>
-
-        <section class="card">
-          <div class="toolbar"><div><h2>Tồn kho cần chú ý</h2><p id="reportStockSummary" class="muted">Đang tải...</p></div></div>
-          <div class="table-wrap report-table-wrap">
-            <table>
-              <thead><tr><th>Mã</th><th>Sản phẩm</th><th>ĐVT</th><th>Tồn</th><th>Cảnh báo</th></tr></thead>
-              <tbody id="reportStockTable"><tr><td colspan="5">Đang tải tồn kho...</td></tr></tbody>
-            </table>
+          <div class="report-export-buttons">
+            <button type="button" class="secondary report-export-btn" data-report-type="sales-report">Xuất báo cáo bán hàng</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="delivery-report">Xuất báo cáo giao hàng</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="return-report">Xuất báo cáo trả hàng</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="debt-report">Xuất báo cáo công nợ</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="ar-ledger-detail">Xuất sổ công nợ chi tiết</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="stock-report">Xuất tồn kho</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="stock-card-report">Xuất thẻ kho</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="fund-report">Xuất quỹ tiền</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="salesman-report">Xuất báo cáo NVBH</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="deliveryman-report">Xuất báo cáo NVGH</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="customer-sales-report">Xuất doanh số khách hàng</button>
+            <button type="button" class="secondary report-export-btn" data-report-type="product-sales-report">Xuất doanh số sản phẩm</button>
+            <button id="exportVatInvoiceTT78Button" type="button" class="secondary">Xuất hóa đơn VAT TT78</button>
           </div>
-        </section>
-
-        <section class="card">
-          <div class="toolbar"><div><h2>Công nợ lớn</h2><p id="reportDebtSummary" class="muted">Đang tải...</p></div></div>
-          <div class="table-wrap report-table-wrap">
-            <table>
-              <thead><tr><th>Mã khách</th><th>Khách hàng</th><th>SĐT</th><th>Phải thu</th><th>Đã thu</th><th>Còn nợ</th></tr></thead>
-              <tbody id="reportDebtTable"><tr><td colspan="6">Đang tải công nợ...</td></tr></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="toolbar"><div><h2>Quỹ tiền</h2><p id="reportCashSummary" class="muted">Đang tải...</p></div></div>
-          <div class="table-wrap report-table-wrap">
-            <table>
-              <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>Loại</th><th>Nguồn</th><th>Người liên quan</th><th>Số tiền</th></tr></thead>
-              <tbody id="reportCashTable"><tr><td colspan="6">Đang tải quỹ tiền...</td></tr></tbody>
-            </table>
-          </div>
+          <p id="vatInvoiceExportSummary" class="muted">VAT TT78: Sheet1 sau khi đã đối trừ hàng trả từ returnOrders.</p>
         </section>
       </main>
     </section>

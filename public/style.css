@@ -7896,3 +7896,9 @@ body::after{
   text-overflow:ellipsis!important;
   white-space:nowrap!important;
 }
+
+/* Reports: lightweight Excel export center */
+.report-export-grid{grid-template-columns:1fr;}
+.report-export-card{width:100%;}
+.report-export-buttons{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px;}
+.report-export-buttons button{min-height:42px;text-align:left;}
