@@ -1183,3 +1183,18 @@ body.dms-print-body .dms-invoice-table strong,
 body.dms-print-body .dms-invoice-table b {
   font-weight: normal !important;
 }
+
+
+/* custom normal weight */
+.dms-header-lines *,
+.dms-items-table *,
+.dms-items-table .strong,
+.dms-summary-table *{
+  font-weight: normal !important;
+}
+.dms-header-lines,
+.dms-items-table,
+.dms-items-table td,
+.dms-items-table th{
+  font-size:10px !important;
+}
