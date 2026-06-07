@@ -5,7 +5,6 @@ const { normalizeSearchText } = require('../utils/search.util');
 const productRepository = require('../repositories/productRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
-const Inventory = require('../models/Inventory');
 const InventoryLegacy = require('../models/InventoryLegacy');
 
 
@@ -73,7 +72,7 @@ function toClient(product, snapshot = null) {
   const clean = stripProductStockFields(raw);
   const code = String(raw.code || raw.sku || raw.productCode || raw.id || raw._id || '').trim();
   // Products chỉ là danh mục, nhưng frontend/test cũ vẫn cần field tồn hiển thị.
-  // Ưu tiên snapshot/inventories; nếu chưa có snapshot thì fallback về field tồn có sẵn trên product.
+  // Ưu tiên inventories; nếu chưa có inventories thì fallback về field tồn có sẵn trên product.
   const stockSource = snapshot || raw;
   const stock = stockFromSnapshot({ ...stockSource, conversionRate: raw.conversionRate || 1 });
   return {
@@ -100,7 +99,7 @@ async function snapshotMapForProducts(products = []) {
   if (!keys.length) return new Map();
   // Unit tests may patch productRepository without connecting Mongo. In that case,
   // skip snapshot lookup and let toClient() fallback to stock fields already present on product rows.
-  if (Inventory.db && Inventory.db.readyState !== 1) return new Map();
+  if (InventoryLegacy.db && InventoryLegacy.db.readyState !== 1) return new Map();
 
   const filter = {
     $or: [
@@ -111,17 +110,8 @@ async function snapshotMapForProducts(products = []) {
     ]
   };
 
-  // Ưu tiên inventorySnapshots. Nếu snapshot chưa rebuild nhưng inventories cũ đang có dữ liệu,
-  // fallback sang inventories để danh sách sản phẩm không hiện tồn = 0 sai.
-  const [snapshotRows, legacyRows] = await Promise.all([
-    Inventory.find(filter).lean(),
-    InventoryLegacy.find(filter).lean()
-  ]);
-  const snapshotTotalQty = snapshotRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
-  const legacyTotalQty = legacyRows.reduce((sum, row) => sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty), 0);
-  const rows = legacyRows.length > snapshotRows.length && (snapshotRows.length <= 1 || snapshotTotalQty <= 0) && legacyTotalQty !== 0
-    ? legacyRows
-    : snapshotRows;
+  // Nguồn tồn duy nhất: collection inventories qua InventoryLegacy.
+  const rows = await InventoryLegacy.find(filter).lean();
 
   const map = new Map();
   for (const row of rows) {

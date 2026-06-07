@@ -24,7 +24,7 @@ function productNameOf(product = {}) {
 
 function baseProductQty() {
   // Phase 3.4: products không còn là nguồn tồn.
-  // Nếu chưa có inventorySnapshots thì tồn hiển thị là 0 và cần rebuild từ stockTransactions/chứng từ.
+  // Nếu chưa có inventories thì tồn hiển thị là 0 và cần rebuild từ stockTransactions/chứng từ.
   return 0;
 }
 
@@ -69,7 +69,7 @@ function buildInventoryMap(products = [], inventories = []) {
 
   const inventoryQtyByKey = new Map();
   for (const row of inventories || []) {
-    // Phase 3.4+: tồn hiển thị lấy từ inventorySnapshots/inventories.
+    // Phase 3.4+: tồn hiển thị lấy từ inventories/inventories.
     // Ưu tiên availableQty; nếu snapshot cũ chưa có availableQty thì tính từ onHand - reservedQty.
     const onHand = toNumber(row.onHand ?? row.qty ?? row.quantity ?? row.stockQuantity);
     const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
@@ -140,7 +140,7 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
     salePrice,
     conversionRate,
 
-    // Các alias này chỉ để frontend cũ đọc được; giá trị vẫn sinh từ inventorySnapshots.
+    // Các alias này chỉ để frontend cũ đọc được; giá trị vẫn sinh từ inventories.
     availableQty,
     availableStock: availableQty,
     stockQuantity: availableQty,

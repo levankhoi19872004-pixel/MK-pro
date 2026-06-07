@@ -11,7 +11,6 @@ const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
 const StockTransaction = require('../models/StockTransaction');
 const InventoryLegacy = require('../models/InventoryLegacy');
-const Inventory = require('../models/Inventory');
 const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
 const ArLedger = require('../models/ArLedger');
@@ -713,10 +712,7 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     });
   }
   if (ops.length) {
-    await Promise.all([
-      bulkWriteInBatches(InventoryLegacy, ops),
-      bulkWriteInBatches(Inventory, ops)
-    ]);
+    await bulkWriteInBatches(InventoryLegacy, ops);
   }
   return { transactionCount: movements.length, inventoryRows: ops.length };
 }
@@ -756,10 +752,7 @@ async function setOpeningStockInventoriesBulk(rows = []) {
     });
   }
   if (ops.length) {
-    await Promise.all([
-      bulkWriteInBatches(InventoryLegacy, ops),
-      bulkWriteInBatches(Inventory, ops)
-    ]);
+    await bulkWriteInBatches(InventoryLegacy, ops);
   }
   return { inventoryRows: ops.length };
 }
@@ -1057,15 +1050,7 @@ async function importSalesOrders(rows = [], options = {}) {
   // Lấy tồn kho theo mã sản phẩm. Không khóa cứng warehouseCode ở bước import DMS,
   // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
   // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
-  const [snapshotStockRows, legacyStockRows] = await Promise.all([
-    Inventory.find({ productCode: { $in: productCodes } }).lean().catch(() => []),
-    InventoryLegacy.find({ productCode: { $in: productCodes } }).lean().catch(() => [])
-  ]);
-  const snapshotTotalQty = snapshotStockRows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand), 0);
-  const legacyTotalQty = legacyStockRows.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand), 0);
-  const stockRows = legacyStockRows.length > snapshotStockRows.length && snapshotTotalQty <= 0 && legacyTotalQty !== 0
-    ? legacyStockRows
-    : snapshotStockRows;
+  const stockRows = await InventoryLegacy.find({ productCode: { $in: productCodes } }).lean().catch(() => []);
   const stockMap = new Map();
   const productStockMap = new Map();
   for (const stock of stockRows) {
@@ -1676,10 +1661,7 @@ function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) 
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   if (!codes.length) return new Map();
-  const [snapshotRows, legacyRows] = await Promise.all([
-    Inventory.find({ productCode: { $in: codes } }).lean().catch(() => []),
-    InventoryLegacy.find({ productCode: { $in: codes } }).lean().catch(() => [])
-  ]);
+  const inventoryRows = await InventoryLegacy.find({ productCode: { $in: codes } }).lean().catch(() => []);
   const buildMap = (inventoryRows = []) => {
     const map = new Map();
     for (const row of inventoryRows) {
@@ -1690,11 +1672,7 @@ async function getStockMapByProductCode(rows = []) {
     }
     return map;
   };
-  const snapshotMap = buildMap(snapshotRows);
-  const legacyMap = buildMap(legacyRows);
-  const snapshotTotal = [...snapshotMap.values()].reduce((a, b) => a + toNumber(b), 0);
-  const legacyTotal = [...legacyMap.values()].reduce((a, b) => a + toNumber(b), 0);
-  return legacyRows.length > snapshotRows.length && snapshotTotal <= 0 && legacyTotal !== 0 ? legacyMap : snapshotMap;
+  return buildMap(inventoryRows);
 }
 
 

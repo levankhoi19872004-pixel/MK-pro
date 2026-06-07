@@ -3,7 +3,7 @@
 const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
-const Inventory = require('../models/Inventory');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const { MongoStore } = require('./mongoSyncService');
 
 
@@ -12,7 +12,7 @@ async function getSnapshotQtyForProduct(product = {}) {
     .map((value) => String(value || '').trim())
     .filter(Boolean);
   if (!keys.length) return 0;
-  const rows = await Inventory.find({
+  const rows = await InventoryLegacy.find({
     $or: [
       { productCode: { $in: keys } },
       { productId: { $in: keys } }

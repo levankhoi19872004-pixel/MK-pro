@@ -3,7 +3,6 @@
 const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
-const Inventory = require('../../models/Inventory');
 const InventoryLegacy = require('../../models/InventoryLegacy');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
@@ -54,10 +53,7 @@ async function getSnapshotQtyByProducts(products = []) {
       { sku: { $in: uniqueKeys } }
     ]
   };
-  const [snapshotRows, legacyRows] = await Promise.all([
-    Inventory.find(filter).lean(),
-    InventoryLegacy.find(filter).lean()
-  ]);
+  const inventoryRows = await InventoryLegacy.find(filter).lean();
   function accumulate(rows = [], target = new Map()) {
     for (const row of rows) {
       const matchedKey = [row.productCode, row.productId, row.code, row.sku]
@@ -69,13 +65,10 @@ async function getSnapshotQtyByProducts(products = []) {
     }
     return target;
   }
-  const snapshotQty = accumulate(snapshotRows, new Map());
-  const legacyQty = accumulate(legacyRows, new Map());
+  const inventoryQty = accumulate(inventoryRows, new Map());
   for (const product of products) {
     const canonical = String(product.code || product.productCode || product.id || '').trim();
-    const snap = snapshotQty.get(canonical) || 0;
-    const legacy = legacyQty.get(canonical) || 0;
-    result.set(canonical, legacy > 0 && (snap <= 0) ? legacy : snap);
+    result.set(canonical, inventoryQty.get(canonical) || 0);
   }
   return result;
 }
@@ -93,10 +86,7 @@ async function getSnapshotQtyForProduct(product = {}) {
       { sku: { $in: keys } }
     ]
   };
-  const [snapshotRows, legacyRows] = await Promise.all([
-    Inventory.find(filter).lean(),
-    InventoryLegacy.find(filter).lean()
-  ]);
+  const inventoryRows = await InventoryLegacy.find(filter).lean();
   const snapshotQty = openSaleQtyFromRows(snapshotRows);
   const legacyQty = openSaleQtyFromRows(legacyRows);
   if (legacyQty > 0 && (snapshotRows.length === 0 || snapshotQty <= 0)) return legacyQty;

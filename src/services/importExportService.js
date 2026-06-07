@@ -681,8 +681,8 @@ async function buildArLedgerDetailWorkbook(query = {}) {
 }
 
 async function buildStockReportWorkbook(query = {}) {
-  const Inventory = models.inventories;
-  const stocks = await Inventory.find({}).sort({ productCode: 1, warehouseCode: 1 }).limit(safeLimit(query)).lean();
+  const InventoryLegacy = models.inventories;
+  const stocks = await InventoryLegacy.find({}).sort({ productCode: 1, warehouseCode: 1 }).limit(safeLimit(query)).lean();
   const rows = stocks.map((s, idx) => ({ STT: idx + 1, MaSP: cleanText(s.productCode || s.code), SanPham: cleanText(s.productName || s.name), Kho: cleanText(s.warehouseCode || s.warehouseName), DonViTinh: cleanText(s.unit || s.baseUnit), Ton: toNumber(s.quantity || s.qty || s.onHand) }));
   return reportWorkbook('stock-report', 'BaoCaoTonKho', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', Kho:'', DonViTinh:'', Ton:'' }), rows, query);
 }

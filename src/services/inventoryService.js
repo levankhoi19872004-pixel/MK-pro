@@ -1,7 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
-const Inventory = require('../models/InventoryLegacy');
+const InventoryLegacy = require('../models/InventoryLegacy');
 const Product = require('../models/Product');
 const StockTransaction = require('../models/StockTransaction');
 const ImportOrder = require('../models/ImportOrder');
@@ -36,7 +36,7 @@ async function getSnapshot(productLike = {}, warehouseCode = 'MAIN') {
   const productCode = String(productLike.productCode || productLike.code || productLike.productId || '').trim();
   const productId = String(productLike.productId || productLike.id || productCode || '').trim();
   if (!productCode && !productId) return null;
-  return Inventory.findOne({
+  return InventoryLegacy.findOne({
     $or: [
       productCode ? { productCode, warehouseCode } : null,
       productId ? { productId, warehouseCode } : null
@@ -70,9 +70,9 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
     const productName = String(item.productName || item.name || product?.name || '').trim();
     const movementQty = Math.abs(rawQty) * sign;
 
-    let snapshot = await Inventory.findOne({ productCode, warehouseCode }).session(session || null);
+    let snapshot = await InventoryLegacy.findOne({ productCode, warehouseCode }).session(session || null);
     if (!snapshot) {
-      snapshot = new Inventory({
+      snapshot = new InventoryLegacy({
         id: makeId('IV'),
         productId,
         productCode,
@@ -150,7 +150,7 @@ async function getCurrentStock(query = {}) {
   const filter = {};
   if (query.productCode) filter.productCode = query.productCode;
   if (query.warehouseCode) filter.warehouseCode = query.warehouseCode;
-  return Inventory.find(filter).sort({ productCode: 1, warehouseCode: 1 }).lean();
+  return InventoryLegacy.find(filter).sort({ productCode: 1, warehouseCode: 1 }).lean();
 }
 
 async function getStockTransactions(query = {}) {
@@ -219,7 +219,7 @@ function makeStockTx({ date, productId, productCode, productName, quantity, type
 }
 
 async function rebuildSnapshotsFromTransactions() {
-  await Inventory.deleteMany({});
+  await InventoryLegacy.deleteMany({});
   const rows = await StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();
   const balances = new Map();
   const lastTxAt = new Map();
@@ -265,7 +265,7 @@ async function rebuildSnapshotsFromTransactions() {
     // Không cập nhật tồn vào products.
   }
 
-  if (docs.length) await Inventory.insertMany(docs, { ordered: false });
+  if (docs.length) await InventoryLegacy.insertMany(docs, { ordered: false });
   return getCurrentStock();
 }
 
