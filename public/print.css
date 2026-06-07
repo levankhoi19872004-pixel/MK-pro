@@ -436,7 +436,7 @@ body {
 .dms-header-lines {
   width: 100%;
   margin-bottom: 8mm;
-  font-size: 9px !important;
+  font-size: 10px !important;
   line-height: 1.05 !important;
 }
 
@@ -720,7 +720,7 @@ body.dms-print-body .dms-print-page:last-child {
 body.dms-print-body .dms-header-lines {
   width: 100%;
   margin: 0 0 8mm;
-  font-size: 9px !important;
+  font-size: 10px !important;
   line-height: 1.05 !important;
 }
 
