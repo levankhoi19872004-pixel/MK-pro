@@ -581,7 +581,8 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
 const BUSINESS_REPORT_TYPES = [
   'sales-report', 'delivery-report', 'return-report', 'debt-report', 'ar-ledger-detail',
   'stock-report', 'stock-card-report', 'fund-report', 'salesman-report', 'deliveryman-report',
-  'customer-sales-report', 'product-sales-report'
+  'customer-sales-report', 'product-sales-report',
+  'product-info-report', 'customer-info-report', 'user-info-report'
 ];
 
 function reportDateRange(query = {}) {
@@ -739,6 +740,207 @@ async function buildProductSalesReportWorkbook(query = {}) {
   return reportWorkbook('product-sales-report', 'DoanhSoSanPham', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', NhanHang:'', SoLuongBan:'', DoanhSoTruocKM:'', DoanhSoSauKM:'', ChenhLechKM:'', TyTrong:'' }), rows, query);
 }
 
+
+
+const SENSITIVE_USER_FIELDS = new Set([
+  'password', 'passwordHash', 'hash', 'salt', 'token', 'tokens', 'accessToken', 'refreshToken',
+  'secret', 'apiKey', 'session', 'sessions', 'resetPasswordToken', 'verificationToken'
+]);
+
+function firstText(row = {}, fields = []) {
+  for (const field of fields) {
+    const value = cleanText(row[field]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function boolStatus(value) {
+  if (value === true) return 'Hoạt động';
+  if (value === false) return 'Ngưng hoạt động';
+  return cleanText(value);
+}
+
+function safeExtraJson(row = {}, usedFields = [], blockedFields = []) {
+  const used = new Set([...usedFields, ...blockedFields, '_id', '__v', 'searchText']);
+  const extra = {};
+  Object.keys(row || {}).forEach((key) => {
+    if (used.has(key)) return;
+    const value = row[key];
+    if (value === undefined || value === null || value === '') return;
+    extra[key] = value;
+  });
+  return Object.keys(extra).length ? JSON.stringify(extra) : '';
+}
+
+function productInfoRow(product = {}, idx = 0) {
+  const used = [
+    'code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category',
+    'unit', 'baseUnit', 'conversionRate', 'packing', 'salePrice', 'costPrice',
+    'warehouseCode', 'warehouseName', 'defaultWarehouse', 'isActive', 'status', 'createdAt', 'updatedAt'
+  ];
+  return {
+    STT: idx + 1,
+    MaSP: firstText(product, ['code', 'productCode', 'sku', 'id']),
+    TenSP: firstText(product, ['name', 'productName', 'title']),
+    Barcode: firstText(product, ['barcode', 'barCode']),
+    NhanHang: firstText(product, ['brand', 'brandName']),
+    NganhHang: firstText(product, ['category', 'categoryName', 'groupName']),
+    DonVi: firstText(product, ['unit', 'baseUnit', 'uom']),
+    DonViCoSo: firstText(product, ['baseUnit', 'unit']),
+    QuyDoi: toNumber(product.conversionRate || product.ratio || 1),
+    QuyCach: firstText(product, ['packing', 'packaging']),
+    GiaBan: Math.round(toNumber(product.salePrice || product.price || product.sellPrice)),
+    GiaVon: Math.round(toNumber(product.costPrice || product.cost || product.purchasePrice)),
+    KhoMacDinh: firstText(product, ['warehouseCode', 'defaultWarehouse', 'warehouseName']),
+    TenKhoMacDinh: firstText(product, ['warehouseName', 'defaultWarehouseName']),
+    TrangThai: boolStatus(product.isActive ?? product.status),
+    NgayTao: normalizeDateOnly(product.createdAt),
+    NgayCapNhat: normalizeDateOnly(product.updatedAt),
+    ThongTinKhac: safeExtraJson(product, used)
+  };
+}
+
+async function buildProductInfoReportWorkbook(query = {}) {
+  const docs = await Product.find({}).sort({ code: 1, name: 1 }).limit(safeLimit(query)).lean();
+  const rows = docs.map(productInfoRow);
+  const headers = Object.keys(rows[0] || productInfoRow({}, -1));
+  return reportWorkbook('product-info-report', 'ThongTinSanPham', headers, rows, query);
+}
+
+function arDebtKeyValues(row = {}) {
+  return [row.customerCode, row.customerId, row.customerName].map(cleanText).filter(Boolean);
+}
+
+async function loadCurrentDebtByCustomer() {
+  const ArLedger = models.arLedgers;
+  if (!ArLedger) return new Map();
+  const docs = await ArLedger.find({
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] },
+    accountingStatus: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] }
+  }).select('customerCode customerId customerName debit credit amount type').lean();
+  const map = new Map();
+  docs.forEach((d) => {
+    const type = cleanText(d.type).toLowerCase();
+    let delta = toNumber(d.debit) - toNumber(d.credit);
+    if (!delta && d.amount !== undefined) {
+      const amount = toNumber(d.amount);
+      delta = (type.includes('receipt') || type.includes('payment') || type.includes('return') || type.includes('credit')) ? -amount : amount;
+    }
+    arDebtKeyValues(d).forEach((key) => map.set(key, toNumber(map.get(key)) + delta));
+  });
+  return map;
+}
+
+async function loadMonthSalesByCustomer(query = {}) {
+  const today = dateUtil.todayVN();
+  const monthStart = cleanText(query.monthStart || query.monthFrom || `${today.slice(0, 7)}-01`);
+  const monthEnd = cleanText(query.monthEnd || query.monthTo || today);
+  const docs = await SalesOrder.find({
+    ...buildReportFilter({ dateFrom: monthStart, dateTo: monthEnd }, ['date', 'documentDate', 'createdAt']),
+    ...activeReturnOrderFilter()
+  }).select('customerCode customerId customerName totalAmount amount afterPromoAmount totalAfterPromotion').lean();
+  const map = new Map();
+  docs.forEach((o) => {
+    const amount = orderAfterPromo(o);
+    [o.customerCode, o.customerId, o.customerName].map(cleanText).filter(Boolean).forEach((key) => {
+      map.set(key, toNumber(map.get(key)) + amount);
+    });
+  });
+  return map;
+}
+
+function valueByKeys(map, keys = []) {
+  for (const key of keys.map(cleanText).filter(Boolean)) {
+    if (map.has(key)) return toNumber(map.get(key));
+  }
+  return 0;
+}
+
+function customerInfoRow(customer = {}, idx = 0, debtMap = new Map(), monthSalesMap = new Map()) {
+  const used = [
+    'code', 'customerCode', 'name', 'customerName', 'phone', 'mobile', 'customerPhone',
+    'address', 'customerAddress', 'route', 'area', 'region', 'staffCode', 'staffName',
+    'salesStaffCode', 'salesStaffName', 'deliveryStaffCode', 'deliveryStaffName',
+    'isActive', 'status', 'createdAt', 'updatedAt'
+  ];
+  const keys = [customer.code, customer.customerCode, customer.id, customer._id, customer.name, customer.customerName];
+  return {
+    STT: idx + 1,
+    MaKH: firstText(customer, ['code', 'customerCode', 'id']),
+    TenKH: firstText(customer, ['name', 'customerName']),
+    SDT: firstText(customer, ['phone', 'mobile', 'customerPhone', 'tel']),
+    DiaChi: firstText(customer, ['address', 'customerAddress', 'fullAddress']),
+    Tuyen: firstText(customer, ['route', 'routeName', 'line']),
+    KhuVuc: firstText(customer, ['area', 'areaName', 'region', 'province']),
+    MaNVBH: firstText(customer, ['staffCode', 'salesStaffCode', 'salesmanCode']),
+    NVBHPhuTrach: firstText(customer, ['staffName', 'salesStaffName', 'salesmanName']),
+    MaNVGH: firstText(customer, ['deliveryStaffCode', 'shipperCode']),
+    NVGHPhuTrach: firstText(customer, ['deliveryStaffName', 'shipperName']),
+    CongNoHienTai: Math.round(valueByKeys(debtMap, keys)),
+    DoanhSoThang: Math.round(valueByKeys(monthSalesMap, keys)),
+    TrangThai: boolStatus(customer.isActive ?? customer.status),
+    NgayTao: normalizeDateOnly(customer.createdAt),
+    NgayCapNhat: normalizeDateOnly(customer.updatedAt),
+    ThongTinKhac: safeExtraJson(customer, used)
+  };
+}
+
+async function buildCustomerInfoReportWorkbook(query = {}) {
+  const [customers, debtMap, monthSalesMap] = await Promise.all([
+    Customer.find({}).sort({ code: 1, name: 1 }).limit(safeLimit(query)).lean(),
+    loadCurrentDebtByCustomer(),
+    loadMonthSalesByCustomer(query)
+  ]);
+  const rows = customers.map((c, idx) => customerInfoRow(c, idx, debtMap, monthSalesMap))
+    .sort((a, b) => toNumber(b.CongNoHienTai) - toNumber(a.CongNoHienTai) || cleanText(a.MaKH).localeCompare(cleanText(b.MaKH)));
+  rows.forEach((row, idx) => { row.STT = idx + 1; });
+  const headers = Object.keys(rows[0] || customerInfoRow({}, -1));
+  return reportWorkbook('customer-info-report', 'ThongTinKhachHang', headers, rows, query);
+}
+
+function sanitizeUserExtra(row = {}) {
+  const extra = {};
+  Object.keys(row || {}).forEach((key) => {
+    if (SENSITIVE_USER_FIELDS.has(key) || key.startsWith('_') || ['__v', 'searchText'].includes(key)) return;
+    if ([
+      'username', 'fullName', 'name', 'code', 'staffCode', 'role', 'roles', 'phone', 'email',
+      'isActive', 'status', 'permissions', 'area', 'route', 'lastLoginAt', 'lastLogin', 'createdAt', 'updatedAt'
+    ].includes(key)) return;
+    const value = row[key];
+    if (value === undefined || value === null || value === '') return;
+    extra[key] = value;
+  });
+  return Object.keys(extra).length ? JSON.stringify(extra) : '';
+}
+
+function userInfoRow(user = {}, idx = 0) {
+  return {
+    STT: idx + 1,
+    TenDangNhap: firstText(user, ['username', 'loginName']),
+    HoTen: firstText(user, ['fullName', 'name', 'displayName']),
+    MaNhanVien: firstText(user, ['staffCode', 'code', 'employeeCode']),
+    VaiTro: Array.isArray(user.roles) ? user.roles.join(', ') : firstText(user, ['role', 'roles']),
+    SDT: firstText(user, ['phone', 'mobile']),
+    Email: firstText(user, ['email']),
+    TrangThai: boolStatus(user.isActive ?? user.status),
+    QuyenTruyCap: Array.isArray(user.permissions) ? user.permissions.join(', ') : cleanText(user.permissions || user.permission || ''),
+    KhuVucTuyen: firstText(user, ['area', 'route', 'region']),
+    NgayTao: normalizeDateOnly(user.createdAt),
+    NgayCapNhat: normalizeDateOnly(user.updatedAt),
+    LanDangNhapGanNhat: normalizeDateOnly(user.lastLoginAt || user.lastLogin || user.lastSeenAt),
+    ThongTinKhac: sanitizeUserExtra(user)
+  };
+}
+
+async function buildUserInfoReportWorkbook(query = {}) {
+  const User = models.users;
+  const docs = await User.find({}).select('-password -passwordHash -hash -salt -token -tokens -accessToken -refreshToken -secret -apiKey -session -sessions -resetPasswordToken -verificationToken').sort({ role: 1, code: 1, username: 1 }).limit(safeLimit(query)).lean();
+  const rows = docs.map(userInfoRow);
+  const headers = Object.keys(rows[0] || userInfoRow({}, -1));
+  return reportWorkbook('user-info-report', 'ThongTinTaiKhoan', headers, rows, query);
+}
+
 const BUSINESS_REPORT_BUILDERS = {
   'sales-report': buildSalesReportWorkbook,
   'delivery-report': buildDeliveryReportWorkbook,
@@ -751,7 +953,10 @@ const BUSINESS_REPORT_BUILDERS = {
   'salesman-report': buildSalesmanReportWorkbook,
   'deliveryman-report': buildDeliverymanReportWorkbook,
   'customer-sales-report': buildCustomerSalesReportWorkbook,
-  'product-sales-report': buildProductSalesReportWorkbook
+  'product-sales-report': buildProductSalesReportWorkbook,
+  'product-info-report': buildProductInfoReportWorkbook,
+  'customer-info-report': buildCustomerInfoReportWorkbook,
+  'user-info-report': buildUserInfoReportWorkbook
 };
 
 async function previewImport(params) {
