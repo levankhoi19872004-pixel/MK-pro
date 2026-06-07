@@ -436,8 +436,8 @@ body {
 .dms-header-lines {
   width: 100%;
   margin-bottom: 8mm;
-  font-size: 11px;
-  line-height: 1.22;
+  font-size: 9px !important;
+  line-height: 1.05 !important;
 }
 
 .dms-title-header {
@@ -720,8 +720,8 @@ body.dms-print-body .dms-print-page:last-child {
 body.dms-print-body .dms-header-lines {
   width: 100%;
   margin: 0 0 8mm;
-  font-size: 11px;
-  line-height: 1.22;
+  font-size: 9px !important;
+  line-height: 1.05 !important;
 }
 
 body.dms-print-body .dms-title-header {
@@ -777,8 +777,8 @@ body.dms-print-body .dms-copy-page-cell {
   justify-content: flex-end;
   align-items: center;
   gap: 8mm;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 9px !important;
+  font-weight: normal !important;
   white-space: nowrap;
 }
 
@@ -1089,8 +1089,8 @@ body.dms-print-body .dms-title-line {
   font-weight: 700;
 }
 body.dms-print-body .dms-header-lines {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 9px !important;
+  line-height: 1.05 !important;
 }
 body.dms-print-body .dms-title-header {
   grid-template-columns: 42% 38% 20%;
@@ -1141,4 +1141,28 @@ body.dms-print-body .dms-detail-table {
     size: A4 portrait;
     margin: 12mm 10mm;
   }
+}
+
+
+/* Final DMS child invoice header override: compact and non-bold.
+   This is the real header used by dmsDeliveryInvoiceTemplate/renderDmsHeader. */
+body.dms-print-body .dms-header-lines,
+body.dms-print-body .dms-header-lines .dms-header-line,
+body.dms-print-body .dms-header-lines .dms-line-left,
+body.dms-print-body .dms-header-lines .dms-line-right,
+body.dms-print-body .dms-header-lines .dms-truck-cell,
+body.dms-print-body .dms-header-lines .dms-copy-page-cell,
+body.dms-print-body .dms-header-lines span,
+body.dms-print-body .dms-header-lines b {
+  font-size: 9px !important;
+  line-height: 1.05 !important;
+  font-weight: normal !important;
+}
+
+body.dms-print-body .dms-header-lines .dms-header-line {
+  min-height: 4.2mm !important;
+}
+
+body.dms-print-body .dms-header-lines .dms-copy-page-cell {
+  gap: 6mm !important;
 }

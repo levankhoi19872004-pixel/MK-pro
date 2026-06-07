@@ -836,43 +836,43 @@ function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
       <div class="dms-title-header">
         <div></div>
         <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
-        <div class="dms-truck-cell"><b>Số xe tải:</b> ${text(header.truckNo)}</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> ${text(header.truckNo)}</div>
       </div>
 
       <div class="dms-header-line">
-        <div class="dms-line-left"><b>Số hóa đơn:</b> ${text(header.invoiceCode)}</div>
+        <div class="dms-line-left"><span>Số hóa đơn:</span> ${text(header.invoiceCode)}</div>
         <div class="dms-line-right dms-line-right-split">
-          <span><b>Loại hóa đơn:</b> ${text(header.invoiceType)}</span>
-          <span class="dms-copy-page-cell"><b>${text(normalizedCopy)}</b><b>Trang: ${pageText}</b></span>
+          <span><span>Loại hóa đơn:</span> ${text(header.invoiceType)}</span>
+          <span class="dms-copy-page-cell"><span>${text(normalizedCopy)}</span><span>Trang: ${pageText}</span></span>
         </div>
       </div>
 
       <div class="dms-header-line">
-        <div class="dms-line-left"><b>Số đơn hàng:</b> ${text(header.orderCode)}</div>
-        <div class="dms-line-right"><b>Thời gian đặt hàng:</b> ${text(header.orderDateTime)}</div>
+        <div class="dms-line-left"><span>Số đơn hàng:</span> ${text(header.orderCode)}</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> ${text(header.orderDateTime)}</div>
       </div>
 
       <div class="dms-header-line">
-        <div class="dms-line-left"><b>NVBH:</b> ${staffText}</div>
-        <div class="dms-line-right"><b>Nhà phân phối:</b> ${distributorText}</div>
+        <div class="dms-line-left"><span>NVBH:</span> ${staffText}</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> ${distributorText}</div>
       </div>
 
       <div class="dms-header-line">
-        <div class="dms-line-left"><b>Khách hàng - Điện thoại:</b> ${customerText}</div>
-        <div class="dms-line-right"><b>Địa chỉ:</b> ${text(distributor.address)}</div>
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> ${customerText}</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> ${text(distributor.address)}</div>
       </div>
 
       <div class="dms-header-line">
-        <div class="dms-line-left"><b>Địa chỉ giao hàng:</b> ${text(customer.deliveryAddress)}</div>
-        <div class="dms-line-right"><b>Điện thoại:</b> ${text(distributor.phone)}</div>
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> ${text(customer.deliveryAddress)}</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> ${text(distributor.phone)}</div>
       </div>
 
       <div class="dms-header-line dms-single-line">
-        <div class="dms-line-left"><b>Điều khoản thanh toán:</b> ${text(header.paymentTerm)}</div>
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> ${text(header.paymentTerm)}</div>
       </div>
 
       <div class="dms-header-line dms-single-line">
-        <div class="dms-line-left"><b>MST:</b> ${text(header.taxCode || customer.taxCode)}</div>
+        <div class="dms-line-left"><span>MST:</span> ${text(header.taxCode || customer.taxCode)}</div>
       </div>
     </div>`;
 }

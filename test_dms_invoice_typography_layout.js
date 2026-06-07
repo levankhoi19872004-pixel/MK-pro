@@ -14,7 +14,7 @@ function assertCss(pattern, label) {
 
 assertCss(/body\.dms-print-body\s*\{[\s\S]*font-family:\s*Arial, Helvetica, sans-serif;[\s\S]*font-size:\s*12px;[\s\S]*color:\s*#000;/, 'DMS body Arial 12px black');
 assertCss(/body\.dms-print-body \.dms-title-line\s*\{[\s\S]*font-size:\s*16px;[\s\S]*font-weight:\s*700;/, 'title 16px bold');
-assertCss(/body\.dms-print-body \.dms-header-lines\s*\{[\s\S]*font-size:\s*12px;[\s\S]*line-height:\s*1\.45;/, 'header 12px line-height 1.45');
+assertCss(/body\.dms-print-body \.dms-header-lines[\s\S]*font-size:\s*9px\s*!important;[\s\S]*line-height:\s*1\.05\s*!important;/, 'header 9px line-height 1.05');
 assertCss(/body\.dms-print-body \.dms-invoice-table th\s*\{[\s\S]*font-size:\s*12px;[\s\S]*font-weight:\s*700;/, 'invoice table header 12px bold');
 assertCss(/body\.dms-print-body \.dms-invoice-table td\s*\{[\s\S]*font-size:\s*12px;/, 'invoice table body 12px');
 assertCss(/body\.dms-print-body \.dms-product-name\s*\{[\s\S]*line-height:\s*1\.25;/, 'product line-height 1.25');
