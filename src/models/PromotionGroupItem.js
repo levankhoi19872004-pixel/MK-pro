@@ -8,6 +8,9 @@ module.exports = flexModel('PromotionGroupItem', 'promotionGroupItems', {
   productMatched: Boolean,
   missingProduct: Boolean,
   source: String,
+  startDate: String,
+  endDate: String,
+  cancelledAt: String,
   isActive: Boolean,
   createdAt: String,
   updatedAt: String

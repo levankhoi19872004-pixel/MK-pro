@@ -908,31 +908,23 @@ async function commitImportExcel(){
 
 resetButton.addEventListener('click',resetForm);
 
-// V45 Promotion 3-tabs: CK sản phẩm / Nhóm sản phẩm KM / Điều kiện nhóm KM
-(function setupPromotion3Tabs(){
+// V46 Promotion program management: gom theo mã chương trình, giữ nguyên import Excel
+(function setupPromotionProgramManagement(){
   const $ = (id)=>document.getElementById(id);
   const msg = $('promotion3Message');
   const searchInput = $('promotionSearchAllInput');
-  const productForm = $('promoProductRuleForm');
-  const groupItemForm = $('promoGroupItemForm');
-  const groupRuleForm = $('promoGroupRuleForm');
-  const productTable = $('promoProductRulesTable');
-  const groupItemsTable = $('promoGroupItemsTable');
-  const groupRulesTable = $('promoGroupRulesTable');
-  if(!productTable && !groupItemsTable && !groupRulesTable)return;
-  const state = { productRules: [], groupItems: [], groupRules: [] };
+  const programTable = $('promotionProgramTable');
+  const programCount = $('promotionProgramCount');
+  const detailTable = $('promotionProgramDetailTable');
+  const form = $('promotionProgramForm');
+  const reloadButton = $('reloadPromotionProgramsButton');
+  const cancelButton = $('cancelPromotionProgramButton');
+  if(!programTable || !form)return;
+  const state = { programs: [], selectedCode: '', detail: null };
   const esc = (v)=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  const fmtPct = (v)=>`${Number(v||0).toLocaleString('vi-VN')}%`;
-  const fmtMoney = (v)=>Number(v||0).toLocaleString('vi-VN');
+  const fmtPct = (v)=>v===''||v===null||v===undefined?'':`${Number(v||0).toLocaleString('vi-VN')}%`;
+  const fmtMoney = (v)=>v===''||v===null||v===undefined?'':Number(v||0).toLocaleString('vi-VN');
   const show = (text,isError=false)=>{ if(msg) showMessage(msg,text,isError); };
-
-  function activePanel(panel){
-    document.querySelectorAll('[data-promo-panel]').forEach(btn=>btn.classList.toggle('active',btn.dataset.promoPanel===panel));
-    const map={productRules:'promoProductRulesPanel',groupItems:'promoGroupItemsPanel',groupRules:'promoGroupRulesPanel'};
-    Object.entries(map).forEach(([key,id])=>$(id)?.classList.toggle('active',key===panel));
-  }
-  document.querySelectorAll('[data-promo-panel]').forEach(btn=>btn.addEventListener('click',()=>activePanel(btn.dataset.promoPanel)));
-
   async function api(url, options={}){
     const res = await fetch(url, options);
     const json = await res.json();
@@ -940,59 +932,95 @@ resetButton.addEventListener('click',resetForm);
     return json;
   }
   function q(){ return encodeURIComponent(searchInput?.value||''); }
-
-  async function loadProductRules(){
-    if(!productTable)return;
-    try{
-      const json = await api(`/api/promotions/product-rules?q=${q()}`);
-      state.productRules=json.rows||[];
-      productTable.innerHTML=state.productRules.length?state.productRules.map(r=>`<tr>
-        <td><strong>${esc(r.programCode)}</strong></td><td>${esc(r.programName)}</td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td>${fmtPct(r.discountPercent)}</td>
-        <td class="row-actions"><button class="small" onclick="editPromoProductRule('${esc(r.id)}')">Sửa</button><button class="small danger" onclick="deletePromoProductRule('${esc(r.id)}')">Xóa</button></td>
-      </tr>`).join(''):'<tr><td colspan="6">Chưa có CK sản phẩm.</td></tr>';
-    }catch(err){ productTable.innerHTML=`<tr><td colspan="6">${esc(err.message)}</td></tr>`; }
+  function statusBadge(p){
+    const text=p.statusText||((p.isActive===false)?'Không hoạt động':'Hoạt động');
+    const cls=text==='Hoạt động'?'ok':(text==='Không hoạt động'?'danger':'warn');
+    return `<span class="status-badge ${cls}">${esc(text)}</span>`;
   }
-  async function loadGroupItems(){
-    if(!groupItemsTable)return;
-    try{
-      const json = await api(`/api/promotions/group-items?q=${q()}`);
-      state.groupItems=json.rows||[];
-      groupItemsTable.innerHTML=state.groupItems.length?state.groupItems.map(r=>`<tr>
-        <td><strong>${esc(r.programCode)}</strong></td><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td>
-        <td class="row-actions"><button class="small" onclick="editPromoGroupItem('${esc(r.id)}')">Sửa</button><button class="small danger" onclick="deletePromoGroupItem('${esc(r.id)}')">Xóa</button></td>
-      </tr>`).join(''):'<tr><td colspan="4">Chưa có nhóm sản phẩm KM.</td></tr>';
-    }catch(err){ groupItemsTable.innerHTML=`<tr><td colspan="4">${esc(err.message)}</td></tr>`; }
+  function renderProgramList(){
+    if(programCount)programCount.textContent=`${state.programs.length} chương trình`;
+    if(!state.programs.length){
+      programTable.innerHTML='<tr><td colspan="7">Chưa có chương trình khuyến mại.</td></tr>';
+      return;
+    }
+    programTable.innerHTML=state.programs.map(p=>`<tr class="${String(p.programCode)===String(state.selectedCode)?'selected-row':''}">
+      <td><input type="checkbox" data-promo-check="${esc(p.programCode)}" /></td>
+      <td><strong>${esc(p.programCode)}</strong></td>
+      <td>${esc(p.programName||p.content||'')}</td>
+      <td>${esc(p.timeText||[p.startDate,p.endDate].filter(Boolean).join(' - ')||'Chưa đặt')}</td>
+      <td>${statusBadge(p)}</td>
+      <td><button type="button" class="small" onclick="selectPromotionProgram('${esc(p.programCode)}')">Sửa</button></td>
+      <td><button type="button" class="small danger" onclick="cancelPromotionProgram('${esc(p.programCode)}')">Huỷ</button></td>
+    </tr>`).join('');
   }
-  async function loadGroupRules(){
-    if(!groupRulesTable)return;
-    try{
-      const json = await api(`/api/promotions/group-rules?q=${q()}`);
-      state.groupRules=json.rows||[];
-      groupRulesTable.innerHTML=state.groupRules.length?state.groupRules.map(r=>`<tr>
-        <td><strong>${esc(r.programCode)}</strong></td><td>${esc(r.programName)}</td><td>${fmtMoney(r.minAmount)}</td><td>${fmtPct(r.discountPercent)}</td>
-        <td class="row-actions"><button class="small" onclick="editPromoGroupRule('${esc(r.id)}')">Sửa</button><button class="small danger" onclick="deletePromoGroupRule('${esc(r.id)}')">Xóa</button></td>
-      </tr>`).join(''):'<tr><td colspan="5">Chưa có điều kiện nhóm KM.</td></tr>';
-    }catch(err){ groupRulesTable.innerHTML=`<tr><td colspan="5">${esc(err.message)}</td></tr>`; }
+  function renderDetailEmpty(text='Chưa chọn chương trình.'){
+    detailTable.innerHTML=`<tr><td colspan="6">${esc(text)}</td></tr>`;
   }
-  async function reloadAll(){ await Promise.all([loadProductRules(),loadGroupItems(),loadGroupRules()]); }
-  window.reloadPromotionRules = reloadAll;
-
-  function setForm(form,row,fields){ if(!form)return; form.reset(); fields.forEach(f=>{ if(form.elements[f])form.elements[f].value=row?.[f]??''; }); }
-  window.editPromoProductRule=(id)=>{const r=state.productRules.find(x=>String(x.id)===String(id));setForm(productForm,r,['id','programCode','programName','productCode','productName','discountPercent']);activePanel('productRules');};
-  window.editPromoGroupItem=(id)=>{const r=state.groupItems.find(x=>String(x.id)===String(id));setForm(groupItemForm,r,['id','programCode','productCode','productName']);activePanel('groupItems');};
-  window.editPromoGroupRule=(id)=>{const r=state.groupRules.find(x=>String(x.id)===String(id));setForm(groupRuleForm,r,['id','programCode','programName','minAmount','discountPercent']);activePanel('groupRules');};
-  window.deletePromoProductRule=async(id)=>{if(!confirm('Xóa CK sản phẩm này?'))return;try{await api(`/api/promotions/product-rules/${encodeURIComponent(id)}`,{method:'DELETE'});show('Đã xóa CK sản phẩm');await loadProductRules();}catch(e){show(e.message,true)}};
-  window.deletePromoGroupItem=async(id)=>{if(!confirm('Xóa sản phẩm khỏi nhóm KM?'))return;try{await api(`/api/promotions/group-items/${encodeURIComponent(id)}`,{method:'DELETE'});show('Đã xóa sản phẩm khỏi nhóm KM');await loadGroupItems();}catch(e){show(e.message,true)}};
-  window.deletePromoGroupRule=async(id)=>{if(!confirm('Xóa điều kiện nhóm KM này?'))return;try{await api(`/api/promotions/group-rules/${encodeURIComponent(id)}`,{method:'DELETE'});show('Đã xóa điều kiện nhóm KM');await loadGroupRules();}catch(e){show(e.message,true)}};
-
-  productForm?.addEventListener('submit',async(e)=>{e.preventDefault();try{await api('/api/promotions/product-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(productForm).entries()))});productForm.reset();show('Đã lưu CK sản phẩm');await loadProductRules();}catch(err){show(err.message,true)}});
-  groupItemForm?.addEventListener('submit',async(e)=>{e.preventDefault();try{await api('/api/promotions/group-items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(groupItemForm).entries()))});groupItemForm.reset();show('Đã lưu nhóm sản phẩm KM');await loadGroupItems();}catch(err){show(err.message,true)}});
-  groupRuleForm?.addEventListener('submit',async(e)=>{e.preventDefault();try{await api('/api/promotions/group-rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(groupRuleForm).entries()))});groupRuleForm.reset();show('Đã lưu điều kiện nhóm KM');await loadGroupRules();}catch(err){show(err.message,true)}});
-  $('resetPromoProductRuleButton')?.addEventListener('click',()=>productForm?.reset());
-  $('resetPromoGroupItemButton')?.addEventListener('click',()=>groupItemForm?.reset());
-  $('resetPromoGroupRuleButton')?.addEventListener('click',()=>groupRuleForm?.reset());
-  searchInput?.addEventListener('input',reloadAll);
-  reloadAll();
+  function renderProgramDetail(detail){
+    const p=detail?.program||{};
+    form.elements.programCode.value=p.programCode||'';
+    form.elements.programName.value=p.programName||p.content||'';
+    form.elements.startDate.value=p.startDate||'';
+    form.elements.endDate.value=p.endDate||'';
+    form.elements.isActive.value=String(p.isActive!==false);
+    const rows=detail?.products||[];
+    if(!rows.length){ renderDetailEmpty('Chương trình chưa có dòng sản phẩm/điều kiện.'); return; }
+    detailTable.innerHTML=rows.map(r=>`<tr>
+      <td>${esc(r.source)}</td>
+      <td>${esc(r.productCode)}</td>
+      <td>${esc(r.productName)}</td>
+      <td>${r.minAmount!==''&&r.minAmount!==undefined?fmtMoney(r.minAmount):''}</td>
+      <td>${fmtPct(r.discountPercent)}</td>
+      <td>${r.isActive===false?'Không hoạt động':'Hoạt động'}</td>
+    </tr>`).join('');
+  }
+  async function loadPromotionPrograms(){
+    try{
+      const json=await api(`/api/promotions/programs?q=${q()}`);
+      state.programs=json.programs||[];
+      renderProgramList();
+      if(state.selectedCode && !state.programs.some(p=>String(p.programCode)===String(state.selectedCode))){
+        state.selectedCode=''; state.detail=null; form.reset(); renderDetailEmpty();
+      }
+    }catch(err){ programTable.innerHTML=`<tr><td colspan="7">${esc(err.message)}</td></tr>`; }
+  }
+  window.loadPromotionPrograms=loadPromotionPrograms;
+  window.selectPromotionProgram=async(programCode)=>{
+    try{
+      state.selectedCode=programCode;
+      renderProgramList();
+      const json=await api(`/api/promotions/programs/${encodeURIComponent(programCode)}`);
+      state.detail=json;
+      renderProgramDetail(json);
+    }catch(err){ show(err.message,true); }
+  };
+  window.cancelPromotionProgram=async(programCode)=>{
+    const code=programCode||state.selectedCode;
+    if(!code){show('Chưa chọn chương trình cần hủy',true);return;}
+    if(!confirm(`Hủy chương trình ${code}? Dữ liệu không bị xóa, chỉ chuyển sang Không hoạt động.`))return;
+    try{
+      await api(`/api/promotions/programs/${encodeURIComponent(code)}/cancel`,{method:'POST'});
+      show('Đã hủy chương trình khuyến mại');
+      await loadPromotionPrograms();
+      if(state.selectedCode===code) await window.selectPromotionProgram(code);
+    }catch(err){ show(err.message,true); }
+  };
+  form.addEventListener('submit',async(e)=>{
+    e.preventDefault();
+    const body=Object.fromEntries(new FormData(form).entries());
+    const code=body.programCode||state.selectedCode;
+    if(!code){show('Chưa chọn chương trình cần lưu',true);return;}
+    try{
+      await api(`/api/promotions/programs/${encodeURIComponent(code)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      show('Đã lưu chương trình khuyến mại');
+      await loadPromotionPrograms();
+      await window.selectPromotionProgram(code);
+    }catch(err){ show(err.message,true); }
+  });
+  cancelButton?.addEventListener('click',()=>window.cancelPromotionProgram(state.selectedCode));
+  reloadButton?.addEventListener('click',loadPromotionPrograms);
+  searchInput?.addEventListener('input',loadPromotionPrograms);
+  loadPromotionPrograms();
 })();
 
 // Xuất hóa đơn VAT TT78: Sheet1 sau đối trừ hàng trả.

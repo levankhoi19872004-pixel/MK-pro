@@ -17,6 +17,12 @@ router.get('/group-rules', promotionController.listGroupRules);
 router.post('/group-rules', promotionController.saveGroupRule);
 router.delete('/group-rules/:id', promotionController.deleteGroupRule);
 
+
+router.get('/programs', promotionController.listPrograms);
+router.get('/programs/:programCode', promotionController.getProgramDetail);
+router.put('/programs/:programCode', promotionController.updateProgram);
+router.post('/programs/:programCode/cancel', promotionController.cancelProgram);
+
 router.post('/calculate', promotionController.calculate);
 
 router.get('/', promotionController.list);
