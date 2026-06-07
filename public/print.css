@@ -108,8 +108,12 @@ body {
 .invoice-header-lines {
   width: 100%;
   margin-bottom: 8mm;
-  font-size: 12px;
-  line-height: 1.22;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.invoice-header-lines b {
+  font-weight: normal !important;
 }
 
 .h-row {
