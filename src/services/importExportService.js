@@ -316,23 +316,48 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
 
   for (const order of filteredOrders) {
     const detailLines = [];
+    const ci = customerInfo(order, customerMap);
+    const currentOrderCode = orderCode(order);
+    const orderDate = normalizeDateOnly(order.orderDate || order.date || order.deliveryDate || order.createdAt || dateUtil.todayVN());
+
     for (const item of Array.isArray(order.items) ? order.items : []) {
       const pcode = productCodeOf(item);
       const product = productMap.get(pcode) || {};
+      const productName = productNameOf(item) || cleanText(product.name || product.productName);
       const soldQty = qtyOf(item);
       const returnQty = getReturnQtyForOrderLine(returnQtyMap, order, item);
       const safeReturnQty = Math.min(soldQty, returnQty);
       const invoiceQty = Math.max(0, soldQty - safeReturnQty);
-      if (!pcode || invoiceQty <= 0) continue;
       const priceInclVat = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
+
+      if (!pcode || invoiceQty <= 0) {
+        auditRows.push({
+          MaDon: currentOrderCode,
+          MaKhachHang: ci.code,
+          TenKhachHang: ci.name,
+          MaSanPham: pcode,
+          SanPham: productName,
+          SoLuongBan: soldQty,
+          SoLuongTra: returnQty,
+          SoLuongTraAnToan: safeReturnQty,
+          SoLuongXuatHoaDon: invoiceQty,
+          GiaSauKhuyenMaiCoVAT: priceInclVat,
+          DonGiaTruocVAT: '',
+          ThanhTienTruocVAT: '',
+          LyDoBoDong: !pcode ? 'MISSING_PRODUCT_CODE' : 'INVOICE_QTY_ZERO'
+        });
+        continue;
+      }
+
       const unitPriceBeforeVat = roundMoney(priceInclVat / (1 + TT78_VAT_RATE), 6);
       const lineAmountBeforeVat = roundMoney(invoiceQty * unitPriceBeforeVat, 2);
       detailLines.push({
         productCode: pcode,
-        productName: productNameOf(item) || cleanText(product.name || product.productName),
+        productName,
         unit: unitOf(item, product),
         soldQty,
         returnQty,
+        safeReturnQty,
         invoiceQty,
         priceInclVat,
         unitPriceBeforeVat,
@@ -342,8 +367,6 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
     if (!detailLines.length) continue;
 
     invoiceNo += 1;
-    const ci = customerInfo(order, customerMap);
-    const orderDate = normalizeDateOnly(order.orderDate || order.date || order.deliveryDate || order.createdAt || dateUtil.todayVN());
     const invoiceAmountBeforeVat = roundMoney(detailLines.reduce((sum, line) => sum + line.lineAmountBeforeVat, 0), 2);
     const invoiceVat = roundMoney(invoiceAmountBeforeVat * TT78_VAT_RATE, 2);
     const invoiceTotal = Math.round(invoiceAmountBeforeVat + invoiceVat);
@@ -391,10 +414,12 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         SanPham: line.productName,
         SoLuongBan: line.soldQty,
         SoLuongTra: line.returnQty,
+        SoLuongTraAnToan: line.safeReturnQty,
         SoLuongXuatHoaDon: line.invoiceQty,
         GiaSauKhuyenMaiCoVAT: line.priceInclVat,
         DonGiaTruocVAT: line.unitPriceBeforeVat,
-        ThanhTienTruocVAT: line.lineAmountBeforeVat
+        ThanhTienTruocVAT: line.lineAmountBeforeVat,
+        LyDoBoDong: ''
       });
     });
   }
@@ -426,7 +451,11 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
   sheet['!cols'] = TT78_HEADERS.map((header) => ({ wch: Math.max(10, Math.min(35, String(header).length + 4)) }));
   XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1');
 
-  const auditHeaders = Object.keys(auditRows[0] || { MaDon: '', MaKhachHang: '', TenKhachHang: '', MaSanPham: '', SanPham: '', SoLuongBan: '', SoLuongTra: '', SoLuongXuatHoaDon: '', GiaSauKhuyenMaiCoVAT: '', DonGiaTruocVAT: '', ThanhTienTruocVAT: '' });
+  const auditHeaders = [
+    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSanPham', 'SanPham',
+    'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
+    'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'LyDoBoDong'
+  ];
   const auditSheet = XLSX.utils.aoa_to_sheet([auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
   auditSheet['!cols'] = auditHeaders.map((header) => ({ wch: Math.max(12, Math.min(35, String(header).length + 4)) }));
   XLSX.utils.book_append_sheet(workbook, auditSheet, 'DoiChieu');
