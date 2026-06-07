@@ -436,8 +436,8 @@ body {
 .dms-header-lines {
   width: 100%;
   margin-bottom: 8mm;
-  font-size: 9px !important;
-  line-height: 1.05 !important;
+  font-size: 10px !important;
+  line-height: 1.25 !important;
 }
 
 .dms-title-header {
@@ -450,7 +450,7 @@ body {
 
 .dms-title-line {
   text-align: center;
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.05;
   font-weight: 700;
   text-transform: uppercase;
@@ -1167,34 +1167,101 @@ body.dms-print-body .dms-header-lines .dms-copy-page-cell {
   gap: 6mm !important;
 }
 
-
-/* Final DMS child invoice compact non-bold areas requested: header + product table. */
-body.dms-print-body .dms-header-lines,
-body.dms-print-body .dms-header-lines *,
-body.dms-print-body .dms-invoice-table,
-body.dms-print-body .dms-invoice-table * {
+/* === PDF-style DMS invoice typography final override === */
+body.dms-print-body .dms-header-lines {
   font-size: 10px !important;
-  font-weight: normal !important;
-  line-height: 1.15 !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
 }
 
-body.dms-print-body .dms-invoice-table .strong,
-body.dms-print-body .dms-invoice-table strong,
-body.dms-print-body .dms-invoice-table b {
-  font-weight: normal !important;
+body.dms-print-body .dms-header-lines .dms-header-line,
+body.dms-print-body .dms-header-lines .dms-line-left,
+body.dms-print-body .dms-header-lines .dms-line-right,
+body.dms-print-body .dms-header-lines .dms-truck-cell,
+body.dms-print-body .dms-header-lines span:not(.dms-title-line) {
+  font-size: 10px !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
 }
 
+body.dms-print-body .dms-title-line {
+  font-size: 17px !important;
+  line-height: 1.05 !important;
+  font-weight: 700 !important;
+}
 
-/* custom normal weight */
-.dms-header-lines *,
-.dms-items-table *,
-.dms-items-table .strong,
-.dms-summary-table *{
-  font-weight: normal !important;
+body.dms-print-body .dms-invoice-table {
+  font-size: 10px !important;
 }
-.dms-header-lines,
-.dms-items-table,
-.dms-items-table td,
-.dms-items-table th{
-  font-size:10px !important;
+
+body.dms-print-body .dms-invoice-table td {
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  line-height: 1.18 !important;
 }
+
+body.dms-print-body .dms-invoice-table th {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+}
+
+body.dms-print-body .dms-invoice-table .dms-product-name,
+body.dms-print-body .dms-invoice-table tbody tr:not(.dms-total-row) td {
+  font-weight: 400 !important;
+}
+
+body.dms-print-body .dms-total-row td,
+body.dms-print-body .dms-total-row th {
+  font-weight: 700 !important;
+}
+
+body.dms-print-body .dms-summary-split-table td {
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+}
+
+body.dms-print-body .dms-summary-split-table .dms-summary-value-cell {
+  font-weight: 400 !important;
+}
+
+body.dms-print-body .dms-summary-split-table .dms-payable-row td,
+body.dms-print-body .dms-summary-split-table .dms-payable-row .dms-summary-label-cell,
+body.dms-print-body .dms-summary-split-table .dms-payable-row .dms-summary-value-cell {
+  font-weight: 700 !important;
+}
+
+body.dms-print-body .dms-amount-words-cell b {
+  font-weight: 700 !important;
+}
+
+body.dms-print-body .dms-amount-words-text {
+  font-weight: 400 !important;
+}
+
+body.dms-print-body .dms-signature b {
+  font-weight: 700 !important;
+}
+
+body.dms-print-body .dms-signature span {
+  font-weight: 400 !important;
+}
+
+body.dms-print-body .dms-section-title {
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+}
+
+body.dms-print-body .dms-detail-table th {
+  font-weight: 700 !important;
+}
+
+body.dms-print-body .dms-detail-table td {
+  font-weight: 400 !important;
+}
+
+body.dms-print-body .dms-detail-table .dms-total-row td,
+body.dms-print-body .dms-detail-table .dms-total-row th {
+  font-weight: 700 !important;
+}
+
