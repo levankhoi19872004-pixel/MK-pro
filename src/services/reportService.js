@@ -57,9 +57,9 @@ function buildStockTxFilter(query = {}) {
   if (query.warehouseCode) filter.warehouseCode = String(query.warehouseCode).trim();
   if (query.date || query.dateFrom || query.dateTo) {
     filter.date = {};
-    if (query.dateFrom) filter.date.$gte = dateUtil.dateUtil.toDateOnly(query.dateFrom);
-    if (query.dateTo) filter.date.$lte = dateUtil.dateUtil.toDateOnly(query.dateTo);
-    if (query.date) filter.date = dateUtil.dateUtil.toDateOnly(query.date);
+    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
   }
   return filter;
 }
@@ -80,8 +80,8 @@ async function stockReport(query = {}) {
   const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
 
   if (hasPeriod) {
-    const dateFrom = dateUtil.dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
-    const dateTo = dateUtil.dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
+    const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
+    const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
     const [transactions, products] = await Promise.all([
       StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
       Product.find({}).lean()
