@@ -316,6 +316,9 @@ async function submitSalesOrder(event){
   if(!salesItems.length){showMessage(salesMessage,'Đơn bán chưa có dòng hàng',true);return}
   if(!salesCustomerSelect.value){showMessage(salesMessage,'Bạn chưa chọn khách hàng. Hãy gõ mã/tên khách rồi nhấn Enter hoặc chọn gợi ý.',true);return}
   const payload=Object.fromEntries(new FormData(salesForm).entries());
+  payload.date=toDateOnly(payload.date||today());
+  payload.orderDate=payload.date;
+  payload.documentDate=payload.date;
   if(salesStaffSelect)payload.salesStaffCode=salesStaffSelect.value||'';
   if(salesStaffName)payload.salesStaffName=salesStaffName.value||'';
   const saleMode=getSalesMode();
@@ -637,7 +640,7 @@ async function openSalesOrderEdit(idx){
   // Khi sửa đơn: giữ đúng phương thức đã lưu trên đơn, không ép lại theo nguồn.
   setSalesMode(editMode);
   salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}));
-  salesForm.elements.date.value=toDateOnly(order.date||order.documentDate||order.importDate||order.displayDate||today());
+  salesForm.elements.date.value=toDateOnly(order.orderDate||order.date||order.documentDate||order.importDate||order.displayDate||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
   const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode));

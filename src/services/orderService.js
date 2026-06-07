@@ -250,11 +250,15 @@ function toClient(order) {
   const normalizedOrderSource = normalizeOrderSourceValue(order);
   const lifecycle = orderStatusUtil.lifecyclePatch(order, { source: normalizedOrderSource });
   const merged = orderStatusUtil.normalizeMergeStatus({ ...order, ...lifecycle });
+  const normalizedOrderDate = dateUtil.toDateOnly(order.orderDate || order.date || order.documentDate || order.importDate || order.displayDate || '');
   return {
     ...order,
     ...lifecycle,
     id: order.id || order.code,
     code: order.code || order.id,
+    date: normalizedOrderDate,
+    orderDate: normalizedOrderDate,
+    documentDate: dateUtil.toDateOnly(order.documentDate || normalizedOrderDate),
     items: Array.isArray(order.items) ? order.items : [],
     totalAmount: toNumber(order.totalAmount),
     paidAmount: toNumber(order.paidAmount),
@@ -497,9 +501,10 @@ function toListClient(order = {}) {
     code: order.code || order.orderCode || order.salesOrderCode || order.id,
     orderCode: order.orderCode || order.code || order.id,
     salesOrderCode: order.salesOrderCode || order.code || order.id,
-    date: order.date || order.orderDate || '',
-    orderDate: order.orderDate || order.date || '',
-    deliveryDate: order.deliveryDate || '',
+    date: dateUtil.toDateOnly(order.orderDate || order.date || order.documentDate || order.importDate || order.displayDate || ''),
+    orderDate: dateUtil.toDateOnly(order.orderDate || order.date || order.documentDate || order.importDate || order.displayDate || ''),
+    documentDate: dateUtil.toDateOnly(order.documentDate || order.orderDate || order.date || ''),
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || ''),
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     customerId: order.customerId || '',
@@ -718,15 +723,18 @@ async function createOrder(body = {}) {
   const paidAmount = toNumber(body.paidAmount || body.paid || 0);
   const generatedOrderCode = String(body.code || body.orderCode || body.salesOrderCode || body.documentCode || buildOrderCode()).trim();
   const generatedOrderId = String(body.id || generatedOrderCode).trim();
+  const normalizedOrderDate = dateUtil.toDateOnly(body.orderDate || body.date || dateUtil.todayVN());
+  const normalizedDeliveryDate = dateUtil.toDateOnly(body.deliveryDate || normalizedOrderDate);
   const order = {
     ...body,
     id: generatedOrderId,
     code: generatedOrderCode,
     orderCode: String(body.orderCode || generatedOrderCode).trim(),
     salesOrderCode: String(body.salesOrderCode || generatedOrderCode).trim(),
-    date: dateUtil.toDateOnly(body.date || body.orderDate || dateUtil.todayVN()),
-    orderDate: dateUtil.toDateOnly(body.orderDate || body.date || dateUtil.todayVN()),
-    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || body.date || body.orderDate || dateUtil.todayVN()),
+    date: normalizedOrderDate,
+    orderDate: normalizedOrderDate,
+    documentDate: normalizedOrderDate,
+    deliveryDate: normalizedDeliveryDate,
     customerId: customer?.id || body.customerId || body.customerCode || '',
     customerCode: customer?.code || body.customerCode || '',
     customerName: customer?.name || body.customerName || '',
@@ -793,9 +801,15 @@ async function updateOrder(id, body = {}) {
     : current.items;
   const totalAmount = toNumber(body.totalAmount ?? (items || []).reduce((sum, item) => sum + toNumber(item.amount), 0));
   const paidAmount = toNumber(body.paidAmount ?? current.paidAmount ?? 0);
+  const normalizedDate = dateUtil.toDateOnly(body.orderDate || body.date || current.orderDate || current.date || dateUtil.todayVN());
+  const normalizedDeliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || normalizedDate);
   const updated = applyOrderSourceFields({
     ...current,
     ...body,
+    date: normalizedDate,
+    orderDate: normalizedDate,
+    documentDate: normalizedDate,
+    deliveryDate: normalizedDeliveryDate,
     saleMethod: saleMode,
     saleMode,
     pricingMode: saleMode,
