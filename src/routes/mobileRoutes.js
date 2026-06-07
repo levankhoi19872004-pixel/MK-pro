@@ -1403,6 +1403,7 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
       ...req.query,
       includeMetrics: '1',
       mobile: '1',
+      allowEmpty: '1',
       limit: req.query.limit || 300
     });
     const withLastOrder = await attachMobileCustomerLastOrderDates(rawItems, req.mobileUser || {});
