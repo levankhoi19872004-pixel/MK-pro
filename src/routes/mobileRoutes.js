@@ -1397,8 +1397,117 @@ async function attachMobileCustomerLastOrderDates(items = [], mobileUser = {}) {
   });
 }
 
+function mobileCustomerIdentityKeys(customer = {}) {
+  return compactKeys([
+    customer.id,
+    customer._id,
+    customer.customerId,
+    customer.code,
+    customer.customerCode,
+    customer.name,
+    customer.customerName
+  ]);
+}
+
+function buildSalesMobileCustomerFilter(mobileUser = {}) {
+  const user = mobileUser || {};
+  if (String(user.role || '') !== 'sales') return {};
+  const staffCode = String(user.code || user.staffCode || '').trim();
+  const staffName = String(user.name || user.fullName || '').trim();
+  const staffOr = [];
+  if (staffCode) staffOr.push(
+    { staffCode },
+    { salesStaffCode: staffCode },
+    { assignedSalesStaffCode: staffCode },
+    { employeeCode: staffCode }
+  );
+  if (staffName) staffOr.push(
+    { staffName },
+    { salesStaffName: staffName },
+    { assignedSalesStaffName: staffName },
+    { employeeName: staffName }
+  );
+  return staffOr.length ? { $or: staffOr } : {};
+}
+
+async function buildDebtFirstMobileCustomers(req) {
+  const limit = Math.max(1, Math.min(toNumber(req.query.limit || 300), 500));
+  const debts = await buildMobileSalesDebtItems(req.mobileUser || {});
+  const debtLimited = debts.slice(0, limit);
+  const debtCustomerIds = compactKeys(debtLimited.map((item) => item.customerId));
+  const debtCustomerCodes = compactKeys(debtLimited.map((item) => item.customerCode));
+  const debtCustomerNames = compactKeys(debtLimited.map((item) => item.customerName));
+
+  const debtCustomerFilter = { $or: [] };
+  if (debtCustomerIds.length) debtCustomerFilter.$or.push({ $or: [{ id: { $in: debtCustomerIds } }, { customerId: { $in: debtCustomerIds } }, { _id: { $in: debtCustomerIds.filter((id) => /^[0-9a-fA-F]{24}$/.test(String(id))) } }] });
+  if (debtCustomerCodes.length) debtCustomerFilter.$or.push({ $or: [{ code: { $in: debtCustomerCodes } }, { customerCode: { $in: debtCustomerCodes } }] });
+  if (debtCustomerNames.length) debtCustomerFilter.$or.push({ $or: [{ name: { $in: debtCustomerNames } }, { customerName: { $in: debtCustomerNames } }] });
+
+  const debtCustomers = debtCustomerFilter.$or.length
+    ? await Customer.find(debtCustomerFilter).limit(limit * 2).lean()
+    : [];
+  const customerMap = new Map();
+  for (const customer of debtCustomers) {
+    for (const key of mobileCustomerIdentityKeys(customer)) {
+      if (!customerMap.has(key)) customerMap.set(key, customer);
+    }
+  }
+
+  const items = [];
+  const usedKeys = new Set();
+  for (const debt of debtLimited) {
+    const customer = compactKeys([debt.customerId, debt.customerCode, debt.customerName])
+      .map((key) => customerMap.get(key))
+      .find(Boolean);
+    const merged = {
+      ...(customer || {}),
+      id: (customer && (customer.id || customer._id)) || debt.customerId || debt.customerCode || debt.customerName,
+      code: (customer && (customer.code || customer.customerCode)) || debt.customerCode || '',
+      customerCode: (customer && (customer.customerCode || customer.code)) || debt.customerCode || '',
+      name: (customer && (customer.name || customer.customerName)) || debt.customerName || '',
+      customerName: (customer && (customer.customerName || customer.name)) || debt.customerName || '',
+      debtAmount: toNumber(debt.debtAmount || 0),
+      orderCount: toNumber(debt.orderCount || 0),
+      oldestDebtDate: debt.oldestDebtDate || ''
+    };
+    for (const key of mobileCustomerIdentityKeys(merged)) usedKeys.add(key);
+    items.push(merged);
+  }
+
+  const remaining = limit - items.length;
+  if (remaining > 0) {
+    const baseFilter = buildSalesMobileCustomerFilter(req.mobileUser || {});
+    const extras = await Customer.find(baseFilter)
+      .sort({ code: 1, customerCode: 1, name: 1 })
+      .limit(Math.min(remaining * 3, 1000))
+      .lean();
+
+    for (const customer of extras) {
+      const keys = mobileCustomerIdentityKeys(customer);
+      if (keys.some((key) => usedKeys.has(key))) continue;
+      for (const key of keys) usedKeys.add(key);
+      items.push({ ...customer, debtAmount: 0, orderCount: 0, oldestDebtDate: '' });
+      if (items.length >= limit) break;
+    }
+  }
+
+  const withLastOrder = await attachMobileCustomerLastOrderDates(items, req.mobileUser || {});
+  return attachMobileCustomerDebt(withLastOrder, debts)
+    .sort((a, b) => {
+      const debtDelta = toNumber(b.debtAmount || 0) - toNumber(a.debtAmount || 0);
+      if (debtDelta) return debtDelta;
+      return String(a.code || a.customerCode || a.name || '').localeCompare(String(b.code || b.customerCode || b.name || ''), 'vi');
+    });
+}
+
 router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
   try {
+    const keyword = String(req.query.q || req.query.keyword || req.query.search || '').trim();
+    if (!keyword) {
+      const items = await buildDebtFirstMobileCustomers(req);
+      return ok(res, { source: 'mobile-customers-debt-first-ar-ledger', items });
+    }
+
     const rawItems = await searchService.searchCustomers({
       ...req.query,
       includeMetrics: '1',
@@ -1410,7 +1519,7 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
     const debts = await buildMobileSalesDebtItems(req.mobileUser || {});
     const items = attachMobileCustomerDebt(withLastOrder, debts)
       .sort((a, b) => toNumber(b.debtAmount || 0) - toNumber(a.debtAmount || 0));
-    return ok(res, { source: 'mobile-customers-ar-ledger-debt-sorted', items });
+    return ok(res, { source: 'mobile-customers-search-ar-ledger-debt-sorted', items });
   } catch (err) {
     return fail(res, 500, err.message || 'Không tải được khách hàng mobile');
   }
