@@ -17,10 +17,15 @@ assertCss(/body\.dms-print-body \.dms-title-line\s*\{[\s\S]*font-size:\s*16px;[\
 assertCss(/body\.dms-print-body \.dms-header-lines\s*\{[\s\S]*font-size:\s*12px;[\s\S]*line-height:\s*1\.45;/, 'header 12px line-height 1.45');
 assertCss(/body\.dms-print-body \.dms-invoice-table th\s*\{[\s\S]*font-size:\s*12px;[\s\S]*font-weight:\s*700;/, 'invoice table header 12px bold');
 assertCss(/body\.dms-print-body \.dms-invoice-table td\s*\{[\s\S]*font-size:\s*12px;/, 'invoice table body 12px');
-assertCss(/body\.dms-print-body \.dms-product-name\s*\{[\s\S]*line-height:\s*1\.35;/, 'product line-height 1.35');
+assertCss(/body\.dms-print-body \.dms-product-name\s*\{[\s\S]*line-height:\s*1\.25;/, 'product line-height 1.25');
 assertCss(/body\.dms-print-body \.dms-detail-table\s*\{[\s\S]*font-size:\s*11px;[\s\S]*line-height:\s*1\.2;/, 'promotion table 11px');
 assertCss(/body\.dms-print-body \.dms-payable-row \.dms-summary-label-cell,[\s\S]*body\.dms-print-body \.dms-payable-row \.dms-summary-value-cell\s*\{[\s\S]*font-size:\s*18px;/, 'payable amount 18px');
 assertCss(/@page\s*\{[\s\S]*size:\s*A4 portrait;[\s\S]*margin:\s*12mm 10mm;/, 'A4 margin 12mm 10mm');
+
+assertCss(/body\.dms-print-body \.dms-title-header\s*\{[\s\S]*grid-template-columns:\s*42% 38% 20%;/, 'DMS header columns 42/38/20');
+assertCss(/body\.dms-print-body \.dms-invoice-table th:nth-child\(2\),[\s\S]*body\.dms-print-body \.dms-invoice-table td:nth-child\(2\)\s*\{[\s\S]*width:\s*22mm;[\s\S]*white-space:\s*nowrap;/, 'DMS product code 22mm no-wrap');
+assertCss(/body\.dms-print-body \.dms-invoice-table td\s*\{[\s\S]*border-bottom:\s*0\.5px dotted #777;/, 'DMS dotted product separators');
+assertCss(/body\.dms-print-body \.dms-signature div\s*\{[\s\S]*min-height:\s*78px;[\s\S]*padding-top:\s*8px;/, 'DMS signature height and padding');
 assertCss(/border:\s*0\.5px solid #000;/, '0.5px table border');
 
 const items = Array.from({ length: 25 }, (_, idx) => ({

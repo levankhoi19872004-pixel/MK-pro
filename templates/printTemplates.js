@@ -871,7 +871,7 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
     ? items.map((item) => `
       <tr>
         <td class="center">${text(item.lineNo)}</td>
-        <td class="mono">${text(item.productCode)}</td>
+        <td class="mono product-code dms-product-code">${text(item.productCode)}</td>
         <td class="dms-product-name">${text(item.productName)}</td>
         <td class="center strong">${text(item.quantityCsSu)}</td>
         <td class="right strong">${money(data, item.quantity)}</td>
@@ -887,9 +887,9 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
     <table class="dms-invoice-table">
       <thead>
         <tr>
-          <th style="width:4%">STT</th>
-          <th style="width:8%">Mã hàng</th>
-          <th style="width:36%">Tên sản phẩm</th>
+          <th style="width:10mm">STT</th>
+          <th style="width:22mm">Mã hàng</th>
+          <th>Tên sản phẩm</th>
           <th style="width:7%">Số lượng<br/>(CS/SU)</th>
           <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
           <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>

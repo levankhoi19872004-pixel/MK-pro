@@ -9,15 +9,15 @@ body {
   background: #ffffff;
   color: #000;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 10.5px;
-  line-height: 1.22;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .print-page {
   width: 210mm;
   min-height: 297mm;
   margin: 0 auto;
-  padding: 9mm 8mm;
+  padding: 12mm 10mm;
   background: #fff;
 }
 
@@ -109,12 +109,12 @@ body {
   width: 100%;
   margin-bottom: 8mm;
   font-size: 12px;
-  line-height: 1.22;
+  line-height: 1.45;
 }
 
 .h-row {
   display: grid;
-  grid-template-columns: 32% 48% 20%;
+  grid-template-columns: 42% 38% 20%;
   min-height: 22px;
   align-items: center;
 }
@@ -131,7 +131,7 @@ body {
 
 .invoice-title-line {
   text-align: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   text-transform: uppercase;
   white-space: nowrap;
@@ -1112,4 +1112,273 @@ body.dms-print-body .dms-amount-words-text {
 }
 body.dms-print-body .right {
   text-align: right;
+}
+
+
+/* =====================================================
+   Invoice-36 / Unilever child invoice final typography lock
+   Applies to child invoice print only; keeps one visual standard.
+   ===================================================== */
+html,
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #000;
+}
+
+.print-page {
+  padding: 12mm 10mm;
+}
+
+.invoice-header-lines {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.h-row {
+  grid-template-columns: 42% 38% 20%;
+}
+
+.invoice-title-line {
+  font-size: 16px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+.invoice-table,
+.promotion-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+}
+
+.invoice-table th,
+.invoice-table td,
+.promotion-table th,
+.promotion-table td {
+  border: 0.5px solid #000;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.invoice-table th {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.invoice-table td {
+  font-size: 12px;
+  line-height: 1.25;
+  border-left: 0.5px solid #000;
+  border-right: 0.5px solid #000;
+  border-bottom: 0.5px dotted #777;
+}
+
+.invoice-table th:nth-child(1),
+.invoice-table td:nth-child(1) {
+  width: 10mm;
+  text-align: center;
+}
+
+.invoice-table th:nth-child(2),
+.invoice-table td:nth-child(2) {
+  width: 22mm;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.product-name {
+  font-weight: 400;
+  line-height: 1.25;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.invoice-summary-grid,
+.payment-summary {
+  display: grid;
+  grid-template-columns: 65% 35%;
+  gap: 0;
+  align-items: start;
+}
+
+.amount-in-words,
+.amount-in-words b {
+  font-size: 12px;
+}
+
+.invoice-signature,
+.signature-row {
+  min-height: 78px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.invoice-signature > div,
+.signature-row > div {
+  padding-top: 8px;
+}
+
+.promotion-table,
+.promotion-table th,
+.promotion-table td {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+body.dms-print-body,
+body.dms-print-body .dms-print-page {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.25;
+  color: #000;
+}
+
+body.dms-print-body .dms-print-page {
+  padding: 12mm 10mm;
+}
+
+body.dms-print-body .dms-header-lines,
+body.dms-print-body .dms-invoice-header-left,
+body.dms-print-body .dms-invoice-header-right {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+body.dms-print-body .dms-title-header {
+  grid-template-columns: 42% 38% 20%;
+}
+
+body.dms-print-body .dms-title-line {
+  font-size: 16px;
+  line-height: 18px;
+  font-weight: 700;
+}
+
+body.dms-print-body .dms-invoice-table,
+body.dms-print-body .dms-detail-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body.dms-print-body .dms-invoice-table th,
+body.dms-print-body .dms-invoice-table td,
+body.dms-print-body .dms-detail-table th,
+body.dms-print-body .dms-detail-table td {
+  border: 0.5px solid #000;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+body.dms-print-body .dms-invoice-table th {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+body.dms-print-body .dms-invoice-table td {
+  font-size: 12px;
+  line-height: 1.25;
+  border-left: 0.5px solid #000;
+  border-right: 0.5px solid #000;
+  border-bottom: 0.5px dotted #777;
+}
+
+body.dms-print-body .dms-invoice-table th:nth-child(1),
+body.dms-print-body .dms-invoice-table td:nth-child(1) {
+  width: 10mm;
+  text-align: center;
+}
+
+body.dms-print-body .dms-invoice-table th:nth-child(2),
+body.dms-print-body .dms-invoice-table td:nth-child(2) {
+  width: 22mm;
+  white-space: nowrap;
+  text-align: center;
+}
+
+body.dms-print-body .dms-product-name {
+  font-weight: 400;
+  line-height: 1.25;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+body.dms-print-body .dms-summary-split-table {
+  width: 100%;
+  display: table;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+body.dms-print-body .dms-summary-left-cell {
+  width: 65%;
+}
+
+body.dms-print-body .dms-summary-label-cell {
+  width: 25%;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+body.dms-print-body .dms-summary-value-cell {
+  width: 10%;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+body.dms-print-body .dms-payable-row .dms-summary-label-cell,
+body.dms-print-body .dms-payable-row .dms-summary-value-cell {
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+body.dms-print-body .dms-amount-words-cell,
+body.dms-print-body .dms-amount-words-cell b,
+body.dms-print-body .dms-amount-words-text {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+body.dms-print-body .dms-signature {
+  min-height: 78px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+body.dms-print-body .dms-signature div {
+  min-height: 78px;
+  padding-top: 8px;
+}
+
+body.dms-print-body .dms-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+body.dms-print-body .dms-detail-table,
+body.dms-print-body .dms-detail-table th,
+body.dms-print-body .dms-detail-table td {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  .print-page,
+  body.dms-print-body .dms-print-page {
+    padding: 0;
+  }
 }
