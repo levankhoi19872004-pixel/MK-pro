@@ -104,6 +104,59 @@ body {
   text-align: left;
 }
 
+/* Child invoice header: fixed horizontal rows to prevent title/copy/page overlap */
+.invoice-header-lines {
+  width: 100%;
+  margin-bottom: 8mm;
+  font-size: 12px;
+  line-height: 1.22;
+}
+
+.h-row {
+  display: grid;
+  grid-template-columns: 32% 48% 20%;
+  min-height: 22px;
+  align-items: center;
+}
+
+.title-row {
+  min-height: 34px;
+}
+
+.h-cell {
+  min-width: 0;
+  padding: 0 2mm;
+  overflow-wrap: anywhere;
+}
+
+.invoice-title-line {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.center-info {
+  text-align: center;
+}
+
+.right-info {
+  text-align: right;
+}
+
+.copy-page-cell {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.single-left-row .h-cell:first-child {
+  grid-column: 1 / 2;
+}
+
 .info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -155,6 +208,7 @@ body {
 
 .invoice-table {
   font-size: 9.2px;
+  margin-top: 8mm;
 }
 
 .invoice-table th {
