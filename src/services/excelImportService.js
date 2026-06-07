@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeSearchText } = require('../utils/search.util');
+const bcrypt = require('bcryptjs');
 
 const dateUtil = require('../utils/date.util');
 const { parseExcelBuffer } = require('../../utils/excelParser');
@@ -1940,6 +1941,123 @@ function promotionBulkChunks(ops = [], size = 1000) {
   return chunks;
 }
 
+
+const USER_IMPORT_ROLES = new Set(['admin', 'manager', 'accountant', 'sales', 'delivery', 'warehouse']);
+const USER_ROLE_ALIASES = {
+  'quan tri': 'admin', 'quản trị': 'admin', 'admin': 'admin',
+  'quan ly': 'manager', 'quản lý': 'manager', 'manager': 'manager',
+  'ke toan': 'accountant', 'kế toán': 'accountant', 'accountant': 'accountant',
+  'ban hang': 'sales', 'bán hàng': 'sales', 'nvbh': 'sales', 'sales': 'sales',
+  'giao hang': 'delivery', 'giao hàng': 'delivery', 'nvgh': 'delivery', 'delivery': 'delivery',
+  'kho': 'warehouse', 'thu kho': 'warehouse', 'thủ kho': 'warehouse', 'warehouse': 'warehouse'
+};
+
+function isBcryptHash(value) {
+  return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
+}
+
+function normalizeImportRole(value) {
+  const raw = cleanText(value).toLowerCase();
+  if (!raw) return '';
+  const normalized = normalizeText(raw);
+  return USER_ROLE_ALIASES[raw] || USER_ROLE_ALIASES[normalized] || (USER_IMPORT_ROLES.has(raw) ? raw : '');
+}
+
+function normalizeImportActive(value) {
+  const raw = cleanText(value);
+  if (!raw) return true;
+  const normalized = normalizeText(raw).toLowerCase();
+  if (['0', 'false', 'no', 'n', 'inactive', 'ngung', 'ngung hoat dong', 'khoa', 'lock', 'locked'].includes(normalized)) return false;
+  return true;
+}
+
+function pickUserImportPayload(row = {}) {
+  const username = cleanText(row.username || row['Tên đăng nhập'] || row['Ten dang nhap'] || row['Tài khoản'] || row['Tai khoan'] || row['User'] || row['Username']);
+  const staffCode = cleanText(row.staffCode || row.code || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã NV'] || row['Ma NV'] || row['Mã Nv'] || row['Ma Nv'] || row['StaffCode']);
+  const fullName = cleanText(row.fullName || row.name || row['Họ tên'] || row['Ho ten'] || row['Tên nhân viên'] || row['Ten nhan vien'] || row['Tên NV'] || row['Ten NV']);
+  const role = normalizeImportRole(row.role || row['Vai trò'] || row['Vai tro'] || row['Quyền'] || row['Quyen'] || row['Role']);
+  const password = cleanText(row.password || row['Mật khẩu'] || row['Mat khau'] || row['Password']);
+  return {
+    ...rowBase(row),
+    username,
+    password,
+    fullName,
+    name: fullName,
+    staffCode,
+    code: staffCode,
+    role,
+    phone: cleanText(row.phone || row.mobile || row['SĐT'] || row['SDT'] || row['Điện thoại'] || row['Dien thoai']),
+    email: cleanText(row.email || row['Email']),
+    area: cleanText(row.area || row['Khu vực'] || row['Khu vuc']),
+    route: cleanText(row.route || row['Tuyến'] || row['Tuyen']),
+    permissions: cleanText(row.permissions || row.permission || row['Quyền truy cập'] || row['Quyen truy cap']),
+    isActive: normalizeImportActive(row.isActive ?? row.status ?? row['Trạng thái'] ?? row['Trang thai'])
+  };
+}
+
+async function importUsers(rows = []) {
+  const errors = [];
+  const warnings = [];
+  let imported = 0;
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
+  const validRows = [];
+  const seen = new Map();
+
+  rows.forEach((raw, index) => {
+    const item = pickUserImportPayload(raw);
+    const rowNo = item.rowNo || item.__rowNo || index + 2;
+    const rowErrors = [];
+    if (!item.username) rowErrors.push('Thiếu tên đăng nhập');
+    if (!item.fullName) rowErrors.push('Thiếu họ tên');
+    if (!item.staffCode) rowErrors.push('Thiếu mã nhân viên');
+    if (!item.role) rowErrors.push('Vai trò không hợp lệ');
+    if (rowErrors.length) {
+      skipped += 1;
+      errors.push({ row: rowNo, username: item.username, message: rowErrors.join('; ') });
+      return;
+    }
+    const key = item.username.toLowerCase();
+    if (seen.has(key)) warnings.push({ row: rowNo, username: item.username, warning: 'Trùng tên đăng nhập trong file, hệ thống lấy dòng cuối cùng' });
+    seen.set(key, item);
+  });
+
+  validRows.push(...seen.values());
+  for (const item of validRows) {
+    const current = await User.findOne({ username: item.username }).lean();
+    const password = item.password
+      ? (isBcryptHash(item.password) ? item.password : bcrypt.hashSync(item.password, BCRYPT_ROUNDS))
+      : (current?.password || bcrypt.hashSync('123456', BCRYPT_ROUNDS));
+    const payload = {
+      username: item.username,
+      password,
+      fullName: item.fullName,
+      name: item.name || item.fullName,
+      staffCode: item.staffCode,
+      code: item.code || item.staffCode,
+      role: item.role,
+      phone: item.phone,
+      email: item.email,
+      area: item.area,
+      route: item.route,
+      permissions: item.permissions,
+      isActive: item.isActive !== false,
+      isSalesman: item.role === 'sales',
+      isDelivery: item.role === 'delivery',
+      updatedAt: dateUtil.nowIso()
+    };
+    if (!current) payload.createdAt = dateUtil.nowIso();
+    await User.updateOne({ username: item.username }, { $set: payload, $setOnInsert: { id: item.staffCode || item.username } }, { upsert: true });
+    imported += 1;
+    if (current) updated += 1; else created += 1;
+  }
+
+  await addImportLog('users', { imported, created, updated, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50), mode: 'upsert' });
+  return { imported, created, updated, skipped, errors, warnings, message: `Đã import ${imported} tài khoản: tạo mới ${created}, cập nhật ${updated}${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+}
+
 async function importPromotionProductRules(rows = []) {
   let skipped = 0;
   const errors = [];
@@ -2430,6 +2548,22 @@ async function previewMongoNative(type, rows = []) {
       seen.add(key);
       return { ...item, valid: item.errors.length === 0 };
     });
+  } else if (type === 'users') {
+    const seen = new Set();
+    result = safeRows.map((row) => {
+      const item = pickUserImportPayload(row);
+      item.errors = [];
+      item.warnings = [];
+      if (!item.username) item.errors.push('Thiếu tên đăng nhập');
+      if (!item.fullName) item.errors.push('Thiếu họ tên');
+      if (!item.staffCode) item.errors.push('Thiếu mã nhân viên');
+      if (!item.role) item.errors.push('Vai trò không hợp lệ');
+      const key = item.username.toLowerCase();
+      if (key && seen.has(key)) item.warnings.push('Trùng tên đăng nhập trong file; khi import hệ thống lấy dòng cuối cùng');
+      if (key) seen.add(key);
+      item.passwordStatus = item.password ? 'Có nhập mật khẩu' : 'Để trống: giữ mật khẩu cũ hoặc dùng 123456 nếu tạo mới';
+      return { ...item, valid: item.errors.length === 0 };
+    });
   } else if (type === 'openingDebt') {
     const customerMap = await preloadCustomersByCode(safeRows);
     result = safeRows.map((row) => {
@@ -2596,6 +2730,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   let result;
   if (type === 'products') result = await upsertProducts(commitRows);
   else if (type === 'customers') result = await upsertCustomers(commitRows);
+  else if (type === 'users') result = await importUsers(commitRows);
   else if (type === 'openingStock') result = await importOpeningStock(commitRows);
   else if (type === 'importOrders') result = await importImportOrders(commitRows);
   else if (type === 'salesOrders') result = await importSalesOrders(commitRows, { autoCutStock: true });

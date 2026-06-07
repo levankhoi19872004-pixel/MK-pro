@@ -322,7 +322,7 @@ function importRowToText(row){
     const sourceFile=row.sourceFile||row.fileName||'';
     return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | File: ${sourceFile||'-'} | Trạng thái: ${status}${shortage}`;
   }
-  const skip=['valid','errors','rowNo','raw','__importRows','__adjustedRows','lineDetails','shortageReport','detailErrors'];
+  const skip=['valid','errors','rowNo','raw','__importRows','__adjustedRows','lineDetails','shortageReport','detailErrors','password'];
   return Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??''}`).join(' | ');
 }
 function getImportRowMainFields(row){
@@ -892,6 +892,8 @@ async function commitImportExcel(){
     const isPromotionImport = ['promotionProductRules','promotionGroupItems','promotionGroupRules'].includes(importDataType.value);
     if(isPromotionImport){
       if(typeof window.reloadPromotionRules === 'function') await window.reloadPromotionRules();
+    }else if(importDataType.value==='users'){
+      if(typeof loadUsers === 'function') await loadUsers();
     }else{
       await loadProducts();await loadCustomers();await loadStock();await loadImportOrders();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
     }

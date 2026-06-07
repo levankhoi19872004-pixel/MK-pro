@@ -23,6 +23,24 @@ const TEMPLATE_DEFINITIONS = {
     ],
     notes: ['Bắt buộc: code, name.', 'Có thể nhập SĐT hoặc địa chỉ để hỗ trợ tìm kiếm khách hàng.', 'Cột Mã NVBH là dữ liệu chính để gán nhân viên phụ trách; Tên NVBH chỉ để tham khảo.']
   },
+
+  users: {
+    title: 'Mẫu import thông tin tài khoản',
+    fileName: 'mau-import-thong-tin-tai-khoan.xlsx',
+    columns: ['username', 'password', 'fullName', 'staffCode', 'role', 'phone', 'email', 'area', 'route', 'isActive'],
+    headers: ['Tên đăng nhập', 'Mật khẩu', 'Họ tên', 'Mã nhân viên', 'Vai trò', 'SĐT', 'Email', 'Khu vực', 'Tuyến', 'Trạng thái'],
+    sample: [
+      ['nvbh01', '123456', 'Nguyễn Văn Bán', 'NVBH01', 'sales', '0912345678', 'nvbh01@example.com', 'Kiến Xương', 'Tuyến 1', 'Hoạt động'],
+      ['nvgh01', '123456', 'Trần Văn Giao', 'NVGH01', 'delivery', '0987654321', 'nvgh01@example.com', 'Thái Bình', 'Tuyến giao 1', 'Hoạt động']
+    ],
+    notes: [
+      'Bắt buộc: Tên đăng nhập, Họ tên, Mã nhân viên, Vai trò.',
+      'Vai trò hợp lệ: admin, manager, accountant, sales, delivery, warehouse.',
+      'Nếu tên đăng nhập đã tồn tại thì cập nhật thông tin; nếu chưa tồn tại thì tạo mới.',
+      'Nếu để trống mật khẩu khi cập nhật thì giữ mật khẩu cũ; nếu tạo mới mà để trống thì dùng 123456.',
+      'Không nhập passwordHash/token/secret vào file Excel.'
+    ]
+  },
   openingStock: {
     title: 'Mẫu import tồn kho ban đầu',
     fileName: 'mau-import-ton-kho-ban-dau.xlsx',
