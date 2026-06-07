@@ -14,8 +14,14 @@ const ROLE_LABELS = {
 };
 
 
+function canonicalProductCode(product = {}) {
+  // Mã chuẩn duy nhất dùng để cộng tồn.
+  // Không dùng _id làm key chính vì cùng 1 dòng inventories có thể có cả productCode + productId.
+  return String(product.code || product.productCode || product.sku || '').trim();
+}
+
 function productCodeOf(product = {}) {
-  return String(product.code || product.sku || product.productCode || product.id || product._id || '').trim();
+  return canonicalProductCode(product) || String(product.id || product._id || '').trim();
 }
 
 function productNameOf(product = {}) {
@@ -46,64 +52,63 @@ function buildSuggestionMeta(parts = []) {
   };
 }
 
+function inventoryRowQty(row = {}) {
+  // Nguồn tồn duy nhất: inventories.
+  // Ưu tiên availableQty; nếu chưa có thì tính onHand - reservedQty.
+  const onHand = toNumber(row.onHand ?? row.qty ?? row.quantity ?? row.stockQuantity);
+  const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
+  return row.availableQty !== undefined && row.availableQty !== null
+    ? toNumber(row.availableQty)
+    : Math.max(0, onHand - reserved);
+}
+
 function buildInventoryMap(products = [], inventories = []) {
-  const productKeysByCode = new Map();
+  const aliasToCanonicalCode = new Map();
+  const result = new Map();
 
-  for (const product of products) {
-    const code = productCodeOf(product);
-    if (!code) continue;
+  for (const product of products || []) {
+    const canonical = canonicalProductCode(product);
+    if (!canonical) continue;
 
-    const keys = [
+    result.set(canonical, { matched: false, qty: 0 });
+
+    for (const alias of [
       product.code,
-      product.sku,
       product.productCode,
+      product.sku,
       product.id,
       product._id,
       product._id ? String(product._id) : ''
-    ]
-      .map(cleanKey)
-      .filter(Boolean);
-
-    productKeysByCode.set(code, [...new Set(keys)]);
+    ]) {
+      const key = cleanKey(alias);
+      if (key) aliasToCanonicalCode.set(key, canonical);
+    }
   }
 
-  const inventoryQtyByKey = new Map();
   for (const row of inventories || []) {
-    // Phase 3.4+: tồn hiển thị lấy từ inventories/inventories.
-    // Ưu tiên availableQty; nếu snapshot cũ chưa có availableQty thì tính từ onHand - reservedQty.
-    const onHand = toNumber(row.onHand ?? row.qty ?? row.quantity ?? row.stockQuantity);
-    const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
-    const qty = row.availableQty !== undefined && row.availableQty !== null
-      ? toNumber(row.availableQty)
-      : Math.max(0, onHand - reserved);
-
-    for (const key of [
+    // Mỗi dòng inventories chỉ được cộng đúng 1 lần vào 1 sản phẩm.
+    // Ưu tiên mã hàng trước, chỉ fallback sang productId khi dòng tồn không có mã.
+    const matchedAlias = [
       row.productCode,
-      row.productId,
       row.code,
       row.sku,
       row.product?.code,
+      row.product?.productCode,
+      row.product?.sku,
+      row.productId,
       row.product?._id,
-      row._id ? String(row._id) : ''
-    ]) {
-      const clean = cleanKey(key);
-      if (!clean) continue;
-      inventoryQtyByKey.set(clean, toNumber(inventoryQtyByKey.get(clean)) + qty);
-    }
-  }
+      row.product?._id ? String(row.product._id) : ''
+    ]
+      .map(cleanKey)
+      .find((key) => key && aliasToCanonicalCode.has(key));
 
-  const result = new Map();
-  for (const [code, keys] of productKeysByCode.entries()) {
-    let matched = false;
-    let qty = 0;
+    const canonical = aliasToCanonicalCode.get(matchedAlias);
+    if (!canonical) continue;
 
-    for (const key of keys) {
-      if (!inventoryQtyByKey.has(key)) continue;
-      matched = true;
-      qty += toNumber(inventoryQtyByKey.get(key));
-    }
-
-    result.set(code, { matched, qty });
+    const current = result.get(canonical) || { matched: false, qty: 0 };
+    current.matched = true;
+    current.qty = toNumber(current.qty) + inventoryRowQty(row);
+    result.set(canonical, current);
   }
 
   return result;

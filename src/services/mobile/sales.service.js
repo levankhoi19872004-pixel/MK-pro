@@ -9,88 +9,82 @@ const promotionService = require('../promotionService');
 const { PROMOTION } = require('../../constants/pricingModes');
 
 
-function openSaleQtyFromRows(rows = []) {
-  return rows.reduce((sum, row) => {
-    const onHand = Number(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity ?? 0);
-    const reserved = Number(row.reservedQty ?? row.reserved ?? 0);
-    const qty = row.availableQty !== undefined && row.availableQty !== null
-      ? Number(row.availableQty || 0)
-      : Math.max(0, onHand - reserved);
-    return sum + qty;
-  }, 0);
+function inventoryRowOpenSaleQty(row = {}) {
+  const onHand = Number(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity ?? 0);
+  const reserved = Number(row.reservedQty ?? row.reserved ?? 0);
+  return row.availableQty !== undefined && row.availableQty !== null
+    ? Number(row.availableQty || 0)
+    : Math.max(0, onHand - reserved);
 }
 
+function canonicalProductCode(product = {}) {
+  return String(product.code || product.productCode || product.sku || '').trim();
+}
 
 function buildProductStockKeys(product = {}) {
-  return [product.code, product.sku, product.productCode, product.id, product._id]
+  return [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']
     .map((value) => String(value || '').trim())
     .filter(Boolean);
 }
 
-async function getSnapshotQtyByProducts(products = []) {
-  const keyToProductCodes = new Map();
-  const allKeys = [];
-  for (const product of products) {
-    const keys = buildProductStockKeys(product);
-    const canonical = String(product.code || product.productCode || product.id || '').trim();
-    for (const key of keys) {
-      allKeys.push(key);
-      keyToProductCodes.set(key, canonical);
+function buildProductAliasMap(products = []) {
+  const aliasToCanonical = new Map();
+  const result = new Map();
+  for (const product of products || []) {
+    const canonical = canonicalProductCode(product) || String(product.id || product._id || '').trim();
+    if (!canonical) continue;
+    result.set(canonical, 0);
+    for (const key of buildProductStockKeys(product)) {
+      aliasToCanonical.set(key, canonical);
     }
   }
-  const uniqueKeys = Array.from(new Set(allKeys));
-  const result = new Map();
-  for (const product of products) {
-    const canonical = String(product.code || product.productCode || product.id || '').trim();
-    if (canonical) result.set(canonical, 0);
-  }
+  return { aliasToCanonical, result };
+}
+
+function resolveInventoryRowCanonical(row = {}, aliasToCanonical = new Map()) {
+  const matchedKey = [
+    row.productCode,
+    row.code,
+    row.sku,
+    row.product?.code,
+    row.product?.productCode,
+    row.product?.sku,
+    row.productId,
+    row.product?._id,
+    row.product?._id ? String(row.product._id) : ''
+  ]
+    .map((value) => String(value || '').trim())
+    .find((key) => key && aliasToCanonical.has(key));
+  return aliasToCanonical.get(matchedKey) || '';
+}
+
+async function getInventoryQtyByProducts(products = []) {
+  const { aliasToCanonical, result } = buildProductAliasMap(products);
+  const uniqueKeys = Array.from(aliasToCanonical.keys());
   if (!uniqueKeys.length) return result;
-  const filter = {
+
+  const inventoryRows = await InventoryLegacy.find({
     $or: [
       { productCode: { $in: uniqueKeys } },
       { productId: { $in: uniqueKeys } },
       { code: { $in: uniqueKeys } },
       { sku: { $in: uniqueKeys } }
     ]
-  };
-  const inventoryRows = await InventoryLegacy.find(filter).lean();
-  function accumulate(rows = [], target = new Map()) {
-    for (const row of rows) {
-      const matchedKey = [row.productCode, row.productId, row.code, row.sku]
-        .map((value) => String(value || '').trim())
-        .find((key) => keyToProductCodes.has(key));
-      const canonical = keyToProductCodes.get(matchedKey);
-      if (!canonical) continue;
-      target.set(canonical, (target.get(canonical) || 0) + openSaleQtyFromRows([row]));
-    }
-    return target;
-  }
-  const inventoryQty = accumulate(inventoryRows, new Map());
-  for (const product of products) {
-    const canonical = String(product.code || product.productCode || product.id || '').trim();
-    result.set(canonical, inventoryQty.get(canonical) || 0);
+  }).lean();
+
+  for (const row of inventoryRows || []) {
+    // Mỗi dòng inventories chỉ được cộng đúng 1 lần vào sản phẩm chuẩn.
+    const canonical = resolveInventoryRowCanonical(row, aliasToCanonical);
+    if (!canonical) continue;
+    result.set(canonical, (result.get(canonical) || 0) + inventoryRowOpenSaleQty(row));
   }
   return result;
 }
 
-async function getSnapshotQtyForProduct(product = {}) {
-  const keys = [product.code, product.sku, product.productCode, product.id, product._id]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-  if (!keys.length) return 0;
-  const filter = {
-    $or: [
-      { productCode: { $in: keys } },
-      { productId: { $in: keys } },
-      { code: { $in: keys } },
-      { sku: { $in: keys } }
-    ]
-  };
-  const inventoryRows = await InventoryLegacy.find(filter).lean();
-  const snapshotQty = openSaleQtyFromRows(snapshotRows);
-  const legacyQty = openSaleQtyFromRows(legacyRows);
-  if (legacyQty > 0 && (snapshotRows.length === 0 || snapshotQty <= 0)) return legacyQty;
-  return snapshotQty;
+async function getInventoryQtyForProduct(product = {}) {
+  const stockByProduct = await getInventoryQtyByProducts([product]);
+  const canonical = canonicalProductCode(product) || String(product.id || product._id || '').trim();
+  return Number(stockByProduct.get(canonical) || 0);
 }
 
 function fail(statusCode, message) {
@@ -252,7 +246,7 @@ function createMobileSalesService(ctx) {
         productByCode.set(String(product.code || product.productCode || product.id || '').trim(), product);
       }
       perf('prepare_items');
-      const stockByProduct = await getSnapshotQtyByProducts(Array.from(productByCode.values()));
+      const stockByProduct = await getInventoryQtyByProducts(Array.from(productByCode.values()));
       perf('batch_stock_check', { products: productByCode.size });
 
       const baseItems = [];

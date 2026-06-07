@@ -7,18 +7,62 @@ const InventoryLegacy = require('../models/InventoryLegacy');
 const { MongoStore } = require('./mongoSyncService');
 
 
-async function getSnapshotQtyForProduct(product = {}) {
-  const keys = [product.code, product.sku, product.productCode, product.id, product._id]
+function inventoryRowOpenSaleQty(row = {}) {
+  const onHand = Number(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity ?? 0);
+  const reserved = Number(row.reservedQty ?? row.reserved ?? 0);
+  return row.availableQty !== undefined && row.availableQty !== null
+    ? Number(row.availableQty || 0)
+    : Math.max(0, onHand - reserved);
+}
+
+function canonicalProductCode(product = {}) {
+  return String(product.code || product.productCode || product.sku || '').trim();
+}
+
+function buildProductStockKeys(product = {}) {
+  return [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']
     .map((value) => String(value || '').trim())
     .filter(Boolean);
-  if (!keys.length) return 0;
+}
+
+async function getInventoryQtyForProduct(product = {}) {
+  const canonical = canonicalProductCode(product) || String(product.id || product._id || '').trim();
+  const aliasToCanonical = new Map();
+  for (const key of buildProductStockKeys(product)) {
+    aliasToCanonical.set(key, canonical);
+  }
+  const keys = Array.from(aliasToCanonical.keys());
+  if (!keys.length || !canonical) return 0;
+
   const rows = await InventoryLegacy.find({
     $or: [
       { productCode: { $in: keys } },
-      { productId: { $in: keys } }
+      { productId: { $in: keys } },
+      { code: { $in: keys } },
+      { sku: { $in: keys } }
     ]
   }).lean();
-  return rows.reduce((sum, row) => sum + Number(row.availableQty ?? row.onHand ?? row.quantity ?? row.qty ?? 0), 0);
+
+  let qty = 0;
+  for (const row of rows || []) {
+    // Ưu tiên productCode/code/sku; fallback productId. Một dòng inventories chỉ cộng 1 lần.
+    const matchedKey = [
+      row.productCode,
+      row.code,
+      row.sku,
+      row.product?.code,
+      row.product?.productCode,
+      row.product?.sku,
+      row.productId,
+      row.product?._id,
+      row.product?._id ? String(row.product._id) : ''
+    ]
+      .map((value) => String(value || '').trim())
+      .find((key) => key && aliasToCanonical.has(key));
+    if (!matchedKey) continue;
+    qty += inventoryRowOpenSaleQty(row);
+  }
+  return qty;
 }
 
 function createMobileService(ctx) {
@@ -157,7 +201,7 @@ function createMobileService(ctx) {
     const rows = await Product.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
     const data = await getPrimaryDataSnapshot();
     let items = await Promise.all(rows.map(productMongoToClient).map(async (product) => {
-      const availableQty = await getSnapshotQtyForProduct(product);
+      const availableQty = await getInventoryQtyForProduct(product);
       return {
         id: product.id,
         code: product.code,
@@ -236,7 +280,7 @@ function createMobileService(ctx) {
       const quantity = toNumber(rawItem.quantity || rawItem.qty);
       const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice);
       if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
-      const availableQty = await getSnapshotQtyForProduct(product);
+      const availableQty = await getInventoryQtyForProduct(product);
       if (availableQty < quantity) return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
       items.push({ productId: product.id, productCode: product.code, productName: product.name, ...buildProductLineMeta(product), quantity, salePrice, amount: quantity * salePrice });
     }
