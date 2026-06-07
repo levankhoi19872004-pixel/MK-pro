@@ -225,10 +225,10 @@ function buildReturnQtyMap(returnOrders = []) {
     const roCode = returnOrderCodeOf(ro);
     const roId = returnOrderIdOf(ro);
     const updatedMs = updatedTimeOf(ro);
-    const roKeys = [
+    const roKeys = Array.from(new Set([
       ro.salesOrderId, ro.orderId, ro.sourceOrderId, ro.deliveryOrderId,
       ro.salesOrderCode, ro.orderCode, ro.sourceOrderCode, ro.deliveryOrderCode, ro.originalOrderCode
-    ].map(cleanText).filter(Boolean);
+    ].map(cleanText).filter(Boolean)));
     if (!roKeys.length) continue;
 
     const primaryOrderKey = cleanText(ro.salesOrderCode || ro.orderCode || ro.salesOrderId || ro.orderId || roKeys[0]);
