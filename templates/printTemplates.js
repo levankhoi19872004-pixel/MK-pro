@@ -874,20 +874,20 @@ function dmsDeliveryInvoiceTemplate(data) {
   const pagination = getDmsPagination(data);
   const summary = getDmsSummary(data);
   const renderSummaryAndSignature = () => `
-      <div class="dms-summary-grid">
-        <div class="dms-amount-words"><b>Số tiền viết bằng chữ :</b> ${text(summary.amountInWords || data.totals.totalAmountText)}</div>
-        <div class="dms-calculation-box">
-          <table class="dms-summary-table">
-            <tbody>
-              <tr class="dms-payable-row"><td>Số tiền phải thanh toán (A7-D-E-H)</td><td>${dmsMoney(data, summary.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount)}</td></tr>
-              <tr><td>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</td><td>${dmsMoney(data, summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount)}</td></tr>
-              <tr><td>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</td><td>${dmsMoney(data, summary.totalPromotionAmount ?? data.totals?.promotionValue)}</td></tr>
-              <tr><td>Cấn trừ tiền (D+E+H):</td><td>${dmsMoney(data, summary.totalOffsetAmount ?? data.totals?.displayRewardTotal)}</td></tr>
-              <tr><td>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</td><td>${dmsMoney(data, summary.nppDiscountAmount)}</td></tr>
-              <tr><td>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td><td>${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</td></tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="dms-summary-block">
+        <table class="dms-summary-table">
+          <tbody>
+            <tr class="dms-amount-words-row">
+              <td colspan="2"><b>Số tiền viết bằng chữ :</b> <span class="dms-amount-words-text">${text(summary.amountInWords || data.totals.totalAmountText)}</span></td>
+            </tr>
+            <tr class="dms-payable-row"><td>Số tiền phải thanh toán (A7-D-E-H)</td><td>${dmsMoney(data, summary.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount)}</td></tr>
+            <tr><td>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</td><td>${dmsMoney(data, summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount)}</td></tr>
+            <tr><td>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</td><td>${dmsMoney(data, summary.totalPromotionAmount ?? data.totals?.promotionValue)}</td></tr>
+            <tr><td>Cấn trừ tiền (D+E+H):</td><td>${dmsMoney(data, summary.totalOffsetAmount ?? data.totals?.displayRewardTotal)}</td></tr>
+            <tr><td>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</td><td>${dmsMoney(data, summary.nppDiscountAmount)}</td></tr>
+            <tr><td>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td><td>${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</td></tr>
+          </tbody>
+        </table>
       </div>
       <div class="dms-signature">
         <div><b>Người lập biểu</b><span>(Ký, ghi rõ họ tên)</span></div>
