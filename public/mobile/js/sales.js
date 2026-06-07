@@ -33,6 +33,7 @@ let editingOrderId = '';
 let lastCustomers = [];
 let customerCatalog = [];
 let todayOrderCache = [];
+let debtCache = [];
 
 const tabs = document.querySelectorAll('.tab-btn');
 const panels = document.querySelectorAll('.tab-panel');
@@ -52,6 +53,11 @@ const todayOrders = document.getElementById('todayOrders');
 const message = document.getElementById('salesMessage');
 const orderFormTitle = document.getElementById('orderFormTitle');
 const submitOrderBtn = document.getElementById('submitOrderBtn');
+const cartTabBadge = document.getElementById('cartTabBadge');
+const debtList = document.getElementById('debtList');
+const debtLedgerList = document.getElementById('debtLedgerList');
+const debtTotalAmount = document.getElementById('debtTotalAmount');
+const debtCustomerCount = document.getElementById('debtCustomerCount');
 
 function switchTab(tabId) {
   tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabId));
@@ -68,14 +74,30 @@ function formatShortDate(value) {
   return raw.slice(0,10);
 }
 
+function formatDisplayDate(value) {
+  const normalized = formatShortDate(value);
+  const m = String(normalized || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}` : (normalized || '-');
+}
+
+function customerDebtValue(customer = {}) {
+  return Number(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.arDebt ?? 0);
+}
+
+function customerSalesValue(customer = {}) {
+  return Number(customer.monthRevenue ?? customer.monthSales ?? customer.salesAmount ?? 0);
+}
+
 tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
 document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); loadCustomers(customerSearch.value.trim()); });
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
+document.getElementById('reloadDebtsBtn')?.addEventListener('click', loadDebts);
 document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
 
 loadCustomers('');
 loadTodayOrders();
+loadDebts();
 initProductAutocomplete();
 renderCart();
 
@@ -116,10 +138,10 @@ function renderCustomerList(items) {
   customerList.innerHTML = items.map((customer, index) => `
     <button class="customer-card" data-customer-index="${index}">
       <strong>${customer.code || ''} - ${customer.name || ''}</strong>
-      <span>${customer.phone || ''} · ${customer.address || ''}</span>
-      <div class="customer-metrics">
-        <em>Công nợ: ${money(customer.debtAmount || customer.currentDebt || customer.debt || 0)}</em>
-        <em>DS tháng: ${money(customer.monthRevenue || customer.monthSales || 0)}</em>
+      <div class="customer-metrics customer-metrics-3">
+        <em>Nợ hiện tại: ${money(customerDebtValue(customer))}</em>
+        <em>DS tháng: ${money(customerSalesValue(customer))}</em>
+        <em>Mua gần nhất: ${formatDisplayDate(customer.lastOrderDate || customer.latestOrderDate || customer.lastSaleDate || '')}</em>
       </div>
     </button>
   `).join('');
@@ -133,8 +155,8 @@ function selectCustomer(customer) {
   selectedCustomer = customer;
   selectedCustomerBox.innerHTML = `
     <strong>${customer.code || ''} - ${customer.name || ''}</strong><br />
-    <span>${customer.phone || ''} · ${customer.address || ''}</span><br />
-    <span>Công nợ: ${money(customer.debtAmount || customer.currentDebt || customer.debt || 0)} · DS tháng: ${money(customer.monthRevenue || customer.monthSales || 0)}</span>
+    <span>Nợ hiện tại: ${money(customerDebtValue(customer))} · DS tháng: ${money(customerSalesValue(customer))}</span><br />
+    <span>Mua gần nhất: ${formatDisplayDate(customer.lastOrderDate || customer.latestOrderDate || customer.lastSaleDate || '')}</span>
   `;
   selectedCustomerBox.classList.remove('muted');
   setMessage(message, 'Đã chọn khách hàng. Hãy thêm sản phẩm vào giỏ.', 'success');
@@ -322,11 +344,13 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
   selectedProductBox.textContent = 'Chưa chọn sản phẩm';
   selectedProductBox.classList.add('muted');
   renderCart();
+  setMessage(message, 'Đã thêm vào giỏ hàng', 'success');
 });
 
 function renderCart() {
   const total = cart.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   cartCount.textContent = `${cart.length} dòng`;
+  if (cartTabBadge) cartTabBadge.textContent = String(cart.length);
   cartTotal.textContent = money(total);
 
   if (!cart.length) {
@@ -352,12 +376,77 @@ function renderCart() {
   });
 }
 
+
+async function loadDebts() {
+  if (!debtList) return;
+  try {
+    debtList.className = 'order-list empty';
+    debtList.textContent = 'Đang tải công nợ...';
+    const data = await mobileApi.getSalesDebts({});
+    debtCache = Array.isArray(data.items) ? data.items : [];
+    renderDebts(debtCache, data.summary || {});
+  } catch (err) {
+    debtList.className = 'order-list empty';
+    debtList.textContent = err.message || 'Không tải được công nợ';
+  }
+}
+
+function renderDebts(items = debtCache, summary = {}) {
+  const total = Number(summary.totalDebt ?? items.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0));
+  if (debtTotalAmount) debtTotalAmount.textContent = money(total);
+  if (debtCustomerCount) debtCustomerCount.textContent = String(summary.customerCount ?? items.length);
+
+  if (!items.length) {
+    debtList.className = 'order-list empty';
+    debtList.textContent = 'Không có khách hàng còn nợ';
+    if (debtLedgerList) {
+      debtLedgerList.className = 'order-list empty';
+      debtLedgerList.textContent = 'Chọn khách hàng để xem chi tiết.';
+    }
+    return;
+  }
+
+  debtList.className = 'order-list';
+  debtList.innerHTML = items.map((item, index) => `
+    <button class="debt-card" data-debt-index="${index}">
+      <strong>${item.customerCode || ''} - ${item.customerName || ''}</strong>
+      <span>Công nợ: ${money(item.debtAmount || 0)} · ${item.orderCount || 0} đơn · Nợ cũ nhất: ${formatDisplayDate(item.oldestDebtDate || '')}</span>
+    </button>
+  `).join('');
+
+  debtList.querySelectorAll('[data-debt-index]').forEach((btn) => {
+    btn.addEventListener('click', () => renderDebtLedger(items[Number(btn.dataset.debtIndex)]));
+  });
+}
+
+function renderDebtLedger(item = {}) {
+  const rows = Array.isArray(item.ledgers) ? item.ledgers : [];
+  if (!debtLedgerList) return;
+  if (!rows.length) {
+    debtLedgerList.className = 'order-list empty';
+    debtLedgerList.textContent = 'Khách hàng này chưa có dòng sổ công nợ.';
+    return;
+  }
+  let balance = 0;
+  debtLedgerList.className = 'order-list';
+  debtLedgerList.innerHTML = rows.map((row) => {
+    balance += Number(row.debit || 0) - Number(row.credit || 0);
+    return `
+      <div class="order-item">
+        <strong>${formatDisplayDate(row.date)} · ${row.type || row.refType || ''}</strong>
+        <span>Đơn: ${row.salesOrderCode || row.refCode || ''}</span>
+        <span>Phát sinh: ${money(row.debit || 0)} · Thanh toán: ${money(row.credit || 0)} · Dư nợ: ${money(Math.max(0, balance))}</span>
+      </div>
+    `;
+  }).join('');
+}
+
 submitOrderBtn.addEventListener('click', async () => {
   if (submitOrderBtn.disabled) return;
-  setButtonBusy(submitOrderBtn, true);
   setMessage(message, '');
   if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng', 'error');
   if (!cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
+  setButtonBusy(submitOrderBtn, true);
 
   try {
     const paidAmount = Number(paidAmountInput.value || 0);
@@ -375,6 +464,7 @@ submitOrderBtn.addEventListener('click', async () => {
     clearOrderForm(false);
     upsertTodayOrder(data.salesOrder);
     setMessage(message, `${data.message || 'Đã lưu đơn'} ${code}`, 'success');
+    await loadDebts();
     switchTab('reportTab');
   } catch (err) {
     setMessage(message, err.message, 'error');

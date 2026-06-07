@@ -140,6 +140,11 @@ export const mobileApi = {
   getMySalesOrders() {
     return apiRequest(`${MOBILE_ROUTES.salesOrders}?mine=1`);
   },
+  getSalesDebts(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.salesDebts}${suffix}`);
+  },
   getDeliveryOrders(params = {}) {
     const query = new URLSearchParams(params);
     const suffix = query.toString() ? `?${query.toString()}` : '';
