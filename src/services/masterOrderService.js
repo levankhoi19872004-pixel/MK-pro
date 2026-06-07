@@ -2696,6 +2696,31 @@ function getItemPackForMasterPrint(item = {}, product = {}) {
   return toNumber(item.packingQty ?? item.conversionRate ?? item.unitsPerCase ?? item.qtyPerCase ?? item.packSize ?? product.conversionRate ?? 1) || 1;
 }
 
+function getCatalogSalePriceForMasterKpi(item = {}, product = {}) {
+  return toNumber(product.salePrice ?? product.price ?? item.catalogSalePrice ?? item.product?.salePrice ?? item.productSnapshot?.salePrice ?? item.salePrice ?? item.price ?? item.unitPrice ?? 0);
+}
+
+function getPayableAmountForMasterChild(child = {}) {
+  const explicit = toNumber(child.payableAmount ?? child.mustPay ?? child.totalPayable ?? child.totalAmount ?? child.amount ?? child.grandTotal);
+  if (explicit > 0) return explicit;
+  const itemAmount = (Array.isArray(child.items) ? child.items : []).reduce((sum, item) => {
+    const qty = getItemQuantityForMasterPrint(item);
+    const price = toNumber(item.priceAfterPromotion ?? item.netPrice ?? item.finalPrice ?? item.amountPerUnit ?? item.salePrice ?? item.price ?? item.unitPrice ?? 0);
+    const amount = toNumber(item.amount ?? item.lineAmount ?? item.totalAmount);
+    return sum + (amount || qty * price);
+  }, 0);
+  return Math.max(0, itemAmount);
+}
+
+function normalizeWarehouseForMasterPrint(item = {}, product = {}) {
+  const raw = cleanMasterPrintText(product.defaultWarehouse || product.warehouseCode || item.warehouseCode || item.warehouse || item.khoCode || 'KHO_HC').toUpperCase();
+  return raw.includes('PC') ? 'KHO_PC' : 'KHO_HC';
+}
+
+function getWarehouseNameForMasterPrint(code) {
+  return code === 'KHO_PC' ? 'KHO PC' : 'KHO HC';
+}
+
 async function buildAggregateMasterPrintDocument(body = {}) {
   const inputIds = body.masterOrderIds || body.ids || body.masterOrders || [];
   const ids = (Array.isArray(inputIds) ? inputIds : String(inputIds || '').split(','))
@@ -2727,6 +2752,36 @@ async function buildAggregateMasterPrintDocument(body = {}) {
     .filter(Boolean))));
   const products = productCodes.length ? await Product.find({ code: { $in: productCodes } }).lean() : [];
   const productMap = new Map(products.map((product) => [cleanMasterPrintText(product.code || product.productCode || product.sku), product]));
+  const childrenByMasterCode = new Map();
+  for (const child of allChildren) {
+    const key = cleanMasterPrintText(child.sourceMasterCode || '');
+    if (!childrenByMasterCode.has(key)) childrenByMasterCode.set(key, []);
+    childrenByMasterCode.get(key).push(child);
+  }
+
+  const masterKpis = masterOrders.map((master) => {
+    const code = cleanMasterPrintText(master.code || master.id);
+    const children = childrenByMasterCode.get(code) || [];
+    const productSaleAmount = children.reduce((childSum, child) => childSum + (Array.isArray(child.items) ? child.items : []).reduce((itemSum, item) => {
+      const productCode = getItemProductCodeForMasterPrint(item);
+      const product = productMap.get(productCode) || {};
+      return itemSum + getItemQuantityForMasterPrint(item) * getCatalogSalePriceForMasterKpi(item, product);
+    }, 0), 0);
+    const payableAmount = children.reduce((sum, child) => sum + getPayableAmountForMasterChild(child), 0);
+    return {
+      code,
+      note: cleanMasterPrintText(master.note || master.deliveryNote || ''),
+      productSaleAmount: Math.round(productSaleAmount),
+      promotionAmount: Math.max(0, Math.round(productSaleAmount - payableAmount)),
+      payableAmount: Math.round(payableAmount)
+    };
+  });
+  const masterKpiTotals = masterKpis.reduce((totals, row) => ({
+    productSaleAmount: totals.productSaleAmount + toNumber(row.productSaleAmount),
+    promotionAmount: totals.promotionAmount + toNumber(row.promotionAmount),
+    payableAmount: totals.payableAmount + toNumber(row.payableAmount)
+  }), { productSaleAmount: 0, promotionAmount: 0, payableAmount: 0 });
+
   const grouped = new Map();
 
   for (const child of allChildren) {
@@ -2754,8 +2809,8 @@ async function buildAggregateMasterPrintDocument(body = {}) {
         amount: 0,
         conversionRate: pack,
         packingQty: pack,
-        warehouseCode: cleanMasterPrintText(product.warehouseCode || item.warehouseCode || item.warehouse || 'KHO_HC'),
-        warehouseName: cleanMasterPrintText(product.warehouseName || item.warehouseName || ''),
+        warehouseCode: normalizeWarehouseForMasterPrint(item, product),
+        warehouseName: getWarehouseNameForMasterPrint(normalizeWarehouseForMasterPrint(item, product)),
         sourceOrderCodes: [],
         sourceMasterCodes: []
       };
@@ -2782,7 +2837,7 @@ async function buildAggregateMasterPrintDocument(body = {}) {
       routeName: masterOrders.map((order) => cleanMasterPrintText(order.routeName)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
       deliveryStaffCode: masterOrders.map((order) => cleanMasterPrintText(order.deliveryStaffCode)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
       deliveryStaffName: masterOrders.map((order) => cleanMasterPrintText(order.deliveryStaffName)).filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(', '),
-      note: `Đơn tổng gộp từ: ${masterCodes.join(', ')}${missingIds.length ? `. Không tìm thấy: ${missingIds.join(', ')}` : ''}`,
+      note: missingIds.length ? `Không tìm thấy: ${missingIds.join(', ')}` : '',
       masterOrderCodes: masterCodes,
       selectedMasterOrderCount: masterOrders.length,
       children: allChildren,
@@ -2792,6 +2847,8 @@ async function buildAggregateMasterPrintDocument(body = {}) {
       totalQty,
       totalAmount,
       goodsAmount: totalAmount,
+      masterKpis,
+      masterKpiTotals,
       items,
       printMode: 'MASTER_AGGREGATE_SELECTED'
     }

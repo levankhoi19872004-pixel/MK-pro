@@ -248,6 +248,64 @@ function renderGenericItemsTable(data) {
 }
 
 
+
+function renderMasterKpiTable(data) {
+  const rows = Array.isArray(data.masterKpis) ? data.masterKpis : [];
+  if (!rows.length) return '';
+  const bodyRows = rows.map((row) => `
+    <tr>
+      <td><b>${text(row.code)}</b>${row.note ? `<div class="muted">Ghi chú: ${text(row.note)}</div>` : ''}</td>
+      <td class="right strong">${money(data, row.productSaleAmount)}</td>
+      <td class="right strong">${money(data, row.promotionAmount)}</td>
+      <td class="right strong">${money(data, row.payableAmount)}</td>
+    </tr>`).join('');
+  const totals = data.masterKpiTotals || {};
+  return `
+    <div class="section-title">BÁO CÁO KPI ĐƠN TỔNG ĐÃ GỘP</div>
+    <table class="print-table master-kpi-table">
+      <thead>
+        <tr>
+          <th>Mã đơn + ghi chú</th>
+          <th style="width:32mm">Giá trị đơn tổng</th>
+          <th style="width:32mm">Tổng khuyến mại</th>
+          <th style="width:36mm">Tổng tiền phải thu</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows}
+        <tr class="invoice-total-row">
+          <td class="right strong">Tổng cộng</td>
+          <td class="right strong">${money(data, totals.productSaleAmount)}</td>
+          <td class="right strong">${money(data, totals.promotionAmount)}</td>
+          <td class="right strong">${money(data, totals.payableAmount)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+function renderMasterOrderHeaderBlock(data, title, warehouseLabel = '') {
+  const warehouseSuffix = warehouseLabel ? ` - ${warehouseLabel}` : '';
+  return `
+    <div class="simple-print-header">
+      <div>
+        <h2>${text(data.company.name)}</h2>
+        <p>${text(data.company.address)}</p>
+      </div>
+      <div class="print-code"><b>${data.document.printMode === 'MASTER_AGGREGATE_SELECTED' ? 'Các đơn tổng' : 'Mã đơn tổng'}</b><span>${text(data.document.code)}</span></div>
+    </div>
+    <h1 class="print-title">${text(title)}${text(warehouseSuffix)}</h1>
+    <div class="info-grid">
+      <div><b>${data.document.printMode === 'MASTER_AGGREGATE_SELECTED' ? 'Gồm đơn tổng' : 'Mã đơn tổng'}:</b> ${text(data.document.masterOrderCodes && data.document.masterOrderCodes.length ? data.document.masterOrderCodes.join(', ') : data.document.code)}</div>
+      <div><b>Ngày giao:</b> ${text(data.document.date)}</div>
+      <div><b>Nhân viên giao hàng:</b> ${text(data.delivery.code)} - ${text(data.delivery.name)}</div>
+      <div><b>Tuyến:</b> ${text(data.delivery.route)}</div>
+      ${data.document.printMode === 'MASTER_AGGREGATE_SELECTED' ? `<div><b>Số đơn tổng đã chọn:</b> ${money(data, data.document.selectedMasterOrderCount || 0)}</div>` : ''}
+      <div><b>Số đơn con:</b> ${money(data, data.totals.orderCount)}</div>
+      <div><b>Giá trị đơn tổng:</b> ${money(data, data.totals.totalAmount)} đ</div>
+      ${data.document.note ? `<div class="full"><b>Ghi chú:</b> ${text(data.document.note)}</div>` : ''}
+    </div>`;
+}
+
 function renderMasterWarehouseLineSection(data, title, items = [], options = {}) {
   const isPromo = Boolean(options.isPromo);
   const colspan = 5;
@@ -358,6 +416,7 @@ function renderSignature(labels = ['Người lập phiếu', 'Khách hàng', 'Th
 function printPreviewActionsScript() {
   return `
   <div class="print-preview-actions">
+    <button type="button" onclick="window.close()">Bỏ qua</button>
     <button type="button" onclick="window.print()">In đơn</button>
     <button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button>
   </div>
@@ -466,26 +525,52 @@ function orderSingleTemplate(data) {
 function orderTotalTemplate(data) {
   const isAggregate = data.document.printMode === 'MASTER_AGGREGATE_SELECTED';
   const title = isAggregate ? 'ĐƠN TỔNG GỘP' : 'PHIẾU NHẶT HÀNG ĐƠN TỔNG';
+
+  if (isAggregate) {
+    const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
+      ? data.warehouseGroups
+      : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], saleItems: data.items || [], promoItems: [] }];
+    const pages = groups.map((group) => {
+      const pageTotals = {
+        qty: (group.items || []).reduce((sum, item) => sum + Number(item.qty || item.quantity || 0), 0),
+        amount: (group.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
+      };
+      return `
+        <div class="print-page">
+          ${renderMasterOrderHeaderBlock(data, title, group.name || group.code)}
+          ${renderMasterKpiTable(data)}
+          <div class="master-warehouse-block">
+            <div class="section-title master-warehouse-title">${text(group.name || group.code)}</div>
+            ${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng bán`, Array.isArray(group.saleItems) ? group.saleItems : [])}
+            ${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Xuất khuyến mại`, Array.isArray(group.promoItems) ? group.promoItems : [], { isPromo: true })}
+          </div>
+          <div class="total-box">
+            <div><span>Tổng số lượng liên ${text(group.name || group.code)}:</span><b>${money(data, pageTotals.qty)}</b></div>
+            <div><span>Giá trị liên ${text(group.name || group.code)}:</span><b>${money(data, pageTotals.amount)}</b></div>
+            <div><span>Số đơn con:</span><b>${money(data, data.totals.orderCount)}</b></div>
+          </div>
+          ${renderSignature(['Người lập phiếu', 'Người giao hàng', group.name || group.code])}
+          <div class="print-footer">In lúc: ${text(data.meta.printedAt)}</div>
+        </div>`;
+    }).join('');
+    return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${text(title)} - ${text(data.document.code)}</title>
+  <link rel="stylesheet" href="/print.css" />
+</head>
+<body>
+  ${printPreviewActionsScript()}
+  ${pages}
+</body>
+</html>`;
+  }
+
   const body = `
-    <div class="simple-print-header">
-      <div>
-        <h2>${text(data.company.name)}</h2>
-        <p>${text(data.company.address)}</p>
-      </div>
-      <div class="print-code"><b>${isAggregate ? 'Các đơn tổng' : 'Mã đơn tổng'}</b><span>${text(data.document.code)}</span></div>
-    </div>
-    <h1 class="print-title">${text(title)}</h1>
-    <div class="info-grid">
-      <div><b>${isAggregate ? 'Gồm đơn tổng' : 'Mã đơn tổng'}:</b> ${text(data.document.masterOrderCodes && data.document.masterOrderCodes.length ? data.document.masterOrderCodes.join(', ') : data.document.code)}</div>
-      <div><b>Ngày giao:</b> ${text(data.document.date)}</div>
-      <div><b>Nhân viên giao hàng:</b> ${text(data.delivery.code)} - ${text(data.delivery.name)}</div>
-      <div><b>Tuyến:</b> ${text(data.delivery.route)}</div>
-      ${isAggregate ? `<div><b>Số đơn tổng đã chọn:</b> ${money(data, data.document.selectedMasterOrderCount || 0)}</div>` : ''}
-      <div><b>Số đơn con:</b> ${money(data, data.totals.orderCount)}</div>
-      <div><b>Giá trị đơn tổng:</b> ${money(data, data.totals.totalAmount)} đ</div>
-      ${data.document.note ? `<div class="full"><b>Ghi chú:</b> ${text(data.document.note)}</div>` : ''}
-      <div class="full"><b>Nguyên tắc tính:</b> Gộp sản phẩm trùng theo mã hàng + tên hàng + ĐVT + giá bán từ toàn bộ đơn con của các đơn tổng đã chọn.</div>
-    </div>
+    ${renderMasterOrderHeaderBlock(data, title)}
+    ${renderMasterKpiTable(data)}
     ${renderMasterWarehouseTables(data)}
     <div class="total-box">
       <div><span>Tổng số lượng:</span><b>${money(data, data.totals.totalQty)}</b></div>

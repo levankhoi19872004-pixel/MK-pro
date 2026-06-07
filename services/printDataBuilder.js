@@ -826,6 +826,8 @@ function buildPrintData(document = {}, options = {}) {
     promotions,
     displayRewards,
     warehouseGroups,
+    masterKpis: Array.isArray(document.masterKpis) ? document.masterKpis : [],
+    masterKpiTotals: document.masterKpiTotals || {},
     totals: {
       totalQty,
       goodsAmount,
