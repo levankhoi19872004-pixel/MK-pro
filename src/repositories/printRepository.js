@@ -9,6 +9,9 @@ const receiptRepository = require('./receiptRepository');
 const cashbookRepository = require('./cashbookRepository');
 const bankbookRepository = require('./bankbookRepository');
 const Product = require('../models/Product');
+const PromotionProductRule = require('../models/PromotionProductRule');
+const PromotionGroupItem = require('../models/PromotionGroupItem');
+const PromotionGroupRule = require('../models/PromotionGroupRule');
 
 const PRINT_TYPE_ALIASES = {
   ORDER: 'ORDER_SINGLE',
@@ -73,6 +76,131 @@ function getItemQty(item = {}) {
 
 function getItemPack(item = {}, product = {}) {
   return toNumber(item.packingQty ?? item.conversionRate ?? item.unitsPerCase ?? item.qtyPerCase ?? item.packSize ?? product.conversionRate ?? 1) || 1;
+}
+
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function hasPromotionRows(item = {}) {
+  return asArray(item.promotionRows).length
+    || asArray(item.appliedPromotions).length
+    || asArray(item.promotions).length
+    || asArray(item.productSnapshot?.promotions).length
+    || asArray(item.productSnapshot?.promotionRows).length
+    || asArray(item.product?.promotions).length
+    || asArray(item.product?.promotionRows).length;
+}
+
+function getRuleProgramCode(rule = {}) {
+  return cleanText(rule.programCode || rule.promotionCode || rule.code || rule.maCTKM || rule.maChuongTrinh);
+}
+
+function getRuleProgramName(rule = {}) {
+  return cleanText(rule.programName || rule.promotionName || rule.name || rule.description || rule.content || rule.noiDungChuongTrinh);
+}
+
+function getLinePromotionBaseAmount(item = {}, product = {}) {
+  const qty = getItemQty(item);
+  const catalogSalePrice = toNumber(
+    item.catalogSalePrice
+    ?? item.grossPrice
+    ?? item.priceAfterTaxBeforePromotion
+    ?? item.priceAfterTaxBeforeDiscount
+    ?? product.salePrice
+    ?? product.giaBan
+    ?? product.price
+    ?? item.salePrice
+    ?? item.price
+    ?? item.unitPrice
+  );
+
+  const explicitBase = toNumber(
+    item.promotionBaseAmount
+    ?? item.grossAmount
+    ?? item.amountBeforeDiscount
+    ?? item.beforeDiscountAmount
+    ?? item.totalBeforePromotion
+  );
+
+  if (explicitBase > 0) return explicitBase;
+  return Math.round(qty * catalogSalePrice);
+}
+
+function addToMapList(map, key, value) {
+  const normalizedKey = cleanText(key);
+  if (!normalizedKey) return;
+  if (!map.has(normalizedKey)) map.set(normalizedKey, []);
+  map.get(normalizedKey).push(value);
+}
+
+function getBestGroupRule(rules = [], totalAmount = 0) {
+  return rules
+    .filter((rule) => totalAmount >= toNumber(rule.minAmount))
+    .sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0] || null;
+}
+
+function buildPrintPromotionRowsFromRules(item = {}, product = {}, context = {}) {
+  if (hasPromotionRows(item)) return asArray(item.promotionRows);
+
+  const code = getItemProductCode(item);
+  const qty = getItemQty(item);
+  const lineBaseAmount = getLinePromotionBaseAmount(item, product);
+  const rows = [];
+
+  for (const rule of asArray(context.productRuleMap?.get(code))) {
+    const programCode = getRuleProgramCode(rule);
+    const discountPercent = toNumber(rule.discountPercent || rule.percent || rule.rate);
+    if (!programCode || !discountPercent || lineBaseAmount <= 0 || qty <= 0) continue;
+
+    const discountAfterTax = Math.round(lineBaseAmount * discountPercent / 100);
+    if (discountAfterTax <= 0) continue;
+
+    rows.push({
+      promotionCode: programCode,
+      code: programCode,
+      description: getRuleProgramName(rule),
+      qualifiedAmount: lineBaseAmount,
+      discountPercent,
+      discountBeforeTax: Math.round(discountAfterTax / 1.08),
+      discountAfterTax,
+      promotionType: 'product',
+      scope: 'product',
+      productCode: code,
+      productName: cleanText(item.productName || item.name || product.name || rule.productName)
+    });
+  }
+
+  for (const groupItem of asArray(context.groupItemMap?.get(code))) {
+    const programCode = getRuleProgramCode(groupItem);
+    if (!programCode) continue;
+
+    const groupTotal = toNumber(context.groupTotals?.get(programCode));
+    const groupRule = getBestGroupRule(context.groupRuleMap?.get(programCode), groupTotal);
+    const discountPercent = toNumber(groupRule?.discountPercent || groupRule?.percent || groupRule?.rate);
+    if (!groupRule || !discountPercent || lineBaseAmount <= 0 || groupTotal <= 0 || qty <= 0) continue;
+
+    const discountAfterTax = Math.round(lineBaseAmount * discountPercent / 100);
+    if (discountAfterTax <= 0) continue;
+
+    rows.push({
+      promotionCode: programCode,
+      code: programCode,
+      description: getRuleProgramName(groupRule) || getRuleProgramName(groupItem),
+      qualifiedAmount: lineBaseAmount,
+      groupQualifiedAmount: groupTotal,
+      discountPercent,
+      discountBeforeTax: Math.round(discountAfterTax / 1.08),
+      discountAfterTax,
+      promotionType: 'group',
+      scope: 'group',
+      productCode: code,
+      productName: cleanText(item.productName || item.name || product.name || groupItem.productName)
+    });
+  }
+
+  return rows;
 }
 
 async function enrichMasterOrderForPrint(masterOrder = {}) {
@@ -152,18 +280,74 @@ async function enrichSalesOrderForPrint(order = {}) {
   const productCodes = Array.from(new Set(items.map(getItemProductCode).filter(Boolean)));
   if (!productCodes.length) return order;
 
-  const products = await Product.find({ code: { $in: productCodes } }).lean();
+  const [products, productRules, groupItems] = await Promise.all([
+    Product.find({ code: { $in: productCodes } }).lean(),
+    PromotionProductRule.find({
+      isActive: { $ne: false },
+      productCode: { $in: productCodes }
+    }).lean(),
+    PromotionGroupItem.find({
+      isActive: { $ne: false },
+      productCode: { $in: productCodes }
+    }).lean()
+  ]);
+
   const productMap = new Map(products.map((product) => [cleanText(product.code || product.productCode || product.sku), product]));
+
+  const productRuleMap = new Map();
+  for (const rule of productRules) addToMapList(productRuleMap, rule.productCode, rule);
+
+  const groupItemMap = new Map();
+  const groupCodes = new Set();
+  for (const groupItem of groupItems) {
+    addToMapList(groupItemMap, groupItem.productCode, groupItem);
+    const programCode = getRuleProgramCode(groupItem);
+    if (programCode) groupCodes.add(programCode);
+  }
+
+  const groupRules = groupCodes.size
+    ? await PromotionGroupRule.find({
+      isActive: { $ne: false },
+      programCode: { $in: Array.from(groupCodes) }
+    }).lean()
+    : [];
+
+  const groupRuleMap = new Map();
+  for (const rule of groupRules) addToMapList(groupRuleMap, getRuleProgramCode(rule), rule);
+
+  const groupTotals = new Map();
+  for (const item of items) {
+    const code = getItemProductCode(item);
+    const product = productMap.get(code) || {};
+    const lineBaseAmount = getLinePromotionBaseAmount(item, product);
+    for (const groupItem of asArray(groupItemMap.get(code))) {
+      const programCode = getRuleProgramCode(groupItem);
+      if (!programCode) continue;
+      groupTotals.set(programCode, toNumber(groupTotals.get(programCode)) + lineBaseAmount);
+    }
+  }
+
+  const promotionContext = {
+    productRuleMap,
+    groupItemMap,
+    groupRuleMap,
+    groupTotals
+  };
 
   const enrichedItems = items.map((item) => {
     const code = getItemProductCode(item);
     const product = productMap.get(code) || {};
     const catalogSalePrice = toNumber(product.salePrice ?? product.giaBan ?? product.price ?? item.catalogSalePrice ?? 0);
     const catalogConversionRate = getItemPack(item, product);
+    const promotionRows = hasPromotionRows(item)
+      ? asArray(item.promotionRows)
+      : buildPrintPromotionRowsFromRules(item, product, promotionContext);
+
     return {
       ...item,
       catalogSalePrice,
       catalogConversionRate,
+      promotionRows,
       productSnapshot: {
         ...(item.productSnapshot || {}),
         code: product.code || code,
@@ -186,6 +370,7 @@ async function enrichSalesOrderForPrint(order = {}) {
   return {
     ...order,
     items: enrichedItems,
+    printPromotionFallback: true,
     printPricingSource: 'products.salePrice',
     printPackSource: 'products.conversionRate'
   };
