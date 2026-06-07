@@ -275,6 +275,9 @@ function normalizeItemPromotionRows(item = {}, normalizedLine = {}) {
   const lineType = normalizedLine.isPromo ? 'KM' : 'Bán';
   const qty = toNumber(pick(normalizedLine.qty, normalizedLine.quantity, item.qty, item.quantity, item.totalQty));
   const lineAmount = toNumber(pick(normalizedLine.gsvAmount, normalizedLine.lineAmount, normalizedLine.amount, item.gsvAmount, item.amount));
+  // Giá trị hàng hóa mua trong bảng khuyến mại phải là giá trước thuế:
+  // (giá bán sau thuế của sản phẩm / 1.08) x số lượng trên đơn.
+  const qualifiedAmountBeforeTax = Math.round(lineAmount / 1.08);
   const discountPercent = toNumber(pick(normalizedLine.discountPercent, item.discountPercent, item.percent, item.rate));
   const discountAfterTax = toNumber(pick(item.discountAfterTax, item.afterTax, item.discountAmount, item.discount, normalizedLine.discount, 0));
   const discountBeforeTax = toNumber(pick(item.discountBeforeTax, item.beforeTax, discountAfterTax ? Math.round(discountAfterTax / 1.08) : 0));
@@ -307,8 +310,8 @@ function normalizeItemPromotionRows(item = {}, normalizedLine = {}) {
       code,
       description,
       name: description,
-      qualifiedAmount: toNumber(pick(source.qualifiedAmount, source.basisAmount, source.baseAmount, source.giaTriHangHoa, source.amount, lineAmount)),
-      basisAmount: toNumber(pick(source.qualifiedAmount, source.basisAmount, source.baseAmount, source.giaTriHangHoa, source.amount, lineAmount)),
+      qualifiedAmount: qualifiedAmountBeforeTax,
+      basisAmount: qualifiedAmountBeforeTax,
       discountPercent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
       percent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
       discountBeforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),

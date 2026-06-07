@@ -79,7 +79,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
   if (row.promotionCode !== 'AD45232124DN11') throw new Error('wrong promotionCode');
   if (row.description !== 'Bảng Giá Tháng 6') throw new Error('wrong description');
   if (row.discountPercent !== 2) throw new Error('wrong percent');
-  if (row.qualifiedAmount !== 169545) throw new Error('wrong qualifiedAmount: ' + row.qualifiedAmount);
+  if (row.qualifiedAmount !== 156986) throw new Error('wrong qualifiedAmount: ' + row.qualifiedAmount);
   if (row.discountAfterTax !== 3391) throw new Error('wrong afterTax: ' + row.discountAfterTax);
   if (row.discountBeforeTax !== 3140) throw new Error('wrong beforeTax: ' + row.discountBeforeTax);
   console.log('PRINT_PROMOTION_FALLBACK_TEST_OK');

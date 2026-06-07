@@ -26,6 +26,7 @@ assertCss(/body\.dms-print-body \.dms-title-header\s*\{[\s\S]*grid-template-colu
 assertCss(/body\.dms-print-body \.dms-invoice-table th:nth-child\(2\),[\s\S]*body\.dms-print-body \.dms-invoice-table td:nth-child\(2\)\s*\{[\s\S]*width:\s*22mm;[\s\S]*white-space:\s*nowrap;/, 'DMS product code 22mm no-wrap');
 assertCss(/body\.dms-print-body \.dms-invoice-table td\s*\{[\s\S]*border-bottom:\s*0\.5px dotted #777;/, 'DMS dotted product separators');
 assertCss(/body\.dms-print-body \.dms-signature div\s*\{[\s\S]*min-height:\s*78px;[\s\S]*padding-top:\s*8px;/, 'DMS signature height and padding');
+assertCss(/body\.dms-print-body \.dms-signature div\s*\{[\s\S]*border-right:\s*none !important;/, 'DMS signature no inner vertical separators');
 assertCss(/border:\s*0\.5px solid #000;/, '0.5px table border');
 
 const items = Array.from({ length: 25 }, (_, idx) => ({

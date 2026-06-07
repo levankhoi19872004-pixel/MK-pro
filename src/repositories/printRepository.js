@@ -101,7 +101,7 @@ function getRuleProgramName(rule = {}) {
   return cleanText(rule.programName || rule.promotionName || rule.name || rule.description || rule.content || rule.noiDungChuongTrinh);
 }
 
-function getLinePromotionBaseAmount(item = {}, product = {}) {
+function getLinePromotionGrossAmount(item = {}, product = {}) {
   const qty = getItemQty(item);
   const catalogSalePrice = toNumber(
     item.catalogSalePrice
@@ -128,6 +128,12 @@ function getLinePromotionBaseAmount(item = {}, product = {}) {
   return Math.round(qty * catalogSalePrice);
 }
 
+function getLinePromotionBaseAmount(item = {}, product = {}) {
+  // Cột "Giá trị hàng hóa mua" trong bảng khuyến mại là giá trước thuế:
+  // (giá bán sau thuế của sản phẩm / 1.08) x số lượng trên đơn.
+  return Math.round(getLinePromotionGrossAmount(item, product) / 1.08);
+}
+
 function addToMapList(map, key, value) {
   const normalizedKey = cleanText(key);
   if (!normalizedKey) return;
@@ -147,14 +153,15 @@ function buildPrintPromotionRowsFromRules(item = {}, product = {}, context = {})
   const code = getItemProductCode(item);
   const qty = getItemQty(item);
   const lineBaseAmount = getLinePromotionBaseAmount(item, product);
+  const lineGrossAmount = getLinePromotionGrossAmount(item, product);
   const rows = [];
 
   for (const rule of asArray(context.productRuleMap?.get(code))) {
     const programCode = getRuleProgramCode(rule);
     const discountPercent = toNumber(rule.discountPercent || rule.percent || rule.rate);
-    if (!programCode || !discountPercent || lineBaseAmount <= 0 || qty <= 0) continue;
+    if (!programCode || !discountPercent || lineBaseAmount <= 0 || lineGrossAmount <= 0 || qty <= 0) continue;
 
-    const discountAfterTax = Math.round(lineBaseAmount * discountPercent / 100);
+    const discountAfterTax = Math.round(lineGrossAmount * discountPercent / 100);
     if (discountAfterTax <= 0) continue;
 
     rows.push({
@@ -179,9 +186,9 @@ function buildPrintPromotionRowsFromRules(item = {}, product = {}, context = {})
     const groupTotal = toNumber(context.groupTotals?.get(programCode));
     const groupRule = getBestGroupRule(context.groupRuleMap?.get(programCode), groupTotal);
     const discountPercent = toNumber(groupRule?.discountPercent || groupRule?.percent || groupRule?.rate);
-    if (!groupRule || !discountPercent || lineBaseAmount <= 0 || groupTotal <= 0 || qty <= 0) continue;
+    if (!groupRule || !discountPercent || lineBaseAmount <= 0 || lineGrossAmount <= 0 || groupTotal <= 0 || qty <= 0) continue;
 
-    const discountAfterTax = Math.round(lineBaseAmount * discountPercent / 100);
+    const discountAfterTax = Math.round(lineGrossAmount * discountPercent / 100);
     if (discountAfterTax <= 0) continue;
 
     rows.push({

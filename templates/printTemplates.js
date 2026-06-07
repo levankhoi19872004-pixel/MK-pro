@@ -908,7 +908,7 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
           <td colspan="4" class="center strong">Tổng cộng (A)</td>
           <td class="right strong">${dmsMoney(data, summary.totalQty)}</td>
           <td></td><td></td><td></td>
-          <td class="right strong">${dmsMoney(data, summary.totalVatAmount ?? data.totals?.tax)}</td>
+          <td></td>
           <td class="right strong">${dmsMoney(data, summary.goodsAmountAfterPromotion)}</td>
         </tr>` : ''}
       </tbody>
@@ -1002,7 +1002,7 @@ function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
   const distributorText = `${text(distributor.code)}${distributor.name ? ` - ${text(distributor.name)}` : ''}`;
 
   return `
-    <div class="dms-header-lines">
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
       <div class="dms-title-header">
         <div></div>
         <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
