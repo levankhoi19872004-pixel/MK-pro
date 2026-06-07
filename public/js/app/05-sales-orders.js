@@ -364,7 +364,7 @@ window.openImportOrderDetail=openImportOrderDetail;
 
 function buildPrintPreviewHtml(title, bodyClass, bodyHtml){
   return `<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>${title||'Bản in'}</title><link rel="stylesheet" href="/print.css"></head><body class="${bodyClass||''}">
-    <div class="print-preview-actions"><button type="button" onclick="window.print()">In đơn</button><button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button></div>
+    <div class="print-preview-actions"><button type="button" onclick="window.close()">Bỏ qua</button><button type="button" onclick="window.print()">In đơn</button><button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button></div>
     ${bodyHtml||''}
     <script>
       function exportCurrentPrintToExcel(){

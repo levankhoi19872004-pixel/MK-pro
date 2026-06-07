@@ -306,25 +306,32 @@ function renderMasterOrderHeaderBlock(data, title, warehouseLabel = '') {
     </div>`;
 }
 
+function getMasterPrintLineAmount(item) {
+  const qty = Number(item.qty || item.quantity || 0) || 0;
+  const price = Number(item.price || item.salePrice || 0) || 0;
+  return qty * price;
+}
+
 function renderMasterWarehouseLineSection(data, title, items = [], options = {}) {
   const isPromo = Boolean(options.isPromo);
-  const colspan = 5;
   const rows = items.length
-    ? items.map((item, index) => `
+    ? items.map((item, index) => {
+        const lineAmount = getMasterPrintLineAmount(item);
+        return `
         <tr class="${isPromo ? 'promo-line-row' : 'sale-line-row'}">
           <td class="center">${index + 1}</td>
           <td class="mono">${text(item.code)}</td>
-          <td>${text(item.name)}${isPromo ? '<div class="muted">Xuất khuyến mại - không tính tiền</div>' : ''}</td>
-          <td class="center">${text(item.unit)}</td>
+          <td>${text(item.name)}${isPromo ? '<div class="muted">Xuất khuyến mại</div>' : ''}</td>
           <td class="center strong">${text(item.caseDisplay)}</td>
           <td class="right strong">${money(data, item.qty)}</td>
-          <td class="right">${isPromo ? '0' : money(data, item.price)}</td>
-          <td class="right strong">${money(data, item.amount)}</td>
-        </tr>`).join('')
-    : `<tr><td colspan="8" class="center">${isPromo ? 'Không có hàng khuyến mại' : 'Không có hàng bán'}</td></tr>`;
+          <td class="right">${money(data, item.price)}</td>
+          <td class="right strong">${money(data, lineAmount)}</td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="7" class="center">${isPromo ? 'Không có hàng khuyến mại' : 'Không có hàng bán'}</td></tr>`;
 
   const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-  const totalAmount = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const totalAmount = items.reduce((sum, item) => sum + getMasterPrintLineAmount(item), 0);
 
   return `
     <div class="master-line-section ${isPromo ? 'promo-section' : 'sale-section'}">
@@ -333,19 +340,18 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
         <thead>
           <tr>
             <th style="width:8mm">STT</th>
-            <th style="width:24mm">Mã hàng</th>
-            <th>Tên hàng đã gộp từ đơn con</th>
-            <th style="width:16mm">ĐVT</th>
-            <th style="width:20mm">Thùng/Lẻ</th>
+            <th style="width:26mm">Mã sản phẩm</th>
+            <th>Tên sản phẩm</th>
+            <th style="width:22mm">Thùng/Lẻ</th>
             <th style="width:18mm">SL lẻ</th>
-            <th style="width:24mm">Giá bán SP</th>
-            <th style="width:30mm">Thành tiền</th>
+            <th style="width:24mm">Giá bán</th>
+            <th style="width:30mm">Tổng giá trị</th>
           </tr>
         </thead>
         <tbody>
           ${rows}
           <tr class="invoice-total-row">
-            <td colspan="${colspan}" class="right strong">Tổng ${text(title)}</td>
+            <td colspan="4" class="right strong">Tổng ${text(title)}</td>
             <td class="right strong">${money(data, totalQty)}</td>
             <td></td>
             <td class="right strong">${money(data, totalAmount)}</td>

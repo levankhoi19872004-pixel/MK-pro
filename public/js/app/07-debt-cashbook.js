@@ -826,8 +826,6 @@ function renderMasterReturnOrders(rows = []){
 async function loadMasterReturnOrders(){
   if(!masterReturnOrderTable)return;
   const params=new URLSearchParams();
-  const q=masterReturnOrderSearchInput?masterReturnOrderSearchInput.value.trim():'';
-  if(q)params.set('q',q);
   params.set('dateFrom', masterReturnOrderDateFrom?.value || today());
   params.set('dateTo', masterReturnOrderDateTo?.value || masterReturnOrderDateFrom?.value || today());
   params.set('page','1');
@@ -937,6 +935,20 @@ function masterReturnItemAmount(item={}){
   if(direct>0)return direct;
   return masterReturnItemQty(item)*masterReturnItemPrice(item);
 }
+function masterReturnItemPack(item={}){
+  const pack=Number(item.conversionRate??item.packingQty??item.pack??item.unitPerCase??item.unitsPerCase??1)||1;
+  return Math.max(1,Math.round(pack));
+}
+function masterReturnCaseDisplay(qty, pack){
+  const q=Math.max(0,Number(qty||0));
+  const p=Math.max(1,Number(pack||1));
+  const cases=Math.floor(q/p);
+  const loose=q-(cases*p);
+  return `${cases}/${loose}`;
+}
+function masterReturnLineAmount(item={}){
+  return masterReturnItemQty(item)*masterReturnItemPrice(item);
+}
 function masterReturnWarehouseCode(item={}, child={}){
   const raw=String(item.warehouseCode||item.defaultWarehouse||item.warehouse||child.warehouseCode||child.defaultWarehouse||'KHO_HC').toUpperCase();
   return raw.includes('PC')?'KHO_PC':'KHO_HC';
@@ -950,12 +962,13 @@ function buildMasterReturnPrintPages(r={}, children=[]){
       const wh=masterReturnWarehouseCode(item,child);
       const code=String(item.productCode||item.code||item.sku||item.barcode||'');
       const name=String(item.productName||item.name||item.description||'');
-      const unit=String(item.unit||item.uom||'');
+      const pack=masterReturnItemPack(item);
       const price=masterReturnItemPrice(item);
-      const key=[code,name,unit,price].join('|');
-      const old=byWarehouse[wh].get(key)||{productCode:code,productName:name,unit,qty:0,salePrice:price,amount:0};
+      const key=[code,name,pack,price].join('|');
+      const old=byWarehouse[wh].get(key)||{productCode:code,productName:name,pack,qty:0,salePrice:price,amount:0};
       old.qty+=qty;
-      old.amount+=masterReturnItemAmount(item);
+      old.caseDisplay=masterReturnCaseDisplay(old.qty, old.pack);
+      old.amount=old.qty*old.salePrice;
       byWarehouse[wh].set(key,old);
     });
   });
@@ -993,15 +1006,18 @@ async function printMasterReturnOrder(id){
     const kpiRows=kpi.rows.map(row=>`<tr><td><strong>${escapeHtml(row.code)}</strong><br><small>${escapeHtml(row.note||'')}</small></td><td>${money(row.saleAmount)}</td><td>${money(row.discountAmount)}</td><td>${money(row.payableAmount)}</td></tr>`).join('');
     const kpiTable=`<h3>BÁO CÁO KPI ĐƠN TỔNG TRẢ ĐÃ GỘP</h3><table class="print-table"><thead><tr><th>Mã đơn + ghi chú</th><th>Giá trị hàng trả theo giá bán</th><th>Tổng giảm trừ/KM</th><th>Tổng giá trị giảm công nợ</th></tr></thead><tbody>${kpiRows||'<tr><td colspan="4">Không có KPI.</td></tr>'}<tr><th>Tổng cộng</th><th>${money(kpi.totals.saleAmount)}</th><th>${money(kpi.totals.discountAmount)}</th><th>${money(kpi.totals.payableAmount)}</th></tr></tbody></table>`;
     const body=(pages.length?pages:[{warehouseCode:'KHO_HC',warehouseName:'KHO HC',items:[]}]).map((page,pageIdx)=>{
-      const rows=page.items.map((item,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(item.productCode)}</td><td>${escapeHtml(item.productName)}</td><td>${escapeHtml(item.unit)}</td><td>${money(item.qty)}</td><td>${money(item.salePrice)}</td><td>${money(item.amount)}</td></tr>`).join('');
+      const rows=page.items.map((item,i)=>{
+        const lineAmount=Number(item.qty||0)*Number(item.salePrice||0);
+        return `<tr><td>${i+1}</td><td>${escapeHtml(item.productCode)}</td><td>${escapeHtml(item.productName)}</td><td>${escapeHtml(item.caseDisplay||masterReturnCaseDisplay(item.qty,item.pack))}</td><td>${money(item.qty)}</td><td>${money(item.salePrice)}</td><td>${money(lineAmount)}</td></tr>`;
+      }).join('');
       const pageBreak=pageIdx>0?' page-break-before':'';
       return `<section class="print-page${pageBreak}">
         <h1>ĐƠN TỔNG TRẢ HÀNG - LIÊN ${escapeHtml(page.warehouseName)}</h1>
         <p><b>Mã:</b> ${escapeHtml(r.code||r.id||'')} &nbsp; <b>Ngày trả:</b> ${escapeHtml(r.returnDate||r.date||'')} &nbsp; <b>NVGH:</b> ${escapeHtml(debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName))}</p>
         ${pageIdx===0?kpiTable:''}
         <h3>${escapeHtml(page.warehouseName)} - Hàng trả nhập kho</h3>
-        <table class="print-table"><thead><tr><th>STT</th><th>Mã hàng</th><th>Tên hàng</th><th>ĐVT</th><th>SL trả</th><th>Giá bán</th><th>Thành tiền</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Không có hàng thuộc kho này.</td></tr>'}</tbody></table>
-        <p class="total">Tổng SL: ${money(page.items.reduce((s,it)=>s+Number(it.qty||0),0))} · Tổng tiền: ${money(page.items.reduce((s,it)=>s+Number(it.amount||0),0))}</p>
+        <table class="print-table"><thead><tr><th>STT</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Thùng/Lẻ</th><th>SL lẻ</th><th>Giá bán</th><th>Tổng giá trị</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Không có hàng thuộc kho này.</td></tr>'}</tbody></table>
+        <p class="total">Tổng SL: ${money(page.items.reduce((s,it)=>s+Number(it.qty||0),0))} · Tổng tiền: ${money(page.items.reduce((s,it)=>s+(Number(it.qty||0)*Number(it.salePrice||0)),0))}</p>
       </section>`;
     }).join('');
     const html=typeof buildPrintPreviewHtml==='function'
