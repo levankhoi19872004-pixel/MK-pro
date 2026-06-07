@@ -410,9 +410,9 @@ function renderMasterKpiTable(data) {
   const bodyRows = rows.map((row) => `
     <tr>
       <td><b>${text(row.code)}</b>${row.note ? `<div class="muted">Ghi chú: ${text(row.note)}</div>` : ''}</td>
-      <td class="right strong">${money(data, row.productSaleAmount)}</td>
-      <td class="right strong">${money(data, row.promotionAmount)}</td>
-      <td class="right strong">${money(data, row.payableAmount)}</td>
+      <td class="right">${money(data, row.productSaleAmount)}</td>
+      <td class="right">${money(data, row.promotionAmount)}</td>
+      <td class="right">${money(data, row.payableAmount)}</td>
     </tr>`).join('');
   const totals = data.masterKpiTotals || {};
   return `
@@ -429,10 +429,10 @@ function renderMasterKpiTable(data) {
       <tbody>
         ${bodyRows}
         <tr class="invoice-total-row">
-          <td class="right strong">Tổng cộng</td>
-          <td class="right strong">${money(data, totals.productSaleAmount)}</td>
-          <td class="right strong">${money(data, totals.promotionAmount)}</td>
-          <td class="right strong">${money(data, totals.payableAmount)}</td>
+          <td class="right">Tổng cộng</td>
+          <td class="right">${money(data, totals.productSaleAmount)}</td>
+          <td class="right">${money(data, totals.promotionAmount)}</td>
+          <td class="right">${money(data, totals.payableAmount)}</td>
         </tr>
       </tbody>
     </table>`;
@@ -477,10 +477,10 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
           <td class="center">${index + 1}</td>
           <td class="mono">${text(item.code)}</td>
           <td>${text(item.name)}${isPromo ? '<div class="muted">Xuất khuyến mại</div>' : ''}</td>
-          <td class="center strong">${text(item.caseDisplay)}</td>
-          <td class="right strong">${money(data, item.qty)}</td>
+          <td class="center">${text(item.caseDisplay)}</td>
+          <td class="right">${money(data, item.qty)}</td>
           <td class="right">${money(data, item.price)}</td>
-          <td class="right strong">${money(data, lineAmount)}</td>
+          <td class="right">${money(data, lineAmount)}</td>
         </tr>`;
       }).join('')
     : `<tr><td colspan="7" class="center">${isPromo ? 'Không có hàng khuyến mại' : 'Không có hàng bán'}</td></tr>`;
@@ -506,10 +506,10 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
         <tbody>
           ${rows}
           <tr class="invoice-total-row">
-            <td colspan="4" class="right strong">Tổng ${text(title)}</td>
-            <td class="right strong">${money(data, totalQty)}</td>
+            <td colspan="4" class="right">Tổng ${text(title)}</td>
+            <td class="right">${money(data, totalQty)}</td>
             <td></td>
-            <td class="right strong">${money(data, totalAmount)}</td>
+            <td class="right">${money(data, totalAmount)}</td>
           </tr>
         </tbody>
       </table>
@@ -703,13 +703,13 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
         <td class="center">${text(item.lineNo)}</td>
         <td class="mono">${text(item.productCode)}</td>
         <td class="dms-product-name">${text(item.productName)}</td>
-        <td class="center strong">${text(item.quantityCsSu)}</td>
-        <td class="right strong">${money(data, item.quantity)}</td>
+        <td class="center">${text(item.quantityCsSu)}</td>
+        <td class="right">${money(data, item.quantity)}</td>
         <td class="right">${money(data, item.priceBeforeTaxBeforePromotion)}</td>
         <td class="right">${money(data, item.priceAfterTaxBeforePromotion)}</td>
         <td class="right">${money(data, item.priceAfterTaxAfterPromotion)}</td>
         <td class="right">${money(data, item.vatAmount)}</td>
-        <td class="right strong">${money(data, item.lineAmount)}</td>
+        <td class="right">${money(data, item.lineAmount)}</td>
       </tr>`).join('')
     : '<tr><td colspan="10" class="center">Chưa có dòng hàng</td></tr>';
 
@@ -735,11 +735,11 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
       <tbody>
         ${rows}
         ${showTotal ? `<tr class="dms-total-row">
-          <td colspan="4" class="center strong">Tổng cộng (A)</td>
-          <td class="right strong">${dmsMoney(data, summary.totalQty)}</td>
+          <td colspan="4" class="center">Tổng cộng (A)</td>
+          <td class="right">${dmsMoney(data, summary.totalQty)}</td>
           <td></td><td></td><td></td>
           <td></td>
-          <td class="right strong">${dmsMoney(data, summary.goodsAmountAfterPromotion)}</td>
+          <td class="right">${dmsMoney(data, summary.goodsAmountAfterPromotion)}</td>
         </tr>` : ''}
       </tbody>
     </table>`;
@@ -756,7 +756,7 @@ function renderDmsPromotionTable(data) {
         <td class="right">${dmsMoney(data, promo.qualifiedAmount)}</td>
         <td class="right">${promo.hasGroupDiscount ? text(promo.discountPercent) : ''}</td>
         <td class="right">${dmsMoney(data, promo.discountBeforeTax)}</td>
-        <td class="right strong">${dmsMoney(data, promo.discountAfterTax)}</td>
+        <td class="right">${dmsMoney(data, promo.discountAfterTax)}</td>
       </tr>`).join('')
     : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
 
@@ -779,7 +779,7 @@ function renderDmsPromotionTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị khuyến mãi tiền (C)</td><td class="right strong">${dmsMoney(data, totalPromotionAmount)}</td></tr>
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị khuyến mãi tiền (C)</td><td class="right">${dmsMoney(data, totalPromotionAmount)}</td></tr>
       </tbody>
     </table>`;
 }
@@ -797,7 +797,7 @@ function renderDmsRewardTable(data) {
         <td class="center">${text(row.displayMonth || row.month)}</td>
         <td class="right">${row.goodsAmount ? dmsMoney(data, row.goodsAmount) : ''}</td>
         <td class="center">${text(row.quantityText)}</td>
-        <td class="right strong">${dmsMoney(data, row.offsetAmount)}</td>
+        <td class="right">${dmsMoney(data, row.offsetAmount)}</td>
       </tr>`).join('')
     : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
   return `
@@ -815,7 +815,7 @@ function renderDmsRewardTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row"><td colspan="5" class="right strong">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right strong">${dmsMoney(data, totalOffset)}</td></tr>
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right">${dmsMoney(data, totalOffset)}</td></tr>
       </tbody>
     </table>`;
 }
