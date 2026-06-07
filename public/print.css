@@ -1111,7 +1111,8 @@ body.dms-print-body .dms-detail-table {
 }
 body.dms-print-body .dms-payable-row .dms-summary-label-cell,
 body.dms-print-body .dms-payable-row .dms-summary-value-cell {
-  font-size: 18px;
+  font-size: 14px;
+  line-height: 1.18;
 }
 body.dms-print-body .dms-signature {
   border: 0.5px solid #000;

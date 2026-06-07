@@ -19,7 +19,7 @@ assertCss(/body\.dms-print-body \.dms-invoice-table th\s*\{[\s\S]*font-size:\s*1
 assertCss(/body\.dms-print-body \.dms-invoice-table td\s*\{[\s\S]*font-size:\s*12px;/, 'invoice table body 12px');
 assertCss(/body\.dms-print-body \.dms-product-name\s*\{[\s\S]*line-height:\s*1\.25;/, 'product line-height 1.25');
 assertCss(/body\.dms-print-body \.dms-detail-table\s*\{[\s\S]*font-size:\s*11px;[\s\S]*line-height:\s*1\.2;/, 'promotion table 11px');
-assertCss(/body\.dms-print-body \.dms-payable-row \.dms-summary-label-cell,[\s\S]*body\.dms-print-body \.dms-payable-row \.dms-summary-value-cell\s*\{[\s\S]*font-size:\s*18px;/, 'payable amount 18px');
+assertCss(/body\.dms-print-body \.dms-payable-row \.dms-summary-label-cell,[\s\S]*body\.dms-print-body \.dms-payable-row \.dms-summary-value-cell\s*\{[\s\S]*font-size:\s*14px;/, 'payable amount 14px');
 assertCss(/@page\s*\{[\s\S]*size:\s*A4 portrait;[\s\S]*margin:\s*12mm 10mm;/, 'A4 margin 12mm 10mm');
 
 assertCss(/body\.dms-print-body \.dms-title-header\s*\{[\s\S]*grid-template-columns:\s*42% 38% 20%;/, 'DMS header columns 42/38/20');
