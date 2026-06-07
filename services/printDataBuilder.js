@@ -839,16 +839,22 @@ function paginateDeliveryInvoice(payload = {}) {
   const offsets = Array.isArray(payload.offsets) ? payload.offsets : [];
   const detailRows = promotions.length + offsets.length;
 
-  let pagesPerCopy = 1;
-  if (items.length > 18 || detailRows > 4 || (items.length > 12 && detailRows > 0) || offsets.length > 0) {
-    pagesPerCopy = 2;
-  }
+  // Theo mẫu Invoice-36: trang hàng hóa tối đa khoảng 24 dòng.
+  // Nếu còn chi tiết khuyến mãi/cấn trừ dài thì tách thêm trang diễn giải riêng.
+  const itemPageSize = 24;
+  const itemPageCount = Math.max(1, Math.ceil(items.length / itemPageSize));
+  const detailNeedsOwnPage = detailRows > 4 || items.length > 18 || offsets.length > 0;
+  const detailPageCount = detailRows > 0 && detailNeedsOwnPage ? 1 : 0;
+  const pagesPerCopy = itemPageCount + detailPageCount;
 
   return {
     pagesPerCopy,
     copies: ['Liên 1', 'Liên 2'],
-    showPromotionHeaderOnFirstPage: pagesPerCopy > 1,
-    firstPageItems: items,
+    showPromotionHeaderOnFirstPage: detailPageCount > 0,
+    itemPageSize,
+    itemPageCount,
+    detailRows,
+    firstPageItems: items.slice(0, itemPageSize),
     detailPagePromotions: promotions,
     detailPageOffsets: offsets
   };

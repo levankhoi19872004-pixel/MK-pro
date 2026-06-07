@@ -641,9 +641,10 @@ function paymentReceiptTemplate(data) {
   return baseLayout('PHIẾU THU TIỀN', data, body);
 }
 
-function renderDmsInvoiceItemsTable(data) {
-  const items = getDmsItems(data);
+function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
+  const items = Array.isArray(itemsOverride) ? itemsOverride : getDmsItems(data);
   const summary = getDmsSummary(data);
+  const showTotal = options.showTotal !== false;
   const rows = items.length
     ? items.map((item) => `
       <tr>
@@ -681,13 +682,13 @@ function renderDmsInvoiceItemsTable(data) {
       </thead>
       <tbody>
         ${rows}
-        <tr class="dms-total-row">
+        ${showTotal ? `<tr class="dms-total-row">
           <td colspan="4" class="center strong">Tổng cộng (A)</td>
           <td class="right strong">${dmsMoney(data, summary.totalQty)}</td>
           <td></td><td></td><td></td>
           <td class="right strong">${dmsMoney(data, summary.totalVatAmount ?? data.totals?.tax)}</td>
           <td class="right strong">${dmsMoney(data, summary.goodsAmountAfterPromotion)}</td>
-        </tr>
+        </tr>` : ''}
       </tbody>
     </table>`;
 }
@@ -803,6 +804,19 @@ function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
     </div>`;
 }
 
+function chunkDmsItems(items = [], size = 24) {
+  const safeSize = Math.max(1, Number(size || 24));
+  const chunks = [];
+  for (let i = 0; i < items.length; i += safeSize) {
+    chunks.push(items.slice(i, i + safeSize));
+  }
+  return chunks.length ? chunks : [[]];
+}
+
+function hasDmsDetailRows(data) {
+  return getDmsPromotions(data).length > 0 || getDmsOffsets(data).length > 0;
+}
+
 function dmsDeliveryInvoiceTemplate(data) {
   const pagination = getDmsPagination(data);
   const summary = getDmsSummary(data);
@@ -826,29 +840,33 @@ function dmsDeliveryInvoiceTemplate(data) {
       </div>`;
 
   const renderCopy = (copyLabel) => {
-    if (pagination.pagesPerCopy <= 1) {
+    const items = getDmsItems(data);
+    const itemPageSize = Number(pagination.itemPageSize || 24);
+    const itemChunks = chunkDmsItems(items, itemPageSize);
+    const detailRowsExist = hasDmsDetailRows(data);
+    const detailNeedsOwnPage = detailRowsExist && (items.length > 18 || pagination.detailRows > 4 || pagination.pagesPerCopy > itemChunks.length);
+    const pageCount = itemChunks.length + (detailNeedsOwnPage ? 1 : 0);
+
+    const itemPages = itemChunks.map((chunk, index) => {
+      const isLastItemPage = index === itemChunks.length - 1;
       return `
         <section class="print-page dms-print-page">
-          ${renderDmsHeader(data, copyLabel, 1, 1)}
-          ${renderDmsInvoiceItemsTable(data)}
-          ${renderSummaryAndSignature()}
-          ${renderDmsPromotionTable(data)}
-          ${renderDmsRewardTable(data)}
+          ${renderDmsHeader(data, copyLabel, index + 1, pageCount)}
+          ${renderDmsInvoiceItemsTable(data, chunk, { showTotal: isLastItemPage })}
+          ${isLastItemPage ? renderSummaryAndSignature() : ''}
+          ${isLastItemPage && !detailNeedsOwnPage ? renderDmsPromotionTable(data) + renderDmsRewardTable(data) : ''}
+          ${isLastItemPage && detailNeedsOwnPage ? renderDmsPromotionHeaderOnly() : ''}
         </section>`;
-    }
+    }).join('');
 
-    return `
+    const detailPage = detailNeedsOwnPage ? `
       <section class="print-page dms-print-page">
-        ${renderDmsHeader(data, copyLabel, 1, pagination.pagesPerCopy)}
-        ${renderDmsInvoiceItemsTable(data)}
-        ${renderSummaryAndSignature()}
-        ${pagination.showPromotionHeaderOnFirstPage ? renderDmsPromotionHeaderOnly() : ''}
-      </section>
-      <section class="print-page dms-print-page">
-        ${renderDmsHeader(data, copyLabel, 2, pagination.pagesPerCopy)}
+        ${renderDmsHeader(data, copyLabel, itemChunks.length + 1, pageCount)}
         ${renderDmsPromotionTable(data)}
         ${renderDmsRewardTable(data)}
-      </section>`;
+      </section>` : '';
+
+    return itemPages + detailPage;
   };
 
   return `<!DOCTYPE html>
