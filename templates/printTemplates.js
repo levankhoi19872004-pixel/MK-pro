@@ -813,52 +813,46 @@ function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
 
   return `
     <div class="dms-header-lines">
-      <div class="dms-h-row dms-title-row">
+      <div class="dms-title-header">
         <div></div>
         <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
-        <div class="dms-right-cell"><b>Số xe tải:</b> ${text(header.truckNo)}</div>
+        <div class="dms-truck-cell"><b>Số xe tải:</b> ${text(header.truckNo)}</div>
       </div>
 
-      <div class="dms-h-row">
-        <div><b>Số hóa đơn:</b> ${text(header.invoiceCode)}</div>
-        <div class="dms-center-cell"><b>Loại hóa đơn:</b> ${text(header.invoiceType)}</div>
-        <div class="dms-copy-page-cell"><b>${text(normalizedCopy)}</b><b>Trang: ${pageText}</b></div>
+      <div class="dms-header-line">
+        <div class="dms-line-left"><b>Số hóa đơn:</b> ${text(header.invoiceCode)}</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><b>Loại hóa đơn:</b> ${text(header.invoiceType)}</span>
+          <span class="dms-copy-page-cell"><b>${text(normalizedCopy)}</b><b>Trang: ${pageText}</b></span>
+        </div>
       </div>
 
-      <div class="dms-h-row">
-        <div><b>Số đơn hàng:</b> ${text(header.orderCode)}</div>
-        <div><b>Thời gian đặt hàng:</b> ${text(header.orderDateTime)}</div>
-        <div></div>
+      <div class="dms-header-line">
+        <div class="dms-line-left"><b>Số đơn hàng:</b> ${text(header.orderCode)}</div>
+        <div class="dms-line-right"><b>Thời gian đặt hàng:</b> ${text(header.orderDateTime)}</div>
       </div>
 
-      <div class="dms-h-row">
-        <div><b>NVBH:</b> ${staffText}</div>
-        <div><b>Nhà phân phối:</b> ${distributorText}</div>
-        <div></div>
+      <div class="dms-header-line">
+        <div class="dms-line-left"><b>NVBH:</b> ${staffText}</div>
+        <div class="dms-line-right"><b>Nhà phân phối:</b> ${distributorText}</div>
       </div>
 
-      <div class="dms-h-row">
-        <div><b>Khách hàng - Điện thoại:</b> ${customerText}</div>
-        <div><b>Địa chỉ:</b> ${text(distributor.address)}</div>
-        <div></div>
+      <div class="dms-header-line">
+        <div class="dms-line-left"><b>Khách hàng - Điện thoại:</b> ${customerText}</div>
+        <div class="dms-line-right"><b>Địa chỉ:</b> ${text(distributor.address)}</div>
       </div>
 
-      <div class="dms-h-row">
-        <div><b>Địa chỉ giao hàng:</b> ${text(customer.deliveryAddress)}</div>
-        <div><b>Điện thoại:</b> ${text(distributor.phone)}</div>
-        <div></div>
+      <div class="dms-header-line">
+        <div class="dms-line-left"><b>Địa chỉ giao hàng:</b> ${text(customer.deliveryAddress)}</div>
+        <div class="dms-line-right"><b>Điện thoại:</b> ${text(distributor.phone)}</div>
       </div>
 
-      <div class="dms-h-row dms-single-left-row">
-        <div><b>Điều khoản thanh toán:</b> ${text(header.paymentTerm)}</div>
-        <div></div>
-        <div></div>
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><b>Điều khoản thanh toán:</b> ${text(header.paymentTerm)}</div>
       </div>
 
-      <div class="dms-h-row dms-single-left-row">
-        <div><b>MST:</b> ${text(header.taxCode || customer.taxCode)}</div>
-        <div></div>
-        <div></div>
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><b>MST:</b> ${text(header.taxCode || customer.taxCode)}</div>
       </div>
     </div>`;
 }
@@ -883,12 +877,16 @@ function dmsDeliveryInvoiceTemplate(data) {
       <div class="dms-summary-grid">
         <div class="dms-amount-words"><b>Số tiền viết bằng chữ :</b> ${text(summary.amountInWords || data.totals.totalAmountText)}</div>
         <div class="dms-calculation-box">
-          <div><span>Số tiền phải thanh toán (A7-D-E-H)</span><b>${dmsMoney(data, summary.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount)}</b></div>
-          <div><span>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</span><b>${dmsMoney(data, summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount)}</b></div>
-          <div><span>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</span><b>${dmsMoney(data, summary.totalPromotionAmount ?? data.totals?.promotionValue)}</b></div>
-          <div><span>Cấn trừ tiền (D+E+H):</span><b>${dmsMoney(data, summary.totalOffsetAmount ?? data.totals?.displayRewardTotal)}</b></div>
-          <div><span>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</span><b>${dmsMoney(data, summary.nppDiscountAmount)}</b></div>
-          <div><span>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</span><b>${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</b></div>
+          <table class="dms-summary-table">
+            <tbody>
+              <tr class="dms-payable-row"><td>Số tiền phải thanh toán (A7-D-E-H)</td><td>${dmsMoney(data, summary.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount)}</td></tr>
+              <tr><td>Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</td><td>${dmsMoney(data, summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount)}</td></tr>
+              <tr><td>Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</td><td>${dmsMoney(data, summary.totalPromotionAmount ?? data.totals?.promotionValue)}</td></tr>
+              <tr><td>Cấn trừ tiền (D+E+H):</td><td>${dmsMoney(data, summary.totalOffsetAmount ?? data.totals?.displayRewardTotal)}</td></tr>
+              <tr><td>Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</td><td>${dmsMoney(data, summary.nppDiscountAmount)}</td></tr>
+              <tr><td>Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td><td>${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
       <div class="dms-signature">
