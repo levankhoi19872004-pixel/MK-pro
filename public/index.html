@@ -979,8 +979,16 @@
             <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
             <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionProductProgramButton" class="danger">Huỷ chương trình</button></div>
           </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm sản phẩm vào KM</h3>
+            <form id="promotionProductLineForm" class="form compact-form promotion-line-form">
+              <label>Sản phẩm<input name="productCode" placeholder="Nhập mã sản phẩm" /></label>
+              <label>Mức CK %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 5" /></label>
+              <button type="submit">Thêm</button>
+            </form>
+          </section>
           <h3>Danh sách sản phẩm và chiết khấu đi kèm</h3>
-          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Chiết khấu</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody id="promotionProductProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionProductProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
         </section>
       </main>
 
@@ -995,17 +1003,24 @@
           </div>
         </section>
         <section class="card promotion-program-detail">
-          <div class="toolbar"><div><h2>Chi tiết nhóm sản phẩm KM</h2><p class="muted">Danh sách sản phẩm thuộc cùng một mã nhóm/chương trình.</p></div></div>
+          <div class="toolbar"><div><h2>Chi tiết nhóm sản phẩm KM</h2><p class="muted">Tab này chỉ dùng để gom sản phẩm thành nhóm, phục vụ điều kiện khuyến mại ở Tab 3.</p></div></div>
           <form id="promotionGroupItemProgramForm" class="form compact-form promotion-program-form">
-            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
-            <label>Nội dung chương trình<input name="programName" placeholder="Có thể bổ sung nội dung quản lý" /></label>
+            <label>Mã nhóm<input name="programCode" readonly placeholder="Chọn nhóm bên trái" /></label>
+            <label>Nội dung nhóm<input name="programName" placeholder="Nội dung nhóm" /></label>
             <label>Từ ngày<input name="startDate" type="date" /></label>
             <label>Đến ngày<input name="endDate" type="date" /></label>
             <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
-            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionGroupItemProgramButton" class="danger">Huỷ chương trình</button></div>
+            <div class="button-row"><button type="submit">Lưu nhóm</button><button type="button" id="cancelPromotionGroupItemProgramButton" class="danger">Huỷ nhóm</button></div>
           </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm sản phẩm vào nhóm</h3>
+            <form id="promotionGroupProductLineForm" class="form compact-form promotion-line-form">
+              <label>Sản phẩm<input name="productCode" placeholder="Nhập mã sản phẩm" /></label>
+              <button type="submit">Thêm</button>
+            </form>
+          </section>
           <h3>Danh sách sản phẩm trong nhóm</h3>
-          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Nguồn</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody id="promotionGroupItemProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupItemProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
         </section>
       </main>
 
@@ -1029,8 +1044,17 @@
             <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
             <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionGroupRuleProgramButton" class="danger">Huỷ chương trình</button></div>
           </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm điều kiện khuyến mại</h3>
+            <form id="promotionTierLineForm" class="form compact-form promotion-line-form">
+              <label>Nhóm sản phẩm áp dụng<select name="groupCode" id="promotionTierGroupSelect"><option value="">Chọn nhóm sản phẩm</option></select></label>
+              <label>Doanh số từ<input name="minAmount" type="number" min="0" step="1000" placeholder="VD: 1000000" /></label>
+              <label>Chiết khấu %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 2" /></label>
+              <button type="submit">Thêm điều kiện</button>
+            </form>
+          </section>
           <h3>Danh sách điều kiện và chiết khấu đi kèm</h3>
-          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>Mức doanh số</th><th>Chiết khấu</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Nhóm áp dụng</th><th>Từ doanh số</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
         </section>
       </main>
     </section>

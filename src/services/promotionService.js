@@ -209,6 +209,7 @@ async function saveGroupItem(body = {}) {
   const payload = {
     id,
     programCode,
+    programName: clean(body.programName || body.groupName || body.name || body.content || body.programContent || ''),
     productCode,
     productName,
     productMatched: Boolean(product),
@@ -238,17 +239,19 @@ async function listGroupRules(query = {}) {
 async function saveGroupRule(body = {}) {
   const programCode = normalizeProgramCode(body.programCode || body.groupCode || body.code);
   const programName = clean(body.programName || body.name || body.content || body.programContent);
+  const groupCode = normalizeProgramCode(body.groupCode || body.applyGroupCode || body.selectedGroupCode || programCode);
   const minAmount = toNumber(body.minAmount ?? body.requiredAmount ?? body.salesAmount);
   const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck ?? body['Chiết khấu'] ?? body['Chiet khau'] ?? body['CK']);
-  if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm / mã chương trình', status: 400 };
+  if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   if (!programName) return { error: 'Thiếu nội dung chương trình KM', status: 400 };
+  if (!groupCode) return { error: 'Thiếu nhóm sản phẩm áp dụng', status: 400 };
   if (minAmount <= 0) return { error: 'Mức doanh số cần lấy phải lớn hơn 0', status: 400 };
   if (discountPercent < 0) return { error: 'Chiết khấu không được âm', status: 400 };
   const now = dateUtil.nowIso();
   const { startDate, endDate } = normalizeProgramDates(body);
-  const id = clean(body.id) || `${programCode}__${minAmount}`;
-  const existing = await PromotionGroupRule.findOne({ $or: [{ id }, { programCode, minAmount }] });
-  const payload = { id, programCode, programName, minAmount, discountPercent, startDate, endDate, isActive: normalizeActive(body.isActive), updatedAt: now };
+  const id = clean(body.id) || `${programCode}__${groupCode}__${minAmount}`;
+  const existing = await PromotionGroupRule.findOne({ $or: [{ id }, { programCode, groupCode, minAmount }, { programCode, minAmount }] });
+  const payload = { id, programCode, programName, groupCode, minAmount, discountPercent, startDate, endDate, isActive: normalizeActive(body.isActive), updatedAt: now };
   if (existing) { Object.assign(existing, payload); return { rule: await existing.save() }; }
   return { rule: await PromotionGroupRule.create({ ...payload, createdAt: now }) };
 }
@@ -336,15 +339,19 @@ async function getPromotionProgramDetail(programCodeValue, query = {}) {
   const group = { programCode, programName: '', startDate: '', endDate: '', isActive: true, productCodes: new Set(), sources: new Set(), lineCount: 0 };
   rows.forEach((row) => { mergeProgramMeta(group, row, cfg.source); if (row.productCode) group.productCodes.add(clean(row.productCode)); });
   if (!group.programName && cfg.type === 'groupItems') group.programName = programCode;
+  const availableGroups = cfg.type === 'groupRules' ? await listPromotionPrograms({ type: 'groupItems' }) : [];
+  const normalizedRows = rows.map((row) => ({ ...row, rowId: pickRowId(row) }));
   return {
     type: cfg.type,
     program: toProgramSummary(group),
-    productRules: cfg.type === 'productRules' ? rows : [],
-    groupItems: cfg.type === 'groupItems' ? rows : [],
-    groupRules: cfg.type === 'groupRules' ? rows : [],
-    products: cfg.type === 'productRules' ? rows.map((row) => ({ source: 'CK sản phẩm', productCode: row.productCode, productName: row.productName, minAmount: '', discountPercent: row.discountPercent, isActive: row.isActive !== false }))
-      : cfg.type === 'groupItems' ? rows.map((row) => ({ source: 'Nhóm sản phẩm', productCode: row.productCode, productName: row.productName, minAmount: '', discountPercent: '', isActive: row.isActive !== false }))
-      : rows.map((row) => ({ source: 'Điều kiện nhóm', productCode: '', productName: '', minAmount: row.minAmount, discountPercent: row.discountPercent, isActive: row.isActive !== false }))
+    selectedGroupCode: clean(rows[0]?.groupCode || rows[0]?.programCode || ''),
+    availableGroups,
+    productRules: cfg.type === 'productRules' ? normalizedRows : [],
+    groupItems: cfg.type === 'groupItems' ? normalizedRows : [],
+    groupRules: cfg.type === 'groupRules' ? normalizedRows : [],
+    products: cfg.type === 'productRules' ? normalizedRows.map((row) => ({ rowId: row.rowId, source: 'CK sản phẩm', productCode: row.productCode, productName: row.productName, minAmount: '', discountPercent: row.discountPercent, isActive: row.isActive !== false }))
+      : cfg.type === 'groupItems' ? normalizedRows.map((row) => ({ rowId: row.rowId, source: 'Nhóm sản phẩm', productCode: row.productCode, productName: row.productName, minAmount: '', discountPercent: '', isActive: row.isActive !== false }))
+      : normalizedRows.map((row) => ({ rowId: row.rowId, source: 'Điều kiện nhóm', groupCode: row.groupCode || row.programCode, productCode: '', productName: '', minAmount: row.minAmount, discountPercent: row.discountPercent, isActive: row.isActive !== false }))
   };
 }
 
@@ -378,6 +385,126 @@ async function cancelPromotionProgram(programCodeValue, query = {}) {
   return { cancelled: true, type: cfg.type };
 }
 
+
+function mongoIdFilter(value) {
+  const id = clean(value);
+  if (!id) return null;
+  return /^[a-f0-9]{24}$/i.test(id) ? id : null;
+}
+
+function rowIdFilter(programCode, rowId) {
+  const value = clean(rowId);
+  const filter = { ...exactProgramCodeFilter(programCode), $or: [{ id: value }] };
+  const objectId = mongoIdFilter(value);
+  if (objectId) filter.$or.push({ _id: objectId });
+  return filter;
+}
+
+function pickRowId(row = {}) {
+  return clean(row.id || row._id || '');
+}
+
+async function addProductToPromotion(programCodeValue, body = {}) {
+  const programCode = normalizeProgramCode(programCodeValue || body.programCode);
+  if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
+  return saveProductRule({ ...body, programCode, source: clean(body.source || 'manual-ui') });
+}
+
+async function updatePromotionProduct(programCodeValue, rowId, body = {}) {
+  const programCode = normalizeProgramCode(programCodeValue || body.programCode);
+  if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
+  const value = clean(rowId);
+  if (!value) return { error: 'Thiếu dòng sản phẩm cần sửa', status: 400 };
+  const current = await PromotionProductRule.findOne(rowIdFilter(programCode, value));
+  if (!current) return { error: 'Không tìm thấy dòng sản phẩm trong CTKM', status: 404 };
+  const now = dateUtil.nowIso();
+  const nextProductInput = body.productCode || body.codeProduct || current.productCode;
+  const { product, productCode, productName: catalogProductName } = await hydrateProduct(nextProductInput);
+  current.productCode = productCode;
+  current.productName = clean(catalogProductName || body.productName || current.productName || '');
+  if (body.discountPercent !== undefined || body.discount !== undefined || body.ck !== undefined) current.discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck);
+  if (body.programName !== undefined) current.programName = clean(body.programName);
+  if (body.startDate !== undefined || body.fromDate !== undefined) current.startDate = normalizeProgramDates(body).startDate;
+  if (body.endDate !== undefined || body.toDate !== undefined) current.endDate = normalizeProgramDates(body).endDate;
+  if (body.isActive !== undefined) current.isActive = normalizeActive(body.isActive);
+  current.productMatched = Boolean(product);
+  current.missingProduct = !product;
+  current.updatedAt = now;
+  const saved = await current.save();
+  return { rule: saved, warning: product ? '' : `Mã sản phẩm ${productCode} chưa có trong danh mục` };
+}
+
+async function removePromotionProduct(programCodeValue, rowId) {
+  const programCode = normalizeProgramCode(programCodeValue);
+  if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
+  const result = await PromotionProductRule.deleteOne(rowIdFilter(programCode, rowId));
+  if (!toNumber(result.deletedCount)) return { error: 'Không tìm thấy dòng sản phẩm cần xóa', status: 404 };
+  return { deleted: true };
+}
+
+async function addProductToGroup(programCodeValue, body = {}) {
+  const programCode = normalizeProgramCode(programCodeValue || body.programCode || body.groupCode);
+  if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm', status: 400 };
+  return saveGroupItem({ ...body, programCode, groupCode: programCode, source: clean(body.source || 'manual-ui') });
+}
+
+async function updateGroupProduct(programCodeValue, rowId, body = {}) {
+  const programCode = normalizeProgramCode(programCodeValue || body.programCode || body.groupCode);
+  if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm', status: 400 };
+  const current = await PromotionGroupItem.findOne(rowIdFilter(programCode, rowId));
+  if (!current) return { error: 'Không tìm thấy sản phẩm trong nhóm', status: 404 };
+  const { product, productCode, productName: catalogProductName } = await hydrateProduct(body.productCode || body.codeProduct || current.productCode);
+  current.productCode = productCode;
+  current.productName = clean(catalogProductName || body.productName || current.productName || '');
+  if (body.programName !== undefined || body.groupName !== undefined) current.programName = clean(body.programName || body.groupName);
+  if (body.startDate !== undefined || body.fromDate !== undefined) current.startDate = normalizeProgramDates(body).startDate;
+  if (body.endDate !== undefined || body.toDate !== undefined) current.endDate = normalizeProgramDates(body).endDate;
+  if (body.isActive !== undefined) current.isActive = normalizeActive(body.isActive);
+  current.productMatched = Boolean(product);
+  current.missingProduct = !product;
+  current.updatedAt = dateUtil.nowIso();
+  const saved = await current.save();
+  return { item: saved, warning: product ? '' : `Mã sản phẩm ${productCode} chưa có trong danh mục` };
+}
+
+async function removeGroupProduct(programCodeValue, rowId) {
+  const programCode = normalizeProgramCode(programCodeValue);
+  if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm', status: 400 };
+  const result = await PromotionGroupItem.deleteOne(rowIdFilter(programCode, rowId));
+  if (!toNumber(result.deletedCount)) return { error: 'Không tìm thấy sản phẩm trong nhóm cần xóa', status: 404 };
+  return { deleted: true };
+}
+
+async function addPromotionTier(programCodeValue, body = {}) {
+  const programCode = normalizeProgramCode(programCodeValue || body.programCode);
+  if (!programCode) return { error: 'Thiếu mã CTKM', status: 400 };
+  return saveGroupRule({ ...body, programCode, source: clean(body.source || 'manual-ui') });
+}
+
+async function updatePromotionTier(programCodeValue, rowId, body = {}) {
+  const programCode = normalizeProgramCode(programCodeValue || body.programCode);
+  if (!programCode) return { error: 'Thiếu mã CTKM', status: 400 };
+  const current = await PromotionGroupRule.findOne(rowIdFilter(programCode, rowId));
+  if (!current) return { error: 'Không tìm thấy điều kiện khuyến mại', status: 404 };
+  if (body.programName !== undefined || body.content !== undefined || body.name !== undefined) current.programName = clean(body.programName || body.content || body.name);
+  if (body.groupCode !== undefined) current.groupCode = normalizeProgramCode(body.groupCode);
+  if (body.minAmount !== undefined || body.requiredAmount !== undefined || body.salesAmount !== undefined) current.minAmount = toNumber(body.minAmount ?? body.requiredAmount ?? body.salesAmount);
+  if (body.discountPercent !== undefined || body.discount !== undefined || body.ck !== undefined) current.discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck);
+  if (body.startDate !== undefined || body.fromDate !== undefined) current.startDate = normalizeProgramDates(body).startDate;
+  if (body.endDate !== undefined || body.toDate !== undefined) current.endDate = normalizeProgramDates(body).endDate;
+  if (body.isActive !== undefined) current.isActive = normalizeActive(body.isActive);
+  current.updatedAt = dateUtil.nowIso();
+  return { rule: await current.save() };
+}
+
+async function removePromotionTier(programCodeValue, rowId) {
+  const programCode = normalizeProgramCode(programCodeValue);
+  if (!programCode) return { error: 'Thiếu mã CTKM', status: 400 };
+  const result = await PromotionGroupRule.deleteOne(rowIdFilter(programCode, rowId));
+  if (!toNumber(result.deletedCount)) return { error: 'Không tìm thấy điều kiện cần xóa', status: 404 };
+  return { deleted: true };
+}
+
 async function calculatePromotions(items = [], options = {}) {
   const productCodes = Array.from(new Set((items || []).map((i) => clean(i.productCode || i.code)).filter(Boolean)));
   const products = productCodes.length ? await Product.find({ $or: [{ code: { $in: productCodes } }, { productCode: { $in: productCodes } }, { sku: { $in: productCodes } }] }).lean() : [];
@@ -387,7 +514,7 @@ async function calculatePromotions(items = [], options = {}) {
   const productRuleMap = new Map(productRules.map((r) => [clean(r.productCode), r]));
   const groupItems = (await PromotionGroupItem.find({ isActive: { $ne: false }, productCode: { $in: productCodes } }).lean()).filter((rule) => isRuleActiveByDate(rule, targetDate));
   const groupCodes = Array.from(new Set(groupItems.map((i) => clean(i.programCode)).filter(Boolean)));
-  const groupRules = groupCodes.length ? (await PromotionGroupRule.find({ isActive: { $ne: false }, programCode: { $in: groupCodes } }).sort({ minAmount: 1 }).lean()).filter((rule) => isRuleActiveByDate(rule, targetDate)) : [];
+  const groupRules = groupCodes.length ? (await PromotionGroupRule.find({ isActive: { $ne: false }, $or: [{ programCode: { $in: groupCodes } }, { groupCode: { $in: groupCodes } }] }).sort({ minAmount: 1 }).lean()).filter((rule) => isRuleActiveByDate(rule, targetDate)) : [];
   const groupByProduct = new Map(groupItems.map((item) => [clean(item.productCode), clean(item.programCode)]));
   const groupTotals = new Map();
 
@@ -422,7 +549,7 @@ async function calculatePromotions(items = [], options = {}) {
   const bestGroupRule = new Map();
   for (const groupCode of groupCodes) {
     const total = toNumber(groupTotals.get(groupCode));
-    const matched = groupRules.filter((rule) => clean(rule.programCode) === groupCode && total >= toNumber(rule.minAmount)).sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0];
+    const matched = groupRules.filter((rule) => clean(rule.groupCode || rule.programCode) === groupCode && total >= toNumber(rule.minAmount)).sort((a, b) => toNumber(b.minAmount) - toNumber(a.minAmount))[0];
     if (matched) bestGroupRule.set(groupCode, matched);
   }
 
@@ -488,6 +615,9 @@ module.exports = {
   normalizeDiscountPercent,
   listPromotions, savePromotion, deletePromotion,
   listPromotionPrograms, getPromotionProgramDetail, updatePromotionProgram, cancelPromotionProgram,
+  addProductToPromotion, updatePromotionProduct, removePromotionProduct,
+  addProductToGroup, updateGroupProduct, removeGroupProduct,
+  addPromotionTier, updatePromotionTier, removePromotionTier,
   listProductRules, saveProductRule, deleteProductRule,
   listGroupItems, saveGroupItem, deleteGroupItem,
   listGroupRules, saveGroupRule, deleteGroupRule,
