@@ -944,62 +944,93 @@
         <div class="toolbar">
           <div>
             <h2>Quản lý khuyến mại</h2>
-            <p class="muted">Giữ nguyên file import Excel. Phần mềm tự gom các dòng cùng mã CTKM thành 1 chương trình để dễ sửa, hủy và quản lý thời hạn.</p>
+            <p class="muted">Giữ nguyên 3 loại khuyến mại theo file import Excel. Trong từng tab, phần mềm gom các dòng cùng mã CTKM thành 1 chương trình để dễ sửa, hủy và quản lý thời hạn.</p>
           </div>
           <input id="promotionSearchAllInput" placeholder="Tìm mã CTKM, nội dung, mã SP..." />
         </div>
         <p id="promotion3Message" class="message"></p>
       </section>
 
-      <main class="promotion-management-layout">
+      <section class="card promotion-type-tabs-card">
+        <div class="subtabs promotion-type-tabs">
+          <button type="button" class="active" data-promotion-program-tab="productRules">CK sản phẩm</button>
+          <button type="button" data-promotion-program-tab="groupItems">Nhóm sản phẩm KM</button>
+          <button type="button" data-promotion-program-tab="groupRules">Điều kiện nhóm KM / Ontop</button>
+        </div>
+      </section>
+
+      <main id="promotionProductProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="productRules">
         <section class="card promotion-program-list">
           <div class="toolbar">
-            <div>
-              <h2>Danh sách chương trình khuyến mại</h2>
-              <p id="promotionProgramCount" class="muted">Đang tải...</p>
-            </div>
-            <button type="button" id="reloadPromotionProgramsButton" class="secondary">Tải lại</button>
+            <div><h2>Danh sách chương trình CK sản phẩm</h2><p id="promotionProductProgramCount" class="muted">Đang tải...</p></div>
+            <button type="button" id="reloadPromotionProductProgramsButton" class="secondary">Tải lại</button>
           </div>
           <div class="table-wrap promotion-program-table-wrap">
-            <table>
-              <thead>
-                <tr><th>☑</th><th>Mã CTKM</th><th>Nội dung chương trình</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr>
-              </thead>
-              <tbody id="promotionProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody>
-            </table>
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionProductProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table>
           </div>
         </section>
-
         <section class="card promotion-program-detail">
-          <div class="toolbar">
-            <div>
-              <h2>Chi tiết chương trình</h2>
-              <p class="muted">Chọn Sửa bên trái để xem và cập nhật thông tin chương trình.</p>
-            </div>
-          </div>
-          <form id="promotionProgramForm" class="form compact-form promotion-program-form">
+          <div class="toolbar"><div><h2>Chi tiết CK sản phẩm</h2><p class="muted">Chọn Sửa bên trái để xem danh sách sản phẩm và chiết khấu trực tiếp.</p></div></div>
+          <form id="promotionProductProgramForm" class="form compact-form promotion-program-form">
             <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
             <label>Nội dung chương trình<input name="programName" placeholder="Nội dung chương trình" /></label>
             <label>Từ ngày<input name="startDate" type="date" /></label>
             <label>Đến ngày<input name="endDate" type="date" /></label>
-            <label>Tình trạng
-              <select name="isActive">
-                <option value="true">Hoạt động</option>
-                <option value="false">Không hoạt động</option>
-              </select>
-            </label>
-            <div class="button-row">
-              <button type="submit">Lưu chương trình</button>
-              <button type="button" id="cancelPromotionProgramButton" class="danger">Huỷ chương trình</button>
-            </div>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionProductProgramButton" class="danger">Huỷ chương trình</button></div>
           </form>
           <h3>Danh sách sản phẩm và chiết khấu đi kèm</h3>
-          <div class="table-wrap promotion-detail-table-wrap">
-            <table>
-              <thead><tr><th>Nguồn</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Điều kiện</th><th>Chiết khấu</th><th>Trạng thái</th></tr></thead>
-              <tbody id="promotionProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody>
-            </table>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Chiết khấu</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody id="promotionProductProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionGroupItemProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupItems">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách nhóm sản phẩm KM</h2><p id="promotionGroupItemProgramCount" class="muted">Đang tải...</p></div>
+            <button type="button" id="reloadPromotionGroupItemProgramsButton" class="secondary">Tải lại</button>
           </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupItemProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết nhóm sản phẩm KM</h2><p class="muted">Danh sách sản phẩm thuộc cùng một mã nhóm/chương trình.</p></div></div>
+          <form id="promotionGroupItemProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
+            <label>Nội dung chương trình<input name="programName" placeholder="Có thể bổ sung nội dung quản lý" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionGroupItemProgramButton" class="danger">Huỷ chương trình</button></div>
+          </form>
+          <h3>Danh sách sản phẩm trong nhóm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Nguồn</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody id="promotionGroupItemProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionGroupRuleProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupRules">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách điều kiện nhóm KM / Ontop</h2><p id="promotionGroupRuleProgramCount" class="muted">Đang tải...</p></div>
+            <button type="button" id="reloadPromotionGroupRuleProgramsButton" class="secondary">Tải lại</button>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupRuleProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết điều kiện nhóm KM / Ontop</h2><p class="muted">Các mức doanh số điều kiện và chiết khấu của nhóm.</p></div></div>
+          <form id="promotionGroupRuleProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
+            <label>Nội dung chương trình<input name="programName" placeholder="Nội dung chương trình" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionGroupRuleProgramButton" class="danger">Huỷ chương trình</button></div>
+          </form>
+          <h3>Danh sách điều kiện và chiết khấu đi kèm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>Mức doanh số</th><th>Chiết khấu</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
         </section>
       </main>
     </section>

@@ -908,119 +908,169 @@ async function commitImportExcel(){
 
 resetButton.addEventListener('click',resetForm);
 
-// V46 Promotion program management: gom theo mã chương trình, giữ nguyên import Excel
+// V46 Promotion program management: giữ 3 tab, trong từng tab gom theo mã chương trình
 (function setupPromotionProgramManagement(){
   const $ = (id)=>document.getElementById(id);
   const msg = $('promotion3Message');
   const searchInput = $('promotionSearchAllInput');
-  const programTable = $('promotionProgramTable');
-  const programCount = $('promotionProgramCount');
-  const detailTable = $('promotionProgramDetailTable');
-  const form = $('promotionProgramForm');
-  const reloadButton = $('reloadPromotionProgramsButton');
-  const cancelButton = $('cancelPromotionProgramButton');
-  if(!programTable || !form)return;
-  const state = { programs: [], selectedCode: '', detail: null };
   const esc = (v)=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const fmtPct = (v)=>v===''||v===null||v===undefined?'':`${Number(v||0).toLocaleString('vi-VN')}%`;
   const fmtMoney = (v)=>v===''||v===null||v===undefined?'':Number(v||0).toLocaleString('vi-VN');
   const show = (text,isError=false)=>{ if(msg) showMessage(msg,text,isError); };
+  const TYPE_CONFIG = {
+    productRules: {
+      label: 'CK sản phẩm',
+      table: 'promotionProductProgramTable', count: 'promotionProductProgramCount', detail: 'promotionProductProgramDetailTable', form: 'promotionProductProgramForm', reload: 'reloadPromotionProductProgramsButton', cancel: 'cancelPromotionProductProgramButton', colspan: 5
+    },
+    groupItems: {
+      label: 'Nhóm sản phẩm KM',
+      table: 'promotionGroupItemProgramTable', count: 'promotionGroupItemProgramCount', detail: 'promotionGroupItemProgramDetailTable', form: 'promotionGroupItemProgramForm', reload: 'reloadPromotionGroupItemProgramsButton', cancel: 'cancelPromotionGroupItemProgramButton', colspan: 5
+    },
+    groupRules: {
+      label: 'Điều kiện nhóm KM / Ontop',
+      table: 'promotionGroupRuleProgramTable', count: 'promotionGroupRuleProgramCount', detail: 'promotionGroupRuleProgramDetailTable', form: 'promotionGroupRuleProgramForm', reload: 'reloadPromotionGroupRuleProgramsButton', cancel: 'cancelPromotionGroupRuleProgramButton', colspan: 5
+    }
+  };
+  const states = Object.fromEntries(Object.keys(TYPE_CONFIG).map(type=>[type,{ programs: [], selectedCode: '', detail: null } ]));
+  let activeType = 'productRules';
+  if(!$('promotionProductProgramTable'))return;
+
   async function api(url, options={}){
     const res = await fetch(url, options);
     const json = await res.json();
     if(!json.ok)throw new Error(json.message||json.error||'Có lỗi xảy ra');
     return json;
   }
-  function q(){ return encodeURIComponent(searchInput?.value||''); }
+  function queryParams(type){
+    const params = new URLSearchParams();
+    params.set('type', type);
+    const q = searchInput?.value || '';
+    if(q)params.set('q', q);
+    return params.toString();
+  }
   function statusBadge(p){
     const text=p.statusText||((p.isActive===false)?'Không hoạt động':'Hoạt động');
     const cls=text==='Hoạt động'?'ok':(text==='Không hoạt động'?'danger':'warn');
     return `<span class="status-badge ${cls}">${esc(text)}</span>`;
   }
-  function renderProgramList(){
-    if(programCount)programCount.textContent=`${state.programs.length} chương trình`;
-    if(!state.programs.length){
-      programTable.innerHTML='<tr><td colspan="7">Chưa có chương trình khuyến mại.</td></tr>';
+  function timeText(row){ return esc(row.timeText || [row.startDate || '', row.endDate || ''].filter(Boolean).join(' - ') || 'Chưa đặt'); }
+  function sourceText(p){
+    if(p.productCount)return `${p.productCount} SP`;
+    if(p.lineCount)return `${p.lineCount} dòng`;
+    return '';
+  }
+  function renderProgramListByType(type){
+    const cfg=TYPE_CONFIG[type]; const state=states[type]; const table=$(cfg.table); const count=$(cfg.count);
+    if(!table)return;
+    if(count)count.textContent=`${state.programs.length} chương trình ${cfg.label}`;
+    if(!state.programs.length){ table.innerHTML=`<tr><td colspan="7">Chưa có chương trình ${esc(cfg.label)}.</td></tr>`; return; }
+    table.innerHTML=state.programs.map(p=>`<tr class="${String(p.programCode)===String(state.selectedCode)?'selected-row':''}">
+      <td><input type="checkbox" data-promo-check="${esc(type)}:${esc(p.programCode)}" /></td>
+      <td><strong>${esc(p.programCode)}</strong><br><span class="muted">${esc(sourceText(p))}</span></td>
+      <td>${esc(p.programName||p.content||'')}</td>
+      <td>${timeText(p)}</td>
+      <td>${statusBadge(p)}</td>
+      <td><button type="button" class="small" onclick="selectPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Sửa</button></td>
+      <td><button type="button" class="small danger" onclick="cancelPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Huỷ</button></td>
+    </tr>`).join('');
+  }
+  function renderDetailEmpty(type, text='Chưa chọn chương trình.'){
+    const cfg=TYPE_CONFIG[type]; const detailTable=$(cfg.detail);
+    if(detailTable)detailTable.innerHTML=`<tr><td colspan="${cfg.colspan}">${esc(text)}</td></tr>`;
+  }
+  function fillForm(type, program={}){
+    const form=$(TYPE_CONFIG[type].form); if(!form)return;
+    form.elements.programCode.value=program.programCode||'';
+    form.elements.programName.value=program.programName||program.content||'';
+    form.elements.startDate.value=program.startDate||'';
+    form.elements.endDate.value=program.endDate||'';
+    form.elements.isActive.value=String(program.isActive!==false);
+  }
+  function renderProgramDetailByType(type, detail){
+    const cfg=TYPE_CONFIG[type]; const detailTable=$(cfg.detail); if(!detailTable)return;
+    const p=detail?.program||{}; fillForm(type,p);
+    if(type==='productRules'){
+      const rows=detail?.productRules||[];
+      if(!rows.length){ renderDetailEmpty(type,'Chương trình chưa có dòng CK sản phẩm.'); return; }
+      detailTable.innerHTML=rows.map(r=>`<tr><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td>${fmtPct(r.discountPercent)}</td><td>${timeText(r)}</td><td>${r.isActive===false?'Không hoạt động':'Hoạt động'}</td></tr>`).join('');
       return;
     }
-    programTable.innerHTML=state.programs.map(p=>`<tr class="${String(p.programCode)===String(state.selectedCode)?'selected-row':''}">
-      <td><input type="checkbox" data-promo-check="${esc(p.programCode)}" /></td>
-      <td><strong>${esc(p.programCode)}</strong></td>
-      <td>${esc(p.programName||p.content||'')}</td>
-      <td>${esc(p.timeText||[p.startDate,p.endDate].filter(Boolean).join(' - ')||'Chưa đặt')}</td>
-      <td>${statusBadge(p)}</td>
-      <td><button type="button" class="small" onclick="selectPromotionProgram('${esc(p.programCode)}')">Sửa</button></td>
-      <td><button type="button" class="small danger" onclick="cancelPromotionProgram('${esc(p.programCode)}')">Huỷ</button></td>
-    </tr>`).join('');
+    if(type==='groupItems'){
+      const rows=detail?.groupItems||[];
+      if(!rows.length){ renderDetailEmpty(type,'Chương trình chưa có sản phẩm trong nhóm.'); return; }
+      detailTable.innerHTML=rows.map(r=>`<tr><td>${esc(r.productCode)}</td><td>${esc(r.productName)}</td><td>${esc(r.source||'excel-import')}</td><td>${timeText(r)}</td><td>${r.isActive===false?'Không hoạt động':'Hoạt động'}</td></tr>`).join('');
+      return;
+    }
+    const rows=detail?.groupRules||[];
+    if(!rows.length){ renderDetailEmpty(type,'Chương trình chưa có điều kiện nhóm.'); return; }
+    detailTable.innerHTML=rows.map(r=>`<tr><td>${fmtMoney(r.minAmount)}</td><td>${fmtPct(r.discountPercent)}</td><td>${esc(r.programName||'')}</td><td>${timeText(r)}</td><td>${r.isActive===false?'Không hoạt động':'Hoạt động'}</td></tr>`).join('');
   }
-  function renderDetailEmpty(text='Chưa chọn chương trình.'){
-    detailTable.innerHTML=`<tr><td colspan="6">${esc(text)}</td></tr>`;
-  }
-  function renderProgramDetail(detail){
-    const p=detail?.program||{};
-    form.elements.programCode.value=p.programCode||'';
-    form.elements.programName.value=p.programName||p.content||'';
-    form.elements.startDate.value=p.startDate||'';
-    form.elements.endDate.value=p.endDate||'';
-    form.elements.isActive.value=String(p.isActive!==false);
-    const rows=detail?.products||[];
-    if(!rows.length){ renderDetailEmpty('Chương trình chưa có dòng sản phẩm/điều kiện.'); return; }
-    detailTable.innerHTML=rows.map(r=>`<tr>
-      <td>${esc(r.source)}</td>
-      <td>${esc(r.productCode)}</td>
-      <td>${esc(r.productName)}</td>
-      <td>${r.minAmount!==''&&r.minAmount!==undefined?fmtMoney(r.minAmount):''}</td>
-      <td>${fmtPct(r.discountPercent)}</td>
-      <td>${r.isActive===false?'Không hoạt động':'Hoạt động'}</td>
-    </tr>`).join('');
-  }
-  async function loadPromotionPrograms(){
+  async function loadPromotionProgramsByType(type){
+    const cfg=TYPE_CONFIG[type]; const table=$(cfg.table); const state=states[type]; if(!table)return;
     try{
-      const json=await api(`/api/promotions/programs?q=${q()}`);
+      const json=await api(`/api/promotions/programs?${queryParams(type)}`);
       state.programs=json.programs||[];
-      renderProgramList();
+      renderProgramListByType(type);
       if(state.selectedCode && !state.programs.some(p=>String(p.programCode)===String(state.selectedCode))){
-        state.selectedCode=''; state.detail=null; form.reset(); renderDetailEmpty();
+        state.selectedCode=''; state.detail=null; fillForm(type,{}); renderDetailEmpty(type);
       }
-    }catch(err){ programTable.innerHTML=`<tr><td colspan="7">${esc(err.message)}</td></tr>`; }
+    }catch(err){ table.innerHTML=`<tr><td colspan="7">${esc(err.message)}</td></tr>`; }
   }
-  window.loadPromotionPrograms=loadPromotionPrograms;
-  window.selectPromotionProgram=async(programCode)=>{
+  async function loadAllPromotionProgramTabs(){
+    await Promise.all(Object.keys(TYPE_CONFIG).map(type=>loadPromotionProgramsByType(type)));
+  }
+  window.loadPromotionProgramsByType=loadPromotionProgramsByType;
+  window.loadPromotionPrograms=loadAllPromotionProgramTabs;
+  window.reloadPromotionRules=loadAllPromotionProgramTabs;
+  window.selectPromotionProgramByType=async(type, programCode)=>{
+    if(!TYPE_CONFIG[type])return;
     try{
-      state.selectedCode=programCode;
-      renderProgramList();
-      const json=await api(`/api/promotions/programs/${encodeURIComponent(programCode)}`);
-      state.detail=json;
-      renderProgramDetail(json);
+      activeType=type; activateProgramTab(type);
+      states[type].selectedCode=programCode;
+      renderProgramListByType(type);
+      const json=await api(`/api/promotions/programs/${encodeURIComponent(programCode)}?type=${encodeURIComponent(type)}`);
+      states[type].detail=json;
+      renderProgramDetailByType(type,json);
     }catch(err){ show(err.message,true); }
   };
-  window.cancelPromotionProgram=async(programCode)=>{
-    const code=programCode||state.selectedCode;
+  window.cancelPromotionProgramByType=async(type, programCode)=>{
+    const state=states[type]; const cfg=TYPE_CONFIG[type]; const code=programCode||state?.selectedCode;
     if(!code){show('Chưa chọn chương trình cần hủy',true);return;}
-    if(!confirm(`Hủy chương trình ${code}? Dữ liệu không bị xóa, chỉ chuyển sang Không hoạt động.`))return;
+    if(!confirm(`Hủy chương trình ${code} trong tab ${cfg.label}? Dữ liệu không bị xóa, chỉ chuyển sang Không hoạt động.`))return;
     try{
-      await api(`/api/promotions/programs/${encodeURIComponent(code)}/cancel`,{method:'POST'});
-      show('Đã hủy chương trình khuyến mại');
-      await loadPromotionPrograms();
-      if(state.selectedCode===code) await window.selectPromotionProgram(code);
+      await api(`/api/promotions/programs/${encodeURIComponent(code)}/cancel?type=${encodeURIComponent(type)}`,{method:'POST'});
+      show(`Đã hủy chương trình ${cfg.label}`);
+      await loadPromotionProgramsByType(type);
+      if(state.selectedCode===code) await window.selectPromotionProgramByType(type,code);
     }catch(err){ show(err.message,true); }
   };
-  form.addEventListener('submit',async(e)=>{
-    e.preventDefault();
-    const body=Object.fromEntries(new FormData(form).entries());
-    const code=body.programCode||state.selectedCode;
-    if(!code){show('Chưa chọn chương trình cần lưu',true);return;}
-    try{
-      await api(`/api/promotions/programs/${encodeURIComponent(code)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      show('Đã lưu chương trình khuyến mại');
-      await loadPromotionPrograms();
-      await window.selectPromotionProgram(code);
-    }catch(err){ show(err.message,true); }
+  function activateProgramTab(type){
+    if(!TYPE_CONFIG[type])return;
+    activeType=type;
+    document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.promotionProgramTab===type));
+    document.querySelectorAll('[data-promotion-program-panel]').forEach(panel=>panel.classList.toggle('active',panel.dataset.promotionProgramPanel===type));
+  }
+  Object.keys(TYPE_CONFIG).forEach(type=>{
+    const cfg=TYPE_CONFIG[type]; const form=$(cfg.form);
+    form?.addEventListener('submit',async(e)=>{
+      e.preventDefault();
+      const body=Object.fromEntries(new FormData(form).entries());
+      const code=body.programCode||states[type].selectedCode;
+      if(!code){show('Chưa chọn chương trình cần lưu',true);return;}
+      try{
+        await api(`/api/promotions/programs/${encodeURIComponent(code)}?type=${encodeURIComponent(type)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        show(`Đã lưu chương trình ${cfg.label}`);
+        await loadPromotionProgramsByType(type);
+        await window.selectPromotionProgramByType(type,code);
+      }catch(err){ show(err.message,true); }
+    });
+    $(cfg.cancel)?.addEventListener('click',()=>window.cancelPromotionProgramByType(type,states[type].selectedCode));
+    $(cfg.reload)?.addEventListener('click',()=>loadPromotionProgramsByType(type));
   });
-  cancelButton?.addEventListener('click',()=>window.cancelPromotionProgram(state.selectedCode));
-  reloadButton?.addEventListener('click',loadPromotionPrograms);
-  searchInput?.addEventListener('input',loadPromotionPrograms);
-  loadPromotionPrograms();
+  document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>btn.addEventListener('click',()=>activateProgramTab(btn.dataset.promotionProgramTab)));
+  searchInput?.addEventListener('input',()=>loadPromotionProgramsByType(activeType));
+  activateProgramTab(activeType);
+  loadAllPromotionProgramTabs();
 })();
 
 // Xuất hóa đơn VAT TT78: Sheet1 sau đối trừ hàng trả.

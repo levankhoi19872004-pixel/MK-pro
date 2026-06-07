@@ -7926,3 +7926,11 @@ body::after{
 .status-badge.warn{border-color:#fde68a;background:#fef3c7;color:#92400e;}
 .status-badge.danger{border-color:#fecaca;background:#fee2e2;color:#991b1b;}
 @media(max-width:1100px){.promotion-management-layout{grid-template-columns:1fr;}.promotion-program-form{grid-template-columns:1fr;}}
+
+/* V46 promotion program management: keep 3 promotion tabs, each tab uses grouped programs */
+.promotion-type-tabs-card{padding-top:10px;padding-bottom:10px;}
+.promotion-type-tabs{display:flex;gap:8px;flex-wrap:wrap;}
+.promotion-type-tabs button{border:1px solid #d1d5db;background:#f9fafb;color:#374151;border-radius:999px;padding:8px 14px;font-weight:700;}
+.promotion-type-tabs button.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
+.promotion-program-panel{display:none;}
+.promotion-program-panel.active{display:grid;}
