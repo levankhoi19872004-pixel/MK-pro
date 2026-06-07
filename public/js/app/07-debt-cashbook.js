@@ -952,31 +952,51 @@ function masterReturnNormalizeWarehouse(raw){
   if(value.includes('HC'))return 'KHO_HC';
   return '';
 }
+function masterReturnParsePack(value){
+  if(value===null||value===undefined)return 0;
+  if(typeof value==='number')return Number.isFinite(value)&&value>0?value:0;
+  const raw=String(value||'').trim();
+  if(!raw)return 0;
+  const direct=Number(raw.replace(',', '.'));
+  if(Number.isFinite(direct)&&direct>0)return direct;
+  const slashMatch=raw.match(/\/\s*(\d+(?:[.,]\d+)?)/);
+  if(slashMatch){
+    const parsed=Number(String(slashMatch[1]).replace(',', '.'));
+    if(Number.isFinite(parsed)&&parsed>0)return parsed;
+  }
+  return 0;
+}
 function masterReturnItemPack(item={}){
   const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
   const product=item.product||item.productInfo||{};
-  const direct=masterReturnFirstValue(
+  const candidates=[
     item.packingQty,
     item.conversionRate,
     item.unitsPerCase,
     item.qtyPerCase,
     item.unitPerCase,
-    item.pack,
     productSnapshot.conversionRate,
     productSnapshot.packingQty,
     productSnapshot.unitsPerCase,
     productSnapshot.qtyPerCase,
     productSnapshot.unitPerCase,
-    productSnapshot.pack,
     product.conversionRate,
     product.packingQty,
     product.unitsPerCase,
     product.qtyPerCase,
     product.unitPerCase,
-    product.pack
-  );
-  const pack=Number(direct);
-  return Number.isFinite(pack)&&pack>0?Math.max(1,Math.round(pack)):1;
+    item.pack,
+    productSnapshot.pack,
+    product.pack,
+    item.packing,
+    productSnapshot.packing,
+    product.packing
+  ];
+  for(const candidate of candidates){
+    const pack=masterReturnParsePack(candidate);
+    if(pack>0)return Math.max(1,Math.round(pack));
+  }
+  return 1;
 }
 function masterReturnCaseDisplay(qty, pack){
   const q=Math.max(0,Math.round(Number(qty||0)));
@@ -998,10 +1018,12 @@ function masterReturnWarehouseCode(item={}, child={}){
     item.warehouseId,
     item.stockWarehouseCode,
     productSnapshot.defaultWarehouse,
+    productSnapshot.defaultWarehouseCode,
     productSnapshot.warehouseCode,
     productSnapshot.warehouse,
     productSnapshot.warehouseId,
     product.defaultWarehouse,
+    product.defaultWarehouseCode,
     product.warehouseCode,
     product.warehouse,
     product.warehouseId,
