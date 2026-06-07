@@ -70,37 +70,104 @@ function getDmsItems(data) {
   const payload = getDmsPayload(data);
   if (Array.isArray(payload.items) && payload.items.length) return payload.items;
   return (data.items || []).map((item) => ({
-    lineNo: item.stt,
-    productCode: item.code,
-    productName: item.name,
-    quantityCsSu: item.caseDisplay,
-    quantity: item.qty,
-    priceBeforeTaxBeforePromotion: item.listPriceBeforeVat || item.priceBeforeVat || item.price,
-    priceAfterTaxBeforePromotion: item.listPriceAfterVat || item.priceAfterVatBeforeDiscount,
-    priceAfterTaxAfterPromotion: item.priceAfterVatAfterDiscount || item.priceAfterDiscount,
-    vatAmount: item.tax,
-    lineAmount: item.amount,
-    isPromotionGift: item.isPromo,
-    promotionRows: item.promotionRows || []
+    ...item,
+    lineNo: item.lineNo || item.stt,
+    productCode: item.productCode || item.code,
+    productName: item.productName || item.name,
+    quantityCsSu: item.quantityCsSu || item.caseDisplay,
+    quantity: item.quantity ?? item.qty,
+    priceBeforeTaxBeforePromotion: item.priceBeforeTaxBeforePromotion ?? item.listPriceBeforeVat ?? item.priceBeforeVat ?? item.price,
+    priceAfterTaxBeforePromotion: item.priceAfterTaxBeforePromotion ?? item.listPriceAfterVat ?? item.priceAfterVatBeforeDiscount,
+    priceAfterTaxAfterPromotion: item.priceAfterTaxAfterPromotion ?? item.priceAfterVatAfterDiscount ?? item.priceAfterDiscount,
+    vatAmount: item.vatAmount ?? item.tax,
+    lineAmount: item.lineAmount ?? item.amount,
+    isPromotionGift: item.isPromotionGift ?? item.isPromo,
+    promotionRows: item.promotionRows || [],
+    appliedPromotions: item.appliedPromotions || [],
+    promotions: item.promotions || [],
+    productSnapshot: item.productSnapshot || {},
+    product: item.product || {}
   }));
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function collectDmsItemPromotions(item) {
+  return [
+    ...asArray(item?.promotionRows),
+    ...asArray(item?.appliedPromotions),
+    ...asArray(item?.promotions),
+    ...asArray(item?.productSnapshot?.promotions),
+    ...asArray(item?.product?.promotions)
+  ];
+}
+
+function normalizeDmsPromotionRow(promo, item = {}) {
+  const promotionCode = promo?.promotionCode || promo?.code || promo?.programCode || promo?.ctkmCode || '';
+  const productCode = item.productCode || item.code || promo?.productCode || '';
+  const productName = item.productName || item.name || promo?.productName || '';
+  const fallbackQualifiedAmount =
+    item.priceBeforeTaxBeforePromotion ??
+    item.beforeTaxAmount ??
+    item.amountBeforeTax ??
+    item.lineAmount ??
+    item.amount ??
+    0;
+
+  return {
+    ...promo,
+    promotionCode,
+    code: promotionCode,
+    description: promo?.description || promo?.promotionDescription || promo?.programDescription || promo?.promotionName || promo?.name || promo?.title || '',
+    qualifiedAmount: promo?.qualifiedAmount ?? promo?.basisAmount ?? promo?.baseAmount ?? promo?.purchaseAmountBeforeTax ?? promo?.purchaseAmount ?? promo?.goodsAmountBeforeTax ?? promo?.goodsAmount ?? fallbackQualifiedAmount,
+    discountPercent: promo?.discountPercent ?? promo?.percent ?? promo?.rate ?? promo?.discountRate,
+    discountBeforeTax: promo?.discountBeforeTax ?? promo?.beforeTax ?? promo?.ckBeforeTax ?? promo?.discountAmountBeforeTax,
+    discountAfterTax: promo?.discountAfterTax ?? promo?.afterTax ?? promo?.ckAfterTax ?? promo?.discountAmountAfterTax,
+    promotionType: promo?.promotionType || promo?.type || promo?.scope || promo?.level || promo?.discountType,
+    productCode,
+    productName,
+    lineType: item.isPromotionGift ? 'PROMO' : (promo?.lineType || item.lineType || 'SALE')
+  };
+}
+
+function buildDmsPromotionDedupeKey(promo) {
+  return [
+    normalizeDmsPromotionCode(promo),
+    promo?.productCode || '',
+    Number(promo?.discountAfterTax ?? promo?.afterTax ?? promo?.ckAfterTax ?? promo?.discountAmountAfterTax ?? 0) || 0,
+    Number(promo?.qualifiedAmount ?? promo?.basisAmount ?? promo?.baseAmount ?? 0) || 0
+  ].join('|');
 }
 
 function getDmsPromotions(data) {
   const payload = getDmsPayload(data);
-  if (Array.isArray(payload.promotions) && payload.promotions.length) return payload.promotions;
-  return (data.promotions || []).map((promo) => ({
-    productCode: promo.productCode || '',
-    productName: promo.productName || '',
-    lineType: promo.lineType || '',
-    quantity: promo.quantity || promo.qty,
-    promotionCode: promo.promotionCode || promo.code,
-    code: promo.promotionCode || promo.code,
-    description: promo.description || promo.name,
-    qualifiedAmount: promo.qualifiedAmount || promo.basisAmount,
-    discountPercent: promo.discountPercent || promo.percent,
-    discountBeforeTax: promo.discountBeforeTax || promo.beforeTax,
-    discountAfterTax: promo.discountAfterTax || promo.afterTax
-  }));
+  const rows = [];
+
+  for (const promo of asArray(payload.promotions)) {
+    rows.push(normalizeDmsPromotionRow(promo));
+  }
+
+  for (const promo of asArray(data.promotions)) {
+    rows.push(normalizeDmsPromotionRow(promo));
+  }
+
+  for (const item of getDmsItems(data)) {
+    for (const promo of collectDmsItemPromotions(item)) {
+      rows.push(normalizeDmsPromotionRow(promo, item));
+    }
+  }
+
+  const seen = new Set();
+  return rows.filter((promo) => {
+    const code = normalizeDmsPromotionCode(promo);
+    if (!code) return false;
+    const key = buildDmsPromotionDedupeKey(promo);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function getDmsOffsets(data) {
