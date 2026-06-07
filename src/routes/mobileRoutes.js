@@ -1432,71 +1432,15 @@ function buildSalesMobileCustomerFilter(mobileUser = {}) {
 
 async function buildDebtFirstMobileCustomers(req) {
   const limit = Math.max(1, Math.min(toNumber(req.query.limit || 300), 500));
+  const baseFilter = buildSalesMobileCustomerFilter(req.mobileUser || {});
+  const customers = await Customer.find(baseFilter).limit(limit).lean();
   const debts = await buildMobileSalesDebtItems(req.mobileUser || {});
-  const debtLimited = debts.slice(0, limit);
-  const debtCustomerIds = compactKeys(debtLimited.map((item) => item.customerId));
-  const debtCustomerCodes = compactKeys(debtLimited.map((item) => item.customerCode));
-  const debtCustomerNames = compactKeys(debtLimited.map((item) => item.customerName));
-
-  const debtCustomerFilter = { $or: [] };
-  if (debtCustomerIds.length) debtCustomerFilter.$or.push({ $or: [{ id: { $in: debtCustomerIds } }, { customerId: { $in: debtCustomerIds } }, { _id: { $in: debtCustomerIds.filter((id) => /^[0-9a-fA-F]{24}$/.test(String(id))) } }] });
-  if (debtCustomerCodes.length) debtCustomerFilter.$or.push({ $or: [{ code: { $in: debtCustomerCodes } }, { customerCode: { $in: debtCustomerCodes } }] });
-  if (debtCustomerNames.length) debtCustomerFilter.$or.push({ $or: [{ name: { $in: debtCustomerNames } }, { customerName: { $in: debtCustomerNames } }] });
-
-  const debtCustomers = debtCustomerFilter.$or.length
-    ? await Customer.find(debtCustomerFilter).limit(limit * 2).lean()
-    : [];
-  const customerMap = new Map();
-  for (const customer of debtCustomers) {
-    for (const key of mobileCustomerIdentityKeys(customer)) {
-      if (!customerMap.has(key)) customerMap.set(key, customer);
-    }
-  }
-
-  const items = [];
-  const usedKeys = new Set();
-  for (const debt of debtLimited) {
-    const customer = compactKeys([debt.customerId, debt.customerCode, debt.customerName])
-      .map((key) => customerMap.get(key))
-      .find(Boolean);
-    const merged = {
-      ...(customer || {}),
-      id: (customer && (customer.id || customer._id)) || debt.customerId || debt.customerCode || debt.customerName,
-      code: (customer && (customer.code || customer.customerCode)) || debt.customerCode || '',
-      customerCode: (customer && (customer.customerCode || customer.code)) || debt.customerCode || '',
-      name: (customer && (customer.name || customer.customerName)) || debt.customerName || '',
-      customerName: (customer && (customer.customerName || customer.name)) || debt.customerName || '',
-      debtAmount: toNumber(debt.debtAmount || 0),
-      orderCount: toNumber(debt.orderCount || 0),
-      oldestDebtDate: debt.oldestDebtDate || ''
-    };
-    for (const key of mobileCustomerIdentityKeys(merged)) usedKeys.add(key);
-    items.push(merged);
-  }
-
-  const remaining = limit - items.length;
-  if (remaining > 0) {
-    const baseFilter = buildSalesMobileCustomerFilter(req.mobileUser || {});
-    const extras = await Customer.find(baseFilter)
-      .sort({ code: 1, customerCode: 1, name: 1 })
-      .limit(Math.min(remaining * 3, 1000))
-      .lean();
-
-    for (const customer of extras) {
-      const keys = mobileCustomerIdentityKeys(customer);
-      if (keys.some((key) => usedKeys.has(key))) continue;
-      for (const key of keys) usedKeys.add(key);
-      items.push({ ...customer, debtAmount: 0, orderCount: 0, oldestDebtDate: '' });
-      if (items.length >= limit) break;
-    }
-  }
-
-  const withLastOrder = await attachMobileCustomerLastOrderDates(items, req.mobileUser || {});
+  const withLastOrder = await attachMobileCustomerLastOrderDates(customers, req.mobileUser || {});
   return attachMobileCustomerDebt(withLastOrder, debts)
-    .sort((a, b) => {
-      const debtDelta = toNumber(b.debtAmount || 0) - toNumber(a.debtAmount || 0);
+    .sort((a,b)=> {
+      const debtDelta = toNumber(b.debtAmount||0)-toNumber(a.debtAmount||0);
       if (debtDelta) return debtDelta;
-      return String(a.code || a.customerCode || a.name || '').localeCompare(String(b.code || b.customerCode || b.name || ''), 'vi');
+      return String(a.code||a.customerCode||a.name||'').localeCompare(String(b.code||b.customerCode||b.name||''),'vi');
     });
 }
 
