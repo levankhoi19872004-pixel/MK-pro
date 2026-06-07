@@ -985,3 +985,71 @@ body.dms-print-body .mono { font-weight: 400; }
 .dms-promotion-table td {
   vertical-align: top;
 }
+
+/* V46 DMS summary split layout: left amount words + right calculation rows */
+.dms-summary-split-table,
+body.dms-print-body .dms-summary-split-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 0.8mm;
+  margin-bottom: 0;
+  font-size: 11px;
+}
+
+.dms-summary-split-table td,
+body.dms-print-body .dms-summary-split-table td {
+  border: none;
+  padding: 1px 2px;
+  line-height: 1.22;
+  vertical-align: top;
+}
+
+.dms-summary-left-cell,
+body.dms-print-body .dms-summary-left-cell {
+  width: 49%;
+  text-align: left;
+}
+
+.dms-summary-label-cell,
+body.dms-print-body .dms-summary-label-cell {
+  width: 39%;
+  text-align: left;
+}
+
+.dms-summary-value-cell,
+body.dms-print-body .dms-summary-value-cell {
+  width: 12%;
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dms-amount-words-cell,
+body.dms-print-body .dms-amount-words-cell {
+  font-weight: 400;
+  padding-top: 1px;
+}
+
+.dms-amount-words-cell b,
+body.dms-print-body .dms-amount-words-cell b {
+  font-weight: 700;
+}
+
+.dms-amount-words-text,
+body.dms-print-body .dms-amount-words-text {
+  font-weight: 400;
+}
+
+.dms-payable-row .dms-summary-label-cell,
+.dms-payable-row .dms-summary-value-cell,
+body.dms-print-body .dms-payable-row .dms-summary-label-cell,
+body.dms-print-body .dms-payable-row .dms-summary-value-cell {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dms-summary-split-table + .dms-signature,
+body.dms-print-body .dms-summary-split-table + .dms-signature {
+  margin-top: 1mm;
+}
