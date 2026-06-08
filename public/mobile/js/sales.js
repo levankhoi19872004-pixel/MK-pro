@@ -276,6 +276,106 @@ function quantityDisplayTL(item = {}) {
   return formatStockTL(Number(item.quantity || item.qty || 0), rate);
 }
 
+// MOBILE_SALES_CART_PROMOTION_RECALC_START
+function buildPromotionCartPayloadItem(item = {}) {
+  return {
+    productId: item.productId || item.id || item.productCode,
+    productCode: item.productCode || item.code,
+    productName: item.productName || item.name,
+    quantity: Number(item.quantity || 0),
+    conversionRate: normalizePackingRate(item),
+    grossPrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+    salePrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+    price: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0)
+  };
+}
+
+async function recalculateCartPromotions(options = {}) {
+  if (!cart.length) return;
+  const silent = !!options.silent;
+  try {
+    const data = await mobileApi.calculatePromotions({
+      date: todayValue(),
+      saleDate: todayValue(),
+      items: cart.map(buildPromotionCartPayloadItem)
+    });
+    const lines = Array.isArray(data?.result?.lines) ? data.result.lines : [];
+    const byCode = new Map(lines.map((line) => [String(line.productCode || line.code || '').trim(), line]));
+
+    cart = cart.map((item) => {
+      const code = String(item.productCode || item.code || '').trim();
+      const line = byCode.get(code) || {};
+      const quantity = Number(item.quantity || 0);
+      const grossPrice = Number(line.catalogSalePrice || item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
+      const grossAmount = Math.round(quantity * grossPrice);
+      const directDiscountAmount = Number(line.directDiscountAmount || 0);
+      const groupDiscountAmount = Number(line.groupDiscountAmount || 0);
+      const discountAmount = Math.min(grossAmount, Math.max(0, directDiscountAmount + groupDiscountAmount));
+      const amount = Math.max(0, grossAmount - discountAmount);
+      const finalPrice = quantity > 0 ? Math.round(amount / quantity) : grossPrice;
+      const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+      const firstPromotion = promotionRows[0] || line.directPromotionRule || {};
+
+      return attachPackingRate({
+        ...item,
+        originalPrice: grossPrice,
+        grossPrice,
+        catalogSalePrice: grossPrice,
+        grossAmount,
+        directDiscountPercent: Number(line.directDiscountPercent || 0),
+        groupDiscountPercent: Number(line.groupDiscountPercent || 0),
+        discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
+        directDiscountAmount,
+        groupDiscountAmount,
+        discountAmount,
+        promotionAmount: discountAmount,
+        totalDiscountAmount: discountAmount,
+        finalPrice,
+        unitPrice: finalPrice,
+        salePrice: finalPrice,
+        price: finalPrice,
+        amount,
+        netAmount: amount,
+        saleMethod: 'promotion',
+        saleMode: 'promotion',
+        pricingMode: 'promotion',
+        priceLocked: true,
+        lockedPrice: true,
+        lockedPromotion: true,
+        promotionCalculated: true,
+        promotionCode: line.promotionCode || firstPromotion.promotionCode || firstPromotion.code || firstPromotion.programCode || '',
+        promotionName: line.promotionName || firstPromotion.description || firstPromotion.programName || firstPromotion.name || '',
+        promotionRows
+      }, item);
+    });
+  } catch (err) {
+    if (!silent) setMessage(message, err.message || 'Không tính được khuyến mại cho giỏ hàng', 'error');
+    // Fallback an toàn: vẫn tính theo giá gốc để app không bị treo, backend sẽ tính lại khi lưu đơn.
+    cart = cart.map((item) => {
+      const quantity = Number(item.quantity || 0);
+      const grossPrice = Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
+      return {
+        ...item,
+        originalPrice: grossPrice,
+        grossPrice,
+        catalogSalePrice: grossPrice,
+        unitPrice: grossPrice,
+        salePrice: grossPrice,
+        price: grossPrice,
+        discountAmount: 0,
+        promotionAmount: 0,
+        totalDiscountAmount: 0,
+        amount: Math.round(quantity * grossPrice),
+        saleMethod: 'promotion',
+        saleMode: 'promotion',
+        pricingMode: 'promotion',
+        priceLocked: true
+      };
+    });
+  }
+}
+// MOBILE_SALES_CART_PROMOTION_RECALC_END
+
 function toMobileProduct(product = {}) {
   const availableQty = Number(
     product._availableQty ??
@@ -414,7 +514,8 @@ function initProductAutocomplete() {
 }
 
 
-document.getElementById('addItemBtn').addEventListener('click', () => {
+document.getElementById('addItemBtn').addEventListener('click', async () => {
+  // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_START
   setMessage(message, '');
   if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng ở tab 1', 'error');
   if (!selectedProduct) return setMessage(message, 'Chưa chọn sản phẩm', 'error');
@@ -430,12 +531,15 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
   const availableQty = Number(selectedProduct.availableQty || 0);
   if (availableQty > 0 && qty > availableQty) return setMessage(message, 'Số lượng vượt tồn mở bán', 'error');
 
+  const grossPrice = Number(selectedProduct.salePrice || selectedProduct.price || 0);
   const existed = cart.find((item) => item.productCode === selectedProduct.code);
   if (existed) {
-    const nextQty = existed.quantity + qty;
+    const nextQty = Number(existed.quantity || 0) + qty;
     if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
     existed.quantity = nextQty;
-    existed.amount = existed.quantity * existed.salePrice;
+    existed.originalPrice = Number(existed.originalPrice || existed.grossPrice || existed.catalogSalePrice || grossPrice);
+    existed.grossPrice = existed.originalPrice;
+    existed.catalogSalePrice = existed.originalPrice;
     attachPackingRate(existed, {
       conversionRate: existed.conversionRate || selectedProduct.conversionRate,
       unitsPerCase: existed.unitsPerCase || selectedProduct.unitsPerCase,
@@ -445,15 +549,28 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
       packageQty: selectedProduct.packageQty
     });
   } else {
-    const salePrice = Number(selectedProduct.salePrice || selectedProduct.price || 0);
     cart.push(attachPackingRate({
       productId: selectedProduct.id,
       productCode: selectedProduct.code,
       productName: selectedProduct.name,
       unit: selectedProduct.unit,
       quantity: qty,
-      salePrice,
-      amount: qty * salePrice
+      originalPrice: grossPrice,
+      grossPrice,
+      catalogSalePrice: grossPrice,
+      grossAmount: Math.round(qty * grossPrice),
+      unitPrice: grossPrice,
+      salePrice: grossPrice,
+      price: grossPrice,
+      finalPrice: grossPrice,
+      discountAmount: 0,
+      promotionAmount: 0,
+      totalDiscountAmount: 0,
+      amount: Math.round(qty * grossPrice),
+      saleMethod: 'promotion',
+      saleMode: 'promotion',
+      pricingMode: 'promotion',
+      priceLocked: true
     }, selectedProduct));
   }
 
@@ -463,8 +580,10 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
   looseQtyInput.value = '';
   selectedProductBox.textContent = 'Chưa chọn sản phẩm';
   selectedProductBox.classList.add('muted');
+  await recalculateCartPromotions();
   renderCart();
-  setMessage(message, 'Đã thêm vào giỏ hàng', 'success');
+  setMessage(message, 'Đã thêm vào giỏ hàng và áp giá sau khuyến mại', 'success');
+  // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_END
 });
 
 function renderCart() {
@@ -498,9 +617,12 @@ function renderCart() {
   // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_END
 
   cartList.querySelectorAll('[data-remove]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
+      // MOBILE_SALES_CART_PROMOTION_RECALC_REMOVE_START
       cart.splice(Number(btn.dataset.remove), 1);
+      await recalculateCartPromotions({ silent: true });
       renderCart();
+      // MOBILE_SALES_CART_PROMOTION_RECALC_REMOVE_END
     });
   });
 }
@@ -584,12 +706,28 @@ submitOrderBtn.addEventListener('click', async () => {
 
   try {
     const paidAmount = Number(paidAmountInput.value || 0);
+    // MOBILE_SALES_CART_PROMOTION_RECALC_SUBMIT_START
+    await recalculateCartPromotions({ silent: true });
     const payload = {
       customer: selectedCustomer,
-      items: cart,
+      items: cart.map((item) => ({
+        ...item,
+        grossPrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+        originalPrice: Number(item.originalPrice || item.grossPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+        unitPrice: Number(item.unitPrice || item.finalPrice || item.salePrice || item.price || 0),
+        salePrice: Number(item.salePrice || item.unitPrice || item.finalPrice || item.price || 0),
+        finalPrice: Number(item.finalPrice || item.unitPrice || item.salePrice || item.price || 0),
+        discountAmount: Number(item.discountAmount || item.promotionAmount || item.totalDiscountAmount || 0),
+        amount: Number(item.amount || 0),
+        saleMode: 'promotion',
+        saleMethod: 'promotion',
+        pricingMode: 'promotion',
+        priceLocked: true
+      })),
       paidAmount,
       note: editingOrderId ? 'Sửa từ app bán hàng mobile' : 'Tạo từ app bán hàng mobile'
     };
+    // MOBILE_SALES_CART_PROMOTION_RECALC_SUBMIT_END
     const data = editingOrderId
       ? await mobileApi.updateSalesOrder(editingOrderId, payload)
       : await mobileApi.createSalesOrder(payload);
@@ -669,6 +807,9 @@ async function editTodayOrder(orderId) {
     paidAmountInput.value = Number(order.paidAmount || 0);
     orderFormTitle.textContent = `Sửa đơn ${order.code || ''}`;
     submitOrderBtn.textContent = `Lưu sửa đơn ${order.code || ''}`;
+    // MOBILE_SALES_CART_PROMOTION_RECALC_EDIT_START
+    await recalculateCartPromotions({ silent: true });
+    // MOBILE_SALES_CART_PROMOTION_RECALC_EDIT_END
     renderCart();
     setMessage(message, `Đang sửa đơn ${order.code || ''}. Chỉ sửa được khi chưa gộp đơn tổng.`, 'success');
     switchTab('orderTab');

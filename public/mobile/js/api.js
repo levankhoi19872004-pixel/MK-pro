@@ -122,6 +122,11 @@ export const mobileApi = {
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return apiRequest(`${MOBILE_ROUTES.products}${suffix}`);
   },
+  // MOBILE_SALES_CART_PROMOTION_RECALC_API_START
+  calculatePromotions(payload = {}) {
+    return apiRequest('/api/promotions/calculate', { method: 'POST', body: JSON.stringify(payload) });
+  },
+  // MOBILE_SALES_CART_PROMOTION_RECALC_API_END
   getStock(q = '') {
     return apiRequest(`${MOBILE_ROUTES.stock}?q=${encodeURIComponent(q)}`);
   },
