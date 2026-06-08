@@ -4,6 +4,31 @@ const calculateCartonUnit = v45PrintCommon.calculateCartonUnit;
 const today = v45PrintCommon.todayValue;
 const toDateOnly = v45PrintCommon.toDateOnly;
 function money(value){return Number(value||0).toLocaleString('vi-VN')}
+function normalizePackingRate(source = {}){
+  const rate = Number(
+    source.conversionRate ??
+    source.unitsPerCase ??
+    source.packingQty ??
+    source.packQty ??
+    source.packageQty ??
+    source.packingRate ??
+    1
+  );
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+function formatQtyTL(qty, rate){
+  const total = Number(qty || 0);
+  const packingRate = normalizePackingRate({ conversionRate: rate });
+  const carton = Math.floor(total / packingRate);
+  const loose = total % packingRate;
+  return `${carton}/${loose}`;
+}
+function displayQtyTL(qty, item = {}){
+  return formatQtyTL(qty, normalizePackingRate(item));
+}
+window.normalizePackingRate = window.normalizePackingRate || normalizePackingRate;
+window.formatQtyTL = window.formatQtyTL || formatQtyTL;
+window.displayQtyTL = window.displayQtyTL || displayQtyTL;
 function productPackingText(p){
   if(!p)return '';
   if(p.packing)return p.packing;
@@ -11,7 +36,18 @@ function productPackingText(p){
   return '';
 }
 function productLineMeta(p){
-  return {unit:p.unit||'',baseUnit:p.baseUnit||'',conversionRate:Number(p.conversionRate||1),packing:productPackingText(p),units:Array.isArray(p.units)?p.units:[],warehouseCode:p.warehouseCode||p.defaultWarehouse||'KHO_HC',warehouseName:p.warehouseName||((p.warehouseCode||p.defaultWarehouse)==='KHO_PC'?'KHO PC':'KHO HC')};
+  const conversionRate = normalizePackingRate(p);
+  return {
+    unit:p.unit||'',
+    baseUnit:p.baseUnit||'',
+    conversionRate,
+    packingQty:conversionRate,
+    unitsPerCase:conversionRate,
+    packing:productPackingText({...p, conversionRate}),
+    units:Array.isArray(p.units)?p.units:[],
+    warehouseCode:p.warehouseCode||p.defaultWarehouse||'KHO_HC',
+    warehouseName:p.warehouseName||((p.warehouseCode||p.defaultWarehouse)==='KHO_PC'?'KHO PC':'KHO HC')
+  };
 }
 function getProductKey(p){return String(p?.code||p?.id||'')}
 function extractProductCodeFromInput(value){
@@ -49,7 +85,8 @@ function findProductByKey(key){
   return null;
 }
 function formatCaseLooseStock(quantity, conversionRate){
-  return calculateCartonUnit(quantity, conversionRate).display;
+  if(typeof calculateCartonUnit === 'function') return calculateCartonUnit(quantity, conversionRate).display;
+  return formatQtyTL(quantity, conversionRate);
 }
 window.calculateCartonUnit=window.calculateCartonUnit||calculateCartonUnit;
 function productAvailableQty(p){

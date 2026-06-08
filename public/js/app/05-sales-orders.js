@@ -673,7 +673,35 @@ async function openSalesOrderEdit(idx){
   const editMode=resolveSalesOrderEditMode(order);
   // Khi sửa đơn: APP/mobile mặc định bán theo khuyến mại, DMS/import mặc định bán thẳng; radio vẫn cho đổi linh hoạt.
   setSalesMode(editMode);
-  salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}));
+  salesItems=(order.items||[]).map(i=>{
+    const sourceProduct = findProductByKey(i.productCode || i.productId) || {};
+    const lineSource = {
+      ...sourceProduct,
+      ...i,
+      conversionRate: i.conversionRate ?? i.unitsPerCase ?? i.packingQty ?? sourceProduct.conversionRate ?? sourceProduct.unitsPerCase ?? sourceProduct.packingQty,
+      unitsPerCase: i.unitsPerCase ?? i.conversionRate ?? i.packingQty ?? sourceProduct.unitsPerCase ?? sourceProduct.conversionRate ?? sourceProduct.packingQty,
+      packingQty: i.packingQty ?? i.conversionRate ?? i.unitsPerCase ?? sourceProduct.packingQty ?? sourceProduct.conversionRate ?? sourceProduct.unitsPerCase
+    };
+    const meta = productLineMeta(lineSource);
+    return {
+      productId:i.productId||i.productCode,
+      productCode:i.productCode,
+      productName:i.productName,
+      ...meta,
+      quantity:Number(i.quantity||0),
+      grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),
+      discountPercent:Number(i.discountPercent||0),
+      discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),
+      finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),
+      salePrice:Number(i.salePrice||i.price||0),
+      price:Number(i.salePrice||i.price||0),
+      amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),
+      saleMethod:i.saleMethod||i.saleMode||editMode,
+      saleMode:i.saleMode||editMode,
+      pricingMode:i.pricingMode||editMode,
+      priceLocked:true
+    };
+  });
   salesForm.elements.date.value=toDateOnly(order.orderDate||order.date||order.documentDate||order.importDate||order.displayDate||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
