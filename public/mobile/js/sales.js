@@ -249,9 +249,30 @@ function selectCustomer(customer) {
 }
 
 
+function normalizePackingRate(source = {}) {
+  const rate = Number(
+    source.conversionRate ??
+    source.unitsPerCase ??
+    source.packingQty ??
+    source.packQty ??
+    source.pack ??
+    source.packageQty ??
+    1
+  );
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+}
+
+function attachPackingRate(target = {}, source = {}) {
+  const conversionRate = normalizePackingRate(source);
+  target.conversionRate = conversionRate;
+  target.packingQty = conversionRate;
+  target.unitsPerCase = conversionRate;
+  return target;
+}
+
 function formatStockTL(qty, rate){ return calculateCartonUnit(qty, rate).display; }
 function quantityDisplayTL(item = {}) {
-  const rate = Number(item.conversionRate || item.unitsPerCase || item.packingQty || 1);
+  const rate = normalizePackingRate(item);
   return formatStockTL(Number(item.quantity || item.qty || 0), rate);
 }
 
@@ -276,8 +297,10 @@ function toMobileProduct(product = {}) {
     salePrice: Number(product.salePrice || product.price || 0),
     availableQty,
     stockQuantity: availableQty,
-    conversionRate: Number(product.conversionRate || product.unitsPerCase || 1),
-    stockDisplay: formatStockTL(availableQty, Number(product.conversionRate || product.unitsPerCase || 1))
+    conversionRate: normalizePackingRate(product),
+    packingQty: normalizePackingRate(product),
+    unitsPerCase: normalizePackingRate(product),
+    stockDisplay: formatStockTL(availableQty, normalizePackingRate(product))
   };
 }
 
@@ -398,7 +421,7 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
 
   const caseQty = Number(caseQtyInput?.value || 0);
   const looseQty = Number(looseQtyInput?.value || 0);
-  const packingRate = Number(selectedProduct.conversionRate || selectedProduct.unitsPerCase || 0);
+  const packingRate = normalizePackingRate(selectedProduct);
   const qty = (caseQty > 0 && packingRate > 0 ? caseQty * packingRate : 0) + looseQty;
   if (qty <= 0) return setMessage(message, 'Số lượng phải lớn hơn 0', 'error');
 
@@ -413,16 +436,25 @@ document.getElementById('addItemBtn').addEventListener('click', () => {
     if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
     existed.quantity = nextQty;
     existed.amount = existed.quantity * existed.salePrice;
+    attachPackingRate(existed, {
+      conversionRate: existed.conversionRate || selectedProduct.conversionRate,
+      unitsPerCase: existed.unitsPerCase || selectedProduct.unitsPerCase,
+      packingQty: existed.packingQty || selectedProduct.packingQty,
+      packQty: selectedProduct.packQty,
+      pack: selectedProduct.pack,
+      packageQty: selectedProduct.packageQty
+    });
   } else {
-    cart.push({
+    const salePrice = Number(selectedProduct.salePrice || selectedProduct.price || 0);
+    cart.push(attachPackingRate({
       productId: selectedProduct.id,
       productCode: selectedProduct.code,
       productName: selectedProduct.name,
       unit: selectedProduct.unit,
       quantity: qty,
-      salePrice: selectedProduct.salePrice || selectedProduct.price || 0,
-      amount: qty * Number(selectedProduct.salePrice || selectedProduct.price || 0)
-    });
+      salePrice,
+      amount: qty * salePrice
+    }, selectedProduct));
   }
 
   selectedProduct = null;
