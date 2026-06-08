@@ -634,12 +634,30 @@ async function loadImportOrders(){
     updateImportDateFilterInfo(orders.length);
     window.__importOrdersCache=orders;
     if(!orders.length){importOrderList.innerHTML='Không có phiếu nhập trong khoảng thời gian đã chọn.';return}
-    importOrderList.innerHTML=orders.map((o,idx)=>{const posted=String(o.status||'draft').toLowerCase()==='posted';const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';return `<div class="order-card">
-      <div class="order-card-head"><label><input type="checkbox" class="import-order-check" data-idx="${idx}"> <strong>${o.code||o.id}</strong> <span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span></label><div>${posted?'<span class="status-badge ok">Đã nhập kho</span>':`<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ đơn</button>`}</div></div>
-      <div class="order-meta">Ngày nhập: ${displayDate} · Nhà cung cấp: ${o.supplier||'Chưa khai báo'} · Tổng SL: ${money(o.totalQuantity)} · Tổng tiền: ${money(o.totalAmount)}</div>
-      ${o.note?`<div class="order-meta">Ghi chú: ${o.note}</div>`:''}
-      <div data-import-detail="${idx}"></div>
-    </div>`}).join('');
+    // IMPORT_LAYOUT_VERTICAL_V2_START: chỉ đổi HTML render danh sách phiếu nhập sang 1 dòng, không đổi API/logic
+    importOrderList.classList.add('import-order-one-line-list');
+    importOrderList.innerHTML=orders.map((o,idx)=>{
+      const posted=String(o.status||'draft').toLowerCase()==='posted';
+      const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';
+      const supplier=o.supplier||'Chưa khai báo';
+      const code=o.code||o.id||'';
+      const statusHtml=`<span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span>`;
+      const actionHtml=posted
+        ? '<span class="status-badge ok">Đã nhập kho</span>'
+        : `<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ đơn</button>`;
+      return `<div class="import-order-one-line-row" title="${code} - ${supplier}${o.note?' - '+o.note:''}">
+        <div><input type="checkbox" class="import-order-check" data-idx="${idx}"></div>
+        <div class="import-order-cell-code">${code}</div>
+        <div class="import-order-cell">${displayDate}</div>
+        <div class="import-order-cell">${supplier}</div>
+        <div class="import-order-cell">SL: ${money(o.totalQuantity)}</div>
+        <div class="import-order-cell import-order-money">${money(o.totalAmount)}</div>
+        <div class="import-order-cell">${statusHtml}</div>
+        <div class="import-order-actions">${actionHtml}</div>
+        <div data-import-detail="${idx}" hidden></div>
+      </div>`;
+    }).join('');
+    // IMPORT_LAYOUT_VERTICAL_V2_END
   }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.innerHTML=err.message}
 }
 initImportDateFilterControls();

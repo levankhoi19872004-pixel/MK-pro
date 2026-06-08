@@ -252,40 +252,62 @@
           <button type="button" id="closeImportOrderModalButton" class="secondary small">Đóng</button>
         </div>
         <div class="import-order-workspace-body">
-          <form id="importForm" class="form import-order-workspace-form">
-            <div class="two-cols">
-              <label>Ngày nhập<input name="date" type="date" /></label>
-              <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
-            <div class="import-line-box">
-              <h3>Thêm dòng hàng</h3>
-              <label>Sản phẩm
-                <div class="autocomplete">
-                  <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
-                  <input id="importProductSelect" type="hidden" />
-                  <div id="importProductSuggestions" class="suggestions" hidden></div>
-                </div>
-              </label>
-              <div class="two-cols">
+          <!-- IMPORT_LAYOUT_VERTICAL_V2_START: bố cục dọc gọn, chỉ thay đổi trình bày popup nhập kho -->
+          <form id="importForm" class="form import-order-workspace-form import-vertical-layout">
+            <section class="import-vertical-section import-info-compact">
+              <div class="import-section-title">
+                <h4>1. Thông tin phiếu nhập</h4>
+              </div>
+              <div class="import-info-row">
+                <label>Ngày nhập<input name="date" type="date" /></label>
+                <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
+                <label class="import-note-field">Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
+              </div>
+            </section>
+
+            <section class="import-vertical-section import-line-compact">
+              <div class="import-section-title">
+                <h4>2. Thêm dòng hàng</h4>
+              </div>
+              <div class="import-line-row">
+                <label class="import-product-field">Sản phẩm
+                  <div class="autocomplete">
+                    <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                    <input id="importProductSelect" type="hidden" />
+                    <div id="importProductSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
                 <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
                 <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" readonly /></label>
+                <button type="button" id="addImportItemButton" class="secondary import-add-line-button">Thêm vào phiếu</button>
               </div>
-              <button type="button" id="addImportItemButton" class="secondary">Thêm vào phiếu</button>
-            </div>
-            <div class="table-wrap compact">
-              <table>
-                <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
-                <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
-              </table>
-            </div>
-            <div class="summary-box"><span>Tổng SL: <strong id="importTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="importTotalAmount">0</strong></span></div>
-            <div class="form-actions import-form-actions">
-              <button type="submit">Lưu phiếu nhập nháp</button>
-              <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
+            </section>
+
+            <section class="import-vertical-section import-items-section">
+              <div class="import-section-title">
+                <h4>3. Danh sách hàng đã thêm</h4>
+              </div>
+              <div class="table-wrap compact import-items-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
+                  <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <div class="import-sticky-footer">
+              <div class="summary-box import-footer-summary">
+                <span>Tổng SL: <strong id="importTotalQuantity">0</strong></span>
+                <span>Tổng tiền: <strong id="importTotalAmount">0</strong></span>
+              </div>
+              <div class="form-actions import-form-actions">
+                <button type="submit">Lưu phiếu nhập nháp</button>
+                <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
+              </div>
             </div>
           </form>
           <p id="importMessage" class="message"></p>
+          <!-- IMPORT_LAYOUT_VERTICAL_V2_END -->
         </div>
       </section>
     </div>

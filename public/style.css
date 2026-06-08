@@ -8596,3 +8596,190 @@ body::after{
   .import-history-actions .primary-action,.import-history-actions .secondary{width:100%;}
 }
 /* IMPORT_ORDER_POPUP_PATCH_END */
+
+/* IMPORT_LAYOUT_VERTICAL_V2_START: cô lập layout dọc cho popup nhập kho và danh sách phiếu nhập 1 dòng */
+#importTab .import-order-one-line-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+#importTab .import-order-one-line-row{
+  display:grid;
+  grid-template-columns:34px minmax(120px,1.1fr) minmax(98px,.8fr) minmax(150px,1.1fr) minmax(92px,.8fr) minmax(120px,.9fr) minmax(96px,.8fr) minmax(190px,auto);
+  align-items:center;
+  gap:10px;
+  min-height:52px;
+  padding:10px 12px;
+  border:1px solid #dbe7f5;
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(15,23,42,.03);
+}
+#importTab .import-order-one-line-row:hover{
+  border-color:#bcd3f7;
+  background:#f8fbff;
+}
+#importTab .import-order-cell-code{
+  font-weight:900;
+  color:#1d4ed8;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#importTab .import-order-cell{
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:#334155;
+  font-size:13px;
+}
+#importTab .import-order-money{
+  color:#047857;
+  font-weight:900;
+  text-align:right;
+}
+#importTab .import-order-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:6px;
+  flex-wrap:wrap;
+}
+#importOrderModal .import-order-workspace-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:hidden;
+  padding:12px 18px 14px;
+}
+#importOrderModal .import-vertical-layout{
+  height:100%;
+  max-height:100%;
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  gap:10px;
+  min-height:0;
+}
+#importOrderModal .import-vertical-section{
+  border:1px solid #dbe7f5;
+  border-radius:12px;
+  background:#fff;
+  padding:10px 12px;
+  min-width:0;
+}
+#importOrderModal .import-section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+}
+#importOrderModal .import-section-title h4{
+  margin:0;
+  font-size:14px;
+  font-weight:900;
+  color:#0f172a;
+}
+#importOrderModal .import-info-row{
+  display:grid;
+  grid-template-columns:minmax(150px,.75fr) minmax(220px,1fr) minmax(320px,1.6fr);
+  gap:10px;
+  align-items:end;
+}
+#importOrderModal .import-line-row{
+  display:grid;
+  grid-template-columns:minmax(360px,1fr) minmax(120px,.32fr) minmax(150px,.38fr) auto;
+  gap:10px;
+  align-items:end;
+}
+#importOrderModal .import-info-row label,
+#importOrderModal .import-line-row label{
+  margin:0;
+}
+#importOrderModal .import-info-row input,
+#importOrderModal .import-line-row input{
+  height:36px;
+}
+#importOrderModal .import-add-line-button{
+  height:36px;
+  white-space:nowrap;
+}
+#importOrderModal .import-items-section{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  padding-bottom:8px;
+}
+#importOrderModal .import-items-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+}
+#importOrderModal .import-items-scroll table{
+  margin:0;
+}
+#importOrderModal .import-items-scroll thead th{
+  position:sticky;
+  top:0;
+  z-index:1;
+  background:#f1f5f9;
+}
+#importOrderModal .import-sticky-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0 0;
+  border-top:1px solid #e2e8f0;
+  background:#fff;
+}
+#importOrderModal .import-footer-summary{
+  flex:1 1 auto;
+  margin:0;
+  min-height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+#importOrderModal .import-form-actions{
+  position:static;
+  padding:0;
+  border:0;
+  background:transparent;
+  margin:0;
+  flex:0 0 auto;
+}
+@media(max-width:1100px){
+  #importTab .import-order-one-line-row{
+    grid-template-columns:28px minmax(120px,1fr) minmax(90px,.8fr) minmax(140px,1fr) minmax(85px,.7fr) minmax(110px,.9fr) minmax(92px,.8fr) minmax(160px,auto);
+    overflow:auto;
+  }
+  #importOrderModal .import-info-row,
+  #importOrderModal .import-line-row{
+    grid-template-columns:1fr 1fr;
+  }
+  #importOrderModal .import-product-field,
+  #importOrderModal .import-note-field{
+    grid-column:1 / -1;
+  }
+}
+@media(max-width:760px){
+  #importOrderModal .import-order-workspace-body{overflow:auto;}
+  #importOrderModal .import-vertical-layout{height:auto;min-height:100%;}
+  #importOrderModal .import-info-row,
+  #importOrderModal .import-line-row{
+    grid-template-columns:1fr;
+  }
+  #importOrderModal .import-sticky-footer{
+    position:sticky;
+    bottom:0;
+    flex-direction:column;
+    align-items:stretch;
+  }
+  #importOrderModal .import-form-actions,
+  #importOrderModal .import-form-actions button{
+    width:100%;
+  }
+}
+/* IMPORT_LAYOUT_VERTICAL_V2_END */
