@@ -1182,9 +1182,14 @@ resetButton.addEventListener('click',resetForm);
   function activateProgramTab(type){
     if(!TYPE_CONFIG[type])return;
     activeType=type;
-    // PROMOTION_SEPARATE_POPUP_STATE_START: màn chính hiển thị cả 3 danh sách, không ẩn/hiện bằng tab nữa.
-    document.querySelectorAll('[data-promotion-program-panel]').forEach(panel=>panel.classList.add('active'));
-    // PROMOTION_SEPARATE_POPUP_STATE_END
+    // PROMOTION_MAIN_TAB_STATE_START: màn chính giữ 3 tab, chỉ hiển thị danh sách của tab đang chọn; popup vẫn tách riêng theo nghiệp vụ.
+    document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.promotionProgramTab === type);
+    });
+    document.querySelectorAll('[data-promotion-program-panel]').forEach(panel=>{
+      panel.classList.toggle('active', panel.dataset.promotionProgramPanel === type);
+    });
+    // PROMOTION_MAIN_TAB_STATE_END
   }
 
   async function refreshSelected(type){

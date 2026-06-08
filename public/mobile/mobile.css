@@ -1286,28 +1286,29 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 }
 
 /* MOBILE_PRODUCT_ORDER_LAYOUT_START: tối ưu vùng chọn sản phẩm cho NVBH thao tác ngoài thị trường */
+/* MOBILE_PRODUCT_ENTRY_COMPACT_BALANCE_START: giảm cỡ chữ và chiều cao control để cân đối màn hình mobile */
 /* MOBILE_PRODUCT_SEARCH_UI_START */
 #orderTab #productSearch.mobile-product-search-input {
   width: 100%;
-  min-height: 60px;
-  height: 60px;
-  padding: 0 16px;
-  border-radius: 16px;
-  font-size: 18px;
-  font-weight: 700;
+  min-height: 52px;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
   box-sizing: border-box;
 }
 /* MOBILE_PRODUCT_SEARCH_UI_END */
 
 /* MOBILE_SELECTED_PRODUCT_CARD_START */
 #orderTab #selectedProduct.mobile-selected-product-card {
-  margin-top: 12px;
-  padding: 16px;
-  border-radius: 18px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
   border-style: solid;
   background: #f8fbff;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.35;
 }
 #orderTab #selectedProduct.mobile-selected-product-card.muted {
   border-style: dashed;
@@ -1315,11 +1316,11 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   background: #fbfdff;
 }
 #orderTab #selectedProduct .mobile-selected-product-name {
-  font-size: 16px;
-  font-weight: 900;
+  font-size: 15px;
+  font-weight: 800;
   color: #0f172a;
-  line-height: 1.3;
-  margin-bottom: 10px;
+  line-height: 1.25;
+  margin-bottom: 8px;
 }
 #orderTab #selectedProduct .mobile-selected-product-meta {
   display: grid;
@@ -1328,18 +1329,18 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 }
 #orderTab #selectedProduct .mobile-selected-product-meta span {
   display: block;
-  padding: 8px 10px;
-  border-radius: 12px;
+  padding: 7px 9px;
+  border-radius: 11px;
   border: 1px solid #dbe4f0;
   background: #ffffff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
 }
 #orderTab #selectedProduct .mobile-selected-product-meta strong {
   display: block;
   color: #0f172a;
-  font-size: 15px;
+  font-size: 14px;
   margin-top: 2px;
 }
 /* MOBILE_SELECTED_PRODUCT_CARD_END */
@@ -1348,35 +1349,35 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 #orderTab .qty-row.three-cols.mobile-product-qty-row {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 10px;
 }
 #orderTab .mobile-qty-input {
-  min-height: 68px;
-  height: 68px;
-  border-radius: 16px;
+  min-height: 56px;
+  height: 56px;
+  border-radius: 14px;
   font-size: 22px;
-  font-weight: 900;
+  font-weight: 700;
   text-align: center;
   box-sizing: border-box;
 }
 #orderTab #caseQtyInput.mobile-case-qty-input {
-  min-height: 68px;
+  min-height: 56px;
 }
 #orderTab #looseQtyInput.mobile-loose-qty-input {
-  min-height: 68px;
+  min-height: 56px;
 }
 /* MOBILE_CASE_QTY_UI_END / MOBILE_LOOSE_QTY_UI_END */
 
 /* MOBILE_ADD_TO_CART_UI_START */
 #orderTab #addItemBtn.mobile-add-to-cart-btn {
   width: 100%;
-  min-height: 68px;
-  height: 68px;
-  margin-top: 12px;
-  border-radius: 16px;
+  min-height: 52px;
+  height: 52px;
+  margin-top: 10px;
+  border-radius: 14px;
   font-size: 18px;
-  font-weight: 900;
-  letter-spacing: .2px;
+  font-weight: 700;
+  letter-spacing: .1px;
 }
 /* MOBILE_ADD_TO_CART_UI_END */
 
@@ -1388,4 +1389,5 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
     grid-template-columns: 1fr 1fr;
   }
 }
+/* MOBILE_PRODUCT_ENTRY_COMPACT_BALANCE_END */
 /* MOBILE_PRODUCT_ORDER_LAYOUT_END */

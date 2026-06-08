@@ -9302,36 +9302,45 @@ body::after{
 }
 /* PROMOTION_POPUP_LAYOUT_END */
 
-/* PROMOTION_SEPARATE_POPUPS_CSS_START: tách 3 popup khuyến mại, bỏ thanh tab chung gây lẫn nghiệp vụ */
-#promotionsTab .promotion-entry-grid{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(220px,1fr));
-  gap:12px;
+/* PROMOTION_MAIN_TAB_SEPARATE_POPUPS_CSS_START: khôi phục tab ngoài màn chính, chỉ hiện 1 danh sách theo tab; popup tạo/sửa vẫn riêng */
+#promotionsTab .promotion-type-tabs-card{
+  padding:10px 12px;
   margin:12px 0;
 }
-#promotionsTab .promotion-entry-card{
-  display:flex;
-  flex-direction:column;
+#promotionsTab .promotion-type-tabs{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(180px,1fr));
   gap:8px;
-  min-height:132px;
 }
-#promotionsTab .promotion-entry-card h3{
-  margin:0;
-  color:#0f172a;
+#promotionsTab .promotion-type-tabs button{
+  border:1px solid #d7e2f1;
+  background:#f8fafc;
+  color:#1e293b;
+  border-radius:12px;
+  padding:11px 14px;
+  font-weight:800;
+  box-shadow:none;
 }
-#promotionsTab .promotion-entry-card button{
-  margin-top:auto;
-  align-self:flex-start;
+#promotionsTab .promotion-type-tabs button.active{
+  background:#1d4ed8;
+  color:#fff;
+  border-color:#1d4ed8;
+  box-shadow:0 8px 18px rgba(29,78,216,.18);
 }
-#promotionsTab .promotion-type-tabs-card,
-#promotionsTab .promotion-type-tabs,
+#promotionsTab .promotion-entry-grid,
+#promotionsTab .promotion-entry-card{
+  display:none !important;
+}
 #promotionsTab .promotion-workspace-tabs{
   display:none !important;
 }
 #promotionsTab .promotion-program-panel{
-  display:grid !important;
+  display:none !important;
   grid-template-columns:1fr !important;
   margin-top:12px;
+}
+#promotionsTab .promotion-program-panel.active{
+  display:grid !important;
 }
 #promotionsTab .promotion-program-panel > .promotion-program-detail{
   display:none;
@@ -9347,7 +9356,7 @@ body::after{
   border:0;
   padding:0;
 }
-@media(max-width:1100px){
-  #promotionsTab .promotion-entry-grid{grid-template-columns:1fr;}
+@media(max-width:900px){
+  #promotionsTab .promotion-type-tabs{grid-template-columns:1fr;}
 }
-/* PROMOTION_SEPARATE_POPUPS_CSS_END */
+/* PROMOTION_MAIN_TAB_SEPARATE_POPUPS_CSS_END */
