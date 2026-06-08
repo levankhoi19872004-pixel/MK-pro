@@ -988,11 +988,17 @@ function renderSalesOrderRows(orders, {append=false} = {}){
   const html=(orders||[]).map((o,localIdx)=>{
     const idx=startIndex+localIdx;
     const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
+    // SALES_HISTORY_NVBH_COLUMN_PATCH_START: hiển thị NV bán hàng ở danh sách đơn bán, có fallback cho dữ liệu DMS/import cũ.
+    const salesStaffName=o.salesStaffName||o.staffName||o.salesmanName||o.salesPersonName||o.salesStaffCode||o.staffCode||o.salesmanCode||'-';
+    // SALES_HISTORY_NVBH_COLUMN_PATCH_END
     return `
       <article class="sales-order-row">
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
         <strong class="sales-order-code-text" title="Mã đơn: ${o.code||o.id||''}">${o.code||o.id||''}</strong>
         <span class="sales-order-customer-inline" title="Khách hàng: ${o.customerName||o.customerCode||''}">${o.customerName||o.customerCode||''}</span>
+        <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START -->
+        <span class="sales-order-staff-inline" title="NV bán hàng: ${salesStaffName}">${salesStaffName}</span>
+        <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_END -->
         <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
@@ -1037,8 +1043,10 @@ async function loadSalesOrders({page=1, append=false} = {}){
     salesOrderHasMore=Boolean(json.hasMore);
     const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
     const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
-    const perfText=` · API ${serverMs||json.ms||0}ms · Trình duyệt ${clientMs}ms${json.queryMs?` · Query ${json.queryMs}ms`:''}${json.countMs?` · Count ${json.countMs}ms`:''}`;
-    salesOrderCount.innerHTML=`<strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn · Trang này <strong>${money(totalAmountPage)}</strong>${perfText}`;
+    // SALES_HISTORY_COMPACT_TOOLBAR_PATCH_START: KPI gom thành các chip ngắn để nằm cùng khối tiêu đề.
+    const perfText=`API ${serverMs||json.ms||0}ms · Trình duyệt ${clientMs}ms${json.queryMs?` · Query ${json.queryMs}ms`:''}${json.countMs?` · Count ${json.countMs}ms`:''}`;
+    salesOrderCount.innerHTML=`<span><strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn</span><span>Trang này <strong>${money(totalAmountPage)}</strong></span><span>${perfText}</span>`;
+    // SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END
     renderSalesOrderRows(orders,{append});
     updateSalesOrderLoadMoreButton();
   }catch(err){

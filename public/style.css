@@ -9050,3 +9050,126 @@ body::after{
   }
 }
 /* MASTER_ORDER_TOOLBAR_GROUPED_END */
+
+/* SALES_HISTORY_COMPACT_TOOLBAR_PATCH_START
+   Scope: chỉ màn Lịch sử đơn bán (#salesTab).
+   Mục tiêu: thu gọn toolbar/filter/nút bấm, gom KPI, giữ nút Tạo đơn mới cùng hàng tiêu đề. */
+#salesTab .sales-history-toolbar{
+  display:grid!important;
+  grid-template-columns:1fr auto!important;
+  align-items:start!important;
+  gap:8px 12px!important;
+  position:sticky!important;
+  top:8px!important;
+  z-index:30!important;
+  padding:10px 12px!important;
+  margin-bottom:8px!important;
+}
+#salesTab .sales-history-toolbar > div:first-child{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:10px!important;
+  min-width:0!important;
+}
+#salesTab .sales-history-toolbar h2{
+  margin:0!important;
+  line-height:1.1!important;
+  white-space:nowrap!important;
+}
+#salesTab #salesOrderCount{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  gap:6px!important;
+  max-width:none!important;
+  margin:0!important;
+  font-size:12px!important;
+  color:#475569!important;
+  white-space:normal!important;
+}
+#salesTab #salesOrderCount span{
+  display:inline-flex!important;
+  align-items:center!important;
+  min-height:24px!important;
+  padding:3px 8px!important;
+  border:1px solid #e2e8f0!important;
+  border-radius:999px!important;
+  background:#f8fafc!important;
+}
+#salesTab #openCreateSalesOrderButton{
+  grid-column:2!important;
+  grid-row:1!important;
+  justify-self:end!important;
+  align-self:start!important;
+  white-space:nowrap!important;
+}
+#salesTab .sales-history-filters{
+  grid-column:1 / -1!important;
+  display:grid!important;
+  gap:7px!important;
+}
+#salesTab .sales-filter-row-main{
+  display:grid!important;
+  grid-template-columns:7fr 3fr!important;
+  gap:8px!important;
+  align-items:center!important;
+}
+#salesTab .sales-filter-row-sub.sales-create-order-filters{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:end!important;
+  justify-content:flex-start!important;
+  gap:8px!important;
+}
+#salesTab .sales-filter-row-sub.sales-create-order-filters .sales-date-filter{
+  width:128px!important;
+  flex:0 0 128px!important;
+}
+#salesTab .sales-filter-source{
+  width:132px!important;
+  flex:0 0 132px!important;
+}
+#salesTab .sales-filter-row-sub.sales-create-order-filters .compact-action{
+  flex:0 0 auto!important;
+}
+/* SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END */
+
+/* SALES_HISTORY_NVBH_COLUMN_PATCH_START
+   Scope: chỉ danh sách đơn bán. Thêm cột NV bán hàng và cân lại 8 cột. */
+#salesTab .sales-order-list-head,
+#salesTab .sales-order-row{
+  display:grid!important;
+  grid-template-columns:26px minmax(120px,150px) minmax(150px,1.3fr) minmax(130px,180px) 90px minmax(95px,110px) 70px 100px!important;
+  align-items:center!important;
+}
+#salesTab .sales-order-staff-inline{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:12.5px!important;
+  font-weight:750!important;
+  color:#334155!important;
+}
+#salesTab .sales-order-list-head{
+  top:72px!important;
+}
+#salesTab #salesOrderList.order-list{
+  max-height:calc(100vh - 220px)!important;
+}
+@media(max-width:1280px){
+  #salesTab .sales-order-list-head{display:none!important;}
+  #salesTab .sales-order-row{
+    grid-template-columns:26px minmax(95px,1fr) minmax(120px,1.1fr) minmax(115px,1fr) minmax(80px,.8fr)!important;
+    grid-auto-rows:auto!important;
+  }
+}
+@media(max-width:720px){
+  #salesTab .sales-history-toolbar{grid-template-columns:1fr!important;}
+  #salesTab #openCreateSalesOrderButton{grid-column:1!important;grid-row:auto!important;justify-self:start!important;}
+  #salesTab .sales-filter-row-main,
+  #salesTab .sales-filter-row-sub.sales-create-order-filters{grid-template-columns:1fr!important;}
+  #salesTab .sales-order-row{grid-template-columns:26px 1fr!important;}
+}
+/* SALES_HISTORY_NVBH_COLUMN_PATCH_END */

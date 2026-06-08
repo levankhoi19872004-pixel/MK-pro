@@ -474,7 +474,12 @@ function buildOrderSearchFilter(query = {}) {
           { customerName: rx },
           { customerId: rx },
           { staffName: rx },
-          { salesStaffName: rx }
+          { salesStaffName: rx },
+          // SALES_HISTORY_NOTE_SEARCH_PATCH_START: cho ô tìm kiếm đơn bán tìm cả ghi chú.
+          { note: rx },
+          { remark: rx },
+          { description: rx }
+          // SALES_HISTORY_NOTE_SEARCH_PATCH_END
         ]
       : [
           { customerCode: rx },
@@ -484,7 +489,12 @@ function buildOrderSearchFilter(query = {}) {
           { staffName: rx },
           { salesStaffName: rx },
           { deliveryStaffName: rx },
-          { masterOrderCode: rx }
+          { masterOrderCode: rx },
+          // SALES_HISTORY_NOTE_SEARCH_PATCH_START: cho ô tìm kiếm đơn bán tìm cả ghi chú.
+          { note: rx },
+          { remark: rx },
+          { description: rx }
+          // SALES_HISTORY_NOTE_SEARCH_PATCH_END
         ];
     pushAnd(and, { $or: qOr });
   }
