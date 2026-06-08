@@ -478,32 +478,28 @@
           </div>
 
           <div class="master-order-three-layer">
+            <!-- MASTER_ORDER_LAYOUT_V2_START: layer 1 ngang phía trên, chỉ đổi bố cục tạo đơn tổng -->
             <section class="card master-order-layer master-order-layer-info">
-              <div class="toolbar compact-toolbar">
+              <div class="toolbar compact-toolbar master-order-info-header">
                 <div><h3>1. Thông tin đơn tổng</h3><p class="muted">Thông tin giao hàng</p></div>
-              </div>
-              <form id="masterOrderForm" class="form master-order-form">
-                <div class="two-cols">
-                  <label>Ngày giao hàng<input name="deliveryDate" type="date" required /></label>
-                  <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
-                </div>
-                <div class="two-cols">
-                  <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
-                  <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
-                </div>
-                <label>Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
-                <label class="inline-check"><input name="groupBySalesStaff" type="checkbox" value="true" checked /> Gộp riêng theo từng nhân viên bán hàng</label>
-
                 <div class="master-selection-summary">
                   <span>Đã đưa vào gộp: <strong id="selectedChildOrderCount">0</strong> đơn</span>
                   <span>Tổng tiền: <strong id="selectedChildOrderAmount">0</strong></span>
                   <span>Còn phải thu: <strong id="selectedChildOrderDebt">0</strong></span>
                 </div>
-
-                <button type="submit">Tạo đơn tổng</button>
+              </div>
+              <form id="masterOrderForm" class="form master-order-form master-order-form-v2">
+                <label>Ngày giao hàng<input name="deliveryDate" type="date" required /></label>
+                <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
+                <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
+                <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
+                <label class="master-order-note-field">Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
+                <label class="inline-check master-order-group-check"><input name="groupBySalesStaff" type="checkbox" value="true" checked /> Gộp riêng theo từng nhân viên bán hàng</label>
+                <button class="master-order-submit-button" type="submit">Tạo đơn tổng</button>
               </form>
               <p id="masterOrderMessage" class="message"></p>
             </section>
+            <!-- MASTER_ORDER_LAYOUT_V2_END -->
 
             <section class="card master-order-layer master-order-layer-unmerged">
               <div class="toolbar compact-toolbar">

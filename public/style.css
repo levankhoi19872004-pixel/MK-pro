@@ -8389,11 +8389,13 @@ body::after{
   font-weight:900;
   color:#0f172a;
 }
+/* MASTER_ORDER_LAYOUT_V2_START: chỉ sửa layout popup tạo đơn tổng, không đổi JS/API/service */
 #masterOrderModal .master-order-three-layer{
   flex:1 1 auto;
   min-height:0;
   display:grid;
-  grid-template-columns:22% 39% 39%;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:150px 1fr;
   gap:12px;
   padding:12px;
   overflow:hidden;
@@ -8407,6 +8409,18 @@ body::after{
   overflow:hidden;
   padding:12px!important;
 }
+#masterOrderModal .master-order-layer-info{
+  grid-column:1 / span 2;
+  grid-row:1;
+}
+#masterOrderModal .master-order-layer-unmerged{
+  grid-column:1;
+  grid-row:2;
+}
+#masterOrderModal .master-order-layer-selected{
+  grid-column:2;
+  grid-row:2;
+}
 #masterOrderModal .compact-toolbar{
   flex:0 0 auto;
   align-items:flex-start!important;
@@ -8418,16 +8432,43 @@ body::after{
   font-weight:900;
   color:#0f172a;
 }
+#masterOrderModal .master-order-info-header{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:14px;
+  margin-bottom:8px;
+}
+#masterOrderModal .master-selection-summary{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0;
+  font-size:12px;
+}
+#masterOrderModal .master-selection-summary span{
+  padding:5px 8px;
+  border:1px solid #dbe7f6;
+  border-radius:999px;
+  background:#f8fafc;
+  white-space:nowrap;
+}
 #masterOrderModal .master-order-form{
   flex:1 1 auto;
   min-height:0;
-  overflow:auto;
-  padding-right:2px;
+  overflow:visible;
+  padding-right:0;
+}
+#masterOrderModal .master-order-form-v2{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(150px,1fr)) minmax(120px,auto);
+  gap:8px 10px;
+  align-items:end;
 }
 #masterOrderModal .master-order-form .two-cols{
-  display:grid!important;
-  grid-template-columns:1fr;
-  gap:8px;
+  display:contents!important;
 }
 #masterOrderModal .master-order-form label{
   font-size:12px;
@@ -8437,12 +8478,20 @@ body::after{
   height:34px;
   font-size:12px;
 }
-#masterOrderModal .master-selection-summary{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:6px;
-  margin:10px 0;
+#masterOrderModal .master-order-note-field{
+  grid-column:1 / span 3;
 }
+#masterOrderModal .master-order-group-check{
+  min-height:34px;
+  align-items:center;
+}
+#masterOrderModal .master-order-submit-button{
+  justify-self:end;
+  min-width:118px;
+  height:34px;
+  white-space:nowrap;
+}
+/* MASTER_ORDER_LAYOUT_V2_END */
 #masterOrderModal .master-filter-row{
   flex:0 0 auto;
   display:grid!important;
