@@ -62,6 +62,11 @@ customerListSuggestions.className='suggestions';
 customerListSuggestions.hidden=true;
 if(customerSearchInput&&customerSearchInput.parentElement){customerSearchInput.parentElement.classList.add('autocomplete-host');customerSearchInput.insertAdjacentElement('afterend',customerListSuggestions)}
 
+// IMPORT_ORDER_POPUP_PATCH_START: DOM refs for import order modal only
+const importOrderModal=document.getElementById('importOrderModal');
+const openImportOrderModalButton=document.getElementById('openImportOrderModalButton');
+const closeImportOrderModalButton=document.getElementById('closeImportOrderModalButton');
+// IMPORT_ORDER_POPUP_PATCH_END
 const importForm=document.getElementById('importForm');
 const importProductSelect=document.getElementById('importProductSelect');
 const importProductSearch=document.getElementById('importProductSearch');

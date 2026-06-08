@@ -72,9 +72,35 @@ function resetImportFormAfterSave(){
   if(submitButton)submitButton.textContent='Lưu phiếu nhập nháp';
   renderImportItems();
 }
+
+// IMPORT_ORDER_POPUP_PATCH_START: isolated modal controls; no API/business logic changed
+function openImportOrderModal(){
+  if(!importOrderModal)return;
+  importOrderModal.classList.add('show');
+  importOrderModal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  setTimeout(()=>{
+    try{ importForm?.elements?.date?.focus(); }catch(_err){}
+  },0);
+}
+function closeImportOrderModal(){
+  if(!importOrderModal)return;
+  importOrderModal.classList.remove('show');
+  importOrderModal.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+function openNewImportOrderModal(){
+  resetImportFormAfterSave();
+  showMessage(importMessage,'');
+  openImportOrderModal();
+}
+// IMPORT_ORDER_POPUP_PATCH_END
 function skipImportDraft(){
   resetImportFormAfterSave();
   showMessage(importMessage,'');
+  // IMPORT_ORDER_POPUP_PATCH_START
+  closeImportOrderModal();
+  // IMPORT_ORDER_POPUP_PATCH_END
 }
 function editImportOrder(idx){
   const order=window.__importOrdersCache?.[idx];
@@ -103,7 +129,9 @@ function editImportOrder(idx){
   if(submitButton)submitButton.textContent='Lưu sửa phiếu nhập nháp';
   renderImportItems();
   showMessage(importMessage,`Đang sửa phiếu nhập ${order.code||order.id}. Kiểm tra lại dòng hàng rồi bấm lưu.`);
-  document.getElementById('importTab')?.scrollIntoView({behavior:'smooth',block:'start'});
+  // IMPORT_ORDER_POPUP_PATCH_START: sửa phiếu mở popup, không scroll form cố định nữa
+  openImportOrderModal();
+  // IMPORT_ORDER_POPUP_PATCH_END
 }
 window.editImportOrder=editImportOrder;
 async function submitImportOrder(event){
@@ -118,6 +146,9 @@ async function submitImportOrder(event){
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được phiếu nhập');
     resetImportFormAfterSave();
     showMessage(importMessage,json.message||'Đã lưu phiếu nhập nháp');
+    // IMPORT_ORDER_POPUP_PATCH_START
+    closeImportOrderModal();
+    // IMPORT_ORDER_POPUP_PATCH_END
     await loadImportOrders();
   }catch(err){showMessage(importMessage,err.message,true)}
 }
@@ -128,3 +159,8 @@ if(importForm)importForm.addEventListener('submit',submitImportOrder);
 if(addImportItemButton)addImportItemButton.addEventListener('click',addImportItem);
 if(skipImportDraftButton)skipImportDraftButton.addEventListener('click',skipImportDraft);
 if(importProductSearch)importProductSearch.addEventListener('change',syncImportCostPrice);
+// IMPORT_ORDER_POPUP_PATCH_START: button wiring only for import modal
+if(openImportOrderModalButton)openImportOrderModalButton.addEventListener('click',openNewImportOrderModal);
+if(closeImportOrderModalButton)closeImportOrderModalButton.addEventListener('click',()=>{showMessage(importMessage,'');closeImportOrderModal();});
+if(importOrderModal)importOrderModal.addEventListener('click',(event)=>{if(event.target===importOrderModal){showMessage(importMessage,'');closeImportOrderModal();}});
+// IMPORT_ORDER_POPUP_PATCH_END

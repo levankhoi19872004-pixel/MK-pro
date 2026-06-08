@@ -8481,3 +8481,69 @@ body::after{
   #masterOrderModal .master-order-layer{min-height:360px;}
 }
 /* MASTER_ORDER_POPUP_PATCH_END */
+
+/* IMPORT_ORDER_POPUP_PATCH_START: isolated import order modal layout */
+#importTab .import-order-history-grid{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+#importTab .import-history-card{
+  width:100%;
+}
+.import-history-toolbar{
+  align-items:flex-start!important;
+}
+.import-history-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+}
+#importOrderModal .import-order-workspace{
+  width:min(75vw,1180px);
+  max-width:96vw;
+  height:min(90vh,860px);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+#importOrderModal .import-order-workspace-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  border-bottom:1px solid #e2e8f0;
+  background:#f8fafc;
+}
+#importOrderModal .import-order-workspace-head h3{
+  margin:0;
+  font-size:18px;
+  font-weight:900;
+  color:#0f172a;
+}
+#importOrderModal .import-order-workspace-head p{
+  margin:4px 0 0;
+}
+#importOrderModal .import-order-workspace-body{
+  padding:18px;
+  overflow:auto;
+}
+#importOrderModal .import-order-workspace-form{
+  max-width:100%;
+}
+#importOrderModal .import-form-actions{
+  position:sticky;
+  bottom:0;
+  background:#fff;
+  padding-top:12px;
+  border-top:1px solid #e2e8f0;
+}
+@media(max-width:900px){
+  #importOrderModal .import-order-workspace{width:98vw;height:94vh;}
+  .import-history-toolbar{align-items:stretch!important;flex-direction:column;}
+  .import-history-actions{justify-content:stretch;}
+  .import-history-actions .primary-action,.import-history-actions .secondary{width:100%;}
+}
+/* IMPORT_ORDER_POPUP_PATCH_END */

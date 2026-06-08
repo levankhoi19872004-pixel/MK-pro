@@ -204,10 +204,55 @@
     </div>
 
     <section id="importTab" class="tab-content">
-      <main class="grid import-grid">
-        <section class="card">
-          <h2>Tạo phiếu nhập kho</h2>
-          <form id="importForm" class="form">
+      <!-- IMPORT_ORDER_POPUP_PATCH_START: màn chính chỉ giữ lịch sử, form tạo/sửa phiếu nhập chuyển vào popup -->
+      <main class="grid import-grid import-order-history-grid">
+        <section class="card import-history-card">
+          <div class="toolbar import-history-toolbar">
+            <div>
+              <h2>Lịch sử phiếu nhập</h2>
+              <p id="importOrderCount" class="muted">Đang tải...</p>
+            </div>
+            <div class="import-history-actions">
+              <button id="openImportOrderModalButton" class="primary-action" type="button">+ Tạo phiếu nhập</button>
+              <button id="reloadImportOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
+          </div>
+          <div class="note-box import-edit-note">
+            <p><strong>Sửa phiếu nhập trong popup.</strong></p>
+            <p>Bấm “Sửa phiếu” để mở popup, chỉnh lại dòng hàng rồi lưu.</p>
+          </div>
+          <div class="import-history-filter">
+            <div class="import-history-filter-top">
+              <button type="button" class="secondary small" id="printSelectedImportOrdersButton">In gộp phiếu đã chọn</button>
+            </div>
+            <div class="import-date-filter-row">
+              <label>Từ ngày
+                <input type="date" id="importDateFromFilter" />
+              </label>
+              <label>Đến ngày
+                <input type="date" id="importDateToFilter" />
+              </label>
+              <button type="button" class="primary small" id="applyImportDateFilterButton">Lọc</button>
+              <button type="button" class="secondary small" id="clearImportDateFilterButton">Xóa lọc</button>
+            </div>
+            <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
+          </div>
+          <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
+        </section>
+      </main>
+    </section>
+
+    <div id="importOrderModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card import-order-workspace" role="dialog" aria-modal="true" aria-labelledby="importOrderModalTitle">
+        <div class="import-order-workspace-head">
+          <div>
+            <h3 id="importOrderModalTitle">Tạo phiếu nhập kho</h3>
+            <p class="muted">Nhập thông tin phiếu, thêm dòng hàng rồi lưu nháp.</p>
+          </div>
+          <button type="button" id="closeImportOrderModalButton" class="secondary small">Đóng</button>
+        </div>
+        <div class="import-order-workspace-body">
+          <form id="importForm" class="form import-order-workspace-form">
             <div class="two-cols">
               <label>Ngày nhập<input name="date" type="date" /></label>
               <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
@@ -241,39 +286,10 @@
             </div>
           </form>
           <p id="importMessage" class="message"></p>
-        </section>
-        <section class="card import-history-card">
-          <div class="toolbar">
-            <div>
-              <h2>Lịch sử phiếu nhập</h2>
-              <p id="importOrderCount" class="muted">Đang tải...</p>
-            </div>
-            <button id="reloadImportOrdersButton" class="secondary">Tải lại</button>
-          </div>
-          <div class="note-box import-edit-note">
-            <p><strong>Sửa phiếu nhập ngay trong mục Nhập kho.</strong></p>
-            <p>Bấm “Sửa phiếu” để đưa dữ liệu phiếu cũ lên form bên trái, chỉnh lại rồi lưu.</p>
-          </div>
-          <div class="import-history-filter">
-            <div class="import-history-filter-top">
-              <button type="button" class="secondary small" id="printSelectedImportOrdersButton">In gộp phiếu đã chọn</button>
-            </div>
-            <div class="import-date-filter-row">
-              <label>Từ ngày
-                <input type="date" id="importDateFromFilter" />
-              </label>
-              <label>Đến ngày
-                <input type="date" id="importDateToFilter" />
-              </label>
-              <button type="button" class="primary small" id="applyImportDateFilterButton">Lọc</button>
-              <button type="button" class="secondary small" id="clearImportDateFilterButton">Xóa lọc</button>
-            </div>
-            <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
-          </div>
-          <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
-        </section>
-      </main>
-    </section>
+        </div>
+      </section>
+    </div>
+    <!-- IMPORT_ORDER_POPUP_PATCH_END -->
 
     <section id="salesTab" class="tab-content">
       <main class="sales-page-main">
