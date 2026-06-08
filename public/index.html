@@ -204,55 +204,21 @@
     </div>
 
     <section id="importTab" class="tab-content">
-      <main class="grid import-grid">
-        <section class="card">
-          <h2>Tạo phiếu nhập kho</h2>
-          <form id="importForm" class="form">
-            <div class="two-cols">
-              <label>Ngày nhập<input name="date" type="date" /></label>
-              <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
-            <div class="import-line-box">
-              <h3>Thêm dòng hàng</h3>
-              <label>Sản phẩm
-                <div class="autocomplete">
-                  <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
-                  <input id="importProductSelect" type="hidden" />
-                  <div id="importProductSuggestions" class="suggestions" hidden></div>
-                </div>
-              </label>
-              <div class="two-cols">
-                <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
-                <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" readonly /></label>
-              </div>
-              <button type="button" id="addImportItemButton" class="secondary">Thêm vào phiếu</button>
-            </div>
-            <div class="table-wrap compact">
-              <table>
-                <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
-                <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
-              </table>
-            </div>
-            <div class="summary-box"><span>Tổng SL: <strong id="importTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="importTotalAmount">0</strong></span></div>
-            <div class="form-actions import-form-actions">
-              <button type="submit">Lưu phiếu nhập nháp</button>
-              <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
-            </div>
-          </form>
-          <p id="importMessage" class="message"></p>
-        </section>
+      <main class="grid import-workspace-grid">
         <section class="card import-history-card">
           <div class="toolbar">
             <div>
               <h2>Lịch sử phiếu nhập</h2>
               <p id="importOrderCount" class="muted">Đang tải...</p>
             </div>
-            <button id="reloadImportOrdersButton" class="secondary">Tải lại</button>
+            <div class="toolbar-actions">
+              <button id="openImportOrderModalButton" class="primary-action" type="button">+ Tạo phiếu nhập</button>
+              <button id="reloadImportOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
           </div>
           <div class="note-box import-edit-note">
-            <p><strong>Sửa phiếu nhập ngay trong mục Nhập kho.</strong></p>
-            <p>Bấm “Sửa phiếu” để đưa dữ liệu phiếu cũ lên form bên trái, chỉnh lại rồi lưu.</p>
+            <p><strong>Tạo và sửa phiếu nhập trong pop-up.</strong></p>
+            <p>Bấm “+ Tạo phiếu nhập” để lập phiếu mới hoặc “Sửa phiếu” để mở phiếu cũ trong pop-up, chỉnh lại rồi lưu.</p>
           </div>
           <div class="import-history-filter">
             <div class="import-history-filter-top">
@@ -410,11 +376,57 @@
                 <button type="submit" id="btnCreateSale">Tạo đơn bán & trừ tồn</button>
               </div>
             </section>
+      </main>
+
+      <div id="importOrderModal" class="modal-backdrop" aria-hidden="true">
+        <section class="modal-card import-order-workspace" role="dialog" aria-modal="true" aria-labelledby="importOrderModalTitle">
+          <div class="import-order-workspace-head">
+            <div>
+              <h3 id="importOrderModalTitle">Tạo phiếu nhập kho</h3>
+              <p class="muted">Nhập thông tin phiếu, thêm dòng hàng rồi lưu phiếu nhập nháp.</p>
+            </div>
+            <button type="button" id="closeImportOrderModalButton" class="secondary small">Đóng</button>
+          </div>
+          <div class="import-order-workspace-body">
+          <form id="importForm" class="form">
+            <div class="two-cols">
+              <label>Ngày nhập<input name="date" type="date" /></label>
+              <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
+            </div>
+            <label>Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
+            <div class="import-line-box">
+              <h3>Thêm dòng hàng</h3>
+              <label>Sản phẩm
+                <div class="autocomplete">
+                  <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                  <input id="importProductSelect" type="hidden" />
+                  <div id="importProductSuggestions" class="suggestions" hidden></div>
+                </div>
+              </label>
+              <div class="two-cols">
+                <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
+                <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" readonly /></label>
+              </div>
+              <button type="button" id="addImportItemButton" class="secondary">Thêm vào phiếu</button>
+            </div>
+            <div class="table-wrap compact">
+              <table>
+                <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
+                <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
+              </table>
+            </div>
+            <div class="summary-box"><span>Tổng SL: <strong id="importTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="importTotalAmount">0</strong></span></div>
+            <div class="form-actions import-form-actions">
+              <button type="submit">Lưu phiếu nhập nháp</button>
+              <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
+            </div>
           </form>
-          <p id="salesMessage" class="message"></p>
-        </div>
-      </section>
-    </div>
+
+            <p id="importMessage" class="message"></p>
+          </div>
+        </section>
+      </div>
+    </section>
 
     <section id="stockTab" class="tab-content">
       <section class="card">
