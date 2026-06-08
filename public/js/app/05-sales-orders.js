@@ -313,7 +313,7 @@ function renderSalesItems(){
   if(!salesItems.length){salesItemsTable.innerHTML='<tr><td colspan="7">Chưa có dòng hàng</td></tr>';return}
   salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>
     <td><strong>${i.productCode}</strong></td>
-    <td>${i.productName}</td>
+    <td class="sales-product-name-cell"><span class="sales-product-name-text">${i.productName}</span></td>
     <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" onchange="updateSalesItemCase(${idx}, this.value)"></td>
     <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" onchange="updateSalesItemLoose(${idx}, this.value)"></td>
     <td class="price"><input class="sales-line-input price" type="number" min="0" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>

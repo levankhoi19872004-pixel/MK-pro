@@ -299,67 +299,94 @@
     </section>
 
     <div id="salesOrderModal" class="modal-backdrop" aria-hidden="true">
-      <section class="modal-card sales-order-modal-card" role="dialog" aria-modal="true" aria-labelledby="salesOrderModalTitle">
-        <div class="modal-head">
+      <section class="modal-card sales-order-modal-card sales-order-workspace" role="dialog" aria-modal="true" aria-labelledby="salesOrderModalTitle">
+        <div class="modal-head sales-order-workspace-head">
           <div>
             <h3 id="salesOrderModalTitle">Tạo đơn bán hàng</h3>
-            <p class="muted">Tạo mới hoặc sửa đơn trong cửa sổ riêng để bảng sản phẩm có đủ diện tích hiển thị.</p>
+            <p class="muted">Cửa sổ tạo/sửa đơn toàn màn hình: thông tin đơn, thêm sản phẩm, giỏ hàng và tổng kết luôn dễ thao tác.</p>
           </div>
           <button type="button" class="secondary small" id="closeSalesOrderModalButton">Đóng</button>
         </div>
-        <div class="sales-order-modal-body">
-          <form id="salesForm" class="form">
-            <div class="two-cols sales-customer-staff-row">
-              <label>Khách hàng
-                <div class="autocomplete">
-                  <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/tuyến khách hàng..." autocomplete="off" />
-                  <input name="customerId" id="salesCustomerSelect" type="hidden" />
-                  <div id="salesCustomerSuggestions" class="suggestions" hidden></div>
+        <div class="sales-order-modal-body sales-order-workspace-body">
+          <form id="salesForm" class="form sales-order-workspace-form">
+            <section class="sales-order-info-panel" aria-label="Thông tin đơn bán">
+              <div class="sales-order-info-grid">
+                <label>Khách hàng
+                  <div class="autocomplete">
+                    <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/tuyến khách hàng..." autocomplete="off" />
+                    <input name="customerId" id="salesCustomerSelect" type="hidden" />
+                    <div id="salesCustomerSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Nhân viên bán hàng
+                  <div class="autocomplete">
+                    <input id="salesStaffSearch" type="text" placeholder="Gõ mã/tên/tài khoản NV bán hàng..." autocomplete="off" />
+                    <input name="salesStaffCode" id="salesStaffSelect" type="hidden" />
+                    <input name="salesStaffName" id="salesStaffName" type="hidden" />
+                    <div id="salesStaffSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Ngày bán<input name="date" type="date" /></label>
+                <div class="sales-mode-box sales-mode-inline">
+                  <div class="sales-mode-title">Phương thức bán</div>
+                  <label class="sales-mode-option"><input type="radio" name="saleMode" value="direct" /> Bán thẳng giá mặc định</label>
+                  <label class="sales-mode-option"><input type="radio" name="saleMode" value="promotion" checked /> Bán theo khuyến mại</label>
                 </div>
-              </label>
-              <label>Nhân viên bán hàng
-                <div class="autocomplete">
-                  <input id="salesStaffSearch" type="text" placeholder="Gõ mã/tên/tài khoản NV bán hàng..." autocomplete="off" />
-                  <input name="salesStaffCode" id="salesStaffSelect" type="hidden" />
-                  <input name="salesStaffName" id="salesStaffName" type="hidden" />
-                  <div id="salesStaffSuggestions" class="suggestions" hidden></div>
-                </div>
-              </label>
-            </div>
-            <div class="two-cols sales-date-mode-row">
-              <label>Ngày bán<input name="date" type="date" /></label>
-              <div class="sales-mode-box">
-                <div class="sales-mode-title">Phương thức bán</div>
-                <label class="sales-mode-option"><input type="radio" name="saleMode" value="direct" /> Bán thẳng giá mặc định</label>
-                <label class="sales-mode-option"><input type="radio" name="saleMode" value="promotion" checked /> Bán theo khuyến mại</label>
+                <label class="sales-note-field">Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
               </div>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
-            <div class="import-line-box">
-              <h3>Thêm dòng bán</h3>
-              <label>Sản phẩm
-                <div class="autocomplete">
-                  <input id="salesProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
-                  <input id="salesProductSelect" type="hidden" />
-                  <div id="salesProductSuggestions" class="suggestions" hidden></div>
-                </div>
-              </label>
-              <div class="three-cols quantity-split-row">
+            </section>
+
+            <section class="import-line-box sales-product-toolbar" aria-label="Thêm dòng bán">
+              <div class="sales-product-toolbar-title">
+                <h3>Thêm dòng bán</h3>
+                <span class="muted">Nhập thùng/lẻ, hệ thống vẫn lưu số lượng lẻ để trừ tồn và xuất Excel.</span>
+              </div>
+              <div class="sales-product-toolbar-grid">
+                <label class="sales-product-field">Sản phẩm
+                  <div class="autocomplete">
+                    <input id="salesProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                    <input id="salesProductSelect" type="hidden" />
+                    <div id="salesProductSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
                 <label>Thùng<input id="salesQuantityCase" type="number" min="0" value="0" /></label>
                 <label>Lẻ<input id="salesQuantityLoose" type="number" min="0" value="1" /></label>
                 <label>Giá bán<input id="salesPrice" type="number" min="0" value="0" /></label>
+                <button type="button" id="addSalesItemButton" class="secondary sales-add-line-button">Thêm vào đơn</button>
               </div>
-              <button type="button" id="addSalesItemButton" class="secondary">Thêm vào đơn</button>
-            </div>
-            <div class="table-wrap compact">
-              <table><thead><tr><th>Mã</th><th>Tên</th><th>Thùng</th><th>Lẻ</th><th>Giá</th><th>Tiền</th><th></th></tr></thead><tbody id="salesItemsTable"><tr><td colspan="7">Chưa có dòng hàng</td></tr></tbody></table>
-            </div>
-            <div class="summary-box"><span>Tổng SL (quy đổi): <strong id="salesTotalQuantity">0</strong></span><span>Tổng tiền: <strong id="salesTotalAmount">0</strong></span></div>
-            <label>Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
-            <div class="sale-actions">
-              <button type="button" class="secondary" id="btnCancelSale">Bỏ qua</button>
-              <button type="submit" id="btnCreateSale">Tạo đơn bán & trừ tồn</button>
-            </div>
+            </section>
+
+            <section class="sales-items-panel" aria-label="Danh sách sản phẩm trong đơn">
+              <div id="salesItemsTableWrap" class="table-wrap compact sales-items-table-wrap">
+                <table class="sales-items-table">
+                  <colgroup>
+                    <col class="sales-col-code" />
+                    <col class="sales-col-name" />
+                    <col class="sales-col-case" />
+                    <col class="sales-col-loose" />
+                    <col class="sales-col-price" />
+                    <col class="sales-col-amount" />
+                    <col class="sales-col-action" />
+                  </colgroup>
+                  <thead>
+                    <tr><th>Mã</th><th>Tên</th><th>Thùng</th><th>Lẻ</th><th>Giá</th><th>Tiền</th><th></th></tr>
+                  </thead>
+                  <tbody id="salesItemsTable"><tr><td colspan="7">Chưa có dòng hàng</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="salesOrderFooter" class="sales-order-footer" aria-label="Tổng kết đơn bán">
+              <div class="sales-order-footer-summary">
+                <span>Tổng SL (quy đổi): <strong id="salesTotalQuantity">0</strong></span>
+                <span>Tổng tiền: <strong id="salesTotalAmount">0</strong></span>
+                <label class="sales-paid-field">Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
+              </div>
+              <div class="sale-actions">
+                <button type="button" class="secondary" id="btnCancelSale">Bỏ qua</button>
+                <button type="submit" id="btnCreateSale">Tạo đơn bán & trừ tồn</button>
+              </div>
+            </section>
           </form>
           <p id="salesMessage" class="message"></p>
         </div>
