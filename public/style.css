@@ -8829,3 +8829,138 @@ body::after{
   }
 }
 /* IMPORT_LAYOUT_VERTICAL_V2_END */
+
+/* IMPORT_HISTORY_LAYOUT_GROUPED_START: khoanh vùng riêng tab Nhập kho - gom nút, bộ lọc, thống kê, header danh sách; không ảnh hưởng module khác */
+#importTab .import-history-toolbar-v2{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:12px!important;
+  align-items:end!important;
+  margin-bottom:8px!important;
+}
+#importTab .import-history-title-block h2{
+  margin-bottom:4px!important;
+}
+#importTab .import-history-actions-v2{
+  display:flex!important;
+  gap:8px!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex-wrap:wrap!important;
+}
+#importTab .import-history-filter-v2{
+  margin:8px 0 10px!important;
+  padding:10px 12px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:14px!important;
+  background:#f8fbff!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:8px!important;
+}
+#importTab .import-date-filter-row-v2{
+  display:flex!important;
+  align-items:end!important;
+  gap:10px!important;
+  flex-wrap:wrap!important;
+}
+#importTab .import-date-filter-row-v2 label{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:5px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  color:#334155!important;
+}
+#importTab .import-date-filter-row-v2 input[type="date"]{
+  min-width:145px!important;
+}
+#importTab .import-summary-cards{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(160px,1fr))!important;
+  gap:10px!important;
+  margin:10px 0 12px!important;
+}
+#importTab .import-summary-card{
+  border:1px solid #dbe7f5!important;
+  border-radius:12px!important;
+  background:#f8fbff!important;
+  padding:10px 12px!important;
+  box-shadow:0 1px 2px rgba(15,23,42,.03)!important;
+}
+#importTab .import-summary-card span{
+  display:block!important;
+  font-size:12px!important;
+  color:#64748b!important;
+  font-weight:800!important;
+}
+#importTab .import-summary-card strong{
+  display:block!important;
+  margin-top:4px!important;
+  font-size:16px!important;
+  color:#0f172a!important;
+  font-weight:900!important;
+}
+#importTab .import-order-list-head,
+#importTab .import-order-one-line-row{
+  display:grid!important;
+  grid-template-columns:34px minmax(120px,1.05fr) minmax(96px,.8fr) minmax(150px,1.1fr) minmax(90px,.75fr) minmax(125px,.95fr) minmax(96px,.8fr) minmax(140px,auto)!important;
+  gap:10px!important;
+  align-items:center!important;
+}
+#importTab .import-order-list-head{
+  padding:9px 12px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:10px!important;
+  background:#eff6ff!important;
+  color:#1e3a8a!important;
+  font-size:13px!important;
+  font-weight:900!important;
+}
+#importTab .import-order-one-line-row{
+  min-height:52px!important;
+  padding:10px 12px!important;
+  border:1px solid #dbe7f5!important;
+  border-radius:12px!important;
+  background:#fff!important;
+}
+#importTab .import-order-empty{
+  border:1px dashed #cbd5e1!important;
+  border-radius:12px!important;
+  background:#f8fafc!important;
+  color:#64748b!important;
+  padding:16px!important;
+  text-align:center!important;
+  font-weight:700!important;
+}
+@media(max-width:900px){
+  #importTab .import-history-toolbar-v2{
+    grid-template-columns:1fr!important;
+    align-items:stretch!important;
+  }
+  #importTab .import-history-actions-v2,
+  #importTab .import-date-filter-row-v2{
+    justify-content:stretch!important;
+  }
+  #importTab .import-history-actions-v2 button,
+  #importTab .import-date-filter-row-v2 button,
+  #importTab .import-date-filter-row-v2 label{
+    width:100%!important;
+  }
+  #importTab .import-summary-cards{
+    grid-template-columns:1fr!important;
+  }
+  #importTab .import-order-list-head{
+    display:none!important;
+  }
+  #importTab .import-order-one-line-row{
+    grid-template-columns:28px 1fr!important;
+  }
+  #importTab .import-order-one-line-row > div:nth-child(n+3){
+    grid-column:2!important;
+  }
+  #importTab .import-order-actions{
+    justify-content:flex-start!important;
+  }
+}
+/* IMPORT_HISTORY_LAYOUT_GROUPED_END */

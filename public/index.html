@@ -207,25 +207,20 @@
       <!-- IMPORT_ORDER_POPUP_PATCH_START: màn chính chỉ giữ lịch sử, form tạo/sửa phiếu nhập chuyển vào popup -->
       <main class="grid import-grid import-order-history-grid">
         <section class="card import-history-card">
-          <div class="toolbar import-history-toolbar">
-            <div>
+          <!-- IMPORT_HISTORY_LAYOUT_GROUPED_START: khoanh vùng UI lịch sử phiếu nhập, chỉ gom nút/lọc/thống kê, không đổi API -->
+          <div class="toolbar import-history-toolbar import-history-toolbar-v2">
+            <div class="import-history-title-block">
               <h2>Lịch sử phiếu nhập</h2>
               <p id="importOrderCount" class="muted">Đang tải...</p>
             </div>
-            <div class="import-history-actions">
+            <div class="import-history-actions import-history-actions-v2">
               <button id="openImportOrderModalButton" class="primary-action" type="button">+ Tạo phiếu nhập</button>
+              <button type="button" class="secondary" id="printSelectedImportOrdersButton">In phiếu</button>
               <button id="reloadImportOrdersButton" class="secondary" type="button">Tải lại</button>
             </div>
           </div>
-          <div class="note-box import-edit-note">
-            <p><strong>Sửa phiếu nhập trong popup.</strong></p>
-            <p>Bấm “Sửa phiếu” để mở popup, chỉnh lại dòng hàng rồi lưu.</p>
-          </div>
-          <div class="import-history-filter">
-            <div class="import-history-filter-top">
-              <button type="button" class="secondary small" id="printSelectedImportOrdersButton">In gộp phiếu đã chọn</button>
-            </div>
-            <div class="import-date-filter-row">
+          <div class="import-history-filter import-history-filter-v2">
+            <div class="import-date-filter-row import-date-filter-row-v2">
               <label>Từ ngày
                 <input type="date" id="importDateFromFilter" />
               </label>
@@ -237,7 +232,22 @@
             </div>
             <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
           </div>
-          <div id="importOrderList" class="order-list">Đang tải lịch sử...</div>
+          <div class="import-summary-cards" aria-label="Thống kê nhanh phiếu nhập">
+            <div class="import-summary-card">
+              <span>Tổng phiếu</span>
+              <strong id="importSummaryCount">0</strong>
+            </div>
+            <div class="import-summary-card">
+              <span>Tổng SL</span>
+              <strong id="importSummaryQty">0</strong>
+            </div>
+            <div class="import-summary-card">
+              <span>Tổng giá trị</span>
+              <strong id="importSummaryAmount">0</strong>
+            </div>
+          </div>
+          <div id="importOrderList" class="order-list import-order-one-line-list">Đang tải lịch sử...</div>
+          <!-- IMPORT_HISTORY_LAYOUT_GROUPED_END -->
         </section>
       </main>
     </section>

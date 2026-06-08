@@ -607,6 +607,19 @@ function updateImportDateFilterInfo(count){
   const to=formatImportDateLabel(importDateFilter.toDate)||'...';
   importDateFilterInfo.textContent=`Hiển thị: ${from} → ${to} (${count} phiếu nhập)`;
 }
+// IMPORT_HISTORY_LAYOUT_GROUPED_START: chỉ cập nhật 3 ô thống kê nhanh của tab Nhập kho
+function updateImportOrderSummaryCards(orders){
+  const list=Array.isArray(orders)?orders:[];
+  const totalQty=list.reduce((sum,o)=>sum+Number(o?.totalQuantity||0),0);
+  const totalAmount=list.reduce((sum,o)=>sum+Number(o?.totalAmount||0),0);
+  const countEl=document.getElementById('importSummaryCount');
+  const qtyEl=document.getElementById('importSummaryQty');
+  const amountEl=document.getElementById('importSummaryAmount');
+  if(countEl)countEl.textContent=money(list.length);
+  if(qtyEl)qtyEl.textContent=money(totalQty);
+  if(amountEl)amountEl.textContent=money(totalAmount);
+}
+// IMPORT_HISTORY_LAYOUT_GROUPED_END
 function buildImportOrderQuery(){
   const params=new URLSearchParams({excludeInactive:'1',limit:'100'});
   if(importDateFilter.fromDate)params.set('fromDate',importDateFilter.fromDate);
@@ -633,32 +646,54 @@ async function loadImportOrders(){
     importOrderCount.textContent=`${orders.length} phiếu nhập`;
     updateImportDateFilterInfo(orders.length);
     window.__importOrdersCache=orders;
-    if(!orders.length){importOrderList.innerHTML='Không có phiếu nhập trong khoảng thời gian đã chọn.';return}
-    // IMPORT_LAYOUT_VERTICAL_V2_START: chỉ đổi HTML render danh sách phiếu nhập sang 1 dòng, không đổi API/logic
+    updateImportOrderSummaryCards(orders);
+    if(!orders.length){
+      importOrderList.classList.add('import-order-one-line-list');
+      importOrderList.innerHTML='<div class="import-order-empty">Không có phiếu nhập trong khoảng thời gian đã chọn.</div>';
+      return;
+    }
+    // IMPORT_HISTORY_LAYOUT_GROUPED_START: chỉ đổi HTML render danh sách phiếu nhập sang header + dòng, không đổi API/logic
     importOrderList.classList.add('import-order-one-line-list');
-    importOrderList.innerHTML=orders.map((o,idx)=>{
-      const posted=String(o.status||'draft').toLowerCase()==='posted';
-      const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';
-      const supplier=o.supplier||'Chưa khai báo';
-      const code=o.code||o.id||'';
-      const statusHtml=`<span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span>`;
-      const actionHtml=posted
-        ? '<span class="status-badge ok">Đã nhập kho</span>'
-        : `<button class="small success" onclick="editImportOrder(${idx})">Sửa phiếu</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ đơn</button>`;
-      return `<div class="import-order-one-line-row" title="${code} - ${supplier}${o.note?' - '+o.note:''}">
-        <div><input type="checkbox" class="import-order-check" data-idx="${idx}"></div>
-        <div class="import-order-cell-code">${code}</div>
-        <div class="import-order-cell">${displayDate}</div>
-        <div class="import-order-cell">${supplier}</div>
-        <div class="import-order-cell">SL: ${money(o.totalQuantity)}</div>
-        <div class="import-order-cell import-order-money">${money(o.totalAmount)}</div>
-        <div class="import-order-cell">${statusHtml}</div>
-        <div class="import-order-actions">${actionHtml}</div>
-        <div data-import-detail="${idx}" hidden></div>
-      </div>`;
-    }).join('');
-    // IMPORT_LAYOUT_VERTICAL_V2_END
-  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.innerHTML=err.message}
+    importOrderList.innerHTML=`
+      <div class="import-order-list-head">
+        <div><input type="checkbox" id="checkAllImportOrders" title="Chọn tất cả phiếu nhập"></div>
+        <div>Mã phiếu</div>
+        <div>Ngày nhập</div>
+        <div>Nhà cung cấp</div>
+        <div>Số lượng</div>
+        <div>Giá trị</div>
+        <div>Trạng thái</div>
+        <div>Thao tác</div>
+      </div>
+      ${orders.map((o,idx)=>{
+        const posted=String(o.status||'draft').toLowerCase()==='posted';
+        const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';
+        const supplier=o.supplier||'Chưa khai báo';
+        const code=o.code||o.id||'';
+        const statusHtml=`<span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span>`;
+        const actionHtml=posted
+          ? `<button class="small secondary" onclick="editImportOrder(${idx})">Xem</button>`
+          : `<button class="small success" onclick="editImportOrder(${idx})">Sửa</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ</button>`;
+        return `<div class="import-order-one-line-row" title="${code} - ${supplier}${o.note?' - '+o.note:''}">
+          <div><input type="checkbox" class="import-order-check" data-idx="${idx}"></div>
+          <div class="import-order-cell-code">${code}</div>
+          <div class="import-order-cell">${displayDate}</div>
+          <div class="import-order-cell">${supplier}</div>
+          <div class="import-order-cell">${money(o.totalQuantity)}</div>
+          <div class="import-order-cell import-order-money">${money(o.totalAmount)}</div>
+          <div class="import-order-cell">${statusHtml}</div>
+          <div class="import-order-actions">${actionHtml}</div>
+          <div data-import-detail="${idx}" hidden></div>
+        </div>`;
+      }).join('')}`;
+    const checkAll=document.getElementById('checkAllImportOrders');
+    if(checkAll){
+      checkAll.addEventListener('change',()=>{
+        document.querySelectorAll('#importOrderList .import-order-check').forEach(cb=>{cb.checked=checkAll.checked;});
+      });
+    }
+    // IMPORT_HISTORY_LAYOUT_GROUPED_END
+  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';updateImportOrderSummaryCards([]);if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.innerHTML=err.message}
 }
 initImportDateFilterControls();
 function normalizeOrderSourceClient(order){
