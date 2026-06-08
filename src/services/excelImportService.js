@@ -682,7 +682,7 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     const checks = await Promise.all(negativeDeltas.map(async (delta) => {
       const current = await InventoryLegacy.findOne({
         productCode: delta.productCode,
-        warehouseCode: delta.warehouseCode
+        warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN'
       }).lean();
       const availableQty = toNumber(current?.availableQty ?? current?.quantity ?? current?.qty ?? current?.onHand);
       const requiredQty = Math.abs(delta.qty);
@@ -696,7 +696,7 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
       err.rows = insufficient.map((row) => ({
         productCode: row.productCode,
         productName: row.productName,
-        warehouseCode: row.warehouseCode,
+        warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
         availableQty: row.availableQty,
         requiredQty: row.requiredQty
       }));
@@ -712,14 +712,14 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     if (!qty) continue;
     ops.push({
       updateOne: {
-        filter: { productCode: delta.productCode, warehouseCode: delta.warehouseCode },
+        filter: { productCode: delta.productCode, warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN' },
         update: {
           $setOnInsert: {
             id: makeId('IV'),
             productId: delta.productId,
             productCode: delta.productCode,
-            warehouseId: delta.warehouseId,
-            warehouseCode: delta.warehouseCode,
+            warehouseId: STOCK_WAREHOUSE_CODE || 'MAIN',
+            warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
             reservedQty: 0,
             createdAt: now
           },
@@ -727,9 +727,9 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
             productId: delta.productId,
             productCode: delta.productCode,
             productName: delta.productName,
-            warehouseId: delta.warehouseId,
-            warehouseCode: delta.warehouseCode,
-            warehouseName: delta.warehouseName,
+            warehouseId: STOCK_WAREHOUSE_CODE || 'MAIN',
+            warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
+            warehouseName: STOCK_WAREHOUSE_NAME || 'Kho chính',
             lastTransactionAt: now,
             updatedAt: now
           },
@@ -758,7 +758,7 @@ async function setOpeningStockInventoriesBulk(rows = []) {
     const reservedQty = toNumber(row.reservedQty);
     ops.push({
       updateOne: {
-        filter: { productCode: row.productCode, warehouseCode: row.warehouseCode || 'MAIN' },
+        filter: { productCode: row.productCode, warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN' },
         update: {
           $setOnInsert: {
             id: makeId('IV'),
@@ -768,9 +768,9 @@ async function setOpeningStockInventoriesBulk(rows = []) {
             productId: row.productId || row.productCode,
             productCode: row.productCode,
             productName: row.productName || '',
-            warehouseId: row.warehouseId || row.warehouseCode || 'MAIN',
-            warehouseCode: row.warehouseCode || 'MAIN',
-            warehouseName: row.warehouseName || 'Kho chính',
+            warehouseId: STOCK_WAREHOUSE_CODE || 'MAIN',
+            warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
+            warehouseName: STOCK_WAREHOUSE_NAME || 'Kho chính',
             qty: quantity,
             quantity,
             onHand: quantity,
@@ -1062,7 +1062,6 @@ async function importSalesOrders(rows = [], options = {}) {
   const customerMap = await preloadCustomersByCode(rows);
   const productMap = await preloadProductsByCode(rows);
   const salesStaffUserMap = await preloadSalesStaffUsersByCode(rows);
-  const warehouseCodes = Array.from(new Set(rows.map((r) => cleanText(r.warehouseCode || r.warehouse || r['Kho']) || 'MAIN')));
   const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   const importDocumentCodes = Array.from(new Set(rows.map(getOrderDocumentCode).map(cleanText).filter((code) => code && code !== 'AUTO')));
   const existingSalesOrders = importDocumentCodes.length
@@ -1084,15 +1083,12 @@ async function importSalesOrders(rows = [], options = {}) {
   // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
   // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
   const stockRows = await InventoryLegacy.find({ productCode: { $in: productCodes } }).lean().catch(() => []);
-  const stockMap = new Map();
   const productStockMap = new Map();
   for (const stock of stockRows) {
     const code = cleanText(stock.productCode);
     if (!code) continue;
-    const wh = cleanText(stock.warehouseCode || 'MAIN') || 'MAIN';
     const qty = toNumber(stock.availableQty ?? stock.quantity ?? stock.qty ?? stock.onHand);
-    const exactKey = `${code}|${wh}`;
-    stockMap.set(exactKey, toNumber(stockMap.get(exactKey)) + qty);
+    // Tồn kho là 1 nguồn duy nhất theo productCode. Không kiểm tra theo KHO_HC/KHO_PC/warehouseCode.
     productStockMap.set(code, toNumber(productStockMap.get(code)) + qty);
   }
   const groups = groupRows(rows, makeSalesOrderGroupKey);
@@ -1158,8 +1154,8 @@ async function importSalesOrders(rows = [], options = {}) {
       let lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
       const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Kho'] || product?.warehouseCode) || 'MAIN';
       const normalizedProductCode = cleanText(product?.code || productCode);
-      const stockKey = `${normalizedProductCode}|${warehouseCode}`;
-      let availableQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : toNumber(productStockMap.get(normalizedProductCode));
+      // warehouseCode của dòng DMS chỉ là nhóm in/gộp đơn; tồn kho kiểm tra theo productCode chung.
+      let availableQty = toNumber(productStockMap.get(normalizedProductCode));
       const isCutByStockRow = Boolean(
         row.__autoCutByStock ||
         Object.prototype.hasOwnProperty.call(row, '__allowedSaleQuantity') ||
@@ -1209,7 +1205,6 @@ async function importSalesOrders(rows = [], options = {}) {
         continue;
       }
 
-      if (stockMap.has(stockKey)) stockMap.set(stockKey, Math.max(0, availableQty - deliveredQuantity));
       productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
       const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
       const baseItem = {
