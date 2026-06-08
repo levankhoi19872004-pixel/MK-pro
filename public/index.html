@@ -1104,39 +1104,78 @@
         <p id="promotion3Message" class="message"></p>
       </section>
 
-      <section class="card promotion-type-tabs-card">
-        <div class="subtabs promotion-type-tabs">
-          <button type="button" class="active" data-promotion-program-tab="productRules">CK sản phẩm</button>
-          <button type="button" data-promotion-program-tab="groupItems">Nhóm sản phẩm KM</button>
-          <button type="button" data-promotion-program-tab="groupRules">Điều kiện nhóm KM / Ontop</button>
-        </div>
+      <!-- PROMOTION_MAIN_SEPARATE_POPUP_ACTIONS_START: bỏ tab chung, tách 3 khu nghiệp vụ ngoài màn chính -->
+      <section class="promotion-entry-grid" aria-label="Các nhóm nghiệp vụ khuyến mại">
+        <article class="card promotion-entry-card">
+          <h3>CK sản phẩm</h3>
+          <p class="muted">Quản lý chương trình chiết khấu trực tiếp theo từng mã sản phẩm.</p>
+          <button type="button" class="secondary" data-promotion-scroll-target="promotionProductProgramTab">Xem danh sách CK sản phẩm</button>
+        </article>
+        <article class="card promotion-entry-card">
+          <h3>Nhóm SP KM</h3>
+          <p class="muted">Tạo nhóm sản phẩm khuyến mại riêng, không lẫn với điều kiện/Ontop.</p>
+          <button type="button" class="secondary" data-promotion-scroll-target="promotionGroupItemProgramTab">Xem danh sách nhóm SP</button>
+        </article>
+        <article class="card promotion-entry-card">
+          <h3>Điều kiện KM / Ontop</h3>
+          <p class="muted">Quản lý điều kiện doanh số, bậc chiết khấu và Ontop theo nhóm.</p>
+          <button type="button" class="secondary" data-promotion-scroll-target="promotionGroupRuleProgramTab">Xem danh sách điều kiện</button>
+        </article>
       </section>
+      <!-- PROMOTION_MAIN_SEPARATE_POPUP_ACTIONS_END -->
 
-      <!-- PROMOTION_POPUP_WORKSPACE_START: Popup workspace dùng chung cho 3 tab khuyến mại -->
-      <div id="promotionWorkspaceOverlay" class="promotion-workspace-overlay" hidden>
-        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionWorkspaceTitle">
+      <!-- PROMOTION_SEPARATE_POPUPS_START: 3 popup riêng, mỗi popup chỉ chứa đúng nghiệp vụ của nó -->
+      <div id="promotionProductPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="productRules" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionProductPopupTitle">
           <header class="promotion-workspace-header">
             <div>
-              <h2 id="promotionWorkspaceTitle">Chương trình khuyến mại</h2>
-              <p id="promotionWorkspaceSubtitle" class="muted">Chọn chương trình trong danh sách để xem/sửa chi tiết.</p>
+              <h2 id="promotionProductPopupTitle">CK sản phẩm</h2>
+              <p id="promotionProductPopupSubtitle" class="muted">Popup riêng cho chiết khấu sản phẩm.</p>
             </div>
-            <button type="button" id="closePromotionWorkspaceButton" class="secondary promotion-workspace-close">Đóng</button>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="productRules">Đóng</button>
           </header>
-          <div class="subtabs promotion-workspace-tabs">
-            <button type="button" class="active" data-promotion-workspace-tab="productRules">CK sản phẩm</button>
-            <button type="button" data-promotion-workspace-tab="groupItems">Nhóm SP KM</button>
-            <button type="button" data-promotion-workspace-tab="groupRules">Điều kiện KM / Ontop</button>
-          </div>
-          <div id="promotionWorkspaceBody" class="promotion-workspace-body">
-            <p class="muted">Chưa chọn chương trình.</p>
-          </div>
+          <div id="promotionProductPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn chương trình CK sản phẩm.</p></div>
           <footer class="promotion-workspace-footer">
-            <span class="muted">Toàn bộ thao tác thêm/sửa/xóa chi tiết được thực hiện trong popup này.</span>
-            <button type="button" id="closePromotionWorkspaceFooterButton" class="secondary">Đóng</button>
+            <span class="muted">Chỉ xử lý CK sản phẩm trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="productRules">Đóng</button>
           </footer>
         </section>
       </div>
-      <!-- PROMOTION_POPUP_WORKSPACE_END -->
+
+      <div id="promotionGroupPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="groupItems" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionGroupPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionGroupPopupTitle">Nhóm sản phẩm KM</h2>
+              <p id="promotionGroupPopupSubtitle" class="muted">Popup riêng cho danh sách sản phẩm trong nhóm.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="groupItems">Đóng</button>
+          </header>
+          <div id="promotionGroupPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn nhóm sản phẩm.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý nhóm sản phẩm KM trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="groupItems">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="promotionConditionPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="groupRules" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionConditionPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionConditionPopupTitle">Điều kiện KM / Ontop</h2>
+              <p id="promotionConditionPopupSubtitle" class="muted">Popup riêng cho điều kiện nhóm và Ontop.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="groupRules">Đóng</button>
+          </header>
+          <div id="promotionConditionPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn điều kiện khuyến mại.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý điều kiện KM / Ontop trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="groupRules">Đóng</button>
+          </footer>
+        </section>
+      </div>
+      <!-- PROMOTION_SEPARATE_POPUPS_END -->
 
       <main id="promotionProductProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="productRules">
         <section class="card promotion-program-list">
@@ -1171,7 +1210,7 @@
         </section>
       </main>
 
-      <main id="promotionGroupItemProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupItems">
+      <main id="promotionGroupItemProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="groupItems">
         <section class="card promotion-program-list">
           <div class="toolbar">
             <div><h2>Danh sách nhóm sản phẩm KM</h2><p id="promotionGroupItemProgramCount" class="muted">Đang tải...</p></div>
@@ -1203,7 +1242,7 @@
         </section>
       </main>
 
-      <main id="promotionGroupRuleProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupRules">
+      <main id="promotionGroupRuleProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="groupRules">
         <section class="card promotion-program-list">
           <div class="toolbar">
             <div><h2>Danh sách điều kiện nhóm KM / Ontop</h2><p id="promotionGroupRuleProgramCount" class="muted">Đang tải...</p></div>

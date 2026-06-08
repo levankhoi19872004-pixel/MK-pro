@@ -943,78 +943,119 @@ resetButton.addEventListener('click',resetForm);
   let activeType = 'productRules';
   if(!$('promotionProductProgramTable'))return;
 
-  /* PROMOTION_POPUP_CONTROLLER_START: điều khiển popup workspace dùng chung cho 3 tab khuyến mại */
-  const workspaceOverlay = $('promotionWorkspaceOverlay');
-  const workspaceBody = $('promotionWorkspaceBody');
-  const workspaceTitle = $('promotionWorkspaceTitle');
-  const workspaceSubtitle = $('promotionWorkspaceSubtitle');
+  /* PROMOTION_SEPARATE_POPUP_CONTROLLER_START: tách popup khuyến mại theo từng nghiệp vụ, không còn popup/tab dùng chung */
+  const popupConfig = {
+    productRules: {
+      overlay: 'promotionProductPopup',
+      body: 'promotionProductPopupBody',
+      title: 'promotionProductPopupTitle',
+      subtitle: 'promotionProductPopupSubtitle',
+      empty: 'Chưa chọn chương trình CK sản phẩm.'
+    },
+    groupItems: {
+      overlay: 'promotionGroupPopup',
+      body: 'promotionGroupPopupBody',
+      title: 'promotionGroupPopupTitle',
+      subtitle: 'promotionGroupPopupSubtitle',
+      empty: 'Chưa chọn nhóm sản phẩm KM.'
+    },
+    groupRules: {
+      overlay: 'promotionConditionPopup',
+      body: 'promotionConditionPopupBody',
+      title: 'promotionConditionPopupTitle',
+      subtitle: 'promotionConditionPopupSubtitle',
+      empty: 'Chưa chọn điều kiện KM / Ontop.'
+    }
+  };
   const detailPlaceholders = {};
   function detailSectionByType(type){
     return $(TYPE_CONFIG[type]?.form)?.closest('.promotion-program-detail') || null;
   }
+  function popupParts(type){
+    const cfg = popupConfig[type] || {};
+    return {
+      overlay: $(cfg.overlay),
+      body: $(cfg.body),
+      title: $(cfg.title),
+      subtitle: $(cfg.subtitle),
+      empty: cfg.empty || 'Chưa chọn chương trình.'
+    };
+  }
   function ensureDetailPlaceholder(type){
     const section = detailSectionByType(type);
     if(!section || detailPlaceholders[type]) return;
-    const placeholder = document.createComment(`PROMOTION_POPUP_DETAIL_PLACEHOLDER_${type}`);
+    const placeholder = document.createComment(`PROMOTION_SEPARATE_POPUP_DETAIL_PLACEHOLDER_${type}`);
     section.parentNode.insertBefore(placeholder, section);
     detailPlaceholders[type] = placeholder;
   }
-  function setWorkspaceTabActive(type){
-    document.querySelectorAll('[data-promotion-workspace-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.promotionWorkspaceTab===type));
+  function restorePopupDetail(type){
+    const section = detailSectionByType(type);
+    const placeholder = detailPlaceholders[type];
+    const { body } = popupParts(type);
+    if(section && placeholder?.parentNode && body && section.parentNode === body){
+      placeholder.parentNode.insertBefore(section, placeholder.nextSibling);
+    }
   }
-  function restoreWorkspaceDetails(){
-    Object.keys(detailPlaceholders).forEach(type=>{
-      const section = detailSectionByType(type);
-      const placeholder = detailPlaceholders[type];
-      if(section && placeholder?.parentNode && section.parentNode === workspaceBody){
-        placeholder.parentNode.insertBefore(section, placeholder.nextSibling);
-      }
-    });
+  function restoreAllPopupDetails(){
+    Object.keys(popupConfig).forEach(restorePopupDetail);
   }
   function openPromotionWorkspace(type, mode='edit'){
-    if(!TYPE_CONFIG[type] || !workspaceOverlay || !workspaceBody) return;
+    if(!TYPE_CONFIG[type]) return;
     ensureDetailPlaceholder(type);
     const cfg = TYPE_CONFIG[type];
     const section = detailSectionByType(type);
-    if(workspaceTitle) workspaceTitle.textContent = `${mode==='create'?'+ Tạo':'Chi tiết'} ${cfg.label}`;
-    if(workspaceSubtitle){
+    const { overlay, body, title, subtitle } = popupParts(type);
+    if(!overlay || !body) return;
+    if(title) title.textContent = `${mode==='create'?'+ Tạo':'Chi tiết'} ${cfg.label}`;
+    if(subtitle){
       const selectedCode = states[type]?.selectedCode || '';
-      workspaceSubtitle.textContent = selectedCode
-        ? `Đang mở ${selectedCode}. Danh sách bên ngoài vẫn giữ nguyên để không mất ngữ cảnh.`
-        : 'Chưa chọn chương trình. Hãy chọn Sửa/Xem trong danh sách hoặc import chương trình từ Excel.';
+      subtitle.textContent = selectedCode
+        ? `Đang mở ${selectedCode}. Popup này chỉ xử lý ${cfg.label}, không lẫn với nghiệp vụ khuyến mại khác.`
+        : `Tạo/xem ${cfg.label}. Danh sách bên ngoài vẫn giữ nguyên để không mất ngữ cảnh.`;
     }
-    setWorkspaceTabActive(type);
-    restoreWorkspaceDetails();
+    restoreAllPopupDetails();
     if(section){
-      workspaceBody.replaceChildren(section);
+      body.replaceChildren(section);
+    }else{
+      body.innerHTML = '<p class="muted">Chưa chọn chương trình.</p>';
     }
-    workspaceOverlay.hidden = false;
+    overlay.hidden = false;
     document.body.classList.add('promotion-workspace-open');
   }
-  function closePromotionWorkspace(){
-    restoreWorkspaceDetails();
-    if(workspaceBody) workspaceBody.innerHTML = '<p class="muted">Chưa chọn chương trình.</p>';
-    if(workspaceOverlay) workspaceOverlay.hidden = true;
-    document.body.classList.remove('promotion-workspace-open');
+  function closePromotionWorkspace(type){
+    if(type){
+      const { overlay, body, empty } = popupParts(type);
+      restorePopupDetail(type);
+      if(body) body.innerHTML = `<p class="muted">${esc(empty)}</p>`;
+      if(overlay) overlay.hidden = true;
+    }else{
+      Object.keys(popupConfig).forEach(closePromotionWorkspace);
+    }
+    const hasOpenPopup = Object.keys(popupConfig).some(t=>{
+      const { overlay } = popupParts(t);
+      return overlay && !overlay.hidden;
+    });
+    if(!hasOpenPopup) document.body.classList.remove('promotion-workspace-open');
   }
   window.openPromotionWorkspace = openPromotionWorkspace;
   window.closePromotionWorkspace = closePromotionWorkspace;
-  $('closePromotionWorkspaceButton')?.addEventListener('click', closePromotionWorkspace);
-  $('closePromotionWorkspaceFooterButton')?.addEventListener('click', closePromotionWorkspace);
-  workspaceOverlay?.addEventListener('click',(e)=>{ if(e.target===workspaceOverlay) closePromotionWorkspace(); });
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && workspaceOverlay && !workspaceOverlay.hidden) closePromotionWorkspace(); });
-  document.querySelectorAll('[data-promotion-workspace-tab]').forEach(btn=>btn.addEventListener('click',()=>{
-    const type = btn.dataset.promotionWorkspaceTab;
-    activateProgramTab(type);
-    if(states[type]?.selectedCode){
-      window.selectPromotionProgramByType(type, states[type].selectedCode);
-    }else{
-      fillForm(type,{});
-      renderDetailEmpty(type,'Chưa chọn chương trình trong tab này.');
-      openPromotionWorkspace(type,'create');
-    }
-  }));
-  /* PROMOTION_POPUP_CONTROLLER_END */
+  document.querySelectorAll('[data-promotion-popup-close]').forEach(btn=>{
+    btn.addEventListener('click',()=>closePromotionWorkspace(btn.dataset.promotionPopupClose));
+  });
+  Object.keys(popupConfig).forEach(type=>{
+    const { overlay } = popupParts(type);
+    overlay?.addEventListener('click',(e)=>{ if(e.target===overlay) closePromotionWorkspace(type); });
+  });
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='Escape') closePromotionWorkspace();
+  });
+  document.querySelectorAll('[data-promotion-scroll-target]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const target = $(btn.dataset.promotionScrollTarget);
+      target?.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+  /* PROMOTION_SEPARATE_POPUP_CONTROLLER_END */
 
   async function api(url, options={}){
     const res = await fetch(url, options);
@@ -1141,8 +1182,9 @@ resetButton.addEventListener('click',resetForm);
   function activateProgramTab(type){
     if(!TYPE_CONFIG[type])return;
     activeType=type;
-    document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.promotionProgramTab===type));
-    document.querySelectorAll('[data-promotion-program-panel]').forEach(panel=>panel.classList.toggle('active',panel.dataset.promotionProgramPanel===type));
+    // PROMOTION_SEPARATE_POPUP_STATE_START: màn chính hiển thị cả 3 danh sách, không ẩn/hiện bằng tab nữa.
+    document.querySelectorAll('[data-promotion-program-panel]').forEach(panel=>panel.classList.add('active'));
+    // PROMOTION_SEPARATE_POPUP_STATE_END
   }
 
   async function refreshSelected(type){
