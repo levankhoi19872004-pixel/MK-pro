@@ -62,9 +62,6 @@ customerListSuggestions.className='suggestions';
 customerListSuggestions.hidden=true;
 if(customerSearchInput&&customerSearchInput.parentElement){customerSearchInput.parentElement.classList.add('autocomplete-host');customerSearchInput.insertAdjacentElement('afterend',customerListSuggestions)}
 
-const importOrderModal=document.getElementById('importOrderModal');
-const openImportOrderModalButton=document.getElementById('openImportOrderModalButton');
-const closeImportOrderModalButton=document.getElementById('closeImportOrderModalButton');
 const importForm=document.getElementById('importForm');
 const importProductSelect=document.getElementById('importProductSelect');
 const importProductSearch=document.getElementById('importProductSearch');

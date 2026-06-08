@@ -1,17 +1,3 @@
-
-function openImportOrderModal(){
-  if(!importOrderModal)return;
-  importOrderModal.classList.add('show');
-  importOrderModal.setAttribute('aria-hidden','false');
-  document.body.classList.add('modal-open');
-  setTimeout(()=>{try{importForm?.elements?.date?.focus()}catch(_){}} ,0);
-}
-function closeImportOrderModal(){
-  if(!importOrderModal)return;
-  importOrderModal.classList.remove('show');
-  importOrderModal.setAttribute('aria-hidden','true');
-  document.body.classList.remove('modal-open');
-}
 // Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
 function importProductCost(p){
   return Number(p?.costPrice ?? p?.importPrice ?? p?.purchasePrice ?? p?.lastCostPrice ?? 0);
@@ -89,7 +75,6 @@ function resetImportFormAfterSave(){
 function skipImportDraft(){
   resetImportFormAfterSave();
   showMessage(importMessage,'');
-  closeImportOrderModal();
 }
 function editImportOrder(idx){
   const order=window.__importOrdersCache?.[idx];
@@ -118,7 +103,7 @@ function editImportOrder(idx){
   if(submitButton)submitButton.textContent='Lưu sửa phiếu nhập nháp';
   renderImportItems();
   showMessage(importMessage,`Đang sửa phiếu nhập ${order.code||order.id}. Kiểm tra lại dòng hàng rồi bấm lưu.`);
-  openImportOrderModal();
+  document.getElementById('importTab')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 window.editImportOrder=editImportOrder;
 async function submitImportOrder(event){
@@ -133,25 +118,12 @@ async function submitImportOrder(event){
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được phiếu nhập');
     resetImportFormAfterSave();
     showMessage(importMessage,json.message||'Đã lưu phiếu nhập nháp');
-    closeImportOrderModal();
     await loadImportOrders();
   }catch(err){showMessage(importMessage,err.message,true)}
 }
 
 // Sales
 
-if(openImportOrderModalButton)openImportOrderModalButton.addEventListener('click',()=>{
-  resetImportFormAfterSave();
-  showMessage(importMessage,'');
-  openImportOrderModal();
-});
-if(closeImportOrderModalButton)closeImportOrderModalButton.addEventListener('click',closeImportOrderModal);
-if(importOrderModal)importOrderModal.addEventListener('click',(event)=>{
-  if(event.target===importOrderModal)closeImportOrderModal();
-});
-document.addEventListener('keydown',(event)=>{
-  if(event.key==='Escape' && importOrderModal?.classList.contains('show'))closeImportOrderModal();
-});
 if(importForm)importForm.addEventListener('submit',submitImportOrder);
 if(addImportItemButton)addImportItemButton.addEventListener('click',addImportItem);
 if(skipImportDraftButton)skipImportDraftButton.addEventListener('click',skipImportDraft);
