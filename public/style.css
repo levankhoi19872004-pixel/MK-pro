@@ -8365,9 +8365,10 @@ body::after{
   min-height:520px;
 }
 #masterOrderModal .master-order-modal-workspace{
-  width:min(75vw,1280px);
-  max-width:96vw;
-  height:min(90vh,880px);
+  /* MASTER_ORDER_LAYOUT_V2: tăng diện tích popup tạo đơn tổng, không đổi logic */
+  width:90vw;
+  max-width:1700px;
+  height:92vh;
   max-height:94vh;
   display:flex;
   flex-direction:column;
@@ -8389,13 +8390,13 @@ body::after{
   font-weight:900;
   color:#0f172a;
 }
-/* MASTER_ORDER_LAYOUT_V2_START: chỉ sửa layout popup tạo đơn tổng, không đổi JS/API/service */
+/* MASTER_ORDER_LAYOUT_V2_START: khoanh vùng sửa layout popup tạo đơn tổng - chỉ CSS trong #masterOrderModal, không đổi JS/API/service */
 #masterOrderModal .master-order-three-layer{
   flex:1 1 auto;
   min-height:0;
   display:grid;
-  grid-template-columns:1fr 1fr;
-  grid-template-rows:150px 1fr;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  grid-template-rows:170px minmax(0,1fr);
   gap:12px;
   padding:12px;
   overflow:hidden;
@@ -8410,16 +8411,21 @@ body::after{
   padding:12px!important;
 }
 #masterOrderModal .master-order-layer-info{
-  grid-column:1 / span 2;
+  grid-column:1 / -1;
   grid-row:1;
+  overflow:hidden;
 }
 #masterOrderModal .master-order-layer-unmerged{
   grid-column:1;
   grid-row:2;
+  min-height:0;
+  overflow:hidden;
 }
 #masterOrderModal .master-order-layer-selected{
   grid-column:2;
   grid-row:2;
+  min-height:0;
+  overflow:hidden;
 }
 #masterOrderModal .compact-toolbar{
   flex:0 0 auto;
@@ -8433,11 +8439,12 @@ body::after{
   color:#0f172a;
 }
 #masterOrderModal .master-order-info-header{
+  flex:0 0 auto;
   display:flex!important;
   align-items:flex-start!important;
   justify-content:space-between!important;
   gap:14px;
-  margin-bottom:8px;
+  margin-bottom:6px;
 }
 #masterOrderModal .master-selection-summary{
   display:flex;
@@ -8458,38 +8465,62 @@ body::after{
 #masterOrderModal .master-order-form{
   flex:1 1 auto;
   min-height:0;
-  overflow:visible;
+  max-height:96px;
+  overflow:hidden;
   padding-right:0;
 }
 #masterOrderModal .master-order-form-v2{
   display:grid!important;
-  grid-template-columns:repeat(4,minmax(150px,1fr)) minmax(120px,auto);
-  gap:8px 10px;
+  grid-template-columns:140px minmax(180px,1.2fr) 140px 180px minmax(220px,1.4fr) 130px;
+  grid-template-rows:54px 28px;
+  gap:6px 10px;
   align-items:end;
 }
 #masterOrderModal .master-order-form .two-cols{
   display:contents!important;
 }
 #masterOrderModal .master-order-form label{
+  min-width:0;
   font-size:12px;
   font-weight:800;
 }
 #masterOrderModal .master-order-form input{
+  width:100%;
   height:34px;
   font-size:12px;
 }
 #masterOrderModal .master-order-note-field{
-  grid-column:1 / span 3;
+  grid-column:auto;
+  grid-row:1;
 }
 #masterOrderModal .master-order-group-check{
-  min-height:34px;
+  grid-column:1 / -1;
+  grid-row:2;
+  min-height:24px;
+  height:24px;
   align-items:center;
+  font-size:12px!important;
+  color:#475569;
 }
 #masterOrderModal .master-order-submit-button{
+  grid-column:6;
+  grid-row:1;
   justify-self:end;
+  align-self:end;
   min-width:118px;
   height:34px;
   white-space:nowrap;
+}
+#masterOrderModal #masterOrderMessage{
+  flex:0 0 auto;
+  margin:2px 0 0;
+  min-height:16px;
+  font-size:12px;
+}
+#masterOrderModal #unmergedOrderList,
+#masterOrderModal #selectedMasterChildOrderList{
+  overflow:auto;
+  min-height:0;
 }
 /* MASTER_ORDER_LAYOUT_V2_END */
 #masterOrderModal .master-filter-row{
