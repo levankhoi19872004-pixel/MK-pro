@@ -255,7 +255,9 @@ function renderMasterOrders() {
     const checked = selectedMasterOrderIds.has(key) ? 'checked' : '';
     const code = order.code || order.id || key;
     const delivery = order.deliveryStaffName || order.deliveryStaffCode || '';
-    const note = order.note || order.deliveryNote || order.description || order.remark || '';
+    // MASTER_ORDER_SEARCH_NOTE_PATCH_START: render cùng nhóm field ghi chú mà backend search đang dùng
+    const note = order.note || order.notes || order.deliveryNote || order.remark || order.description || '';
+    // MASTER_ORDER_SEARCH_NOTE_PATCH_END
     const total = Number(order.totalAmount ?? order.amount ?? order.grandTotal ?? 0) || 0;
     const locked = isMasterOrderLocked(order);
     const actions = locked

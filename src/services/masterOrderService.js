@@ -215,6 +215,9 @@ function toClient(masterOrder, children = []) {
     ...summary,
     id: masterOrder.id || masterOrder.code,
     code: masterOrder.code || masterOrder.id,
+    // MASTER_ORDER_SEARCH_NOTE_PATCH_START: chuẩn hóa field ghi chú để backend tìm đúng nội dung đang render
+    note: masterOrder.note || masterOrder.notes || masterOrder.deliveryNote || masterOrder.remark || masterOrder.description || '',
+    // MASTER_ORDER_SEARCH_NOTE_PATCH_END
     // children chỉ là dữ liệu render tạm lấy từ orders thật. Không coi masterOrder.children là nguồn dữ liệu.
     children,
     childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id))
@@ -307,6 +310,7 @@ async function listMasterOrders(query = {}) {
   if (q) {
     const rx = queryGuard.buildRegex(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
     filter.$and = filter.$and || [];
+    // MASTER_ORDER_SEARCH_NOTE_PATCH_START: mở rộng tìm kiếm đơn tổng sang các trường ghi chú đang hiển thị
     filter.$and.push({ $or: [
       { code: rx },
       { id: rx },
@@ -314,8 +318,14 @@ async function listMasterOrders(query = {}) {
       { deliveryStaffName: rx },
       { deliveryStaffCode: rx },
       { staffCode: rx },
-      { staffName: rx }
+      { staffName: rx },
+      { note: rx },
+      { notes: rx },
+      { deliveryNote: rx },
+      { remark: rx },
+      { description: rx }
     ] });
+    // MASTER_ORDER_SEARCH_NOTE_PATCH_END
   }
 
   const masterOrders = await masterOrderRepository.findAll(filter, { sort: { createdAt: -1, code: -1 }, skip: page.skip, limit: page.limit });

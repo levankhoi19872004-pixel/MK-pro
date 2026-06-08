@@ -8964,3 +8964,89 @@ body::after{
   }
 }
 /* IMPORT_HISTORY_LAYOUT_GROUPED_END */
+
+
+/* MASTER_ORDER_TOOLBAR_GROUPED_START: khoanh vùng riêng tab Đơn tổng, không ảnh hưởng các module khác */
+#masterOrdersTab .master-order-toolbar-grouped{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:10px!important;
+  margin:0 0 12px!important;
+}
+#masterOrdersTab .master-order-title-row{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+}
+#masterOrdersTab .master-order-title-row h2{
+  font-size:16px!important;
+  line-height:1.25!important;
+  margin:0!important;
+}
+#masterOrdersTab .master-order-title-row .muted{
+  font-size:12px!important;
+  line-height:1.25!important;
+  margin:2px 0 0!important;
+}
+#masterOrdersTab .master-order-toolbar-row{
+  display:grid!important;
+  grid-template-columns:minmax(280px,45%) minmax(230px,20%) minmax(380px,35%)!important;
+  gap:10px!important;
+  align-items:center!important;
+  padding:10px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:12px!important;
+  background:#f8fbff!important;
+}
+#masterOrdersTab .master-order-search-box,
+#masterOrdersTab .master-order-date-box,
+#masterOrdersTab .master-order-action-box{
+  min-width:0!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+}
+#masterOrdersTab .master-order-search-box input{
+  width:100%!important;
+  min-width:0!important;
+  height:34px!important;
+  padding:6px 10px!important;
+  border-radius:10px!important;
+}
+#masterOrdersTab .master-order-date-box input{
+  width:50%!important;
+  min-width:0!important;
+  height:34px!important;
+  padding:6px 8px!important;
+  border-radius:10px!important;
+}
+#masterOrdersTab .master-order-action-box{
+  justify-content:flex-end!important;
+  flex-wrap:nowrap!important;
+}
+#masterOrdersTab .master-order-action-box button{
+  width:auto!important;
+  min-width:max-content!important;
+  height:34px!important;
+  padding:6px 10px!important;
+  font-size:12px!important;
+  white-space:nowrap!important;
+}
+#masterOrdersTab .master-order-list-head,
+#masterOrdersTab .master-order-row{
+  grid-template-columns:34px minmax(150px,20%) minmax(130px,18%) minmax(210px,28%) minmax(90px,12%) minmax(100px,12%) minmax(96px,10%)!important;
+}
+@media(max-width:1180px){
+  #masterOrdersTab .master-order-toolbar-row{
+    grid-template-columns:1fr!important;
+  }
+  #masterOrdersTab .master-order-date-box,
+  #masterOrdersTab .master-order-action-box{
+    justify-content:flex-start!important;
+    flex-wrap:wrap!important;
+  }
+  #masterOrdersTab .master-order-action-box button{
+    flex:1 1 140px!important;
+  }
+}
+/* MASTER_ORDER_TOOLBAR_GROUPED_END */
