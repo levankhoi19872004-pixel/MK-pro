@@ -914,8 +914,9 @@ async function importOpeningStock(rows = []) {
     }
     const date = dateOnly(row.date || row.documentDate || row['Ngày'] || row['Ngay'] || dateUtil.todayVN());
     const docCode = cleanText(row.documentCode || row.code || row['Mã phiếu'] || row['Ma phieu']) || codeList[codeIndex++] || makeId('TD');
-    const warehouseCode = cleanText(product.warehouseCode || product.defaultWarehouseCode) || 'KHO_HC';
-    const warehouseName = cleanText(product.warehouseName || product.defaultWarehouseName) || productWarehouseName(warehouseCode);
+    // Tồn kho chỉ có 1 kho chính. HC/PC chỉ là nhóm in/gộp đơn, không ghi vào lịch sử tồn đầu.
+    const warehouseCode = STOCK_WAREHOUSE_CODE || 'MAIN';
+    const warehouseName = STOCK_WAREHOUSE_NAME || 'Kho chính';
     const productId = String(product.id || product._id || productCode);
     const productName = product.name || productCode;
     const note = cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import tồn đầu Excel';
