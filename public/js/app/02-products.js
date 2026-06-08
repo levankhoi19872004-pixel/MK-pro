@@ -1,6 +1,23 @@
 // Products
 let productListRequestSeq = 0;
 
+function openProductModal(){
+  if(!productModal)return;
+  productModal.classList.add('show');
+  productModal.setAttribute('aria-hidden','false');
+  setTimeout(()=>{
+    const codeInput=productForm&&productForm.elements&&productForm.elements.code;
+    if(codeInput)codeInput.focus();
+  },30);
+}
+function closeProductModal(){
+  if(!productModal)return;
+  productModal.classList.remove('show');
+  productModal.setAttribute('aria-hidden','true');
+}
+window.openProductModal=openProductModal;
+window.closeProductModal=closeProductModal;
+
 function getFormPayload(){
   const formData=new FormData(productForm);const payload=Object.fromEntries(formData.entries());
   payload.costPrice=Number(payload.costPrice||0);payload.salePrice=Number(payload.salePrice||0);
@@ -22,8 +39,10 @@ function fillForm(p){
   productForm.elements.costPrice.value=p.costPrice||0;productForm.elements.salePrice.value=p.salePrice||0;
   productForm.elements.minStock.value=p.minStock||0;productForm.elements.maxStock.value=p.maxStock||0;
   productForm.elements.isActive.checked=p.isActive!==false;formTitle.textContent=`Sửa sản phẩm: ${p.code}`;
-  showMessage(formMessage,'Đang sửa sản phẩm. Bấm "Nhập mới" nếu muốn thêm sản phẩm khác.');window.scrollTo({top:0,behavior:'smooth'});
+  showMessage(formMessage,'Đang sửa sản phẩm. Bấm "Nhập mới" nếu muốn thêm sản phẩm khác.');
+  openProductModal();
 }
+
 async function loadProducts(options = {}){
   const requestSeq = ++productListRequestSeq;
   const q=searchInput?searchInput.value.trim():'';
@@ -190,6 +209,17 @@ if(bulkEditProductButton){
     if(p)fillForm(p);
   });
 }
+if(openProductModalButton){
+  openProductModalButton.addEventListener('click',()=>{resetForm();openProductModal();});
+}
+if(closeProductModalButton)closeProductModalButton.addEventListener('click',closeProductModal);
+if(productModal){
+  productModal.addEventListener('click',event=>{if(event.target===productModal)closeProductModal();});
+}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&productModal&&productModal.classList.contains('show'))closeProductModal();
+});
+
 if(bulkOpenProductButton)bulkOpenProductButton.addEventListener('click',()=>bulkToggleProductStatus(true));
 if(bulkStopProductButton)bulkStopProductButton.addEventListener('click',()=>bulkToggleProductStatus(false));
 productForm.addEventListener('submit',async event=>{
@@ -198,7 +228,7 @@ productForm.addEventListener('submit',async event=>{
   try{
     const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được sản phẩm');
-    resetForm();showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
+    resetForm();showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');closeProductModal();if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
   }catch(err){showMessage(formMessage,err.message,true)}
 });
 

@@ -37,50 +37,14 @@
     </nav>
 
     <section id="productsTab" class="tab-content active">
-      <main class="grid">
-        <section class="card">
-          <h2 id="formTitle">Thêm sản phẩm</h2>
-          <form id="productForm" class="form">
-            <input type="hidden" name="id" />
-            <label>Mã sản phẩm *<input name="code" placeholder="VD: SP003" required /></label>
-            <label>Tên sản phẩm *<input name="name" placeholder="VD: OMO 800g" required /></label>
-            <div class="two-cols">
-              <label>Đơn vị bán chính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
-              <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
-            </div>
-            <div class="two-cols">
-              <label>Đơn vị gốc nhỏ nhất<input name="baseUnit" placeholder="Gói, Chai, Cái" /></label>
-              <label>Quy đổi / 1 ĐVT bán<input name="conversionRate" type="number" min="1" step="1" placeholder="VD: 12" /></label>
-            </div>
-            <label>Quy cách đóng gói<input name="packing" placeholder="VD: 1 thùng = 12 chai" /></label>
-            <label>Kho mặc định
-              <select name="warehouseCode">
-                <option value="KHO_HC">KHO HC</option>
-                <option value="KHO_PC">KHO PC</option>
-              </select>
-            </label>
-            <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
-            <div class="two-cols">
-              <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
-              <label>Giá bán<input name="salePrice" type="number" min="0" placeholder="0" /></label>
-            </div>
-            <div class="two-cols">
-              <label>Tồn tối thiểu<input name="minStock" type="number" min="0" placeholder="0" /></label>
-              <label>Tồn tối đa<input name="maxStock" type="number" min="0" placeholder="0" /></label>
-            </div>
-            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang mở bán</label>
-            <div class="button-row">
-              <button type="submit">Lưu sản phẩm</button>
-              <button type="button" id="resetButton" class="secondary">Nhập mới</button>
-            </div>
-          </form>
-          <p id="formMessage" class="message"></p>
-        </section>
-
+      <main class="grid product-workspace-grid">
         <section class="card product-card">
-          <div class="toolbar">
+          <div class="toolbar product-list-toolbar">
             <div><h2>Danh sách sản phẩm</h2><p id="productCount" class="muted">Đang tải...</p></div>
-            <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." />
+            <div class="product-toolbar-actions">
+              <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." />
+              <button type="button" id="openProductModalButton" class="primary-action">+ Thêm sản phẩm</button>
+            </div>
           </div>
           <div id="productBulkActions" class="bulk-actions" hidden>
             <div class="bulk-info">
@@ -122,6 +86,52 @@
         </section>
       </main>
     </section>
+
+    <div id="productModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card product-modal-card product-workspace" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+        <div class="modal-head product-workspace-head">
+          <h3 id="formTitle">Thêm sản phẩm</h3>
+          <button type="button" id="closeProductModalButton" class="ghost">Đóng</button>
+        </div>
+        <div class="product-modal-body product-workspace-body">
+          <form id="productForm" class="form product-workspace-form">
+            <input type="hidden" name="id" />
+            <label>Mã sản phẩm *<input name="code" placeholder="VD: SP003" required /></label>
+            <label>Tên sản phẩm *<input name="name" placeholder="VD: OMO 800g" required /></label>
+            <div class="two-cols">
+              <label>Đơn vị bán chính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
+              <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Đơn vị gốc nhỏ nhất<input name="baseUnit" placeholder="Gói, Chai, Cái" /></label>
+              <label>Quy đổi / 1 ĐVT bán<input name="conversionRate" type="number" min="1" step="1" placeholder="VD: 12" /></label>
+            </div>
+            <label>Quy cách đóng gói<input name="packing" placeholder="VD: 1 thùng = 12 chai" /></label>
+            <label>Kho mặc định
+              <select name="warehouseCode">
+                <option value="KHO_HC">KHO HC</option>
+                <option value="KHO_PC">KHO PC</option>
+              </select>
+            </label>
+            <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
+            <div class="two-cols">
+              <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
+              <label>Giá bán<input name="salePrice" type="number" min="0" placeholder="0" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Tồn tối thiểu<input name="minStock" type="number" min="0" placeholder="0" /></label>
+              <label>Tồn tối đa<input name="maxStock" type="number" min="0" placeholder="0" /></label>
+            </div>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang mở bán</label>
+            <div class="button-row">
+              <button type="submit">Lưu sản phẩm</button>
+              <button type="button" id="resetButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="formMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
 
     <section id="customersTab" class="tab-content">
       <main class="grid">
