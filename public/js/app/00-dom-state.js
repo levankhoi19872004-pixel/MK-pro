@@ -174,6 +174,13 @@ const deliveryEditReward=document.getElementById('deliveryEditReward');
 const deliveryEditDebt=document.getElementById('deliveryEditDebt');
 const deliveryEditNote=document.getElementById('deliveryEditNote');
 
+// MASTER_ORDER_POPUP_PATCH_START: DOM riêng cho popup tạo đơn tổng 3 layer
+const masterOrderModal=document.getElementById('masterOrderModal');
+const openMasterOrderModalButton=document.getElementById('openMasterOrderModalButton');
+const closeMasterOrderModalButton=document.getElementById('closeMasterOrderModalButton');
+const moveToGroupedOrdersButton=document.getElementById('moveToGroupedOrdersButton');
+const removeFromGroupedOrdersButton=document.getElementById('removeFromGroupedOrdersButton');
+const selectedMasterChildOrderList=document.getElementById('selectedMasterChildOrderList');
 const masterOrderForm=document.getElementById('masterOrderForm');
 const unmergedOrderList=document.getElementById('unmergedOrderList');
 const unmergedOrderCount=document.getElementById('unmergedOrderCount');
@@ -197,6 +204,7 @@ const masterOrderDateTo=document.getElementById('masterOrderDateTo');
 const printSelectedMasterOrdersButton=document.getElementById('printSelectedMasterOrdersButton');
 const selectAllMasterOrdersButton=document.getElementById('selectAllMasterOrdersButton');
 const reloadMasterOrdersButton=document.getElementById('reloadMasterOrdersButton');
+// MASTER_ORDER_POPUP_PATCH_END
 
 const debtTable=document.getElementById('debtTable');
 const debtCardList=document.getElementById('debtCardList');
@@ -360,7 +368,13 @@ let usersCache=[];
 let promotionsCache=[];
 
 let unmergedOrdersCache=[];
-let selectedChildOrderIds=new Set();
+// MASTER_ORDER_POPUP_PATCH_START: tách trạng thái tích ở layer 2 và đơn đã đưa sang layer 3
+let selectedUnmergedChildOrderIds=new Set();
+let selectedGroupedChildOrderIds=new Set();
+let selectedGroupedChildOrderCheckIds=new Set();
+// Giữ biến cũ để tương thích các đoạn cũ, nhưng luồng tạo đơn tổng mới dùng selectedGroupedChildOrderIds.
+let selectedChildOrderIds=selectedUnmergedChildOrderIds;
+// MASTER_ORDER_POPUP_PATCH_END
 let masterOrdersCache=[];
 let importPreviewRows=[];
 let customImportFields=[];

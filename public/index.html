@@ -424,70 +424,19 @@
     </section>
 
     <section id="masterOrdersTab" class="tab-content">
-      <main class="grid master-order-grid">
-        <section class="card master-create-card">
-          <div class="toolbar">
-            <div>
-              <h2>Gộp đơn tổng</h2>
-              <p id="unmergedOrderCount" class="muted">Đang tải đơn con chưa gộp...</p>
-            </div>
-            <button id="reloadMasterOrdersButton" class="secondary" type="button">Tải lại</button>
-          </div>
-
-          <form id="masterOrderForm" class="form master-order-form">
-            <div class="two-cols">
-              <label>Ngày giao hàng<input name="deliveryDate" type="date" required /></label>
-              <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
-            </div>
-            <div class="two-cols">
-              <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
-              <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
-            </div>
-            <label>Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
-            <label class="inline-check"><input name="groupBySalesStaff" type="checkbox" value="true" checked /> Gộp riêng theo từng nhân viên bán hàng</label>
-
-            <div class="master-selection-summary">
-              <span>Đã chọn: <strong id="selectedChildOrderCount">0</strong> đơn</span>
-              <span>Tổng tiền: <strong id="selectedChildOrderAmount">0</strong></span>
-              <span>Còn phải thu: <strong id="selectedChildOrderDebt">0</strong></span>
-            </div>
-
-            <button type="submit">Tạo đơn tổng</button>
-          </form>
-          <p id="masterOrderMessage" class="message"></p>
-        </section>
-
-        <section class="card master-filter-card">
-          <div class="toolbar">
-            <div><h2>Đơn con chưa gộp</h2><p class="muted">Chọn các đơn con để gom thành đơn tổng</p></div>
-            <button id="selectAllUnmergedOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
-          </div>
-          <div class="master-filter-row">
-            <input id="unmergedOrderSearch" placeholder="Tìm mã đơn, khách, địa chỉ..." />
-            <div class="autocomplete master-sales-staff-filter">
-              <input id="unmergedSalesStaffFilter" placeholder="Lọc NV bán hàng..." autocomplete="off" />
-              <div id="unmergedSalesStaffSuggestions" class="suggestions" hidden></div>
-            </div>
-            <select id="unmergedSourceFilter">
-              <option value="">Tất cả nguồn</option>
-              <option value="NVBH">Từ NVBH</option>
-              <option value="DMS">Từ DMS</option>
-            </select>
-            <input id="unmergedDateFrom" type="date" title="Từ ngày đơn" />
-            <input id="unmergedDateTo" type="date" title="Đến ngày đơn" />
-          </div>
-          <div id="unmergedOrderList" class="order-list compact-order-list">Đang tải...</div>
-        </section>
-
-        <section class="card master-list-card">
+      <!-- MASTER_ORDER_POPUP_PATCH_START: màn chính chỉ giữ danh sách đơn tổng, tạo đơn tổng đưa vào popup 3 layer -->
+      <main class="grid master-order-grid master-order-list-only-grid">
+        <section class="card master-list-card master-list-only-card">
           <div class="toolbar">
             <div><h2>Danh sách đơn tổng</h2><p id="masterOrderCount" class="muted">Đang tải...</p></div>
             <div class="sales-history-filters">
               <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, tuyến, nhân viên..." />
               <input id="masterOrderDateFrom" type="date" title="Từ ngày" />
               <input id="masterOrderDateTo" type="date" title="Đến ngày" />
+              <button id="openMasterOrderModalButton" class="primary" type="button">+ Tạo đơn tổng</button>
               <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
               <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>
+              <button id="reloadMasterOrdersButton" class="secondary" type="button">Tải lại</button>
             </div>
           </div>
           <div class="master-order-list-head">
@@ -501,6 +450,83 @@
           <div id="masterOrderList" class="order-list master-order-fixed-list">Đang tải đơn tổng...</div>
         </section>
       </main>
+
+      <div id="masterOrderModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card master-order-modal-workspace" role="dialog" aria-modal="true" aria-labelledby="masterOrderModalTitle">
+          <div class="modal-header">
+            <div>
+              <h2 id="masterOrderModalTitle">Tạo đơn tổng</h2>
+              <p class="muted">Chọn đơn chưa gộp ở layer 2, bấm gộp để chuyển sang layer 3 rồi mới tạo đơn tổng.</p>
+            </div>
+            <button id="closeMasterOrderModalButton" class="secondary" type="button">Đóng</button>
+          </div>
+
+          <div class="master-order-three-layer">
+            <section class="card master-order-layer master-order-layer-info">
+              <div class="toolbar compact-toolbar">
+                <div><h3>1. Thông tin đơn tổng</h3><p class="muted">Thông tin giao hàng</p></div>
+              </div>
+              <form id="masterOrderForm" class="form master-order-form">
+                <div class="two-cols">
+                  <label>Ngày giao hàng<input name="deliveryDate" type="date" required /></label>
+                  <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
+                </div>
+                <div class="two-cols">
+                  <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
+                  <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
+                </div>
+                <label>Ghi chú<input name="note" placeholder="Ghi chú giao hàng / tuyến" /></label>
+                <label class="inline-check"><input name="groupBySalesStaff" type="checkbox" value="true" checked /> Gộp riêng theo từng nhân viên bán hàng</label>
+
+                <div class="master-selection-summary">
+                  <span>Đã đưa vào gộp: <strong id="selectedChildOrderCount">0</strong> đơn</span>
+                  <span>Tổng tiền: <strong id="selectedChildOrderAmount">0</strong></span>
+                  <span>Còn phải thu: <strong id="selectedChildOrderDebt">0</strong></span>
+                </div>
+
+                <button type="submit">Tạo đơn tổng</button>
+              </form>
+              <p id="masterOrderMessage" class="message"></p>
+            </section>
+
+            <section class="card master-order-layer master-order-layer-unmerged">
+              <div class="toolbar compact-toolbar">
+                <div><h3>2. Đơn con chưa gộp</h3><p id="unmergedOrderCount" class="muted">Đang tải đơn con chưa gộp...</p></div>
+                <div class="button-row">
+                  <button id="selectAllUnmergedOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
+                  <button id="moveToGroupedOrdersButton" type="button" class="primary small">Gộp đơn đã chọn →</button>
+                </div>
+              </div>
+              <div class="master-filter-row">
+                <input id="unmergedOrderSearch" placeholder="Tìm mã đơn, khách, địa chỉ..." />
+                <div class="autocomplete master-sales-staff-filter">
+                  <input id="unmergedSalesStaffFilter" placeholder="Lọc NV bán hàng..." autocomplete="off" />
+                  <div id="unmergedSalesStaffSuggestions" class="suggestions" hidden></div>
+                </div>
+                <select id="unmergedSourceFilter">
+                  <option value="">Tất cả nguồn</option>
+                  <option value="NVBH">Từ NVBH</option>
+                  <option value="DMS">Từ DMS</option>
+                </select>
+                <input id="unmergedDateFrom" type="date" title="Từ ngày đơn" />
+                <input id="unmergedDateTo" type="date" title="Đến ngày đơn" />
+              </div>
+              <div id="unmergedOrderList" class="order-list compact-order-list">Đang tải...</div>
+            </section>
+
+            <section class="card master-order-layer master-order-layer-selected">
+              <div class="toolbar compact-toolbar">
+                <div><h3>3. Danh sách đơn con được gộp</h3><p class="muted">Chỉ các đơn ở danh sách này mới được gửi tạo đơn tổng</p></div>
+                <button id="removeFromGroupedOrdersButton" type="button" class="secondary small">← Bỏ khỏi danh sách gộp</button>
+              </div>
+              <div id="selectedMasterChildOrderList" class="order-list compact-order-list selected-master-child-list">
+                <div class="empty-cell">Chưa có đơn con nào được đưa vào danh sách gộp.</div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+      <!-- MASTER_ORDER_POPUP_PATCH_END -->
     </section>
 
 

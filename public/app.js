@@ -109,7 +109,13 @@ if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',lo
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
 
+// MASTER_ORDER_POPUP_PATCH_START: event popup tạo đơn tổng 3 layer, đóng khung để không ảnh hưởng module khác
 if(reloadMasterOrdersButton && typeof loadMasterOrderModule==='function')reloadMasterOrdersButton.addEventListener('click',loadMasterOrderModule);
+if(openMasterOrderModalButton && typeof openMasterOrderModal==='function')openMasterOrderModalButton.addEventListener('click',()=>{if(typeof resetMasterOrderModal==='function')resetMasterOrderModal();openMasterOrderModal();});
+if(closeMasterOrderModalButton && typeof closeMasterOrderModal==='function')closeMasterOrderModalButton.addEventListener('click',closeMasterOrderModal);
+if(masterOrderModal)masterOrderModal.addEventListener('click',event=>{if(event.target===masterOrderModal && typeof closeMasterOrderModal==='function')closeMasterOrderModal();});
+if(moveToGroupedOrdersButton && typeof moveSelectedUnmergedToGrouped==='function')moveToGroupedOrdersButton.addEventListener('click',moveSelectedUnmergedToGrouped);
+if(removeFromGroupedOrdersButton && typeof removeSelectedGroupedChildOrders==='function')removeFromGroupedOrdersButton.addEventListener('click',removeSelectedGroupedChildOrders);
 if(masterOrderForm){if(typeof submitMasterOrder==='function')masterOrderForm.addEventListener('submit',submitMasterOrder);if(masterOrderForm.elements.deliveryDate)masterOrderForm.elements.deliveryDate.value=today();else if(masterOrderForm.elements.date)masterOrderForm.elements.date.value=today()}
 if(unmergedOrderSearch && typeof loadUnmergedChildOrders==='function')unmergedOrderSearch.addEventListener('input',loadUnmergedChildOrders);
 if(unmergedSourceFilter && typeof loadUnmergedChildOrders==='function')unmergedSourceFilter.addEventListener('change',loadUnmergedChildOrders);
@@ -122,7 +128,9 @@ if(masterOrderDateFrom && typeof loadMasterOrders==='function')masterOrderDateFr
 if(masterOrderDateTo && typeof loadMasterOrders==='function')masterOrderDateTo.addEventListener('change',loadMasterOrders);
 if(selectAllMasterOrdersButton && typeof toggleSelectAllMasterOrders==='function')selectAllMasterOrdersButton.addEventListener('click',toggleSelectAllMasterOrders);
 if(printSelectedMasterOrdersButton && typeof printSelectedMasterOrders==='function')printSelectedMasterOrdersButton.addEventListener('click',printSelectedMasterOrders);
-if(unmergedOrderList)unmergedOrderList.addEventListener('change',event=>{const check=event.target.closest('.child-order-check');if(!check)return;if(check.checked)selectedChildOrderIds.add(check.dataset.id);else selectedChildOrderIds.delete(check.dataset.id);renderUnmergedChildOrders();});
+if(unmergedOrderList)unmergedOrderList.addEventListener('change',event=>{const check=event.target.closest('.child-order-check');if(!check)return;if(check.checked)selectedUnmergedChildOrderIds.add(check.dataset.id);else selectedUnmergedChildOrderIds.delete(check.dataset.id);selectedChildOrderIds=selectedUnmergedChildOrderIds;renderUnmergedChildOrders();});
+if(selectedMasterChildOrderList)selectedMasterChildOrderList.addEventListener('change',event=>{const check=event.target.closest('.grouped-child-order-check');if(!check)return;if(check.checked)selectedGroupedChildOrderCheckIds.add(check.dataset.id);else selectedGroupedChildOrderCheckIds.delete(check.dataset.id);renderSelectedGroupedChildOrders();});
+// MASTER_ORDER_POPUP_PATCH_END
 if(reloadDeliveryTodayButton)reloadDeliveryTodayButton.addEventListener('click',loadDeliveryToday);
 if(deliveryDateFilter){if(!deliveryDateFilter.value)deliveryDateFilter.value=today();deliveryDateFilter.addEventListener('change',loadDeliveryToday);}
 if(deliverySearchInput)deliverySearchInput.addEventListener('input',loadDeliveryToday);

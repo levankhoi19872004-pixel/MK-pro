@@ -42,14 +42,20 @@ function masterOrderChildDebt(row = {}) {
   return Number(row.debtAmount ?? row.remainingDebt ?? row.receivableAmount ?? row.totalDebt ?? 0) || 0;
 }
 
+// MASTER_ORDER_POPUP_PATCH_START: summary lấy từ layer 3, không lấy trực tiếp checkbox layer 2
+function masterOrderGroupedRows() {
+  return (unmergedOrdersCache || []).filter((row) => selectedGroupedChildOrderIds.has(salesOrderIdentity(row)));
+}
+
 function updateSelectedChildOrderSummary() {
-  const selected = (unmergedOrdersCache || []).filter((row) => selectedChildOrderIds.has(salesOrderIdentity(row)));
+  const selected = masterOrderGroupedRows();
   const totalAmount = selected.reduce((sum, row) => sum + masterOrderChildAmount(row), 0);
   const totalDebt = selected.reduce((sum, row) => sum + masterOrderChildDebt(row), 0);
   if (selectedChildOrderCount) selectedChildOrderCount.textContent = String(selected.length);
   if (selectedChildOrderAmount) selectedChildOrderAmount.textContent = masterOrderMoney(totalAmount);
   if (selectedChildOrderDebt) selectedChildOrderDebt.textContent = masterOrderMoney(totalDebt);
 }
+// MASTER_ORDER_POPUP_PATCH_END
 
 function masterOrderEscapeHtml(value) {
   if (window.V45Common && typeof window.V45Common.escapeHtml === 'function') {
@@ -74,9 +80,11 @@ function masterOrderSaleDateTime(order = {}) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// MASTER_ORDER_POPUP_PATCH_START: layer 2 không hiển thị các đơn đã chuyển sang layer 3
 function renderUnmergedChildOrders() {
   if (!unmergedOrderList) return;
-  const rows = Array.isArray(unmergedOrdersCache) ? [...unmergedOrdersCache] : [];
+  const rows = (Array.isArray(unmergedOrdersCache) ? [...unmergedOrdersCache] : [])
+    .filter((row) => !selectedGroupedChildOrderIds.has(salesOrderIdentity(row)));
   rows.sort((a, b) => masterOrderSaleDateTime(a) - masterOrderSaleDateTime(b));
   updateSelectedChildOrderSummary();
   if (unmergedOrderCount) unmergedOrderCount.textContent = `${rows.length} đơn con chưa gộp`;
@@ -96,7 +104,7 @@ function renderUnmergedChildOrders() {
 
   const body = rows.map((order) => {
     const key = salesOrderIdentity(order);
-    const checked = selectedChildOrderIds.has(key) ? 'checked' : '';
+    const checked = selectedUnmergedChildOrderIds.has(key) ? 'checked' : '';
     const selectedClass = checked ? ' selected' : '';
     const code = order.code || order.orderCode || order.salesOrderCode || key;
     const customer = order.customerName || order.customerCode || 'Khách hàng';
@@ -115,6 +123,45 @@ function renderUnmergedChildOrders() {
   unmergedOrderList.innerHTML = header + body;
 }
 window.renderUnmergedChildOrders = renderUnmergedChildOrders;
+
+function renderSelectedGroupedChildOrders() {
+  if (!selectedMasterChildOrderList) return;
+  const rows = masterOrderGroupedRows().sort((a, b) => masterOrderSaleDateTime(a) - masterOrderSaleDateTime(b));
+  updateSelectedChildOrderSummary();
+  if (!rows.length) {
+    selectedMasterChildOrderList.innerHTML = '<div class="empty-cell">Chưa có đơn con nào được đưa vào danh sách gộp.</div>';
+    return;
+  }
+  const header = `<div class="master-child-one-line master-child-header" aria-hidden="true">
+    <span></span><span>Mã đơn</span><span>Khách hàng</span><span>NVBH</span><span>Ngày bán</span><span>Giá trị</span>
+  </div>`;
+  const body = rows.map((order) => {
+    const key = salesOrderIdentity(order);
+    const checked = selectedGroupedChildOrderCheckIds.has(key) ? 'checked' : '';
+    const selectedClass = checked ? ' selected' : '';
+    const code = order.code || order.orderCode || order.salesOrderCode || key;
+    const customer = order.customerName || order.customerCode || 'Khách hàng';
+    const staff = order.salesStaffName || order.staffName || order.salesStaffCode || order.staffCode || '';
+    const saleDate = masterOrderDate(masterOrderSaleDateRaw(order));
+    return `<label class="master-child-one-line${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
+      <input type="checkbox" class="grouped-child-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
+      <span class="master-child-code">${masterOrderEscapeHtml(code)}</span>
+      <span class="master-child-customer">${masterOrderEscapeHtml(customer)}</span>
+      <span class="master-child-staff">${masterOrderEscapeHtml(staff)}</span>
+      <span class="master-child-date">${masterOrderEscapeHtml(saleDate)}</span>
+      <span class="master-child-money">${masterOrderMoney(masterOrderChildAmount(order))}</span>
+    </label>`;
+  }).join('');
+  selectedMasterChildOrderList.innerHTML = header + body;
+}
+window.renderSelectedGroupedChildOrders = renderSelectedGroupedChildOrders;
+
+function renderMasterOrderGroupingLayers() {
+  renderUnmergedChildOrders();
+  renderSelectedGroupedChildOrders();
+}
+window.renderMasterOrderGroupingLayers = renderMasterOrderGroupingLayers;
+// MASTER_ORDER_POPUP_PATCH_END
 
 async function loadUnmergedChildOrders() {
   if (!unmergedOrderList) return;
@@ -137,9 +184,12 @@ async function loadUnmergedChildOrders() {
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được đơn con chưa gộp');
     const rows = json.orders || json.rows || json.data || [];
     unmergedOrdersCache = Array.isArray(rows) ? rows : [];
-    selectedChildOrderIds = new Set([...selectedChildOrderIds].filter((id) => unmergedOrdersCache.some((row) => salesOrderIdentity(row) === id)));
+    selectedUnmergedChildOrderIds = new Set([...selectedUnmergedChildOrderIds].filter((id) => unmergedOrdersCache.some((row) => salesOrderIdentity(row) === id) && !selectedGroupedChildOrderIds.has(id)));
+    selectedGroupedChildOrderIds = new Set([...selectedGroupedChildOrderIds].filter((id) => unmergedOrdersCache.some((row) => salesOrderIdentity(row) === id)));
+    selectedGroupedChildOrderCheckIds = new Set([...selectedGroupedChildOrderCheckIds].filter((id) => selectedGroupedChildOrderIds.has(id)));
+    selectedChildOrderIds = selectedUnmergedChildOrderIds;
     window.selectedChildOrderIds = selectedChildOrderIds;
-    renderUnmergedChildOrders();
+    renderMasterOrderGroupingLayers();
   } catch (err) {
     if (unmergedOrderCount) unmergedOrderCount.textContent = 'Lỗi tải đơn con';
     if (unmergedOrderList) unmergedOrderList.innerHTML = `<div class="empty-cell error">${err.message || 'Không tải được đơn con chưa gộp'}</div>`;
@@ -147,14 +197,39 @@ async function loadUnmergedChildOrders() {
 }
 window.loadUnmergedChildOrders = loadUnmergedChildOrders;
 
+// MASTER_ORDER_POPUP_PATCH_START: chọn tất cả chỉ tác động layer 2 đang nhìn thấy
 function toggleSelectAllUnmergedOrders() {
-  const rows = Array.isArray(unmergedOrdersCache) ? unmergedOrdersCache : [];
-  const allSelected = rows.length && rows.every((row) => selectedChildOrderIds.has(salesOrderIdentity(row)));
-  if (allSelected) selectedChildOrderIds.clear();
-  else rows.forEach((row) => selectedChildOrderIds.add(salesOrderIdentity(row)));
+  const rows = (Array.isArray(unmergedOrdersCache) ? unmergedOrdersCache : [])
+    .filter((row) => !selectedGroupedChildOrderIds.has(salesOrderIdentity(row)));
+  const allSelected = rows.length && rows.every((row) => selectedUnmergedChildOrderIds.has(salesOrderIdentity(row)));
+  if (allSelected) selectedUnmergedChildOrderIds.clear();
+  else rows.forEach((row) => selectedUnmergedChildOrderIds.add(salesOrderIdentity(row)));
+  selectedChildOrderIds = selectedUnmergedChildOrderIds;
   renderUnmergedChildOrders();
 }
 window.toggleSelectAllUnmergedOrders = toggleSelectAllUnmergedOrders;
+
+function moveSelectedUnmergedToGrouped() {
+  const ids = [...selectedUnmergedChildOrderIds].filter(Boolean);
+  if (!ids.length) return masterOrderSetMessage('Chưa chọn đơn con ở layer 2 để đưa vào danh sách gộp', true);
+  ids.forEach((id) => selectedGroupedChildOrderIds.add(id));
+  selectedUnmergedChildOrderIds.clear();
+  selectedChildOrderIds = selectedUnmergedChildOrderIds;
+  masterOrderSetMessage(`Đã đưa ${ids.length} đơn sang danh sách gộp`);
+  renderMasterOrderGroupingLayers();
+}
+window.moveSelectedUnmergedToGrouped = moveSelectedUnmergedToGrouped;
+
+function removeSelectedGroupedChildOrders() {
+  const ids = [...selectedGroupedChildOrderCheckIds].filter(Boolean);
+  if (!ids.length) return masterOrderSetMessage('Chưa chọn đơn ở layer 3 để bỏ khỏi danh sách gộp', true);
+  ids.forEach((id) => selectedGroupedChildOrderIds.delete(id));
+  selectedGroupedChildOrderCheckIds.clear();
+  masterOrderSetMessage(`Đã bỏ ${ids.length} đơn khỏi danh sách gộp`);
+  renderMasterOrderGroupingLayers();
+}
+window.removeSelectedGroupedChildOrders = removeSelectedGroupedChildOrders;
+// MASTER_ORDER_POPUP_PATCH_END
 
 function isMasterOrderLocked(order) {
   const status = String(order.status || order.deliveryStatus || '').toLowerCase();
@@ -218,6 +293,43 @@ async function loadMasterOrders() {
 }
 window.loadMasterOrders = loadMasterOrders;
 
+// MASTER_ORDER_POPUP_PATCH_START: mở/đóng/reset popup tạo đơn tổng 3 layer
+function openMasterOrderModal() {
+  if (!masterOrderModal) return;
+  masterOrderModal.classList.add('show');
+  masterOrderModal.setAttribute('aria-hidden', 'false');
+  if (masterOrderForm && masterOrderForm.elements.deliveryDate && !masterOrderForm.elements.deliveryDate.value && typeof today === 'function') {
+    masterOrderForm.elements.deliveryDate.value = today();
+  }
+  loadUnmergedChildOrders();
+  renderSelectedGroupedChildOrders();
+}
+window.openMasterOrderModal = openMasterOrderModal;
+
+function closeMasterOrderModal() {
+  if (!masterOrderModal) return;
+  masterOrderModal.classList.remove('show');
+  masterOrderModal.setAttribute('aria-hidden', 'true');
+}
+window.closeMasterOrderModal = closeMasterOrderModal;
+
+function resetMasterOrderModal() {
+  selectedUnmergedChildOrderIds.clear();
+  selectedGroupedChildOrderIds.clear();
+  selectedGroupedChildOrderCheckIds.clear();
+  selectedChildOrderIds = selectedUnmergedChildOrderIds;
+  if (masterOrderForm) {
+    const keepDate = masterOrderForm.elements.deliveryDate && masterOrderForm.elements.deliveryDate.value;
+    masterOrderForm.reset();
+    if (masterOrderForm.elements.deliveryDate) masterOrderForm.elements.deliveryDate.value = keepDate || (typeof today === 'function' ? today() : '');
+    if (masterOrderForm.elements.groupBySalesStaff) masterOrderForm.elements.groupBySalesStaff.checked = true;
+  }
+  masterOrderSetMessage('');
+  renderMasterOrderGroupingLayers();
+}
+window.resetMasterOrderModal = resetMasterOrderModal;
+// MASTER_ORDER_POPUP_PATCH_END
+
 async function loadMasterOrderModule() {
   await Promise.allSettled([loadUnmergedChildOrders(), loadMasterOrders()]);
 }
@@ -226,7 +338,7 @@ window.loadMasterOrderModule = loadMasterOrderModule;
 async function submitMasterOrder(event) {
   if (event && event.preventDefault) event.preventDefault();
   try {
-    const childOrderIds = [...selectedChildOrderIds].filter(Boolean);
+    const childOrderIds = [...selectedGroupedChildOrderIds].filter(Boolean);
     if (!childOrderIds.length) throw new Error('Chưa chọn đơn con để gộp');
     const formData = masterOrderForm ? new FormData(masterOrderForm) : new FormData();
     const payload = Object.fromEntries(formData.entries());
@@ -241,7 +353,11 @@ async function submitMasterOrder(event) {
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tạo được đơn tổng');
     masterOrderSetMessage(json.message || 'Đã tạo đơn tổng');
-    selectedChildOrderIds.clear();
+    selectedUnmergedChildOrderIds.clear();
+    selectedGroupedChildOrderIds.clear();
+    selectedGroupedChildOrderCheckIds.clear();
+    selectedChildOrderIds = selectedUnmergedChildOrderIds;
+    closeMasterOrderModal();
     await loadMasterOrderModule();
   } catch (err) {
     masterOrderSetMessage(err.message || 'Không tạo được đơn tổng', true);

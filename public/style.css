@@ -8355,3 +8355,129 @@ body::after{
   .customer-toolbar-actions{justify-content:stretch;}
   .customer-toolbar-actions #customerSearchInput,.customer-toolbar-actions .primary-action{width:100%;}
 }
+
+/* MASTER_ORDER_POPUP_PATCH_START: popup tạo đơn tổng 3 layer, chỉ scope trong #masterOrdersTab/#masterOrderModal */
+#masterOrdersTab .master-order-list-only-grid{
+  display:block!important;
+}
+#masterOrdersTab .master-list-only-card{
+  width:100%!important;
+  min-height:520px;
+}
+#masterOrderModal .master-order-modal-workspace{
+  width:min(75vw,1280px);
+  max-width:96vw;
+  height:min(90vh,880px);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+#masterOrderModal .modal-header{
+  flex:0 0 auto;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  border-bottom:1px solid #e2e8f0;
+  background:#f8fafc;
+}
+#masterOrderModal .modal-header h2{
+  margin:0;
+  font-size:18px;
+  font-weight:900;
+  color:#0f172a;
+}
+#masterOrderModal .master-order-three-layer{
+  flex:1 1 auto;
+  min-height:0;
+  display:grid;
+  grid-template-columns:22% 39% 39%;
+  gap:12px;
+  padding:12px;
+  overflow:hidden;
+  background:#eef2f7;
+}
+#masterOrderModal .master-order-layer{
+  min-width:0;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  padding:12px!important;
+}
+#masterOrderModal .compact-toolbar{
+  flex:0 0 auto;
+  align-items:flex-start!important;
+  gap:8px;
+}
+#masterOrderModal .compact-toolbar h3{
+  margin:0;
+  font-size:14px;
+  font-weight:900;
+  color:#0f172a;
+}
+#masterOrderModal .master-order-form{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  padding-right:2px;
+}
+#masterOrderModal .master-order-form .two-cols{
+  display:grid!important;
+  grid-template-columns:1fr;
+  gap:8px;
+}
+#masterOrderModal .master-order-form label{
+  font-size:12px;
+  font-weight:800;
+}
+#masterOrderModal .master-order-form input{
+  height:34px;
+  font-size:12px;
+}
+#masterOrderModal .master-selection-summary{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:6px;
+  margin:10px 0;
+}
+#masterOrderModal .master-filter-row{
+  flex:0 0 auto;
+  display:grid!important;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-bottom:8px;
+}
+#masterOrderModal .master-filter-row input,
+#masterOrderModal .master-filter-row select{
+  min-width:0;
+  height:34px;
+  font-size:12px;
+}
+#masterOrderModal #unmergedOrderList,
+#masterOrderModal #selectedMasterChildOrderList{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:#fff;
+}
+#masterOrderModal .master-child-one-line{
+  grid-template-columns:28px 1.05fr 1.25fr .9fr .8fr .85fr!important;
+  min-width:620px;
+}
+#masterOrderModal .button-row{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+@media(max-width:1100px){
+  #masterOrderModal .master-order-modal-workspace{width:96vw;height:94vh;}
+  #masterOrderModal .master-order-three-layer{grid-template-columns:1fr;overflow:auto;}
+  #masterOrderModal .master-order-layer{min-height:360px;}
+}
+/* MASTER_ORDER_POPUP_PATCH_END */
