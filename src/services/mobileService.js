@@ -3,66 +3,21 @@
 const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
-const InventoryLegacy = require('../models/InventoryLegacy');
+const inventoryStockService = require('./inventoryStock.service');
 const { MongoStore } = require('./mongoSyncService');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
-  const onHand = Number(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity ?? 0);
-  const reserved = Number(row.reservedQty ?? row.reserved ?? 0);
-  return row.availableQty !== undefined && row.availableQty !== null
-    ? Number(row.availableQty || 0)
-    : Math.max(0, onHand - reserved);
+  return inventoryStockService.quantityOf(row);
 }
 
 function canonicalProductCode(product = {}) {
   return String(product.code || product.productCode || product.sku || '').trim();
 }
 
-function buildProductStockKeys(product = {}) {
-  return [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-}
-
 async function getInventoryQtyForProduct(product = {}) {
-  const canonical = canonicalProductCode(product) || String(product.id || product._id || '').trim();
-  const aliasToCanonical = new Map();
-  for (const key of buildProductStockKeys(product)) {
-    aliasToCanonical.set(key, canonical);
-  }
-  const keys = Array.from(aliasToCanonical.keys());
-  if (!keys.length || !canonical) return 0;
-
-  const rows = await InventoryLegacy.find({
-    $or: [
-      { productCode: { $in: keys } },
-      { productId: { $in: keys } },
-      { code: { $in: keys } },
-      { sku: { $in: keys } }
-    ]
-  }).lean();
-
-  let qty = 0;
-  for (const row of rows || []) {
-    // Ưu tiên productCode/code/sku; fallback productId. Một dòng inventories chỉ cộng 1 lần.
-    const matchedKey = [
-      row.productCode,
-      row.code,
-      row.sku,
-      row.product?.code,
-      row.product?.productCode,
-      row.product?.sku,
-      row.productId,
-      row.product?._id,
-      row.product?._id ? String(row.product._id) : ''
-    ]
-      .map((value) => String(value || '').trim())
-      .find((key) => key && aliasToCanonical.has(key));
-    if (!matchedKey) continue;
-    qty += inventoryRowOpenSaleQty(row);
-  }
-  return qty;
+  const stock = await inventoryStockService.getAvailableStock(canonicalProductCode(product) || String(product.id || product._id || '').trim());
+  return Number(stock.availableQty || 0);
 }
 
 function createMobileService(ctx) {

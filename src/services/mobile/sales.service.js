@@ -3,88 +3,35 @@
 const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
-const InventoryLegacy = require('../../models/InventoryLegacy');
+const inventoryStockService = require('../inventoryStock.service');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
 const { PROMOTION } = require('../../constants/pricingModes');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
-  const onHand = Number(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity ?? 0);
-  const reserved = Number(row.reservedQty ?? row.reserved ?? 0);
-  return row.availableQty !== undefined && row.availableQty !== null
-    ? Number(row.availableQty || 0)
-    : Math.max(0, onHand - reserved);
+  return inventoryStockService.quantityOf(row);
 }
 
 function canonicalProductCode(product = {}) {
   return String(product.code || product.productCode || product.sku || '').trim();
 }
 
-function buildProductStockKeys(product = {}) {
-  return [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-}
-
-function buildProductAliasMap(products = []) {
-  const aliasToCanonical = new Map();
+async function getInventoryQtyByProducts(products = []) {
+  const codes = (products || []).map(canonicalProductCode).filter(Boolean);
+  const stockMap = await inventoryStockService.getAvailableStocks(codes);
   const result = new Map();
   for (const product of products || []) {
-    const canonical = canonicalProductCode(product) || String(product.id || product._id || '').trim();
-    if (!canonical) continue;
-    result.set(canonical, 0);
-    for (const key of buildProductStockKeys(product)) {
-      aliasToCanonical.set(key, canonical);
-    }
-  }
-  return { aliasToCanonical, result };
-}
-
-function resolveInventoryRowCanonical(row = {}, aliasToCanonical = new Map()) {
-  const matchedKey = [
-    row.productCode,
-    row.code,
-    row.sku,
-    row.product?.code,
-    row.product?.productCode,
-    row.product?.sku,
-    row.productId,
-    row.product?._id,
-    row.product?._id ? String(row.product._id) : ''
-  ]
-    .map((value) => String(value || '').trim())
-    .find((key) => key && aliasToCanonical.has(key));
-  return aliasToCanonical.get(matchedKey) || '';
-}
-
-async function getInventoryQtyByProducts(products = []) {
-  const { aliasToCanonical, result } = buildProductAliasMap(products);
-  const uniqueKeys = Array.from(aliasToCanonical.keys());
-  if (!uniqueKeys.length) return result;
-
-  const inventoryRows = await InventoryLegacy.find({
-    $or: [
-      { productCode: { $in: uniqueKeys } },
-      { productId: { $in: uniqueKeys } },
-      { code: { $in: uniqueKeys } },
-      { sku: { $in: uniqueKeys } }
-    ]
-  }).lean();
-
-  for (const row of inventoryRows || []) {
-    // Mỗi dòng inventories chỉ được cộng đúng 1 lần vào sản phẩm chuẩn.
-    const canonical = resolveInventoryRowCanonical(row, aliasToCanonical);
-    if (!canonical) continue;
-    result.set(canonical, (result.get(canonical) || 0) + inventoryRowOpenSaleQty(row));
+    const code = canonicalProductCode(product);
+    if (!code) continue;
+    result.set(code, Number(stockMap[inventoryStockService.normalizeProductCode(code)] || stockMap[code] || 0));
   }
   return result;
 }
 
 async function getInventoryQtyForProduct(product = {}) {
-  const stockByProduct = await getInventoryQtyByProducts([product]);
-  const canonical = canonicalProductCode(product) || String(product.id || product._id || '').trim();
-  return Number(stockByProduct.get(canonical) || 0);
+  const stock = await inventoryStockService.getAvailableStock(canonicalProductCode(product));
+  return Number(stock.availableQty || 0);
 }
 
 function fail(statusCode, message) {

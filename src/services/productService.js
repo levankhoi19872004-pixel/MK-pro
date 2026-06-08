@@ -5,7 +5,7 @@ const { normalizeSearchText } = require('../utils/search.util');
 const productRepository = require('../repositories/productRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
-const InventoryLegacy = require('../models/InventoryLegacy');
+const inventoryStockService = require('./inventoryStock.service');
 
 
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
@@ -92,44 +92,20 @@ function toClient(product, snapshot = null) {
 }
 
 async function snapshotMapForProducts(products = []) {
-  const keys = [];
-  for (const product of products) {
-    for (const value of [product.code, product.sku, product.productCode, product.id, product._id, product._id ? String(product._id) : '']) {
-      const key = String(value || '').trim();
-      if (key && !keys.includes(key)) keys.push(key);
-    }
+  const codes = [];
+  for (const product of products || []) {
+    const code = String(product.code || product.productCode || product.sku || product.id || product._id || '').trim();
+    if (code && !codes.includes(code)) codes.push(code);
   }
-  if (!keys.length) return new Map();
-  // Unit tests may patch productRepository without connecting Mongo. In that case,
-  // skip snapshot lookup and let toClient() fallback to stock fields already present on product rows.
-  if (InventoryLegacy.db && InventoryLegacy.db.readyState !== 1) return new Map();
-
-  const filter = {
-    $or: [
-      { productCode: { $in: keys } },
-      { productId: { $in: keys } },
-      { code: { $in: keys } },
-      { sku: { $in: keys } }
-    ]
-  };
-
-  // Nguồn tồn duy nhất: collection inventories qua InventoryLegacy.
-  const rows = await InventoryLegacy.find(filter).lean();
-
+  if (!codes.length) return new Map();
+  const stockMap = await inventoryStockService.getAvailableStocks(codes);
   const map = new Map();
-  for (const row of rows) {
-    const onHand = toNumber(row.onHand ?? row.qty ?? row.quantity ?? row.stockQuantity);
-    const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
-    const rowQty = row.availableQty !== undefined && row.availableQty !== null
-      ? toNumber(row.availableQty)
-      : Math.max(0, onHand - reserved);
-
-    for (const key of [row.productCode, row.productId, row.code, row.sku]) {
+  for (const product of products || []) {
+    const qty = toNumber(stockMap[inventoryStockService.normalizeProductCode(product.code || product.productCode || product.sku || product.id || product._id)]);
+    const row = { availableQty: qty, onHand: qty, quantity: qty, qty };
+    for (const key of [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']) {
       const clean = String(key || '').trim();
-      if (!clean) continue;
-      const old = map.get(clean) || {};
-      const qty = toNumber(old.availableQty ?? old.onHand ?? 0) + rowQty;
-      map.set(clean, { ...row, availableQty: qty, onHand: qty });
+      if (clean) map.set(clean, row);
     }
   }
   return map;

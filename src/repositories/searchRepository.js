@@ -9,8 +9,7 @@ const User = require('../models/User');
 const MasterOrder = require('../models/MasterOrder');
 const Journal = require('../models/Journal');
 const SalesOrder = require('../models/SalesOrder');
-const InventoryLegacy = require('../models/InventoryLegacy');
-const { STOCK_WAREHOUSE_CODE } = require('../constants/business.constants');
+const inventoryStockService = require('../services/inventoryStock.service');
 const { escapeRegex } = require('../utils/query.util');
 
 const SEARCH_RETURN_MAX = 50;
@@ -249,35 +248,23 @@ async function findProducts(query = {}) {
 }
 
 async function findInventoriesForProducts(products = []) {
-  const ids = [];
-  for (const product of products) {
-    for (const value of [
-      product.code,
-      product.sku,
-      product.productCode,
-      product.id,
-      product._id,
-      product._id ? String(product._id) : ''
-    ]) {
-      const key = String(value || '').trim();
-      if (key && !ids.includes(key)) ids.push(key);
-    }
+  const canonicalCodes = [];
+  for (const product of products || []) {
+    const code = String(product.code || product.productCode || product.sku || product.id || product._id || '').trim();
+    if (code && !canonicalCodes.includes(code)) canonicalCodes.push(code);
   }
-  if (!ids.length) return [];
+  if (!canonicalCodes.length) return [];
 
-  const filter = {
-    warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
-    $or: [
-      { productCode: { $in: ids } },
-      { productId: { $in: ids } },
-      { code: { $in: ids } },
-      { sku: { $in: ids } }
-    ]
-  };
-
-  // Nguồn tồn duy nhất cho app bán hàng/search: inventories tại kho tồn MAIN.
-  // KHO_HC/KHO_PC chỉ là nhóm in/gộp đơn, không được dùng để hiển thị tồn mở bán.
-  return InventoryLegacy.find(filter).lean();
+  const stockMap = await inventoryStockService.getAvailableStocks(canonicalCodes);
+  return canonicalCodes.map((code) => ({
+    productCode: code,
+    warehouseCode: inventoryStockService.stockWarehouseCode(),
+    availableQty: Number(stockMap[inventoryStockService.normalizeProductCode(code)] || stockMap[code] || 0),
+    quantity: Number(stockMap[inventoryStockService.normalizeProductCode(code)] || stockMap[code] || 0),
+    qty: Number(stockMap[inventoryStockService.normalizeProductCode(code)] || stockMap[code] || 0),
+    onHand: Number(stockMap[inventoryStockService.normalizeProductCode(code)] || stockMap[code] || 0),
+    source: 'inventoryStock.service'
+  }));
 }
 
 async function findCustomers(query = {}) {

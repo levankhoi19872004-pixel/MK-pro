@@ -11,6 +11,7 @@ const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
 const StockTransaction = require('../models/StockTransaction');
 const InventoryLegacy = require('../models/InventoryLegacy');
+const inventoryStockService = require('./inventoryStock.service');
 const Receipt = require('../models/Receipt');
 const Cashbook = require('../models/Cashbook');
 const ArLedger = require('../models/ArLedger');
@@ -679,15 +680,13 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     .map((delta) => ({ ...delta, qty: toNumber(delta.qty) }))
     .filter((delta) => delta.qty < 0);
   if (negativeDeltas.length) {
-    const checks = await Promise.all(negativeDeltas.map(async (delta) => {
-      const current = await InventoryLegacy.findOne({
-        productCode: delta.productCode,
-        warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN'
-      }).lean();
-      const availableQty = toNumber(current?.availableQty ?? current?.quantity ?? current?.qty ?? current?.onHand);
+    const stockMap = await inventoryStockService.getAvailableStocks(negativeDeltas.map((delta) => delta.productCode));
+    const checks = negativeDeltas.map((delta) => {
+      const key = inventoryStockService.normalizeProductCode(delta.productCode);
+      const availableQty = toNumber(stockMap[key]);
       const requiredQty = Math.abs(delta.qty);
       return { ...delta, availableQty, requiredQty, nextQty: availableQty - requiredQty };
-    }));
+    });
     const insufficient = checks.filter((row) => row.nextQty < 0);
     if (insufficient.length) {
       const first = insufficient[0];
@@ -1083,14 +1082,11 @@ async function importSalesOrders(rows = [], options = {}) {
   // Lấy tồn kho theo mã sản phẩm. Không khóa cứng warehouseCode ở bước import DMS,
   // vì tồn đầu/import cũ có thể lưu warehouseCode rỗng hoặc thiếu warehouseCode.
   // Nếu chỉ query MAIN thì màn Tồn kho thấy còn hàng nhưng import lại báo còn 0.
-  const stockRows = await InventoryLegacy.find({ productCode: { $in: productCodes } }).lean().catch(() => []);
+  const stockByCode = await inventoryStockService.getAvailableStocks(productCodes);
   const productStockMap = new Map();
-  for (const stock of stockRows) {
-    const code = cleanText(stock.productCode);
-    if (!code) continue;
-    const qty = toNumber(stock.availableQty ?? stock.quantity ?? stock.qty ?? stock.onHand);
-    // Tồn kho là 1 nguồn duy nhất theo productCode. Không kiểm tra theo KHO_HC/KHO_PC/warehouseCode.
-    productStockMap.set(code, toNumber(productStockMap.get(code)) + qty);
+  for (const code of productCodes) {
+    const normalizedCode = inventoryStockService.normalizeProductCode(code);
+    productStockMap.set(cleanText(code), toNumber(stockByCode[normalizedCode]));
   }
   const groups = groupRows(rows, makeSalesOrderGroupKey);
   const autoOrderCodes = await buildRunningCodes(SalesOrder, 'BH', groups.length);
@@ -1690,18 +1686,12 @@ function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) 
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
   if (!codes.length) return new Map();
-  const inventoryRows = await InventoryLegacy.find({ productCode: { $in: codes } }).lean().catch(() => []);
-  const buildMap = (inventoryRows = []) => {
-    const map = new Map();
-    for (const row of inventoryRows) {
-      const code = cleanText(row.productCode || row.productId);
-      if (!code) continue;
-      const qty = toNumber(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand);
-      map.set(code, toNumber(map.get(code)) + qty);
-    }
-    return map;
-  };
-  return buildMap(inventoryRows);
+  const stockByCode = await inventoryStockService.getAvailableStocks(codes);
+  const map = new Map();
+  for (const code of codes) {
+    map.set(code, toNumber(stockByCode[inventoryStockService.normalizeProductCode(code)]));
+  }
+  return map;
 }
 
 

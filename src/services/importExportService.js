@@ -10,6 +10,7 @@ const ReturnOrder = require('../models/ReturnOrder');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const models = require('../models');
+const reportService = require('./reportService');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -681,16 +682,14 @@ async function buildArLedgerDetailWorkbook(query = {}) {
 }
 
 async function buildStockReportWorkbook(query = {}) {
-  const InventoryLegacy = models.inventories;
-  const stocks = await InventoryLegacy.find({}).sort({ productCode: 1 }).limit(safeLimit(query)).lean();
-  const grouped = new Map();
-  for (const s of stocks) {
-    const code = cleanText(s.productCode || s.code || s.productId);
-    if (!code) continue;
-    if (!grouped.has(code)) grouped.set(code, { MaSP: code, SanPham: cleanText(s.productName || s.name), DonViTinh: cleanText(s.unit || s.baseUnit), Ton: 0 });
-    grouped.get(code).Ton += toNumber(s.quantity || s.qty || s.onHand || s.availableQty);
-  }
-  const rows = Array.from(grouped.values()).map((row, idx) => ({ STT: idx + 1, ...row }));
+  const result = await reportService.stockReport(query);
+  const rows = (result.stock || []).map((s, idx) => ({
+    STT: idx + 1,
+    MaSP: cleanText(s.productCode || s.code || s.productId),
+    SanPham: cleanText(s.productName || s.name),
+    DonViTinh: cleanText(s.unit || s.baseUnit),
+    Ton: toNumber(s.availableQty ?? s.quantity ?? s.qty ?? s.onHand)
+  }));
   return reportWorkbook('stock-report', 'BaoCaoTonKho', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', DonViTinh:'', Ton:'' }), rows, query);
 }
 

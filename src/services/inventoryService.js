@@ -9,6 +9,7 @@ const SalesOrder = require('../models/SalesOrder');
 const ReturnOrder = require('../models/ReturnOrder');
 const { makeId, toNumber, normalizeText } = require('../utils/common.util');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
+const inventoryStockService = require('./inventoryStock.service');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
@@ -99,23 +100,8 @@ async function assertStockAvailableBeforeOut({ productCode, productId, productNa
   const required = Math.abs(toNumber(requiredQty));
   if (!code || required <= 0) return { ok: true, availableQty: 0, requiredQty: required };
 
-  const query = {
-    $or: [
-      productCode ? { productCode: String(productCode).trim(), warehouseCode: whCode } : null,
-      productId ? { productId: String(productId).trim(), warehouseCode: whCode } : null
-    ].filter(Boolean)
-  };
-  const snapshotQuery = InventoryLegacy.findOne(query);
-  let snapshot = session ? await snapshotQuery.session(session) : await snapshotQuery;
-  let available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
-
-  if (available < required) {
-    // Cầu chì an toàn cho dữ liệu cũ: nếu mã hàng còn bị tách MAIN/KHO_HC/KHO_PC,
-    // gom riêng mã này về MAIN rồi kiểm tra lại trước khi báo thiếu tồn.
-    // Sau khi migration tổng thể đã chạy, nhánh này hầu như không còn được gọi.
-    snapshot = await normalizeProductInventoryToMain({ productCode, productId });
-    available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
-  }
+  const stock = await inventoryStockService.getAvailableStock(productCode || productId);
+  const available = toNumber(stock.availableQty);
 
   if (available < required) {
     const err = new Error(`Không đủ tồn kho: mã SP ${code}${productName ? ` - ${productName}` : ''}, tồn hiện tại ${available}, cần xuất ${required}`);

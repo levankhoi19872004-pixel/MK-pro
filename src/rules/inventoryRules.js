@@ -1,7 +1,6 @@
 'use strict';
 
-const Inventory = require('../models/Inventory');
-const InventoryLegacy = require('../models/InventoryLegacy');
+const inventoryStockService = require('../services/inventoryStock.service');
 const { normalizeCode, normalizeQuantity } = require('./commonRules');
 
 function rowQty(row = {}) {
@@ -13,18 +12,9 @@ function rowQty(row = {}) {
 
 async function getAvailableStock(productCode, warehouseCode = '') {
   const code = normalizeCode(productCode);
-  const wh = normalizeCode(warehouseCode);
   if (!code) return 0;
-  const filter = { productCode: code };
-  if (wh) filter.warehouseCode = wh;
-  const [snapshotRows, legacyRows] = await Promise.all([
-    Inventory.find(filter).lean().catch(() => []),
-    InventoryLegacy.find(filter).lean().catch(() => [])
-  ]);
-  const snapshotQty = snapshotRows.reduce((sum, row) => sum + rowQty(row), 0);
-  const legacyQty = legacyRows.reduce((sum, row) => sum + rowQty(row), 0);
-  if (legacyRows.length > snapshotRows.length && snapshotQty <= 0 && legacyQty !== 0) return legacyQty;
-  return snapshotQty;
+  const stock = await inventoryStockService.getAvailableStock(code);
+  return normalizeQuantity(stock.availableQty);
 }
 
 async function checkInventoryEnough(items = [], warehouseCode = '') {

@@ -2,7 +2,6 @@
 
 const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
-const InventoryLegacy = require('../models/InventoryLegacy');
 const StockTransaction = require('../models/StockTransaction');
 const SalesOrder = require('../models/SalesOrder');
 const Customer = require('../models/Customer');
@@ -15,6 +14,7 @@ const ReturnOrder = require('../models/ReturnOrder');
 const ImportOrder = require('../models/ImportOrder');
 const { normalizeText, toNumber } = require('../utils/common.util');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
+const inventoryStockService = require('./inventoryStock.service');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
 
 
@@ -149,64 +149,16 @@ async function stockReport(query = {}) {
     return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary, negativeStockCount: negativeStockRows.length, negativeStockRows };
   }
 
-  const [inventoryRows, products] = await Promise.all([
-    InventoryLegacy.find({}).sort({ productCode: 1 }).lean(),
-    Product.find({}).lean()
-  ]);
-
-  const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
-  const grouped = new Map();
-  for (const row of inventoryRows) {
-    const productCode = String(row.productCode || row.productId || '').trim();
-    if (!productCode) continue;
-    const product = productMap.get(productCode) || {};
-    const quantity = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
-    if (!grouped.has(productCode)) {
-      grouped.set(productCode, {
-        id: row.id || String(row._id || ''),
-        productId: row.productId || product.id || String(product._id || ''),
-        productCode,
-        productName: row.productName || product.name || '',
-        warehouseId: STOCK_WAREHOUSE_CODE,
-        warehouseCode: STOCK_WAREHOUSE_CODE,
-        warehouseName: STOCK_WAREHOUSE_NAME,
-        unit: row.unit || product.unit || '',
-        quantity: 0,
-        qty: 0,
-        onHand: 0,
-        reservedQty: 0,
-        availableQty: 0,
-        minStock: toNumber(product.minStock),
-        maxStock: toNumber(product.maxStock),
-        updatedAt: row.updatedAt || row.createdAt || ''
-      });
-    }
-    const acc = grouped.get(productCode);
-    acc.quantity += quantity;
-    acc.qty += quantity;
-    acc.onHand += quantity;
-    acc.reservedQty += toNumber(row.reservedQty);
-    acc.availableQty += toNumber(row.availableQty ?? quantity - toNumber(row.reservedQty));
-    if ((row.updatedAt || row.createdAt || '') > (acc.updatedAt || '')) acc.updatedAt = row.updatedAt || row.createdAt || acc.updatedAt;
-  }
-  let stock = Array.from(grouped.values());
-
-  if (q) {
-    stock = stock.filter((row) => [row.productCode, row.productName]
-      .some((value) => normalizeText(value).includes(q)));
-  }
-
-  const negativeStockRows = stock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
-  const summary = stock.reduce((acc, row) => {
-    acc.totalRows += 1;
-    acc.totalQuantity += toNumber(row.quantity);
-    if (toNumber(row.quantity) <= 0) acc.outOfStock += 1;
-    if (toNumber(row.quantity) < 0) acc.negativeStockCount += 1;
-    if (toNumber(row.minStock) > 0 && toNumber(row.quantity) <= toNumber(row.minStock)) acc.lowStock += 1;
-    return acc;
-  }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0, negativeStockCount: 0 });
-
-  return { source: 'mongo_inventories', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows };
+  const currentStock = await inventoryStockService.getInventorySummary(query);
+  return {
+    ...currentStock,
+    source: 'mongo_inventories_canonical',
+    inventorySource: 'inventories',
+    stock: currentStock.stock,
+    summary: currentStock.summary,
+    negativeStockCount: currentStock.negativeStockCount,
+    negativeStockRows: currentStock.negativeStockRows
+  };
 }
 
 async function stockCardReport(query = {}) {

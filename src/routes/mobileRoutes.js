@@ -42,7 +42,6 @@ const ACTIVE_RETURN_ORDER_STATUSES = [
 const ArLedger = require('../models/ArLedger');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
-const InventoryLegacy = require('../models/InventoryLegacy');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
@@ -53,7 +52,7 @@ const financialService = require('../services/financialService');
 const masterOrderService = require('../services/masterOrderService');
 const reportService = require('../services/reportService');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
-const { STOCK_WAREHOUSE_CODE } = require('../constants/business.constants');
+const inventoryStockService = require('../services/inventoryStock.service');
 
 const router = express.Router();
 
@@ -233,42 +232,14 @@ function productNameOf(product) {
 }
 
 function openSaleQtyFromRows(rows = []) {
-  return rows.reduce((sum, row) => {
-    const onHand = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity);
-    const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
-    const qty = row.availableQty !== undefined && row.availableQty !== null
-      ? toNumber(row.availableQty)
-      : onHand - reserved;
-    return sum + qty;
-  }, 0);
+  return rows.reduce((sum, row) => sum + inventoryStockService.quantityOf(row), 0);
 }
 
 async function getOpenSaleQty(product) {
   const code = productCodeOf(product);
-  const ids = [
-    code,
-    String(product?.sku || '').trim(),
-    String(product?.productCode || '').trim(),
-    String(product?.id || '').trim(),
-    String(product?._id || '').trim()
-  ].filter(Boolean);
-  if (!ids.length) return 0;
-
-  const filter = {
-    warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
-    $or: [
-      { productCode: { $in: ids } },
-      { productId: { $in: ids } },
-      { code: { $in: ids } },
-      { sku: { $in: ids } }
-    ]
-  };
-
-  const inventoryRows = await InventoryLegacy.find(filter).lean();
-
-  // V45 single source: app bán hàng và xác nhận đơn cùng kiểm tra tồn MAIN.
-  // KHO_HC/KHO_PC chỉ là nhóm in/gộp đơn nên không được đọc ở đây.
-  return openSaleQtyFromRows(inventoryRows);
+  if (!code) return 0;
+  const stock = await inventoryStockService.getAvailableStock(code);
+  return toNumber(stock.availableQty);
 }
 
 function formatOpenSaleQty(quantity, conversionRate = 1) {
