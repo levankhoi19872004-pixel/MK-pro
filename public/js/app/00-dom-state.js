@@ -29,6 +29,11 @@ let productTotalPages=1;
 
 const customerForm=document.getElementById('customerForm');
 const customerMessage=document.getElementById('customerMessage');
+const customerModal=document.getElementById('customerModal');
+const openCustomerModalButton=document.getElementById('openCustomerModalButton');
+const closeCustomerModalButton=document.getElementById('closeCustomerModalButton');
+const resetCustomerButton=document.getElementById('resetCustomerButton');
+const customerFormTitle=document.getElementById('customerFormTitle');
 const customerTable=document.getElementById('customerTable');
 const customerCount=document.getElementById('customerCount');
 const customerSearchInput=document.getElementById('customerSearchInput');

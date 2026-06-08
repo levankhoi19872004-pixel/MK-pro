@@ -134,32 +134,14 @@
     </div>
 
     <section id="customersTab" class="tab-content">
-      <main class="grid">
-        <section class="card">
-          <h2>Thêm khách hàng</h2>
-          <form id="customerForm" class="form">
-            <label>Mã khách hàng *<input name="code" placeholder="VD: KH001" required /></label>
-            <label>Tên khách hàng *<input name="name" placeholder="VD: Cửa hàng Minh Anh" required /></label>
-            <div class="two-cols">
-              <label>Số điện thoại<input name="phone" placeholder="098..." /></label>
-              <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
-            </div>
-            <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
-            <label>Nhân viên phụ trách
-              <input id="customerStaffSearch" placeholder="Gõ mã/tên NVBH..." autocomplete="off" />
-              <input name="staffCode" id="customerStaffCode" type="hidden" />
-              <input name="staffName" id="customerStaffName" type="hidden" />
-              <div id="customerStaffSuggestions" class="suggestions" hidden></div>
-            </label>
-            <button type="submit">Lưu khách hàng</button>
-          </form>
-          <p id="customerMessage" class="message"></p>
-        </section>
-
-        <section class="card">
-          <div class="toolbar">
+      <main class="grid customer-workspace-grid">
+        <section class="card customer-card">
+          <div class="toolbar customer-list-toolbar">
             <div><h2>Danh sách khách hàng</h2><p id="customerCount" class="muted">Đang tải...</p></div>
-            <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, địa chỉ..." />
+            <div class="customer-toolbar-actions">
+              <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, địa chỉ..." />
+              <button type="button" id="openCustomerModalButton" class="primary-action">+ Thêm khách hàng</button>
+            </div>
           </div>
           <div id="customerBulkActions" class="bulk-actions" hidden>
             <label><input id="customerCheckAll" type="checkbox" /> Chọn tất cả</label>
@@ -189,6 +171,37 @@
         </section>
       </main>
     </section>
+
+    <div id="customerModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card customer-modal-card customer-workspace" role="dialog" aria-modal="true" aria-labelledby="customerFormTitle">
+        <div class="modal-head customer-workspace-head">
+          <h3 id="customerFormTitle">Thêm khách hàng</h3>
+          <button type="button" id="closeCustomerModalButton" class="ghost">Đóng</button>
+        </div>
+        <div class="customer-modal-body customer-workspace-body">
+          <form id="customerForm" class="form customer-workspace-form">
+            <label>Mã khách hàng *<input name="code" placeholder="VD: KH001" required /></label>
+            <label>Tên khách hàng *<input name="name" placeholder="VD: Cửa hàng Minh Anh" required /></label>
+            <div class="two-cols">
+              <label>Số điện thoại<input name="phone" placeholder="098..." /></label>
+              <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
+            </div>
+            <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
+            <label>Nhân viên phụ trách
+              <input id="customerStaffSearch" placeholder="Gõ mã/tên NVBH..." autocomplete="off" />
+              <input name="staffCode" id="customerStaffCode" type="hidden" />
+              <input name="staffName" id="customerStaffName" type="hidden" />
+              <div id="customerStaffSuggestions" class="suggestions" hidden></div>
+            </label>
+            <div class="button-row">
+              <button type="submit">Lưu khách hàng</button>
+              <button type="button" id="resetCustomerButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="customerMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
 
     <section id="importTab" class="tab-content">
       <main class="grid import-grid">

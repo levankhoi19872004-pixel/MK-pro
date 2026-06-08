@@ -1,5 +1,43 @@
 const escapeHtml = (window.V45Common || {}).escapeHtml;
 let customerListRequestSeq = 0;
+
+function openCustomerModal(){
+  if(!customerModal)return;
+  customerModal.classList.add('show');
+  customerModal.setAttribute('aria-hidden','false');
+  setTimeout(()=>{
+    const codeInput=customerForm&&customerForm.elements&&customerForm.elements.code;
+    if(codeInput)codeInput.focus();
+  },30);
+}
+function closeCustomerModal(){
+  if(!customerModal)return;
+  customerModal.classList.remove('show');
+  customerModal.setAttribute('aria-hidden','true');
+}
+function resetCustomerForm(){
+  if(!customerForm)return;
+  customerForm.reset();
+  customerForm.dataset.editingId='';
+  const staffSearch=document.getElementById('customerStaffSearch');
+  if(staffSearch){
+    staffSearch.value='';
+    staffSearch.dataset.selectedLabel='';
+    staffSearch.dataset.code='';
+    staffSearch.dataset.name='';
+  }
+  const staffCode=document.getElementById('customerStaffCode');
+  const staffName=document.getElementById('customerStaffName');
+  if(staffCode)staffCode.value='';
+  if(staffName)staffName.value='';
+  const btn=customerForm.querySelector('button[type="submit"]');
+  if(btn)btn.textContent='Lưu khách hàng';
+  if(customerFormTitle)customerFormTitle.textContent='Thêm khách hàng';
+  showMessage(customerMessage,'');
+}
+window.openCustomerModal=openCustomerModal;
+window.closeCustomerModal=closeCustomerModal;
+window.resetCustomerForm=resetCustomerForm;
 async function loadCustomers(options = {}){
   const requestSeq = ++customerListRequestSeq;
   const q=customerSearchInput?customerSearchInput.value.trim():'';
@@ -108,8 +146,10 @@ function fillCustomerForm(c){
   if(staffName)staffName.value=c.staffName||'';
   customerForm.dataset.editingId=c.id||'';
   const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Cập nhật khách hàng';
+  if(customerFormTitle)customerFormTitle.textContent=`Sửa khách hàng: ${c.code||c.name||''}`;
+  showMessage(customerMessage,'Đang sửa khách hàng. Bấm "Nhập mới" nếu muốn thêm khách hàng khác.');
 }
-window.editCustomer=id=>{const c=customersCache.find(x=>x.id===id);if(c)fillCustomerForm(c)};
+window.editCustomer=id=>{const c=customersCache.find(x=>x.id===id);if(c){fillCustomerForm(c);openCustomerModal();}};
 window.deleteCustomer=async id=>{
   if(!confirm('Xóa khách hàng này?'))return;
   try{
@@ -135,9 +175,21 @@ customerForm.addEventListener('submit',async event=>{
     const editingId=customerForm.dataset.editingId;
     const res=await fetch(editingId?`/api/customers/${encodeURIComponent(editingId)}`:'/api/customers',{method:editingId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được khách hàng');
-    customerForm.reset();customerForm.dataset.editingId='';const staffSearch=document.getElementById('customerStaffSearch');if(staffSearch)staffSearch.dataset.selectedLabel='';const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Lưu khách hàng';showMessage(customerMessage,json.message||'Đã lưu khách hàng');if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
+    resetCustomerForm();showMessage(customerMessage,json.message||'Đã lưu khách hàng');closeCustomerModal();if(window.CatalogCache)window.CatalogCache.invalidate('customers');await loadCustomers();
   }catch(err){showMessage(customerMessage,err.message,true)}
 });
+if(openCustomerModalButton){
+  openCustomerModalButton.addEventListener('click',()=>{resetCustomerForm();openCustomerModal();});
+}
+if(closeCustomerModalButton)closeCustomerModalButton.addEventListener('click',closeCustomerModal);
+if(resetCustomerButton)resetCustomerButton.addEventListener('click',resetCustomerForm);
+if(customerModal){
+  customerModal.addEventListener('click',event=>{if(event.target===customerModal)closeCustomerModal();});
+}
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&customerModal&&customerModal.classList.contains('show'))closeCustomerModal();
+});
+
 const customerStaffSearchEl=document.getElementById('customerStaffSearch');
 if(customerStaffSearchEl){
   customerStaffSearchEl.addEventListener('input',()=>{
