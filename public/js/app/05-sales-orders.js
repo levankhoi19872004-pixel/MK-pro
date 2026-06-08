@@ -267,7 +267,7 @@ function renderSalesItems(){
   salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>
     <td><strong>${i.productCode}</strong></td>
     <td>${i.productName}</td>
-    <td><input class="sales-line-input qty" type="number" min="0" value="${Number(i.quantity||0)}" onchange="updateSalesItemQuantity(${idx}, this.value)"></td>
+    <td><input class="sales-line-input qty" type="number" min="0" value="${Number(i.quantity||0)}" onchange="updateSalesItemQuantity(${idx}, this.value)"><div class="line-qty-display">${displayQtyTL(i.quantity,i)}</div></td>
     <td class="price"><input class="sales-line-input price" type="number" min="0" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
     <td class="price">${money(i.amount)}</td>
     <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>
@@ -284,7 +284,7 @@ async function addSalesItem(){
   if(quantity<=0){showMessage(salesMessage,'Số lượng bán phải lớn hơn 0',true);return}
   const availableQty=productAvailableQty(p);
   if(availableQty<=0){showMessage(salesMessage,`Sản phẩm ${p.code||''} hiện hết tồn mở bán. Vui lòng nhập kho/rebuild tồn kho trước khi bán.`,true);return}
-  if(quantity>availableQty){showMessage(salesMessage,`Số lượng bán vượt tồn mở bán. Tồn mở bán hiện tại: ${money(availableQty)} lẻ.`,true);return}
+  if(quantity>availableQty){showMessage(salesMessage,`Số lượng bán vượt tồn mở bán. Tồn mở bán hiện tại: ${displayQtyTL(availableQty,p)}.`,true);return}
   if(salePrice<0){showMessage(salesMessage,'Giá bán không được âm',true);return}
   const lineMode=getSalesMode();
   const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&normalizePricingModeClient(i.saleMode)===lineMode);
@@ -388,12 +388,12 @@ async function loadStock(){
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được tồn kho');
     const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`;
     if(!stock.length){stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho. Hãy tạo phiếu nhập trước.</td></tr>';return}
-    stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${r.productCode||''}</strong></td><td>${r.productName||''}</td><td>${r.unit||''}</td><td>${productPackingText(r)}</td><td class="stock-qty">${money(r.quantity)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString('vi-VN'):''}</td></tr>`).join('');
+    stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${r.productCode||''}</strong></td><td>${r.productName||''}</td><td>${r.unit||''}</td><td>${productPackingText(r)}</td><td class="stock-qty">${displayQtyTL(r.quantity,r)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString('vi-VN'):''}</td></tr>`).join('');
   }catch(err){stockCount.textContent='Lỗi tải tồn kho';stockTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
 }
 async function openImportOrderDetail(idx){
   const order=window.__importOrdersCache?.[idx];if(!order)return;
-  const lines=(order.items||[]).map(i=>`<li>${i.productCode} - ${i.productName}: ${money(i.quantity)} ${i.unit||''} × ${money(i.costPrice)} = ${money(i.amount)}</li>`).join('');
+  const lines=(order.items||[]).map(i=>`<li>${i.productCode} - ${i.productName}: ${displayQtyTL(i.quantity,i)} × ${money(i.costPrice)} = ${money(i.amount)}</li>`).join('');
   const card=document.querySelector(`[data-import-detail="${idx}"]`);
   if(card)card.innerHTML=card.innerHTML?'' : `<ul class="order-items">${lines}</ul>`;
 }
@@ -447,7 +447,7 @@ function printSelectedImportOrders(){
     const lines=[...g.lines.values()];
     const totalQty=lines.reduce((sum,i)=>sum+Number(i.quantity||0),0);
     const totalAmount=lines.reduce((sum,i)=>sum+Number(i.amount||0),0);
-    return `<section class="print-page"><h2>ĐƠN TỔNG NHẬP KHO - ${g.warehouseName||g.warehouseCode}</h2><p>Gồm các phiếu: ${[...g.sourceCodes].filter(Boolean).join(', ')}</p><p>Tổng SL: ${money(totalQty)} · Tổng tiền: ${money(totalAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>ĐVT</th><th>SL gộp</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${lines.map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${i.unit||''}</td><td>${money(i.quantity)}</td><td>${money(i.costPrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`;
+    return `<section class="print-page"><h2>ĐƠN TỔNG NHẬP KHO - ${g.warehouseName||g.warehouseCode}</h2><p>Gồm các phiếu: ${[...g.sourceCodes].filter(Boolean).join(', ')}</p><p>Tổng SL: ${money(totalQty)} · Tổng tiền: ${money(totalAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>ĐVT</th><th>SL gộp</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${lines.map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${i.unit||''}</td><td>${displayQtyTL(i.quantity,i)}</td><td>${money(i.costPrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`;
   }).join('');
   const w=window.open('','_blank');if(!w){alert('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');return;}w.document.write(buildPrintPreviewHtml('In gộp phiếu nhập','',html));w.document.close();
 }
@@ -606,7 +606,7 @@ function renderSalesOrderItems(items){
   const rows=(items||[]).slice(0,3).map(i=>`
     <div class="sales-order-item">
       <span>${i.productCode||''} - ${i.productName||''}</span>
-      <strong>${money(i.quantity)} ${i.unit||''}</strong>
+      <strong>${displayQtyTL(i.quantity,i)}</strong>
     </div>`).join('');
   const more=(items||[]).length>3?`<div class="sales-order-more">+ ${(items||[]).length-3} dòng hàng khác</div>`:'';
   return rows+more;

@@ -14,6 +14,14 @@ function orderSourceLabel(source, row){
   return '<span class="badge source-nvbh">Từ NVBH</span>';
 }
 
+
+function displayImportQtyTL(quantity, row = {}){
+  const rate = Number(row.conversionRate || row.packingQty || row.unitsPerCase || row.qtyPerCase || row.packSize || 1);
+  if(typeof formatCaseLooseStock === 'function') return formatCaseLooseStock(Number(quantity||0), rate);
+  if(window.V45Common && typeof window.V45Common.calculateCartonUnit === 'function') return window.V45Common.calculateCartonUnit(Number(quantity||0), rate).display;
+  return String(Number(quantity||0));
+}
+
 function deliveryLabel(status){
   if(status==='delivered')return 'Đã giao';
   if(status==='failed')return 'Giao lỗi';
@@ -318,7 +326,7 @@ function importRowToText(row){
     const customer=row.customerName||row.supplier||'';
     const total=row.totalAmount!==undefined?money(row.totalAmount):'';
     const status=row.statusText||(row.valid?'Hợp lệ':'Lỗi');
-    const shortage=row.hasShortage?` | Vượt tồn: ${formatNumber(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:'';
+    const shortage=row.hasShortage?` | Vượt tồn: ${displayImportQtyTL(row.shortageQuantity||0,row)} | Cắt: ${money(row.shortageAmount||0)}`:'';
     const sourceFile=row.sourceFile||row.fileName||'';
     return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | File: ${sourceFile||'-'} | Trạng thái: ${status}${shortage}`;
   }
@@ -338,7 +346,7 @@ function getImportRowMainFields(row){
       {key:'Giá trị đơn',value:money(row.totalAmount||0)},
       {key:'Trạng thái',value:row.statusText||(row.valid?'Hợp lệ':'Lỗi')},
       ...(row.hasShortage?[
-        {key:'SL vượt tồn',value:formatNumber(row.shortageQuantity||0)},
+        {key:'SL vượt tồn',value:displayImportQtyTL(row.shortageQuantity||0,row)},
         {key:'Giá trị bị cắt',value:money(row.shortageAmount||0)}
       ]:[])
     ];
@@ -359,10 +367,10 @@ function renderImportOrderDetailHtml(row){
         ${shortages.map(s=>`
           <div>${escapeImportHtml(s.productCode||'')}</div>
           <div>${escapeImportHtml(s.productName||'')}</div>
-          <div>${formatNumber(s.requestedQuantity||0)}</div>
-          <div>${formatNumber(s.availableQuantity||0)}</div>
-          <div>${formatNumber(s.importQuantity||0)}</div>
-          <div>${formatNumber(s.missingQuantity||0)}</div>
+          <div>${displayImportQtyTL(s.requestedQuantity||0,s)}</div>
+          <div>${displayImportQtyTL(s.availableQuantity||0,s)}</div>
+          <div>${displayImportQtyTL(s.importQuantity||0,s)}</div>
+          <div>${displayImportQtyTL(s.missingQuantity||0,s)}</div>
           <div>${money(s.cutAmount||0)}</div>
         `).join('')}
       </div>
@@ -375,9 +383,9 @@ function renderImportOrderDetailHtml(row){
           <div class="import-line-item ${Number(l.missingQuantity||0)>0?'shortage':''}">
             <b>${escapeImportHtml(l.productCode||'')}</b>
             <span>${escapeImportHtml(l.productName||'')}</span>
-            <span>SL: ${formatNumber(l.requestedQuantity||l.quantity||0)}</span>
-            ${l.availableQuantity!==undefined?`<span>Tồn: ${formatNumber(l.availableQuantity||0)}</span>`:''}
-            ${Number(l.missingQuantity||0)>0?`<span class="danger-text">Cắt: ${formatNumber(l.missingQuantity||0)}</span>`:''}
+            <span>SL: ${displayImportQtyTL(l.requestedQuantity||l.quantity||0,l)}</span>
+            ${l.availableQuantity!==undefined?`<span>Tồn: ${displayImportQtyTL(l.availableQuantity||0,l)}</span>`:''}
+            ${Number(l.missingQuantity||0)>0?`<span class="danger-text">Cắt: ${displayImportQtyTL(l.missingQuantity||0,l)}</span>`:''}
           </div>`).join('')}
       </div>
     </details>`:'';
@@ -541,7 +549,7 @@ function renderImportOrderShortageLines(row,limit=2){
   const more=state.shortages.length-visible.length;
   return `<div class="import-order-shortage-lines">
     ${visible.map(s=>`
-      <div class="import-order-shortage-line">↳ ${escapeImportHtml(s.productName||s.productCode||'Sản phẩm')} (-${formatNumber(s.missingQuantity||s.shortageQuantity||0)})</div>
+      <div class="import-order-shortage-line">↳ ${escapeImportHtml(s.productName||s.productCode||'Sản phẩm')} (-${displayImportQtyTL(s.missingQuantity||s.shortageQuantity||0,s)})</div>
     `).join('')}
     ${more>0?`<div class="import-order-shortage-line more">+ ${formatNumber(more)} sản phẩm khác...</div>`:''}
   </div>`;
@@ -700,7 +708,7 @@ function renderImportShortageActions(rows=[]){
   box.innerHTML=`
     <div class="import-shortage-actions-text">
       <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>
-      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${formatNumber(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
+      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${displayImportQtyTL(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
     </div>`;
 }
 
@@ -855,7 +863,7 @@ async function commitImportExcel(){
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
 
     const shortageText=(json.shortageReport&&json.shortageReport.length)
-      ? ` · Đã tự cắt ${formatNumber(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`
+      ? ` · Đã tự cắt ${displayImportQtyTL(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`
       : '';
     showMessage(importDataMessage,(json.message||'Import thành công')+shortageText);
 
@@ -868,7 +876,7 @@ async function commitImportExcel(){
             <td>${escapeImportHtml(r.customerName||r.customerCode||'')}</td>
             <td>${escapeImportHtml(r.productCode||'')}</td>
             <td>${escapeImportHtml(r.productName||'')}</td>
-            <td>${formatNumber(r.missingQuantity||0)}</td>
+            <td>${displayImportQtyTL(r.missingQuantity||0,r)}</td>
             <td>${money(r.cutAmount||0)}</td>
           </tr>
         `).join('');

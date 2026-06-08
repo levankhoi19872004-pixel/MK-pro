@@ -250,6 +250,10 @@ function selectCustomer(customer) {
 
 
 function formatStockTL(qty, rate){ return calculateCartonUnit(qty, rate).display; }
+function quantityDisplayTL(item = {}) {
+  const rate = Number(item.conversionRate || item.unitsPerCase || item.packingQty || 1);
+  return formatStockTL(Number(item.quantity || item.qty || 0), rate);
+}
 
 function toMobileProduct(product = {}) {
   const availableQty = Number(
@@ -447,7 +451,7 @@ function renderCart() {
   cartList.innerHTML = cart.map((item, index) => `
     <div class="cart-item">
       <strong>${item.productCode} - ${item.productName}</strong>
-      <span>SL: ${item.quantity} ${item.unit || ''} · Giá: ${money(item.salePrice)} · Thành tiền: ${money(item.amount)}</span>
+      <span>SL: ${quantityDisplayTL(item)} · Giá: ${money(item.salePrice)} · Thành tiền: ${money(item.amount)}</span>
       <button class="danger-btn small-btn" data-remove="${index}">Xóa</button>
     </div>
   `).join('');
