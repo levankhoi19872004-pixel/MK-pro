@@ -6,6 +6,42 @@ function normalizePricingModeClient(value){
 }
 let editingSalesOrderId = '';
 
+function getSalesOrderSourceText(order){
+  return [
+    order?.source,
+    order?.orderSource,
+    order?.orderSourceName,
+    order?.sourceType,
+    order?.origin,
+    order?.channel,
+    order?.createdFrom,
+    order?.importSource
+  ].filter(v=>v!==undefined&&v!==null).join(' ').toUpperCase();
+}
+function isAppSalesOrder(order){
+  const source=getSalesOrderSourceText(order);
+  return source.includes('APP') || source.includes('MOBILE') || source.includes('MOBILE_SALES') || source.includes('NVBH');
+}
+function isImportSalesOrder(order){
+  const source=getSalesOrderSourceText(order);
+  return source.includes('DMS') || source.includes('IMPORT') || source.includes('EXCEL');
+}
+function getExplicitPricingModeForEdit(order){
+  // Chỉ ưu tiên các field mode rõ ràng. saleMethod cũ có thể bị backend mặc định sai DIRECT_PRICE cho đơn APP,
+  // nên với đơn APP legacy không dùng saleMethod một mình để tránh mở sửa bị tích nhầm bán thẳng.
+  const explicit = order?.saleMode || order?.pricingMode || order?.orderPricingMode;
+  if(explicit) return normalizePricingModeClient(explicit);
+  if(!isAppSalesOrder(order) && order?.saleMethod) return normalizePricingModeClient(order.saleMethod);
+  return '';
+}
+function resolveSalesOrderEditMode(order){
+  const explicitMode=getExplicitPricingModeForEdit(order);
+  if(explicitMode) return explicitMode;
+  if(isAppSalesOrder(order)) return PRICING_PROMOTION;
+  if(isImportSalesOrder(order)) return PRICING_DIRECT_PRICE;
+  return PRICING_PROMOTION;
+}
+
 function getSalesProductCatalog(){
   if(window.UnifiedProductSearch) return window.UnifiedProductSearch.getCatalog();
   const catalog = Array.isArray(salesProductsCache) && salesProductsCache.length ? salesProductsCache : productsCache;
@@ -634,8 +670,8 @@ async function openSalesOrderEdit(idx){
   if(!order)return;
   try{order=await fetchSalesOrderDetail(order)}catch(err){alert(err.message||'Không tải được chi tiết đơn');return;}
   editingSalesOrderId=order.id||order.code||'';
-  const editMode=normalizePricingModeClient(order.saleMethod||order.saleMode||order.pricingMode||order.orderPricingMode);
-  // Khi sửa đơn: giữ đúng phương thức đã lưu trên đơn, không ép lại theo nguồn.
+  const editMode=resolveSalesOrderEditMode(order);
+  // Khi sửa đơn: APP/mobile mặc định bán theo khuyến mại, DMS/import mặc định bán thẳng; radio vẫn cho đổi linh hoạt.
   setSalesMode(editMode);
   salesItems=(order.items||[]).map(i=>({productId:i.productId||i.productCode,productCode:i.productCode,productName:i.productName,...productLineMeta(i),quantity:Number(i.quantity||0),grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),discountPercent:Number(i.discountPercent||0),discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),finalPrice:Number(i.finalPrice||i.salePrice||i.price||0),salePrice:Number(i.salePrice||i.price||0),price:Number(i.salePrice||i.price||0),amount:Number(i.amount||Number(i.quantity||0)*Number(i.salePrice||i.price||0)),saleMethod:i.saleMethod||i.saleMode||editMode,saleMode:i.saleMode||editMode,pricingMode:i.pricingMode||editMode,priceLocked:true}));
   salesForm.elements.date.value=toDateOnly(order.orderDate||order.date||order.documentDate||order.importDate||order.displayDate||today());
