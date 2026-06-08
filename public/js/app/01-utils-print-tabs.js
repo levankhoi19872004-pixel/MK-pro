@@ -39,6 +39,24 @@ window.normalizePackingRate = window.normalizePackingRate || normalizePackingRat
 window.formatQtyTL = window.formatQtyTL || formatQtyTL;
 window.displayQtyTL = window.displayQtyTL || displayQtyTL;
 window.splitCaseLoose = window.splitCaseLoose || splitCaseLoose;
+
+function openWorkspaceModal(id){
+  const modal=document.getElementById(id);
+  if(!modal)return;
+  document.body.classList.add('modal-open');
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+}
+function closeWorkspaceModal(id){
+  const modal=document.getElementById(id);
+  if(!modal)return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden','true');
+  if(!document.querySelector('.modal-backdrop.show')) document.body.classList.remove('modal-open');
+}
+window.openWorkspaceModal = window.openWorkspaceModal || openWorkspaceModal;
+window.closeWorkspaceModal = window.closeWorkspaceModal || closeWorkspaceModal;
+
 function productPackingText(p){
   if(!p)return '';
   if(p.packing)return p.packing;

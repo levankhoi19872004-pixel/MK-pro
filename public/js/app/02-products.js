@@ -22,7 +22,7 @@ function fillForm(p){
   productForm.elements.costPrice.value=p.costPrice||0;productForm.elements.salePrice.value=p.salePrice||0;
   productForm.elements.minStock.value=p.minStock||0;productForm.elements.maxStock.value=p.maxStock||0;
   productForm.elements.isActive.checked=p.isActive!==false;formTitle.textContent=`Sửa sản phẩm: ${p.code}`;
-  showMessage(formMessage,'Đang sửa sản phẩm. Bấm "Nhập mới" nếu muốn thêm sản phẩm khác.');window.scrollTo({top:0,behavior:'smooth'});
+  showMessage(formMessage,'Đang sửa sản phẩm. Bấm "Nhập mới" nếu muốn thêm sản phẩm khác.');openWorkspaceModal('productModal');
 }
 async function loadProducts(options = {}){
   const requestSeq = ++productListRequestSeq;
@@ -198,8 +198,11 @@ productForm.addEventListener('submit',async event=>{
   try{
     const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được sản phẩm');
-    resetForm();showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
+    resetForm();closeWorkspaceModal('productModal');showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
   }catch(err){showMessage(formMessage,err.message,true)}
 });
 
 // Customers
+
+const openCreateProductButton=document.getElementById('openCreateProductButton');
+if(openCreateProductButton)openCreateProductButton.addEventListener('click',()=>{resetForm();openWorkspaceModal('productModal');});

@@ -373,6 +373,7 @@ async function submitDebtCollection(event){
     const next=(debtsCache||[]).find(d=>getDebtCustomerKey(d)===currentKey);
     if(next && hasOpenDebt(next.debt))selectCollectionCustomer(next,{silent:true});
     else clearDebtCustomerSelection();
+    closeWorkspaceModal('debtCollectionModal');
   }catch(err){showMessage(collectionMessage,err.message,true)}
 }
 
@@ -860,6 +861,7 @@ async function submitMasterReturnOrder(event){
     await loadUnmergedReturnOrders();
     await loadMasterReturnOrders();
     if(typeof loadReturnOrders==='function')await loadReturnOrders();
+    closeWorkspaceModal('masterReturnOrderModal');
   }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
 }
 
@@ -1380,6 +1382,7 @@ async function submitDeliveryCashSubmission(event){
     if(!json.ok)throw new Error(json.message||'Không lưu được phiếu nộp quỹ');
     fundResetEditing('delivery');
     showMessage(deliveryCashSubmissionMessage,json.message||'Đã lưu phiếu nộp quỹ');
+    closeWorkspaceModal('deliveryCashSubmissionModal');
     await loadDeliveryCashSubmissions();
     await loadFundLedger();
   }catch(err){showMessage(deliveryCashSubmissionMessage,err.message,true)}
@@ -1407,12 +1410,15 @@ function editFundVoucher(type,code){
   if(type==='delivery'){
     fundFillForm(deliveryCashSubmissionForm,row,['deliveryDate','deliveryStaffCode','submittedCashAmount','submittedBankAmount','note']);
     fundSetSubmitLabel(deliveryCashSubmissionForm,'Cập nhật phiếu nộp quỹ');
+    openWorkspaceModal('deliveryCashSubmissionModal');
   }else if(type==='expense'){
     fundFillForm(expenseVoucherForm,row,['date','fundType','expenseType','amount','receiverName','note']);
     fundSetSubmitLabel(expenseVoucherForm,'Cập nhật phiếu chi');
+    openWorkspaceModal('expenseVoucherModal');
   }else if(type==='transfer'){
     fundFillForm(fundTransferForm,row,['date','fromFund','toFund','amount','bankName','note']);
     fundSetSubmitLabel(fundTransferForm,'Cập nhật chuyển quỹ');
+    openWorkspaceModal('fundTransferModal');
   }
 }
 window.editFundVoucher=editFundVoucher;
@@ -1447,6 +1453,7 @@ async function submitExpenseVoucher(event){
     expenseVoucherForm.reset(); if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();
     fundResetEditing('expense');
     showMessage(expenseVoucherMessage,json.message||'Đã lưu phiếu chi');
+    closeWorkspaceModal('expenseVoucherModal');
     await loadExpenseVouchers();
     await loadFundLedger();
   }catch(err){showMessage(expenseVoucherMessage,err.message,true)}
@@ -1464,6 +1471,7 @@ async function submitFundTransfer(event){
     fundTransferForm.reset(); if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today();
     fundResetEditing('transfer');
     showMessage(fundTransferMessage,json.message||'Đã lưu chuyển quỹ');
+    closeWorkspaceModal('fundTransferModal');
     await loadFundTransfers();
     await loadFundLedger();
   }catch(err){showMessage(fundTransferMessage,err.message,true)}
@@ -1484,3 +1492,17 @@ if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpense
 if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfer);
 [deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); });
 loadFundLedger();
+
+const openDebtCollectionButton=document.getElementById('openDebtCollectionButton');
+if(openDebtCollectionButton)openDebtCollectionButton.addEventListener('click',()=>{
+  if(!collectionCustomerSelect || !collectionCustomerSelect.value){showMessage(collectionMessage,'Bạn cần chọn khách hàng trước khi ghi thu công nợ.',true);return;}
+  openWorkspaceModal('debtCollectionModal');
+});
+const openCreateMasterReturnOrderButton=document.getElementById('openCreateMasterReturnOrderButton');
+if(openCreateMasterReturnOrderButton)openCreateMasterReturnOrderButton.addEventListener('click',()=>openWorkspaceModal('masterReturnOrderModal'));
+const openDeliveryCashSubmissionButton=document.getElementById('openDeliveryCashSubmissionButton');
+if(openDeliveryCashSubmissionButton)openDeliveryCashSubmissionButton.addEventListener('click',()=>{fundResetEditing('delivery');if(deliveryCashSubmissionForm&&deliveryCashSubmissionForm.elements.deliveryDate)deliveryCashSubmissionForm.elements.deliveryDate.value=today();openWorkspaceModal('deliveryCashSubmissionModal');});
+const openExpenseVoucherButton=document.getElementById('openExpenseVoucherButton');
+if(openExpenseVoucherButton)openExpenseVoucherButton.addEventListener('click',()=>{fundResetEditing('expense');if(expenseVoucherForm){expenseVoucherForm.reset();if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();}openWorkspaceModal('expenseVoucherModal');});
+const openFundTransferButton=document.getElementById('openFundTransferButton');
+if(openFundTransferButton)openFundTransferButton.addEventListener('click',()=>{fundResetEditing('transfer');if(fundTransferForm){fundTransferForm.reset();if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today();}openWorkspaceModal('fundTransferModal');});
