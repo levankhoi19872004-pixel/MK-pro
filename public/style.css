@@ -7934,3 +7934,15 @@ body::after{
 .promotion-type-tabs button.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8;}
 .promotion-program-panel{display:none;}
 .promotion-program-panel.active{display:grid;}
+
+/* Sales order modal layout */
+.sales-page-main{display:block;width:100%;}
+.sales-page-main .sales-history-card{width:100%;}
+.sales-order-modal-card{width:min(1180px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}
+.sales-order-modal-body{padding:16px 20px;overflow:auto;background:#f8fbff;}
+.sales-order-modal-body #salesForm{display:grid;gap:12px;}
+.sales-order-modal-body .table-wrap{max-height:40vh;overflow:auto;}
+.sales-order-modal-body table{min-width:900px;}
+.sales-order-modal-body .sale-actions{position:sticky;bottom:0;background:#f8fbff;padding-top:10px;z-index:2;}
+.sales-history-toolbar{align-items:flex-start;}
+@media(max-width:900px){.sales-order-modal-card{width:98vw;max-height:96vh}.sales-order-modal-body{padding:12px}.sales-order-modal-body table{min-width:760px}}

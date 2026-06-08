@@ -401,8 +401,43 @@ function cancelSalesDraft(){
   if(salesPrice)salesPrice.value='0';
   window.__selectedSalesProduct=null;
   showMessage(salesMessage,'Đã huỷ tạo đơn');
+  closeSalesOrderModal(true);
 }
 window.cancelSalesDraft=cancelSalesDraft;
+
+function getSalesOrderModal(){return document.getElementById('salesOrderModal');}
+function setSalesOrderModalTitle(mode='create'){
+  const title=document.getElementById('salesOrderModalTitle');
+  if(title)title.textContent=mode==='edit'?'Sửa đơn bán hàng':'Tạo đơn bán hàng';
+}
+function openSalesOrderModal(mode='create'){
+  const modal=getSalesOrderModal();
+  if(!modal)return;
+  if(mode==='create'){
+    resetSalesFormAfterSave();
+    editingSalesOrderId='';
+  }
+  setSalesOrderModalTitle(mode);
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  syncSalesModeUi();
+  renderSalesItems();
+  setTimeout(()=>{
+    const first=mode==='edit'?salesProductSearch:salesCustomerSearch;
+    if(first && typeof first.focus==='function')first.focus();
+  },0);
+}
+function closeSalesOrderModal(force=false){
+  const modal=getSalesOrderModal();
+  if(!modal)return;
+  if(!force && hasSalesDraftData() && !confirm('Bạn có chắc muốn đóng cửa sổ? Dữ liệu đang nhập sẽ bị bỏ qua.'))return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+window.openSalesOrderModal=openSalesOrderModal;
+window.closeSalesOrderModal=closeSalesOrderModal;
 async function submitSalesOrder(event){
   event.preventDefault();
   if(!salesItems.length){showMessage(salesMessage,'Đơn bán chưa có dòng hàng',true);return}
@@ -428,6 +463,7 @@ async function submitSalesOrder(event){
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được đơn bán');
     resetSalesFormAfterSave();
     showMessage(salesMessage,json.message||'Đã lưu đơn bán');
+    closeSalesOrderModal(true);
     await loadStock();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
   }catch(err){showMessage(salesMessage,err.message,true)}
 }
@@ -775,7 +811,7 @@ async function openSalesOrderEdit(idx){
   if(submitBtn)submitBtn.textContent='Lưu sửa đơn bán';
   renderSalesItems();
   showMessage(salesMessage,`Đang sửa đơn ${order.code||order.id}. Kế toán/Admin sửa trực tiếp trong mục Bán hàng.`);
-  document.getElementById('salesTab')?.scrollIntoView({behavior:'smooth',block:'start'});
+  openSalesOrderModal('edit');
 }
 window.openSalesOrderEdit=openSalesOrderEdit;
 
@@ -990,6 +1026,13 @@ function exportSelectedSalesOrders(){
   exportErpRows('don-ban-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', o.customerName||o.customerCode||'', typeof formatDateVN==='function'?formatDateVN(o.date||o.orderDate||''):(o.date||o.orderDate||''), Number(o.totalAmount||0), getOrderSourceText(o)]));
 }
 window.exportSelectedSalesOrders=exportSelectedSalesOrders;
+const openCreateSalesOrderButton=document.getElementById('openCreateSalesOrderButton');
+const closeSalesOrderModalButton=document.getElementById('closeSalesOrderModalButton');
+if(openCreateSalesOrderButton)openCreateSalesOrderButton.addEventListener('click',()=>openSalesOrderModal('create'));
+if(closeSalesOrderModalButton)closeSalesOrderModalButton.addEventListener('click',()=>closeSalesOrderModal(false));
+const salesOrderModalEl=document.getElementById('salesOrderModal');
+if(salesOrderModalEl)salesOrderModalEl.addEventListener('click',(event)=>{if(event.target===salesOrderModalEl)closeSalesOrderModal(false);});
+document.addEventListener('keydown',(event)=>{if(event.key==='Escape'&&document.getElementById('salesOrderModal')?.classList.contains('show'))closeSalesOrderModal(false);});
 if(typeof btnCancelSale!=='undefined' && btnCancelSale)btnCancelSale.addEventListener('click',cancelSalesDraft);
 if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
 if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
