@@ -9132,7 +9132,29 @@ body::after{
 }
 #salesTab .sales-filter-row-sub.sales-create-order-filters .compact-action{
   flex:0 0 auto!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  padding-left:12px!important;
+  padding-right:12px!important;
 }
+/* SALES_HISTORY_BUTTON_WIDTH_FIX_START
+   Lỗi sau bản compact: rule cũ .sales-filter-two-rows button{width:100%!important}
+   làm 4 nút Tải lại/Chọn tất cả/In đơn/Xuất Excel kéo dài full dòng.
+   Khoanh vùng chỉ trong salesTab + hàng filter đơn bán, ép nút trở lại kích thước nội dung. */
+#salesTab .sales-filter-two-rows .sales-create-order-filters button.compact-action{
+  width:auto!important;
+  min-width:76px!important;
+  max-width:max-content!important;
+  flex-grow:0!important;
+  flex-shrink:0!important;
+  align-self:end!important;
+}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #reloadSalesOrdersButton{min-width:78px!important;}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #selectAllSalesOrdersButton{min-width:104px!important;}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #printSelectedSalesOrdersButton{min-width:82px!important;}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #exportSelectedSalesOrdersButton{min-width:96px!important;}
+/* SALES_HISTORY_BUTTON_WIDTH_FIX_END */
 /* SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END */
 
 /* SALES_HISTORY_NVBH_COLUMN_PATCH_START
