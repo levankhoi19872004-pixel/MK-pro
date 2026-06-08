@@ -428,7 +428,24 @@ function pickProduct(product) {
   productSearch.dataset.type = 'product';
   productSearch.value = p.label || [p.code, p.name].filter(Boolean).join(' - ');
 
-  selectedProductBox.innerHTML = `\n    <div class="product-suggest-title">${p.code || ''} | ${p.name || ''}</div>\n    <div class="product-suggest-meta"><span class="stock-badge">Tồn: ${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)}</span><span class="price-badge">Giá bán: ${money(p.salePrice || p.price || 0)}</span></div>\n  `;
+  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_START: card SP rõ tồn/giá, phù hợp thao tác nhập hàng trên mobile.
+  const selectedProductPrice = Number(p.finalPrice || p.unitPrice || p.salePrice || p.price || 0);
+  const selectedProductOriginalPrice = Number(p.originalPrice || p.grossPrice || p.catalogSalePrice || p.salePrice || p.price || 0);
+  const selectedProductPriceLabel = selectedProductOriginalPrice > selectedProductPrice
+    ? `Giá KM<strong>${money(selectedProductPrice)}</strong>`
+    : `Giá bán<strong>${money(selectedProductPrice)}</strong>`;
+  const selectedProductOriginalLabel = selectedProductOriginalPrice > selectedProductPrice
+    ? `<span>Giá gốc<strong>${money(selectedProductOriginalPrice)}</strong></span>`
+    : '';
+  selectedProductBox.innerHTML = `
+    <div class="mobile-selected-product-name">${p.code || ''} - ${p.name || ''}</div>
+    <div class="mobile-selected-product-meta">
+      <span>Tồn<strong>${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)}</strong></span>
+      <span>${selectedProductPriceLabel}</span>
+      ${selectedProductOriginalLabel}
+    </div>
+  `;
+  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_END
   selectedProductBox.classList.remove('muted');
   productSuggestions.innerHTML = '';
   productSuggestions.classList.remove('has-many');
