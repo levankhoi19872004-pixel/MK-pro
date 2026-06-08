@@ -144,6 +144,15 @@ function toProductSuggestion(product = {}, inventoryMap = new Map(), options = {
     price: salePrice,
     salePrice,
     conversionRate,
+    // MOBILE_PRODUCT_GROUP_FILTER_SUGGESTION_START: trả Nhóm hàng cho app mobile và Unified Search.
+    category: product.category || product.groupName || product.productGroup || '',
+    categoryName: product.categoryName || product.category || product.groupName || '',
+    group: product.group || product.category || '',
+    groupName: product.groupName || product.category || product.productGroupName || '',
+    productGroup: product.productGroup || product.category || product.group || '',
+    productGroupName: product.productGroupName || product.categoryName || product.category || product.groupName || '',
+    brand: product.brand || '',
+    // MOBILE_PRODUCT_GROUP_FILTER_SUGGESTION_END
 
     // Các alias này chỉ để frontend cũ đọc được; giá trị vẫn sinh từ inventories.
     availableQty,

@@ -40,6 +40,10 @@ const panels = document.querySelectorAll('.tab-panel');
 const customerSearch = document.getElementById('customerSearch');
 const customerList = document.getElementById('customerList');
 const productSearch = document.getElementById('productSearch');
+// MOBILE_PRODUCT_GROUP_FILTER_LOGIC_START: DOM filter Nhóm hàng để thu hẹp danh sách sản phẩm mobile.
+const productGroupFilter = document.getElementById('productGroupFilter');
+let productGroupOptionsLoaded = false;
+// MOBILE_PRODUCT_GROUP_FILTER_LOGIC_END
 const productSuggestions = document.getElementById('productSuggestions');
 const selectedCustomerBox = document.getElementById('selectedCustomer');
 const selectedProductBox = document.getElementById('selectedProduct');
@@ -388,12 +392,25 @@ function toMobileProduct(product = {}) {
 
   const code = product.code || product.productCode || product.sku || '';
   const name = product.name || product.productName || '';
+  // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_START: chuẩn hóa Nhóm hàng từ danh mục sản phẩm.
+  const groupName = String(
+    product.groupName ||
+    product.productGroupName ||
+    product.productGroup ||
+    product.group ||
+    product.categoryName ||
+    product.category ||
+    ''
+  ).trim();
+  // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_END
 
   return {
     ...product,
     id: product.id || product._id || code,
     code,
     name,
+    groupName,
+    category: product.category || groupName,
     salePrice: Number(product.salePrice || product.price || 0),
     availableQty,
     stockQuantity: availableQty,
@@ -403,6 +420,51 @@ function toMobileProduct(product = {}) {
     stockDisplay: formatStockTL(availableQty, normalizePackingRate(product))
   };
 }
+
+
+// MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_START: tải danh sách Nhóm hàng để lọc sản phẩm trước khi tìm kiếm.
+function normalizeProductGroupName(value = '') {
+  return String(value || '').trim();
+}
+
+function escapeProductGroupHtml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function currentProductGroupFilter() {
+  return normalizeProductGroupName(productGroupFilter?.value || '');
+}
+
+function renderProductGroupOptions(groups = []) {
+  if (!productGroupFilter) return;
+  const current = currentProductGroupFilter();
+  const uniqueGroups = [...new Set((groups || []).map(normalizeProductGroupName).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
+  productGroupFilter.innerHTML = [
+    '<option value="">Tất cả nhóm hàng</option>',
+    ...uniqueGroups.map((name) => `<option value="${escapeProductGroupHtml(name)}">${escapeProductGroupHtml(name)}</option>`)
+  ].join('');
+  if (current && uniqueGroups.includes(current)) productGroupFilter.value = current;
+}
+
+async function loadProductGroupOptions(force = false) {
+  if (!productGroupFilter) return;
+  if (productGroupOptionsLoaded && !force) return;
+  productGroupOptionsLoaded = true;
+  try {
+    const data = await mobileApi.getProducts('', { all: true, limit: 5000, inStockOnly: 0 });
+    const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
+    renderProductGroupOptions(rows.map((row) => row.groupName || row.category));
+  } catch (err) {
+    console.warn('[mobile-sales] không tải được nhóm hàng sản phẩm:', err.message || err);
+  }
+}
+// MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_END
 
 function resetSelectedProduct() {
   selectedProduct = null;
@@ -475,7 +537,9 @@ async function searchMobileProducts(keyword = '') {
   // Sau lần chuẩn hóa Unified Search V2, một số màn đang đọc nhầm data.products/data.rows
   // trong khi API mới trả data.items, làm có request 200 nhưng không render gợi ý.
   try {
-    const data = await mobileApi.getProducts(q, { limit: 50 });
+    // MOBILE_PRODUCT_GROUP_FILTER_SEARCH_START: tìm sản phẩm trong nhóm hàng đang chọn.
+    const data = await mobileApi.getProducts(q, { limit: 50, group: currentProductGroupFilter() });
+    // MOBILE_PRODUCT_GROUP_FILTER_SEARCH_END
     const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
     if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') {
       window.UnifiedProductSearch.sync(rows);
@@ -486,12 +550,12 @@ async function searchMobileProducts(keyword = '') {
   }
 
   if (window.UnifiedSearchEngine && typeof window.UnifiedSearchEngine.searchProduct === 'function') {
-    const rows = await window.UnifiedSearchEngine.searchProduct(q, { limit: 50, mode: 'sales', includeStock: 1 });
+    const rows = await window.UnifiedSearchEngine.searchProduct(q, { limit: 50, mode: 'sales', includeStock: 1, group: currentProductGroupFilter() });
     return normalizeProductSearchResponse(rows).map(toMobileProduct);
   }
 
   if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.search === 'function') {
-    const rows = await window.UnifiedProductSearch.search(q, { limit: 50, mode: 'sales' });
+    const rows = await window.UnifiedProductSearch.search(q, { limit: 50, mode: 'sales', group: currentProductGroupFilter() });
     return normalizeProductSearchResponse(rows).map(toMobileProduct);
   }
 
@@ -518,6 +582,19 @@ function initProductAutocomplete() {
   });
 
   productSearch.addEventListener('input', resetSelectedProduct);
+  // MOBILE_PRODUCT_GROUP_FILTER_CHANGE_START: đổi nhóm hàng thì xóa SP đang chọn để tránh thêm nhầm.
+  productGroupFilter?.addEventListener('change', () => {
+    resetSelectedProduct();
+    if (productSearch) productSearch.value = '';
+    if (productSuggestions) {
+      productSuggestions.innerHTML = '';
+      productSuggestions.classList.remove('has-many');
+      productSuggestions.hidden = true;
+      productSuggestions.style.display = 'none';
+    }
+  });
+  loadProductGroupOptions();
+  // MOBILE_PRODUCT_GROUP_FILTER_CHANGE_END
   productSearch.addEventListener('focus', () => {
     productSearch.dispatchEvent(new Event('input', { bubbles: true }));
   });

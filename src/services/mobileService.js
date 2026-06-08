@@ -147,8 +147,11 @@ function createMobileService(ctx) {
 
   async function products({ query = {} }) {
     const q = normalizeText(query.q);
+    // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_START: lọc catalog/gợi ý sản phẩm theo Nhóm hàng của danh mục sản phẩm.
+    const groupKeyword = normalizeText(query.group || query.groupName || query.category || query.categoryName || query.productGroup || query.productGroupName);
     const requestedLimit = Math.min(Math.max(toNumber(query.limit || (q ? 1000 : 5000)), 1), 10000);
     const filter = { isActive: { $ne: false } };
+    // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_END
 
     // App bán hàng cần tìm nhanh bằng cache phía trình duyệt.
     // Vì vậy API này trả catalog sản phẩm active, KHÔNG lọc mất sản phẩm hết tồn.
@@ -169,7 +172,15 @@ function createMobileService(ctx) {
         packing: product.packing || '',
         units: product.units || [],
         barcode: product.barcode,
-        category: product.category,
+        // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_FIELDS_START: trả đủ alias Nhóm hàng cho app mobile.
+        category: product.category || product.groupName || product.productGroup || product.group || '',
+        categoryName: product.categoryName || product.category || product.groupName || product.productGroupName || '',
+        group: product.group || product.category || '',
+        groupName: product.groupName || product.category || product.productGroupName || product.productGroup || '',
+        productGroup: product.productGroup || product.category || product.group || '',
+        productGroupName: product.productGroupName || product.categoryName || product.category || product.groupName || '',
+        brand: product.brand || '',
+        // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_FIELDS_END
         price: toNumber(product.salePrice || product.price || 0),
         salePrice: toNumber(product.salePrice || product.price || 0),
         availableQty,
@@ -180,6 +191,18 @@ function createMobileService(ctx) {
       };
     }));
 
+    // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_APPLY_START: Nhóm hàng là bộ lọc hẹp, còn q là tìm trong nhóm đã chọn.
+    if (groupKeyword) {
+      items = items.filter((item) => [
+        item.groupName,
+        item.group,
+        item.productGroup,
+        item.productGroupName,
+        item.category,
+        item.categoryName
+      ].some((value) => normalizeText(value) === groupKeyword || normalizeText(value).includes(groupKeyword)));
+    }
+
     if (q) {
       items = items.filter((item) => [
         item.code,
@@ -187,9 +210,13 @@ function createMobileService(ctx) {
         item.productCode,
         item.name,
         item.barcode,
-        item.category
+        item.category,
+        item.categoryName,
+        item.groupName,
+        item.productGroupName
       ].some((value) => normalizeText(value).includes(q)));
     }
+    // MOBILE_PRODUCT_GROUP_FILTER_BACKEND_APPLY_END
 
     const onlyInStock = String(query.inStockOnly ?? '1') !== '0';
     if (onlyInStock) items = items.filter((item) => Number(item.availableQty || 0) > 0);

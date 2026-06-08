@@ -77,7 +77,7 @@ function uniqueBy(rows = [], keyFields = []) {
 function productSearchText(row = {}) {
   return normalizeText([
     row.code, row.sku, row.productCode, row.name, row.productName,
-    row.barcode, row.category, row.brand, row.packing, row.unit, row.baseUnit,
+    row.barcode, row.category, row.categoryName, row.group, row.groupName, row.productGroup, row.productGroupName, row.brand, row.packing, row.unit, row.baseUnit,
     row.searchText
   ].filter(Boolean).join(' '));
 }
@@ -206,10 +206,25 @@ async function findProducts(query = {}) {
   const nq = normalizeText(q);
   const limit = parseLimit(query);
   const baseFilter = activeFilter(query);
-  const select = 'id code sku productCode name productName unit baseUnit conversionRate packing barcode category brand salePrice price minStock maxStock isActive searchText';
+  const select = 'id code sku productCode name productName unit baseUnit conversionRate packing barcode category categoryName group groupName productGroup productGroupName brand salePrice price minStock maxStock isActive searchText';
+  // MOBILE_PRODUCT_GROUP_FILTER_REPOSITORY_START: lọc sản phẩm theo Nhóm hàng mà không phá $or tìm kiếm hiện có.
+  const groupKeyword = String(query.group || query.groupName || query.category || query.categoryName || query.productGroup || query.productGroupName || '').trim();
+  const groupRegex = groupKeyword ? { $regex: escapeRegex(groupKeyword), $options: 'i' } : null;
+  const groupFilter = groupRegex ? {
+    $or: [
+      { category: groupRegex },
+      { categoryName: groupRegex },
+      { group: groupRegex },
+      { groupName: groupRegex },
+      { productGroup: groupRegex },
+      { productGroupName: groupRegex }
+    ]
+  } : null;
+  const withGroupFilter = (filter = {}) => groupFilter ? { $and: [filter, groupFilter] } : filter;
+  // MOBILE_PRODUCT_GROUP_FILTER_REPOSITORY_END
 
   if (!q) {
-    return Product.find(baseFilter)
+    return Product.find(withGroupFilter(baseFilter))
       .select(select)
       .sort({ code: 1 })
       .limit(limit)
@@ -228,6 +243,11 @@ async function findProducts(query = {}) {
       { name: rawRegex },
       { productName: rawRegex },
       { category: rawRegex },
+      { categoryName: rawRegex },
+      { group: rawRegex },
+      { groupName: rawRegex },
+      { productGroup: rawRegex },
+      { productGroupName: rawRegex },
       { brand: rawRegex },
       { packing: rawRegex },
       { unit: rawRegex },
@@ -235,7 +255,7 @@ async function findProducts(query = {}) {
       { searchText: normalizedRegex }
     ]
   };
-  const scanned = await Product.find(filter)
+  const scanned = await Product.find(withGroupFilter(filter))
     .select(select)
     .sort({ code: 1 })
     .limit(Math.min(limit * 5, 250))

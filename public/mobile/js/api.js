@@ -119,6 +119,11 @@ export const mobileApi = {
     if (q) query.set('q', q);
     if (options.limit) query.set('limit', String(options.limit));
     if (options.all) query.set('all', '1');
+    // MOBILE_PRODUCT_GROUP_FILTER_API_START: truyền Nhóm hàng xuống API để thu hẹp gợi ý sản phẩm trên app bán hàng.
+    const groupValue = options.group || options.groupName || options.category || options.categoryName || options.productGroup || options.productGroupName || '';
+    if (groupValue) query.set('group', String(groupValue));
+    if (options.inStockOnly !== undefined) query.set('inStockOnly', String(options.inStockOnly));
+    // MOBILE_PRODUCT_GROUP_FILTER_API_END
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return apiRequest(`${MOBILE_ROUTES.products}${suffix}`);
   },

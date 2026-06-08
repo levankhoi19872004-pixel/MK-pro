@@ -48,6 +48,11 @@
       <section class="card">
         <h2>Chọn sản phẩm</h2>
         <!-- MOBILE_PRODUCT_ORDER_LAYOUT_START: sắp xếp lại luồng chọn SP -> xem thông tin -> nhập SL -> thêm giỏ -->
+        <!-- MOBILE_PRODUCT_GROUP_FILTER_UI_START: lọc sản phẩm theo Nhóm hàng trong danh mục sản phẩm -->
+        <select id="productGroupFilter" class="mobile-product-group-filter" aria-label="Lọc theo nhóm hàng">
+          <option value="">Tất cả nhóm hàng</option>
+        </select>
+        <!-- MOBILE_PRODUCT_GROUP_FILTER_UI_END -->
         <input id="productSearch" class="mobile-product-search-input" type="search" placeholder="Gõ mã / tên sản phẩm" />
         <div id="productSuggestions" class="suggestion-box"></div>
 
