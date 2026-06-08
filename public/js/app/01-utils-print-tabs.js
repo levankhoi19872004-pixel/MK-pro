@@ -26,9 +26,19 @@ function formatQtyTL(qty, rate){
 function displayQtyTL(qty, item = {}){
   return formatQtyTL(qty, normalizePackingRate(item));
 }
+
+function splitCaseLoose(quantity, rate){
+  const total = Math.max(0, Number(quantity || 0));
+  const packingRate = normalizePackingRate({ conversionRate: rate });
+  return {
+    caseQty: Math.floor(total / packingRate),
+    looseQty: total % packingRate
+  };
+}
 window.normalizePackingRate = window.normalizePackingRate || normalizePackingRate;
 window.formatQtyTL = window.formatQtyTL || formatQtyTL;
 window.displayQtyTL = window.displayQtyTL || displayQtyTL;
+window.splitCaseLoose = window.splitCaseLoose || splitCaseLoose;
 function productPackingText(p){
   if(!p)return '';
   if(p.packing)return p.packing;

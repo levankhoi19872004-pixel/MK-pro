@@ -233,9 +233,42 @@ async function updateSalesItemQuantity(index,value){
   const next=Number(value||0);
   if(next<0)return;
   item.quantity=next;
+  const rate=normalizePackingRate(item);
+  const split=splitCaseLoose(item.quantity,rate);
+  item.caseQty=split.caseQty;
+  item.looseQty=split.looseQty;
   recalcSalesItem(index);
   await recalculateSalesPromotionPrices();
   renderSalesItems();
+}
+async function rebuildSalesItemQuantity(index){
+  const item=salesItems[index];
+  if(!item)return;
+  const rate=normalizePackingRate(item);
+  let caseQty=Math.max(0,Number(item.caseQty||0));
+  let looseQty=Math.max(0,Number(item.looseQty||0));
+  if(looseQty>=rate){
+    caseQty += Math.floor(looseQty/rate);
+    looseQty = looseQty % rate;
+  }
+  item.caseQty=caseQty;
+  item.looseQty=looseQty;
+  item.quantity=(caseQty*rate)+looseQty;
+  recalcSalesItem(index);
+  await recalculateSalesPromotionPrices();
+  renderSalesItems();
+}
+function updateSalesItemCase(index,value){
+  const item=salesItems[index];
+  if(!item)return;
+  item.caseQty=Number(value||0);
+  rebuildSalesItemQuantity(index);
+}
+function updateSalesItemLoose(index,value){
+  const item=salesItems[index];
+  if(!item)return;
+  item.looseQty=Number(value||0);
+  rebuildSalesItemQuantity(index);
 }
 function updateSalesItemPrice(index,value){
   if(!isDirectSaleMode())return;
@@ -258,16 +291,31 @@ function syncSalesModeUi(){
   renderSalesItems();
 }
 window.updateSalesItemQuantity=updateSalesItemQuantity;
+window.updateSalesItemCase=updateSalesItemCase;
+window.updateSalesItemLoose=updateSalesItemLoose;
+window.rebuildSalesItemQuantity=rebuildSalesItemQuantity;
 window.updateSalesItemPrice=updateSalesItemPrice;
+function ensureSalesItemCaseLoose(item){
+  if(!item)return;
+  const rate=normalizePackingRate(item);
+  const hasCaseLoose=item.caseQty!==undefined || item.looseQty!==undefined;
+  if(!hasCaseLoose){
+    const split=splitCaseLoose(item.quantity,rate);
+    item.caseQty=split.caseQty;
+    item.looseQty=split.looseQty;
+  }
+}
 function renderSalesItems(){
   const direct=isDirectSaleMode();
+  salesItems.forEach(ensureSalesItemCaseLoose);
   const tq=salesItems.reduce((s,i)=>s+Number(i.quantity||0),0);const ta=salesItems.reduce((s,i)=>s+Number(i.amount||0),0);
   salesTotalQuantity.textContent=money(tq);salesTotalAmount.textContent=money(ta);
-  if(!salesItems.length){salesItemsTable.innerHTML='<tr><td colspan="6">Chưa có dòng hàng</td></tr>';return}
+  if(!salesItems.length){salesItemsTable.innerHTML='<tr><td colspan="7">Chưa có dòng hàng</td></tr>';return}
   salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>
     <td><strong>${i.productCode}</strong></td>
     <td>${i.productName}</td>
-    <td><input class="sales-line-input qty" type="number" min="0" value="${Number(i.quantity||0)}" onchange="updateSalesItemQuantity(${idx}, this.value)"><div class="line-qty-display">${displayQtyTL(i.quantity,i)}</div></td>
+    <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" onchange="updateSalesItemCase(${idx}, this.value)"></td>
+    <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" onchange="updateSalesItemLoose(${idx}, this.value)"></td>
     <td class="price"><input class="sales-line-input price" type="number" min="0" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
     <td class="price">${money(i.amount)}</td>
     <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>
@@ -288,7 +336,15 @@ async function addSalesItem(){
   if(salePrice<0){showMessage(salesMessage,'Giá bán không được âm',true);return}
   const lineMode=getSalesMode();
   const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&normalizePricingModeClient(i.saleMode)===lineMode);
-  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...productLineMeta(p),quantity,grossPrice:salePrice,salePrice,price:salePrice,finalPrice:salePrice,discountPercent:0,discountAmount:0,amount:quantity*salePrice,saleMethod:lineMode,saleMode:lineMode,pricingMode:lineMode,priceLocked:true});
+  const meta=productLineMeta(p);
+  const split=splitCaseLoose(quantity,meta.conversionRate);
+  if(existed){
+    existed.quantity+=quantity;
+    const existedSplit=splitCaseLoose(existed.quantity,normalizePackingRate(existed));
+    existed.caseQty=existedSplit.caseQty;
+    existed.looseQty=existedSplit.looseQty;
+    existed.amount=existed.quantity*existed.salePrice;
+  }else salesItems.push({productId:getProductKey(p),productCode:p.code,productName:p.name,...meta,quantity,caseQty:split.caseQty,looseQty:split.looseQty,grossPrice:salePrice,salePrice,price:salePrice,finalPrice:salePrice,discountPercent:0,discountAmount:0,amount:quantity*salePrice,saleMethod:lineMode,saleMode:lineMode,pricingMode:lineMode,priceLocked:true});
   await recalculateSalesPromotionPrices();
   if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';window.__selectedSalesProduct=null;if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
 }
@@ -362,7 +418,7 @@ async function submitSalesOrder(event){
   payload.saleMode=saleMode;
   payload.pricingMode=saleMode;
   payload.orderPricingMode=saleMode;
-  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:saleMode,saleMode:saleMode,pricingMode:saleMode,priceLocked:saleMode!==PRICING_DIRECT_PRICE}));
+  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,conversionRate:normalizePackingRate(i),packingQty:normalizePackingRate(i),unitsPerCase:normalizePackingRate(i),grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:saleMode,saleMode:saleMode,pricingMode:saleMode,priceLocked:saleMode!==PRICING_DIRECT_PRICE}));
   payload.paidAmount=Number(payload.paidAmount||0);
   if(editingSalesOrderId)payload.actorRole='admin';
   try{
@@ -683,12 +739,16 @@ async function openSalesOrderEdit(idx){
       packingQty: i.packingQty ?? i.conversionRate ?? i.unitsPerCase ?? sourceProduct.packingQty ?? sourceProduct.conversionRate ?? sourceProduct.unitsPerCase
     };
     const meta = productLineMeta(lineSource);
+    const quantity=Number(i.quantity||0);
+    const split=splitCaseLoose(quantity,meta.conversionRate);
     return {
       productId:i.productId||i.productCode,
       productCode:i.productCode,
       productName:i.productName,
       ...meta,
-      quantity:Number(i.quantity||0),
+      quantity,
+      caseQty:split.caseQty,
+      looseQty:split.looseQty,
       grossPrice:Number(i.grossPrice||i.catalogSalePrice||i.salePrice||i.price||0),
       discountPercent:Number(i.discountPercent||0),
       discountAmount:Number(i.discountAmount||i.totalDiscountAmount||0),
