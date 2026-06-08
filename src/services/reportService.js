@@ -135,6 +135,7 @@ async function stockReport(query = {}) {
       availableQty: row.endingQty
     }));
     if (q) stock = stock.filter((row) => [row.productCode, row.productName, row.warehouseCode, row.warehouseName].some((value) => normalizeText(value).includes(q)));
+    const negativeStockRows = stock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
     const summary = stock.reduce((acc, row) => {
       acc.totalRows += 1;
       acc.openingQty += toNumber(row.openingQty);
@@ -144,7 +145,8 @@ async function stockReport(query = {}) {
       acc.endingQty += toNumber(row.endingQty);
       return acc;
     }, { totalRows: 0, openingQty: 0, importQty: 0, exportQty: 0, returnQty: 0, endingQty: 0 });
-    return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary };
+    summary.negativeStockCount = negativeStockRows.length;
+    return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary, negativeStockCount: negativeStockRows.length, negativeStockRows };
   }
 
   const [inventoryRows, products] = await Promise.all([
@@ -181,15 +183,17 @@ async function stockReport(query = {}) {
       .some((value) => normalizeText(value).includes(q)));
   }
 
+  const negativeStockRows = stock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
   const summary = stock.reduce((acc, row) => {
     acc.totalRows += 1;
     acc.totalQuantity += toNumber(row.quantity);
     if (toNumber(row.quantity) <= 0) acc.outOfStock += 1;
+    if (toNumber(row.quantity) < 0) acc.negativeStockCount += 1;
     if (toNumber(row.minStock) > 0 && toNumber(row.quantity) <= toNumber(row.minStock)) acc.lowStock += 1;
     return acc;
-  }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0 });
+  }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0, negativeStockCount: 0 });
 
-  return { source: 'mongo_inventories', stock, summary, inventorySource: 'inventories' };
+  return { source: 'mongo_inventories', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows };
 }
 
 async function stockCardReport(query = {}) {

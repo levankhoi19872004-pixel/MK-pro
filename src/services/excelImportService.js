@@ -671,6 +671,37 @@ function pushInventoryMovement({ movements, inventoryDeltas, item, direction, ty
 }
 
 async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new Map()) {
+  // Chốt chặn cuối cùng: không cho bulk $inc âm làm tồn kho âm.
+  // Mọi luồng import DMS/Excel nếu xuất kho phải được kiểm tra trước khi ghi transaction/snapshot.
+  const negativeDeltas = Array.from(inventoryDeltas.values())
+    .map((delta) => ({ ...delta, qty: toNumber(delta.qty) }))
+    .filter((delta) => delta.qty < 0);
+  if (negativeDeltas.length) {
+    const checks = await Promise.all(negativeDeltas.map(async (delta) => {
+      const current = await InventoryLegacy.findOne({
+        productCode: delta.productCode,
+        warehouseCode: delta.warehouseCode
+      }).lean();
+      const availableQty = toNumber(current?.availableQty ?? current?.quantity ?? current?.qty ?? current?.onHand);
+      const requiredQty = Math.abs(delta.qty);
+      return { ...delta, availableQty, requiredQty, nextQty: availableQty - requiredQty };
+    }));
+    const insufficient = checks.filter((row) => row.nextQty < 0);
+    if (insufficient.length) {
+      const first = insufficient[0];
+      const err = new Error(`Không đủ tồn kho: mã SP ${first.productCode}, kho ${first.warehouseCode}, tồn hiện tại ${first.availableQty}, cần xuất ${first.requiredQty}`);
+      err.code = 'INSUFFICIENT_STOCK_BULK';
+      err.rows = insufficient.map((row) => ({
+        productCode: row.productCode,
+        productName: row.productName,
+        warehouseCode: row.warehouseCode,
+        availableQty: row.availableQty,
+        requiredQty: row.requiredQty
+      }));
+      throw err;
+    }
+  }
+
   if (movements.length) await insertManyInBatches(StockTransaction, movements);
   const ops = [];
   const now = dateUtil.nowIso();

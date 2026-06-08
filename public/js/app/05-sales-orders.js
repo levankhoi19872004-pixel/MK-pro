@@ -343,13 +343,11 @@ async function submitSalesOrder(event){
 // Stock / histories / debt
 async function loadStock(){
   const q=stockSearchInput?stockSearchInput.value.trim():'';
-  const dateFrom=(typeof salesDate!=='undefined'&&salesDate&&salesDate.value) ? salesDate.value : (new Date()).toISOString().slice(0,10);
-  const dateTo=dateFrom;
   const params=new URLSearchParams();
   if(q)params.set('q',q);
-  params.set('dateFrom',dateFrom);
-  params.set('dateTo',dateTo);
-  const url=`/api/stock?${params.toString()}`;
+  // Màn Tồn kho hiện tại phải đọc nguồn inventories hiện tại, không lọc mặc định theo ngày bán hôm nay.
+  // Báo cáo phát sinh/thẻ kho mới dùng dateFrom/dateTo riêng.
+  const url=`/api/stock${params.toString()?`?${params.toString()}`:''}`;
   try{
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được tồn kho');
     const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`;

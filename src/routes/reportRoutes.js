@@ -8,6 +8,7 @@ const router = express.Router();
 // Backward-compatible report endpoints used by old UI.
 router.get('/stock', reportController.stock);
 router.get('/stock-card', reportController.stockCard);
+router.post('/inventory/rebuild', reportController.rebuildInventory);
 router.get('/debts/init', reportController.debtsInit);
 router.get('/debts/customers', reportController.debtsCustomers);
 router.get('/debts/customer-detail/:customerCode?', reportController.debtsCustomerDetail);
@@ -20,6 +21,7 @@ router.get('/dashboard', reportController.dashboard);
 // Clean report namespace for new UI/API.
 router.get('/reports/stock', reportController.stock);
 router.get('/reports/stock-card', reportController.stockCard);
+router.post('/reports/inventory/rebuild', reportController.rebuildInventory);
 router.get('/reports/debts/init', reportController.debtsInit);
 router.get('/reports/debts/customers', reportController.debtsCustomers);
 router.get('/reports/debts/customer-detail/:customerCode?', reportController.debtsCustomerDetail);

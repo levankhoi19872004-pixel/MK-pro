@@ -44,6 +44,33 @@ async function getSnapshot(productLike = {}, warehouseCode = 'MAIN') {
   });
 }
 
+async function assertStockAvailableBeforeOut({ productCode, productId, productName, warehouseCode = 'MAIN', requiredQty = 0, session = null } = {}) {
+  const code = String(productCode || productId || '').trim();
+  const whCode = String(warehouseCode || 'MAIN').trim() || 'MAIN';
+  const required = Math.abs(toNumber(requiredQty));
+  if (!code || required <= 0) return { ok: true, availableQty: 0, requiredQty: required };
+
+  const query = {
+    $or: [
+      productCode ? { productCode: String(productCode).trim(), warehouseCode: whCode } : null,
+      productId ? { productId: String(productId).trim(), warehouseCode: whCode } : null
+    ].filter(Boolean)
+  };
+  const snapshotQuery = InventoryLegacy.findOne(query);
+  const snapshot = session ? await snapshotQuery.session(session) : await snapshotQuery;
+  const available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
+  if (available < required) {
+    const err = new Error(`Không đủ tồn kho: mã SP ${code}${productName ? ` - ${productName}` : ''}, kho ${whCode}, tồn hiện tại ${available}, cần xuất ${required}`);
+    err.code = 'INSUFFICIENT_STOCK';
+    err.productCode = code;
+    err.warehouseCode = whCode;
+    err.availableQty = available;
+    err.requiredQty = required;
+    throw err;
+  }
+  return { ok: true, availableQty: available, requiredQty: required };
+}
+
 async function postStockMovement(document = {}, movement = {}, options = {}) {
   const items = Array.isArray(document.items) ? document.items : [];
   const session = options.session;
@@ -91,6 +118,16 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
 
     const currentQty = toNumber(snapshot.quantity ?? snapshot.qty ?? snapshot.onHand ?? snapshot.availableQty);
     const nextQty = currentQty + movementQty;
+    if (direction === 'OUT' && nextQty < 0) {
+      await assertStockAvailableBeforeOut({
+        productCode,
+        productId,
+        productName,
+        warehouseCode,
+        requiredQty: Math.abs(rawQty),
+        session
+      });
+    }
     snapshot.productId = snapshot.productId || productId;
     snapshot.productCode = snapshot.productCode || productCode;
     snapshot.productName = productName || snapshot.productName || '';
@@ -426,6 +463,7 @@ async function rebuildStockLedgerFromDocuments(options = {}) {
 
 module.exports = {
   postStockMovement,
+  assertStockAvailableBeforeOut,
   reverseStockMovement,
   getCurrentStock,
   getStockTransactions,

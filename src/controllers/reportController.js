@@ -1,6 +1,7 @@
 'use strict';
 
 const reportService = require('../services/reportService');
+const inventoryService = require('../services/inventoryService');
 const asyncHandler = require('../middlewares/asyncHandler');
 const queryGuard = require('../utils/queryGuard.util');
 
@@ -16,8 +17,12 @@ function requireReportDateRange(req, res) {
 }
 
 const stock = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
-  const result = await reportService.stockReport(req.query);
+  // Tồn kho hiện tại được đọc trực tiếp từ inventories, không bắt buộc dateFrom/dateTo.
+  // Chỉ báo cáo phát sinh/thẻ kho theo kỳ mới cần khoảng ngày.
+  const query = req.query || {};
+  const wantsMovement = query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement';
+  if (wantsMovement && !requireReportDateRange(req, res)) return;
+  const result = await reportService.stockReport(query);
   res.json({ ok: true, ...result });
 });
 
@@ -122,6 +127,19 @@ const delivery = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+
+const rebuildInventory = asyncHandler(async (req, res) => {
+  const resetFlag = req.body?.resetTransactions ?? req.query?.resetTransactions ?? '1';
+  const result = await inventoryService.rebuildStockLedgerFromDocuments({
+    resetTransactions: ['1', 'true', 'yes'].includes(String(resetFlag).toLowerCase())
+  });
+  res.json({
+    ok: true,
+    message: 'Đã rebuild stockTransactions và inventories từ chứng từ. Products chỉ còn là danh mục, không lưu tồn.',
+    ...result
+  });
+});
+
 module.exports = {
   stock,
   stockCard,
@@ -135,5 +153,6 @@ module.exports = {
   dashboard,
   sales,
   finance,
-  delivery
+  delivery,
+  rebuildInventory
 };
