@@ -2624,6 +2624,46 @@
         ]
       }
     },
+    "/api/inventory/normalize-one-warehouse": {
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "POST /api/inventory/normalize-one-warehouse",
+        "operationId": "postInventoryNormalizeOneWarehouse",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/inventory/rebuild": {
       "post": {
         "tags": [
@@ -7705,6 +7745,46 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/inventory/normalize-one-warehouse": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "POST /api/reports/inventory/normalize-one-warehouse",
+        "operationId": "postReportsInventoryNormalizeOneWarehouse",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
           }
         },
         "security": [

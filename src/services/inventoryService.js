@@ -8,9 +8,12 @@ const ImportOrder = require('../models/ImportOrder');
 const SalesOrder = require('../models/SalesOrder');
 const ReturnOrder = require('../models/ReturnOrder');
 const { makeId, toNumber, normalizeText } = require('../utils/common.util');
+const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
+function stockWarehouseCode() { return STOCK_WAREHOUSE_CODE || 'MAIN'; }
+function stockWarehouseName() { return STOCK_WAREHOUSE_NAME || 'Kho chính'; }
 
 function getProductKey(item = {}) {
   return String(item.productCode || item.code || item.productId || item.id || '').trim();
@@ -32,10 +35,11 @@ async function findProduct(item = {}) {
   });
 }
 
-async function getSnapshot(productLike = {}, warehouseCode = 'MAIN') {
+async function getSnapshot(productLike = {}) {
   const productCode = String(productLike.productCode || productLike.code || productLike.productId || '').trim();
   const productId = String(productLike.productId || productLike.id || productCode || '').trim();
   if (!productCode && !productId) return null;
+  const warehouseCode = stockWarehouseCode();
   return InventoryLegacy.findOne({
     $or: [
       productCode ? { productCode, warehouseCode } : null,
@@ -44,9 +48,9 @@ async function getSnapshot(productLike = {}, warehouseCode = 'MAIN') {
   });
 }
 
-async function assertStockAvailableBeforeOut({ productCode, productId, productName, warehouseCode = 'MAIN', requiredQty = 0, session = null } = {}) {
+async function assertStockAvailableBeforeOut({ productCode, productId, productName, requiredQty = 0, session = null } = {}) {
   const code = String(productCode || productId || '').trim();
-  const whCode = String(warehouseCode || 'MAIN').trim() || 'MAIN';
+  const whCode = stockWarehouseCode();
   const required = Math.abs(toNumber(requiredQty));
   if (!code || required <= 0) return { ok: true, availableQty: 0, requiredQty: required };
 
@@ -60,7 +64,7 @@ async function assertStockAvailableBeforeOut({ productCode, productId, productNa
   const snapshot = session ? await snapshotQuery.session(session) : await snapshotQuery;
   const available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
   if (available < required) {
-    const err = new Error(`Không đủ tồn kho: mã SP ${code}${productName ? ` - ${productName}` : ''}, kho ${whCode}, tồn hiện tại ${available}, cần xuất ${required}`);
+    const err = new Error(`Không đủ tồn kho: mã SP ${code}${productName ? ` - ${productName}` : ''}, tồn hiện tại ${available}, cần xuất ${required}`);
     err.code = 'INSUFFICIENT_STOCK';
     err.productCode = code;
     err.warehouseCode = whCode;
@@ -74,9 +78,10 @@ async function assertStockAvailableBeforeOut({ productCode, productId, productNa
 async function postStockMovement(document = {}, movement = {}, options = {}) {
   const items = Array.isArray(document.items) ? document.items : [];
   const session = options.session;
-  const warehouseCode = String(document.warehouseCode || document.warehouse || movement.warehouseCode || 'MAIN').trim() || 'MAIN';
-  const warehouseId = String(document.warehouseId || movement.warehouseId || warehouseCode).trim();
-  const warehouseName = String(document.warehouseName || movement.warehouseName || 'Kho chính').trim();
+  // Tồn kho chỉ có 1 kho chính. HC/PC chỉ là nhóm in/gộp đơn, không ảnh hưởng tồn.
+  const warehouseCode = stockWarehouseCode();
+  const warehouseId = stockWarehouseCode();
+  const warehouseName = stockWarehouseName();
   const direction = movement.direction === 'IN' ? 'IN' : 'OUT';
   const sign = direction === 'IN' ? 1 : -1;
   const type = movement.type || (direction === 'IN' ? 'IMPORT' : 'SALE');
@@ -123,7 +128,6 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
         productCode,
         productId,
         productName,
-        warehouseCode,
         requiredQty: Math.abs(rawQty),
         session
       });
@@ -186,14 +190,40 @@ async function reverseStockMovement(document = {}, movement = {}, options = {}) 
 async function getCurrentStock(query = {}) {
   const filter = {};
   if (query.productCode) filter.productCode = query.productCode;
-  if (query.warehouseCode) filter.warehouseCode = query.warehouseCode;
-  return InventoryLegacy.find(filter).sort({ productCode: 1, warehouseCode: 1 }).lean();
+  const rows = await InventoryLegacy.find(filter).sort({ productCode: 1 }).lean();
+  const grouped = new Map();
+  for (const row of rows) {
+    const key = String(row.productCode || row.productId || '').trim();
+    if (!key) continue;
+    const qty = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        ...row,
+        warehouseId: stockWarehouseCode(),
+        warehouseCode: stockWarehouseCode(),
+        warehouseName: stockWarehouseName(),
+        qty: 0,
+        quantity: 0,
+        onHand: 0,
+        availableQty: 0
+      });
+    }
+    const acc = grouped.get(key);
+    acc.qty += qty;
+    acc.quantity += qty;
+    acc.onHand += qty;
+    acc.availableQty += qty;
+    if ((row.updatedAt || row.createdAt || '') > (acc.updatedAt || acc.createdAt || '')) {
+      acc.updatedAt = row.updatedAt || row.createdAt || acc.updatedAt;
+    }
+  }
+  return Array.from(grouped.values());
 }
 
 async function getStockTransactions(query = {}) {
   const filter = {};
   if (query.productCode) filter.productCode = query.productCode;
-  if (query.warehouseCode) filter.warehouseCode = query.warehouseCode;
+  // Không lọc theo HC/PC vì tồn kho là 1 kho chung MAIN.
   if (query.dateFrom || query.dateTo || query.date) {
     filter.date = {};
     if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
@@ -228,7 +258,7 @@ async function resolveProductForItem(item = {}) {
   }).lean();
 }
 
-function makeStockTx({ date, productId, productCode, productName, quantity, type, direction, refType, refId, refCode, warehouseCode = 'MAIN', warehouseId = 'MAIN', warehouseName = 'Kho chính', note = '' }) {
+function makeStockTx({ date, productId, productCode, productName, quantity, type, direction, refType, refId, refCode, note = '' }) {
   const qty = toNumber(quantity);
   return {
     id: makeId('ST'),
@@ -236,9 +266,9 @@ function makeStockTx({ date, productId, productCode, productName, quantity, type
     productId: String(productId || productCode || '').trim(),
     productCode: String(productCode || productId || '').trim(),
     productName: String(productName || '').trim(),
-    warehouseId: String(warehouseId || warehouseCode || 'MAIN').trim(),
-    warehouseCode: String(warehouseCode || 'MAIN').trim(),
-    warehouseName: String(warehouseName || 'Kho chính').trim(),
+    warehouseId: stockWarehouseCode(),
+    warehouseCode: stockWarehouseCode(),
+    warehouseName: stockWarehouseName(),
     type,
     direction,
     quantity: qty,
@@ -264,15 +294,13 @@ async function rebuildSnapshotsFromTransactions() {
   for (const row of rows) {
     const productCode = String(row.productCode || row.productId || '').trim();
     if (!productCode) continue;
-    const warehouseCode = String(row.warehouseCode || 'MAIN').trim() || 'MAIN';
-    const key = `${productCode}@@${warehouseCode}`;
+    const key = productCode;
     balances.set(key, toNumber(balances.get(key)) + toNumber(row.quantity ?? row.qty));
     lastTxAt.set(key, row.updatedAt || row.createdAt || dateUtil.nowIso());
   }
 
   const docs = [];
-  for (const [key, qty] of balances.entries()) {
-    const [productCode, warehouseCode] = key.split('@@');
+  for (const [productCode, qty] of balances.entries()) {
     const product = await Product.findOne({
       $or: [
         { code: productCode },
@@ -287,19 +315,17 @@ async function rebuildSnapshotsFromTransactions() {
       productId,
       productCode,
       productName: String(product?.name || '').trim(),
-      warehouseId: warehouseCode,
-      warehouseCode,
-      warehouseName: warehouseCode === 'MAIN' ? 'Kho chính' : warehouseCode,
+      warehouseId: stockWarehouseCode(),
+      warehouseCode: stockWarehouseCode(),
+      warehouseName: stockWarehouseName(),
       qty,
       quantity: qty,
       onHand: qty,
       reservedQty: 0,
       availableQty: qty,
-      lastTransactionAt: lastTxAt.get(key) || dateUtil.nowIso(),
+      lastTransactionAt: lastTxAt.get(productCode) || dateUtil.nowIso(),
       updatedAt: dateUtil.nowIso()
     });
-
-    // Không cập nhật tồn vào products.
   }
 
   if (docs.length) await InventoryLegacy.insertMany(docs, { ordered: false });
@@ -352,9 +378,6 @@ async function buildTransactionsFromDocuments() {
         refType: 'IMPORT_ORDER',
         refId: doc.id || doc._id || doc.code,
         refCode: doc.code || doc.id,
-        warehouseCode: doc.warehouseCode || doc.warehouse || 'MAIN',
-        warehouseId: doc.warehouseId || doc.warehouseCode || 'MAIN',
-        warehouseName: doc.warehouseName || 'Kho chính',
         note: 'Rebuild từ phiếu nhập'
       }));
     }
@@ -380,9 +403,6 @@ async function buildTransactionsFromDocuments() {
         refType: doc.source === 'mobile_sales_app' ? 'MOBILE_SALES_ORDER' : 'SALES_ORDER',
         refId: doc.id || doc._id || doc.code,
         refCode: doc.code || doc.id,
-        warehouseCode: doc.warehouseCode || doc.warehouse || 'MAIN',
-        warehouseId: doc.warehouseId || doc.warehouseCode || 'MAIN',
-        warehouseName: doc.warehouseName || 'Kho chính',
         note: 'Rebuild từ đơn bán'
       }));
     }
@@ -408,9 +428,6 @@ async function buildTransactionsFromDocuments() {
         refType: 'RETURN_ORDER',
         refId: doc.id || doc._id || doc.code,
         refCode: doc.code || doc.id,
-        warehouseCode: doc.warehouseCode || doc.warehouse || 'MAIN',
-        warehouseId: doc.warehouseId || doc.warehouseCode || 'MAIN',
-        warehouseName: doc.warehouseName || 'Kho chính',
         note: 'Rebuild từ phiếu trả hàng'
       }));
     }
@@ -460,6 +477,53 @@ async function rebuildStockLedgerFromDocuments(options = {}) {
   };
 }
 
+async function normalizeOneWarehouse() {
+  const rows = await InventoryLegacy.find({}).lean();
+  const grouped = new Map();
+  for (const row of rows) {
+    const productCode = String(row.productCode || row.productId || '').trim();
+    if (!productCode) continue;
+    const qty = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
+    if (!grouped.has(productCode)) grouped.set(productCode, { row, qty: 0 });
+    grouped.get(productCode).qty += qty;
+  }
+
+  await InventoryLegacy.deleteMany({});
+  const docs = [];
+  for (const [productCode, value] of grouped.entries()) {
+    const row = value.row || {};
+    const qty = value.qty;
+    docs.push({
+      ...row,
+      _id: undefined,
+      id: row.id || makeId('IV'),
+      productCode,
+      warehouseId: stockWarehouseCode(),
+      warehouseCode: stockWarehouseCode(),
+      warehouseName: stockWarehouseName(),
+      qty,
+      quantity: qty,
+      onHand: qty,
+      availableQty: qty - toNumber(row.reservedQty),
+      updatedAt: dateUtil.nowIso()
+    });
+  }
+  if (docs.length) await InventoryLegacy.insertMany(docs, { ordered: false });
+  await StockTransaction.updateMany({}, {
+    $set: {
+      warehouseId: stockWarehouseCode(),
+      warehouseCode: stockWarehouseCode(),
+      warehouseName: stockWarehouseName(),
+      updatedAt: dateUtil.nowIso()
+    }
+  });
+  return {
+    normalized: true,
+    inventoryRows: docs.length,
+    transactionRows: await StockTransaction.countDocuments({})
+  };
+}
+
 
 module.exports = {
   postStockMovement,
@@ -469,5 +533,6 @@ module.exports = {
   getStockTransactions,
   rebuildSnapshotsFromTransactions,
   rebuildStockLedgerFromDocuments,
+  normalizeOneWarehouse,
   isActive
 };

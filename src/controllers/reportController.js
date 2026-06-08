@@ -139,6 +139,15 @@ const rebuildInventory = asyncHandler(async (req, res) => {
     ...result
   });
 });
+const normalizeOneWarehouse = asyncHandler(async (req, res) => {
+  const result = await inventoryService.normalizeOneWarehouse();
+  res.json({
+    ok: true,
+    message: 'Đã gom tồn kho về 1 kho chính MAIN. KHO_HC/KHO_PC chỉ còn là nhóm in/gộp đơn.',
+    ...result
+  });
+});
+
 
 module.exports = {
   stock,
@@ -154,5 +163,6 @@ module.exports = {
   sales,
   finance,
   delivery,
-  rebuildInventory
+  rebuildInventory,
+  normalizeOneWarehouse
 };

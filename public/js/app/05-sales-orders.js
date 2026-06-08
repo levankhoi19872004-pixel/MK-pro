@@ -385,9 +385,9 @@ function buildPrintPreviewHtml(title, bodyClass, bodyHtml){
 window.buildPrintPreviewHtml=buildPrintPreviewHtml;
 function getImportItemWarehouse(item, order){
   const product = findProductByKey(item?.productCode || item?.productId || '');
-  const rawCode = String(item?.warehouseCode || item?.warehouse || order?.warehouseCode || order?.warehouse || product?.defaultWarehouse || product?.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
+  const rawCode = String(item?.printGroup || item?.warehouseCode || item?.warehouse || order?.printGroup || order?.warehouseCode || order?.warehouse || product?.printGroup || product?.defaultWarehouse || product?.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
   const code = rawCode === 'KHO_PC' ? 'KHO_PC' : 'KHO_HC';
-  return {code,name:String(item?.warehouseName||order?.warehouseName||product?.warehouseName||(code==='KHO_PC'?'KHO PC':'KHO HC')).trim()};
+  return {code,name:String(item?.printGroupName||item?.warehouseName||order?.printGroupName||order?.warehouseName||product?.printGroupName||product?.warehouseName||(code==='KHO_PC'?'KHO PC':'KHO HC')).trim()};
 }
 function printSelectedImportOrders(){
   const checks=[...document.querySelectorAll('.import-order-check:checked')];

@@ -682,17 +682,24 @@ async function buildArLedgerDetailWorkbook(query = {}) {
 
 async function buildStockReportWorkbook(query = {}) {
   const InventoryLegacy = models.inventories;
-  const stocks = await InventoryLegacy.find({}).sort({ productCode: 1, warehouseCode: 1 }).limit(safeLimit(query)).lean();
-  const rows = stocks.map((s, idx) => ({ STT: idx + 1, MaSP: cleanText(s.productCode || s.code), SanPham: cleanText(s.productName || s.name), Kho: cleanText(s.warehouseCode || s.warehouseName), DonViTinh: cleanText(s.unit || s.baseUnit), Ton: toNumber(s.quantity || s.qty || s.onHand) }));
-  return reportWorkbook('stock-report', 'BaoCaoTonKho', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', Kho:'', DonViTinh:'', Ton:'' }), rows, query);
+  const stocks = await InventoryLegacy.find({}).sort({ productCode: 1 }).limit(safeLimit(query)).lean();
+  const grouped = new Map();
+  for (const s of stocks) {
+    const code = cleanText(s.productCode || s.code || s.productId);
+    if (!code) continue;
+    if (!grouped.has(code)) grouped.set(code, { MaSP: code, SanPham: cleanText(s.productName || s.name), DonViTinh: cleanText(s.unit || s.baseUnit), Ton: 0 });
+    grouped.get(code).Ton += toNumber(s.quantity || s.qty || s.onHand || s.availableQty);
+  }
+  const rows = Array.from(grouped.values()).map((row, idx) => ({ STT: idx + 1, ...row }));
+  return reportWorkbook('stock-report', 'BaoCaoTonKho', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', DonViTinh:'', Ton:'' }), rows, query);
 }
 
 async function buildStockCardReportWorkbook(query = {}) {
   const StockTransaction = models.stockTransactions || models.inventories;
   const txs = await StockTransaction.find(buildReportFilter(query, ['date', 'createdAt'])).sort({ productCode: 1, date: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
   const bal = new Map();
-  const rows = txs.map((t, idx) => { const key = `${cleanText(t.productCode || t.productId)}@@${cleanText(t.warehouseCode || t.warehouseId)}`; const inQty = toNumber(t.inQty || (String(t.transactionType || t.type).toUpperCase().includes('IN') ? t.qty : 0)); const outQty = toNumber(t.outQty || (String(t.transactionType || t.type).toUpperCase().includes('OUT') ? t.qty : 0)); const ton = toNumber(bal.get(key)) + inQty - outQty; bal.set(key, ton); return { STT: idx + 1, Ngay: normalizeDateOnly(t.date || t.createdAt), MaSP: cleanText(t.productCode || t.productId), SanPham: cleanText(t.productName), Kho: cleanText(t.warehouseCode || t.warehouseName), ChungTu: cleanText(t.referenceCode || t.code), Nhap: inQty, Xuat: outQty, Ton: ton }; });
-  return reportWorkbook('stock-card-report', 'TheKho', Object.keys(rows[0] || { STT:'', Ngay:'', MaSP:'', SanPham:'', Kho:'', ChungTu:'', Nhap:'', Xuat:'', Ton:'' }), rows, query);
+  const rows = txs.map((t, idx) => { const key = `${cleanText(t.productCode || t.productId)}`; const inQty = toNumber(t.inQty || (String(t.transactionType || t.type).toUpperCase().includes('IN') ? t.qty : 0)); const outQty = toNumber(t.outQty || (String(t.transactionType || t.type).toUpperCase().includes('OUT') ? t.qty : 0)); const ton = toNumber(bal.get(key)) + inQty - outQty; bal.set(key, ton); return { STT: idx + 1, Ngay: normalizeDateOnly(t.date || t.createdAt), MaSP: cleanText(t.productCode || t.productId), SanPham: cleanText(t.productName), ChungTu: cleanText(t.referenceCode || t.code), Nhap: inQty, Xuat: outQty, Ton: ton }; });
+  return reportWorkbook('stock-card-report', 'TheKho', Object.keys(rows[0] || { STT:'', Ngay:'', MaSP:'', SanPham:'', ChungTu:'', Nhap:'', Xuat:'', Ton:'' }), rows, query);
 }
 
 async function buildFundReportWorkbook(query = {}) {

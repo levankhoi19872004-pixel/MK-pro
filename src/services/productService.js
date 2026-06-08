@@ -32,8 +32,11 @@ function pickProductPayload(body = {}) {
     brand: String(body.brand || '').trim(),
     costPrice: toNumber(body.costPrice),
     salePrice: toNumber(body.salePrice),
-    warehouseCode: normalizeWarehouseCode(body.warehouseCode || body.warehouse || body.kho),
-    warehouseName: warehouseNameFromCode(body.warehouseCode || body.warehouse || body.kho),
+    // HC/PC là nhóm in/gộp đơn, không phải kho tồn.
+    warehouseCode: normalizeWarehouseCode(body.warehouseCode || body.warehouse || body.kho || body.printGroup),
+    warehouseName: warehouseNameFromCode(body.warehouseCode || body.warehouse || body.kho || body.printGroup),
+    printGroup: normalizeWarehouseCode(body.printGroup || body.warehouseCode || body.warehouse || body.kho),
+    printGroupName: warehouseNameFromCode(body.printGroup || body.warehouseCode || body.warehouse || body.kho),
     minStock: toNumber(body.minStock),
     maxStock: toNumber(body.maxStock),
     // Phase 3.4: products chỉ lưu danh mục, không nhận/lưu số tồn.
@@ -137,7 +140,7 @@ async function listProducts(query = {}) {
   const q = String(guardedQuery.q || guardedQuery.search || '').trim();
   const allowUnfiltered = String(guardedQuery.allowAll || '') === '1';
   if (!allowUnfiltered && q.length < 2 && !guardedQuery.code && !guardedQuery.productCode && !guardedQuery.warehouseCode) {
-    return { products: [], meta: { page: 1, limit: guardedQuery.limit, total: 0, message: 'Nhập ít nhất 2 ký tự hoặc chọn kho để tải sản phẩm' } };
+    return { products: [], meta: { page: 1, limit: guardedQuery.limit, total: 0, message: 'Nhập ít nhất 2 ký tự để tải sản phẩm' } };
   }
   const result = await productRepository.findAll(guardedQuery);
   const rows = result && Array.isArray(result.rows) ? result.rows : (result || []);
@@ -158,7 +161,7 @@ async function searchProducts(query = {}) {
 
 async function createProduct(body) {
   const payload = pickProductPayload(body);
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.printGroup, payload.printGroupName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
@@ -171,12 +174,12 @@ async function updateProduct(id, body) {
   const current = await productRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy sản phẩm trong MongoDB', status: 404 };
   const payload = pickProductPayload(body);
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.printGroup, payload.printGroupName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code, current._id)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
   if (payload.barcode && await productRepository.findDuplicateBarcode(payload.barcode, current._id)) return { error: 'Mã vạch đã tồn tại trong MongoDB', status: 409 };
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.printGroup, payload.printGroupName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   Object.assign(current, payload);
   // Xóa các field tồn cũ nếu còn sót trên document vì products chỉ là danh mục.
   for (const field of ['openingStock', 'availableStock', 'stockQuantity', 'availableQty', 'stock', 'quantity', 'qty', 'tonKho', 'tonDau']) {

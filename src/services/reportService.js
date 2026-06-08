@@ -14,6 +14,7 @@ const Bankbook = require('../models/Bankbook');
 const ReturnOrder = require('../models/ReturnOrder');
 const ImportOrder = require('../models/ImportOrder');
 const { normalizeText, toNumber } = require('../utils/common.util');
+const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
 
 
@@ -54,7 +55,7 @@ function filterByQuery(rows = [], query = {}, fields = []) {
 function buildStockTxFilter(query = {}) {
   const filter = {};
   if (query.productCode) filter.productCode = String(query.productCode).trim();
-  if (query.warehouseCode) filter.warehouseCode = String(query.warehouseCode).trim();
+  // Tồn kho chỉ có 1 kho MAIN; bỏ lọc HC/PC ở thẻ kho.
   if (query.date || query.dateFrom || query.dateTo) {
     filter.date = {};
     if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
@@ -93,16 +94,15 @@ async function stockReport(query = {}) {
       const txDate = dateUtil.toDateOnly(tx.date || tx.createdAt);
       if (txDate > dateTo) return;
       const productCode = String(tx.productCode || tx.productId || '').trim();
-      const warehouseCode = String(tx.warehouseCode || 'MAIN').trim();
-      const key = `${productCode}@@${warehouseCode}`;
+      const key = productCode;
       const product = productMap.get(productCode) || {};
       if (!byKey.has(key)) {
         byKey.set(key, {
           productId: tx.productId || product.id || String(product._id || ''),
           productCode,
           productName: tx.productName || product.name || '',
-          warehouseCode,
-          warehouseName: tx.warehouseName || 'Kho chính',
+          warehouseCode: STOCK_WAREHOUSE_CODE,
+          warehouseName: STOCK_WAREHOUSE_NAME,
           unit: product.unit || tx.unit || '',
           openingQty: 0,
           importQty: 0,
@@ -134,7 +134,7 @@ async function stockReport(query = {}) {
       qty: row.endingQty,
       availableQty: row.endingQty
     }));
-    if (q) stock = stock.filter((row) => [row.productCode, row.productName, row.warehouseCode, row.warehouseName].some((value) => normalizeText(value).includes(q)));
+    if (q) stock = stock.filter((row) => [row.productCode, row.productName].some((value) => normalizeText(value).includes(q)));
     const negativeStockRows = stock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
     const summary = stock.reduce((acc, row) => {
       acc.totalRows += 1;
@@ -150,36 +150,49 @@ async function stockReport(query = {}) {
   }
 
   const [inventoryRows, products] = await Promise.all([
-    InventoryLegacy.find({}).sort({ productCode: 1, warehouseCode: 1 }).lean(),
+    InventoryLegacy.find({}).sort({ productCode: 1 }).lean(),
     Product.find({}).lean()
   ]);
 
   const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
-  let stock = inventoryRows.map((row) => {
-    const product = productMap.get(String(row.productCode || row.productId || '')) || {};
+  const grouped = new Map();
+  for (const row of inventoryRows) {
+    const productCode = String(row.productCode || row.productId || '').trim();
+    if (!productCode) continue;
+    const product = productMap.get(productCode) || {};
     const quantity = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
-    return {
-      id: row.id || String(row._id || ''),
-      productId: row.productId || product.id || String(product._id || ''),
-      productCode: row.productCode || product.code || '',
-      productName: row.productName || product.name || '',
-      warehouseId: row.warehouseId || '',
-      warehouseCode: row.warehouseCode || row.warehouse || 'MAIN',
-      warehouseName: row.warehouseName || row.warehouse || 'Kho chính',
-      unit: row.unit || product.unit || '',
-      quantity,
-      qty: quantity,
-      onHand: quantity,
-      reservedQty: toNumber(row.reservedQty),
-      availableQty: toNumber(row.availableQty ?? Math.max(0, quantity - toNumber(row.reservedQty))),
-      minStock: toNumber(product.minStock),
-      maxStock: toNumber(product.maxStock),
-      updatedAt: row.updatedAt || row.createdAt || ''
-    };
-  });
+    if (!grouped.has(productCode)) {
+      grouped.set(productCode, {
+        id: row.id || String(row._id || ''),
+        productId: row.productId || product.id || String(product._id || ''),
+        productCode,
+        productName: row.productName || product.name || '',
+        warehouseId: STOCK_WAREHOUSE_CODE,
+        warehouseCode: STOCK_WAREHOUSE_CODE,
+        warehouseName: STOCK_WAREHOUSE_NAME,
+        unit: row.unit || product.unit || '',
+        quantity: 0,
+        qty: 0,
+        onHand: 0,
+        reservedQty: 0,
+        availableQty: 0,
+        minStock: toNumber(product.minStock),
+        maxStock: toNumber(product.maxStock),
+        updatedAt: row.updatedAt || row.createdAt || ''
+      });
+    }
+    const acc = grouped.get(productCode);
+    acc.quantity += quantity;
+    acc.qty += quantity;
+    acc.onHand += quantity;
+    acc.reservedQty += toNumber(row.reservedQty);
+    acc.availableQty += toNumber(row.availableQty ?? quantity - toNumber(row.reservedQty));
+    if ((row.updatedAt || row.createdAt || '') > (acc.updatedAt || '')) acc.updatedAt = row.updatedAt || row.createdAt || acc.updatedAt;
+  }
+  let stock = Array.from(grouped.values());
 
   if (q) {
-    stock = stock.filter((row) => [row.productCode, row.productName, row.warehouseCode, row.warehouseName]
+    stock = stock.filter((row) => [row.productCode, row.productName]
       .some((value) => normalizeText(value).includes(q)));
   }
 
@@ -201,7 +214,7 @@ async function stockCardReport(query = {}) {
   rows = filterByQuery(rows, query, ['productCode', 'productName', 'warehouseCode', 'refCode', 'refType', 'type']);
   let runningByKey = new Map();
   const transactions = rows.map((tx) => {
-    const key = `${tx.productCode || ''}@@${tx.warehouseCode || 'MAIN'}`;
+    const key = `${tx.productCode || ''}`;
     const running = toNumber(runningByKey.get(key)) + stockQty(tx);
     runningByKey.set(key, running);
     return {
@@ -209,7 +222,7 @@ async function stockCardReport(query = {}) {
       date: dateUtil.toDateOnly(tx.date || tx.createdAt),
       productCode: tx.productCode || '',
       productName: tx.productName || '',
-      warehouseCode: tx.warehouseCode || 'MAIN',
+      warehouseCode: STOCK_WAREHOUSE_CODE,
       type: tx.type || '',
       refType: tx.refType || '',
       refCode: tx.refCode || '',

@@ -135,8 +135,11 @@ async function hydrateItems(rawItems = []) {
         qty: quantity,
         costPrice,
         amount: quantity * costPrice,
-        warehouseCode: String(raw.warehouseCode || raw.warehouse || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
-        warehouseName: String(raw.warehouseName || product?.warehouseName || ((String(raw.warehouseCode || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim()
+        // warehouseCode ở phiếu nhập chỉ còn là nhóm in/gộp đơn HC/PC, không phải kho tồn.
+        printGroup: String(raw.printGroup || raw.warehouseCode || raw.warehouse || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
+        printGroupName: String(raw.printGroupName || raw.warehouseName || product?.printGroupName || product?.warehouseName || ((String(raw.printGroup || raw.warehouseCode || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim(),
+        warehouseCode: String(raw.printGroup || raw.warehouseCode || raw.warehouse || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
+        warehouseName: String(raw.printGroupName || raw.warehouseName || product?.printGroupName || product?.warehouseName || ((String(raw.printGroup || raw.warehouseCode || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim()
       };
     })
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
@@ -230,9 +233,7 @@ async function postImportOrder(id, actor = {}) {
       refId: posted.id || posted.code,
       refCode: posted.code || posted.id,
       date: getImportOrderDate(posted),
-      warehouseCode: posted.warehouseCode,
-      warehouseName: posted.warehouseName,
-      note: 'Nhập kho theo phiếu nhập'
+      note: 'Nhập kho theo phiếu nhập' // inventoryService tự ép tồn về MAIN
     }, { session });
     await importOrderRepository.upsert(posted, { session });
   });

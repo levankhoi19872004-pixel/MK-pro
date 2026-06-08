@@ -24,6 +24,7 @@ const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
 const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.util');
 const { DIRECT_PRICE } = require('../constants/pricingModes');
+const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
@@ -625,8 +626,9 @@ function pushInventoryMovement({ movements, inventoryDeltas, item, direction, ty
   if (!productCode) return;
   const productId = String(item.productId || productCode);
   const productName = cleanText(item.productName || item.name);
-  const whCode = cleanText(warehouseCode) || 'MAIN';
-  const whName = cleanText(warehouseName) || 'Kho chính';
+  // Tồn kho chỉ ghi vào 1 kho chính MAIN; warehouseCode từ file chỉ là nhóm in/gộp đơn.
+  const whCode = STOCK_WAREHOUSE_CODE || 'MAIN';
+  const whName = STOCK_WAREHOUSE_NAME || 'Kho chính';
   const sign = direction === 'OUT' ? -1 : 1;
   const qty = Math.abs(rawQty) * sign;
   const now = dateUtil.nowIso();
@@ -655,7 +657,7 @@ function pushInventoryMovement({ movements, inventoryDeltas, item, direction, ty
     updatedAt: now
   });
 
-  const key = `${productCode}|${whCode}`;
+  const key = productCode;
   if (!inventoryDeltas.has(key)) {
     inventoryDeltas.set(key, {
       productId,
@@ -689,7 +691,7 @@ async function applyInventoryMovementsBulk(movements = [], inventoryDeltas = new
     const insufficient = checks.filter((row) => row.nextQty < 0);
     if (insufficient.length) {
       const first = insufficient[0];
-      const err = new Error(`Không đủ tồn kho: mã SP ${first.productCode}, kho ${first.warehouseCode}, tồn hiện tại ${first.availableQty}, cần xuất ${first.requiredQty}`);
+      const err = new Error(`Không đủ tồn kho: mã SP ${first.productCode}, tồn hiện tại ${first.availableQty}, cần xuất ${first.requiredQty}`);
       err.code = 'INSUFFICIENT_STOCK_BULK';
       err.rows = insufficient.map((row) => ({
         productCode: row.productCode,
