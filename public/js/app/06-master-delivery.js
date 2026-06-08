@@ -8,6 +8,11 @@ const MASTER_ORDER_PAGE_LIMIT = 200;
 let selectedMasterOrderIds = window.__selectedMasterOrderIds || new Set();
 window.__selectedMasterOrderIds = selectedMasterOrderIds;
 
+// MASTER_ORDER_EDIT_MODAL_PATCH_START: trạng thái sửa đơn tổng, chỉ dùng trong popup đơn tổng
+let masterOrderEditMode = false;
+let editingMasterOrderId = '';
+// MASTER_ORDER_EDIT_MODAL_PATCH_END
+
 function masterOrderIdentity(row = {}) {
   return String(row.id || row._id || row.code || row.orderCode || row.documentCode || '').trim();
 }
@@ -244,25 +249,29 @@ function renderMasterOrders() {
     masterOrderList.innerHTML = '<div class="empty-cell">Không có đơn tổng phù hợp.</div>';
     return;
   }
+  // MASTER_ORDER_LIST_ACTION_PATCH_START: thêm ghi chú + thao tác Sửa/Hủy
   masterOrderList.innerHTML = rows.map((order) => {
     const key = masterOrderIdentity(order);
     const checked = selectedMasterOrderIds.has(key) ? 'checked' : '';
     const code = order.code || order.id || key;
     const delivery = order.deliveryStaffName || order.deliveryStaffCode || '';
+    const note = order.note || order.deliveryNote || order.description || order.remark || '';
     const total = Number(order.totalAmount ?? order.amount ?? order.grandTotal ?? 0) || 0;
     const locked = isMasterOrderLocked(order);
-    const cancelCell = locked
+    const actions = locked
       ? '<span class="locked-text">Đã khóa</span>'
-      : `<button type="button" class="secondary small danger cancel-master-order" data-id="${key}">Huỷ</button>`;
+      : `<button type="button" class="secondary small edit-master-order" data-id="${masterOrderEscapeHtml(key)}">Sửa</button><button type="button" class="secondary small danger cancel-master-order" data-id="${masterOrderEscapeHtml(key)}">Huỷ</button>`;
     return `<div class="order-row compact-order-row master-order-row">
-      <label><input type="checkbox" class="master-order-check" data-id="${key}" ${checked} /></label>
-      <span class="master-order-code" title="${code}">${code}</span>
-      <span title="${delivery}">${delivery}</span>
+      <label><input type="checkbox" class="master-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} /></label>
+      <span class="master-order-code" title="${masterOrderEscapeHtml(code)}">${masterOrderEscapeHtml(code)}</span>
+      <span title="${masterOrderEscapeHtml(delivery)}">${masterOrderEscapeHtml(delivery)}</span>
+      <span class="master-order-note-cell" title="${masterOrderEscapeHtml(note)}">${masterOrderEscapeHtml(note || '-')}</span>
       <span>${masterOrderDate(order.deliveryDate || order.date || order.createdAt)}</span>
       <span class="money-cell">${masterOrderMoney(total)}</span>
-      <span class="button-row">${cancelCell}</span>
+      <span class="button-row master-order-actions">${actions}</span>
     </div>`;
   }).join('');
+  // MASTER_ORDER_LIST_ACTION_PATCH_END
 }
 
 async function loadMasterOrders() {
@@ -294,14 +303,26 @@ async function loadMasterOrders() {
 window.loadMasterOrders = loadMasterOrders;
 
 // MASTER_ORDER_POPUP_PATCH_START: mở/đóng/reset popup tạo đơn tổng 3 layer
-function openMasterOrderModal() {
+function setMasterOrderModalTitle(text) {
+  const title = document.getElementById('masterOrderModalTitle');
+  if (title) title.textContent = text || 'Tạo đơn tổng';
+  const submitButton = masterOrderForm ? masterOrderForm.querySelector('.master-order-submit-button') : null;
+  if (submitButton) submitButton.textContent = masterOrderEditMode ? 'Lưu sửa đơn tổng' : 'Tạo đơn tổng';
+}
+
+function openMasterOrderModal(options = {}) {
   if (!masterOrderModal) return;
+  if (!options.keepMode && !masterOrderEditMode) {
+    masterOrderEditMode = false;
+    editingMasterOrderId = '';
+    setMasterOrderModalTitle('Tạo đơn tổng');
+  }
   masterOrderModal.classList.add('show');
   masterOrderModal.setAttribute('aria-hidden', 'false');
   if (masterOrderForm && masterOrderForm.elements.deliveryDate && !masterOrderForm.elements.deliveryDate.value && typeof today === 'function') {
     masterOrderForm.elements.deliveryDate.value = today();
   }
-  loadUnmergedChildOrders();
+  if (!options.skipLoad) loadUnmergedChildOrders();
   renderSelectedGroupedChildOrders();
 }
 window.openMasterOrderModal = openMasterOrderModal;
@@ -314,6 +335,9 @@ function closeMasterOrderModal() {
 window.closeMasterOrderModal = closeMasterOrderModal;
 
 function resetMasterOrderModal() {
+  masterOrderEditMode = false;
+  editingMasterOrderId = '';
+  setMasterOrderModalTitle('Tạo đơn tổng');
   selectedUnmergedChildOrderIds.clear();
   selectedGroupedChildOrderIds.clear();
   selectedGroupedChildOrderCheckIds.clear();
@@ -344,23 +368,29 @@ async function submitMasterOrder(event) {
     const payload = Object.fromEntries(formData.entries());
     payload.childOrderIds = childOrderIds;
     payload.groupBySalesStaff = !!(masterOrderForm && masterOrderForm.elements.groupBySalesStaff && masterOrderForm.elements.groupBySalesStaff.checked);
-    masterOrderSetMessage('Đang tạo đơn tổng...');
-    const res = await (window.fetchWithTimeout || fetch)('/api/master-orders', {
-      method: 'POST',
+    // MASTER_ORDER_EDIT_MODAL_PATCH_START: dùng chung form tạo/sửa nhưng không chạm logic hủy/in/kế toán
+    const isEdit = masterOrderEditMode && editingMasterOrderId;
+    masterOrderSetMessage(isEdit ? 'Đang lưu sửa đơn tổng...' : 'Đang tạo đơn tổng...');
+    const res = await (window.fetchWithTimeout || fetch)(isEdit ? `/api/master-orders/${encodeURIComponent(editingMasterOrderId)}` : '/api/master-orders', {
+      method: isEdit ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     }, 20000);
     const json = await res.json();
-    if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tạo được đơn tổng');
-    masterOrderSetMessage(json.message || 'Đã tạo đơn tổng');
+    if (!res.ok || json.ok === false) throw new Error(json.message || (isEdit ? 'Không cập nhật được đơn tổng' : 'Không tạo được đơn tổng'));
+    masterOrderSetMessage(json.message || (isEdit ? 'Đã cập nhật đơn tổng' : 'Đã tạo đơn tổng'));
+    masterOrderEditMode = false;
+    editingMasterOrderId = '';
     selectedUnmergedChildOrderIds.clear();
     selectedGroupedChildOrderIds.clear();
     selectedGroupedChildOrderCheckIds.clear();
     selectedChildOrderIds = selectedUnmergedChildOrderIds;
+    setMasterOrderModalTitle('Tạo đơn tổng');
     closeMasterOrderModal();
     await loadMasterOrderModule();
+    // MASTER_ORDER_EDIT_MODAL_PATCH_END
   } catch (err) {
-    masterOrderSetMessage(err.message || 'Không tạo được đơn tổng', true);
+    masterOrderSetMessage(err.message || 'Không tạo/cập nhật được đơn tổng', true);
   }
 }
 window.submitMasterOrder = submitMasterOrder;
@@ -403,6 +433,68 @@ window.printSelectedMasterOrders = printSelectedMasterOrders;
 
 
 
+// MASTER_ORDER_EDIT_MODAL_PATCH_START: mở popup 3 layer ở chế độ sửa đơn tổng
+function mergeRowsIntoUnmergedCache(rows = []) {
+  const cache = Array.isArray(unmergedOrdersCache) ? [...unmergedOrdersCache] : [];
+  const seen = new Set(cache.map((row) => salesOrderIdentity(row)).filter(Boolean));
+  rows.filter(Boolean).forEach((row) => {
+    const key = salesOrderIdentity(row);
+    if (key && !seen.has(key)) {
+      cache.push(row);
+      seen.add(key);
+    }
+  });
+  unmergedOrdersCache = cache;
+}
+
+async function editMasterOrderFromList(id) {
+  if (!id) return;
+  const order = (masterOrdersCache || []).find((row) => masterOrderIdentity(row) === id);
+  if (!order) return alert('Không tìm thấy đơn tổng để sửa');
+  if (isMasterOrderLocked(order)) return alert('Đơn tổng đã khóa/giao/xác nhận kế toán, không thể sửa');
+  try {
+    masterOrderEditMode = true;
+    editingMasterOrderId = id;
+    selectedUnmergedChildOrderIds.clear();
+    selectedGroupedChildOrderIds.clear();
+    selectedGroupedChildOrderCheckIds.clear();
+    selectedChildOrderIds = selectedUnmergedChildOrderIds;
+    await loadUnmergedChildOrders();
+
+    const res = await (window.fetchWithTimeout || fetch)(`/api/master-orders/${encodeURIComponent(id)}`, {}, 15000);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được chi tiết đơn tổng');
+    const detail = json.masterOrder || json.order || json.data || order;
+    const children = detail.children || detail.childOrders || detail.orders || detail.salesOrders || [];
+    mergeRowsIntoUnmergedCache(children);
+    children.forEach((child) => {
+      const key = salesOrderIdentity(child);
+      if (key) selectedGroupedChildOrderIds.add(key);
+    });
+
+    if (masterOrderForm) {
+      if (masterOrderForm.elements.deliveryDate) masterOrderForm.elements.deliveryDate.value = String(detail.deliveryDate || detail.date || '').slice(0, 10);
+      if (masterOrderForm.elements.routeName) masterOrderForm.elements.routeName.value = detail.routeName || detail.deliveryRoute || '';
+      if (masterOrderForm.elements.deliveryStaffCode) masterOrderForm.elements.deliveryStaffCode.value = detail.deliveryStaffCode || '';
+      if (masterOrderForm.elements.deliveryStaffName) masterOrderForm.elements.deliveryStaffName.value = detail.deliveryStaffName || '';
+      if (masterOrderForm.elements.note) masterOrderForm.elements.note.value = detail.note || detail.deliveryNote || detail.description || detail.remark || '';
+      if (masterOrderForm.elements.groupBySalesStaff) masterOrderForm.elements.groupBySalesStaff.checked = !!detail.groupBySalesStaff;
+    }
+
+    setMasterOrderModalTitle('Sửa đơn tổng');
+    openMasterOrderModal({ keepMode: true, skipLoad: true });
+    renderMasterOrderGroupingLayers();
+    masterOrderSetMessage('Đang sửa đơn tổng. Chỉ lưu khi bấm "Lưu sửa đơn tổng".');
+  } catch (err) {
+    masterOrderEditMode = false;
+    editingMasterOrderId = '';
+    setMasterOrderModalTitle('Tạo đơn tổng');
+    alert(err.message || 'Không mở được đơn tổng để sửa');
+  }
+}
+window.editMasterOrderFromList = editMasterOrderFromList;
+// MASTER_ORDER_EDIT_MODAL_PATCH_END
+
 async function cancelMasterOrderFromList(id) {
   if (!id) return;
   if (!confirm('Huỷ đơn tổng này và trả các đơn con về danh sách chưa gộp?')) return;
@@ -433,11 +525,27 @@ if (masterOrderList) {
     window.__selectedMasterOrderIds = selectedMasterOrderIds;
   });
   masterOrderList.addEventListener('click', (event) => {
+    // MASTER_ORDER_LIST_ACTION_PATCH_START: thêm nút sửa, giữ nguyên hủy
+    const editBtn = event.target.closest('.edit-master-order');
+    if (editBtn) return editMasterOrderFromList(editBtn.dataset.id);
     const btn = event.target.closest('.cancel-master-order');
     if (!btn) return;
     cancelMasterOrderFromList(btn.dataset.id);
+    // MASTER_ORDER_LIST_ACTION_PATCH_END
   });
 }
+
+// MASTER_ORDER_EDIT_MODAL_PATCH_START: gắn event popup đơn tổng nếu file event tổng chưa gắn
+if (typeof openMasterOrderModalButton !== 'undefined' && openMasterOrderModalButton) openMasterOrderModalButton.addEventListener('click', () => { resetMasterOrderModal(); openMasterOrderModal(); });
+if (typeof closeMasterOrderModalButton !== 'undefined' && closeMasterOrderModalButton) closeMasterOrderModalButton.addEventListener('click', closeMasterOrderModal);
+if (typeof masterOrderForm !== 'undefined' && masterOrderForm) masterOrderForm.addEventListener('submit', submitMasterOrder);
+if (typeof moveToGroupedOrdersButton !== 'undefined' && moveToGroupedOrdersButton) moveToGroupedOrdersButton.addEventListener('click', moveSelectedUnmergedToGrouped);
+if (typeof removeFromGroupedOrdersButton !== 'undefined' && removeFromGroupedOrdersButton) removeFromGroupedOrdersButton.addEventListener('click', removeSelectedGroupedChildOrders);
+if (typeof selectAllUnmergedOrdersButton !== 'undefined' && selectAllUnmergedOrdersButton) selectAllUnmergedOrdersButton.addEventListener('click', toggleSelectAllUnmergedOrders);
+if (typeof selectAllMasterOrdersButton !== 'undefined' && selectAllMasterOrdersButton) selectAllMasterOrdersButton.addEventListener('click', toggleSelectAllMasterOrders);
+if (typeof printSelectedMasterOrdersButton !== 'undefined' && printSelectedMasterOrdersButton) printSelectedMasterOrdersButton.addEventListener('click', printSelectedMasterOrders);
+if (typeof reloadMasterOrdersButton !== 'undefined' && reloadMasterOrdersButton) reloadMasterOrdersButton.addEventListener('click', loadMasterOrderModule);
+// MASTER_ORDER_EDIT_MODAL_PATCH_END
 
 
 

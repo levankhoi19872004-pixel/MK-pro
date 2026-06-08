@@ -7803,11 +7803,11 @@ body::after{
 #importDateFilterInfo{margin:0}
 
 
-/* V44 master order list compact columns: checkbox | code | delivery staff | date | amount | cancel */
+/* MASTER_ORDER_LIST_ACTION_PATCH_START: checkbox | code | delivery staff | note | date | amount | actions */
 .master-order-list-head,
 .master-order-row {
   display: grid !important;
-  grid-template-columns: 34px 2fr 1.5fr 110px 120px 90px !important;
+  grid-template-columns: 34px minmax(145px,18%) minmax(120px,16%) minmax(220px,1fr) 92px 120px 108px !important;
   gap: 8px !important;
   align-items: center !important;
 }
@@ -7854,6 +7854,21 @@ body::after{
 .master-order-row .button-row {
   justify-content: flex-end;
 }
+.master-order-note-cell {
+  min-width: 0;
+  color: #374151;
+}
+.master-order-row .master-order-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.master-order-row .master-order-actions .small {
+  padding: 5px 8px;
+}
+/* MASTER_ORDER_LIST_ACTION_PATCH_END */
 
 /* V46 - Master return canonical columns */
 #masterReturnOrdersTab .return-list-head,

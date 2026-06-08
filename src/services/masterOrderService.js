@@ -2984,13 +2984,50 @@ async function createMasterOrder(body = {}) {
 async function updateMasterOrder(id, body = {}) {
   const current = await masterOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn tổng', status: 404 };
-  if (['cancelled', 'void'].includes(String(current.status || '').toLowerCase())) {
+  const currentStatus = String(current.status || current.deliveryStatus || '').toLowerCase();
+  if (['cancelled', 'canceled', 'void', 'deleted'].includes(currentStatus)) {
     return { error: 'Đơn tổng đã hủy/xóa, không thể cập nhật', status: 400 };
+  }
+  if (currentStatus === 'delivered' || currentStatus === 'completed' || current.accountingConfirmed === true || current.accountingStatus === 'confirmed') {
+    return { error: 'Đơn tổng đã giao hoặc đã xác nhận kế toán, không thể sửa', status: 400 };
   }
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
   const salesStaff = await resolveStaff(body, 'sales');
   const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || dateUtil.todayVN());
+
+  // MASTER_ORDER_EDIT_MODAL_PATCH_START: cập nhật an toàn thông tin + danh sách đơn con, không chạm công nợ/tồn kho/kế toán
+  const currentChildren = await orderService.getMasterChildren(current);
+  const currentChildIds = new Set((currentChildren || []).flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)));
+
+  let children = currentChildren;
+  const hasRequestedChildren = Array.isArray(body.childOrderIds);
+  if (hasRequestedChildren) {
+    const requestedChildIds = [...new Set((body.childOrderIds || [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean))];
+    if (!requestedChildIds.length) return { error: 'Đơn tổng phải có ít nhất 1 đơn con', status: 400 };
+    const requestedChildren = (await orderRepository.findManyByIdentity(requestedChildIds)).filter((order) => !isInactiveStatus(order));
+    const foundKeys = new Set(requestedChildren.flatMap((order) => [order.id, order.code, order.documentCode, order.orderCode, order.salesOrderCode]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)));
+    const missingIds = requestedChildIds.filter((key) => !foundKeys.has(key));
+    if (missingIds.length || requestedChildren.length !== requestedChildIds.length) {
+      return { error: `Một số đơn con không tồn tại hoặc đã bị hủy/xóa: ${missingIds.join(', ')}`, status: 400 };
+    }
+    const conflict = requestedChildren.find((child) => {
+      const masterId = String(child.masterOrderId || '').trim();
+      const masterCode = String(child.masterOrderCode || '').trim();
+      const isCurrent = masterId === String(current.id || '').trim() || masterId === String(current.code || '').trim()
+        || masterCode === String(current.id || '').trim() || masterCode === String(current.code || '').trim();
+      return (masterId || masterCode || String(child.mergeStatus || '').toLowerCase() === 'merged') && !isCurrent;
+    });
+    if (conflict) return { error: `Đơn con ${conflict.code || conflict.id} đã thuộc đơn tổng khác`, status: 400 };
+    children = requestedChildren;
+  }
+
   const updated = {
     ...current,
     ...body,
@@ -3005,10 +3042,11 @@ async function updateMasterOrder(id, body = {}) {
     salesStaffId: salesStaff?.id || body.salesStaffId || current.salesStaffId || '',
     salesStaffCode: salesStaff?.code || body.salesStaffCode || current.salesStaffCode || '',
     salesStaffName: salesStaff?.name || body.salesStaffName || current.salesStaffName || '',
+    childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
+    children: [],
     updatedAt: dateUtil.nowIso()
   };
 
-  const children = await orderService.getMasterChildren(current);
   const summary = orderService.summarizeOrders(children);
   Object.assign(updated, summary);
 
@@ -3016,6 +3054,15 @@ async function updateMasterOrder(id, body = {}) {
     .map((value) => String(value || '').trim())
     .filter(Boolean)))];
   const childCodes = [...new Set((children || []).map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
+  const nextChildKeys = new Set(childOrderKeys);
+  const removedChildren = hasRequestedChildren ? (currentChildren || []).filter((child) => {
+    const keys = [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode].map((value) => String(value || '').trim()).filter(Boolean);
+    return keys.length && !keys.some((key) => nextChildKeys.has(key));
+  }) : [];
+  const removedChildKeys = [...new Set(removedChildren.flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)))];
+  const removedChildCodes = [...new Set(removedChildren.map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
   const now = dateUtil.nowIso();
 
   await withMongoTransaction(async (session) => {
@@ -3032,6 +3079,10 @@ async function updateMasterOrder(id, body = {}) {
             { salesOrderCode: child.salesOrderCode }
           ].filter((item) => Object.values(item)[0]) },
           update: { $set: {
+            masterOrderId: updated.id,
+            masterOrderCode: updated.code,
+            mergeStatus: 'merged',
+            status: child.status || 'assigned',
             deliveryDate: updated.deliveryDate,
             deliveryStaffId: updated.deliveryStaffId,
             deliveryStaffCode: updated.deliveryStaffCode,
@@ -3044,7 +3095,21 @@ async function updateMasterOrder(id, body = {}) {
       })), { ordered: false, session });
     }
 
-    // Sync returnOrders bằng updateMany, không gọi attachMasterOrderToReturnDrafts từng đơn.
+    if (removedChildren.length) {
+      await MongoStore.salesOrders.bulkWrite(removedChildren.map((child) => ({
+        updateOne: {
+          filter: { $or: [
+            { id: child.id },
+            { code: child.code },
+            { documentCode: child.documentCode },
+            { orderCode: child.orderCode },
+            { salesOrderCode: child.salesOrderCode }
+          ].filter((item) => Object.values(item)[0]) },
+          update: { $set: { mergeStatus: 'unmerged', status: 'pending', updatedAt: now }, $unset: { masterOrderId: '', masterOrderCode: '' } }
+        }
+      })), { ordered: false, session });
+    }
+
     if (childOrderKeys.length || childCodes.length) {
       await MongoStore.returnOrders.updateMany(
         {
@@ -3075,9 +3140,31 @@ async function updateMasterOrder(id, body = {}) {
         { session }
       );
     }
+
+    if (removedChildKeys.length || removedChildCodes.length) {
+      await MongoStore.returnOrders.updateMany(
+        {
+          $or: [
+            { salesOrderId: { $in: removedChildKeys } },
+            { orderId: { $in: removedChildKeys } },
+            { sourceOrderId: { $in: removedChildKeys } },
+            { deliveryOrderId: { $in: removedChildKeys } },
+            { salesOrderCode: { $in: removedChildCodes } },
+            { orderCode: { $in: removedChildCodes } },
+            { sourceOrderCode: { $in: removedChildCodes } },
+            { deliveryOrderCode: { $in: removedChildCodes } }
+          ],
+          masterOrderCode: current.code,
+          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted', 'duplicate_cancelled'] }
+        },
+        { $set: { updatedAt: now }, $unset: { masterOrderId: '', masterOrderCode: '' } },
+        { session }
+      );
+    }
   });
   const updatedChildren = await orderService.getMasterChildren(updated);
   return { masterOrder: toClient(updated, updatedChildren) };
+  // MASTER_ORDER_EDIT_MODAL_PATCH_END
 }
 
 async function cancelMasterOrder(id, body = {}) {
