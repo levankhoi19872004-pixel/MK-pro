@@ -115,7 +115,10 @@ function createMobileDeliveryService(ctx) {
   }
 
   function getReturnLinePrice(item = {}) {
-    return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
+    // DELIVERY_LOCKED_PRICE_READ_START
+    // App giao hàng chỉ đọc giá đã khóa trên đơn; không tính lại khuyến mại.
+    return toNumber(item.unitPrice ?? item.price ?? item.salePrice ?? item.finalPrice ?? item.giaBan ?? 0);
+    // DELIVERY_LOCKED_PRICE_READ_END
   }
 
   function getReturnOrderItemsForSalesOrder(data = {}, order = {}) {

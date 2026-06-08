@@ -38,6 +38,21 @@ function fail(statusCode, message) {
   return { statusCode, body: { ok: false, success: false, message } };
 }
 
+// MOBILE_PROMOTION_PRICE_LOCK_START
+function pickFirstPromotionRow(rows = []) {
+  return (Array.isArray(rows) ? rows : []).find((row) => row && typeof row === 'object') || {};
+}
+
+function extractPromotionIdentity(rows = []) {
+  const first = pickFirstPromotionRow(rows);
+  return {
+    promotionId: String(first.promotionId || first.id || first._id || first.programId || first.ruleId || '').trim(),
+    promotionCode: String(first.promotionCode || first.code || first.programCode || first.ruleCode || '').trim(),
+    promotionName: String(first.promotionName || first.name || first.programName || first.ruleName || first.description || '').trim()
+  };
+}
+// MOBILE_PROMOTION_PRICE_LOCK_END
+
 function createMobileSalesService(ctx) {
   const repo = createMobileSalesRepository(ctx);
   const {
@@ -229,9 +244,15 @@ function createMobileSalesService(ctx) {
         const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
         const amount = Math.max(0, grossAmount - discountAmount);
         const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
+        // MOBILE_PROMOTION_PRICE_LOCK_START
+        const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+        const promotionIdentity = extractPromotionIdentity(promotionRows);
         return {
           ...item,
+          // Giá trước khuyến mại được giữ riêng để đối chiếu/in/báo cáo.
+          originalPrice: grossPrice,
           grossPrice,
+          catalogSalePrice: grossPrice,
           grossAmount,
           directDiscountPercent: toNumber(line.directDiscountPercent || 0),
           groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
@@ -239,22 +260,35 @@ function createMobileSalesService(ctx) {
           directDiscountAmount,
           groupDiscountAmount,
           discountAmount,
+          promotionAmount: discountAmount,
           totalDiscountAmount: discountAmount,
           finalPrice,
+          // Giá sau khuyến mại được khóa làm giá giao hàng/công nợ.
+          unitPrice: finalPrice,
           salePrice: finalPrice,
           price: finalPrice,
           amount,
+          netAmount: amount,
           saleMethod: PROMOTION,
           saleMode: PROMOTION,
           pricingMode: PROMOTION,
           priceLocked: true,
+          lockedPrice: true,
+          lockedPromotion: true,
           promotionCalculated: true,
-          promotionRows: Array.isArray(line.promotionRows) ? line.promotionRows : []
+          promotionRows,
+          ...promotionIdentity
         };
+        // MOBILE_PROMOTION_PRICE_LOCK_END
       });
 
       const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+      // MOBILE_PROMOTION_PRICE_LOCK_START
+      const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount), 0);
+      const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0);
       const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+      const promotionCodes = Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)));
+      // MOBILE_PROMOTION_PRICE_LOCK_END
       if (paidAmount > totalAmount) return fail(400, 'Tiền thu không được lớn hơn tổng đơn');
 
       const salesOrder = {
@@ -283,6 +317,21 @@ function createMobileSalesService(ctx) {
         note: String(body.note || 'Tạo từ mobile app').trim(),
         items,
         totalQuantity,
+        // MOBILE_PROMOTION_PRICE_LOCK_START
+        grossAmount: totalGrossAmount,
+        totalGrossAmount,
+        grossAmountBeforePromotion: totalGrossAmount,
+        discountAmount: totalDiscountAmount,
+        totalDiscountAmount,
+        promotionAmount: totalDiscountAmount,
+        totalPromotionAmount: totalDiscountAmount,
+        netAmount: totalAmount,
+        goodsAmountAfterPromotion: totalAmount,
+        promotionCodes,
+        priceLocked: true,
+        lockedPrice: true,
+        lockedPromotion: true,
+        // MOBILE_PROMOTION_PRICE_LOCK_END
         totalAmount,
         paidAmount,
         debtAmount: totalAmount - paidAmount,

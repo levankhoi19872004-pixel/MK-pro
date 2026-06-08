@@ -64,6 +64,21 @@ function isImportOrDmsSource(order = {}) {
   return order.isImported === true || /(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|EXCEL_DMS|IMPORT EXCEL DMS|IMPORT|EXCEL/.test(sourceText);
 }
 
+// ORDER_PROMOTION_PRICE_LOCK_START
+function pickFirstPromotionRow(rows = []) {
+  return (Array.isArray(rows) ? rows : []).find((row) => row && typeof row === 'object') || {};
+}
+
+function extractPromotionIdentity(rows = []) {
+  const first = pickFirstPromotionRow(rows);
+  return {
+    promotionId: String(first.promotionId || first.id || first._id || first.programId || first.ruleId || '').trim(),
+    promotionCode: String(first.promotionCode || first.code || first.programCode || first.ruleCode || '').trim(),
+    promotionName: String(first.promotionName || first.name || first.programName || first.ruleName || first.description || '').trim()
+  };
+}
+// ORDER_PROMOTION_PRICE_LOCK_END
+
 function isDmsDirectPriceOrder(order = {}) {
   // Quy tắc mới:
   // - Có lựa chọn rõ ràng trên đơn thì tôn trọng lựa chọn đó (không khóa theo nguồn import/DMS).
@@ -79,11 +94,14 @@ function calculateItems(items = [], saleMode = DIRECT_PRICE, order = {}) {
     .map((item) => {
       const lineMode = lockDirectPrice ? DIRECT_PRICE : normalizeSaleMode(item.saleMethod || item.saleMode || item.pricingMode, normalizedSaleMode);
       const quantity = toNumber(item.quantity ?? item.qty ?? item.totalQty);
-      const price = toNumber(item.price ?? item.salePrice ?? item.finalPrice ?? item.unitPrice);
+      const price = toNumber(item.unitPrice ?? item.price ?? item.salePrice ?? item.finalPrice);
       const amount = toNumber(item.amount || (quantity * price));
-      const grossPrice = toNumber(item.grossPrice || item.catalogSalePrice || price);
-      const discountAmount = Math.max(0, toNumber(item.discountAmount || item.totalDiscountAmount || (quantity * grossPrice - amount)));
-      const discountPercent = grossPrice > 0 && quantity > 0 ? (discountAmount / (quantity * grossPrice)) * 100 : toNumber(item.discountPercent || 0);
+      const grossPrice = toNumber(item.originalPrice || item.grossPrice || item.catalogSalePrice || price);
+      const grossAmount = Math.round(quantity * grossPrice);
+      const discountAmount = Math.max(0, toNumber(item.discountAmount || item.totalDiscountAmount || item.promotionAmount || (grossAmount - amount)));
+      const discountPercent = grossPrice > 0 && quantity > 0 ? (discountAmount / grossAmount) * 100 : toNumber(item.discountPercent || 0);
+      const promotionRows = Array.isArray(item.promotionRows) ? item.promotionRows : [];
+      const promotionIdentity = extractPromotionIdentity(promotionRows);
       return {
         ...item,
         productId: String(item.productId || item.id || item.productCode || item.code || '').trim(),
@@ -91,17 +109,30 @@ function calculateItems(items = [], saleMode = DIRECT_PRICE, order = {}) {
         productName: String(item.productName || item.name || '').trim(),
         quantity,
         qty: quantity,
+        // ORDER_PROMOTION_PRICE_LOCK_START
+        originalPrice: grossPrice,
         grossPrice,
+        catalogSalePrice: grossPrice,
+        grossAmount,
         discountPercent,
         discountAmount,
+        promotionAmount: discountAmount,
+        totalDiscountAmount: discountAmount,
         finalPrice: price,
+        unitPrice: price,
         price,
         salePrice: price,
         amount,
+        netAmount: amount,
         saleMethod: lineMode,
         saleMode: lineMode,
         pricingMode: lineMode,
-        priceLocked: lockDirectPrice || lineMode === PROMOTION
+        priceLocked: lockDirectPrice || lineMode === PROMOTION,
+        lockedPrice: lockDirectPrice || lineMode === PROMOTION,
+        lockedPromotion: lineMode === PROMOTION,
+        promotionRows,
+        ...promotionIdentity
+        // ORDER_PROMOTION_PRICE_LOCK_END
       };
     })
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
@@ -127,9 +158,13 @@ async function applyPromotionPricing(items = [], saleMode = DIRECT_PRICE, order 
     const finalAmount = Math.max(0, grossAmount - discountAmount);
     const finalPrice = quantity > 0 ? Math.round(finalAmount / quantity) : 0;
     const discountPercent = grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0;
+    // ORDER_PROMOTION_PRICE_LOCK_START
+    const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+    const promotionIdentity = extractPromotionIdentity(promotionRows);
     return {
       ...item,
       productName: item.productName || line.productName || '',
+      originalPrice: grossPrice,
       grossPrice,
       catalogSalePrice: grossPrice,
       grossAmount,
@@ -139,18 +174,25 @@ async function applyPromotionPricing(items = [], saleMode = DIRECT_PRICE, order 
       directDiscountAmount,
       groupDiscountAmount,
       discountAmount,
+      promotionAmount: discountAmount,
       totalDiscountAmount: discountAmount,
       finalPrice,
+      unitPrice: finalPrice,
       salePrice: finalPrice,
       price: finalPrice,
       amount: finalAmount,
+      netAmount: finalAmount,
       saleMethod: PROMOTION,
       saleMode: PROMOTION,
       pricingMode: PROMOTION,
       priceLocked: true,
+      lockedPrice: true,
+      lockedPromotion: true,
       promotionCalculated: true,
-      promotionRows: Array.isArray(line.promotionRows) ? line.promotionRows : []
+      promotionRows,
+      ...promotionIdentity
     };
+    // ORDER_PROMOTION_PRICE_LOCK_END
   });
 }
 

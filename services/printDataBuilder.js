@@ -960,8 +960,11 @@ function buildPrintData(document = {}, options = {}) {
   const warehouseGroups = buildWarehouseGroups(items);
 
   const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, document.summary?.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
+  // PRINT_PROMOTION_TOTALS_START
   const grossAmountBeforePromotion = toNumber(pick(
     document.grossAmountBeforePromotion,
+    document.totalGrossAmount,
+    document.grossAmount,
     document.summary?.grossAmountBeforePromotion,
     document.goodsAmount,
     document.subTotal,
@@ -970,12 +973,14 @@ function buildPrintData(document = {}, options = {}) {
   ));
   const goodsAmountAfterPromotion = toNumber(pick(
     document.goodsAmountAfterPromotion,
+    document.netAmount,
     document.summary?.goodsAmountAfterPromotion,
     document.totalAmount,
     document.grandTotal,
     items.reduce((sum, item) => sum + item.amount, 0)
   ));
-  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, document.summary?.promotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
+  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, document.totalDiscountAmount, document.promotionAmount, document.discountAmount, document.summary?.promotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
+  // PRINT_PROMOTION_TOTALS_END
   const displayRewardTotal = toNumber(pick(document.displayRewardTotal, document.totalDisplayReward, document.rewardAmount, document.offsetAmount, document.summary?.displayRewardOffset, displayRewards.reduce((sum, item) => sum + item.offsetAmount, 0)));
   const nppDiscountAmount = toNumber(pick(document.nppDiscountAmount, document.summary?.nppDiscountAmount, 0));
   const discount = toNumber(pick(document.discount, document.discountAmount, document.totalDiscount, promotionValue));

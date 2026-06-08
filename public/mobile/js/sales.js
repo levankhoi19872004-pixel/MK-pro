@@ -480,13 +480,22 @@ function renderCart() {
   }
 
   cartList.className = 'cart-list';
-  cartList.innerHTML = cart.map((item, index) => `
+  // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_START
+  cartList.innerHTML = cart.map((item, index) => {
+    const originalPrice = Number(item.originalPrice || item.grossPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
+    const unitPrice = Number(item.unitPrice || item.salePrice || item.price || 0);
+    const discountAmount = Number(item.discountAmount || item.promotionAmount || Math.max(0, (originalPrice - unitPrice) * Number(item.quantity || 0)));
+    const priceInfo = discountAmount > 0
+      ? `Giá gốc: ${money(originalPrice)} · KM: -${money(discountAmount)} · Giá bán: ${money(unitPrice)}`
+      : `Giá bán: ${money(unitPrice)}`;
+    return `
     <div class="cart-item">
       <strong>${item.productCode} - ${item.productName}</strong>
-      <span>SL: ${quantityDisplayTL(item)} · Giá: ${money(item.salePrice)} · Thành tiền: ${money(item.amount)}</span>
+      <span>SL: ${quantityDisplayTL(item)} · ${priceInfo} · Thành tiền: ${money(item.amount)}</span>
       <button class="danger-btn small-btn" data-remove="${index}">Xóa</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+  // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_END
 
   cartList.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -645,8 +654,17 @@ async function editTodayOrder(orderId) {
       unit: item.unit,
       conversionRate: item.conversionRate,
       quantity: Number(item.quantity || 0),
-      salePrice: Number(item.salePrice || 0),
-      amount: Number(item.amount || Number(item.quantity || 0) * Number(item.salePrice || 0))
+      // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_START
+      originalPrice: Number(item.originalPrice || item.grossPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
+      unitPrice: Number(item.unitPrice || item.salePrice || item.price || 0),
+      salePrice: Number(item.salePrice || item.unitPrice || item.price || 0),
+      price: Number(item.price || item.unitPrice || item.salePrice || 0),
+      discountAmount: Number(item.discountAmount || item.promotionAmount || item.totalDiscountAmount || 0),
+      promotionAmount: Number(item.promotionAmount || item.discountAmount || item.totalDiscountAmount || 0),
+      amount: Number(item.amount || Number(item.quantity || 0) * Number(item.unitPrice || item.salePrice || item.price || 0)),
+      promotionCode: item.promotionCode || '',
+      promotionName: item.promotionName || ''
+      // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_END
     }));
     paidAmountInput.value = Number(order.paidAmount || 0);
     orderFormTitle.textContent = `Sửa đơn ${order.code || ''}`;

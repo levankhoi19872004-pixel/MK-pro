@@ -192,7 +192,10 @@
       items.map(function (it, idx) {
         var code = it.productCode || it.code || it.productId || '';
         var name = it.productName || it.name || '';
-        var price = num(it.price || it.salePrice || it.unitPrice || it.finalPrice);
+        // DELIVERY_LOCKED_PRICE_READ_START
+        // App giao hàng ưu tiên unitPrice đã khóa từ backend, không tự tính lại khuyến mại.
+        var price = num(it.unitPrice || it.price || it.salePrice || it.finalPrice);
+        // DELIVERY_LOCKED_PRICE_READ_END
         var qty = num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty);
         var rqty = num(it.returnQty || it.qtyReturn || it.returnQuantity || it.returnedQty);
         return '<div class="m-product-row"><div><b>' + esc(code) + '</b><small>' + esc(name) + '</small><em>SL giao ' + money(qty) + ' · Giá cố định ' + money(price) + '</em>' + hidden(idx, 'productCode', code) + hidden(idx, 'productName', name) + hidden(idx, 'price', price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(rqty) + '"></div>';
