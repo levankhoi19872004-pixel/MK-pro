@@ -48,6 +48,51 @@ async function getSnapshot(productLike = {}) {
   });
 }
 
+async function normalizeProductInventoryToMain({ productCode, productId } = {}) {
+  const code = String(productCode || productId || '').trim();
+  const id = String(productId || productCode || '').trim();
+  const filters = [
+    code ? { productCode: code } : null,
+    id ? { productId: id } : null,
+    code ? { code } : null,
+    id ? { sku: id } : null
+  ].filter(Boolean);
+  if (!filters.length) return null;
+
+  const rows = await InventoryLegacy.find({ $or: filters }).lean();
+  if (!rows.length) return null;
+
+  const whCode = stockWarehouseCode();
+  const hasLegacyWarehouse = rows.some((row) => String(row.warehouseCode || '').trim() !== whCode);
+  if (!hasLegacyWarehouse && rows.length === 1) return rows[0];
+
+  const groupedQty = rows.reduce((sum, row) => {
+    return sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
+  }, 0);
+  const reservedQty = rows.reduce((sum, row) => sum + toNumber(row.reservedQty ?? row.reserved ?? 0), 0);
+  const baseRow = rows.find((row) => String(row.warehouseCode || '').trim() === whCode) || rows[0] || {};
+
+  await InventoryLegacy.deleteMany({ $or: filters });
+  const doc = {
+    ...baseRow,
+    _id: undefined,
+    id: baseRow.id || makeId('IV'),
+    productId: String(baseRow.productId || id || code).trim(),
+    productCode: String(baseRow.productCode || code || id).trim(),
+    warehouseId: whCode,
+    warehouseCode: whCode,
+    warehouseName: stockWarehouseName(),
+    qty: groupedQty,
+    quantity: groupedQty,
+    onHand: groupedQty,
+    reservedQty,
+    availableQty: groupedQty - reservedQty,
+    updatedAt: dateUtil.nowIso()
+  };
+  await InventoryLegacy.create(doc);
+  return doc;
+}
+
 async function assertStockAvailableBeforeOut({ productCode, productId, productName, requiredQty = 0, session = null } = {}) {
   const code = String(productCode || productId || '').trim();
   const whCode = stockWarehouseCode();
@@ -61,8 +106,17 @@ async function assertStockAvailableBeforeOut({ productCode, productId, productNa
     ].filter(Boolean)
   };
   const snapshotQuery = InventoryLegacy.findOne(query);
-  const snapshot = session ? await snapshotQuery.session(session) : await snapshotQuery;
-  const available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
+  let snapshot = session ? await snapshotQuery.session(session) : await snapshotQuery;
+  let available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
+
+  if (available < required) {
+    // Cầu chì an toàn cho dữ liệu cũ: nếu mã hàng còn bị tách MAIN/KHO_HC/KHO_PC,
+    // gom riêng mã này về MAIN rồi kiểm tra lại trước khi báo thiếu tồn.
+    // Sau khi migration tổng thể đã chạy, nhánh này hầu như không còn được gọi.
+    snapshot = await normalizeProductInventoryToMain({ productCode, productId });
+    available = toNumber(snapshot?.availableQty ?? snapshot?.quantity ?? snapshot?.qty ?? snapshot?.onHand);
+  }
+
   if (available < required) {
     const err = new Error(`Không đủ tồn kho: mã SP ${code}${productName ? ` - ${productName}` : ''}, tồn hiện tại ${available}, cần xuất ${required}`);
     err.code = 'INSUFFICIENT_STOCK';
@@ -534,5 +588,6 @@ module.exports = {
   rebuildSnapshotsFromTransactions,
   rebuildStockLedgerFromDocuments,
   normalizeOneWarehouse,
+  normalizeProductInventoryToMain,
   isActive
 };

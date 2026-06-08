@@ -10,6 +10,7 @@ const MasterOrder = require('../models/MasterOrder');
 const Journal = require('../models/Journal');
 const SalesOrder = require('../models/SalesOrder');
 const InventoryLegacy = require('../models/InventoryLegacy');
+const { STOCK_WAREHOUSE_CODE } = require('../constants/business.constants');
 const { escapeRegex } = require('../utils/query.util');
 
 const SEARCH_RETURN_MAX = 50;
@@ -265,6 +266,7 @@ async function findInventoriesForProducts(products = []) {
   if (!ids.length) return [];
 
   const filter = {
+    warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
     $or: [
       { productCode: { $in: ids } },
       { productId: { $in: ids } },
@@ -273,7 +275,8 @@ async function findInventoriesForProducts(products = []) {
     ]
   };
 
-  // Nguồn tồn duy nhất: collection inventories qua InventoryLegacy.
+  // Nguồn tồn duy nhất cho app bán hàng/search: inventories tại kho tồn MAIN.
+  // KHO_HC/KHO_PC chỉ là nhóm in/gộp đơn, không được dùng để hiển thị tồn mở bán.
   return InventoryLegacy.find(filter).lean();
 }
 

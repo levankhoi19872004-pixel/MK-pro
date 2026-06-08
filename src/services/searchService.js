@@ -59,7 +59,7 @@ function inventoryRowQty(row = {}) {
   const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
   return row.availableQty !== undefined && row.availableQty !== null
     ? toNumber(row.availableQty)
-    : Math.max(0, onHand - reserved);
+    : onHand - reserved;
 }
 
 function buildInventoryMap(products = [], inventories = []) {

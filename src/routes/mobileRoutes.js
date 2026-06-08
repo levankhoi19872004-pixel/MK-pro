@@ -53,6 +53,7 @@ const financialService = require('../services/financialService');
 const masterOrderService = require('../services/masterOrderService');
 const reportService = require('../services/reportService');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
+const { STOCK_WAREHOUSE_CODE } = require('../constants/business.constants');
 
 const router = express.Router();
 
@@ -237,7 +238,7 @@ function openSaleQtyFromRows(rows = []) {
     const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
     const qty = row.availableQty !== undefined && row.availableQty !== null
       ? toNumber(row.availableQty)
-      : Math.max(0, onHand - reserved);
+      : onHand - reserved;
     return sum + qty;
   }, 0);
 }
@@ -254,6 +255,7 @@ async function getOpenSaleQty(product) {
   if (!ids.length) return 0;
 
   const filter = {
+    warehouseCode: STOCK_WAREHOUSE_CODE || 'MAIN',
     $or: [
       { productCode: { $in: ids } },
       { productId: { $in: ids } },
@@ -264,7 +266,8 @@ async function getOpenSaleQty(product) {
 
   const inventoryRows = await InventoryLegacy.find(filter).lean();
 
-  // V45 single source: app bán hàng kiểm tra tồn trực tiếp từ collection inventories.
+  // V45 single source: app bán hàng và xác nhận đơn cùng kiểm tra tồn MAIN.
+  // KHO_HC/KHO_PC chỉ là nhóm in/gộp đơn nên không được đọc ở đây.
   return openSaleQtyFromRows(inventoryRows);
 }
 
