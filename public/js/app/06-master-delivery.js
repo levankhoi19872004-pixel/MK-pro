@@ -243,7 +243,6 @@ async function submitMasterOrder(event) {
     masterOrderSetMessage(json.message || 'Đã tạo đơn tổng');
     selectedChildOrderIds.clear();
     await loadMasterOrderModule();
-    closeWorkspaceModal('masterOrderModal');
   } catch (err) {
     masterOrderSetMessage(err.message || 'Không tạo được đơn tổng', true);
   }
@@ -302,7 +301,6 @@ async function cancelMasterOrderFromList(id) {
     selectedMasterOrderIds.delete(id);
     window.__selectedMasterOrderIds = selectedMasterOrderIds;
     await loadMasterOrderModule();
-    closeWorkspaceModal('masterOrderModal');
   } catch (err) {
     alert(err.message || 'Không huỷ được đơn tổng');
   }
@@ -374,6 +372,3 @@ window.clearDeliveryEditPanel = function () {};
 window.recalcDeliveryEditDebt = function () {};
 window.renderDeliveryEditPanel = function () {};
 window.selectDeliveryOrder = function (key) { return window.DeliveryWebView && window.DeliveryWebView.select ? window.DeliveryWebView.select(key) : null; };
-
-const openCreateMasterOrderButton=document.getElementById('openCreateMasterOrderButton');
-if(openCreateMasterOrderButton)openCreateMasterOrderButton.addEventListener('click',()=>openWorkspaceModal('masterOrderModal'));

@@ -112,7 +112,6 @@ function editUser(id){
   userForm.elements.password.value=''; userForm.elements.name.value=u.name||u.fullName||''; userForm.elements.phone.value=u.phone||'';
   userForm.elements.role.value=u.role||'sales'; userForm.elements.isActive.checked=u.isActive!==false;
   document.querySelector('[data-tab="usersTab"]')?.click();
-  openWorkspaceModal('userModal');
 }
 async function deleteUser(id){
   if(!confirm('Xóa tài khoản này?'))return;
@@ -121,7 +120,7 @@ async function deleteUser(id){
 async function submitUser(event){
   event.preventDefault();
   const body=Object.fromEntries(new FormData(userForm).entries()); body.isActive=userForm.elements.isActive.checked;
-  try{const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const json=await res.json();if(!json.ok)throw new Error(json.message);showMessage(userMessage,json.message||'Đã lưu');resetUserForm();closeWorkspaceModal('userModal');await loadUsers()}catch(err){showMessage(userMessage,err.message,true)}
+  try{const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const json=await res.json();if(!json.ok)throw new Error(json.message);showMessage(userMessage,json.message||'Đã lưu');resetUserForm();await loadUsers()}catch(err){showMessage(userMessage,err.message,true)}
 }
 
 function promotionTypeText(type){return {discount:'Chiết khấu',display:'Trưng bày',coupon:'Coupon',ontop:'Ontop',combo:'Combo'}[type]||type||''}
@@ -1163,6 +1162,3 @@ resetButton.addEventListener('click',resetForm);
     setTimeout(()=>{if(summary)summary.textContent='Đã gửi yêu cầu xuất Excel TT78. Kiểm tra file tải về của trình duyệt.';},800);
   });
 })();
-
-const openCreateUserButton=document.getElementById('openCreateUserButton');
-if(openCreateUserButton)openCreateUserButton.addEventListener('click',()=>{resetUserForm();openWorkspaceModal('userModal');});

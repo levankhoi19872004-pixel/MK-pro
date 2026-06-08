@@ -373,7 +373,6 @@ async function submitDebtCollection(event){
     const next=(debtsCache||[]).find(d=>getDebtCustomerKey(d)===currentKey);
     if(next && hasOpenDebt(next.debt))selectCollectionCustomer(next,{silent:true});
     else clearDebtCustomerSelection();
-    closeWorkspaceModal('debtCollectionModal');
   }catch(err){showMessage(collectionMessage,err.message,true)}
 }
 
@@ -726,7 +725,6 @@ const selectedReturnOrderIdsForMaster = new Set();
 
 function renderUnmergedReturnOrders(rows = []){
   if(!unmergedReturnOrderTable)return;
-  window.__unmergedReturnOrdersCache=Array.isArray(rows)?rows:[];
   const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
   const totalQty=rows.reduce((sum,r)=>sum+Number(r.totalQuantity||0),0);
   const selectedRows=rows.filter(r=>selectedReturnOrderIdsForMaster.has(String(r.id||r.code||'')));
@@ -798,7 +796,7 @@ function renderMasterReturnOrders(rows = []){
   if(masterReturnKpiMasterCount)masterReturnKpiMasterCount.textContent=money(rows.length);
   if(masterReturnKpiMasterValue)masterReturnKpiMasterValue.textContent=money(totalValue);
   if(masterReturnOrderCount)masterReturnOrderCount.innerHTML=`${rows.length} đơn tổng · Tổng SL ${money(totalQty)} · Tổng giá trị ${money(totalValue)}`;
-  const head=`<div class="master-return-list-head"><span></span><span>Mã đơn tổng trả</span><span>NV giao</span><span>Ngày trả</span><span>Giá trị</span><span>Thao tác</span></div>`;
+  const head=`<div class="master-return-list-head"><span></span><span>Mã đơn tổng trả</span><span>NV giao</span><span>Ngày trả</span><span>Giá trị</span><span>Huỷ đơn</span></div>`;
   if(!rows.length){
     masterReturnOrderTable.innerHTML=head+'<div class="empty-state">Chưa có đơn tổng trả hàng.</div>';
     return;
@@ -811,7 +809,6 @@ function renderMasterReturnOrders(rows = []){
     const locked=['posted','received','confirmed','completed'].includes(warehouseStatus) || accountingStatus==='confirmed' || r.stockPosted;
     const staff=debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName);
     const id=escapeHtml(r.id||r.code||'');
-    const editCell = `<button class="secondary small" type="button" onclick="editMasterReturnOrder(${idx})">Sửa</button>`;
     const cancelCell=locked
       ? `<span class="erp-doc-action-state">Đã khóa</span>`
       : `<button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>`;
@@ -821,7 +818,7 @@ function renderMasterReturnOrders(rows = []){
       <span class="erp-doc-party" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
       <span class="erp-doc-date" title="Ngày trả">${escapeHtml(r.returnDate||r.date||'')}</span>
       <strong class="erp-doc-value" title="Giá trị">${money(r.debtReduction??r.totalAmount)}</strong>
-      <div class="erp-doc-actions">${editCell}${cancelCell}</div>
+      <div class="erp-doc-actions">${cancelCell}</div>
     </article>`;
   }).join('');
 }
@@ -850,43 +847,40 @@ async function loadMasterReturnOrders(){
 async function submitMasterReturnOrder(event){
   event.preventDefault();
   if(!masterReturnOrderForm)return;
-  const editingId=String(masterReturnOrderForm.dataset.editingId||'').trim();
+  const returnOrderIds=[...selectedReturnOrderIdsForMaster];
+  if(!returnOrderIds.length){showMessage(masterReturnOrderMessage,'Chưa chọn phiếu trả hàng để gộp',true);return}
   const payload=Object.fromEntries(new FormData(masterReturnOrderForm).entries());
+  payload.returnOrderIds=returnOrderIds;
   try{
-    const res=editingId
-      ? await fetch(`/api/master-return-orders/${encodeURIComponent(editingId)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-      : await (async()=>{
-          const returnOrderIds=[...selectedReturnOrderIdsForMaster];
-          if(!returnOrderIds.length)throw new Error('Chưa chọn phiếu trả hàng để gộp');
-          payload.returnOrderIds=returnOrderIds;
-          return fetch('/api/master-return-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-        })();
+    const res=await fetch('/api/master-return-orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||(editingId?'Không sửa được đơn tổng trả hàng':'Không tạo được đơn tổng trả hàng'));
-    if(!editingId)selectedReturnOrderIdsForMaster.clear();
-    masterReturnOrderForm.dataset.editingId='';
-    const submitButton=masterReturnOrderForm.querySelector('button[type="submit"]');
-    if(submitButton)submitButton.textContent='Tạo đơn tổng trả';
-    showMessage(masterReturnOrderMessage,json.message||(editingId?'Đã sửa đơn tổng trả hàng':'Đã tạo đơn tổng trả hàng'));
+    if(!json.ok)throw new Error(json.message||'Không tạo được đơn tổng trả hàng');
+    selectedReturnOrderIdsForMaster.clear();
+    showMessage(masterReturnOrderMessage,json.message||'Đã tạo đơn tổng trả hàng');
     await loadUnmergedReturnOrders();
     await loadMasterReturnOrders();
     if(typeof loadReturnOrders==='function')await loadReturnOrders();
-    closeWorkspaceModal('masterReturnOrderModal');
   }catch(err){showMessage(masterReturnOrderMessage,err.message,true)}
 }
 
 
 async function editMasterReturnOrder(idx){
   const order=window.__masterReturnOrdersCache?.[Number(idx)];
-  if(!order || !masterReturnOrderForm)return;
-  masterReturnOrderForm.dataset.editingId=String(order.id||order.code||'');
-  if(masterReturnOrderForm.elements.returnDate)masterReturnOrderForm.elements.returnDate.value=order.returnDate||order.date||today();
-  if(masterReturnOrderForm.elements.deliveryStaffCode)masterReturnOrderForm.elements.deliveryStaffCode.value=order.deliveryStaffCode||'';
-  if(masterReturnOrderForm.elements.note)masterReturnOrderForm.elements.note.value=order.note||'';
-  const submitButton=masterReturnOrderForm.querySelector('button[type="submit"]');
-  if(submitButton)submitButton.textContent='Lưu sửa đơn tổng trả';
-  if(masterReturnOrderMessage)masterReturnOrderMessage.textContent=`Đang sửa ${order.code||order.id||''}`;
-  openWorkspaceModal('masterReturnOrderModal');
+  if(!order)return;
+  const deliveryStaffCode=prompt('NV giao hàng', order.deliveryStaffCode||'');
+  if(deliveryStaffCode===null)return;
+  const note=prompt('Ghi chú', order.note||'');
+  if(note===null)return;
+  try{
+    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(order.id||order.code)}`,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({deliveryStaffCode,note})
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không sửa được đơn tổng trả');
+    showMessage(masterReturnOrderMessage,json.message||'Đã sửa đơn tổng trả');
+    await loadMasterReturnOrders();
+  }catch(err){showMessage(masterReturnOrderMessage,err.message||'Không sửa được đơn tổng trả',true)}
 }
 window.editMasterReturnOrder=editMasterReturnOrder;
 
@@ -1168,29 +1162,6 @@ function toggleSelectAllMasterReturnOrders(){
   checks.forEach(ch=>{ch.checked=shouldCheck;});
   if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.textContent=shouldCheck?'Bỏ chọn tất cả':'Chọn tất cả';
 }
-
-function toggleSelectAllUnmergedReturnOrders(){
-  const checks=[...document.querySelectorAll('.master-return-check')];
-  if(!checks.length)return;
-  const shouldCheck=checks.some(ch=>!ch.checked);
-  checks.forEach(ch=>{
-    ch.checked=shouldCheck;
-    const id=String(ch.dataset.id||'');
-    if(!id)return;
-    if(shouldCheck)selectedReturnOrderIdsForMaster.add(id);
-    else selectedReturnOrderIdsForMaster.delete(id);
-  });
-  renderUnmergedReturnOrders(window.__unmergedReturnOrdersCache||[]);
-}
-function handleUnmergedReturnOrderCheckChange(event){
-  const check=event.target.closest('.master-return-check');
-  if(!check)return;
-  const id=String(check.dataset.id||'');
-  if(!id)return;
-  if(check.checked)selectedReturnOrderIdsForMaster.add(id);
-  else selectedReturnOrderIdsForMaster.delete(id);
-  renderUnmergedReturnOrders(window.__unmergedReturnOrdersCache||[]);
-}
 async function printSelectedMasterReturnOrders(){
   const orders=selectedMasterReturnOrders();
   if(!orders.length){alert('Chưa chọn đơn tổng trả để in');return}
@@ -1230,16 +1201,6 @@ window.receiveSelectedMasterReturnOrders=receiveSelectedMasterReturnOrders;
 if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.addEventListener('click',toggleSelectAllMasterReturnOrders);
 if(printSelectedMasterReturnOrdersButton)printSelectedMasterReturnOrdersButton.addEventListener('click',printSelectedMasterReturnOrders);
 if(receiveSelectedMasterReturnOrdersButton)receiveSelectedMasterReturnOrdersButton.addEventListener('click',()=>receiveSelectedMasterReturnOrders().catch(err=>showMessage(masterReturnOrderMessage,err.message,true)));
-
-const selectAllUnmergedReturnOrdersButton=document.getElementById('selectAllUnmergedReturnOrdersButton');
-if(selectAllUnmergedReturnOrdersButton)selectAllUnmergedReturnOrdersButton.addEventListener('click',toggleSelectAllUnmergedReturnOrders);
-const reloadUnmergedReturnOrdersInlineButton=document.getElementById('reloadUnmergedReturnOrdersInlineButton');
-if(reloadUnmergedReturnOrdersInlineButton)reloadUnmergedReturnOrdersInlineButton.addEventListener('click',loadUnmergedReturnOrders);
-const reloadUnmergedReturnOrdersButton=document.getElementById('reloadUnmergedReturnOrdersButton');
-if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
-const clearMasterReturnSelectionButton=document.getElementById('clearMasterReturnSelectionButton');
-if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{selectedReturnOrderIdsForMaster.clear();renderUnmergedReturnOrders(window.__unmergedReturnOrdersCache||[]);});
-if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',handleUnmergedReturnOrderCheckChange);
 
 // Fund Ledger V45 - nguồn tiền chuẩn duy nhất cho thu/chi/chuyển quỹ.
 let activeFundTab='fundLedger';
@@ -1419,7 +1380,6 @@ async function submitDeliveryCashSubmission(event){
     if(!json.ok)throw new Error(json.message||'Không lưu được phiếu nộp quỹ');
     fundResetEditing('delivery');
     showMessage(deliveryCashSubmissionMessage,json.message||'Đã lưu phiếu nộp quỹ');
-    closeWorkspaceModal('deliveryCashSubmissionModal');
     await loadDeliveryCashSubmissions();
     await loadFundLedger();
   }catch(err){showMessage(deliveryCashSubmissionMessage,err.message,true)}
@@ -1447,15 +1407,12 @@ function editFundVoucher(type,code){
   if(type==='delivery'){
     fundFillForm(deliveryCashSubmissionForm,row,['deliveryDate','deliveryStaffCode','submittedCashAmount','submittedBankAmount','note']);
     fundSetSubmitLabel(deliveryCashSubmissionForm,'Cập nhật phiếu nộp quỹ');
-    openWorkspaceModal('deliveryCashSubmissionModal');
   }else if(type==='expense'){
     fundFillForm(expenseVoucherForm,row,['date','fundType','expenseType','amount','receiverName','note']);
     fundSetSubmitLabel(expenseVoucherForm,'Cập nhật phiếu chi');
-    openWorkspaceModal('expenseVoucherModal');
   }else if(type==='transfer'){
     fundFillForm(fundTransferForm,row,['date','fromFund','toFund','amount','bankName','note']);
     fundSetSubmitLabel(fundTransferForm,'Cập nhật chuyển quỹ');
-    openWorkspaceModal('fundTransferModal');
   }
 }
 window.editFundVoucher=editFundVoucher;
@@ -1490,7 +1447,6 @@ async function submitExpenseVoucher(event){
     expenseVoucherForm.reset(); if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();
     fundResetEditing('expense');
     showMessage(expenseVoucherMessage,json.message||'Đã lưu phiếu chi');
-    closeWorkspaceModal('expenseVoucherModal');
     await loadExpenseVouchers();
     await loadFundLedger();
   }catch(err){showMessage(expenseVoucherMessage,err.message,true)}
@@ -1508,7 +1464,6 @@ async function submitFundTransfer(event){
     fundTransferForm.reset(); if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today();
     fundResetEditing('transfer');
     showMessage(fundTransferMessage,json.message||'Đã lưu chuyển quỹ');
-    closeWorkspaceModal('fundTransferModal');
     await loadFundTransfers();
     await loadFundLedger();
   }catch(err){showMessage(fundTransferMessage,err.message,true)}
@@ -1529,26 +1484,3 @@ if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpense
 if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfer);
 [deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); });
 loadFundLedger();
-
-const openDebtCollectionButton=document.getElementById('openDebtCollectionButton');
-if(openDebtCollectionButton)openDebtCollectionButton.addEventListener('click',()=>{
-  if(!collectionCustomerSelect || !collectionCustomerSelect.value){showMessage(collectionMessage,'Bạn cần chọn khách hàng trước khi ghi thu công nợ.',true);return;}
-  openWorkspaceModal('debtCollectionModal');
-});
-const openCreateMasterReturnOrderButton=document.getElementById('openCreateMasterReturnOrderButton');
-if(openCreateMasterReturnOrderButton)openCreateMasterReturnOrderButton.addEventListener('click',()=>{
-  if(masterReturnOrderForm){
-    masterReturnOrderForm.dataset.editingId='';
-    if(masterReturnOrderForm.elements.returnDate)masterReturnOrderForm.elements.returnDate.value=today();
-    const submitButton=masterReturnOrderForm.querySelector('button[type="submit"]');
-    if(submitButton)submitButton.textContent='Tạo đơn tổng trả';
-    if(masterReturnOrderMessage)masterReturnOrderMessage.textContent='';
-  }
-  openWorkspaceModal('masterReturnOrderModal');
-});
-const openDeliveryCashSubmissionButton=document.getElementById('openDeliveryCashSubmissionButton');
-if(openDeliveryCashSubmissionButton)openDeliveryCashSubmissionButton.addEventListener('click',()=>{fundResetEditing('delivery');if(deliveryCashSubmissionForm&&deliveryCashSubmissionForm.elements.deliveryDate)deliveryCashSubmissionForm.elements.deliveryDate.value=today();openWorkspaceModal('deliveryCashSubmissionModal');});
-const openExpenseVoucherButton=document.getElementById('openExpenseVoucherButton');
-if(openExpenseVoucherButton)openExpenseVoucherButton.addEventListener('click',()=>{fundResetEditing('expense');if(expenseVoucherForm){expenseVoucherForm.reset();if(expenseVoucherForm.elements.date)expenseVoucherForm.elements.date.value=today();}openWorkspaceModal('expenseVoucherModal');});
-const openFundTransferButton=document.getElementById('openFundTransferButton');
-if(openFundTransferButton)openFundTransferButton.addEventListener('click',()=>{fundResetEditing('transfer');if(fundTransferForm){fundTransferForm.reset();if(fundTransferForm.elements.date)fundTransferForm.elements.date.value=today();}openWorkspaceModal('fundTransferModal');});

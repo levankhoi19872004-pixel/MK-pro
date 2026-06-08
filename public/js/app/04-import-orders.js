@@ -75,7 +75,6 @@ function resetImportFormAfterSave(){
 function skipImportDraft(){
   resetImportFormAfterSave();
   showMessage(importMessage,'');
-  closeWorkspaceModal('importOrderModal');
 }
 function editImportOrder(idx){
   const order=window.__importOrdersCache?.[idx];
@@ -104,7 +103,7 @@ function editImportOrder(idx){
   if(submitButton)submitButton.textContent='Lưu sửa phiếu nhập nháp';
   renderImportItems();
   showMessage(importMessage,`Đang sửa phiếu nhập ${order.code||order.id}. Kiểm tra lại dòng hàng rồi bấm lưu.`);
-  openWorkspaceModal('importOrderModal');
+  document.getElementById('importTab')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 window.editImportOrder=editImportOrder;
 async function submitImportOrder(event){
@@ -118,7 +117,6 @@ async function submitImportOrder(event){
     const res=await fetch(url,{method,headers:{'Content-Type':'application/json','X-User-Role':'admin'},body:JSON.stringify(payload)});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được phiếu nhập');
     resetImportFormAfterSave();
-    closeWorkspaceModal('importOrderModal');
     showMessage(importMessage,json.message||'Đã lưu phiếu nhập nháp');
     await loadImportOrders();
   }catch(err){showMessage(importMessage,err.message,true)}
@@ -130,6 +128,3 @@ if(importForm)importForm.addEventListener('submit',submitImportOrder);
 if(addImportItemButton)addImportItemButton.addEventListener('click',addImportItem);
 if(skipImportDraftButton)skipImportDraftButton.addEventListener('click',skipImportDraft);
 if(importProductSearch)importProductSearch.addEventListener('change',syncImportCostPrice);
-
-const openCreateImportOrderButton=document.getElementById('openCreateImportOrderButton');
-if(openCreateImportOrderButton)openCreateImportOrderButton.addEventListener('click',()=>{resetImportFormAfterSave();showMessage(importMessage,'');openWorkspaceModal('importOrderModal');});
