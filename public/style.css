@@ -9195,3 +9195,109 @@ body::after{
   #salesTab .sales-order-row{grid-template-columns:26px 1fr!important;}
 }
 /* SALES_HISTORY_NVBH_COLUMN_PATCH_END */
+
+/* PROMOTION_POPUP_LAYOUT_START: chuyển module Khuyến mại từ split-panel 45/55 sang danh sách + popup workspace */
+#promotionsTab .promotion-management-layout{
+  grid-template-columns:1fr !important;
+}
+#promotionsTab .promotion-program-list{
+  width:100%;
+  min-width:0;
+}
+#promotionsTab .promotion-program-panel > .promotion-program-detail{
+  display:none;
+}
+#promotionWorkspaceBody .promotion-program-detail{
+  display:block;
+  width:100%;
+  min-width:0;
+  box-shadow:none;
+  border:0;
+  padding:0;
+}
+#promotionWorkspaceBody .promotion-program-detail > .toolbar{
+  margin-bottom:10px;
+}
+.promotion-program-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.promotion-workspace-overlay[hidden]{display:none !important;}
+.promotion-workspace-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:rgba(15,23,42,.42);
+  backdrop-filter:blur(2px);
+}
+.promotion-workspace-modal{
+  width:90vw;
+  height:90vh;
+  max-width:1600px;
+  background:#fff;
+  border-radius:18px;
+  box-shadow:0 24px 80px rgba(15,23,42,.28);
+  display:grid;
+  grid-template-rows:auto auto 1fr auto;
+  overflow:hidden;
+}
+.promotion-workspace-header,
+.promotion-workspace-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  border-bottom:1px solid #e5edf7;
+}
+.promotion-workspace-footer{
+  border-top:1px solid #e5edf7;
+  border-bottom:0;
+}
+.promotion-workspace-tabs{
+  padding:10px 18px;
+  border-bottom:1px solid #e5edf7;
+  background:#f8fbff;
+}
+.promotion-workspace-body{
+  min-height:0;
+  overflow:auto;
+  padding:16px 18px;
+}
+.promotion-workspace-body .promotion-program-form{
+  display:grid;
+  grid-template-columns:minmax(180px,.9fr) minmax(260px,1.4fr) repeat(3,minmax(150px,.75fr));
+  gap:10px;
+  align-items:end;
+}
+.promotion-workspace-body .promotion-line-form{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) minmax(180px,.45fr) auto;
+  gap:10px;
+  align-items:end;
+}
+.promotion-workspace-body .promotion-detail-table-wrap{
+  max-height:calc(90vh - 390px);
+  overflow:auto;
+}
+.promotion-workspace-close{white-space:nowrap;}
+@media(max-width:1100px){
+  .promotion-workspace-modal{width:95vw;height:95vh;}
+  .promotion-workspace-body .promotion-program-form,
+  .promotion-workspace-body .promotion-line-form{grid-template-columns:1fr;}
+  .promotion-workspace-body .promotion-detail-table-wrap{max-height:calc(95vh - 430px);}
+}
+@media(max-width:720px){
+  .promotion-workspace-overlay{padding:0;}
+  .promotion-workspace-modal{width:100vw;height:100vh;border-radius:0;}
+  .promotion-workspace-header,.promotion-workspace-footer{padding:10px 12px;}
+  .promotion-workspace-body{padding:12px;}
+}
+/* PROMOTION_POPUP_LAYOUT_END */

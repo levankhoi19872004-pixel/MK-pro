@@ -928,20 +928,93 @@ resetButton.addEventListener('click',resetForm);
   const TYPE_CONFIG = {
     productRules: {
       label: 'CK sản phẩm',
-      table: 'promotionProductProgramTable', count: 'promotionProductProgramCount', detail: 'promotionProductProgramDetailTable', form: 'promotionProductProgramForm', reload: 'reloadPromotionProductProgramsButton', cancel: 'cancelPromotionProductProgramButton', colspan: 6
+      table: 'promotionProductProgramTable', count: 'promotionProductProgramCount', detail: 'promotionProductProgramDetailTable', form: 'promotionProductProgramForm', reload: 'reloadPromotionProductProgramsButton', cancel: 'cancelPromotionProductProgramButton', create: 'createPromotionProductProgramButton', colspan: 6, listColspan: 8
     },
     groupItems: {
       label: 'Nhóm sản phẩm KM',
-      table: 'promotionGroupItemProgramTable', count: 'promotionGroupItemProgramCount', detail: 'promotionGroupItemProgramDetailTable', form: 'promotionGroupItemProgramForm', reload: 'reloadPromotionGroupItemProgramsButton', cancel: 'cancelPromotionGroupItemProgramButton', colspan: 5
+      table: 'promotionGroupItemProgramTable', count: 'promotionGroupItemProgramCount', detail: 'promotionGroupItemProgramDetailTable', form: 'promotionGroupItemProgramForm', reload: 'reloadPromotionGroupItemProgramsButton', cancel: 'cancelPromotionGroupItemProgramButton', create: 'createPromotionGroupItemProgramButton', colspan: 5, listColspan: 8
     },
     groupRules: {
       label: 'Điều kiện nhóm KM / Ontop',
-      table: 'promotionGroupRuleProgramTable', count: 'promotionGroupRuleProgramCount', detail: 'promotionGroupRuleProgramDetailTable', form: 'promotionGroupRuleProgramForm', reload: 'reloadPromotionGroupRuleProgramsButton', cancel: 'cancelPromotionGroupRuleProgramButton', colspan: 6
+      table: 'promotionGroupRuleProgramTable', count: 'promotionGroupRuleProgramCount', detail: 'promotionGroupRuleProgramDetailTable', form: 'promotionGroupRuleProgramForm', reload: 'reloadPromotionGroupRuleProgramsButton', cancel: 'cancelPromotionGroupRuleProgramButton', create: 'createPromotionGroupRuleProgramButton', colspan: 6, listColspan: 8
     }
   };
   const states = Object.fromEntries(Object.keys(TYPE_CONFIG).map(type=>[type,{ programs: [], selectedCode: '', detail: null } ]));
   let activeType = 'productRules';
   if(!$('promotionProductProgramTable'))return;
+
+  /* PROMOTION_POPUP_CONTROLLER_START: điều khiển popup workspace dùng chung cho 3 tab khuyến mại */
+  const workspaceOverlay = $('promotionWorkspaceOverlay');
+  const workspaceBody = $('promotionWorkspaceBody');
+  const workspaceTitle = $('promotionWorkspaceTitle');
+  const workspaceSubtitle = $('promotionWorkspaceSubtitle');
+  const detailPlaceholders = {};
+  function detailSectionByType(type){
+    return $(TYPE_CONFIG[type]?.form)?.closest('.promotion-program-detail') || null;
+  }
+  function ensureDetailPlaceholder(type){
+    const section = detailSectionByType(type);
+    if(!section || detailPlaceholders[type]) return;
+    const placeholder = document.createComment(`PROMOTION_POPUP_DETAIL_PLACEHOLDER_${type}`);
+    section.parentNode.insertBefore(placeholder, section);
+    detailPlaceholders[type] = placeholder;
+  }
+  function setWorkspaceTabActive(type){
+    document.querySelectorAll('[data-promotion-workspace-tab]').forEach(btn=>btn.classList.toggle('active',btn.dataset.promotionWorkspaceTab===type));
+  }
+  function restoreWorkspaceDetails(){
+    Object.keys(detailPlaceholders).forEach(type=>{
+      const section = detailSectionByType(type);
+      const placeholder = detailPlaceholders[type];
+      if(section && placeholder?.parentNode && section.parentNode === workspaceBody){
+        placeholder.parentNode.insertBefore(section, placeholder.nextSibling);
+      }
+    });
+  }
+  function openPromotionWorkspace(type, mode='edit'){
+    if(!TYPE_CONFIG[type] || !workspaceOverlay || !workspaceBody) return;
+    ensureDetailPlaceholder(type);
+    const cfg = TYPE_CONFIG[type];
+    const section = detailSectionByType(type);
+    if(workspaceTitle) workspaceTitle.textContent = `${mode==='create'?'+ Tạo':'Chi tiết'} ${cfg.label}`;
+    if(workspaceSubtitle){
+      const selectedCode = states[type]?.selectedCode || '';
+      workspaceSubtitle.textContent = selectedCode
+        ? `Đang mở ${selectedCode}. Danh sách bên ngoài vẫn giữ nguyên để không mất ngữ cảnh.`
+        : 'Chưa chọn chương trình. Hãy chọn Sửa/Xem trong danh sách hoặc import chương trình từ Excel.';
+    }
+    setWorkspaceTabActive(type);
+    restoreWorkspaceDetails();
+    if(section){
+      workspaceBody.replaceChildren(section);
+    }
+    workspaceOverlay.hidden = false;
+    document.body.classList.add('promotion-workspace-open');
+  }
+  function closePromotionWorkspace(){
+    restoreWorkspaceDetails();
+    if(workspaceBody) workspaceBody.innerHTML = '<p class="muted">Chưa chọn chương trình.</p>';
+    if(workspaceOverlay) workspaceOverlay.hidden = true;
+    document.body.classList.remove('promotion-workspace-open');
+  }
+  window.openPromotionWorkspace = openPromotionWorkspace;
+  window.closePromotionWorkspace = closePromotionWorkspace;
+  $('closePromotionWorkspaceButton')?.addEventListener('click', closePromotionWorkspace);
+  $('closePromotionWorkspaceFooterButton')?.addEventListener('click', closePromotionWorkspace);
+  workspaceOverlay?.addEventListener('click',(e)=>{ if(e.target===workspaceOverlay) closePromotionWorkspace(); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && workspaceOverlay && !workspaceOverlay.hidden) closePromotionWorkspace(); });
+  document.querySelectorAll('[data-promotion-workspace-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+    const type = btn.dataset.promotionWorkspaceTab;
+    activateProgramTab(type);
+    if(states[type]?.selectedCode){
+      window.selectPromotionProgramByType(type, states[type].selectedCode);
+    }else{
+      fillForm(type,{});
+      renderDetailEmpty(type,'Chưa chọn chương trình trong tab này.');
+      openPromotionWorkspace(type,'create');
+    }
+  }));
+  /* PROMOTION_POPUP_CONTROLLER_END */
 
   async function api(url, options={}){
     const res = await fetch(url, options);
@@ -971,13 +1044,14 @@ resetButton.addEventListener('click',resetForm);
     const cfg=TYPE_CONFIG[type]; const state=states[type]; const table=$(cfg.table); const count=$(cfg.count);
     if(!table)return;
     if(count)count.textContent=`${state.programs.length} chương trình ${cfg.label}`;
-    if(!state.programs.length){ table.innerHTML=`<tr><td colspan="7">Chưa có chương trình ${esc(cfg.label)}.</td></tr>`; return; }
+    if(!state.programs.length){ table.innerHTML=`<tr><td colspan="${cfg.listColspan||8}">Chưa có chương trình ${esc(cfg.label)}.</td></tr>`; return; }
     table.innerHTML=state.programs.map(p=>`<tr class="${String(p.programCode)===String(state.selectedCode)?'selected-row':''}">
       <td><input type="checkbox" data-promo-check="${esc(type)}:${esc(p.programCode)}" /></td>
       <td><strong>${esc(p.programCode)}</strong><br><span class="muted">${esc(sourceText(p))}</span></td>
       <td>${esc(p.programName||p.content||'')}</td>
       <td>${timeText(p)}</td>
       <td>${statusBadge(p)}</td>
+      <td><button type="button" class="small secondary" onclick="viewPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Xem</button></td>
       <td><button type="button" class="small" onclick="selectPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Sửa</button></td>
       <td><button type="button" class="small danger" onclick="cancelPromotionProgramByType('${esc(type)}','${esc(p.programCode)}')">Huỷ</button></td>
     </tr>`).join('');
@@ -1030,7 +1104,7 @@ resetButton.addEventListener('click',resetForm);
       if(state.selectedCode && !state.programs.some(p=>String(p.programCode)===String(state.selectedCode))){
         state.selectedCode=''; state.detail=null; fillForm(type,{}); renderDetailEmpty(type);
       }
-    }catch(err){ table.innerHTML=`<tr><td colspan="7">${esc(err.message)}</td></tr>`; }
+    }catch(err){ table.innerHTML=`<tr><td colspan="${cfg.listColspan||8}">${esc(err.message)}</td></tr>`; }
   }
   async function loadAllPromotionProgramTabs(){
     await Promise.all(Object.keys(TYPE_CONFIG).map(type=>loadPromotionProgramsByType(type)));
@@ -1038,6 +1112,9 @@ resetButton.addEventListener('click',resetForm);
   window.loadPromotionProgramsByType=loadPromotionProgramsByType;
   window.loadPromotionPrograms=loadAllPromotionProgramTabs;
   window.reloadPromotionRules=loadAllPromotionProgramTabs;
+  window.viewPromotionProgramByType=async(type, programCode)=>{
+    await window.selectPromotionProgramByType(type, programCode);
+  };
   window.selectPromotionProgramByType=async(type, programCode)=>{
     if(!TYPE_CONFIG[type])return;
     try{
@@ -1047,6 +1124,7 @@ resetButton.addEventListener('click',resetForm);
       const json=await api(`/api/promotions/programs/${encodeURIComponent(programCode)}?type=${encodeURIComponent(type)}`);
       states[type].detail=json;
       renderProgramDetailByType(type,json);
+      openPromotionWorkspace(type,'edit');
     }catch(err){ show(err.message,true); }
   };
   window.cancelPromotionProgramByType=async(type, programCode)=>{
@@ -1144,6 +1222,13 @@ resetButton.addEventListener('click',resetForm);
     });
     $(cfg.cancel)?.addEventListener('click',()=>window.cancelPromotionProgramByType(type,states[type].selectedCode));
     $(cfg.reload)?.addEventListener('click',()=>loadPromotionProgramsByType(type));
+    $(cfg.create)?.addEventListener('click',()=>{
+      activeType=type;
+      activateProgramTab(type);
+      fillForm(type,{});
+      renderDetailEmpty(type,'Tạo mới CTKM hiện đi theo quy trình import Excel. Có thể dùng popup này để chọn/sửa chương trình sau khi import.');
+      openPromotionWorkspace(type,'create');
+    });
   });
   document.querySelectorAll('[data-promotion-program-tab]').forEach(btn=>btn.addEventListener('click',()=>activateProgramTab(btn.dataset.promotionProgramTab)));
   searchInput?.addEventListener('input',()=>loadPromotionProgramsByType(activeType));

@@ -1087,7 +1087,7 @@
         </section>
         <section class="card">
           <div class="toolbar"><div><h2>Danh sách tài khoản</h2><p id="userCount" class="muted">Đang tải...</p></div><input id="userSearchInput" placeholder="Tìm mã, tên, tài khoản, quyền..." /></div>
-          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tài khoản</th><th>Họ tên</th><th>SĐT</th><th>Quyền</th><th>Trạng thái</th><th></th></tr></thead><tbody id="userTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tài khoản</th><th>Họ tên</th><th>SĐT</th><th>Quyền</th><th>Trạng thái</th><th></th></tr></thead><tbody id="userTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table></div>
         </section>
       </main>
     </section>
@@ -1112,14 +1112,40 @@
         </div>
       </section>
 
+      <!-- PROMOTION_POPUP_WORKSPACE_START: Popup workspace dùng chung cho 3 tab khuyến mại -->
+      <div id="promotionWorkspaceOverlay" class="promotion-workspace-overlay" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionWorkspaceTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionWorkspaceTitle">Chương trình khuyến mại</h2>
+              <p id="promotionWorkspaceSubtitle" class="muted">Chọn chương trình trong danh sách để xem/sửa chi tiết.</p>
+            </div>
+            <button type="button" id="closePromotionWorkspaceButton" class="secondary promotion-workspace-close">Đóng</button>
+          </header>
+          <div class="subtabs promotion-workspace-tabs">
+            <button type="button" class="active" data-promotion-workspace-tab="productRules">CK sản phẩm</button>
+            <button type="button" data-promotion-workspace-tab="groupItems">Nhóm SP KM</button>
+            <button type="button" data-promotion-workspace-tab="groupRules">Điều kiện KM / Ontop</button>
+          </div>
+          <div id="promotionWorkspaceBody" class="promotion-workspace-body">
+            <p class="muted">Chưa chọn chương trình.</p>
+          </div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Toàn bộ thao tác thêm/sửa/xóa chi tiết được thực hiện trong popup này.</span>
+            <button type="button" id="closePromotionWorkspaceFooterButton" class="secondary">Đóng</button>
+          </footer>
+        </section>
+      </div>
+      <!-- PROMOTION_POPUP_WORKSPACE_END -->
+
       <main id="promotionProductProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="productRules">
         <section class="card promotion-program-list">
           <div class="toolbar">
             <div><h2>Danh sách chương trình CK sản phẩm</h2><p id="promotionProductProgramCount" class="muted">Đang tải...</p></div>
-            <button type="button" id="reloadPromotionProductProgramsButton" class="secondary">Tải lại</button>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionProductProgramButton">+ Tạo chương trình</button><button type="button" id="reloadPromotionProductProgramsButton" class="secondary">Tải lại</button></div>
           </div>
           <div class="table-wrap promotion-program-table-wrap">
-            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionProductProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table>
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionProductProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
           </div>
         </section>
         <section class="card promotion-program-detail">
@@ -1149,10 +1175,10 @@
         <section class="card promotion-program-list">
           <div class="toolbar">
             <div><h2>Danh sách nhóm sản phẩm KM</h2><p id="promotionGroupItemProgramCount" class="muted">Đang tải...</p></div>
-            <button type="button" id="reloadPromotionGroupItemProgramsButton" class="secondary">Tải lại</button>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionGroupItemProgramButton">+ Tạo nhóm</button><button type="button" id="reloadPromotionGroupItemProgramsButton" class="secondary">Tải lại</button></div>
           </div>
           <div class="table-wrap promotion-program-table-wrap">
-            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupItemProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table>
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupItemProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
           </div>
         </section>
         <section class="card promotion-program-detail">
@@ -1181,10 +1207,10 @@
         <section class="card promotion-program-list">
           <div class="toolbar">
             <div><h2>Danh sách điều kiện nhóm KM / Ontop</h2><p id="promotionGroupRuleProgramCount" class="muted">Đang tải...</p></div>
-            <button type="button" id="reloadPromotionGroupRuleProgramsButton" class="secondary">Tải lại</button>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionGroupRuleProgramButton">+ Tạo điều kiện</button><button type="button" id="reloadPromotionGroupRuleProgramsButton" class="secondary">Tải lại</button></div>
           </div>
           <div class="table-wrap promotion-program-table-wrap">
-            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupRuleProgramTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table>
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupRuleProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
           </div>
         </section>
         <section class="card promotion-program-detail">
