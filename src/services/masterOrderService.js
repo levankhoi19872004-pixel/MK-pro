@@ -182,7 +182,7 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
       sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
       masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
       customerCode: 1, customerName: 1, totalAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
-      items: 1, status: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
+      items: 1, status: 1, returnStatus: 1, accountingStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
       deliveryDate: 1, deliveryStaffCode: 1, deliveryStaffName: 1
     }
   });
@@ -377,11 +377,18 @@ function deliveryRewardAmount(order = {}) {
 }
 
 function isActiveReturnOrder(row = {}) {
-  const status = String(row.status || '').toLowerCase();
+  const status = String(row.status || row.returnStatus || '').toLowerCase();
+  const returnStatus = String(row.returnStatus || '').toLowerCase();
+  const accountingStatus = String(row.accountingStatus || '').toLowerCase();
   const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
-  // cleared cũng không được tính vào TH vì đây là phiếu đã xóa hết hàng trả.
-  return !['cancelled', 'canceled', 'void', 'deleted', 'removed', 'cleared'].includes(status)
-    && !['cancelled', 'canceled', 'void', 'deleted', 'removed', 'cleared'].includes(warehouseStatus);
+  const inactiveStatuses = ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'cleared', 'duplicate_cancelled'];
+  // returnOrders thực tế đang dùng returnStatus='active' và accountingStatus='pending'.
+  // Không được loại pending vì đó là chứng từ gốc chưa số hóa AR-RETURN.
+  return !inactiveStatuses.includes(status)
+    && !inactiveStatuses.includes(returnStatus)
+    && !inactiveStatuses.includes(accountingStatus)
+    && !inactiveStatuses.includes(warehouseStatus)
+    && !row.deletedAt;
 }
 
 function returnOrderTotalAmount(row = {}) {
@@ -474,6 +481,7 @@ function hydrateReturnOrdersForAccounting(order = {}, returnOrders = []) {
       returnedAmount: directAmount,
       returnItems: directItems,
       deliveryReturnItems: directItems,
+      accountingReturnOrders: directRows,
       returnAmountSource: 'returnOrders'
     };
   }
@@ -491,6 +499,7 @@ function hydrateReturnOrdersForAccounting(order = {}, returnOrders = []) {
       returnedAmount: fallbackAmount,
       returnItems: fallbackItems,
       deliveryReturnItems: fallbackItems,
+      accountingReturnOrders: returnOrdersForSalesOrder(returnOrders, order),
       returnAmountSource: 'returnOrders_fallback_master'
     };
   }
@@ -984,40 +993,80 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     posted.push(entry);
   }
 
-  const returnAmount = toNumber(
-    order.returnAmountFromReturnOrders
-    ?? order.syncedReturnAmountFromReturnOrders
-    ?? order.returnAmount
-    ?? order.returnedAmount
-    ?? 0
-  );
-  if (returnAmount > 0) {
-    const entry = await postingEngine.postReturnOrderAR({
-      id: `MOBILE-DELIVERY-RETURN-${key || code}`,
-      code: `MOBILE-DELIVERY-RETURN-${code || key}`,
-      date: order.deliveryDate || order.date || dateUtil.todayVN(),
-      customerId: order.customerId || '',
-      customerCode: order.customerCode || '',
-      customerName: order.customerName || '',
-      salesOrderId: currentOrderId,
-      salesOrderCode: currentOrderCode,
-      orderId: currentOrderId,
-      orderCode: currentOrderCode,
-      accountingConfirmed: true,
-      accountingStatus: 'confirmed',
-      masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
-      masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
-      deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
-      deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
-      salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || order.staffCode || '',
-      salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || order.staffName || '',
-      debtReduction: returnAmount,
-      amount: returnAmount,
-      source: 'mobile_delivery_accounting_confirmed',
-      note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
-    }, { ...options, skipIfExists: true });
-    if (entry) posted.push(entry);
+  // ===== SCOPED FIX: POST_AR_RETURN_FROM_RETURNORDERS_ROWS_START =====
+  // AR-RETURN phải được ghi từ chính returnOrders. Nếu chỉ post bằng object ảo của salesOrder,
+  // hệ thống dễ mất ref RO-* và khó audit. Ưu tiên các returnOrders đã hydrate khi xác nhận kế toán.
+  const hydratedReturnRows = (Array.isArray(order.accountingReturnOrders) ? order.accountingReturnOrders : [])
+    .filter(isActiveReturnOrder)
+    .map((row) => ({ ...row, amount: returnOrderTotalAmount(row), debtReduction: returnOrderTotalAmount(row) }))
+    .filter((row) => toNumber(row.amount ?? row.debtReduction) > 0);
+
+  if (hydratedReturnRows.length) {
+    for (const returnRow of hydratedReturnRows) {
+      const amount = returnOrderTotalAmount(returnRow);
+      if (amount <= 0) continue;
+      const entry = await postingEngine.postReturnOrderAR({
+        ...returnRow,
+        date: returnRow.deliveryDate || returnRow.documentDate || returnRow.date || order.deliveryDate || order.date || dateUtil.todayVN(),
+        customerId: returnRow.customerId || order.customerId || '',
+        customerCode: returnRow.customerCode || order.customerCode || '',
+        customerName: returnRow.customerName || order.customerName || '',
+        salesOrderId: returnRow.salesOrderId || returnRow.orderId || currentOrderId,
+        salesOrderCode: returnRow.salesOrderCode || returnRow.orderCode || currentOrderCode,
+        orderId: returnRow.orderId || returnRow.salesOrderId || currentOrderId,
+        orderCode: returnRow.orderCode || returnRow.salesOrderCode || currentOrderCode,
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed',
+        masterOrderId: returnRow.masterOrderId || order.masterOrderId || order.deliveryMasterId || '',
+        masterOrderCode: returnRow.masterOrderCode || order.masterOrderCode || order.deliveryMasterCode || '',
+        deliveryStaffCode: returnRow.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+        deliveryStaffName: returnRow.deliveryStaffName || order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+        salesmanCode: returnRow.salesmanCode || order.salesmanCode || order.salesStaffCode || order.nvbhCode || order.staffCode || '',
+        salesmanName: returnRow.salesmanName || order.salesmanName || order.salesStaffName || order.nvbhName || order.staffName || '',
+        debtReduction: amount,
+        amount,
+        source: 'returnOrders',
+        note: `Kế toán xác nhận hàng trả từ returnOrders ${returnRow.code || code || key}`
+      }, { ...options, skipIfExists: true });
+      if (entry) posted.push(entry);
+    }
+  } else {
+    const returnAmount = toNumber(
+      order.returnAmountFromReturnOrders
+      ?? order.syncedReturnAmountFromReturnOrders
+      ?? order.returnAmount
+      ?? order.returnedAmount
+      ?? 0
+    );
+    if (returnAmount > 0) {
+      const entry = await postingEngine.postReturnOrderAR({
+        id: `MOBILE-DELIVERY-RETURN-${key || code}`,
+        code: `MOBILE-DELIVERY-RETURN-${code || key}`,
+        date: order.deliveryDate || order.date || dateUtil.todayVN(),
+        customerId: order.customerId || '',
+        customerCode: order.customerCode || '',
+        customerName: order.customerName || '',
+        salesOrderId: currentOrderId,
+        salesOrderCode: currentOrderCode,
+        orderId: currentOrderId,
+        orderCode: currentOrderCode,
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed',
+        masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
+        masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
+        deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+        deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+        salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || order.staffCode || '',
+        salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || order.staffName || '',
+        debtReduction: returnAmount,
+        amount: returnAmount,
+        source: 'mobile_delivery_accounting_confirmed',
+        note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
+      }, { ...options, skipIfExists: true });
+      if (entry) posted.push(entry);
+    }
   }
+  // ===== SCOPED FIX: POST_AR_RETURN_FROM_RETURNORDERS_ROWS_END =====
 
   return posted;
 }
