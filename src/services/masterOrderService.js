@@ -959,6 +959,61 @@ function compactAllocations(rows = []) {
   return [...map.values()].filter((row) => row.amount > 0);
 }
 
+
+// ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_START =====
+// Khi đơn đã accounting confirmed, nút xác nhận kế toán sẽ skip để không ghi lại AR-SALE.
+// Tuy nhiên nếu returnOrders đã có nhưng thiếu AR-RETURN do bản cũ, cần repair riêng AR-RETURN
+// trước khi continue. Không sửa frontend, không post lại AR-SALE.
+function hasReturnOrdersForAccounting(order = {}, accountingReturnOrders = []) {
+  const rows = directReturnOrdersForSalesOrder(accountingReturnOrders, order);
+  return rows.some((row) => returnOrderTotalAmount(row) > 0);
+}
+
+async function hasPostedArReturn(order = {}, accountingReturnOrders = [], options = {}) {
+  const orderKeys = compactDeliveryOrderKeys(order);
+  const returnKeys = (directReturnOrdersForSalesOrder(accountingReturnOrders, order) || [])
+    .flatMap((row) => [row.id, row._id, row.code, row.returnOrderId, row.returnOrderCode])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const or = [];
+  if (returnKeys.length) {
+    or.push(
+      { id: { $in: returnKeys.map((key) => `AR-RETURN-${key}`) } },
+      { code: { $in: returnKeys.map((key) => `AR-RETURN-${key}`) } },
+      { refId: { $in: returnKeys } },
+      { refCode: { $in: returnKeys } },
+      { returnOrderId: { $in: returnKeys } },
+      { returnOrderCode: { $in: returnKeys } }
+    );
+  }
+  if (orderKeys.length) {
+    or.push(
+      { orderId: { $in: orderKeys } },
+      { orderCode: { $in: orderKeys } },
+      { refId: { $in: orderKeys } },
+      { refCode: { $in: orderKeys } }
+    );
+  }
+  if (!or.length) return false;
+  const rows = await paymentRepository.findAll({
+    type: 'ar_return',
+    status: { $ne: 'void' },
+    $or: or
+  }, options);
+  return Array.isArray(rows) && rows.some((row) => toNumber(row.credit ?? row.amount) > 0);
+}
+
+async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders = [], options = {}) {
+  if (!hasReturnOrdersForAccounting(order, accountingReturnOrders)) return { repaired: false, reason: 'no_return_orders' };
+  if (await hasPostedArReturn(order, accountingReturnOrders, options)) return { repaired: false, reason: 'ar_return_exists' };
+  const hydrated = hydrateReturnOrdersForAccounting(order, accountingReturnOrders);
+  const posted = await postDeliveryCollectionsAfterAccountingConfirmed(hydrated, { ...options, skipIfExists: true });
+  const arReturnPosted = (Array.isArray(posted) ? posted : [])
+    .some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
+  return { repaired: arReturnPosted, reason: arReturnPosted ? 'posted_ar_return' : 'post_return_noop' };
+}
+// ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_END =====
+
 async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, options = {}) {
   const key = orderKey(order);
   const code = orderDisplayCode(order);
@@ -2775,7 +2830,26 @@ async function confirmDeliveryAccounting(body = {}) {
       const alreadyConfirmed = isAccountingConfirmed(accountingSource);
       const requiresReAccounting = isAccountingReopenPending(accountingSource);
       const deliveredForAccounting = isDeliveryCompletedStatus(accountingSource.deliveryStatus || accountingSource.status);
-      if (!deliveredForAccounting || (alreadyConfirmed && !requiresReAccounting)) {
+      if (!deliveredForAccounting) {
+        skippedOrders += 1;
+        continue;
+      }
+
+      if (alreadyConfirmed && !requiresReAccounting) {
+        // ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_START =====
+        // Đơn đã xác nhận kế toán thì không post lại AR-SALE. Nhưng nếu returnOrders đã có
+        // mà AR-RETURN còn thiếu từ bản cũ, repair đúng bút toán AR-RETURN rồi mới skip.
+        const repairResult = await repairMissingArReturnIfNeeded(accountingSource, accountingReturnOrders, { session });
+        if (repairResult.repaired) {
+          await auditService.log('ACCOUNTING_REPAIR_AR_RETURN', {
+            refType: 'SALES_ORDER',
+            refId: orderKey(accountingSource),
+            refCode: orderDisplayCode(accountingSource),
+            user: confirmedBy,
+            note: `Repair AR-RETURN thiếu cho đơn đã xác nhận ${orderDisplayCode(accountingSource)} từ returnOrders`
+          });
+        }
+        // ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_END =====
         skippedOrders += 1;
         continue;
       }

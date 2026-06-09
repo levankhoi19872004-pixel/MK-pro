@@ -142,15 +142,25 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
   return entry;
 }
 
+function firstPositiveArAmount(values = []) {
+  for (const value of values) {
+    const amount = toNumber(value);
+    if (amount > 0) return amount;
+  }
+  return 0;
+}
+
 function returnOrderArAmount(returnOrder = {}) {
-  return Math.max(0, Math.round(toNumber(
-    returnOrder.debtReduction
-    ?? returnOrder.totalReturnAmount
-    ?? returnOrder.totalAmount
-    ?? returnOrder.amount
-    ?? returnOrder.totalValue
-    ?? 0
-  )));
+  // Ưu tiên số dương đầu tiên. Không dùng ?? với totalAmount trước amount,
+  // vì returnOrders thực tế có thể totalAmount=0 nhưng amount/debtReduction > 0.
+  return Math.max(0, Math.round(firstPositiveArAmount([
+    returnOrder.debtReduction,
+    returnOrder.amount,
+    returnOrder.totalReturnAmount,
+    returnOrder.totalAmount,
+    returnOrder.returnAmount,
+    returnOrder.totalValue
+  ])));
 }
 
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
