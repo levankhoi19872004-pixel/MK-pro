@@ -391,14 +391,35 @@ function isActiveReturnOrder(row = {}) {
     && !row.deletedAt;
 }
 
+function firstPositiveNumber(values = []) {
+  for (const value of values) {
+    const amount = toNumber(value);
+    if (amount > 0) return amount;
+  }
+  return 0;
+}
+
 function returnOrderTotalAmount(row = {}) {
-  const explicit = toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount ?? row.debtReduction ?? row.returnAmount ?? row.returnedAmount);
+  // ===== SCOPED FIX: RETURN_ORDER_AMOUNT_FIRST_POSITIVE_START =====
+  // returnOrders thực tế có thể lưu totalAmount=0 nhưng amount/debtReduction > 0.
+  // Không được dùng toán tử ?? theo thứ tự totalAmount trước, vì 0 là giá trị non-null
+  // và sẽ làm AR-RETURN bị hiểu là không có tiền để post.
+  const explicit = firstPositiveNumber([
+    row.debtReduction,
+    row.amount,
+    row.totalReturnAmount,
+    row.totalAmount,
+    row.returnAmount,
+    row.returnedAmount,
+    row.totalValue
+  ]);
   if (explicit > 0) return explicit;
+  // ===== SCOPED FIX: RETURN_ORDER_AMOUNT_FIRST_POSITIVE_END =====
   return (Array.isArray(row.items) ? row.items : []).reduce((sum, item) => {
     const qty = toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantity ?? item.qty ?? 0);
     const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0);
-    const amount = toNumber(item.returnAmount ?? item.amount ?? NaN);
-    return sum + (Number.isFinite(amount) && amount > 0 ? amount : Math.round(qty * price));
+    const amount = firstPositiveNumber([item.returnAmount, item.amount, item.totalAmount]);
+    return sum + (amount > 0 ? amount : Math.round(qty * price));
   }, 0);
 }
 
@@ -1110,7 +1131,7 @@ function returnAmountForOrderFromMap(returnByOrderKey = new Map(), order = {}) {
       if (!isActiveReturnOrder(row)) continue;
       const receiveStatus = String(row.warehouseReceiveStatus || row.receiveStatus || '').toLowerCase();
       if (['cancelled', 'canceled', 'cleared', 'void', 'deleted'].includes(receiveStatus)) continue;
-      amount += toNumber(row.totalAmount ?? row.amount ?? row.debtReduction ?? 0);
+      amount += returnOrderTotalAmount(row);
     }
   }
   return amount;
