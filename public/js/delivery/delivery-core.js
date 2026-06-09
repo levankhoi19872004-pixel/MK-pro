@@ -455,6 +455,22 @@
       });
     },
 
+    // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK START =====
+    // Chỉ thêm hàm gọi API mở khóa kế toán cho màn Đơn giao hôm nay.
+    // Không thay đổi luồng xác nhận kế toán, lưu thu tiền hoặc ghi AR Ledger.
+    async adminUnlockAccounting(orderId, reason) {
+      var key = text(orderId);
+      if (!key) throw new Error('Không xác định được mã đơn để mở khóa kế toán');
+      return this.api('/api/master-orders/delivery-today/' + encodeURIComponent(key) + '/admin-unlock', {
+        method: 'POST',
+        body: JSON.stringify({
+          reason: text(reason) || 'Admin mở khóa điều chỉnh kế toán',
+          unlockedBy: 'admin'
+        })
+      });
+    },
+    // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK END =====
+
     async confirmDelivery(order, payload) {
       order = normalizeOrder(order);
       payload = payload || {};

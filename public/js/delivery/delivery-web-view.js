@@ -419,6 +419,10 @@
       html += '<span class="delivery-accounting-status warn">Chờ xác nhận lại</span>';
     } else if (posted) {
       html += '<button type="button" class="secondary muted-locked" disabled>Đã xác nhận kế toán</button>';
+      // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK BUTTON START =====
+      // Chỉ hiện nút mở khóa khi đơn đã giao, đã xác nhận kế toán và chưa ở trạng thái chờ xác nhận lại.
+      html += '<button id="deliveryAccountingUnlockButton" type="button" class="danger">Mở khóa kế toán</button>';
+      // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK BUTTON END =====
     } else {
       html += '<button id="deliveryAccountingButton" type="button" class="primary">Xác nhận kế toán</button>';
     }
@@ -459,6 +463,12 @@
     if (byId('deliveryClearReturnButton')) byId('deliveryClearReturnButton').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
     if (byId('deliveryConfirmButton')) byId('deliveryConfirmButton').addEventListener('click', confirmDelivery);
     if (byId('deliveryAccountingButton')) byId('deliveryAccountingButton').addEventListener('click', function () { confirmAccounting(order); });
+    // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK EVENT START =====
+    // Gắn sự kiện riêng cho nút mở khóa kế toán ở panel chi tiết, không can thiệp các nút khác.
+    if (byId('deliveryAccountingUnlockButton')) {
+      byId('deliveryAccountingUnlockButton').addEventListener('click', function () { unlockAccounting(order); });
+    }
+    // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK EVENT END =====
   }
 
   function productsHtml(items) {
@@ -657,6 +667,38 @@
       await load();
     } catch (err) { message(err.message || 'Không xác nhận kế toán được', true); }
   }
+
+
+  // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK HANDLER START =====
+  // Mở khóa kế toán chỉ dành cho đơn đã xác nhận kế toán trong mục Đơn giao hôm nay.
+  // Backend hiện có sẵn API /api/master-orders/delivery-today/:id/admin-unlock.
+  async function unlockAccounting(order) {
+    if (!order || !window.DeliveryCore) return;
+    var key = accountingKey(order);
+    if (!key) {
+      message('Không xác định được mã đơn để mở khóa kế toán', true);
+      return;
+    }
+    if (!isDelivered(order) || !isAccountingConfirmed(order) || isAccountingReopenPending(order)) {
+      message('Chỉ mở khóa được đơn đã giao và đã xác nhận kế toán', true);
+      return;
+    }
+    var reason = prompt('Nhập lý do mở khóa kế toán:');
+    if (!reason || !reason.trim()) {
+      message('Cần nhập lý do mở khóa kế toán', true);
+      return;
+    }
+    if (!confirm('Mở khóa kế toán đơn này? Sau khi sửa tiền cần xác nhận kế toán lại.')) return;
+    try {
+      message('Đang mở khóa kế toán...');
+      var json = await window.DeliveryCore.adminUnlockAccounting(key, reason.trim());
+      message(json.message || 'Đã mở khóa kế toán');
+      await load();
+    } catch (err) {
+      message(err.message || 'Không mở khóa kế toán được', true);
+    }
+  }
+  // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK HANDLER END =====
 
   function toggleSelectAllAccounting() {
     var rows = getVisibleOrders().filter(isAccountingSelectable);
