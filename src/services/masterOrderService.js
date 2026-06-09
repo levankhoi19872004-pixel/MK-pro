@@ -1364,13 +1364,17 @@ async function listDeliveryToday(query = {}) {
         isLate: Boolean(child.isLate),
         needReAccounting: Boolean(child.needReAccounting || child.reAccountingRequired),
         adminAdjustmentOpen: Boolean(child.adminAdjustmentOpen),
-        unlockReason: accountingSource.unlockReason || '',
-        unlockedAt: accountingSource.unlockedAt || '',
-        unlockedBy: accountingSource.unlockedBy || '',
+        // ===== SCOPED FIX: ACCOUNTING BUTTON LIST LOAD REFERENCE START =====
+        // listDeliveryToday không có biến accountingSource; dùng trực tiếp child snapshot.
+        // Nếu để accountingSource sẽ nổ ReferenceError làm danh sách/nút xác nhận kế toán không hoạt động.
+        unlockReason: child.unlockReason || child.reopenReason || '',
+        unlockedAt: child.unlockedAt || child.reopenedAt || '',
+        unlockedBy: child.unlockedBy || child.reopenedBy || '',
+        // ===== SCOPED FIX: ACCOUNTING BUTTON LIST LOAD REFERENCE END =====
         accountingConfirmed: !isAccountingReopenPending(child) && (isAccountingConfirmed(child) || isAccountingConfirmed(master)),
         accountingStatus: child.accountingStatus || master.accountingStatus || 'draft_delivery',
-        accountingConfirmedAt: accountingSource.accountingConfirmedAt || master.accountingConfirmedAt || '',
-        accountingConfirmedBy: accountingSource.accountingConfirmedBy || master.accountingConfirmedBy || '',
+        accountingConfirmedAt: child.accountingConfirmedAt || master.accountingConfirmedAt || '',
+        accountingConfirmedBy: child.accountingConfirmedBy || master.accountingConfirmedBy || '',
         editLocked: !isAccountingReopenPending(child) && (isAccountingConfirmed(child) || isAccountingConfirmed(master))
       };
 
@@ -2311,9 +2315,13 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         adminAdjustmentOpen: Boolean(child.adminAdjustmentOpen),
         arStatus: child.arStatus || '',
         lifecycleStatus: child.lifecycleStatus || '',
-        arPostedAt: accountingSource.arPostedAt || '',
-        accountingConfirmedAt: accountingSource.accountingConfirmedAt || '',
-        accountingConfirmedBy: accountingSource.accountingConfirmedBy || '',
+        // ===== SCOPED FIX: ACCOUNTING BUTTON COMPACT LIST REFERENCE START =====
+        // listDeliveryTodayOrdersCompact không có biến accountingSource; dùng child để tránh ReferenceError.
+        // Lỗi này làm API /delivery-today-orders trả 500 nên nút xác nhận kế toán nhìn như không hoạt động.
+        arPostedAt: child.arPostedAt || '',
+        accountingConfirmedAt: child.accountingConfirmedAt || '',
+        accountingConfirmedBy: child.accountingConfirmedBy || '',
+        // ===== SCOPED FIX: ACCOUNTING BUTTON COMPACT LIST REFERENCE END =====
         hasReturn: returnAmount > 0,
         items: mergedItems,
         orderItems: soldItems,
