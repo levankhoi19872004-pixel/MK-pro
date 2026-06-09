@@ -2568,6 +2568,15 @@ async function confirmDeliveryAccounting(body = {}) {
     return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
   }
 
+  // ===== SCOPED FIX: SYNC RETURNORDERS BEFORE AR DOCUMENT CONFIRM =====
+  // Khi xác nhận kế toán, dữ liệu hàng trả phải lấy lại từ returnOrders - nguồn chuẩn duy nhất.
+  // Không dựa vào child.returnAmount trong master.children vì field này có thể là snapshot cũ/rỗng,
+  // khiến hồ sơ công nợ AR-<mã đơn> thiếu dòng AR-RETURN.
+  const accountingReturnOrders = await findReturnOrdersForDeliveryChildren(
+    targetChildren.map((row) => row.child)
+  );
+  // ===== END SCOPED FIX =====
+
   let confirmedOrders = 0;
   let skippedOrders = 0;
   await withMongoTransaction(async (session) => {
@@ -2610,7 +2619,15 @@ async function confirmDeliveryAccounting(body = {}) {
         skippedOrders += 1;
         continue;
       }
-      const debtAmount = Math.max(0, normalizeDebtAmount(child.debtAmount ?? child.debt ?? deliveryFinance.calculateDeliveryDebt(child)));
+      // ===== SCOPED FIX: APPLY RETURNORDERS AMOUNT TO ACCOUNTING SNAPSHOT =====
+      // Tính lại số tiền giao hàng trước khi tạo/cập nhật ArDocument để AR-RETURN được ghi nhận.
+      // buildDeliveryAmount() giữ nguyên quy tắc tiền mặt/chuyển khoản/trả thưởng hiện có,
+      // chỉ override riêng hàng trả bằng số đã đồng bộ từ returnOrders.
+      const syncedReturnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountForSalesOrder(accountingReturnOrders, child))));
+      const deliveryAmountsForAccounting = buildDeliveryAmount(child, syncedReturnAmount);
+      const debtAmount = deliveryAmountsForAccounting.debtAmount;
+      // ===== END SCOPED FIX =====
+
       const updated = {
         ...child,
         accountingConfirmed: true,
@@ -2629,9 +2646,15 @@ async function confirmDeliveryAccounting(body = {}) {
         reopenReason: requiresReAccounting ? (child.reopenReason || child.unlockReason || '') : (child.reopenReason || ''),
         reconfirmedAt: requiresReAccounting ? now : (child.reconfirmedAt || ''),
         reconfirmedBy: requiresReAccounting ? confirmedBy : (child.reconfirmedBy || ''),
+        // ===== SCOPED FIX: PERSIST RETURNORDERS AMOUNT INTO AR SOURCE SNAPSHOT =====
+        returnAmount: syncedReturnAmount,
+        returnedAmount: syncedReturnAmount,
+        returnAmountFromReturnOrders: syncedReturnAmount,
+        returnAmountSource: 'returnOrders',
         debtAmount,
         debt: debtAmount,
         arBalance: debtAmount,
+        // ===== END SCOPED FIX =====
         arStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
         lifecycleStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
         arPostedAt: child.arPostedAt || now,
