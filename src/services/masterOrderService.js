@@ -29,7 +29,7 @@ const Product = require('../models/Product');
 
 
 function compactDeliveryOrderKeys(order = {}) {
-  return [order.id, order._id, order.code, order.orderCode, order.documentCode, order.salesOrderId, order.salesOrderCode, order.sourceOrderId, order.sourceOrderCode, order.deliveryOrderId, order.deliveryOrderCode, order.masterOrderId, order.masterOrderCode]
+  return [order.id, order._id, order.orderId, order.code, order.orderCode, order.documentCode, order.invoiceCode, order.salesOrderId, order.salesOrderCode, order.sourceOrderId, order.sourceOrderCode, order.deliveryOrderId, order.deliveryOrderCode, order.masterOrderId, order.masterOrderCode]
     .map((value) => String(value || '').trim())
     .filter(Boolean);
 }
@@ -158,11 +158,19 @@ function buildIdentityInFilter(keys = [], fields = ['id', 'code']) {
 
 async function buildMasterChildrenMapFast(masterOrders = []) {
   const allRefs = [...new Set((masterOrders || []).flatMap(masterChildOrderRefs))];
-  const salesOrderIds = normalizeSalesOrderIds(allRefs);
   const map = new Map();
-  if (!salesOrderIds.length) return map;
+  const filter = buildIdentityInFilter(allRefs, [
+    'id',
+    'code',
+    'orderCode',
+    'documentCode',
+    'invoiceCode',
+    'salesOrderId',
+    'salesOrderCode'
+  ]);
+  if (!filter) return map;
 
-  const orders = await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds));
+  const orders = await orderRepository.findAll(filter);
   const byKey = new Map();
   for (const order of orders || []) {
     if (isInactiveStatus(order)) continue;
@@ -2586,16 +2594,22 @@ async function confirmDeliveryAccounting(body = {}) {
   const targetMasters = new Map();
   const targetChildren = [];
 
-  const childKeys = (child = {}) => [
-    child.id,
-    child._id,
-    child.code,
-    child.orderCode,
-    child.documentCode
-  ].map((v) => String(v || '').trim()).filter(Boolean);
+  // ===== SCOPED FIX: CONFIRM ACCOUNTING MUST MATCH REAL MASTER REFS START =====
+  // Nút xác nhận kế toán nhận key từ danh sách compact (thường là SalesOrder.id/orderCode),
+  // trong khi nhiều đơn tổng mới chỉ lưu children dạng snapshot rỗng hoặc chỉ lưu orderIds/salesOrderIds.
+  // Vì vậy trước khi match phải dựng lại children từ SalesOrder thật theo toàn bộ ref của master.
+  const masterChildrenMap = await buildMasterChildrenMapFast(masterOrders);
+  const childKeys = (child = {}) => compactDeliveryOrderKeys({
+    ...child,
+    orderId: child.orderId || child.id || child.salesOrderId,
+    orderCode: child.orderCode || child.code || child.salesOrderCode
+  });
+  // ===== SCOPED FIX: CONFIRM ACCOUNTING MUST MATCH REAL MASTER REFS END =====
 
   for (const master of masterOrders) {
-    const children = Array.isArray(master.children) ? master.children : [];
+    const rawChildren = Array.isArray(master.children) ? master.children : [];
+    const hydratedChildren = masterChildrenMap.get(String(master.id || master.code || '')) || [];
+    const children = hydratedChildren.length ? hydratedChildren : rawChildren;
     const matched = children.filter((child) => {
       if (isInactiveStatus(child)) return false;
       const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
@@ -2629,7 +2643,9 @@ async function confirmDeliveryAccounting(body = {}) {
   let skippedOrders = 0;
   await withMongoTransaction(async (session) => {
     for (const { master, matched } of targetMasters.values()) {
-      const children = Array.isArray(master.children) ? master.children : [];
+      const rawChildren = Array.isArray(master.children) ? master.children : [];
+      const hydratedChildren = masterChildrenMap.get(String(master.id || master.code || '')) || [];
+      const children = hydratedChildren.length ? hydratedChildren : rawChildren;
       const activeChildrenInDate = children.filter((child) => {
         if (isInactiveStatus(child)) return false;
         const deliveryDate = dateUtil.toDateOnly(child.deliveryDate || master.deliveryDate || child.date || master.date);
