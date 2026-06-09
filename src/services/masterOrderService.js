@@ -160,32 +160,182 @@ async function buildMasterChildrenMapFast(masterOrders = []) {
 }
 
 async function findReturnOrdersForDeliveryChildren(children = []) {
-  const keys = [...new Set((children || []).flatMap(compactDeliveryOrderKeys))];
-  if (!keys.length) return [];
-  const filter = buildIdentityInFilter(keys, [
-    'salesOrderId',
-    'salesOrderCode',
-    'orderId',
-    'orderCode',
-    'sourceOrderId',
-    'sourceOrderCode',
-    'deliveryOrderId',
-    'deliveryOrderCode',
-    'masterOrderId',
-    'masterOrderCode'
-  ]);
-  if (!filter) return [];
-  // Chỉ lấy returnOrders liên quan đến các đơn đang hiển thị. Tuyệt đối không findAll() toàn bộ.
-  return returnOrderRepository.findAll(filter, {
-    projection: {
-      id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
-      sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
-      masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
-      customerCode: 1, customerName: 1, totalAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
-      items: 1, status: 1, returnStatus: 1, accountingStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
-      deliveryDate: 1, deliveryStaffCode: 1, deliveryStaffName: 1
+  const childRows = Array.isArray(children) ? children.filter(Boolean) : [];
+  const orderIds = [...new Set(childRows.flatMap((order) => [
+    order.id,
+    order._id,
+    order.orderId,
+    order.salesOrderId,
+    order.sourceOrderId,
+    order.deliveryOrderId
+  ]).map((value) => String(value || '').trim()).filter(Boolean))];
+
+  const orderCodes = [...new Set(childRows.flatMap((order) => [
+    order.code,
+    order.orderCode,
+    order.documentCode,
+    order.salesOrderCode,
+    order.sourceOrderCode,
+    order.deliveryOrderCode
+  ]).map((value) => String(value || '').trim()).filter(Boolean))];
+
+  const masterIds = [...new Set(childRows.flatMap((order) => [
+    order.masterOrderId,
+    order.masterId
+  ]).map((value) => String(value || '').trim()).filter(Boolean))];
+
+  const masterCodes = [...new Set(childRows.flatMap((order) => [
+    order.masterOrderCode,
+    order.masterCode
+  ]).map((value) => String(value || '').trim()).filter(Boolean))];
+
+  const or = [];
+  if (orderIds.length) {
+    or.push(
+      { orderId: { $in: orderIds } },
+      { salesOrderId: { $in: orderIds } },
+      { sourceOrderId: { $in: orderIds } },
+      { deliveryOrderId: { $in: orderIds } }
+    );
+  }
+  if (orderCodes.length) {
+    or.push(
+      { orderCode: { $in: orderCodes } },
+      { salesOrderCode: { $in: orderCodes } },
+      { sourceOrderCode: { $in: orderCodes } },
+      { deliveryOrderCode: { $in: orderCodes } }
+    );
+  }
+  if (masterIds.length) {
+    or.push({ masterOrderId: { $in: masterIds } });
+  }
+  if (masterCodes.length) {
+    or.push({ masterOrderCode: { $in: masterCodes } });
+  }
+
+  if (!or.length) return [];
+
+  // ===== SCOPED FIX: AR_RETURN_QUERY_MATCH_RETURNORDERS_START =====
+  // returnOrders của app giao hàng đang lưu orderId/orderCode/salesOrderCode và returnStatus='active',
+  // accountingStatus vẫn có thể là 'pending'. Vì vậy tuyệt đối không lọc accountingStatus/status posted ở đây.
+  const query = {
+    $and: [
+      { $or: or },
+      {
+        $or: [
+          { returnStatus: { $exists: false } },
+          { returnStatus: null },
+          { returnStatus: '' },
+          { returnStatus: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'inactive'] } }
+        ]
+      }
+    ]
+  };
+
+  console.log('[AR_RETURN_DEBUG] RETURN_QUERY', JSON.stringify({
+    orderIds,
+    orderCodes,
+    masterIds,
+    masterCodes,
+    query
+  }, null, 2));
+
+  const projection = {
+    id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
+    sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
+    masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
+    customerCode: 1, customerName: 1, totalAmount: 1, totalReturnAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
+    items: 1, status: 1, returnStatus: 1, accountingStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
+    date: 1, documentDate: 1, deliveryDate: 1, receiveDate: 1, deliveryStaffCode: 1, deliveryStaffName: 1
+  };
+
+  let rows = await returnOrderRepository.findAll(query, { projection });
+
+  // Fallback có kiểm soát: nếu query theo mã/id chưa bắt được, lấy theo ngày giao + NVGH rồi lọc lại ở JS.
+  // Điều này xử lý trường hợp dữ liệu returnOrders cũ thiếu key nhưng vẫn thuộc đúng ngày/NVGH.
+  if (!rows.length) {
+    const deliveryDates = [...new Set(childRows.flatMap((order) => [
+      order.deliveryDate,
+      order.date,
+      order.documentDate
+    ]).map((value) => String(value || '').slice(0, 10)).filter(Boolean))];
+
+    const deliveryStaffCodes = [...new Set(childRows.flatMap((order) => [
+      order.deliveryStaffCode,
+      order.deliveryCode,
+      order.nvghCode
+    ]).map((value) => String(value || '').trim()).filter(Boolean))];
+
+    const fallbackAnd = [];
+    if (deliveryDates.length) {
+      fallbackAnd.push({
+        $or: [
+          { deliveryDate: { $in: deliveryDates } },
+          { date: { $in: deliveryDates } },
+          { documentDate: { $in: deliveryDates } }
+        ]
+      });
     }
+    if (deliveryStaffCodes.length) {
+      fallbackAnd.push({
+        $or: [
+          { deliveryStaffCode: { $in: deliveryStaffCodes } },
+          { deliveryCode: { $in: deliveryStaffCodes } },
+          { nvghCode: { $in: deliveryStaffCodes } }
+        ]
+      });
+    }
+
+    if (fallbackAnd.length) {
+      const fallbackQuery = {
+        $and: [
+          ...fallbackAnd,
+          {
+            $or: [
+              { returnStatus: { $exists: false } },
+              { returnStatus: null },
+              { returnStatus: '' },
+              { returnStatus: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'inactive'] } }
+            ]
+          }
+        ]
+      };
+      console.log('[AR_RETURN_DEBUG] RETURN_QUERY_FALLBACK', JSON.stringify({
+        deliveryDates,
+        deliveryStaffCodes,
+        fallbackQuery
+      }, null, 2));
+
+      const fallbackRows = await returnOrderRepository.findAll(fallbackQuery, { projection, limit: 500 });
+      const orderIdSet = new Set(orderIds);
+      const orderCodeSet = new Set(orderCodes);
+      rows = (fallbackRows || []).filter((row) => {
+        const rowIds = [row.orderId, row.salesOrderId, row.sourceOrderId, row.deliveryOrderId].map((value) => String(value || '').trim()).filter(Boolean);
+        const rowCodes = [row.orderCode, row.salesOrderCode, row.sourceOrderCode, row.deliveryOrderCode, row.code].map((value) => String(value || '').trim()).filter(Boolean);
+        return rowIds.some((value) => orderIdSet.has(value)) || rowCodes.some((value) => orderCodeSet.has(value));
+      });
+    }
+  }
+
+  console.log('[AR_RETURN_DEBUG] RETURN_QUERY_RESULT', {
+    count: rows.length,
+    rows: rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      orderId: row.orderId,
+      orderCode: row.orderCode,
+      salesOrderId: row.salesOrderId,
+      salesOrderCode: row.salesOrderCode,
+      amount: row.amount,
+      debtReduction: row.debtReduction,
+      totalAmount: row.totalAmount,
+      returnStatus: row.returnStatus,
+      accountingStatus: row.accountingStatus
+    }))
   });
+
+  return rows;
+  // ===== SCOPED FIX: AR_RETURN_QUERY_MATCH_RETURNORDERS_END =====
 }
 
 function buildMasterOrderCode(existingMasterOrders = []) {
