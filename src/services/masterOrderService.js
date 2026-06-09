@@ -905,13 +905,27 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       refCode: code || key,
       orderId: currentOrderId,
       orderCode: currentOrderCode,
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
+      masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
+      deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+      deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+      salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || order.staffCode || '',
+      salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || order.staffName || '',
       allocations,
       note: `Kế toán xác nhận thu ${row.label} từ app giao hàng ${code || key}`
     }, options);
     posted.push(entry);
   }
 
-  const returnAmount = toNumber(order.returnAmount ?? order.returnedAmount ?? 0);
+  const returnAmount = toNumber(
+    order.returnAmountFromReturnOrders
+    ?? order.syncedReturnAmountFromReturnOrders
+    ?? order.returnAmount
+    ?? order.returnedAmount
+    ?? 0
+  );
   if (returnAmount > 0) {
     const entry = await postingEngine.postReturnOrderAR({
       id: `MOBILE-DELIVERY-RETURN-${key || code}`,
@@ -924,6 +938,14 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       salesOrderCode: currentOrderCode,
       orderId: currentOrderId,
       orderCode: currentOrderCode,
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
+      masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
+      deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+      deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+      salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || order.staffCode || '',
+      salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || order.staffName || '',
       debtReduction: returnAmount,
       amount: returnAmount,
       source: 'mobile_delivery_accounting_confirmed',
@@ -2663,7 +2685,9 @@ async function confirmDeliveryAccounting(body = {}) {
 
     const batchPostResult = await batchPostDeliveryArLedgers(normalPostChildren, confirmedBy, { session });
     for (const posted of normalPostChildren) {
-      await auditService.log('ACCOUNTING_CONFIRM', { refType: 'SALES_ORDER', refId: orderKey(posted), refCode: orderDisplayCode(posted), user: confirmedBy, note: `Xác nhận kế toán đơn ${orderDisplayCode(posted)}: sinh AR-SALE` });
+      await postDeliveryCollectionsAfterAccountingConfirmed(posted, { session });
+      await postingEngine.postBonusAllowanceAR(posted, { session, skipIfExists: true });
+      await auditService.log('ACCOUNTING_CONFIRM', { refType: 'SALES_ORDER', refId: orderKey(posted), refCode: orderDisplayCode(posted), user: confirmedBy, note: `Xác nhận kế toán đơn ${orderDisplayCode(posted)}: sinh AR-SALE, AR-RECEIPT, AR-RETURN, AR-BONUS nếu có` });
     }
     skippedOrders += batchPostResult.skippedPostedKeys.size;
 

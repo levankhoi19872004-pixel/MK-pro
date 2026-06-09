@@ -482,14 +482,21 @@ function buildDebtLedgerMatch(query = {}, customerCodes = []) {
     match.customerCode = { $in: customerCodes };
   }
 
-  // V45 debt filter fix:
-  // Do not rely only on Customer metadata for NVBH/NVGH filters.
-  // Some AR ledger rows store staff codes directly in arLedgers, while Customer may not have
-  // delivery/salesman metadata. Filtering only Customer first makes real debts disappear
-  // (example: NVGH = ghth). Apply the staff filters directly to ArLedger too.
+  // V46 AR staff-filter rule:
+  // Do NOT filter NVBH/NVGH directly on every arLedger row here.
+  // Receipt/return/bonus rows can legitimately miss staff metadata, so direct row-level
+  // filtering would drop AR-RECEIPT/AR-RETURN and make debt appear higher than reality.
+  // Staff scope is resolved in buildDebtLedgerMatchWithStaffScope(): first find matching
+  // AR-SALE order keys, then load ALL AR rows for those order keys.
+
+  return match;
+}
+
+function buildLedgerStaffSeedCondition(query = {}) {
+  const parts = [];
   if (query.delivery) {
     const rx = new RegExp(escapeRegExp(query.delivery), 'i');
-    pushDebtLedgerAnd(match, {
+    parts.push({
       $or: [
         { deliveryStaffCode: rx },
         { deliveryStaffName: rx },
@@ -503,10 +510,9 @@ function buildDebtLedgerMatch(query = {}, customerCodes = []) {
       ]
     });
   }
-
   if (query.salesman) {
     const rx = new RegExp(escapeRegExp(query.salesman), 'i');
-    pushDebtLedgerAnd(match, {
+    parts.push({
       $or: [
         { salesmanCode: rx },
         { salesmanName: rx },
@@ -519,7 +525,65 @@ function buildDebtLedgerMatch(query = {}, customerCodes = []) {
       ]
     });
   }
+  if (!parts.length) return null;
+  return parts.length === 1 ? parts[0] : { $and: parts };
+}
 
+function normalizeLedgerOrderKey(value) {
+  return String(value || '').trim();
+}
+
+async function buildDebtLedgerMatchWithStaffScope(query = {}, customerCodes = []) {
+  const match = buildDebtLedgerMatch(query, customerCodes);
+  const staffCondition = buildLedgerStaffSeedCondition(query);
+  if (!staffCondition) return match;
+
+  const seedMatch = {
+    ...buildDebtLedgerMatch({}, customerCodes),
+    type: 'ar_sale',
+    ...staffCondition
+  };
+  if (query.dateFrom || query.dateTo || query.date) {
+    seedMatch.date = {};
+    if (query.dateFrom) seedMatch.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) seedMatch.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) seedMatch.date = dateUtil.toDateOnly(query.date);
+  }
+
+  const saleRows = await ArLedger.find(seedMatch)
+    .select('orderId orderCode salesOrderId salesOrderCode refId refCode')
+    .limit(5000)
+    .lean()
+    .catch(() => []);
+
+  const orderIds = Array.from(new Set(saleRows
+    .flatMap((row) => [row.orderId, row.salesOrderId, row.refId])
+    .map(normalizeLedgerOrderKey)
+    .filter(Boolean)));
+  const orderCodes = Array.from(new Set(saleRows
+    .flatMap((row) => [row.orderCode, row.salesOrderCode, row.refCode])
+    .map(normalizeLedgerOrderKey)
+    .filter(Boolean)));
+
+  if (!orderIds.length && !orderCodes.length) {
+    pushDebtLedgerAnd(match, { _id: '__NO_AR_SALE_MATCHING_STAFF_SCOPE__' });
+    return match;
+  }
+
+  pushDebtLedgerAnd(match, {
+    $or: [
+      ...(orderIds.length ? [
+        { orderId: { $in: orderIds } },
+        { salesOrderId: { $in: orderIds } },
+        { refId: { $in: orderIds } }
+      ] : []),
+      ...(orderCodes.length ? [
+        { orderCode: { $in: orderCodes } },
+        { salesOrderCode: { $in: orderCodes } },
+        { refCode: { $in: orderCodes } }
+      ] : [])
+    ]
+  });
   return match;
 }
 
@@ -653,7 +717,7 @@ async function debtReport(query = {}) {
   if (query.customerCode) seedCodes.push(String(query.customerCode).trim());
   if (query.customerId) seedCodes.push(String(query.customerId).trim());
   const customerCodes = Array.from(new Set(seedCodes));
-  const match = buildDebtLedgerMatch(query, customerCodes);
+  const match = await buildDebtLedgerMatchWithStaffScope(query, customerCodes);
 
   // Nếu không có tiêu chí, chỉ đọc trang nhỏ gần nhất thay vì tính toàn bộ hệ thống.
   if (!hasSearchCriteria) {
@@ -712,10 +776,10 @@ async function debtReport(query = {}) {
       receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      salesmanCode: { $first: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', { $ifNull: ['$nvbhCode', '$staffCode'] }] }] } },
-      salesmanName: { $first: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', { $ifNull: ['$nvbhName', '$staffName'] }] }] } },
-      deliveryStaffCode: { $first: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', { $ifNull: ['$deliveryStaff', { $ifNull: ['$nvghCode', '$staffCode'] }] }] }] } },
-      deliveryStaffName: { $first: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] } }
+      salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', { $ifNull: ['$nvbhCode', '$staffCode'] }] }] } },
+      salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', { $ifNull: ['$nvbhName', '$staffName'] }] }] } },
+      deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', { $ifNull: ['$deliveryStaff', { $ifNull: ['$nvghCode', '$staffCode'] }] }] }] } },
+      deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] } }
     } },
     { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
     { $sort: { debt: -1, lastDate: -1 } },
@@ -906,7 +970,7 @@ async function debtArLedger(query = {}) {
   const page = getPage(query.page);
   const limit = getSafeLimit(query.limit, 100, 200);
   const skip = (page - 1) * limit;
-  const match = buildDebtLedgerMatch(query, []);
+  const match = await buildDebtLedgerMatchWithStaffScope(query, []);
   if (query.q || query.keyword || query.search) {
     const rx = new RegExp(escapeRegExp(query.q || query.keyword || query.search), 'i');
     match.$or = [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { type: rx }, { note: rx }];
