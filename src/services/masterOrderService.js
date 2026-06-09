@@ -2636,10 +2636,15 @@ async function confirmDeliveryAccounting(body = {}) {
       };
 
       if (requiresReAccounting) {
-        // Đơn đã mở khóa/sửa sau khi post AR: giữ đúng luồng kế toán bằng reversal trước, sau đó post lại.
+        // ===== SCOPED FIX: RE-POST COLLECTIONS/BONUS AFTER REACCOUNTING =====
+        // Đơn đã mở khóa/sửa sau khi post AR: reversal trước, sau đó post lại AR-SALE
+        // và ghi lại các bút toán thu tiền/chuyển khoản/hàng trả/trả thưởng.
         const reverseResult = await reverseActiveArLedgersForOrder(child, { name: confirmedBy }, { session });
         await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.accountingBatchId, { session });
-        await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: AR-SALE-REV + AR-SALE mới` });
+        await postDeliveryCollectionsAfterAccountingConfirmed(updated, { session });
+        await postingEngine.postBonusAllowanceAR(updated, { session });
+        await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: đảo AR cũ, ghi AR-SALE mới và ghi lại thu tiền/hàng trả/trả thưởng` });
+        // ===== END SCOPED FIX =====
       } else if (!alreadyConfirmed) {
         // Đơn mới xác nhận lần đầu: gom lại để ghi AR Ledger bằng insertMany một lần.
         normalPostChildren.push(updated);
