@@ -65,33 +65,23 @@ async function hasExistingSalesOrderAR(order = {}, options = {}) {
 
 
 async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
-  const keys = [
-    returnOrder.id,
-    returnOrder._id,
-    returnOrder.code,
-    returnOrder.orderId,
-    returnOrder.orderCode,
-    returnOrder.salesOrderId,
-    returnOrder.salesOrderCode,
-    returnOrder.refId,
-    returnOrder.refCode
-  ].map((value) => String(value || '').trim()).filter(Boolean);
-  if (!keys.length) return false;
+  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.returnOrderId || '').trim();
+  const returnOrderCode = String(returnOrder.code || returnOrder.returnOrderCode || '').trim();
+  const exactKeys = [returnOrderId, returnOrderCode].filter(Boolean);
+  if (!exactKeys.length) return false;
+
   const rows = await paymentRepository.findAll({
+    type: 'ar_return',
     $or: [
-      { id: { $in: keys.map((key) => [`AR-RETURN-${key}`, `MOBILE-DELIVERY-RETURN-${key}`]).flat() } },
-      { orderId: { $in: keys } },
-      { orderCode: { $in: keys } },
-      { refId: { $in: keys } },
-      { refCode: { $in: keys } }
+      { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
+      { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
+      { refId: { $in: exactKeys } },
+      { refCode: { $in: exactKeys } },
+      { returnOrderId: { $in: exactKeys } },
+      { returnOrderCode: { $in: exactKeys } }
     ]
   }, options);
-  return Array.isArray(rows) && rows.some((row) => {
-    const type = String(row.type || '').toLowerCase();
-    const refType = String(row.refType || '').toLowerCase();
-    const isReturn = type.includes('return') || refType.includes('return');
-    return isReturn && toNumber(row.credit ?? row.amount) > 0;
-  });
+  return Array.isArray(rows) && rows.some((row) => toNumber(row.credit ?? row.amount) > 0);
 }
 
 async function postSalesOrderAR(order = {}, options = {}) {
@@ -152,40 +142,63 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
   return entry;
 }
 
+function returnOrderArAmount(returnOrder = {}) {
+  return Math.max(0, Math.round(toNumber(
+    returnOrder.debtReduction
+    ?? returnOrder.totalReturnAmount
+    ?? returnOrder.totalAmount
+    ?? returnOrder.amount
+    ?? returnOrder.totalValue
+    ?? 0
+  )));
+}
+
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
   if (options.skipIfExists && await hasExistingReturnOrderAR(returnOrder, options)) {
     return null;
   }
-  const amount = toNumber(returnOrder.debtReduction ?? returnOrder.totalAmount ?? returnOrder.amount);
+  const amount = returnOrderArAmount(returnOrder);
   if (amount <= 0) return null;
-  const entry = baseJournal(returnOrder, {
-    id: `AR-RETURN-${returnOrder.id || returnOrder.code}`,
-    code: `AR-RETURN-${returnOrder.code || returnOrder.id}`,
-    type: 'ar_return',
-    refType: 'RETURN_ORDER',
-    refId: returnOrder.id || returnOrder._id || returnOrder.code,
-    refCode: returnOrder.code || returnOrder.id,
-    orderId: returnOrder.salesOrderId || returnOrder.orderId || '',
-    orderCode: returnOrder.salesOrderCode || returnOrder.orderCode || '',
-    accountingConfirmed: true,
-    accountingStatus: 'confirmed',
-    masterOrderId: returnOrder.masterOrderId || '',
-    masterOrderCode: returnOrder.masterOrderCode || '',
-    deliveryStaffCode: returnOrder.deliveryStaffCode || '',
-    deliveryStaffName: returnOrder.deliveryStaffName || '',
-    salesmanCode: returnOrder.salesmanCode || '',
-    salesmanName: returnOrder.salesmanName || '',
-    debit: 0,
-    credit: amount,
-    amount,
-    note: `Giảm công nợ trả hàng ${returnOrder.code || returnOrder.id}`
-  });
+
+  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.code || '').trim();
+  const returnOrderCode = String(returnOrder.code || returnOrder.id || '').trim();
+  const salesOrderId = String(returnOrder.salesOrderId || returnOrder.orderId || returnOrder.sourceOrderId || '').trim();
+  const salesOrderCode = String(returnOrder.salesOrderCode || returnOrder.orderCode || returnOrder.sourceOrderCode || '').trim();
+
+  const entry = {
+    ...baseJournal(returnOrder, {
+      id: `AR-RETURN-${returnOrderId || returnOrderCode}`,
+      code: `AR-RETURN-${returnOrderCode || returnOrderId}`,
+      type: 'ar_return',
+      refType: 'RETURN_ORDER',
+      refId: returnOrderId || returnOrderCode,
+      refCode: returnOrderCode || returnOrderId,
+      orderId: salesOrderId,
+      orderCode: salesOrderCode,
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      masterOrderId: returnOrder.masterOrderId || '',
+      masterOrderCode: returnOrder.masterOrderCode || '',
+      deliveryStaffCode: returnOrder.deliveryStaffCode || returnOrder.staffCode || '',
+      deliveryStaffName: returnOrder.deliveryStaffName || returnOrder.staffName || '',
+      salesmanCode: returnOrder.salesmanCode || returnOrder.salesStaffCode || '',
+      salesmanName: returnOrder.salesmanName || returnOrder.salesStaffName || '',
+      debit: 0,
+      credit: amount,
+      amount,
+      source: returnOrder.source || 'returnOrders',
+      note: returnOrder.note || `Giảm công nợ từ phiếu trả hàng ${returnOrderCode || returnOrderId}`
+    }),
+    returnOrderId: returnOrderId || returnOrderCode,
+    returnOrderCode: returnOrderCode || returnOrderId,
+    items: Array.isArray(returnOrder.items) ? returnOrder.items : []
+  };
   await paymentRepository.upsert(entry, options);
   return entry;
 }
 
 async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
-  const amount = toNumber(returnOrder.debtReduction ?? returnOrder.totalAmount ?? returnOrder.amount);
+  const amount = returnOrderArAmount(returnOrder);
   if (amount <= 0) return null;
   const entry = baseJournal(returnOrder, {
     id: `AR-RETURN-REV-${returnOrder.id || returnOrder.code}`,

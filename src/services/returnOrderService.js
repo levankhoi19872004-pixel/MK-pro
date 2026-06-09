@@ -65,6 +65,39 @@ function hasPositiveReturnValue(row = {}) {
   return getReturnOrderValue(row) > 0;
 }
 
+// ===== SCOPED FIX: RETURN_ORDER_POST_AR_DIRECT_START =====
+// Phiếu trả đã nhận/ghi sổ phải tự sinh AR-RETURN trực tiếp từ returnOrders.
+// Số tiền kế toán ưu tiên debtReduction/amount đã lưu trên returnOrders, không tính vòng qua salesOrders.
+async function postReturnOrderArIfNeeded(returnOrder = {}, options = {}) {
+  const amount = getReturnOrderValue(returnOrder);
+  if (!returnOrder || amount <= 0) return { entry: null, returnOrder };
+
+  const entry = await postingEngine.postReturnOrderAR({
+    ...returnOrder,
+    debtReduction: amount,
+    amount,
+    totalReturnAmount: amount,
+    source: 'returnOrders',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed'
+  }, { ...options, skipIfExists: true });
+
+  if (!entry) return { entry: null, returnOrder };
+
+  const patched = {
+    ...returnOrder,
+    arPosted: true,
+    arPostedAt: returnOrder.arPostedAt || dateUtil.nowIso(),
+    arLedgerId: entry.id || entry.code || returnOrder.arLedgerId || '',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    updatedAt: dateUtil.nowIso()
+  };
+  await returnOrderRepository.upsert(patched, options);
+  return { entry, returnOrder: patched };
+}
+// ===== SCOPED FIX: RETURN_ORDER_POST_AR_DIRECT_END =====
+
 function uniqueStrings(values = []) {
   return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
 }
@@ -488,26 +521,28 @@ async function createReturnOrder(body = {}) {
       await postingEngine.reverseReturnOrderAR(existing, { session });
     }
 
-    await returnOrderRepository.upsert({
+    const postedReturnOrder = {
       ...returnOrder,
       status: 'posted',
+      returnStatus: returnOrder.returnStatus || 'active',
       warehouseReceiveStatus: 'received',
+      accountingStatus: 'confirmed',
+      accountingConfirmed: true,
       postedAt: returnOrder.postedAt || dateUtil.nowIso()
-    }, { session });
-    await inventoryService.postStockMovement(returnOrder, {
+    };
+    await returnOrderRepository.upsert(postedReturnOrder, { session });
+    await inventoryService.postStockMovement(postedReturnOrder, {
       type: 'RETURN',
       direction: 'IN',
       refType: 'RETURN_ORDER',
-      refId: returnOrder.id || returnOrder.code,
-      refCode: returnOrder.code || returnOrder.id,
-      date: returnOrder.date,
+      refId: postedReturnOrder.id || postedReturnOrder.code,
+      refCode: postedReturnOrder.code || postedReturnOrder.id,
+      date: postedReturnOrder.date,
       note: existing ? 'Cập nhật nhập lại kho theo phiếu trả hàng' : 'Nhập lại kho theo phiếu trả hàng'
     }, { session });
-    // V45 chuẩn kế toán: phiếu trả hàng / kho nhận hàng chỉ nhập lại tồn kho.
-    // KHÔNG ghi AR-RETURN ở bước này vì kế toán chưa xác nhận giảm công nợ.
-    // AR-RETURN chỉ được post ở luồng kế toán xác nhận công nợ.
+    await postReturnOrderArIfNeeded(postedReturnOrder, { session });
   });
-  return { returnOrder: toClient({ ...returnOrder, status: 'posted', warehouseReceiveStatus: 'received' }), updatedExisting: Boolean(existing) };
+  return { returnOrder: toClient({ ...returnOrder, status: 'posted', warehouseReceiveStatus: 'received', accountingStatus: 'confirmed', accountingConfirmed: true }), updatedExisting: Boolean(existing) };
 }
 
 
@@ -685,10 +720,13 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
     return { returnOrder: toClient(current), alreadyReceived: true };
   }
 
-  const received = {
+  let received = {
     ...current,
     status: 'received',
+    returnStatus: current.returnStatus || 'active',
     warehouseReceiveStatus: 'received',
+    accountingStatus: 'confirmed',
+    accountingConfirmed: true,
     receivedAt: dateUtil.nowIso(),
     postedAt: current.postedAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
@@ -705,9 +743,8 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
       date: received.date,
       note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
     }, { session });
-    // Kho xác nhận hàng trả chỉ ảnh hưởng tồn kho.
-    // Không post AR-RETURN và không sync công nợ ở đây.
-    // Kế toán sẽ ghi giảm công nợ ở màn xác nhận công nợ/giao hàng.
+    const posted = await postReturnOrderArIfNeeded(received, { session });
+    received = posted.returnOrder || received;
   });
 
   return { returnOrder: toClient(received), alreadyReceived: false };
