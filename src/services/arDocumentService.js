@@ -58,7 +58,15 @@ function buildArDocumentLines(order = {}) {
   const receivable = lineAmount(deliveryFinance.deliveryDebtBase(order));
   const cash = lineAmount(order.cashCollected ?? order.cashAmount ?? 0);
   const bank = lineAmount(order.bankCollected ?? order.bankAmount ?? order.transferAmount ?? 0);
-  const returnAmount = lineAmount(order.returnAmount ?? order.returnedAmount ?? 0);
+  // ===== SCOPED FIX: AR-RETURN ONLY FROM RETURNORDERS =====
+  // AR-RETURN là bút toán kế toán nên chỉ lấy từ số đã SUM trực tiếp từ returnOrders.
+  // Không fallback về order.returnAmount/returnedAmount vì đó chỉ là snapshot hiển thị, có thể cũ hoặc bị child ghi đè = 0.
+  const returnAmount = lineAmount(
+    order.returnAmountFromReturnOrders ??
+    order.syncedReturnAmountFromReturnOrders ??
+    0
+  );
+  // ===== END SCOPED FIX =====
   const bonus = lineAmount(order.rewardAmount ?? order.bonusAmount ?? order.discountAmount ?? order.allowanceAmount ?? 0);
   const lines = [];
 

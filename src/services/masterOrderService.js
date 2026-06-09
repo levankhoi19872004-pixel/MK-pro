@@ -33,6 +33,29 @@ function compactDeliveryOrderKeys(order = {}) {
     .filter(Boolean);
 }
 
+function compactReturnOrderAccountingKeys(order = {}) {
+  // ===== SCOPED FIX: DIRECT RETURNORDERS MATCH KEYS =====
+  // AR-RETURN phải match trực tiếp theo mã/id đơn bán. Không dùng masterOrderId/masterOrderCode
+  // vì một đơn tổng có nhiều đơn con, dùng master key sẽ làm sai phân bổ hàng trả.
+  return [
+    order.id,
+    order._id,
+    order.code,
+    order.orderCode,
+    order.documentCode,
+    order.salesOrderId,
+    order.salesOrderCode,
+    order.sourceOrderId,
+    order.sourceOrderCode,
+    order.deliveryOrderId,
+    order.deliveryOrderCode
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  // ===== END SCOPED FIX =====
+}
+
+
 const VALID_SALES_ORDER_ID_RE = /^SO\d+$/i;
 
 function normalizeSalesOrderIds(ids = []) {
@@ -428,43 +451,24 @@ function returnOrderTotalAmount(row = {}) {
   }, 0);
 }
 
-function returnAmountForSalesOrder(returnOrders = [], order = {}) {
-  const orderId = String(order.id || '').trim();
-  const orderCode = String(order.code || '').trim();
-  return returnOrders
+function returnOrdersForSalesOrder(returnOrders = [], order = {}) {
+  // ===== SCOPED FIX: AR-RETURN READS DIRECTLY FROM RETURNORDERS =====
+  // Match theo tập key đầy đủ của đơn bán/phiếu trả. Không chỉ so id/code,
+  // và không dùng master key để tránh lấy nhầm hàng trả của đơn con khác cùng đơn tổng.
+  const orderKeys = new Set(compactReturnOrderAccountingKeys(order));
+  if (!orderKeys.size) return [];
+  return (returnOrders || [])
     .filter(isActiveReturnOrder)
-    .filter((row) => {
-      const rowOrderId = String(row.salesOrderId || row.orderId || row.sourceOrderId || row.deliveryOrderId || '').trim();
-      const rowOrderCode = String(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.deliveryOrderCode || '').trim();
-      const rowMasterId = String(row.masterOrderId || row.masterDeliveryOrderId || '').trim();
-      const rowMasterCode = String(row.masterOrderCode || row.masterDeliveryOrderCode || '').trim();
-      const masterId = String(order.masterOrderId || '').trim();
-      const masterCode = String(order.masterOrderCode || '').trim();
-      return (orderId && rowOrderId === orderId)
-        || (orderCode && rowOrderCode === orderCode)
-        || (masterId && rowMasterId === masterId)
-        || (masterCode && rowMasterCode === masterCode);
-    })
-    .reduce((sum, row) => sum + returnOrderTotalAmount(row), 0);
+    .filter((row) => compactReturnOrderAccountingKeys(row).some((key) => orderKeys.has(key)));
+  // ===== END SCOPED FIX =====
 }
 
-function returnOrdersForSalesOrder(returnOrders = [], order = {}) {
-  const orderId = String(order.id || '').trim();
-  const orderCode = String(order.code || '').trim();
-  return returnOrders
-    .filter(isActiveReturnOrder)
-    .filter((row) => {
-      const rowOrderId = String(row.salesOrderId || row.orderId || row.sourceOrderId || row.deliveryOrderId || '').trim();
-      const rowOrderCode = String(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.deliveryOrderCode || '').trim();
-      const rowMasterId = String(row.masterOrderId || row.masterDeliveryOrderId || '').trim();
-      const rowMasterCode = String(row.masterOrderCode || row.masterDeliveryOrderCode || '').trim();
-      const masterId = String(order.masterOrderId || '').trim();
-      const masterCode = String(order.masterOrderCode || '').trim();
-      return (orderId && rowOrderId === orderId)
-        || (orderCode && rowOrderCode === orderCode)
-        || (masterId && rowMasterId === masterId)
-        || (masterCode && rowMasterCode === masterCode);
-    });
+function returnAmountForSalesOrder(returnOrders = [], order = {}) {
+  // ===== SCOPED FIX: SUM AR-RETURN DIRECTLY FROM RETURNORDERS =====
+  // Đây là nguồn duy nhất sinh AR-RETURN cho ArDocument/arLedgers.
+  return returnOrdersForSalesOrder(returnOrders, order)
+    .reduce((sum, row) => sum + returnOrderTotalAmount(row), 0);
+  // ===== END SCOPED FIX =====
 }
 
 
@@ -2702,6 +2706,7 @@ async function confirmDeliveryAccounting(body = {}) {
         returnAmount: syncedReturnAmount,
         returnedAmount: syncedReturnAmount,
         returnAmountFromReturnOrders: syncedReturnAmount,
+        syncedReturnAmountFromReturnOrders: syncedReturnAmount,
         returnAmountSource: 'returnOrders',
         debtAmount,
         debt: debtAmount,
