@@ -9,6 +9,7 @@ const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const ArLedger = require('../models/ArLedger');
 const ArDocument = require('../models/ArDocument');
+const CustomerBalance = require('../models/CustomerBalance');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const ReturnOrder = require('../models/ReturnOrder');
@@ -675,6 +676,138 @@ function normalizeArDocumentEntry(row = {}) {
   };
 }
 
+
+function buildCustomerBalanceMatch(query = {}, customerCodes = []) {
+  const match = {};
+  const and = [];
+  const or = [];
+  const q = normalizeText(query.q || query.keyword || query.search);
+
+  if (customerCodes.length) {
+    or.push({ customerCode: { $in: customerCodes } }, { customerId: { $in: customerCodes } });
+  }
+  if (query.customerCode) match.customerCode = String(query.customerCode).trim();
+  if (query.customerId) match.customerId = String(query.customerId).trim();
+
+  if (query.salesman) {
+    const value = String(query.salesman).trim();
+    and.push({ $or: [
+      { 'orderSnapshots.salesmanCode': value },
+      { 'orderSnapshots.salesStaffCode': value },
+      { salesmanCode: value },
+      { salesStaffCode: value }
+    ] });
+  }
+
+  if (query.delivery) {
+    const value = String(query.delivery).trim();
+    and.push({ $or: [
+      { 'orderSnapshots.deliveryStaffCode': value },
+      { deliveryStaffCode: value },
+      { deliveryStaffName: value }
+    ] });
+  }
+
+  if (q) {
+    const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    or.push({ customerCode: re }, { customerName: re }, { 'orderSnapshots.orderCode': re }, { 'orderSnapshots.arDocumentCode': re });
+  }
+
+  if (or.length) and.push({ $or: or });
+  if (and.length) match.$and = and;
+  return match;
+}
+
+function normalizeCustomerBalanceEntry(row = {}) {
+  const debt = normalizeDebtAmount(row.currentDebt);
+  const orders = Array.isArray(row.orderSnapshots) ? row.orderSnapshots : [];
+  const documentDate = dateUtil.toDateOnly(row.lastDocumentDate || row.updatedAt || dateUtil.todayVN());
+  return {
+    balanceId: row.id || String(row._id || ''),
+    customerId: row.customerId || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || 'Chưa rõ khách',
+    documentDate,
+    dueDate: documentDate,
+    debit: toNumber(row.saleAmount),
+    credit: toNumber(row.totalCredit),
+    receiptAmount: toNumber(row.receiptAmount),
+    returnAmount: toNumber(row.returnAmount),
+    bonusAmount: toNumber(row.bonusAmount),
+    cashAmount: toNumber(row.cashAmount),
+    bankAmount: toNumber(row.bankAmount),
+    debt,
+    rawDebt: debt,
+    overpaidAmount: Math.max(0, -debt),
+    debtZeroTolerance: DEBT_ZERO_TOLERANCE,
+    orderCount: toNumber(row.orderCount || orders.length),
+    openOrderCount: toNumber(row.openOrderCount),
+    overdueCount: toNumber(row.overdueCount),
+    overdueDays: 0,
+    agingDays: documentDate ? Math.max(0, daysBetween(dateUtil.todayVN(), documentDate)) : 0,
+    status: isOverpaid(debt) ? 'overpaid' : (hasOpenDebt(debt) ? 'open' : 'paid'),
+    source: 'customerBalances',
+    orders
+  };
+}
+
+async function debtReportFromCustomerBalances(query = {}, customerCodes = [], page = 1, limit = 50, skip = 0) {
+  const match = buildCustomerBalanceMatch(query, customerCodes);
+  const rows = await CustomerBalance.find(match).sort({ updatedAt: -1, customerCode: 1 }).skip(skip).limit(limit + 1).lean().catch(() => []);
+  let customerSummary = rows.map(normalizeCustomerBalanceEntry);
+  customerSummary = applyDebtStatusFilter(customerSummary, query);
+  const hasMore = customerSummary.length > limit;
+  customerSummary = customerSummary.slice(0, limit);
+
+  const debts = customerSummary.flatMap((customer) => (Array.isArray(customer.orders) ? customer.orders : []).map((order) => ({
+    ...order,
+    customerId: customer.customerId,
+    customerCode: customer.customerCode,
+    customerName: customer.customerName,
+    debit: toNumber(order.saleAmount),
+    credit: toNumber(order.totalCredit),
+    receiptAmount: toNumber(order.receiptAmount),
+    returnAmount: toNumber(order.returnAmount),
+    bonusAmount: toNumber(order.bonusAmount),
+    debt: normalizeDebtAmount(order.currentDebt),
+    rawDebt: normalizeDebtAmount(order.currentDebt),
+    status: hasOpenDebt(order.currentDebt) ? 'open' : 'paid',
+    source: 'customerBalances.orderSnapshots'
+  })));
+
+  const bySalesman = buildDebtPersonSummary(debts, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
+  const byDelivery = buildDebtPersonSummary(debts, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
+  const summary = {
+    page,
+    limit,
+    hasMore,
+    orderCount: sum(customerSummary, (row) => row.orderCount),
+    customerCount: customerSummary.length,
+    overdueCount: sum(customerSummary, (row) => row.overdueCount),
+    totalDebit: sum(customerSummary, (row) => row.debit),
+    totalCredit: sum(customerSummary, (row) => row.credit),
+    totalDebt: sum(customerSummary, (row) => normalizeDebtAmount(row.debt)),
+    totalPositiveDebt: sum(customerSummary.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
+    totalOverpaid: sum(customerSummary.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
+    debtZeroTolerance: DEBT_ZERO_TOLERANCE,
+    balanceCount: customerSummary.length,
+    optimized: true
+  };
+
+  return {
+    source: 'mongo_customer_balances_snapshot',
+    ledgerCollection: 'customerBalances',
+    debts,
+    customerSummary,
+    bySalesman,
+    byDelivery,
+    arLedger: [],
+    arDiagnostics: [],
+    summary
+  };
+}
+
+
 async function debtReportFromArDocuments(query = {}, customerCodes = [], page = 1, limit = 50, skip = 0) {
   const match = buildDebtDocumentMatch(query, customerCodes);
   const rows = await ArDocument.find(match).sort({ updatedAt: -1, documentDate: -1 }).skip(skip).limit(limit + 1).lean().catch(() => []);
@@ -811,10 +944,15 @@ async function debtReport(query = {}) {
   if (query.customerId) seedCodes.push(String(query.customerId).trim());
   const customerCodes = Array.from(new Set(seedCodes));
 
-  // ===== SCOPED FIX: DEBT REPORT PREFERS AR DOCUMENTS =====
-  // Nguồn công nợ chính mới: arDocuments, mỗi đơn = một hồ sơ công nợ.
-  // Nếu collection đã có dữ liệu, báo cáo công nợ đọc theo hồ sơ này;
-  // arLedgers chỉ còn là chi tiết/audit tương thích cũ.
+  // ===== SCOPED FIX: DEBT REPORT PREFERS CUSTOMER BALANCES SNAPSHOT =====
+  // Sau xác nhận kế toán, công nợ đọc số liệu đã số hoá từ customerBalances.
+  // customerBalances được rebuild từ arDocuments; arDocuments có AR-RETURN lấy trực tiếp từ returnOrders.
+  // Nếu chưa có snapshot thì fallback arDocuments/arLedgers để không làm mất dữ liệu cũ.
+  const customerBalanceCount = await CustomerBalance.countDocuments(buildCustomerBalanceMatch(query, customerCodes)).catch(() => 0);
+  if (customerBalanceCount > 0) {
+    return debtReportFromCustomerBalances(query, customerCodes, page, limit, skip);
+  }
+
   const arDocumentCount = await ArDocument.countDocuments(buildDebtDocumentMatch(query, customerCodes)).catch(() => 0);
   if (arDocumentCount > 0) {
     return debtReportFromArDocuments(query, customerCodes, page, limit, skip);

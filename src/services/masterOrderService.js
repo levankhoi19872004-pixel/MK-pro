@@ -16,6 +16,7 @@ const reportService = require('./reportService');
 const auditService = require('./auditService');
 const postingEngine = require('../engines/posting.engine');
 const arDocumentService = require('./arDocumentService');
+const accountingSnapshotService = require('./accountingSnapshotService');
 const paymentRepository = require('../repositories/paymentRepository');
 const MongoStore = require('../models');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
@@ -2760,7 +2761,21 @@ async function confirmDeliveryAccounting(body = {}) {
     if (orderUpdateOps.length) {
       await MongoStore.salesOrders.bulkWrite(orderUpdateOps, { ordered: false, session });
     }
-    // Công nợ khách hàng chỉ lấy từ AR Ledger; không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
+
+    // ===== SCOPED FIX: ACCOUNTING SNAPSHOTS AFTER AR DOCUMENTS =====
+    // Sau xác nhận kế toán: chuyển từ quản lý đơn sang quản lý số liệu.
+    // Snapshot chỉ được rebuild từ arDocuments, mà arDocuments đã lấy AR-RETURN trực tiếp từ returnOrders.
+    // Không cộng trực tiếp vào customer.currentDebt để tránh 2 nguồn công nợ.
+    if (confirmedOrders > 0) {
+      await accountingSnapshotService.rebuildAccountingSnapshotsForOrders(
+        normalPostChildren.concat(targetChildren.map((row) => {
+          const keys = compactDeliveryOrderKeys(row.child);
+          return keys.map((key) => accountingSalesOrderMap.get(key)).find(Boolean) || row.child;
+        })),
+        { session }
+      );
+    }
+    // ===== END SCOPED FIX =====
   });
 
   return {

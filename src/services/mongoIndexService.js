@@ -139,6 +139,19 @@ const INDEX_DEFINITIONS = {
     [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_ar_documents_delivery_staff_date' }],
     [{ salesStaffCode: 1, documentDate: -1 }, { name: 'idx_ar_documents_sales_staff_date' }]
   ],
+  customerBalances: [
+    [{ customerCode: 1 }, { name: 'idx_customer_balances_customer_code', unique: true }],
+    [{ currentDebt: -1 }, { name: 'idx_customer_balances_current_debt' }],
+    [{ updatedAt: -1 }, { name: 'idx_customer_balances_updated_at' }]
+  ],
+  salesSnapshots: [
+    [{ date: 1 }, { name: 'idx_sales_snapshots_date' }],
+    [{ date: 1, salesmanCode: 1 }, { name: 'idx_sales_snapshots_date_salesman' }],
+    [{ date: 1, customerCode: 1 }, { name: 'idx_sales_snapshots_date_customer' }]
+  ],
+  cashSnapshots: [
+    [{ date: 1 }, { name: 'idx_cash_snapshots_date', unique: true }]
+  ],
   arLedgers: [
     [{ id: 1 }, { name: 'idx_ar_ledgers_id' }],
     [{ code: 1 }, { name: 'idx_ar_ledgers_code' }],
