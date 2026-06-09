@@ -189,6 +189,38 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
   });
 }
 
+// ===== SCOPED FIX: HYDRATE ACCOUNTING CHILDREN FROM SALESORDERS =====
+// Xác nhận kế toán phải dùng SalesOrder thật làm nguồn đối soát returnOrders.
+// master.children chỉ là snapshot của đơn tổng, có thể thiếu salesOrderId/salesOrderCode
+// hoặc thiếu các field returnAmount mới nhất, làm AR-RETURN không được sinh ra.
+async function hydrateAccountingChildrenFromSalesOrders(targetChildren = []) {
+  const rows = Array.isArray(targetChildren) ? targetChildren : [];
+  const keys = [...new Set(rows.flatMap((row) => compactDeliveryOrderKeys(row && row.child ? row.child : row)))];
+  const filter = buildIdentityInFilter(keys, [
+    'id',
+    'code',
+    'orderCode',
+    'documentCode',
+    'salesOrderId',
+    'salesOrderCode',
+    'sourceOrderId',
+    'sourceOrderCode',
+    'deliveryOrderId',
+    'deliveryOrderCode'
+  ]);
+  const map = new Map();
+  if (!filter) return map;
+
+  const orders = await orderRepository.findAll(filter);
+  for (const order of orders || []) {
+    for (const key of compactDeliveryOrderKeys(order)) {
+      if (key && !map.has(key)) map.set(key, order);
+    }
+  }
+  return map;
+}
+// ===== END SCOPED FIX =====
+
 function buildMasterOrderCode(existingMasterOrders = []) {
   const max = existingMasterOrders.reduce((result, order) => {
     const match = String(order.code || '').match(/(\d+)$/);
@@ -1327,13 +1359,13 @@ async function listDeliveryToday(query = {}) {
         isLate: Boolean(child.isLate),
         needReAccounting: Boolean(child.needReAccounting || child.reAccountingRequired),
         adminAdjustmentOpen: Boolean(child.adminAdjustmentOpen),
-        unlockReason: child.unlockReason || '',
-        unlockedAt: child.unlockedAt || '',
-        unlockedBy: child.unlockedBy || '',
+        unlockReason: accountingSource.unlockReason || '',
+        unlockedAt: accountingSource.unlockedAt || '',
+        unlockedBy: accountingSource.unlockedBy || '',
         accountingConfirmed: !isAccountingReopenPending(child) && (isAccountingConfirmed(child) || isAccountingConfirmed(master)),
         accountingStatus: child.accountingStatus || master.accountingStatus || 'draft_delivery',
-        accountingConfirmedAt: child.accountingConfirmedAt || master.accountingConfirmedAt || '',
-        accountingConfirmedBy: child.accountingConfirmedBy || master.accountingConfirmedBy || '',
+        accountingConfirmedAt: accountingSource.accountingConfirmedAt || master.accountingConfirmedAt || '',
+        accountingConfirmedBy: accountingSource.accountingConfirmedBy || master.accountingConfirmedBy || '',
         editLocked: !isAccountingReopenPending(child) && (isAccountingConfirmed(child) || isAccountingConfirmed(master))
       };
 
@@ -2274,9 +2306,9 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         adminAdjustmentOpen: Boolean(child.adminAdjustmentOpen),
         arStatus: child.arStatus || '',
         lifecycleStatus: child.lifecycleStatus || '',
-        arPostedAt: child.arPostedAt || '',
-        accountingConfirmedAt: child.accountingConfirmedAt || '',
-        accountingConfirmedBy: child.accountingConfirmedBy || '',
+        arPostedAt: accountingSource.arPostedAt || '',
+        accountingConfirmedAt: accountingSource.accountingConfirmedAt || '',
+        accountingConfirmedBy: accountingSource.accountingConfirmedBy || '',
         hasReturn: returnAmount > 0,
         items: mergedItems,
         orderItems: soldItems,
@@ -2570,11 +2602,14 @@ async function confirmDeliveryAccounting(body = {}) {
 
   // ===== SCOPED FIX: SYNC RETURNORDERS BEFORE AR DOCUMENT CONFIRM =====
   // Khi xác nhận kế toán, dữ liệu hàng trả phải lấy lại từ returnOrders - nguồn chuẩn duy nhất.
-  // Không dựa vào child.returnAmount trong master.children vì field này có thể là snapshot cũ/rỗng,
-  // khiến hồ sơ công nợ AR-<mã đơn> thiếu dòng AR-RETURN.
-  const accountingReturnOrders = await findReturnOrdersForDeliveryChildren(
-    targetChildren.map((row) => row.child)
-  );
+  // Không dựa vào child.returnAmount trong master.children vì field này có thể là snapshot cũ/rỗng.
+  // Trước khi tìm returnOrders, nạp lại SalesOrder thật để có đủ id/code/salesOrderId/salesOrderCode.
+  const accountingSalesOrderMap = await hydrateAccountingChildrenFromSalesOrders(targetChildren);
+  const accountingLookupChildren = targetChildren.map((row) => {
+    const keys = compactDeliveryOrderKeys(row.child);
+    return keys.map((key) => accountingSalesOrderMap.get(key)).find(Boolean) || row.child;
+  });
+  const accountingReturnOrders = await findReturnOrdersForDeliveryChildren(accountingLookupChildren);
   // ===== END SCOPED FIX =====
 
   let confirmedOrders = 0;
@@ -2612,9 +2647,26 @@ async function confirmDeliveryAccounting(body = {}) {
     const orderUpdateOps = [];
 
     for (const { child } of targetChildren) {
-      const alreadyConfirmed = isAccountingConfirmed(child);
-      const requiresReAccounting = isAccountingReopenPending(child);
-      const deliveredForAccounting = isDeliveryCompletedStatus(child.deliveryStatus || child.status);
+      // ===== SCOPED FIX: USE REAL SALESORDER SNAPSHOT FOR ACCOUNTING =====
+      // Lấy SalesOrder thật để đối soát returnOrders; sau đó cho snapshot child ghi đè
+      // các field tiền/trạng thái vừa sửa trong màn giao hàng. Giữ fallback id/code chuẩn
+      // để ArDocument vẫn tạo đúng mã AR-<mã đơn>.
+      const realOrder = compactDeliveryOrderKeys(child)
+        .map((key) => accountingSalesOrderMap.get(key))
+        .find(Boolean);
+      const accountingSource = {
+        ...(realOrder || {}),
+        ...child,
+        id: child.id || child.salesOrderId || (realOrder && (realOrder.id || realOrder.salesOrderId)) || child._id,
+        code: child.code || child.orderCode || child.salesOrderCode || (realOrder && (realOrder.code || realOrder.orderCode || realOrder.salesOrderCode)),
+        orderCode: child.orderCode || child.code || child.salesOrderCode || (realOrder && (realOrder.orderCode || realOrder.code || realOrder.salesOrderCode)),
+        salesOrderId: child.salesOrderId || child.id || (realOrder && (realOrder.salesOrderId || realOrder.id)),
+        salesOrderCode: child.salesOrderCode || child.orderCode || child.code || (realOrder && (realOrder.salesOrderCode || realOrder.orderCode || realOrder.code))
+      };
+      // ===== END SCOPED FIX =====
+      const alreadyConfirmed = isAccountingConfirmed(accountingSource);
+      const requiresReAccounting = isAccountingReopenPending(accountingSource);
+      const deliveredForAccounting = isDeliveryCompletedStatus(accountingSource.deliveryStatus || accountingSource.status);
       if (!deliveredForAccounting || (alreadyConfirmed && !requiresReAccounting)) {
         skippedOrders += 1;
         continue;
@@ -2623,29 +2675,29 @@ async function confirmDeliveryAccounting(body = {}) {
       // Tính lại số tiền giao hàng trước khi tạo/cập nhật ArDocument để AR-RETURN được ghi nhận.
       // buildDeliveryAmount() giữ nguyên quy tắc tiền mặt/chuyển khoản/trả thưởng hiện có,
       // chỉ override riêng hàng trả bằng số đã đồng bộ từ returnOrders.
-      const syncedReturnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountForSalesOrder(accountingReturnOrders, child))));
-      const deliveryAmountsForAccounting = buildDeliveryAmount(child, syncedReturnAmount);
+      const syncedReturnAmount = Math.max(0, normalizeDebtAmount(Math.round(returnAmountForSalesOrder(accountingReturnOrders, accountingSource))));
+      const deliveryAmountsForAccounting = buildDeliveryAmount(accountingSource, syncedReturnAmount);
       const debtAmount = deliveryAmountsForAccounting.debtAmount;
       // ===== END SCOPED FIX =====
 
       const updated = {
-        ...child,
+        ...accountingSource,
         accountingConfirmed: true,
         accountingStatus: 'confirmed',
         accountingLocked: true,
         accountingNeedsReconfirm: false,
-        accountingConfirmedAt: child.accountingConfirmedAt || now,
-        accountingConfirmedBy: child.accountingConfirmedBy || confirmedBy,
+        accountingConfirmedAt: accountingSource.accountingConfirmedAt || now,
+        accountingConfirmedBy: accountingSource.accountingConfirmedBy || confirmedBy,
         editLocked: true,
         deliveryLocked: true,
         needReAccounting: false,
         reAccountingRequired: false,
         adminAdjustmentOpen: false,
-        reopenedAt: requiresReAccounting ? (child.reopenedAt || child.unlockedAt || '') : (child.reopenedAt || ''),
-        reopenedBy: requiresReAccounting ? (child.reopenedBy || child.unlockedBy || '') : (child.reopenedBy || ''),
-        reopenReason: requiresReAccounting ? (child.reopenReason || child.unlockReason || '') : (child.reopenReason || ''),
-        reconfirmedAt: requiresReAccounting ? now : (child.reconfirmedAt || ''),
-        reconfirmedBy: requiresReAccounting ? confirmedBy : (child.reconfirmedBy || ''),
+        reopenedAt: requiresReAccounting ? (accountingSource.reopenedAt || accountingSource.unlockedAt || '') : (accountingSource.reopenedAt || ''),
+        reopenedBy: requiresReAccounting ? (accountingSource.reopenedBy || accountingSource.unlockedBy || '') : (accountingSource.reopenedBy || ''),
+        reopenReason: requiresReAccounting ? (accountingSource.reopenReason || accountingSource.unlockReason || '') : (accountingSource.reopenReason || ''),
+        reconfirmedAt: requiresReAccounting ? now : (accountingSource.reconfirmedAt || ''),
+        reconfirmedBy: requiresReAccounting ? confirmedBy : (accountingSource.reconfirmedBy || ''),
         // ===== SCOPED FIX: PERSIST RETURNORDERS AMOUNT INTO AR SOURCE SNAPSHOT =====
         returnAmount: syncedReturnAmount,
         returnedAmount: syncedReturnAmount,
@@ -2657,10 +2709,10 @@ async function confirmDeliveryAccounting(body = {}) {
         // ===== END SCOPED FIX =====
         arStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
         lifecycleStatus: hasOpenDebt(debtAmount) ? 'ar_posted' : 'paid',
-        arPostedAt: child.arPostedAt || now,
-        reAccountingAt: requiresReAccounting ? now : (child.reAccountingAt || ''),
-        reAccountingBy: requiresReAccounting ? confirmedBy : (child.reAccountingBy || ''),
-        reAccountingNote: requiresReAccounting ? 'Reverse AR cũ và post lại AR mới sau điều chỉnh admin' : (child.reAccountingNote || ''),
+        arPostedAt: accountingSource.arPostedAt || now,
+        reAccountingAt: requiresReAccounting ? now : (accountingSource.reAccountingAt || ''),
+        reAccountingBy: requiresReAccounting ? confirmedBy : (accountingSource.reAccountingBy || ''),
+        reAccountingNote: requiresReAccounting ? 'Reverse AR cũ và post lại AR mới sau điều chỉnh admin' : (accountingSource.reAccountingNote || ''),
         updatedAt: now
       };
 
