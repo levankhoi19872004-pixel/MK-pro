@@ -195,6 +195,27 @@ router.post('/delivery/payment', requireMobileLogin, requireMobileRole(['deliver
     const body = mobileUser.role === 'delivery'
       ? { ...(req.body || {}), deliveryStaffCode: mobileUser.staffCode || mobileUser.code, deliveryStaffName: mobileUser.fullName || mobileUser.name, staffCode: mobileUser.staffCode || mobileUser.code, staffName: mobileUser.fullName || mobileUser.name }
       : { ...(req.body || {}) };
+
+    // MK-SCOPED-FIX: MOBILE_PAYMENT_ACCOUNTING_LOCK_START
+    // Chặn ngay tại mobile route trước khi gọi DeliveryEngine để tránh ghi tiền vào SalesOrder
+    // khi đơn đã xác nhận kế toán nhưng chưa được admin mở khóa.
+    const paymentKey = String(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode || '').trim();
+    if (paymentKey) {
+      const currentOrder = await SalesOrder.findOne({
+        $or: [
+          { id: paymentKey },
+          { code: paymentKey },
+          { orderCode: paymentKey },
+          { salesOrderCode: paymentKey },
+          { documentCode: paymentKey }
+        ]
+      }).lean();
+      if (isAccountingLockedForMobilePayment(currentOrder)) {
+        return fail(res, 423, 'Đơn đã xác nhận kế toán, cần mở khóa admin trước khi sửa tiền');
+      }
+    }
+    // MK-SCOPED-FIX: MOBILE_PAYMENT_ACCOUNTING_LOCK_END
+
     const result = await createCanonicalDeliveryEngine().savePayment(body);
     return ok(res, { source: 'delivery-engine-mobile-bridge', message: result.message, order: result.order, allocation: result.allocation });
   } catch (err) {
@@ -448,6 +469,20 @@ function isAccountingConfirmedForAR(row = {}) {
   const accountingStatus = String(row.accountingStatus || '').toLowerCase();
   return Boolean(row.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
 }
+
+// MK-SCOPED-FIX: MOBILE_PAYMENT_ACCOUNTING_LOCK_HELPERS_START
+// Helper riêng cho route lưu tiền mobile: phân biệt đơn đã khóa kế toán và đơn admin đã mở khóa.
+function isAccountingReopenPendingForMobile(row = {}) {
+  const accountingStatus = String(row.accountingStatus || '').toLowerCase();
+  return Boolean(row.accountingNeedsReconfirm || row.needReAccounting || row.reAccountingRequired || row.adminAdjustmentOpen)
+    || ['reopened', 'needs_reconfirm', 'needs_repost'].includes(accountingStatus);
+}
+
+function isAccountingLockedForMobilePayment(row = {}) {
+  if (!row || isAccountingReopenPendingForMobile(row)) return false;
+  return isAccountingConfirmedForAR(row) || Boolean(row.accountingLocked || row.editLocked);
+}
+// MK-SCOPED-FIX: MOBILE_PAYMENT_ACCOUNTING_LOCK_HELPERS_END
 
 function applyOrderDebtLifecycle(order) {
   const debtAmount = Math.max(0, normalizeDebtAmount(order.debtAmount ?? order.debt ?? 0));

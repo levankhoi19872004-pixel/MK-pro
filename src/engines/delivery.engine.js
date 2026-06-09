@@ -13,6 +13,21 @@ function num(value) { const n = Number(value || 0); return Number.isFinite(n) ? 
 function norm(value) { return lower(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim(); }
 function compact(value) { return norm(value).replace(/[^a-z0-9]/g, ''); }
 function truthy(value) { return ['1', 'true', 'yes', 'y'].includes(lower(value)); }
+function isAccountingReopenPendingForPayment(order = {}) {
+  const st = order && typeof order.status === 'object' ? order.status : {};
+  const accountingStatus = lower(order.accountingStatus || st.accountingStatus);
+  return Boolean(order.accountingNeedsReconfirm || order.needReAccounting || order.reAccountingRequired || order.adminAdjustmentOpen)
+    || ['reopened', 'needs_reconfirm', 'needs_repost'].includes(accountingStatus);
+}
+
+function isAccountingConfirmedForPayment(order = {}) {
+  if (!order || isAccountingReopenPendingForPayment(order)) return false;
+  const st = order && typeof order.status === 'object' ? order.status : {};
+  const accountingStatus = lower(order.accountingStatus || st.accountingStatus);
+  return Boolean(order.accountingConfirmed || order.accountingLocked || order.editLocked)
+    || ['confirmed', 'locked', 'posted', 'done'].includes(accountingStatus);
+}
+
 
 function escapeRegex(value) { return text(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function cleanOrderCode(value) { return text(value).replace(/^RO[-_]?/i, ''); }
@@ -742,6 +757,18 @@ class DeliveryEngine {
       err.status = 404;
       throw err;
     }
+    // MK-SCOPED-FIX: PAYMENT_REACCOUNTING_GUARD_START
+    // Chỉ khoanh vùng nghiệp vụ lưu thu tiền app giao hàng.
+    // Đã xác nhận kế toán thì không cho sửa, trừ khi admin đã mở khóa/reopen.
+    const accountingConfirmed = isAccountingConfirmedForPayment(current);
+    const accountingReopened = isAccountingReopenPendingForPayment(current);
+    if (accountingConfirmed && !accountingReopened) {
+      const err = new Error('Đơn đã xác nhận kế toán, cần mở khóa admin trước khi sửa tiền');
+      err.status = 423;
+      throw err;
+    }
+    // MK-SCOPED-FIX: PAYMENT_REACCOUNTING_GUARD_END
+
     const cashAmount = Math.max(0, num(body.cashAmount ?? body.cashCollected));
     const bankAmount = Math.max(0, num(body.bankAmount ?? body.bankCollected ?? body.transferAmount));
     const rewardAmount = Math.max(0, num(body.rewardAmount ?? body.bonusAmount));
@@ -786,6 +813,26 @@ class DeliveryEngine {
       displayRewardAmount: rewardAmount,
       paidAmount: cashAmount + bankAmount,
       collectedAmount: cashAmount + bankAmount,
+      // MK-SCOPED-FIX: PAYMENT_REACCOUNTING_STATUS_START
+      // Sau khi admin mở khóa và nhân viên lưu lại tiền, bắt buộc kế toán xác nhận lại
+      // để service kế toán đảo AR cũ và post AR mới.
+      ...(accountingReopened ? {
+        accountingConfirmed: false,
+        accountingLocked: false,
+        editLocked: false,
+        accountingNeedsReconfirm: true,
+        needReAccounting: true,
+        reAccountingRequired: true,
+        adminAdjustmentOpen: true,
+        accountingStatus: 'needs_reconfirm',
+        arStatus: 'needs_reconfirm',
+        lifecycleStatus: 'needs_reconfirm',
+        financialSyncStatus: 'needs_reconfirm',
+        arPostedAt: ''
+      } : {
+        accountingStatus: current.accountingStatus || 'pending_accounting'
+      }),
+      // MK-SCOPED-FIX: PAYMENT_REACCOUNTING_STATUS_END
       updatedAt: new Date().toISOString()
     };
     const updated = await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), { $set: patch }, { new: true, lean: true });

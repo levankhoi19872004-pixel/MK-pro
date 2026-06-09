@@ -539,14 +539,26 @@
     var cls = r.balanced === false ? ' danger-text' : (debtForStatus > 0 ? ' danger-text' : ' success-text');
     var msg = r.message || (debtForStatus > 0 ? 'Còn công nợ' : 'Đối soát OK');
     var returnAmount = returnAmountFromReturnOrders(order);
+
+    // MK-SCOPED-FIX: PAYMENT_ACCOUNTING_LOCK_START
+    // Khóa riêng form Thu tiền khi đơn đã xác nhận kế toán và chưa được admin mở khóa.
+    // Chỉ tác động tab Thu tiền & Tổng kết, không đổi luồng hàng giao/hàng trả.
+    var accountingLocked = isAccountingConfirmed(order) && !isAccountingReopenPending(order);
+    var disabledAttr = accountingLocked ? ' disabled' : '';
+    var lockedNotice = accountingLocked
+      ? '<div class="delivery-v46-locked-note danger-text">Đơn đã xác nhận kế toán. Muốn sửa tiền cần mở khóa admin trước.</div>'
+      : '';
+    // MK-SCOPED-FIX: PAYMENT_ACCOUNTING_LOCK_END
+
     return '' +
       '<div class="delivery-v46-payment-summary-tab">' +
         '<form id="deliveryPaymentForm" class="delivery-v46-payment-form">' +
           '<h4>Thu tiền</h4>' +
-          '<label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(baseAmount(order, 'cash')) + '"></label>' +
-          '<label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(baseAmount(order, 'bank')) + '"></label>' +
-          '<label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(baseAmount(order, 'reward')) + '"></label>' +
-          '<button type="submit">Lưu thu tiền</button>' +
+          lockedNotice +
+          '<label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(baseAmount(order, 'cash')) + '"' + disabledAttr + '></label>' +
+          '<label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(baseAmount(order, 'bank')) + '"' + disabledAttr + '></label>' +
+          '<label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(baseAmount(order, 'reward')) + '"' + disabledAttr + '></label>' +
+          '<button type="submit"' + disabledAttr + '>Lưu thu tiền</button>' +
         '</form>' +
         '<section class="delivery-v46-summary-box">' +
           '<h4>Tổng kết đơn</h4>' +
@@ -593,6 +605,14 @@
 
   async function savePayment(event) {
     if (event && event.preventDefault) event.preventDefault();
+    // MK-SCOPED-FIX: PAYMENT_ACCOUNTING_LOCK_GUARD_START
+    // Chặn ở JS trước khi gọi API để tránh sửa tiền sau khi kế toán đã xác nhận.
+    var selectedOrder = window.DeliveryCore && window.DeliveryCore.state ? window.DeliveryCore.state.selectedOrder : null;
+    if (isAccountingConfirmed(selectedOrder) && !isAccountingReopenPending(selectedOrder)) {
+      message('Đơn đã xác nhận kế toán, cần mở khóa admin trước khi sửa tiền', true);
+      return;
+    }
+    // MK-SCOPED-FIX: PAYMENT_ACCOUNTING_LOCK_GUARD_END
     var form = new FormData(event.target);
     try {
       message('Đang lưu thu tiền...');
