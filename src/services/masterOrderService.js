@@ -15,6 +15,7 @@ const returnOrderService = require('./returnOrderService');
 const reportService = require('./reportService');
 const auditService = require('./auditService');
 const postingEngine = require('../engines/posting.engine');
+const arDocumentService = require('./arDocumentService');
 const paymentRepository = require('../repositories/paymentRepository');
 const MongoStore = require('../models');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
@@ -2510,6 +2511,11 @@ async function adminUnlockDeliveryAccounting(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await orderRepository.upsert(unlocked, { session });
+    // ===== SCOPED FIX: MARK AR DOCUMENT NEEDS RECONFIRM ON ADMIN UNLOCK =====
+    // Một đơn = một hồ sơ công nợ. Khi admin mở khóa, không tạo mã công nợ mới;
+    // chỉ mở khóa đúng AR Document hiện có để chờ xác nhận lại.
+    await arDocumentService.markArDocumentNeedsReconfirm(unlocked, { session, reason, unlockedBy: unlocked.reopenedBy });
+    // ===== END SCOPED FIX =====
   });
   await auditService.log('ACCOUNTING_UNLOCK', { refType: 'SALES_ORDER', refId: orderKey(unlocked), refCode: orderDisplayCode(unlocked), user: unlocked.reopenedBy, reason, note: `Admin mở khóa kế toán đơn ${orderDisplayCode(unlocked)}` });
   return { salesOrder: unlocked, message: `Đã mở khóa kế toán đơn ${orderDisplayCode(unlocked)}. Sau khi lưu phải xác nhận lại kế toán để đảo AR-SALE cũ và sinh AR-SALE mới.` };
@@ -2636,18 +2642,18 @@ async function confirmDeliveryAccounting(body = {}) {
       };
 
       if (requiresReAccounting) {
-        // ===== SCOPED FIX: RE-POST COLLECTIONS/BONUS AFTER REACCOUNTING =====
-        // Đơn đã mở khóa/sửa sau khi post AR: reversal trước, sau đó post lại AR-SALE
-        // và ghi lại các bút toán thu tiền/chuyển khoản/hàng trả/trả thưởng.
-        const reverseResult = await reverseActiveArLedgersForOrder(child, { name: confirmedBy }, { session });
-        await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.accountingBatchId, { session });
-        await postDeliveryCollectionsAfterAccountingConfirmed(updated, { session });
-        await postingEngine.postBonusAllowanceAR(updated, { session });
-        await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: đảo AR cũ, ghi AR-SALE mới và ghi lại thu tiền/hàng trả/trả thưởng` });
+        // ===== SCOPED FIX: AR DOCUMENT RECONFIRM ONE ORDER = ONE DEBT CODE =====
+        // Không sinh mã công nợ mới và không post AR rời kiểu cũ.
+        // Rebuild lại các line trong đúng hồ sơ AR-<mã đơn>, tăng version và khóa lại.
+        await arDocumentService.upsertArDocumentForOrder(updated, { session, mode: 'reconfirm', confirmedBy });
+        await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: cập nhật hồ sơ công nợ ${arDocumentService.buildArDocumentCode(updated)} trong cùng mã, rebuild AR lines và khóa lại` });
         // ===== END SCOPED FIX =====
       } else if (!alreadyConfirmed) {
-        // Đơn mới xác nhận lần đầu: gom lại để ghi AR Ledger bằng insertMany một lần.
+        // ===== SCOPED FIX: AR DOCUMENT FIRST ACCOUNTING CONFIRM =====
+        // Đơn mới xác nhận lần đầu: tạo/cập nhật đúng một hồ sơ công nợ AR-<mã đơn>.
+        // arLedgers chỉ còn là dòng chi tiết/audit đồng bộ từ hồ sơ này.
         normalPostChildren.push(updated);
+        // ===== END SCOPED FIX =====
       }
 
       orderUpdateOps.push({
@@ -2661,11 +2667,15 @@ async function confirmDeliveryAccounting(body = {}) {
       confirmedOrders += 1;
     }
 
-    const batchPostResult = await batchPostDeliveryArLedgers(normalPostChildren, confirmedBy, { session });
+    // ===== SCOPED FIX: POST AR DOCUMENTS INSTEAD OF LOOSE AR LEDGERS =====
+    // Mỗi đơn hàng chỉ sinh/cập nhật một hồ sơ công nợ AR-<mã đơn>.
+    // Các dòng AR-SALE/AR-RECEIPT/AR-BANK/AR-RETURN/AR-BONUS nằm trong hồ sơ đó,
+    // đồng thời được sync sang arLedgers để giữ tương thích báo cáo cũ.
     for (const posted of normalPostChildren) {
-      await auditService.log('ACCOUNTING_CONFIRM', { refType: 'SALES_ORDER', refId: orderKey(posted), refCode: orderDisplayCode(posted), user: confirmedBy, note: `Xác nhận kế toán đơn ${orderDisplayCode(posted)}: sinh AR-SALE` });
+      await arDocumentService.upsertArDocumentForOrder(posted, { session, mode: 'confirm', confirmedBy });
+      await auditService.log('ACCOUNTING_CONFIRM', { refType: 'SALES_ORDER', refId: orderKey(posted), refCode: orderDisplayCode(posted), user: confirmedBy, note: `Xác nhận kế toán đơn ${orderDisplayCode(posted)}: tạo/cập nhật hồ sơ công nợ ${arDocumentService.buildArDocumentCode(posted)}` });
     }
-    skippedOrders += batchPostResult.skippedPostedKeys.size;
+    // ===== END SCOPED FIX =====
 
     if (orderUpdateOps.length) {
       await MongoStore.salesOrders.bulkWrite(orderUpdateOps, { ordered: false, session });
@@ -2678,7 +2688,7 @@ async function confirmDeliveryAccounting(body = {}) {
     confirmedOrders,
     skippedOrders,
     totalOrders: targetChildren.length,
-    message: `Kế toán đã xác nhận ${confirmedOrders} đơn giao ngày ${date}. Hệ thống đã sinh AR-SALE và khóa kế toán.`
+    message: `Kế toán đã xác nhận ${confirmedOrders} đơn giao ngày ${date}. Hệ thống đã tạo/cập nhật hồ sơ công nợ theo từng đơn và khóa kế toán.`
   };
 }
 

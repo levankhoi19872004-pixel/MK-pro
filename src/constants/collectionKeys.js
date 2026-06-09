@@ -11,6 +11,7 @@ const APP_COLLECTION_KEYS = [
   'masterOrders',
   'payments',
   'arLedgers',
+  'arDocuments',
   'receipts',
   'returnOrders',
   'masterReturnOrders',

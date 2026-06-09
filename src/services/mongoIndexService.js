@@ -130,6 +130,15 @@ const INDEX_DEFINITIONS = {
     [{ method: 1, status: 1 }, { name: 'idx_receipts_method_status' }],
     [{ createdAt: -1 }, { name: 'idx_receipts_created_at' }]
   ],
+  arDocuments: [
+    [{ code: 1 }, { name: 'idx_ar_documents_code', unique: true }],
+    [{ sourceOrderId: 1 }, { name: 'idx_ar_documents_source_order_id', sparse: true }],
+    [{ sourceOrderCode: 1 }, { name: 'idx_ar_documents_source_order_code', sparse: true }],
+    [{ customerCode: 1, status: 1 }, { name: 'idx_ar_documents_customer_status' }],
+    [{ accountingStatus: 1, updatedAt: -1 }, { name: 'idx_ar_documents_accounting_status' }],
+    [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_ar_documents_delivery_staff_date' }],
+    [{ salesStaffCode: 1, documentDate: -1 }, { name: 'idx_ar_documents_sales_staff_date' }]
+  ],
   arLedgers: [
     [{ id: 1 }, { name: 'idx_ar_ledgers_id' }],
     [{ code: 1 }, { name: 'idx_ar_ledgers_code' }],
