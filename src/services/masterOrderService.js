@@ -1004,8 +1004,19 @@ async function hasPostedArReturn(order = {}, accountingReturnOrders = [], option
 }
 
 async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders = [], options = {}) {
-  if (!hasReturnOrdersForAccounting(order, accountingReturnOrders)) return { repaired: false, reason: 'no_return_orders' };
-  if (await hasPostedArReturn(order, accountingReturnOrders, options)) return { repaired: false, reason: 'ar_return_exists' };
+  const hasReturnOrders = hasReturnOrdersForAccounting(order, accountingReturnOrders);
+  console.log('[AR_RETURN_DEBUG] STEP-7 repairMissingArReturnIfNeeded input', {
+    code: order.code || order.orderCode,
+    returnOrdersCount: Array.isArray(accountingReturnOrders) ? accountingReturnOrders.length : 0,
+    hasReturnOrders
+  });
+  if (!hasReturnOrders) return { repaired: false, reason: 'no_return_orders' };
+  const alreadyHasArReturn = await hasPostedArReturn(order, accountingReturnOrders, options);
+  console.log('[AR_RETURN_DEBUG] STEP-8 hasPostedArReturn', {
+    code: order.code || order.orderCode,
+    alreadyHasArReturn
+  });
+  if (alreadyHasArReturn) return { repaired: false, reason: 'ar_return_exists' };
   const hydrated = hydrateReturnOrdersForAccounting(order, accountingReturnOrders);
   const posted = await postDeliveryCollectionsAfterAccountingConfirmed(hydrated, { ...options, skipIfExists: true });
   const arReturnPosted = (Array.isArray(posted) ? posted : [])
@@ -1076,6 +1087,17 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     .filter(isActiveReturnOrder)
     .map((row) => ({ ...row, amount: returnOrderTotalAmount(row), debtReduction: returnOrderTotalAmount(row) }))
     .filter((row) => toNumber(row.amount ?? row.debtReduction) > 0);
+
+  console.log('[AR_RETURN_DEBUG] STEP-9 calling postReturnOrderAR', {
+    orderCode: currentOrderCode,
+    returnRows: hydratedReturnRows.map((ro) => ({
+      code: ro.code,
+      amount: ro.amount,
+      debtReduction: ro.debtReduction,
+      totalAmount: ro.totalAmount,
+      calculatedAmount: returnOrderTotalAmount(ro)
+    }))
+  });
 
   if (hydratedReturnRows.length) {
     for (const returnRow of hydratedReturnRows) {
@@ -2732,6 +2754,10 @@ async function confirmDeliveryAccounting(body = {}) {
   const selectedOrderIds = Array.isArray(body.orderIds)
     ? body.orderIds.map((id) => String(id || '').trim()).filter(Boolean)
     : [];
+  console.log('[AR_RETURN_DEBUG] STEP-1 confirmDeliveryAccounting start', {
+    date,
+    selectedOrderIds
+  });
 
   // Bắt buộc phải có danh sách đơn được tick chọn.
   // Trước đây khi orderIds rỗng/mất selection, backend tự hiểu là chọn toàn bộ đơn trong ngày,
@@ -2774,6 +2800,18 @@ async function confirmDeliveryAccounting(body = {}) {
     return { error: `Không tìm thấy đơn đã chọn trong ngày ${date} để kế toán xác nhận`, status: 404 };
   }
 
+  console.log('[AR_RETURN_DEBUG] STEP-2 targetChildren', {
+    count: targetChildren.length,
+    orders: targetChildren.map((x) => ({
+      code: x.child?.code || x.child?.orderCode,
+      id: x.child?.id,
+      status: x.child?.status,
+      deliveryStatus: x.child?.deliveryStatus,
+      accountingConfirmed: x.child?.accountingConfirmed,
+      accountingStatus: x.child?.accountingStatus
+    }))
+  });
+
   // ===== SCOPED FIX: ACCOUNTING_AR_RETURN_DIRECT_RETURNORDERS_START =====
   // Nạp returnOrders một lần trước khi post AR để AR-RETURN luôn lấy từ chứng từ gốc returnOrders,
   // không phụ thuộc vào salesOrders.returnAmountFromReturnOrders có được lưu trước đó hay chưa.
@@ -2783,6 +2821,21 @@ async function confirmDeliveryAccounting(body = {}) {
     masterOrderCode: child.masterOrderCode || master.code || ''
   }));
   const accountingReturnOrders = await findReturnOrdersForDeliveryChildren(accountingReturnLookupOrders);
+  console.log('[AR_RETURN_DEBUG] STEP-3 returnOrders found', {
+    count: accountingReturnOrders.length,
+    rows: accountingReturnOrders.map((ro) => ({
+      id: ro.id,
+      code: ro.code,
+      orderId: ro.orderId,
+      orderCode: ro.orderCode,
+      salesOrderCode: ro.salesOrderCode,
+      amount: ro.amount,
+      debtReduction: ro.debtReduction,
+      totalAmount: ro.totalAmount,
+      returnStatus: ro.returnStatus,
+      accountingStatus: ro.accountingStatus
+    }))
+  });
   // ===== SCOPED FIX: ACCOUNTING_AR_RETURN_DIRECT_RETURNORDERS_END =====
 
   let confirmedOrders = 0;
@@ -2830,16 +2883,37 @@ async function confirmDeliveryAccounting(body = {}) {
       const alreadyConfirmed = isAccountingConfirmed(accountingSource);
       const requiresReAccounting = isAccountingReopenPending(accountingSource);
       const deliveredForAccounting = isDeliveryCompletedStatus(accountingSource.deliveryStatus || accountingSource.status);
+      console.log('[AR_RETURN_DEBUG] STEP-4 accountingSource', {
+        code: accountingSource.code || accountingSource.orderCode,
+        id: accountingSource.id,
+        alreadyConfirmed,
+        requiresReAccounting,
+        deliveredForAccounting,
+        returnAmountFromReturnOrders: accountingSource.returnAmountFromReturnOrders,
+        syncedReturnAmountFromReturnOrders: accountingSource.syncedReturnAmountFromReturnOrders,
+        accountingReturnOrdersCount: Array.isArray(accountingSource.accountingReturnOrders)
+          ? accountingSource.accountingReturnOrders.length
+          : 0
+      });
       if (!deliveredForAccounting) {
         skippedOrders += 1;
         continue;
       }
 
       if (alreadyConfirmed && !requiresReAccounting) {
+        console.log('[AR_RETURN_DEBUG] STEP-5 already confirmed repair branch', {
+          code: accountingSource.code || accountingSource.orderCode,
+          alreadyConfirmed,
+          requiresReAccounting
+        });
         // ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_START =====
         // Đơn đã xác nhận kế toán thì không post lại AR-SALE. Nhưng nếu returnOrders đã có
         // mà AR-RETURN còn thiếu từ bản cũ, repair đúng bút toán AR-RETURN rồi mới skip.
         const repairResult = await repairMissingArReturnIfNeeded(accountingSource, accountingReturnOrders, { session });
+        console.log('[AR_RETURN_DEBUG] STEP-6 repair result', {
+          code: accountingSource.code || accountingSource.orderCode,
+          repairResult
+        });
         if (repairResult.repaired) {
           await auditService.log('ACCOUNTING_REPAIR_AR_RETURN', {
             refType: 'SALES_ORDER',

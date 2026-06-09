@@ -164,6 +164,14 @@ function returnOrderArAmount(returnOrder = {}) {
 }
 
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
+  console.log('[AR_RETURN_DEBUG] STEP-10 postReturnOrderAR input', {
+    code: returnOrder?.code,
+    orderCode: returnOrder?.orderCode || returnOrder?.salesOrderCode,
+    amount: returnOrder?.amount,
+    debtReduction: returnOrder?.debtReduction,
+    totalAmount: returnOrder?.totalAmount,
+    totalReturnAmount: returnOrder?.totalReturnAmount
+  });
   if (options.skipIfExists && await hasExistingReturnOrderAR(returnOrder, options)) {
     return null;
   }
@@ -204,6 +212,12 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
     items: Array.isArray(returnOrder.items) ? returnOrder.items : []
   };
   await paymentRepository.upsert(entry, options);
+  console.log('[AR_RETURN_DEBUG] STEP-11 AR-RETURN created', {
+    code: entry.code,
+    orderCode: entry.orderCode,
+    credit: entry.credit,
+    type: entry.type
+  });
   return entry;
 }
 
