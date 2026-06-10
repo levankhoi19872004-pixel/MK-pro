@@ -3040,13 +3040,15 @@ async function confirmDeliveryAccounting(body = {}) {
     const orderUpdateOps = [];
 
     for (const { master, child } of targetChildren) {
+      const masterChildren = Array.isArray(master.children) ? master.children : [];
+
       const accountingSource = hydrateReturnOrdersForAccounting({
         ...child,
         masterOrderId: child.masterOrderId || master.id || '',
         masterOrderCode: child.masterOrderCode || master.code || '',
         deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
         deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || '',
-        __masterChildCount: children.length
+        __masterChildCount: masterChildren.length
       }, accountingReturnOrders);
       const alreadyConfirmed = isAccountingConfirmed(accountingSource);
       const requiresReAccounting = isAccountingReopenPending(accountingSource);
