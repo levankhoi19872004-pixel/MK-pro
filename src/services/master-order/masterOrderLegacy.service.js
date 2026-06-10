@@ -45,6 +45,23 @@ function buildSalesOrderIdInQuery(ids = []) {
   return { id: { $in: cleanIds } };
 }
 
+function buildSalesOrderIdentityQuery(refs = []) {
+  const values = Array.from(new Set((refs || [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)));
+  if (!values.length) return { id: { $in: [] } };
+  return {
+    $or: [
+      { id: { $in: values } },
+      { code: { $in: values } },
+      { orderCode: { $in: values } },
+      { documentCode: { $in: values } },
+      { salesOrderId: { $in: values } },
+      { salesOrderCode: { $in: values } }
+    ]
+  };
+}
+
 function isCleanOrderCode(value = '') {
   const text = String(value || '').trim();
   if (!text) return false;
@@ -170,11 +187,13 @@ function getOrderServiceLazy() {
 
 async function buildMasterChildrenMapFast(masterOrders = []) {
   const allRefs = [...new Set((masterOrders || []).flatMap(masterChildOrderRefs))];
-  const salesOrderIds = normalizeSalesOrderIds(allRefs);
   const map = new Map();
-  if (!salesOrderIds.length) return map;
+  if (!allRefs.length) return map;
 
-  const orders = await orderRepository.findAll(buildSalesOrderIdInQuery(salesOrderIds));
+  // Nút xác nhận kế toán nhận orderIds từ UI nhưng đơn tổng cũ có thể lưu childOrderIds
+  // bằng code HU.../documentCode thay vì id SO.... Nếu chỉ query id sẽ không hydrate được
+  // children và backend báo "Không tìm thấy đơn đã chọn".
+  const orders = await orderRepository.findAll(buildSalesOrderIdentityQuery(allRefs));
   const byKey = new Map();
   for (const order of orders || []) {
     if (isInactiveStatus(order)) continue;
@@ -507,7 +526,9 @@ async function listUnmergedChildOrders(query = {}) {
 
 async function listMasterOrders(query = {}) {
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
-  const page = queryGuard.getPagination(guardedQuery);
+  const page = queryGuard.getPagination(guardedQuery, {
+    maxLimit: Number(guardedQuery.__internalMaxLimit || 0) > 0 ? Number(guardedQuery.__internalMaxLimit) : undefined
+  });
   const q = normalizeText(guardedQuery.q || guardedQuery.keyword || guardedQuery.search);
   const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom);
   const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo);
@@ -2999,7 +3020,13 @@ async function confirmDeliveryAccounting(body = {}) {
   const selectedIdSet = new Set(selectedOrderIds);
   const confirmedBy = String(body.confirmedBy || body.userName || body.accountantName || 'accountant').trim();
   const now = dateUtil.nowIso();
-  const masterOrders = await listMasterOrders({ excludeInactive: 1, dateFrom: date, dateTo: date });
+  const masterOrders = await listMasterOrders({
+    excludeInactive: 1,
+    dateFrom: date,
+    dateTo: date,
+    limit: 5000,
+    __internalMaxLimit: 5000
+  });
   const targetMasters = new Map();
   const targetChildren = [];
 
