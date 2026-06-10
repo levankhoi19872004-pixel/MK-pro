@@ -294,6 +294,17 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
     ]
   };
 
+  debugLog('DEBUG_AR_RETURN', 'AR_RETURN_QUERY_INPUT', {
+    trace: 'AR_RETURN_QUERY_INPUT',
+    masterOrderId: String(masterOrder?._id || masterOrder?.id || ''),
+    masterOrderCode: masterOrder?.code || masterOrder?.masterOrderCode || '',
+    salesOrderIds: orderIds,
+    salesOrderCodes: orderCodes,
+    masterIds,
+    masterCodes,
+    query
+  });
+
   debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] RETURN_QUERY', JSON.stringify({
     orderIds,
     orderCodes,
@@ -378,6 +389,25 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
       });
     }
   }
+
+  debugLog('DEBUG_AR_RETURN', 'AR_RETURN_QUERY_RESULT', {
+    trace: 'AR_RETURN_QUERY_RESULT',
+    count: rows.length,
+    returnOrderCodes: rows.map((row) => row.code || row.returnOrderCode || row.id),
+    rows: rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      orderId: row.orderId,
+      orderCode: row.orderCode,
+      salesOrderId: row.salesOrderId,
+      salesOrderCode: row.salesOrderCode,
+      amount: row.amount,
+      debtReduction: row.debtReduction,
+      totalAmount: row.totalAmount,
+      returnStatus: row.returnStatus,
+      accountingStatus: row.accountingStatus
+    }))
+  });
 
   debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] RETURN_QUERY_RESULT', {
     count: rows.length,
@@ -1360,6 +1390,15 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     for (const returnRow of hydratedReturnRows) {
       const amount = returnOrderTotalAmount(returnRow);
       if (amount <= 0) continue;
+      debugLog('DEBUG_AR_RETURN', 'AR_RETURN_POST_INPUT', {
+        trace: 'AR_RETURN_POST_INPUT',
+        returnOrderId: String(returnRow.id || returnRow._id || ''),
+        returnOrderCode: returnRow.code || returnRow.returnOrderCode || '',
+        salesOrderId: returnRow.salesOrderId || returnRow.orderId || currentOrderId,
+        salesOrderCode: returnRow.salesOrderCode || returnRow.orderCode || currentOrderCode,
+        amount
+      });
+
       const entry = await postingEngine.postReturn({
         ...returnRow,
         date: returnRow.deliveryDate || returnRow.documentDate || returnRow.date || order.deliveryDate || order.date || dateUtil.todayVN(),
@@ -1383,6 +1422,17 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
         source: 'returnOrders',
         note: `Kế toán xác nhận hàng trả từ returnOrders ${returnRow.code || code || key}`
       }, { ...options, skipIfExists: true });
+      debugLog('DEBUG_AR_RETURN', 'AR_RETURN_POST_DONE', {
+        trace: 'AR_RETURN_POST_DONE',
+        returnOrderId: String(returnRow.id || returnRow._id || ''),
+        returnOrderCode: returnRow.code || returnRow.returnOrderCode || '',
+        salesOrderId: returnRow.salesOrderId || returnRow.orderId || currentOrderId,
+        salesOrderCode: returnRow.salesOrderCode || returnRow.orderCode || currentOrderCode,
+        amount,
+        posted: Boolean(entry),
+        ledgerCode: entry?.code || entry?.id || ''
+      });
+
       if (entry) posted.push(entry);
     }
   } else {
@@ -1394,6 +1444,16 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       ?? 0
     );
     if (returnAmount > 0) {
+      debugLog('DEBUG_AR_RETURN', 'AR_RETURN_POST_INPUT', {
+        trace: 'AR_RETURN_POST_INPUT',
+        returnOrderId: `MOBILE-DELIVERY-RETURN-${key || code}`,
+        returnOrderCode: `MOBILE-DELIVERY-RETURN-${code || key}`,
+        salesOrderId: currentOrderId,
+        salesOrderCode: currentOrderCode,
+        amount: returnAmount,
+        source: 'fallback_order_return_amount'
+      });
+
       const entry = await postingEngine.postReturn({
         id: `MOBILE-DELIVERY-RETURN-${key || code}`,
         code: `MOBILE-DELIVERY-RETURN-${code || key}`,
@@ -1418,6 +1478,18 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
         source: 'mobile_delivery_accounting_confirmed',
         note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
       }, { ...options, skipIfExists: true });
+      debugLog('DEBUG_AR_RETURN', 'AR_RETURN_POST_DONE', {
+        trace: 'AR_RETURN_POST_DONE',
+        returnOrderId: `MOBILE-DELIVERY-RETURN-${key || code}`,
+        returnOrderCode: `MOBILE-DELIVERY-RETURN-${code || key}`,
+        salesOrderId: currentOrderId,
+        salesOrderCode: currentOrderCode,
+        amount: returnAmount,
+        source: 'fallback_order_return_amount',
+        posted: Boolean(entry),
+        ledgerCode: entry?.code || entry?.id || ''
+      });
+
       if (entry) posted.push(entry);
     }
   }
