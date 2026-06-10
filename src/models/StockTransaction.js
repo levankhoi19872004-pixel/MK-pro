@@ -1,0 +1,30 @@
+const flexModel = require('./_flexModel');
+
+module.exports = flexModel('StockTransaction', 'stockTransactions', {
+  id: String,
+  idempotencyKey: String,
+  sourceType: String,
+  sourceId: String,
+  sourceCode: String,
+  date: String,
+  productId: String,
+  productCode: String,
+  productName: String,
+  warehouseId: String,
+  warehouseCode: String,
+  warehouseName: String,
+  type: String,
+  direction: String,
+  quantity: Number,
+  qty: Number,
+  inQty: Number,
+  outQty: Number,
+  balanceQty: Number,
+  refType: String,
+  refId: String,
+  refCode: String,
+  reversedFrom: String,
+  note: String,
+  createdAt: String,
+  updatedAt: String
+});

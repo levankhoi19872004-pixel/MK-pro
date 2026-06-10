@@ -1,0 +1,37 @@
+{
+  "name": "kho-minh-khai-pro-v45-delivery-3tabs",
+  "version": "1.0.0",
+  "description": "KHO Minh Khai Pro V45 - Delivery App 3 Tabs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "migrate:json": "node scripts/migrate-json-to-mongo-final.js",
+    "migrate:json:replace": "node scripts/migrate-json-to-mongo-final.js --replace",
+    "migrate:json:dry-run": "node scripts/migrate-json-to-mongo-final.js --dry-run",
+    "mongo:indexes": "node scripts/ensure-mongo-indexes.js",
+    "migrate:json-to-mongo": "node scripts/migrate-json-to-mongo-final.js",
+    "test": "node scripts/run-tests.js",
+    "test:openapi": "node --test test/openapi.test.js",
+    "docs:generate": "node scripts/generate-openapi.js",
+    "docs:check": "node scripts/generate-openapi.js --check",
+    "rebuild:ar-ledger": "node scripts/rebuild-ar-ledger.js",
+    "mongo:drop-redundant-indexes": "node scripts/drop-redundant-indexes.js",
+    "mongo:drop-redundant-indexes:dry": "node scripts/drop-redundant-indexes.js --dry-run"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.18.3",
+    "express-rate-limit": "^8.5.2",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.9.5",
+    "multer": "^2.0.2",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "read-excel-file": "^5.8.8"
+  }
+}

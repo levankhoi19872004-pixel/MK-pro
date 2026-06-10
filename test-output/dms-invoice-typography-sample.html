@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phiếu giao nhận DMS - HU90197677</title>
+  <link rel="stylesheet" href="/print.css" />
+</head>
+<body class="dms-print-body">
+  
+  <div class="print-preview-actions">
+    <button type="button" onclick="window.close()">Bỏ qua</button>
+    <button type="button" onclick="window.print()">In đơn</button>
+    <button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button>
+  </div>
+  <script>
+    function exportCurrentPrintToExcel(){
+      var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page'));
+      var html = pages.length ? pages.map(function(page){ return page.outerHTML; }).join('') : document.body.innerHTML;
+      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}</style></head><body>' + html + '</body></html>';
+      var blob = new Blob(['﻿' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      var title = (document.title || 'ban-in').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'ban-in';
+      a.download = title + '.xls';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }
+  </script>
+  
+        <section class="print-page dms-print-page">
+          
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> HU90197677</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> Từ NVTT</span>
+          <span class="dms-copy-page-cell"><span>(Liên 1)</span><span>Trang: 1/ 3</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> HU60198921</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> 16:20:49 29/4/2026</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> 39534 - Vũ Thuỳ Trang - 0966788626</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> 3293 - Công Ty TNHH MTV Minh Khai</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> 4500156 - cô huế - 0986179078</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> Cầu Cánh Sẻ,Quang Bình TỈNH THÁI BÌNH</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> Đường chưa đặt tên Quang Bình Kiến Xương</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> 0396198753</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> đáo hạn trong 7 ngày</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> </div>
+      </div>
+    </div>
+          
+    <table class="dms-invoice-table">
+      <thead>
+        <tr>
+          <th style="width:4%">STT</th>
+          <th style="width:8%">Mã hàng</th>
+          <th style="width:36%">Tên sản phẩm</th>
+          <th style="width:7%">Số lượng<br/>(CS/SU)</th>
+          <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:10%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:7%">Thuế<br/>GTGT</th>
+          <th style="width:10%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+        </tr>
+        <tr class="dms-formula-row">
+          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="center">1</td>
+        <td class="mono">68806804</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 1 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">2</td>
+        <td class="mono">68806805</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 2 770g/18 gói</td>
+        <td class="center">2/0</td>
+        <td class="right">2</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">3</td>
+        <td class="mono">68806806</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 3 770g/18 gói</td>
+        <td class="center">3/0</td>
+        <td class="right">3</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">4</td>
+        <td class="mono">68806807</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 4 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">5</td>
+        <td class="mono">68806808</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 5 770g/18 gói</td>
+        <td class="center">5/0</td>
+        <td class="right">5</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">6</td>
+        <td class="mono">68806809</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 6 770g/18 gói</td>
+        <td class="center">6/0</td>
+        <td class="right">6</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">7</td>
+        <td class="mono">68806810</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 7 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">8</td>
+        <td class="mono">68806811</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 8 770g/18 gói</td>
+        <td class="center">8/0</td>
+        <td class="right">8</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">9</td>
+        <td class="mono">68806812</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 9 770g/18 gói</td>
+        <td class="center">9/0</td>
+        <td class="right">9</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">10</td>
+        <td class="mono">68806813</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 10 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">11</td>
+        <td class="mono">68806814</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 11 770g/18 gói</td>
+        <td class="center">11/0</td>
+        <td class="right">11</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">12</td>
+        <td class="mono">68806815</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 12 770g/18 gói</td>
+        <td class="center">12/0</td>
+        <td class="right">12</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">13</td>
+        <td class="mono">68806816</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 13 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">14</td>
+        <td class="mono">68806817</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 14 770g/18 gói</td>
+        <td class="center">14/0</td>
+        <td class="right">14</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">15</td>
+        <td class="mono">68806818</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 15 770g/18 gói</td>
+        <td class="center">15/0</td>
+        <td class="right">15</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">16</td>
+        <td class="mono">68806819</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 16 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">17</td>
+        <td class="mono">68806820</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 17 770g/18 gói</td>
+        <td class="center">17/0</td>
+        <td class="right">17</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">18</td>
+        <td class="mono">68806821</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 18 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">19</td>
+        <td class="mono">68806822</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 19 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">20</td>
+        <td class="mono">68806823</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 20 770g/18 gói</td>
+        <td class="center">20/0</td>
+        <td class="right">20</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">21</td>
+        <td class="mono">68806824</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 21 770g/18 gói</td>
+        <td class="center">21/0</td>
+        <td class="right">21</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">22</td>
+        <td class="mono">68806825</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 22 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">23</td>
+        <td class="mono">68806826</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 23 770g/18 gói</td>
+        <td class="center">23/0</td>
+        <td class="right">23</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">24</td>
+        <td class="mono">68806827</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 24 770g/18 gói</td>
+        <td class="center">24/0</td>
+        <td class="right">24</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+        
+      </tbody>
+    </table>
+          
+          
+          
+        </section>
+        <section class="print-page dms-print-page">
+          
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> HU90197677</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> Từ NVTT</span>
+          <span class="dms-copy-page-cell"><span>(Liên 1)</span><span>Trang: 2/ 3</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> HU60198921</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> 16:20:49 29/4/2026</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> 39534 - Vũ Thuỳ Trang - 0966788626</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> 3293 - Công Ty TNHH MTV Minh Khai</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> 4500156 - cô huế - 0986179078</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> Cầu Cánh Sẻ,Quang Bình TỈNH THÁI BÌNH</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> Đường chưa đặt tên Quang Bình Kiến Xương</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> 0396198753</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> đáo hạn trong 7 ngày</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> </div>
+      </div>
+    </div>
+          
+    <table class="dms-invoice-table">
+      <thead>
+        <tr>
+          <th style="width:4%">STT</th>
+          <th style="width:8%">Mã hàng</th>
+          <th style="width:36%">Tên sản phẩm</th>
+          <th style="width:7%">Số lượng<br/>(CS/SU)</th>
+          <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:10%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:7%">Thuế<br/>GTGT</th>
+          <th style="width:10%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+        </tr>
+        <tr class="dms-formula-row">
+          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="center">25</td>
+        <td class="mono">68806828</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 25 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+        <tr class="dms-total-row">
+          <td colspan="4" class="center">Tổng cộng (A)</td>
+          <td class="right">370</td>
+          <td></td><td></td><td></td>
+          <td></td>
+          <td class="right">0</td>
+        </tr>
+      </tbody>
+    </table>
+          
+      <table class="dms-summary-split-table">
+        <tbody>
+          <tr class="dms-payable-row">
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Số tiền phải thanh toán (A7-D-E-H)</td>
+            <td class="dms-summary-value-cell">5.975.656</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</td>
+            <td class="dms-summary-value-cell">0</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell dms-amount-words-cell"><b>Số tiền viết bằng chữ :</b> <span class="dms-amount-words-text">Năm Triệu Chín Trăm Bảy Mươi Lăm Nghìn Sáu Trăm Năm Mươi Sáu Đồng</span></td>
+            <td class="dms-summary-label-cell">Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</td>
+            <td class="dms-summary-value-cell">974.984</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Cấn trừ tiền (D+E+H):</td>
+            <td class="dms-summary-value-cell">1.100.000</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</td>
+            <td class="dms-summary-value-cell">0</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td>
+            <td class="dms-summary-value-cell">%</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="dms-signature">
+        <div><b>Người lập biểu</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người bán hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Nhân viên giao hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người nhận hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+      </div>
+          
+          
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+    </table>
+        </section>
+      <section class="print-page dms-print-page">
+        
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> HU90197677</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> Từ NVTT</span>
+          <span class="dms-copy-page-cell"><span>(Liên 1)</span><span>Trang: 3/ 3</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> HU60198921</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> 16:20:49 29/4/2026</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> 39534 - Vũ Thuỳ Trang - 0966788626</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> 3293 - Công Ty TNHH MTV Minh Khai</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> 4500156 - cô huế - 0986179078</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> Cầu Cánh Sẻ,Quang Bình TỈNH THÁI BÌNH</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> Đường chưa đặt tên Quang Bình Kiến Xương</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> 0396198753</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> đáo hạn trong 7 ngày</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> </div>
+      </div>
+    </div>
+        
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="mono">AD70874849DN11</td>
+        <td>Cửa hàng mua 10 ống kem đánh răng được chiết khấu 2%.</td>
+        <td class="right">486.360</td>
+        <td class="right"></td>
+        <td class="right">9.728</td>
+        <td class="right">10.506</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70875442DN11</td>
+        <td>Cửa hàng mua 500.000 VND Nước rửa chén SUNLIGHT/SURF được ck 3%</td>
+        <td class="right">737.400</td>
+        <td class="right"></td>
+        <td class="right">22.122</td>
+        <td class="right">23.892</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70875444DN11</td>
+        <td>Cửa hàng mua 300,000vnđ SUNLIGHT Nước lau sàn được chiết khấu 2%</td>
+        <td class="right">687.209</td>
+        <td class="right"></td>
+        <td class="right">13.744</td>
+        <td class="right">14.844</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70873981DN11</td>
+        <td>M bk ck NRC Surf20%, chai 400g, 750g...</td>
+        <td class="right">1.424.609</td>
+        <td class="right"></td>
+        <td class="right">103.824</td>
+        <td class="right">112.130</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70874610DN11</td>
+        <td>CH mua KNORR CSM Nấm 380g tặng Nấm 136g ck11%</td>
+        <td class="right">170.140</td>
+        <td class="right"></td>
+        <td class="right">28.924</td>
+        <td class="right">31.238</td>
+      </tr>
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị khuyến mãi tiền (C)</td><td class="right">192.610</td></tr>
+      </tbody>
+    </table>
+        
+    <div class="dms-section-title">CHI TIẾT CẤN TRỪ NỢ:(D+E)</div>
+    <table class="dms-detail-table dms-reward-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CT Trưng bày</th>
+          <th>Nội dung Chương trình trưng bày</th>
+          <th style="width:20mm">Tháng trưng bày</th>
+          <th style="width:24mm">Chi trả trưng bày (hàng hóa)</th>
+          <th style="width:20mm">Số lượng (Thùng/lẻ)</th>
+          <th style="width:25mm">Chi trả trưng bày (cấn trừ nợ)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="mono">AB70872139DN11</td>
+        <td>CH tham gia trưng bày CHHH sẽ được nhận thưởng tương ứng</td>
+        <td class="center">APR/2026</td>
+        <td class="right"></td>
+        <td class="center"></td>
+        <td class="right">1.100.000</td>
+      </tr>
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right">1.100.000</td></tr>
+      </tbody>
+    </table>
+      </section>
+        <section class="print-page dms-print-page">
+          
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> HU90197677</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> Từ NVTT</span>
+          <span class="dms-copy-page-cell"><span>(Liên 2)</span><span>Trang: 1/ 3</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> HU60198921</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> 16:20:49 29/4/2026</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> 39534 - Vũ Thuỳ Trang - 0966788626</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> 3293 - Công Ty TNHH MTV Minh Khai</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> 4500156 - cô huế - 0986179078</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> Cầu Cánh Sẻ,Quang Bình TỈNH THÁI BÌNH</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> Đường chưa đặt tên Quang Bình Kiến Xương</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> 0396198753</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> đáo hạn trong 7 ngày</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> </div>
+      </div>
+    </div>
+          
+    <table class="dms-invoice-table">
+      <thead>
+        <tr>
+          <th style="width:4%">STT</th>
+          <th style="width:8%">Mã hàng</th>
+          <th style="width:36%">Tên sản phẩm</th>
+          <th style="width:7%">Số lượng<br/>(CS/SU)</th>
+          <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:10%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:7%">Thuế<br/>GTGT</th>
+          <th style="width:10%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+        </tr>
+        <tr class="dms-formula-row">
+          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="center">1</td>
+        <td class="mono">68806804</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 1 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">2</td>
+        <td class="mono">68806805</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 2 770g/18 gói</td>
+        <td class="center">2/0</td>
+        <td class="right">2</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">3</td>
+        <td class="mono">68806806</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 3 770g/18 gói</td>
+        <td class="center">3/0</td>
+        <td class="right">3</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">4</td>
+        <td class="mono">68806807</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 4 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">5</td>
+        <td class="mono">68806808</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 5 770g/18 gói</td>
+        <td class="center">5/0</td>
+        <td class="right">5</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">6</td>
+        <td class="mono">68806809</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 6 770g/18 gói</td>
+        <td class="center">6/0</td>
+        <td class="right">6</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">7</td>
+        <td class="mono">68806810</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 7 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">8</td>
+        <td class="mono">68806811</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 8 770g/18 gói</td>
+        <td class="center">8/0</td>
+        <td class="right">8</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">9</td>
+        <td class="mono">68806812</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 9 770g/18 gói</td>
+        <td class="center">9/0</td>
+        <td class="right">9</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">10</td>
+        <td class="mono">68806813</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 10 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">11</td>
+        <td class="mono">68806814</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 11 770g/18 gói</td>
+        <td class="center">11/0</td>
+        <td class="right">11</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">12</td>
+        <td class="mono">68806815</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 12 770g/18 gói</td>
+        <td class="center">12/0</td>
+        <td class="right">12</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">13</td>
+        <td class="mono">68806816</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 13 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">14</td>
+        <td class="mono">68806817</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 14 770g/18 gói</td>
+        <td class="center">14/0</td>
+        <td class="right">14</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">15</td>
+        <td class="mono">68806818</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 15 770g/18 gói</td>
+        <td class="center">15/0</td>
+        <td class="right">15</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">16</td>
+        <td class="mono">68806819</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 16 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">17</td>
+        <td class="mono">68806820</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 17 770g/18 gói</td>
+        <td class="center">17/0</td>
+        <td class="right">17</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">18</td>
+        <td class="mono">68806821</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 18 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">19</td>
+        <td class="mono">68806822</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 19 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">20</td>
+        <td class="mono">68806823</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 20 770g/18 gói</td>
+        <td class="center">20/0</td>
+        <td class="right">20</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">21</td>
+        <td class="mono">68806824</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 21 770g/18 gói</td>
+        <td class="center">21/0</td>
+        <td class="right">21</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">22</td>
+        <td class="mono">68806825</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 22 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">23</td>
+        <td class="mono">68806826</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 23 770g/18 gói</td>
+        <td class="center">23/0</td>
+        <td class="right">23</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+      <tr>
+        <td class="center">24</td>
+        <td class="mono">68806827</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 24 770g/18 gói</td>
+        <td class="center">24/0</td>
+        <td class="right">24</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+        
+      </tbody>
+    </table>
+          
+          
+          
+        </section>
+        <section class="print-page dms-print-page">
+          
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> HU90197677</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> Từ NVTT</span>
+          <span class="dms-copy-page-cell"><span>(Liên 2)</span><span>Trang: 2/ 3</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> HU60198921</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> 16:20:49 29/4/2026</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> 39534 - Vũ Thuỳ Trang - 0966788626</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> 3293 - Công Ty TNHH MTV Minh Khai</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> 4500156 - cô huế - 0986179078</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> Cầu Cánh Sẻ,Quang Bình TỈNH THÁI BÌNH</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> Đường chưa đặt tên Quang Bình Kiến Xương</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> 0396198753</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> đáo hạn trong 7 ngày</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> </div>
+      </div>
+    </div>
+          
+    <table class="dms-invoice-table">
+      <thead>
+        <tr>
+          <th style="width:4%">STT</th>
+          <th style="width:8%">Mã hàng</th>
+          <th style="width:36%">Tên sản phẩm</th>
+          <th style="width:7%">Số lượng<br/>(CS/SU)</th>
+          <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:10%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:7%">Thuế<br/>GTGT</th>
+          <th style="width:10%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+        </tr>
+        <tr class="dms-formula-row">
+          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="center">25</td>
+        <td class="mono">68806828</td>
+        <td class="dms-product-name">Sản phẩm test dòng dài số 25 770g/18 gói</td>
+        <td class="center">18/0</td>
+        <td class="right">18</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+        <td class="right">0</td>
+      </tr>
+        <tr class="dms-total-row">
+          <td colspan="4" class="center">Tổng cộng (A)</td>
+          <td class="right">370</td>
+          <td></td><td></td><td></td>
+          <td></td>
+          <td class="right">0</td>
+        </tr>
+      </tbody>
+    </table>
+          
+      <table class="dms-summary-split-table">
+        <tbody>
+          <tr class="dms-payable-row">
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Số tiền phải thanh toán (A7-D-E-H)</td>
+            <td class="dms-summary-value-cell">5.975.656</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</td>
+            <td class="dms-summary-value-cell">0</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell dms-amount-words-cell"><b>Số tiền viết bằng chữ :</b> <span class="dms-amount-words-text">Năm Triệu Chín Trăm Bảy Mươi Lăm Nghìn Sáu Trăm Năm Mươi Sáu Đồng</span></td>
+            <td class="dms-summary-label-cell">Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</td>
+            <td class="dms-summary-value-cell">974.984</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Cấn trừ tiền (D+E+H):</td>
+            <td class="dms-summary-value-cell">1.100.000</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</td>
+            <td class="dms-summary-value-cell">0</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td>
+            <td class="dms-summary-value-cell">%</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="dms-signature">
+        <div><b>Người lập biểu</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người bán hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Nhân viên giao hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người nhận hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+      </div>
+          
+          
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+    </table>
+        </section>
+      <section class="print-page dms-print-page">
+        
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> HU90197677</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> Từ NVTT</span>
+          <span class="dms-copy-page-cell"><span>(Liên 2)</span><span>Trang: 3/ 3</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> HU60198921</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> 16:20:49 29/4/2026</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> 39534 - Vũ Thuỳ Trang - 0966788626</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> 3293 - Công Ty TNHH MTV Minh Khai</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> 4500156 - cô huế - 0986179078</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> Cầu Cánh Sẻ,Quang Bình TỈNH THÁI BÌNH</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> Đường chưa đặt tên Quang Bình Kiến Xương</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> 0396198753</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> đáo hạn trong 7 ngày</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> </div>
+      </div>
+    </div>
+        
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="mono">AD70874849DN11</td>
+        <td>Cửa hàng mua 10 ống kem đánh răng được chiết khấu 2%.</td>
+        <td class="right">486.360</td>
+        <td class="right"></td>
+        <td class="right">9.728</td>
+        <td class="right">10.506</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70875442DN11</td>
+        <td>Cửa hàng mua 500.000 VND Nước rửa chén SUNLIGHT/SURF được ck 3%</td>
+        <td class="right">737.400</td>
+        <td class="right"></td>
+        <td class="right">22.122</td>
+        <td class="right">23.892</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70875444DN11</td>
+        <td>Cửa hàng mua 300,000vnđ SUNLIGHT Nước lau sàn được chiết khấu 2%</td>
+        <td class="right">687.209</td>
+        <td class="right"></td>
+        <td class="right">13.744</td>
+        <td class="right">14.844</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70873981DN11</td>
+        <td>M bk ck NRC Surf20%, chai 400g, 750g...</td>
+        <td class="right">1.424.609</td>
+        <td class="right"></td>
+        <td class="right">103.824</td>
+        <td class="right">112.130</td>
+      </tr>
+      <tr>
+        <td class="mono">AD70874610DN11</td>
+        <td>CH mua KNORR CSM Nấm 380g tặng Nấm 136g ck11%</td>
+        <td class="right">170.140</td>
+        <td class="right"></td>
+        <td class="right">28.924</td>
+        <td class="right">31.238</td>
+      </tr>
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị khuyến mãi tiền (C)</td><td class="right">192.610</td></tr>
+      </tbody>
+    </table>
+        
+    <div class="dms-section-title">CHI TIẾT CẤN TRỪ NỢ:(D+E)</div>
+    <table class="dms-detail-table dms-reward-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CT Trưng bày</th>
+          <th>Nội dung Chương trình trưng bày</th>
+          <th style="width:20mm">Tháng trưng bày</th>
+          <th style="width:24mm">Chi trả trưng bày (hàng hóa)</th>
+          <th style="width:20mm">Số lượng (Thùng/lẻ)</th>
+          <th style="width:25mm">Chi trả trưng bày (cấn trừ nợ)</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+      <tr>
+        <td class="mono">AB70872139DN11</td>
+        <td>CH tham gia trưng bày CHHH sẽ được nhận thưởng tương ứng</td>
+        <td class="center">APR/2026</td>
+        <td class="right"></td>
+        <td class="center"></td>
+        <td class="right">1.100.000</td>
+      </tr>
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right">1.100.000</td></tr>
+      </tbody>
+    </table>
+      </section>
+</body>
+</html>
