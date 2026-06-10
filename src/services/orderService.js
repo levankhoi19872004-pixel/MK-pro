@@ -221,6 +221,27 @@ async function resolveStaff(body = {}) {
   return userRepository.findStaffByIdOrCode(staffId);
 }
 
+// ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_START =====
+// NVBH của đơn bán phải được chốt ở salesOrders ngay khi tạo đơn.
+// Ưu tiên salesStaff* rõ nghĩa; staffCode/staffName chỉ là compatibility fallback
+// khi tạo mới đơn cũ/nguồn cũ chưa gửi field salesStaff*.
+function buildSalesStaffSnapshot(body = {}, customer = null, staff = null, current = null) {
+  const hasCurrentSalesStaff = Boolean(current && (current.salesStaffCode || current.salesStaffName || current.salesmanCode || current.salesmanName));
+  if (hasCurrentSalesStaff) {
+    return {
+      salesStaffId: current.salesStaffId || current.staffId || '',
+      salesStaffCode: current.salesStaffCode || current.salesmanCode || '',
+      salesStaffName: current.salesStaffName || current.salesmanName || ''
+    };
+  }
+  return {
+    salesStaffId: staff?.id || body.salesStaffId || customer?.salesStaffId || customer?.staffId || body.staffId || '',
+    salesStaffCode: staff?.code || body.salesStaffCode || body.salesmanCode || customer?.salesStaffCode || customer?.salesmanCode || body.staffCode || '',
+    salesStaffName: staff?.name || body.salesStaffName || body.salesmanName || customer?.salesStaffName || customer?.salesmanName || body.staffName || ''
+  };
+}
+// ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_END =====
+
 async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
   const productKeys = [...new Set((Array.isArray(items) ? items : [])
     .flatMap((item) => [item.productCode, item.code, item.sku, item.productId, item.barcode])
@@ -805,6 +826,7 @@ async function createOrder(body = {}) {
   const generatedOrderId = String(body.id || generatedOrderCode).trim();
   const normalizedOrderDate = dateUtil.toDateOnly(body.orderDate || body.date || dateUtil.todayVN());
   const normalizedDeliveryDate = dateUtil.toDateOnly(body.deliveryDate || normalizedOrderDate);
+  const salesStaffSnapshot = buildSalesStaffSnapshot(body, customer, staff);
   const order = {
     ...body,
     id: generatedOrderId,
@@ -820,12 +842,17 @@ async function createOrder(body = {}) {
     customerName: customer?.name || body.customerName || '',
     customerPhone: customer?.phone || body.customerPhone || '',
     customerAddress: customer?.address || body.customerAddress || '',
-    staffId: staff?.id || body.staffId || body.salesStaffId || '',
-    staffCode: staff?.code || body.staffCode || body.salesStaffCode || '',
-    staffName: staff?.name || body.staffName || body.salesStaffName || '',
-    salesStaffId: staff?.id || body.salesStaffId || body.staffId || '',
-    salesStaffCode: staff?.code || body.salesStaffCode || body.staffCode || '',
-    salesStaffName: staff?.name || body.salesStaffName || body.staffName || '',
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_CREATE_ORDER_NVBH_START =====
+    // staff* giữ để tương thích dữ liệu cũ; nguồn nghiệp vụ NVBH là salesStaff*.
+    staffId: salesStaffSnapshot.salesStaffId,
+    staffCode: salesStaffSnapshot.salesStaffCode,
+    staffName: salesStaffSnapshot.salesStaffName,
+    salesStaffId: salesStaffSnapshot.salesStaffId,
+    salesStaffCode: salesStaffSnapshot.salesStaffCode,
+    salesStaffName: salesStaffSnapshot.salesStaffName,
+    salesmanCode: body.salesmanCode || salesStaffSnapshot.salesStaffCode,
+    salesmanName: body.salesmanName || salesStaffSnapshot.salesStaffName,
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_CREATE_ORDER_NVBH_END =====
     saleMethod: saleMode,
     saleMode,
     pricingMode: saleMode,
@@ -885,6 +912,7 @@ async function updateOrder(id, body = {}) {
   const paidAmount = toNumber(body.paidAmount ?? current.paidAmount ?? 0);
   const normalizedDate = dateUtil.toDateOnly(body.orderDate || body.date || current.orderDate || current.date || dateUtil.todayVN());
   const normalizedDeliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || normalizedDate);
+  const salesStaffSnapshot = buildSalesStaffSnapshot(body, null, null, current);
   const updated = applyOrderSourceFields({
     ...current,
     ...body,
@@ -903,6 +931,17 @@ async function updateOrder(id, body = {}) {
     totalAmount,
     paidAmount,
     debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_LOCK_NVBH_ON_UPDATE_START =====
+    // Không cho updateOrder/master/delivery/accounting ghi đè NVBH đã chốt trên salesOrders.
+    salesStaffId: salesStaffSnapshot.salesStaffId,
+    salesStaffCode: salesStaffSnapshot.salesStaffCode,
+    salesStaffName: salesStaffSnapshot.salesStaffName,
+    salesmanCode: current.salesmanCode || salesStaffSnapshot.salesStaffCode,
+    salesmanName: current.salesmanName || salesStaffSnapshot.salesStaffName,
+    staffId: current.staffId || salesStaffSnapshot.salesStaffId,
+    staffCode: current.staffCode || salesStaffSnapshot.salesStaffCode,
+    staffName: current.staffName || salesStaffSnapshot.salesStaffName,
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_LOCK_NVBH_ON_UPDATE_END =====
     ...orderStatusUtil.lifecyclePatch({ ...current, ...body, items, totalAmount, paidAmount }, current),
     updatedAt: dateUtil.nowIso()
   });

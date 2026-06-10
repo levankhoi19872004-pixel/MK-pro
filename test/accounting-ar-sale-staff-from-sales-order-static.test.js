@@ -20,8 +20,8 @@ test('confirmDeliveryAccounting hydrates AR-SALE staff from source SalesOrder be
     'confirmDeliveryAccounting must resolve source SalesOrder for each child'
   );
   assert.ok(
-    src.includes('deliveryStaffName: sourceSalesOrder.deliveryStaffName || child.deliveryStaffName || master.deliveryStaffName ||'),
-    'AR-SALE accountingSource must prefer SalesOrder.deliveryStaffName before child/master snapshot'
+    src.includes('deliveryStaffName: master.deliveryStaffName || sourceSalesOrder.deliveryStaffName || child.deliveryStaffName ||'),
+    'AR-SALE accountingSource must prefer master NVGH before synced SalesOrder/child snapshot'
   );
   assert.ok(
     src.includes('salesStaffName: sourceSalesOrder.salesStaffName || sourceSalesOrder.salesmanName || child.salesStaffName || child.salesmanName ||'),

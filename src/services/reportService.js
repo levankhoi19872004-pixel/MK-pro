@@ -812,10 +812,13 @@ async function debtReport(query = {}) {
       customerName: cmeta.customerName || id.customerName || 'Chưa rõ khách',
       phone: cmeta.phone || '',
       address: cmeta.address || '',
-      salesmanCode: row.salesmanCode || cmeta.salesmanCode || '',
-      salesmanName: row.salesmanName || cmeta.salesmanName || '',
-      deliveryStaffCode: row.deliveryStaffCode || cmeta.deliveryStaffCode || '',
-      deliveryStaffName: row.deliveryStaffName || cmeta.deliveryStaffName || '',
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_LEDGER_STAFF_ONLY_START =====
+      // Công nợ hiển thị nhân sự đã post vào arLedgers, không tự sửa bằng customer/user metadata.
+      salesmanCode: row.salesmanCode || '',
+      salesmanName: row.salesmanName || '',
+      deliveryStaffCode: row.deliveryStaffCode || '',
+      deliveryStaffName: row.deliveryStaffName || '',
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_LEDGER_STAFF_ONLY_END =====
       documentDate,
       dueDate: documentDate,
       debit: toNumber(row.debit),

@@ -355,8 +355,11 @@ function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
     customerCode: text(order.customerCode),
     customerName: text(order.customerName),
     deliveryDate: text(order.deliveryDate || order.date || order.documentDate),
-    salesStaffCode: text(order.salesStaffCode || order.salesmanCode || order.staffCode),
-    salesStaffName: text(order.salesStaffName || order.salesmanName || order.staffName),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_ENGINE_DISPLAY_STAFF_START =====
+    // DeliveryEngine không suy luận NVBH từ staffCode/staffName vì các field đó có thể là NVGH.
+    salesStaffCode: text(order.salesStaffCode || order.salesmanCode),
+    salesStaffName: text(order.salesStaffName || order.salesmanName),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_ENGINE_DISPLAY_STAFF_END =====
     deliveryStaffCode: text(order.deliveryStaffCode),
     deliveryStaffName: text(order.deliveryStaffName),
     items: canonical.items,
@@ -705,12 +708,16 @@ class DeliveryEngine {
       deliveryDate: text(order.deliveryDate || body.deliveryDate || today()),
       date: text(body.date || order.deliveryDate || today()),
       documentDate: text(body.documentDate || body.date || order.deliveryDate || today()),
-      deliveryStaffCode: text(body.deliveryStaffCode || order.deliveryStaffCode),
-      deliveryStaffName: text(body.deliveryStaffName || order.deliveryStaffName),
-      salesStaffCode: text(body.salesStaffCode || order.salesStaffCode || order.staffCode),
-      salesStaffName: text(body.salesStaffName || order.salesStaffName || order.staffName),
-      staffCode: text(body.deliveryStaffCode || order.deliveryStaffCode),
-      staffName: text(body.deliveryStaffName || order.deliveryStaffName),
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_ENGINE_RETURN_SNAPSHOT_STAFF_START =====
+      deliveryStaffCode: text(order.deliveryStaffCode || body.deliveryStaffCode),
+      deliveryStaffName: text(order.deliveryStaffName || body.deliveryStaffName),
+      salesStaffCode: text(order.salesStaffCode || order.salesmanCode || body.salesStaffCode),
+      salesStaffName: text(order.salesStaffName || order.salesmanName || body.salesStaffName),
+      salesmanCode: text(order.salesmanCode || order.salesStaffCode || body.salesmanCode),
+      salesmanName: text(order.salesmanName || order.salesStaffName || body.salesmanName),
+      staffCode: text(order.deliveryStaffCode || body.deliveryStaffCode),
+      staffName: text(order.deliveryStaffName || body.deliveryStaffName),
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_ENGINE_RETURN_SNAPSHOT_STAFF_END =====
       source: 'canonical_delivery_engine',
       refType: items.length ? 'canonicalDeliveryReturn' : 'canonicalDeliveryReturnClear',
       returnType: text(body.returnType || 'partial') || 'partial',

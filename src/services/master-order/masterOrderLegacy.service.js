@@ -3082,8 +3082,11 @@ async function confirmDeliveryAccounting(body = {}) {
         salesStaffName: sourceSalesOrder.salesStaffName || sourceSalesOrder.salesmanName || child.salesStaffName || child.salesmanName || '',
         salesmanCode: sourceSalesOrder.salesmanCode || sourceSalesOrder.salesStaffCode || child.salesmanCode || child.salesStaffCode || '',
         salesmanName: sourceSalesOrder.salesmanName || sourceSalesOrder.salesStaffName || child.salesmanName || child.salesStaffName || '',
-        deliveryStaffCode: sourceSalesOrder.deliveryStaffCode || child.deliveryStaffCode || master.deliveryStaffCode || '',
-        deliveryStaffName: sourceSalesOrder.deliveryStaffName || child.deliveryStaffName || master.deliveryStaffName || '',
+        // ===== SCOPED FIX: ORDER_DATA_LINEAGE_AR_SALE_NVGH_FROM_MASTER_START =====
+        // NVGH chuẩn phát sinh ở đơn tổng; salesOrders chỉ là bản đồng bộ sau khi gộp.
+        deliveryStaffCode: master.deliveryStaffCode || sourceSalesOrder.deliveryStaffCode || child.deliveryStaffCode || '',
+        deliveryStaffName: master.deliveryStaffName || sourceSalesOrder.deliveryStaffName || child.deliveryStaffName || '',
+        // ===== SCOPED FIX: ORDER_DATA_LINEAGE_AR_SALE_NVGH_FROM_MASTER_END =====
         masterOrderId: child.masterOrderId || sourceSalesOrder.masterOrderId || master.id || '',
         masterOrderCode: child.masterOrderCode || sourceSalesOrder.masterOrderCode || master.code || '',
         __masterChildCount: masterChildren.length
@@ -3425,7 +3428,6 @@ async function createMasterOrder(body = {}) {
   }
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
-  const salesStaff = await resolveStaff(body, 'sales');
   const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || dateUtil.todayVN());
   const masterOrder = {
     ...body,
@@ -3440,10 +3442,10 @@ async function createMasterOrder(body = {}) {
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || '',
-    salesStaffId: salesStaff?.id || body.salesStaffId || '',
-    salesStaffCode: salesStaff?.code || body.salesStaffCode || '',
-    salesStaffName: salesStaff?.name || body.salesStaffName || '',
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_ONLY_NVGH_START =====
+    // Đơn tổng chỉ là nguồn gán NVGH. Không nhận/ghi đè NVBH của đơn con.
     childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_ONLY_NVGH_END =====
     children: [],
     status: body.status || 'assigned',
     ...orderService.summarizeOrders(children),
@@ -3541,7 +3543,6 @@ async function updateMasterOrder(id, body = {}) {
   }
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
-  const salesStaff = await resolveStaff(body, 'sales');
   const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || dateUtil.todayVN());
 
   // MASTER_ORDER_EDIT_MODAL_PATCH_START: cập nhật an toàn thông tin + danh sách đơn con, không chạm công nợ/tồn kho/kế toán
@@ -3587,10 +3588,13 @@ async function updateMasterOrder(id, body = {}) {
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
     deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',
-    salesStaffId: salesStaff?.id || body.salesStaffId || current.salesStaffId || '',
-    salesStaffCode: salesStaff?.code || body.salesStaffCode || current.salesStaffCode || '',
-    salesStaffName: salesStaff?.name || body.salesStaffName || current.salesStaffName || '',
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_UPDATE_ONLY_NVGH_START =====
+    // Khi sửa đơn tổng chỉ cập nhật NVGH/ngày giao/route; không ghi đè NVBH.
+    salesStaffId: current.salesStaffId || '',
+    salesStaffCode: current.salesStaffCode || '',
+    salesStaffName: current.salesStaffName || '',
     childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_UPDATE_ONLY_NVGH_END =====
     children: [],
     updatedAt: dateUtil.nowIso()
   };
