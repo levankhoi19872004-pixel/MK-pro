@@ -2035,11 +2035,8 @@ async function importUsers(rows = []) {
   });
 
   validRows.push(...seen.values());
-  const usernames = validRows.map((item) => item.username).filter(Boolean);
-  const currentUsers = usernames.length ? await User.find({ username: { $in: usernames } }).select('username password').lean() : [];
-  const currentUserByUsername = new Map(currentUsers.map((user) => [String(user.username || '').toLowerCase(), user]));
   for (const item of validRows) {
-    const current = currentUserByUsername.get(String(item.username || '').toLowerCase());
+    const current = await User.findOne({ username: item.username }).lean();
     const password = item.password
       ? (isBcryptHash(item.password) ? item.password : bcrypt.hashSync(item.password, BCRYPT_ROUNDS))
       : (current?.password || bcrypt.hashSync('123456', BCRYPT_ROUNDS));
@@ -2629,12 +2626,12 @@ function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {})
   return list;
 }
 
-async function parseExcelFiles({ files = [], buffer = null, fileName = '' } = {}) {
+function parseExcelFiles({ files = [], buffer = null, fileName = '' } = {}) {
   const normalizedFiles = normalizeImportFiles({ files, buffer, fileName });
   const rows = [];
   const fileReports = [];
   for (const file of normalizedFiles) {
-    const fileRows = (await parseExcelBuffer(file.buffer)).map((row, index) => ({
+    const fileRows = parseExcelBuffer(file.buffer).map((row, index) => ({
       ...row,
       __sourceFile: file.fileName,
       sourceFile: file.fileName,
@@ -2656,7 +2653,7 @@ async function parseExcelFiles({ files = [], buffer = null, fileName = '' } = {}
 async function preview({ type, files = [], buffer = null, fileName = '', userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
-  const parsed = await parseExcelFiles({ files, buffer, fileName });
+  const parsed = parseExcelFiles({ files, buffer, fileName });
   if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
   const rows = parsed.rows;
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
@@ -2796,7 +2793,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
 async function importDirect({ type, files = [], buffer = null, fileName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
-  const parsed = await parseExcelFiles({ files, buffer, fileName });
+  const parsed = parseExcelFiles({ files, buffer, fileName });
   if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
   const rows = parsed.rows;
   if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };

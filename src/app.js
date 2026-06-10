@@ -89,31 +89,8 @@ function createApiLimiter() {
   });
 }
 
-function configureTrustProxy(app) {
-  // Render/Netlify/reverse proxies attach X-Forwarded-For.
-  // express-rate-limit requires Express trust proxy to be configured so client IPs
-  // are resolved consistently instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
-  const raw = String(process.env.TRUST_PROXY || '').trim();
-  if (raw) {
-    if (/^\d+$/.test(raw)) {
-      app.set('trust proxy', Number(raw));
-    } else if (/^(true|false)$/i.test(raw)) {
-      app.set('trust proxy', raw.toLowerCase() === 'true');
-    } else {
-      app.set('trust proxy', raw);
-    }
-    return;
-  }
-
-  if (process.env.RENDER || process.env.NODE_ENV === 'production') {
-    app.set('trust proxy', 1);
-  }
-}
-
 function createApp() {
   const app = express();
-
-  configureTrustProxy(app);
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({
@@ -121,10 +98,7 @@ function createApp() {
       ? process.env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean)
       : true
   }));
-  const requestLogger = pinoHttp({ logger });
-  if (process.env.NODE_ENV !== 'test') {
-    app.use(requestLogger);
-  }
+  app.use(pinoHttp({ logger }));
   app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 

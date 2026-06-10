@@ -1,13 +1,11 @@
 const flexModel = require('./_flexModel');
 
-const FundLedger = flexModel('FundLedger', 'fundLedgers', {
+module.exports = flexModel('FundLedger', 'fundLedgers', {
   id: String,
   code: String,
   date: String,
   fundType: String, // cash | bank
   direction: String, // in | out
-  account: String, // CASH | BANK or accounting sub-account
-  idempotencyKey: String,
   amount: Number,
   sourceType: String,
   sourceId: String,
@@ -31,10 +29,3 @@ const FundLedger = flexModel('FundLedger', 'fundLedgers', {
   createdAt: String,
   updatedAt: String
 });
-
-FundLedger.schema.index(
-  { idempotencyKey: 1 },
-  { unique: true, sparse: true, name: 'uniq_fund_ledger_idempotency_key' }
-);
-
-module.exports = FundLedger;

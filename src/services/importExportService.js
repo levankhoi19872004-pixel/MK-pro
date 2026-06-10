@@ -1,7 +1,7 @@
 'use strict';
 
 const dateUtil = require('../utils/date.util');
-const { createWorkbook, appendAoaSheet: appendAoaSheetToWorkbook, writeWorkbook } = require('../utils/excelWriter.util');
+const XLSX = require('xlsx');
 const excelImportService = require('./excelImportService');
 const importTemplateService = require('./importTemplateService');
 const exportRepository = require('../repositories/exportRepository');
@@ -34,16 +34,18 @@ function rowsToSheetRows(rows = []) {
   return { headers, body };
 }
 
-async function buildWorkbook({ type, rows }) {
+function buildWorkbook({ type, rows }) {
   const { headers, body } = rowsToSheetRows(rows);
-  const workbook = createWorkbook();
-  appendAoaSheetToWorkbook(workbook, 'Export', [headers, ...body]);
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...body]);
+  sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, String(header).length + 4) }));
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Export');
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
     ['Loại dữ liệu', type],
     ['Số dòng', rows.length],
     ['Thời gian xuất', new Date().toISOString()]
-  ]);
-  return writeWorkbook(workbook);
+  ]), 'ThongTin');
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
 
@@ -531,16 +533,21 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
     Product.find({}).lean()
   ]);
   const { rows, auditRows } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
-  const workbook = createWorkbook();
+  const workbook = XLSX.utils.book_new();
   const sheetRows = [TT78_HEADERS, ...rows.map((row) => TT78_HEADERS.map((header) => row[header] ?? ''))];
-  appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
+  const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
+  sheet['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(sheetRows.length - 1, 0), c: TT78_HEADERS.length - 1 } }) };
+  sheet['!cols'] = TT78_HEADERS.map((header) => ({ wch: Math.max(10, Math.min(35, String(header).length + 4)) }));
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Sheet1');
 
   const auditHeaders = [
     'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSanPham', 'SanPham',
     'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
     'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
   ];
-  appendAoaSheetToWorkbook(workbook, 'DoiChieu', [auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
+  const auditSheet = XLSX.utils.aoa_to_sheet([auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
+  auditSheet['!cols'] = auditHeaders.map((header) => ({ wch: Math.max(12, Math.min(35, String(header).length + 4)) }));
+  XLSX.utils.book_append_sheet(workbook, auditSheet, 'DoiChieu');
 
   const summary = rows.reduce((acc, row) => {
     if (row.TienBan !== '') {
@@ -552,7 +559,7 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
     acc.lineCount += row.MaSanPham ? 1 : 0;
     return acc;
   }, { invoiceCount: 0, lineCount: 0, amountBeforeVat: 0, vatAmount: 0, totalAmount: 0 });
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+  const infoSheet = XLSX.utils.aoa_to_sheet([
     ['Mẫu', 'TT78 - Sheet1'],
     ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
     ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
@@ -563,8 +570,9 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
     ['Tổng cộng', Math.round(summary.totalAmount)],
     ['Quy tắc', 'Số lượng xuất HĐ = số lượng bán - số lượng trả; Đơn giá = giá sau khuyến mại trên đơn / 1.08']
   ]);
+  XLSX.utils.book_append_sheet(workbook, infoSheet, 'ThongTin');
 
-  const buffer = writeWorkbook(workbook);
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
   return { buffer, rows: rows.length, fileName: `HoaDonVAT_TT78_${fromName}_${toName}.xlsx` };
@@ -600,22 +608,23 @@ function safeLimit(query = {}) {
 
 function appendAoaSheet(workbook, name, headers, rows) {
   const sheetRows = rows.map((row) => headers.map((h) => row[h] ?? ''));
-  appendAoaSheetToWorkbook(workbook, String(name || 'BaoCao').slice(0, 31), [headers, ...sheetRows]);
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...sheetRows]);
+  sheet['!cols'] = headers.map((header) => ({ wch: Math.max(12, Math.min(35, String(header).length + 4)) }));
+  XLSX.utils.book_append_sheet(workbook, sheet, String(name || 'BaoCao').slice(0, 31));
 }
 
-async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
-  const workbook = createWorkbook();
+function reportWorkbook(type, sheetName, headers, rows, query = {}) {
+  const workbook = XLSX.utils.book_new();
   appendAoaSheet(workbook, sheetName, headers, rows);
   const { from, to } = reportDateRange(query);
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
     ['Mẫu báo cáo', sheetName], ['Từ ngày', from], ['Đến ngày', to], ['Số dòng', rows.length], ['Thời gian xuất', new Date().toISOString()],
     ['Quy tắc doanh số', 'Doanh số trước KM = số lượng x giá bán gốc; Doanh số sau KM = giá trị thực tế trên đơn sau khuyến mại; Chênh lệch KM = trước KM - sau KM']
-  ]);
+  ]), 'ThongTin');
   const safeType = String(type || 'report').replace(/[^a-zA-Z0-9_-]/g, '-');
   const suffix = `${from || 'all'}_${to || dateUtil.todayVN()}`;
-  return { buffer: writeWorkbook(workbook), rows: rows.length, fileName: `${safeType}_${suffix}.xlsx` };
+  return { buffer: XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }), rows: rows.length, fileName: `${safeType}_${suffix}.xlsx` };
 }
-
 
 function orderItems(order = {}) { return Array.isArray(order.items) ? order.items : []; }
 function orderQty(order = {}) { return orderItems(order).reduce((s, i) => s + qtyOf(i), 0) || toNumber(order.totalQuantity || order.quantity || 0); }
@@ -972,7 +981,7 @@ function getBuiltInTemplates() {
   return importTemplateService.getBuiltInTemplates();
 }
 
-async function buildBuiltInTemplateFile(type) {
+function buildBuiltInTemplateFile(type) {
   return importTemplateService.buildBuiltInTemplateFile(type);
 }
 
@@ -1010,7 +1019,7 @@ async function exportToExcel(type, query = {}) {
   }
   const rows = await exportRepository.findForExport(type, query);
   if (!rows) return { error: 'Loại dữ liệu export không hợp lệ', status: 400 };
-  const buffer = await buildWorkbook({ type, rows });
+  const buffer = buildWorkbook({ type, rows });
   const safeType = String(type || 'data').replace(/[^a-zA-Z0-9_-]/g, '-');
   return { buffer, rows: rows.length, fileName: `${safeType}-export-${dateUtil.todayVN()}.xlsx` };
 }

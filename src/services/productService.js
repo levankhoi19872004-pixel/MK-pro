@@ -6,7 +6,6 @@ const productRepository = require('../repositories/productRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
 const inventoryStockService = require('./inventoryStock.service');
-const catalogCache = require('./cache/catalogCache.service');
 
 
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
@@ -94,30 +93,15 @@ function toClient(product, snapshot = null) {
 
 async function snapshotMapForProducts(products = []) {
   const codes = [];
-  const productsWithoutRawStock = [];
-
   for (const product of products || []) {
     const code = String(product.code || product.productCode || product.sku || product.id || product._id || '').trim();
-    const hasRawStock =
-      product.availableStock !== undefined ||
-      product.stockQuantity !== undefined ||
-      product.availableQty !== undefined ||
-      product.quantity !== undefined ||
-      product.qty !== undefined;
-
-    // Nếu product cũ vẫn còn field tồn thì để toClient fallback về chính product đó.
-    // Không tạo snapshot giả = 0 vì sẽ ghi đè tồn thật đang nằm trên product.
-    if (hasRawStock) continue;
     if (code && !codes.includes(code)) codes.push(code);
-    productsWithoutRawStock.push(product);
   }
-
   if (!codes.length) return new Map();
   const stockMap = await inventoryStockService.getAvailableStocks(codes);
   const map = new Map();
-  for (const product of productsWithoutRawStock) {
-    const normalizedCode = inventoryStockService.normalizeProductCode(product.code || product.productCode || product.sku || product.id || product._id);
-    const qty = toNumber(stockMap[normalizedCode]);
+  for (const product of products || []) {
+    const qty = toNumber(stockMap[inventoryStockService.normalizeProductCode(product.code || product.productCode || product.sku || product.id || product._id)]);
     const row = { availableQty: qty, onHand: qty, quantity: qty, qty };
     for (const key of [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']) {
       const clean = String(key || '').trim();
@@ -159,7 +143,6 @@ async function createProduct(body) {
   if (await productRepository.findDuplicateCode(payload.code)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
   if (payload.barcode && await productRepository.findDuplicateBarcode(payload.barcode)) return { error: 'Mã vạch đã tồn tại trong MongoDB', status: 409 };
   const product = await productRepository.create(payload);
-  catalogCache.invalidateCatalog('products');
   return { product: toClient(product) };
 }
 
@@ -180,7 +163,6 @@ async function updateProduct(id, body) {
   }
   await productRepository.save(current);
   await current.collection.updateOne({ _id: current._id }, { $unset: { openingStock: 1, availableStock: 1, stockQuantity: 1, availableQty: 1, stock: 1, quantity: 1, qty: 1, tonKho: 1, tonDau: 1 } });
-  catalogCache.invalidateCatalog('products');
   return { product: toClient(current) };
 }
 
@@ -189,7 +171,6 @@ async function setProductStatus(id, isActive) {
   if (!product) return { error: 'Không tìm thấy sản phẩm trong MongoDB', status: 404 };
   product.isActive = isActive !== false;
   await productRepository.save(product);
-  catalogCache.invalidateCatalog('products');
   return { product: toClient(product) };
 }
 

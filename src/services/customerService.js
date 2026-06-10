@@ -5,7 +5,6 @@ const { normalizeSearchText } = require('../utils/search.util');
 const customerRepository = require('../repositories/customerRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
-const catalogCache = require('./cache/catalogCache.service');
 const User = require('../models/User');
 
 const { toNumber } = require('../utils/common.util');
@@ -104,7 +103,6 @@ async function createCustomer(body) {
   payload.searchText = normalizeSearchText([payload.code, payload.name, payload.phone, payload.address, payload.area, payload.route, payload.staffCode, payload.staffName].filter(Boolean).join(' '));
   if (await customerRepository.findDuplicateCode(payload.code)) return { error: 'Mã khách hàng đã tồn tại trong MongoDB', status: 409 };
   const customer = await customerRepository.create(payload);
-  catalogCache.invalidateCatalog('customers');
   return { customer: toClient(customer) };
 }
 
@@ -120,7 +118,6 @@ async function updateCustomer(id, body) {
   payload.searchText = normalizeSearchText([payload.code, payload.name, payload.phone, payload.address, payload.area, payload.route, payload.staffCode, payload.staffName].filter(Boolean).join(' '));
   Object.assign(current, payload);
   await customerRepository.save(current);
-  catalogCache.invalidateCatalog('customers');
   return { customer: toClient(current) };
 }
 
@@ -129,14 +126,12 @@ async function setCustomerStatus(id, isActive) {
   if (!customer) return { error: 'Không tìm thấy khách hàng trong MongoDB', status: 404 };
   customer.isActive = isActive !== false;
   await customerRepository.save(customer);
-  catalogCache.invalidateCatalog('customers');
   return { customer: toClient(customer) };
 }
 
 async function deleteCustomer(id) {
   const customer = await customerRepository.removeByIdOrCode(id);
   if (!customer) return { error: 'Không tìm thấy khách hàng trong MongoDB', status: 404 };
-  catalogCache.invalidateCatalog('customers');
   return { customer: toClient(customer) };
 }
 

@@ -1,6 +1,5 @@
 'use strict';
 
-const mongoose = require('mongoose');
 const deliveryFinance = require('../utils/deliveryFinance.util');
 
 const dateUtil = require('../utils/date.util');
@@ -11,27 +10,16 @@ const customerRepository = require('../repositories/customerRepository');
 const userRepository = require('../repositories/userRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const queryGuard = require('../utils/queryGuard.util');
-const tx = require('../utils/transaction.util');
+const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
 const inventoryService = require('./inventoryService');
-const postingEngine = require('../core/posting/posting.engine');
+const postingEngine = require('../engines/posting.engine');
 const returnOrderService = require('./returnOrderService');
 const promotionService = require('./promotionService');
 const orderStatusUtil = require('../utils/orderStatus.util');
 const { DIRECT_PRICE, PROMOTION, normalizePricingMode } = require('../constants/pricingModes');
-const { debugLog } = require('../utils/debug.util');
 
 
-
-
-function shouldSkipPromotionCalculation(items = []) {
-  // Test/offline safety: nếu Mongo chưa connect và từng dòng đã có giá rõ ràng,
-  // không gọi promotionService vì service đó đọc trực tiếp Mongo models và sẽ bị buffering timeout.
-  if (mongoose.connection && mongoose.connection.readyState !== 1) {
-    return (items || []).every((item) => item.price !== undefined || item.salePrice !== undefined || item.unitPrice !== undefined);
-  }
-  return false;
-}
 
 function normalizeOrderDate(value) {
   return dateUtil.toDateOnly(value);
@@ -157,7 +145,6 @@ async function applyPromotionPricing(items = [], saleMode = DIRECT_PRICE, order 
   }
   const baseItems = calculateItems(items, PROMOTION, { ...order, saleMode: PROMOTION });
   if (!baseItems.length) return baseItems;
-  if (shouldSkipPromotionCalculation(baseItems)) return baseItems;
   const promo = await promotionService.calculatePromotions(baseItems);
   const promoLines = new Map((promo.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
   return baseItems.map((item) => {
@@ -280,7 +267,7 @@ async function applySalesOrderPosting(order, options = {}) {
 
   // Chuẩn nghiệp vụ: công nợ chỉ phát sinh qua AR Ledger.
   // Không cộng trực tiếp vào customer.currentDebt/debtAmount để tránh hai nguồn sự thật.
-  await postingEngine.postSale(order, { ...options, postZero: true });
+  await postingEngine.postSalesOrderAR(order, { ...options, postZero: true });
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
@@ -296,7 +283,7 @@ async function reverseSalesOrderPosting(order, options = {}) {
   }, options);
 
   // Chuẩn nghiệp vụ: hủy đơn ghi bút toán đảo AR Ledger, không sửa công nợ trực tiếp trên customer.
-  await postingEngine.postCancelOrder(order, options);
+  await postingEngine.reverseSalesOrderAR(order, options);
 }
 
 
@@ -674,7 +661,7 @@ async function searchOrders(query = {}) {
   const mapMs = Date.now() - mapStartedAt;
   const ms = Date.now() - startedAt;
 
-  debugLog('DEBUG_ORDER_FLOW', '[ORDER_SEARCH_FAST]', {
+  console.log('[ORDER_SEARCH_FAST]', {
     ms,
     queryMs,
     countMs,
@@ -837,7 +824,7 @@ async function createOrder(body = {}) {
   };
   Object.assign(order, orderStatusUtil.lifecyclePatch(order, { source: body.source || body.orderSource || 'sales_app' }));
   Object.assign(order, applyOrderSourceFields(order));
-  await tx.withMongoTransaction(async (session) => {
+  await withMongoTransaction(async (session) => {
     // V45 lazy return-order: chỉ lưu SalesOrder.
     // Không tạo RO-DRAFT rỗng khi tạo đơn bán; returnOrder chỉ sinh khi NVGH nhập returnQty > 0.
     await orderRepository.upsert({
@@ -848,7 +835,7 @@ async function createOrder(body = {}) {
       returnAmount: toNumber(order.returnAmount || 0)
     }, { session });
   });
-  debugLog('DEBUG_ORDER_FLOW', '[CREATE_ORDER_DONE]', { ms: Date.now() - startedAt, code: order.code, itemCount: items.length });
+  console.log('[CREATE_ORDER_DONE]', { ms: Date.now() - startedAt, code: order.code, itemCount: items.length });
   return { salesOrder: toClient(order) };
 }
 
@@ -889,7 +876,7 @@ async function updateOrder(id, body = {}) {
     ...orderStatusUtil.lifecyclePatch({ ...current, ...body, items, totalAmount, paidAmount }, current),
     updatedAt: dateUtil.nowIso()
   });
-  await tx.withMongoTransaction(async (session) => {
+  await withMongoTransaction(async (session) => {
     const currentWasPosted = Boolean(current.stockPosted || current.arPosted || current.accountingConfirmed)
       || ['confirmed', 'locked', 'posted'].includes(String(current.accountingStatus || current.arStatus || '').toLowerCase());
     const shouldPostAfterUpdate = body.postImmediately === true || currentWasPosted;
@@ -922,7 +909,7 @@ async function cancelOrder(id, body = {}) {
     cancelledAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
-  await tx.withMongoTransaction(async (session) => {
+  await withMongoTransaction(async (session) => {
     await orderRepository.upsert(cancelled, { session });
     await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
     await reverseSalesOrderPosting(current, { session });
@@ -940,7 +927,7 @@ async function deleteOrder(id, body = {}) {
   if (returnDraftDelete && returnDraftDelete.error) return returnDraftDelete;
 
   if (false && canHardDeleteSalesOrder(current)) {
-    await tx.withMongoTransaction(async (session) => {
+    await withMongoTransaction(async (session) => {
       await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
       await reverseSalesOrderPosting(current, { session });
       await orderRepository.remove(current.id || current.code || id, { session });
@@ -968,7 +955,7 @@ async function deleteOrder(id, body = {}) {
     deleteReason: String(body.reason || body.deleteReason || '').trim(),
     updatedAt: dateUtil.nowIso()
   };
-  await tx.withMongoTransaction(async (session) => {
+  await withMongoTransaction(async (session) => {
     await orderRepository.upsert(removed, { session });
     await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
     await reverseSalesOrderPosting(current, { session });

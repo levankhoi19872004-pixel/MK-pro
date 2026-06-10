@@ -8,72 +8,10 @@ const deliveryCashSubmissionRepository = require('../repositories/deliveryCashSu
 const expenseVoucherRepository = require('../repositories/expenseVoucherRepository');
 const fundTransferRepository = require('../repositories/fundTransferRepository');
 const masterOrderService = require('./masterOrderService');
-const eventLogService = require('./eventLogService');
-
-async function recordFundEvent(entry = {}, options = {}) {
-  return eventLogService.recordEvent({
-    eventType: 'FUND_LEDGER_POSTED',
-    aggregateType: entry.sourceType || entry.refType || 'FUND_LEDGER',
-    aggregateId: entry.sourceId || entry.refId || entry.id,
-    aggregateCode: entry.sourceCode || entry.refCode || entry.code,
-    source: 'fundService',
-    sourceType: entry.sourceType || 'fund_ledger',
-    sourceId: entry.id,
-    sourceCode: entry.code,
-    refType: entry.refType || entry.sourceType,
-    refId: entry.refId || entry.sourceId,
-    refCode: entry.refCode || entry.sourceCode,
-    payload: {
-      fundType: entry.fundType,
-      direction: entry.direction,
-      account: entry.account,
-      amount: entry.amount,
-      status: entry.status
-    }
-  }, options);
-}
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function money(value) { return Math.max(0, Math.round(toNumber(value))); }
 function activeStatus(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
-
-function canonicalFundType(value) {
-  return String(value || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
-}
-
-function canonicalDirection(value) {
-  return String(value || 'in').toLowerCase() === 'out' ? 'out' : 'in';
-}
-
-function canonicalAccount(value, fundType) {
-  const raw = String(value || '').trim();
-  return (raw || String(fundType || 'cash')).toUpperCase();
-}
-
-function normalizeKeyPart(value) {
-  return String(value || '').trim().toUpperCase();
-}
-
-function buildFundLedgerIdempotencyKey(input = {}) {
-  const fundType = canonicalFundType(input.fundType);
-  const direction = canonicalDirection(input.direction);
-  const account = canonicalAccount(input.account, fundType);
-  const sourceType = String(input.sourceType || 'MANUAL_FUND').trim() || 'MANUAL_FUND';
-  const sourceIdentity = String(
-    input.sourceId ||
-    input.sourceCode ||
-    input.referenceId ||
-    input.referenceCode ||
-    input.refId ||
-    input.refCode ||
-    input.id ||
-    input.code ||
-    ''
-  ).trim();
-  if (!sourceIdentity) return '';
-  return [sourceType, sourceIdentity, fundType, direction, account].map(normalizeKeyPart).join('|');
-}
-
 
 function buildCode(prefix, rows = []) {
   const max = rows.reduce((result, row) => {
@@ -120,12 +58,7 @@ async function listFundLedgers(query = {}) {
   return { fundLedgers: rows, summary: summarizeFundLedgers(rows) };
 }
 
-async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '', account = '') {
-  const key = buildFundLedgerIdempotencyKey({ sourceType, sourceCode, sourceId, fundType, direction, account });
-  if (key) {
-    const existedByKey = await fundLedgerRepository.findByIdempotencyKey(key);
-    if (existedByKey) return existedByKey;
-  }
+async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '') {
   const query = {
     fundType,
     direction,
@@ -134,7 +67,6 @@ async function findExistingFundLedger(sourceType, sourceCode, fundType, directio
       { referenceType: sourceType, referenceCode: sourceCode }
     ]
   };
-  if (account) query.account = account;
   if (sourceId) query.$or.push({ sourceType, sourceId }, { referenceType: sourceType, referenceId: sourceId });
   const rows = await fundLedgerRepository.findAll(query, { limit: 1 });
   return rows[0] || null;
@@ -143,42 +75,29 @@ async function findExistingFundLedger(sourceType, sourceCode, fundType, directio
 async function postFundLedger(input = {}, options = {}) {
   const amount = money(input.amount);
   if (amount <= 0) return null;
-  const fundType = canonicalFundType(input.fundType);
-  const direction = canonicalDirection(input.direction);
-  const account = canonicalAccount(input.account, fundType);
+  const fundType = String(input.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
+  const direction = String(input.direction || 'in').toLowerCase() === 'out' ? 'out' : 'in';
   const sourceType = String(input.sourceType || 'MANUAL_FUND').trim();
-  const sourceId = String(input.sourceId || input.refId || input.referenceId || '').trim();
-  const sourceCode = String(input.sourceCode || input.refCode || input.referenceCode || '').trim();
-  const idempotencyKey = String(input.idempotencyKey || buildFundLedgerIdempotencyKey({ ...input, sourceType, sourceId, sourceCode, fundType, direction, account })).trim();
-  if (!idempotencyKey) throw new Error('Thiếu sourceId/sourceCode để tạo idempotencyKey cho fund ledger');
-
-  const existed = await fundLedgerRepository.findByIdempotencyKey(idempotencyKey, options);
-  if (existed) {
-    return {
-      ok: true,
-      skipped: true,
-      ledger: existed,
-      reason: 'DUPLICATE_FUND_LEDGER'
-    };
+  const sourceCode = String(input.sourceCode || input.refCode || '').trim();
+  if (sourceCode) {
+    const existed = await findExistingFundLedger(sourceType, sourceCode, fundType, direction, String(input.sourceId || input.refId || input.referenceId || '').trim());
+    if (existed) return existed;
   }
-
   const entry = {
     id: String(input.id || makeId('FL')).trim(),
     code: String(input.code || await nextFundLedgerCode()).trim(),
     date: dateOnly(input.date),
     fundType,
     direction,
-    account,
-    idempotencyKey,
     amount,
     sourceType,
-    sourceId,
+    sourceId: String(input.sourceId || '').trim(),
     sourceCode,
     refType: String(input.refType || sourceType).trim(),
-    refId: String(input.refId || sourceId).trim(),
+    refId: String(input.refId || input.sourceId || '').trim(),
     refCode: String(input.refCode || sourceCode).trim(),
     referenceType: String(input.referenceType || input.refType || sourceType).trim(),
-    referenceId: String(input.referenceId || input.refId || sourceId).trim(),
+    referenceId: String(input.referenceId || input.refId || input.sourceId || '').trim(),
     referenceCode: String(input.referenceCode || input.refCode || sourceCode).trim(),
     deliveryDate: String(input.deliveryDate || '').trim(),
     deliveryStaffCode: String(input.deliveryStaffCode || '').trim(),
@@ -193,18 +112,8 @@ async function postFundLedger(input = {}, options = {}) {
     createdAt: input.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
-
-  try {
-    await fundLedgerRepository.upsert(entry, options);
-    await recordFundEvent(entry, options);
-    return entry;
-  } catch (error) {
-    if (error && (error.code === 11000 || String(error.message || '').includes('duplicate key'))) {
-      const duplicate = await fundLedgerRepository.findByIdempotencyKey(idempotencyKey, options);
-      if (duplicate) return { ok: true, skipped: true, ledger: duplicate, reason: 'DUPLICATE_FUND_LEDGER' };
-    }
-    throw error;
-  }
+  await fundLedgerRepository.upsert(entry, options);
+  return entry;
 }
 
 function numberFromRow(row, keys = []) {
@@ -542,6 +451,5 @@ module.exports = {
   createFundTransfer,
   updateFundTransfer,
   confirmFundTransfer,
-  postFundLedger,
-  buildFundLedgerIdempotencyKey
+  postFundLedger
 };

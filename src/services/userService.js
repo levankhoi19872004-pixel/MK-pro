@@ -4,7 +4,6 @@ const bcrypt = require('bcryptjs');
 const userRepository = require('../repositories/userRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const { makeId, stripMongoFields } = require('../utils/common.util');
-const catalogCache = require('./cache/catalogCache.service');
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
@@ -96,14 +95,12 @@ async function saveUser(body) {
   const duplicated = await userRepository.findDuplicateUser(payload.staffCode || payload.code, payload.username, current?._id);
   if (duplicated) return { error: 'Mã nhân viên hoặc tên đăng nhập đã tồn tại trong MongoDB', status: 409 };
   const saved = current ? await userRepository.updateUser(id, payload) : await userRepository.createUser(payload);
-  catalogCache.invalidateCatalog('staffs');
   return { user: staffToClient(saved), created: !current };
 }
 
 async function deleteUser(id) {
   const staff = await userRepository.deleteUser(id);
   if (!staff) return { error: 'Không tìm thấy tài khoản trong collection users', status: 404 };
-  catalogCache.invalidateCatalog('staffs');
   return { user: staffToClient(staff) };
 }
 

@@ -49,12 +49,10 @@ const INDEX_DEFINITIONS = {
     [{ orderNo: 1 }, { name: 'idx_orders_order_no', sparse: true }],
     [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
     [{ customerId: 1 }, { name: 'idx_orders_customer_id', sparse: true }],
-    [{ customerId: 1, deliveryDate: -1 }, { name: 'idx_orders_customer_delivery_date_desc', sparse: true }],
     [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_customer_order_date' }],
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
     [{ staffCode: 1, orderDate: -1 }, { name: 'idx_orders_staff_order_date', sparse: true }],
     [{ status: 1, orderDate: -1 }, { name: 'idx_orders_status_order_date' }],
-    [{ status: 1, deliveryDate: -1 }, { name: 'idx_orders_status_delivery_date_desc' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
     [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_sales_orders_delivery_date_staff_status' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_date_staff_status_desc' }],
@@ -62,7 +60,6 @@ const INDEX_DEFINITIONS = {
     [{ deliveryStatus: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_status_date_desc' }],
     [{ arStatus: 1, deliveryDate: 1 }, { name: 'idx_orders_ar_status_delivery_date' }],
     [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
-    [{ masterOrderId: 1, deliveryStatus: 1 }, { name: 'idx_orders_master_order_delivery_status', sparse: true }],
     [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
     [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }]
   ],
@@ -148,12 +145,8 @@ const INDEX_DEFINITIONS = {
     [{ date: 1 }, { name: 'idx_ar_ledgers_date' }],
     [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledgers_customer_date' }],
     [{ customerCode: 1, type: 1, date: -1 }, { name: 'idx_ar_ledgers_customer_type_date_desc' }],
-    [{ customerCode: 1, accountingStatus: 1 }, { name: 'idx_ar_ledgers_customer_accounting_status', sparse: true }],
     [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledgers_ref_code_type' }],
-    [{ sourceCode: 1, type: 1 }, { name: 'idx_ar_ledgers_source_code_type', sparse: true }],
-    [{ source: 1 }, { name: 'idx_ar_ledgers_source' }],
-    [{ customerId: 1, status: 1, date: -1 }, { name: 'idx_ar_ledgers_customer_status_date_desc', sparse: true }],
-    [{ sourceType: 1, sourceId: 1, entryType: 1 }, { name: 'idx_ar_ledgers_source_entry', sparse: true }]
+    [{ source: 1 }, { name: 'idx_ar_ledgers_source' }]
   ],
   payments: [
     [{ id: 1 }, { name: 'idx_payments_id' }],
@@ -183,22 +176,11 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_bankbooks_created_at' }]
   ],
 
-  eventLogs: [
-    [{ id: 1 }, { name: 'idx_event_logs_id' }],
-    [{ idempotencyKey: 1 }, { name: 'uniq_event_log_idempotency_key', unique: true, sparse: true }],
-    [{ eventType: 1, createdAt: -1 }, { name: 'idx_event_logs_type_created_at' }],
-    [{ aggregateType: 1, aggregateId: 1 }, { name: 'idx_event_logs_aggregate' }],
-    [{ refType: 1, refId: 1 }, { name: 'idx_event_logs_ref' }],
-    [{ sourceType: 1, sourceId: 1 }, { name: 'idx_event_logs_source' }]
-  ],
   fundLedgers: [
     [{ id: 1 }, { name: 'idx_fund_ledgers_id' }],
     [{ code: 1 }, { name: 'idx_fund_ledgers_code' }],
-    [{ idempotencyKey: 1 }, { name: 'uniq_fund_ledger_idempotency_key', unique: true, sparse: true }],
     [{ date: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_date_fund_direction' }],
-    [{ date: -1, fundCode: 1, direction: 1 }, { name: 'idx_fund_ledgers_date_fund_code_direction', sparse: true }],
     [{ sourceType: 1, sourceCode: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_source_unique_guard' }],
-    [{ sourceType: 1, sourceId: 1, entryType: 1 }, { name: 'idx_fund_ledgers_source_entry', sparse: true }],
     [{ deliveryDate: 1, deliveryStaffCode: 1 }, { name: 'idx_fund_ledgers_delivery_staff_date' }],
     [{ createdAt: -1 }, { name: 'idx_fund_ledgers_created_at' }]
   ],
@@ -227,7 +209,6 @@ const INDEX_DEFINITIONS = {
   inventories: [
     [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventories_product_warehouse' }],
     [{ productCode: 1 }, { name: 'idx_inventories_product_code' }],
-    [{ productCode: 1, warehouseId: 1 }, { name: 'idx_inventories_product_warehouse_id', sparse: true }],
     [{ warehouseCode: 1 }, { name: 'idx_inventories_warehouse_code' }]
   ],
   inventoriesLegacy: [
@@ -246,11 +227,8 @@ const INDEX_DEFINITIONS = {
     [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledger_ref_code_type' }]
   ],
   stockTransactions: [
-    [{ idempotencyKey: 1 }, { name: 'uniq_stock_tx_idempotency_key', unique: true, sparse: true }],
     [{ date: 1, productCode: 1, warehouseCode: 1 }, { name: 'idx_stock_tx_date_product_warehouse' }],
     [{ refType: 1, refId: 1 }, { name: 'idx_stock_tx_ref' }],
-    [{ sourceType: 1, sourceId: 1, productCode: 1 }, { name: 'idx_stock_tx_source_product' }],
-    [{ productCode: 1, warehouseId: 1, status: 1 }, { name: 'idx_stock_tx_product_warehouse_status', sparse: true }],
     [{ productCode: 1, date: 1 }, { name: 'idx_stock_tx_product_date' }]
   ],
   warehouses: [[{ code: 1 }, { name: 'idx_warehouses_code' }]],

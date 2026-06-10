@@ -8,7 +8,7 @@ const customerRepository = require('../repositories/customerRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
-const postingEngine = require('../core/posting/posting.engine');
+const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 const auditService = require('./auditService');
 const ReturnOrder = require('../models/ReturnOrder');
@@ -72,7 +72,7 @@ async function postReturnOrderArIfNeeded(returnOrder = {}, options = {}) {
   const amount = getReturnOrderValue(returnOrder);
   if (!returnOrder || amount <= 0) return { entry: null, returnOrder };
 
-  const entry = await postingEngine.postReturn({
+  const entry = await postingEngine.postReturnOrderAR({
     ...returnOrder,
     debtReduction: amount,
     amount,

@@ -20,7 +20,7 @@ const systemRoutes = require('./systemRoutes');
 const printRoutes = require('./printRoutes');
 const { importRouter, exportRouter } = require('./importExportRoutes');
 const swaggerRoutes = require('./swaggerRoutes');
-const mobileRoutes = require('./mobile');
+const mobileRoutes = require('./mobileRoutes');
 const searchRoutes = require('./searchRoutes');
 const catalogRoutes = require('./catalogRoutes');
 const fundRoutes = require('./fundRoutes');
@@ -45,8 +45,8 @@ function registerApiRoutes(app) {
   // Canonical delivery routes: one core API for web + mobile delivery UIs.
   app.use('/api/delivery', deliveryRoutes);
 
-  // Mobile app routes (sales + delivery). Modular mount with legacy fallback for rollback.
-  mobileRoutes.registerMobileRoutes(app);
+  // Mobile app routes (sales + delivery). Must be before /api fallback.
+  app.use('/api/mobile', mobileRoutes);
 
   // Step 1: Products / Customers / Users
   app.use('/api/products', productRoutes);

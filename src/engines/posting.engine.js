@@ -3,35 +3,8 @@
 const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
-const { debugLog } = require('../utils/debug.util');
-const eventLogService = require('../services/eventLogService');
 
 
-async function recordLedgerEvent(eventType, entry = {}, options = {}) {
-  return eventLogService.recordEvent({
-    eventType,
-    aggregateType: entry.refType || entry.type || 'AR_LEDGER',
-    aggregateId: entry.refId || entry.orderId || entry.id,
-    aggregateCode: entry.refCode || entry.orderCode || entry.code,
-    source: 'posting.engine',
-    sourceType: entry.type || 'ar_ledger',
-    sourceId: entry.id,
-    sourceCode: entry.code,
-    refType: entry.refType,
-    refId: entry.refId,
-    refCode: entry.refCode,
-    payload: {
-      ledgerType: entry.type,
-      account: entry.account,
-      debit: entry.debit,
-      credit: entry.credit,
-      amount: entry.amount,
-      customerCode: entry.customerCode,
-      orderCode: entry.orderCode,
-      status: entry.status
-    }
-  }, options);
-}
 
 function baseJournal(doc = {}, extra = {}) {
   return {
@@ -99,7 +72,6 @@ async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
 
   const rows = await paymentRepository.findAll({
     type: 'ar_return',
-    status: { $ne: 'void' },
     $or: [
       { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
       { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
@@ -146,7 +118,6 @@ async function postSalesOrderAR(order = {}, options = {}) {
     note: `Ghi nhận công nợ đơn bán ${order.code || order.id}`
   });
   await paymentRepository.upsert(entry, options);
-  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -168,7 +139,6 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
     note: `Đảo công nợ đơn bán ${order.code || order.id}`
   });
   await paymentRepository.upsert(entry, options);
-  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -194,7 +164,7 @@ function returnOrderArAmount(returnOrder = {}) {
 }
 
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
-  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-10 postReturnOrderAR input', {
+  console.log('[AR_RETURN_DEBUG] STEP-10 postReturnOrderAR input', {
     code: returnOrder?.code,
     orderCode: returnOrder?.orderCode || returnOrder?.salesOrderCode,
     amount: returnOrder?.amount,
@@ -202,17 +172,14 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
     totalAmount: returnOrder?.totalAmount,
     totalReturnAmount: returnOrder?.totalReturnAmount
   });
+  if (options.skipIfExists && await hasExistingReturnOrderAR(returnOrder, options)) {
+    return null;
+  }
   const amount = returnOrderArAmount(returnOrder);
   if (amount <= 0) return null;
 
-  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.returnOrderId || '').trim();
-  const returnOrderCode = String(returnOrder.code || returnOrder.returnOrderCode || '').trim();
-  if (!returnOrderId && !returnOrderCode) return null;
-
-  if (await hasExistingReturnOrderAR({ ...returnOrder, id: returnOrderId, code: returnOrderCode }, options)) {
-    return null;
-  }
-
+  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.code || '').trim();
+  const returnOrderCode = String(returnOrder.code || returnOrder.id || '').trim();
   const salesOrderId = String(returnOrder.salesOrderId || returnOrder.orderId || returnOrder.sourceOrderId || '').trim();
   const salesOrderCode = String(returnOrder.salesOrderCode || returnOrder.orderCode || returnOrder.sourceOrderCode || '').trim();
 
@@ -242,12 +209,10 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
     }),
     returnOrderId: returnOrderId || returnOrderCode,
     returnOrderCode: returnOrderCode || returnOrderId,
-    salesOrderId,
-    salesOrderCode,
     items: Array.isArray(returnOrder.items) ? returnOrder.items : []
   };
   await paymentRepository.upsert(entry, options);
-  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-11 AR-RETURN created', {
+  console.log('[AR_RETURN_DEBUG] STEP-11 AR-RETURN created', {
     code: entry.code,
     orderCode: entry.orderCode,
     credit: entry.credit,
@@ -274,7 +239,6 @@ async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
     note: `Đảo giảm công nợ trả hàng ${returnOrder.code || returnOrder.id}`
   });
   await paymentRepository.upsert(entry, options);
-  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -322,7 +286,6 @@ async function postBonusAllowanceAR(doc = {}, options = {}) {
     note: doc.bonusNote || doc.rewardNote || `Cấn trừ công nợ trả thưởng ${doc.code || doc.orderCode || doc.id}`
   });
   await paymentRepository.upsert(entry, options);
-  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -396,7 +359,6 @@ async function postReceiptAR(receipt = {}, options = {}) {
     note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
   });
   await paymentRepository.upsert(entry, options);
-  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -444,7 +406,6 @@ async function reverseReceiptAR(receipt = {}, options = {}) {
     note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
   });
   await paymentRepository.upsert(entry, options);
-  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -469,6 +430,5 @@ module.exports = {
   reverseReturnOrderAR,
   postReceiptAR,
   reverseReceiptAR,
-  postBonusAllowanceAR,
-  _internal: { returnOrderArAmount, hasExistingReturnOrderAR }
+  postBonusAllowanceAR
 };

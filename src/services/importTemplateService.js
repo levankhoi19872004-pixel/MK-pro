@@ -1,10 +1,9 @@
 'use strict';
 
-const { createWorkbook, appendAoaSheet, writeWorkbook } = require('../utils/excelWriter.util');
+const XLSX = require('xlsx');
 const importTemplateRepository = require('../repositories/importTemplateRepository');
 const { buildImportTemplate, getTemplateTypes, TEMPLATE_DEFINITIONS } = require('../../services/excelTemplateService');
 const { makeId } = require('../utils/common.util');
-
 
 const FIELD_OPTIONS = Object.entries(TEMPLATE_DEFINITIONS).reduce((acc, [type, definition]) => {
   acc[type] = definition.columns.map((field, index) => ({ field, label: definition.headers[index] || field }));
@@ -49,16 +48,16 @@ async function buildCustomTemplateFile(id) {
   const template = await importTemplateRepository.findById(id);
   if (!template) return { error: 'Không tìm thấy mẫu import', status: 404 };
   const headers = (template.fields || []).map((field) => field.excelHeader || field.dbField).filter(Boolean);
-  const workbook = createWorkbook();
-  appendAoaSheet(workbook, 'Import', [headers], { autoFilter: true });
-  appendAoaSheet(workbook, 'HuongDan', [
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headers]), 'Import');
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
     ['Tên mẫu', template.name || ''],
     ['Loại dữ liệu', template.type || ''],
     [],
     ['Cột Excel', 'Trường dữ liệu', 'Bắt buộc', 'Giá trị mặc định'],
     ...(template.fields || []).map((field) => [field.excelHeader, field.dbField, field.required ? 'Có' : 'Không', field.defaultValue || ''])
-  ]);
-  const buffer = writeWorkbook(workbook);
+  ]), 'HuongDan');
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   return { buffer, fileName: `${String(template.name || 'mau-import').replace(/[^\p{L}\p{N}]+/gu, '-')}.xlsx` };
 }
 
@@ -66,7 +65,7 @@ function getBuiltInTemplates() {
   return getTemplateTypes();
 }
 
-async function buildBuiltInTemplateFile(type) {
+function buildBuiltInTemplateFile(type) {
   return buildImportTemplate(type);
 }
 
