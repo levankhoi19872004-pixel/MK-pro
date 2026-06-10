@@ -69,7 +69,11 @@ const ACCESS_TOKEN_EXPIRES_IN = process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || '1
 const REFRESH_TOKEN_EXPIRES_IN = process.env.MOBILE_REFRESH_TOKEN_EXPIRES_IN || '30d';
 
 function jwtSecret() {
-  return process.env.JWT_SECRET || process.env.MOBILE_JWT_SECRET || 'mk-pro-v45-mobile-secret-change-me';
+  const secret = [process.env.JWT_SECRET, process.env.MOBILE_JWT_SECRET].find(Boolean);
+  if (!secret) {
+    throw new Error('Missing JWT_SECRET');
+  }
+  return secret;
 }
 
 

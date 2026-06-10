@@ -14,7 +14,11 @@ const router = express.Router();
 const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
 
 function jwtSecret() {
-  return process.env.JWT_SECRET || process.env.MOBILE_JWT_SECRET || 'mk-pro-v45-mobile-secret-change-me';
+  const secret = [process.env.JWT_SECRET, process.env.MOBILE_JWT_SECRET].find(Boolean);
+  if (!secret) {
+    throw new Error('Missing JWT_SECRET');
+  }
+  return secret;
 }
 
 function requireLogin(req, res, next) {
