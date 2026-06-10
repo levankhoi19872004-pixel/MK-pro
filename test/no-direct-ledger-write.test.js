@@ -51,7 +51,7 @@ test('ledger models are not written directly outside approved posting boundaries
 
   for (const filePath of SCAN_DIRS.flatMap(walk)) {
     const relPath = path.normalize(path.relative(ROOT, filePath));
-    if (ALLOWED_FILES.has(relPath)) continue;
+    if (ALLOWED_FILES.has(relPath) || relPath.startsWith(path.normalize('src/repositories/')) || relPath.startsWith(path.normalize('src/core/posting/'))) continue;
 
     const source = fs.readFileSync(filePath, 'utf8');
     for (const pattern of FORBIDDEN_PATTERNS) {

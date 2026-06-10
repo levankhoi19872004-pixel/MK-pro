@@ -8,6 +8,30 @@ const deliveryCashSubmissionRepository = require('../repositories/deliveryCashSu
 const expenseVoucherRepository = require('../repositories/expenseVoucherRepository');
 const fundTransferRepository = require('../repositories/fundTransferRepository');
 const masterOrderService = require('./masterOrderService');
+const eventLogService = require('./eventLogService');
+
+async function recordFundEvent(entry = {}, options = {}) {
+  return eventLogService.recordEvent({
+    eventType: 'FUND_LEDGER_POSTED',
+    aggregateType: entry.sourceType || entry.refType || 'FUND_LEDGER',
+    aggregateId: entry.sourceId || entry.refId || entry.id,
+    aggregateCode: entry.sourceCode || entry.refCode || entry.code,
+    source: 'fundService',
+    sourceType: entry.sourceType || 'fund_ledger',
+    sourceId: entry.id,
+    sourceCode: entry.code,
+    refType: entry.refType || entry.sourceType,
+    refId: entry.refId || entry.sourceId,
+    refCode: entry.refCode || entry.sourceCode,
+    payload: {
+      fundType: entry.fundType,
+      direction: entry.direction,
+      account: entry.account,
+      amount: entry.amount,
+      status: entry.status
+    }
+  }, options);
+}
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function money(value) { return Math.max(0, Math.round(toNumber(value))); }
@@ -172,6 +196,7 @@ async function postFundLedger(input = {}, options = {}) {
 
   try {
     await fundLedgerRepository.upsert(entry, options);
+    await recordFundEvent(entry, options);
     return entry;
   } catch (error) {
     if (error && (error.code === 11000 || String(error.message || '').includes('duplicate key'))) {

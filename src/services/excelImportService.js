@@ -2035,8 +2035,11 @@ async function importUsers(rows = []) {
   });
 
   validRows.push(...seen.values());
+  const usernames = validRows.map((item) => item.username).filter(Boolean);
+  const currentUsers = usernames.length ? await User.find({ username: { $in: usernames } }).select('username password').lean() : [];
+  const currentUserByUsername = new Map(currentUsers.map((user) => [String(user.username || '').toLowerCase(), user]));
   for (const item of validRows) {
-    const current = await User.findOne({ username: item.username }).lean();
+    const current = currentUserByUsername.get(String(item.username || '').toLowerCase());
     const password = item.password
       ? (isBcryptHash(item.password) ? item.password : bcrypt.hashSync(item.password, BCRYPT_ROUNDS))
       : (current?.password || bcrypt.hashSync('123456', BCRYPT_ROUNDS));

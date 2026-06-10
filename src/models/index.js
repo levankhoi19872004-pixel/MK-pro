@@ -22,6 +22,7 @@ module.exports = {
   cashbooks: require('./Cashbook'),
   bankbooks: require('./Bankbook'),
   fundLedgers: require('./FundLedger'),
+  eventLogs: require('./EventLog'),
   deliveryCashSubmissions: require('./DeliveryCashSubmission'),
   expenseVouchers: require('./ExpenseVoucher'),
   fundTransfers: require('./FundTransfer'),

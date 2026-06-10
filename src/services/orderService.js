@@ -14,7 +14,7 @@ const queryGuard = require('../utils/queryGuard.util');
 const tx = require('../utils/transaction.util');
 const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
 const inventoryService = require('./inventoryService');
-const postingEngine = require('../engines/posting.engine');
+const postingEngine = require('../core/posting/posting.engine');
 const returnOrderService = require('./returnOrderService');
 const promotionService = require('./promotionService');
 const orderStatusUtil = require('../utils/orderStatus.util');
@@ -280,7 +280,7 @@ async function applySalesOrderPosting(order, options = {}) {
 
   // Chuẩn nghiệp vụ: công nợ chỉ phát sinh qua AR Ledger.
   // Không cộng trực tiếp vào customer.currentDebt/debtAmount để tránh hai nguồn sự thật.
-  await postingEngine.postSalesOrderAR(order, { ...options, postZero: true });
+  await postingEngine.postSale(order, { ...options, postZero: true });
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
@@ -296,7 +296,7 @@ async function reverseSalesOrderPosting(order, options = {}) {
   }, options);
 
   // Chuẩn nghiệp vụ: hủy đơn ghi bút toán đảo AR Ledger, không sửa công nợ trực tiếp trên customer.
-  await postingEngine.reverseSalesOrderAR(order, options);
+  await postingEngine.postCancelOrder(order, options);
 }
 
 

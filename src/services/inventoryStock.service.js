@@ -1,6 +1,6 @@
 'use strict';
 
-const InventorySnapshot = require('../models/Inventory');
+const StockTransaction = require('../models/StockTransaction');
 const Product = require('../models/Product');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
@@ -19,10 +19,14 @@ function stockWarehouseName() {
 }
 
 function quantityOf(row = {}) {
-  if (row.availableQty !== undefined && row.availableQty !== null) return toNumber(row.availableQty);
-  const onHand = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity);
-  const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
-  return onHand - reserved;
+  return toNumber(row.quantity ?? row.qty ?? row.balanceQty ?? 0);
+}
+
+function activeLedgerFilter(extra = {}) {
+  return {
+    ...extra,
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
+  };
 }
 
 function productCodeOf(row = {}) {
@@ -60,14 +64,12 @@ async function getAvailableStocks(productCodes = []) {
   }
 
   const aliases = Array.from(aliasToCanonical.keys());
-  const rows = await InventorySnapshot.find({
+  const rows = await StockTransaction.find(activeLedgerFilter({
     $or: [
       { productCode: { $in: aliases } },
-      { code: { $in: aliases } },
-      { sku: { $in: aliases } },
       { productId: { $in: aliases } }
     ]
-  }).lean().catch(() => []);
+  })).select('productCode productId quantity qty').lean().catch(() => []);
 
   for (const row of rows || []) {
     const alias = productCodeOf(row);
@@ -89,7 +91,7 @@ async function getAvailableStock(productCode) {
 async function getInventorySummary(query = {}) {
   const q = normalizeProductCode(query.q || query.search || query.keyword || '');
   const [inventoryRows, products] = await Promise.all([
-    InventorySnapshot.find({}).sort({ productCode: 1 }).lean(),
+    StockTransaction.find(activeLedgerFilter({})).sort({ productCode: 1, date: 1, createdAt: 1 }).lean(),
     Product.find({}).select('id code productCode sku name productName unit baseUnit minStock maxStock').lean()
   ]);
 
@@ -110,7 +112,7 @@ async function getInventorySummary(query = {}) {
     const quantity = quantityOf(row);
     if (!grouped.has(productCode)) {
       grouped.set(productCode, {
-        id: row.id || String(row._id || ''),
+        id: row.productCode || row.productId || String(row._id || ''),
         productId: row.productId || product.id || String(product._id || ''),
         productCode,
         productName: row.productName || product.name || product.productName || '',
@@ -125,7 +127,7 @@ async function getInventorySummary(query = {}) {
         availableQty: 0,
         minStock: toNumber(product.minStock),
         maxStock: toNumber(product.maxStock),
-        updatedAt: row.updatedAt || row.createdAt || row.lastTransactionAt || ''
+        updatedAt: row.updatedAt || row.createdAt || ''
       });
     }
     const acc = grouped.get(productCode);
@@ -133,8 +135,7 @@ async function getInventorySummary(query = {}) {
     acc.qty += quantity;
     acc.onHand += quantity;
     acc.availableQty += quantity;
-    acc.reservedQty += toNumber(row.reservedQty ?? row.reserved ?? 0);
-    const updatedAt = row.updatedAt || row.createdAt || row.lastTransactionAt || '';
+    const updatedAt = row.updatedAt || row.createdAt || '';
     if (updatedAt > (acc.updatedAt || '')) acc.updatedAt = updatedAt;
   }
 
@@ -150,7 +151,7 @@ async function getInventorySummary(query = {}) {
     return acc;
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0, negativeStockCount: 0 });
 
-  return { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventorySnapshots', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso() };
+  return { source: 'inventoryStock.service', stock, summary, inventorySource: 'stockTransactions', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso() };
 }
 
 module.exports = {

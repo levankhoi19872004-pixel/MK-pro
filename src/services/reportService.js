@@ -16,6 +16,8 @@ const { normalizeText, toNumber } = require('../utils/common.util');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 const inventoryStockService = require('./inventoryStock.service');
 const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
+const { aggregateCustomerDebt } = require('./debtAggregate.service');
+const dashboardAggregateService = require('./dashboardAggregate.service');
 
 
 
@@ -796,6 +798,15 @@ async function debtReport(query = {}) {
     : [];
   const customerMeta = buildCustomerMetaMap([...seedCustomers, ...extraCustomers]);
 
+  // Aggregate công nợ theo khách trực tiếp trong MongoDB.
+  // Không reduce customer summary từ dữ liệu đã phân trang, tránh sai tổng khi AR Ledger lớn.
+  const aggregateCustomerSummary = await aggregateCustomerDebt({
+    match,
+    customerMetaMap: customerMeta,
+    includePaid: String(query.includePaid || '').trim() === '1' || String(query.status || '').trim() === 'paid',
+    limit: getSafeLimit(query.customerLimit || query.limit, 100, 500)
+  }).catch(() => []);
+
   const now = dateUtil.todayVN();
   let debts = grouped.map((row) => {
     const id = row._id || {};
@@ -898,7 +909,7 @@ async function debtReport(query = {}) {
     if (row.status === 'overdue') target.overdueCount += 1;
   });
 
-  const customerSummary = Array.from(customerMap.values())
+  const reducedCustomerSummary = Array.from(customerMap.values())
     .map((row) => ({
       ...row,
       debt: normalizeDebtAmount(row.debt),
@@ -907,6 +918,8 @@ async function debtReport(query = {}) {
       debtZeroTolerance: DEBT_ZERO_TOLERANCE
     }))
     .sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
+
+  const customerSummary = aggregateCustomerSummary.length ? aggregateCustomerSummary : reducedCustomerSummary;
 
   const arLedgerRows = await ArLedger.find(match)
     .sort({ date: -1, createdAt: -1 })
@@ -924,17 +937,18 @@ async function debtReport(query = {}) {
     hasMore,
     orderCount: debts.length,
     customerCount: customerSummary.length,
-    overdueCount: debts.filter((row) => row.status === 'overdue').length,
-    totalDebit: sum(debts, (row) => row.debit),
-    totalCredit: sum(debts, (row) => row.credit),
-    totalDebt: sum(debts, (row) => normalizeDebtAmount(row.debt)),
-    totalPositiveDebt: sum(debts.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
-    totalOverpaid: sum(debts.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
+    overdueCount: customerSummary.filter((row) => row.status === 'overdue').length,
+    totalDebit: sum(customerSummary, (row) => row.debit),
+    totalCredit: sum(customerSummary, (row) => row.credit),
+    totalDebt: sum(customerSummary, (row) => normalizeDebtAmount(row.debt)),
+    totalPositiveDebt: sum(customerSummary.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
+    totalOverpaid: sum(customerSummary.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
     debtZeroTolerance: DEBT_ZERO_TOLERANCE,
     journalCount: grouped.length,
     arLedgerCount: arLedger.length,
     arWarningCount: 0,
-    optimized: true
+    optimized: true,
+    aggregateCustomerDebt: aggregateCustomerSummary.length > 0
   };
 
   return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics: [], summary };
@@ -1200,6 +1214,12 @@ async function deliveryReport(query = {}) {
 }
 
 async function dashboardReport(query = {}) {
+  try {
+    return await dashboardAggregateService.getDashboardSummaryAggregate(query);
+  } catch (err) {
+    console.error('[dashboardReport] aggregate failed, fallback legacy:', err && err.message ? err.message : err);
+  }
+
   const [sales, debts, stock, finance, delivery, imports] = await Promise.all([
     salesReport(query),
     debtReport(query),

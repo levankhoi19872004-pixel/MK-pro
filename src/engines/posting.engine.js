@@ -4,8 +4,34 @@ const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
 const { debugLog } = require('../utils/debug.util');
+const eventLogService = require('../services/eventLogService');
 
 
+async function recordLedgerEvent(eventType, entry = {}, options = {}) {
+  return eventLogService.recordEvent({
+    eventType,
+    aggregateType: entry.refType || entry.type || 'AR_LEDGER',
+    aggregateId: entry.refId || entry.orderId || entry.id,
+    aggregateCode: entry.refCode || entry.orderCode || entry.code,
+    source: 'posting.engine',
+    sourceType: entry.type || 'ar_ledger',
+    sourceId: entry.id,
+    sourceCode: entry.code,
+    refType: entry.refType,
+    refId: entry.refId,
+    refCode: entry.refCode,
+    payload: {
+      ledgerType: entry.type,
+      account: entry.account,
+      debit: entry.debit,
+      credit: entry.credit,
+      amount: entry.amount,
+      customerCode: entry.customerCode,
+      orderCode: entry.orderCode,
+      status: entry.status
+    }
+  }, options);
+}
 
 function baseJournal(doc = {}, extra = {}) {
   return {
@@ -120,6 +146,7 @@ async function postSalesOrderAR(order = {}, options = {}) {
     note: `Ghi nhận công nợ đơn bán ${order.code || order.id}`
   });
   await paymentRepository.upsert(entry, options);
+  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -141,6 +168,7 @@ async function reverseSalesOrderAR(order = {}, options = {}) {
     note: `Đảo công nợ đơn bán ${order.code || order.id}`
   });
   await paymentRepository.upsert(entry, options);
+  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -246,6 +274,7 @@ async function reverseReturnOrderAR(returnOrder = {}, options = {}) {
     note: `Đảo giảm công nợ trả hàng ${returnOrder.code || returnOrder.id}`
   });
   await paymentRepository.upsert(entry, options);
+  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -293,6 +322,7 @@ async function postBonusAllowanceAR(doc = {}, options = {}) {
     note: doc.bonusNote || doc.rewardNote || `Cấn trừ công nợ trả thưởng ${doc.code || doc.orderCode || doc.id}`
   });
   await paymentRepository.upsert(entry, options);
+  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -366,6 +396,7 @@ async function postReceiptAR(receipt = {}, options = {}) {
     note: receipt.note || `Thu công nợ ${receipt.code || receipt.id}`
   });
   await paymentRepository.upsert(entry, options);
+  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 
@@ -413,6 +444,7 @@ async function reverseReceiptAR(receipt = {}, options = {}) {
     note: receipt.voidReason || `Hủy phiếu thu ${receipt.code || receipt.id} - hoàn công nợ`
   });
   await paymentRepository.upsert(entry, options);
+  await recordLedgerEvent('AR_LEDGER_POSTED', entry, options);
   return entry;
 }
 

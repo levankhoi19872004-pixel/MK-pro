@@ -21,6 +21,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 const Product = require('../models/Product');
+const { collectUniqueCodes, makeMap } = require('../utils/queryBatch.util');
 const Customer = require('../models/Customer');
 const Staff = require('../models/Staff');
 const User = require('../models/User');
@@ -46,7 +47,7 @@ const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
 const searchService = require('../services/searchService');
 const returnOrderService = require('../services/returnOrderService');
-const postingEngine = require('../engines/posting.engine');
+const postingEngine = require('../core/posting/posting.engine');
 const { DeliveryEngine } = require('../engines/delivery.engine');
 const financialService = require('../services/financialService');
 const masterOrderService = require('../services/masterOrderService');
@@ -296,17 +297,38 @@ async function assertItemsWithinOpenStock(items = [], oldItems = []) {
     oldQtyByCode.set(code, toNumber(oldQtyByCode.get(code)) + toNumber(item.quantity || item.qty));
   }
 
+  const codes = collectUniqueCodes(items, (item) => item.productCode || item.code || item.productId);
+  if (!codes.length) return 'Có dòng sản phẩm thiếu mã sản phẩm';
+
+  const objectIdCodes = codes.filter((code) => code.match(/^[a-f\d]{24}$/i));
+  const products = await Product.find({
+    isActive: { $ne: false },
+    $or: [
+      { code: { $in: codes } },
+      { sku: { $in: codes } },
+      { productCode: { $in: codes } },
+      { id: { $in: codes } },
+      ...(objectIdCodes.length ? [{ _id: { $in: objectIdCodes } }] : [])
+    ]
+  }).lean();
+  const productMap = new Map();
+  for (const product of products || []) {
+    for (const key of [product.code, product.sku, product.productCode, product.id, product._id]) {
+      const clean = String(key || '').trim();
+      if (clean) productMap.set(clean, product);
+    }
+  }
+
+  const stockMap = await inventoryStockService.getAvailableStocks(codes);
   for (const item of items || []) {
     const code = String(item.productCode || item.code || item.productId || '').trim();
     if (!code) return 'Có dòng sản phẩm thiếu mã sản phẩm';
-    const product = await Product.findOne({
-      isActive: { $ne: false },
-      $or: [{ code }, { sku: code }, { productCode: code }, { id: code }, ...(code.match(/^[a-f\d]{24}$/i) ? [{ _id: code }] : [])]
-    }).lean();
+    const product = productMap.get(code);
     if (!product) return `Không tìm thấy sản phẩm: ${code}`;
     const qty = toNumber(item.quantity || item.qty);
     if (qty <= 0) return `Số lượng phải lớn hơn 0: ${code}`;
-    const availableQty = await getOpenSaleQty(product);
+    const normalizedCode = inventoryStockService.normalizeProductCode(productCodeOf(product) || code);
+    const availableQty = toNumber(stockMap[normalizedCode] ?? stockMap[inventoryStockService.normalizeProductCode(code)]);
     const ownOldQty = toNumber(oldQtyByCode.get(code));
     if (qty > availableQty + ownOldQty) {
       return `Số lượng vượt tồn mở bán: ${code}. Tồn ${formatOpenSaleQty(availableQty + ownOldQty, product.conversionRate || 1)}, cần ${formatOpenSaleQty(qty, product.conversionRate || 1)}`;

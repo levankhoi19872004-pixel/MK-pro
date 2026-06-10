@@ -10,11 +10,10 @@ const masterOrderRepository = require('../../repositories/masterOrderRepository'
 const returnOrderRepository = require('../../repositories/returnOrderRepository');
 const userRepository = require('../../repositories/userRepository');
 const customerRepository = require('../../repositories/customerRepository');
-const orderService = require('../orderService');
 const returnOrderService = require('../returnOrderService');
 const reportService = require('../reportService');
 const auditService = require('../auditService');
-const postingEngine = require('../../engines/posting.engine');
+const postingEngine = require('../../core/posting/posting.engine');
 const paymentRepository = require('../../repositories/paymentRepository');
 const MongoStore = require('../../models');
 const { makeId, normalizeText, toNumber } = require('../../utils/common.util');
@@ -130,6 +129,43 @@ function buildIdentityInFilter(keys = [], fields = ['id', 'code']) {
   const values = [...new Set((keys || []).map((value) => String(value || '').trim()).filter(Boolean))];
   if (!values.length) return null;
   return { $or: fields.map((field) => ({ [field]: { $in: values } })) };
+}
+
+
+function compactLocalChildOrderKeys(order = {}) {
+  return [order.id, order.code, order.orderNo, order.orderCode, order.documentCode, order.invoiceCode, order.salesOrderCode, order._id]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function masterChildIdSetLocal(masterOrder = {}) {
+  return new Set((Array.isArray(masterOrder.childOrderIds) ? masterOrder.childOrderIds : [])
+    .map((item) => String(item?.id || item?.code || item?._id || item || '').trim())
+    .filter(Boolean));
+}
+
+async function getMasterChildrenLocal(masterOrder = {}) {
+  // Cắt circular dependency masterOrderLegacy.service -> orderService -> masterOrderService.
+  // Logic giữ cùng contract với orderService.getMasterChildren(): nguồn chuẩn là childOrderIds,
+  // không fallback theo customer/ngày/NVGH để tránh kéo nhầm đơn con.
+  const ids = masterChildIdSetLocal(masterOrder);
+  if (!ids.size) return [];
+
+  const orders = await orderRepository.findManyByIdentity(Array.from(ids));
+  const byKey = new Map();
+  for (const order of orders || []) {
+    if (isInactiveStatus(order)) continue;
+    const matched = compactLocalChildOrderKeys(order).some((key) => ids.has(key));
+    if (!matched) continue;
+    const key = String(order.id || order.code || order._id || '').trim();
+    if (key && !byKey.has(key)) byKey.set(key, order);
+  }
+  return Array.from(byKey.values());
+}
+
+function getOrderServiceLazy() {
+  // Chỉ dùng cho listUnmergedChildOrders sau khi module graph đã load xong.
+  return require('../orderService');
 }
 
 async function buildMasterChildrenMapFast(masterOrders = []) {
@@ -354,13 +390,40 @@ async function resolveStaff(body = {}, prefix = 'delivery') {
 }
 
 
+
+function isInactiveOrderForSummary(order = {}) {
+  const status = String(order.status || order.deliveryStatus || order.accountingStatus || '').toLowerCase();
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status) || Boolean(order.deletedAt);
+}
+
+function summarizeMasterChildren(children = []) {
+  const active = (Array.isArray(children) ? children : []).filter((order) => !isInactiveOrderForSummary(order));
+  const totalOrders = active.length;
+  const totalQuantity = active.reduce((sum, order) => {
+    const items = Array.isArray(order.items) ? order.items : [];
+    return sum + items.reduce((itemSum, item) => itemSum + toNumber(item.quantity ?? item.qty ?? item.totalQuantity ?? 0), 0);
+  }, 0);
+  const totalAmount = active.reduce((sum, order) => sum + toNumber(order.totalAmount), 0);
+  const paidAmount = active.reduce((sum, order) => sum + toNumber(order.paidAmount), 0);
+  const debtAmount = active.reduce((sum, order) => sum + deliveryFinance.calculateDeliveryDebt(order), 0);
+  return {
+    orderCount: totalOrders,
+    totalOrders,
+    totalQuantity,
+    totalAmount,
+    paidAmount,
+    debtAmount,
+    totalDebt: debtAmount
+  };
+}
+
 function isInactiveStatus(row = {}) {
   const status = String(row.status || '').toLowerCase();
   return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status) || Boolean(row.deletedAt);
 }
 
 function toClient(masterOrder, children = []) {
-  const summary = orderService.summarizeOrders(children);
+  const summary = summarizeMasterChildren(children);
   return {
     ...masterOrder,
     ...summary,
@@ -378,7 +441,7 @@ function toClient(masterOrder, children = []) {
 async function getMasterOrder(id) {
   const masterOrder = await masterOrderRepository.findByIdOrCode(id);
   if (!masterOrder) return { error: 'Không tìm thấy đơn tổng', status: 404 };
-  const children = await orderService.getMasterChildren(masterOrder);
+  const children = await getMasterChildrenLocal(masterOrder);
   return { masterOrder: toClient(masterOrder, children) };
 }
 
@@ -418,7 +481,7 @@ async function listUnmergedChildOrders(query = {}) {
   // orderService mặc định chặn limit 100 cho danh sách thường, nên truyền __internalMaxLimit riêng cho luồng nội bộ này.
   // Đồng thời đẩy mã NVBH xuống orderService để Mongo lọc trước khi limit, tránh lấy 50/100 đơn đầu rồi mới lọc làm mất đơn cần tìm.
   // Không truyền source/orderSource xuống orderService vì orderService cũng lọc nguồn; màn Đơn tổng tự lọc nguồn sau để không làm mất đơn SO/NVBH.
-  const orders = await orderService.listOrders({
+  const orders = await getOrderServiceLazy().listOrders({
     ...guardedQuery,
     source: '',
     orderSource: '',
@@ -1218,7 +1281,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     const allocations = buildPaymentAllocations(row.method, row.amount);
     const total = allocations.reduce((sum, allocation) => sum + toNumber(allocation.amount), 0);
     if (total <= 0) continue;
-    const entry = await postingEngine.postReceiptAR({
+    const entry = await postingEngine.postReceipt({
       id: `MOBILE-DELIVERY-${row.method.toUpperCase()}-${key || code}`,
       code: `MOBILE-DELIVERY-${row.method.toUpperCase()}-${code || key}`,
       date: order.deliveryDate || order.date || dateUtil.todayVN(),
@@ -1270,7 +1333,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     for (const returnRow of hydratedReturnRows) {
       const amount = returnOrderTotalAmount(returnRow);
       if (amount <= 0) continue;
-      const entry = await postingEngine.postReturnOrderAR({
+      const entry = await postingEngine.postReturn({
         ...returnRow,
         date: returnRow.deliveryDate || returnRow.documentDate || returnRow.date || order.deliveryDate || order.date || dateUtil.todayVN(),
         customerId: returnRow.customerId || order.customerId || '',
@@ -1304,7 +1367,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       ?? 0
     );
     if (returnAmount > 0) {
-      const entry = await postingEngine.postReturnOrderAR({
+      const entry = await postingEngine.postReturn({
         id: `MOBILE-DELIVERY-RETURN-${key || code}`,
         code: `MOBILE-DELIVERY-RETURN-${code || key}`,
         date: order.deliveryDate || order.date || dateUtil.todayVN(),
@@ -1526,7 +1589,7 @@ async function postDeliveryArIfAccountingConfirmed(order = {}, options = {}) {
     ?? 0
   ));
 
-  const saleEntry = await postingEngine.postSalesOrderAR({
+  const saleEntry = await postingEngine.postSale({
     ...order,
     debtBeforeCollection: baseAmount,
     debtAmount: baseAmount,
@@ -3238,21 +3301,40 @@ async function buildAggregateMasterPrintDocument(body = {}) {
     .filter(Boolean);
   if (!ids.length) return { error: 'Chưa chọn đơn tổng để in', status: 400 };
 
-  const masterOrders = [];
-  const missingIds = [];
-  for (const id of ids) {
-    const master = await masterOrderRepository.findByIdOrCode(id);
-    if (master) masterOrders.push(master);
-    else missingIds.push(id);
-  }
+  const masterOrders = await masterOrderRepository.findAll({
+    $or: [
+      { id: { $in: ids } },
+      { code: { $in: ids } }
+    ]
+  }, { limit: Math.max(ids.length, 1) });
+  const foundMasterKeys = new Set((masterOrders || []).flatMap((master) => [master.id, master.code].map(cleanMasterPrintText).filter(Boolean)));
+  const missingIds = ids.filter((id) => !foundMasterKeys.has(id));
   if (!masterOrders.length) return { error: 'Không tìm thấy đơn tổng đã chọn', status: 404 };
 
   const masterCodes = masterOrders.map((order) => cleanMasterPrintText(order.code || order.id)).filter(Boolean);
+  const childRefsByMasterCode = new Map();
+  const allChildRefs = [];
+  for (const master of masterOrders) {
+    const masterCode = cleanMasterPrintText(master.code || master.id || '');
+    const refs = Array.from(new Set((Array.isArray(master.childOrderIds) ? master.childOrderIds : [])
+      .map((item) => cleanMasterPrintText(item?.id || item?.code || item?._id || item))
+      .filter(Boolean)));
+    childRefsByMasterCode.set(masterCode, refs);
+    allChildRefs.push(...refs);
+  }
+
+  const children = await orderRepository.findManyByIdentity(allChildRefs, { limit: Math.max(allChildRefs.length, 1) });
+  const childByKey = new Map();
+  for (const child of children || []) {
+    for (const key of compactOrderKeys(child)) childByKey.set(cleanMasterPrintText(key), child);
+  }
+
   const allChildren = [];
   for (const master of masterOrders) {
-    const children = await orderService.getMasterChildren(master);
-    for (const child of children) {
-      if (isInactiveStatus(child)) continue;
+    const masterCode = cleanMasterPrintText(master.code || master.id || '');
+    for (const ref of childRefsByMasterCode.get(masterCode) || []) {
+      const child = childByKey.get(ref);
+      if (!child || isInactiveStatus(child)) continue;
       allChildren.push({ ...child, sourceMasterCode: master.code || master.id || '' });
     }
   }
@@ -3408,7 +3490,7 @@ async function createMasterOrder(body = {}) {
     childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
     children: [],
     status: body.status || 'assigned',
-    ...orderService.summarizeOrders(children),
+    ...summarizeMasterChildren(children),
     createdAt: body.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
@@ -3486,7 +3568,7 @@ async function createMasterOrder(body = {}) {
     }
   });
 
-  const updatedChildren = await orderService.getMasterChildren(masterOrder);
+  const updatedChildren = await getMasterChildrenLocal(masterOrder);
   debugLog('DEBUG_ORDER_FLOW', '[CREATE_MASTER_ORDER_DONE]', { ms: Date.now() - startedAt, code: masterOrder.code, childCount: children.length });
   return { masterOrder: toClient(masterOrder, updatedChildren) };
 }
@@ -3507,7 +3589,7 @@ async function updateMasterOrder(id, body = {}) {
   const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || dateUtil.todayVN());
 
   // MASTER_ORDER_EDIT_MODAL_PATCH_START: cập nhật an toàn thông tin + danh sách đơn con, không chạm công nợ/tồn kho/kế toán
-  const currentChildren = await orderService.getMasterChildren(current);
+  const currentChildren = await getMasterChildrenLocal(current);
   const currentChildIds = new Set((currentChildren || []).flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
     .map((value) => String(value || '').trim())
     .filter(Boolean)));
@@ -3557,7 +3639,7 @@ async function updateMasterOrder(id, body = {}) {
     updatedAt: dateUtil.nowIso()
   };
 
-  const summary = orderService.summarizeOrders(children);
+  const summary = summarizeMasterChildren(children);
   Object.assign(updated, summary);
 
   const childOrderKeys = [...new Set((children || []).flatMap((child) => [child.id, child.code, child.documentCode, child.orderCode, child.salesOrderCode]
@@ -3672,7 +3754,7 @@ async function updateMasterOrder(id, body = {}) {
       );
     }
   });
-  const updatedChildren = await orderService.getMasterChildren(updated);
+  const updatedChildren = await getMasterChildrenLocal(updated);
   return { masterOrder: toClient(updated, updatedChildren) };
   // MASTER_ORDER_EDIT_MODAL_PATCH_END
 }
@@ -3684,7 +3766,7 @@ async function cancelMasterOrder(id, body = {}) {
   if (status === 'delivered' || status === 'completed' || masterOrder.accountingConfirmed === true || masterOrder.accountingStatus === 'confirmed') {
     return { error: 'Đơn tổng đã giao hoặc đã xác nhận kế toán, không thể huỷ', status: 400 };
   }
-  const children = await orderService.getMasterChildren(masterOrder);
+  const children = await getMasterChildrenLocal(masterOrder);
   const cancelled = {
     ...masterOrder,
     status: 'cancelled',
@@ -3720,7 +3802,7 @@ async function cancelMasterOrder(id, body = {}) {
 async function deleteMasterOrder(id, body = {}) {
   const current = await masterOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy đơn tổng', status: 404 };
-  const children = await orderService.getMasterChildren(current);
+  const children = await getMasterChildrenLocal(current);
   const removed = {
     ...current,
     status: 'void',

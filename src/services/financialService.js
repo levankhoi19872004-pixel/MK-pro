@@ -13,7 +13,7 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const arLedgerUtil = require('../utils/arLedger.util');
-const postingEngine = require('../engines/posting.engine');
+const postingEngine = require('../core/posting/posting.engine');
 const fundLedgerRepository = require('../repositories/fundLedgerRepository');
 
 
@@ -235,6 +235,28 @@ function bankSummary(rows = []) {
   return { bankIn, bankOut, balance: bankIn - bankOut };
 }
 
+
+function fundLedgerToMoneyEntry(row = {}) {
+  const direction = String(row.direction || '').toLowerCase() === 'out' ? 'out' : 'in';
+  const fundType = String(row.fundType || '').toLowerCase() === 'bank' ? 'bank' : 'cash';
+  return {
+    ...row,
+    type: direction,
+    method: fundType,
+    source: row.sourceType || row.source || 'fundLedger',
+    refType: row.refType || row.sourceType || '',
+    refId: row.refId || row.sourceId || '',
+    refCode: row.refCode || row.sourceCode || '',
+    fundLedgerId: row.id,
+    fundLedgerCode: row.code,
+    sourceOfTruth: 'fundLedgers'
+  };
+}
+
+function fundLedgerActiveFilter(extra = {}) {
+  return { ...extra, status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] } };
+}
+
 function matchMoneyQuery(row, q) {
   return [row.code, row.source, row.refCode, row.customerCode, row.customerName, row.staffName, row.note]
     .some((value) => normalizeText(value).includes(q));
@@ -242,13 +264,14 @@ function matchMoneyQuery(row, q) {
 
 async function listCashbook(query = {}) {
   const q = normalizeText(query.q);
-  let cashbooks = await cashbookRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
-  let bankbooks = await bankbookRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
+  const fundRows = await fundLedgerRepository.findAll(fundLedgerActiveFilter({}), { sort: { createdAt: -1, code: -1 } });
+  let cashbooks = fundRows.filter((row) => String(row.fundType || '').toLowerCase() !== 'bank').map(fundLedgerToMoneyEntry);
+  let bankbooks = fundRows.filter((row) => String(row.fundType || '').toLowerCase() === 'bank').map(fundLedgerToMoneyEntry);
   if (q) {
     cashbooks = cashbooks.filter((row) => matchMoneyQuery(row, q));
     bankbooks = bankbooks.filter((row) => matchMoneyQuery(row, q));
   }
-  return { cashbook: cashbooks, cashbooks, bankbooks, summary: cashSummary(cashbooks), bankSummary: bankSummary(bankbooks) };
+  return { cashbook: cashbooks, cashbooks, bankbooks, summary: cashSummary(cashbooks), bankSummary: bankSummary(bankbooks), sourceOfTruth: 'fundLedgers' };
 }
 
 async function createCashbook(body = {}) {
@@ -275,15 +298,32 @@ async function createCashbook(body = {}) {
     createdAt: body.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+  let ledgerEntry = null;
   await withMongoTransaction(async (session) => {
-    await cashbookRepository.upsert(entry, { session });
+    ledgerEntry = await postReceiptFundLedger({
+      date: entry.date,
+      fundType: 'cash',
+      direction: type === 'out' ? 'out' : 'in',
+      amount: entry.amount,
+      sourceType: String(body.sourceType || entry.refType || 'MANUAL_CASHBOOK').trim().toUpperCase(),
+      sourceId: entry.id,
+      sourceCode: entry.code,
+      refType: entry.refType,
+      refId: entry.refId || entry.id,
+      refCode: entry.refCode || entry.code,
+      customerCode: entry.customerCode,
+      customerName: entry.customerName,
+      staffName: entry.staffName,
+      note: entry.note
+    }, { session });
   });
-  return { entry };
+  return { entry: fundLedgerToMoneyEntry(ledgerEntry || entry), fundLedger: ledgerEntry, sourceOfTruth: 'fundLedgers' };
 }
 
 async function listBankbook() {
-  const bankbooks = await bankbookRepository.findAll({}, { sort: { createdAt: -1, code: -1 } });
-  return { bankbooks, summary: bankSummary(bankbooks) };
+  const rows = await fundLedgerRepository.findAll(fundLedgerActiveFilter({ fundType: 'bank' }), { sort: { createdAt: -1, code: -1 } });
+  const bankbooks = rows.map(fundLedgerToMoneyEntry);
+  return { bankbooks, summary: bankSummary(bankbooks), sourceOfTruth: 'fundLedgers' };
 }
 
 async function listReceipts(query = {}) {
@@ -427,7 +467,7 @@ async function createReceipt(body = {}) {
   };
   await withMongoTransaction(async (session) => {
     await receiptRepository.upsert(receipt, { session });
-    await postingEngine.postReceiptAR(receipt, { session });
+    await postingEngine.postReceipt(receipt, { session });
     await applyReceiptToOrderDebts(receipt, { session });
     if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
     else await cashbookRepository.upsert(moneyEntry, { session });

@@ -6,6 +6,7 @@ const productRepository = require('../repositories/productRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
 const inventoryStockService = require('./inventoryStock.service');
+const catalogCache = require('./cache/catalogCache.service');
 
 
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
@@ -158,6 +159,7 @@ async function createProduct(body) {
   if (await productRepository.findDuplicateCode(payload.code)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
   if (payload.barcode && await productRepository.findDuplicateBarcode(payload.barcode)) return { error: 'Mã vạch đã tồn tại trong MongoDB', status: 409 };
   const product = await productRepository.create(payload);
+  catalogCache.invalidateCatalog('products');
   return { product: toClient(product) };
 }
 
@@ -178,6 +180,7 @@ async function updateProduct(id, body) {
   }
   await productRepository.save(current);
   await current.collection.updateOne({ _id: current._id }, { $unset: { openingStock: 1, availableStock: 1, stockQuantity: 1, availableQty: 1, stock: 1, quantity: 1, qty: 1, tonKho: 1, tonDau: 1 } });
+  catalogCache.invalidateCatalog('products');
   return { product: toClient(current) };
 }
 
@@ -186,6 +189,7 @@ async function setProductStatus(id, isActive) {
   if (!product) return { error: 'Không tìm thấy sản phẩm trong MongoDB', status: 404 };
   product.isActive = isActive !== false;
   await productRepository.save(product);
+  catalogCache.invalidateCatalog('products');
   return { product: toClient(product) };
 }
 

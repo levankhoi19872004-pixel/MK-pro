@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const Product = require('../src/models/Product');
+const StockTransaction = require('../src/models/StockTransaction');
 const InventorySnapshot = require('../src/models/Inventory');
 const InventoryLegacy = require('../src/models/InventoryLegacy');
 const productRepository = require('../src/repositories/productRepository');
@@ -32,12 +33,15 @@ function leanChain(rows) {
   return chain;
 }
 
-test('inventoryStockService reads inventorySnapshots, not legacy inventories, when calculating stock', async () => {
+test('inventoryStockService reads stockTransactions, not snapshots or legacy inventories, when calculating stock', async () => {
   const restoreProductFind = patch(Product, {
     find: () => leanChain([{ code: 'P001', productCode: 'P001', sku: 'P001' }])
   });
+  const restoreLedgerFind = patch(StockTransaction, {
+    find: () => leanChain([{ productCode: 'P001', quantity: 30 }, { productCode: 'P001', quantity: -5 }])
+  });
   const restoreSnapshotFind = patch(InventorySnapshot, {
-    find: () => leanChain([{ productCode: 'P001', availableQty: 25, quantity: 25, qty: 25 }])
+    find: () => { throw new Error('InventorySnapshot must not be used to decide business stock'); }
   });
   const restoreLegacyFind = patch(InventoryLegacy, {
     find: () => { throw new Error('InventoryLegacy must not be used for display stock'); }
@@ -48,12 +52,13 @@ test('inventoryStockService reads inventorySnapshots, not legacy inventories, wh
     assert.equal(stocks.P001, 25);
   } finally {
     restoreProductFind();
+    restoreLedgerFind();
     restoreSnapshotFind();
     restoreLegacyFind();
   }
 });
 
-test('productService displays stock from inventorySnapshots even when legacy inventories would be zero', async () => {
+test('productService displays stock from stockTransactions even when legacy inventories would be zero', async () => {
   const restoreRepo = patch(productRepository, {
     findAll: async () => [{ code: 'P001', name: 'Sản phẩm tồn snapshot', conversionRate: 12 }]
   });
@@ -76,7 +81,7 @@ test('productService displays stock from inventorySnapshots even when legacy inv
   }
 });
 
-test('mobile catalog displays stock from inventorySnapshots single source', async () => {
+test('mobile catalog displays stock from stockTransactions single source', async () => {
   const restoreProductFind = patch(Product, {
     find: () => leanChain([{ code: 'P001', name: 'Sản phẩm app', conversionRate: 12, salePrice: 1000, isActive: true }])
   });
