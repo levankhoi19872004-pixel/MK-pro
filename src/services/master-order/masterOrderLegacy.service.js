@@ -3006,6 +3006,36 @@ async function confirmDeliveryAccounting(body = {}) {
   });
   // ===== SCOPED FIX: ACCOUNTING_AR_RETURN_DIRECT_RETURNORDERS_END =====
 
+  // ===== SCOPED FIX: ACCOUNTING_AR_SALE_STAFF_FROM_SALES_ORDER_START =====
+  // Đơn giao hôm nay có thể hydrate đúng NVBH/NVGH từ salesOrders, nhưng snapshot
+  // master.children có thể thiếu/sai deliveryStaffName. Trước khi post AR-SALE,
+  // nạp lại SalesOrder gốc để AR ledger ghi đúng nhân viên bán/giao hàng.
+  const selectedOrderKeys = [
+    ...new Set(
+      targetChildren
+        .flatMap(({ child }) => compactDeliveryOrderKeys(child))
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )
+  ];
+  const sourceSalesOrders = selectedOrderKeys.length
+    ? await orderRepository.findManyByIdentity(selectedOrderKeys)
+    : [];
+  const sourceSalesOrderByKey = new Map();
+  for (const order of sourceSalesOrders || []) {
+    for (const key of compactDeliveryOrderKeys(order)) {
+      if (!sourceSalesOrderByKey.has(key)) sourceSalesOrderByKey.set(key, order);
+    }
+  }
+  const findSourceSalesOrderForChild = (child = {}) => {
+    for (const key of compactDeliveryOrderKeys(child)) {
+      const order = sourceSalesOrderByKey.get(key);
+      if (order) return order;
+    }
+    return {};
+  };
+  // ===== SCOPED FIX: ACCOUNTING_AR_SALE_STAFF_FROM_SALES_ORDER_END =====
+
   let confirmedOrders = 0;
   let skippedOrders = 0;
   await withMongoTransaction(async (session) => {
@@ -3043,12 +3073,19 @@ async function confirmDeliveryAccounting(body = {}) {
     for (const { master, child } of targetChildren) {
       const masterChildren = Array.isArray(master.children) ? master.children : [];
 
+      const sourceSalesOrder = findSourceSalesOrderForChild(child);
       const accountingSource = hydrateReturnOrdersForAccounting({
         ...child,
-        masterOrderId: child.masterOrderId || master.id || '',
-        masterOrderCode: child.masterOrderCode || master.code || '',
-        deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
-        deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || '',
+        // Ưu tiên SalesOrder gốc vì đây là nguồn đang hiển thị đúng ở màn Đơn giao hôm nay.
+        // Không lấy NVGH từ snapshot master.children nếu SalesOrder đã có dữ liệu chuẩn.
+        salesStaffCode: sourceSalesOrder.salesStaffCode || sourceSalesOrder.salesmanCode || child.salesStaffCode || child.salesmanCode || '',
+        salesStaffName: sourceSalesOrder.salesStaffName || sourceSalesOrder.salesmanName || child.salesStaffName || child.salesmanName || '',
+        salesmanCode: sourceSalesOrder.salesmanCode || sourceSalesOrder.salesStaffCode || child.salesmanCode || child.salesStaffCode || '',
+        salesmanName: sourceSalesOrder.salesmanName || sourceSalesOrder.salesStaffName || child.salesmanName || child.salesStaffName || '',
+        deliveryStaffCode: sourceSalesOrder.deliveryStaffCode || child.deliveryStaffCode || master.deliveryStaffCode || '',
+        deliveryStaffName: sourceSalesOrder.deliveryStaffName || child.deliveryStaffName || master.deliveryStaffName || '',
+        masterOrderId: child.masterOrderId || sourceSalesOrder.masterOrderId || master.id || '',
+        masterOrderCode: child.masterOrderCode || sourceSalesOrder.masterOrderCode || master.code || '',
         __masterChildCount: masterChildren.length
       }, accountingReturnOrders);
       const alreadyConfirmed = isAccountingConfirmed(accountingSource);
