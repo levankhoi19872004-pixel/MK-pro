@@ -1733,15 +1733,8 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    await inventoryService.postStockMovement(order.toObject(), {
-      type: 'SALE',
-      direction: 'OUT',
-      refType: 'MOBILE_SALES_ORDER',
-      refId: order.id || order.code,
-      refCode: order.code || order.id,
-      date: order.date || order.orderDate,
-      note: 'Xuất kho theo đơn app bán hàng'
-    });
+    // Mobile sales creates a pending child order only.
+    // Stock is posted later by the canonical delivery/accounting flow.
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
     return ok(res, { message: 'Đã tạo đơn bán mobile', order: savedOrder, salesOrder: savedOrder }, 201);
@@ -1779,26 +1772,9 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
       note: body.note || raw.note || '',
       updatedAt: new Date().toISOString()
     });
-    await inventoryService.reverseStockMovement(raw, {
-      type: 'SALE',
-      reverseType: 'SALE_REVERSAL',
-      direction: 'OUT',
-      refType: 'MOBILE_SALES_ORDER',
-      refId: raw.id || raw.code,
-      refCode: raw.code || raw.id,
-      date: dateUtil.todayVN(),
-      note: 'Đảo xuất kho trước khi sửa đơn app bán hàng'
-    });
+    // Pending mobile sales orders have not posted stock yet, so edit does not
+    // reverse or re-post inventory movements here.
     await order.save();
-    await inventoryService.postStockMovement(order.toObject(), {
-      type: 'SALE',
-      direction: 'OUT',
-      refType: 'MOBILE_SALES_ORDER',
-      refId: order.id || order.code,
-      refCode: order.code || order.id,
-      date: order.date || order.orderDate,
-      note: 'Xuất kho sau khi sửa đơn app bán hàng'
-    });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
     return ok(res, { message: 'Đã cập nhật đơn mobile', order: savedOrder, salesOrder: savedOrder });
@@ -1821,16 +1797,8 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
       || ['confirmed', 'locked', 'posted'].includes(accountingStatus)
       || ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
 
-    await inventoryService.reverseStockMovement(raw, {
-      type: 'SALE',
-      reverseType: 'SALE_REVERSAL',
-      direction: 'OUT',
-      refType: 'MOBILE_SALES_ORDER',
-      refId: raw.id || raw.code,
-      refCode: raw.code || raw.id,
-      date: dateUtil.todayVN(),
-      note: 'Đảo xuất kho khi xóa đơn app bán hàng'
-    });
+    // Pending mobile sales orders have not posted stock yet.
+    // Deleting them must not create inventory reversal noise.
 
     if (!accountingLocked) {
       await SalesOrder.deleteOne({ _id: order._id });

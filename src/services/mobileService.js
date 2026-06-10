@@ -303,7 +303,7 @@ function createMobileService(ctx) {
     };
 
     data.salesOrders.push(salesOrder);
-    items.forEach((item) => reduceStock(data, item));
+    // Mobile sales orders are pending drafts; stock is posted by the canonical delivery/accounting flow.
     data.payments.push({
       id: makeId('PM'),
       date,

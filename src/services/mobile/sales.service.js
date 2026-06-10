@@ -345,7 +345,7 @@ function createMobileSalesService(ctx) {
 
       repo.addSalesOrder(data, salesOrder);
       syncReturnDraftInSnapshot(data, salesOrder);
-      items.forEach((item) => reduceStock(data, item));
+      // Mobile sales orders are pending drafts; stock is posted by the canonical delivery/accounting flow.
       repo.addPayment(data, {
         id: makeId('PM'),
         date,
