@@ -259,7 +259,31 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
 
 
 
+function stockPostedPatch(order = {}, actor = '') {
+  const now = dateUtil.nowIso();
+  return {
+    ...order,
+    stockPosted: true,
+    stockPostedAt: order.stockPostedAt || now,
+    stockPostedBy: order.stockPostedBy || actor || order.createdBy || order.userName || 'system'
+  };
+}
+
+function isSalesOrderStockPosted(order = {}) {
+  const stockStatus = String(order.stockStatus || order.inventoryStatus || '').toLowerCase();
+  return Boolean(order.stockPosted) || ['posted', 'confirmed', 'locked'].includes(stockStatus);
+}
+
+function isSalesOrderArPosted(order = {}) {
+  const postedStatus = ['confirmed', 'locked', 'posted'];
+  return Boolean(order.arPosted || order.accountingConfirmed)
+    || postedStatus.includes(String(order.accountingStatus || '').toLowerCase())
+    || postedStatus.includes(String(order.arStatus || '').toLowerCase());
+}
+
 async function applySalesOrderPosting(order, options = {}) {
+  // Inventory được giữ/trừ ngay khi tạo đơn bán hoặc import DMS.
+  // AR/Fund không post ở đây; công nợ chỉ phát sinh ở luồng xác nhận kế toán.
   await inventoryService.postStockMovement(order, {
     type: 'SALE',
     direction: 'OUT',
@@ -269,18 +293,6 @@ async function applySalesOrderPosting(order, options = {}) {
     date: order.date || order.orderDate || order.createdAt,
     note: 'Xuất kho theo đơn bán'
   }, options);
-
-  // V45 chuẩn: đơn bán mới tạo/chưa chốt giao chưa được đưa vào công nợ.
-  // Kể cả đã giao xong, AR chỉ post sau khi kế toán xác nhận báo cáo giao hàng.
-  const deliveryStatus = String(order.deliveryStatus || order.status || '').toLowerCase();
-  const isDeliveryCompleted = ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
-  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
-  const accountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
-  if (!isDeliveryCompleted || !accountingConfirmed) return;
-
-  // Chuẩn nghiệp vụ: công nợ chỉ phát sinh qua AR Ledger.
-  // Không cộng trực tiếp vào customer.currentDebt/debtAmount để tránh hai nguồn sự thật.
-  await postingEngine.postSalesOrderAR(order, { ...options, postZero: true });
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
@@ -294,8 +306,11 @@ async function reverseSalesOrderPosting(order, options = {}) {
     date: dateUtil.todayVN(),
     note: 'Đảo xuất kho đơn bán'
   }, options);
+}
 
-  // Chuẩn nghiệp vụ: hủy đơn ghi bút toán đảo AR Ledger, không sửa công nợ trực tiếp trên customer.
+async function reverseSalesOrderArIfPosted(order, options = {}) {
+  if (!isSalesOrderArPosted(order)) return;
+  // Chuẩn nghiệp vụ: chỉ đảo AR khi đơn đã thật sự phát sinh AR.
   await postingEngine.reverseSalesOrderAR(order, options);
 }
 
@@ -837,19 +852,21 @@ async function createOrder(body = {}) {
   };
   Object.assign(order, orderStatusUtil.lifecyclePatch(order, { source: body.source || body.orderSource || 'sales_app' }));
   Object.assign(order, applyOrderSourceFields(order));
+  const stockPostedOrder = stockPostedPatch(order, body.createdBy || body.userName || body.staffName || 'create_order');
   await tx.withMongoTransaction(async (session) => {
-    // V45 lazy return-order: chỉ lưu SalesOrder.
-    // Không tạo RO-DRAFT rỗng khi tạo đơn bán; returnOrder chỉ sinh khi NVGH nhập returnQty > 0.
+    // V45: tạo/gửi đơn bán trừ tồn ngay để chống oversell giữa nhiều NVBH.
+    // ReturnOrder chỉ sinh khi NVGH nhập returnQty > 0.
     await orderRepository.upsert({
-      ...order,
-      hasReturn: Boolean(order.hasReturn),
-      returnOrderId: order.returnOrderId || '',
-      returnOrderCode: order.returnOrderCode || '',
-      returnAmount: toNumber(order.returnAmount || 0)
+      ...stockPostedOrder,
+      hasReturn: Boolean(stockPostedOrder.hasReturn),
+      returnOrderId: stockPostedOrder.returnOrderId || '',
+      returnOrderCode: stockPostedOrder.returnOrderCode || '',
+      returnAmount: toNumber(stockPostedOrder.returnAmount || 0)
     }, { session });
+    await applySalesOrderPosting(stockPostedOrder, { session });
   });
-  debugLog('DEBUG_ORDER_FLOW', '[CREATE_ORDER_DONE]', { ms: Date.now() - startedAt, code: order.code, itemCount: items.length });
-  return { salesOrder: toClient(order) };
+  debugLog('DEBUG_ORDER_FLOW', '[CREATE_ORDER_DONE]', { ms: Date.now() - startedAt, code: stockPostedOrder.code, itemCount: items.length, stockPosted: true });
+  return { salesOrder: toClient(stockPostedOrder) };
 }
 
 async function updateOrder(id, body = {}) {
@@ -889,24 +906,27 @@ async function updateOrder(id, body = {}) {
     ...orderStatusUtil.lifecyclePatch({ ...current, ...body, items, totalAmount, paidAmount }, current),
     updatedAt: dateUtil.nowIso()
   });
+  let orderResultForClient = updated;
   await tx.withMongoTransaction(async (session) => {
-    const currentWasPosted = Boolean(current.stockPosted || current.arPosted || current.accountingConfirmed)
-      || ['confirmed', 'locked', 'posted'].includes(String(current.accountingStatus || current.arStatus || '').toLowerCase());
+    const currentWasPosted = isSalesOrderStockPosted(current);
     const shouldPostAfterUpdate = body.postImmediately === true || currentWasPosted;
 
     if (currentWasPosted) {
       await reverseSalesOrderPosting(current, { session });
     }
 
-    await orderRepository.upsert(updated, { session });
-    await returnOrderService.syncReturnDraftWithSalesOrder(updated, { session });
+    const orderToSave = shouldPostAfterUpdate
+      ? stockPostedPatch(updated, body.updatedBy || body.userName || 'update_order')
+      : updated;
+    orderResultForClient = orderToSave;
+    await orderRepository.upsert(orderToSave, { session });
+    await returnOrderService.syncReturnDraftWithSalesOrder(orderToSave, { session });
 
-    // V45 Performance Turbo: đơn pending/sales_app chỉ cập nhật dữ liệu, không xuất kho/post AR ngay.
     if (shouldPostAfterUpdate) {
-      await applySalesOrderPosting(updated, { session });
+      await applySalesOrderPosting(orderToSave, { session });
     }
   });
-  return { salesOrder: toClient(updated) };
+  return { salesOrder: toClient(orderResultForClient) };
 }
 
 async function cancelOrder(id, body = {}) {
@@ -922,10 +942,14 @@ async function cancelOrder(id, body = {}) {
     cancelledAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+  const currentWasPosted = isSalesOrderStockPosted(current);
   await tx.withMongoTransaction(async (session) => {
     await orderRepository.upsert(cancelled, { session });
     await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
-    await reverseSalesOrderPosting(current, { session });
+    if (currentWasPosted) {
+      await reverseSalesOrderPosting(current, { session });
+    }
+    await reverseSalesOrderArIfPosted(current, { session });
   });
   if (cancelled.masterOrderId || cancelled.masterOrderCode) {
     await syncMasterOrderSummary(cancelled.masterOrderId || cancelled.masterOrderCode);
@@ -938,11 +962,15 @@ async function deleteOrder(id, body = {}) {
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
   const returnDraftDelete = await returnOrderService.cancelReturnDraftForSalesOrder(current, { dryRun: true });
   if (returnDraftDelete && returnDraftDelete.error) return returnDraftDelete;
+  const currentWasPosted = isSalesOrderStockPosted(current);
 
   if (false && canHardDeleteSalesOrder(current)) {
     await tx.withMongoTransaction(async (session) => {
       await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
-      await reverseSalesOrderPosting(current, { session });
+      if (currentWasPosted) {
+        await reverseSalesOrderPosting(current, { session });
+      }
+      await reverseSalesOrderArIfPosted(current, { session });
       await orderRepository.remove(current.id || current.code || id, { session });
     });
     return {
@@ -971,7 +999,10 @@ async function deleteOrder(id, body = {}) {
   await tx.withMongoTransaction(async (session) => {
     await orderRepository.upsert(removed, { session });
     await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
-    await reverseSalesOrderPosting(current, { session });
+    if (currentWasPosted) {
+      await reverseSalesOrderPosting(current, { session });
+    }
+    await reverseSalesOrderArIfPosted(current, { session });
   });
   if (removed.masterOrderId || removed.masterOrderCode) {
     await syncMasterOrderSummary(removed.masterOrderId || removed.masterOrderCode);

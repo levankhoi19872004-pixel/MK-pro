@@ -77,6 +77,20 @@ function jwtSecret() {
 }
 
 
+function mobileStockPostedPatch(order = {}, actor = '') {
+  const now = new Date().toISOString();
+  return {
+    stockPosted: true,
+    stockPostedAt: order.stockPostedAt || now,
+    stockPostedBy: order.stockPostedBy || actor || 'mobile_sales'
+  };
+}
+
+function isMobileSalesStockPosted(order = {}) {
+  const stockStatus = String(order.stockStatus || order.inventoryStatus || '').toLowerCase();
+  return Boolean(order.stockPosted) || ['posted', 'confirmed', 'locked'].includes(stockStatus);
+}
+
 function getDocId(doc) {
   return String(doc?.id || doc?._id || '').trim();
 }
@@ -1731,10 +1745,18 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       paidAmount,
       debtAmount: Math.max(0, totalAmount - paidAmount),
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      ...mobileStockPostedPatch({}, req.mobileUser.code || req.mobileUser.name || 'mobile_sales')
     });
-    // Mobile sales creates a pending child order only.
-    // Stock is posted later by the canonical delivery/accounting flow.
+    await inventoryService.postStockMovement(order.toObject ? order.toObject() : order, {
+      type: 'SALE',
+      direction: 'OUT',
+      refType: 'SALES_ORDER',
+      refId: order.id || order._id || order.code,
+      refCode: order.code || order.id,
+      date: order.date || order.orderDate || dateUtil.todayVN(),
+      note: 'Xuất kho theo đơn bán mobile'
+    });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
     return ok(res, { message: 'Đã tạo đơn bán mobile', order: savedOrder, salesOrder: savedOrder }, 201);
@@ -1770,11 +1792,31 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
       paidAmount,
       debtAmount: Math.max(0, totalAmount - paidAmount),
       note: body.note || raw.note || '',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      ...mobileStockPostedPatch(raw, req.mobileUser.code || req.mobileUser.name || 'mobile_sales_update')
     });
-    // Pending mobile sales orders have not posted stock yet, so edit does not
-    // reverse or re-post inventory movements here.
+    if (isMobileSalesStockPosted(raw)) {
+      await inventoryService.reverseStockMovement(raw, {
+        type: 'SALE',
+        reverseType: 'SALE_REVERSAL',
+        direction: 'OUT',
+        refType: 'SALES_ORDER',
+        refId: raw.id || raw._id || raw.code,
+        refCode: raw.code || raw.id,
+        date: dateUtil.todayVN(),
+        note: 'Đảo xuất kho đơn bán mobile trước khi sửa'
+      });
+    }
     await order.save();
+    await inventoryService.postStockMovement(order.toObject ? order.toObject() : order, {
+      type: 'SALE',
+      direction: 'OUT',
+      refType: 'SALES_ORDER',
+      refId: order.id || order._id || order.code,
+      refCode: order.code || order.id,
+      date: order.date || order.orderDate || dateUtil.todayVN(),
+      note: 'Xuất kho theo đơn bán mobile sau khi sửa'
+    });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
     return ok(res, { message: 'Đã cập nhật đơn mobile', order: savedOrder, salesOrder: savedOrder });
@@ -1797,10 +1839,21 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
       || ['confirmed', 'locked', 'posted'].includes(accountingStatus)
       || ['delivered', 'success', 'completed', 'done'].includes(deliveryStatus);
 
-    // Pending mobile sales orders have not posted stock yet.
-    // Deleting them must not create inventory reversal noise.
+    const stockPosted = isMobileSalesStockPosted(raw);
 
     if (!accountingLocked) {
+      if (stockPosted) {
+        await inventoryService.reverseStockMovement(raw, {
+          type: 'SALE',
+          reverseType: 'SALE_REVERSAL',
+          direction: 'OUT',
+          refType: 'SALES_ORDER',
+          refId: raw.id || raw._id || raw.code,
+          refCode: raw.code || raw.id,
+          date: dateUtil.todayVN(),
+          note: 'Đảo xuất kho khi xóa đơn mobile'
+        });
+      }
       await SalesOrder.deleteOne({ _id: order._id });
       const deletedOrder = { ...raw, status: 'deleted', deliveryStatus: 'deleted', deletedAt: new Date().toISOString() };
       return ok(res, { message: `Đã xóa hẳn đơn ${raw.code || ''}`, order: stripMongoFields(deletedOrder), salesOrder: stripMongoFields(deletedOrder), hardDeleted: true });
@@ -1813,6 +1866,18 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
     order.deletedAt = new Date().toISOString();
     order.deleteReason = 'Xóa mềm từ app bán hàng vì đơn đã phát sinh giao hàng/kế toán';
     order.updatedAt = new Date().toISOString();
+    if (stockPosted) {
+      await inventoryService.reverseStockMovement(raw, {
+        type: 'SALE',
+        reverseType: 'SALE_REVERSAL',
+        direction: 'OUT',
+        refType: 'SALES_ORDER',
+        refId: raw.id || raw._id || raw.code,
+        refCode: raw.code || raw.id,
+        date: dateUtil.todayVN(),
+        note: 'Đảo xuất kho khi xóa mềm đơn mobile'
+      });
+    }
     await order.save();
     const savedOrder = stripMongoFields(order.toObject());
     return ok(res, { message: `Đã xóa mềm đơn ${savedOrder.code || ''}`, order: savedOrder, salesOrder: savedOrder, hardDeleted: false });

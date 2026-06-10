@@ -299,11 +299,15 @@ function createMobileService(ctx) {
       orderDate: date,
       deliveryStatus: 'pending',
       accountingStatus: 'pending',
+      stockPosted: true,
+      stockPostedAt: new Date().toISOString(),
+      stockPostedBy: mobileUser.code || mobileUser.name || 'mobile_sales',
       createdAt: new Date().toISOString()
     };
 
     data.salesOrders.push(salesOrder);
-    // Mobile sales orders are pending drafts; stock is posted by the canonical delivery/accounting flow.
+    items.forEach((item) => reduceStock(data, item));
+    // Mobile sales orders post/hold stock immediately to prevent oversell.
     data.payments.push({
       id: makeId('PM'),
       date,

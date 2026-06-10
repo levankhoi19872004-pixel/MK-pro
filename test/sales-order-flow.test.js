@@ -31,7 +31,7 @@ function fakeSession() {
   };
 }
 
-test('SalesOrder flow creates pending order without posting stock or AR before accounting confirmation', async () => {
+test('SalesOrder flow creates pending order and posts stock immediately without posting AR before accounting confirmation', async () => {
   const savedOrders = [];
   const product = { code: 'P001', name: 'OMO', salePrice: 10000, availableStock: 20 };
   const customer = { code: 'C001', name: 'Cửa hàng A', currentDebt: 50000 };
@@ -97,10 +97,11 @@ test('SalesOrder flow creates pending order without posting stock or AR before a
     assert.match(result.salesOrder.code, /^SO\d+$/);
     assert.equal(result.salesOrder.totalAmount, 20000);
     assert.equal(result.salesOrder.debtAmount, 15000);
-    assert.equal(product.availableStock, 20);
-    assert.equal(product.stockQuantity || product.availableStock, 20);
+    assert.equal(product.availableStock, 18);
+    assert.equal(product.stockQuantity || product.availableStock, 18);
+    assert.equal(result.salesOrder.stockPosted, true);
     assert.equal(customer.currentDebt, 50000);
-    assert.equal(productSaveSession, null, 'pending order must not post stock before accounting confirmation');
+    assert.ok(productSaveSession, 'create order must post stock immediately inside transaction');
     assert.equal(customerSaveSession, null, 'pending order must not post AR debt before accounting confirmation');
   } finally {
     restorePostingEngine();
@@ -123,7 +124,8 @@ test('SalesOrder cancel reverses stock and customer debt impact', async () => {
     totalAmount: 30000,
     paidAmount: 10000,
     debtAmount: 20000,
-    status: 'posted'
+    status: 'posted',
+    stockPosted: true
   };
   const product = { code: 'P001', availableStock: 7 };
   const customer = { code: 'C001', currentDebt: 90000 };
