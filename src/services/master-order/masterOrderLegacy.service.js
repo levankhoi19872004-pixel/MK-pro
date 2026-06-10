@@ -1040,7 +1040,7 @@ async function findActiveArLedgersForOrder(order = {}, options = {}) {
     const type = String(row.type || '').toLowerCase();
     return !row.reversed
       && status !== 'reversed'
-      && type === 'ar_sale';
+      && ['ar_sale','ar_return'].includes(type);
   });
 }
 
@@ -1054,12 +1054,13 @@ async function reverseActiveArLedgersForOrder(order = {}, user = {}, options = {
     const credit = toNumber(old.credit);
     const amount = Math.max(debit, credit, toNumber(old.amount));
     if (amount <= 0) continue;
+    const isReturn = String(old.type||'').toLowerCase()==='ar_return';
     const reversal = {
       ...old,
-      id: `AR-SALE-REV-${old.id || old.code || makeId('AR')}-${reverseBatchId}`,
-      code: `AR-SALE-REV-${old.code || old.id || makeId('AR')}`,
-      type: 'ar_sale_reversal',
-      refType: 'SALES_ORDER',
+      id: `${isReturn?'AR-RETURN-REV':'AR-SALE-REV'}-${old.id || old.code || makeId('AR')}-${reverseBatchId}`,
+      code: `${isReturn?'AR-RETURN-REV':'AR-SALE-REV'}-${old.code || old.id || makeId('AR')}`,
+      type: isReturn ? 'ar_return_reversal' : 'ar_sale_reversal',
+      refType: isReturn ? 'RETURN_ORDER' : 'SALES_ORDER',
       debit: credit,
       credit: debit,
       amount,
