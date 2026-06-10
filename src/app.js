@@ -92,6 +92,10 @@ function createApiLimiter() {
 function createApp() {
   const app = express();
 
+  // Render/Cloudflare set X-Forwarded-For; express-rate-limit needs trust proxy
+  // enabled before the API limiter is mounted to identify clients correctly.
+  app.set('trust proxy', 1);
+
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({
     origin: process.env.CORS_ORIGIN
