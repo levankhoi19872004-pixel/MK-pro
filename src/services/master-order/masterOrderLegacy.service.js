@@ -245,9 +245,15 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
     id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
     sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
     masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
-    customerCode: 1, customerName: 1, totalAmount: 1, totalReturnAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
+    customerId: 1, customerCode: 1, customerName: 1, totalAmount: 1, totalReturnAmount: 1, returnAmount: 1, amount: 1, debtReduction: 1,
     items: 1, status: 1, returnStatus: 1, accountingStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
-    date: 1, documentDate: 1, deliveryDate: 1, receiveDate: 1, deliveryStaffCode: 1, deliveryStaffName: 1
+    date: 1, documentDate: 1, deliveryDate: 1, receiveDate: 1,
+    // ===== SCOPED FIX: AR_RETURN_ACCOUNTING_LINEAGE_PROJECTION_START =====
+    // AR-RETURN phải giữ đủ snapshot nhân sự từ returnOrders để không bị mất NVBH/NVGH khi ghi arLedgers.
+    salesStaffCode: 1, salesStaffName: 1, salesmanCode: 1, salesmanName: 1, nvbhCode: 1, nvbhName: 1,
+    deliveryStaffCode: 1, deliveryStaffName: 1, deliveryCode: 1, deliveryName: 1, nvghCode: 1, nvghName: 1,
+    staffCode: 1, staffName: 1
+    // ===== SCOPED FIX: AR_RETURN_ACCOUNTING_LINEAGE_PROJECTION_END =====
   };
 
   let rows = await returnOrderRepository.findAll(query, { projection });
@@ -645,8 +651,38 @@ function directReturnOrdersForSalesOrder(returnOrders = [], order = {}) {
     .filter((row) => directReturnMatchReason(row, order));
 }
 
+// ===== SCOPED FIX: AR_RETURN_ACCOUNTING_LINEAGE_ENRICH_START =====
+// Chuẩn hóa returnOrders trước khi ghi AR-RETURN: lấy thiếu từ salesOrder/master snapshot hiện tại,
+// nhưng không dùng staffCode/staffName làm nguồn nghiệp vụ chính vì field này có thể là người thao tác.
+function enrichAccountingReturnRows(rows = [], order = {}) {
+  return (rows || []).map((row) => ({
+    ...row,
+
+    customerId: row.customerId || order.customerId || '',
+    customerCode: row.customerCode || order.customerCode || '',
+    customerName: row.customerName || order.customerName || '',
+
+    salesOrderId: row.salesOrderId || row.orderId || row.sourceOrderId || order.id || order.orderId || order.salesOrderId || '',
+    salesOrderCode: row.salesOrderCode || row.orderCode || row.sourceOrderCode || order.code || order.orderCode || order.salesOrderCode || '',
+    orderId: row.orderId || row.salesOrderId || row.sourceOrderId || order.id || order.orderId || order.salesOrderId || '',
+    orderCode: row.orderCode || row.salesOrderCode || row.sourceOrderCode || order.code || order.orderCode || order.salesOrderCode || '',
+
+    salesmanCode: row.salesmanCode || row.salesStaffCode || row.nvbhCode || order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
+    salesmanName: row.salesmanName || row.salesStaffName || row.nvbhName || order.salesmanName || order.salesStaffName || order.nvbhName || '',
+    salesStaffCode: row.salesStaffCode || row.salesmanCode || row.nvbhCode || order.salesStaffCode || order.salesmanCode || order.nvbhCode || '',
+    salesStaffName: row.salesStaffName || row.salesmanName || row.nvbhName || order.salesStaffName || order.salesmanName || order.nvbhName || '',
+
+    deliveryStaffCode: row.deliveryStaffCode || row.deliveryCode || row.nvghCode || order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+    deliveryStaffName: row.deliveryStaffName || row.deliveryName || row.nvghName || order.deliveryStaffName || order.deliveryName || order.nvghName || '',
+
+    masterOrderId: row.masterOrderId || order.masterOrderId || order.deliveryMasterId || '',
+    masterOrderCode: row.masterOrderCode || order.masterOrderCode || order.deliveryMasterCode || ''
+  }));
+}
+// ===== SCOPED FIX: AR_RETURN_ACCOUNTING_LINEAGE_ENRICH_END =====
+
 function hydrateReturnOrdersForAccounting(order = {}, returnOrders = []) {
-  const directRows = directReturnOrdersForSalesOrder(returnOrders, order);
+  const directRows = enrichAccountingReturnRows(directReturnOrdersForSalesOrder(returnOrders, order), order);
   const directAmount = directRows.reduce((sum, row) => sum + returnOrderTotalAmount(row), 0);
   const directItems = directRows.flatMap((row) => Array.isArray(row.items) ? row.items : []);
 
@@ -664,7 +700,7 @@ function hydrateReturnOrdersForAccounting(order = {}, returnOrders = []) {
     };
   }
 
-  const matchedRows = returnOrdersForSalesOrder(returnOrders, order);
+  const matchedRows = enrichAccountingReturnRows(returnOrdersForSalesOrder(returnOrders, order), order);
   const fallbackAmount = matchedRows.reduce((sum, row) => sum + returnOrderTotalAmount(row), 0);
   if (fallbackAmount > 0) {
     const fallbackItems = matchedRows.flatMap((row) => Array.isArray(row.items) ? row.items : []);
@@ -1133,7 +1169,10 @@ function compactAllocations(rows = []) {
 // Tuy nhiên nếu returnOrders đã có nhưng thiếu AR-RETURN do bản cũ, cần repair riêng AR-RETURN
 // trước khi continue. Không sửa frontend, không post lại AR-SALE.
 function hasReturnOrdersForAccounting(order = {}, accountingReturnOrders = []) {
-  const rows = directReturnOrdersForSalesOrder(accountingReturnOrders, order);
+  const hydrated = hydrateReturnOrdersForAccounting(order, accountingReturnOrders);
+  const rows = Array.isArray(hydrated.accountingReturnOrders)
+    ? hydrated.accountingReturnOrders
+    : [];
   return rows.some((row) => returnOrderTotalAmount(row) > 0);
 }
 

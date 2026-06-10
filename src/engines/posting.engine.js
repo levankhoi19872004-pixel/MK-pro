@@ -202,10 +202,13 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
       accountingStatus: 'confirmed',
       masterOrderId: returnOrder.masterOrderId || '',
       masterOrderCode: returnOrder.masterOrderCode || '',
-      deliveryStaffCode: returnOrder.deliveryStaffCode || returnOrder.staffCode || '',
-      deliveryStaffName: returnOrder.deliveryStaffName || returnOrder.staffName || '',
-      salesmanCode: returnOrder.salesmanCode || returnOrder.salesStaffCode || '',
-      salesmanName: returnOrder.salesmanName || returnOrder.salesStaffName || '',
+      // ===== SCOPED FIX: AR_RETURN_NO_GENERIC_STAFF_FALLBACK_START =====
+      // staffCode/staffName là field audit/người thao tác, không dùng để suy luận NVGH/NVBH khi ghi AR-RETURN.
+      deliveryStaffCode: returnOrder.deliveryStaffCode || returnOrder.deliveryCode || returnOrder.nvghCode || '',
+      deliveryStaffName: returnOrder.deliveryStaffName || returnOrder.deliveryName || returnOrder.nvghName || '',
+      salesmanCode: returnOrder.salesmanCode || returnOrder.salesStaffCode || returnOrder.nvbhCode || '',
+      salesmanName: returnOrder.salesmanName || returnOrder.salesStaffName || returnOrder.nvbhName || '',
+      // ===== SCOPED FIX: AR_RETURN_NO_GENERIC_STAFF_FALLBACK_END =====
       debit: 0,
       credit: amount,
       amount,
