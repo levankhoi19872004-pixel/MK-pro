@@ -271,12 +271,18 @@ async function findReturnOrdersForDeliveryChildren(children = []) {
 
   if (!or.length) return [];
 
+  // Guard chống lỗi regress: $or của Mongo chỉ được chứa object điều kiện.
+  // Nếu có phần tử rác trong mảng điều kiện, query returnOrders có thể fail
+  // và AR-RETURN sẽ không được ghi khi xác nhận kế toán.
+  const safeOr = or.filter((condition) => condition && typeof condition === 'object' && !Array.isArray(condition));
+  if (!safeOr.length) return [];
+
   // ===== SCOPED FIX: AR_RETURN_QUERY_MATCH_RETURNORDERS_START =====
   // returnOrders của app giao hàng đang lưu orderId/orderCode/salesOrderCode và returnStatus='active',
   // accountingStatus vẫn có thể là 'pending'. Vì vậy tuyệt đối không lọc accountingStatus/status posted ở đây.
   const query = {
     $and: [
-      { $or: or },
+      { $or: safeOr },
       {
         $or: [
           { returnStatus: { $exists: false } },
@@ -3898,6 +3904,7 @@ module.exports = {
     hydrateReturnOrdersForAccounting,
     directReturnOrdersForSalesOrder,
     returnOrderTotalAmount,
-    masterChildCountForReturnFallback
+    masterChildCountForReturnFallback,
+    findReturnOrdersForDeliveryChildren
   }
 };
