@@ -4,7 +4,9 @@
 // File src/engines/posting.engine.js được giữ để tương thích ngược với code hiện tại.
 const legacyPostingEngine = require('../../engines/posting.engine');
 const inventoryService = require('../../services/inventoryService');
-const fundService = require('../../services/fundService');
+function getFundService() {
+  return require('../../services/fundService');
+}
 const eventLogService = require('../../services/eventLogService');
 
 function sourceIdentity(source = {}) {
@@ -175,12 +177,14 @@ async function postFundReceipt(receipt, context = {}) {
     amount: receipt.amount ?? receipt.totalAmount ?? receipt.cashAmount ?? receipt.bankAmount,
     idempotencyKey: receipt.idempotencyKey || context.idempotencyKey || fundIdempotencyKey(receipt, 'RECEIPT', receipt.direction || 'IN', receipt.account || receipt.fundType || '')
   };
+  const fundService = getFundService();
   const result = await fundService.postFundLedger(input, context);
   await recordPostingAudit('POST_FUND_LEDGER', input, result?.ledger || result, context);
   return result;
 }
 
 function postExpense(expense, context = {}) {
+  const fundService = getFundService();
   return fundService.postFundLedger({
     ...expense,
     sourceType: expense.sourceType || 'EXPENSE',
@@ -193,6 +197,7 @@ function postExpense(expense, context = {}) {
 }
 
 async function postFundTransfer(transfer, context = {}) {
+  const fundService = getFundService();
   if (typeof fundService.confirmFundTransfer === 'function' && !context.skipConfirmFundTransfer) {
     return fundService.confirmFundTransfer(transfer.id || transfer._id || transfer.code, context);
   }
@@ -203,6 +208,19 @@ async function postFundTransfer(transfer, context = {}) {
     });
   }
   throw new Error('postFundTransfer chưa được nối vào Posting Engine legacy');
+}
+
+
+async function postBonusAllowanceAR(doc = {}, context = {}) {
+  if (typeof legacyPostingEngine.postBonusAllowanceAR !== 'function') {
+    throw new Error('postBonusAllowanceAR chưa được nối vào Posting Engine legacy');
+  }
+  const result = await legacyPostingEngine.postBonusAllowanceAR(doc, {
+    ...context,
+    idempotencyKey: context.idempotencyKey || idempotencyKey('BONUS_ALLOWANCE', doc, 'AR-BONUS')
+  });
+  await recordPostingAudit('POST_AR_BONUS_ALLOWANCE', doc, result, context);
+  return result;
 }
 
 async function postBulkInventoryMovements(movements = [], context = {}) {
@@ -235,6 +253,7 @@ module.exports = {
   postInventoryAdjustment,
   postBulkInventoryMovements,
   postBulkSalesAR,
+  postBonusAllowanceAR,
   postFundReceipt,
   postExpense,
   postFundTransfer,
