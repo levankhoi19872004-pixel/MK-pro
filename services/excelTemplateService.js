@@ -1,4 +1,4 @@
-const XLSX = require('xlsx');
+const { createWorkbook, appendAoaSheet, writeWorkbook } = require('../src/utils/excelWriter.util');
 
 const TEMPLATE_DEFINITIONS = {
   products: {
@@ -178,10 +178,9 @@ const TEMPLATE_DEFINITIONS = {
 };
 
 function sheetFromRows(rows, widths) {
-  const sheet = XLSX.utils.aoa_to_sheet(rows);
-  sheet['!cols'] = widths.map((wch) => ({ wch }));
-  return sheet;
+  return { rows, widths };
 }
+
 
 function buildGuideSheet(definition) {
   const rows = [
@@ -202,7 +201,7 @@ function buildGuideSheet(definition) {
   return sheetFromRows(rows, [28, 42, 22, 22]);
 }
 
-function buildImportTemplate(type) {
+async function buildImportTemplate(type) {
   const definition = TEMPLATE_DEFINITIONS[type];
   if (!definition) {
     const error = new Error('Loại mẫu import không hợp lệ');
@@ -210,12 +209,15 @@ function buildImportTemplate(type) {
     throw error;
   }
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, buildGuideSheet(definition), 'HuongDan');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows([definition.headers, ...definition.sample], definition.headers.map((h) => Math.max(14, String(h).length + 6))), 'DuLieuMau');
-  XLSX.utils.book_append_sheet(workbook, sheetFromRows([definition.headers], definition.headers.map((h) => Math.max(14, String(h).length + 6))), 'Import');
+  const workbook = createWorkbook();
+  const guideSheet = buildGuideSheet(definition);
+  appendAoaSheet(workbook, 'HuongDan', guideSheet.rows, { widths: guideSheet.widths });
+  const sampleSheet = sheetFromRows([definition.headers, ...definition.sample], definition.headers.map((h) => Math.max(14, String(h).length + 6)));
+  appendAoaSheet(workbook, 'DuLieuMau', sampleSheet.rows, { widths: sampleSheet.widths, autoFilter: true });
+  const importSheet = sheetFromRows([definition.headers], definition.headers.map((h) => Math.max(14, String(h).length + 6)));
+  appendAoaSheet(workbook, 'Import', importSheet.rows, { widths: importSheet.widths, autoFilter: true });
 
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const buffer = writeWorkbook(workbook);
   return { buffer, fileName: definition.fileName };
 }
 

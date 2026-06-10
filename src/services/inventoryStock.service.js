@@ -1,6 +1,6 @@
 'use strict';
 
-const InventoryLegacy = require('../models/InventoryLegacy');
+const InventorySnapshot = require('../models/Inventory');
 const Product = require('../models/Product');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
@@ -60,7 +60,7 @@ async function getAvailableStocks(productCodes = []) {
   }
 
   const aliases = Array.from(aliasToCanonical.keys());
-  const rows = await InventoryLegacy.find({
+  const rows = await InventorySnapshot.find({
     $or: [
       { productCode: { $in: aliases } },
       { code: { $in: aliases } },
@@ -89,7 +89,7 @@ async function getAvailableStock(productCode) {
 async function getInventorySummary(query = {}) {
   const q = normalizeProductCode(query.q || query.search || query.keyword || '');
   const [inventoryRows, products] = await Promise.all([
-    InventoryLegacy.find({}).sort({ productCode: 1 }).lean(),
+    InventorySnapshot.find({}).sort({ productCode: 1 }).lean(),
     Product.find({}).select('id code productCode sku name productName unit baseUnit minStock maxStock').lean()
   ]);
 
@@ -150,7 +150,7 @@ async function getInventorySummary(query = {}) {
     return acc;
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0, negativeStockCount: 0 });
 
-  return { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso() };
+  return { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventorySnapshots', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso() };
 }
 
 module.exports = {

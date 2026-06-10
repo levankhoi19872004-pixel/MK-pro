@@ -11,7 +11,7 @@
     "migrate:json:dry-run": "node scripts/migrate-json-to-mongo-final.js --dry-run",
     "mongo:indexes": "node scripts/ensure-mongo-indexes.js",
     "migrate:json-to-mongo": "node scripts/migrate-json-to-mongo-final.js",
-    "test": "node --test",
+    "test": "node scripts/run-tests.js",
     "test:openapi": "node --test test/openapi.test.js",
     "docs:generate": "node scripts/generate-openapi.js",
     "docs:check": "node scripts/generate-openapi.js --check",
@@ -32,6 +32,6 @@
     "multer": "^2.0.2",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
-    "xlsx": "^0.18.5"
+    "read-excel-file": "^5.8.8"
   }
 }

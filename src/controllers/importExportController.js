@@ -90,7 +90,7 @@ async function listBuiltInTemplates(req, res) {
 
 async function downloadBuiltInTemplate(req, res) {
   try {
-    sendWorkbook(res, importExportService.buildBuiltInTemplateFile(req.params.type));
+    sendWorkbook(res, await importExportService.buildBuiltInTemplateFile(req.params.type));
   } catch (err) {
     res.status(err.statusCode || 500).json({ ok: false, message: err.message || 'Không tạo được mẫu import Excel' });
   }

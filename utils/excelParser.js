@@ -1,4 +1,12 @@
-const XLSX = require('xlsx');
+const readXlsxFile = require('read-excel-file/node');
+const { readSheetNames } = require('read-excel-file/node');
+
+const MAX_ROWS = 10000;
+const MAX_COLUMNS = 100;
+// Mẫu Excel hiện tại của hệ thống có thể có HuongDan, DuLieuMau, Import.
+// Không khóa cứng 1 sheet để tránh phá import template đang dùng ở production.
+const MAX_SHEETS = 5;
+const TOO_LARGE_ERROR = 'File Excel quá lớn, vui lòng tách nhỏ file trước khi import';
 
 function cleanKey(key) {
   return String(key || '')
@@ -15,8 +23,17 @@ function rowHasData(row) {
   return Object.keys(row || {}).some((key) => key !== '__rowNo' && !isEmptyValue(row[key]));
 }
 
-function pickImportSheet(workbook) {
-  const sheetNames = workbook.SheetNames || [];
+function cleanCellValue(value) {
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+function assertSizeLimit(condition) {
+  if (!condition) throw new Error(TOO_LARGE_ERROR);
+}
+
+async function pickImportSheet(buffer) {
+  const sheetNames = await readSheetNames(buffer);
+  assertSizeLimit(sheetNames.length <= MAX_SHEETS);
   if (!sheetNames.length) return '';
 
   // Mẫu Excel của hệ thống có 3 sheet: HuongDan, DuLieuMau, Import.
@@ -28,27 +45,40 @@ function pickImportSheet(workbook) {
   return sheetNames[0];
 }
 
-function parseExcelBuffer(buffer) {
-  if (!buffer || !buffer.length) return [];
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-  const sheetName = pickImportSheet(workbook);
-  if (!sheetName) return [];
+function rowsToObjects(matrix) {
+  if (!Array.isArray(matrix) || !matrix.length) return [];
+  assertSizeLimit(matrix.length - 1 <= MAX_ROWS);
+  assertSizeLimit(matrix.every((row) => !Array.isArray(row) || row.length <= MAX_COLUMNS));
 
-  const sheet = workbook.Sheets[sheetName];
-  // Dùng raw:true + cellDates:true để giữ ô ngày Excel là Date object.
-  // Nếu dùng raw:false, file DMS có format mm-dd-yy sẽ thành chuỗi 06-01-26,
-  // sau đó hệ thống Việt Nam hiểu nhầm là 06/01/2026 thay vì 01/06/2026.
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
+  const headers = (matrix[0] || []).map(cleanKey);
+  assertSizeLimit(headers.length <= MAX_COLUMNS);
 
-  return rows.map((row, index) => {
+  return matrix.slice(1).map((row, index) => {
     const cleanRow = { __rowNo: index + 2 };
-    Object.keys(row).forEach((key) => {
-      const cleanedKey = cleanKey(key);
-      if (!cleanedKey || cleanedKey.startsWith('__EMPTY')) return;
-      cleanRow[cleanedKey] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+    headers.forEach((header, columnIndex) => {
+      if (!header || header.startsWith('__EMPTY')) return;
+      cleanRow[header] = cleanCellValue(row[columnIndex]);
     });
     return cleanRow;
   }).filter(rowHasData);
 }
 
-module.exports = { parseExcelBuffer };
+async function parseExcelBuffer(buffer) {
+  if (!buffer || !buffer.length) return [];
+  const sheet = await pickImportSheet(buffer);
+  if (!sheet) return [];
+
+  const matrix = await readXlsxFile(buffer, {
+    sheet,
+    dateFormat: 'yyyy-mm-dd'
+  });
+
+  return rowsToObjects(matrix);
+}
+
+module.exports = {
+  parseExcelBuffer,
+  MAX_ROWS,
+  MAX_COLUMNS,
+  MAX_SHEETS
+};

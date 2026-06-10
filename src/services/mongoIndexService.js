@@ -179,6 +179,7 @@ const INDEX_DEFINITIONS = {
   fundLedgers: [
     [{ id: 1 }, { name: 'idx_fund_ledgers_id' }],
     [{ code: 1 }, { name: 'idx_fund_ledgers_code' }],
+    [{ idempotencyKey: 1 }, { name: 'uniq_fund_ledger_idempotency_key', unique: true, sparse: true }],
     [{ date: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_date_fund_direction' }],
     [{ sourceType: 1, sourceCode: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_source_unique_guard' }],
     [{ deliveryDate: 1, deliveryStaffCode: 1 }, { name: 'idx_fund_ledgers_delivery_staff_date' }],
@@ -227,8 +228,10 @@ const INDEX_DEFINITIONS = {
     [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledger_ref_code_type' }]
   ],
   stockTransactions: [
+    [{ idempotencyKey: 1 }, { name: 'uniq_stock_tx_idempotency_key', unique: true, sparse: true }],
     [{ date: 1, productCode: 1, warehouseCode: 1 }, { name: 'idx_stock_tx_date_product_warehouse' }],
     [{ refType: 1, refId: 1 }, { name: 'idx_stock_tx_ref' }],
+    [{ sourceType: 1, sourceId: 1, productCode: 1 }, { name: 'idx_stock_tx_source_product' }],
     [{ productCode: 1, date: 1 }, { name: 'idx_stock_tx_product_date' }]
   ],
   warehouses: [[{ code: 1 }, { name: 'idx_warehouses_code' }]],

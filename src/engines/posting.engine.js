@@ -3,6 +3,7 @@
 const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
+const { debugLog } = require('../utils/debug.util');
 
 
 
@@ -72,6 +73,7 @@ async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
 
   const rows = await paymentRepository.findAll({
     type: 'ar_return',
+    status: { $ne: 'void' },
     $or: [
       { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
       { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
@@ -164,7 +166,7 @@ function returnOrderArAmount(returnOrder = {}) {
 }
 
 async function postReturnOrderAR(returnOrder = {}, options = {}) {
-  console.log('[AR_RETURN_DEBUG] STEP-10 postReturnOrderAR input', {
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-10 postReturnOrderAR input', {
     code: returnOrder?.code,
     orderCode: returnOrder?.orderCode || returnOrder?.salesOrderCode,
     amount: returnOrder?.amount,
@@ -172,14 +174,17 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
     totalAmount: returnOrder?.totalAmount,
     totalReturnAmount: returnOrder?.totalReturnAmount
   });
-  if (options.skipIfExists && await hasExistingReturnOrderAR(returnOrder, options)) {
-    return null;
-  }
   const amount = returnOrderArAmount(returnOrder);
   if (amount <= 0) return null;
 
-  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.code || '').trim();
-  const returnOrderCode = String(returnOrder.code || returnOrder.id || '').trim();
+  const returnOrderId = String(returnOrder.id || returnOrder._id || returnOrder.returnOrderId || '').trim();
+  const returnOrderCode = String(returnOrder.code || returnOrder.returnOrderCode || '').trim();
+  if (!returnOrderId && !returnOrderCode) return null;
+
+  if (await hasExistingReturnOrderAR({ ...returnOrder, id: returnOrderId, code: returnOrderCode }, options)) {
+    return null;
+  }
+
   const salesOrderId = String(returnOrder.salesOrderId || returnOrder.orderId || returnOrder.sourceOrderId || '').trim();
   const salesOrderCode = String(returnOrder.salesOrderCode || returnOrder.orderCode || returnOrder.sourceOrderCode || '').trim();
 
@@ -209,10 +214,12 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
     }),
     returnOrderId: returnOrderId || returnOrderCode,
     returnOrderCode: returnOrderCode || returnOrderId,
+    salesOrderId,
+    salesOrderCode,
     items: Array.isArray(returnOrder.items) ? returnOrder.items : []
   };
   await paymentRepository.upsert(entry, options);
-  console.log('[AR_RETURN_DEBUG] STEP-11 AR-RETURN created', {
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-11 AR-RETURN created', {
     code: entry.code,
     orderCode: entry.orderCode,
     credit: entry.credit,
@@ -430,5 +437,6 @@ module.exports = {
   reverseReturnOrderAR,
   postReceiptAR,
   reverseReceiptAR,
-  postBonusAllowanceAR
+  postBonusAllowanceAR,
+  _internal: { returnOrderArAmount, hasExistingReturnOrderAR }
 };
