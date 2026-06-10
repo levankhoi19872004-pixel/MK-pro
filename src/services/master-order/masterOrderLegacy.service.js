@@ -3135,6 +3135,10 @@ async function confirmDeliveryAccounting(body = {}) {
         // và ghi lại các bút toán thu tiền/chuyển khoản/hàng trả/trả thưởng.
         const reverseResult = await reverseActiveArLedgersForOrder(accountingSource, { name: confirmedBy }, { session });
         await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.accountingBatchId, { session });
+        const reaccountReturnOrders = await findReturnOrdersForDeliveryChildren([updated], { session });
+        for (const returnOrder of (reaccountReturnOrders || []).filter(Boolean)) {
+          await postReturnOrderAR(returnOrder, { session });
+        }
         await postDeliveryCollectionsAfterAccountingConfirmed(updated, { session });
         await postingEngine.postBonusAllowanceAR(updated, { session });
         await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: đảo AR cũ, ghi AR-SALE mới và ghi lại thu tiền/hàng trả/trả thưởng` });
