@@ -314,8 +314,8 @@ function makeVirtualSaleLedger(order = {}) {
     customerId: order.customerId || '',
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
-    salesmanCode: order.salesmanCode || order.staffCode || order.salesStaffCode || '',
-    salesmanName: order.salesmanName || order.staffName || order.salesStaffName || '',
+    salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
+    salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || '',
     deliveryStaffCode: order.deliveryStaffCode || '',
     deliveryStaffName: order.deliveryStaffName || '',
     debit,
@@ -618,7 +618,7 @@ async function findDebtCustomersForFilter(query = {}, hardLimit = 500) {
   }
   const filter = filters.length ? { $and: filters } : {};
   const rows = await Customer.find(filter)
-    .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName staffCode staffName salesStaffCode salesStaffName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
+    .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName salesStaffCode salesStaffName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
     .limit(hardLimit)
     .lean()
     .catch(() => []);
@@ -632,8 +632,8 @@ function makeCustomerDebtMeta(customer = {}) {
     customerName: customer.name || customer.customerName || '',
     phone: customer.phone || customer.customerPhone || '',
     address: customer.address || customer.customerAddress || '',
-    salesmanCode: customer.salesmanCode || customer.staffCode || customer.salesStaffCode || '',
-    salesmanName: customer.salesmanName || customer.staffName || customer.salesStaffName || '',
+    salesmanCode: customer.salesmanCode || customer.salesStaffCode || customer.nvbhCode || '',
+    salesmanName: customer.salesmanName || customer.salesStaffName || customer.nvbhName || '',
     deliveryStaffCode: customer.deliveryStaffCode || customer.deliveryCode || customer.deliveryStaff || '',
     deliveryStaffName: customer.deliveryStaffName || customer.deliveryName || ''
   };
@@ -776,8 +776,8 @@ async function debtReport(query = {}) {
       receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', { $ifNull: ['$nvbhCode', '$staffCode'] }] }] } },
-      salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', { $ifNull: ['$nvbhName', '$staffName'] }] }] } },
+      salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
+      salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
       deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', { $ifNull: ['$deliveryStaff', { $ifNull: ['$nvghCode', '$staffCode'] }] }] }] } },
       deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] } }
     } },
@@ -789,7 +789,7 @@ async function debtReport(query = {}) {
   const usedCustomerKeys = Array.from(new Set(grouped.flatMap((row) => [row._id.customerCode, row._id.customerId, row._id.customerName]).map((v) => String(v || '').trim()).filter(Boolean)));
   const extraCustomers = usedCustomerKeys.length
     ? await Customer.find({ $or: [{ code: { $in: usedCustomerKeys } }, { customerCode: { $in: usedCustomerKeys } }, { name: { $in: usedCustomerKeys } }, { customerName: { $in: usedCustomerKeys } }] })
-      .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName staffCode staffName salesStaffCode salesStaffName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
+      .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName salesStaffCode salesStaffName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
       .limit(usedCustomerKeys.length + 50)
       .lean()
       .catch(() => [])
