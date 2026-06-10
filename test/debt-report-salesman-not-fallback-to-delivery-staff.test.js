@@ -31,6 +31,16 @@ function assertNoSalesmanStaffFallback() {
     false,
     'Debt aggregate salesmanName must not fallback to $staffName, which may contain NVGH'
   );
+  assert.equal(
+    reportSource.includes("deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] } }"),
+    false,
+    'Debt aggregate deliveryStaffName must not fallback to $staffName, which may contain NVBH'
+  );
+  assert.equal(
+    reportSource.includes("deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', { $ifNull: ['$deliveryStaff', { $ifNull: ['$nvghCode', '$staffCode'] }] }] }] } }"),
+    false,
+    'Debt aggregate deliveryStaffCode must not fallback to $staffCode, which may contain NVBH'
+  );
 }
 
 test('debtReport keeps NVBH separate from NVGH when staffName contains delivery staff', async () => {
@@ -87,6 +97,10 @@ test('debtReport keeps NVBH separate from NVGH when staffName contains delivery 
     assert.deepEqual(
       groupStage.$group.salesmanName,
       { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } }
+    );
+    assert.deepEqual(
+      groupStage.$group.deliveryStaffName,
+      { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } }
     );
   } finally {
     ArLedger.aggregate = originalAggregate;
