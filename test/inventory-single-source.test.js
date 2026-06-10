@@ -32,15 +32,15 @@ function leanChain(rows) {
   return chain;
 }
 
-test('inventoryStockService reads inventorySnapshots, not legacy inventories, when calculating stock', async () => {
+test('inventoryStockService reads inventories, not inventorySnapshots, when calculating stock', async () => {
   const restoreProductFind = patch(Product, {
     find: () => leanChain([{ code: 'P001', productCode: 'P001', sku: 'P001' }])
   });
   const restoreSnapshotFind = patch(InventorySnapshot, {
-    find: () => leanChain([{ productCode: 'P001', availableQty: 25, quantity: 25, qty: 25 }])
+    find: () => { throw new Error('InventorySnapshot must not be used for display stock'); }
   });
   const restoreLegacyFind = patch(InventoryLegacy, {
-    find: () => { throw new Error('InventoryLegacy must not be used for display stock'); }
+    find: () => leanChain([{ productCode: 'P001', availableQty: 25, quantity: 25, qty: 25 }])
   });
 
   try {
@@ -53,7 +53,7 @@ test('inventoryStockService reads inventorySnapshots, not legacy inventories, wh
   }
 });
 
-test('productService displays stock from inventorySnapshots even when legacy inventories would be zero', async () => {
+test('productService displays stock from inventories through inventoryStockService', async () => {
   const restoreRepo = patch(productRepository, {
     findAll: async () => [{ code: 'P001', name: 'Sản phẩm tồn snapshot', conversionRate: 12 }]
   });
@@ -61,7 +61,7 @@ test('productService displays stock from inventorySnapshots even when legacy inv
     getAvailableStocks: async () => ({ P001: 25 })
   });
   const restoreLegacyFind = patch(InventoryLegacy, {
-    find: () => leanChain([{ productCode: 'P001', availableQty: 0, quantity: 0, qty: 0 }])
+    find: () => leanChain([{ productCode: 'P001', availableQty: 25, quantity: 25, qty: 25 }])
   });
 
   try {
@@ -76,7 +76,7 @@ test('productService displays stock from inventorySnapshots even when legacy inv
   }
 });
 
-test('mobile catalog displays stock from inventorySnapshots single source', async () => {
+test('mobile catalog displays stock from inventories single source', async () => {
   const restoreProductFind = patch(Product, {
     find: () => leanChain([{ code: 'P001', name: 'Sản phẩm app', conversionRate: 12, salePrice: 1000, isActive: true }])
   });
@@ -84,7 +84,7 @@ test('mobile catalog displays stock from inventorySnapshots single source', asyn
     getAvailableStock: async () => ({ productCode: 'P001', availableQty: 25 })
   });
   const restoreLegacyFind = patch(InventoryLegacy, {
-    find: () => leanChain([{ productCode: 'P001', availableQty: 0 }])
+    find: () => leanChain([{ productCode: 'P001', availableQty: 25 }])
   });
 
   const svc = createMobileService({

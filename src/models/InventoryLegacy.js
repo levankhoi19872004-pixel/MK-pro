@@ -1,8 +1,8 @@
 const flexModel = require('./_flexModel');
 
-// Compatibility model: một số bản cũ lưu tồn hiện tại ở collection `inventories`.
-// Phase 3.4+ chuẩn là `inventorySnapshots`, nhưng search/list cần đọc cả hai
-// để không hiển thị tồn = 0 khi dữ liệu cũ chưa được migrate/rebuild.
+// Canonical current-stock model: `inventories` là bảng tồn hiện tại/cache chính.
+// Nguồn ledger gốc của biến động tồn kho là `stockTransactions`.
+// Các luồng hiển thị/check tồn phải đọc qua inventoryStock.service từ collection này.
 module.exports = flexModel('InventoryLegacy', 'inventories', {
   productId: String,
   productCode: String,

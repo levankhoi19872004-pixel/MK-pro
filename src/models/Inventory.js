@@ -1,7 +1,7 @@
 const flexModel = require('./_flexModel');
 
-// Phase 3.4: inventorySnapshots là tồn hiển thị nhanh.
-// Nguồn gốc tồn kho vẫn là stockTransactions.
+// Legacy/deprecated snapshot model: `inventorySnapshots` không còn là nguồn đọc tồn chính.
+// Luồng hiện tại đọc tồn qua `inventories`; ledger gốc là `stockTransactions`.
 module.exports = flexModel('Inventory', 'inventorySnapshots', {
   productId: String,
   productCode: String,
@@ -12,7 +12,7 @@ module.exports = flexModel('Inventory', 'inventorySnapshots', {
   onHand: Number,
   reservedQty: Number,
   availableQty: Number,
-  // Alias giữ tương thích frontend/API cũ, nhưng giá trị được sinh từ snapshot.
+  // Alias giữ tương thích dữ liệu snapshot cũ.
   qty: Number,
   quantity: Number,
   lastTransactionAt: String,
