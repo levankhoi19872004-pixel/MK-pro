@@ -743,11 +743,19 @@
     } catch (err) { message(err.message, true); }
   }
 
-  function select(key) {
+  async function select(key) {
     state.selectedKey = key;
     var order = window.DeliveryCore.selectOrder(key);
     renderList();
     renderDetail(order);
+    if (order && window.DeliveryCore && typeof window.DeliveryCore.loadReturnsForOrder === "function") {
+      try {
+        await window.DeliveryCore.loadReturnsForOrder(order);
+        renderDetail(order);
+      } catch (e) {
+        console.error("loadReturnsForOrder failed", e);
+      }
+    }
   }
 
   async function load() {

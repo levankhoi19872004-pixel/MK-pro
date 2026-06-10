@@ -596,26 +596,6 @@ function directReturnMatchReason(row = {}, order = {}) {
   if (uniqueClean([row.salesOrderCode]).some((value) => salesOrderCodes.includes(value))) return 'salesOrderCode';
   if (uniqueClean([row.orderId, row.sourceOrderId, row.deliveryOrderId]).some((value) => [...salesOrderIds, ...fallbackOrderIds].includes(value))) return 'orderId';
   if (uniqueClean([row.orderCode, row.sourceOrderCode, row.deliveryOrderCode]).some((value) => [...salesOrderCodes, ...fallbackOrderCodes].includes(value))) return 'orderCode';
-
-  // Fallback for app-created return orders that only carry a return code like
-  // RO-HU90203654 while the sale order code is HU90203654. Without this,
-  // confirm accounting can see returnOrders but skip AR-RETURN posting because
-  // the return row cannot be attached to its sales order.
-  const normalizedReturnCodes = uniqueClean([
-    row.code,
-    row.returnOrderCode,
-    row.returnCode,
-    row.refCode
-  ]).map((value) => value.replace(/^RO[-_]?/i, ''));
-
-  if (
-    normalizedReturnCodes.some((value) =>
-      [...salesOrderCodes, ...fallbackOrderCodes].includes(value)
-    )
-  ) {
-    return 'returnOrderCode';
-  }
-
   return '';
 }
 
