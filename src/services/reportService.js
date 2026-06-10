@@ -919,7 +919,12 @@ async function debtReport(query = {}) {
     }))
     .sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
 
-  const customerSummary = aggregateCustomerSummary.length ? aggregateCustomerSummary : reducedCustomerSummary;
+  // Không dùng fast aggregate nếu dữ liệu orders[] không có debt từng đơn.
+  // Màn Công nợ cần customer.orders[].debt để render danh sách đơn còn nợ;
+  // nếu thiếu field này sẽ hiện sai: khách còn nợ nhưng báo "không còn đơn nợ".
+  const aggregateHasOrderDebt = aggregateCustomerSummary.some((customer) => (Array.isArray(customer.orders) ? customer.orders : [])
+    .some((order) => hasOpenDebt(order && order.debt)));
+  const customerSummary = aggregateHasOrderDebt ? aggregateCustomerSummary : reducedCustomerSummary;
 
   const arLedgerRows = await ArLedger.find(match)
     .sort({ date: -1, createdAt: -1 })

@@ -29,6 +29,22 @@ function buildCustomerDebtAggregatePipeline(match = {}, options = {}) {
   const limit = Math.max(1, Math.min(toNumber(options.limit || 500), 5000));
   const includePaid = Boolean(options.includePaid);
 
+  const ledgerTypeExpr = { $toLower: { $ifNull: ['$type', ''] } };
+  const debitExpr = {
+    $cond: [
+      { $gt: ['$debit', 0] },
+      '$debit',
+      { $cond: [{ $regexMatch: { input: ledgerTypeExpr, regex: 'sale' } }, '$amount', 0] }
+    ]
+  };
+  const creditExpr = {
+    $cond: [
+      { $gt: ['$credit', 0] },
+      '$credit',
+      { $cond: [{ $regexMatch: { input: ledgerTypeExpr, regex: 'sale' } }, 0, '$amount'] }
+    ]
+  };
+
   const pipeline = [
     { $match: match },
     {
@@ -49,29 +65,79 @@ function buildCustomerDebtAggregatePipeline(match = {}, options = {}) {
         deliveryStaffName: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', { $ifNull: ['$nvghName', '$staffName'] }] }] }
       }
     },
+    // Bước 1: gom theo KH + đơn để mỗi order trong customer.orders có đủ số nợ riêng.
+    // Frontend màn Công nợ lọc orders bằng orders[].debt; nếu chỉ có orderCode thì đơn nợ sẽ không hiện.
     {
       $group: {
         _id: {
           customerId: '$customerId',
           customerCode: '$customerCode',
-          customerName: '$customerName'
+          customerName: '$customerName',
+          orderId: '$orderId',
+          orderCode: '$orderCode'
         },
         firstDate: { $min: '$date' },
         lastDate: { $max: '$date' },
-        debit: { $sum: { $cond: [{ $gt: ['$debit', 0] }, '$debit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, '$amount', 0] }] } },
-        credit: { $sum: { $cond: [{ $gt: ['$credit', 0] }, '$credit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, 0, '$amount'] }] } },
-        receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-        returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-        bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
+        debit: { $sum: debitExpr },
+        credit: { $sum: creditExpr },
+        receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: ledgerTypeExpr, regex: 'receipt|payment|collection|debt' } }, creditExpr, 0] } },
+        returnAmount: { $sum: { $cond: [{ $regexMatch: { input: ledgerTypeExpr, regex: 'return' } }, creditExpr, 0] } },
+        bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: ledgerTypeExpr, regex: 'bonus|discount|allowance' } }, creditExpr, 0] } },
         salesmanCode: { $max: '$salesmanCode' },
         salesmanName: { $max: '$salesmanName' },
         deliveryStaffCode: { $max: '$deliveryStaffCode' },
-        deliveryStaffName: { $max: '$deliveryStaffName' },
-        orderCodes: { $addToSet: '$orderCode' }
+        deliveryStaffName: { $max: '$deliveryStaffName' }
       }
     },
     { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } }
   ];
+
+  if (!includePaid) {
+    pipeline.push({ $match: { debt: { $gt: tolerance } } });
+  }
+
+  pipeline.push(
+    // Bước 2: gom lại theo khách, đồng thời push đủ thông tin từng đơn nợ.
+    {
+      $group: {
+        _id: {
+          customerId: '$_id.customerId',
+          customerCode: '$_id.customerCode',
+          customerName: '$_id.customerName'
+        },
+        firstDate: { $min: '$firstDate' },
+        lastDate: { $max: '$lastDate' },
+        debit: { $sum: '$debit' },
+        credit: { $sum: '$credit' },
+        receiptAmount: { $sum: '$receiptAmount' },
+        returnAmount: { $sum: '$returnAmount' },
+        bonusAmount: { $sum: '$bonusAmount' },
+        salesmanCode: { $max: '$salesmanCode' },
+        salesmanName: { $max: '$salesmanName' },
+        deliveryStaffCode: { $max: '$deliveryStaffCode' },
+        deliveryStaffName: { $max: '$deliveryStaffName' },
+        orders: {
+          $push: {
+            orderId: '$_id.orderId',
+            orderCode: '$_id.orderCode',
+            documentDate: '$firstDate',
+            dueDate: '$firstDate',
+            debit: '$debit',
+            credit: '$credit',
+            receiptAmount: '$receiptAmount',
+            returnAmount: '$returnAmount',
+            bonusAmount: '$bonusAmount',
+            debt: '$debt',
+            salesmanCode: '$salesmanCode',
+            salesmanName: '$salesmanName',
+            deliveryStaffCode: '$deliveryStaffCode',
+            deliveryStaffName: '$deliveryStaffName'
+          }
+        }
+      }
+    },
+    { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } }
+  );
 
   if (!includePaid) {
     pipeline.push({ $match: { debt: { $gt: tolerance } } });
@@ -96,7 +162,52 @@ function normalizeCustomerDebtAggregateRows(rows = [], options = {}) {
     const documentDate = dateUtil.toDateOnly(row.firstDate || row.lastDate || new Date());
     const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, documentDate)) : 0;
     const status = isOverpaid(debt) ? 'overpaid' : (hasOpenDebt(debt) ? (overdueDays > 0 ? 'overdue' : 'open') : 'paid');
-    const orderCodes = (Array.isArray(row.orderCodes) ? row.orderCodes : []).map(cleanKey).filter(Boolean);
+    const rawOrders = Array.isArray(row.orders) ? row.orders : [];
+    const fallbackOrderCodes = (Array.isArray(row.orderCodes) ? row.orderCodes : []).map(cleanKey).filter(Boolean);
+    const orders = rawOrders.length
+      ? rawOrders.map((order) => {
+        const orderDebt = normalizeDebtAmount(toNumber(order.debit) - toNumber(order.credit));
+        const orderDocumentDate = dateUtil.toDateOnly(order.documentDate || order.dueDate || row.firstDate || row.lastDate || new Date());
+        const orderOverdueDays = hasOpenDebt(orderDebt) ? Math.max(0, daysBetween(now, orderDocumentDate)) : 0;
+        return {
+          orderId: order.orderId || order.orderCode || '',
+          orderCode: order.orderCode || order.orderId || '',
+          documentDate: orderDocumentDate,
+          dueDate: dateUtil.toDateOnly(order.dueDate || orderDocumentDate),
+          debit: toNumber(order.debit),
+          credit: toNumber(order.credit),
+          receiptAmount: Math.max(0, toNumber(order.receiptAmount)),
+          returnAmount: Math.max(0, toNumber(order.returnAmount)),
+          bonusAmount: Math.max(0, toNumber(order.bonusAmount)),
+          debt: orderDebt,
+          rawDebt: orderDebt,
+          overdueDays: orderOverdueDays,
+          agingDays: orderDocumentDate ? Math.max(0, daysBetween(now, orderDocumentDate)) : 0,
+          status: isOverpaid(orderDebt) ? 'overpaid' : (hasOpenDebt(orderDebt) ? (orderOverdueDays > 0 ? 'overdue' : 'open') : 'paid'),
+          salesmanCode: order.salesmanCode || row.salesmanCode || cmeta.salesmanCode || '',
+          salesmanName: order.salesmanName || row.salesmanName || cmeta.salesmanName || '',
+          deliveryStaffCode: order.deliveryStaffCode || row.deliveryStaffCode || cmeta.deliveryStaffCode || '',
+          deliveryStaffName: order.deliveryStaffName || row.deliveryStaffName || cmeta.deliveryStaffName || '',
+          debtZeroTolerance: DEBT_ZERO_TOLERANCE
+        };
+      }).filter((order) => cleanKey(order.orderCode || order.orderId))
+      : fallbackOrderCodes.map((code) => ({
+        orderId: code,
+        orderCode: code,
+        documentDate,
+        dueDate: documentDate,
+        debit: 0,
+        credit: 0,
+        receiptAmount: 0,
+        returnAmount: 0,
+        bonusAmount: 0,
+        debt: 0,
+        rawDebt: 0,
+        overdueDays: 0,
+        agingDays: 0,
+        status: 'unknown',
+        debtZeroTolerance: DEBT_ZERO_TOLERANCE
+      }));
 
     return {
       customerId: cmeta.customerId || id.customerId || '',
@@ -117,11 +228,11 @@ function normalizeCustomerDebtAggregateRows(rows = [], options = {}) {
       overpaidAmount: Math.max(0, -debt),
       status,
       debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-      orderCount: orderCodes.length,
-      overdueCount: status === 'overdue' ? 1 : 0,
+      orderCount: orders.length,
+      overdueCount: orders.filter((order) => order.status === 'overdue').length || (status === 'overdue' ? 1 : 0),
       overdueDays,
       agingDays: documentDate ? Math.max(0, daysBetween(now, documentDate)) : 0,
-      orders: orderCodes.map((code) => ({ orderCode: code, debtZeroTolerance: DEBT_ZERO_TOLERANCE }))
+      orders
     };
   });
 }

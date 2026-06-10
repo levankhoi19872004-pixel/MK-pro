@@ -84,3 +84,32 @@ test('normalized aggregate customer debt matches legacy reducer totals', () => {
   assert.equal(normalized[0].receiptAmount, legacy[0].receiptAmount);
   assert.equal(normalized[0].returnAmount, legacy[0].returnAmount);
 });
+
+test('normalized aggregate customer debt keeps open debt per order for debt allocation UI', () => {
+  const normalized = normalizeCustomerDebtAggregateRows([{
+    _id: { customerId: 'C1', customerCode: '4501007', customerName: 'Chị Tuyết' },
+    debit: 19298808,
+    credit: 0,
+    receiptAmount: 0,
+    returnAmount: 0,
+    bonusAmount: 0,
+    firstDate: '2026-06-09',
+    lastDate: '2026-06-09',
+    orders: [{
+      orderId: 'SO1',
+      orderCode: 'HU90202292',
+      documentDate: '2026-06-09',
+      debit: 19298808,
+      credit: 0,
+      receiptAmount: 0,
+      returnAmount: 0,
+      bonusAmount: 0
+    }]
+  }], { now: '2026-06-10' });
+
+  assert.equal(normalized[0].debt, 19298808);
+  assert.equal(normalized[0].orderCount, 1);
+  assert.equal(normalized[0].orders[0].orderCode, 'HU90202292');
+  assert.equal(normalized[0].orders[0].debt, 19298808);
+  assert.equal(normalized[0].orders[0].status, 'overdue');
+});
