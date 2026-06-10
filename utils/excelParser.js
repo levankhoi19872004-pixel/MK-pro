@@ -1,5 +1,12 @@
 const XLSX = require('xlsx');
 
+const MAX_ROWS = 10000;
+const MAX_COLUMNS = 100;
+// Mẫu Excel hiện tại của hệ thống có thể có HuongDan, DuLieuMau, Import.
+// Không khóa cứng 1 sheet để tránh phá import template đang dùng ở production.
+const MAX_SHEETS = 5;
+const TOO_LARGE_ERROR = 'File Excel quá lớn, vui lòng tách nhỏ file trước khi import';
+
 function cleanKey(key) {
   return String(key || '')
     .replace(/^\uFEFF/, '')
@@ -15,8 +22,13 @@ function rowHasData(row) {
   return Object.keys(row || {}).some((key) => key !== '__rowNo' && !isEmptyValue(row[key]));
 }
 
+function assertSizeLimit(condition) {
+  if (!condition) throw new Error(TOO_LARGE_ERROR);
+}
+
 function pickImportSheet(workbook) {
   const sheetNames = workbook.SheetNames || [];
+  assertSizeLimit(sheetNames.length <= MAX_SHEETS);
   if (!sheetNames.length) return '';
 
   // Mẫu Excel của hệ thống có 3 sheet: HuongDan, DuLieuMau, Import.
@@ -40,6 +52,9 @@ function parseExcelBuffer(buffer) {
   // sau đó hệ thống Việt Nam hiểu nhầm là 06/01/2026 thay vì 01/06/2026.
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
 
+  assertSizeLimit(rows.length <= MAX_ROWS);
+  assertSizeLimit(rows.every((row) => Object.keys(row || {}).length <= MAX_COLUMNS));
+
   return rows.map((row, index) => {
     const cleanRow = { __rowNo: index + 2 };
     Object.keys(row).forEach((key) => {
@@ -51,4 +66,9 @@ function parseExcelBuffer(buffer) {
   }).filter(rowHasData);
 }
 
-module.exports = { parseExcelBuffer };
+module.exports = {
+  parseExcelBuffer,
+  MAX_ROWS,
+  MAX_COLUMNS,
+  MAX_SHEETS
+};

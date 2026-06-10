@@ -51,9 +51,9 @@ function listBuiltIn(req, res) {
   res.json({ ok: true, templates: importTemplateService.getBuiltInTemplates() });
 }
 
-function downloadBuiltIn(req, res) {
+async function downloadBuiltIn(req, res) {
   try {
-    sendWorkbook(res, importTemplateService.buildBuiltInTemplateFile(req.params.type));
+    sendWorkbook(res, await importTemplateService.buildBuiltInTemplateFile(req.params.type));
   } catch (err) {
     res.status(err.statusCode || 500).json({ ok: false, message: err.message || 'Không tạo được file mẫu import' });
   }

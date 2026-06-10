@@ -30,4 +30,8 @@ async function replaceAll() {
   throw new Error('returnOrders không được replaceAll. Chỉ được ghi bằng returnOrderRepository.upsert().');
 }
 
-module.exports = { findAll, findByIdOrCode, upsert, replaceAll };
+function collectionName() {
+  return collectionRepository.getModel(RETURN_ORDER_KEY).collection.name;
+}
+
+module.exports = { findAll, findByIdOrCode, upsert, replaceAll, collectionName };

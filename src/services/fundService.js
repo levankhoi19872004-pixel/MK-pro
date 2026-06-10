@@ -13,6 +13,44 @@ function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN(
 function money(value) { return Math.max(0, Math.round(toNumber(value))); }
 function activeStatus(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
 
+function canonicalFundType(value) {
+  return String(value || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
+}
+
+function canonicalDirection(value) {
+  return String(value || 'in').toLowerCase() === 'out' ? 'out' : 'in';
+}
+
+function canonicalAccount(value, fundType) {
+  const raw = String(value || '').trim();
+  return (raw || String(fundType || 'cash')).toUpperCase();
+}
+
+function normalizeKeyPart(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function buildFundLedgerIdempotencyKey(input = {}) {
+  const fundType = canonicalFundType(input.fundType);
+  const direction = canonicalDirection(input.direction);
+  const account = canonicalAccount(input.account, fundType);
+  const sourceType = String(input.sourceType || 'MANUAL_FUND').trim() || 'MANUAL_FUND';
+  const sourceIdentity = String(
+    input.sourceId ||
+    input.sourceCode ||
+    input.referenceId ||
+    input.referenceCode ||
+    input.refId ||
+    input.refCode ||
+    input.id ||
+    input.code ||
+    ''
+  ).trim();
+  if (!sourceIdentity) return '';
+  return [sourceType, sourceIdentity, fundType, direction, account].map(normalizeKeyPart).join('|');
+}
+
+
 function buildCode(prefix, rows = []) {
   const max = rows.reduce((result, row) => {
     const match = String(row.code || '').match(/(\d+)$/);
@@ -58,7 +96,12 @@ async function listFundLedgers(query = {}) {
   return { fundLedgers: rows, summary: summarizeFundLedgers(rows) };
 }
 
-async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '') {
+async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '', account = '') {
+  const key = buildFundLedgerIdempotencyKey({ sourceType, sourceCode, sourceId, fundType, direction, account });
+  if (key) {
+    const existedByKey = await fundLedgerRepository.findByIdempotencyKey(key);
+    if (existedByKey) return existedByKey;
+  }
   const query = {
     fundType,
     direction,
@@ -67,6 +110,7 @@ async function findExistingFundLedger(sourceType, sourceCode, fundType, directio
       { referenceType: sourceType, referenceCode: sourceCode }
     ]
   };
+  if (account) query.account = account;
   if (sourceId) query.$or.push({ sourceType, sourceId }, { referenceType: sourceType, referenceId: sourceId });
   const rows = await fundLedgerRepository.findAll(query, { limit: 1 });
   return rows[0] || null;
@@ -75,29 +119,42 @@ async function findExistingFundLedger(sourceType, sourceCode, fundType, directio
 async function postFundLedger(input = {}, options = {}) {
   const amount = money(input.amount);
   if (amount <= 0) return null;
-  const fundType = String(input.fundType || 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash';
-  const direction = String(input.direction || 'in').toLowerCase() === 'out' ? 'out' : 'in';
+  const fundType = canonicalFundType(input.fundType);
+  const direction = canonicalDirection(input.direction);
+  const account = canonicalAccount(input.account, fundType);
   const sourceType = String(input.sourceType || 'MANUAL_FUND').trim();
-  const sourceCode = String(input.sourceCode || input.refCode || '').trim();
-  if (sourceCode) {
-    const existed = await findExistingFundLedger(sourceType, sourceCode, fundType, direction, String(input.sourceId || input.refId || input.referenceId || '').trim());
-    if (existed) return existed;
+  const sourceId = String(input.sourceId || input.refId || input.referenceId || '').trim();
+  const sourceCode = String(input.sourceCode || input.refCode || input.referenceCode || '').trim();
+  const idempotencyKey = String(input.idempotencyKey || buildFundLedgerIdempotencyKey({ ...input, sourceType, sourceId, sourceCode, fundType, direction, account })).trim();
+  if (!idempotencyKey) throw new Error('Thiếu sourceId/sourceCode để tạo idempotencyKey cho fund ledger');
+
+  const existed = await fundLedgerRepository.findByIdempotencyKey(idempotencyKey, options);
+  if (existed) {
+    return {
+      ok: true,
+      skipped: true,
+      ledger: existed,
+      reason: 'DUPLICATE_FUND_LEDGER'
+    };
   }
+
   const entry = {
     id: String(input.id || makeId('FL')).trim(),
     code: String(input.code || await nextFundLedgerCode()).trim(),
     date: dateOnly(input.date),
     fundType,
     direction,
+    account,
+    idempotencyKey,
     amount,
     sourceType,
-    sourceId: String(input.sourceId || '').trim(),
+    sourceId,
     sourceCode,
     refType: String(input.refType || sourceType).trim(),
-    refId: String(input.refId || input.sourceId || '').trim(),
+    refId: String(input.refId || sourceId).trim(),
     refCode: String(input.refCode || sourceCode).trim(),
     referenceType: String(input.referenceType || input.refType || sourceType).trim(),
-    referenceId: String(input.referenceId || input.refId || input.sourceId || '').trim(),
+    referenceId: String(input.referenceId || input.refId || sourceId).trim(),
     referenceCode: String(input.referenceCode || input.refCode || sourceCode).trim(),
     deliveryDate: String(input.deliveryDate || '').trim(),
     deliveryStaffCode: String(input.deliveryStaffCode || '').trim(),
@@ -112,8 +169,17 @@ async function postFundLedger(input = {}, options = {}) {
     createdAt: input.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
-  await fundLedgerRepository.upsert(entry, options);
-  return entry;
+
+  try {
+    await fundLedgerRepository.upsert(entry, options);
+    return entry;
+  } catch (error) {
+    if (error && (error.code === 11000 || String(error.message || '').includes('duplicate key'))) {
+      const duplicate = await fundLedgerRepository.findByIdempotencyKey(idempotencyKey, options);
+      if (duplicate) return { ok: true, skipped: true, ledger: duplicate, reason: 'DUPLICATE_FUND_LEDGER' };
+    }
+    throw error;
+  }
 }
 
 function numberFromRow(row, keys = []) {
@@ -451,5 +517,6 @@ module.exports = {
   createFundTransfer,
   updateFundTransfer,
   confirmFundTransfer,
-  postFundLedger
+  postFundLedger,
+  buildFundLedgerIdempotencyKey
 };

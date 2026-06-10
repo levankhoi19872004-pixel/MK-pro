@@ -2,6 +2,10 @@ const flexModel = require('./_flexModel');
 
 module.exports = flexModel('StockTransaction', 'stockTransactions', {
   id: String,
+  idempotencyKey: String,
+  sourceType: String,
+  sourceId: String,
+  sourceCode: String,
   date: String,
   productId: String,
   productCode: String,
@@ -19,6 +23,7 @@ module.exports = flexModel('StockTransaction', 'stockTransactions', {
   refType: String,
   refId: String,
   refCode: String,
+  reversedFrom: String,
   note: String,
   createdAt: String,
   updatedAt: String

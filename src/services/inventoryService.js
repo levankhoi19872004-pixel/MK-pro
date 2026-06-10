@@ -16,6 +16,43 @@ function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted
 function stockWarehouseCode() { return STOCK_WAREHOUSE_CODE || 'MAIN'; }
 function stockWarehouseName() { return STOCK_WAREHOUSE_NAME || 'Kho chính'; }
 
+function normalizeMovementDirection(value) {
+  return String(value || '').trim().toUpperCase() === 'IN' ? 'IN' : 'OUT';
+}
+
+function normalizeStockSourceType(movement = {}) {
+  return String(movement.sourceType || movement.refType || movement.type || '').trim().toUpperCase() || 'STOCK_MOVEMENT';
+}
+
+function buildStockMovementIdempotencyKey({ sourceType, sourceId, sourceCode, productCode, productId, warehouseCode, warehouseId, direction, type } = {}) {
+  const sourceKey = String(sourceId || sourceCode || '').trim();
+  const productKey = String(productCode || productId || '').trim();
+  const warehouseKey = String(warehouseCode || warehouseId || stockWarehouseCode()).trim();
+  const movementType = String(type || direction || '').trim().toUpperCase();
+  return [
+    String(sourceType || '').trim().toUpperCase(),
+    sourceKey,
+    productKey,
+    warehouseKey,
+    movementType
+  ].join('|');
+}
+
+function isDuplicateKeyError(err) {
+  return err && (err.code === 11000 || String(err.message || '').includes('E11000'));
+}
+
+function withOptionalSession(query, session) {
+  return query && typeof query.session === 'function' ? query.session(session || null) : query;
+}
+
+async function findStockTransactionByIdempotencyKey(idempotencyKey, session = null) {
+  if (!idempotencyKey) return null;
+  const query = StockTransaction.findOne({ idempotencyKey });
+  const withSession = withOptionalSession(query, session);
+  return typeof withSession?.lean === 'function' ? withSession.lean() : withSession;
+}
+
 function getProductKey(item = {}) {
   return String(item.productCode || item.code || item.productId || item.id || '').trim();
 }
@@ -122,12 +159,12 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
   const warehouseCode = stockWarehouseCode();
   const warehouseId = stockWarehouseCode();
   const warehouseName = stockWarehouseName();
-  const direction = movement.direction === 'IN' ? 'IN' : 'OUT';
+  const direction = normalizeMovementDirection(movement.direction);
   const sign = direction === 'IN' ? 1 : -1;
-  const type = movement.type || (direction === 'IN' ? 'IMPORT' : 'SALE');
-  const refType = movement.refType || type;
-  const refId = String(movement.refId || document.id || document._id || document.code || '').trim();
-  const refCode = String(movement.refCode || document.code || document.orderCode || document.id || '').trim();
+  const type = String(movement.type || (direction === 'IN' ? 'IMPORT' : 'SALE')).trim().toUpperCase();
+  const refType = normalizeStockSourceType({ ...movement, type });
+  const refId = String(movement.refId || movement.sourceId || document.id || document._id || document.code || '').trim();
+  const refCode = String(movement.refCode || movement.sourceCode || document.code || document.orderCode || document.id || '').trim();
   const txDate = dateOnly(movement.date || document.date || document.orderDate || document.documentDate || document.createdAt);
   const postedAt = dateUtil.nowIso();
   const transactions = [];
@@ -140,9 +177,32 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
     const productId = String(item.productId || product?.id || product?._id || productCode).trim();
     if (!productCode && !productId) continue;
     const productName = String(item.productName || item.name || product?.name || '').trim();
-    const movementQty = Math.abs(rawQty) * sign;
+    const absQty = Math.abs(rawQty);
+    const movementQty = absQty * sign;
+    const idempotencyKey = buildStockMovementIdempotencyKey({
+      sourceType: refType,
+      sourceId: refId,
+      sourceCode: refCode,
+      productCode,
+      productId,
+      warehouseCode,
+      warehouseId,
+      direction,
+      type
+    });
 
-    let snapshot = await InventoryLegacy.findOne({ productCode, warehouseCode }).session(session || null);
+    const existingTx = await findStockTransactionByIdempotencyKey(idempotencyKey, session);
+    if (existingTx) {
+      transactions.push({
+        ...existingTx,
+        skipped: true,
+        reason: 'DUPLICATE_STOCK_MOVEMENT'
+      });
+      continue;
+    }
+
+    const snapshotQuery = InventoryLegacy.findOne({ productCode, warehouseCode });
+    let snapshot = await withOptionalSession(snapshotQuery, session);
     if (!snapshot) {
       snapshot = new InventoryLegacy({
         id: makeId('IV'),
@@ -168,10 +228,53 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
         productCode,
         productId,
         productName,
-        requiredQty: Math.abs(rawQty),
+        requiredQty: absQty,
         session
       });
     }
+
+    let tx;
+    try {
+      const created = await StockTransaction.create([{
+        id: makeId('ST'),
+        idempotencyKey,
+        sourceType: refType,
+        sourceId: refId,
+        sourceCode: refCode,
+        date: txDate,
+        productId,
+        productCode,
+        productName,
+        warehouseId,
+        warehouseCode,
+        warehouseName,
+        type,
+        direction,
+        quantity: movementQty,
+        qty: movementQty,
+        inQty: direction === 'IN' ? absQty : 0,
+        outQty: direction === 'OUT' ? absQty : 0,
+        balanceQty: nextQty,
+        refType,
+        refId,
+        refCode,
+        reversedFrom: movement.reversedFrom || movement.originalMovementId || '',
+        note: movement.note || document.note || '',
+        createdAt: postedAt,
+        updatedAt: postedAt
+      }], { session });
+      tx = created[0];
+    } catch (err) {
+      if (!isDuplicateKeyError(err)) throw err;
+      const duplicate = await findStockTransactionByIdempotencyKey(idempotencyKey, session);
+      transactions.push({
+        ...(duplicate || { idempotencyKey }),
+        skipped: true,
+        reason: 'DUPLICATE_STOCK_MOVEMENT'
+      });
+      continue;
+    }
+
     snapshot.productId = snapshot.productId || productId;
     snapshot.productCode = snapshot.productCode || productCode;
     snapshot.productName = productName || snapshot.productName || '';
@@ -188,31 +291,7 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
 
     // Phase 3.4: không ghi tồn ngược về products.
     // Products chỉ là danh mục; tồn hiện tại nằm ở inventories.
-
-    const tx = await StockTransaction.create([{
-      id: makeId('ST'),
-      date: txDate,
-      productId,
-      productCode,
-      productName,
-      warehouseId,
-      warehouseCode,
-      warehouseName,
-      type,
-      direction,
-      quantity: movementQty,
-      qty: movementQty,
-      inQty: direction === 'IN' ? Math.abs(rawQty) : 0,
-      outQty: direction === 'OUT' ? Math.abs(rawQty) : 0,
-      balanceQty: nextQty,
-      refType,
-      refId,
-      refCode,
-      note: movement.note || document.note || '',
-      createdAt: postedAt,
-      updatedAt: postedAt
-    }], { session });
-    transactions.push(tx[0]);
+    transactions.push(tx);
   }
   return transactions;
 }
@@ -300,8 +379,26 @@ async function resolveProductForItem(item = {}) {
 
 function makeStockTx({ date, productId, productCode, productName, quantity, type, direction, refType, refId, refCode, note = '' }) {
   const qty = toNumber(quantity);
+  const normalizedDirection = normalizeMovementDirection(direction || (qty >= 0 ? 'IN' : 'OUT'));
+  const normalizedType = String(type || normalizedDirection).trim().toUpperCase();
+  const normalizedRefType = normalizeStockSourceType({ refType, type: normalizedType });
+  const idempotencyKey = buildStockMovementIdempotencyKey({
+    sourceType: normalizedRefType,
+    sourceId: refId,
+    sourceCode: refCode,
+    productCode,
+    productId,
+    warehouseCode: stockWarehouseCode(),
+    warehouseId: stockWarehouseCode(),
+    direction: normalizedDirection,
+    type: normalizedType
+  });
   return {
     id: makeId('ST'),
+    idempotencyKey,
+    sourceType: normalizedRefType,
+    sourceId: String(refId || '').trim(),
+    sourceCode: String(refCode || refId || '').trim(),
     date: dateOnly(date),
     productId: String(productId || productCode || '').trim(),
     productCode: String(productCode || productId || '').trim(),
@@ -309,14 +406,14 @@ function makeStockTx({ date, productId, productCode, productName, quantity, type
     warehouseId: stockWarehouseCode(),
     warehouseCode: stockWarehouseCode(),
     warehouseName: stockWarehouseName(),
-    type,
-    direction,
+    type: normalizedType,
+    direction: normalizedDirection,
     quantity: qty,
     qty,
-    inQty: qty > 0 ? Math.abs(qty) : 0,
-    outQty: qty < 0 ? Math.abs(qty) : 0,
+    inQty: normalizedDirection === 'IN' ? Math.abs(qty) : 0,
+    outQty: normalizedDirection === 'OUT' ? Math.abs(qty) : 0,
     balanceQty: 0,
-    refType,
+    refType: normalizedRefType,
     refId: String(refId || '').trim(),
     refCode: String(refCode || refId || '').trim(),
     note,
@@ -575,5 +672,6 @@ module.exports = {
   rebuildStockLedgerFromDocuments,
   normalizeOneWarehouse,
   normalizeProductInventoryToMain,
+  buildStockMovementIdempotencyKey,
   isActive
 };

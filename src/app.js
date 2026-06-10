@@ -98,7 +98,10 @@ function createApp() {
       ? process.env.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean)
       : true
   }));
-  app.use(pinoHttp({ logger }));
+  const requestLogger = pinoHttp({ logger });
+  if (process.env.NODE_ENV !== 'test') {
+    app.use(requestLogger);
+  }
   app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
