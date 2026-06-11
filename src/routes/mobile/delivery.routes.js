@@ -10,14 +10,14 @@ function createMobileDeliveryRouter(ctx) {
   const { requireMobileLogin, requireMobileRole, validateRequest } = ctx;
   const onlyDelivery = [requireMobileLogin, requireMobileRole(['delivery'])];
 
-  router.get('/delivery/orders', ...onlyDelivery, [
+  router.get('/orders', ...onlyDelivery, [
     query('date').optional().isISO8601().withMessage('Ngày giao không hợp lệ'),
     query('status').optional().isString().trim(),
     query('q').optional().isString().trim(),
     query('includeCompleted').optional().isIn(['0', '1', 'true', 'false']).withMessage('includeCompleted không hợp lệ')
   ], validateRequest, controller.listOrders);
 
-  router.get('/delivery/returns', ...onlyDelivery, [
+  router.get('/returns', ...onlyDelivery, [
     query('date').optional().isISO8601().withMessage('Ngày giao không hợp lệ'),
     query('orderId').optional().isString().trim(),
     query('orderCode').optional().isString().trim(),
@@ -27,7 +27,7 @@ function createMobileDeliveryRouter(ctx) {
     query('q').optional().isString().trim()
   ], validateRequest, controller.listReturns);
 
-  router.post('/delivery/confirm', ...onlyDelivery, [
+  router.post('/confirm', ...onlyDelivery, [
     body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
     body('status').isIn(['success', 'failed']).withMessage('Trạng thái giao hàng không hợp lệ'),
     body('collectAmount').optional().isFloat({ min: 0 }).withMessage('Tiền thu không được âm'),
@@ -40,7 +40,7 @@ function createMobileDeliveryRouter(ctx) {
     body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ], validateRequest, controller.confirm);
 
-  router.post('/delivery/return', ...onlyDelivery, [
+  router.post('/return', ...onlyDelivery, [
     body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
     body('returnType').optional().isIn(['full', 'partial']).withMessage('Loại trả hàng không hợp lệ'),
     body('items').optional().isArray().withMessage('Danh sách hàng trả không hợp lệ'),
@@ -49,7 +49,7 @@ function createMobileDeliveryRouter(ctx) {
   ], validateRequest, controller.createReturn);
 
 
-  router.post('/delivery/payment', ...onlyDelivery, [
+  router.post('/payment', ...onlyDelivery, [
     body('orderId').isString().trim().notEmpty().withMessage('Thiếu mã đơn giao'),
     body('cashAmount').optional().isFloat({ min: 0 }).withMessage('Tiền mặt không được âm'),
     body('bankAmount').optional().isFloat({ min: 0 }).withMessage('Chuyển khoản không được âm'),
@@ -67,8 +67,4 @@ function createMobileDeliveryRouter(ctx) {
   return router;
 }
 
-function registerMobileDeliveryRoutes(app, ctx) {
-  app.use('/api/mobile', createMobileDeliveryRouter(ctx));
-}
-
-module.exports = { createMobileDeliveryRouter, registerMobileDeliveryRoutes };
+module.exports = { createMobileDeliveryRouter };

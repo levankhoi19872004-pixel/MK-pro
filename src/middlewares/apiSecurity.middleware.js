@@ -5,9 +5,7 @@ const PUBLIC_ROUTES = [
   ['POST', /^\/api\/auth\/login$/],
   ['POST', /^\/api\/auth\/refresh$/],
 
-  // Mobile legacy/modular login
-  ['POST', /^\/api\/mobile\/login$/],
-  ['POST', /^\/api\/mobile\/refresh$/],
+  // Mobile modular login
   ['POST', /^\/api\/mobile\/auth\/login$/],
   ['POST', /^\/api\/mobile\/auth\/refresh$/],
 

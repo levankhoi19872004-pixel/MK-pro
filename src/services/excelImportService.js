@@ -3,7 +3,6 @@
 const { normalizeSearchText } = require('../utils/search.util');
 
 const dateUtil = require('../utils/date.util');
-const { parseExcelBuffer } = require('../../utils/excelParser');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const ImportOrder = require('../models/ImportOrder');
@@ -2672,109 +2671,109 @@ function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {})
       if (file && file.buffer) list.push({ buffer: file.buffer, fileName: cleanText(file.originalname || file.filename || file.name || `File ${index + 1}.xlsx`) });
     });
   }
-  if (!list.length && buffer) list.push({ buffer, fileName: cleanText(fileName || 'File Excel') });
+  if (!list.length && buffer) list.push({ buffer, fileName: cleanText(fileName || 'File Excel.xlsx') });
   return list;
 }
 
-async function parseExcelFiles({ files = [], buffer = null, fileName = '' } = {}) {
-  const normalizedFiles = normalizeImportFiles({ files, buffer, fileName });
-  const rows = [];
-  const fileReports = [];
-  for (const file of normalizedFiles) {
-    const fileRows = (await parseExcelBuffer(file.buffer)).map((row, index) => ({
-      ...row,
-      __sourceFile: file.fileName,
-      sourceFile: file.fileName,
-      fileName: file.fileName,
-      __fileIndex: fileReports.length,
-      __rowNo: row.__rowNo || row.rowNo || index + 2
-    }));
-    fileReports.push({
-      fileName: file.fileName,
-      totalRows: fileRows.length,
-      totalOrders: 0,
-      errors: []
-    });
-    rows.push(...fileRows);
-  }
-  return { rows, fileReports, totalFiles: normalizedFiles.length };
-}
-
-async function preview({ type, files = [], buffer = null, fileName = '', userName = '' }) {
+async function buildPreviewFromRows({ type, rows = [], userName = '' } = {}) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
-  const parsed = await parseExcelFiles({ files, buffer, fileName });
-  if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
-  const rows = parsed.rows;
-  if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
+  if (!Array.isArray(rows) || !rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
   const result = await previewMongoNative(type, rows);
-  result.files = parsed.fileReports;
-  result.totalFiles = parsed.totalFiles;
+
   if (type === 'salesOrders') {
     const validatedRows = await importRules.validateImportBatch(result.rows || []);
-    const session = importSessionService.createSession({ type, rows: validatedRows, rawRows: rows, createdBy: userName });
-    await auditService.log('IMPORT_PREVIEW', {
-      refType: 'importSession',
-      refId: session.id,
-      refCode: session.id,
-      userName,
-      summary: {
-        type,
-        totalOrders: validatedRows.length,
-        validOrders: validatedRows.filter((r) => r.valid).length,
-        invalidOrders: validatedRows.filter((r) => !r.valid).length
-      }
-    });
-    const orderCountByFile = new Map();
-    validatedRows.forEach((row) => {
-      const name = cleanText(row.sourceFile || row.fileName || '');
-      if (!name) return;
-      orderCountByFile.set(name, Number(orderCountByFile.get(name) || 0) + 1);
-    });
-    const fileReports = (parsed.fileReports || []).map((report) => ({
-      ...report,
-      totalOrders: Number(orderCountByFile.get(report.fileName) || 0),
-      errors: validatedRows.filter((row) => cleanText(row.sourceFile || row.fileName) === report.fileName && row.valid === false).flatMap((row) => row.errors || []).slice(0, 20)
-    }));
+
     return {
       ...result,
-      files: fileReports,
       rows: validatedRows,
       total: validatedRows.length,
       valid: validatedRows.filter((r) => r.valid).length,
-      invalid: validatedRows.filter((r) => !r.valid).length,
-      sessionId: session.id,
-      importSessionId: session.id
+      invalid: validatedRows.filter((r) => !r.valid).length
     };
   }
 
   return result;
 }
 
-async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], userName = '' }) {
+async function preview({ type, files = [], buffer = null, fileName = '', userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
 
-  let sourceRows = Array.isArray(rows) ? rows : [];
-  let session = null;
-  if (sessionId) {
-    session = importSessionService.getSession(sessionId);
-    if (!session) return { error: 'Phiên preview import đã hết hạn, vui lòng preview lại file Excel', status: 400 };
-    if (session.type !== type) return { error: 'Phiên preview không khớp loại import', status: 400 };
-    sourceRows = importSessionService.selectRows(session, selectedOrderCodes);
-    if (!sourceRows.length) return { error: 'Chưa chọn đơn hợp lệ trong phiên preview', status: 400 };
+  const normalizedFiles = normalizeImportFiles({ files, buffer, fileName });
+  if (!normalizedFiles.length) return { error: 'Chưa chọn file Excel', status: 400 };
+
+  const session = await importSessionService.createUploadedSession({
+    type,
+    fileName: normalizedFiles[0]?.fileName || '',
+    fileNames: normalizedFiles.map((f) => f.fileName),
+    createdBy: userName
+  });
+
+  const { runImportPreviewJob } = require('../jobs/importExcelJob');
+
+  // Giai đoạn đầu chạy inline để không thêm dependency worker.
+  // Boundary đã tách để sau này chuyển sang queue thật.
+  const result = await runImportPreviewJob({
+    sessionId: session.id,
+    type,
+    files: normalizedFiles,
+    userName
+  });
+
+  if (result.error) return { ...result, sessionId: session.id, importSessionId: session.id };
+
+  await auditService.log('IMPORT_PREVIEW', {
+    refType: 'importSession',
+    refId: session.id,
+    refCode: session.id,
+    userName,
+    summary: {
+      type,
+      totalRows: result.total || result.rows?.length || 0,
+      validRows: result.valid || 0,
+      invalidRows: result.invalid || 0
+    }
+  });
+
+  return {
+    ...result,
+    sessionId: session.id,
+    importSessionId: session.id,
+    status: 'preview_ready'
+  };
+}
+
+async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], userName = '' }) {
+  if (!type) return { error: 'Thiếu loại import', status: 400 };
+  if (type === 'salesOrdersS3') type = 'salesOrders';
+  if (!sessionId) return { error: 'Bắt buộc xác nhận bằng importSessionId từ bước preview', status: 400 };
+
+  const session = await importSessionService.markImporting(sessionId);
+  if (!session) {
+    return { error: 'Phiên import không tồn tại hoặc chưa sẵn sàng xác nhận', status: 400 };
   }
 
-  if (!Array.isArray(sourceRows) || !sourceRows.length) return { error: 'Chưa có dòng nào để import', status: 400 };
+  const currentSessionId = session.sessionId || session.id;
+  if (session.type !== type) {
+    await importSessionService.markFailed(currentSessionId, 'Phiên preview không khớp loại import');
+    return { error: 'Phiên preview không khớp loại import', status: 400 };
+  }
 
-  // Backend validate lần 2. Không tin hoàn toàn dữ liệu frontend.
+  let sourceRows = await importSessionService.selectRows(session, selectedOrderCodes);
+  if (!sourceRows.length) {
+    await importSessionService.markFailed(currentSessionId, 'Không có dòng hợp lệ để import');
+    return { error: 'Không có dòng hợp lệ để import', status: 400 };
+  }
+
   if (type === 'salesOrders') {
     sourceRows = await importRules.validateImportBatch(sourceRows);
   }
 
   const validRows = sourceRows.filter((r) => r && r.valid !== false && r.canImport !== false && (!Array.isArray(r.errors) || r.errors.length === 0));
   if (!validRows.length) {
+    await importSessionService.markFailed(currentSessionId, 'Không có dòng/đơn hợp lệ để import');
     return {
       error: 'Không có dòng/đơn hợp lệ để import',
       status: 400,
@@ -2800,13 +2799,17 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   else if (type === 'promotionProductRules') result = await importPromotionProductRules(commitRows);
   else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(commitRows);
   else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(commitRows);
-  else return { error: 'Loại import không hợp lệ', status: 400 };
+  else {
+    await importSessionService.markFailed(currentSessionId, 'Loại import không hợp lệ');
+    return { error: 'Loại import không hợp lệ', status: 400 };
+  }
 
-  if (session) importSessionService.updateSession(session.id, { status: 'committed', selectedOrderCodes, committedAt: dateUtil.nowIso() });
+  await importSessionService.markDone(currentSessionId, result);
+
   await auditService.log('IMPORT_COMMIT', {
     refType: 'importSession',
-    refId: session?.id || '',
-    refCode: session?.id || '',
+    refId: currentSessionId,
+    refCode: currentSessionId,
     userName,
     summary: {
       type,
@@ -2825,10 +2828,10 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
         ...(result.shortageReport || [])
       ])
     : [];
-  const shortageSummary = summarizeOrderShortages(shortageRows);
+
   return {
     ...result,
-    source: session ? 'mongo-native-session-commit' : 'mongo-native-direct',
+    source: 'mongo-import-session-confirm',
     ok: true,
     message: `Đã import ${result.imported || 0} chứng từ`,
     totalRows: sourceRows.length,
@@ -2836,45 +2839,16 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     hasShortage: type === 'salesOrders' && (hasShortage || shortageRows.length > 0),
     shortageMode: shortageRows.length ? 'cut' : '',
     shortageReport: shortageRows,
-    shortageSummary
+    shortageSummary: summarizeOrderShortages(shortageRows),
+    sessionId: currentSessionId,
+    importSessionId: currentSessionId
   };
 }
 
-async function importDirect({ type, files = [], buffer = null, fileName = '' }) {
-  if (!type) return { error: 'Thiếu loại import', status: 400 };
-  if (type === 'salesOrdersS3') type = 'salesOrders';
-  const parsed = await parseExcelFiles({ files, buffer, fileName });
-  if (!parsed.totalFiles) return { error: 'Chưa chọn file Excel', status: 400 };
-  const rows = parsed.rows;
-  if (!rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
-
-  let result;
-  if (type === 'products') result = await upsertProducts(rows);
-  else if (type === 'customers') result = await upsertCustomers(rows);
-  else if (type === 'openingStock') result = await importOpeningStock(rows);
-  else if (type === 'importOrders') result = await importImportOrders(rows);
-  else if (type === 'salesOrders') result = await importSalesOrders(rows, { autoCutStock: true });
-  else if (type === 'openingDebt') result = await importOpeningDebt(rows);
-  else if (type === 'debtCollections') result = await importDebtCollections(rows);
-  else if (type === 'cashbook') result = await importCashbook(rows);
-  else if (type === 'promotionProductRules') result = await importPromotionProductRules(rows);
-  else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(rows);
-  else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(rows);
-  else return { error: 'Loại import không hợp lệ', status: 400 };
-
-  const shortageRows = type === 'salesOrders' ? normalizeShortageRows(result.shortageReport || []) : [];
-  const shortageSummary = summarizeOrderShortages(shortageRows);
+async function importDirect() {
   return {
-    ...result,
-    source: 'mongo-native-direct',
-    ok: true,
-    message: `Đã import ${result.imported || 0} chứng từ`,
-    totalRows: rows.length,
-    totalCommitRows: rows.length,
-    hasShortage: shortageRows.length > 0,
-    shortageMode: shortageRows.length ? 'cut' : '',
-    shortageReport: shortageRows,
-    shortageSummary
+    error: 'Import trực tiếp đã bị khóa. Vui lòng preview Excel rồi xác nhận import.',
+    status: 410
   };
 }
 
@@ -2883,4 +2857,4 @@ async function logs() {
   return logs;
 }
 
-module.exports = { preview, commit, importDirect, logs };
+module.exports = { buildPreviewFromRows, preview, commit, importDirect, logs };

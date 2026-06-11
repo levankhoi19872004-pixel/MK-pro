@@ -36,16 +36,16 @@ function request(app, method, path, body) {
   });
 }
 
-test('mobile modular mount keeps required legacy endpoint contracts reachable', async () => {
+test('mobile modular mount keeps required modular endpoint contracts reachable', async () => {
   const previousEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'test';
   const app = createApp();
   process.env.NODE_ENV = previousEnv;
 
   const cases = [
-    ['POST', '/api/mobile/login', {}, [400]],
-    ['GET', '/api/mobile/customers', undefined, [401]],
-    ['GET', '/api/mobile/products', undefined, [401]],
+    ['POST', '/api/mobile/auth/login', {}, [400]],
+    ['GET', '/api/mobile/catalog/customers', undefined, [401]],
+    ['GET', '/api/mobile/catalog/products', undefined, [401]],
     ['POST', '/api/mobile/orders', {}, [401]],
     ['GET', '/api/mobile/delivery/orders', undefined, [401]],
     ['POST', '/api/mobile/delivery/return', {}, [401]],

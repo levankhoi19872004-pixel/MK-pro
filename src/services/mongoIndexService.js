@@ -40,9 +40,8 @@ const INDEX_DEFINITIONS = {
   roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
   permissions: [[{ roleCode: 1, module: 1 }, { name: 'idx_permissions_role_module' }]],
   salesOrders: [
-    [{ id: 1 }, { name: 'idx_sales_orders_id' }],
-    [{ id: 1 }, { name: 'idx_orders_id' }],
-    [{ code: 1 }, { name: 'idx_orders_code' }],
+    [{ id: 1 }, { name: 'uniq_salesOrders_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_salesOrders_code', unique: true, sparse: true }],
     [{ documentCode: 1 }, { name: 'idx_orders_document_code', sparse: true }],
     [{ invoiceCode: 1 }, { name: 'idx_orders_invoice_code', sparse: true }],
     [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
@@ -64,8 +63,8 @@ const INDEX_DEFINITIONS = {
     [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }]
   ],
   masterOrders: [
-    [{ id: 1 }, { name: 'idx_master_orders_id' }],
-    [{ code: 1 }, { name: 'idx_master_orders_code' }],
+    [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_masterOrders_code', unique: true, sparse: true }],
     [{ deliveryStaffId: 1 }, { name: 'idx_master_orders_delivery_staff_id', sparse: true }],
     [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_master_orders_delivery_staff_date_desc' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_delivery_staff_status_desc' }],
@@ -85,8 +84,8 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_import_orders_created_at' }]
   ],
   returnOrders: [
-    [{ id: 1 }, { name: 'idx_return_orders_id' }],
-    [{ code: 1 }, { name: 'idx_return_orders_code' }],
+    [{ id: 1 }, { name: 'uniq_returnOrders_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_returnOrders_code', unique: true, sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_return_orders_customer_code' }],
     [{ salesOrderId: 1 }, { name: 'idx_return_orders_sales_order_id', sparse: true }],
     [{ salesOrderId: 1, status: 1 }, { name: 'idx_return_orders_sales_order_id_status', sparse: true }],
@@ -131,8 +130,8 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_receipts_created_at' }]
   ],
   arLedgers: [
-    [{ id: 1 }, { name: 'idx_ar_ledgers_id' }],
-    [{ code: 1 }, { name: 'idx_ar_ledgers_code' }],
+    [{ id: 1 }, { name: 'uniq_arLedgers_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_arLedgers_code', unique: true, sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_ar_ledgers_customer_code' }],
     [{ customerName: 1 }, { name: 'idx_ar_ledgers_customer_name', sparse: true }],
     [{ orderId: 1 }, { name: 'idx_ar_ledgers_order_id', sparse: true }],
@@ -177,8 +176,8 @@ const INDEX_DEFINITIONS = {
   ],
 
   fundLedgers: [
-    [{ id: 1 }, { name: 'idx_fund_ledgers_id' }],
-    [{ code: 1 }, { name: 'idx_fund_ledgers_code' }],
+    [{ id: 1 }, { name: 'uniq_fundLedgers_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_fundLedgers_code', unique: true, sparse: true }],
     [{ idempotencyKey: 1 }, { name: 'uniq_fund_ledger_idempotency_key', unique: true, sparse: true }],
     [{ date: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_date_fund_direction' }],
     [{ sourceType: 1, sourceCode: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_source_unique_guard' }],
@@ -270,8 +269,10 @@ const INDEX_DEFINITIONS = {
     [{ batchCode: 1 }, { name: 'idx_import_logs_batch_code', sparse: true }]
   ],
   importSessions: [
-    [{ sessionId: 1 }, { name: 'idx_import_sessions_session_id', unique: true, sparse: true }],
-    [{ createdAt: 1 }, { name: 'ttl_import_sessions_created_at', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 3600) }]
+    [{ id: 1 }, { name: 'uniq_importSessions_id', unique: true, sparse: true }],
+    [{ sessionId: 1 }, { name: 'uniq_importSessions_sessionId', unique: true, sparse: true }],
+    [{ status: 1, createdAt: -1 }, { name: 'idx_importSessions_status_createdAt' }],
+    [{ createdAt: 1 }, { name: 'ttl_importSessions_createdAt', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 86400) }]
   ]
 };
 
@@ -281,6 +282,12 @@ function sameIndexKey(left, right) {
   } catch {
     return false;
   }
+}
+
+function sameIndexOptions(existing = {}, options = {}) {
+  if (Boolean(existing.unique) !== Boolean(options.unique)) return false;
+  if (Boolean(existing.sparse) !== Boolean(options.sparse)) return false;
+  return true;
 }
 
 async function ensureMongoIndexes({ logger = console } = {}) {
@@ -303,7 +310,29 @@ async function ensureMongoIndexes({ logger = console } = {}) {
 
     for (const [fields, options] of definitions) {
       try {
-        const hasEquivalentIndex = existingIndexes.some((idx) => sameIndexKey(idx.key, fields));
+        const sameKeyDifferentOptions = existingIndexes.find((idx) => {
+          return sameIndexKey(idx.key, fields) && !sameIndexOptions(idx, options);
+        });
+
+        if (sameKeyDifferentOptions) {
+          const message = `Index ${collectionKey}.${sameKeyDifferentOptions.name} cùng key nhưng khác option với ${options?.name}. Cần drop index cũ sau khi audit duplicate.`;
+          if (logger?.warn) logger.warn(message);
+          else console.warn(message);
+
+          results.push({
+            collectionKey,
+            collection: Model.collection.name,
+            indexName: options?.name,
+            conflictWith: sameKeyDifferentOptions.name,
+            skipped: true
+          });
+
+          continue;
+        }
+
+        const hasEquivalentIndex = existingIndexes.some((idx) => {
+          return sameIndexKey(idx.key, fields) && sameIndexOptions(idx, options);
+        });
 
         if (hasEquivalentIndex) {
           results.push({
@@ -316,7 +345,7 @@ async function ensureMongoIndexes({ logger = console } = {}) {
         }
 
         const indexName = await Model.collection.createIndex(fields, { background: true, ...options });
-        existingIndexes.push({ key: fields, name: indexName });
+        existingIndexes.push({ key: fields, name: indexName, ...options });
         results.push({ collectionKey, collection: Model.collection.name, indexName });
       } catch (err) {
         const message = `Không tạo được index ${collectionKey}.${options?.name || JSON.stringify(fields)}: ${err.message}`;

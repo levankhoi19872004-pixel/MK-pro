@@ -43,3 +43,13 @@ test('staff names do not use legacy staffName or username', () => {
   assert.equal(pickDeliveryStaffName({ staffName: 'Legacy Name' }), '');
   assert.equal(pickDeliveryStaffName({ username: 'ship01' }), '');
 });
+
+test('staff identity helpers are null-safe', () => {
+  assert.equal(pickSalesStaffCode(null), '');
+  assert.equal(pickSalesStaffName(null), '');
+  assert.equal(pickDeliveryStaffCode(null), '');
+  assert.equal(pickDeliveryStaffName(null), '');
+
+  assert.equal(pickSalesStaffCode(false), '');
+  assert.equal(pickDeliveryStaffCode(''), '');
+});

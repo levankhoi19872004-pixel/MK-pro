@@ -1,7 +1,6 @@
 'use strict';
 
 const express = require('express');
-const legacyMobileRoutes = require('../mobileRoutes');
 const { createMobileAuthRouter } = require('./auth.routes');
 const { createMobileCatalogRouter } = require('./catalog.routes');
 const { createMobileSalesRouter } = require('./sales.routes');
@@ -17,38 +16,36 @@ function forwardTo(router, targetPath) {
 }
 
 function addCompatibilityAliases(router) {
-  // Mobile sales app historical alias: POST /api/mobile/orders -> /api/mobile/sales/orders
+  // Alias cũ: POST /api/mobile/orders -> /api/mobile/sales/orders
   router.post('/orders', forwardTo(router, '/sales/orders'));
-  // Mobile delivery app historical alias: save money means delivery payment persistence.
+
+  // Alias cũ app giao hàng.
   router.post('/delivery/save-money', forwardTo(router, '/delivery/payment'));
-  // Report tab currently reads the same delivery order list with filters/status.
   router.get('/delivery/report', forwardTo(router, '/delivery/orders'));
+  router.get('/delivery-orders', forwardTo(router, '/delivery/orders'));
 }
 
+// MOBILE_MODULAR_ROUTE_ONLY_START
 function createMobileRouter(ctx) {
+  if (!ctx || typeof ctx !== 'object') {
+    throw new Error('Mobile routes require ctx. Legacy fallback disabled.');
+  }
+
   const router = express.Router();
 
   addCompatibilityAliases(router);
 
-  if (ctx) {
-    router.use(createMobileAuthRouter(ctx));
-    router.use(createMobileCatalogRouter(ctx));
-    router.use(createMobileSalesRouter(ctx));
-    router.use(createMobileDeliveryRouter(ctx));
+  router.use('/auth', createMobileAuthRouter(ctx));
+  router.use('/catalog', createMobileCatalogRouter(ctx));
+  router.use('/sales', createMobileSalesRouter(ctx));
+  router.use('/delivery', createMobileDeliveryRouter(ctx));
 
-    // Legacy mobile routes are kept as rollback/fallback while modular route contracts are hardened.
-    router.use(legacyMobileRoutes);
-    return router;
-  }
-
-  // Safe default for current production wiring: route mount moves to ./mobile,
-  // while business logic still falls back to the battle-tested legacy router.
-  router.use(legacyMobileRoutes);
   return router;
 }
 
 function registerMobileRoutes(app, ctx) {
   app.use('/api/mobile', createMobileRouter(ctx));
 }
+// MOBILE_MODULAR_ROUTE_ONLY_END
 
 module.exports = { createMobileRouter, registerMobileRoutes };

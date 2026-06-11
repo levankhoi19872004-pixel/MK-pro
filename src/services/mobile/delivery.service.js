@@ -523,7 +523,27 @@ function createMobileDeliveryService(ctx) {
     return confirmDelivery({ ...args, body });
   }
 
-  return { listDeliveryOrders, listDeliveryReturns, confirmDelivery, createReturnFromDelivery, submitDeliveryPayment, submitCash };
+  // MOBILE_DELIVERY_SUBMIT_CASH_STUB_START
+  async function submitCash() {
+    return {
+      statusCode: 501,
+      body: {
+        ok: false,
+        success: false,
+        message: 'Chức năng nộp quỹ mobile chưa được triển khai ở route modular'
+      }
+    };
+  }
+  // MOBILE_DELIVERY_SUBMIT_CASH_STUB_END
+
+  return {
+    listDeliveryOrders,
+    listDeliveryReturns,
+    confirmDelivery,
+    createReturnFromDelivery,
+    submitDeliveryPayment,
+    submitCash
+  };
 }
 
 module.exports = { createMobileDeliveryService };

@@ -44,13 +44,19 @@ function cleanStaffText(value = '') {
   return String(value || '').trim();
 }
 
+// STAFF_IDENTITY_NULL_SAFE_START
 function pickFirst(source = {}, fields = []) {
-  for (const field of fields) {
-    const value = cleanStaffText(source[field]);
+  const safeSource = source && typeof source === 'object' ? source : {};
+  const safeFields = Array.isArray(fields) ? fields : [];
+
+  for (const field of safeFields) {
+    const value = cleanStaffText(safeSource[field]);
     if (value) return value;
   }
+
   return '';
 }
+// STAFF_IDENTITY_NULL_SAFE_END
 
 function pickSalesStaffCode(source = {}) {
   return pickFirst(source, SALES_STAFF_CODE_FIELDS);

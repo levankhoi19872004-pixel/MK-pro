@@ -15,7 +15,10 @@ test('OpenAPI document is valid JSON and has required sections', () => {
   assert.ok(doc.paths['/api/products']);
   assert.ok(doc.paths['/api/sales-orders']);
   assert.ok(doc.paths['/api/master-orders']);
-  assert.ok(doc.paths['/api/mobile/login']);
+  assert.ok(doc.paths['/api/mobile/auth/login']);
+  assert.ok(doc.paths['/api/mobile/catalog/customers']);
+  assert.ok(doc.paths['/api/mobile/sales/orders']);
+  assert.ok(doc.paths['/api/mobile/delivery/orders']);
   assert.ok(doc.components.securitySchemes.bearerAuth);
 });
 

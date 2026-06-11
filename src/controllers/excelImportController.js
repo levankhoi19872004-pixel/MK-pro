@@ -36,19 +36,10 @@ async function commit(req, res) {
 }
 
 async function direct(req, res) {
-  try {
-    const files = normalizeUploadedFiles(req);
-    const result = await excelImportService.importDirect({
-      type: String(req.body?.type || '').trim(),
-      files,
-      buffer: files[0]?.buffer,
-      fileName: files[0]?.originalname || ''
-    });
-    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
-    res.json({ ok: true, ...result });
-  } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không import được dữ liệu', error: err.message });
-  }
+  return res.status(410).json({
+    ok: false,
+    message: 'Import trực tiếp đã bị khóa. Vui lòng dùng /preview rồi /commit.'
+  });
 }
 
 async function logs(req, res) {

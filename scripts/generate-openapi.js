@@ -82,13 +82,20 @@ function parseTopLevelMounts() {
     if (filePath) mounts.push({ mountPath, filePath, source: 'src/routes/index.js' });
   }
 
-  // Mobile routes are still registered through the legacy bootstrap context in
-  // some builds. Include them explicitly so OpenAPI generation does not miss
-  // the last large mobile route group.
+  // Mobile modular routes are mounted by src/routes/mobile/index.js under
+  // explicit sub-namespaces. Keep this map in sync with registerMobileRoutes().
   const mobileDir = path.join(ROUTES_DIR, 'mobile');
+  const mobileMountByFile = new Map([
+    ['index.js', '/api/mobile'],
+    ['auth.routes.js', '/api/mobile/auth'],
+    ['catalog.routes.js', '/api/mobile/catalog'],
+    ['sales.routes.js', '/api/mobile/sales'],
+    ['delivery.routes.js', '/api/mobile/delivery']
+  ]);
   if (fs.existsSync(mobileDir)) {
     for (const filePath of walkJsFiles(mobileDir)) {
-      mounts.push({ mountPath: '/api/mobile', filePath, source: 'src/routes/mobile/*.routes.js' });
+      const mountPath = mobileMountByFile.get(path.basename(filePath));
+      if (mountPath) mounts.push({ mountPath, filePath, source: 'src/routes/mobile modular routes' });
     }
   }
 
@@ -133,8 +140,8 @@ function isPublicOperation(method, openApiPath) {
     '/api/docs/openapi.json',
     '/api/health',
     '/api/system/status',
-    '/api/mobile/login',
-    '/api/mobile/refresh'
+    '/api/mobile/auth/login',
+    '/api/mobile/auth/refresh'
   ]);
   if (publicPaths.has(openApiPath)) return true;
   if (method === 'get' && openApiPath.startsWith('/api/print/')) return true;

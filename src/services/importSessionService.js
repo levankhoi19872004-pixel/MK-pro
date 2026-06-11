@@ -1,44 +1,287 @@
 'use strict';
 
-const crypto = require('crypto');
-const { IMPORT_STATUS } = require('../constants/business.constants');
+const { makeId } = require('../utils/common.util');
+const ImportSession = require('../models/ImportSession');
+const ImportSessionRow = require('../models/ImportSessionRow');
 
-const sessions = new Map();
-const TTL_MS = Number(process.env.IMPORT_SESSION_TTL_MS || 60 * 60 * 1000);
+const IMPORT_PREVIEW_LIMIT = Number(process.env.IMPORT_PREVIEW_LIMIT || 100);
+const IMPORT_SESSION_ROW_BATCH_SIZE = Number(process.env.IMPORT_SESSION_ROW_BATCH_SIZE || 500);
 
-function cleanup() {
-  const now = Date.now();
-  for (const [id, session] of sessions.entries()) {
-    if (now - Number(session.createdAtMs || 0) > TTL_MS) sessions.delete(id);
+function cleanText(value) {
+  return String(value ?? '').trim();
+}
+
+function getRowDocumentCode(row = {}) {
+  return cleanText(
+    row.documentCode ||
+    row.orderCode ||
+    row.code ||
+    row.refCode ||
+    row.invoiceCode ||
+    ''
+  );
+}
+
+function getRowSourceFile(row = {}) {
+  return cleanText(
+    row.sourceFile ||
+    row.__sourceFile ||
+    row.fileName ||
+    row.originalFileName ||
+    ''
+  );
+}
+
+function compactPreviewRow(row = {}) {
+  const cloned = { ...row };
+
+  // Không đưa payload nặng vào import_sessions.
+  delete cloned.raw;
+  delete cloned.__importRows;
+  delete cloned.__adjustedRows;
+
+  if (Array.isArray(cloned.lineDetails)) {
+    cloned.lineDetails = cloned.lineDetails.slice(0, 20);
+    cloned.lineDetailsTruncated = row.lineDetails.length > 20;
+  }
+
+  if (Array.isArray(cloned.detailErrors)) {
+    cloned.detailErrors = cloned.detailErrors.slice(0, 20);
+    cloned.detailErrorsTruncated = row.detailErrors.length > 20;
+  }
+
+  if (Array.isArray(cloned.shortageReport)) {
+    cloned.shortageReport = cloned.shortageReport.slice(0, 20);
+    cloned.shortageReportTruncated = row.shortageReport.length > 20;
+  }
+
+  return cloned;
+}
+
+function normalizeErrors(rows = []) {
+  return rows.flatMap((row) => {
+    const errors = Array.isArray(row?.errors) ? row.errors : [];
+    return errors.map((err) => {
+      if (err && typeof err === 'object') {
+        return {
+          row: row.__rowNo || row.rowNo || err.row || 0,
+          field: err.field || '',
+          message: err.message || err.error || String(err),
+          rawValue: err.rawValue
+        };
+      }
+
+      return {
+        row: row?.__rowNo || row?.rowNo || 0,
+        field: '',
+        message: String(err || ''),
+        rawValue: undefined
+      };
+    });
+  }).filter((err) => err.message);
+}
+
+function isValidImportRow(row = {}) {
+  return row && row.valid !== false && row.canImport !== false && (!Array.isArray(row.errors) || row.errors.length === 0);
+}
+
+function buildSessionRowDoc(sessionId, type, row = {}, index = 0) {
+  const rowErrors = Array.isArray(row.errors) ? row.errors : [];
+  const valid = isValidImportRow(row);
+
+  return {
+    sessionId,
+    type,
+    rowNo: Number(row.rowNo || row.__rowNo || index + 1),
+    rowKey: `${getRowSourceFile(row)}|${getRowDocumentCode(row)}|${index + 1}`,
+    documentCode: getRowDocumentCode(row),
+    sourceFile: getRowSourceFile(row),
+    valid,
+    canImport: row.canImport !== false,
+    status: valid ? 'valid' : 'invalid',
+    normalizedRow: row,
+    rawRow: row.raw || {},
+    rowErrors,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+}
+
+async function insertRowsInBatches(docs = []) {
+  for (let i = 0; i < docs.length; i += IMPORT_SESSION_ROW_BATCH_SIZE) {
+    const batch = docs.slice(i, i + IMPORT_SESSION_ROW_BATCH_SIZE);
+    if (batch.length) {
+      await ImportSessionRow.insertMany(batch, { ordered: false });
+    }
   }
 }
 
-function createSession({ type, rows = [], rawRows = [], createdBy = '' } = {}) {
-  cleanup();
-  const id = `IS${Date.now()}${crypto.randomBytes(4).toString('hex')}`;
-  const session = { id, type, rows, rawRows, status: IMPORT_STATUS.PREVIEW, createdBy, createdAt: new Date().toISOString(), createdAtMs: Date.now() };
-  sessions.set(id, session);
-  return session;
+async function createUploadedSession({ type, fileName = '', fileNames = [], createdBy = '' }) {
+  const id = makeId('IMP');
+
+  return ImportSession.create({
+    id,
+    sessionId: id,
+    type,
+    fileName,
+    fileNames,
+    status: 'uploaded',
+    createdBy,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
 }
 
-function getSession(id) {
-  cleanup();
-  return sessions.get(String(id || '').trim()) || null;
+async function markParsing(id) {
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id }, { sessionId: id }] },
+    { $set: { status: 'parsing', updatedAt: new Date() } },
+    { new: true }
+  );
 }
 
-function updateSession(id, patch = {}) {
-  const session = getSession(id);
+async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = [] } = {}) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  const session = await ImportSession.findOne({
+    $or: [{ id: value }, { sessionId: value }]
+  }).lean();
+
   if (!session) return null;
-  Object.assign(session, patch, { updatedAt: new Date().toISOString() });
-  sessions.set(session.id, session);
-  return session;
+
+  const sessionId = session.sessionId || session.id;
+  const errors = normalizeErrors(rows);
+  const validRows = rows.filter(isValidImportRow);
+  const errorRowNumbers = new Set(errors.map((err) => err.row).filter(Boolean));
+
+  await ImportSessionRow.deleteMany({ sessionId });
+
+  const rowDocs = rows.map((row, index) =>
+    buildSessionRowDoc(sessionId, session.type, row, index)
+  );
+
+  await insertRowsInBatches(rowDocs);
+
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id: value }, { sessionId: value }] },
+    {
+      $set: {
+        status: 'preview_ready',
+        totalRows: rows.length,
+        validRows: validRows.length,
+        errorRows: errorRowNumbers.size || errors.length,
+        importErrors: errors.slice(0, 1000),
+        previewRows: (previewRows.length ? previewRows : rows)
+          .slice(0, IMPORT_PREVIEW_LIMIT)
+          .map(compactPreviewRow),
+        rowStorage: 'collection',
+        storedRows: rowDocs.length,
+        fileNames,
+        updatedAt: new Date()
+      },
+      $unset: {
+        errors: '',
+        validDataRows: '',
+        rawRows: ''
+      }
+    },
+    { new: true }
+  );
 }
 
-function selectRows(session, selectedOrderCodes = []) {
-  if (!session) return [];
-  const selected = new Set((selectedOrderCodes || []).map((v) => String(v || '').trim()).filter(Boolean));
-  if (!selected.size) return [];
-  return (session.rows || []).filter((row) => selected.has(String(row.documentCode || row.orderCode || row.code || '').trim()));
+async function markFailed(id, errorMessage) {
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id }, { sessionId: id }] },
+    {
+      $set: {
+        status: 'failed',
+        errorMessage: String(errorMessage || ''),
+        failedAt: new Date(),
+        updatedAt: new Date()
+      }
+    },
+    { new: true }
+  );
 }
 
-module.exports = { createSession, getSession, updateSession, selectRows };
+async function getSession(id) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  return ImportSession.findOne({
+    $or: [{ id: value }, { sessionId: value }]
+  }).lean();
+}
+
+async function markImporting(id) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id: value }, { sessionId: value }], status: 'preview_ready' },
+    { $set: { status: 'importing', updatedAt: new Date() } },
+    { new: true }
+  );
+}
+
+async function markDone(id, result = {}) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id: value }, { sessionId: value }] },
+    {
+      $set: {
+        status: 'done',
+        result,
+        confirmedAt: new Date(),
+        updatedAt: new Date()
+      }
+    },
+    { new: true }
+  );
+}
+
+async function selectRows(session, selectedOrderCodes = []) {
+  const sessionId = cleanText(session?.sessionId || session?.id);
+  if (!sessionId) return [];
+
+  const selected = new Set(
+    (selectedOrderCodes || [])
+      .map((v) => cleanText(v))
+      .filter(Boolean)
+  );
+
+  const query = { sessionId };
+
+  if (selected.size) {
+    query.documentCode = { $in: Array.from(selected) };
+  }
+
+  const docs = await ImportSessionRow
+    .find(query)
+    .sort({ rowNo: 1 })
+    .lean();
+
+  const rows = docs
+    .map((doc) => doc.normalizedRow)
+    .filter(Boolean);
+
+  if (!selected.size) return rows;
+
+  return rows.filter((row) =>
+    selected.has(getRowDocumentCode(row))
+  );
+}
+
+module.exports = {
+  createUploadedSession,
+  markParsing,
+  savePreviewResult,
+  markFailed,
+  getSession,
+  markImporting,
+  markDone,
+  selectRows
+};

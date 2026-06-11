@@ -22,11 +22,11 @@ function createMobileSalesRouter(ctx) {
     body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
   ];
 
-  router.post('/sales/orders', ...onlySales, orderPayloadRules, validateRequest, controller.createOrder);
-  router.get('/sales/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.getOrder);
-  router.put('/sales/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), orderPayloadRules, validateRequest, controller.updateOrder);
-  router.delete('/sales/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.deleteOrder);
-  router.get('/sales/orders', ...onlySales, [
+  router.post('/orders', ...onlySales, orderPayloadRules, validateRequest, controller.createOrder);
+  router.get('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.getOrder);
+  router.put('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), orderPayloadRules, validateRequest, controller.updateOrder);
+  router.delete('/orders/:id', ...onlySales, param('id').isString().trim().notEmpty(), validateRequest, controller.deleteOrder);
+  router.get('/orders', ...onlySales, [
     query('date').optional().isISO8601().withMessage('Ngày không hợp lệ'),
     query('mine').optional().isIn(['0', '1']).withMessage('mine chỉ nhận 0 hoặc 1'),
     query('q').optional().isString().trim()

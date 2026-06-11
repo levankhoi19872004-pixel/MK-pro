@@ -864,7 +864,12 @@ async function commitImportExcel(){
     const res=await fetch('/api/import/commit',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type:importDataType.value,rows:selectedRows,sessionId:importPreviewSessionId,selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||'').trim()).filter(Boolean),shortageMode:importShortageActionMode||'cut'})
+      body:JSON.stringify({
+        type:importDataType.value,
+        importSessionId:importPreviewSessionId,
+        selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||'').trim()).filter(Boolean),
+        shortageMode:importShortageActionMode||'cut'
+      })
     });
     const json=await res.json();
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');

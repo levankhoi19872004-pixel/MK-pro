@@ -28,6 +28,7 @@ module.exports = {
   cashbook: require('./Cashbook'),
   importLogs: require('./ImportLog'),
   importSessions: require('./ImportSession'),
+  importSessionRows: require('./ImportSessionRow'),
   mobileLogs: require('./MobileLog'),
   auditLogs: require('./AuditLog'),
   settings: require('./Setting'),

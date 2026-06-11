@@ -19,7 +19,12 @@
     "mongo:drop-redundant-indexes": "node scripts/drop-redundant-indexes.js",
     "mongo:drop-redundant-indexes:dry": "node scripts/drop-redundant-indexes.js --dry-run",
     "migrate:user-passwords": "node scripts/migrate-user-passwords.js",
-    "migrate:user-passwords:dry": "node scripts/migrate-user-passwords.js --dry-run"
+    "migrate:user-passwords:dry": "node scripts/migrate-user-passwords.js --dry-run",
+    "audit:duplicate-keys": "node scripts/audit-duplicate-business-keys.js",
+    "migrate:duplicate-keys": "node scripts/migrate-duplicate-business-keys.js --write",
+    "migrate:duplicate-keys:dry": "node scripts/migrate-duplicate-business-keys.js",
+    "drop:old-indexes": "node scripts/drop-replaced-nonunique-indexes.js --write",
+    "drop:old-indexes:dry": "node scripts/drop-replaced-nonunique-indexes.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

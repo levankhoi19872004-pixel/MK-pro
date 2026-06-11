@@ -1,19 +1,86 @@
+'use strict';
+
 const mongoose = require('mongoose');
 
-const importSessionSchema = new mongoose.Schema({
-  sessionId: { type: String, required: true, trim: true },
-  type: { type: String, default: '', trim: true },
+const ImportErrorSchema = new mongoose.Schema({
+  row: Number,
+  field: String,
+  message: String,
+  rawValue: mongoose.Schema.Types.Mixed
+}, { _id: false });
+
+const ImportSessionSchema = new mongoose.Schema({
+  id: { type: String, required: true, trim: true },
+  sessionId: { type: String, trim: true },
+
+  type: {
+    type: String,
+    required: true,
+    enum: [
+      'salesOrders',
+      'products',
+      'customers',
+      'users',
+      'openingStock',
+      'importOrders',
+      'openingDebt',
+      'debtCollections',
+      'cashbook',
+      'promotionProductRules',
+      'promotionGroupItems',
+      'promotionGroupRules'
+    ]
+  },
+
+  fileName: { type: String, default: '', trim: true },
   fileNames: { type: [String], default: [] },
-  rows: { type: Array, default: [] },
-  rawRows: { type: Array, default: [] },
-  summary: { type: Object, default: {} },
-  status: { type: String, default: 'preview', trim: true },
+
+  status: {
+    type: String,
+    enum: ['uploaded', 'parsing', 'preview_ready', 'importing', 'done', 'failed'],
+    default: 'uploaded'
+  },
+
+  totalRows: { type: Number, default: 0 },
+  validRows: { type: Number, default: 0 },
+  errorRows: { type: Number, default: 0 },
+
+  importErrors: { type: [ImportErrorSchema], default: [] },
+
+  // Chỉ lưu sample nhỏ để UI preview nhanh.
+  // Không lưu toàn bộ rows vào import_sessions.
+  previewRows: { type: [mongoose.Schema.Types.Mixed], default: [] },
+
+  rowStorage: {
+    type: String,
+    enum: ['collection'],
+    default: 'collection'
+  },
+
+  storedRows: {
+    type: Number,
+    default: 0
+  },
+
+  result: { type: mongoose.Schema.Types.Mixed, default: {} },
+
   createdBy: { type: String, default: '', trim: true },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-}, { strict: false, versionKey: false });
+  updatedAt: { type: Date, default: Date.now },
+  confirmedAt: { type: Date, default: null },
+  failedAt: { type: Date, default: null },
+  errorMessage: { type: String, default: '' }
+}, { versionKey: false });
 
-importSessionSchema.index({ sessionId: 1 }, { unique: true, sparse: true });
-importSessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 3600) });
+ImportSessionSchema.index({ id: 1 }, { unique: true, sparse: true, name: 'uniq_importSessions_id' });
+ImportSessionSchema.index({ sessionId: 1 }, { unique: true, sparse: true, name: 'uniq_importSessions_sessionId' });
+ImportSessionSchema.index({ status: 1, createdAt: -1 }, { name: 'idx_importSessions_status_createdAt' });
+ImportSessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 86400), name: 'ttl_importSessions_createdAt' });
 
-module.exports = mongoose.models.ImportSession || mongoose.model('ImportSession', importSessionSchema, 'import_sessions');
+ImportSessionSchema.pre('save', function updateTimestamp(next) {
+  this.updatedAt = new Date();
+  if (!this.sessionId) this.sessionId = this.id;
+  next();
+});
+
+module.exports = mongoose.models.ImportSession || mongoose.model('ImportSession', ImportSessionSchema, 'import_sessions');

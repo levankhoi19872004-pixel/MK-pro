@@ -20,7 +20,9 @@ const systemRoutes = require('./systemRoutes');
 const printRoutes = require('./printRoutes');
 const { importRouter, exportRouter } = require('./importExportRoutes');
 const swaggerRoutes = require('./swaggerRoutes');
-const mobileRoutes = require('./mobile');
+const mobileModule = require('./mobile');
+const legacyMobileRoutes = require('./mobileRoutes');
+const { createMobileContext } = require('../mobile/mobileContext');
 const searchRoutes = require('./searchRoutes');
 const catalogRoutes = require('./catalogRoutes');
 const fundRoutes = require('./fundRoutes');
@@ -45,8 +47,15 @@ function registerApiRoutes(app) {
   // Canonical delivery routes: one core API for web + mobile delivery UIs.
   app.use('/api/delivery', deliveryRoutes);
 
-  // Mobile app routes (sales + delivery). Modular mount with legacy fallback for rollback.
-  mobileRoutes.registerMobileRoutes(app);
+  // MOBILE_MODULAR_ROUTE_MOUNT_START
+  const mobileCtx = createMobileContext();
+
+  mobileModule.registerMobileRoutes(app, mobileCtx);
+
+  // Legacy chỉ giữ tạm ở namespace riêng để rollback có kiểm soát.
+  // Không được mount legacy vào /api/mobile nữa.
+  app.use('/api/mobile-legacy', legacyMobileRoutes);
+  // MOBILE_MODULAR_ROUTE_MOUNT_END
 
   // Step 1: Products / Customers / Users
   app.use('/api/products', productRoutes);
