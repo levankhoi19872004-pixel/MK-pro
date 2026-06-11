@@ -63,6 +63,42 @@ async function updateItemsBySalesOrder(req, res) {
   }
 }
 
+async function confirmAccounting(req, res) {
+  try {
+    const result = await returnOrderService.confirmAccountingReturnOrder(
+      req.params.id || req.params.code,
+      {
+        ...req.body,
+        confirmedBy: req.user?.code || req.user?.username || req.user?.name || 'system'
+      }
+    );
+
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        ok: false,
+        success: false,
+        message: result.error,
+        code: result.code
+      });
+    }
+
+    res.json({
+      ok: true,
+      success: true,
+      message: 'Đã xác nhận kế toán phiếu trả hàng',
+      data: result.returnOrder,
+      returnOrder: result.returnOrder
+    });
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      success: false,
+      message: 'Không xác nhận được kế toán phiếu trả hàng',
+      error: err.message
+    });
+  }
+}
+
 async function cancel(req, res) {
   try {
     const result = await returnOrderService.cancelReturnOrderById(req.params.id, req.body || {});
@@ -83,4 +119,4 @@ async function updateItems(req, res) {
   }
 }
 
-module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems, cancel };
+module.exports = { list, create, getBySalesOrder, updateItemsBySalesOrder, updateItems, confirmAccounting, cancel };

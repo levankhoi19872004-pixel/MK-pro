@@ -2,6 +2,8 @@
 
 const InventoryPostingService = require('../posting/InventoryPostingService');
 const ArPostingService = require('../posting/ArPostingService');
+const ReturnStateMachine = require('./ReturnStateMachine');
+const { RETURN_STATES } = ReturnStateMachine;
 
 function getReturnOrderService() {
   // Lazy require để tránh vòng phụ thuộc:
@@ -39,15 +41,34 @@ async function postReturnStock(returnOrder = {}, options = {}) {
 }
 
 async function postReturnAR(returnOrder = {}, options = {}) {
+  ReturnStateMachine.assertCanPostAR(returnOrder);
+
   return ArPostingService.postReturn({
     ...returnOrder,
     accountingConfirmed: true,
-    accountingStatus: 'confirmed'
+    accountingStatus: RETURN_STATES.ACCOUNTING_CONFIRMED
   }, options);
 }
 
 async function confirmAccounting(returnOrder = {}, options = {}) {
-  const arEntry = await postReturnAR(returnOrder, options);
+  const returnOrderService = getReturnOrderService();
+
+  if (typeof returnOrder === 'string') {
+    return returnOrderService.confirmAccountingReturnOrder(returnOrder, {}, options);
+  }
+
+  const idOrCode = returnOrder.id || returnOrder.code;
+  if (idOrCode && typeof returnOrderService.confirmAccountingReturnOrder === 'function') {
+    return returnOrderService.confirmAccountingReturnOrder(idOrCode, returnOrder, options);
+  }
+
+  ReturnStateMachine.assertCanConfirmAccounting(returnOrder);
+  const accountingConfirmed = {
+    ...returnOrder,
+    ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.ACCOUNTING_CONFIRMED)
+  };
+  const arEntry = await postReturnAR(accountingConfirmed, options);
+  returnOrder = accountingConfirmed;
   return { returnOrder, arEntry };
 }
 

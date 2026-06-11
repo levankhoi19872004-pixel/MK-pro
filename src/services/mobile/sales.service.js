@@ -123,7 +123,7 @@ function createMobileSalesService(ctx) {
     });
     const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
     const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount), 0);
-    const status = totalReturnAmount > 0 ? 'has_return' : 'draft';
+    const status = totalReturnAmount > 0 ? 'waiting_receive' : 'draft';
     return {
       ...(existing || {}),
       id: existing?.id || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
@@ -156,11 +156,12 @@ function createMobileSalesService(ctx) {
       debtReduction: totalReturnAmount,
       status,
       returnStatus: status,
+      returnState: status,
       returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
-      warehouseReceiveStatus: status === 'has_return' ? 'waiting_receive' : 'draft',
+      warehouseReceiveStatus: status === 'waiting_receive' ? 'waiting_receive' : 'draft',
       source: existing?.source || 'sales_order_draft',
       createdFrom: existing?.createdFrom || 'sales_order',
-      accountingStatus: status === 'has_return' ? 'pending' : 'draft',
+      accountingStatus: status === 'waiting_receive' ? 'pending' : 'draft',
       accountingConfirmed: Boolean(existing?.accountingConfirmed),
       createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()

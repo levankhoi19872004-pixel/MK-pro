@@ -9432,6 +9432,46 @@
         ]
       }
     },
+    "/api/return-orders/{id}/confirm-accounting": {
+      "post": {
+        "tags": [
+          "Return Orders"
+        ],
+        "summary": "POST /api/return-orders/{id}/confirm-accounting",
+        "operationId": "postReturnOrdersIdConfirmAccounting",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/return-orders/{id}/items": {
       "put": {
         "tags": [
@@ -9681,6 +9721,46 @@
         ],
         "summary": "POST /api/returns/{id}/cancel",
         "operationId": "postReturnsIdCancel",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/returns/{id}/confirm-accounting": {
+      "post": {
+        "tags": [
+          "Returns"
+        ],
+        "summary": "POST /api/returns/{id}/confirm-accounting",
+        "operationId": "postReturnsIdConfirmAccounting",
         "responses": {
           "201": {
             "description": "Success response",
