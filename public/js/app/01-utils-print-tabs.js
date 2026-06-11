@@ -27,6 +27,17 @@ function legacyCustomerStaffLabel(row = {}) {
   return [code, name].filter(Boolean).join(' - ');
 }
 // UI_CANONICAL_STAFF_FIELDS_END
+function inferPackingRateFromTextClient(source = {}){
+  const values=[source.packing,source.name,source.productName].map(v=>String(v||''));
+  for(const text of values){
+    const match=text.match(/(?:\/|\b)(\d{1,4})\s*(chai|gói|bộ|cây|túi|hộp|dây|cái|bánh|tuýp|lon|thùng|pcs|pc)\b/i);
+    if(match){
+      const rate=Number(match[1]||0);
+      if(Number.isFinite(rate)&&rate>1)return rate;
+    }
+  }
+  return 1;
+}
 function normalizePackingRate(source = {}){
   const rate = Number(
     source.conversionRate ??
@@ -35,9 +46,10 @@ function normalizePackingRate(source = {}){
     source.packQty ??
     source.packageQty ??
     source.packingRate ??
-    1
+    0
   );
-  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+  if(Number.isFinite(rate) && rate > 0) return rate;
+  return inferPackingRateFromTextClient(source);
 }
 function formatQtyTL(qty, rate){
   const total = Number(qty || 0);

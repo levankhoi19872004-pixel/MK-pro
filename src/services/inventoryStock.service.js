@@ -29,6 +29,40 @@ function productCodeOf(row = {}) {
   return normalizeProductCode(row.productCode || row.code || row.sku || row.productId || row.id || row._id);
 }
 
+function inferPackingRateFromText(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (!text) continue;
+    const match = text.match(/(?:\/|\b)(\d{1,4})\s*(chai|gói|bộ|cây|túi|hộp|dây|cái|bánh|tuýp|lon|thùng|pcs|pc)\b/i);
+    if (match) {
+      const rate = toNumber(match[1]);
+      if (rate > 1) return rate;
+    }
+  }
+  return 1;
+}
+
+function packingRateOf(product = {}, row = {}) {
+  const explicit = toNumber(
+    product.conversionRate ||
+    product.packingQty ||
+    product.unitsPerCase ||
+    row.conversionRate ||
+    row.packingQty ||
+    row.unitsPerCase ||
+    0
+  );
+  if (explicit > 1) return explicit;
+  return inferPackingRateFromText(
+    product.packing,
+    row.packing,
+    product.name,
+    product.productName,
+    row.productName,
+    row.name
+  );
+}
+
 function buildAliases(product = {}) {
   return [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']
     .map(normalizeProductCode)
@@ -111,18 +145,7 @@ async function getInventorySummary(query = {}) {
     if (!productCode) continue;
     const quantity = quantityOf(row);
     if (!grouped.has(productCode)) {
-      const packingRate = Math.max(
-        1,
-        toNumber(
-          product.conversionRate ||
-          product.packingQty ||
-          product.unitsPerCase ||
-          row.conversionRate ||
-          row.packingQty ||
-          row.unitsPerCase ||
-          1
-        )
-      );
+      const packingRate = Math.max(1, packingRateOf(product, row));
 
       grouped.set(productCode, {
         id: row.id || String(row._id || ''),

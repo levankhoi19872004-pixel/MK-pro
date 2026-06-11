@@ -65,6 +65,15 @@ function normalizeStockProductCode(value = '') {
   return String(value || '').trim().toUpperCase();
 }
 
+function numericCodeVariant(value = '') {
+  const raw = String(value || '').trim();
+  return /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+function snapshotQuantityOf(row = {}) {
+  return toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
+}
+
 function groupStockItems(items = []) {
   const grouped = new Map();
 
@@ -131,13 +140,20 @@ async function getSnapshot(productLike = {}) {
 }
 
 async function normalizeProductInventoryToMain({ productCode, productId, session = null } = {}) {
-  const code = normalizeStockProductCode(productCode || productId || '');
-  const id = String(productId || productCode || '').trim();
+  const code = normalizeStockProductCode(productCode || '');
+  const id = String(productId || '').trim();
+  const numericCode = numericCodeVariant(code);
+  const numericId = numericCodeVariant(id);
+
   const filters = [
     code ? { productCode: code } : null,
+    numericCode !== null ? { productCode: numericCode } : null,
     id ? { productId: id } : null,
+    numericId !== null ? { productId: numericId } : null,
     code ? { code } : null,
-    id ? { sku: id } : null
+    numericCode !== null ? { code: numericCode } : null,
+    id ? { sku: id } : null,
+    numericId !== null ? { sku: numericId } : null
   ].filter(Boolean);
 
   if (!filters.length) return null;
@@ -147,22 +163,16 @@ async function normalizeProductInventoryToMain({ productCode, productId, session
   if (!rows.length) return null;
 
   const whCode = stockWarehouseCode();
-  const hasLegacyWarehouse = rows.some((row) => String(row.warehouseCode || '').trim() !== whCode);
-  if (!hasLegacyWarehouse && rows.length === 1) return rows[0];
-
-  const groupedQty = rows.reduce((sum, row) => {
-    return sum + toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
-  }, 0);
+  const groupedQty = rows.reduce((sum, row) => sum + snapshotQuantityOf(row), 0);
   const reservedQty = rows.reduce((sum, row) => sum + toNumber(row.reservedQty ?? row.reserved ?? 0), 0);
   const baseRow = rows.find((row) => String(row.warehouseCode || '').trim() === whCode) || rows[0] || {};
+  const now = dateUtil.nowIso();
 
-  await withOptionalSession(InventoryLegacy.deleteMany({ $or: filters }), session);
-  const doc = {
-    ...baseRow,
-    _id: undefined,
+  const patch = {
     id: baseRow.id || makeId('IV'),
     productId: String(baseRow.productId || id || code).trim(),
     productCode: normalizeStockProductCode(baseRow.productCode || code || id),
+    productName: String(baseRow.productName || baseRow.name || '').trim(),
     warehouseId: whCode,
     warehouseCode: whCode,
     warehouseName: stockWarehouseName(),
@@ -171,7 +181,25 @@ async function normalizeProductInventoryToMain({ productCode, productId, session
     onHand: groupedQty,
     reservedQty,
     availableQty: groupedQty - reservedQty,
-    updatedAt: dateUtil.nowIso()
+    updatedAt: now,
+    lastTransactionAt: baseRow.lastTransactionAt || now
+  };
+
+  // Nếu dữ liệu đã là một dòng MAIN, vẫn phải rewrite lại số liệu numeric.
+  // Lỗi thực tế: row MAIN có quantity/onHand còn lớn nhưng availableQty = 0 hoặc kiểu dữ liệu cũ,
+  // làm atomic filter availableQty >= qty trả null và báo thiếu tồn.
+  const isSingleMainRow = rows.length === 1 && String(baseRow.warehouseCode || '').trim() === whCode;
+  if (isSingleMainRow) {
+    const filter = baseRow._id ? { _id: baseRow._id } : { productCode: patch.productCode, warehouseCode: whCode };
+    await withOptionalSession(InventoryLegacy.updateOne(filter, { $set: patch }), session);
+    return { ...baseRow, ...patch };
+  }
+
+  await withOptionalSession(InventoryLegacy.deleteMany({ $or: filters }), session);
+  const doc = {
+    ...baseRow,
+    _id: undefined,
+    ...patch
   };
   const created = await InventoryLegacy.create([doc], { session });
   return Array.isArray(created) ? created[0] : doc;
@@ -249,7 +277,12 @@ async function applyAtomicInventoryDelta({
     session
   };
 
-  const updated = await InventoryLegacy.findOneAndUpdate(filter, update, options);
+  let updated = await InventoryLegacy.findOneAndUpdate(filter, update, options);
+
+  if (!updated && direction === 'OUT') {
+    await normalizeProductInventoryToMain({ productCode, productId, session });
+    updated = await InventoryLegacy.findOneAndUpdate(filter, update, options);
+  }
 
   if (!updated) {
     const err = new Error(`Không đủ tồn kho mã ${productCode}`);
