@@ -448,7 +448,11 @@ function buildOrderSearchFilter(query = {}) {
   if (exactMasterOrderCode) filter.masterOrderCode = exactMasterOrderCode;
 
   const staffCodeFilter = extractStaffCodeParam(
-    guardedQuery.salesStaffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+    guardedQuery.salesStaffCode ||
+    guardedQuery.staffCode ||
+    guardedQuery.salesmanCode ||
+    guardedQuery.nvbhCode ||
+    guardedQuery.maNVBH
   );
   const staffTextFilter = String(
     guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || ''
@@ -773,7 +777,11 @@ async function listOrders(query = {}) {
   }
 
   const staffCodeFilter = extractStaffCodeParam(
-    guardedQuery.salesStaffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+    guardedQuery.salesStaffCode ||
+    guardedQuery.staffCode ||
+    guardedQuery.salesmanCode ||
+    guardedQuery.nvbhCode ||
+    guardedQuery.maNVBH
   );
   if (staffCodeFilter) {
     const codeValues = [staffCodeFilter];
