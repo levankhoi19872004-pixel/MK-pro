@@ -1,7 +1,6 @@
 'use strict';
 
 const { normalizeSearchText } = require('../utils/search.util');
-const bcrypt = require('bcryptjs');
 
 const dateUtil = require('../utils/date.util');
 const { parseExcelBuffer } = require('../../utils/excelParser');
@@ -30,6 +29,13 @@ const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
 const promotionService = require('./promotionService');
+const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
+const {
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  buildSalesStaffSnapshot,
+  SALES_STAFF_CODE_FIELDS
+} = require('../domain/staff/staffIdentity');
 
 function makeReturnDraftItemFromImportItem(item = {}) {
   const soldQty = toNumber(item.quantity ?? item.qty ?? item.soldQuantity ?? 0);
@@ -71,11 +77,11 @@ function buildReturnDraftFromImportedOrder(order = {}) {
     customerId: order.customerId || '',
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
-    salesStaffId: order.salesStaffId || order.staffId || '',
-    salesStaffCode: order.salesStaffCode || order.staffCode || '',
-    salesStaffName: order.salesStaffName || order.staffName || '',
-    staffCode: order.salesStaffCode || order.staffCode || '',
-    staffName: order.salesStaffName || order.staffName || '',
+    salesStaffId: order.salesStaffId || '',
+    salesStaffCode: pickSalesStaffCode(order),
+    salesStaffName: pickSalesStaffName(order),
+    staffCode: '',
+    staffName: '',
     masterOrderId: '',
     masterOrderCode: '',
     deliveryStaffId: '',
@@ -189,6 +195,8 @@ function pickProductPayload(row = {}) {
 
 function pickCustomerPayload(row = {}) {
   const code = cleanText(row.code || row.customerCode || row['Mã khách hàng'] || row['Ma khach hang']);
+  const legacyStaffCode = cleanText(row.legacyStaffCode || row.staffCode || row['Mã NVBH'] || row['Ma NVBH'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã nhân viên']);
+  const legacyStaffName = cleanText(row.legacyStaffName || row.staffName || row['Tên NVBH'] || row['Ten NVBH']);
   return {
     code,
     name: cleanText(row.name || row.customerName || row['Tên khách hàng'] || row['Ten khach hang']),
@@ -196,8 +204,10 @@ function pickCustomerPayload(row = {}) {
     address: cleanText(row.address || row.customerAddress || row['Địa chỉ'] || row['Dia chi']),
     area: cleanText(row.area || row['Khu vực'] || row['Khu vuc']),
     route: cleanText(row.route || row['Tuyến'] || row['Tuyen']),
-    staffCode: cleanText(row.staffCode || row.salesStaffCode || row.salesmanCode || row['Mã NVBH'] || row['Ma NVBH'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã nhân viên'] || getSalesStaffCodeFromRow(row)),
-    staffName: cleanText(row.staffName || row.salesStaffName || row.salesmanName || row['Tên NVBH'] || row['Ten NVBH']),
+    legacyStaffCode,
+    legacyStaffName,
+    staffCode: legacyStaffCode,
+    staffName: legacyStaffName,
     openingDebt: toNumber(row.openingDebt || row['Công nợ đầu kỳ'] || row['Cong no dau ky']),
     debtLimit: toNumber(row.debtLimit || row['Hạn mức nợ'] || row['Han muc no']),
     isActive: row.isActive !== false
@@ -1670,22 +1680,13 @@ function addUserStaffAlias(map, value, user) {
 }
 
 function getUserStaffName(user = {}) {
-  return cleanText(user.fullName || user.name || user.staffName || user.username || '');
+  return cleanText(pickSalesStaffName(user));
 }
 
 // DMS_IMPORT_SALES_STAFF_USERS_ONLY_START
 function getUserStaffCode(user = {}) {
-  // NVBH nghiệp vụ chỉ lấy từ mã nhân viên thật trong users.
-  // Không fallback username/id/_id để tránh match nhầm tài khoản đăng nhập.
-  return cleanText(
-    user.staffCode ||
-    user.code ||
-    user.employeeCode ||
-    user.salesStaffCode ||
-    user.maNhanVien ||
-    user.employeeId ||
-    ''
-  );
+  // NVBH nghiệp vụ chỉ lấy từ contract mã NVBH thật trong users.
+  return cleanText(pickSalesStaffCode(user));
 }
 // DMS_IMPORT_SALES_STAFF_USERS_ONLY_END
 
@@ -1695,56 +1696,44 @@ function isSalesStaffUser(user = {}) {
 }
 
 async function preloadSalesStaffUsersByCode(rows = []) {
-  const codes = Array.from(new Set((rows || []).map(getSalesStaffCodeFromRow).map(cleanText).filter(Boolean)));
+  const codes = Array.from(new Set((rows || []).map((row) => pickSalesStaffCode(row) || getSalesStaffCodeFromRow(row)).map(cleanText).filter(Boolean)));
   if (!codes.length) return new Map();
   const users = await User.find({
     isActive: { $ne: false },
-    $or: [
-      { staffCode: { $in: codes } },
-      { code: { $in: codes } },
-      { employeeCode: { $in: codes } },
-      { salesStaffCode: { $in: codes } },
-      { maNhanVien: { $in: codes } },
-      { employeeId: { $in: codes } }
-    ]
+    $or: SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: codes } }))
   })
-    .select('staffCode code employeeCode salesStaffCode maNhanVien employeeId fullName name staffName role isActive')
+    .select('employeeCode salesStaffCode salesStaffName salesmanCode salesmanName maNhanVien fullName name role isActive')
     .lean()
     .catch(() => []);
 
   const map = new Map();
   for (const user of users || []) {
-    [
-      user.staffCode,
-      user.code,
-      user.employeeCode,
-      user.salesStaffCode,
-      user.maNhanVien,
-      user.employeeId
-    ].forEach((value) => addUserStaffAlias(map, value, user));
+    SALES_STAFF_CODE_FIELDS.map((field) => user[field]).forEach((value) => addUserStaffAlias(map, value, user));
   }
   return map;
 }
 
 function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) {
-  // Quy tắc chuẩn: mã NVBH lấy trực tiếp từ file Excel import.
-  // Tên NVBH không lấy từ khách hàng và không tin tên Excel; chỉ tra từ users Mongo theo mã Excel.
-  const excelStaffCode = cleanText(getSalesStaffCodeFromRow(row));
+  // Quy tắc chuẩn: mã NVBH lấy từ salesStaffCode/salesmanCode/employeeCode/maNhanVien.
+  // Tên NVBH không lấy từ Excel/raw; chỉ tra từ users Mongo theo mã canonical.
+  const excelStaffCode = cleanText(pickSalesStaffCode(row) || getSalesStaffCodeFromRow(row));
   const user = excelStaffCode ? salesStaffUserMap.get(excelStaffCode) : null;
-  const userStaffCode = user ? getUserStaffCode(user) : '';
-  const userStaffName = user ? getUserStaffName(user) : '';
+  const snapshot = user ? buildSalesStaffSnapshot(user) : buildSalesStaffSnapshot(row);
 
   return {
-    staffCode: user && userStaffCode ? userStaffCode : excelStaffCode,
-    salesStaffCode: user && userStaffCode ? userStaffCode : excelStaffCode,
-    staffName: user && userStaffName ? userStaffName : '',
-    salesStaffName: user && userStaffName ? userStaffName : '',
+    staffCode: '',
+    salesStaffCode: snapshot.salesStaffCode || excelStaffCode,
+    staffName: '',
+    salesStaffName: user ? snapshot.salesStaffName : '',
+    salesmanCode: snapshot.salesmanCode || excelStaffCode,
+    salesmanName: user ? snapshot.salesmanName : '',
     user,
     found: !!user,
     validRole: !!user && isSalesStaffUser(user),
-    hasUserStaffCode: !!userStaffCode
+    hasUserStaffCode: !!snapshot.salesStaffCode
   };
 }
+
 
 async function getStockMapByProductCode(rows = []) {
   const codes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
@@ -1847,18 +1836,18 @@ function flattenAdjustedCommitRows(rows = []) {
         const raw = cloneRawRowForImport(child);
         if (raw.__skipImportLine) continue;
         // Giữ kết quả validate: mã NVBH lấy từ Excel, tên NVBH đã resolve từ users.
-        raw.staffCode = row.staffCode || row.salesStaffCode || raw.staffCode;
-        raw.salesStaffCode = row.salesStaffCode || row.staffCode || raw.salesStaffCode;
-        raw.staffName = row.staffName || row.salesStaffName || '';
-        raw.salesStaffName = row.salesStaffName || row.staffName || '';
+        raw.staffCode = '';
+        raw.salesStaffCode = row.salesStaffCode || row.salesmanCode || raw.salesStaffCode || '';
+        raw.staffName = '';
+        raw.salesStaffName = row.salesStaffName || row.salesmanName || '';
         result.push(raw);
       }
     } else {
       const raw = cloneRawRowForImport(row);
-      raw.staffCode = row.staffCode || row.salesStaffCode || raw.staffCode;
-      raw.salesStaffCode = row.salesStaffCode || row.staffCode || raw.salesStaffCode;
-      raw.staffName = row.staffName || row.salesStaffName || '';
-      raw.salesStaffName = row.salesStaffName || row.staffName || '';
+      raw.staffCode = '';
+      raw.salesStaffCode = row.salesStaffCode || row.salesmanCode || raw.salesStaffCode || '';
+      raw.staffName = '';
+      raw.salesStaffName = row.salesStaffName || row.salesmanName || '';
       if (!raw.__skipImportLine) result.push(raw);
     }
   }
@@ -2012,10 +2001,6 @@ const USER_ROLE_ALIASES = {
   'kho': 'warehouse', 'thu kho': 'warehouse', 'thủ kho': 'warehouse', 'warehouse': 'warehouse'
 };
 
-function isBcryptHash(value) {
-  return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
-}
-
 function normalizeImportRole(value) {
   const raw = cleanText(value).toLowerCase();
   if (!raw) return '';
@@ -2062,7 +2047,6 @@ async function importUsers(rows = []) {
   let created = 0;
   let updated = 0;
   let skipped = 0;
-  const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
   const validRows = [];
   const seen = new Map();
 
@@ -2087,9 +2071,19 @@ async function importUsers(rows = []) {
   validRows.push(...seen.values());
   for (const item of validRows) {
     const current = await User.findOne({ username: item.username }).lean();
+    if (!current && !item.password) {
+      skipped += 1;
+      errors.push({
+        row: item.rowNo || item.__rowNo || '',
+        username: item.username,
+        message: 'Tạo tài khoản mới bắt buộc có mật khẩu'
+      });
+      continue;
+    }
+
     const password = item.password
-      ? (isBcryptHash(item.password) ? item.password : bcrypt.hashSync(item.password, BCRYPT_ROUNDS))
-      : (current?.password || bcrypt.hashSync('123456', BCRYPT_ROUNDS));
+      ? (isBcryptHash(item.password) ? item.password : hashPasswordSync(item.password))
+      : (current?.password || '');
     const payload = {
       username: item.username,
       password,
@@ -2627,7 +2621,7 @@ async function previewMongoNative(type, rows = []) {
       const key = item.username.toLowerCase();
       if (key && seen.has(key)) item.warnings.push('Trùng tên đăng nhập trong file; khi import hệ thống lấy dòng cuối cùng');
       if (key) seen.add(key);
-      item.passwordStatus = item.password ? 'Có nhập mật khẩu' : 'Để trống: giữ mật khẩu cũ hoặc dùng 123456 nếu tạo mới';
+      item.passwordStatus = item.password ? 'Có nhập mật khẩu' : 'Để trống: giữ mật khẩu cũ; tạo mới bắt buộc nhập mật khẩu';
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'openingDebt') {

@@ -8,6 +8,7 @@ const deliveryCashSubmissionRepository = require('../repositories/deliveryCashSu
 const expenseVoucherRepository = require('../repositories/expenseVoucherRepository');
 const fundTransferRepository = require('../repositories/fundTransferRepository');
 const masterOrderService = require('./masterOrderService');
+const { pickDeliveryStaffCode } = require('../domain/staff/staffIdentity');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function money(value) { return Math.max(0, Math.round(toNumber(value))); }
@@ -192,7 +193,7 @@ function numberFromRow(row, keys = []) {
 
 async function buildDeliverySubmissionDraft(query = {}) {
   const deliveryDate = dateOnly(query.deliveryDate || query.date);
-  const deliveryStaffCode = String(query.deliveryStaffCode || query.delivery || query.staffCode || '').trim();
+  const deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery || '').trim();
   if (!deliveryStaffCode) return { error: 'Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ', status: 400 };
   const data = await masterOrderService.listDeliveryToday({ date: deliveryDate, delivery: deliveryStaffCode, deliveryStaffCode, page: 1, limit: 5000 });
   const orders = data.orders || [];
@@ -254,7 +255,7 @@ async function createDeliveryCashSubmission(body = {}) {
 async function listDeliveryCashSubmissions(query = {}) {
   const filter = {};
   if (query.deliveryDate || query.date) filter.deliveryDate = dateOnly(query.deliveryDate || query.date);
-  if (query.deliveryStaffCode || query.delivery) filter.deliveryStaffCode = String(query.deliveryStaffCode || query.delivery).trim();
+  if (pickDeliveryStaffCode(query) || query.delivery) filter.deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery).trim();
   let rows = await deliveryCashSubmissionRepository.findAll(filter, { sort: { deliveryDate: -1, createdAt: -1, code: -1 }, limit: query.limit || 500 });
   const q = normalizeText(query.q || query.search || '');
   if (q) rows = rows.filter((row) => matchQuery(row, q));

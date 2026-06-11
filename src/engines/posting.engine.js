@@ -4,6 +4,12 @@ const dateUtil = require('../utils/date.util');
 const paymentRepository = require('../repositories/paymentRepository');
 const { makeId, toNumber } = require('../utils/common.util');
 const { debugLog } = require('../utils/debug.util');
+const {
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName
+} = require('../domain/staff/staffIdentity');
 
 
 
@@ -22,10 +28,10 @@ function baseJournal(doc = {}, extra = {}) {
     customerId: String(extra.customerId || doc.customerId || '').trim(),
     customerCode: String(extra.customerCode || doc.customerCode || '').trim(),
     customerName: String(extra.customerName || doc.customerName || '').trim(),
-    salesmanCode: String(extra.salesmanCode || doc.salesmanCode || doc.salesStaffCode || doc.nvbhCode || '').trim(),
-    salesmanName: String(extra.salesmanName || doc.salesmanName || doc.salesStaffName || doc.nvbhName || '').trim(),
-    deliveryStaffCode: String(extra.deliveryStaffCode || doc.deliveryStaffCode || doc.deliveryCode || doc.nvghCode || '').trim(),
-    deliveryStaffName: String(extra.deliveryStaffName || doc.deliveryStaffName || doc.deliveryName || doc.nvghName || '').trim(),
+    salesmanCode: pickSalesStaffCode(extra) || pickSalesStaffCode(doc),
+    salesmanName: pickSalesStaffName(extra) || pickSalesStaffName(doc),
+    deliveryStaffCode: pickDeliveryStaffCode(extra) || pickDeliveryStaffCode(doc),
+    deliveryStaffName: pickDeliveryStaffName(extra) || pickDeliveryStaffName(doc),
     masterOrderId: String(extra.masterOrderId || doc.masterOrderId || doc.deliveryMasterId || '').trim(),
     masterOrderCode: String(extra.masterOrderCode || doc.masterOrderCode || doc.deliveryMasterCode || '').trim(),
     accountingBatchId: String(extra.accountingBatchId || doc.accountingBatchId || '').trim(),

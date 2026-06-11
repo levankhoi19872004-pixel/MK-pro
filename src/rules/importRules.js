@@ -7,6 +7,11 @@ const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const { makeBusinessError, makeBusinessWarning } = require('../utils/businessError.util');
+const {
+  SALES_STAFF_CODE_FIELDS,
+  pickSalesStaffCode,
+  pickSalesStaffName
+} = require('../domain/staff/staffIdentity');
 
 function pushUnique(list, value) {
   if (!value) return;
@@ -88,7 +93,11 @@ function getLineProductCode(line = {}) {
 }
 
 function getUserRealCode(user = {}, fallback = '') {
-  return cleanText(user.staffCode || user.code || user.employeeCode || user.salesStaffCode || user.deliveryStaffCode || user.maNhanVien || user.employeeId || user.staffId || user.username || fallback);
+  return cleanText(pickSalesStaffCode(user) || fallback);
+}
+
+function getUserRealName(user = {}) {
+  return cleanText(pickSalesStaffName(user));
 }
 
 async function buildImportValidationContext(orders = []) {
@@ -122,17 +131,10 @@ async function buildImportValidationContext(orders = []) {
       { barcode: { $in: Array.from(productCodes) } },
       { id: { $in: Array.from(productCodes) } }
     ] }).lean().catch(() => []) : [],
-    staffCodes.size ? User.find({ isActive: { $ne: false }, $or: [
-      { staffCode: { $in: Array.from(staffCodes) } },
-      { code: { $in: Array.from(staffCodes) } },
-      { employeeCode: { $in: Array.from(staffCodes) } },
-      { salesStaffCode: { $in: Array.from(staffCodes) } },
-      { deliveryStaffCode: { $in: Array.from(staffCodes) } },
-      { username: { $in: Array.from(staffCodes) } },
-      { maNhanVien: { $in: Array.from(staffCodes) } },
-      { employeeId: { $in: Array.from(staffCodes) } },
-      { staffId: { $in: Array.from(staffCodes) } }
-    ] }).select('id staffCode code employeeCode salesStaffCode deliveryStaffCode username maNhanVien employeeId staffId name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []) : []
+    staffCodes.size ? User.find({ isActive: { $ne: false }, $or: SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: Array.from(staffCodes) } })) })
+      .select('id employeeCode salesStaffCode salesStaffName salesmanCode salesmanName maNhanVien name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isActive')
+      .lean()
+      .catch(() => []) : []
   ]);
 
   const customerMap = new Map();
@@ -143,7 +145,7 @@ async function buildImportValidationContext(orders = []) {
 
   const salesStaffMap = new Map();
   users.forEach((u) => {
-    const aliases = [u.staffCode, u.code, u.employeeCode, u.salesStaffCode, u.deliveryStaffCode, u.username, u.maNhanVien, u.employeeId, u.staffId, String(u._id || '')];
+    const aliases = SALES_STAFF_CODE_FIELDS.map((field) => u[field]);
     aliases.forEach((v) => addMapAlias(salesStaffMap, v, u));
   });
 
@@ -163,7 +165,7 @@ function validateSalesStaffFromContext(staffCode, context = {}, orderCode = '') 
   if (!code) return { valid: false, staff: null, error: makeBusinessError({ code: 'MISSING_NVBH_CODE', message: 'Thiếu mã NVBH', orderCode, field: 'salesStaffCode' }) };
   const staff = context.salesStaffMap?.get(code);
   if (!staff) return { valid: false, staff: null, error: makeBusinessError({ code: 'INVALID_NVBH_CODE', message: `Mã NVBH ${code} không tồn tại trong danh sách tài khoản`, orderCode, field: 'salesStaffCode' }) };
-  return { valid: true, staff: { ...staff, code: getUserRealCode(staff, code), name: staff.fullName || staff.name || staff.username || '' }, error: null };
+  return { valid: true, staff: { ...staff, code: getUserRealCode(staff, code), name: getUserRealName(staff) }, error: null };
 }
 
 function validateProductFromContext(productCode, context = {}, orderCode = '') {
@@ -225,10 +227,10 @@ async function validateImportSalesOrder(order = {}, context = {}) {
     orderCode: order.orderCode || orderCode,
     customerCode: resolved.customerCode || customerCode || order.customerCode || '',
     customerName: resolved.customerName || order.customerName || '',
-    staffCode: salesStaffCode || resolved.salesStaffCode || order.staffCode || '',
+    staffCode: '',
     salesStaffCode: salesStaffCode || resolved.salesStaffCode || order.salesStaffCode || '',
-    staffName: resolved.salesStaffName || order.staffName || '',
-    salesStaffName: resolved.salesStaffName || order.salesStaffName || order.staffName || '',
+    staffName: '',
+    salesStaffName: resolved.salesStaffName || order.salesStaffName || '',
     resolved,
     businessErrors: errors,
     businessWarnings: warnings,

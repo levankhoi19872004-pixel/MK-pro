@@ -1,9 +1,9 @@
 'use strict';
 
-const bcrypt = require('bcryptjs');
 const userRepository = require('../repositories/userRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const { makeId, stripMongoFields } = require('../utils/common.util');
+const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
@@ -12,16 +12,6 @@ const ROLE_LABELS = {
   delivery: 'Giao hàng'
 };
 const VALID_ROLES = Object.keys(ROLE_LABELS);
-const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
-
-function isBcryptHash(value) {
-  return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
-}
-
-function hashPasswordSync(password) {
-  return bcrypt.hashSync(String(password || '123456'), BCRYPT_ROUNDS);
-}
-
 function pickStaffPayload(body = {}, current = null) {
   const role = VALID_ROLES.includes(String(body.role || current?.role || '').trim()) ? String(body.role || current?.role).trim() : 'sales';
   const code = String(body.code || body.staffCode || current?.staffCode || current?.code || body.username || '').trim();
@@ -41,9 +31,13 @@ function pickStaffPayload(body = {}, current = null) {
     isDelivery: role === 'delivery',
     isActive: body.isActive !== false
   };
-  if (passwordInput) payload.password = isBcryptHash(passwordInput) ? passwordInput : hashPasswordSync(passwordInput);
-  else if (current?.password) payload.password = current.password;
-  else payload.password = hashPasswordSync('123456');
+  if (passwordInput) {
+    payload.password = isBcryptHash(passwordInput) ? passwordInput : hashPasswordSync(passwordInput);
+  } else if (current?.password) {
+    payload.password = current.password;
+  } else {
+    throw new Error('Tạo tài khoản mới bắt buộc nhập mật khẩu');
+  }
   return payload;
 }
 
@@ -89,7 +83,12 @@ async function listUsers(query = {}) {
 async function saveUser(body) {
   const id = String(body?.id || '').trim();
   const current = id ? await userRepository.findUserByIdOrCode(id) : null;
-  const payload = pickStaffPayload(body, current);
+  let payload;
+  try {
+    payload = pickStaffPayload(body, current);
+  } catch (err) {
+    return { error: err.message || 'Mật khẩu không hợp lệ', status: 400 };
+  }
   const error = validateStaff(payload);
   if (error) return { error, status: 400 };
   const duplicated = await userRepository.findDuplicateUser(payload.staffCode || payload.code, payload.username, current?._id);

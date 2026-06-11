@@ -18,7 +18,7 @@ const dateUtil = require('../utils/date.util');
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const { verifyPassword } = require('../security/passwordPolicy');
 
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
@@ -127,13 +127,6 @@ function buildSafeUser(staff) {
     role,
     roleLabel: ROLE_LABELS[role] || role
   };
-}
-
-async function checkPassword(password, hashOrPlain) {
-  const stored = String(hashOrPlain || '').trim();
-  if (!stored) return String(password || '') === '123456';
-  if (/^\$2[aby]\$\d{2}\$/.test(stored)) return bcrypt.compare(String(password || ''), stored);
-  return String(password || '') === stored;
 }
 
 function requireMobileLogin(req, res, next) {
@@ -1213,7 +1206,7 @@ router.post('/login', async (req, res) => {
       isActive: { $ne: false },
       $or: [{ username }, { staffCode: username }, { code: username }, { phone: username }, { name: username }, { fullName: username }]
     }).lean();
-    if (!staff || !(await checkPassword(password, staff.password || staff.pass || staff.pin))) {
+    if (!staff || !(await verifyPassword(password, staff.password))) {
       return fail(res, 401, 'Sai tài khoản hoặc mật khẩu');
     }
 

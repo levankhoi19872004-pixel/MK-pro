@@ -1,6 +1,7 @@
 'use strict';
 
 const { createMobileAuthRepository } = require('../../repositories/mobile/auth.repository');
+const { verifyPassword } = require('../../security/passwordPolicy');
 
 function fail(statusCode, message) {
   return { statusCode, body: { ok: false, success: false, message } };
@@ -12,7 +13,6 @@ function createMobileAuthService(ctx) {
     ROLE_LABELS,
     VALID_ROLES,
     ACCESS_TOKEN_EXPIRES_IN,
-    verifyPasswordSync,
     staffMongoToClient,
     stripMongoFields,
     buildJwtPayload,
@@ -29,7 +29,7 @@ function createMobileAuthService(ctx) {
     if (!username || !password) return fail(400, 'Thiếu tài khoản hoặc mật khẩu');
 
     const staffDoc = await repo.findActiveStaffByLogin(username);
-    const staff = staffDoc && verifyPasswordSync(password, staffDoc.password || staffDoc.pass || staffDoc.pin || '123456')
+    const staff = staffDoc && await verifyPassword(password, staffDoc.password)
       ? staffMongoToClient(staffDoc)
       : null;
     if (!staff) return fail(401, 'Sai tài khoản hoặc mật khẩu');

@@ -19,6 +19,12 @@ const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
+const {
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName
+} = require('../domain/staff/staffIdentity');
 
 const ACTIVE_RETURN_ORDER_STATUSES = [
   'draft',
@@ -480,16 +486,16 @@ async function buildReturnOrderDocument(body = {}) {
     customerName: customer?.name || body.customerName || salesOrder?.customerName || existing?.customerName || '',
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_RETURN_SNAPSHOT_STAFF_START =====
     // ReturnOrder snapshot nhân sự tại thời điểm tạo: NVBH từ salesOrders, NVGH từ salesOrders/master sync/body.
-    salesStaffId: salesOrder?.salesStaffId || salesOrder?.staffId || body.salesStaffId || existing?.salesStaffId || '',
-    salesStaffCode: salesOrder?.salesStaffCode || salesOrder?.salesmanCode || body.salesStaffCode || existing?.salesStaffCode || '',
-    salesStaffName: salesOrder?.salesStaffName || salesOrder?.salesmanName || body.salesStaffName || existing?.salesStaffName || '',
-    salesmanCode: salesOrder?.salesmanCode || salesOrder?.salesStaffCode || body.salesmanCode || existing?.salesmanCode || '',
-    salesmanName: salesOrder?.salesmanName || salesOrder?.salesStaffName || body.salesmanName || existing?.salesmanName || '',
+    salesStaffId: salesOrder?.salesStaffId || body.salesStaffId || existing?.salesStaffId || '',
+    salesStaffCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
+    salesStaffName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
+    salesmanCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
+    salesmanName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
     deliveryStaffId: salesOrder?.deliveryStaffId || body.deliveryStaffId || existing?.deliveryStaffId || '',
-    deliveryStaffCode: salesOrder?.deliveryStaffCode || body.deliveryStaffCode || existing?.deliveryStaffCode || '',
-    deliveryStaffName: salesOrder?.deliveryStaffName || body.deliveryStaffName || existing?.deliveryStaffName || '',
-    staffCode: salesOrder?.deliveryStaffCode || body.deliveryStaffCode || existing?.deliveryStaffCode || '',
-    staffName: salesOrder?.deliveryStaffName || body.deliveryStaffName || existing?.deliveryStaffName || '',
+    deliveryStaffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
+    deliveryStaffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
+    staffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
+    staffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_RETURN_SNAPSHOT_STAFF_END =====
     note: String(body.note ?? existing?.note ?? '').trim(),
     items,
@@ -629,16 +635,16 @@ async function upsertDeliveryReturnOrder(body = {}, options = {}) {
     customerCode: customer?.code || body.customerCode || salesOrder?.customerCode || existing?.customerCode || '',
     customerName: customer?.name || body.customerName || salesOrder?.customerName || existing?.customerName || '',
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_RETURN_SNAPSHOT_STAFF_START =====
-    salesStaffId: salesOrder?.salesStaffId || salesOrder?.staffId || body.salesStaffId || existing?.salesStaffId || '',
-    salesStaffCode: salesOrder?.salesStaffCode || salesOrder?.salesmanCode || body.salesStaffCode || existing?.salesStaffCode || '',
-    salesStaffName: salesOrder?.salesStaffName || salesOrder?.salesmanName || body.salesStaffName || existing?.salesStaffName || '',
-    salesmanCode: salesOrder?.salesmanCode || salesOrder?.salesStaffCode || body.salesmanCode || existing?.salesmanCode || '',
-    salesmanName: salesOrder?.salesmanName || salesOrder?.salesStaffName || body.salesmanName || existing?.salesmanName || '',
+    salesStaffId: salesOrder?.salesStaffId || body.salesStaffId || existing?.salesStaffId || '',
+    salesStaffCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
+    salesStaffName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
+    salesmanCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
+    salesmanName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
     deliveryStaffId: salesOrder?.deliveryStaffId || body.deliveryStaffId || existing?.deliveryStaffId || '',
-    deliveryStaffCode: salesOrder?.deliveryStaffCode || body.deliveryStaffCode || existing?.deliveryStaffCode || '',
-    deliveryStaffName: salesOrder?.deliveryStaffName || body.deliveryStaffName || existing?.deliveryStaffName || '',
-    staffCode: salesOrder?.deliveryStaffCode || body.deliveryStaffCode || existing?.deliveryStaffCode || '',
-    staffName: salesOrder?.deliveryStaffName || body.deliveryStaffName || existing?.deliveryStaffName || '',
+    deliveryStaffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
+    deliveryStaffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
+    staffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
+    staffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_RETURN_SNAPSHOT_STAFF_END =====
     items: totalQuantity > 0 ? items : [],
     totalQuantity: totalQuantity > 0 ? totalQuantity : 0,
@@ -864,17 +870,17 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
     customerId: order.customerId || existing?.customerId || '',
     customerCode: order.customerCode || existing?.customerCode || '',
     customerName: order.customerName || existing?.customerName || '',
-    salesStaffId: order.salesStaffId || order.staffId || existing?.salesStaffId || '',
-    salesStaffCode: order.salesStaffCode || order.salesmanCode || order.nvbhCode || existing?.salesStaffCode || '',
-    salesStaffName: order.salesStaffName || order.salesmanName || order.nvbhName || existing?.salesStaffName || '',
+    salesStaffId: order.salesStaffId || existing?.salesStaffId || '',
+    salesStaffCode: pickSalesStaffCode(order) || pickSalesStaffCode(existing),
+    salesStaffName: pickSalesStaffName(order) || pickSalesStaffName(existing),
     // legacy display only, not business source: staff* trên returnOrders đại diện NVGH, không đại diện NVBH.
-    staffCode: order.deliveryStaffCode || existing?.staffCode || '',
-    staffName: order.deliveryStaffName || existing?.staffName || '',
+    staffCode: pickDeliveryStaffCode(order) || pickDeliveryStaffCode(existing),
+    staffName: pickDeliveryStaffName(order) || pickDeliveryStaffName(existing),
     masterOrderId: order.masterOrderId || existing?.masterOrderId || '',
     masterOrderCode: order.masterOrderCode || existing?.masterOrderCode || '',
     deliveryStaffId: order.deliveryStaffId || existing?.deliveryStaffId || '',
-    deliveryStaffCode: order.deliveryStaffCode || existing?.deliveryStaffCode || '',
-    deliveryStaffName: order.deliveryStaffName || existing?.deliveryStaffName || '',
+    deliveryStaffCode: pickDeliveryStaffCode(order) || pickDeliveryStaffCode(existing),
+    deliveryStaffName: pickDeliveryStaffName(order) || pickDeliveryStaffName(existing),
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || dateUtil.todayVN()),
     routeName: order.routeName || order.deliveryRoute || existing?.routeName || '',
     deliveryRoute: order.deliveryRoute || order.routeName || existing?.deliveryRoute || '',

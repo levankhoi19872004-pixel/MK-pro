@@ -4,6 +4,7 @@ const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const inventoryStockService = require('./inventoryStock.service');
+const { verifyPassword } = require('../security/passwordPolicy');
 const { MongoStore } = require('./mongoSyncService');
 
 
@@ -27,7 +28,6 @@ function createMobileService(ctx) {
     ACCESS_TOKEN_EXPIRES_IN,
     normalizeText,
     toNumber,
-    verifyPasswordSync,
     staffMongoToClient,
     customerMongoToClient,
     productMongoToClient,
@@ -95,7 +95,7 @@ function createMobileService(ctx) {
       isActive: { $ne: false },
       $or: [{ username }, { code: username }, { phone: username }, { name: username }]
     }).lean();
-    const staff = staffDoc && verifyPasswordSync(password, staffDoc.password || staffDoc.pass || staffDoc.pin || '123456') ? staffMongoToClient(staffDoc) : null;
+    const staff = staffDoc && await verifyPassword(password, staffDoc.password) ? staffMongoToClient(staffDoc) : null;
     if (!staff) return fail(401, 'Sai tài khoản hoặc mật khẩu');
 
     const role = VALID_ROLES.includes(staff.role || staff.type) ? (staff.role || staff.type) : 'sales';

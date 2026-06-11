@@ -4,6 +4,16 @@ const { toNumber, makeId } = require('../utils/common.util');
 const deliveryFinance = require('../utils/deliveryFinance.util');
 const dateUtil = require('../utils/date.util');
 const { normalizeDebtAmount } = require('../constants/finance.constants');
+const {
+  SALES_STAFF_CODE_FIELDS,
+  SALES_STAFF_NAME_FIELDS,
+  DELIVERY_STAFF_CODE_FIELDS,
+  DELIVERY_STAFF_NAME_FIELDS,
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName
+} = require('../domain/staff/staffIdentity');
 
 function text(value) { return String(value == null ? '' : value).trim(); }
 function lower(value) { return text(value).toLowerCase(); }
@@ -463,12 +473,16 @@ class DeliveryEngine {
   }
 
 
-  staffCodeOf(user = {}) {
-    return text(user.staffCode || user.code || user.employeeCode || user.salesStaffCode || user.deliveryStaffCode || user.maNhanVien || user.employeeId || user.staffId || user.username || user.id || user._id);
+  staffCodeOf(user = {}, type = 'sales') {
+    return type === 'delivery'
+      ? text(pickDeliveryStaffCode(user))
+      : text(pickSalesStaffCode(user));
   }
 
-  staffNameOf(user = {}) {
-    return text(user.fullName || user.name || user.staffName || user.displayName || user.username || this.staffCodeOf(user));
+  staffNameOf(user = {}, type = 'sales') {
+    return type === 'delivery'
+      ? text(pickDeliveryStaffName(user))
+      : text(pickSalesStaffName(user));
   }
 
   staffRoleOk(user = {}, type = '') {
@@ -505,23 +519,21 @@ class DeliveryEngine {
     const users = await this.User.find({
       isActive: { $ne: false },
       $or: [
-        { staffCode: { $in: regexes } },
-        { code: { $in: regexes } },
-        { employeeCode: { $in: regexes } },
-        { salesStaffCode: { $in: regexes } },
-        { deliveryStaffCode: { $in: regexes } },
-        { username: { $in: regexes } },
-        { fullName: { $in: regexes } },
-        { name: { $in: regexes } }
+        ...SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...DELIVERY_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...SALES_STAFF_NAME_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...DELIVERY_STAFF_NAME_FIELDS.map((field) => ({ [field]: { $in: regexes } }))
       ]
-    }).select('id staffCode code employeeCode salesStaffCode deliveryStaffCode username name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []);
+    }).select('id employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []);
     const byCode = new Map();
     const byName = new Map();
     for (const user of users || []) {
-      const code = this.staffCodeOf(user);
-      const name = this.staffNameOf(user);
-      const codeKeys = unique([user.staffCode, user.code, user.employeeCode, user.salesStaffCode, user.deliveryStaffCode, user.username, user.maNhanVien, user.employeeId, user.staffId, code]).map(compact).filter(Boolean);
-      const nameKeys = unique([user.fullName, user.name, user.staffName, user.displayName, name]).map(norm).filter(Boolean);
+      const salesCode = this.staffCodeOf(user, 'sales');
+      const deliveryCode = this.staffCodeOf(user, 'delivery');
+      const salesName = this.staffNameOf(user, 'sales');
+      const deliveryName = this.staffNameOf(user, 'delivery');
+      const codeKeys = unique([salesCode, deliveryCode]).map(compact).filter(Boolean);
+      const nameKeys = unique([salesName, deliveryName]).map(norm).filter(Boolean);
       for (const key of codeKeys) byCode.set(key, user);
       for (const key of nameKeys) byName.set(key, user);
     }
@@ -534,8 +546,8 @@ class DeliveryEngine {
     const label = type === 'delivery' ? 'NVGH' : 'NVBH';
     let systemUser = assignedCode ? staffIndex.byCode.get(compact(assignedCode)) : null;
     if (!systemUser && assignedName) systemUser = staffIndex.byName.get(norm(assignedName));
-    const systemCode = systemUser ? this.staffCodeOf(systemUser) : '';
-    const systemName = systemUser ? this.staffNameOf(systemUser) : '';
+    const systemCode = systemUser ? this.staffCodeOf(systemUser, type) : '';
+    const systemName = systemUser ? this.staffNameOf(systemUser, type) : '';
     const codeMatches = Boolean(systemUser && assignedCode && compact(systemCode) === compact(assignedCode));
     const nameMatches = Boolean(systemUser && assignedName && norm(systemName) === norm(assignedName));
     const roleOk = Boolean(systemUser && this.staffRoleOk(systemUser, type));
@@ -867,8 +879,8 @@ class DeliveryEngine {
       status: isDelivered ? 'delivered' : deliveryStatus,
       deliveryStaffCode: text(body.deliveryStaffCode || current.deliveryStaffCode),
       deliveryStaffName: text(body.deliveryStaffName || current.deliveryStaffName),
-      staffCode: text(body.staffCode || body.deliveryStaffCode || current.staffCode || current.deliveryStaffCode),
-      staffName: text(body.staffName || body.deliveryStaffName || current.staffName || current.deliveryStaffName),
+      staffCode: text(body.deliveryStaffCode || current.deliveryStaffCode),
+      staffName: text(body.deliveryStaffName || current.deliveryStaffName),
       deliveryNote: text(body.note || body.deliveryNote),
       deliveredAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -930,7 +942,7 @@ class DeliveryEngine {
       and.push({ $or: [
         { id: rx }, { code: rx }, { salesOrderCode: rx }, { orderCode: rx },
         { customerCode: rx }, { customerName: rx }, { deliveryStaffCode: rx }, { deliveryStaffName: rx },
-        { staffCode: rx }, { staffName: rx }, { note: rx }
+        { salesStaffCode: rx }, { salesStaffName: rx }, { salesmanCode: rx }, { salesmanName: rx }, { note: rx }
       ] });
     }
     if (and.length) filter.$and = and;

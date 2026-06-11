@@ -7,13 +7,11 @@
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 const Staff = require('../src/models/Staff');
 const User = require('../src/models/User');
+const { isBcryptHash, hashPasswordSync } = require('../src/security/passwordPolicy');
 
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
-const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 10);
-
 function normalizeRole(role = '') {
   const text = String(role || '').trim().toLowerCase();
   if (['sale', 'sales', 'nvbh', 'banhang', 'ban_hang', 'salesstaff', 'sales_staff'].includes(text)) return 'sales';
@@ -23,10 +21,6 @@ function normalizeRole(role = '') {
   if (['manager', 'quanly', 'quan_ly'].includes(text)) return 'manager';
   if (['admin', 'administrator'].includes(text)) return 'admin';
   return ['admin', 'manager', 'sales', 'warehouse', 'accountant', 'delivery'].includes(text) ? text : 'sales';
-}
-
-function isBcryptHash(value) {
-  return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
 }
 
 async function main() {
@@ -44,9 +38,16 @@ async function main() {
     if (!username) { skipped += 1; continue; }
 
     const role = normalizeRole(s.role || (s.isDelivery ? 'delivery' : s.isSalesman ? 'sales' : 'sales'));
-    const password = isBcryptHash(s.password)
-      ? s.password
-      : bcrypt.hashSync(String(s.password || '123456'), BCRYPT_ROUNDS);
+    const rawPassword = String(s.password || '').trim();
+    if (!rawPassword) {
+      skipped += 1;
+      console.log(`[SKIP] ${username}: missing password`);
+      continue;
+    }
+
+    const password = isBcryptHash(rawPassword)
+      ? rawPassword
+      : hashPasswordSync(rawPassword);
 
     const payload = {
       username,

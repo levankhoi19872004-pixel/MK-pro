@@ -11,6 +11,12 @@ const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const models = require('../models');
 const reportService = require('./reportService');
+const {
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName
+} = require('../domain/staff/staffIdentity');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -385,9 +391,9 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
       return [order.customerCode, order.customerId, order.customerName].map(cleanText).includes(target);
     })
     .filter((order) => {
-      if (!query.salesStaffCode && !query.staffCode) return true;
-      const target = cleanText(query.salesStaffCode || query.staffCode);
-      return [order.salesStaffCode, order.staffCode, order.salesmanCode, order.nvbhCode].map(cleanText).includes(target);
+      if (!query.salesStaffCode && !query.salesmanCode) return true;
+      const target = cleanText(query.salesStaffCode || query.salesmanCode);
+      return [order.salesStaffCode, order.salesmanCode, order.nvbhCode].map(cleanText).includes(target);
     })
     .sort((a, b) => cleanText(a.orderDate || a.date || a.createdAt).localeCompare(cleanText(b.orderDate || b.date || b.createdAt)) || orderCode(a).localeCompare(orderCode(b)));
 
@@ -624,8 +630,8 @@ function lineBeforePromo(item = {}, product = {}) { return qtyOf(item) * basePri
 function lineAfterPromo(item = {}) { return toNumber(item.finalAmount ?? item.amount ?? item.totalAmount ?? item.lineAmount ?? 0) || qtyOf(item) * priceInclVatOf(item); }
 function orderBeforePromo(order = {}, productMap = new Map()) { return orderItems(order).reduce((s, item) => s + lineBeforePromo(item, productMap.get(productCodeOf(item)) || {}), 0) || toNumber(order.beforePromoAmount || order.grossAmount || order.totalBeforeDiscount || order.totalAmount || 0); }
 function orderAfterPromo(order = {}) { return toNumber(order.afterPromoAmount || order.totalAfterPromotion || order.totalAmount || order.amount || 0); }
-function staffName(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(order.deliveryStaffName || order.deliveryName || order.shipperName || order.deliveryStaffCode || '') : cleanText(order.salesStaffName || order.salesmanName || order.staffName || order.salesStaffCode || ''); }
-function staffCode(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(order.deliveryStaffCode || order.deliveryStaffId || '') : cleanText(order.salesStaffCode || order.salesmanCode || order.staffCode || ''); }
+function staffName(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffName(order)) : cleanText(pickSalesStaffName(order)); }
+function staffCode(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffCode(order)) : cleanText(pickSalesStaffCode(order)); }
 
 async function loadProductMap() {
   const products = await Product.find({}).select('code name salePrice baseUnit unit brand category').lean();

@@ -15,8 +15,8 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 const MongoStore = require('../src/models');
+const { isBcryptHash, hashPasswordSync } = require('../src/security/passwordPolicy');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DATA_FILE = process.env.JSON_DATA_FILE || path.join(ROOT_DIR, 'data', 'kho-data.json');
@@ -70,13 +70,8 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function isBcryptHash(value) {
-  return /^\$2[aby]\$\d{2}\$/.test(String(value || ''));
-}
-
 function hashPassword(value) {
-  const raw = String(value || '123456');
-  return isBcryptHash(raw) ? raw : bcrypt.hashSync(raw, 10);
+  return hashPasswordSync(value);
 }
 
 function createDefaultRoles() {
@@ -113,14 +108,11 @@ function createDefaultPermissions() {
 }
 
 function createDefaultStaffs() {
-  const at = nowIso();
-  return [
-    { id: 'U_ADMIN', code: 'ADMIN', username: 'admin', password: 'admin', name: 'Quản trị hệ thống', role: 'admin', roleLabel: ROLE_LABELS.admin, isActive: true, createdAt: at, updatedAt: at },
-    { id: 'U_KT01', code: 'KT01', username: 'ketoan', password: '123456', name: 'Tài khoản kế toán', role: 'accountant', roleLabel: ROLE_LABELS.accountant, isActive: true, createdAt: at, updatedAt: at },
-    { id: 'U_BH01', code: 'BH01', username: 'banhang', password: '123456', name: 'Tài khoản bán hàng', role: 'sales', roleLabel: ROLE_LABELS.sales, isActive: true, createdAt: at, updatedAt: at },
-    { id: 'U_GH01', code: 'GH01', username: 'giaohang', password: '123456', name: 'Tài khoản giao hàng', role: 'delivery', roleLabel: ROLE_LABELS.delivery, isActive: true, createdAt: at, updatedAt: at }
-  ];
+  // SECURITY: không tự seed tài khoản/mật khẩu mặc định.
+  // Tài khoản khởi tạo phải được cung cấp qua data migration với password hợp lệ.
+  return [];
 }
+
 
 function cleanMongoFields(row) {
   const { _id, __v, ...clean } = row || {};
@@ -165,7 +157,7 @@ function normalizeStaff(row) {
   clean.id = String(clean.id || clean.code || clean.username || '').trim();
   clean.name = String(clean.name || clean.fullName || clean.username || clean.code || '').trim();
   clean.fullName = String(clean.fullName || clean.name || '').trim();
-  clean.password = hashPassword(clean.password || '123456');
+  clean.password = hashPassword(clean.password);
   clean.role = role;
   clean.roleLabel = clean.roleLabel || ROLE_LABELS[role] || role;
   clean.isSalesman = clean.isSalesman === true || role === 'sales';

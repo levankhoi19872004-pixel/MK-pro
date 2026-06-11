@@ -4,6 +4,14 @@ const User = require('../models/User');
 const { STAFF_ROLES } = require('../constants/business.constants');
 const { normalizeCode } = require('./commonRules');
 const { makeBusinessError } = require('../utils/businessError.util');
+const {
+  SALES_STAFF_CODE_FIELDS,
+  DELIVERY_STAFF_CODE_FIELDS,
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName
+} = require('../domain/staff/staffIdentity');
 
 function escapeRegex(value = '') {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -56,26 +64,16 @@ function codeCandidates(staffCode) {
 }
 
 function buildCodeFilter(staffCode) {
+  const type = arguments[1] || 'sales';
   const values = codeCandidates(staffCode);
   const textValues = values.filter((value) => typeof value === 'string');
   const numericValues = values.filter((value) => typeof value === 'number');
   const exactRegexes = textValues.map((value) => new RegExp(`^${escapeRegex(value)}$`, 'i'));
 
-  // Quy tắc V45: mã NVBH/NVGH lấy từ tài khoản trong collection users.
-  // Ưu tiên users.staffCode, nhưng nhiều dữ liệu cũ lưu mã nhân viên ở users.code.
-  // Không dùng username/id để tránh tài khoản chung như `banhang`, `giaohang` bị nhận nhầm.
-  // STAFF_CODE_MATCH_SAFE_FIELDS_START
-  const codeFields = [
-    'staffCode',
-    'code',
-    'employeeCode',
-    'salesStaffCode',
-    'deliveryStaffCode',
-    'maNhanVien',
-    'employeeId',
-    'staffId'
-  ];
-  // STAFF_CODE_MATCH_SAFE_FIELDS_END
+  const codeFields = type === 'delivery'
+    ? DELIVERY_STAFF_CODE_FIELDS
+    : SALES_STAFF_CODE_FIELDS;
+
   const clauses = [];
   for (const field of codeFields) {
     if (textValues.length) clauses.push({ [field]: { $in: textValues } });
@@ -89,14 +87,14 @@ async function resolveStaffByCode(staffCode, type = 'sales') {
   const code = normalizeCode(staffCode);
   if (!code) return null;
 
-  const codeFilter = buildCodeFilter(code);
+  const codeFilter = buildCodeFilter(code, type);
   if (!codeFilter.length) return null;
 
   const candidates = await User.find({
     isActive: { $ne: false },
     $or: codeFilter
   })
-    .select('id staffCode code employeeCode salesStaffCode deliveryStaffCode username name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive')
+    .select('id employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive')
     .lean()
     .catch(() => []);
 
@@ -130,9 +128,14 @@ async function validateStaffCode(staffCode, type = 'sales', context = {}) {
     return { valid: false, staff: null, error: makeBusinessError({ code: `INVALID_${label}_CODE`, message: `Mã ${label} ${code} không tồn tại trong danh sách tài khoản`, orderCode: context.orderCode || '', field: type === 'delivery' ? 'deliveryStaffCode' : 'salesStaffCode' }) };
   }
   // STAFF_REAL_CODE_NO_USERNAME_START
-  const realCode = staff.staffCode || staff.code || staff.employeeCode || staff.salesStaffCode || staff.deliveryStaffCode || staff.maNhanVien || staff.employeeId || staff.staffId || code;
+  const realCode = type === 'delivery'
+    ? (pickDeliveryStaffCode(staff) || code)
+    : (pickSalesStaffCode(staff) || code);
+  const realName = type === 'delivery'
+    ? pickDeliveryStaffName(staff)
+    : pickSalesStaffName(staff);
   // STAFF_REAL_CODE_NO_USERNAME_END
-  return { valid: true, staff: { ...staff, code: String(realCode || '').trim(), name: staff.fullName || staff.name || staff.username }, error: null };
+  return { valid: true, staff: { ...staff, code: String(realCode || '').trim(), name: realName }, error: null };
 }
 
 function validateSalesStaffCode(staffCode, context = {}) { return validateStaffCode(staffCode, 'sales', context); }

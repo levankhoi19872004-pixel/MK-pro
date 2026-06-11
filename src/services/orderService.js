@@ -10,6 +10,7 @@ const productRepository = require('../repositories/productRepository');
 const customerRepository = require('../repositories/customerRepository');
 const userRepository = require('../repositories/userRepository');
 const staffRules = require('../rules/staffRules');
+const { pickSalesStaffCode, pickSalesStaffName } = require('../domain/staff/staffIdentity');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const queryGuard = require('../utils/queryGuard.util');
 const tx = require('../utils/transaction.util');
@@ -234,15 +235,15 @@ function buildSalesStaffSnapshot(body = {}, customer = null, staff = null, curre
   const hasCurrentSalesStaff = Boolean(current && (current.salesStaffCode || current.salesStaffName || current.salesmanCode || current.salesmanName));
   if (hasCurrentSalesStaff) {
     return {
-      salesStaffId: current.salesStaffId || current.staffId || '',
-      salesStaffCode: current.salesStaffCode || current.salesmanCode || '',
-      salesStaffName: current.salesStaffName || current.salesmanName || ''
+      salesStaffId: current.salesStaffId || '',
+      salesStaffCode: pickSalesStaffCode(current),
+      salesStaffName: pickSalesStaffName(current)
     };
   }
   return {
     salesStaffId: staff?.id || '',
-    salesStaffCode: staff?.code || body.salesStaffCode || body.salesmanCode || '',
-    salesStaffName: staff?.name || body.salesStaffName || body.salesmanName || ''
+    salesStaffCode: staff?.code || pickSalesStaffCode(body),
+    salesStaffName: staff?.name || pickSalesStaffName(body)
   };
 }
 // ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_END =====
@@ -454,16 +455,15 @@ function buildOrderSearchFilter(query = {}) {
   if (exactMasterOrderCode) filter.masterOrderCode = exactMasterOrderCode;
 
   const staffCodeFilter = extractStaffCodeParam(
-    guardedQuery.salesStaffCode || guardedQuery.staffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+    guardedQuery.salesStaffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
   );
-  const staffTextFilter = String(guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.staffName || guardedQuery.salesmanName || '').trim();
+  const staffTextFilter = String(guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || '').trim();
   if (staffCodeFilter) {
     // Ưu tiên field chuẩn salesStaffCode để ăn index { salesStaffCode, orderDate }.
     // Khi frontend truyền includeStaffAliases=1 thì lọc thêm các field DMS/import cũ.
     if (String(guardedQuery.includeStaffAliases || '0') === '1') {
       const staffOr = [
         { salesStaffCode: staffCodeFilter },
-        { staffCode: staffCodeFilter },
         { salesPersonCode: staffCodeFilter },
         { salesmanCode: staffCodeFilter },
         { nvbhCode: staffCodeFilter },
@@ -475,7 +475,6 @@ function buildOrderSearchFilter(query = {}) {
         const staffRx = queryGuard.buildRegex(staffTextFilter);
         staffOr.push(
           { salesStaffName: staffRx },
-          { staffName: staffRx },
           { salesPersonName: staffRx },
           { salesmanName: staffRx },
           { nvbhName: staffRx },
@@ -494,9 +493,7 @@ function buildOrderSearchFilter(query = {}) {
     const staffRx = queryGuard.buildRegex(staffTextFilter);
     pushAnd(and, { $or: [
       { salesStaffCode: staffRx },
-      { staffCode: staffRx },
       { salesStaffName: staffRx },
-      { staffName: staffRx },
       { salesPersonCode: staffRx },
       { salesPersonName: staffRx },
       { salesmanCode: staffRx },
@@ -617,10 +614,10 @@ function toListClient(order = {}) {
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
     customerPhone: order.customerPhone || '',
-    staffCode: order.staffCode || order.salesStaffCode || '',
-    staffName: order.staffName || order.salesStaffName || '',
-    salesStaffCode: order.salesStaffCode || order.staffCode || '',
-    salesStaffName: order.salesStaffName || order.staffName || '',
+    staffCode: order.salesStaffCode || order.salesmanCode || '',
+    staffName: order.salesStaffName || order.salesmanName || '',
+    salesStaffCode: order.salesStaffCode || order.salesmanCode || '',
+    salesStaffName: order.salesStaffName || order.salesmanName || '',
     deliveryStaffCode: order.deliveryStaffCode || '',
     deliveryStaffName: order.deliveryStaffName || '',
     masterOrderId: order.masterOrderId || '',
@@ -781,7 +778,7 @@ async function listOrders(query = {}) {
   }
 
   const staffCodeFilter = extractStaffCodeParam(
-    guardedQuery.salesStaffCode || guardedQuery.staffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+    guardedQuery.salesStaffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
   );
   if (staffCodeFilter) {
     filter.$and = filter.$and || [];
@@ -943,9 +940,9 @@ async function updateOrder(id, body = {}) {
     salesStaffName: salesStaffSnapshot.salesStaffName,
     salesmanCode: current.salesmanCode || salesStaffSnapshot.salesStaffCode,
     salesmanName: current.salesmanName || salesStaffSnapshot.salesStaffName,
-    staffId: current.staffId || salesStaffSnapshot.salesStaffId,
-    staffCode: current.staffCode || salesStaffSnapshot.salesStaffCode,
-    staffName: current.staffName || salesStaffSnapshot.salesStaffName,
+    staffId: salesStaffSnapshot.salesStaffId,
+    staffCode: salesStaffSnapshot.salesStaffCode,
+    staffName: salesStaffSnapshot.salesStaffName,
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_LOCK_NVBH_ON_UPDATE_END =====
     ...orderStatusUtil.lifecyclePatch({ ...current, ...body, items, totalAmount, paidAmount }, current),
     updatedAt: dateUtil.nowIso()

@@ -24,6 +24,8 @@ const { registerHealthRoutes } = require('./routes/health.routes');
 const { ensureMongoIndexes } = require('./services/mongoIndexService');
 const { ensureArLedgersBackfillFromJournals } = require('./services/arLedgerMigrationService');
 const { apiMonitor } = require('./middlewares/apiMonitor.middleware');
+const { apiSecurity } = require('./middlewares/apiSecurity.middleware');
+const { requireAuth } = require('./middlewares/auth.middleware');
 
 const PORT = process.env.PORT || 3000;
 
@@ -112,6 +114,10 @@ function createApp() {
   app.use(inputSanitizer);
   app.use(responseFormatter);
   app.use(apiPerformanceProbe);
+
+  // GLOBAL_API_SECURITY_BOUNDARY_APPLY_START
+  app.use(apiSecurity(requireAuth));
+  // GLOBAL_API_SECURITY_BOUNDARY_APPLY_END
 
   registerApiRoutes(app);
 

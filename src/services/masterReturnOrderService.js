@@ -4,10 +4,11 @@ const dateUtil = require('../utils/date.util');
 const queryGuard = require('../utils/queryGuard.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const masterReturnOrderRepository = require('../repositories/masterReturnOrderRepository');
-const userRepository = require('../repositories/userRepository');
+const staffRules = require('../rules/staffRules');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const returnOrderService = require('./returnOrderService');
+const { pickDeliveryStaffCode, pickDeliveryStaffName } = require('../domain/staff/staffIdentity');
 
 
 function isInactiveStatus(row = {}) {
@@ -96,9 +97,9 @@ function buildMasterReturnCode(existingRows = []) {
 }
 
 async function resolveDeliveryStaff(body = {}) {
-  const value = String(body.deliveryStaffId || body.deliveryStaffCode || body.deliveryStaffName || '').trim();
+  const value = pickDeliveryStaffCode(body);
   if (!value) return null;
-  return userRepository.findStaffByIdOrCode(value);
+  return staffRules.resolveDeliveryStaffByCode(value);
 }
 
 function toClient(masterReturnOrder, children = []) {
@@ -156,7 +157,7 @@ async function listUnmergedReturnOrders(query = {}) {
     .filter((row) => isGroupableReturnStatus(row))
     .filter((row) => hasPositiveReturnItemsOrValue(row))
     .filter((row) => (row.returnMergeStatus || 'unmerged') !== 'merged' && !row.masterReturnOrderId && !row.masterReturnOrderCode)
-    .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.staffCode, row.staffName].some((value) => normalizeText(value).includes(delivery)))
+    .filter((row) => !delivery || [row.deliveryStaffCode, row.deliveryStaffName, row.shipperCode, row.shipperName].some((value) => normalizeText(value).includes(delivery)))
     .filter((row) => !q || [row.code, row.customerCode, row.customerName, row.salesOrderCode, row.orderCode, row.note].some((value) => normalizeText(value).includes(q)))
     .map((row) => ({
       ...row,
@@ -246,8 +247,8 @@ async function createMasterReturnOrder(body = {}) {
     date: dateUtil.toDateOnly(body.date || returnDate),
     returnDate,
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || first.deliveryStaffId || '',
-    deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || first.deliveryStaffCode || first.staffCode || '',
-    deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || first.deliveryStaffName || first.staffName || '',
+    deliveryStaffCode: pickDeliveryStaffCode(deliveryStaff) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(first),
+    deliveryStaffName: pickDeliveryStaffName(deliveryStaff) || pickDeliveryStaffName(body) || pickDeliveryStaffName(first),
     returnOrderIds: children.map((row) => row.id || row.code),
     status: body.status || 'pending',
     warehouseStatus: body.warehouseStatus || 'pending',
@@ -299,8 +300,8 @@ async function updateMasterReturnOrder(id, body = {}) {
     returnDate: dateUtil.toDateOnly(body.returnDate || body.date || current.returnDate || current.date || dateUtil.todayVN()),
     date: dateUtil.toDateOnly(body.date || current.date || body.returnDate || current.returnDate || dateUtil.todayVN()),
     deliveryStaffId: deliveryStaff?.id || body.deliveryStaffId || current.deliveryStaffId || '',
-    deliveryStaffCode: deliveryStaff?.code || body.deliveryStaffCode || current.deliveryStaffCode || '',
-    deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || current.deliveryStaffName || '',
+    deliveryStaffCode: pickDeliveryStaffCode(deliveryStaff) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(current),
+    deliveryStaffName: pickDeliveryStaffName(deliveryStaff) || pickDeliveryStaffName(body) || pickDeliveryStaffName(current),
     note: String(body.note ?? current.note ?? '').trim(),
     status: String(body.status === 'received' || body.status === 'posted' ? current.status : (body.status || current.status || 'pending')).trim(),
     warehouseStatus: String(body.warehouseStatus || current.warehouseStatus || current.warehouseReceiveStatus || 'pending').trim(),

@@ -2,6 +2,7 @@
 
 const express = require('express');
 const masterOrderController = require('../controllers/masterOrderController');
+const { requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
@@ -10,8 +11,8 @@ router.get('/delivery-today-summary', masterOrderController.listDeliveryTodaySum
 router.get('/delivery-today-summary/:deliveryStaffCode', masterOrderController.listDeliveryTodaySalesSummary);
 router.get('/delivery-today-orders', masterOrderController.listDeliveryTodayOrdersCompact);
 router.get('/delivery-today', masterOrderController.listDeliveryToday);
-router.post('/delivery-today/confirm-accounting', masterOrderController.confirmDeliveryAccounting);
-router.post('/delivery-today/:id/admin-unlock', masterOrderController.adminUnlockDeliveryAccounting);
+router.post('/delivery-today/confirm-accounting', requireRole(['admin', 'accountant']), masterOrderController.confirmDeliveryAccounting);
+router.post('/delivery-today/:id/admin-unlock', requireRole(['admin']), masterOrderController.adminUnlockDeliveryAccounting);
 router.patch('/delivery-today/:id', masterOrderController.updateDeliveryTodayOrder);
 router.post('/print-aggregate', masterOrderController.printAggregate);
 router.get('/', masterOrderController.list);
