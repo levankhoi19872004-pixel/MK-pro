@@ -1,28 +1,30 @@
 'use strict';
 
 const express = require('express');
-const multer = require('multer');
 const controller = require('../controllers/importExportController');
+const {
+  uploadImportExcel,
+  handleImportUpload,
+  rejectLargeUploadByContentLength,
+  validateUploadedExcelFiles,
+  multiExcelFields
+} = require('../middlewares/importUpload.middleware');
 
 const importRouter = express.Router();
 const exportRouter = express.Router();
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: Number(process.env.IMPORT_MAX_FILE_SIZE || 10 * 1024 * 1024),
-    files: 20
-  },
-  fileFilter(req, file, cb) {
-    if (!/\.xlsx$/i.test(file.originalname || '')) {
-      return cb(new Error('Chỉ hỗ trợ file Excel .xlsx'));
-    }
-    cb(null, true);
-  }
-});
 
 // Import runtime
-importRouter.post('/preview', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'files', maxCount: 20 }]), controller.previewImport);
-importRouter.post('/direct', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'files', maxCount: 20 }]), controller.directImport);
+importRouter.post(
+  '/preview',
+  rejectLargeUploadByContentLength,
+  handleImportUpload(uploadImportExcel.fields(multiExcelFields)),
+  validateUploadedExcelFiles,
+  controller.previewImport
+);
+
+// Direct import đã bị khóa, không được parse file upload.
+importRouter.post('/direct', controller.directImport);
+
 importRouter.post('/commit', controller.commitImport);
 importRouter.get('/logs', controller.importLogs);
 

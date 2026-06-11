@@ -47,13 +47,13 @@ test('Excel import is two-phase and direct import is disabled', () => {
   assert.doesNotMatch(ui, /rows:selectedRows/);
 });
 
-test('Excel upload routes only accept xlsx with bounded memory upload', () => {
+test('Excel upload routes use centralized bounded upload guard', () => {
   for (const file of ['src/routes/excelImportRoutes.js', 'src/routes/importRuntimeRoutes.js', 'src/routes/importExportRoutes.js']) {
     const src = read(file);
 
-    assert.match(src, /multer\.memoryStorage\(\)/, file);
-    assert.match(src, /IMPORT_MAX_FILE_SIZE/, file);
-    assert.match(src, /files:\s*20/, file);
-    assert.match(src, /\.xlsx\$/i, file);
+    assert.doesNotMatch(src, /files:\s*20/, file);
+    assert.match(src, /importUpload\.middleware/, file);
+    assert.match(src, /rejectLargeUploadByContentLength/, file);
+    assert.match(src, /validateUploadedExcelFiles/, file);
   }
 });

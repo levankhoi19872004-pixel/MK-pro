@@ -16,7 +16,7 @@ function normalizeUploadedFiles(req) {
 
 async function preview(req, res) {
   try {
-    const files = normalizeUploadedFiles(req);
+    const files = req.importFiles || normalizeUploadedFiles(req);
     const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), files, buffer: files[0]?.buffer, fileName: files[0]?.originalname || '', userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, ...result });

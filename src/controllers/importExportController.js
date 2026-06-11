@@ -24,7 +24,7 @@ function sendWorkbook(res, result) {
 
 async function previewImport(req, res) {
   try {
-    const files = normalizeUploadedFiles(req);
+    const files = req.importFiles || normalizeUploadedFiles(req);
     const result = await importExportService.previewImport({
       type: String(req.body?.type || '').trim(),
       files,

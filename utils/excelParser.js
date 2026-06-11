@@ -1,74 +1,74 @@
-const XLSX = require('xlsx');
+'use strict';
 
-const MAX_ROWS = 10000;
-const MAX_COLUMNS = 100;
-// Mẫu Excel hiện tại của hệ thống có thể có HuongDan, DuLieuMau, Import.
-// Không khóa cứng 1 sheet để tránh phá import template đang dùng ở production.
-const MAX_SHEETS = 5;
+const path = require('path');
+const { fork } = require('child_process');
+
+const MAX_ROWS = Number(process.env.IMPORT_MAX_ROWS || 10000);
+const MAX_COLUMNS = Number(process.env.IMPORT_MAX_COLUMNS || 100);
+const MAX_SHEETS = Number(process.env.IMPORT_MAX_SHEETS || 5);
+
+const IMPORT_PARSE_TIMEOUT_MS = Number(process.env.IMPORT_PARSE_TIMEOUT_MS || 15000);
+const IMPORT_PARSE_MAX_OLD_SPACE_MB = Number(process.env.IMPORT_PARSE_MAX_OLD_SPACE_MB || 128);
+
 const TOO_LARGE_ERROR = 'File Excel quá lớn, vui lòng tách nhỏ file trước khi import';
-
-function cleanKey(key) {
-  return String(key || '')
-    .replace(/^\uFEFF/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function isEmptyValue(value) {
-  return value === null || value === undefined || String(value).trim() === '';
-}
-
-function rowHasData(row) {
-  return Object.keys(row || {}).some((key) => key !== '__rowNo' && !isEmptyValue(row[key]));
-}
-
-function assertSizeLimit(condition) {
-  if (!condition) throw new Error(TOO_LARGE_ERROR);
-}
-
-function pickImportSheet(workbook) {
-  const sheetNames = workbook.SheetNames || [];
-  assertSizeLimit(sheetNames.length <= MAX_SHEETS);
-  if (!sheetNames.length) return '';
-
-  // Mẫu Excel của hệ thống có 3 sheet: HuongDan, DuLieuMau, Import.
-  // Dữ liệu thật phải được đọc từ sheet Import, không đọc sheet đầu tiên.
-  const importSheet = sheetNames.find((name) => cleanKey(name).toLowerCase() === 'import');
-  if (importSheet) return importSheet;
-
-  // Nếu người dùng dùng file riêng, chọn sheet đầu tiên có dữ liệu dạng bảng.
-  return sheetNames[0];
-}
+const PARSE_TIMEOUT_ERROR = 'File Excel xử lý quá lâu, vui lòng kiểm tra hoặc tách nhỏ file trước khi import';
 
 function parseExcelBuffer(buffer) {
-  if (!buffer || !buffer.length) return [];
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-  const sheetName = pickImportSheet(workbook);
-  if (!sheetName) return [];
+  if (!buffer || !buffer.length) return Promise.resolve([]);
 
-  const sheet = workbook.Sheets[sheetName];
-  // Dùng raw:true + cellDates:true để giữ ô ngày Excel là Date object.
-  // Nếu dùng raw:false, file DMS có format mm-dd-yy sẽ thành chuỗi 06-01-26,
-  // sau đó hệ thống Việt Nam hiểu nhầm là 06/01/2026 thay vì 01/06/2026.
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
+  return new Promise((resolve, reject) => {
+    const workerPath = path.join(__dirname, 'excelParser.worker.js');
 
-  assertSizeLimit(rows.length <= MAX_ROWS);
-  assertSizeLimit(rows.every((row) => Object.keys(row || {}).length <= MAX_COLUMNS));
-
-  return rows.map((row, index) => {
-    const cleanRow = { __rowNo: index + 2 };
-    Object.keys(row).forEach((key) => {
-      const cleanedKey = cleanKey(key);
-      if (!cleanedKey || cleanedKey.startsWith('__EMPTY')) return;
-      cleanRow[cleanedKey] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+    const child = fork(workerPath, [], {
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+      execArgv: [`--max-old-space-size=${IMPORT_PARSE_MAX_OLD_SPACE_MB}`]
     });
-    return cleanRow;
-  }).filter(rowHasData);
+
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGKILL');
+      reject(new Error(PARSE_TIMEOUT_ERROR));
+    }, IMPORT_PARSE_TIMEOUT_MS);
+
+    child.on('message', (message = {}) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+
+      if (!message.ok) {
+        reject(new Error(message.error || 'Không đọc được file Excel'));
+        return;
+      }
+
+      resolve(Array.isArray(message.rows) ? message.rows : []);
+    });
+
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    child.on('exit', (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(new Error(`Excel parser stopped unexpectedly: code=${code || ''} signal=${signal || ''}`));
+    });
+
+    child.send({ buffer: Buffer.from(buffer).toString('base64') });
+  });
 }
 
 module.exports = {
   parseExcelBuffer,
   MAX_ROWS,
   MAX_COLUMNS,
-  MAX_SHEETS
+  MAX_SHEETS,
+  TOO_LARGE_ERROR,
+  PARSE_TIMEOUT_ERROR
 };
