@@ -15,6 +15,12 @@ async function postImportIn(importOrder = {}, options = {}) {
 }
 
 async function postSaleOut(order = {}, options = {}) {
+  if (!options.session && options.allowUnsafeNoSession !== true) {
+    const err = new Error('postSaleOut cần chạy trong Mongo session để đảm bảo atomic inventory posting');
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+
   return inventoryService.postStockMovement(order, {
     type: 'SALE',
     direction: 'OUT',

@@ -20,14 +20,18 @@ function routeBlock(source, method, route) {
 }
 
 function assertHasInventoryPosting(block, label) {
-  assert.match(block, /inventoryService\.postStockMovement\s*\(/, `${label} must post stock immediately`);
+  assert.match(block, /InventoryPostingService\.postSaleOut\s*\(/, `${label} must post stock immediately through InventoryPostingService`);
+  assert.match(block, /withMongoTransaction\s*\(/, `${label} must post stock inside Mongo transaction`);
+  assert.doesNotMatch(block, /inventoryService\.postStockMovement\s*\(/, `${label} must not call inventoryService.postStockMovement directly`);
 }
 
 function assertHasInventoryReversal(block, label) {
-  assert.match(block, /inventoryService\.reverseStockMovement\s*\(/, `${label} must reverse stock when posted order changes/deletes`);
+  assert.match(block, /InventoryPostingService\.reverseMovement\s*\(/, `${label} must reverse stock through InventoryPostingService`);
+  assert.match(block, /withMongoTransaction\s*\(/, `${label} must reverse stock inside Mongo transaction`);
+  assert.doesNotMatch(block, /inventoryService\.reverseStockMovement\s*\(/, `${label} must not call inventoryService.reverseStockMovement directly`);
 }
 
-test('legacy mobile sales create/edit/delete post or reverse stock immediately', () => {
+test('legacy mobile sales create/edit/delete post or reverse stock through InventoryPostingService transaction boundary', () => {
   const source = read('src/routes/mobileRoutes.js');
 
   assertHasInventoryPosting(routeBlock(source, 'post', '/sales/orders'), 'POST /mobile/sales/orders');

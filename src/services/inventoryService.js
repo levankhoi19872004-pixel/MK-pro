@@ -58,7 +58,51 @@ function getProductKey(item = {}) {
 }
 
 function getQty(item = {}) {
-  return toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty ?? item.totalQty ?? item.returnQuantity);
+  return toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty ?? item.totalQty ?? item.returnQuantity ?? item.returnQty);
+}
+
+function normalizeStockProductCode(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+function groupStockItems(items = []) {
+  const grouped = new Map();
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const productCode = normalizeStockProductCode(
+      item.productCode || item.code || item.sku || item.productId || item.id
+    );
+
+    if (!productCode) continue;
+
+    const qty = Math.abs(toNumber(
+      item.stockQuantity ??
+      item.deliveredQuantity ??
+      item.quantity ??
+      item.qty ??
+      item.totalQty ??
+      item.returnQuantity ??
+      item.returnQty
+    ));
+
+    if (qty <= 0) continue;
+
+    if (!grouped.has(productCode)) {
+      grouped.set(productCode, {
+        ...item,
+        productCode,
+        productId: String(item.productId || item.id || productCode).trim(),
+        productName: String(item.productName || item.name || '').trim(),
+        quantity: 0
+      });
+    }
+
+    const acc = grouped.get(productCode);
+    acc.quantity += qty;
+    acc.qty = acc.quantity;
+  }
+
+  return Array.from(grouped.values());
 }
 
 async function findProduct(item = {}) {
@@ -152,9 +196,75 @@ async function assertStockAvailableBeforeOut({ productCode, productId, productNa
   return { ok: true, availableQty: available, requiredQty: required };
 }
 
+async function applyAtomicInventoryDelta({
+  productId,
+  productCode,
+  productName,
+  direction,
+  absQty,
+  movementQty,
+  warehouseId,
+  warehouseCode,
+  warehouseName,
+  postedAt,
+  session
+} = {}) {
+  const filter = {
+    productCode,
+    warehouseCode
+  };
+
+  if (direction === 'OUT') {
+    filter.availableQty = { $gte: absQty };
+  }
+
+  const update = {
+    $inc: {
+      qty: movementQty,
+      quantity: movementQty,
+      onHand: movementQty,
+      availableQty: movementQty
+    },
+    $set: {
+      productId,
+      productCode,
+      productName,
+      warehouseId,
+      warehouseCode,
+      warehouseName,
+      lastTransactionAt: postedAt,
+      updatedAt: postedAt
+    },
+    $setOnInsert: {
+      id: makeId('IV'),
+      reservedQty: 0
+    }
+  };
+
+  const options = {
+    new: true,
+    upsert: direction === 'IN',
+    session
+  };
+
+  const updated = await InventoryLegacy.findOneAndUpdate(filter, update, options);
+
+  if (!updated) {
+    const err = new Error(`Không đủ tồn kho mã ${productCode}`);
+    err.code = 'INSUFFICIENT_STOCK';
+    err.productCode = productCode;
+    err.warehouseCode = warehouseCode;
+    err.requiredQty = absQty;
+    throw err;
+  }
+
+  return updated;
+}
+
 async function postStockMovement(document = {}, movement = {}, options = {}) {
-  const items = Array.isArray(document.items) ? document.items : [];
   const session = options.session;
+  const rawItems = Array.isArray(document.items) ? document.items : [];
+  const items = groupStockItems(rawItems);
   // Tồn kho chỉ có 1 kho chính. HC/PC chỉ là nhóm in/gộp đơn, không ảnh hưởng tồn.
   const warehouseCode = stockWarehouseCode();
   const warehouseId = stockWarehouseCode();
@@ -169,11 +279,17 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
   const postedAt = dateUtil.nowIso();
   const transactions = [];
 
+  if (direction === 'OUT' && !session && options.allowUnsafeNoSession !== true) {
+    const err = new Error('Atomic inventory OUT posting cần Mongo session để rollback StockTransaction + Inventory cùng nhau');
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+
   for (const item of items) {
     const rawQty = getQty(item);
     if (!rawQty) continue;
     const product = await findProduct(item);
-    const productCode = String(item.productCode || item.code || product?.code || item.productId || '').trim();
+    const productCode = normalizeStockProductCode(item.productCode || item.code || product?.code || item.productId);
     const productId = String(item.productId || product?.id || product?._id || productCode).trim();
     if (!productCode && !productId) continue;
     const productName = String(item.productName || item.name || product?.name || '').trim();
@@ -201,38 +317,6 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
       continue;
     }
 
-    const snapshotQuery = InventoryLegacy.findOne({ productCode, warehouseCode });
-    let snapshot = await withOptionalSession(snapshotQuery, session);
-    if (!snapshot) {
-      snapshot = new InventoryLegacy({
-        id: makeId('IV'),
-        productId,
-        productCode,
-        productName,
-        warehouseId,
-        warehouseCode,
-        warehouseName,
-        qty: 0,
-        quantity: 0,
-        onHand: 0,
-        reservedQty: 0,
-        availableQty: 0,
-        updatedAt: postedAt
-      });
-    }
-
-    const currentQty = toNumber(snapshot.quantity ?? snapshot.qty ?? snapshot.onHand ?? snapshot.availableQty);
-    const nextQty = currentQty + movementQty;
-    if (direction === 'OUT' && nextQty < 0) {
-      await assertStockAvailableBeforeOut({
-        productCode,
-        productId,
-        productName,
-        requiredQty: absQty,
-        session
-      });
-    }
-
     let tx;
     try {
       const created = await StockTransaction.create([{
@@ -254,7 +338,7 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
         qty: movementQty,
         inQty: direction === 'IN' ? absQty : 0,
         outQty: direction === 'OUT' ? absQty : 0,
-        balanceQty: nextQty,
+        balanceQty: 0,
         refType,
         refId,
         refCode,
@@ -275,19 +359,34 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
       continue;
     }
 
-    snapshot.productId = snapshot.productId || productId;
-    snapshot.productCode = snapshot.productCode || productCode;
-    snapshot.productName = productName || snapshot.productName || '';
-    snapshot.warehouseId = snapshot.warehouseId || warehouseId;
-    snapshot.warehouseCode = snapshot.warehouseCode || warehouseCode;
-    snapshot.warehouseName = snapshot.warehouseName || warehouseName;
-    snapshot.qty = nextQty;
-    snapshot.quantity = nextQty;
-    snapshot.onHand = nextQty;
-    snapshot.availableQty = nextQty - toNumber(snapshot.reservedQty);
-    snapshot.lastTransactionAt = postedAt;
-    snapshot.updatedAt = postedAt;
-    await snapshot.save({ session });
+    const updatedSnapshot = await applyAtomicInventoryDelta({
+      productId,
+      productCode,
+      productName,
+      direction,
+      absQty,
+      movementQty,
+      warehouseId,
+      warehouseCode,
+      warehouseName,
+      postedAt,
+      session
+    });
+
+    const balanceQty = toNumber(
+      updatedSnapshot.quantity ??
+      updatedSnapshot.qty ??
+      updatedSnapshot.onHand ??
+      updatedSnapshot.availableQty
+    );
+
+    if (tx && typeof tx.save === 'function') {
+      tx.balanceQty = balanceQty;
+      tx.updatedAt = postedAt;
+      await tx.save({ session });
+    } else if (tx) {
+      tx.balanceQty = balanceQty;
+    }
 
     // Phase 3.4: không ghi tồn ngược về products.
     // Products chỉ là danh mục; tồn hiện tại nằm ở inventories.

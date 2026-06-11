@@ -27,6 +27,8 @@ test('InventoryPostingService wraps single-document stock posting operations', (
   assert.match(source, /async function postReturnIn\(returnOrder = \{\}, options = \{\}\)/);
   assert.match(source, /type:\s*'IMPORT'[\s\S]*direction:\s*'IN'[\s\S]*refType:\s*'IMPORT_ORDER'/);
   assert.match(source, /type:\s*'SALE'[\s\S]*direction:\s*'OUT'[\s\S]*refType:\s*'SALES_ORDER'/);
+  assert.match(source, /INVENTORY_SESSION_REQUIRED/);
+  assert.match(source, /options\.allowUnsafeNoSession\s*!==\s*true/);
   assert.match(source, /type:\s*'RETURN'[\s\S]*direction:\s*'IN'[\s\S]*refType:\s*'RETURN_ORDER'/);
   assert.match(source, /reverseMovement,/);
   assert.match(source, /reconcileInventory/);

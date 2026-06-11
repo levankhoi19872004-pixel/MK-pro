@@ -44,6 +44,8 @@ const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const { makeId, toNumber, stripMongoFields } = require('../utils/common.util');
 const inventoryService = require('../services/inventoryService');
+const InventoryPostingService = require('../domain/posting/InventoryPostingService');
+const { withMongoTransaction } = require('../utils/transaction.util');
 const searchService = require('../services/searchService');
 const returnOrderService = require('../services/returnOrderService');
 const postingEngine = require('../engines/posting.engine');
@@ -1709,8 +1711,10 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
     if (stockError) return fail(res, 400, stockError);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount || item.total || toNumber(item.quantity || item.qty) * toNumber(item.salePrice || item.price)), 0);
     const paidAmount = Math.min(toNumber(body.paidAmount), totalAmount);
-    const order = await SalesOrder.create({
-      id: makeId('SO'),
+    let order;
+    await withMongoTransaction(async (session) => {
+      const created = await SalesOrder.create([{
+        id: makeId('SO'),
       code: buildCode('SO'),
       source: 'mobile_sales_app',
       sourceType: 'mobile_sales',
@@ -1739,16 +1743,10 @@ router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'ad
       debtAmount: Math.max(0, totalAmount - paidAmount),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      ...mobileStockPostedPatch({}, req.mobileUser.code || req.mobileUser.name || 'mobile_sales')
-    });
-    await inventoryService.postStockMovement(order.toObject ? order.toObject() : order, {
-      type: 'SALE',
-      direction: 'OUT',
-      refType: 'SALES_ORDER',
-      refId: order.id || order._id || order.code,
-      refCode: order.code || order.id,
-      date: order.date || order.orderDate || dateUtil.todayVN(),
-      note: 'Xuất kho theo đơn bán mobile'
+        ...mobileStockPostedPatch({}, req.mobileUser.code || req.mobileUser.name || 'mobile_sales')
+      }], { session });
+      order = created[0];
+      await InventoryPostingService.postSaleOut(order.toObject ? order.toObject() : order, { session });
     });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
@@ -1788,27 +1786,21 @@ router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
       updatedAt: new Date().toISOString(),
       ...mobileStockPostedPatch(raw, req.mobileUser.code || req.mobileUser.name || 'mobile_sales_update')
     });
-    if (isMobileSalesStockPosted(raw)) {
-      await inventoryService.reverseStockMovement(raw, {
-        type: 'SALE',
-        reverseType: 'SALE_REVERSAL',
-        direction: 'OUT',
-        refType: 'SALES_ORDER',
-        refId: raw.id || raw._id || raw.code,
-        refCode: raw.code || raw.id,
-        date: dateUtil.todayVN(),
-        note: 'Đảo xuất kho đơn bán mobile trước khi sửa'
-      });
-    }
-    await order.save();
-    await inventoryService.postStockMovement(order.toObject ? order.toObject() : order, {
-      type: 'SALE',
-      direction: 'OUT',
-      refType: 'SALES_ORDER',
-      refId: order.id || order._id || order.code,
-      refCode: order.code || order.id,
-      date: order.date || order.orderDate || dateUtil.todayVN(),
-      note: 'Xuất kho theo đơn bán mobile sau khi sửa'
+    await withMongoTransaction(async (session) => {
+      if (isMobileSalesStockPosted(raw)) {
+        await InventoryPostingService.reverseMovement(raw, {
+          type: 'SALE',
+          reverseType: 'SALE_REVERSAL',
+          direction: 'OUT',
+          refType: 'SALES_ORDER',
+          refId: raw.id || raw._id || raw.code,
+          refCode: raw.code || raw.id,
+          date: dateUtil.todayVN(),
+          note: 'Đảo xuất kho đơn bán mobile trước khi sửa'
+        }, { session });
+      }
+      await order.save({ session });
+      await InventoryPostingService.postSaleOut(order.toObject ? order.toObject() : order, { session });
     });
     const savedOrder = stripMongoFields(order.toObject());
     savedOrder.canEdit = true;
@@ -1835,19 +1827,21 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
     const stockPosted = isMobileSalesStockPosted(raw);
 
     if (!accountingLocked) {
-      if (stockPosted) {
-        await inventoryService.reverseStockMovement(raw, {
-          type: 'SALE',
-          reverseType: 'SALE_REVERSAL',
-          direction: 'OUT',
-          refType: 'SALES_ORDER',
-          refId: raw.id || raw._id || raw.code,
-          refCode: raw.code || raw.id,
-          date: dateUtil.todayVN(),
-          note: 'Đảo xuất kho khi xóa đơn mobile'
-        });
-      }
-      await SalesOrder.deleteOne({ _id: order._id });
+      await withMongoTransaction(async (session) => {
+        if (stockPosted) {
+          await InventoryPostingService.reverseMovement(raw, {
+            type: 'SALE',
+            reverseType: 'SALE_REVERSAL',
+            direction: 'OUT',
+            refType: 'SALES_ORDER',
+            refId: raw.id || raw._id || raw.code,
+            refCode: raw.code || raw.id,
+            date: dateUtil.todayVN(),
+            note: 'Đảo xuất kho khi xóa đơn mobile'
+          }, { session });
+        }
+        await SalesOrder.deleteOne({ _id: order._id }).session(session);
+      });
       const deletedOrder = { ...raw, status: 'deleted', deliveryStatus: 'deleted', deletedAt: new Date().toISOString() };
       return ok(res, { message: `Đã xóa hẳn đơn ${raw.code || ''}`, order: stripMongoFields(deletedOrder), salesOrder: stripMongoFields(deletedOrder), hardDeleted: true });
     }
@@ -1859,19 +1853,21 @@ router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales
     order.deletedAt = new Date().toISOString();
     order.deleteReason = 'Xóa mềm từ app bán hàng vì đơn đã phát sinh giao hàng/kế toán';
     order.updatedAt = new Date().toISOString();
-    if (stockPosted) {
-      await inventoryService.reverseStockMovement(raw, {
-        type: 'SALE',
-        reverseType: 'SALE_REVERSAL',
-        direction: 'OUT',
-        refType: 'SALES_ORDER',
-        refId: raw.id || raw._id || raw.code,
-        refCode: raw.code || raw.id,
-        date: dateUtil.todayVN(),
-        note: 'Đảo xuất kho khi xóa mềm đơn mobile'
-      });
-    }
-    await order.save();
+    await withMongoTransaction(async (session) => {
+      if (stockPosted) {
+        await InventoryPostingService.reverseMovement(raw, {
+          type: 'SALE',
+          reverseType: 'SALE_REVERSAL',
+          direction: 'OUT',
+          refType: 'SALES_ORDER',
+          refId: raw.id || raw._id || raw.code,
+          refCode: raw.code || raw.id,
+          date: dateUtil.todayVN(),
+          note: 'Đảo xuất kho khi xóa mềm đơn mobile'
+        }, { session });
+      }
+      await order.save({ session });
+    });
     const savedOrder = stripMongoFields(order.toObject());
     return ok(res, { message: `Đã xóa mềm đơn ${savedOrder.code || ''}`, order: savedOrder, salesOrder: savedOrder, hardDeleted: false });
   } catch (err) {

@@ -62,6 +62,31 @@ function createInMemoryInventoryStore(initialSnapshots = []) {
         return row;
       });
       return created;
+    },
+    applyDelta: async (filter = {}, update = {}, options = {}) => {
+      const code = filter.productCode;
+      let snapshot = snapshots.get(code) || null;
+      const inc = update.$inc || {};
+      if (!snapshot) {
+        if (!options.upsert) return null;
+        snapshot = createSnapshot({
+          productCode: code,
+          productId: update.$set?.productId || code,
+          productName: update.$set?.productName || '',
+          warehouseCode: filter.warehouseCode || 'MAIN',
+          quantity: 0,
+          availableQty: 0
+        });
+        snapshots.set(code, snapshot);
+      }
+      if (filter.availableQty && Number(snapshot.availableQty || 0) < Number(filter.availableQty.$gte || 0)) {
+        return null;
+      }
+      for (const field of ['qty', 'quantity', 'onHand', 'availableQty']) {
+        snapshot[field] = Number(snapshot[field] || 0) + Number(inc[field] || 0);
+      }
+      Object.assign(snapshot, update.$set || {});
+      return snapshot;
     }
   };
 }
@@ -72,6 +97,7 @@ async function withPatchedInventoryStore(initialSnapshots, fn) {
   const restoreStockFindOne = patch(StockTransaction, { findOne: async (filter) => store.findTx(filter) });
   const restoreStockCreate = patch(StockTransaction, { create: async (docs) => store.createTx(docs) });
   const restoreSnapshotFindOne = patch(InventoryLegacy, { findOne: async (filter) => store.findSnapshot(filter) });
+  const restoreSnapshotFindOneAndUpdate = patch(InventoryLegacy, { findOneAndUpdate: async (filter, update, options) => store.applyDelta(filter, update, options) });
   const restoreAvailability = patch(inventoryStockService, {
     getAvailableStock: async (productCode) => ({ productCode, availableQty: store.snapshots.get(productCode)?.availableQty ?? 0 })
   });
@@ -83,6 +109,7 @@ async function withPatchedInventoryStore(initialSnapshots, fn) {
     restoreStockFindOne();
     restoreStockCreate();
     restoreSnapshotFindOne();
+    restoreSnapshotFindOneAndUpdate();
     restoreAvailability();
   }
 }
@@ -96,8 +123,8 @@ test('same sourceType + sourceId + productCode does not subtract stock twice', a
     const doc = saleOrder('SO_TEST_001', [{ productCode: 'OMO001', quantity: 10 }]);
     const movement = { type: 'SALE', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_001', refCode: 'SO_TEST_001' };
 
-    const first = await inventoryService.postStockMovement(doc, movement);
-    const second = await inventoryService.postStockMovement(doc, movement);
+    const first = await inventoryService.postStockMovement(doc, movement, { allowUnsafeNoSession: true });
+    const second = await inventoryService.postStockMovement(doc, movement, { allowUnsafeNoSession: true });
 
     assert.equal(store.transactions.length, 1);
     assert.equal(store.snapshots.get('OMO001').quantity, 90);
@@ -117,7 +144,7 @@ test('same order with multiple productCode values creates one movement per produ
       { productCode: 'PS001', quantity: 5 }
     ]);
 
-    await inventoryService.postStockMovement(doc, { type: 'SALE', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_001' });
+    await inventoryService.postStockMovement(doc, { type: 'SALE', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_001' }, { allowUnsafeNoSession: true });
 
     assert.equal(store.transactions.length, 2);
     assert.equal(new Set(store.transactions.map((row) => row.idempotencyKey)).size, 2);
@@ -131,8 +158,8 @@ test('return order adds stock exactly once', async () => {
     const doc = { id: 'RO_TEST_001', code: 'RO_TEST_001', date: '2026-06-10', items: [{ productCode: 'OMO001', returnQuantity: 3 }] };
     const movement = { type: 'RETURN', direction: 'IN', refType: 'RETURN_ORDER', refId: 'RO_TEST_001', refCode: 'RO_TEST_001' };
 
-    await inventoryService.postStockMovement(doc, movement);
-    await inventoryService.postStockMovement(doc, movement);
+    await inventoryService.postStockMovement(doc, movement, { allowUnsafeNoSession: true });
+    await inventoryService.postStockMovement(doc, movement, { allowUnsafeNoSession: true });
 
     assert.equal(store.transactions.length, 1);
     assert.equal(store.transactions[0].direction, 'IN');
@@ -145,7 +172,7 @@ test('cancel order reverses stock and duplicate cancel does not add stock twice'
   await withPatchedInventoryStore([{ productCode: 'OMO001', quantity: 100, availableQty: 100 }], async (store) => {
     const doc = saleOrder('SO_TEST_002', [{ productCode: 'OMO001', quantity: 10 }]);
 
-    await inventoryService.postStockMovement(doc, { type: 'SALE', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_002' });
+    await inventoryService.postStockMovement(doc, { type: 'SALE', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_002' }, { allowUnsafeNoSession: true });
     await inventoryService.reverseStockMovement(doc, { type: 'SALE', reverseType: 'SALE_CANCEL', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_002' });
     await inventoryService.reverseStockMovement(doc, { type: 'SALE', reverseType: 'SALE_CANCEL', direction: 'OUT', refType: 'SALE_ORDER', refId: 'SO_TEST_002' });
 

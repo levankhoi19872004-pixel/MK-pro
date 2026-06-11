@@ -207,7 +207,14 @@ const INDEX_DEFINITIONS = {
     [{ warehouseCode: 1 }, { name: 'idx_inventory_snapshot_warehouse' }]
   ],
   inventories: [
-    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventories_product_warehouse' }],
+    [
+      { productCode: 1, warehouseCode: 1 },
+      {
+        name: 'uniq_inventories_product_warehouse',
+        unique: true,
+        sparse: true
+      }
+    ],
     [{ productCode: 1 }, { name: 'idx_inventories_product_code' }],
     [{ warehouseCode: 1 }, { name: 'idx_inventories_warehouse_code' }]
   ],
