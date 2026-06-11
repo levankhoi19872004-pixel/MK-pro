@@ -130,8 +130,8 @@ async function getSnapshot(productLike = {}) {
   });
 }
 
-async function normalizeProductInventoryToMain({ productCode, productId } = {}) {
-  const code = String(productCode || productId || '').trim();
+async function normalizeProductInventoryToMain({ productCode, productId, session = null } = {}) {
+  const code = normalizeStockProductCode(productCode || productId || '');
   const id = String(productId || productCode || '').trim();
   const filters = [
     code ? { productCode: code } : null,
@@ -139,9 +139,11 @@ async function normalizeProductInventoryToMain({ productCode, productId } = {}) 
     code ? { code } : null,
     id ? { sku: id } : null
   ].filter(Boolean);
+
   if (!filters.length) return null;
 
-  const rows = await InventoryLegacy.find({ $or: filters }).lean();
+  const query = InventoryLegacy.find({ $or: filters });
+  const rows = await withOptionalSession(query, session).lean();
   if (!rows.length) return null;
 
   const whCode = stockWarehouseCode();
@@ -154,13 +156,13 @@ async function normalizeProductInventoryToMain({ productCode, productId } = {}) 
   const reservedQty = rows.reduce((sum, row) => sum + toNumber(row.reservedQty ?? row.reserved ?? 0), 0);
   const baseRow = rows.find((row) => String(row.warehouseCode || '').trim() === whCode) || rows[0] || {};
 
-  await InventoryLegacy.deleteMany({ $or: filters });
+  await withOptionalSession(InventoryLegacy.deleteMany({ $or: filters }), session);
   const doc = {
     ...baseRow,
     _id: undefined,
     id: baseRow.id || makeId('IV'),
     productId: String(baseRow.productId || id || code).trim(),
-    productCode: String(baseRow.productCode || code || id).trim(),
+    productCode: normalizeStockProductCode(baseRow.productCode || code || id),
     warehouseId: whCode,
     warehouseCode: whCode,
     warehouseName: stockWarehouseName(),
@@ -171,8 +173,8 @@ async function normalizeProductInventoryToMain({ productCode, productId } = {}) 
     availableQty: groupedQty - reservedQty,
     updatedAt: dateUtil.nowIso()
   };
-  await InventoryLegacy.create(doc);
-  return doc;
+  const created = await InventoryLegacy.create([doc], { session });
+  return Array.isArray(created) ? created[0] : doc;
 }
 
 async function assertStockAvailableBeforeOut({ productCode, productId, productName, requiredQty = 0, session = null } = {}) {
@@ -316,6 +318,14 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
       });
       continue;
     }
+
+    // Tồn kho nghiệp vụ chỉ có 1 kho MAIN.
+    // Nếu dữ liệu cũ còn nằm ở KHO_HC/KHO_PC/rỗng thì gom về MAIN trước khi trừ tồn atomic.
+    await normalizeProductInventoryToMain({
+      productCode,
+      productId,
+      session
+    });
 
     let tx;
     try {

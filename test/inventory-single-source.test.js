@@ -132,3 +132,33 @@ test('mobile catalog displays stock from inventories single source', async () =>
     restoreLegacyFind();
   }
 });
+
+test('inventory summary carries product packing rate for case/loose display', async () => {
+  const restoreProductFind = patch(Product, {
+    find: () => leanChain([{
+      id: 'P001',
+      code: 'P001',
+      productCode: 'P001',
+      name: 'Sản phẩm có quy cách',
+      baseUnit: 'chai',
+      conversionRate: 12,
+      packing: '1 thùng = 12 chai'
+    }])
+  });
+  const restoreLegacyFind = patch(InventoryLegacy, {
+    find: () => leanChain([{ productCode: 'P001', availableQty: 25, quantity: 25, qty: 25 }])
+  });
+
+  try {
+    const result = await inventoryStockService.getInventorySummary({});
+    assert.equal(result.stock.length, 1);
+    assert.equal(result.stock[0].availableQty, 25);
+    assert.equal(result.stock[0].conversionRate, 12);
+    assert.equal(result.stock[0].packingQty, 12);
+    assert.equal(result.stock[0].unitsPerCase, 12);
+    assert.equal(result.stock[0].baseUnit, 'chai');
+  } finally {
+    restoreProductFind();
+    restoreLegacyFind();
+  }
+});

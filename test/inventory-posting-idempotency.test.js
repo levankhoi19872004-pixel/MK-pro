@@ -46,6 +46,39 @@ function createInMemoryInventoryStore(initialSnapshots = []) {
     snapshots,
     transactions,
     findSnapshot: async (filter = {}) => snapshots.get(filter.productCode) || null,
+    findInventory: (filter = {}) => {
+      const clauses = Array.isArray(filter.$or) ? filter.$or : [filter];
+      const rows = Array.from(snapshots.values()).filter((row) => clauses.some((clause = {}) => {
+        return Object.entries(clause).some(([field, value]) => {
+          if (value === undefined || value === null || value === '') return false;
+          return String(row[field] || '').toUpperCase() === String(value || '').toUpperCase();
+        });
+      }));
+      const chain = {
+        session: () => chain,
+        lean: async () => rows.map((row) => ({ ...row }))
+      };
+      return chain;
+    },
+    deleteInventory: async (filter = {}) => {
+      const clauses = Array.isArray(filter.$or) ? filter.$or : [filter];
+      const keys = Array.from(snapshots.entries())
+        .filter(([, row]) => clauses.some((clause = {}) => Object.entries(clause).some(([field, value]) => {
+          if (value === undefined || value === null || value === '') return false;
+          return String(row[field] || '').toUpperCase() === String(value || '').toUpperCase();
+        })))
+        .map(([key]) => key);
+      for (const key of keys) snapshots.delete(key);
+      return { deletedCount: keys.length };
+    },
+    createInventory: async (docs) => {
+      return docs.map((doc) => {
+        const code = String(doc.productCode || doc.productId || '').toUpperCase();
+        const row = createSnapshot({ ...doc, productCode: code });
+        snapshots.set(code, row);
+        return row;
+      });
+    },
     findTx: async (filter = {}) => {
       if (filter.idempotencyKey) return transactions.find((row) => row.idempotencyKey === filter.idempotencyKey) || null;
       return transactions.find((row) => Object.entries(filter).every(([key, value]) => row[key] === value)) || null;
@@ -97,6 +130,9 @@ async function withPatchedInventoryStore(initialSnapshots, fn) {
   const restoreStockFindOne = patch(StockTransaction, { findOne: async (filter) => store.findTx(filter) });
   const restoreStockCreate = patch(StockTransaction, { create: async (docs) => store.createTx(docs) });
   const restoreSnapshotFindOne = patch(InventoryLegacy, { findOne: async (filter) => store.findSnapshot(filter) });
+  const restoreSnapshotFind = patch(InventoryLegacy, { find: (filter) => store.findInventory(filter) });
+  const restoreSnapshotDelete = patch(InventoryLegacy, { deleteMany: async (filter) => store.deleteInventory(filter) });
+  const restoreSnapshotCreate = patch(InventoryLegacy, { create: async (docs) => store.createInventory(Array.isArray(docs) ? docs : [docs]) });
   const restoreSnapshotFindOneAndUpdate = patch(InventoryLegacy, { findOneAndUpdate: async (filter, update, options) => store.applyDelta(filter, update, options) });
   const restoreAvailability = patch(inventoryStockService, {
     getAvailableStock: async (productCode) => ({ productCode, availableQty: store.snapshots.get(productCode)?.availableQty ?? 0 })
@@ -109,6 +145,9 @@ async function withPatchedInventoryStore(initialSnapshots, fn) {
     restoreStockFindOne();
     restoreStockCreate();
     restoreSnapshotFindOne();
+    restoreSnapshotFind();
+    restoreSnapshotDelete();
+    restoreSnapshotCreate();
     restoreSnapshotFindOneAndUpdate();
     restoreAvailability();
   }

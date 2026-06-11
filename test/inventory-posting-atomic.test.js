@@ -21,18 +21,32 @@ function patch(target, replacements) {
 }
 
 function createAtomicStore(initial = []) {
-  const snapshots = new Map(initial.map((row) => [String(row.productCode).toUpperCase(), {
-    productCode: String(row.productCode).toUpperCase(),
-    productId: row.productId || String(row.productCode).toUpperCase(),
-    productName: row.productName || '',
-    warehouseCode: row.warehouseCode || 'MAIN',
-    warehouseId: row.warehouseId || 'MAIN',
-    qty: Number(row.quantity ?? row.qty ?? row.availableQty ?? 0),
-    quantity: Number(row.quantity ?? row.qty ?? row.availableQty ?? 0),
-    onHand: Number(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty ?? 0),
-    availableQty: Number(row.availableQty ?? row.quantity ?? row.qty ?? row.onHand ?? 0),
-    reservedQty: Number(row.reservedQty || 0)
-  }]));
+  const snapshots = new Map();
+  for (const sourceRow of initial) {
+    const code = String(sourceRow.productCode).toUpperCase();
+    const qty = Number(sourceRow.quantity ?? sourceRow.qty ?? sourceRow.availableQty ?? 0);
+    const onHand = Number(sourceRow.onHand ?? sourceRow.quantity ?? sourceRow.qty ?? sourceRow.availableQty ?? 0);
+    const availableQty = Number(sourceRow.availableQty ?? sourceRow.quantity ?? sourceRow.qty ?? sourceRow.onHand ?? 0);
+    const reservedQty = Number(sourceRow.reservedQty || 0);
+    const row = snapshots.get(code) || {
+      productCode: code,
+      productId: sourceRow.productId || code,
+      productName: sourceRow.productName || '',
+      warehouseCode: sourceRow.warehouseCode || 'MAIN',
+      warehouseId: sourceRow.warehouseId || sourceRow.warehouseCode || 'MAIN',
+      qty: 0,
+      quantity: 0,
+      onHand: 0,
+      availableQty: 0,
+      reservedQty: 0
+    };
+    row.qty += qty;
+    row.quantity += qty;
+    row.onHand += onHand;
+    row.availableQty += availableQty;
+    row.reservedQty += reservedQty;
+    snapshots.set(code, row);
+  }
   const transactions = [];
 
   return {
@@ -40,6 +54,39 @@ function createAtomicStore(initial = []) {
     transactions,
     async findTx(filter = {}) {
       return transactions.find((row) => row.idempotencyKey === filter.idempotencyKey) || null;
+    },
+    findInventory(filter = {}) {
+      const clauses = Array.isArray(filter.$or) ? filter.$or : [filter];
+      const rows = Array.from(snapshots.values()).filter((row) => clauses.some((clause = {}) => {
+        return Object.entries(clause).some(([field, value]) => {
+          if (value === undefined || value === null || value === '') return false;
+          return String(row[field] || '').toUpperCase() === String(value || '').toUpperCase();
+        });
+      }));
+      const chain = {
+        session: () => chain,
+        lean: async () => rows.map((row) => ({ ...row }))
+      };
+      return chain;
+    },
+    async deleteInventory(filter = {}) {
+      const clauses = Array.isArray(filter.$or) ? filter.$or : [filter];
+      const keys = Array.from(snapshots.entries())
+        .filter(([, row]) => clauses.some((clause = {}) => Object.entries(clause).some(([field, value]) => {
+          if (value === undefined || value === null || value === '') return false;
+          return String(row[field] || '').toUpperCase() === String(value || '').toUpperCase();
+        })))
+        .map(([key]) => key);
+      for (const key of keys) snapshots.delete(key);
+      return { deletedCount: keys.length };
+    },
+    async createInventory(docs) {
+      return docs.map((doc) => {
+        const code = String(doc.productCode || doc.productId || '').toUpperCase();
+        const row = { ...doc, productCode: code };
+        snapshots.set(code, row);
+        return row;
+      });
     },
     async createTx(docs) {
       return docs.map((doc) => {
@@ -89,6 +136,9 @@ async function withAtomicStore(initial, fn) {
   const restoreProduct = patch(Product, { findOne: async () => null });
   const restoreTxFind = patch(StockTransaction, { findOne: async (filter) => store.findTx(filter) });
   const restoreTxCreate = patch(StockTransaction, { create: async (docs) => store.createTx(docs) });
+  const restoreInventoryFind = patch(InventoryLegacy, { find: (filter) => store.findInventory(filter) });
+  const restoreInventoryDelete = patch(InventoryLegacy, { deleteMany: async (filter) => store.deleteInventory(filter) });
+  const restoreInventoryCreate = patch(InventoryLegacy, { create: async (docs) => store.createInventory(Array.isArray(docs) ? docs : [docs]) });
   const restoreInventoryUpdate = patch(InventoryLegacy, { findOneAndUpdate: async (filter, update, options) => store.atomicUpdate(filter, update, options) });
 
   try {
@@ -97,6 +147,9 @@ async function withAtomicStore(initial, fn) {
     restoreProduct();
     restoreTxFind();
     restoreTxCreate();
+    restoreInventoryFind();
+    restoreInventoryDelete();
+    restoreInventoryCreate();
     restoreInventoryUpdate();
   }
 }
@@ -140,6 +193,24 @@ test('atomic OUT posting requires session unless explicitly allowed for tests/mi
     () => InventoryPostingService.postSaleOut({ id: 'SO_NO_SESSION', items: [{ productCode: 'OMO001', quantity: 1 }] }),
     (err) => err && err.code === 'INVENTORY_SESSION_REQUIRED'
   );
+});
+
+test('postStockMovement normalizes legacy product inventory to MAIN before atomic posting', async () => {
+  await withAtomicStore([
+    { productCode: 'OMO001', warehouseCode: 'KHO_HC', quantity: 10, availableQty: 10 },
+    { productCode: 'OMO001', warehouseCode: 'KHO_PC', quantity: 5, availableQty: 5 }
+  ], async (store) => {
+    const posted = await inventoryService.postStockMovement(
+      { id: 'SO_NORMALIZE_001', code: 'SO_NORMALIZE_001', items: [{ productCode: 'OMO001', quantity: 4 }] },
+      { type: 'SALE', direction: 'OUT', refType: 'SALES_ORDER', refId: 'SO_NORMALIZE_001', refCode: 'SO_NORMALIZE_001' },
+      { session: { id: 'mock-session' } }
+    );
+
+    assert.equal(posted.length, 1);
+    assert.equal(store.snapshots.size, 1);
+    assert.equal(store.snapshots.get('OMO001').warehouseCode, 'MAIN');
+    assert.equal(store.snapshots.get('OMO001').availableQty, 11);
+  });
 });
 
 test('atomic OUT posting blocks oversell by conditional inventory update', async () => {

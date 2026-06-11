@@ -90,7 +90,9 @@ async function getInventorySummary(query = {}) {
   const q = normalizeProductCode(query.q || query.search || query.keyword || '');
   const [inventoryRows, products] = await Promise.all([
     InventoryCurrent.find({}).sort({ productCode: 1 }).lean(),
-    Product.find({}).select('id code productCode sku name productName unit baseUnit minStock maxStock').lean()
+    Product.find({})
+    .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock')
+    .lean()
   ]);
 
   const productMap = new Map();
@@ -109,6 +111,19 @@ async function getInventorySummary(query = {}) {
     if (!productCode) continue;
     const quantity = quantityOf(row);
     if (!grouped.has(productCode)) {
+      const packingRate = Math.max(
+        1,
+        toNumber(
+          product.conversionRate ||
+          product.packingQty ||
+          product.unitsPerCase ||
+          row.conversionRate ||
+          row.packingQty ||
+          row.unitsPerCase ||
+          1
+        )
+      );
+
       grouped.set(productCode, {
         id: row.id || String(row._id || ''),
         productId: row.productId || product.id || String(product._id || ''),
@@ -118,6 +133,11 @@ async function getInventorySummary(query = {}) {
         warehouseCode: stockWarehouseCode(),
         warehouseName: stockWarehouseName(),
         unit: row.unit || product.unit || product.baseUnit || '',
+        baseUnit: product.baseUnit || row.baseUnit || '',
+        conversionRate: packingRate,
+        packingQty: packingRate,
+        unitsPerCase: packingRate,
+        packing: product.packing || row.packing || '',
         quantity: 0,
         qty: 0,
         onHand: 0,
