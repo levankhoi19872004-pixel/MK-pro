@@ -1,7 +1,8 @@
 'use strict';
 
 const readXlsxFileModule = require('read-excel-file/node');
-const readXlsxFile = readXlsxFileModule.default || readXlsxFileModule;
+const readSheet = readXlsxFileModule.readSheet || readXlsxFileModule.default || readXlsxFileModule;
+const readWorkbook = readXlsxFileModule.default || readXlsxFileModule.readExcelFile || readSheet;
 
 const MAX_ROWS = Number(process.env.IMPORT_MAX_ROWS || 10000);
 const MAX_COLUMNS = Number(process.env.IMPORT_MAX_COLUMNS || 100);
@@ -27,7 +28,7 @@ function isEmptyValue(value) {
 }
 
 function rowHasData(row) {
-  return Object.keys(row || {}).some((key) => key !== '__rowNo' && !isEmptyValue(row[key]));
+  return Object.keys(row || {}).some((key) => key !== '__rowNo' && key !== '__headerRowNo' && !isEmptyValue(row[key]));
 }
 
 function assertSizeLimit(condition) {
@@ -57,6 +58,7 @@ function headerScore(line = []) {
     'khach hang',
     'ma sp',
     'ma hang',
+    'ma hang hoa',
     'san pham',
     'product',
     'barcode',
@@ -73,6 +75,7 @@ function headerScore(line = []) {
     'ngay',
     'date',
     'nvbh',
+    'nvtt',
     'nhan vien',
     'staff'
   ].reduce((score, keyword) => score + (normalized.includes(keyword) ? 3 : 0), 0);
@@ -133,12 +136,56 @@ function rowsToObjects(matrix = []) {
   return rows;
 }
 
-async function readSheetRows(buffer, options = {}) {
-  const matrix = await readXlsxFile(buffer, {
+function isMatrix(value) {
+  return Array.isArray(value) && (!value.length || Array.isArray(value[0]));
+}
+
+function sheetObjectData(row) {
+  return row && Array.isArray(row.data) ? row.data : [];
+}
+
+function normalizeWorkbookResultToMatrix(result, requestedSheet) {
+  if (isMatrix(result)) return result;
+
+  if (!Array.isArray(result)) return [];
+
+  const sheets = result.filter((item) => item && Array.isArray(item.data));
+  if (!sheets.length) return [];
+
+  if (requestedSheet) {
+    const requested = String(requestedSheet).trim().toLowerCase();
+    const byName = sheets.find((item) => String(item.sheet || '').trim().toLowerCase() === requested);
+    if (byName) return sheetObjectData(byName);
+
+    const sheetIndex = Number(requestedSheet);
+    if (Number.isInteger(sheetIndex) && sheetIndex >= 1 && sheets[sheetIndex - 1]) {
+      return sheetObjectData(sheets[sheetIndex - 1]);
+    }
+  }
+
+  const firstWithData = sheets.find((item) => Array.isArray(item.data) && item.data.length);
+  return sheetObjectData(firstWithData || sheets[0]);
+}
+
+async function readSheetMatrix(buffer, options = {}) {
+  const readOptions = {
     ...options,
     dateFormat: 'dd/mm/yyyy'
-  });
+  };
 
+  // read-excel-file v8/v9: named export readSheet() returns a single sheet matrix.
+  // Older builds may expose only the default reader, which can return either a matrix
+  // or [{ sheet, data }] depending on package version.
+  if (typeof readXlsxFileModule.readSheet === 'function') {
+    return readXlsxFileModule.readSheet(buffer, readOptions);
+  }
+
+  const result = await readWorkbook(buffer, readOptions);
+  return normalizeWorkbookResultToMatrix(result, options.sheet);
+}
+
+async function readSheetRows(buffer, options = {}) {
+  const matrix = await readSheetMatrix(buffer, options);
   return rowsToObjects(matrix);
 }
 
@@ -152,6 +199,7 @@ async function parseExcelBuffer(buffer) {
   ];
 
   const seen = new Set();
+  const errors = [];
 
   for (const options of attempts) {
     const key = Object.prototype.hasOwnProperty.call(options, 'sheet') ? `sheet:${options.sheet}` : 'default';
@@ -161,7 +209,8 @@ async function parseExcelBuffer(buffer) {
     try {
       const rows = await readSheetRows(buffer, options);
       if (Array.isArray(rows) && rows.length) return rows;
-    } catch (_) {
+    } catch (err) {
+      errors.push(err && err.message ? err.message : String(err));
       // Không phải workbook nào cũng có sheet Import hoặc đủ sheet theo index.
       // Tiếp tục thử sheet khác thay vì báo rỗng ngay.
     }

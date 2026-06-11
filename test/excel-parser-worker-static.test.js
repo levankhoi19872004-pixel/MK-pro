@@ -11,17 +11,26 @@ function read(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8');
 }
 
-test('excel parser tries Import sheet, default sheet, and indexed sheets without readSheetNames', () => {
+test('excel parser uses readSheet when available and is compatible with workbook-shaped default export', () => {
+  const source = read('utils/excelParser.worker.js');
+
+  assert.match(source, /readXlsxFileModule\.readSheet/);
+  assert.match(source, /function normalizeWorkbookResultToMatrix/);
+  assert.match(source, /Array\.isArray\(item\.data\)/);
+  assert.match(source, /sheetObjectData/);
+
+  assert.doesNotMatch(source, /readSheetNames/);
+  assert.doesNotMatch(source, /selectedSheet\s*&&\s*selectedSheet\.data/);
+  assert.doesNotMatch(source, /item\s*&&\s*item\.sheet/);
+});
+
+test('excel parser tries Import sheet, default sheet, and indexed sheets', () => {
   const source = read('utils/excelParser.worker.js');
 
   assert.match(source, /async function parseExcelBuffer/);
   assert.match(source, /sheet:\s*'Import'/);
   assert.match(source, /Array\.from\(\{ length: MAX_SHEETS \}/);
   assert.match(source, /readSheetRows\(buffer, options\)/);
-
-  assert.doesNotMatch(source, /readSheetNames/);
-  assert.doesNotMatch(source, /selectedSheet\s*&&\s*selectedSheet\.data/);
-  assert.doesNotMatch(source, /item\s*&&\s*item\.sheet/);
 });
 
 test('excel parser detects header row instead of assuming first row is header', () => {
