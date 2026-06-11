@@ -27,7 +27,9 @@ test('DeliverySettlementService owns delivery settlement posting boundaries', ()
   assert.match(source, /async function cashInTransitReport\(query = \{\}\)/);
   assert.match(source, /ArPostingService\.postReceipt\(\{/);
   assert.match(source, /fundService\.confirmDeliveryCashSubmission\(target, payload\)/);
-  assert.match(source, /fundService\.buildDeliverySubmissionDraft\(query\)/);
+  assert.match(source, /DeliveryCashInTransitReportService/);
+  assert.match(source, /DeliveryCashInTransitReportService\.listDeliveryCashInTransit\(query\)/);
+  assert.doesNotMatch(source, /fundService\.buildDeliverySubmissionDraft\(query\)/);
 });
 
 test('mobile delivery submitCash uses DeliverySettlementService instead of 501 stub', () => {

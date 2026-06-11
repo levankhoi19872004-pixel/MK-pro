@@ -1,6 +1,7 @@
 'use strict';
 
 const ArPostingService = require('../posting/ArPostingService');
+const DeliveryCashInTransitReportService = require('./DeliveryCashInTransitReportService');
 const fundService = require('../../services/fundService');
 const dateUtil = require('../../utils/date.util');
 
@@ -116,7 +117,7 @@ async function submitCashToFund(idOrCode, body = {}) {
 }
 
 async function cashInTransitReport(query = {}) {
-  return fundService.buildDeliverySubmissionDraft(query);
+  return DeliveryCashInTransitReportService.listDeliveryCashInTransit(query);
 }
 
 module.exports = {

@@ -145,7 +145,19 @@ const INDEX_DEFINITIONS = {
     [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledgers_customer_date' }],
     [{ customerCode: 1, type: 1, date: -1 }, { name: 'idx_ar_ledgers_customer_type_date_desc' }],
     [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledgers_ref_code_type' }],
-    [{ source: 1 }, { name: 'idx_ar_ledgers_source' }]
+    [{ source: 1 }, { name: 'idx_ar_ledgers_source' }],
+    [
+      { type: 1, source: 1, method: 1, deliveryStaffCode: 1, deliveryDate: -1 },
+      { name: 'idx_ar_delivery_cash_receipt_report' }
+    ],
+    [
+      { type: 1, deliveryStaffCode: 1, date: -1 },
+      { name: 'idx_ar_receipt_delivery_staff_date' }
+    ],
+    [
+      { masterOrderCode: 1, deliveryStaffCode: 1, date: -1 },
+      { name: 'idx_ar_master_delivery_staff_date', sparse: true }
+    ]
   ],
   payments: [
     [{ id: 1 }, { name: 'idx_payments_id' }],
@@ -182,6 +194,10 @@ const INDEX_DEFINITIONS = {
     [{ date: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_date_fund_direction' }],
     [{ sourceType: 1, sourceCode: 1, fundType: 1, direction: 1 }, { name: 'idx_fund_ledgers_source_unique_guard' }],
     [{ deliveryDate: 1, deliveryStaffCode: 1 }, { name: 'idx_fund_ledgers_delivery_staff_date' }],
+    [
+      { sourceType: 1, fundType: 1, direction: 1, deliveryStaffCode: 1, deliveryDate: -1 },
+      { name: 'idx_fund_delivery_cash_submission_report' }
+    ],
     [{ createdAt: -1 }, { name: 'idx_fund_ledgers_created_at' }]
   ],
   deliveryCashSubmissions: [

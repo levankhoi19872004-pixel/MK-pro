@@ -1,6 +1,7 @@
 'use strict';
 
 const fundService = require('../services/fundService');
+const DeliverySettlementService = require('../domain/settlement/DeliverySettlementService');
 
 function sendResult(res, result, successMessage = 'OK', statusCode = 200) {
   if (result?.error) return res.status(result.status || 400).json({ ok: false, success: false, message: result.error, ...result });
@@ -15,6 +16,24 @@ async function listLedger(req, res) {
 async function listDeliverySubmissions(req, res) {
   try { sendResult(res, await fundService.listDeliveryCashSubmissions(req.query || {}), 'Đã tải phiếu nộp quỹ giao hàng'); }
   catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu nộp quỹ giao hàng', error: err.message }); }
+}
+
+
+async function deliveryCashInTransit(req, res) {
+  try {
+    sendResult(
+      res,
+      await DeliverySettlementService.cashInTransitReport(req.query || {}),
+      'Đã tải báo cáo tiền NVGH còn phải nộp'
+    );
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      success: false,
+      message: 'Không tải được báo cáo tiền NVGH còn phải nộp',
+      error: err.message
+    });
+  }
 }
 
 
@@ -78,4 +97,4 @@ async function confirmTransfer(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, listDeliverySubmissions, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };
+module.exports = { listLedger, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };

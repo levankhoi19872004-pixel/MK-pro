@@ -1586,6 +1586,46 @@
         ]
       }
     },
+    "/api/funds/delivery-cash-in-transit": {
+      "get": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "GET /api/funds/delivery-cash-in-transit",
+        "operationId": "getFundsDeliveryCashInTransit",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/funds/delivery-cash-submissions": {
       "get": {
         "tags": [

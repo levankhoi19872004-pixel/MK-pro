@@ -53,7 +53,8 @@ test('domain boundaries delegate to the intended posting/lifecycle services', ()
   const settlement = read('src/domain/settlement/DeliverySettlementService.js');
   assert.match(settlement, /ArPostingService\.postReceipt\(\{/);
   assert.match(settlement, /fundService\.confirmDeliveryCashSubmission\(/);
-  assert.match(settlement, /fundService\.buildDeliverySubmissionDraft\(query\)/);
+  assert.match(settlement, /DeliveryCashInTransitReportService\.listDeliveryCashInTransit\(query\)/);
+  assert.doesNotMatch(settlement, /fundService\.buildDeliverySubmissionDraft\(query\)/);
 
   const sales = read('src/domain/lifecycle/SalesLifecycleService.js');
   assert.match(sales, /getOrderService\(\)\.createOrder\(body, options\)/);

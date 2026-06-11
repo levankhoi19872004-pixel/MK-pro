@@ -7,6 +7,11 @@ const { requireRole } = require('../middlewares/auth.middleware');
 const router = express.Router();
 
 router.get('/ledger', fundController.listLedger);
+router.get(
+  '/delivery-cash-in-transit',
+  requireRole(['admin', 'accountant', 'manager']),
+  fundController.deliveryCashInTransit
+);
 router.get('/delivery-cash-submissions', fundController.listDeliverySubmissions);
 router.get('/expenses', fundController.listExpenses);
 router.get('/transfers', fundController.listTransfers);
