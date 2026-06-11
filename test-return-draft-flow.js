@@ -38,7 +38,23 @@ function patch(target, replacements) {
   restores.push(patch(auditService, { log: async () => null }));
   restores.push(patch(productRepository, { findAll: async () => [{ code: 'P001', name: 'OMO', salePrice: 10000, unit: 'chai' }], findByCodes: async (codes = []) => (codes.includes('P001') ? [{ code: 'P001', name: 'OMO', salePrice: 10000, unit: 'chai' }] : []), findByIdOrCode: async () => ({ code: 'P001', name: 'OMO', salePrice: 10000, unit: 'chai' }), save: async (row) => row }));
   restores.push(patch(customerRepository, { findByIdOrCode: async () => ({ id: 'C001', code: 'C001', name: 'Khách A', currentDebt: 0 }), save: async (row) => row }));
-  restores.push(patch(userRepository, { findStaffByIdOrCode: async (key) => ({ id: key, code: key, name: key === 'GH01' ? 'NV giao' : 'NV bán' }) }));
+  restores.push(patch(userRepository, {
+    findStaffByIdOrCode: async (key) => ({
+      id: key,
+      code: key,
+      staffCode: key,
+      name: key === 'GH01' ? 'NV giao' : 'NV bán'
+    }),
+
+    // Test phải mock đúng helper mới đang được masterOrderLegacy.service.js sử dụng.
+    // Không để unit test gọi thật User.findOne() vào MongoDB.
+    findBusinessStaffByCode: async (key) => ({
+      id: key,
+      code: key,
+      staffCode: key,
+      name: key === 'GH01' ? 'NV giao' : 'NV bán'
+    })
+  }));
   restores.push(patch(orderRepository, {
     findAll: async () => orders,
     findByIdOrCode: async (key) => orders.find((row) => row.id === key || row.code === key) || null,
