@@ -53,3 +53,25 @@ test('reportService.js staff seed filter không dùng staffCode/staffName khi l�
   assert.doesNotMatch(block, /\{\s*staffCode\s*:/);
   assert.doesNotMatch(block, /\{\s*staffName\s*:/);
 });
+
+test('reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, không để PAYMENT/RETURN override', () => {
+  const src = read('src/services/reportService.js');
+  assert.match(src, /DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START/);
+  assert.match(src, /saleSalesmanCode/);
+  assert.match(src, /saleDeliveryStaffName/);
+  assert.match(src, /regex:\s*'sale'/);
+  assert.match(src, /row\.saleSalesmanCode \|\| row\.fallbackSalesmanCode/);
+  assert.match(src, /row\.saleDeliveryStaffName \|\| row\.fallbackDeliveryStaffName/);
+});
+
+test('UI công nợ header hiển thị nhân sự từ đơn nợ đang chọn, không dùng staffCode/staffName', () => {
+  const src = read('public/js/app/07-debt-cashbook.js');
+  assert.match(src, /DEBT_UI_STAFF_FROM_SELECTED_ORDER_START/);
+  const fn = src.match(/function getDebtDisplayStaffSource[\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(fn, 'getDebtDisplayStaffSource must exist');
+  assert.doesNotMatch(fn, /staffCode|staffName/);
+  const selectBlock = src.match(/function selectCollectionCustomer[\s\S]*?function renderCollectionCustomerSelect/)?.[0] || '';
+  assert.match(selectBlock, /const staffSource=getDebtDisplayStaffSource\(d\)/);
+  assert.match(selectBlock, /debtPersonLabel\(staffSource\.salesmanCode,staffSource\.salesmanName\)/);
+  assert.match(selectBlock, /debtPersonLabel\(staffSource\.deliveryStaffCode,staffSource\.deliveryStaffName\)/);
+});

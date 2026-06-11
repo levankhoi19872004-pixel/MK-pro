@@ -310,6 +310,22 @@ function getCollectionCustomerMatches(){
     .filter(d=>hasOpenDebt(d.debt) || isOverpaidDebt(d.debt))
     .filter(d=>matchSearch(q,[d.customerCode,d.customerName]));
 }
+
+function getDebtPrimaryOpenOrder(customer){
+  const orders=Array.isArray(customer?.orders)?customer.orders:[];
+  return orders
+    .filter(o=>hasOpenDebt(o.debt) || isOverpaidDebt(o.debt))
+    .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')))[0] || orders[0] || null;
+}
+function getDebtDisplayStaffSource(customer){
+  // ===== SCOPED FIX: DEBT_UI_STAFF_FROM_SELECTED_ORDER_START =====
+  // Header Công nợ phải hiển thị nhân sự của đơn nợ đang xử lý.
+  // Không tự lookup users/staffMap; audit/legacy fields không được tham gia hiển thị nghiệp vụ.
+  const order=getDebtPrimaryOpenOrder(customer);
+  return order || customer || {};
+  // ===== SCOPED FIX: DEBT_UI_STAFF_FROM_SELECTED_ORDER_END =====
+}
+
 function selectCollectionCustomer(d, options={}){
   if(!d)return;
   const key=getDebtCustomerKey(d);
@@ -327,8 +343,9 @@ function selectCollectionCustomer(d, options={}){
   if(debtDetailStatus)debtDetailStatus.textContent='Đang xử lý';
   const debtMeta=debtDisplayMeta(d.debt);
   if(debtCustomerInfoBox){
+    const staffSource=getDebtDisplayStaffSource(d);
     debtCustomerInfoBox.innerHTML=`<div class="debt-info-main"><div><small>Mã khách</small><b>${escapeHtml(d.customerCode||'')}</b></div><div><small>Tên khách</small><b>${escapeHtml(d.customerName||'')}</b></div><div><small>${escapeHtml(debtMeta.label)}</small><strong class="${debtMeta.className}">${debtMeta.text}</strong></div></div>
-      <div class="debt-info-sub"><span>NVBH: <b>${escapeHtml(debtPersonLabel(d.salesmanCode,d.salesmanName))}</b></span><span>NVGH: <b>${escapeHtml(debtPersonLabel(d.deliveryStaffCode,d.deliveryStaffName))}</b></span><span>Số đơn nợ: <b>${Number(d.orderCount||0)}</b></span></div>`;
+      <div class="debt-info-sub"><span>NVBH: <b>${escapeHtml(debtPersonLabel(staffSource.salesmanCode,staffSource.salesmanName))}</b></span><span>NVGH: <b>${escapeHtml(debtPersonLabel(staffSource.deliveryStaffCode,staffSource.deliveryStaffName))}</b></span><span>Số đơn nợ: <b>${Number(d.orderCount||0)}</b></span></div>`;
   }
   updateSelectedCustomerDebt();
   renderCollectionOrderAllocations(d);

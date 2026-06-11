@@ -56,11 +56,12 @@ test('returnOrders snapshot NVBH/NVGH and never treat staffName as NVBH', () => 
   assert.doesNotMatch(engine, /salesStaffName:\s*text\(body\.salesStaffName \|\| order\.salesStaffName \|\| order\.staffName\)/);
 });
 
-test('debt report displays staff from arLedgers, not customer/user metadata', () => {
+test('debt report displays staff from arLedgers AR-SALE row, not customer/user/payment metadata', () => {
   const src = read('src/services/reportService.js');
-  assert.ok(src.includes('ORDER_DATA_LINEAGE_REPORT_AR_LEDGER_STAFF_ONLY_START'));
-  assert.ok(src.includes('salesmanName: row.salesmanName || \'\''));
-  assert.ok(src.includes('deliveryStaffName: row.deliveryStaffName || \'\''));
+  assert.ok(src.includes('DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START'));
+  assert.ok(src.includes('ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START'));
+  assert.ok(src.includes("salesmanName: row.saleSalesmanName || row.fallbackSalesmanName || ''"));
+  assert.ok(src.includes("deliveryStaffName: row.saleDeliveryStaffName || row.fallbackDeliveryStaffName || ''"));
   assert.doesNotMatch(src, /salesmanName:\s*row\.salesmanName \|\| cmeta\.salesmanName/);
   assert.doesNotMatch(src, /deliveryStaffName:\s*row\.deliveryStaffName \|\| cmeta\.deliveryStaffName/);
 });

@@ -775,10 +775,35 @@ async function debtReport(query = {}) {
       receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
-      salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
-      deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] } },
-      deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } }
+      // ===== SCOPED FIX: DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START =====
+      // Một đơn có nhiều dòng AR: SALE, PAYMENT, RETURN, BONUS...
+      // PAYMENT/RETURN có thể mang staff audit/legacy và làm $max chọn sai NVBH/NVGH khi trùng mã.
+      // Vì vậy nhân sự hiển thị theo đơn nợ phải lấy từ dòng AR-SALE gốc của chính đơn đó.
+      saleSalesmanCode: { $max: { $cond: [
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] },
+        ''
+      ] } },
+      saleSalesmanName: { $max: { $cond: [
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] },
+        ''
+      ] } },
+      saleDeliveryStaffCode: { $max: { $cond: [
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] },
+        ''
+      ] } },
+      saleDeliveryStaffName: { $max: { $cond: [
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] },
+        ''
+      ] } },
+      fallbackSalesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
+      fallbackSalesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
+      fallbackDeliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] } },
+      fallbackDeliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } }
+      // ===== SCOPED FIX: DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_END =====
     } },
     { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
     { $sort: { debt: -1, lastDate: -1 } },
@@ -811,13 +836,14 @@ async function debtReport(query = {}) {
       customerName: cmeta.customerName || id.customerName || 'Chưa rõ khách',
       phone: cmeta.phone || '',
       address: cmeta.address || '',
-      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_LEDGER_STAFF_ONLY_START =====
-      // Công nợ hiển thị nhân sự đã post vào arLedgers, không tự sửa bằng customer/user metadata.
-      salesmanCode: row.salesmanCode || '',
-      salesmanName: row.salesmanName || '',
-      deliveryStaffCode: row.deliveryStaffCode || '',
-      deliveryStaffName: row.deliveryStaffName || '',
-      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_LEDGER_STAFF_ONLY_END =====
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START =====
+      // Công nợ hiển thị nhân sự theo dòng AR-SALE của đơn.
+      // Không lấy từ PAYMENT/RETURN/BONUS vì các dòng đó có thể là audit/user thao tác hoặc legacy display.
+      salesmanCode: row.saleSalesmanCode || row.fallbackSalesmanCode || '',
+      salesmanName: row.saleSalesmanName || row.fallbackSalesmanName || '',
+      deliveryStaffCode: row.saleDeliveryStaffCode || row.fallbackDeliveryStaffCode || '',
+      deliveryStaffName: row.saleDeliveryStaffName || row.fallbackDeliveryStaffName || '',
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_END =====
       documentDate,
       dueDate: documentDate,
       debit: toNumber(row.debit),
