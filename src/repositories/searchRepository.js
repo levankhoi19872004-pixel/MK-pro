@@ -376,15 +376,44 @@ function staffCodeFilterRequired(query = {}) {
   return isRoleSpecificStaffSearch(query);
 }
 
-function staffCodeExistsFilter() {
+// STAFF_SEARCH_USER_ACCOUNT_CODE_START
+// Màn Tài khoản có thể lưu mã nhân viên ở users.code hoặc users.staffCode.
+// Autocomplete NVBH/NVGH phải nhận các mã nghiệp vụ này, nhưng tuyệt đối không
+// fallback sang username/id/_id để tránh tài khoản đăng nhập dùng chung lọt vào danh sách nhân viên.
+const USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS = Object.freeze([
+  'code',
+  'staffCode',
+  'salesStaffCode',
+  'salesmanCode',
+  'deliveryStaffCode',
+  'shipperCode',
+  'employeeCode',
+  'maNhanVien'
+]);
+
+function nonEmptyFieldFilter(field) {
   return {
-    $and: [
-      { staffCode: { $exists: true } },
-      { staffCode: { $ne: '' } },
-      { staffCode: { $ne: null } }
-    ]
+    [field]: {
+      $exists: true,
+      $nin: ['', null]
+    }
   };
 }
+
+function staffCodeExistsFilter() {
+  return {
+    $or: USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS.map(nonEmptyFieldFilter)
+  };
+}
+
+function pickUserAccountStaffCode(row = {}) {
+  for (const field of USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS) {
+    const value = String(row[field] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+// STAFF_SEARCH_USER_ACCOUNT_CODE_END
 
 async function findStaffs(query = {}) {
   const q = String(query.q || query.search || query.keyword || '').trim();
@@ -406,31 +435,35 @@ async function findStaffs(query = {}) {
   }
 
   const searchFields = staffCodeFilterRequired({ ...query, roles })
-    ? ['staffCode', 'fullName', 'name', 'phone']
-    : ['staffCode', 'username', 'fullName', 'name', 'phone', 'role'];
+    ? [...USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS, 'fullName', 'name', 'phone']
+    : [...USER_ACCOUNT_STAFF_SEARCH_CODE_FIELDS, 'username', 'fullName', 'name', 'phone', 'role'];
   const userSearchOrs = regexOr(q, searchFields);
   if (userSearchOrs.length) andFilters.push({ $or: userSearchOrs });
   if (andFilters.length) userFilter.$and = andFilters;
 
-  // V45 rule: NVBH/NVGH lấy từ users có role đúng và có staffCode thật.
+  // V45 rule: NVBH/NVGH lấy từ users có role đúng và có mã nhân viên nghiệp vụ thật.
+  // Mã nghiệp vụ hợp lệ: users.code/users.staffCode hoặc các field canonical theo role.
   // Không fallback sang username cho mã nhân viên, để tránh hiện tài khoản đăng nhập dùng chung.
   const userRows = await User.find(userFilter)
-    .select('id staffCode username name fullName phone role isActive')
-    .sort({ staffCode: 1, username: 1 })
+    .select('id code staffCode salesStaffCode salesmanCode deliveryStaffCode shipperCode employeeCode maNhanVien username name fullName phone role isActive')
+    .sort({ code: 1, staffCode: 1, username: 1 })
     .limit(limit)
     .lean();
 
   return uniqueBy(userRows.map((u) => {
-    const realStaffCode = String(u.staffCode || '').trim();
+    const realStaffCode = pickUserAccountStaffCode(u);
     return {
       ...u,
-      code: realStaffCode || u.username,
+      code: realStaffCode,
       staffCode: realStaffCode,
-      name: u.fullName || u.name || u.username,
-      fullName: u.fullName || u.name || u.username,
+      name: u.fullName || u.name || realStaffCode,
+      fullName: u.fullName || u.name || realStaffCode,
       source: 'users'
     };
-  }), ['staffCode', 'username']).slice(0, limit);
+  }).filter((u) => {
+    if (!staffCodeFilterRequired({ ...query, roles })) return true;
+    return Boolean(String(u.staffCode || '').trim());
+  }), ['staffCode']).slice(0, limit);
 }
 
 function orderSearchScore(row = {}, nq = '') {
