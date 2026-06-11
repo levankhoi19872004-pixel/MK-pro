@@ -1,7 +1,7 @@
 'use strict';
 
-const readXlsxFile = require('read-excel-file/node');
-const { readSheetNames } = require('read-excel-file/node');
+const readXlsxFileModule = require('read-excel-file/node');
+const readXlsxFile = readXlsxFileModule.default || readXlsxFileModule;
 
 const MAX_ROWS = Number(process.env.IMPORT_MAX_ROWS || 10000);
 const MAX_COLUMNS = Number(process.env.IMPORT_MAX_COLUMNS || 100);
@@ -58,23 +58,26 @@ function rowsToObjects(matrix = []) {
   return rows;
 }
 
+async function readPreferredSheetMatrix(buffer) {
+  try {
+    const importSheet = await readXlsxFile(buffer, {
+      sheet: 'Import',
+      dateFormat: 'dd/mm/yyyy'
+    });
+
+    if (Array.isArray(importSheet) && importSheet.length) return importSheet;
+  } catch (_) {
+    // read-excel-file v9.2.0 không export API liệt kê sheet ổn định ở CJS.
+    // Nếu file không có sheet Import, fallback đọc sheet đầu tiên.
+  }
+
+  return readXlsxFile(buffer, { dateFormat: 'dd/mm/yyyy' });
+}
+
 async function parseExcelBuffer(buffer) {
   if (!buffer || !buffer.length) return [];
 
-  const sheetNames = await readSheetNames(buffer);
-
-  if (!Array.isArray(sheetNames) || !sheetNames.length) return [];
-  assertSizeLimit(sheetNames.length <= MAX_SHEETS);
-
-  // Ưu tiên sheet Import nếu có, nếu không lấy sheet đầu tiên của file.
-  const selectedSheet =
-    sheetNames.find((name) => cleanKey(name).toLowerCase() === 'import') ||
-    sheetNames[0];
-
-  const matrix = await readXlsxFile(buffer, {
-    sheet: selectedSheet,
-    dateFormat: 'dd/mm/yyyy'
-  });
+  const matrix = await readPreferredSheetMatrix(buffer);
 
   return rowsToObjects(matrix);
 }

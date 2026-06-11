@@ -11,13 +11,15 @@ function read(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8');
 }
 
-test('excel parser uses readSheetNames and reads selected sheet matrix directly', () => {
+test('excel parser reads Import sheet when possible and falls back to first sheet without readSheetNames', () => {
   const source = read('utils/excelParser.worker.js');
 
-  assert.match(source, /readSheetNames/);
-  assert.match(source, /sheet:\s*selectedSheet/);
+  assert.match(source, /readPreferredSheetMatrix/);
+  assert.match(source, /sheet:\s*'Import'/);
+  assert.match(source, /readXlsxFile\(buffer, \{ dateFormat: 'dd\/mm\/yyyy' \}\)/);
   assert.match(source, /rowsToObjects\(matrix\)/);
 
+  assert.doesNotMatch(source, /readSheetNames/);
   assert.doesNotMatch(source, /selectedSheet\s*&&\s*selectedSheet\.data/);
   assert.doesNotMatch(source, /item\s*&&\s*item\.sheet/);
 });
