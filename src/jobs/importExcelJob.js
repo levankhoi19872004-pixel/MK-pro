@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs/promises');
 const { parseExcelBuffer } = require('../../utils/excelParser');
 const excelImportService = require('../services/excelImportService');
 const importSessionService = require('../services/importSessionService');
@@ -12,23 +13,41 @@ async function runImportPreviewJob({ sessionId, type, files = [], userName = '' 
     const fileNames = [];
 
     for (const file of files) {
-      const fileRows = (await parseExcelBuffer(file.buffer)).map((row, index) => ({
+      const currentFileName = file.fileName || file.originalname || 'import.xlsx';
+      const buffer = file.buffer || await fs.readFile(file.path);
+
+      await importSessionService.updateProgress(sessionId, {
+        percent: 20,
+        step: `parsing:${currentFileName}`
+      });
+
+      const fileRows = (await parseExcelBuffer(buffer)).map((row, index) => ({
         ...row,
-        __sourceFile: file.fileName,
-        sourceFile: file.fileName,
-        fileName: file.fileName,
+        __sourceFile: currentFileName,
+        sourceFile: currentFileName,
+        fileName: currentFileName,
         __rowNo: row.__rowNo || row.rowNo || index + 2
       }));
 
-      fileNames.push(file.fileName);
+      fileNames.push(currentFileName);
       rows.push(...fileRows);
     }
+
+    await importSessionService.updateProgress(sessionId, {
+      percent: 60,
+      step: 'validating'
+    });
 
     const result = await excelImportService.buildPreviewFromRows({ type, rows, userName });
     if (result.error) {
       await importSessionService.markFailed(sessionId, result.error);
       return result;
     }
+
+    await importSessionService.updateProgress(sessionId, {
+      percent: 85,
+      step: 'saving_preview'
+    });
 
     await importSessionService.savePreviewResult(sessionId, {
       rows: result.rows || [],

@@ -19,7 +19,7 @@ async function preview(req, res) {
     const files = req.importFiles || normalizeUploadedFiles(req);
     const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), files, buffer: files[0]?.buffer, fileName: files[0]?.originalname || '', userName: req.user?.username || req.user?.fullName || '' });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.json({ ok: true, ...result });
+    return res.status(result.accepted ? 202 : 200).json({ ok: true, ...result });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không đọc được file import', error: err.message });
   }
@@ -32,6 +32,34 @@ async function commit(req, res) {
     res.json({ ok: true, ...result });
   } catch (err) {
     res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message });
+  }
+}
+
+
+async function sessionStatus(req, res) {
+  try {
+    const result = await excelImportService.getSessionStatus(
+      String(req.params.sessionId || req.query.sessionId || '').trim()
+    );
+
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        ok: false,
+        message: result.error,
+        ...result
+      });
+    }
+
+    return res.json({
+      ok: true,
+      ...result
+    });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Không lấy được trạng thái import',
+      error: err.message
+    });
   }
 }
 
@@ -50,4 +78,4 @@ async function logs(req, res) {
   }
 }
 
-module.exports = { preview, commit, direct, logs };
+module.exports = { preview, commit, direct, logs, sessionStatus };

@@ -37,8 +37,17 @@ const ImportSessionSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['uploaded', 'parsing', 'preview_ready', 'importing', 'done', 'failed'],
+    enum: ['uploaded', 'queued', 'parsing', 'preview_ready', 'importing', 'done', 'failed'],
     default: 'uploaded'
+  },
+
+  queuedAt: { type: Date, default: null },
+  startedAt: { type: Date, default: null },
+  finishedAt: { type: Date, default: null },
+
+  progress: {
+    percent: { type: Number, default: 0 },
+    step: { type: String, default: '' }
   },
 
   totalRows: { type: Number, default: 0 },

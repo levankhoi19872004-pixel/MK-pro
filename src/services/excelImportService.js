@@ -27,6 +27,8 @@ const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/bus
 const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
+const { saveImportFiles } = require('../utils/importTempFileStore');
+const { enqueueImportPreviewJob } = require('../jobs/importPreviewQueue');
 const promotionService = require('./promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
 const {
@@ -2711,10 +2713,47 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     createdBy: userName
   });
 
+  const asyncPreview = process.env.IMPORT_PREVIEW_ASYNC !== 'false';
+
+  if (asyncPreview) {
+    const storedFiles = await saveImportFiles(session.id, normalizedFiles);
+
+    await importSessionService.markQueued(session.id);
+
+    enqueueImportPreviewJob({
+      sessionId: session.id,
+      type,
+      files: storedFiles,
+      userName
+    });
+
+    await auditService.log('IMPORT_PREVIEW_QUEUED', {
+      refType: 'importSession',
+      refId: session.id,
+      refCode: session.id,
+      userName,
+      summary: {
+        type,
+        totalFiles: storedFiles.length,
+        fileNames: storedFiles.map((file) => file.fileName)
+      }
+    }).catch((err) => {
+      console.error('[IMPORT_PREVIEW_QUEUED_AUDIT_ERROR]', err && (err.stack || err.message || err));
+    });
+
+    return {
+      ok: true,
+      accepted: true,
+      status: 'queued',
+      message: 'File import đã được đưa vào hàng chờ xử lý',
+      sessionId: session.id,
+      importSessionId: session.id
+    };
+  }
+
+  // Fallback inline cho test/dev hoặc khi cần giữ hành vi cũ.
   const { runImportPreviewJob } = require('../jobs/importExcelJob');
 
-  // Giai đoạn đầu chạy inline để không thêm dependency worker.
-  // Boundary đã tách để sau này chuyển sang queue thật.
   const result = await runImportPreviewJob({
     sessionId: session.id,
     type,
@@ -2745,6 +2784,58 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
   };
 }
 
+
+async function getSessionStatus(sessionId) {
+  const session = await importSessionService.getSession(sessionId);
+
+  if (!session) {
+    return {
+      error: 'Không tìm thấy phiên import',
+      status: 404
+    };
+  }
+
+  return {
+    sessionId: session.sessionId || session.id,
+    importSessionId: session.sessionId || session.id,
+    type: session.type,
+    status: session.status,
+    progress: session.progress || { percent: 0, step: '' },
+    totalRows: session.totalRows || 0,
+    validRows: session.validRows || 0,
+    errorRows: session.errorRows || 0,
+    previewRows: session.previewRows || [],
+    importErrors: session.importErrors || [],
+    errorMessage: session.errorMessage || '',
+    result: session.result || {},
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    queuedAt: session.queuedAt,
+    startedAt: session.startedAt,
+    finishedAt: session.finishedAt,
+    failedAt: session.failedAt
+  };
+}
+
+
+async function safeMarkImportFailed(sessionId, err, fallbackMessage = 'Import thất bại') {
+  const message = err && err.message ? err.message : String(err || fallbackMessage);
+
+  if (!sessionId) return message;
+
+  try {
+    await importSessionService.markFailed(sessionId, message);
+  } catch (markErr) {
+    console.error('[IMPORT_SESSION_MARK_FAILED_ERROR]', {
+      sessionId,
+      originalError: message,
+      markFailedError: markErr && (markErr.stack || markErr.message || markErr)
+    });
+  }
+
+  return message;
+}
+
 async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
@@ -2756,71 +2847,139 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   }
 
   const currentSessionId = session.sessionId || session.id;
-  if (session.type !== type) {
-    await importSessionService.markFailed(currentSessionId, 'Phiên preview không khớp loại import');
-    return { error: 'Phiên preview không khớp loại import', status: 400 };
-  }
 
-  let sourceRows = await importSessionService.selectRows(session, selectedOrderCodes);
-  if (!sourceRows.length) {
-    await importSessionService.markFailed(currentSessionId, 'Không có dòng hợp lệ để import');
-    return { error: 'Không có dòng hợp lệ để import', status: 400 };
-  }
+  let sourceRows = [];
+  let validRows = [];
+  let commitRows = [];
+  let result = null;
+  let hasShortage = false;
 
-  if (type === 'salesOrders') {
-    sourceRows = await importRules.validateImportBatch(sourceRows);
-  }
+  try {
+    if (session.type !== type) {
+      await importSessionService.markFailed(currentSessionId, 'Phiên preview không khớp loại import');
+      return {
+        error: 'Phiên preview không khớp loại import',
+        status: 400,
+        sessionId: currentSessionId,
+        importSessionId: currentSessionId
+      };
+    }
 
-  const validRows = sourceRows.filter((r) => r && r.valid !== false && r.canImport !== false && (!Array.isArray(r.errors) || r.errors.length === 0));
-  if (!validRows.length) {
-    await importSessionService.markFailed(currentSessionId, 'Không có dòng/đơn hợp lệ để import');
+    sourceRows = await importSessionService.selectRows(session, selectedOrderCodes);
+    if (!sourceRows.length) {
+      await importSessionService.markFailed(currentSessionId, 'Không có dòng hợp lệ để import');
+      return {
+        error: 'Không có dòng hợp lệ để import',
+        status: 400,
+        sessionId: currentSessionId,
+        importSessionId: currentSessionId
+      };
+    }
+
+    if (type === 'salesOrders') {
+      sourceRows = await importRules.validateImportBatch(sourceRows);
+    }
+
+    validRows = sourceRows.filter((r) =>
+      r &&
+      r.valid !== false &&
+      r.canImport !== false &&
+      (!Array.isArray(r.errors) || r.errors.length === 0)
+    );
+
+    if (!validRows.length) {
+      await importSessionService.markFailed(currentSessionId, 'Không có dòng/đơn hợp lệ để import');
+      return {
+        error: 'Không có dòng/đơn hợp lệ để import',
+        status: 400,
+        errors: sourceRows.flatMap((r) => r.errors || []).slice(0, 50),
+        sessionId: currentSessionId,
+        importSessionId: currentSessionId
+      };
+    }
+
+    hasShortage = validRows.some((r) => r && r.hasShortage);
+    commitRows = type === 'salesOrders'
+      ? flattenAdjustedCommitRows(validRows)
+      : flattenCommitRows(validRows);
+
+    if (type === 'products') result = await upsertProducts(commitRows);
+    else if (type === 'customers') result = await upsertCustomers(commitRows);
+    else if (type === 'users') result = await importUsers(commitRows);
+    else if (type === 'openingStock') result = await importOpeningStock(commitRows);
+    else if (type === 'importOrders') result = await importImportOrders(commitRows);
+    else if (type === 'salesOrders') result = await importSalesOrders(commitRows, { autoCutStock: true });
+    else if (type === 'openingDebt') result = await importOpeningDebt(commitRows);
+    else if (type === 'debtCollections') result = await importDebtCollections(commitRows);
+    else if (type === 'cashbook') result = await importCashbook(commitRows);
+    else if (type === 'promotionProductRules') result = await importPromotionProductRules(commitRows);
+    else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(commitRows);
+    else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(commitRows);
+    else {
+      await importSessionService.markFailed(currentSessionId, 'Loại import không hợp lệ');
+      return {
+        error: 'Loại import không hợp lệ',
+        status: 400,
+        sessionId: currentSessionId,
+        importSessionId: currentSessionId
+      };
+    }
+
+    if (result && result.error) {
+      throw new Error(result.error);
+    }
+  } catch (err) {
+    const message = await safeMarkImportFailed(currentSessionId, err, 'Import thất bại');
+
     return {
-      error: 'Không có dòng/đơn hợp lệ để import',
-      status: 400,
-      errors: sourceRows.flatMap((r) => r.errors || []).slice(0, 50)
+      error: 'Import thất bại',
+      status: 500,
+      detail: message,
+      sessionId: currentSessionId,
+      importSessionId: currentSessionId
     };
   }
 
-  const hasShortage = validRows.some((r) => r && r.hasShortage);
-  const commitRows = type === 'salesOrders'
-    ? flattenAdjustedCommitRows(validRows)
-    : flattenCommitRows(validRows);
+  try {
+    await importSessionService.markDone(currentSessionId, result);
+  } catch (err) {
+    const message = await safeMarkImportFailed(
+      currentSessionId,
+      err,
+      'Import đã ghi dữ liệu nhưng không cập nhật được trạng thái hoàn tất'
+    );
 
-  let result;
-  if (type === 'products') result = await upsertProducts(commitRows);
-  else if (type === 'customers') result = await upsertCustomers(commitRows);
-  else if (type === 'users') result = await importUsers(commitRows);
-  else if (type === 'openingStock') result = await importOpeningStock(commitRows);
-  else if (type === 'importOrders') result = await importImportOrders(commitRows);
-  else if (type === 'salesOrders') result = await importSalesOrders(commitRows, { autoCutStock: true });
-  else if (type === 'openingDebt') result = await importOpeningDebt(commitRows);
-  else if (type === 'debtCollections') result = await importDebtCollections(commitRows);
-  else if (type === 'cashbook') result = await importCashbook(commitRows);
-  else if (type === 'promotionProductRules') result = await importPromotionProductRules(commitRows);
-  else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(commitRows);
-  else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(commitRows);
-  else {
-    await importSessionService.markFailed(currentSessionId, 'Loại import không hợp lệ');
-    return { error: 'Loại import không hợp lệ', status: 400 };
+    return {
+      error: 'Import đã ghi dữ liệu nhưng không cập nhật được trạng thái hoàn tất',
+      status: 500,
+      detail: message,
+      sessionId: currentSessionId,
+      importSessionId: currentSessionId
+    };
   }
 
-  await importSessionService.markDone(currentSessionId, result);
-
-  await auditService.log('IMPORT_COMMIT', {
-    refType: 'importSession',
-    refId: currentSessionId,
-    refCode: currentSessionId,
-    userName,
-    summary: {
-      type,
-      totalSelected: sourceRows.length,
-      totalValid: validRows.length,
-      totalCommitRows: commitRows.length,
-      imported: result.imported || 0,
-      skipped: result.skipped || 0,
-      errors: (result.errors || []).slice(0, 20)
-    }
-  });
+  try {
+    await auditService.log('IMPORT_COMMIT', {
+      refType: 'importSession',
+      refId: currentSessionId,
+      refCode: currentSessionId,
+      userName,
+      summary: {
+        type,
+        totalSelected: sourceRows.length,
+        totalValid: validRows.length,
+        totalCommitRows: commitRows.length,
+        imported: result.imported || 0,
+        skipped: result.skipped || 0,
+        errors: (result.errors || []).slice(0, 20)
+      }
+    });
+  } catch (err) {
+    console.error('[IMPORT_COMMIT_AUDIT_ERROR]', {
+      sessionId: currentSessionId,
+      error: err && (err.stack || err.message || err)
+    });
+  }
 
   const shortageRows = type === 'salesOrders'
     ? normalizeShortageRows([
@@ -2857,4 +3016,4 @@ async function logs() {
   return logs;
 }
 
-module.exports = { buildPreviewFromRows, preview, commit, importDirect, logs };
+module.exports = { buildPreviewFromRows, preview, getSessionStatus, commit, importDirect, logs };

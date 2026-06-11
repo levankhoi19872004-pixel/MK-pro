@@ -132,10 +132,63 @@ async function createUploadedSession({ type, fileName = '', fileNames = [], crea
   });
 }
 
-async function markParsing(id) {
+async function markQueued(id) {
+  const value = cleanText(id);
+  if (!value) return null;
+
   return ImportSession.findOneAndUpdate(
-    { $or: [{ id }, { sessionId: id }] },
-    { $set: { status: 'parsing', updatedAt: new Date() } },
+    { $or: [{ id: value }, { sessionId: value }] },
+    {
+      $set: {
+        status: 'queued',
+        queuedAt: new Date(),
+        updatedAt: new Date(),
+        progress: {
+          percent: 0,
+          step: 'queued'
+        }
+      }
+    },
+    { new: true }
+  );
+}
+
+async function updateProgress(id, { percent = 0, step = '' } = {}) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id: value }, { sessionId: value }] },
+    {
+      $set: {
+        progress: {
+          percent: Math.max(0, Math.min(100, Number(percent) || 0)),
+          step: cleanText(step)
+        },
+        updatedAt: new Date()
+      }
+    },
+    { new: true }
+  );
+}
+
+async function markParsing(id) {
+  const value = cleanText(id);
+  if (!value) return null;
+
+  return ImportSession.findOneAndUpdate(
+    { $or: [{ id: value }, { sessionId: value }] },
+    {
+      $set: {
+        status: 'parsing',
+        startedAt: new Date(),
+        updatedAt: new Date(),
+        progress: {
+          percent: 10,
+          step: 'parsing'
+        }
+      }
+    },
     { new: true }
   );
 }
@@ -178,6 +231,11 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
         rowStorage: 'collection',
         storedRows: rowDocs.length,
         fileNames,
+        finishedAt: new Date(),
+        progress: {
+          percent: 100,
+          step: 'preview_ready'
+        },
         updatedAt: new Date()
       },
       $unset: {
@@ -198,6 +256,11 @@ async function markFailed(id, errorMessage) {
         status: 'failed',
         errorMessage: String(errorMessage || ''),
         failedAt: new Date(),
+        finishedAt: new Date(),
+        progress: {
+          percent: 100,
+          step: 'failed'
+        },
         updatedAt: new Date()
       }
     },
@@ -277,6 +340,8 @@ async function selectRows(session, selectedOrderCodes = []) {
 
 module.exports = {
   createUploadedSession,
+  markQueued,
+  updateProgress,
   markParsing,
   savePreviewResult,
   markFailed,

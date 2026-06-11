@@ -91,8 +91,26 @@ function createApiLimiter() {
   });
 }
 
+function configureTrustProxy(app) {
+  const raw = String(process.env.TRUST_PROXY ?? '1').trim().toLowerCase();
+
+  if (raw === 'false' || raw === '0' || raw === 'off') {
+    return;
+  }
+
+  if (raw === 'true') {
+    app.set('trust proxy', true);
+    return;
+  }
+
+  const hops = Number(raw);
+  app.set('trust proxy', Number.isFinite(hops) && hops >= 0 ? hops : 1);
+}
+
 function createApp() {
   const app = express();
+
+  configureTrustProxy(app);
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors({
@@ -195,5 +213,6 @@ module.exports = {
   createApp,
   startServer,
   inputSanitizer,
-  responseFormatter
+  responseFormatter,
+  configureTrustProxy
 };

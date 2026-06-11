@@ -22,6 +22,22 @@ function sendWorkbook(res, result) {
   return res.send(result.buffer);
 }
 
+function sendSafeInternalError(res, logCode, publicMessage, err) {
+  console.error(logCode, err && (err.stack || err.message || err));
+
+  const payload = {
+    ok: false,
+    message: publicMessage
+  };
+
+  if (process.env.NODE_ENV !== 'production') {
+    payload.error = err && err.message ? err.message : String(err || '');
+    payload.detail = err && err.stack ? err.stack : '';
+  }
+
+  return res.status(500).json(payload);
+}
+
 async function previewImport(req, res) {
   try {
     const files = req.importFiles || normalizeUploadedFiles(req);
@@ -33,10 +49,14 @@ async function previewImport(req, res) {
       userName: req.user?.username || req.user?.fullName || ''
     });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
-    res.json({ ok: true, source: 'import-export-route', ...result });
+    return res.status(result.accepted ? 202 : 200).json({ ok: true, source: 'import-export-route', ...result });
   } catch (err) {
-    console.error('[IMPORT_PREVIEW_ERROR]', err && (err.stack || err.message || err));
-    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: err.message, detail: err.stack });
+    return sendSafeInternalError(
+      res,
+      '[IMPORT_PREVIEW_ERROR]',
+      'Không đọc được file import',
+      err
+    );
   }
 }
 
@@ -53,11 +73,40 @@ async function commitImport(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'import-export-route', ...result });
   } catch (err) {
-    console.error('[IMPORT_COMMIT_ERROR]', err && (err.stack || err.message || err));
-    res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message, detail: err.stack });
+    return sendSafeInternalError(
+      res,
+      '[IMPORT_COMMIT_ERROR]',
+      'Không ghi được dữ liệu import',
+      err
+    );
   }
 }
 
+
+
+async function sessionStatus(req, res) {
+  try {
+    const result = await excelImportService.getSessionStatus(
+      String(req.params.sessionId || req.query.sessionId || '').trim()
+    );
+
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        ok: false,
+        message: result.error,
+        ...result
+      });
+    }
+
+    return res.json({
+      ok: true,
+      source: 'import-export-route',
+      ...result
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: err.message });
+  }
+}
 
 async function directImport(req, res) {
   return res.status(410).json({
@@ -140,6 +189,7 @@ async function exportExcel(req, res) {
 
 module.exports = {
   previewImport,
+  sessionStatus,
   directImport,
   commitImport,
   importLogs,

@@ -20,6 +20,7 @@ router.post(
   excelImportController.preview
 );
 
+router.get('/sessions/:sessionId', excelImportController.sessionStatus);
 router.post('/commit', excelImportController.commit);
 
 // Direct import đã bị khóa, không được gắn upload middleware để tránh tốn RAM.
