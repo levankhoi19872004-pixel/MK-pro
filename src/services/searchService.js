@@ -250,11 +250,12 @@ function toStaffSuggestion(staff = {}) {
   const role = ['admin', 'accountant', 'sales', 'delivery'].includes(roleRaw)
     ? roleRaw
     : (staff.isDelivery ? 'delivery' : staff.isSalesman || staff.isSalesStaff ? 'sales' : 'sales');
-  const code = String(staff.code || staff.staffCode || staff.username || staff._id || '').trim();
-  const username = String(staff.username || code || '').trim();
+  const type = role === 'delivery' ? 'deliveryStaff' : 'salesStaff';
+  const code = String(staff.code || staff.staffCode || '').trim();
+  if ((type === 'deliveryStaff' || type === 'salesStaff') && !code) return null;
+  const username = String(staff.username || '').trim();
   const name = String(staff.name || staff.fullName || staff.displayName || username || code || '').trim();
   const phone = String(staff.phone || staff.mobile || staff.tel || '').trim();
-  const type = role === 'delivery' ? 'deliveryStaff' : 'salesStaff';
   const meta = buildSuggestionMeta([
     code, username, name, staff.fullName, staff.displayName, phone,
     role, ROLE_LABELS[role], staff.position, staff.department
@@ -272,8 +273,8 @@ function toStaffSuggestion(staff = {}) {
     phone,
     role,
     roleLabel: ROLE_LABELS[role] || role,
-    label: [code || username, name, phone].filter(Boolean).join(' - '),
-    value: code || username,
+    label: [code, name, phone].filter(Boolean).join(' - '),
+    value: code,
     aliases: meta.aliases,
     searchText: meta.searchText
   };
@@ -288,7 +289,7 @@ async function searchStaffs(query = {}) {
   if (!q && !allowsEmptyStaffSearch(query)) return [];
   if (q && !queryGuard.ensureSearchKeyword(query, 2).ok) return [];
   const staffs = await searchRepository.findStaffs({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
-  return staffs.map(toStaffSuggestion);
+  return staffs.map(toStaffSuggestion).filter(Boolean);
 }
 
 

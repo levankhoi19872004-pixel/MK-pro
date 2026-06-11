@@ -6,6 +6,7 @@
  */
 function createMobileAuthRepository(ctx) {
   const { MongoStore } = require('../../services/mongoSyncService');
+  const User = require('../../models/User');
   if (!ctx || typeof ctx.getPrimaryDataSnapshot !== 'function' || typeof ctx.persistPrimaryDataSnapshot !== 'function') {
     throw new Error('MobileAuthRepository cần context snapshot để ghi mobile log');
   }
@@ -16,9 +17,14 @@ function createMobileAuthRepository(ctx) {
     async findActiveStaffByLogin(loginKey) {
       const username = String(loginKey || '').trim();
       if (!username) return null;
-      return MongoStore.staffs.findOne({
+      return User.findOne({
         isActive: { $ne: false },
-        $or: [{ username }, { code: username }, { phone: username }, { name: username }]
+        $or: [
+          { username },
+          { code: username },
+          { staffCode: username },
+          { phone: username }
+        ]
       }).lean();
     },
     async listActiveRoles() {

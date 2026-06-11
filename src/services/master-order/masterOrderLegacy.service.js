@@ -355,9 +355,9 @@ function buildMasterOrderCode(existingMasterOrders = []) {
 }
 
 async function resolveStaff(body = {}, prefix = 'delivery') {
-  const value = String(body[`${prefix}StaffId`] || body[`${prefix}StaffCode`] || body[`${prefix}StaffName`] || '').trim();
+  const value = String(body[`${prefix}StaffCode`] || '').trim();
   if (!value) return null;
-  return userRepository.findStaffByIdOrCode(value);
+  return userRepository.findBusinessStaffByCode(value);
 }
 
 

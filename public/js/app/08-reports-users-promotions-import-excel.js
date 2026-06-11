@@ -508,7 +508,14 @@ function findImportSalesAccountByCode(code){
   if(!target)return null;
   return (usersCache||[]).find(u=>{
     if(!isImportSalesAccount(u))return false;
-    const keys=[u.code,u.staffCode,u.salesStaffCode,u.username,u.id].map(v=>normalizeImportStaffCode(v).toLowerCase()).filter(Boolean);
+    const keys=[
+      u.code,
+      u.staffCode,
+      u.salesStaffCode,
+      u.salesmanCode,
+      u.employeeCode,
+      u.maNhanVien
+    ].map(v=>normalizeImportStaffCode(v).toLowerCase()).filter(Boolean);
     return keys.includes(target);
   })||null;
 }

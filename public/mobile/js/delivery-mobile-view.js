@@ -13,7 +13,7 @@
 
   function readUser() { try { return JSON.parse(localStorage.getItem('v43_mobile_user') || localStorage.getItem('mk_web_user') || '{}'); } catch (err) { return {}; } }
   function userDisplayName(user) { return String((user && (user.fullName || user.name || user.username || user.staffCode || user.code)) || '').trim(); }
-  function userStaffCode(user) { return String((user && (user.staffCode || user.code || user.username)) || '').trim(); }
+  function userStaffCode(user) { return String((user && (user.staffCode || user.code)) || '').trim(); }
   function userRoleLabel(user) {
     var role = String((user && user.role) || '').toLowerCase();
     if (user && user.roleLabel) return String(user.roleLabel);

@@ -22,6 +22,26 @@ function buildUserMongoFilter(idOrCode) {
   return { $or: ors };
 }
 
+
+function buildBusinessStaffCodeFilter(code) {
+  const value = String(code || '').trim();
+  if (!value) return { $expr: { $eq: [1, 0] } };
+
+  return {
+    isActive: { $ne: false },
+    $or: [
+      { code: value },
+      { staffCode: value },
+      { salesStaffCode: value },
+      { salesmanCode: value },
+      { deliveryStaffCode: value },
+      { shipperCode: value },
+      { employeeCode: value },
+      { maNhanVien: value }
+    ]
+  };
+}
+
 function normalizeRoleAlias(role = '') {
   const text = String(role || '').trim().toLowerCase();
   if (['sale', 'sales', 'nvbh', 'banhang', 'ban_hang', 'salesstaff', 'sales_staff'].includes(text)) return 'sales';
@@ -75,10 +95,12 @@ async function findUserByIdOrCode(idOrCode) {
 
 
 async function findStaffByIdOrCode(idOrCode) {
-  // Alias dùng chung cho các service nghiệp vụ cần tìm nhân viên theo mã/id/tài khoản.
-  // Trước đây masterOrderService/orderService gọi hàm này nhưng repository chưa export,
-  // gây lỗi: userRepository.findStaffByIdOrCode is not a function.
+  // Backward-compatible account lookup. Business staff matching must use findBusinessStaffByCode().
   return findUserByIdOrCode(idOrCode);
+}
+
+async function findBusinessStaffByCode(code) {
+  return User.findOne(buildBusinessStaffCodeFilter(code)).lean();
 }
 
 async function findDuplicateUser(staffCode, username, exceptId) {
@@ -115,9 +137,11 @@ async function findPermissions(roleCode = '') {
 
 module.exports = {
   buildUserMongoFilter,
+  buildBusinessStaffCodeFilter,
   findUsers,
   findUserByIdOrCode,
   findStaffByIdOrCode,
+  findBusinessStaffByCode,
   findDuplicateUser,
   createUser,
   updateUser,

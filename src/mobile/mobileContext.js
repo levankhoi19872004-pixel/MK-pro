@@ -11,7 +11,14 @@ const { makeId, toNumber, stripMongoFields, formatCaseLooseQty } = require('../u
 const { MongoStore, readCollection, replaceCollection } = require('../services/mongoSyncService');
 const inventoryStockService = require('../services/inventoryStock.service');
 const postingEngine = require('../engines/posting.engine');
-const { pickSalesStaffCode, pickSalesStaffName, pickDeliveryStaffCode, pickDeliveryStaffName } = require('../domain/staff/staffIdentity');
+const {
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName,
+  pickUserAccountSalesStaffCode,
+  pickUserAccountDeliveryStaffCode
+} = require('../domain/staff/staffIdentity');
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
@@ -139,9 +146,13 @@ function roleOf(user = {}) {
 
 function buildJwtPayload(user = {}) {
   const role = roleOf(user);
-  const salesStaffCode = pickSalesStaffCode(user);
+  const salesStaffCode = role === 'sales'
+    ? (pickSalesStaffCode(user) || pickUserAccountSalesStaffCode(user))
+    : pickSalesStaffCode(user);
   const salesStaffName = pickSalesStaffName(user);
-  const deliveryStaffCode = pickDeliveryStaffCode(user);
+  const deliveryStaffCode = role === 'delivery'
+    ? (pickDeliveryStaffCode(user) || pickUserAccountDeliveryStaffCode(user))
+    : pickDeliveryStaffCode(user);
   const deliveryStaffName = pickDeliveryStaffName(user);
   const code = salesStaffCode || deliveryStaffCode || String(user.code || user.staffCode || '').trim();
   const name = salesStaffName || deliveryStaffName || String(user.fullName || user.name || '').trim();

@@ -14,7 +14,7 @@ const ROLE_LABELS = {
 const VALID_ROLES = Object.keys(ROLE_LABELS);
 function pickStaffPayload(body = {}, current = null) {
   const role = VALID_ROLES.includes(String(body.role || current?.role || '').trim()) ? String(body.role || current?.role).trim() : 'sales';
-  const code = String(body.code || body.staffCode || current?.staffCode || current?.code || body.username || '').trim();
+  const code = String(body.code || body.staffCode || current?.staffCode || current?.code || '').trim();
   const username = String(body.username || current?.username || code).trim();
   const passwordInput = String(body.password || '').trim();
   const payload = {
@@ -51,7 +51,7 @@ function validateStaff(payload) {
 
 function staffToClient(staff) {
   const raw = typeof staff?.toObject === 'function' ? staff.toObject() : (staff || {});
-  const code = String(raw.staffCode || raw.code || raw.username || raw._id || '').trim();
+  const code = String(raw.staffCode || raw.code || '').trim();
   const role = VALID_ROLES.includes(String(raw.role || '').trim()) ? String(raw.role).trim() : 'sales';
   return {
     ...raw,

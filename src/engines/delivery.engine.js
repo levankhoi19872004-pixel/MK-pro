@@ -9,10 +9,14 @@ const {
   SALES_STAFF_NAME_FIELDS,
   DELIVERY_STAFF_CODE_FIELDS,
   DELIVERY_STAFF_NAME_FIELDS,
+  USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS,
   pickSalesStaffCode,
   pickSalesStaffName,
   pickDeliveryStaffCode,
-  pickDeliveryStaffName
+  pickDeliveryStaffName,
+  pickUserAccountSalesStaffCode,
+  pickUserAccountDeliveryStaffCode
 } = require('../domain/staff/staffIdentity');
 
 function text(value) { return String(value == null ? '' : value).trim(); }
@@ -479,8 +483,8 @@ class DeliveryEngine {
 
   staffCodeOf(user = {}, type = 'sales') {
     return type === 'delivery'
-      ? text(pickDeliveryStaffCode(user))
-      : text(pickSalesStaffCode(user));
+      ? text(pickDeliveryStaffCode(user) || pickUserAccountDeliveryStaffCode(user))
+      : text(pickSalesStaffCode(user) || pickUserAccountSalesStaffCode(user));
   }
 
   staffNameOf(user = {}, type = 'sales') {
@@ -523,12 +527,12 @@ class DeliveryEngine {
     const users = await this.User.find({
       isActive: { $ne: false },
       $or: [
-        ...SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
-        ...DELIVERY_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...USER_ACCOUNT_SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
         ...SALES_STAFF_NAME_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
         ...DELIVERY_STAFF_NAME_FIELDS.map((field) => ({ [field]: { $in: regexes } }))
       ]
-    }).select('id employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []);
+    }).select('id code staffCode employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []);
     const byCode = new Map();
     const byName = new Map();
     for (const user of users || []) {

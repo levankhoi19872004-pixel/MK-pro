@@ -117,7 +117,7 @@ function buildSafeUser(staff) {
   const role = ['admin', 'manager', 'accountant', 'warehouse', 'sales', 'delivery'].includes(String(staff.role || staff.type || '').trim())
     ? String(staff.role || staff.type).trim()
     : (staff.isDelivery ? 'delivery' : staff.isSalesman ? 'sales' : 'sales');
-  const staffCode = String(staff.staffCode || staff.code || staff.username || '').trim();
+  const staffCode = String(staff.staffCode || staff.code || '').trim();
   const fullName = String(staff.fullName || staff.name || staff.username || staffCode).trim();
   return {
     id: String(staff.id || staff._id || staffCode).trim(),
@@ -1206,15 +1206,15 @@ router.post('/login', async (req, res) => {
     // được quản trị tại mục Hệ thống/Tài khoản. Không đăng nhập bằng collection staffs nữa.
     const staff = await User.findOne({
       isActive: { $ne: false },
-      $or: [{ username }, { staffCode: username }, { code: username }, { phone: username }, { name: username }, { fullName: username }]
+      $or: [{ username }, { staffCode: username }, { code: username }, { phone: username }]
     }).lean();
     if (!staff || !(await verifyPassword(password, staff.password))) {
       return fail(res, 401, 'Sai tài khoản hoặc mật khẩu');
     }
 
     const user = buildSafeUser(staff);
-    if (user.role === 'delivery' && !user.staffCode) {
-      return fail(res, 400, 'Tài khoản giao hàng chưa được gán mã nhân viên giao hàng');
+    if (['sales', 'delivery'].includes(user.role) && !user.staffCode) {
+      return fail(res, 400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
     }
     return ok(res, {
       source: 'mobile-users-auth-route',

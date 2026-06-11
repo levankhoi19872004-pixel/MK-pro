@@ -50,8 +50,8 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'customerStaffCode', value: 'codeOrUsernameOrId' },
-        { targetId: 'customerStaffName', value: 'nameOrFullNameOrUsername' },
+        { targetId: 'customerStaffCode', value: 'businessStaffCode' },
+        { targetId: 'customerStaffName', value: 'businessStaffName' },
         { targetId: 'customerStaffSearch', value: 'label' }
       ],
       emptyText: 'Không tìm thấy nhân viên bán hàng'
@@ -67,8 +67,8 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'salesStaffSelect', value: 'codeOrUsernameOrId' },
-        { targetId: 'salesStaffName', value: 'nameOrFullNameOrUsername' },
+        { targetId: 'salesStaffSelect', value: 'businessStaffCode' },
+        { targetId: 'salesStaffName', value: 'businessStaffName' },
         { targetId: 'salesStaffSearch', value: 'label' }
       ],
       emptyText: 'Không tìm thấy nhân viên bán hàng'
@@ -114,7 +114,7 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'debtSalesmanFilter', value: 'codeOrUsernameOrId' }
+        { targetId: 'debtSalesmanFilter', value: 'businessStaffCode' }
       ],
       afterSelect: 'loadDebts',
       emptyText: 'Không tìm thấy nhân viên bán hàng'
@@ -130,7 +130,7 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'debtDeliveryFilter', value: 'codeOrUsernameOrId' }
+        { targetId: 'debtDeliveryFilter', value: 'businessStaffCode' }
       ],
       afterSelect: 'loadDebts',
       emptyText: 'Không tìm thấy nhân viên giao hàng'
@@ -160,8 +160,8 @@
       onlyActive: true,
       limit: 10,
       fill: [
-        { targetSelector: '#masterOrderForm [name="deliveryStaffCode"]', value: 'codeOrUsernameOrId' },
-        { targetSelector: '#masterOrderForm [name="deliveryStaffName"]', value: 'nameOrFullNameOrUsername' }
+        { targetSelector: '#masterOrderForm [name="deliveryStaffCode"]', value: 'businessStaffCode' },
+        { targetSelector: '#masterOrderForm [name="deliveryStaffName"]', value: 'businessStaffName' }
       ],
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     },
@@ -175,8 +175,8 @@
       onlyActive: true,
       limit: 10,
       fill: [
-        { targetSelector: '#masterOrderForm [name="deliveryStaffCode"]', value: 'codeOrUsernameOrId' },
-        { targetSelector: '#masterOrderForm [name="deliveryStaffName"]', value: 'nameOrFullNameOrUsername' }
+        { targetSelector: '#masterOrderForm [name="deliveryStaffCode"]', value: 'businessStaffCode' },
+        { targetSelector: '#masterOrderForm [name="deliveryStaffName"]', value: 'businessStaffName' }
       ],
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
@@ -191,7 +191,7 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'unmergedSalesStaffFilter', value: 'codeOrUsernameOrId' }
+        { targetId: 'unmergedSalesStaffFilter', value: 'businessStaffCode' }
       ],
       afterSelect: 'loadUnmergedChildOrders',
       emptyText: 'Không tìm thấy nhân viên bán hàng'
@@ -207,7 +207,7 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'deliveryStaffFilter', value: 'codeOrUsernameOrId' }
+        { targetId: 'deliveryStaffFilter', value: 'businessStaffCode' }
       ],
       afterSelect: 'loadDeliveryToday',
       emptyText: 'Không tìm thấy nhân viên giao hàng'
@@ -223,7 +223,7 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'deliverySalesmanFilter', value: 'codeOrUsernameOrId' }
+        { targetId: 'deliverySalesmanFilter', value: 'businessStaffCode' }
       ],
       afterSelect: 'loadDeliveryToday',
       emptyText: 'Không tìm thấy nhân viên bán hàng'
@@ -256,7 +256,7 @@
       onlyActive: true,
       limit: 20,
       fill: [
-        { targetId: 'masterReturnDeliveryStaff', value: 'codeOrUsernameOrId' }
+        { targetId: 'masterReturnDeliveryStaff', value: 'businessStaffCode' }
       ],
       afterSelect: 'loadUnmergedReturnOrders',
       emptyText: 'Không tìm thấy nhân viên giao hàng'

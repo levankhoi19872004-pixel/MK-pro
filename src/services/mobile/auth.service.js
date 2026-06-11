@@ -34,17 +34,12 @@ function createMobileAuthService(ctx) {
       : null;
     if (!staff) return fail(401, 'Sai tài khoản hoặc mật khẩu');
 
-    const role = VALID_ROLES.includes(staff.role || staff.type) ? (staff.role || staff.type) : 'sales';
-    const user = {
-      id: staff.id || staff.code || username,
-      code: staff.code || '',
-      username: staff.username || staff.code || username,
-      name: staff.name || staff.fullName || username,
-      role,
-      roleLabel: ROLE_LABELS[role]
-    };
+    const user = buildJwtPayload(staffDoc);
+    if (['sales', 'delivery'].includes(user.role) && !user.staffCode) {
+      return fail(400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
+    }
 
-    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng Mongo staffs' });
+    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng users' });
     const loginSnapshot = { ...data };
     delete loginSnapshot.returnOrders;
     await repo.persistPrimaryDataSnapshot(loginSnapshot);

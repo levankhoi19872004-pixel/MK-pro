@@ -325,12 +325,12 @@ function getSuggestValue(item, valueType, config){
   if(valueType==='label') return getConfiguredLabel(item, config);
   if(valueType==='id') return item.id||'';
   if(valueType==='idOrCode') return getProductKey(item) || item.id || item.code || '';
-  if(valueType==='codeOrUsernameOrId') {
+  if(valueType==='businessStaffCode') {
     const roles=(config?.roles||[]).map(role=>String(role).toLowerCase());
     if(roles.includes('delivery')) return item.deliveryStaffCode||item.staffCode||item.code||item.employeeCode||'';
     return item.salesStaffCode||item.staffCode||item.code||item.employeeCode||'';
   }
-  if(valueType==='nameOrFullNameOrUsername') {
+  if(valueType==='businessStaffName') {
     const roles=(config?.roles||[]).map(role=>String(role).toLowerCase());
     if(roles.includes('delivery')) return item.deliveryStaffName||item.fullName||item.name||item.staffName||'';
     return item.salesStaffName||item.fullName||item.name||item.staffName||'';

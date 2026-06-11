@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const inventoryStockService = require('./inventoryStock.service');
 const { verifyPassword } = require('../security/passwordPolicy');
+const User = require('../models/User');
 const { MongoStore } = require('./mongoSyncService');
 
 
@@ -91,28 +92,26 @@ function createMobileService(ctx) {
     const password = String(body.password || '').trim();
     if (!username || !password) return fail(400, 'Thiếu tài khoản hoặc mật khẩu');
 
-    const staffDoc = await MongoStore.staffs.findOne({
+    const staffDoc = await User.findOne({
       isActive: { $ne: false },
-      $or: [{ username }, { code: username }, { phone: username }, { name: username }]
+      $or: [
+        { username },
+        { code: username },
+        { staffCode: username },
+        { phone: username }
+      ]
     }).lean();
-    const staff = staffDoc && await verifyPassword(password, staffDoc.password) ? staffMongoToClient(staffDoc) : null;
-    if (!staff) return fail(401, 'Sai tài khoản hoặc mật khẩu');
+    const user = staffDoc && await verifyPassword(password, staffDoc.password) ? buildJwtPayload(staffDoc) : null;
+    if (!user) return fail(401, 'Sai tài khoản hoặc mật khẩu');
+    if (['sales', 'delivery'].includes(user.role) && !user.staffCode) {
+      return fail(400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
+    }
 
-    const role = VALID_ROLES.includes(staff.role || staff.type) ? (staff.role || staff.type) : 'sales';
-    const user = {
-      id: staff.id || staff.code || username,
-      code: staff.code || '',
-      username: staff.username || staff.code || username,
-      name: staff.name || staff.fullName || username,
-      role,
-      roleLabel: ROLE_LABELS[role]
-    };
-
-    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng Mongo staffs' });
+    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng users' });
     const loginSnapshot = { ...data };
     delete loginSnapshot.returnOrders;
     await persistPrimaryDataSnapshot(loginSnapshot);
-    return { body: { ok: true, success: true, source: 'mongo-route', token: encodeMobileToken(user), refreshToken: encodeMobileRefreshToken(user), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user } };
+    return { body: { ok: true, success: true, source: 'mobile-users-route', token: encodeMobileToken(user), refreshToken: encodeMobileRefreshToken(user), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user } };
   }
 
   async function refresh({ body = {} }) {
@@ -129,7 +128,7 @@ function createMobileService(ctx) {
 
   async function roles() {
     const roles = await MongoStore.roles.find({ isActive: { $ne: false } }).sort({ code: 1 }).lean();
-    return { body: { ok: true, source: 'mongo-route', roles: roles.map(stripMongoFields), roleLabels: ROLE_LABELS } };
+    return { body: { ok: true, source: 'mobile-users-route', roles: roles.map(stripMongoFields), roleLabels: ROLE_LABELS } };
   }
 
   async function customers({ query = {} }) {
@@ -170,7 +169,7 @@ function createMobileService(ctx) {
     if (q) {
       items = items.filter((item) => [item.code, item.customerCode, item.name, item.customerName, item.phone, item.address, item.area, item.route].some((value) => normalizeText(value).includes(q))).slice(0, 80);
     }
-    return { body: { ok: true, source: 'mongo-route', items, total: items.length, cachedCatalog: !q || wantsAll } };
+    return { body: { ok: true, source: 'mobile-users-route', items, total: items.length, cachedCatalog: !q || wantsAll } };
   }
 
   async function products({ query = {} }) {
@@ -250,7 +249,7 @@ function createMobileService(ctx) {
     if (onlyInStock) items = items.filter((item) => Number(item.availableQty || 0) > 0);
     items = items.slice(0, q ? 80 : requestedLimit);
 
-    return { body: { ok: true, source: 'mongo-route', items, total: items.length, cachedCatalog: !q } };
+    return { body: { ok: true, source: 'mobile-users-route', items, total: items.length, cachedCatalog: !q } };
   }
 
   async function stock({ query = {} }) {
@@ -269,7 +268,7 @@ function createMobileService(ctx) {
     }
     const rows = await Product.find(filter).sort({ code: 1 }).limit(200).lean();
     const items = rows.map(productMongoToClient).map((product) => buildMobileProduct(data, product)).filter((item) => toNumber(item.availableQty) > 0).slice(0, 100);
-    return { body: { ok: true, source: 'mongo-route', items } };
+    return { body: { ok: true, source: 'mobile-users-route', items } };
   }
 
   async function createSalesOrder({ body = {}, mobileUser }) {
@@ -378,7 +377,7 @@ function createMobileService(ctx) {
 
     writeMobileLog(data, mobileUser, 'mobile_create_sales_order', { refType: 'salesOrder', refId: salesOrder.id, refCode: salesOrder.code, note: `Tạo đơn ${salesOrder.code} từ mobile` });
     await saveOperationalData(data);
-    return { statusCode: 201, body: { ok: true, source: 'mongo-route', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder } };
+    return { statusCode: 201, body: { ok: true, source: 'mobile-users-route', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder } };
   }
 
   async function getSalesOrder({ params = {}, mobileUser }) {
@@ -413,7 +412,7 @@ function createMobileService(ctx) {
     const salesOrder = updateSalesOrderWithRepost(data, order, patchBody);
     writeMobileLog(data, mobileUser, 'mobile_edit_sales_order', { refType: 'salesOrder', refId: salesOrder.id, refCode: salesOrder.code, note: `Sửa đơn ${salesOrder.code} từ mobile khi chưa gộp đơn tổng` });
     await saveOperationalData(data);
-    return { body: { ok: true, source: 'mongo-route', message: `Đã sửa đơn ${salesOrder.code}`, salesOrder } };
+    return { body: { ok: true, source: 'mobile-users-route', message: `Đã sửa đơn ${salesOrder.code}`, salesOrder } };
   }
 
   async function listSalesOrders({ query = {}, mobileUser }) {
@@ -449,7 +448,7 @@ function createMobileService(ctx) {
         note: order.note || '',
         createdAt: order.createdAt
       }));
-    return { body: { ok: true, source: 'mongo-route', items } };
+    return { body: { ok: true, source: 'mobile-users-route', items } };
   }
 
   return { login, refresh, me, roles, customers, products, stock, createSalesOrder, getSalesOrder, updateSalesOrder, listSalesOrders };

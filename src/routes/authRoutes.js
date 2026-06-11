@@ -22,11 +22,11 @@ const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || process
 
 function safeUser(user = {}) {
   const role = String(user.role || '').trim() || 'sales';
-  const code = String(user.staffCode || user.code || user.username || user._id || '').trim();
+  const code = String(user.staffCode || user.code || '').trim();
   return {
     id: String(user._id || user.id || code || '').trim(),
     code,
-    staffCode: String(user.staffCode || user.code || code || '').trim(),
+    staffCode: code,
     username: String(user.username || code || '').trim(),
     name: String(user.name || user.fullName || user.username || code || '').trim(),
     fullName: String(user.fullName || user.name || user.username || code || '').trim(),
@@ -64,6 +64,9 @@ router.post('/login', async (req, res) => {
     }
 
     const clientUser = safeUser(user);
+    if (['sales', 'delivery'].includes(clientUser.role) && !clientUser.staffCode) {
+      return res.status(400).json({ ok: false, success: false, message: 'Tài khoản chưa được gán mã nhân viên nghiệp vụ' });
+    }
     return res.json({
       ok: true,
       success: true,
@@ -84,6 +87,9 @@ router.post('/refresh', async (req, res) => {
     if (!refreshToken) return res.status(401).json({ ok: false, success: false, message: 'Refresh token không hợp lệ' });
     const user = jwt.verify(refreshToken, jwtSecret());
     const clientUser = safeUser(user);
+    if (['sales', 'delivery'].includes(clientUser.role) && !clientUser.staffCode) {
+      return res.status(400).json({ ok: false, success: false, message: 'Tài khoản chưa được gán mã nhân viên nghiệp vụ' });
+    }
     return res.json({
       ok: true,
       success: true,
