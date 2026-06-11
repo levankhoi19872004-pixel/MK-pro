@@ -24,7 +24,7 @@ function functionBlock(source, name) {
 test('sales order inventory posting is separated from AR posting', () => {
   const source = read('src/services/orderService.js');
   const applyBlock = functionBlock(source, 'applySalesOrderPosting');
-  assert.match(applyBlock, /inventoryService\.postStockMovement\s*\(/, 'sales order posting must post stock');
+  assert.match(applyBlock, /InventoryPostingService\.postSaleOut\s*\(order, options\)/, 'sales order posting must post stock through InventoryPostingService');
   assert.doesNotMatch(applyBlock, /postingEngine\.postSalesOrderAR\s*\(/, 'sales order stock posting must not post AR');
 });
 

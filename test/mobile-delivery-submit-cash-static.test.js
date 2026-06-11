@@ -11,9 +11,19 @@ function read(file) {
 
 test('mobile delivery service defines submitCash before exporting it', () => {
   const src = read('src/services/mobile/delivery.service.js');
+  const submitCashIndex = src.indexOf('async function submitCash(');
+  const exportIndex = src.lastIndexOf('  return {');
 
-  assert.match(src, /MOBILE_DELIVERY_SUBMIT_CASH_STUB_START/);
-  assert.match(src, /async function submitCash\(/);
-  assert.match(src, /statusCode:\s*501/);
+  assert.ok(submitCashIndex > -1, 'submitCash must be defined');
+  assert.ok(exportIndex > submitCashIndex, 'submitCash must be defined before export return block');
   assert.match(src, /submitCash/);
+
+  const submitCashBlock = src.slice(submitCashIndex, exportIndex);
+
+  // Step 6: submitCash is no longer a 501 stub; it must go through DeliverySettlementService.
+  assert.match(src, /const DeliverySettlementService = require\('\.\.\/\.\.\/domain\/settlement\/DeliverySettlementService'\);/);
+  assert.match(submitCashBlock, /DeliverySettlementService\.submitCashToFund\(/);
+  assert.match(submitCashBlock, /confirmedBy:\s*mobileUser\?\./);
+  assert.doesNotMatch(submitCashBlock, /statusCode:\s*501/);
+  assert.doesNotMatch(submitCashBlock, /chưa được triển khai ở route modular/);
 });

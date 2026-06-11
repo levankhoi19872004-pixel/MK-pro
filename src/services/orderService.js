@@ -16,6 +16,7 @@ const queryGuard = require('../utils/queryGuard.util');
 const tx = require('../utils/transaction.util');
 const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
 const inventoryService = require('./inventoryService');
+const InventoryPostingService = require('../domain/posting/InventoryPostingService');
 const postingEngine = require('../engines/posting.engine');
 const returnOrderService = require('./returnOrderService');
 const promotionService = require('./promotionService');
@@ -311,15 +312,7 @@ function isSalesOrderArPosted(order = {}) {
 async function applySalesOrderPosting(order, options = {}) {
   // Inventory được giữ/trừ ngay khi tạo đơn bán hoặc import DMS.
   // AR/Fund không post ở đây; công nợ chỉ phát sinh ở luồng xác nhận kế toán.
-  await inventoryService.postStockMovement(order, {
-    type: 'SALE',
-    direction: 'OUT',
-    refType: 'SALES_ORDER',
-    refId: order.id || order._id || order.code,
-    refCode: order.code || order.id,
-    date: order.date || order.orderDate || order.createdAt,
-    note: 'Xuất kho theo đơn bán'
-  }, options);
+  await InventoryPostingService.postSaleOut(order, options);
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {

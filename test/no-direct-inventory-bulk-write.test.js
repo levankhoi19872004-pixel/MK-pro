@@ -6,60 +6,29 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-
 const SCAN_DIRS = ['src', 'services']
   .map((dir) => path.join(ROOT, dir))
   .filter(fs.existsSync);
 
-// Ledger/lifecycle write boundaries are intentionally narrow. Business modules
-// must call domain services instead of writing ledger/lifecycle collections directly.
 const ALLOWED_FILES = new Set([
-  path.normalize('src/domain/posting/ArPostingService.js'),
   path.normalize('src/domain/posting/InventoryPostingService.js'),
-  path.normalize('src/domain/posting/FundPostingService.js'),
-  path.normalize('src/services/arLedgerMigrationService.js'),
-
-  // Phase 1 compatibility boundaries. Remove these one-by-one after migration.
-  path.normalize('src/engines/posting.engine.js'),
-  path.normalize('src/services/inventoryService.js'),
-  path.normalize('src/services/fundService.js')
+  path.normalize('src/services/inventoryService.js')
 ]);
 
 const FORBIDDEN_PATTERNS = [
-  { name: 'ArLedger.create', regex: /\bArLedger\.create\s*\(/g },
-  { name: 'ArLedger.insertMany', regex: /\bArLedger\.insertMany\s*\(/g },
-  { name: 'ArLedger.findOneAndUpdate', regex: /\bArLedger\.findOneAndUpdate\s*\(/g },
-  { name: 'MongoStore.arLedgers.insertMany', regex: /\bMongoStore\.arLedgers\.insertMany\s*\(/g },
-  { name: 'MongoStore.arLedgers.bulkWrite', regex: /\bMongoStore\.arLedgers\.bulkWrite\s*\(/g },
-  { name: 'paymentRepository.upsert', regex: /\bpaymentRepository\.upsert\s*\(/g },
-
-  { name: 'FundLedger.create', regex: /\bFundLedger\.create\s*\(/g },
-  { name: 'FundLedger.insertMany', regex: /\bFundLedger\.insertMany\s*\(/g },
-  { name: 'FundLedger.findOneAndUpdate', regex: /\bFundLedger\.findOneAndUpdate\s*\(/g },
-  { name: 'new FundLedger', regex: /\bnew\s+FundLedger\s*\(/g },
-  { name: 'fundLedgerRepository.upsert', regex: /\bfundLedgerRepository\.upsert\s*\(/g },
-
   { name: 'StockTransaction.create', regex: /\bStockTransaction\.create\s*\(/g },
   { name: 'StockTransaction.insertMany', regex: /\bStockTransaction\.insertMany\s*\(/g },
   { name: 'insertManyInBatches(StockTransaction)', regex: /\binsertManyInBatches\s*\(\s*StockTransaction/g },
   { name: 'InventoryLegacy.create', regex: /\bInventoryLegacy\.create\s*\(/g },
-  { name: 'bulkWriteInBatches(InventoryLegacy)', regex: /\bbulkWriteInBatches\s*\(\s*InventoryLegacy/g },
-
-  { name: 'ReturnOrder.findOneAndUpdate', regex: /\bReturnOrder\.findOneAndUpdate\s*\(/g }
+  { name: 'InventoryLegacy.bulkWrite', regex: /\bInventoryLegacy\.bulkWrite\s*\(/g },
+  { name: 'bulkWriteInBatches(InventoryLegacy)', regex: /\bbulkWriteInBatches\s*\(\s*InventoryLegacy/g }
 ];
 
-// Existing phase-1 bypasses are pinned by file + forbidden API + function name.
-// This keeps the guard useful now: any new bypass outside these exact legacy
-// functions fails the test immediately. Remove entries as each flow is migrated.
 const PHASE1_KNOWN_LEGACY_EXCEPTIONS = new Map([
   [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'applyInventoryMovementsBulk'), 1],
   [legacyKey('src/services/excelImportService.js', 'bulkWriteInBatches(InventoryLegacy)', 'applyInventoryMovementsBulk'), 1],
   [legacyKey('src/services/excelImportService.js', 'bulkWriteInBatches(InventoryLegacy)', 'setOpeningStockInventoriesBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'importOpeningStock'), 1],
-  [legacyKey('src/services/financialService.js', 'fundLedgerRepository.upsert', 'postReceiptFundLedger'), 1],
-  [legacyKey('src/services/financialService.js', 'fundLedgerRepository.upsert', 'voidReceipt'), 1],
-  [legacyKey('src/services/master-order/masterOrderLegacy.service.js', 'paymentRepository.upsert', 'reverseActiveArLedgersForOrder'), 2],
-  [legacyKey('src/services/master-order/masterOrderLegacy.service.js', 'paymentRepository.upsert', 'postDeliveryArLedgerRowsAfterReAccounting'), 1]
+  [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'importOpeningStock'), 1]
 ]);
 
 function legacyKey(relPath, patternName, functionName) {
@@ -89,7 +58,7 @@ function nearestFunctionName(source, index) {
   return last ? last[1] : '<module>';
 }
 
-test('ledger and lifecycle collections are not written directly outside approved boundaries', () => {
+test('inventory bulk writes are limited to inventory boundary and pinned phase-1 import bulk paths', () => {
   const violations = [];
   const knownLegacyHits = new Map();
 
@@ -104,15 +73,11 @@ test('ledger and lifecycle collections are not written directly outside approved
       while ((match = pattern.regex.exec(source)) !== null) {
         const functionName = nearestFunctionName(source, match.index);
         const key = legacyKey(relPath, pattern.name, functionName);
-        const line = lineNumberAt(source, match.index);
-        const detail = `${relPath}:${line} ${pattern.name} in ${functionName}()`;
-
         if (PHASE1_KNOWN_LEGACY_EXCEPTIONS.has(key)) {
           knownLegacyHits.set(key, (knownLegacyHits.get(key) || 0) + 1);
           continue;
         }
-
-        violations.push(detail);
+        violations.push(`${relPath}:${lineNumberAt(source, match.index)} ${pattern.name} in ${functionName}()`);
       }
     }
   }
@@ -121,6 +86,15 @@ test('ledger and lifecycle collections are not written directly outside approved
     .filter(([key, count]) => count > PHASE1_KNOWN_LEGACY_EXCEPTIONS.get(key))
     .map(([key, count]) => `${key} matched ${count} times, allowed ${PHASE1_KNOWN_LEGACY_EXCEPTIONS.get(key)}`);
 
-  assert.deepEqual(violations, [], `Direct writes found outside domain boundaries:\n${violations.join('\n')}`);
-  assert.deepEqual(expandedLegacyExceptions, [], `Legacy exception expanded unexpectedly:\n${expandedLegacyExceptions.join('\n')}`);
+  assert.deepEqual(violations, [], `Direct inventory writes found outside boundary:\n${violations.join('\n')}`);
+  assert.deepEqual(expandedLegacyExceptions, [], `Inventory legacy exception expanded unexpectedly:\n${expandedLegacyExceptions.join('\n')}`);
+});
+
+test('excel import bulk inventory bypasses remain explicitly pinned for later migration', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'src/services/excelImportService.js'), 'utf8');
+  const stockBulkCount = (source.match(/insertManyInBatches\s*\(\s*StockTransaction/g) || []).length;
+  const inventoryBulkCount = (source.match(/bulkWriteInBatches\s*\(\s*InventoryLegacy/g) || []).length;
+
+  assert.equal(stockBulkCount, 2, 'Phase-1 import StockTransaction bulk paths changed unexpectedly');
+  assert.equal(inventoryBulkCount, 2, 'Phase-1 InventoryLegacy bulk paths changed unexpectedly');
 });

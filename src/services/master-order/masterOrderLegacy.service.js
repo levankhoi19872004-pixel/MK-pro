@@ -15,6 +15,7 @@ const returnOrderService = require('../returnOrderService');
 const reportService = require('../reportService');
 const auditService = require('../auditService');
 const postingEngine = require('../../engines/posting.engine');
+const ArPostingService = require('../../domain/posting/ArPostingService');
 const paymentRepository = require('../../repositories/paymentRepository');
 const MongoStore = require('../../models');
 const { makeId, normalizeText, toNumber } = require('../../utils/common.util');
@@ -1505,7 +1506,7 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
 
   const ledgerRows = [];
   const reversalRows = [];
-  const reverseUpdateOps = [];
+  const rowsToMarkReversed = [];
   const postedOrderKeys = new Set();
   const skippedPostedKeys = new Set();
 
@@ -1557,16 +1558,16 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
           createdAt: dateUtil.nowIso(),
           updatedAt: dateUtil.nowIso()
         });
-        const identity = [];
-        if (oldRow.id) identity.push({ id: oldRow.id });
-        if (oldRow.code) identity.push({ code: oldRow.code });
-        if (oldRow._id) identity.push({ _id: oldRow._id });
-        if (identity.length) {
-          reverseUpdateOps.push({
-            updateOne: {
-              filter: { $or: identity },
-              update: { $set: { reversed: true, status: 'reversed', reversedAt: dateUtil.nowIso(), reversedBy: confirmedBy, accountingBatchId: reverseBatchId, reAccountingBatchId: reverseBatchId, updatedAt: dateUtil.nowIso() } }
-            }
+        if (oldRow.id || oldRow.code) {
+          rowsToMarkReversed.push({
+            ...oldRow,
+            reversed: true,
+            status: 'reversed',
+            reversedAt: dateUtil.nowIso(),
+            reversedBy: confirmedBy,
+            accountingBatchId: reverseBatchId,
+            reAccountingBatchId: reverseBatchId,
+            updatedAt: dateUtil.nowIso()
           });
         }
       }
@@ -1589,15 +1590,15 @@ async function batchPostDeliveryArLedgers(postableChildren = [], confirmedBy = '
   }
 
   if (reversalRows.length) {
-    await MongoStore.arLedgers.insertMany(reversalRows, { ordered: false, session: options.session });
+    await ArPostingService.postBatch(reversalRows, { session: options.session });
   }
 
-  if (reverseUpdateOps.length) {
-    await MongoStore.arLedgers.bulkWrite(reverseUpdateOps, { ordered: false, session: options.session });
+  if (rowsToMarkReversed.length) {
+    await ArPostingService.markReversed(rowsToMarkReversed, { name: confirmedBy }, { session: options.session });
   }
 
   if (ledgerRows.length) {
-    await MongoStore.arLedgers.insertMany(ledgerRows, { ordered: false, session: options.session });
+    await ArPostingService.postBatch(ledgerRows, { session: options.session });
   }
 
   return { ledgerRows, reversalRows, postedOrderKeys, skippedPostedKeys };

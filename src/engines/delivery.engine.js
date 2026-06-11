@@ -252,6 +252,10 @@ function resolveReturnItemWithOrderLine(item = {}, orderLine = {}) {
 }
 
 function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] } }; }
+function getReturnLifecycleService() {
+  // Lazy require để tránh vòng phụ thuộc với returnOrderService.
+  return require('../domain/lifecycle/ReturnLifecycleService');
+}
 
 function buildOrderLookup(value) {
   const key = text(value);
@@ -748,11 +752,13 @@ class DeliveryEngine {
       clearedAt: items.length ? '' : new Date().toISOString()
     };
 
-    const returnOrder = await this.ReturnOrder.findOneAndUpdate(
-      { $or: [{ id: stableId }, { code: stableId }, { salesOrderId: orderIdOf(order), salesOrderCode: orderCodeOf(order) }, { orderId: orderIdOf(order), orderCode: orderCodeOf(order) }] },
-      { $set: patch, $setOnInsert: { createdAt: new Date().toISOString() } },
-      { upsert: true, new: true, lean: true }
-    );
+    const result = await getReturnLifecycleService().createPendingReturn(patch);
+    if (result && result.error) {
+      const err = new Error(result.error);
+      err.status = result.status || 400;
+      throw err;
+    }
+    const returnOrder = (result && result.returnOrder) || result;
 
     // V46 rule: returnOrders is the single source of truth for return goods.
     // Do not mirror returnAmount/returnItems into salesOrders. All delivery views must reload/overlay from returnOrders.

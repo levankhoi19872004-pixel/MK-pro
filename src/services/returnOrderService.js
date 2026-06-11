@@ -8,6 +8,7 @@ const customerRepository = require('../repositories/customerRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const inventoryService = require('./inventoryService');
+const InventoryPostingService = require('../domain/posting/InventoryPostingService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
 const auditService = require('./auditService');
@@ -754,15 +755,7 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
 
   await withMongoTransaction(async (session) => {
     await returnOrderRepository.upsert(received, { session });
-    await inventoryService.postStockMovement(received, {
-      type: 'RETURN',
-      direction: 'IN',
-      refType: 'RETURN_ORDER',
-      refId: received.id || received.code,
-      refCode: received.code || received.id,
-      date: received.date,
-      note: 'Kho xác nhận nhận hàng trả - nhập lại tồn'
-    }, { session });
+    await InventoryPostingService.postReturnIn(received, { session });
     const posted = await postReturnOrderArIfNeeded(received, { session });
     received = posted.returnOrder || received;
   });

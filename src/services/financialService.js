@@ -14,6 +14,7 @@ const { withMongoTransaction } = require('../utils/transaction.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const arLedgerUtil = require('../utils/arLedger.util');
 const postingEngine = require('../engines/posting.engine');
+const ArPostingService = require('../domain/posting/ArPostingService');
 const fundLedgerRepository = require('../repositories/fundLedgerRepository');
 
 
@@ -610,34 +611,20 @@ async function createDebtCollection(body = {}) {
       createdAt: now,
       updatedAt: now
     };
-    const payments = (returnAllocations.length ? returnAllocations : [{ orderId: returnOrder.salesOrderId, orderCode: returnOrder.salesOrderCode, amount: returnAmount }])
-      .map((allocation, index) => ({
-        id: `AR-RETURN-${returnOrder.id}-${allocation.orderId || allocation.orderCode || index + 1}`,
-        code: `AR-RETURN-${returnOrder.code}-${index + 1}`,
-        date,
-        type: 'return_manual',
-        account: 'AR',
-        refType: 'RETURN_ORDER',
-        refId: returnOrder.id,
-        refCode: returnOrder.code,
-        orderId: allocation.orderId || '',
-        orderCode: allocation.orderCode || '',
-        customerId: returnOrder.customerId,
-        customerCode: returnOrder.customerCode,
-        customerName: returnOrder.customerName,
-        debit: 0,
-        credit: toNumber(allocation.amount),
-        amount: toNumber(allocation.amount),
-        note: returnOrder.note,
-        status: 'posted',
-        source: 'debt_collection_manual_return',
-        createdAt: now,
-        updatedAt: now
-      }));
+    const arReturnAllocations = returnAllocations.length
+      ? returnAllocations
+      : [{ orderId: returnOrder.salesOrderId, orderCode: returnOrder.salesOrderCode, amount: returnAmount }];
     await withMongoTransaction(async (session) => {
       await returnOrderRepository.upsert(returnOrder, { session });
-      await Promise.all(payments.map((payment) => paymentRepository.upsert(payment, { session })));
-      await syncAllocatedOrderDebtCaches(returnAllocations.length ? returnAllocations : [{ orderId: returnOrder.salesOrderId, orderCode: returnOrder.salesOrderCode, amount: returnAmount }], { session });
+      await ArPostingService.postReturnAllocations({
+        ...returnOrder,
+        amount: returnAmount,
+        debtReduction: returnAmount,
+        totalReturnAmount: returnAmount,
+        accountingConfirmed: true,
+        accountingStatus: 'confirmed'
+      }, arReturnAllocations, { session });
+      await syncAllocatedOrderDebtCaches(arReturnAllocations, { session });
     });
     docs.returnOrder = returnOrder;
   }

@@ -1,6 +1,7 @@
 'use strict';
 
 const deliveryFinance = require('../../utils/deliveryFinance.util');
+const DeliverySettlementService = require('../../domain/settlement/DeliverySettlementService');
 
 const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
@@ -523,18 +524,33 @@ function createMobileDeliveryService(ctx) {
     return confirmDelivery({ ...args, body });
   }
 
-  // MOBILE_DELIVERY_SUBMIT_CASH_STUB_START
-  async function submitCash() {
+  async function submitCash({ body = {}, mobileUser } = {}) {
+    const deliveryStaffCode = mobileUser?.staffCode || mobileUser?.code || body.deliveryStaffCode || body.staffCode;
+    const deliveryStaffName = mobileUser?.fullName || mobileUser?.name || body.deliveryStaffName || body.staffName;
+    const result = await DeliverySettlementService.submitCashToFund(
+      body.id || body.code || body.submissionId || body.submissionCode,
+      {
+        ...body,
+        deliveryStaffCode,
+        deliveryStaffName,
+        staffCode: deliveryStaffCode,
+        staffName: deliveryStaffName,
+        deliveryDate: body.deliveryDate || body.date || dateUtil.todayVN(),
+        submittedCashAmount: body.submittedCashAmount ?? body.amount ?? body.cashAmount,
+        confirmedBy: mobileUser?.code || mobileUser?.name || body.confirmedBy
+      }
+    );
+
     return {
-      statusCode: 501,
+      statusCode: result.error ? (result.status || 400) : 200,
       body: {
-        ok: false,
-        success: false,
-        message: 'Chức năng nộp quỹ mobile chưa được triển khai ở route modular'
+        ok: !result.error,
+        success: !result.error,
+        message: result.error || result.message || 'Đã nộp quỹ',
+        ...result
       }
     };
   }
-  // MOBILE_DELIVERY_SUBMIT_CASH_STUB_END
 
   return {
     listDeliveryOrders,
