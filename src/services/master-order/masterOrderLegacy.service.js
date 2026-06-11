@@ -1232,6 +1232,37 @@ async function repairMissingArReturnIfNeeded(order = {}, accountingReturnOrders 
 }
 // ===== SCOPED FIX: REPAIR_MISSING_AR_RETURN_FOR_CONFIRMED_ORDER_END =====
 
+
+// ===== SCOPED FIX: AR_RETURN_REACCOUNTING_MARK_CONFIRMED_START =====
+async function markAccountingReturnOrdersConfirmed(returnRows = [], options = {}) {
+  const rows = Array.isArray(returnRows) ? returnRows : [];
+  const now = dateUtil.nowIso();
+  const confirmedRows = [];
+
+  for (const row of rows) {
+    const keys = [row.id, row.code, row.returnOrderId, row.returnOrderCode]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    if (!keys.length) continue;
+
+    const current = await returnOrderRepository.findByIdOrCode(keys[0]);
+    const confirmed = {
+      ...(current || {}),
+      ...row,
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      accountingConfirmedAt: row.accountingConfirmedAt || now,
+      updatedAt: now
+    };
+
+    await returnOrderRepository.upsert(confirmed, options);
+    confirmedRows.push(confirmed.code || confirmed.id || keys[0]);
+  }
+
+  return confirmedRows;
+}
+// ===== SCOPED FIX: AR_RETURN_REACCOUNTING_MARK_CONFIRMED_END =====
+
 async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, options = {}) {
   const key = orderKey(order);
   const code = orderDisplayCode(order);
@@ -1295,14 +1326,17 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     .map((row) => ({ ...row, amount: returnOrderTotalAmount(row), debtReduction: returnOrderTotalAmount(row) }))
     .filter((row) => toNumber(row.amount ?? row.debtReduction) > 0);
 
-  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-9 calling postReturnOrderAR', {
+  debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-9B hydratedReturnRows before post', {
     orderCode: currentOrderCode,
-    returnRows: hydratedReturnRows.map((ro) => ({
+    count: hydratedReturnRows.length,
+    rows: hydratedReturnRows.map((ro) => ({
+      id: ro.id,
       code: ro.code,
+      orderId: ro.orderId || ro.salesOrderId,
+      orderCode: ro.orderCode || ro.salesOrderCode,
       amount: ro.amount,
       debtReduction: ro.debtReduction,
-      totalAmount: ro.totalAmount,
-      calculatedAmount: returnOrderTotalAmount(ro)
+      accountingStatus: ro.accountingStatus
     }))
   });
 
@@ -1322,6 +1356,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
         orderCode: returnRow.orderCode || returnRow.salesOrderCode || currentOrderCode,
         accountingConfirmed: true,
         accountingStatus: 'confirmed',
+        accountingBatchId: options.accountingBatchId || returnRow.accountingBatchId || order.accountingBatchId || '',
         masterOrderId: returnRow.masterOrderId || order.masterOrderId || order.deliveryMasterId || '',
         masterOrderCode: returnRow.masterOrderCode || order.masterOrderCode || order.deliveryMasterCode || '',
         deliveryStaffCode: returnRow.deliveryStaffCode || order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
@@ -1357,6 +1392,7 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
         orderCode: currentOrderCode,
         accountingConfirmed: true,
         accountingStatus: 'confirmed',
+        accountingBatchId: options.accountingBatchId || order.accountingBatchId || '',
         masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
         masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
         deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
@@ -1370,6 +1406,16 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
       }, { ...options, skipIfExists: true });
       if (entry) posted.push(entry);
     }
+  }
+
+  const arReturnPosted = posted.some((row) => String(row?.type || '').toLowerCase() === 'ar_return');
+  if (arReturnPosted && hydratedReturnRows.length) {
+    const confirmedReturnCodes = await markAccountingReturnOrdersConfirmed(hydratedReturnRows, options);
+    debugLog('DEBUG_AR_RETURN', '[AR_RETURN_DEBUG] STEP-12 mark returnOrders confirmed', {
+      orderCode: currentOrderCode,
+      arReturnPosted,
+      returnCodes: confirmedReturnCodes
+    });
   }
   // ===== SCOPED FIX: POST_AR_RETURN_FROM_RETURNORDERS_ROWS_END =====
 
@@ -3205,6 +3251,11 @@ async function confirmDeliveryAccounting(body = {}) {
         reAccountingAt: requiresReAccounting ? now : (accountingSource.reAccountingAt || ''),
         reAccountingBy: requiresReAccounting ? confirmedBy : (accountingSource.reAccountingBy || ''),
         reAccountingNote: requiresReAccounting ? 'Reverse AR cũ và post lại AR mới sau điều chỉnh admin' : (accountingSource.reAccountingNote || ''),
+        // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_KEEP_RETURN_ROWS_START =====
+        // Giữ danh sách returnOrders đã hydrate trên object updated để nhánh xác nhận lại
+        // có đủ dữ liệu post AR-RETURN sau khi đảo/ghi lại AR-SALE.
+        accountingReturnOrders: accountingSource.accountingReturnOrders || [],
+        // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_KEEP_RETURN_ROWS_END =====
         updatedAt: now
       };
 
@@ -3214,7 +3265,11 @@ async function confirmDeliveryAccounting(body = {}) {
         // và ghi lại các bút toán thu tiền/chuyển khoản/hàng trả/trả thưởng.
         const reverseResult = await reverseActiveArLedgersForOrder(accountingSource, { name: confirmedBy }, { session });
         await postDeliveryArLedgerRowsAfterReAccounting(updated, reverseResult.accountingBatchId, { session });
-        await postDeliveryCollectionsAfterAccountingConfirmed(updated, { session });
+        await postDeliveryCollectionsAfterAccountingConfirmed(updated, {
+          session,
+          accountingBatchId: reverseResult.accountingBatchId,
+          skipIfExists: true
+        });
         await postingEngine.postBonusAllowanceAR(updated, { session });
         await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: đảo AR cũ, ghi AR-SALE mới và ghi lại thu tiền/hàng trả/trả thưởng` });
         // ===== END SCOPED FIX =====
