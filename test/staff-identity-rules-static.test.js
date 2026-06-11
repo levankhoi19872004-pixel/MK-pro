@@ -45,3 +45,11 @@ test('returnOrderService.js không lấy salesStaff từ order.staffCode/order.s
   assert.doesNotMatch(src, /salesStaffCode:\s*[^\n]*order\.staffCode/);
   assert.doesNotMatch(src, /salesStaffName:\s*[^\n]*order\.staffName/);
 });
+
+test('reportService.js staff seed filter không dùng staffCode/staffName khi lọc NVBH/NVGH', () => {
+  const src = read('src/services/reportService.js');
+  const block = src.match(/function buildLedgerStaffSeedCondition\(query = \{\}\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(block, 'buildLedgerStaffSeedCondition block must exist');
+  assert.doesNotMatch(block, /\{\s*staffCode\s*:/);
+  assert.doesNotMatch(block, /\{\s*staffName\s*:/);
+});

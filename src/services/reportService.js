@@ -498,15 +498,14 @@ function buildLedgerStaffSeedCondition(query = {}) {
     const rx = new RegExp(escapeRegExp(query.delivery), 'i');
     parts.push({
       $or: [
+        // STAFF DATA RULE: NVGH filter only reads delivery identity fields.
+        // Do not use staffCode/staffName here; those fields are audit/legacy-display only.
         { deliveryStaffCode: rx },
         { deliveryStaffName: rx },
         { deliveryCode: rx },
         { deliveryName: rx },
-        { deliveryStaff: rx },
         { nvghCode: rx },
-        { nvghName: rx },
-        { staffCode: rx },
-        { staffName: rx }
+        { nvghName: rx }
       ]
     });
   }
@@ -514,14 +513,14 @@ function buildLedgerStaffSeedCondition(query = {}) {
     const rx = new RegExp(escapeRegExp(query.salesman), 'i');
     parts.push({
       $or: [
+        // STAFF DATA RULE: NVBH filter only reads sales identity fields.
+        // Do not use staffCode/staffName here; those fields are audit/legacy-display only.
         { salesmanCode: rx },
         { salesmanName: rx },
         { salesStaffCode: rx },
         { salesStaffName: rx },
         { nvbhCode: rx },
-        { nvbhName: rx },
-        { staffCode: rx },
-        { staffName: rx }
+        { nvbhName: rx }
       ]
     });
   }
@@ -688,7 +687,7 @@ async function debtReport(query = {}) {
       customerId: query.customerId
     }, 500);
     // Chỉ trả rỗng sớm khi người dùng đang tìm khách hàng thật sự.
-    // Không trả rỗng sớm với lọc NVBH/NVGH, vì AR Ledger có thể có staffCode/deliveryStaffCode
+    // Không trả rỗng sớm với lọc NVBH/NVGH, vì AR Ledger có thể có các field NVBH/NVGH
     // trong khi Customer chưa lưu metadata NVBH/NVGH tương ứng.
     if (!seedCustomers.length && hasCustomerTextSearch && !hasStaffFilter) {
       const emptySummary = {
