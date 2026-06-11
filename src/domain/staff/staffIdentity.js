@@ -32,6 +32,23 @@ const DELIVERY_STAFF_NAME_FIELDS = Object.freeze([
   'name'
 ]);
 
+// USER_ACCOUNT_STAFF_CODE_FIELDS_START
+// Màn Tài khoản hiện lưu mã nhân viên ở users.code/users.staffCode.
+// Đây là mã nghiệp vụ hợp lệ để đối chiếu tài khoản khi import,
+// khác với username/id/_id là định danh đăng nhập/kỹ thuật không được dùng để match NVBH/NVGH.
+const USER_ACCOUNT_SALES_STAFF_CODE_FIELDS = Object.freeze([
+  ...SALES_STAFF_CODE_FIELDS,
+  'code',
+  'staffCode'
+]);
+
+const USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS = Object.freeze([
+  ...DELIVERY_STAFF_CODE_FIELDS,
+  'code',
+  'staffCode'
+]);
+// USER_ACCOUNT_STAFF_CODE_FIELDS_END
+
 const FORBIDDEN_STAFF_IDENTITY_FIELDS = Object.freeze([
   'staffCode',
   'staffName',
@@ -74,6 +91,14 @@ function pickDeliveryStaffName(source = {}) {
   return pickFirst(source, DELIVERY_STAFF_NAME_FIELDS);
 }
 
+function pickUserAccountSalesStaffCode(source = {}) {
+  return pickFirst(source, USER_ACCOUNT_SALES_STAFF_CODE_FIELDS);
+}
+
+function pickUserAccountDeliveryStaffCode(source = {}) {
+  return pickFirst(source, USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS);
+}
+
 function buildSalesStaffSnapshot(source = {}) {
   const code = pickSalesStaffCode(source);
   const name = pickSalesStaffName(source);
@@ -103,11 +128,15 @@ module.exports = {
   SALES_STAFF_NAME_FIELDS,
   DELIVERY_STAFF_CODE_FIELDS,
   DELIVERY_STAFF_NAME_FIELDS,
+  USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS,
   FORBIDDEN_STAFF_IDENTITY_FIELDS,
   pickSalesStaffCode,
   pickSalesStaffName,
   pickDeliveryStaffCode,
   pickDeliveryStaffName,
+  pickUserAccountSalesStaffCode,
+  pickUserAccountDeliveryStaffCode,
   buildSalesStaffSnapshot,
   buildDeliveryStaffSnapshot
 };

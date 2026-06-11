@@ -35,7 +35,9 @@ const {
   pickSalesStaffCode,
   pickSalesStaffName,
   buildSalesStaffSnapshot,
-  SALES_STAFF_CODE_FIELDS
+  SALES_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
+  pickUserAccountSalesStaffCode
 } = require('../domain/staff/staffIdentity');
 
 function makeReturnDraftItemFromImportItem(item = {}) {
@@ -1686,10 +1688,25 @@ function getUserStaffName(user = {}) {
 
 // DMS_IMPORT_SALES_STAFF_USERS_ONLY_START
 function getUserStaffCode(user = {}) {
-  // NVBH nghiệp vụ chỉ lấy từ contract mã NVBH thật trong users.
-  return cleanText(pickSalesStaffCode(user));
+  // NVBH nghiệp vụ ưu tiên mã chuyên biệt; với màn Tài khoản hiện tại,
+  // mã nhân viên hợp lệ có thể đang lưu ở users.code/users.staffCode.
+  // Không dùng username/id/_id để match nhân viên.
+  return cleanText(pickSalesStaffCode(user) || pickUserAccountSalesStaffCode(user));
 }
 // DMS_IMPORT_SALES_STAFF_USERS_ONLY_END
+
+function staffCodeLookupClauses(codes = [], fields = USER_ACCOUNT_SALES_STAFF_CODE_FIELDS) {
+  const textValues = Array.from(new Set((codes || []).map(cleanText).filter(Boolean)));
+  const numericValues = Array.from(new Set(textValues.filter((value) => /^\d+$/.test(value)).map(Number)));
+  const regexValues = textValues.map((value) => new RegExp(`^${String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+  const clauses = [];
+  for (const field of fields || []) {
+    if (textValues.length) clauses.push({ [field]: { $in: textValues } });
+    if (numericValues.length) clauses.push({ [field]: { $in: numericValues } });
+    for (const rx of regexValues) clauses.push({ [field]: rx });
+  }
+  return clauses;
+}
 
 function isSalesStaffUser(user = {}) {
   const role = cleanText(user.role).toLowerCase();
@@ -1701,15 +1718,15 @@ async function preloadSalesStaffUsersByCode(rows = []) {
   if (!codes.length) return new Map();
   const users = await User.find({
     isActive: { $ne: false },
-    $or: SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: codes } }))
+    $or: staffCodeLookupClauses(codes)
   })
-    .select('employeeCode salesStaffCode salesStaffName salesmanCode salesmanName maNhanVien fullName name role isActive')
+    .select('code staffCode employeeCode salesStaffCode salesStaffName salesmanCode salesmanName maNhanVien fullName name role isActive')
     .lean()
     .catch(() => []);
 
   const map = new Map();
   for (const user of users || []) {
-    SALES_STAFF_CODE_FIELDS.map((field) => user[field]).forEach((value) => addUserStaffAlias(map, value, user));
+    USER_ACCOUNT_SALES_STAFF_CODE_FIELDS.map((field) => user[field]).forEach((value) => addUserStaffAlias(map, value, user));
   }
   return map;
 }
@@ -1720,18 +1737,20 @@ function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) 
   const excelStaffCode = cleanText(pickSalesStaffCode(row) || getSalesStaffCodeFromRow(row));
   const user = excelStaffCode ? salesStaffUserMap.get(excelStaffCode) : null;
   const snapshot = user ? buildSalesStaffSnapshot(user) : buildSalesStaffSnapshot(row);
+  const userStaffCode = user ? getUserStaffCode(user) : '';
 
   return {
-    staffCode: '',
-    salesStaffCode: snapshot.salesStaffCode || excelStaffCode,
+    // Mã lưu theo Excel để giữ lineage DMS; tên bắt buộc lấy từ users.
+    staffCode: excelStaffCode,
+    salesStaffCode: snapshot.salesStaffCode || userStaffCode || excelStaffCode,
     staffName: '',
     salesStaffName: user ? snapshot.salesStaffName : '',
-    salesmanCode: snapshot.salesmanCode || excelStaffCode,
+    salesmanCode: snapshot.salesmanCode || userStaffCode || excelStaffCode,
     salesmanName: user ? snapshot.salesmanName : '',
     user,
     found: !!user,
     validRole: !!user && isSalesStaffUser(user),
-    hasUserStaffCode: !!snapshot.salesStaffCode
+    hasUserStaffCode: !!userStaffCode
   };
 }
 

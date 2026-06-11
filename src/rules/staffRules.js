@@ -7,10 +7,14 @@ const { makeBusinessError } = require('../utils/businessError.util');
 const {
   SALES_STAFF_CODE_FIELDS,
   DELIVERY_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS,
   pickSalesStaffCode,
   pickSalesStaffName,
   pickDeliveryStaffCode,
-  pickDeliveryStaffName
+  pickDeliveryStaffName,
+  pickUserAccountSalesStaffCode,
+  pickUserAccountDeliveryStaffCode
 } = require('../domain/staff/staffIdentity');
 
 function escapeRegex(value = '') {
@@ -71,8 +75,8 @@ function buildCodeFilter(staffCode) {
   const exactRegexes = textValues.map((value) => new RegExp(`^${escapeRegex(value)}$`, 'i'));
 
   const codeFields = type === 'delivery'
-    ? DELIVERY_STAFF_CODE_FIELDS
-    : SALES_STAFF_CODE_FIELDS;
+    ? USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS
+    : USER_ACCOUNT_SALES_STAFF_CODE_FIELDS;
 
   const clauses = [];
   for (const field of codeFields) {
@@ -94,7 +98,7 @@ async function resolveStaffByCode(staffCode, type = 'sales') {
     isActive: { $ne: false },
     $or: codeFilter
   })
-    .select('id employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive')
+    .select('id code staffCode employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive')
     .lean()
     .catch(() => []);
 
@@ -129,8 +133,8 @@ async function validateStaffCode(staffCode, type = 'sales', context = {}) {
   }
   // STAFF_REAL_CODE_NO_USERNAME_START
   const realCode = type === 'delivery'
-    ? (pickDeliveryStaffCode(staff) || code)
-    : (pickSalesStaffCode(staff) || code);
+    ? (pickDeliveryStaffCode(staff) || pickUserAccountDeliveryStaffCode(staff) || code)
+    : (pickSalesStaffCode(staff) || pickUserAccountSalesStaffCode(staff) || code);
   const realName = type === 'delivery'
     ? pickDeliveryStaffName(staff)
     : pickSalesStaffName(staff);

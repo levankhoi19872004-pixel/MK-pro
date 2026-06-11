@@ -9,8 +9,10 @@ const User = require('../models/User');
 const { makeBusinessError, makeBusinessWarning } = require('../utils/businessError.util');
 const {
   SALES_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
   pickSalesStaffCode,
-  pickSalesStaffName
+  pickSalesStaffName,
+  pickUserAccountSalesStaffCode
 } = require('../domain/staff/staffIdentity');
 
 function pushUnique(list, value) {
@@ -88,12 +90,29 @@ function addMapAlias(map, value, row) {
   if (key && row) map.set(key, row);
 }
 
+function staffCodeLookupClauses(codes = [], fields = USER_ACCOUNT_SALES_STAFF_CODE_FIELDS) {
+  const textValues = Array.from(new Set((codes || []).map(cleanText).filter(Boolean)));
+  const numericValues = Array.from(new Set(textValues.filter((value) => /^\d+$/.test(value)).map(Number)));
+  const regexValues = textValues.map((value) => new RegExp(`^${String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+  const clauses = [];
+  for (const field of fields || []) {
+    if (textValues.length) clauses.push({ [field]: { $in: textValues } });
+    if (numericValues.length) clauses.push({ [field]: { $in: numericValues } });
+    for (const rx of regexValues) clauses.push({ [field]: rx });
+  }
+  return clauses;
+}
+
+function getUserAccountSalesCode(user = {}, fallback = '') {
+  return cleanText(pickUserAccountSalesStaffCode(user) || fallback);
+}
+
 function getLineProductCode(line = {}) {
   return normalizeCode(line.productCode || line.code || line.sku || line.barcode || line.productId || line.itemCode);
 }
 
 function getUserRealCode(user = {}, fallback = '') {
-  return cleanText(pickSalesStaffCode(user) || fallback);
+  return cleanText(getUserAccountSalesCode(user, fallback));
 }
 
 function getUserRealName(user = {}) {
@@ -131,8 +150,8 @@ async function buildImportValidationContext(orders = []) {
       { barcode: { $in: Array.from(productCodes) } },
       { id: { $in: Array.from(productCodes) } }
     ] }).lean().catch(() => []) : [],
-    staffCodes.size ? User.find({ isActive: { $ne: false }, $or: SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: Array.from(staffCodes) } })) })
-      .select('id employeeCode salesStaffCode salesStaffName salesmanCode salesmanName maNhanVien name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isActive')
+    staffCodes.size ? User.find({ isActive: { $ne: false }, $or: staffCodeLookupClauses(Array.from(staffCodes)) })
+      .select('id code staffCode employeeCode salesStaffCode salesStaffName salesmanCode salesmanName maNhanVien name fullName phone role type position department roleLabel isSalesman isSalesStaff salesStaff isActive')
       .lean()
       .catch(() => []) : []
   ]);
@@ -145,7 +164,7 @@ async function buildImportValidationContext(orders = []) {
 
   const salesStaffMap = new Map();
   users.forEach((u) => {
-    const aliases = SALES_STAFF_CODE_FIELDS.map((field) => u[field]);
+    const aliases = USER_ACCOUNT_SALES_STAFF_CODE_FIELDS.map((field) => u[field]);
     aliases.forEach((v) => addMapAlias(salesStaffMap, v, u));
   });
 
