@@ -428,7 +428,7 @@ async function listUnmergedChildOrders(query = {}) {
     ...guardedQuery,
     source: '',
     orderSource: '',
-    salesStaffCode: salesStaff || guardedQuery.salesStaffCode || guardedQuery.staffCode || '',
+    salesStaffCode: salesStaff || guardedQuery.salesStaffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || '',
     excludeInactive: 1,
     page: 1,
     limit: requestedLimit,
@@ -445,7 +445,7 @@ async function listUnmergedChildOrders(query = {}) {
       if (dateTo && orderDate > dateTo) return false;
       return true;
     })
-    .filter((order) => !salesStaff || [order.staffCode, order.staffName, order.salesStaffCode, order.salesStaffName].some((value) => normalizeText(value).includes(salesStaff)));
+    .filter((order) => !salesStaff || [order.salesStaffCode, order.salesStaffName, order.salesmanCode, order.salesmanName, order.nvbhCode, order.nvbhName].some((value) => normalizeText(value).includes(salesStaff)));
 }
 
 async function listMasterOrders(query = {}) {
@@ -1777,8 +1777,8 @@ async function listDeliveryToday(query = {}) {
         customerName: child.customerName || '',
         customerPhone: child.customerPhone || '',
         customerAddress: child.customerAddress || '',
-        salesmanCode: child.salesStaffCode || child.staffCode || master.salesStaffCode || '',
-        salesmanName: child.salesStaffName || child.staffName || master.salesStaffName || '',
+        salesmanCode: child.salesmanCode || child.salesStaffCode || child.nvbhCode || master.salesmanCode || master.salesStaffCode || master.nvbhCode || '',
+        salesmanName: child.salesmanName || child.salesStaffName || child.nvbhName || master.salesmanName || master.salesStaffName || master.nvbhName || '',
         deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
         deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || '',
         routeName: child.routeName || child.deliveryRoute || master.routeName || '',
@@ -2089,8 +2089,8 @@ async function listDeliveryTodaySummaryFast(query = {}) {
         code: child.code || child.orderCode || child.documentCode || child.salesOrderCode || child.id || '',
         customerCode: child.customerCode || '',
         customerName: child.customerName || '',
-        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.staffCode || master.salesStaffCode || '',
-        salesStaffName: child.salesStaffName || child.salesmanName || child.staffName || master.salesStaffName || '',
+        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.nvbhCode || master.salesStaffCode || master.salesmanCode || master.nvbhCode || '',
+        salesStaffName: child.salesStaffName || child.salesmanName || child.nvbhName || master.salesStaffName || master.salesmanName || master.nvbhName || '',
         deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
         deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || child.deliveryStaffCode || master.deliveryStaffCode || 'Chưa có NVGH',
         routeName: child.routeName || child.deliveryRoute || master.routeName || '',
@@ -2372,8 +2372,8 @@ async function listDeliveryTodaySalesSummary(deliveryStaffCode, query = {}) {
         code: child.code || child.orderCode || child.documentCode || child.salesOrderCode || child.id || '',
         customerCode: child.customerCode || '',
         customerName: child.customerName || '',
-        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.staffCode || master.salesStaffCode || '',
-        salesStaffName: child.salesStaffName || child.salesmanName || child.staffName || master.salesStaffName || '',
+        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.nvbhCode || master.salesStaffCode || master.salesmanCode || master.nvbhCode || '',
+        salesStaffName: child.salesStaffName || child.salesmanName || child.nvbhName || master.salesStaffName || master.salesmanName || master.nvbhName || '',
         deliveryStaffCode: child.deliveryStaffCode || masterDeliveryCode || '',
         deliveryStaffName: child.deliveryStaffName || masterDeliveryName || child.deliveryStaffCode || masterDeliveryCode || 'Chưa có NVGH',
         routeName: child.routeName || child.deliveryRoute || master.routeName || '',
@@ -2741,8 +2741,8 @@ async function listDeliveryTodayOrdersCompact(query = {}) {
         displayOrderCode,
         customerCode: child.customerCode || '',
         customerName: child.customerName || '',
-        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.staffCode || master.salesStaffCode || '',
-        salesStaffName: child.salesStaffName || child.salesmanName || child.staffName || master.salesStaffName || '',
+        salesStaffCode: child.salesStaffCode || child.salesmanCode || child.nvbhCode || master.salesStaffCode || master.salesmanCode || master.nvbhCode || '',
+        salesStaffName: child.salesStaffName || child.salesmanName || child.nvbhName || master.salesStaffName || master.salesmanName || master.nvbhName || '',
         deliveryStaffCode: child.deliveryStaffCode || master.deliveryStaffCode || '',
         deliveryStaffName: child.deliveryStaffName || master.deliveryStaffName || '',
         deliveryDate,

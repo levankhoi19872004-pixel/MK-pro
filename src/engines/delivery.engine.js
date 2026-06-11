@@ -483,12 +483,12 @@ class DeliveryEngine {
 
   orderStaffCode(order = {}, type = '') {
     if (type === 'delivery') return text(order.deliveryStaffCode || order.shipperCode || order.driverCode || order.staffDeliveryCode);
-    return text(order.salesStaffCode || order.salesmanCode || order.staffCode || order.saleCode || order.sellerCode);
+    return text(order.salesStaffCode || order.salesmanCode || order.nvbhCode || order.saleCode || order.sellerCode);
   }
 
   orderStaffName(order = {}, type = '') {
     if (type === 'delivery') return text(order.deliveryStaffName || order.shipperName || order.driverName || order.staffDeliveryName);
-    return text(order.salesStaffName || order.salesmanName || order.staffName || order.saleName || order.sellerName);
+    return text(order.salesStaffName || order.salesmanName || order.nvbhName || order.saleName || order.sellerName);
   }
 
   async buildStaffSystemIndex(orders = []) {
@@ -916,13 +916,13 @@ class DeliveryEngine {
     if (query.masterOrderId) filter.masterOrderId = text(query.masterOrderId);
     if (query.masterOrderCode) filter.masterOrderCode = text(query.masterOrderCode);
     if (query.customerCode) filter.customerCode = text(query.customerCode);
-    if (query.deliveryStaffCode || query.staffCode || query.delivery) {
-      const rx = new RegExp(escapeRegex(query.deliveryStaffCode || query.staffCode || query.delivery), 'i');
-      and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { staffCode: rx }, { staffName: rx }] });
+    if (query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.delivery) {
+      const rx = new RegExp(escapeRegex(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.delivery), 'i');
+      and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }, { nvghCode: rx }, { nvghName: rx }] });
     }
-    if (query.salesStaffCode || query.salesman) {
-      const rx = new RegExp(escapeRegex(query.salesStaffCode || query.salesman), 'i');
-      and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { staffCode: rx }, { staffName: rx }] });
+    if (query.salesStaffCode || query.salesmanCode || query.nvbhCode || query.salesman) {
+      const rx = new RegExp(escapeRegex(query.salesStaffCode || query.salesmanCode || query.nvbhCode || query.salesman), 'i');
+      and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { salesmanCode: rx }, { salesmanName: rx }, { nvbhCode: rx }, { nvbhName: rx }] });
     }
     const keyword = text(query.q || query.keyword || query.search);
     if (keyword) {

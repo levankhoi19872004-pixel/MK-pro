@@ -223,8 +223,7 @@ async function resolveStaff(body = {}) {
 
 // ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_START =====
 // NVBH của đơn bán phải được chốt ở salesOrders ngay khi tạo đơn.
-// Ưu tiên salesStaff* rõ nghĩa; staffCode/staffName chỉ là compatibility fallback
-// khi tạo mới đơn cũ/nguồn cũ chưa gửi field salesStaff*.
+// Ưu tiên salesStaff* rõ nghĩa. staffCode/staffName là audit/legacy display, không dùng làm NVBH runtime.
 function buildSalesStaffSnapshot(body = {}, customer = null, staff = null, current = null) {
   const hasCurrentSalesStaff = Boolean(current && (current.salesStaffCode || current.salesStaffName || current.salesmanCode || current.salesmanName));
   if (hasCurrentSalesStaff) {
@@ -236,8 +235,8 @@ function buildSalesStaffSnapshot(body = {}, customer = null, staff = null, curre
   }
   return {
     salesStaffId: staff?.id || body.salesStaffId || customer?.salesStaffId || customer?.staffId || body.staffId || '',
-    salesStaffCode: staff?.code || body.salesStaffCode || body.salesmanCode || customer?.salesStaffCode || customer?.salesmanCode || body.staffCode || '',
-    salesStaffName: staff?.name || body.salesStaffName || body.salesmanName || customer?.salesStaffName || customer?.salesmanName || body.staffName || ''
+    salesStaffCode: staff?.code || body.salesStaffCode || body.salesmanCode || customer?.salesStaffCode || customer?.salesmanCode || '',
+    salesStaffName: staff?.name || body.salesStaffName || body.salesmanName || customer?.salesStaffName || customer?.salesmanName || ''
   };
 }
 // ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_END =====

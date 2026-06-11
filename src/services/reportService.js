@@ -607,7 +607,7 @@ async function findDebtCustomersForFilter(query = {}, hardLimit = 500) {
   if (query.salesman) {
     const rx = new RegExp(escapeRegExp(query.salesman), 'i');
     filters.push({ $or: [
-      { salesmanCode: rx }, { salesmanName: rx }, { staffCode: rx }, { staffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx }
+      { salesmanCode: rx }, { salesmanName: rx }, { salesStaffCode: rx }, { salesStaffName: rx }, { nvbhCode: rx }, { nvbhName: rx }
     ] });
   }
   if (query.delivery) {
@@ -1092,8 +1092,8 @@ async function salesReport(query = {}) {
     date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
-    salesmanCode: order.salesmanCode || order.staffCode || '',
-    salesmanName: order.salesmanName || order.staffName || '',
+    salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
+    salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || '',
     totalAmount: totalOf(order),
     paidAmount: toNumber(order.paidAmount || order.paymentAmount),
     debtAmount: Math.max(0, totalOf(order) - toNumber(order.paidAmount || order.paymentAmount)),
@@ -1170,8 +1170,8 @@ async function deliveryReport(query = {}) {
     id: order.id || String(order._id || ''),
     code: order.code || order.masterOrderCode || '',
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || order.createdAt),
-    deliveryStaffCode: order.deliveryStaffCode || order.staffCode || '',
-    deliveryStaffName: order.deliveryStaffName || order.staffName || '',
+    deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
+    deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
     orderCount: toNumber(order.orderCount || (Array.isArray(order.childOrders) ? order.childOrders.length : 0)),
     totalAmount: totalOf(order),
     collectedAmount: toNumber(order.collectedAmount || order.paidAmount),

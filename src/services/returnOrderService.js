@@ -865,9 +865,9 @@ function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
     customerCode: order.customerCode || existing?.customerCode || '',
     customerName: order.customerName || existing?.customerName || '',
     salesStaffId: order.salesStaffId || order.staffId || existing?.salesStaffId || '',
-    salesStaffCode: order.salesStaffCode || order.staffCode || existing?.salesStaffCode || '',
-    salesStaffName: order.salesStaffName || order.staffName || existing?.salesStaffName || '',
-    // staff* compatibility trên returnOrders đại diện NVGH, không đại diện NVBH.
+    salesStaffCode: order.salesStaffCode || order.salesmanCode || order.nvbhCode || existing?.salesStaffCode || '',
+    salesStaffName: order.salesStaffName || order.salesmanName || order.nvbhName || existing?.salesStaffName || '',
+    // legacy display only, not business source: staff* trên returnOrders đại diện NVGH, không đại diện NVBH.
     staffCode: order.deliveryStaffCode || existing?.staffCode || '',
     staffName: order.deliveryStaffName || existing?.staffName || '',
     masterOrderId: order.masterOrderId || existing?.masterOrderId || '',
