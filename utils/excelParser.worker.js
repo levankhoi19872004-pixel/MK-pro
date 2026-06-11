@@ -1,6 +1,7 @@
 'use strict';
 
 const readXlsxFile = require('read-excel-file/node');
+const { readSheetNames } = require('read-excel-file/node');
 
 const MAX_ROWS = Number(process.env.IMPORT_MAX_ROWS || 10000);
 const MAX_COLUMNS = Number(process.env.IMPORT_MAX_COLUMNS || 100);
@@ -60,18 +61,22 @@ function rowsToObjects(matrix = []) {
 async function parseExcelBuffer(buffer) {
   if (!buffer || !buffer.length) return [];
 
-  const sheets = await readXlsxFile(buffer, { dateFormat: 'dd/mm/yyyy' });
+  const sheetNames = await readSheetNames(buffer);
 
-  if (!Array.isArray(sheets) || !sheets.length) return [];
-  assertSizeLimit(sheets.length <= MAX_SHEETS);
+  if (!Array.isArray(sheetNames) || !sheetNames.length) return [];
+  assertSizeLimit(sheetNames.length <= MAX_SHEETS);
 
-  // Mẫu Excel chuẩn của hệ thống dùng sheet Import.
-  // Nếu file riêng không có sheet này, fallback sheet đầu tiên.
+  // Ưu tiên sheet Import nếu có, nếu không lấy sheet đầu tiên của file.
   const selectedSheet =
-    sheets.find((item) => cleanKey(item && item.sheet).toLowerCase() === 'import') ||
-    sheets[0];
+    sheetNames.find((name) => cleanKey(name).toLowerCase() === 'import') ||
+    sheetNames[0];
 
-  return rowsToObjects(selectedSheet && selectedSheet.data);
+  const matrix = await readXlsxFile(buffer, {
+    sheet: selectedSheet,
+    dateFormat: 'dd/mm/yyyy'
+  });
+
+  return rowsToObjects(matrix);
 }
 
 process.on('message', async (message = {}) => {

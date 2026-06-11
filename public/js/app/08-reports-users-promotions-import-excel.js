@@ -258,10 +258,17 @@ async function saveCustomImportTemplate(){
     showMessage(importDataMessage,err.message,true);
   }
 }
-function downloadCustomImportTemplate(){
+async function downloadCustomImportTemplate(){
   const template=getSelectedCustomTemplate();
   if(!template){showMessage(importDataMessage,'Bạn chưa chọn mẫu tự tạo',true);return;}
-  window.location.href=`/api/import/custom-template/${encodeURIComponent(template.id)}/download`;
+  try{
+    await downloadImportBlob(
+      `/api/import/custom-template/${encodeURIComponent(template.id)}/download`,
+      `${template.name || 'custom-import-template'}.xlsx`
+    );
+  }catch(err){
+    showMessage(importDataMessage,err.message||'Không tải được mẫu Excel',true);
+  }
 }
 async function deleteCustomImportTemplate(){
   const template=getSelectedCustomTemplate();
@@ -791,10 +798,94 @@ function renderImportPreview(result){
   renderImportShortageActions(importPreviewRows);
   if(commitImportButton){commitImportButton.disabled=valid<=0;commitImportButton.textContent='Import các đơn đã chọn';}
 }
-function downloadImportTemplate(){
+function sleepImportPreview(ms){
+  return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
+async function waitImportPreviewSession(sessionId){
+  if(!sessionId)throw new Error('Thiếu mã phiên import');
+
+  const maxAttempts=80;
+  const delayMs=1500;
+
+  for(let attempt=0;attempt<maxAttempts;attempt+=1){
+    const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}`);
+    const json=await res.json();
+
+    if(!json.ok){
+      throw new Error(json.error||json.message||'Không đọc được trạng thái phiên import');
+    }
+
+    const status=String(json.status||'').toLowerCase();
+
+    if(status==='preview_ready'){
+      return {
+        ok:true,
+        source:'import-session-status',
+        sessionId:json.sessionId||sessionId,
+        importSessionId:json.importSessionId||json.sessionId||sessionId,
+        status,
+        rows:json.previewRows||[],
+        total:json.totalRows||0,
+        valid:json.validRows||0,
+        invalid:json.errorRows||0,
+        importErrors:json.importErrors||[],
+        result:json.result||{}
+      };
+    }
+
+    if(status==='failed'){
+      throw new Error(json.errorMessage||'Import thất bại khi đọc file Excel');
+    }
+
+    const percent=json.progress&&json.progress.percent?json.progress.percent:0;
+    const step=json.progress&&json.progress.step?json.progress.step:status;
+
+    showMessage(
+      importDataMessage,
+      `Đang xử lý file Excel... ${percent}% (${step||'queued'})`
+    );
+
+    await sleepImportPreview(delayMs);
+  }
+
+  throw new Error('Import xử lý quá lâu, vui lòng thử lại hoặc tách nhỏ file Excel');
+}
+
+async function downloadImportBlob(url,fileName){
+  const res=await fetch(url);
+  const blob=await res.blob();
+
+  if(!res.ok){
+    let message='Không tải được file Excel';
+    try{
+      const text=await blob.text();
+      const json=JSON.parse(text);
+      message=json.message||json.error||message;
+    }catch(_){}
+    throw new Error(message);
+  }
+
+  const objectUrl=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=objectUrl;
+  a.download=fileName||'template.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+}
+
+async function downloadImportTemplate(){
   if(!importDataType)return;
-  const type=encodeURIComponent(importDataType.value);
-  window.location.href=`/api/import/template/${type}`;
+
+  try{
+    const type=encodeURIComponent(importDataType.value);
+    await downloadImportBlob(`/api/import/template/${type}`,`import-template-${type}.xlsx`);
+  }catch(err){
+    showMessage(importDataMessage,err.message||'Không tải được mẫu Excel',true);
+  }
 }
 
 async function previewImportExcel(){
@@ -817,15 +908,37 @@ async function previewImportExcel(){
 
 async function previewImportExcelSilent(){
   if(!importDataType||!importExcelFile)throw new Error('Thiếu thông tin import');
+
   const files=Array.from(importExcelFile.files||[]);
   if(!files.length)throw new Error('Bạn chưa chọn file Excel');
+
   const formData=new FormData();
   formData.append('type',importDataType.value);
-  if(customImportTemplateSelect&&customImportTemplateSelect.value)formData.append('templateId',customImportTemplateSelect.value);
+
+  if(customImportTemplateSelect&&customImportTemplateSelect.value){
+    formData.append('templateId',customImportTemplateSelect.value);
+  }
+
   files.forEach(file=>formData.append('files',file));
-  const res=await fetch('/api/import/preview',{method:'POST',body:formData});
+
+  const res=await fetch('/api/import/preview',{
+    method:'POST',
+    body:formData
+  });
+
   const json=await res.json();
-  if(!json.ok)throw new Error(json.error||json.message||'Không đọc được file import');
+
+  if(!json.ok){
+    throw new Error(json.error||json.message||'Không đọc được file import');
+  }
+
+  // Backend đang chạy async preview: 202 queued.
+  // Không render ngay, phải poll session đến khi preview_ready.
+  if(res.status===202||json.accepted||String(json.status||'').toLowerCase()==='queued'){
+    const sessionId=json.sessionId||json.importSessionId;
+    return await waitImportPreviewSession(sessionId);
+  }
+
   return json;
 }
 
