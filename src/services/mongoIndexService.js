@@ -241,6 +241,13 @@ const INDEX_DEFINITIONS = {
     [{ productCode: 1, date: 1 }, { name: 'idx_stock_tx_product_date' }]
   ],
   warehouses: [[{ code: 1 }, { name: 'idx_warehouses_code' }]],
+  reconciliationReports: [
+    [{ id: 1 }, { name: 'uniq_reconciliation_reports_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_reconciliation_reports_code', unique: true, sparse: true }],
+    [{ type: 1, status: 1, checkedAt: -1 }, { name: 'idx_reconciliation_type_status_checked_at' }],
+    [{ checkedAt: -1 }, { name: 'idx_reconciliation_checked_at_desc' }],
+    [{ source: 1, checkedAt: -1 }, { name: 'idx_reconciliation_source_checked_at' }]
+  ],
   promotions: [
     [{ code: 1 }, { name: 'idx_promotions_code' }],
     [{ isActive: 1, startDate: 1, endDate: 1 }, { name: 'idx_promotions_active_dates' }],

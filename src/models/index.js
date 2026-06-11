@@ -32,6 +32,7 @@ module.exports = {
   mobileLogs: require('./MobileLog'),
   auditLogs: require('./AuditLog'),
   settings: require('./Setting'),
+  reconciliationReports: require('./ReconciliationReport'),
   promotions: require('./Promotion'),
   promotionProductRules: require('./PromotionProductRule'),
   promotionGroupItems: require('./PromotionGroupItem'),

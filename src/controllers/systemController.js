@@ -1,6 +1,7 @@
 'use strict';
 
 const systemService = require('../services/systemService');
+const ReconciliationService = require('../domain/reconciliation/ReconciliationService');
 
 function sendError(res, err, fallbackMessage) {
   const status = err.status || 500;
@@ -102,6 +103,38 @@ async function resetApiMonitor(req, res) {
   }
 }
 
+
+async function runReconciliation(req, res) {
+  try {
+    const type = req.body?.type || req.query?.type || 'all';
+    const report = await ReconciliationService.runReconciliation(type, {
+      source: 'manual_api',
+      checkedBy: req.user?.code || req.user?.username || req.user?.name || 'admin'
+    });
+
+    res.json({
+      ok: true,
+      success: true,
+      data: report
+    });
+  } catch (err) {
+    sendError(res, err, 'Không chạy được đối soát ledger');
+  }
+}
+
+async function listReconciliationReports(req, res) {
+  try {
+    const data = await ReconciliationService.listReports(req.query || {});
+    res.json({
+      ok: true,
+      success: true,
+      data
+    });
+  } catch (err) {
+    sendError(res, err, 'Không đọc được báo cáo đối soát');
+  }
+}
+
 module.exports = {
   health,
   dbHealth,
@@ -114,5 +147,7 @@ module.exports = {
   backup,
   reset,
   apiMonitor,
-  resetApiMonitor
+  resetApiMonitor,
+  runReconciliation,
+  listReconciliationReports
 };

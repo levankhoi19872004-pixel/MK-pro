@@ -23,6 +23,7 @@ const { registerStaticRoutes } = require('./routes/static.routes');
 const { registerHealthRoutes } = require('./routes/health.routes');
 const { ensureMongoIndexes } = require('./services/mongoIndexService');
 const { ensureArLedgersBackfillFromJournals } = require('./services/arLedgerMigrationService');
+const { startReconciliationJob } = require('./jobs/reconciliationJob');
 const { apiMonitor } = require('./middlewares/apiMonitor.middleware');
 const { apiSecurity } = require('./middlewares/apiSecurity.middleware');
 const { requireAuth } = require('./middlewares/auth.middleware');
@@ -201,6 +202,11 @@ async function startServer() {
   if (process.env.AUTO_BACKFILL_ARLEDGERS !== 'false') {
     const arBackfill = await ensureArLedgersBackfillFromJournals({ logger });
     if (!arBackfill.skipped) console.log(`✅ Backfill arLedgers từ journals: ${arBackfill.inserted || 0} dòng`);
+  }
+
+  const reconciliationJob = startReconciliationJob();
+  if (reconciliationJob.started) {
+    console.log(`✅ Reconciliation job enabled: intervalMs=${reconciliationJob.intervalMs}`);
   }
 
   return app.listen(PORT, () => {

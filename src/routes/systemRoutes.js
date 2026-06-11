@@ -15,6 +15,8 @@ router.get('/system/data-source', systemController.dataSource);
 router.get('/system/status', systemController.status);
 router.get('/system/api-monitor', requireRole(['admin', 'manager']), systemController.apiMonitor);
 router.post('/system/api-monitor/reset', requireRole(['admin']), systemController.resetApiMonitor);
+router.get('/system/reconciliation-reports', requireRole(['admin', 'manager']), systemController.listReconciliationReports);
+router.post('/system/reconciliation/run', requireRole(['admin']), systemController.runReconciliation);
 router.get('/system/health', systemController.health);
 router.get('/system/health/db', systemController.dbHealth);
 router.get('/system/settings', requireRole(['admin', 'manager']), systemController.listSettings);
