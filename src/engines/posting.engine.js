@@ -71,9 +71,14 @@ async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
   const exactKeys = [returnOrderId, returnOrderCode].filter(Boolean);
   if (!exactKeys.length) return false;
 
+  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_ACTIVE_ONLY_START =====
+  // Khi admin mở khóa, AR-RETURN cũ được đảo và đánh dấu reversed. Dòng reversed
+  // không được chặn lần post AR-RETURN mới trong re-accounting. Chỉ coi các dòng
+  // còn active là đã tồn tại để giữ idempotency.
   const rows = await paymentRepository.findAll({
     type: 'ar_return',
-    status: { $ne: 'void' },
+    status: { $nin: ['void', 'reversed', 'cancelled'] },
+    reversed: { $ne: true },
     $or: [
       { id: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
       { code: { $in: exactKeys.map((key) => `AR-RETURN-${key}`) } },
@@ -83,6 +88,7 @@ async function hasExistingReturnOrderAR(returnOrder = {}, options = {}) {
       { returnOrderCode: { $in: exactKeys } }
     ]
   }, options);
+  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_ACTIVE_ONLY_END =====
   return Array.isArray(rows) && rows.some((row) => toNumber(row.credit ?? row.amount) > 0);
 }
 
@@ -187,11 +193,18 @@ async function postReturnOrderAR(returnOrder = {}, options = {}) {
 
   const salesOrderId = String(returnOrder.salesOrderId || returnOrder.orderId || returnOrder.sourceOrderId || '').trim();
   const salesOrderCode = String(returnOrder.salesOrderCode || returnOrder.orderCode || returnOrder.sourceOrderCode || '').trim();
+  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_BATCH_SUFFIX_START =====
+  // Khi post lại sau re-accounting, không dùng lại id/code cũ vì dòng cũ đã tồn tại
+  // và đã có AR-RETURN-REV đảo. Gắn accountingBatchId để giữ đủ 3 dòng audit:
+  // AR-RETURN cũ -> AR-RETURN-REV -> AR-RETURN mới.
+  const accountingBatchId = String(options.accountingBatchId || returnOrder.accountingBatchId || '').trim();
+  const batchSuffix = options.forceRepostReturn && accountingBatchId ? `-${accountingBatchId}` : '';
+  // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_BATCH_SUFFIX_END =====
 
   const entry = {
     ...baseJournal(returnOrder, {
-      id: `AR-RETURN-${returnOrderId || returnOrderCode}`,
-      code: `AR-RETURN-${returnOrderCode || returnOrderId}`,
+      id: `AR-RETURN-${returnOrderId || returnOrderCode}${batchSuffix}`,
+      code: `AR-RETURN-${returnOrderCode || returnOrderId}${batchSuffix}`,
       type: 'ar_return',
       refType: 'RETURN_ORDER',
       refId: returnOrderId || returnOrderCode,

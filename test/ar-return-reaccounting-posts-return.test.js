@@ -20,7 +20,7 @@ test('re-accounting keeps hydrated returnOrders on updated order before posting 
 
   assert.match(confirmFn, /accountingReturnOrders:\s*accountingSource\.accountingReturnOrders \|\| \[\]/, 'updated order must keep accountingReturnOrders');
   assert.match(confirmFn, /const reverseResult = await reverseActiveArLedgersForOrder\(accountingSource, \{ name: confirmedBy \}, \{ session \}\);/, 're-accounting branch must reverse old AR first');
-  assert.match(confirmFn, /await postDeliveryCollectionsAfterAccountingConfirmed\(updated, \{\s*session,\s*accountingBatchId: reverseResult\.accountingBatchId,\s*skipIfExists: true\s*\}\);/s, 're-accounting branch must repost AR-RETURN with the new accounting batch and idempotent guard');
+  assert.match(confirmFn, /await postDeliveryCollectionsAfterAccountingConfirmed\(updated, \{[\s\S]*session,[\s\S]*accountingBatchId: reverseResult\.accountingBatchId,[\s\S]*skipIfExists: true,[\s\S]*forceRepostReturn: true[\s\S]*\}\);/s, 're-accounting branch must repost AR-RETURN with the new accounting batch and forceRepostReturn');
 });
 
 test('postDeliveryCollectionsAfterAccountingConfirmed marks returnOrders confirmed after AR-RETURN is posted', () => {

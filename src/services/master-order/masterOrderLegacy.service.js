@@ -1367,7 +1367,11 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
         amount,
         source: 'returnOrders',
         note: `Kế toán xác nhận hàng trả từ returnOrders ${returnRow.code || code || key}`
-      }, { ...options, skipIfExists: true });
+      }, {
+        ...options,
+        skipIfExists: true,
+        forceRepostReturn: options.forceRepostReturn === true
+      });
       if (entry) posted.push(entry);
     }
   } else {
@@ -1403,7 +1407,11 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
         amount: returnAmount,
         source: 'mobile_delivery_accounting_confirmed',
         note: `Kế toán xác nhận hàng trả từ app giao hàng ${code || key}`
-      }, { ...options, skipIfExists: true });
+      }, {
+        ...options,
+        skipIfExists: true,
+        forceRepostReturn: options.forceRepostReturn === true
+      });
       if (entry) posted.push(entry);
     }
   }
@@ -3268,7 +3276,12 @@ async function confirmDeliveryAccounting(body = {}) {
         await postDeliveryCollectionsAfterAccountingConfirmed(updated, {
           session,
           accountingBatchId: reverseResult.accountingBatchId,
-          skipIfExists: true
+          skipIfExists: true,
+          // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_FORCE_REPOST_START =====
+          // AR-RETURN cũ đã bị đảo ở reverseActiveArLedgersForOrder(); phải cho phép
+          // post lại AR-RETURN mới cùng batch re-accounting, không bị dòng reversed chặn.
+          forceRepostReturn: true
+          // ===== SCOPED FIX: AR_RETURN_REACCOUNTING_FORCE_REPOST_END =====
         });
         await postingEngine.postBonusAllowanceAR(updated, { session });
         await auditService.log('ACCOUNTING_RECONFIRM', { refType: 'SALES_ORDER', refId: orderKey(updated), refCode: orderDisplayCode(updated), user: confirmedBy, note: `Xác nhận kế toán lại đơn ${orderDisplayCode(updated)}: đảo AR cũ, ghi AR-SALE mới và ghi lại thu tiền/hàng trả/trả thưởng` });
