@@ -4,6 +4,29 @@ const calculateCartonUnit = v45PrintCommon.calculateCartonUnit;
 const today = v45PrintCommon.todayValue;
 const toDateOnly = v45PrintCommon.toDateOnly;
 function money(value){return Number(value||0).toLocaleString('vi-VN')}
+// UI_CANONICAL_STAFF_FIELDS_START
+function canonicalSalesStaffLabel(row = {}) {
+  const code = row.salesStaffCode || row.salesmanCode || row.nvbhCode || '';
+  const name = row.salesStaffName || row.salesmanName || row.nvbhName || '';
+  return [code, name].filter(Boolean).join(' - ');
+}
+
+function canonicalDeliveryStaffLabel(row = {}) {
+  const code = row.deliveryStaffCode || row.deliveryCode || row.nvghCode || '';
+  const name = row.deliveryStaffName || row.deliveryName || row.nvghName || '';
+  return [code, name].filter(Boolean).join(' - ');
+}
+
+function canonicalFundStaffLabel(row = {}) {
+  return canonicalDeliveryStaffLabel(row) || canonicalSalesStaffLabel(row);
+}
+
+function legacyCustomerStaffLabel(row = {}) {
+  const code = row.legacyStaffCode || '';
+  const name = row.legacyStaffName || '';
+  return [code, name].filter(Boolean).join(' - ');
+}
+// UI_CANONICAL_STAFF_FIELDS_END
 function normalizePackingRate(source = {}){
   const rate = Number(
     source.conversionRate ??

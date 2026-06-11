@@ -39,13 +39,13 @@
   function today() { return new Date().toISOString().slice(0, 10); }
   function staffLabel(item) {
     item = item || {};
-    var code = item.staffCode || item.code || item.employeeCode || item.username || item.id || '';
-    var name = item.fullName || item.name || item.staffName || item.username || '';
+    var code = item.deliveryStaffCode || item.staffCode || item.code || item.employeeCode || '';
+    var name = item.deliveryStaffName || item.fullName || item.name || '';
     return [code, name].filter(Boolean).join(' - ');
   }
   function staffCode(item) {
     item = item || {};
-    return item.staffCode || item.code || item.employeeCode || item.username || item.id || '';
+    return item.deliveryStaffCode || item.staffCode || item.code || item.employeeCode || '';
   }
 
   var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {} };
@@ -157,7 +157,7 @@
         }
         box.innerHTML = rows.map(function (item, idx) {
           var code = staffCode(item);
-          var name = item.fullName || item.name || item.staffName || item.username || '';
+          var name = item.deliveryStaffName || item.fullName || item.name || '';
           return '<button type="button" data-staff-idx="' + idx + '"><b>' + esc(code) + '</b><span>' + esc(name) + '</span></button>';
         }).join('');
         box.classList.add('show');
@@ -166,7 +166,7 @@
             ev.preventDefault();
             var item = rows[Number(button.getAttribute('data-staff-idx'))] || {};
             input.value = staffCode(item);
-            input.dataset.staffName = item.fullName || item.name || item.staffName || item.username || '';
+            input.dataset.staffName = item.deliveryStaffName || item.fullName || item.name || '';
             box.classList.remove('show');
             load();
           });
@@ -267,7 +267,7 @@
     return [
       order.orderCode, order.salesOrderCode, order.code, order.id,
       order.customerCode, order.customerName,
-      order.salesStaffCode, order.salesStaffName, order.staffCode, order.staffName,
+      order.salesStaffCode, order.salesStaffName, order.salesmanCode, order.salesmanName,
       order.deliveryStaffCode, order.deliveryStaffName
     ].join(' ').toLowerCase();
   }

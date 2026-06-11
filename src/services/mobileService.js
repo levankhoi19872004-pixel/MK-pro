@@ -58,6 +58,33 @@ function createMobileService(ctx) {
     return { statusCode, body: { ok: false, success: false, message } };
   }
 
+  // MOBILE_LEGACY_SALES_OWNERSHIP_NO_GENERIC_STAFF_START
+  function getMobileSalesStaffCode(mobileUser = {}) {
+    return String(
+      mobileUser.salesStaffCode ||
+      mobileUser.staffCode ||
+      mobileUser.code ||
+      ''
+    ).trim();
+  }
+
+  function getMobileSalesStaffName(mobileUser = {}) {
+    return String(
+      mobileUser.salesStaffName ||
+      mobileUser.fullName ||
+      mobileUser.name ||
+      ''
+    ).trim();
+  }
+
+  function isOwnedByMobileSalesUser(order = {}, mobileUser = {}) {
+    const userSalesCode = normalizeText(getMobileSalesStaffCode(mobileUser));
+    if (!userSalesCode) return false;
+
+    return normalizeText(order.salesStaffCode || order.salesmanCode) === userSalesCode;
+  }
+  // MOBILE_LEGACY_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
+
   async function login({ body = {} }) {
     const data = await getPrimaryDataSnapshot();
     const username = String(body.username || '').trim();
@@ -117,9 +144,7 @@ function createMobileService(ctx) {
         { phone: { $regex: q, $options: 'i' } },
         { address: { $regex: q, $options: 'i' } },
         { area: { $regex: q, $options: 'i' } },
-        { route: { $regex: q, $options: 'i' } },
-        { staffCode: { $regex: q, $options: 'i' } },
-        { staffName: { $regex: q, $options: 'i' } }
+        { route: { $regex: q, $options: 'i' } }
       ];
     }
     const rows = await Customer.find(filter).sort({ code: 1 }).limit(requestedLimit).lean();
@@ -133,14 +158,17 @@ function createMobileService(ctx) {
       address: customer.address,
       area: customer.area,
       route: customer.route || '',
-      staffCode: customer.staffCode || '',
-      staffName: customer.staffName,
+      legacyStaffCode: customer.legacyStaffCode || customer.staffCode || '',
+      legacyStaffName: customer.legacyStaffName || customer.staffName || '',
+      // Chỉ giữ để UI cũ hiển thị, không dùng match/tạo đơn mới.
+      staffCode: customer.legacyStaffCode || customer.staffCode || '',
+      staffName: customer.legacyStaffName || customer.staffName || '',
       debtAmount: customer.debtAmount || customer.currentDebt || customer.debt || customer.openingDebt || 0,
       monthRevenue: customer.monthRevenue || customer.monthSales || 0,
       isActive: customer.isActive !== false
     }));
     if (q) {
-      items = items.filter((item) => [item.code, item.customerCode, item.name, item.customerName, item.phone, item.address, item.area, item.route, item.staffCode, item.staffName].some((value) => normalizeText(value).includes(q))).slice(0, 80);
+      items = items.filter((item) => [item.code, item.customerCode, item.name, item.customerName, item.phone, item.address, item.area, item.route].some((value) => normalizeText(value).includes(q))).slice(0, 80);
     }
     return { body: { ok: true, source: 'mongo-route', items, total: items.length, cachedCatalog: !q || wantsAll } };
   }
@@ -280,8 +308,13 @@ function createMobileService(ctx) {
       customerName: customer.name,
       customerPhone: customer.phone,
       customerAddress: customer.address,
-      staffCode: mobileUser.code || '',
-      staffName: mobileUser.name || '',
+      salesStaffCode: getMobileSalesStaffCode(mobileUser),
+      salesStaffName: getMobileSalesStaffName(mobileUser),
+      salesmanCode: getMobileSalesStaffCode(mobileUser),
+      salesmanName: getMobileSalesStaffName(mobileUser),
+      // Không dùng generic staff để match app bán hàng.
+      staffCode: '',
+      staffName: '',
       source: 'mobile_sales_app',
       orderSource: 'NVBH',
       orderSourceName: 'Từ NVBH',
@@ -353,7 +386,7 @@ function createMobileService(ctx) {
     const data = await getPrimaryDataSnapshot();
     const order = data.salesOrders.find((item) => item.id === params.id || item.code === params.id);
     if (!order) return fail(404, 'Không tìm thấy đơn bán');
-    const mine = normalizeText(order.staffCode || order.salesStaffCode) === normalizeText(mobileUser.code) || normalizeText(order.staffName || order.salesStaffName) === normalizeText(mobileUser.name);
+    const mine = isOwnedByMobileSalesUser(order, mobileUser);
     if (!mine) return fail(403, 'Bạn chỉ được xem đơn của mình');
     return { body: { ok: true, order: { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' } } };
   }
@@ -363,7 +396,7 @@ function createMobileService(ctx) {
     const data = await getPrimaryDataSnapshot();
     const order = data.salesOrders.find((item) => item.id === params.id || item.code === params.id);
     if (!order) return fail(404, 'Không tìm thấy đơn bán');
-    const mine = normalizeText(order.staffCode || order.salesStaffCode) === normalizeText(mobileUser.code) || normalizeText(order.staffName || order.salesStaffName) === normalizeText(mobileUser.name);
+    const mine = isOwnedByMobileSalesUser(order, mobileUser);
     if (!mine) return fail(403, 'Bạn chỉ được sửa đơn của mình');
     if (order.masterOrderId || (order.mergeStatus || 'unmerged') === 'merged') return fail(403, 'Đơn đã gộp đơn tổng, app bán hàng không được sửa. Vui lòng báo kế toán/admin sửa trong lịch sử bán hàng.');
 
@@ -372,8 +405,10 @@ function createMobileService(ctx) {
       ...body,
       customerId: customerPayload.id || customerPayload.code || body.customerId || body.customerCode || order.customerId,
       customerCode: customerPayload.code || body.customerCode || order.customerCode,
-      salesStaffCode: mobileUser.code || order.salesStaffCode || order.staffCode || '',
-      salesStaffName: mobileUser.name || order.salesStaffName || order.staffName || ''
+      salesStaffCode: getMobileSalesStaffCode(mobileUser),
+      salesStaffName: getMobileSalesStaffName(mobileUser),
+      salesmanCode: getMobileSalesStaffCode(mobileUser),
+      salesmanName: getMobileSalesStaffName(mobileUser)
     };
     const salesOrder = updateSalesOrderWithRepost(data, order, patchBody);
     writeMobileLog(data, mobileUser, 'mobile_edit_sales_order', { refType: 'salesOrder', refId: salesOrder.id, refCode: salesOrder.code, note: `Sửa đơn ${salesOrder.code} từ mobile khi chưa gộp đơn tổng` });
@@ -388,7 +423,7 @@ function createMobileService(ctx) {
     const onlyMine = String(query.mine || '1') !== '0';
     const items = data.salesOrders
       .filter((order) => order.date === today)
-      .filter((order) => !onlyMine || normalizeText(order.staffCode) === normalizeText(mobileUser.code) || normalizeText(order.staffName) === normalizeText(mobileUser.name))
+      .filter((order) => !onlyMine || isOwnedByMobileSalesUser(order, mobileUser))
       .slice()
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, 50)

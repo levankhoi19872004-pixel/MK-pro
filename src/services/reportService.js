@@ -4,7 +4,8 @@ const dateUtil = require('../utils/date.util');
 const Product = require('../models/Product');
 const StockTransaction = require('../models/StockTransaction');
 const SalesOrder = require('../models/SalesOrder');
-const Customer = require('../models/Customer');
+// Công nợ không đọc Customer/User.
+// Source of Truth duy nhất: arLedgers.
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const ArLedger = require('../models/ArLedger');
@@ -465,32 +466,42 @@ function pushDebtLedgerAnd(match, condition) {
   match.$and.push(condition);
 }
 
-function buildDebtLedgerMatch(query = {}, customerCodes = []) {
+// REPORT_DEBT_ARLEDGER_ONLY_MATCH_START
+function buildDebtLedgerMatch(query = {}) {
   const match = {
     status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
     reversed: { $ne: true },
     refType: { $ne: 'AR_LEDGER_REVERSAL' },
     type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
   };
+
   if (query.dateFrom || query.dateTo || query.date) {
     match.date = {};
     if (query.dateFrom) match.date.$gte = dateUtil.toDateOnly(query.dateFrom);
     if (query.dateTo) match.date.$lte = dateUtil.toDateOnly(query.dateTo);
     if (query.date) match.date = dateUtil.toDateOnly(query.date);
   }
-  if (customerCodes.length) {
-    match.customerCode = { $in: customerCodes };
+
+  if (query.customerCode) {
+    const rx = new RegExp(`^${escapeRegExp(query.customerCode)}$`, 'i');
+    pushDebtLedgerAnd(match, { $or: [{ customerCode: rx }, { customerId: rx }] });
+  }
+
+  if (query.customerId) {
+    const rx = new RegExp(`^${escapeRegExp(query.customerId)}$`, 'i');
+    pushDebtLedgerAnd(match, { $or: [{ customerId: rx }, { customerCode: rx }] });
   }
 
   // V46 AR staff-filter rule:
   // Do NOT filter NVBH/NVGH directly on every arLedger row here.
   // Receipt/return/bonus rows can legitimately miss staff metadata, so direct row-level
   // filtering would drop AR-RECEIPT/AR-RETURN and make debt appear higher than reality.
-  // Staff scope is resolved in buildDebtLedgerMatchWithStaffScope(): first find matching
-  // AR-SALE order keys, then load ALL AR rows for those order keys.
+  // Staff scope is resolved by first finding matching AR-SALE order keys, then loading
+  // ALL AR rows for those order keys.
 
   return match;
 }
+// REPORT_DEBT_ARLEDGER_ONLY_MATCH_END
 
 function buildLedgerStaffSeedCondition(query = {}) {
   const parts = [];
@@ -532,13 +543,13 @@ function normalizeLedgerOrderKey(value) {
   return String(value || '').trim();
 }
 
-async function buildDebtLedgerMatchWithStaffScope(query = {}, customerCodes = []) {
-  const match = buildDebtLedgerMatch(query, customerCodes);
+async function buildDebtLedgerMatchWithStaffScope(query = {}) {
+  const match = buildDebtLedgerMatch(query);
   const staffCondition = buildLedgerStaffSeedCondition(query);
   if (!staffCondition) return match;
 
   const seedMatch = {
-    ...buildDebtLedgerMatch({}, customerCodes),
+    ...buildDebtLedgerMatch({}),
     type: 'ar_sale',
     ...staffCondition
   };
@@ -586,70 +597,6 @@ async function buildDebtLedgerMatchWithStaffScope(query = {}, customerCodes = []
   return match;
 }
 
-async function findDebtCustomersForFilter(query = {}, hardLimit = 500) {
-  const filters = [];
-  const q = String(query.q || query.keyword || query.search || '').trim();
-  if (q) {
-    const rx = new RegExp(escapeRegExp(q), 'i');
-    filters.push({ $or: [
-      { code: rx }, { customerCode: rx }, { name: rx }, { customerName: rx }, { phone: rx }, { customerPhone: rx }
-    ] });
-  }
-  if (query.customerCode) {
-    const rx = new RegExp(`^${escapeRegExp(query.customerCode)}$`, 'i');
-    filters.push({ $or: [{ code: rx }, { customerCode: rx }] });
-  }
-  if (query.customerId) {
-    const rx = new RegExp(`^${escapeRegExp(query.customerId)}$`, 'i');
-    filters.push({ $or: [{ id: rx }, { customerId: rx }] });
-  }
-  if (query.salesman) {
-    const rx = new RegExp(escapeRegExp(query.salesman), 'i');
-    filters.push({ $or: [
-      { salesmanCode: rx }, { salesmanName: rx }, { salesStaffCode: rx }, { salesStaffName: rx }, { nvbhCode: rx }, { nvbhName: rx }
-    ] });
-  }
-  if (query.delivery) {
-    const rx = new RegExp(escapeRegExp(query.delivery), 'i');
-    filters.push({ $or: [
-      { deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }, { deliveryStaff: rx }
-    ] });
-  }
-  const filter = filters.length ? { $and: filters } : {};
-  const rows = await Customer.find(filter)
-    .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName salesStaffCode salesStaffName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
-    .limit(hardLimit)
-    .lean()
-    .catch(() => []);
-  return rows.filter(isActive);
-}
-
-function makeCustomerDebtMeta(customer = {}) {
-  return {
-    customerId: String(customer.id || customer._id || '').trim(),
-    customerCode: String(customer.code || customer.customerCode || '').trim(),
-    customerName: customer.name || customer.customerName || '',
-    phone: customer.phone || customer.customerPhone || '',
-    address: customer.address || customer.customerAddress || '',
-    salesmanCode: customer.salesmanCode || customer.salesStaffCode || customer.nvbhCode || '',
-    salesmanName: customer.salesmanName || customer.salesStaffName || customer.nvbhName || '',
-    deliveryStaffCode: customer.deliveryStaffCode || customer.deliveryCode || customer.deliveryStaff || '',
-    deliveryStaffName: customer.deliveryStaffName || customer.deliveryName || ''
-  };
-}
-
-function buildCustomerMetaMap(customers = []) {
-  const map = new Map();
-  customers.forEach((customer) => {
-    const meta = makeCustomerDebtMeta(customer);
-    [meta.customerId, meta.customerCode, meta.customerName].forEach((key) => {
-      const cleanKey = String(key || '').trim();
-      if (cleanKey && !map.has(cleanKey)) map.set(cleanKey, meta);
-    });
-  });
-  return map;
-}
-
 function applyDebtStatusFilter(rows = [], query = {}) {
   const status = String(query.status || '').trim();
   const includePaid = String(query.includePaid || '').trim() === '1' || status === 'paid';
@@ -669,54 +616,21 @@ async function debtReport(query = {}) {
   const skip = (page - 1) * limit;
   const hasSearchCriteria = Boolean(query.q || query.keyword || query.search || query.salesman || query.delivery || query.customerCode || query.customerId || query.dateFrom || query.dateTo || query.date);
 
-  let seedCustomers = [];
-  const hasCustomerTextSearch = Boolean(query.q || query.keyword || query.search);
-  const hasStaffFilter = Boolean(query.salesman || query.delivery);
-  const shouldSearchCustomerMeta = Boolean(hasCustomerTextSearch || query.customerCode || query.customerId);
-
-  // V46 debt filter rule:
-  // - Customer text search (mã/tên/SĐT KH) may use Customer to seed customerCode.
-  // - Staff filters (NVBH/NVGH) must NOT seed from Customer because Customer metadata can be stale/missing.
-  //   Staff filtering is applied directly in buildDebtLedgerMatch() against arLedgers.
-  if (shouldSearchCustomerMeta) {
-    seedCustomers = await findDebtCustomersForFilter({
-      q: query.q,
-      keyword: query.keyword,
-      search: query.search,
-      customerCode: query.customerCode,
-      customerId: query.customerId
-    }, 500);
-    // Chỉ trả rỗng sớm khi người dùng đang tìm khách hàng thật sự.
-    // Không trả rỗng sớm với lọc NVBH/NVGH, vì AR Ledger có thể có các field NVBH/NVGH
-    // trong khi Customer chưa lưu metadata NVBH/NVGH tương ứng.
-    if (!seedCustomers.length && hasCustomerTextSearch && !hasStaffFilter) {
-      const emptySummary = {
-        page,
-        limit,
-        hasMore: false,
-        orderCount: 0,
-        customerCount: 0,
-        overdueCount: 0,
-        totalDebit: 0,
-        totalCredit: 0,
-        totalDebt: 0,
-        totalPositiveDebt: 0,
-        totalOverpaid: 0,
-        debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-        journalCount: 0,
-        arLedgerCount: 0,
-        arWarningCount: 0,
-        optimized: true
-      };
-      return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts: [], customerSummary: [], bySalesman: [], byDelivery: [], arLedger: [], arDiagnostics: [], summary: emptySummary };
-    }
+  const match = await buildDebtLedgerMatchWithStaffScope(query);
+  const textSearch = String(query.q || query.keyword || query.search || '').trim();
+  if (textSearch) {
+    const rx = new RegExp(escapeRegExp(textSearch), 'i');
+    pushDebtLedgerAnd(match, {
+      $or: [
+        { customerCode: rx },
+        { customerName: rx },
+        { customerId: rx },
+        { orderCode: rx },
+        { salesOrderCode: rx },
+        { refCode: rx }
+      ]
+    });
   }
-
-  const seedCodes = seedCustomers.map((c) => String(c.code || c.customerCode || '').trim()).filter(Boolean);
-  if (query.customerCode) seedCodes.push(String(query.customerCode).trim());
-  if (query.customerId) seedCodes.push(String(query.customerId).trim());
-  const customerCodes = Array.from(new Set(seedCodes));
-  const match = await buildDebtLedgerMatchWithStaffScope(query, customerCodes);
 
   // Nếu không có tiêu chí, chỉ đọc trang nhỏ gần nhất thay vì tính toàn bộ hệ thống.
   if (!hasSearchCriteria) {
@@ -737,6 +651,8 @@ async function debtReport(query = {}) {
       customerId: 1,
       customerCode: 1,
       customerName: 1,
+      phone: { $ifNull: ['$phone', '$customerPhone'] },
+      address: { $ifNull: ['$address', '$customerAddress'] },
       salesmanCode: 1,
       salesmanName: 1,
       salesStaffCode: 1,
@@ -770,6 +686,8 @@ async function debtReport(query = {}) {
       },
       firstDate: { $min: '$date' },
       lastDate: { $max: '$date' },
+      phone: { $max: '$phone' },
+      address: { $max: '$address' },
       debit: { $sum: { $cond: [{ $gt: ['$debit', 0] }, '$debit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, '$amount', 0] }] } },
       credit: { $sum: { $cond: [{ $gt: ['$credit', 0] }, '$credit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, 0, '$amount'] }] } },
       receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
@@ -799,6 +717,10 @@ async function debtReport(query = {}) {
         { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] },
         ''
       ] } },
+      salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
+      salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
+      deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] } },
+      deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } },
       fallbackSalesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
       fallbackSalesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
       fallbackDeliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] } },
@@ -810,20 +732,13 @@ async function debtReport(query = {}) {
     { $limit: Math.max(skip + limit + 1, limit + 1) }
   ]).allowDiskUse(true).exec().catch(() => []);
 
-  const usedCustomerKeys = Array.from(new Set(grouped.flatMap((row) => [row._id.customerCode, row._id.customerId, row._id.customerName]).map((v) => String(v || '').trim()).filter(Boolean)));
-  const extraCustomers = usedCustomerKeys.length
-    ? await Customer.find({ $or: [{ code: { $in: usedCustomerKeys } }, { customerCode: { $in: usedCustomerKeys } }, { name: { $in: usedCustomerKeys } }, { customerName: { $in: usedCustomerKeys } }] })
-      .select('id code customerCode name customerName phone customerPhone address customerAddress salesmanCode salesmanName salesStaffCode salesStaffName nvbhCode nvbhName deliveryStaffCode deliveryStaffName deliveryCode deliveryName deliveryStaff status isActive')
-      .limit(usedCustomerKeys.length + 50)
-      .lean()
-      .catch(() => [])
-    : [];
-  const customerMeta = buildCustomerMetaMap([...seedCustomers, ...extraCustomers]);
-
   const now = dateUtil.todayVN();
   let debts = grouped.map((row) => {
     const id = row._id || {};
-    const cmeta = customerMeta.get(String(id.customerCode || '').trim()) || customerMeta.get(String(id.customerId || '').trim()) || customerMeta.get(String(id.customerName || '').trim()) || {};
+    if (!row.fallbackSalesmanCode && row.salesmanCode) row.fallbackSalesmanCode = row.salesmanCode;
+    if (!row.fallbackSalesmanName && row.salesmanName) row.fallbackSalesmanName = row.salesmanName;
+    if (!row.fallbackDeliveryStaffCode && row.deliveryStaffCode) row.fallbackDeliveryStaffCode = row.deliveryStaffCode;
+    if (!row.fallbackDeliveryStaffName && row.deliveryStaffName) row.fallbackDeliveryStaffName = row.deliveryStaffName;
     const debt = normalizeDebtAmount(toNumber(row.debit) - toNumber(row.credit));
     const documentDate = dateUtil.toDateOnly(row.firstDate || row.lastDate || new Date());
     const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, documentDate)) : 0;
@@ -831,11 +746,11 @@ async function debtReport(query = {}) {
     return {
       orderId: id.orderId || id.orderCode || '',
       orderCode: id.orderCode || id.orderId || '',
-      customerId: cmeta.customerId || id.customerId || '',
-      customerCode: cmeta.customerCode || id.customerCode || '',
-      customerName: cmeta.customerName || id.customerName || 'Chưa rõ khách',
-      phone: cmeta.phone || '',
-      address: cmeta.address || '',
+      customerId: id.customerId || '',
+      customerCode: id.customerCode || '',
+      customerName: id.customerName || 'Chưa rõ khách',
+      phone: row.phone || '',
+      address: row.address || '',
       // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START =====
       // Công nợ hiển thị nhân sự theo dòng AR-SALE của đơn.
       // Không lấy từ PAYMENT/RETURN/BONUS vì các dòng đó có thể là audit/user thao tác hoặc legacy display.
@@ -998,10 +913,10 @@ async function debtArLedger(query = {}) {
   const page = getPage(query.page);
   const limit = getSafeLimit(query.limit, 100, 200);
   const skip = (page - 1) * limit;
-  const match = await buildDebtLedgerMatchWithStaffScope(query, []);
+  const match = await buildDebtLedgerMatchWithStaffScope(query);
   if (query.q || query.keyword || query.search) {
     const rx = new RegExp(escapeRegExp(query.q || query.keyword || query.search), 'i');
-    match.$or = [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { type: rx }, { note: rx }];
+    pushDebtLedgerAnd(match, { $or: [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { customerId: rx }, { type: rx }, { note: rx }] });
   }
   const rows = await ArLedger.find(match).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit + 1).lean().catch(() => []);
   const hasMore = rows.length > limit;

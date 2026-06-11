@@ -79,3 +79,23 @@ test('UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers'
   assert.match(selectBlock, /renderDebtStaffInfoFromDebt\(d\)/);
   assert.doesNotMatch(selectBlock, /const staffSource=getDebtDisplayStaffSource\(d\)/);
 });
+
+
+
+test('staffRules.js không dùng username/id/_id để match mã nhân viên', () => {
+  const src = read('src/rules/staffRules.js');
+  const buildCodeFilterBlock = src.match(/function buildCodeFilter\(staffCode\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(buildCodeFilterBlock, 'buildCodeFilter block must exist');
+  assert.doesNotMatch(buildCodeFilterBlock, /'username'|"username"/);
+  assert.doesNotMatch(buildCodeFilterBlock, /'id'|"id"/);
+  assert.doesNotMatch(buildCodeFilterBlock, /'_id'|"_id"/);
+});
+
+test('staffRules.js không fallback username làm mã nhân viên chuẩn hóa', () => {
+  const src = read('src/rules/staffRules.js');
+  const validateBlock = src.match(/async function validateStaffCode\([\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(validateBlock, 'validateStaffCode block must exist');
+  const realCodeLine = validateBlock.match(/const realCode[\s\S]*?;/)?.[0] || '';
+  assert.ok(realCodeLine, 'realCode assignment must exist');
+  assert.doesNotMatch(realCodeLine, /staff\.username/);
+});

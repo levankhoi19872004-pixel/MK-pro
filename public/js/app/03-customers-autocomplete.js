@@ -124,7 +124,7 @@ function renderCustomerTable(){
     <td>${c.phone||''}</td>
     <td>${c.address||''}</td>
     <td>${c.area||''}</td>
-    <td>${[c.staffCode,c.staffName].filter(Boolean).join(' - ')||''}</td>
+    <td>${legacyCustomerStaffLabel(c)}</td>
     <td class="row-actions"><button type="button" class="small" onclick="editCustomer('${c.id}')">Sửa</button><button type="button" class="small danger" onclick="deleteCustomer('${c.id}')">Xóa</button></td>
   </tr>`).join('');
   updateCustomerBulkUI();
@@ -135,15 +135,15 @@ function fillCustomerForm(c){
   const staffSearch=document.getElementById('customerStaffSearch');
   const staffCode=document.getElementById('customerStaffCode');
   const staffName=document.getElementById('customerStaffName');
-  const staffLabel=[c.staffCode,c.staffName].filter(Boolean).join(' - ');
+  const staffLabel=legacyCustomerStaffLabel(c);
   if(staffSearch){
     staffSearch.value=staffLabel;
     staffSearch.dataset.selectedLabel=staffLabel;
-    staffSearch.dataset.code=c.staffCode||'';
-    staffSearch.dataset.name=c.staffName||'';
+    staffSearch.dataset.code=c.legacyStaffCode||'';
+    staffSearch.dataset.name=c.legacyStaffName||'';
   }
-  if(staffCode)staffCode.value=c.staffCode||'';
-  if(staffName)staffName.value=c.staffName||'';
+  if(staffCode)staffCode.value=c.legacyStaffCode||'';
+  if(staffName)staffName.value=c.legacyStaffName||'';
   customerForm.dataset.editingId=c.id||'';
   const btn=customerForm.querySelector('button[type="submit"]');if(btn)btn.textContent='Cập nhật khách hàng';
   if(customerFormTitle)customerFormTitle.textContent=`Sửa khách hàng: ${c.code||c.name||''}`;
@@ -216,7 +216,9 @@ function productSuggestionLabel(p){
 function staffSuggestionLabel(u){
   const role=u.roleLabel||u.role||'';
   const phone=u.phone?` · ${u.phone}`:'';
-  return `${u.code||u.username||''} - ${u.name||u.fullName||u.username||''}${role?` · ${role}`:''}${phone}`;
+  const code=u.salesStaffCode||u.deliveryStaffCode||u.staffCode||u.code||u.employeeCode||'';
+  const name=u.salesStaffName||u.deliveryStaffName||u.fullName||u.name||u.staffName||'';
+  return `${code} - ${name}${role?` · ${role}`:''}${phone}`;
 }
 function customerSuggestionLabel(c){
   const phone=c.phone?` · ${c.phone}`:'';
@@ -259,7 +261,7 @@ function getCustomerListMatches(){
   const q=customerSearchInput?customerSearchInput.value.trim():'';
   if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20});
   if(!q)return customersCache.filter(c=>c.isActive!==false).slice(0,10);
-  return customersCache.filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route,c.staffName]));
+  return customersCache.filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route]));
 }
 function selectCustomerFromListSuggestion(c){
   if(!c)return;
@@ -323,8 +325,16 @@ function getSuggestValue(item, valueType, config){
   if(valueType==='label') return getConfiguredLabel(item, config);
   if(valueType==='id') return item.id||'';
   if(valueType==='idOrCode') return getProductKey(item) || item.id || item.code || '';
-  if(valueType==='codeOrUsernameOrId') return item.code||item.staffCode||item.username||item.id||'';
-  if(valueType==='nameOrFullNameOrUsername') return item.name||item.fullName||item.username||'';
+  if(valueType==='codeOrUsernameOrId') {
+    const roles=(config?.roles||[]).map(role=>String(role).toLowerCase());
+    if(roles.includes('delivery')) return item.deliveryStaffCode||item.staffCode||item.code||item.employeeCode||'';
+    return item.salesStaffCode||item.staffCode||item.code||item.employeeCode||'';
+  }
+  if(valueType==='nameOrFullNameOrUsername') {
+    const roles=(config?.roles||[]).map(role=>String(role).toLowerCase());
+    if(roles.includes('delivery')) return item.deliveryStaffName||item.fullName||item.name||item.staffName||'';
+    return item.salesStaffName||item.fullName||item.name||item.staffName||'';
+  }
   if(valueType==='customerIdOrCode') return item.customerId||item.customerCode||'';
   return item[valueType] ?? '';
 }
@@ -344,8 +354,8 @@ function applyConfiguredSelect(config, item){
   });
   const input=getSuggestElement(config,'inputId','inputSelector');
   if(input){
-    const itemCode = String(item.code || item.staffCode || item.customerCode || item.productCode || item.sku || item.username || '').trim();
-    const itemName = String(item.name || item.fullName || item.customerName || item.productName || item.displayName || item.username || '').trim();
+    const itemCode = String(item.code || item.customerCode || item.productCode || item.sku || item.salesStaffCode || item.salesmanCode || item.deliveryStaffCode || '').trim();
+    const itemName = String(item.name || item.fullName || item.customerName || item.productName || item.displayName || item.salesStaffName || item.salesmanName || item.deliveryStaffName || '').trim();
     const itemId = String(item.id || item._id || itemCode || '').trim();
     const itemType = String(item.type || config.type || '').trim();
     const itemLabel = getConfiguredLabel(item, config);

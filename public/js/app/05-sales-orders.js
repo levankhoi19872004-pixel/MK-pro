@@ -72,7 +72,7 @@ function getSalesCustomerMatches(){
   if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20,minChars:0,allowEmpty:'1',showOnFocus:'1'});
   return customersCache
     .filter(c=>c.isActive!==false)
-    .filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route,c.staffName]));
+    .filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route]));
 }
 function selectSalesCustomer(c){
   if(!c)return;
@@ -98,15 +98,17 @@ async function getSalesStaffMatches(){
       const role=String(u.role||u.roleLabel||'').toLowerCase();
       return u.isActive!==false && (u.isSalesman===true || u.isSalesStaff===true || ['sales','admin','nvbh','salesstaff','sales_staff'].includes(role) || role.includes('ban hang') || role.includes('sales'));
     })
-    .filter(u=>matchSearch(q,[u.code,u.username,u.name,u.fullName,u.phone,u.roleLabel,u.role]));
+    .filter(u=>matchSearch(q,[u.salesStaffCode,u.staffCode,u.code,u.employeeCode,u.salesStaffName,u.name,u.fullName,u.phone,u.roleLabel,u.role]));
 }
 function selectSalesStaff(u){
   if(!u)return;
-  if(salesStaffSelect)salesStaffSelect.value=u.code||u.staffCode||u.username||u.id||'';
-  if(salesStaffName)salesStaffName.value=u.name||u.fullName||u.username||'';
+  const code = u.salesStaffCode || u.staffCode || u.code || '';
+  const name = u.salesStaffName || u.fullName || u.name || '';
+  if(salesStaffSelect)salesStaffSelect.value=code;
+  if(salesStaffName)salesStaffName.value=name;
   if(salesStaffSearch){
     salesStaffSearch.value=staffSuggestionLabel(u);
-    salesStaffSearch.dataset.selectedId=u.code||u.staffCode||u.username||u.id||'';
+    salesStaffSearch.dataset.selectedId=code;
   }
   hideSuggestions(salesStaffSuggestions);
 }
@@ -857,9 +859,10 @@ async function openSalesOrderEdit(idx){
   const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode));
   salesCustomerSelect.value=c?.id||order.customerId||order.customerCode||'';
   if(salesCustomerSearch)salesCustomerSearch.value=c?customerSuggestionLabel(c):`${order.customerCode||''} - ${order.customerName||''}`;
-  if(salesStaffSelect)salesStaffSelect.value=order.salesStaffCode||order.staffCode||'';
-  if(salesStaffName)salesStaffName.value=order.salesStaffName||order.staffName||'';
-  if(salesStaffSearch)salesStaffSearch.value=[order.salesStaffCode||order.staffCode,order.salesStaffName||order.staffName].filter(Boolean).join(' - ');
+  const staffLabel = canonicalSalesStaffLabel(order);
+  if(salesStaffSelect)salesStaffSelect.value=order.salesStaffCode||order.salesmanCode||'';
+  if(salesStaffName)salesStaffName.value=order.salesStaffName||order.salesmanName||'';
+  if(salesStaffSearch)salesStaffSearch.value=staffLabel;
   const submitBtn=salesForm.querySelector('[type="submit"]');
   if(submitBtn)submitBtn.textContent='Lưu sửa đơn bán';
   renderSalesItems();
@@ -988,8 +991,8 @@ function renderSalesOrderRows(orders, {append=false} = {}){
   const html=(orders||[]).map((o,localIdx)=>{
     const idx=startIndex+localIdx;
     const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
-    // SALES_HISTORY_NVBH_COLUMN_PATCH_START: hiển thị NV bán hàng ở danh sách đơn bán, có fallback cho dữ liệu DMS/import cũ.
-    const salesStaffName=o.salesStaffName||o.staffName||o.salesmanName||o.salesPersonName||o.salesStaffCode||o.staffCode||o.salesmanCode||'-';
+    // SALES_HISTORY_NVBH_COLUMN_PATCH_START: hiển thị NV bán hàng theo field canonical.
+    const salesStaffName=canonicalSalesStaffLabel(o)||'-';
     // SALES_HISTORY_NVBH_COLUMN_PATCH_END
     return `
       <article class="sales-order-row">

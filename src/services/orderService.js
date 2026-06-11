@@ -9,6 +9,7 @@ const masterOrderRepository = require('../repositories/masterOrderRepository');
 const productRepository = require('../repositories/productRepository');
 const customerRepository = require('../repositories/customerRepository');
 const userRepository = require('../repositories/userRepository');
+const staffRules = require('../rules/staffRules');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const queryGuard = require('../utils/queryGuard.util');
 const tx = require('../utils/transaction.util');
@@ -215,11 +216,16 @@ async function resolveCustomer(body = {}) {
   return customerRepository.findByIdOrCode(customerId);
 }
 
+// ORDER_CREATE_SALES_STAFF_FROM_EXPLICIT_CODE_START
 async function resolveStaff(body = {}) {
-  const staffId = String(body.staffId || body.staffCode || body.staffName || body.salesStaffId || body.salesStaffCode || '').trim();
-  if (!staffId) return null;
-  return userRepository.findStaffByIdOrCode(staffId);
+  // Đơn mới chỉ được nhận NVBH từ mã nghiệp vụ rõ nghĩa.
+  // Không dùng staffId/staffCode/staffName vì các field đó dễ lẫn audit/legacy/NVGH.
+  const salesStaffCode = String(body.salesStaffCode || body.salesmanCode || '').trim();
+  if (!salesStaffCode) return null;
+
+  return staffRules.resolveSalesStaffByCode(salesStaffCode);
 }
+// ORDER_CREATE_SALES_STAFF_FROM_EXPLICIT_CODE_END
 
 // ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_START =====
 // NVBH của đơn bán phải được chốt ở salesOrders ngay khi tạo đơn.
@@ -234,9 +240,9 @@ function buildSalesStaffSnapshot(body = {}, customer = null, staff = null, curre
     };
   }
   return {
-    salesStaffId: staff?.id || body.salesStaffId || customer?.salesStaffId || customer?.staffId || body.staffId || '',
-    salesStaffCode: staff?.code || body.salesStaffCode || body.salesmanCode || customer?.salesStaffCode || customer?.salesmanCode || '',
-    salesStaffName: staff?.name || body.salesStaffName || body.salesmanName || customer?.salesStaffName || customer?.salesmanName || ''
+    salesStaffId: staff?.id || '',
+    salesStaffCode: staff?.code || body.salesStaffCode || body.salesmanCode || '',
+    salesStaffName: staff?.name || body.salesStaffName || body.salesmanName || ''
   };
 }
 // ===== SCOPED FIX: ORDER_DATA_LINEAGE_SALES_STAFF_SOURCE_END =====

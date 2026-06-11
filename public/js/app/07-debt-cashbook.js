@@ -580,7 +580,7 @@ function renderReturnOrderDetail(order){
   const items=returnOrderItems(order);
   const totalQty=items.reduce((sum,it)=>sum+returnItemQty(it),0) || Number(order.totalQuantity||0);
   const totalAmount=items.reduce((sum,it)=>sum+returnItemAmount(it),0) || Number(order.debtReduction ?? order.totalAmount ?? order.amount ?? 0);
-  const staff=debtPersonLabel(order.staffCode||order.deliveryStaffCode||order.salesmanCode,order.staffName||order.deliveryStaffName||order.salesmanName);
+  const staff=canonicalDeliveryStaffLabel(order)||canonicalSalesStaffLabel(order);
   const source=String(order.source||order.refType||'returnOrders');
   const status=String(order.status||'posted');
   const rows=items.map((it,idx)=>{
@@ -853,7 +853,7 @@ function renderUnmergedReturnOrders(rows = []){
   unmergedReturnOrderTable.innerHTML=head+rows.map(r=>{
     const id=String(r.id||r.code||'');
     const checked=selectedReturnOrderIdsForMaster.has(id)?'checked':'';
-    const staff=debtPersonLabel(r.deliveryStaffCode||r.staffCode,r.deliveryStaffName||r.staffName);
+    const staff=canonicalDeliveryStaffLabel(r);
     const customer=[r.customerCode,r.customerName].filter(Boolean).join(' - ');
     const selected=checked?' selected':'';
     return `<label class="return-one-line-row${selected}">
@@ -1415,7 +1415,8 @@ async function loadFundLedger(){
       fundLedgerTable.innerHTML=rows.length?rows.map(e=>{
         const isIn=String(e.direction)==='in';
         const key=e.id||e.code||`${e.date}-${e.sourceCode}-${e.amount}`;
-        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml(((e.deliveryStaffCode||e.staffCode||e.customerCode||'')+' '+(e.deliveryStaffName||e.staffName||e.customerName||'')).trim())}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
+        const staffLabel=canonicalFundStaffLabel(e)||[e.customerCode,e.customerName].filter(Boolean).join(' ');
+        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml(staffLabel)}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
       }).join(''):'<tr><td colspan="9">Chưa có phát sinh fundLedgers.</td></tr>';
     }
   }catch(err){

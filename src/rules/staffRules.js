@@ -64,7 +64,18 @@ function buildCodeFilter(staffCode) {
   // Quy tắc V45: mã NVBH/NVGH lấy từ tài khoản trong collection users.
   // Ưu tiên users.staffCode, nhưng nhiều dữ liệu cũ lưu mã nhân viên ở users.code.
   // Không dùng username/id để tránh tài khoản chung như `banhang`, `giaohang` bị nhận nhầm.
-  const codeFields = ['staffCode', 'code', 'employeeCode', 'salesStaffCode', 'deliveryStaffCode', 'username', 'maNhanVien', 'employeeId', 'staffId'];
+  // STAFF_CODE_MATCH_SAFE_FIELDS_START
+  const codeFields = [
+    'staffCode',
+    'code',
+    'employeeCode',
+    'salesStaffCode',
+    'deliveryStaffCode',
+    'maNhanVien',
+    'employeeId',
+    'staffId'
+  ];
+  // STAFF_CODE_MATCH_SAFE_FIELDS_END
   const clauses = [];
   for (const field of codeFields) {
     if (textValues.length) clauses.push({ [field]: { $in: textValues } });
@@ -118,7 +129,9 @@ async function validateStaffCode(staffCode, type = 'sales', context = {}) {
   if (!staff) {
     return { valid: false, staff: null, error: makeBusinessError({ code: `INVALID_${label}_CODE`, message: `Mã ${label} ${code} không tồn tại trong danh sách tài khoản`, orderCode: context.orderCode || '', field: type === 'delivery' ? 'deliveryStaffCode' : 'salesStaffCode' }) };
   }
-  const realCode = staff.staffCode || staff.code || staff.employeeCode || staff.salesStaffCode || staff.deliveryStaffCode || staff.maNhanVien || staff.employeeId || staff.staffId || staff.username || code;
+  // STAFF_REAL_CODE_NO_USERNAME_START
+  const realCode = staff.staffCode || staff.code || staff.employeeCode || staff.salesStaffCode || staff.deliveryStaffCode || staff.maNhanVien || staff.employeeId || staff.staffId || code;
+  // STAFF_REAL_CODE_NO_USERNAME_END
   return { valid: true, staff: { ...staff, code: String(realCode || '').trim(), name: staff.fullName || staff.name || staff.username }, error: null };
 }
 

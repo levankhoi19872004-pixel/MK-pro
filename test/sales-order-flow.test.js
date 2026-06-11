@@ -8,6 +8,7 @@ const orderRepository = require('../src/repositories/orderRepository');
 const productRepository = require('../src/repositories/productRepository');
 const customerRepository = require('../src/repositories/customerRepository');
 const userRepository = require('../src/repositories/userRepository');
+const staffRules = require('../src/rules/staffRules');
 const returnOrderRepository = require('../src/repositories/returnOrderRepository');
 const inventoryService = require('../src/services/inventoryService');
 const postingEngine = require('../src/engines/posting.engine');
@@ -65,7 +66,10 @@ test('SalesOrder flow creates pending order and posts stock immediately without 
     }
   });
   const restoreUserRepo = patch(userRepository, {
-    findStaffByIdOrCode: async () => ({ id: 'S001', code: 'S001', name: 'NV bán hàng' })
+    findStaffByIdOrCode: async () => { throw new Error('createOrder must not resolve NVBH via userRepository.findStaffByIdOrCode'); }
+  });
+  const restoreStaffRules = patch(staffRules, {
+    resolveSalesStaffByCode: async (code) => (code === 'S001' ? { id: 'S001', code: 'S001', name: 'NV bán hàng' } : null)
   });
   const returnDrafts = [];
   const restoreReturnOrderRepo = patch(returnOrderRepository, {
@@ -89,7 +93,7 @@ test('SalesOrder flow creates pending order and posts stock immediately without 
   try {
     const result = await orderService.createOrder({
       customerCode: 'C001',
-      staffCode: 'S001',
+      salesStaffCode: 'S001',
       paidAmount: 5000,
       items: [{ productCode: 'P001', quantity: 2, price: 10000 }]
     });
@@ -107,6 +111,7 @@ test('SalesOrder flow creates pending order and posts stock immediately without 
     restorePostingEngine();
     restoreInventoryService();
     restoreReturnOrderRepo();
+    restoreStaffRules();
     restoreUserRepo();
     restoreCustomerRepo();
     restoreProductRepo();

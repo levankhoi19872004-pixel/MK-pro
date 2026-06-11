@@ -29,8 +29,6 @@ function buildQueryFilter(query = {}) {
       { address: { $regex: rawRegex, $options: 'i' } },
       { area: { $regex: rawRegex, $options: 'i' } },
       { route: { $regex: rawRegex, $options: 'i' } },
-      { staffCode: { $regex: rawRegex, $options: 'i' } },
-      { staffName: { $regex: rawRegex, $options: 'i' } },
       { searchText: { $regex: normalizedRegex, $options: 'i' } }
     ];
   }
@@ -52,7 +50,7 @@ async function search(query = {}) {
   const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
   const limit = Math.min(Number.parseInt(query.limit, 10) || 20, 50);
   return Customer.find(filter)
-    .select('code name phone address area route staffCode staffName openingDebt debtLimit isActive')
+    .select('code name phone address area route staffCode staffName legacyStaffCode legacyStaffName openingDebt debtLimit isActive')
     .sort({ code: 1 })
     .limit(limit)
     .lean();

@@ -338,8 +338,8 @@ function getImportRowMainFields(row){
     return [
       {key:'Mã đơn',value:row.documentCode||''},
       {key:'File nguồn',value:row.sourceFile||row.fileName||''},
-      {key:'Mã NVBH',value:row.staffCode||row.salesStaffCode||''},
-      {key:'NVBH',value:row.staffName||row.salesStaffName||''},
+      {key:'Mã NVBH',value:row.salesStaffCode||row.salesmanCode||''},
+      {key:'NVBH',value:row.salesStaffName||row.salesmanName||''},
       {key:row.supplier?'Nhà cung cấp':'Mã KH',value:row.supplier||row.customerCode||''},
       {key:'Tên KH/NCC',value:row.customerName||row.supplier||''},
       {key:'Số dòng hàng',value:row.lineCount||0},
@@ -351,7 +351,24 @@ function getImportRowMainFields(row){
       ]:[])
     ];
   }
-  const fields=['documentCode','date','customerCode','customerName','productCode','productName','quantity','stockQuantity','soldQuantity','salePrice','amount','staffName','note'];
+  const fields=[
+    'documentCode',
+    'date',
+    'customerCode',
+    'customerName',
+    'productCode',
+    'productName',
+    'quantity',
+    'stockQuantity',
+    'soldQuantity',
+    'salePrice',
+    'amount',
+    'salesStaffCode',
+    'salesStaffName',
+    'salesmanCode',
+    'salesmanName',
+    'note'
+  ];
   return fields.filter(k=>row[k]!==undefined && row[k]!==null && row[k]!=='').map(k=>({key:k,value:row[k]}));
 }
 
@@ -465,20 +482,10 @@ function findImportPreviewValue(row, keys){
   return '';
 }
 function getImportPreviewSalesStaffCode(row){
-  return findImportPreviewValue(row,[
-    'staffCode','salesStaffCode','salesmanCode','employeeCode','sellerCode','saleCode','salesCode',
-    'maNV','maNVBH','maNhanVien','maNhanVienBanHang','maNvBanHang','maNVBanHang',
-    'Mã NVBH','Ma NVBH','Mã nhân viên','Ma nhan vien','Mã nhân viên bán hàng','Ma nhan vien ban hang','Mã NV bán hàng','Ma NV ban hang',
-    'Salesman Code','Sales Rep Code','Sales Staff Code'
-  ]);
+  return row.salesStaffCode || row.salesmanCode || '';
 }
 function getImportPreviewSalesStaffName(row){
-  return findImportPreviewValue(row,[
-    'staffName','salesStaffName','salesmanName','employeeName','sellerName','saleName','salesName',
-    'tenNV','tenNVBH','tenNhanVien','tenNhanVienBanHang','tenNvBanHang','tenNVBanHang',
-    'Tên NVBH','Ten NVBH','Tên NVTT','Ten NVTT','Nhân viên bán hàng','Nhan vien ban hang','NVBH',
-    'Salesman','Sales Rep','Sales Staff Name'
-  ]);
+  return row.salesStaffName || row.salesmanName || '';
 }
 
 

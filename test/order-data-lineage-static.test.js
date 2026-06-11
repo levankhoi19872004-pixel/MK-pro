@@ -65,3 +65,13 @@ test('debt report displays staff from arLedgers AR-SALE row, not customer/user/p
   assert.doesNotMatch(src, /salesmanName:\s*row\.salesmanName \|\| cmeta\.salesmanName/);
   assert.doesNotMatch(src, /deliveryStaffName:\s*row\.deliveryStaffName \|\| cmeta\.deliveryStaffName/);
 });
+
+test('orderService resolves new order sales staff only from salesStaffCode/salesmanCode', () => {
+  const src = read('src/services/orderService.js');
+
+  assert.ok(src.includes('ORDER_CREATE_SALES_STAFF_FROM_EXPLICIT_CODE_START'));
+  assert.match(src, /body\.salesStaffCode\s*\|\|\s*body\.salesmanCode/);
+
+  assert.doesNotMatch(src, /body\.staffId\s*\|\|\s*body\.staffCode\s*\|\|\s*body\.staffName\s*\|\|\s*body\.salesStaffId/);
+  assert.doesNotMatch(src, /findStaffByIdOrCode\(staffId\)/);
+});

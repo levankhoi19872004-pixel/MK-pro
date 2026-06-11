@@ -1127,9 +1127,33 @@ async function importSalesOrders(rows = [], options = {}) {
       errors.push({ documentCode: docCodeCheck, message: 'Thiếu mã NVBH trong file Excel import' });
       continue;
     }
-    if (!salesStaffUserMap.get(resolvedSalesStaff.staffCode)) {
+    if (!resolvedSalesStaff.found) {
       skipped += group.length;
-      errors.push({ documentCode: docCodeCheck, staffCode: resolvedSalesStaff.staffCode, message: `Mã NVBH ${resolvedSalesStaff.staffCode} không tồn tại trong users` });
+      errors.push({
+        documentCode: docCodeCheck,
+        staffCode: resolvedSalesStaff.staffCode,
+        message: `Mã NVBH ${resolvedSalesStaff.staffCode} không tồn tại trong users`
+      });
+      continue;
+    }
+
+    if (!resolvedSalesStaff.validRole) {
+      skipped += group.length;
+      errors.push({
+        documentCode: docCodeCheck,
+        staffCode: resolvedSalesStaff.staffCode,
+        message: `Mã ${resolvedSalesStaff.staffCode} không phải nhân viên bán hàng`
+      });
+      continue;
+    }
+
+    if (!resolvedSalesStaff.hasUserStaffCode) {
+      skipped += group.length;
+      errors.push({
+        documentCode: docCodeCheck,
+        staffCode: resolvedSalesStaff.staffCode,
+        message: `Tài khoản NVBH ${resolvedSalesStaff.staffCode} thiếu mã nhân viên trong users`
+      });
       continue;
     }
 
@@ -1649,9 +1673,21 @@ function getUserStaffName(user = {}) {
   return cleanText(user.fullName || user.name || user.staffName || user.username || '');
 }
 
+// DMS_IMPORT_SALES_STAFF_USERS_ONLY_START
 function getUserStaffCode(user = {}) {
-  return cleanText(user.staffCode || user.code || user.username || user.id || user._id || '');
+  // NVBH nghiệp vụ chỉ lấy từ mã nhân viên thật trong users.
+  // Không fallback username/id/_id để tránh match nhầm tài khoản đăng nhập.
+  return cleanText(
+    user.staffCode ||
+    user.code ||
+    user.employeeCode ||
+    user.salesStaffCode ||
+    user.maNhanVien ||
+    user.employeeId ||
+    ''
+  );
 }
+// DMS_IMPORT_SALES_STAFF_USERS_ONLY_END
 
 function isSalesStaffUser(user = {}) {
   const role = cleanText(user.role).toLowerCase();
@@ -1668,17 +1704,24 @@ async function preloadSalesStaffUsersByCode(rows = []) {
       { code: { $in: codes } },
       { employeeCode: { $in: codes } },
       { salesStaffCode: { $in: codes } },
-      { username: { $in: codes } },
       { maNhanVien: { $in: codes } },
-      { employeeId: { $in: codes } },
-      { staffId: { $in: codes } }
+      { employeeId: { $in: codes } }
     ]
-  }).select('id staffCode code employeeCode salesStaffCode username maNhanVien employeeId staffId fullName name staffName phone role isActive').lean().catch(() => []);
+  })
+    .select('staffCode code employeeCode salesStaffCode maNhanVien employeeId fullName name staffName role isActive')
+    .lean()
+    .catch(() => []);
 
   const map = new Map();
   for (const user of users || []) {
-    [user.staffCode, user.code, user.employeeCode, user.salesStaffCode, user.username, user.maNhanVien, user.employeeId, user.staffId, String(user._id || '')]
-      .forEach((value) => addUserStaffAlias(map, value, user));
+    [
+      user.staffCode,
+      user.code,
+      user.employeeCode,
+      user.salesStaffCode,
+      user.maNhanVien,
+      user.employeeId
+    ].forEach((value) => addUserStaffAlias(map, value, user));
   }
   return map;
 }
@@ -1688,14 +1731,18 @@ function resolveSalesStaffForImportRow(row = {}, salesStaffUserMap = new Map()) 
   // Tên NVBH không lấy từ khách hàng và không tin tên Excel; chỉ tra từ users Mongo theo mã Excel.
   const excelStaffCode = cleanText(getSalesStaffCodeFromRow(row));
   const user = excelStaffCode ? salesStaffUserMap.get(excelStaffCode) : null;
+  const userStaffCode = user ? getUserStaffCode(user) : '';
+  const userStaffName = user ? getUserStaffName(user) : '';
+
   return {
-    staffCode: user ? (getUserStaffCode(user) || excelStaffCode) : excelStaffCode,
-    salesStaffCode: user ? (getUserStaffCode(user) || excelStaffCode) : excelStaffCode,
-    staffName: user ? getUserStaffName(user) : '',
-    salesStaffName: user ? getUserStaffName(user) : '',
+    staffCode: user && userStaffCode ? userStaffCode : excelStaffCode,
+    salesStaffCode: user && userStaffCode ? userStaffCode : excelStaffCode,
+    staffName: user && userStaffName ? userStaffName : '',
+    salesStaffName: user && userStaffName ? userStaffName : '',
     user,
     found: !!user,
-    validRole: !user || isSalesStaffUser(user)
+    validRole: !!user && isSalesStaffUser(user),
+    hasUserStaffCode: !!userStaffCode
   };
 }
 
@@ -1802,16 +1849,16 @@ function flattenAdjustedCommitRows(rows = []) {
         // Giữ kết quả validate: mã NVBH lấy từ Excel, tên NVBH đã resolve từ users.
         raw.staffCode = row.staffCode || row.salesStaffCode || raw.staffCode;
         raw.salesStaffCode = row.salesStaffCode || row.staffCode || raw.salesStaffCode;
-        raw.staffName = row.staffName || row.salesStaffName || raw.staffName;
-        raw.salesStaffName = row.salesStaffName || row.staffName || raw.salesStaffName;
+        raw.staffName = row.staffName || row.salesStaffName || '';
+        raw.salesStaffName = row.salesStaffName || row.staffName || '';
         result.push(raw);
       }
     } else {
       const raw = cloneRawRowForImport(row);
       raw.staffCode = row.staffCode || row.salesStaffCode || raw.staffCode;
       raw.salesStaffCode = row.salesStaffCode || row.staffCode || raw.salesStaffCode;
-      raw.staffName = row.staffName || row.salesStaffName || raw.staffName;
-      raw.salesStaffName = row.salesStaffName || row.staffName || raw.salesStaffName;
+      raw.staffName = row.staffName || row.salesStaffName || '';
+      raw.salesStaffName = row.salesStaffName || row.staffName || '';
       if (!raw.__skipImportLine) result.push(raw);
     }
   }
@@ -2356,12 +2403,14 @@ async function previewMongoNative(type, rows = []) {
   } else if (type === 'salesOrders') {
     const productMap = await preloadProductsByCode(safeRows);
     const customerMap = await preloadCustomersByCode(safeRows);
+    const salesStaffUserMap = await preloadSalesStaffUsersByCode(safeRows);
     const stockMap = await getStockMapByProductCode(safeRows);
     const runningStockMap = new Map(stockMap);
     const groups = groupRows(safeRows, makeSalesOrderGroupKey);
 
     result = groups.map((group) => {
       const first = group[0] || {};
+      const resolvedSalesStaff = resolveSalesStaffForImportRow(first, salesStaffUserMap);
       const documentCode = getOrderDocumentCode(first);
       const customerCode = getCustomerCodeFromRow(first);
       const customer = customerMap.get(cleanText(customerCode));
@@ -2377,6 +2426,10 @@ async function previewMongoNative(type, rows = []) {
 
       if (!customerCode) errors.push('Thiếu mã khách hàng / mã cửa hàng');
       if (!customer) errors.push('Không tìm thấy khách hàng');
+      if (!resolvedSalesStaff.staffCode) errors.push('Thiếu mã NVBH trong file Excel import');
+      else if (!resolvedSalesStaff.found) errors.push(`Mã NVBH ${resolvedSalesStaff.staffCode} không tồn tại trong users`);
+      else if (!resolvedSalesStaff.validRole) errors.push(`Mã ${resolvedSalesStaff.staffCode} không phải nhân viên bán hàng`);
+      else if (!resolvedSalesStaff.hasUserStaffCode) errors.push(`Tài khoản NVBH ${resolvedSalesStaff.staffCode} thiếu mã nhân viên trong users`);
 
       for (const row of group) {
         const productCode = getProductCodeFromRow(row);
@@ -2474,10 +2527,10 @@ async function previewMongoNative(type, rows = []) {
         customerCode,
         customerName: getCustomerNameFromRow(first) || customer?.name || '',
         // Mã NVBH phải lấy từ Excel; tên NVBH sẽ được validate/điền lại từ users Mongo theo mã này.
-        staffCode: getSalesStaffCodeFromRow(first),
-        salesStaffCode: getSalesStaffCodeFromRow(first),
-        staffName: '',
-        salesStaffName: '',
+        staffCode: resolvedSalesStaff.staffCode,
+        salesStaffCode: resolvedSalesStaff.salesStaffCode,
+        staffName: resolvedSalesStaff.staffName,
+        salesStaffName: resolvedSalesStaff.salesStaffName,
         saleMethod: DIRECT_PRICE,
         saleMode: DIRECT_PRICE,
         pricingMode: DIRECT_PRICE,

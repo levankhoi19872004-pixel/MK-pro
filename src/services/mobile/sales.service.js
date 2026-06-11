@@ -69,6 +69,26 @@ function createMobileSalesService(ctx) {
   } = ctx;
 
 
+  // MOBILE_SALES_STAFF_CANONICAL_MATCH_START
+  function getMobileSalesStaffCode(mobileUser = {}) {
+    return String(
+      mobileUser.salesStaffCode ||
+      mobileUser.staffCode ||
+      mobileUser.code ||
+      ''
+    ).trim();
+  }
+
+  function getMobileSalesStaffName(mobileUser = {}) {
+    return String(
+      mobileUser.salesStaffName ||
+      mobileUser.fullName ||
+      mobileUser.name ||
+      ''
+    ).trim();
+  }
+  // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
+
   function returnDraftLineKey(item = {}) {
     return [String(item.productCode || item.code || item.productId || '').trim(), String(item.unit || item.baseUnit || '').trim(), String(toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0))].join('|');
   }
@@ -171,10 +191,14 @@ function createMobileSalesService(ctx) {
     return row;
   }
 
+  // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_START
   function isOwnedByMobileUser(order, mobileUser) {
-    return normalizeText(order.staffCode || order.salesStaffCode) === normalizeText(mobileUser.code)
-      || normalizeText(order.staffName || order.salesStaffName) === normalizeText(mobileUser.name);
+    const userSalesCode = normalizeText(getMobileSalesStaffCode(mobileUser));
+    if (!userSalesCode) return false;
+
+    return normalizeText(order.salesStaffCode || order.salesmanCode) === userSalesCode;
   }
+  // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
 
   async function createSalesOrder({ body = {}, mobileUser }) {
     const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || (body.customer && body.customer.code), Array.isArray(body.items) ? body.items.length : 0]);
@@ -300,8 +324,13 @@ function createMobileSalesService(ctx) {
         customerName: customer.name,
         customerPhone: customer.phone,
         customerAddress: customer.address,
-        staffCode: mobileUser.code || '',
-        staffName: mobileUser.name || '',
+        salesStaffCode: getMobileSalesStaffCode(mobileUser),
+        salesStaffName: getMobileSalesStaffName(mobileUser),
+        salesmanCode: getMobileSalesStaffCode(mobileUser),
+        salesmanName: getMobileSalesStaffName(mobileUser),
+        // Legacy mirror chỉ để UI cũ đọc, không dùng để match quyền nữa.
+        staffCode: '',
+        staffName: '',
         source: 'mobile_sales_app',
         orderSource: 'NVBH',
         orderSourceName: 'Từ NVBH',
@@ -433,8 +462,10 @@ function createMobileSalesService(ctx) {
         ...body,
         customerId: customerPayload.id || customerPayload.code || body.customerId || body.customerCode || order.customerId,
         customerCode: customerPayload.code || body.customerCode || order.customerCode,
-        salesStaffCode: mobileUser.code || order.salesStaffCode || order.staffCode || '',
-        salesStaffName: mobileUser.name || order.salesStaffName || order.staffName || ''
+        salesStaffCode: getMobileSalesStaffCode(mobileUser),
+        salesStaffName: getMobileSalesStaffName(mobileUser),
+        salesmanCode: getMobileSalesStaffCode(mobileUser),
+        salesmanName: getMobileSalesStaffName(mobileUser)
       };
       const salesOrder = updateSalesOrderWithRepost(data, order, patchBody);
       syncReturnDraftInSnapshot(data, salesOrder);

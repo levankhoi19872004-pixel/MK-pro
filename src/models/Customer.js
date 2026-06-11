@@ -10,6 +10,8 @@ const customerSchema = new mongoose.Schema({
   address: { type: String, default: '', trim: true },
   area: { type: String, default: '', trim: true },
   route: { type: String, default: '', trim: true },
+  legacyStaffCode: { type: String, default: '', trim: true },
+  legacyStaffName: { type: String, default: '', trim: true },
   staffCode: { type: String, default: '', trim: true },
   staffName: { type: String, default: '', trim: true },
   openingDebt: { type: Number, default: 0 },
@@ -22,7 +24,16 @@ const customerSchema = new mongoose.Schema({
 
 
 customerSchema.pre('validate', function buildSearchText(next) {
-  this.searchText = normalizeSearchText([this.code, this.customerCode, this.name, this.customerName, this.phone, this.address, this.area, this.route, this.staffCode, this.staffName].filter(Boolean).join(' '));
+  this.searchText = normalizeSearchText([
+    this.code,
+    this.customerCode,
+    this.name,
+    this.customerName,
+    this.phone,
+    this.address,
+    this.area,
+    this.route
+  ].filter(Boolean).join(' '));
   next();
 });
 

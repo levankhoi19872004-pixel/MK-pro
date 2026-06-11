@@ -113,7 +113,7 @@ function renderUnmergedChildOrders() {
     const selectedClass = checked ? ' selected' : '';
     const code = order.code || order.orderCode || order.salesOrderCode || key;
     const customer = order.customerName || order.customerCode || 'Khách hàng';
-    const staff = order.salesStaffName || order.staffName || order.salesStaffCode || order.staffCode || '';
+    const staff = canonicalSalesStaffLabel(order);
     const saleDate = masterOrderDate(masterOrderSaleDateRaw(order));
     return `<label class="master-child-one-line${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
       <input type="checkbox" class="child-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
@@ -146,7 +146,7 @@ function renderSelectedGroupedChildOrders() {
     const selectedClass = checked ? ' selected' : '';
     const code = order.code || order.orderCode || order.salesOrderCode || key;
     const customer = order.customerName || order.customerCode || 'Khách hàng';
-    const staff = order.salesStaffName || order.staffName || order.salesStaffCode || order.staffCode || '';
+    const staff = canonicalSalesStaffLabel(order);
     const saleDate = masterOrderDate(masterOrderSaleDateRaw(order));
     return `<label class="master-child-one-line${selectedClass}" title="${masterOrderEscapeHtml(code)} | ${masterOrderEscapeHtml(customer)} | ${masterOrderEscapeHtml(staff)}">
       <input type="checkbox" class="grouped-child-order-check" data-id="${masterOrderEscapeHtml(key)}" ${checked} />
