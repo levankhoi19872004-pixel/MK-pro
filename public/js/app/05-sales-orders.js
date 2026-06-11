@@ -954,12 +954,16 @@ function buildSalesOrderSearchParams(page = 1){
   if(q)params.set('q',q);
   const staffCodeFilter=getSalesOrderStaffFilterCode();
   const staffTextFilter=getSalesOrderStaffFilterName();
+
   if(staffCodeFilter){
+    // Khi đã có mã NVBH, chỉ lọc bằng mã.
+    // Không gửi thêm salesStaffName vì backend có thể nới rộng điều kiện bằng OR.
     params.set('salesStaffCode',staffCodeFilter);
-    // Bật alias để đơn DMS/import cũ dùng staffCode/salesmanCode vẫn lọc đúng.
     params.set('includeStaffAliases','1');
+  } else if(staffTextFilter){
+    // Tên chỉ là fallback khi người dùng gõ tự do mà chưa chọn được mã.
+    params.set('salesStaffName',staffTextFilter);
   }
-  if(staffTextFilter)params.set('salesStaffName',staffTextFilter);
   params.set('page',String(page));
   params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
   return params;
