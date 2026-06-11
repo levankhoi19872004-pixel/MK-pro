@@ -64,14 +64,18 @@ test('reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, khô
   assert.match(src, /row\.saleDeliveryStaffName \|\| row\.fallbackDeliveryStaffName/);
 });
 
-test('UI công nợ header hiển thị nhân sự từ đơn nợ đang chọn, không dùng staffCode/staffName', () => {
+test('UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers', () => {
   const src = read('public/js/app/07-debt-cashbook.js');
-  assert.match(src, /DEBT_UI_STAFF_FROM_SELECTED_ORDER_START/);
-  const fn = src.match(/function getDebtDisplayStaffSource[\s\S]*?\n\}/)?.[0] || '';
-  assert.ok(fn, 'getDebtDisplayStaffSource must exist');
-  assert.doesNotMatch(fn, /staffCode|staffName/);
+  assert.match(src, /DEBT_UI_RENDER_FROM_DEBT_ROWS_START/);
+  assert.match(src, /window\.debtLedgerRowsCache=ledger/);
+  assert.match(src, /mergeDebtCustomerSummaryFromDebtRows\(json\.customerSummary, ledger\)/);
+  assert.match(src, /function renderDebtStaffInfoFromDebt\(customer\)/);
+  const renderFn = src.match(new RegExp('function renderDebtStaffInfoFromDebt[\\s\\S]*?\\n\\}'))?.[0] || '';
+  assert.ok(renderFn, 'renderDebtStaffInfoFromDebt must exist');
+  assert.match(renderFn, /pickDebtDisplayRowFromDebtRows\(customer\)/);
+  assert.match(renderFn, /debtStaffFieldsFromDebtRow\(row\)/);
+  assert.doesNotMatch(renderFn, /staffCode|staffName|userMap|staffMap/);
   const selectBlock = src.match(/function selectCollectionCustomer[\s\S]*?function renderCollectionCustomerSelect/)?.[0] || '';
-  assert.match(selectBlock, /const staffSource=getDebtDisplayStaffSource\(d\)/);
-  assert.match(selectBlock, /debtPersonLabel\(staffSource\.salesmanCode,staffSource\.salesmanName\)/);
-  assert.match(selectBlock, /debtPersonLabel\(staffSource\.deliveryStaffCode,staffSource\.deliveryStaffName\)/);
+  assert.match(selectBlock, /renderDebtStaffInfoFromDebt\(d\)/);
+  assert.doesNotMatch(selectBlock, /const staffSource=getDebtDisplayStaffSource\(d\)/);
 });

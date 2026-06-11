@@ -1,5 +1,10 @@
 var DEBT_ZERO_TOLERANCE = window.DEBT_ZERO_TOLERANCE || 1000;
 window.DEBT_ZERO_TOLERANCE = DEBT_ZERO_TOLERANCE;
+// ===== SCOPED CHANGE: DEBT_UI_RENDER_FROM_DEBT_ROWS_START =====
+// Màn Công nợ hiển thị NVBH/NVGH từ chính dòng công nợ (API debts/arLedgers),
+// không lấy lại từ customer summary, users map hoặc legacy audit fields.
+window.debtLedgerRowsCache = Array.isArray(window.debtLedgerRowsCache) ? window.debtLedgerRowsCache : [];
+// ===== SCOPED CHANGE: DEBT_UI_RENDER_FROM_DEBT_ROWS_END =====
 function normalizeDebtAmount(value, tolerance = DEBT_ZERO_TOLERANCE){
   const n = Number(value || 0);
   if(!Number.isFinite(n)) return 0;
@@ -91,11 +96,10 @@ async function loadDebts(){
     const res=await fetch(url);
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không tải được công nợ');
-    const ledger=json.debts||[];
+    const ledger=Array.isArray(json.debts)?json.debts:[];
+    window.debtLedgerRowsCache=ledger;
     const summary=json.summary||{};
-    debtsCache=(Array.isArray(json.customerSummary)&&json.customerSummary.length)
-      ?json.customerSummary
-      :buildCustomerDebtOverview(ledger);
+    debtsCache=mergeDebtCustomerSummaryFromDebtRows(json.customerSummary, ledger);
     const totalDebt=Number(summary.totalDebt ?? ledger.reduce((sum,d)=>sum+normalizeDebtAmount(d.debt),0));
     if(debtTotalKpi)debtTotalKpi.textContent=money(totalDebt);
     if(debtCount)debtCount.textContent=`${summary.customerCount??debtsCache.length} khách · ${summary.orderCount??ledger.length} đơn · Quá hạn ${summary.overdueCount??0}`;
@@ -165,6 +169,95 @@ function selectDebtCustomerFromCard(index){
   selectCollectionCustomer(row);
   if(collectionCustomerSearch)collectionCustomerSearch.scrollIntoView({behavior:'smooth',block:'center'});
 }
+
+
+// ===== SCOPED CHANGE: DEBT_UI_RENDER_FROM_DEBT_ROWS_START =====
+function getDebtLedgerCustomerKey(row){
+  return String(row?.customerId||row?.customerCode||row?.customerName||'').trim();
+}
+function getDebtLedgerOrderKey(row){
+  return String(row?.orderId||row?.orderCode||row?.salesOrderId||row?.salesOrderCode||row?.refId||row?.refCode||'').trim();
+}
+function debtStaffFieldsFromDebtRow(row={}){
+  return {
+    salesmanCode: row.salesmanCode || row.salesStaffCode || row.nvbhCode || '',
+    salesmanName: row.salesmanName || row.salesStaffName || row.nvbhName || '',
+    deliveryStaffCode: row.deliveryStaffCode || row.deliveryCode || row.nvghCode || '',
+    deliveryStaffName: row.deliveryStaffName || row.deliveryName || row.nvghName || ''
+  };
+}
+function findDebtRowsForCustomer(customer){
+  const rows=Array.isArray(window.debtLedgerRowsCache)?window.debtLedgerRowsCache:[];
+  const key=getDebtCustomerKey(customer);
+  const customerCode=String(customer?.customerCode||'').trim();
+  const customerId=String(customer?.customerId||'').trim();
+  return rows.filter(row=>{
+    const rowKey=getDebtLedgerCustomerKey(row);
+    return (key && rowKey===key) || (customerCode && String(row.customerCode||'')===customerCode) || (customerId && String(row.customerId||'')===customerId);
+  });
+}
+function pickDebtDisplayRowFromDebtRows(customer){
+  const debtRows=findDebtRowsForCustomer(customer)
+    .filter(row=>hasOpenDebt(row.debt) || isOverpaidDebt(row.debt))
+    .sort((a,b)=>String(a.documentDate||a.date||'').localeCompare(String(b.documentDate||b.date||'')) || String(a.orderCode||'').localeCompare(String(b.orderCode||'')));
+  const checkedOrders=(Array.isArray(selectedCollectionCustomerOrders)?selectedCollectionCustomerOrders:[])
+    .map(order=>getDebtLedgerOrderKey(order))
+    .filter(Boolean);
+  if(checkedOrders.length){
+    const selected=debtRows.find(row=>checkedOrders.includes(getDebtLedgerOrderKey(row)));
+    if(selected)return selected;
+  }
+  return debtRows[0] || getDebtPrimaryOpenOrder(customer) || customer || {};
+}
+function renderDebtStaffInfoFromDebt(customer){
+  const row=pickDebtDisplayRowFromDebtRows(customer);
+  const staff=debtStaffFieldsFromDebtRow(row);
+  return `<span>NVBH: <b>${escapeHtml(debtPersonLabel(staff.salesmanCode,staff.salesmanName))}</b></span><span>NVGH: <b>${escapeHtml(debtPersonLabel(staff.deliveryStaffCode,staff.deliveryStaffName))}</b></span>`;
+}
+function mergeDebtCustomerSummaryFromDebtRows(customerSummary=[], debtRows=[]){
+  const base=(Array.isArray(customerSummary)&&customerSummary.length)?customerSummary:buildCustomerDebtOverview(debtRows);
+  const byCustomer=new Map();
+  (Array.isArray(debtRows)?debtRows:[]).forEach(row=>{
+    const key=getDebtLedgerCustomerKey(row);
+    if(!key)return;
+    const list=byCustomer.get(key)||[];
+    list.push(row);
+    byCustomer.set(key,list);
+  });
+  return base.map(customer=>{
+    const key=getDebtCustomerKey(customer);
+    const rows=byCustomer.get(key)||[];
+    if(!rows.length)return customer;
+    const openRows=rows.filter(row=>hasOpenDebt(row.debt)||isOverpaidDebt(row.debt));
+    const ordered=(openRows.length?openRows:rows).slice().sort((a,b)=>String(a.documentDate||a.date||'').localeCompare(String(b.documentDate||b.date||'')) || String(a.orderCode||'').localeCompare(String(b.orderCode||'')));
+    const first=ordered[0]||{};
+    const staff=debtStaffFieldsFromDebtRow(first);
+    return {
+      ...customer,
+      salesmanCode: staff.salesmanCode,
+      salesmanName: staff.salesmanName,
+      deliveryStaffCode: staff.deliveryStaffCode,
+      deliveryStaffName: staff.deliveryStaffName,
+      orders: ordered.map(row=>({
+        orderId: row.orderId || row.salesOrderId || '',
+        orderCode: row.orderCode || row.salesOrderCode || row.refCode || '',
+        documentDate: row.documentDate || row.date || '',
+        dueDate: row.dueDate || row.documentDate || row.date || '',
+        debit: Number(row.debit||0),
+        credit: Number(row.credit||0),
+        receiptAmount: Number(row.receiptAmount||0),
+        returnAmount: Number(row.returnAmount||0),
+        bonusAmount: Number(row.bonusAmount||0),
+        debt: normalizeDebtAmount(row.debt),
+        overdueDays: Number(row.overdueDays||0),
+        agingDays: Number(row.agingDays||0),
+        status: row.status || '',
+        ...debtStaffFieldsFromDebtRow(row)
+      }))
+    };
+  });
+}
+// ===== SCOPED CHANGE: DEBT_UI_RENDER_FROM_DEBT_ROWS_END =====
 
 function buildCustomerDebtOverview(rows){
   const map=new Map();
@@ -318,12 +411,8 @@ function getDebtPrimaryOpenOrder(customer){
     .sort((a,b)=>String(a.documentDate||'').localeCompare(String(b.documentDate||'')))[0] || orders[0] || null;
 }
 function getDebtDisplayStaffSource(customer){
-  // ===== SCOPED FIX: DEBT_UI_STAFF_FROM_SELECTED_ORDER_START =====
-  // Header Công nợ phải hiển thị nhân sự của đơn nợ đang xử lý.
-  // Không tự lookup users/staffMap; audit/legacy fields không được tham gia hiển thị nghiệp vụ.
-  const order=getDebtPrimaryOpenOrder(customer);
-  return order || customer || {};
-  // ===== SCOPED FIX: DEBT_UI_STAFF_FROM_SELECTED_ORDER_END =====
+  // Kept for compatibility with old callers; new UI rendering uses renderDebtStaffInfoFromDebt().
+  return debtStaffFieldsFromDebtRow(pickDebtDisplayRowFromDebtRows(customer));
 }
 
 function selectCollectionCustomer(d, options={}){
@@ -343,9 +432,8 @@ function selectCollectionCustomer(d, options={}){
   if(debtDetailStatus)debtDetailStatus.textContent='Đang xử lý';
   const debtMeta=debtDisplayMeta(d.debt);
   if(debtCustomerInfoBox){
-    const staffSource=getDebtDisplayStaffSource(d);
     debtCustomerInfoBox.innerHTML=`<div class="debt-info-main"><div><small>Mã khách</small><b>${escapeHtml(d.customerCode||'')}</b></div><div><small>Tên khách</small><b>${escapeHtml(d.customerName||'')}</b></div><div><small>${escapeHtml(debtMeta.label)}</small><strong class="${debtMeta.className}">${debtMeta.text}</strong></div></div>
-      <div class="debt-info-sub"><span>NVBH: <b>${escapeHtml(debtPersonLabel(staffSource.salesmanCode,staffSource.salesmanName))}</b></span><span>NVGH: <b>${escapeHtml(debtPersonLabel(staffSource.deliveryStaffCode,staffSource.deliveryStaffName))}</b></span><span>Số đơn nợ: <b>${Number(d.orderCount||0)}</b></span></div>`;
+      <div class="debt-info-sub">${renderDebtStaffInfoFromDebt(d)}<span>Số đơn nợ: <b>${Number(d.orderCount||0)}</b></span></div>`;
   }
   updateSelectedCustomerDebt();
   renderCollectionOrderAllocations(d);
