@@ -15,6 +15,13 @@ function cleanKey(key) {
     .trim();
 }
 
+function normalizeHeader(value = '') {
+  return cleanKey(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 function isEmptyValue(value) {
   return value === null || value === undefined || String(value).trim() === '';
 }
@@ -31,20 +38,88 @@ function normalizeCell(value) {
   return typeof value === 'string' ? value.trim() : value;
 }
 
+function usableHeadersFromLine(line = []) {
+  return (Array.isArray(line) ? line : [])
+    .map(cleanKey)
+    .filter(Boolean)
+    .filter((header) => !header.startsWith('__EMPTY'));
+}
+
+function headerScore(line = []) {
+  const headers = usableHeadersFromLine(line);
+  if (!headers.length) return 0;
+
+  const normalized = headers.map(normalizeHeader).join(' | ');
+  const keywordScore = [
+    'ma kh',
+    'ma khach',
+    'customer',
+    'khach hang',
+    'ma sp',
+    'ma hang',
+    'san pham',
+    'product',
+    'barcode',
+    'so luong',
+    'quantity',
+    'don gia',
+    'gia ban',
+    'amount',
+    'thanh tien',
+    'hoa don',
+    'invoice',
+    'ma don',
+    'order',
+    'ngay',
+    'date',
+    'nvbh',
+    'nhan vien',
+    'staff'
+  ].reduce((score, keyword) => score + (normalized.includes(keyword) ? 3 : 0), 0);
+
+  return Math.min(headers.length, 20) + keywordScore;
+}
+
+function findHeaderRowIndex(matrix = []) {
+  const scanLimit = Math.min(Array.isArray(matrix) ? matrix.length : 0, 30);
+  let bestIndex = -1;
+  let bestScore = 0;
+
+  for (let index = 0; index < scanLimit; index += 1) {
+    const line = matrix[index] || [];
+    const usableHeaders = usableHeadersFromLine(line);
+    if (usableHeaders.length < 2) continue;
+
+    const score = headerScore(line);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
 function rowsToObjects(matrix = []) {
   if (!Array.isArray(matrix) || matrix.length < 2) return [];
 
-  const headers = matrix[0].map(cleanKey);
+  const headerIndex = findHeaderRowIndex(matrix);
+  if (headerIndex < 0) return [];
+
+  const headers = (matrix[headerIndex] || []).map(cleanKey);
   const usableHeaders = headers.filter(Boolean).filter((header) => !header.startsWith('__EMPTY'));
 
   assertSizeLimit(usableHeaders.length <= MAX_COLUMNS);
-  assertSizeLimit(matrix.length - 1 <= MAX_ROWS);
+  assertSizeLimit(matrix.length - headerIndex - 1 <= MAX_ROWS);
 
   const rows = [];
 
-  for (let i = 1; i < matrix.length; i += 1) {
+  for (let i = headerIndex + 1; i < matrix.length; i += 1) {
     const line = matrix[i] || [];
-    const row = { __rowNo: i + 1 };
+    const row = {
+      __rowNo: i + 1,
+      __headerRowNo: headerIndex + 1
+    };
 
     headers.forEach((header, colIndex) => {
       const cleanedKey = cleanKey(header);
@@ -58,28 +133,41 @@ function rowsToObjects(matrix = []) {
   return rows;
 }
 
-async function readPreferredSheetMatrix(buffer) {
-  try {
-    const importSheet = await readXlsxFile(buffer, {
-      sheet: 'Import',
-      dateFormat: 'dd/mm/yyyy'
-    });
+async function readSheetRows(buffer, options = {}) {
+  const matrix = await readXlsxFile(buffer, {
+    ...options,
+    dateFormat: 'dd/mm/yyyy'
+  });
 
-    if (Array.isArray(importSheet) && importSheet.length) return importSheet;
-  } catch (_) {
-    // read-excel-file v9.2.0 không export API liệt kê sheet ổn định ở CJS.
-    // Nếu file không có sheet Import, fallback đọc sheet đầu tiên.
-  }
-
-  return readXlsxFile(buffer, { dateFormat: 'dd/mm/yyyy' });
+  return rowsToObjects(matrix);
 }
 
 async function parseExcelBuffer(buffer) {
   if (!buffer || !buffer.length) return [];
 
-  const matrix = await readPreferredSheetMatrix(buffer);
+  const attempts = [
+    { sheet: 'Import' },
+    {},
+    ...Array.from({ length: MAX_SHEETS }, (_, index) => ({ sheet: index + 1 }))
+  ];
 
-  return rowsToObjects(matrix);
+  const seen = new Set();
+
+  for (const options of attempts) {
+    const key = Object.prototype.hasOwnProperty.call(options, 'sheet') ? `sheet:${options.sheet}` : 'default';
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    try {
+      const rows = await readSheetRows(buffer, options);
+      if (Array.isArray(rows) && rows.length) return rows;
+    } catch (_) {
+      // Không phải workbook nào cũng có sheet Import hoặc đủ sheet theo index.
+      // Tiếp tục thử sheet khác thay vì báo rỗng ngay.
+    }
+  }
+
+  return [];
 }
 
 process.on('message', async (message = {}) => {
