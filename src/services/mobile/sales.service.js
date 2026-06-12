@@ -7,7 +7,6 @@ const SalesOrder = require('../../models/SalesOrder');
 const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
 const ReturnOrder = require('../../models/ReturnOrder');
-const ArLedger = require('../../models/ArLedger');
 const Payment = require('../../models/Payment');
 const Cashbook = require('../../models/Cashbook');
 const MobileLog = require('../../models/MobileLog');
@@ -226,164 +225,6 @@ function returnOrderIsLocked(row = {}) {
 }
 
 
-function activeArLedgerMatch() {
-  return {
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
-    reversed: { $ne: true },
-    refType: { $ne: 'AR_LEDGER_REVERSAL' },
-    type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
-  };
-}
-
-function arSaleStaffMatchForMobileSales(mobileUser = {}) {
-  const variants = caseVariants(mobileUserSalesStaffCode(mobileUser));
-  if (!variants.length) return null;
-  return {
-    ...activeArLedgerMatch(),
-    $and: [
-      {
-        $or: [
-          { type: { $regex: /sale/i } },
-          { refType: { $regex: /sale/i } },
-          { code: { $regex: /^AR[-_]?SALE/i } },
-          { id: { $regex: /^AR[-_]?SALE/i } }
-        ]
-      },
-      {
-        $or: [
-          { salesmanCode: { $in: variants } },
-          { salesStaffCode: { $in: variants } },
-          { nvbhCode: { $in: variants } }
-        ]
-      }
-    ]
-  };
-}
-
-async function listMobileSalesDebtsDirect({ query = {}, mobileUser } = {}) {
-  const seedMatch = arSaleStaffMatchForMobileSales(mobileUser);
-  if (!seedMatch) return null;
-  const limit = Math.min(Math.max(toNumber(query.limit || 100), 1), 300);
-
-  const saleRows = await ArLedger.find(seedMatch)
-    .select('orderId salesOrderId refId orderCode salesOrderCode refCode')
-    .sort({ date: -1, createdAt: -1 })
-    .limit(5000)
-    .lean()
-    .catch(() => []);
-
-  const orderIds = uniqueClean(saleRows.flatMap((row) => [row.orderId, row.salesOrderId, row.refId]));
-  const orderCodes = uniqueClean(saleRows.flatMap((row) => [row.orderCode, row.salesOrderCode, row.refCode]));
-
-  if (!orderIds.length && !orderCodes.length) {
-    // Không kết luận nhân viên không có công nợ ở fast-path.
-    // Dữ liệu cũ có thể thiếu type=ar_sale hoặc thiếu staff field trên dòng seed,
-    // cho phép fallback sang reportService.debtCustomers() để tránh app hiển thị rỗng sai.
-    return null;
-  }
-
-  const match = activeArLedgerMatch();
-  match.$or = [
-    ...(orderIds.length ? [{ orderId: { $in: orderIds } }, { salesOrderId: { $in: orderIds } }, { refId: { $in: orderIds } }] : []),
-    ...(orderCodes.length ? [{ orderCode: { $in: orderCodes } }, { salesOrderCode: { $in: orderCodes } }, { refCode: { $in: orderCodes } }] : [])
-  ];
-
-  const groupedOrders = await ArLedger.aggregate([
-    { $match: match },
-    { $project: {
-      date: { $ifNull: ['$date', '$createdAt'] },
-      orderId: { $ifNull: ['$orderId', '$salesOrderId'] },
-      orderCode: { $ifNull: ['$orderCode', '$salesOrderCode'] },
-      refId: 1,
-      refCode: 1,
-      customerId: 1,
-      customerCode: 1,
-      customerName: 1,
-      phone: { $ifNull: ['$phone', '$customerPhone'] },
-      address: { $ifNull: ['$address', '$customerAddress'] },
-      salesmanCode: { $ifNull: ['$salesmanCode', '$salesStaffCode'] },
-      salesmanName: { $ifNull: ['$salesmanName', '$salesStaffName'] },
-      debit: { $ifNull: ['$debit', 0] },
-      credit: { $ifNull: ['$credit', 0] }
-    } },
-    { $group: {
-      _id: {
-        orderId: { $ifNull: ['$orderId', '$refId'] },
-        orderCode: { $ifNull: ['$orderCode', '$refCode'] },
-        customerId: '$customerId',
-        customerCode: '$customerCode',
-        customerName: '$customerName'
-      },
-      firstDate: { $min: '$date' },
-      phone: { $max: '$phone' },
-      address: { $max: '$address' },
-      salesmanCode: { $max: '$salesmanCode' },
-      salesmanName: { $max: '$salesmanName' },
-      debit: { $sum: '$debit' },
-      credit: { $sum: '$credit' }
-    } },
-    { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
-    { $match: { debt: { $gt: 1000 } } },
-    { $sort: { debt: -1, firstDate: 1 } },
-    { $limit: limit * 5 }
-  ]).allowDiskUse(true).exec().catch(() => []);
-
-  const q = normalizeText(query.q || query.keyword || query.search || '');
-  const customerMap = new Map();
-  for (const row of groupedOrders || []) {
-    const id = row._id || {};
-    const debt = normalizeDebtAmount(row.debt);
-    if (!hasOpenDebt(debt)) continue;
-    const customerKey = String(id.customerCode || id.customerId || id.customerName || '').trim();
-    if (!customerKey) continue;
-    if (q && ![id.customerCode, id.customerName, row.phone, row.address].some((value) => normalizeText(value).includes(q))) continue;
-    if (!customerMap.has(customerKey)) {
-      customerMap.set(customerKey, {
-        customerId: id.customerId || '',
-        customerCode: id.customerCode || '',
-        customerName: id.customerName || 'Chưa rõ khách',
-        phone: row.phone || '',
-        address: row.address || '',
-        salesmanCode: row.salesmanCode || '',
-        salesmanName: row.salesmanName || '',
-        debtAmount: 0,
-        orderCount: 0,
-        oldestDebtDate: '',
-        orders: []
-      });
-    }
-    const target = customerMap.get(customerKey);
-    target.debtAmount += debt;
-    target.orderCount += 1;
-    const documentDate = dateUtil.toDateOnly(row.firstDate || '');
-    if (documentDate && (!target.oldestDebtDate || documentDate < target.oldestDebtDate)) target.oldestDebtDate = documentDate;
-    target.orders.push({
-      orderId: id.orderId || '',
-      orderCode: id.orderCode || '',
-      documentDate,
-      dueDate: documentDate,
-      debit: toNumber(row.debit),
-      credit: toNumber(row.credit),
-      debt,
-      status: 'open',
-      salesmanCode: row.salesmanCode || '',
-      salesmanName: row.salesmanName || ''
-    });
-  }
-
-  const items = Array.from(customerMap.values())
-    .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount))
-    .slice(0, limit);
-
-  return {
-    items,
-    summary: {
-      totalDebt: items.reduce((sum, item) => sum + toNumber(item.debtAmount), 0),
-      customerCount: items.length,
-      source: 'arLedgers-mobile-fast'
-    }
-  };
-}
 
 async function getInventoryQtyByProducts(products = []) {
   const codes = (products || []).map(canonicalProductCode).filter(Boolean);
@@ -1103,18 +944,6 @@ function createMobileSalesService(ctx) {
 
   
   async function listDebts({ query = {}, mobileUser } = {}) {
-    const fast = await listMobileSalesDebtsDirect({ query, mobileUser });
-    if (fast && Array.isArray(fast.items) && fast.items.length) {
-      return {
-        body: {
-          ok: true,
-          source: 'mobile-sales-ar-ledger-debts-fast',
-          items: fast.items,
-          summary: fast.summary
-        }
-      };
-    }
-
     const scopedQuery = {
       ...query,
       limit: query.limit || 100,
@@ -1151,7 +980,16 @@ function createMobileSalesService(ctx) {
           debtAmount,
           orderCount: toNumber(row.orderCount || orders.length),
           oldestDebtDate,
-          orders
+          orders,
+          ledgers: orders.map((order) => ({
+            date: order.documentDate || order.dueDate || '',
+            type: 'AR-SALE',
+            salesOrderCode: order.orderCode || '',
+            refCode: order.orderCode || '',
+            debit: toNumber(order.debit),
+            credit: toNumber(order.credit),
+            debt: normalizeDebtAmount(order.debt)
+          }))
         };
       })
       .filter((item) => hasOpenDebt(item.debtAmount))
@@ -1167,7 +1005,7 @@ function createMobileSalesService(ctx) {
     return {
       body: {
         ok: true,
-        source: 'mobile-sales-ar-ledger-debts-modular',
+        source: 'mobile-sales-ar-ledger-debts-report-service',
         items,
         summary
       }
