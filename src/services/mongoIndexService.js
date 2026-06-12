@@ -204,6 +204,16 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_bankbooks_created_at' }]
   ],
 
+  debtCollections: [
+    [{ id: 1 }, { name: 'uniq_debtCollections_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_debtCollections_code', unique: true, sparse: true }],
+    [{ idempotencyKey: 1 }, { name: 'uniq_debtCollections_idempotency_key', unique: true, sparse: true }],
+    [{ status: 1, submittedAt: -1 }, { name: 'idx_debt_collections_status_submitted_at' }],
+    [{ customerCode: 1, status: 1 }, { name: 'idx_debt_collections_customer_status' }],
+    [{ collectorType: 1, collectorCode: 1, status: 1 }, { name: 'idx_debt_collections_collector_status' }],
+    [{ 'allocations.salesOrderCode': 1, status: 1 }, { name: 'idx_debt_collections_allocation_order_status' }]
+  ],
+
   fundLedgers: [
     [{ id: 1 }, { name: 'uniq_fundLedgers_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_fundLedgers_code', unique: true, sparse: true }],

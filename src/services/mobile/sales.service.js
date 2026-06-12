@@ -15,9 +15,8 @@ const SalesOrderDeletionService = require('../../domain/lifecycle/SalesOrderDele
 const inventoryStockService = require('../inventoryStock.service');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
-const reportService = require('../reportService');
+const DebtReadService = require('../DebtReadService');
 const { PROMOTION } = require('../../constants/pricingModes');
-const { normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const orderStatusUtil = require('../../utils/orderStatus.util');
 const { normalizeText, toNumber } = require('../../utils/common.util');
 
@@ -946,8 +945,10 @@ function createMobileSalesService(ctx) {
   async function listDebts({ query = {}, mobileUser } = {}) {
     const scopedQuery = {
       ...query,
+      collectorType: 'sales',
       limit: query.limit || 100,
-      includePaid: query.includePaid || '0'
+      includePaid: query.includePaid || '0',
+      includePendingCollections: query.includePendingCollections ?? '1'
     };
 
     if (String(mobileUser?.role || '') === 'sales') {
@@ -956,61 +957,13 @@ function createMobileSalesService(ctx) {
       scopedQuery.salesman = staffCode || staffName;
     }
 
-    const result = await reportService.debtCustomers(scopedQuery);
-    const sourceRows = Array.isArray(result.customerSummary) ? result.customerSummary : [];
-
-    const items = sourceRows
-      .map((row) => {
-        const debtAmount = normalizeDebtAmount(row.debt ?? row.debtAmount ?? 0);
-        const orders = Array.isArray(row.orders) ? row.orders : [];
-        const oldestDebtDate = orders
-          .filter((order) => hasOpenDebt(order.debt))
-          .map((order) => dateUtil.toDateOnly(order.documentDate || order.dueDate || ''))
-          .filter(Boolean)
-          .sort()[0] || '';
-
-        return {
-          customerId: row.customerId || '',
-          customerCode: row.customerCode || '',
-          customerName: row.customerName || '',
-          phone: row.phone || '',
-          address: row.address || '',
-          salesmanCode: row.salesmanCode || '',
-          salesmanName: row.salesmanName || '',
-          debtAmount,
-          orderCount: toNumber(row.orderCount || orders.length),
-          oldestDebtDate,
-          orders,
-          ledgers: orders.map((order) => ({
-            date: order.documentDate || order.dueDate || '',
-            type: 'AR-SALE',
-            salesOrderCode: order.orderCode || '',
-            refCode: order.orderCode || '',
-            debit: toNumber(order.debit),
-            credit: toNumber(order.credit),
-            debt: normalizeDebtAmount(order.debt)
-          }))
-        };
-      })
-      .filter((item) => hasOpenDebt(item.debtAmount))
-      .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount));
-
-    const summary = {
-      ...(result.summary || {}),
-      totalDebt: items.reduce((sum, item) => sum + toNumber(item.debtAmount), 0),
-      customerCount: items.length,
-      source: 'arLedgers'
-    };
+    const result = await DebtReadService.getCustomerDebts(scopedQuery);
 
     return {
-      body: {
-        ok: true,
-        source: 'mobile-sales-ar-ledger-debts-report-service',
-        items,
-        summary
-      }
+      body: result
     };
   }
+
 
 
   return {

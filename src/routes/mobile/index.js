@@ -5,6 +5,7 @@ const { createMobileAuthRouter } = require('./auth.routes');
 const { createMobileCatalogRouter } = require('./catalog.routes');
 const { createMobileSalesRouter } = require('./sales.routes');
 const { createMobileDeliveryRouter } = require('./delivery.routes');
+const { createMobileDebtRouter, createMobileDebtCollectionRouter } = require('./debts.routes');
 
 function forwardTo(router, targetPath) {
   return (req, res, next) => {
@@ -20,7 +21,6 @@ function addCompatibilityAliases(router) {
   router.get('/customers', forwardTo(router, '/catalog/customers'));
   router.get('/products', forwardTo(router, '/catalog/products'));
   router.get('/stock', forwardTo(router, '/catalog/stock'));
-  router.get('/debts', forwardTo(router, '/sales/debts'));
 
   // Alias cũ: POST /api/mobile/orders -> /api/mobile/sales/orders
   router.post('/orders', forwardTo(router, '/sales/orders'));
@@ -44,6 +44,8 @@ function createMobileRouter(ctx) {
 
   router.use('/auth', createMobileAuthRouter(ctx));
   router.use('/catalog', createMobileCatalogRouter(ctx));
+  router.use('/debts', createMobileDebtRouter(ctx));
+  router.use('/debt-collections', createMobileDebtCollectionRouter(ctx));
   router.use('/sales', createMobileSalesRouter(ctx));
   router.use('/delivery', createMobileDeliveryRouter(ctx));
 

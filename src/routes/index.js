@@ -11,7 +11,7 @@ const importOrderRoutes = require('./importOrderRoutes');
 const returnRoutes = require('./returnRoutes');
 const masterReturnOrderRoutes = require('./masterReturnOrderRoutes');
 const receiptRoutes = require('./receiptRoutes');
-const receiptController = require('../controllers/receiptController');
+const debtCollectionRoutes = require('./debtCollectionRoutes');
 const cashbookRoutes = require('./cashbookRoutes');
 const bankbookRoutes = require('./bankbookRoutes');
 const promotionRoutes = require('./promotionRoutes');
@@ -83,7 +83,7 @@ function registerApiRoutes(app) {
 
   // Step 4: Receipts / Cashbook / Bankbook
   app.use('/api/receipts', receiptRoutes);
-  app.post('/api/debt-collections', receiptController.createDebtCollection);
+  app.use('/api/debt-collections', debtCollectionRoutes);
   app.use('/api/cashbook', cashbookRoutes);
   app.use('/api/bankbook', bankbookRoutes);
   app.use('/api/funds', fundRoutes);

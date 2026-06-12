@@ -6,10 +6,11 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const FILE = path.join(ROOT, 'src/services/mobile/sales.service.js');
+const MOBILE_FILE = path.join(ROOT, 'src/services/mobile/sales.service.js');
+const DEBT_READ_FILE = path.join(ROOT, 'src/services/DebtReadService.js');
 
 function readListDebtsBlock() {
-  const source = fs.readFileSync(FILE, 'utf8');
+  const source = fs.readFileSync(MOBILE_FILE, 'utf8');
   const start = source.indexOf('async function listDebts');
   const end = source.indexOf('\n\n  return {', start);
   assert.ok(start >= 0, 'Không tìm thấy listDebts()');
@@ -17,24 +18,32 @@ function readListDebtsBlock() {
   return { source, block: source.slice(start, end) };
 }
 
-test('mobile sales debts must use reportService.debtCustomers as single source', () => {
+test('mobile sales debts must use DebtReadService as single debt source', () => {
   const { source, block } = readListDebtsBlock();
 
   assert.doesNotMatch(source, /listMobileSalesDebtsDirect/);
   assert.doesNotMatch(source, /mobile-sales-ar-ledger-debts-fast/);
   assert.doesNotMatch(block, /\bArLedger\.(find|aggregate)\b/);
-  assert.match(block, /reportService\.debtCustomers\(scopedQuery\)/);
-  assert.match(block, /source:\s*['"]mobile-sales-ar-ledger-debts-report-service['"]/);
+  assert.match(block, /DebtReadService\.getCustomerDebts\(scopedQuery\)/);
 });
 
-test('mobile sales debts response includes ledgers for frontend', () => {
-  const { block } = readListDebtsBlock();
+test('DebtReadService wraps reportService.debtCustomers and includes pending collections', () => {
+  const source = fs.readFileSync(DEBT_READ_FILE, 'utf8');
 
-  assert.match(block, /ledgers:\s*orders\.map/);
-  assert.match(block, /type:\s*['"]AR-SALE['"]/);
-  assert.match(block, /salesOrderCode:\s*order\.orderCode/);
-  assert.match(block, /refCode:\s*order\.orderCode/);
-  assert.match(block, /debit:\s*toNumber\(order\.debit\)/);
-  assert.match(block, /credit:\s*toNumber\(order\.credit\)/);
-  assert.match(block, /debt:\s*normalizeDebtAmount\(order\.debt\)/);
+  assert.match(source, /reportService\.debtCustomers\(scopedQuery\)/);
+  assert.match(source, /DebtCollection\.find\(buildPendingFilter\(query\)\)/);
+  assert.match(source, /pendingCollectedAmount/);
+  assert.match(source, /availableDebtAmount/);
+});
+
+test('DebtReadService response includes ledgers for frontend', () => {
+  const source = fs.readFileSync(DEBT_READ_FILE, 'utf8');
+
+  assert.match(source, /ledgers:\s*orders\.map/);
+  assert.match(source, /type:\s*['"]AR-SALE['"]/);
+  assert.match(source, /salesOrderCode:\s*order\.salesOrderCode/);
+  assert.match(source, /refCode:\s*order\.salesOrderCode/);
+  assert.match(source, /debit:\s*toNumber\(order\.debit\)/);
+  assert.match(source, /credit:\s*toNumber\(order\.credit\)/);
+  assert.match(source, /debt:\s*normalizeDebtAmount\(order\.debt\)/);
 });
