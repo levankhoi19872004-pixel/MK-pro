@@ -723,6 +723,78 @@ async function searchOrders(query = {}) {
     ? { deliveryDate: -1, createdAt: -1, code: -1 }
     : { orderDate: -1, date: -1, createdAt: -1, code: -1 };
 
+  // SALES_ORDER_SEARCH_STRICT_STAFF_SCAN_START
+  // Khi lọc NVBH, không được phân trang Mongo trước rồi mới lọc strict ở JS.
+  // Nếu làm vậy, trang tổng theo NVBH có thể thiếu đơn; khi thêm q=khách hàng thì tập dữ liệu hẹp lại
+  // và đơn bị thiếu lại xuất hiện. Vì vậy với strictStaff, scan candidate theo ngày/nguồn/q trước,
+  // chuẩn hóa NVBH bằng toListClient(), lọc strict, rồi mới slice theo page.
+  if (strictSalesStaffCode) {
+    const scanLimit = Math.min(
+      Math.max(Number.parseInt(guardedQuery.scanLimit || guardedQuery.__scanLimit || '5000', 10) || 5000, page.skip + page.limit),
+      10000
+    );
+
+    const queryStartedAt = Date.now();
+    const candidateOrders = await orderRepository.findAll(filter, {
+      projection: ORDER_LIST_PROJECTION,
+      sort,
+      limit: scanLimit
+    });
+    const queryMs = Date.now() - queryStartedAt;
+
+    const countStartedAt = Date.now();
+    const candidateTotal = await orderRepository.count(filter);
+    const countMs = Date.now() - countStartedAt;
+
+    const mapStartedAt = Date.now();
+    const mappedCandidates = candidateOrders.map(toListClient);
+    const strictRows = mappedCandidates.filter((order) => orderMatchesStrictSalesStaffCode(order, strictSalesStaffCode));
+    const rows = strictRows.slice(page.skip, page.skip + page.limit);
+    const removedByStrictGuard = mappedCandidates.length - strictRows.length;
+    const mapMs = Date.now() - mapStartedAt;
+    const ms = Date.now() - startedAt;
+    const scanTruncated = candidateTotal > candidateOrders.length;
+
+    debugLog('DEBUG_ORDER_FLOW', '[SALES_ORDER_SEARCH_STRICT_STAFF_SCAN]', {
+      ms,
+      queryMs,
+      countMs,
+      mapMs,
+      page: page.page,
+      limit: page.limit,
+      scanLimit,
+      candidateTotal,
+      candidateReturned: candidateOrders.length,
+      strictTotal: strictRows.length,
+      returned: rows.length,
+      strictSalesStaffCode,
+      removedByStrictGuard,
+      scanTruncated,
+      filter
+    });
+
+    return {
+      rows,
+      salesOrders: rows,
+      orders: rows,
+      total: strictRows.length,
+      page: page.page,
+      limit: page.limit,
+      returned: rows.length,
+      hasMore: page.skip + rows.length < strictRows.length,
+      ms,
+      queryMs,
+      countMs,
+      mapMs,
+      strictSalesStaffCode,
+      removedByStrictGuard,
+      candidateTotal,
+      scanLimit,
+      scanTruncated
+    };
+  }
+  // SALES_ORDER_SEARCH_STRICT_STAFF_SCAN_END
+
   const queryStartedAt = Date.now();
   const rowsPromise = orderRepository.findAll(filter, {
     projection: ORDER_LIST_PROJECTION,
@@ -743,11 +815,7 @@ async function searchOrders(query = {}) {
   const [{ orders, queryMs }, { total, countMs }] = await Promise.all([rowsPromise, totalPromise]);
 
   const mapStartedAt = Date.now();
-  const mappedRows = orders.map(toListClient);
-  const rows = strictSalesStaffCode
-    ? mappedRows.filter((order) => orderMatchesStrictSalesStaffCode(order, strictSalesStaffCode))
-    : mappedRows;
-  const removedByStrictGuard = mappedRows.length - rows.length;
+  const rows = orders.map(toListClient);
   const mapMs = Date.now() - mapStartedAt;
   const ms = Date.now() - startedAt;
 
@@ -760,8 +828,6 @@ async function searchOrders(query = {}) {
     limit: page.limit,
     total,
     returned: rows.length,
-    strictSalesStaffCode,
-    removedByStrictGuard,
     filter
   });
 
@@ -769,17 +835,15 @@ async function searchOrders(query = {}) {
     rows,
     salesOrders: rows,
     orders: rows,
-    total: strictSalesStaffCode && removedByStrictGuard ? Math.max(rows.length, page.skip + rows.length) : total,
+    total,
     page: page.page,
     limit: page.limit,
     returned: rows.length,
-    hasMore: strictSalesStaffCode && removedByStrictGuard ? false : page.skip + rows.length < total,
+    hasMore: page.skip + rows.length < total,
     ms,
     queryMs,
     countMs,
-    mapMs,
-    strictSalesStaffCode,
-    removedByStrictGuard
+    mapMs
   };
 }
 
