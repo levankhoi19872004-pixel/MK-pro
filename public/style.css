@@ -9360,3 +9360,108 @@ body::after{
   #promotionsTab .promotion-type-tabs{grid-template-columns:1fr;}
 }
 /* PROMOTION_MAIN_TAB_SEPARATE_POPUPS_CSS_END */
+
+/* MK-SCOPED-FIX: DELIVERY_BRANCH_SALES_STAFF_FILTER_START
+   Đơn giao hôm nay: chọn NVGH -> hiện các NVBH thuộc NVGH trong ngày, tick để lọc KPI/danh sách. */
+#deliveryTodayTab .delivery-v46-sales-branch{
+  grid-column:1 / -1;
+  margin-top:12px;
+  padding:10px 12px;
+  border:1px solid rgba(37,99,235,.18);
+  border-radius:14px;
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  box-shadow:0 8px 22px rgba(15,23,42,.04);
+}
+#deliveryTodayTab .delivery-v46-sales-branch.empty{
+  padding:8px 12px;
+  color:#64748b;
+  font-size:12px;
+  background:#f8fafc;
+  border-style:dashed;
+  box-shadow:none;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:8px;
+  flex-wrap:wrap;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-head b{
+  color:#0f172a;
+  font-size:13px;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-head span{
+  color:#64748b;
+  font-size:12px;
+  font-weight:700;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-head button{
+  margin-left:auto;
+  min-height:30px;
+  padding:6px 10px;
+  font-size:12px;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:8px;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-item{
+  display:grid;
+  grid-template-columns:18px minmax(0,1fr) auto;
+  align-items:center;
+  gap:8px;
+  min-height:42px;
+  padding:8px 10px;
+  border:1px solid rgba(148,163,184,.35);
+  border-radius:12px;
+  background:#fff;
+  cursor:pointer;
+  transition:background .15s ease,border-color .15s ease,box-shadow .15s ease;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-item:hover{
+  border-color:rgba(37,99,235,.42);
+  box-shadow:0 8px 18px rgba(37,99,235,.08);
+}
+#deliveryTodayTab .delivery-v46-sales-branch-item.checked{
+  border-color:rgba(37,99,235,.55);
+  background:#eff6ff;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-item input{
+  width:16px;
+  height:16px;
+  margin:0;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-name{
+  display:grid;
+  gap:2px;
+  min-width:0;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-name b{
+  font-size:12px;
+  color:#0f172a;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-name em{
+  font-style:normal;
+  color:#64748b;
+  font-size:11px;
+  font-weight:700;
+}
+#deliveryTodayTab .delivery-v46-sales-branch-money{
+  justify-self:end;
+  color:#334155;
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+@media(max-width:760px){
+  #deliveryTodayTab .delivery-v46-sales-branch-list{grid-template-columns:1fr;}
+  #deliveryTodayTab .delivery-v46-sales-branch-item{grid-template-columns:18px minmax(0,1fr);}
+  #deliveryTodayTab .delivery-v46-sales-branch-money{grid-column:2 / -1;justify-self:start;}
+  #deliveryTodayTab .delivery-v46-sales-branch-head button{margin-left:0;}
+}
+/* MK-SCOPED-FIX: DELIVERY_BRANCH_SALES_STAFF_FILTER_END */

@@ -48,7 +48,7 @@
     return item.deliveryStaffCode || item.staffCode || item.code || item.employeeCode || '';
   }
 
-  var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {} };
+  var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {}, selectedSalesStaffKeys: {}, salesBranchScope: '', salesBranchRowCount: 0 };
 
   function ensureRoot() {
     var root = byId('deliveryTodayRoot');
@@ -77,6 +77,7 @@
           '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
           '<button id="deliveryCoreReconcile" type="button" class="secondary">Đối soát</button>' +
         '</div>' +
+        '<div id="deliverySalesBranchBox" class="delivery-v46-sales-branch empty"></div>' +
       '</section>' +
       '<section class="delivery-v46-kpis">' +
         '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryKpiReceivable">0</b></div>' +
@@ -119,6 +120,7 @@
     });
     attachStaffSuggest('deliveryCoreDeliveryStaff', 'deliveryCoreDeliveryStaffSuggestions', 'delivery');
     attachStaffSuggest('deliveryCoreSalesStaff', 'deliveryCoreSalesStaffSuggestions', 'sales');
+    renderSalesBranchFilter();
   }
 
 
@@ -205,6 +207,178 @@
     };
   }
 
+  // MK-SCOPED-FIX: DELIVERY_BRANCH_SALES_STAFF_FILTER_START
+  function cleanKey(value) {
+    return String(value == null ? '' : value).trim();
+  }
+
+  function normKey(value) {
+    return cleanKey(value).toLowerCase();
+  }
+
+  function salesStaffKey(order) {
+    order = order || {};
+    return cleanKey(order.salesStaffCode || order.staffCode || order.salesmanCode || order.nvbhCode || order.salesCode || order.salesStaffName || order.staffName || order.salesmanName || 'NO_SALES_STAFF');
+  }
+
+  function salesStaffName(order) {
+    order = order || {};
+    return cleanKey(order.salesStaffName || order.staffName || order.salesmanName || order.nvbhName || 'Chưa gán NVBH');
+  }
+
+  function currentBranchScope() {
+    var f = filters();
+    return [cleanKey(f.date), normKey(f.deliveryStaffCode), normKey(f.salesStaffCode)].join('|');
+  }
+
+  function branchRowsFromOrders() {
+    var rows = (window.DeliveryCore && window.DeliveryCore.state && window.DeliveryCore.state.orders) || [];
+    var map = {};
+    rows.forEach(function (order) {
+      var code = salesStaffKey(order);
+      var key = normKey(code || 'NO_SALES_STAFF');
+      if (!key) key = 'no_sales_staff';
+      if (!map[key]) {
+        map[key] = {
+          key: key,
+          code: code === 'NO_SALES_STAFF' ? '' : code,
+          name: salesStaffName(order),
+          count: 0,
+          receivable: 0,
+          cash: 0,
+          bank: 0,
+          reward: 0,
+          returnAmount: 0,
+          debt: 0
+        };
+      }
+      map[key].count += 1;
+      map[key].receivable += amount(order, 'receivable');
+      map[key].cash += amount(order, 'cash');
+      map[key].bank += amount(order, 'bank');
+      map[key].reward += amount(order, 'reward');
+      map[key].returnAmount += amount(order, 'returnAmount');
+      map[key].debt += normalizeDebtAmount(amount(order, 'debt'));
+    });
+    return Object.keys(map).map(function (key) { return map[key]; }).sort(function (a, b) {
+      return String(a.name || a.code || '').localeCompare(String(b.name || b.code || ''), 'vi');
+    });
+  }
+
+  function resetBranchSelectionIfNeeded(rows) {
+    var scope = currentBranchScope();
+    var keys = (rows || []).map(function (row) { return row.key; });
+    state.salesBranchRowCount = keys.length;
+    var selected = state.selectedSalesStaffKeys || {};
+    if (scope !== state.salesBranchScope) {
+      selected = {};
+      keys.forEach(function (key) { selected[key] = true; });
+      state.selectedSalesStaffKeys = selected;
+      state.salesBranchScope = scope;
+      return;
+    }
+    var keep = {};
+    keys.forEach(function (key) { if (selected[key]) keep[key] = true; });
+    state.selectedSalesStaffKeys = keep;
+  }
+
+  function isSalesStaffSelected(order) {
+    if (Number(state.salesBranchRowCount || 0) <= 1) return true;
+    var key = normKey(salesStaffKey(order));
+    return Boolean((state.selectedSalesStaffKeys || {})[key]);
+  }
+
+  function branchSelectedCount(rows) {
+    return (rows || []).filter(function (row) { return state.selectedSalesStaffKeys && state.selectedSalesStaffKeys[row.key]; }).length;
+  }
+
+  function selectedBranchSummaryText(rows) {
+    rows = rows || [];
+    var selected = branchSelectedCount(rows);
+    if (!rows.length) return 'Chưa có NVBH dưới NVGH đã chọn';
+    if (selected === rows.length) return 'Đang xem tất cả ' + rows.length + ' NVBH';
+    return 'Đang xem ' + selected + '/' + rows.length + ' NVBH';
+  }
+
+  function renderSalesBranchFilter() {
+    var box = byId('deliverySalesBranchBox');
+    if (!box) return;
+    var f = filters();
+    var rows = branchRowsFromOrders();
+    resetBranchSelectionIfNeeded(rows);
+
+    if (!cleanKey(f.deliveryStaffCode)) {
+      box.className = 'delivery-v46-sales-branch empty';
+      box.innerHTML = '<span>Chọn NVGH để hiện danh sách NVBH theo nhánh trong ngày.</span>';
+      return;
+    }
+    if (!rows.length) {
+      box.className = 'delivery-v46-sales-branch empty';
+      box.innerHTML = '<span>NVGH này chưa có NVBH/đơn giao trong ngày đã chọn.</span>';
+      return;
+    }
+
+    var selected = branchSelectedCount(rows);
+    box.className = 'delivery-v46-sales-branch';
+    box.innerHTML = '' +
+      '<div class="delivery-v46-sales-branch-head">' +
+        '<b>NVBH thuộc NVGH ' + esc(cleanKey(f.deliveryStaffCode)) + '</b>' +
+        '<span>' + esc(selectedBranchSummaryText(rows)) + '</span>' +
+        '<button type="button" id="deliverySalesBranchToggleAll" class="secondary">' + (selected === rows.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả') + '</button>' +
+      '</div>' +
+      '<div class="delivery-v46-sales-branch-list">' +
+        rows.map(function (row) {
+          var checked = state.selectedSalesStaffKeys && state.selectedSalesStaffKeys[row.key];
+          var label = [row.code, row.name].filter(Boolean).join(' - ') || 'Chưa gán NVBH';
+          return '' +
+            '<label class="delivery-v46-sales-branch-item ' + (checked ? 'checked' : '') + '">' +
+              '<input type="checkbox" data-sales-branch-key="' + esc(row.key) + '" ' + (checked ? 'checked' : '') + '>' +
+              '<span class="delivery-v46-sales-branch-name"><b>' + esc(label) + '</b><em>' + esc(row.count) + ' đơn</em></span>' +
+              '<span class="delivery-v46-sales-branch-money">PT ' + esc(money(row.receivable)) + ' · CN ' + esc(money(row.debt)) + '</span>' +
+            '</label>';
+        }).join('') +
+      '</div>';
+
+    var toggleAll = byId('deliverySalesBranchToggleAll');
+    if (toggleAll) {
+      toggleAll.addEventListener('click', function () {
+        var allSelected = branchSelectedCount(rows) === rows.length;
+        rows.forEach(function (row) { state.selectedSalesStaffKeys[row.key] = !allSelected; });
+        keepSelectionVisible();
+        renderSalesBranchFilter();
+        renderList();
+        renderDetail(window.DeliveryCore && window.DeliveryCore.state ? window.DeliveryCore.state.selectedOrder : null);
+      });
+    }
+    box.querySelectorAll('[data-sales-branch-key]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var key = input.getAttribute('data-sales-branch-key');
+        state.selectedSalesStaffKeys[key] = input.checked;
+        if (!branchSelectedCount(rows)) state.selectedSalesStaffKeys[key] = true;
+        keepSelectionVisible();
+        renderSalesBranchFilter();
+        renderList();
+        renderDetail(window.DeliveryCore && window.DeliveryCore.state ? window.DeliveryCore.state.selectedOrder : null);
+      });
+    });
+  }
+
+  function keepSelectionVisible() {
+    if (!window.DeliveryCore || !window.DeliveryCore.state) return;
+    var visible = getVisibleOrders();
+    if (!visible.length) {
+      state.selectedKey = '';
+      window.DeliveryCore.state.selectedOrder = null;
+      return;
+    }
+    var currentVisible = visible.some(function (order) { return orderKey(order) === state.selectedKey; });
+    if (!currentVisible) {
+      state.selectedKey = orderKey(visible[0]);
+      window.DeliveryCore.selectOrder(state.selectedKey);
+    }
+  }
+  // MK-SCOPED-FIX: DELIVERY_BRANCH_SALES_STAFF_FILTER_END
+
 
   function isDelivered(order) {
     var st = order && order.status && typeof order.status === 'object' ? order.status : {};
@@ -282,6 +456,7 @@
     var q = String(f.q || '').trim().toLowerCase();
     var statusFilter = String(f.statusFilter || 'all').trim().toLowerCase();
     return rows.filter(function (order) {
+      if (!isSalesStaffSelected(order)) return false;
       if (q && orderSearchText(order).indexOf(q) < 0) return false;
       if (statusFilter === 'delivered') return isDelivered(order);
       if (statusFilter === 'pending') return !isDelivered(order);
@@ -355,6 +530,8 @@
     if (!list) return;
     var rows = getVisibleOrders();
     syncAccountingSelection(rows);
+    keepSelectionVisible();
+    rows = getVisibleOrders();
     updateBulkAccountingButton();
     if (!rows.length) {
       list.innerHTML = '<div class="empty-state">Không có đơn giao theo bộ lọc.</div>';
@@ -775,14 +952,17 @@
         return;
       }
       await window.DeliveryCore.loadOrders(f);
+      renderSalesBranchFilter();
       // DELIVERY_ORDERS_FAST_LOAD_START
       // /api/delivery/orders đã overlay returnOrders để tính KPI/hàng trả/còn nợ.
       // Không gọi /api/delivery/returns toàn bộ ở lần tải danh sách vì endpoint đó lại gọi listOrders() lần hai.
       window.DeliveryCore.state.returns = [];
       window.DeliveryCore.state.returnsLoaded = false;
       // DELIVERY_ORDERS_FAST_LOAD_END
-      if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = orderKey(window.DeliveryCore.state.orders[0]);
+      var visibleRows = getVisibleOrders();
+      if (!state.selectedKey && visibleRows[0]) state.selectedKey = orderKey(visibleRows[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
+      keepSelectionVisible();
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
       message('');
