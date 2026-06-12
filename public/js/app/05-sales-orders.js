@@ -873,22 +873,48 @@ async function openSalesOrderEdit(idx){
 }
 window.openSalesOrderEdit=openSalesOrderEdit;
 
-async function cancelSalesOrder(idx){
+function getSalesOrderDeleteIdentity(order){
+  return String(
+    order?.code ||
+    order?.orderCode ||
+    order?.salesOrderCode ||
+    order?.documentCode ||
+    order?.invoiceCode ||
+    order?.id ||
+    ''
+  ).trim();
+}
+
+async function readSalesOrderDeleteResponse(res){
+  const text=await res.text();
+  try{return text?JSON.parse(text):{}}catch(_err){
+    return {ok:false,message:text||`HTTP ${res.status}`};
+  }
+}
+
+async function deleteSalesOrder(idx){
   const order=window.__salesOrdersCache?.[idx];
   if(!order)return;
-  const reason=prompt(`Lý do hủy đơn ${order.code||order.id}?`, 'Hủy đơn bán');
+  const key=getSalesOrderDeleteIdentity(order);
+  if(!key){alert('Không xác định được mã đơn để xóa');return;}
+  const reason=prompt(`Lý do xóa đơn ${order.code||order.id}?`, 'Xóa đơn bán');
   if(reason===null)return;
   try{
-    const res=await fetch(`/api/sales-orders/${encodeURIComponent(order.id||order.code)}/cancel`,{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})
+    const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}`,{
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reason,deleteReason:reason})
     });
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không hủy được đơn');
-    alert(json.message||'Đã hủy đơn');
-    await loadSalesOrders();await loadStock();await loadDebts();await loadCashbook();
-  }catch(err){alert(err.message)}
+    const json=await readSalesOrderDeleteResponse(res);
+    if(!res.ok||!json.ok)throw new Error(json.message||'Không xóa được đơn');
+    alert(json.message||'Đã xóa đơn');
+    salesOrderDetailCache.delete(key);
+    await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
+    await loadStock();await loadDebts();await loadCashbook();
+  }catch(err){alert(err.message||'Không xóa được đơn')}
 }
-window.cancelSalesOrder=cancelSalesOrder;
+window.deleteSalesOrder=deleteSalesOrder;
+window.cancelSalesOrder=deleteSalesOrder;
 
 
 
@@ -1054,7 +1080,7 @@ function renderSalesOrderRows(orders, {append=false} = {}){
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
-          ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="cancelSalesOrder(${idx})">Xóa</button>`}
+          ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="deleteSalesOrder(${idx})">Xóa</button>`}
         </div>
       </article>`;
   }).join('');
