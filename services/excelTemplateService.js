@@ -44,15 +44,18 @@ const TEMPLATE_DEFINITIONS = {
   openingStock: {
     title: 'Mẫu import tồn kho ban đầu',
     fileName: 'mau-import-ton-kho-ban-dau.xlsx',
-    columns: ['productCode', 'quantity'],
-    headers: ['Mã sản phẩm', 'Số lượng'],
+    columns: ['date', 'productCode', 'productName', 'cartons', 'units'],
+    headers: ['Ngày', 'Mã sản phẩm', 'Tên sản phẩm', 'SL thùng', 'SL lẻ'],
     sample: [
-      ['SP001', 100],
-      ['SP002', 80]
+      ['26/05/2026', 'SP001', 'OMO Bột giặt 5.5kg', 2, 0],
+      ['26/05/2026', 'SP002', 'Comfort Đậm Đặc 3.8L', 0, 2532]
     ],
     notes: [
-      'Mẫu tồn kho ban đầu chỉ cần Mã sản phẩm và Số lượng.',
-      'Tên sản phẩm, đơn vị tính, giá bán và kho mặc định sẽ tự lấy từ danh mục sản phẩm.',
+      'Mẫu tồn kho ban đầu dùng SL thùng và SL lẻ; không dùng cột Số lượng để tránh nhầm dữ liệu.',
+      'SL thùng sẽ được quy đổi theo Quy đổi/conversionRate của sản phẩm trong danh mục; SL lẻ được hiểu là số đơn vị lẻ.',
+      'Ví dụ: sản phẩm có Quy đổi = 12, SL thùng = 2, SL lẻ = 5 thì hệ thống hiểu là 29 lẻ.',
+      'Nếu nhập toàn bộ là lẻ như 2532 thì để SL thùng = 0 và nhập 2532 vào SL lẻ.',
+      'Tên sản phẩm chỉ để đối chiếu; hệ thống lấy thông tin chính theo Mã sản phẩm.',
       'Mã sản phẩm phải tồn tại trong danh mục sản phẩm.',
       'Import tồn kho ban đầu sẽ đặt lại số lượng tồn theo file, chỉ dùng khi khởi tạo hoặc chốt tồn đầu kỳ.'
     ]
@@ -60,13 +63,22 @@ const TEMPLATE_DEFINITIONS = {
   importOrders: {
     title: 'Mẫu import phiếu nhập kho',
     fileName: 'mau-import-phieu-nhap-kho.xlsx',
-    columns: ['documentCode', 'date', 'supplier', 'productCode', 'quantity', 'warehouseCode', 'note'],
-    headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Số lượng', 'Kho', 'Ghi chú'],
+    columns: ['documentCode', 'date', 'supplier', 'productCode', 'productName', 'cartons', 'units', 'warehouseCode', 'note'],
+    headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Tên sản phẩm', 'SL thùng', 'SL lẻ', 'Kho', 'Ghi chú'],
     sample: [
-      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 50, 'KHO_HC', 'Nhập theo hóa đơn'],
-      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 30, 'KHO_PC', 'Cùng phiếu nhập']
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 'OMO Bột giặt 5.5kg', 2, 0, 'KHO_HC', 'Nhập 2 thùng'],
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 'Comfort Đậm Đặc 3.8L', 0, 2532, 'KHO_PC', 'Nhập 2532 lẻ']
     ],
-    notes: ['Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.', 'Giá nhập tự lấy từ trường giá nhập đã lưu trong danh mục sản phẩm.', 'Định dạng ngày chuẩn: DD/MM/YYYY (ví dụ 26/05/2026).']
+    notes: [
+      'Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.',
+      'Mẫu phiếu nhập dùng SL thùng và SL lẻ; không dùng cột Số lượng để tránh nhầm dữ liệu.',
+      'SL thùng sẽ được quy đổi theo Quy đổi/conversionRate của sản phẩm trong danh mục; SL lẻ được hiểu là số đơn vị lẻ.',
+      'Ví dụ: sản phẩm có Quy đổi = 12, SL thùng = 2, SL lẻ = 5 thì hệ thống hiểu là 29 lẻ.',
+      'Nếu nhập toàn bộ là lẻ như 2532 thì để SL thùng = 0 và nhập 2532 vào SL lẻ.',
+      'Nếu SL thùng = 0 và SL lẻ = 0, dòng đó được hiểu là không nhập sản phẩm này và sẽ bị bỏ qua.',
+      'Giá nhập tự lấy từ trường giá nhập đã lưu trong danh mục sản phẩm.',
+      'Định dạng ngày chuẩn: DD/MM/YYYY (ví dụ 26/05/2026).'
+    ]
   },
   salesOrders: {
     title: 'Mẫu import đơn con DMS Unilever',
@@ -91,16 +103,18 @@ const TEMPLATE_DEFINITIONS = {
   salesOrdersS3: {
     title: 'Mẫu import đơn S3 rút gọn',
     fileName: 'mau-import-don-s3-rut-gon.xlsx',
-    columns: ['date', 'documentCode', 'staffCode', 'staffName', 'customerCode', 'customerName', 'productCode', 'productName', 'packingQty', 'isPromo', 'quantity', 'salePrice', 'amount', 'warehouseCode'],
-    headers: ['Ngày', 'Số Đơn', 'Mã Nv', 'Tên NV', 'Mã Khách', 'Tên Khách', 'Mã hàng', 'Tên hàng', 'QC', 'Là KM', 'Số lượng', 'Đơn giá sau KM/Ck', 'Thành tiền', 'Mã Kho'],
+    columns: ['date', 'documentCode', 'staffCode', 'staffName', 'customerCode', 'customerName', 'productCode', 'productName', 'packingQty', 'isPromo', 'cartons', 'units', 'salePrice', 'amount', 'warehouseCode'],
+    headers: ['Ngày', 'Số Đơn', 'Mã Nv', 'Tên NV', 'Mã Khách', 'Tên Khách', 'Mã hàng', 'Tên hàng', 'QC', 'Là KM', 'SL thùng', 'SL lẻ', 'Đơn giá sau KM/Ck', 'Thành tiền', 'Mã Kho'],
     sample: [
-      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330134', 'SUNLIGHT NRC Thiên Nhiên Lô Hội 750g/15 Chai', 15, '', 45, 28093, 1264169, 'KHOCHINH'],
-      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330146', 'SUNLIGHT NRC Chanh 750g/15 Chai', 15, '', 45, 28093, 1264169, 'KHOCHINH'],
-      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330148', 'SUNLIGHT NRC Túi 3.6kg/4 Túi', 4, '', 15, 93425, 1401375, 'KHOCHINH']
+      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330134', 'SUNLIGHT NRC Thiên Nhiên Lô Hội 750g/15 Chai', 15, '', 3, 0, 28093, 1264169, 'KHOCHINH'],
+      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330146', 'SUNLIGHT NRC Chanh 750g/15 Chai', 15, '', 3, 0, 28093, 1264169, 'KHOCHINH'],
+      ['03.06.2026', 'B0036696', '33948', 'Đỗ Thị Mừng TP - 0962033288', '4501252', 'Chị Kim Anh', '64330148', 'SUNLIGHT NRC Túi 3.6kg/4 Túi', 4, '', 3, 3, 93425, 1401375, 'KHOCHINH']
     ],
     notes: [
-      'Mẫu S3 dùng đúng các cột bôi vàng: Ngày, Số Đơn, Mã Nv, Mã Khách, Tên Khách, Mã hàng, Tên hàng, Số lượng, Đơn giá sau KM/Ck, Thành tiền.',
+      'Mẫu S3 dùng đúng các cột bôi vàng: Ngày, Số Đơn, Mã Nv, Mã Khách, Tên Khách, Mã hàng, Tên hàng, SL thùng, SL lẻ, Đơn giá sau KM/Ck, Thành tiền.',
       'Các dòng cùng Số Đơn + Ngày + Mã Khách sẽ được gộp thành một đơn con.',
+      'SL thùng/SL lẻ được quy đổi theo QC của dòng hoặc Quy đổi/conversionRate trong danh mục sản phẩm.',
+      'Nếu nhập toàn bộ là lẻ như 2532 thì để SL thùng = 0 và nhập 2532 vào SL lẻ.',
       'Mã Nv là mã NVBH bắt buộc; hệ thống tra trong Users/Tài khoản. Nếu mã sai hoặc không tồn tại thì đơn bị báo lỗi.',
       'Mã Khách và Mã hàng là khóa chính để tra danh mục; tên khách/tên hàng chỉ dùng để đối chiếu.',
       'Ngày chấp nhận dạng DD.MM.YYYY, DD/MM/YYYY hoặc YYYY-MM-DD.',
