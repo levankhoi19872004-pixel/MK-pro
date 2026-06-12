@@ -393,6 +393,21 @@ function canHardDeleteSalesOrder(order = {}) {
   return !isMergedOrder(order) && !isAccountingLockedOrder(order);
 }
 
+const INACTIVE_ORDER_STATUS_VALUES = ['cancelled', 'canceled', 'void', 'deleted', 'removed'];
+const TRUTHY_DELETE_VALUES = [true, 'true', 1, '1', 'yes', 'YES', 'y', 'Y'];
+
+function applyActiveSalesOrderFilter(filter = {}) {
+  // Delete lifecycle guard: không chỉ lọc theo status.
+  // Một số đơn cũ đã có deletedAt/isDeleted=true nhưng status vẫn còn pending/delivered,
+  // khiến API báo “đã xóa” nhưng /search vẫn trả về danh sách.
+  filter.status = { $nin: INACTIVE_ORDER_STATUS_VALUES };
+  filter.lifecycleStatus = { $nin: INACTIVE_ORDER_STATUS_VALUES };
+  filter.deliveryStatus = { $nin: INACTIVE_ORDER_STATUS_VALUES };
+  filter.deleted = { $nin: TRUTHY_DELETE_VALUES };
+  filter.isDeleted = { $nin: TRUTHY_DELETE_VALUES };
+  filter.deletedAt = { $in: [null, ''] };
+  return filter;
+}
 
 
 
@@ -503,7 +518,7 @@ function buildOrderSearchFilter(query = {}) {
     }
   }
 
-  if (!includeCancelled) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (!includeCancelled) applyActiveSalesOrderFilter(filter);
 
   const exactCustomerCode = String(guardedQuery.customerCode || guardedQuery.maKhachHang || guardedQuery.maKH || '').trim();
   if (exactCustomerCode) filter.customerCode = exactCustomerCode;
@@ -632,6 +647,11 @@ function toListClient(order = {}) {
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || ''),
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
+    deleted: Boolean(order.deleted),
+    isDeleted: Boolean(order.isDeleted),
+    deletedAt: order.deletedAt || '',
+    deleteMode: order.deleteMode || '',
+    deleteReason: order.deleteReason || '',
     customerId: order.customerId || '',
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
@@ -657,7 +677,7 @@ function toListClient(order = {}) {
     totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.total),
     paidAmount: toNumber(order.paidAmount),
     debtAmount: toNumber(order.debtAmount),
-    visibleInHistory: true
+    visibleInHistory: orderStatusUtil.isOrderVisibleInHistory(order)
   };
 }
 
@@ -675,6 +695,11 @@ const ORDER_LIST_PROJECTION = {
   deliveryDate: 1,
   createdAt: 1,
   updatedAt: 1,
+  deleted: 1,
+  isDeleted: 1,
+  deletedAt: 1,
+  deleteMode: 1,
+  deleteReason: 1,
   customerId: 1,
   customerCode: 1,
   customerName: 1,
@@ -717,6 +742,7 @@ async function searchOrders(query = {}) {
   const startedAt = Date.now();
   const { filter, guardedQuery, strictSalesStaffCode } = buildOrderSearchFilter(query);
   const page = queryGuard.getPagination(guardedQuery, { defaultLimit: 50, maxLimit: 100 });
+  const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
   const sort = guardedQuery.dateType === 'deliveryDate'
     ? { deliveryDate: -1, createdAt: -1, code: -1 }
     : { orderDate: -1, date: -1, createdAt: -1, code: -1 };
@@ -746,7 +772,8 @@ async function searchOrders(query = {}) {
 
     const mapStartedAt = Date.now();
     const mappedCandidates = candidateOrders.map(toListClient);
-    const strictRows = mappedCandidates.filter((order) => orderMatchesStrictSalesStaffCode(order, strictSalesStaffCode));
+    const visibleCandidates = mappedCandidates.filter((order) => orderStatusUtil.isOrderVisibleInHistory(order, { includeCancelled }));
+    const strictRows = visibleCandidates.filter((order) => orderMatchesStrictSalesStaffCode(order, strictSalesStaffCode));
     const rows = strictRows.slice(page.skip, page.skip + page.limit);
     const removedByStrictGuard = mappedCandidates.length - strictRows.length;
     const mapMs = Date.now() - mapStartedAt;
@@ -813,7 +840,9 @@ async function searchOrders(query = {}) {
   const [{ orders, queryMs }, { total, countMs }] = await Promise.all([rowsPromise, totalPromise]);
 
   const mapStartedAt = Date.now();
-  const rows = orders.map(toListClient);
+  const rows = orders
+    .map(toListClient)
+    .filter((order) => orderStatusUtil.isOrderVisibleInHistory(order, { includeCancelled }));
   const mapMs = Date.now() - mapStartedAt;
   const ms = Date.now() - startedAt;
 
@@ -869,7 +898,7 @@ async function listOrders(query = {}) {
     else if (dateType === 'all') filter.$or = [...orderDateFields, ...deliveryDateFields, { createdAt: range }];
     else filter.$or = orderDateFields;
   }
-  if (!includeCancelled) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (!includeCancelled) applyActiveSalesOrderFilter(filter);
   if (q) {
     const rx = queryGuard.buildRegex(q);
     const qOr = [
