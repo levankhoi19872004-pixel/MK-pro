@@ -266,6 +266,7 @@
       orders: [],
       returns: [],
       returnsLoaded: false,
+      returnsLoadedByOrder: {},
       selectedOrder: null,
       filters: {}
     },
@@ -336,6 +337,23 @@
       };
     },
 
+    // DELIVERY_RETURN_ROW_SCOPE_START
+    // returnOrders có thể được tải theo từng đơn để giữ tốc độ màn Đơn giao hôm nay.
+    // Không dùng cờ returnsLoaded toàn cục để kết luận mọi đơn đều không có hàng trả.
+    returnLoadKeysForOrder(order) {
+      order = normalizeOrder(order || {});
+      return [
+        order.orderId, order.orderCode, order.salesOrderId, order.salesOrderCode, order.id, order.code
+      ].map(text).filter(Boolean);
+    },
+
+    markReturnsLoadedForOrder(order) {
+      const map = this.state.returnsLoadedByOrder || {};
+      this.returnLoadKeysForOrder(order).forEach(function (key) { map[key] = true; });
+      this.state.returnsLoadedByOrder = map;
+    },
+    // DELIVERY_RETURN_ROW_SCOPE_END
+
     async loadReturns(filters) {
       filters = Object.assign({}, this.state.filters, filters || {});
       var params = new URLSearchParams();
@@ -347,6 +365,7 @@
       var rows = json.returns || json.returnOrders || json.rows || [];
       this.state.returns = rows.map(normalizeReturnRow);
       this.state.returnsLoaded = true;
+      this.state.returnsLoadedByOrder = {};
       return this.state.returns;
     },
 
@@ -364,6 +383,7 @@
       this.state.returns = (this.state.returns || []).filter(function (row) { return !match(row); });
       if (rows.length) this.mergeReturns(rows);
       this.state.returnsLoaded = true;
+      this.markReturnsLoadedForOrder(order);
       return rows;
     },
 

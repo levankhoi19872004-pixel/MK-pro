@@ -17,14 +17,37 @@
     return Math.abs(n) <= 1000 ? 0 : n;
   }
   function baseAmount(order, key) { return num(order && order.amounts && order.amounts[key]); }
+
+  // DELIVERY_RETURN_ROW_SCOPE_START
+  // Màn Đơn giao hôm nay chỉ tải returnOrders theo đơn đang chọn để giữ tốc độ.
+  // Vì vậy không được dùng returnsLoaded toàn cục để ép HT=0 cho mọi đơn trong danh sách.
+  function returnRowsLoadedForOrder(order) {
+    if (!window.DeliveryCore || !window.DeliveryCore.state) return false;
+    var map = window.DeliveryCore.state.returnsLoadedByOrder || {};
+    var keys = [];
+    if (typeof window.DeliveryCore.returnLoadKeysForOrder === 'function') {
+      keys = window.DeliveryCore.returnLoadKeysForOrder(order || {});
+    } else {
+      order = order || {};
+      keys = [order.orderId, order.orderCode, order.salesOrderId, order.salesOrderCode, order.id, order.code].map(String).filter(Boolean);
+    }
+    return keys.some(function (key) { return map[key]; });
+  }
+
+  function hasScopedReturnLoadMap() {
+    var map = window.DeliveryCore && window.DeliveryCore.state ? (window.DeliveryCore.state.returnsLoadedByOrder || {}) : {};
+    return Object.keys(map).length > 0;
+  }
+
   function returnAmountFromReturnOrders(order) {
     var rows = returnsForOrder(order);
     if (rows.length) return rows.reduce(function (sum, row) { return sum + num(row.amount || row.returnAmount || (num(row.returnQty) * num(row.price))); }, 0);
-    // Sau khi load returnOrders thành công, không fallback salesOrders.returnAmount nữa.
-    // Nếu không có phiếu returnOrders thì hàng trả phải là 0.
-    if (window.DeliveryCore && window.DeliveryCore.state && window.DeliveryCore.state.returnsLoaded) return 0;
+    if (returnRowsLoadedForOrder(order)) return 0;
+    // Chỉ khi đã tải returnOrders theo danh sách toàn cục mới được kết luận đơn không có hàng trả.
+    if (window.DeliveryCore && window.DeliveryCore.state && window.DeliveryCore.state.returnsLoaded && !hasScopedReturnLoadMap()) return 0;
     return baseAmount(order, 'returnAmount');
   }
+  // DELIVERY_RETURN_ROW_SCOPE_END
   function amount(order, key) {
     if (key === 'returnAmount') return returnAmountFromReturnOrders(order);
     if (key === 'debt') {
@@ -498,6 +521,14 @@
     if (byId('deliveryCoreCount')) byId('deliveryCoreCount').textContent = rows.length + ' đơn';
   }
 
+  function refreshAfterReturnRowsLoaded(order) {
+    // Sau khi tải returnOrders cho đơn đang chọn, phải render lại cả branch/KPI/list.
+    // Nếu chỉ render panel phải, cột HT/CN bên danh sách vẫn giữ số cũ.
+    renderSalesBranchFilter();
+    renderList();
+    renderDetail(order || (window.DeliveryCore && window.DeliveryCore.state ? window.DeliveryCore.state.selectedOrder : null));
+  }
+
   function statusText(order){ return ''; }
 
   function staffAssignmentBadge(order) {
@@ -711,17 +742,17 @@
     return '' +
       '<form id="deliveryReturnUpdateForm">' +
         '<div class="delivery-v46-return-list-title"><b>Hàng trả đã lưu trong returnOrders</b><span>Tổng: ' + money(total) + '</span></div>' +
-        '<div class="delivery-v46-return-table">' +
-          '<div class="delivery-v46-return-head"><span>Mã đơn</span><span>Khách hàng</span><span>Sản phẩm</span><span>SL</span><span>Giá</span><span>Thành tiền</span><span>Trạng thái</span></div>' +
+        '<div class="delivery-v46-return-table delivery-v46-return-table-compact">' +
+          '<div class="delivery-v46-return-head"><span>Đơn / Khách</span><span>Sản phẩm</span><span>SL trả</span><span>Thành tiền</span></div>' +
           rows.map(function (row, idx) {
+            var orderLabel = row.salesOrderCode || row.orderCode || row.returnOrderCode || '';
+            var customerLabel = row.customerName || row.customerCode || '';
+            var lineAmount = num(row.amount || row.returnAmount || (num(row.returnQty) * num(row.price)));
             return '<div class="delivery-v46-return-row">' +
-              '<span>' + esc(row.salesOrderCode || row.returnOrderCode) + '</span>' +
-              '<span>' + esc(row.customerName || row.customerCode) + '</span>' +
-              '<span><b>' + esc(row.productCode) + '</b><small>' + esc(row.productName) + '</small>' + hidden(idx, 'productCode', row.productCode) + hidden(idx, 'productName', row.productName) + hidden(idx, 'price', row.price) + '</span>' +
-              '<span><input data-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(row.returnQty) + '"></span>' +
-              '<span>' + money(row.price) + '</span>' +
-              '<span>' + money(row.amount) + '</span>' +
-              '<span>' + esc(row.status || '') + '</span>' +
+              '<span class="delivery-v46-return-order"><b>' + esc(orderLabel) + '</b><small>' + esc(customerLabel) + '</small></span>' +
+              '<span class="delivery-v46-return-product"><b>' + esc(row.productCode) + '</b><small>' + esc(row.productName) + '</small>' + hidden(idx, 'productCode', row.productCode) + hidden(idx, 'productName', row.productName) + hidden(idx, 'price', row.price) + '</span>' +
+              '<span class="delivery-v46-return-qty"><input data-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(row.returnQty) + '"></span>' +
+              '<span class="delivery-v46-return-amount"><b>' + money(lineAmount) + '</b><small>Giá ' + money(row.price) + '</small></span>' +
             '</div>';
           }).join('') +
         '</div>' +
@@ -794,8 +825,7 @@
       message(json.message || 'Đã lưu hàng trả vào returnOrders');
       state.selectedKey = orderKey(window.DeliveryCore.state.selectedOrder);
       state.activeTab = forceZero ? 'products' : 'returns';
-      renderList();
-      renderDetail(window.DeliveryCore.state.selectedOrder);
+      refreshAfterReturnRowsLoaded(window.DeliveryCore.state.selectedOrder);
     } catch (err) { message(err.message, true); }
   }
 
@@ -925,7 +955,7 @@
     if (order && window.DeliveryCore && typeof window.DeliveryCore.loadReturnsForOrder === "function") {
       try {
         await window.DeliveryCore.loadReturnsForOrder(order);
-        renderDetail(order);
+        refreshAfterReturnRowsLoaded(order);
       } catch (e) {
         console.error("loadReturnsForOrder failed", e);
       }
@@ -951,6 +981,7 @@
       // Không gọi /api/delivery/returns toàn bộ ở lần tải danh sách vì endpoint đó lại gọi listOrders() lần hai.
       window.DeliveryCore.state.returns = [];
       window.DeliveryCore.state.returnsLoaded = false;
+      window.DeliveryCore.state.returnsLoadedByOrder = {};
       // DELIVERY_ORDERS_FAST_LOAD_END
       var visibleRows = getVisibleOrders();
       if (!state.selectedKey && visibleRows[0]) state.selectedKey = orderKey(visibleRows[0]);
@@ -962,7 +993,7 @@
       // Chỉ tải returnOrders cho đơn đang chọn, không tải cả ngày.
       if (window.DeliveryCore.state.selectedOrder && typeof window.DeliveryCore.loadReturnsForOrder === 'function') {
         window.DeliveryCore.loadReturnsForOrder(window.DeliveryCore.state.selectedOrder)
-          .then(function () { renderDetail(window.DeliveryCore.state.selectedOrder); })
+          .then(function () { refreshAfterReturnRowsLoaded(window.DeliveryCore.state.selectedOrder); })
           .catch(function (err) { console.error('load selected returnOrders failed', err); });
       }
     } catch (err) {
