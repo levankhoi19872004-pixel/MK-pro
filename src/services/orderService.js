@@ -15,7 +15,6 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const queryGuard = require('../utils/queryGuard.util');
 const tx = require('../utils/transaction.util');
 const { normalizeOrderSourceValue, applyOrderSourceFields } = require('../utils/orderSource.util');
-const inventoryService = require('./inventoryService');
 const InventoryPostingService = require('../domain/posting/InventoryPostingService');
 const postingEngine = require('../engines/posting.engine');
 const returnOrderService = require('./returnOrderService');
@@ -316,7 +315,7 @@ async function applySalesOrderPosting(order, options = {}) {
 }
 
 async function reverseSalesOrderPosting(order, options = {}) {
-  await inventoryService.reverseStockMovement(order, {
+  await InventoryPostingService.reverseMovement(order, {
     type: 'SALE',
     reverseType: 'SALE_REVERSAL',
     direction: 'OUT',

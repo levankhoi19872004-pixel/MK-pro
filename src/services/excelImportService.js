@@ -19,7 +19,6 @@ const PromotionProductRule = require('../models/PromotionProductRule');
 const PromotionGroupItem = require('../models/PromotionGroupItem');
 const PromotionGroupRule = require('../models/PromotionGroupRule');
 const systemService = require('./systemService');
-const inventoryService = require('./inventoryService');
 const { toNumber, makeId, normalizeText, normalizePacking } = require('../utils/common.util');
 const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.util');
 const { DIRECT_PRICE } = require('../constants/pricingModes');

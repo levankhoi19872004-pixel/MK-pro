@@ -196,12 +196,63 @@ async function getInventorySummary(query = {}) {
   return { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso() };
 }
 
+async function checkAvailableForItems(items = []) {
+  const requiredByProduct = new Map();
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const productCode = normalizeProductCode(
+      item.productCode || item.code || item.sku || item.productId
+    );
+
+    const quantity = Math.abs(toNumber(
+      item.stockQuantity ??
+      item.deliveredQuantity ??
+      item.quantity ??
+      item.qty ??
+      item.totalQty ??
+      0
+    ));
+
+    if (!productCode || quantity <= 0) continue;
+
+    requiredByProduct.set(
+      productCode,
+      toNumber(requiredByProduct.get(productCode)) + quantity
+    );
+  }
+
+  const productCodes = Array.from(requiredByProduct.keys());
+  const stockMap = await getAvailableStocks(productCodes);
+
+  const rows = productCodes.map((productCode) => {
+    const availableQty = toNumber(stockMap[productCode]);
+    const requiredQty = toNumber(requiredByProduct.get(productCode));
+
+    return {
+      productCode,
+      availableQty,
+      requiredQty,
+      shortageQty: Math.max(0, requiredQty - availableQty),
+      enough: availableQty >= requiredQty
+    };
+  });
+
+  const shortages = rows.filter((row) => !row.enough);
+
+  return {
+    enough: shortages.length === 0,
+    rows,
+    shortages
+  };
+}
+
 module.exports = {
   normalizeProductCode,
   quantityOf,
   getAvailableStock,
   getAvailableStocks,
   getInventorySummary,
+  checkAvailableForItems,
   stockWarehouseCode,
   stockWarehouseName
 };

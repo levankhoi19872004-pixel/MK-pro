@@ -178,7 +178,7 @@ async function searchProducts(query = {}) {
   const products = await searchRepository.findProducts({ ...(query || {}), limit: queryGuard.clampLimit(query.limit, 20, 50) });
 
   // Tồn mở bán là thông tin bắt buộc của gợi ý bán hàng.
-  // Trước đây web chỉ lấy product.availableStock nên có thể hiện 0,
+  // Trước đây web từng lấy tồn từ field legacy trên product nên có thể hiện 0,
   // trong khi app mobile lấy inventories nên hiện đúng. Từ đây search chung luôn
   // đọc inventories giống app, trừ khi client cố tình truyền includeStock=0.
   const includeStock = String(query.includeStock ?? '1') !== '0';

@@ -7,7 +7,6 @@ const orderRepository = require('../repositories/orderRepository');
 const customerRepository = require('../repositories/customerRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
-const inventoryService = require('./inventoryService');
 const InventoryPostingService = require('../domain/posting/InventoryPostingService');
 const postingEngine = require('../engines/posting.engine');
 const financialService = require('./financialService');
@@ -577,7 +576,7 @@ async function createReturnOrder(body = {}) {
     // Legacy createReturnOrder vẫn giữ hành vi cũ: tạo phiếu, nhập kho và ghi AR ngay.
     // Nhưng lifecycle nội bộ chạy đúng: received -> accounting_confirmed -> posted_to_ar.
     if (existing && isPostedReturnStatus(existing.status)) {
-      await inventoryService.reverseStockMovement(existing, {
+      await InventoryPostingService.reverseMovement(existing, {
         type: 'RETURN',
         reverseType: 'RETURN_UPDATE_REVERSAL',
         direction: 'IN',

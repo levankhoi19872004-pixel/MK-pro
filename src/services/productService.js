@@ -74,9 +74,9 @@ function toClient(product, snapshot = null) {
   const raw = typeof product?.toObject === 'function' ? product.toObject() : (product || {});
   const clean = stripProductStockFields(raw);
   const code = String(raw.code || raw.sku || raw.productCode || raw.id || raw._id || '').trim();
-  // Products chỉ là danh mục, nhưng frontend/test cũ vẫn cần field tồn hiển thị.
-  // Ưu tiên inventories; nếu chưa có inventories thì fallback về field tồn có sẵn trên product.
-  const stockSource = snapshot || raw;
+  // Products chỉ là danh mục. Tồn hiển thị luôn lấy từ inventories qua inventoryStock.service.
+  // Nếu chưa có inventories thì hiển thị 0, không fallback về field tồn legacy trên products.
+  const stockSource = snapshot || {};
   const stock = stockFromSnapshot({ ...stockSource, conversionRate: raw.conversionRate || 1 });
   return {
     ...clean,
@@ -93,36 +93,54 @@ function toClient(product, snapshot = null) {
 
 async function snapshotMapForProducts(products = []) {
   const codes = [];
-  const productsWithoutRawStock = [];
 
   for (const product of products || []) {
-    const code = String(product.code || product.productCode || product.sku || product.id || product._id || '').trim();
-    const hasRawStock =
-      product.availableStock !== undefined ||
-      product.stockQuantity !== undefined ||
-      product.availableQty !== undefined ||
-      product.quantity !== undefined ||
-      product.qty !== undefined;
+    const code = String(
+      product.code ||
+      product.productCode ||
+      product.sku ||
+      product.id ||
+      product._id ||
+      ''
+    ).trim();
 
-    // Nếu product cũ vẫn còn field tồn thì để toClient fallback về chính product đó.
-    // Không tạo snapshot giả = 0 vì sẽ ghi đè tồn thật đang nằm trên product.
-    if (hasRawStock) continue;
     if (code && !codes.includes(code)) codes.push(code);
-    productsWithoutRawStock.push(product);
   }
 
   if (!codes.length) return new Map();
+
   const stockMap = await inventoryStockService.getAvailableStocks(codes);
   const map = new Map();
-  for (const product of productsWithoutRawStock) {
-    const normalizedCode = inventoryStockService.normalizeProductCode(product.code || product.productCode || product.sku || product.id || product._id);
+
+  for (const product of products || []) {
+    const normalizedCode = inventoryStockService.normalizeProductCode(
+      product.code || product.productCode || product.sku || product.id || product._id
+    );
+
     const qty = toNumber(stockMap[normalizedCode]);
-    const row = { availableQty: qty, onHand: qty, quantity: qty, qty };
-    for (const key of [product.code, product.productCode, product.sku, product.id, product._id, product._id ? String(product._id) : '']) {
+    const row = {
+      availableQty: qty,
+      availableStock: qty,
+      stockQuantity: qty,
+      openSaleQty: qty,
+      stock: qty,
+      quantity: qty,
+      qty
+    };
+
+    for (const key of [
+      product.code,
+      product.productCode,
+      product.sku,
+      product.id,
+      product._id,
+      product._id ? String(product._id) : ''
+    ]) {
       const clean = String(key || '').trim();
       if (clean) map.set(clean, row);
     }
   }
+
   return map;
 }
 

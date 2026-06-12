@@ -31,13 +31,17 @@ function assertHasInventoryReversal(block, label) {
   assert.doesNotMatch(block, /inventoryService\.reverseStockMovement\s*\(/, `${label} must not call inventoryService.reverseStockMovement directly`);
 }
 
-test('legacy mobile sales create/edit/delete post or reverse stock through InventoryPostingService transaction boundary', () => {
+test('legacy mobile sales write routes are disabled with 410 to protect inventory contract', () => {
   const source = read('src/routes/mobileRoutes.js');
 
-  assertHasInventoryPosting(routeBlock(source, 'post', '/sales/orders'), 'POST /mobile/sales/orders');
-  assertHasInventoryPosting(routeBlock(source, 'put', '/sales/orders/:id'), 'PUT /mobile/sales/orders/:id');
-  assertHasInventoryReversal(routeBlock(source, 'put', '/sales/orders/:id'), 'PUT /mobile/sales/orders/:id');
-  assertHasInventoryReversal(routeBlock(source, 'delete', '/sales/orders/:id'), 'DELETE /mobile/sales/orders/:id');
+  for (const [method, route] of [['post', '/sales/orders'], ['put', '/sales/orders/:id'], ['delete', '/sales/orders/:id']]) {
+    const block = routeBlock(source, method, route);
+    assert.match(block, /legacyMobileSalesWriteGone/, `${method.toUpperCase()} ${route} must be intercepted by 410 guard`);
+  }
+
+  assert.match(source, /function legacyMobileSalesWriteGone\(req, res\)/);
+  assert.match(source, /Mobile legacy đã ngừng ghi tồn/);
+  assert.match(source, /\/api\/mobile modular route/);
 });
 
 test('modular mobile sales create writes order and stock atomically without snapshot stock mutation', () => {
@@ -53,11 +57,13 @@ test('modular mobile sales create writes order and stock atomically without snap
   assert.doesNotMatch(createBlock, /repo\.saveOperationalData\s*\(data\)/, 'createSalesOrder must not replace snapshot collections');
 });
 
-test('legacy mobile service reduces JSON stock immediately', () => {
-  const source = read('src/services/mobileService.js');
-  const createStart = source.indexOf('async function createSalesOrder');
-  assert.notEqual(createStart, -1, 'missing createSalesOrder legacy service');
-  const createBlock = source.slice(createStart, source.indexOf('\n  async function ', createStart + 1) === -1 ? source.length : source.indexOf('\n  async function ', createStart + 1));
+test('legacy mobile service is not the exposed sales write path anymore', () => {
+  const source = read('src/routes/mobileRoutes.js');
+  const firstPost = routeBlock(source, 'post', '/sales/orders');
+  const firstPut = routeBlock(source, 'put', '/sales/orders/:id');
+  const firstDelete = routeBlock(source, 'delete', '/sales/orders/:id');
 
-  assert.match(createBlock, /reduceStock\s*\(/, 'legacy createSalesOrder must reduce stock immediately');
+  assert.doesNotMatch(firstPost, /reduceStock\s*\(/);
+  assert.doesNotMatch(firstPut, /reduceStock\s*\(/);
+  assert.doesNotMatch(firstDelete, /reduceStock\s*\(/);
 });

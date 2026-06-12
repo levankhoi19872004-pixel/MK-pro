@@ -1701,6 +1701,14 @@ router.get('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 
   return ok(res, { order: item });
 });
 
+function legacyMobileSalesWriteGone(req, res) {
+  return fail(res, 410, 'Mobile legacy đã ngừng ghi tồn. Vui lòng dùng /api/mobile modular route.');
+}
+
+router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'admin']), legacyMobileSalesWriteGone);
+router.put('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 'admin']), legacyMobileSalesWriteGone);
+router.delete('/sales/orders/:id', requireMobileLogin, requireMobileRole(['sales', 'admin']), legacyMobileSalesWriteGone);
+
 router.post('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'admin']), async (req, res) => {
   try {
     const body = req.body || {};

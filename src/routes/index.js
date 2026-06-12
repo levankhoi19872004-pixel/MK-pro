@@ -27,6 +27,7 @@ const searchRoutes = require('./searchRoutes');
 const catalogRoutes = require('./catalogRoutes');
 const fundRoutes = require('./fundRoutes');
 const deliveryRoutes = require('./deliveryRoutes');
+const inventoryRoutes = require('./inventoryRoutes');
 
 function registerApiRoutes(app) {
   // API docs must be mounted before legacy guard.
@@ -46,6 +47,9 @@ function registerApiRoutes(app) {
 
   // Canonical delivery routes: one core API for web + mobile delivery UIs.
   app.use('/api/delivery', deliveryRoutes);
+
+  // Canonical inventory contract: all stock reads/checks go through inventoryStock.service.
+  app.use('/api/inventory', inventoryRoutes);
 
   // MOBILE_MODULAR_ROUTE_MOUNT_START
   const mobileCtx = createMobileContext();

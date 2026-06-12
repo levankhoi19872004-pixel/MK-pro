@@ -6,7 +6,7 @@ const importOrderRepository = require('../repositories/importOrderRepository');
 const productRepository = require('../repositories/productRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
-const inventoryService = require('./inventoryService');
+const InventoryPostingService = require('../domain/posting/InventoryPostingService');
 
 
 function buildImportCode(existingOrders = []) {
@@ -226,15 +226,7 @@ async function postImportOrder(id, actor = {}) {
     updatedAt: dateUtil.nowIso()
   };
   await withMongoTransaction(async (session) => {
-    await inventoryService.postStockMovement(posted, {
-      type: 'IMPORT',
-      direction: 'IN',
-      refType: 'IMPORT_ORDER',
-      refId: posted.id || posted.code,
-      refCode: posted.code || posted.id,
-      date: getImportOrderDate(posted),
-      note: 'Nhập kho theo phiếu nhập' // inventoryService tự ép tồn về MAIN
-    }, { session });
+    await InventoryPostingService.postImportIn(posted, { session });
     await importOrderRepository.upsert(posted, { session });
   });
   return { importOrder: toClient(posted) };

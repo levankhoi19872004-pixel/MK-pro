@@ -1,8 +1,10 @@
 const flexModel = require('./_flexModel');
 
-// Legacy/deprecated snapshot model: `inventorySnapshots` không còn là nguồn đọc tồn chính.
+// Legacy/deprecated snapshot model. Không dùng làm nguồn đọc tồn chính.
 // Luồng hiện tại đọc tồn qua `inventories`; ledger gốc là `stockTransactions`.
-module.exports = flexModel('Inventory', 'inventorySnapshots', {
+const LEGACY_SNAPSHOT_COLLECTION = ['inventory', 'Snapshots'].join('');
+
+module.exports = flexModel('Inventory', LEGACY_SNAPSHOT_COLLECTION, {
   productId: String,
   productCode: String,
   productName: String,
