@@ -82,6 +82,10 @@ const INDEX_DEFINITIONS = {
     [{ code: 1 }, { name: 'idx_import_orders_code' }],
     [{ supplierId: 1 }, { name: 'idx_import_orders_supplier' }],
     [{ warehouseId: 1 }, { name: 'idx_import_orders_warehouse' }],
+    [{ status: 1, createdAt: -1 }, { name: 'idx_import_orders_status_created_at' }],
+    [{ date: -1, status: 1 }, { name: 'idx_import_orders_date_status' }],
+    [{ documentDate: -1, status: 1 }, { name: 'idx_import_orders_document_date_status' }],
+    [{ importDate: -1, status: 1 }, { name: 'idx_import_orders_import_date_status' }],
     [{ createdAt: -1 }, { name: 'idx_import_orders_created_at' }]
   ],
   returnOrders: [

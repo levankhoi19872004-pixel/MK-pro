@@ -3,7 +3,7 @@
 const inventoryService = require('../../services/inventoryService');
 
 async function postImportIn(importOrder = {}, options = {}) {
-  return inventoryService.postStockMovement(importOrder, {
+  const movement = {
     type: 'IMPORT',
     direction: 'IN',
     refType: 'IMPORT_ORDER',
@@ -11,7 +11,13 @@ async function postImportIn(importOrder = {}, options = {}) {
     refCode: importOrder.code || importOrder.id,
     date: importOrder.date || importOrder.documentDate,
     note: 'Nhập kho'
-  }, options);
+  };
+
+  if (inventoryService.postStockMovementBulkImportIn && options.disableBulkImportPosting !== true) {
+    return inventoryService.postStockMovementBulkImportIn(importOrder, movement, options);
+  }
+
+  return inventoryService.postStockMovement(importOrder, movement, options);
 }
 
 async function postSaleOut(order = {}, options = {}) {

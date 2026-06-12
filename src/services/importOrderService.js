@@ -39,17 +39,21 @@ function syncImportOrderDates(order = {}, fallbackDate = dateUtil.todayVN()) {
   };
 }
 
-function toClient(order) {
+function toClient(order, options = {}) {
   const normalized = syncImportOrderDates(order, order?.createdAt || dateUtil.todayVN());
-  return {
+  const items = Array.isArray(normalized.items) ? normalized.items : [];
+  const client = {
     ...normalized,
     id: normalized.id || normalized.code,
     code: normalized.code || normalized.id,
-    items: Array.isArray(normalized.items) ? normalized.items : [],
+    itemCount: items.length,
     totalQuantity: toNumber(normalized.totalQuantity),
     totalAmount: toNumber(normalized.totalAmount),
     displayDate: getImportOrderDate(normalized)
   };
+  if (options.includeItems !== false) client.items = items;
+  else delete client.items;
+  return client;
 }
 
 function buildImportDateMongoOr(dateFrom, dateTo) {
@@ -107,27 +111,47 @@ async function listImportOrders(query = {}) {
 }
 
 async function hydrateItems(rawItems = []) {
-  const products = await productRepository.findAll({});
+  const rows = Array.isArray(rawItems) ? rawItems : [];
+  const keys = Array.from(new Set(rows.flatMap((raw) => [
+    raw.productCode,
+    raw.code,
+    raw.productId,
+    raw.sku,
+    raw.barcode,
+    raw.id
+  ].map((value) => String(value || '').trim()).filter(Boolean))));
+
+  const products = keys.length ? await productRepository.findByCodes(keys) : [];
   const productMap = new Map();
   const addProductKey = (key, product) => {
     const normalized = String(key || '').trim().toLowerCase();
     if (normalized && !productMap.has(normalized)) productMap.set(normalized, product);
   };
+
   products.forEach((product) => {
-    [product.code, product.sku, product.id, product._id, product.productCode, product.barcode].forEach((key) => addProductKey(key, product));
+    [
+      product.code,
+      product.sku,
+      product.id,
+      product._id,
+      product._id ? String(product._id) : '',
+      product.productCode,
+      product.barcode
+    ].forEach((key) => addProductKey(key, product));
   });
-  return (Array.isArray(rawItems) ? rawItems : [])
+
+  return rows
     .map((raw) => {
-      const productKey = String(raw.productCode || raw.code || raw.productId || raw.sku || raw.barcode || '').trim();
+      const productKey = String(raw.productCode || raw.code || raw.productId || raw.sku || raw.barcode || raw.id || '').trim();
       const product = productMap.get(productKey.toLowerCase());
       const quantity = toNumber(raw.quantity ?? raw.qty ?? raw.totalQty);
-      const costPrice = toNumber(product?.costPrice || 0);
-      const productCode = String(raw.productCode || raw.code || product?.code || productKey).trim();
+      const costPrice = toNumber(raw.costPrice ?? raw.importPrice ?? raw.purchasePrice ?? product?.costPrice ?? 0);
+      const productCode = String(raw.productCode || raw.code || product?.code || product?.productCode || productKey).trim();
       return {
         ...raw,
-        productId: raw.productId || product?.id || productCode,
+        productId: raw.productId || product?.id || product?._id || productCode,
         productCode,
-        productName: raw.productName || raw.name || product?.name || '',
+        productName: raw.productName || raw.name || product?.name || product?.productName || '',
         unit: raw.unit || product?.unit || '',
         baseUnit: raw.baseUnit || product?.baseUnit || '',
         conversionRate: toNumber(raw.conversionRate || product?.conversionRate || 1) || 1,
@@ -207,29 +231,71 @@ async function updateImportOrder(id, body = {}) {
 }
 
 async function postImportOrder(id, actor = {}) {
+  const startedAt = Date.now();
   const current = await importOrderRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy phiếu nhập', status: 404 };
-  if (String(current.status || '').toLowerCase() === 'posted') {
+
+  const currentStatus = String(current.status || '').toLowerCase();
+  if (currentStatus === 'posted') {
     return { error: 'Phiếu này đã nhập kho, không được nhập lại lần 2', status: 409 };
   }
+  if (['cancelled', 'canceled', 'void', 'deleted'].includes(currentStatus)) {
+    return { error: 'Phiếu nhập đã huỷ, không được nhập kho', status: 409 };
+  }
+
   const items = await hydrateItems(current.items || []);
   if (!items.length) return { error: 'Phiếu nhập chưa có dòng hàng', status: 400 };
+
   const normalizedCurrent = syncImportOrderDates(current, current.date || current.createdAt || dateUtil.todayVN());
-  const posted = {
-    ...normalizedCurrent,
-    items,
+  const now = dateUtil.nowIso();
+  const patch = {
+    status: 'posted',
+    stockPosted: true,
+    postedAt: now,
+    postedBy: String(actor.username || actor.name || actor.id || 'admin').trim(),
     totalQuantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
     totalAmount: items.reduce((sum, item) => sum + toNumber(item.amount), 0),
-    status: 'posted',
-    postedAt: dateUtil.nowIso(),
-    postedBy: String(actor.username || actor.name || actor.id || 'admin').trim(),
-    updatedAt: dateUtil.nowIso()
+    updatedAt: now
   };
+
+  const postedForStock = {
+    ...normalizedCurrent,
+    ...patch,
+    items
+  };
+
+  let postingStats = {
+    transactionCount: 0,
+    createdTransactionCount: 0,
+    skippedTransactionCount: 0
+  };
+
   await withMongoTransaction(async (session) => {
-    await InventoryPostingService.postImportIn(posted, { session });
-    await importOrderRepository.upsert(posted, { session });
+    const transactions = await InventoryPostingService.postImportIn(postedForStock, { session });
+    postingStats = {
+      transactionCount: transactions.length,
+      createdTransactionCount: transactions.filter((tx) => !tx.skipped).length,
+      skippedTransactionCount: transactions.filter((tx) => tx.skipped).length
+    };
+
+    await importOrderRepository.patchByIdentity(current.id || current.code || id, patch, { session });
   });
-  return { importOrder: toClient(posted) };
+
+  const importOrder = toClient({
+    ...normalizedCurrent,
+    ...patch,
+    items
+  }, { includeItems: false });
+
+  return {
+    importOrder,
+    posting: {
+      ...postingStats,
+      itemCount: items.length,
+      elapsedMs: Date.now() - startedAt,
+      mode: 'bulk-import-in'
+    }
+  };
 }
 
 async function cancelImportOrder(id, actor = {}) {

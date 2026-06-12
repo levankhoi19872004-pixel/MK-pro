@@ -26,8 +26,12 @@ async function upsert(importOrder, options = {}) {
   return collectionRepository.upsertByIdentity(IMPORT_ORDER_KEY, importOrder, ['id', 'code'], options);
 }
 
+async function patchByIdentity(idOrCode, patch = {}, options = {}) {
+  return collectionRepository.patchByIdentity(IMPORT_ORDER_KEY, idOrCode, patch, ['id', 'code'], options);
+}
+
 async function replaceAll(importOrders) {
   return collectionRepository.replaceAll(IMPORT_ORDER_KEY, importOrders || []);
 }
 
-module.exports = { findAll, findByIdOrCode, upsert, replaceAll };
+module.exports = { findAll, findByIdOrCode, upsert, patchByIdentity, replaceAll };

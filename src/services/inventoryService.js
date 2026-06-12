@@ -435,6 +435,9 @@ async function postStockMovement(document = {}, movement = {}, options = {}) {
     // Products chỉ là danh mục; tồn hiện tại nằm ở inventories.
     transactions.push(tx);
   }
+  if (transactions.length && inventoryStockService.invalidateInventorySummaryCache) {
+    inventoryStockService.invalidateInventorySummaryCache();
+  }
   return transactions;
 }
 
@@ -562,6 +565,215 @@ function makeStockTx({ date, productId, productCode, productName, quantity, type
     createdAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+}
+
+
+function lookupKeysFromStockItem(item = {}) {
+  return [
+    item.productCode,
+    item.code,
+    item.sku,
+    item.productId,
+    item.id,
+    item.barcode
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+}
+
+function addProductAlias(productMap, key, product) {
+  const normalized = String(key || '').trim().toLowerCase();
+  if (normalized && !productMap.has(normalized)) productMap.set(normalized, product);
+}
+
+async function buildProductMapForStockItems(items = [], session = null) {
+  const keys = Array.from(new Set(
+    (Array.isArray(items) ? items : [])
+      .flatMap(lookupKeysFromStockItem)
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  ));
+
+  const productMap = new Map();
+  if (!keys.length) return productMap;
+
+  const query = Product.find({
+    $or: [
+      { code: { $in: keys } },
+      { sku: { $in: keys } },
+      { productCode: { $in: keys } },
+      { barcode: { $in: keys } },
+      { id: { $in: keys } }
+    ]
+  }).select('id code sku productCode barcode name productName unit baseUnit conversionRate packing costPrice warehouseCode warehouseName printGroup printGroupName');
+
+  const products = await withOptionalSession(query, session).lean();
+
+  for (const product of products || []) {
+    [
+      product.code,
+      product.sku,
+      product.productCode,
+      product.barcode,
+      product.id,
+      product._id,
+      product._id ? String(product._id) : ''
+    ].forEach((key) => addProductAlias(productMap, key, product));
+  }
+
+  return productMap;
+}
+
+function findProductInMap(item = {}, productMap = new Map()) {
+  for (const key of lookupKeysFromStockItem(item)) {
+    const product = productMap.get(String(key || '').trim().toLowerCase());
+    if (product) return product;
+  }
+  return null;
+}
+
+async function postStockMovementBulkImportIn(document = {}, movement = {}, options = {}) {
+  const session = options.session;
+  const rawItems = Array.isArray(document.items) ? document.items : [];
+  const items = groupStockItems(rawItems);
+  if (!items.length) return [];
+
+  const warehouseCode = stockWarehouseCode();
+  const warehouseId = stockWarehouseCode();
+  const warehouseName = stockWarehouseName();
+  const direction = 'IN';
+  const type = String(movement.type || 'IMPORT').trim().toUpperCase();
+  const refType = normalizeStockSourceType({ ...movement, type });
+  const refId = String(movement.refId || movement.sourceId || document.id || document._id || document.code || '').trim();
+  const refCode = String(movement.refCode || movement.sourceCode || document.code || document.orderCode || document.id || '').trim();
+  const txDate = dateOnly(movement.date || document.date || document.orderDate || document.documentDate || document.createdAt);
+  const postedAt = dateUtil.nowIso();
+  const productMap = await buildProductMapForStockItems(items, session);
+  const txDocs = [];
+
+  for (const item of items) {
+    const rawQty = getQty(item);
+    if (!rawQty) continue;
+
+    const product = findProductInMap(item, productMap);
+    const productCode = normalizeStockProductCode(item.productCode || item.code || item.sku || product?.code || product?.productCode || item.productId);
+    const productId = String(item.productId || product?.id || product?._id || productCode).trim();
+
+    if (!productCode && !productId) continue;
+
+    const productName = String(item.productName || item.name || product?.name || product?.productName || '').trim();
+    const absQty = Math.abs(rawQty);
+    if (absQty <= 0) continue;
+
+    const idempotencyKey = buildStockMovementIdempotencyKey({
+      sourceType: refType,
+      sourceId: refId,
+      sourceCode: refCode,
+      productCode,
+      productId,
+      warehouseCode,
+      warehouseId,
+      direction,
+      type
+    });
+
+    txDocs.push({
+      id: makeId('ST'),
+      idempotencyKey,
+      sourceType: refType,
+      sourceId: refId,
+      sourceCode: refCode,
+      date: txDate,
+      productId,
+      productCode,
+      productName,
+      warehouseId,
+      warehouseCode,
+      warehouseName,
+      type,
+      direction,
+      quantity: absQty,
+      qty: absQty,
+      inQty: absQty,
+      outQty: 0,
+      balanceQty: 0,
+      refType,
+      refId,
+      refCode,
+      reversedFrom: movement.reversedFrom || movement.originalMovementId || '',
+      note: movement.note || document.note || 'Nhập kho',
+      createdAt: postedAt,
+      updatedAt: postedAt
+    });
+  }
+
+  if (!txDocs.length) return [];
+
+  const idempotencyKeys = txDocs.map((doc) => doc.idempotencyKey).filter(Boolean);
+  const existingQuery = StockTransaction.find({ idempotencyKey: { $in: idempotencyKeys } })
+    .select('id idempotencyKey productCode productId quantity qty inQty outQty refType refId refCode sourceType sourceId sourceCode type direction date createdAt updatedAt')
+    .lean();
+  const existingTx = await withOptionalSession(existingQuery, session);
+  const existingKeys = new Set((existingTx || []).map((row) => row.idempotencyKey).filter(Boolean));
+  const insertDocs = txDocs.filter((doc) => !existingKeys.has(doc.idempotencyKey));
+
+  let createdDocs = [];
+  if (insertDocs.length) {
+    createdDocs = await StockTransaction.insertMany(insertDocs, {
+      ordered: false,
+      session
+    });
+
+    const inventoryOps = insertDocs.map((doc) => ({
+      updateOne: {
+        filter: {
+          productCode: doc.productCode,
+          warehouseCode: doc.warehouseCode
+        },
+        update: {
+          $inc: {
+            qty: doc.inQty,
+            quantity: doc.inQty,
+            onHand: doc.inQty,
+            availableQty: doc.inQty
+          },
+          $set: {
+            productId: doc.productId,
+            productCode: doc.productCode,
+            productName: doc.productName,
+            warehouseId: doc.warehouseId,
+            warehouseCode: doc.warehouseCode,
+            warehouseName: doc.warehouseName,
+            lastTransactionAt: postedAt,
+            updatedAt: postedAt
+          },
+          $setOnInsert: {
+            id: makeId('IV'),
+            reservedQty: 0
+          }
+        },
+        upsert: true
+      }
+    }));
+
+    if (inventoryOps.length) {
+      await InventoryLegacy.bulkWrite(inventoryOps, {
+        ordered: false,
+        session
+      });
+    }
+
+    if (inventoryStockService.invalidateInventorySummaryCache) {
+      inventoryStockService.invalidateInventorySummaryCache();
+    }
+  }
+
+  return [
+    ...(existingTx || []).map((tx) => ({
+      ...tx,
+      skipped: true,
+      reason: 'DUPLICATE_STOCK_MOVEMENT'
+    })),
+    ...createdDocs
+  ];
 }
 
 async function rebuildSnapshotsFromTransactions() {
@@ -806,6 +1018,7 @@ async function normalizeOneWarehouse() {
 
 module.exports = {
   postStockMovement,
+  postStockMovementBulkImportIn,
   assertStockAvailableBeforeOut,
   reverseStockMovement,
   getCurrentStock,

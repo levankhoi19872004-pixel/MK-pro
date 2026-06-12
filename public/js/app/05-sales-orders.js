@@ -558,8 +558,10 @@ async function postImportOrder(idx){
   try{
     const res=await fetch(`/api/import-orders/${encodeURIComponent(order.id||order.code)}/post`,{method:'POST',headers:{'Content-Type':'application/json','X-User-Role':'admin'}});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không nhập kho được phiếu');
-    alert(json.message||'Đã nhập kho thành công');
-    await loadStock();await loadImportOrders();
+    const perf=json.posting&&json.posting.elapsedMs?` (${money(json.posting.createdTransactionCount||0)} dòng, ${money(json.posting.elapsedMs)}ms)`:''; 
+    alert((json.message||'Đã nhập kho thành công')+perf);
+    await loadImportOrders();
+    setTimeout(()=>{try{if(typeof loadStock==='function')loadStock().catch(()=>{});}catch(_err){}},0);
   }catch(err){alert(err.message)}
 }
 window.postImportOrder=postImportOrder;

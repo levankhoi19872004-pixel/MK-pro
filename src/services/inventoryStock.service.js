@@ -9,6 +9,10 @@ const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/bus
 const INVENTORY_SUMMARY_CACHE_TTL_MS = Math.max(0, Number(process.env.INVENTORY_SUMMARY_CACHE_TTL_MS || 5000));
 let inventorySummaryCache = { key: '', expiresAt: 0, value: null };
 
+function invalidateInventorySummaryCache() {
+  inventorySummaryCache = { key: '', expiresAt: 0, value: null };
+}
+
 function normalizeProductCode(value = '') {
   return String(value || '').trim().toUpperCase();
 }
@@ -266,6 +270,7 @@ module.exports = {
   getAvailableStocks,
   getInventorySummary,
   checkAvailableForItems,
+  invalidateInventorySummaryCache,
   stockWarehouseCode,
   stockWarehouseName
 };
