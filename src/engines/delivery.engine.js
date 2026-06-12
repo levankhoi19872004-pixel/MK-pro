@@ -282,6 +282,54 @@ function shouldTryFastDeliveryCodeQuery(query = {}) {
 
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
+
+// DELIVERY_DEDUP_SALES_ORDER_START
+function canonicalDeliveryOrderKey(order = {}) {
+  const businessCode = cleanOrderCode(order.salesOrderCode || order.orderCode || order.code || order.displayOrderCode);
+  if (businessCode) return `code:${compact(businessCode)}`;
+  const businessId = text(order.salesOrderId || order.orderId || order.id || order._id);
+  return businessId ? `id:${businessId}` : '';
+}
+
+function statusScore(value) {
+  const s = lower(value);
+  if (['deleted', 'removed', 'void', 'cancelled', 'canceled'].includes(s)) return -1000;
+  if (['delivered', 'completed', 'done'].includes(s)) return 80;
+  if (['assigned', 'shipping', 'pending_delivery'].includes(s)) return 40;
+  return 0;
+}
+
+function deliveryOrderCandidateScore(order = {}) {
+  const st = order && typeof order.status === 'object' ? order.status : {};
+  const updatedMs = Date.parse(order.updatedAt || order.modifiedAt || order.createdAt || '') || 0;
+  const itemCount = Array.isArray(order.items) ? order.items.length : 0;
+  return statusScore(order.deletedAt ? 'deleted' : '')
+    + statusScore(order.deliveryStatus || st.deliveryStatus || order.status)
+    + (order.accountingConfirmed ? 20 : 0)
+    + (order.stockPosted ? 10 : 0)
+    + Math.min(itemCount, 50)
+    + Math.min(Math.max(toNumber(order.totalAmount || order.amount || order.debtAmount), 0), 1000000000) / 1000000000
+    + updatedMs / 100000000000000;
+}
+
+function dedupeDeliveryOrders(rows = []) {
+  const byKey = new Map();
+  const passthrough = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row) continue;
+    const key = canonicalDeliveryOrderKey(row);
+    if (!key) {
+      passthrough.push(row);
+      continue;
+    }
+    const prev = byKey.get(key);
+    if (!prev || deliveryOrderCandidateScore(row) >= deliveryOrderCandidateScore(prev)) {
+      byKey.set(key, row);
+    }
+  }
+  return passthrough.concat(Array.from(byKey.values()));
+}
+// DELIVERY_DEDUP_SALES_ORDER_END
 function productCodeOf(item = {}) { return text(item.productCode || item.code || item.productId || item.sku || item.id || item._id); }
 function productNameOf(item = {}) { return text(item.productName || item.name || item.product || ''); }
 function qtyOf(item = {}) { return toNumber(item.deliveredQty ?? item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? item.quantity ?? item.qty ?? 0); }
@@ -751,7 +799,12 @@ class DeliveryEngine {
         o.deliveryStaffName
       ].some((v) => norm(v).includes(q)));
     }
-    return orders;
+
+    // DELIVERY_DEDUP_SALES_ORDER_START
+    // Mongo có thể đang tồn tại nhiều salesOrders cùng mã đơn do import/retry cũ.
+    // Màn giao hàng là màn nghiệp vụ theo mã đơn bán, nên luôn trả 1 dòng cho 1 mã đơn.
+    return dedupeDeliveryOrders(orders);
+    // DELIVERY_DEDUP_SALES_ORDER_END
   }
 
 
@@ -790,10 +843,10 @@ class DeliveryEngine {
   }
 
   async listOrders(query = {}) {
-    const orders = await this.findOrders(query);
+    const orders = dedupeDeliveryOrders(await this.findOrders(query));
     const returns = await this.findReturnOrdersFor(orders);
     let rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
-    rows = applyDeliveryStatusFilter(rows, query);
+    rows = dedupeDeliveryOrders(applyDeliveryStatusFilter(rows, query));
     if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || truthy(query.staffCheck)) {
       rows = await this.enrichStaffAssignment(rows);
     }

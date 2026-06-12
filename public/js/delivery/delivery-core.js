@@ -55,6 +55,41 @@
     return text(order && (order.orderId || order.salesOrderId || order.id || order._id || order.orderCode || order.salesOrderCode || order.code));
   }
 
+  // DELIVERY_CLIENT_DEDUP_ORDERS_START
+  function canonicalBusinessOrderKey(order) {
+    order = order || {};
+    var code = text(order.salesOrderCode || order.orderCode || order.code || order.displayOrderCode).replace(/^RO[-_]?/i, '');
+    if (code) return 'code:' + code.toLowerCase().replace(/[^a-z0-9]/g, '');
+    var id = text(order.salesOrderId || order.orderId || order.id || order._id);
+    return id ? 'id:' + id : '';
+  }
+
+  function orderCandidateScore(order) {
+    order = order || {};
+    var status = text(order.deliveryStatus || (order.status && order.status.deliveryStatus) || order.status).toLowerCase();
+    var statusScore = ['delivered', 'completed', 'done'].indexOf(status) >= 0 ? 80 : 0;
+    var itemScore = Array.isArray(order.items) ? Math.min(order.items.length, 50) : 0;
+    var updated = Date.parse(order.updatedAt || order.modifiedAt || order.createdAt || '') || 0;
+    return statusScore + (order.accountingConfirmed ? 20 : 0) + itemScore + updated / 100000000000000;
+  }
+
+  function dedupeOrders(rows) {
+    var map = new Map();
+    var passthrough = [];
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (!row) return;
+      var key = canonicalBusinessOrderKey(row);
+      if (!key) {
+        passthrough.push(row);
+        return;
+      }
+      var prev = map.get(key);
+      if (!prev || orderCandidateScore(row) >= orderCandidateScore(prev)) map.set(key, row);
+    });
+    return passthrough.concat(Array.from(map.values()));
+  }
+  // DELIVERY_CLIENT_DEDUP_ORDERS_END
+
   function normalizeOrder(order) {
     order = order || {};
     var amounts = order.amounts || {};
@@ -279,10 +314,10 @@
         if (value !== undefined && value !== null && String(value).trim() !== '') params.set(key, value);
       });
       var json = await this.api('/api/delivery/orders' + (params.toString() ? '?' + params.toString() : ''));
-      var rows = json.orders || json.rows || json.items || [];
+      var rows = dedupeOrders(json.orders || json.rows || json.items || []);
       this.state.summary = json.summary || {};
       this.state.reconciliation = json.reconciliation || {};
-      this.state.orders = rows.map(normalizeOrder);
+      this.state.orders = dedupeOrders(rows.map(normalizeOrder));
       if (this.state.selectedOrder) {
         var key = orderKey(this.state.selectedOrder);
         this.state.selectedOrder = this.state.orders.find(function (row) { return orderKey(row) === key; }) || null;
