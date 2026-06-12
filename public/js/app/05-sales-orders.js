@@ -938,6 +938,7 @@ let salesOrderCurrentPage = 1;
 let salesOrderTotalRows = 0;
 let salesOrderHasMore = false;
 let salesOrderSearchTimer = null;
+let salesOrderRequestSeq = 0;
 const salesOrderDetailCache = new Map();
 
 function buildSalesOrderSearchParams(page = 1){
@@ -1031,32 +1032,70 @@ function debounceLoadSalesOrders(){
 }
 
 async function loadSalesOrders({page=1, append=false} = {}){
+  const requestSeq = ++salesOrderRequestSeq;
+
   try{
     if(!append){
       salesOrderList.innerHTML='<div class="empty-state">Đang tải danh sách đơn...</div>';
       salesOrderDetailCache.clear();
     }
+
     const params=buildSalesOrderSearchParams(page);
+
+    // Chống browser/proxy dùng lại response cũ khi filter đổi nhanh.
+    params.set('_t', String(Date.now()));
+
+    const requestQuery=params.toString();
+    const requestUrl=`/api/sales-orders/search?${requestQuery}`;
     const clientStartedAt=performance.now();
-    const res=await fetch(`/api/sales-orders/search?${params.toString()}`);
+
+    const res=await fetch(requestUrl);
     const json=await res.json();
+
+    // Nếu đã có request mới hơn, bỏ response cũ, không cho render đè bảng.
+    if(requestSeq !== salesOrderRequestSeq){
+      console.warn('[SALES_ORDER_LIST_STALE_IGNORED]', {
+        requestSeq,
+        latestSeq: salesOrderRequestSeq,
+        requestUrl
+      });
+      return;
+    }
+
     const clientMs=Math.round(performance.now()-clientStartedAt);
     const serverMs=Number(json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms')||0);
-    console.log('[SALES_ORDER_LIST_PERF]', { clientMs, serverMs, queryMs: json.queryMs, countMs: json.countMs, mapMs: json.mapMs, page, total: json.total, returned: (json.salesOrders||json.rows||[]).length });
+
+    console.log('[SALES_ORDER_LIST_PERF]', {
+      clientMs,
+      serverMs,
+      queryMs: json.queryMs,
+      countMs: json.countMs,
+      mapMs: json.mapMs,
+      page,
+      total: json.total,
+      returned: (json.salesOrders||json.rows||[]).length,
+      requestUrl
+    });
+
     if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
+
     const orders=json.salesOrders||json.rows||[];
     salesOrderCurrentPage=Number(json.page||page||1);
     salesOrderTotalRows=Number(json.total||orders.length||0);
     salesOrderHasMore=Boolean(json.hasMore);
+
     const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
     const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
     // SALES_HISTORY_COMPACT_TOOLBAR_PATCH_START: KPI gom thành các chip ngắn để nằm cùng khối tiêu đề.
     const perfText=`API ${serverMs||json.ms||0}ms · Trình duyệt ${clientMs}ms${json.queryMs?` · Query ${json.queryMs}ms`:''}${json.countMs?` · Count ${json.countMs}ms`:''}`;
     salesOrderCount.innerHTML=`<span><strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn</span><span>Trang này <strong>${money(totalAmountPage)}</strong></span><span>${perfText}</span>`;
     // SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END
+
     renderSalesOrderRows(orders,{append});
     updateSalesOrderLoadMoreButton();
   }catch(err){
+    if(requestSeq !== salesOrderRequestSeq) return;
+
     salesOrderCount.textContent='Lỗi tải lịch sử';
     salesOrderList.innerHTML=err.message;
     salesOrderHasMore=false;
