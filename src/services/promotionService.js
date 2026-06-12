@@ -8,6 +8,11 @@ const PromotionGroupItem = require('../models/PromotionGroupItem');
 const PromotionGroupRule = require('../models/PromotionGroupRule');
 const { makeId, toNumber } = require('../utils/common.util');
 
+const PROMOTION_PROGRAM_CACHE_TTL_MS = Math.max(0, Number(process.env.PROMOTION_PROGRAM_CACHE_TTL_MS || 30000));
+const promotionProgramCache = new Map();
+
+function clearPromotionProgramCache() { promotionProgramCache.clear(); }
+
 function clean(value) { return String(value ?? '').trim(); }
 function rx(q) { return new RegExp(String(q || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
 
@@ -153,6 +158,7 @@ async function listProductRules(query = {}) {
 }
 
 async function saveProductRule(body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(body.programCode || body.code);
   const programName = clean(body.programName || body.name || body.content || body.programContent);
   const discountPercent = normalizeDiscountPercent(body.discountPercent ?? body.discount ?? body.ck ?? body['Chiết khấu'] ?? body['Chiet khau'] ?? body['CK']);
@@ -185,6 +191,7 @@ async function saveProductRule(body = {}) {
 }
 
 async function deleteProductRule(id) {
+  clearPromotionProgramCache();
   const value = clean(id);
   const result = await PromotionProductRule.deleteOne({ $or: [{ id: value }, { _id: /^[a-f0-9]{24}$/i.test(value) ? value : null }] });
   return { deleted: result.deletedCount > 0 };
@@ -197,6 +204,7 @@ async function listGroupItems(query = {}) {
 }
 
 async function saveGroupItem(body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(body.programCode || body.groupCode || body.code);
   const { product, productCode, productName: catalogProductName } = await hydrateProduct(body.productCode || body.codeProduct || body['Mã sản phẩm'] || body['Ma san pham']);
   const productName = clean(catalogProductName || body.productName || body['Tên sản phẩm'] || body['Ten san pham'] || '');
@@ -225,6 +233,7 @@ async function saveGroupItem(body = {}) {
 }
 
 async function deleteGroupItem(id) {
+  clearPromotionProgramCache();
   const value = clean(id);
   const result = await PromotionGroupItem.deleteOne({ $or: [{ id: value }, { _id: /^[a-f0-9]{24}$/i.test(value) ? value : null }] });
   return { deleted: result.deletedCount > 0 };
@@ -237,6 +246,7 @@ async function listGroupRules(query = {}) {
 }
 
 async function saveGroupRule(body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(body.programCode || body.groupCode || body.code);
   const programName = clean(body.programName || body.name || body.content || body.programContent);
   const groupCode = normalizeProgramCode(body.groupCode || body.applyGroupCode || body.selectedGroupCode || programCode);
@@ -257,6 +267,7 @@ async function saveGroupRule(body = {}) {
 }
 
 async function deleteGroupRule(id) {
+  clearPromotionProgramCache();
   const value = clean(id);
   const result = await PromotionGroupRule.deleteOne({ $or: [{ id: value }, { _id: /^[a-f0-9]{24}$/i.test(value) ? value : null }] });
   return { deleted: result.deletedCount > 0 };
@@ -310,7 +321,14 @@ function programNameFromRow(row = {}, fallback = '') {
 
 async function listPromotionPrograms(query = {}) {
   const cfg = promotionTypeConfig(query.type);
-  const rows = await cfg.Model.find(buildProgramSearchFilter(query, cfg)).sort(cfg.sort).lean();
+  const cacheKey = JSON.stringify({ type: cfg.type, q: clean(query.q) });
+  const cached = promotionProgramCache.get(cacheKey);
+  if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0 && cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const rows = await cfg.Model.find(buildProgramSearchFilter(query, cfg))
+    .select('id code programCode groupCode programName name content programContent description productCode startDate endDate isActive source')
+    .sort(cfg.sort)
+    .lean();
   const groups = new Map();
   function ensure(code) {
     const programCode = normalizeProgramCode(code);
@@ -327,7 +345,9 @@ async function listPromotionPrograms(query = {}) {
     if (!group.programName && cfg.type === 'groupItems') group.programName = group.programCode;
     if (row.productCode) group.productCodes.add(clean(row.productCode));
   }
-  return Array.from(groups.values()).map(toProgramSummary).sort((a, b) => String(a.programCode).localeCompare(String(b.programCode), 'vi'));
+  const result = Array.from(groups.values()).map(toProgramSummary).sort((a, b) => String(a.programCode).localeCompare(String(b.programCode), 'vi'));
+  if (PROMOTION_PROGRAM_CACHE_TTL_MS > 0) promotionProgramCache.set(cacheKey, { expiresAt: Date.now() + PROMOTION_PROGRAM_CACHE_TTL_MS, value: result });
+  return result;
 }
 
 async function getPromotionProgramDetail(programCodeValue, query = {}) {
@@ -356,6 +376,7 @@ async function getPromotionProgramDetail(programCodeValue, query = {}) {
 }
 
 async function updatePromotionProgram(programCodeValue, body = {}, query = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   const cfg = promotionTypeConfig(query.type || body.type);
@@ -375,6 +396,7 @@ async function updatePromotionProgram(programCodeValue, body = {}, query = {}) {
 }
 
 async function cancelPromotionProgram(programCodeValue, query = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   const cfg = promotionTypeConfig(query.type);
@@ -405,12 +427,14 @@ function pickRowId(row = {}) {
 }
 
 async function addProductToPromotion(programCodeValue, body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   return saveProductRule({ ...body, programCode, source: clean(body.source || 'manual-ui') });
 }
 
 async function updatePromotionProduct(programCodeValue, rowId, body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   const value = clean(rowId);
@@ -435,6 +459,7 @@ async function updatePromotionProduct(programCodeValue, rowId, body = {}) {
 }
 
 async function removePromotionProduct(programCodeValue, rowId) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue);
   if (!programCode) return { error: 'Thiếu mã chương trình', status: 400 };
   const result = await PromotionProductRule.deleteOne(rowIdFilter(programCode, rowId));
@@ -443,12 +468,14 @@ async function removePromotionProduct(programCodeValue, rowId) {
 }
 
 async function addProductToGroup(programCodeValue, body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode || body.groupCode);
   if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm', status: 400 };
   return saveGroupItem({ ...body, programCode, groupCode: programCode, source: clean(body.source || 'manual-ui') });
 }
 
 async function updateGroupProduct(programCodeValue, rowId, body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode || body.groupCode);
   if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm', status: 400 };
   const current = await PromotionGroupItem.findOne(rowIdFilter(programCode, rowId));
@@ -468,6 +495,7 @@ async function updateGroupProduct(programCodeValue, rowId, body = {}) {
 }
 
 async function removeGroupProduct(programCodeValue, rowId) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue);
   if (!programCode) return { error: 'Thiếu mã nhóm sản phẩm', status: 400 };
   const result = await PromotionGroupItem.deleteOne(rowIdFilter(programCode, rowId));
@@ -476,12 +504,14 @@ async function removeGroupProduct(programCodeValue, rowId) {
 }
 
 async function addPromotionTier(programCodeValue, body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode);
   if (!programCode) return { error: 'Thiếu mã CTKM', status: 400 };
   return saveGroupRule({ ...body, programCode, source: clean(body.source || 'manual-ui') });
 }
 
 async function updatePromotionTier(programCodeValue, rowId, body = {}) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue || body.programCode);
   if (!programCode) return { error: 'Thiếu mã CTKM', status: 400 };
   const current = await PromotionGroupRule.findOne(rowIdFilter(programCode, rowId));
@@ -498,6 +528,7 @@ async function updatePromotionTier(programCodeValue, rowId, body = {}) {
 }
 
 async function removePromotionTier(programCodeValue, rowId) {
+  clearPromotionProgramCache();
   const programCode = normalizeProgramCode(programCodeValue);
   if (!programCode) return { error: 'Thiếu mã CTKM', status: 400 };
   const result = await PromotionGroupRule.deleteOne(rowIdFilter(programCode, rowId));

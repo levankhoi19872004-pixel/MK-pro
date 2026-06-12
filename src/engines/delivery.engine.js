@@ -260,6 +260,25 @@ function pushStaffMongoFilters(and = [], query = {}) {
 }
 // DELIVERY_ORDERS_PERF_FILTER_END
 
+const DELIVERY_ORDER_SELECT = [
+  'id', 'code', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'date', 'orderDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'customerId', 'customerCode', 'customerName', 'customerPhone', 'customerAddress', 'phone', 'address', 'routeName',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'shipperCode', 'shipperName', 'nvghCode', 'nvghName',
+  'status', 'deliveryStatus', 'accountingStatus', 'accountingConfirmed',
+  'totalAmount', 'paidAmount', 'debtAmount', 'cashCollected', 'cashAmount', 'bankCollected', 'bankAmount', 'rewardAmount', 'returnAmount', 'returnedAmount',
+  'items', 'note', 'masterOrderId', 'masterOrderCode', 'mergeStatus'
+].join(' ');
+
+function directDeliveryCodeFromQuery(query = {}) {
+  return queryKeyword(query, ['deliveryStaffCode', 'deliveryCode', 'nvghCode', 'staffDeliveryCode']);
+}
+
+function shouldTryFastDeliveryCodeQuery(query = {}) {
+  return Boolean(directDeliveryCodeFromQuery(query)) && !query.salesStaffCode && !query.salesmanCode && !query.salesCode && !query.nvbhCode && !query.salesman;
+}
+
 
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
@@ -647,21 +666,20 @@ class DeliveryEngine {
 
   async findOrders(query = {}) {
     const date = text(query.date || query.deliveryDate || today());
-    const filter = {};
-    const and = [];
-    if (date) filter.deliveryDate = date;
-
     const status = norm(query.status || query.deliveryStatus);
-    if (status && !['all', 'tat ca', 'tất cả', '*'].includes(status)) {
-      filter.deliveryStatus = text(query.status || query.deliveryStatus);
-    }
-
-    // DELIVERY_ORDERS_PERF_FILTER_START
-    // Đẩy lọc NVGH/NVBH xuống Mongo trước khi lấy danh sách.
-    // Vẫn giữ applyStaffFilters() phía dưới làm guard cuối cho dữ liệu cũ nhiều alias.
-    pushStaffMongoFilters(and, query);
     const q = norm(query.q || query.keyword);
-    if (q) {
+
+    const makeBaseFilter = () => {
+      const filter = {};
+      if (date) filter.deliveryDate = date;
+      if (status && !['all', 'tat ca', 'tất cả', '*'].includes(status)) {
+        filter.deliveryStatus = text(query.status || query.deliveryStatus);
+      }
+      return filter;
+    };
+
+    const applyKeywordToAnd = (and = []) => {
+      if (!q) return;
       const rx = new RegExp(escapeRegex(query.q || query.keyword), 'i');
       and.push({ $or: [
         { code: rx },
@@ -670,21 +688,47 @@ class DeliveryEngine {
         { customerCode: rx },
         { customerName: rx }
       ] });
-    }
-    if (and.length) filter.$and = and;
-    // DELIVERY_ORDERS_PERF_FILTER_END
+    };
 
-    let orders = await this.SalesOrder.find(filter)
-      .sort({ deliveryStaffCode: 1, customerName: 1, code: 1 })
-      .limit(1000)
-      .lean();
+    let orders = [];
+
+    // Fast path cho app giao hàng: token đã bind deliveryStaffCode chính xác.
+    // Tránh $or regex trên nhiều alias không index, nguyên nhân làm /api/delivery/orders và /returns chậm.
+    if (shouldTryFastDeliveryCodeQuery(query)) {
+      const deliveryCode = directDeliveryCodeFromQuery(query);
+      const and = [{ deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } }];
+      applyKeywordToAnd(and);
+      const fastFilter = { ...makeBaseFilter(), $and: and };
+      orders = await this.SalesOrder.find(fastFilter)
+        .select(DELIVERY_ORDER_SELECT)
+        .sort({ deliveryDate: -1, deliveryStaffCode: 1, customerName: 1, code: 1 })
+        .limit(300)
+        .lean();
+    }
+
+    if (!orders.length) {
+      const filter = makeBaseFilter();
+      const and = [];
+      pushStaffMongoFilters(and, query);
+      applyKeywordToAnd(and);
+      if (and.length) filter.$and = and;
+
+      orders = await this.SalesOrder.find(filter)
+        .select(DELIVERY_ORDER_SELECT)
+        .sort({ deliveryStaffCode: 1, customerName: 1, code: 1 })
+        .limit(1000)
+        .lean();
+    }
 
     if (!orders.length && date && this.MasterOrder) {
-      const masters = await this.MasterOrder.find({ deliveryDate: date }).lean();
+      const masters = await this.MasterOrder.find({ deliveryDate: date })
+        .select('id code deliveryDate deliveryStaffCode deliveryStaffName childOrderIds children')
+        .lean();
       const filteredMasters = applyStaffFilters(masters, query);
       const childIds = unique(filteredMasters.flatMap((m) => Array.isArray(m.childOrderIds) ? m.childOrderIds : []));
       if (childIds.length) {
         orders = await this.SalesOrder.find({ $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] })
+          .select(DELIVERY_ORDER_SELECT)
           .limit(1000)
           .lean();
       }
@@ -709,6 +753,7 @@ class DeliveryEngine {
     }
     return orders;
   }
+
 
   async findReturnOrdersFor(orders = []) {
     const ids = unique(orders.flatMap((o) => [orderIdOf(o), o.id, o._id, o.salesOrderId, o.orderId, o.sourceOrderId, o.deliveryOrderId]));
@@ -1064,6 +1109,16 @@ class DeliveryEngine {
       }
       result = { rows: orders };
     } else {
+      // Fast path: danh sách hàng trả nên đọc trực tiếp returnOrders theo ngày/NVGH.
+      // Bản cũ gọi listOrders() trước nên phát sinh SalesOrder.find lớn dù API chỉ cần phiếu trả.
+      const directReturnDocs = await this.listReturnDocuments(query);
+      if ((directReturnDocs.rows || []).length || query.deliveryStaffCode || query.delivery || query.date || query.deliveryDate) {
+        return {
+          rows: directReturnDocs.rows || [],
+          returnOrdersRaw: directReturnDocs.returnOrders || [],
+          summary: directReturnDocs.summary || summarizeReturnRows(directReturnDocs.rows || [])
+        };
+      }
       result = await this.listOrders(query);
       orders = result.rows || [];
     }

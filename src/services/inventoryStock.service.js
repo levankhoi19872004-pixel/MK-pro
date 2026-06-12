@@ -6,6 +6,9 @@ const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 
+const INVENTORY_SUMMARY_CACHE_TTL_MS = Math.max(0, Number(process.env.INVENTORY_SUMMARY_CACHE_TTL_MS || 5000));
+let inventorySummaryCache = { key: '', expiresAt: 0, value: null };
+
 function normalizeProductCode(value = '') {
   return String(value || '').trim().toUpperCase();
 }
@@ -122,6 +125,12 @@ async function getAvailableStock(productCode) {
 
 async function getInventorySummary(query = {}) {
   const q = normalizeProductCode(query.q || query.search || query.keyword || '');
+  const cacheKey = JSON.stringify({ q });
+  const nowMs = Date.now();
+  if (INVENTORY_SUMMARY_CACHE_TTL_MS > 0 && inventorySummaryCache.key === cacheKey && inventorySummaryCache.value && inventorySummaryCache.expiresAt > nowMs) {
+    return inventorySummaryCache.value;
+  }
+
   const [inventoryRows, products] = await Promise.all([
     InventoryCurrent.find({}).sort({ productCode: 1 }).lean(),
     Product.find({})
@@ -193,7 +202,11 @@ async function getInventorySummary(query = {}) {
     return acc;
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0, negativeStockCount: 0 });
 
-  return { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso() };
+  const result = { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso(), cacheTtlMs: INVENTORY_SUMMARY_CACHE_TTL_MS };
+  if (INVENTORY_SUMMARY_CACHE_TTL_MS > 0) {
+    inventorySummaryCache = { key: cacheKey, expiresAt: Date.now() + INVENTORY_SUMMARY_CACHE_TTL_MS, value: result };
+  }
+  return result;
 }
 
 async function checkAvailableForItems(items = []) {

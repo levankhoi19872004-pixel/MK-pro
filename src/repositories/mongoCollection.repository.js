@@ -54,6 +54,18 @@ async function upsertByIdentity(collectionKey, row, identityFields = ['id', 'cod
 }
 
 
+
+async function patchByIdentity(collectionKey, idOrCode, patch = {}, identityFields = ['id', 'code'], options = {}) {
+  const Model = getModel(collectionKey);
+  const value = String(idOrCode || '').trim();
+  if (!value) throw new Error(`Không có khóa định danh để cập nhật ${collectionKey}`);
+  const filter = { $or: identityFields.map((field) => ({ [field]: value })) };
+  let query = Model.findOneAndUpdate(filter, { $set: patch }, { new: true, session: options.session });
+  query = query.lean();
+  const row = await query;
+  return stripMongoFields(row);
+}
+
 async function deleteOneByIdentity(collectionKey, idOrCode, identityFields = ['id', 'code'], options = {}) {
   const Model = getModel(collectionKey);
   const value = String(idOrCode || '').trim();
@@ -62,4 +74,4 @@ async function deleteOneByIdentity(collectionKey, idOrCode, identityFields = ['i
   return Model.deleteOne(filter, { session: options.session });
 }
 
-module.exports = { MongoStore, stripMongoFields, getModel, findAll, count, replaceAll, upsertByIdentity, deleteOneByIdentity };
+module.exports = { MongoStore, stripMongoFields, getModel, findAll, count, replaceAll, upsertByIdentity, patchByIdentity, deleteOneByIdentity };

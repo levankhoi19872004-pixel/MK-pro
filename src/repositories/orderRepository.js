@@ -52,8 +52,12 @@ async function replaceAll(orders) {
   return collectionRepository.replaceAll(ORDER_KEY, orders || []);
 }
 
+async function patchByIdentity(idOrCode, patch = {}, options = {}) {
+  return collectionRepository.patchByIdentity(ORDER_KEY, idOrCode, patch, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
+}
+
 async function remove(idOrCode, options = {}) {
   return collectionRepository.deleteOneByIdentity(ORDER_KEY, idOrCode, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
-module.exports = { findAll, count, findByIdOrCode, findManyByIdentity, upsert, replaceAll, remove };
+module.exports = { findAll, count, findByIdOrCode, findManyByIdentity, upsert, patchByIdentity, replaceAll, remove };

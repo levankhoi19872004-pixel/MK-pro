@@ -4,6 +4,10 @@ const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
 const SalesOrder = require('../../models/SalesOrder');
+const Customer = require('../../models/Customer');
+const Product = require('../../models/Product');
+const ReturnOrder = require('../../models/ReturnOrder');
+const ArLedger = require('../../models/ArLedger');
 const Payment = require('../../models/Payment');
 const Cashbook = require('../../models/Cashbook');
 const MobileLog = require('../../models/MobileLog');
@@ -22,6 +26,295 @@ function inventoryRowOpenSaleQty(row = {}) {
 
 function canonicalProductCode(product = {}) {
   return String(product.code || product.productCode || product.sku || '').trim();
+}
+
+
+function uniqueClean(values = []) {
+  return Array.from(new Set((Array.isArray(values) ? values : [values])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)));
+}
+
+function caseVariants(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  return uniqueClean([raw, raw.toUpperCase(), raw.toLowerCase()]);
+}
+
+function buildSalesOrderIdentityFilter(value) {
+  const keys = uniqueClean([value]);
+  if (!keys.length) return null;
+  return {
+    $or: [
+      { id: { $in: keys } },
+      { code: { $in: keys } },
+      { orderCode: { $in: keys } },
+      { salesOrderCode: { $in: keys } },
+      { documentCode: { $in: keys } },
+      { invoiceCode: { $in: keys } }
+    ]
+  };
+}
+
+function mobileUserSalesStaffCode(mobileUser = {}) {
+  return String(mobileUser.salesStaffCode || mobileUser.staffCode || mobileUser.code || '').trim();
+}
+
+function mobileUserSalesStaffName(mobileUser = {}) {
+  return String(mobileUser.salesStaffName || mobileUser.fullName || mobileUser.name || '').trim();
+}
+
+function mobileSalesOwnerMongoFilter(mobileUser = {}) {
+  const staffCode = mobileUserSalesStaffCode(mobileUser);
+  const variants = caseVariants(staffCode);
+  if (!variants.length) return null;
+  return {
+    $or: [
+      { salesStaffCode: { $in: variants } },
+      { salesmanCode: { $in: variants } },
+      { nvbhCode: { $in: variants } }
+    ]
+  };
+}
+
+function activeSalesOrderMongoFilter() {
+  return { status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] } };
+}
+
+function customerLookupKeysFromOrderBody(body = {}) {
+  const customerPayload = body.customer || {};
+  return uniqueClean([
+    customerPayload.id,
+    customerPayload._id,
+    customerPayload.customerId,
+    customerPayload.code,
+    customerPayload.customerCode,
+    body.customerId,
+    body.customerCode
+  ]);
+}
+
+async function findCustomerForOrderBody(body = {}) {
+  const keys = uniqueClean(customerLookupKeysFromOrderBody(body).flatMap(caseVariants));
+  if (!keys.length) return null;
+  return Customer.findOne({
+    isActive: { $ne: false },
+    $or: [
+      { id: { $in: keys } },
+      { code: { $in: keys } },
+      { customerCode: { $in: keys } },
+      { phone: { $in: keys } }
+    ]
+  })
+    .select('id code customerCode name customerName phone address area route isActive')
+    .lean();
+}
+
+function productLookupKey(item = {}) {
+  return String(item.productCode || item.code || item.sku || item.productId || '').trim();
+}
+
+function indexProductsByAlias(products = []) {
+  const map = new Map();
+  for (const product of products || []) {
+    for (const key of uniqueClean([product.id, product._id, product.code, product.productCode, product.sku, product.barcode])) {
+      map.set(key, product);
+      map.set(key.toUpperCase(), product);
+      map.set(key.toLowerCase(), product);
+    }
+  }
+  return map;
+}
+
+async function findProductsForOrderItems(items = []) {
+  const keys = uniqueClean((items || []).map(productLookupKey).flatMap(caseVariants));
+  if (!keys.length) return [];
+  return Product.find({
+    isActive: { $ne: false },
+    $or: [
+      { id: { $in: keys } },
+      { code: { $in: keys } },
+      { productCode: { $in: keys } },
+      { sku: { $in: keys } },
+      { barcode: { $in: keys } }
+    ]
+  })
+    .select('id code productCode sku barcode name productName unit baseUnit conversionRate packing brand category groupName productGroup salePrice price isActive')
+    .lean();
+}
+
+function returnOrderIdentityFilterForSalesOrder(order = {}) {
+  const ids = uniqueClean([order.id, order._id, order.salesOrderId, order.orderId]);
+  const codes = uniqueClean([order.code, order.orderCode, order.salesOrderCode]);
+  const or = [];
+  if (ids.length) or.push({ salesOrderId: { $in: ids } }, { orderId: { $in: ids } }, { sourceOrderId: { $in: ids } }, { deliveryOrderId: { $in: ids } });
+  if (codes.length) or.push({ salesOrderCode: { $in: codes } }, { orderCode: { $in: codes } }, { sourceOrderCode: { $in: codes } }, { deliveryOrderCode: { $in: codes } });
+  if (!or.length) return null;
+  return {
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
+    $or: or
+  };
+}
+
+function returnOrderHasValue(row = {}) {
+  const itemHasReturn = (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty) > 0);
+  return itemHasReturn || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount ?? row.debtReduction) > 0;
+}
+
+function returnOrderIsLocked(row = {}) {
+  const status = String(row.status || row.returnStatus || '').toLowerCase();
+  const mergeStatus = String(row.returnMergeStatus || '').toLowerCase();
+  const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
+  return Boolean(row.masterReturnOrderId || row.masterReturnOrderCode)
+    || mergeStatus === 'merged'
+    || ['received', 'posted', 'completed'].includes(status)
+    || ['received', 'posted', 'completed'].includes(warehouseStatus);
+}
+
+
+function activeArLedgerMatch() {
+  return {
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
+    reversed: { $ne: true },
+    refType: { $ne: 'AR_LEDGER_REVERSAL' },
+    type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
+  };
+}
+
+function arSaleStaffMatchForMobileSales(mobileUser = {}) {
+  const variants = caseVariants(mobileUserSalesStaffCode(mobileUser));
+  if (!variants.length) return null;
+  return {
+    ...activeArLedgerMatch(),
+    type: 'ar_sale',
+    $or: [
+      { salesmanCode: { $in: variants } },
+      { salesStaffCode: { $in: variants } },
+      { nvbhCode: { $in: variants } }
+    ]
+  };
+}
+
+async function listMobileSalesDebtsDirect({ query = {}, mobileUser } = {}) {
+  const seedMatch = arSaleStaffMatchForMobileSales(mobileUser);
+  if (!seedMatch) return null;
+  const limit = Math.min(Math.max(toNumber(query.limit || 100), 1), 300);
+
+  const saleRows = await ArLedger.find(seedMatch)
+    .select('orderId salesOrderId refId orderCode salesOrderCode refCode')
+    .sort({ date: -1, createdAt: -1 })
+    .limit(5000)
+    .lean()
+    .catch(() => []);
+
+  const orderIds = uniqueClean(saleRows.flatMap((row) => [row.orderId, row.salesOrderId, row.refId]));
+  const orderCodes = uniqueClean(saleRows.flatMap((row) => [row.orderCode, row.salesOrderCode, row.refCode]));
+
+  if (!orderIds.length && !orderCodes.length) {
+    return { items: [], summary: { totalDebt: 0, customerCount: 0, source: 'arLedgers-mobile-fast' } };
+  }
+
+  const match = activeArLedgerMatch();
+  match.$or = [
+    ...(orderIds.length ? [{ orderId: { $in: orderIds } }, { salesOrderId: { $in: orderIds } }, { refId: { $in: orderIds } }] : []),
+    ...(orderCodes.length ? [{ orderCode: { $in: orderCodes } }, { salesOrderCode: { $in: orderCodes } }, { refCode: { $in: orderCodes } }] : [])
+  ];
+
+  const groupedOrders = await ArLedger.aggregate([
+    { $match: match },
+    { $project: {
+      date: { $ifNull: ['$date', '$createdAt'] },
+      orderId: { $ifNull: ['$orderId', '$salesOrderId'] },
+      orderCode: { $ifNull: ['$orderCode', '$salesOrderCode'] },
+      refId: 1,
+      refCode: 1,
+      customerId: 1,
+      customerCode: 1,
+      customerName: 1,
+      phone: { $ifNull: ['$phone', '$customerPhone'] },
+      address: { $ifNull: ['$address', '$customerAddress'] },
+      salesmanCode: { $ifNull: ['$salesmanCode', '$salesStaffCode'] },
+      salesmanName: { $ifNull: ['$salesmanName', '$salesStaffName'] },
+      debit: { $ifNull: ['$debit', 0] },
+      credit: { $ifNull: ['$credit', 0] }
+    } },
+    { $group: {
+      _id: {
+        orderId: { $ifNull: ['$orderId', '$refId'] },
+        orderCode: { $ifNull: ['$orderCode', '$refCode'] },
+        customerId: '$customerId',
+        customerCode: '$customerCode',
+        customerName: '$customerName'
+      },
+      firstDate: { $min: '$date' },
+      phone: { $max: '$phone' },
+      address: { $max: '$address' },
+      salesmanCode: { $max: '$salesmanCode' },
+      salesmanName: { $max: '$salesmanName' },
+      debit: { $sum: '$debit' },
+      credit: { $sum: '$credit' }
+    } },
+    { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
+    { $match: { debt: { $gt: 1000 } } },
+    { $sort: { debt: -1, firstDate: 1 } },
+    { $limit: limit * 5 }
+  ]).allowDiskUse(true).exec().catch(() => []);
+
+  const q = normalizeText(query.q || query.keyword || query.search || '');
+  const customerMap = new Map();
+  for (const row of groupedOrders || []) {
+    const id = row._id || {};
+    const debt = normalizeDebtAmount(row.debt);
+    if (!hasOpenDebt(debt)) continue;
+    const customerKey = String(id.customerCode || id.customerId || id.customerName || '').trim();
+    if (!customerKey) continue;
+    if (q && ![id.customerCode, id.customerName, row.phone, row.address].some((value) => normalizeText(value).includes(q))) continue;
+    if (!customerMap.has(customerKey)) {
+      customerMap.set(customerKey, {
+        customerId: id.customerId || '',
+        customerCode: id.customerCode || '',
+        customerName: id.customerName || 'Chưa rõ khách',
+        phone: row.phone || '',
+        address: row.address || '',
+        salesmanCode: row.salesmanCode || '',
+        salesmanName: row.salesmanName || '',
+        debtAmount: 0,
+        orderCount: 0,
+        oldestDebtDate: '',
+        orders: []
+      });
+    }
+    const target = customerMap.get(customerKey);
+    target.debtAmount += debt;
+    target.orderCount += 1;
+    const documentDate = dateUtil.toDateOnly(row.firstDate || '');
+    if (documentDate && (!target.oldestDebtDate || documentDate < target.oldestDebtDate)) target.oldestDebtDate = documentDate;
+    target.orders.push({
+      orderId: id.orderId || '',
+      orderCode: id.orderCode || '',
+      documentDate,
+      dueDate: documentDate,
+      debit: toNumber(row.debit),
+      credit: toNumber(row.credit),
+      debt,
+      status: 'open',
+      salesmanCode: row.salesmanCode || '',
+      salesmanName: row.salesmanName || ''
+    });
+  }
+
+  const items = Array.from(customerMap.values())
+    .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount))
+    .slice(0, limit);
+
+  return {
+    items,
+    summary: {
+      totalDebt: items.reduce((sum, item) => sum + toNumber(item.debtAmount), 0),
+      customerCount: items.length,
+      source: 'arLedgers-mobile-fast'
+    }
+  };
 }
 
 async function getInventoryQtyByProducts(products = []) {
@@ -239,7 +532,7 @@ function createMobileSalesService(ctx) {
   // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
 
   async function createSalesOrder({ body = {}, mobileUser }) {
-    const customerKeysForIdem = customerLookupKeysFromBody(body);
+    const customerKeysForIdem = customerLookupKeysFromOrderBody(body);
     const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || customerKeysForIdem[0] || '', Array.isArray(body.items) ? body.items.length : 0]);
     const cachedResult = readIdempotentResult(idemKey);
     if (cachedResult) return cachedResult;
@@ -249,231 +542,227 @@ function createMobileSalesService(ctx) {
     let result;
     try {
       result = await withMongoTransaction(async (session) => {
-      perf('start');
-      const data = await repo.getPrimaryDataSnapshot();
-      perf('load_snapshot');
-      const customer = findCustomerFromOrderPayload(data, body);
-      const rawItems = Array.isArray(body.items) ? body.items : [];
-      const paidAmount = toNumber(body.paidAmount);
-      const date = dateUtil.todayVN();
+        perf('start');
+        const customer = await findCustomerForOrderBody(body);
+        const rawItems = Array.isArray(body.items) ? body.items : [];
+        const paidAmount = toNumber(body.paidAmount);
+        const date = dateUtil.todayVN();
 
-      if (!customer) return fail(400, 'Không tìm thấy khách hàng');
-      if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
+        if (!customer) return fail(400, 'Không tìm thấy khách hàng');
+        if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
+        perf('load_customer_direct');
 
-      const preparedRows = [];
-      const productByCode = new Map();
-      for (const rawItem of rawItems) {
-        const product = repo.findProduct(data, rawItem.productCode || rawItem.code || rawItem.productId);
-        if (!product) return fail(400, `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}`);
-        const quantity = toNumber(rawItem.quantity || rawItem.qty);
-        const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice);
-        if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
-        preparedRows.push({ rawItem, product, quantity, salePrice });
-        productByCode.set(String(product.code || product.productCode || product.id || '').trim(), product);
-      }
-      perf('prepare_items');
-      const stockByProduct = await getInventoryQtyByProducts(Array.from(productByCode.values()));
-      perf('batch_stock_check', { products: productByCode.size });
+        const products = await findProductsForOrderItems(rawItems);
+        const productAliasMap = indexProductsByAlias(products);
+        const preparedRows = [];
+        const productByCode = new Map();
 
-      const baseItems = [];
-      for (const row of preparedRows) {
-        const { product, quantity, salePrice } = row;
-        const stockKey = String(product.code || product.productCode || product.id || '').trim();
-        const availableQty = stockByProduct.get(stockKey) || 0;
-        if (availableQty < quantity) {
-          return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
+        for (const rawItem of rawItems) {
+          const lookupKey = productLookupKey(rawItem);
+          const product = productAliasMap.get(lookupKey) || productAliasMap.get(String(lookupKey).toUpperCase()) || productAliasMap.get(String(lookupKey).toLowerCase());
+          if (!product) return fail(400, `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}`);
+          const quantity = toNumber(rawItem.quantity || rawItem.qty);
+          const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice || product.price);
+          if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
+          preparedRows.push({ rawItem, product, quantity, salePrice });
+          productByCode.set(String(product.code || product.productCode || product.id || '').trim(), product);
         }
-        baseItems.push({
-          productId: product.id,
-          productCode: product.code,
-          productName: product.name,
-          ...buildProductLineMeta(product),
-          quantity,
-          grossPrice: salePrice,
-          catalogSalePrice: salePrice,
-          salePrice,
-          price: salePrice,
-          amount: quantity * salePrice
-        });
-      }
+        perf('prepare_items_direct', { products: productByCode.size });
 
-      const promotionResult = await promotionService.calculatePromotions(baseItems);
-      const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
-      const items = baseItems.map((item) => {
-        const line = promotionByCode.get(String(item.productCode || '').trim()) || {};
-        const grossPrice = toNumber(line.catalogSalePrice || item.grossPrice || item.salePrice);
-        const grossAmount = Math.round(item.quantity * grossPrice);
-        const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
-        const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
-        const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
-        const amount = Math.max(0, grossAmount - discountAmount);
-        const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
-        // MOBILE_PROMOTION_PRICE_LOCK_START
-        const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
-        const promotionIdentity = extractPromotionIdentity(promotionRows);
-        return {
-          ...item,
-          // Giá trước khuyến mại được giữ riêng để đối chiếu/in/báo cáo.
-          originalPrice: grossPrice,
-          grossPrice,
-          catalogSalePrice: grossPrice,
-          grossAmount,
-          directDiscountPercent: toNumber(line.directDiscountPercent || 0),
-          groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
-          discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
-          directDiscountAmount,
-          groupDiscountAmount,
-          discountAmount,
-          promotionAmount: discountAmount,
-          totalDiscountAmount: discountAmount,
-          finalPrice,
-          // Giá sau khuyến mại được khóa làm giá giao hàng/công nợ.
-          unitPrice: finalPrice,
-          salePrice: finalPrice,
-          price: finalPrice,
-          amount,
-          netAmount: amount,
+        const stockByProduct = await getInventoryQtyByProducts(Array.from(productByCode.values()));
+        perf('batch_stock_check', { products: productByCode.size });
+
+        const baseItems = [];
+        for (const row of preparedRows) {
+          const { product, quantity, salePrice } = row;
+          const stockKey = String(product.code || product.productCode || product.id || '').trim();
+          const availableQty = stockByProduct.get(stockKey) || 0;
+          if (availableQty < quantity) {
+            return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
+          }
+          baseItems.push({
+            productId: product.id || String(product._id || product.code || ''),
+            productCode: product.code || product.productCode || product.sku || '',
+            productName: product.name || product.productName || '',
+            ...buildProductLineMeta(product),
+            quantity,
+            grossPrice: salePrice,
+            catalogSalePrice: salePrice,
+            salePrice,
+            price: salePrice,
+            amount: quantity * salePrice
+          });
+        }
+
+        const promotionResult = await promotionService.calculatePromotions(baseItems);
+        const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
+        const items = baseItems.map((item) => {
+          const line = promotionByCode.get(String(item.productCode || '').trim()) || {};
+          const grossPrice = toNumber(line.catalogSalePrice || item.grossPrice || item.salePrice);
+          const grossAmount = Math.round(item.quantity * grossPrice);
+          const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
+          const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
+          const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
+          const amount = Math.max(0, grossAmount - discountAmount);
+          const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
+          const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+          const promotionIdentity = extractPromotionIdentity(promotionRows);
+          return {
+            ...item,
+            originalPrice: grossPrice,
+            grossPrice,
+            catalogSalePrice: grossPrice,
+            grossAmount,
+            directDiscountPercent: toNumber(line.directDiscountPercent || 0),
+            groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
+            discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
+            directDiscountAmount,
+            groupDiscountAmount,
+            discountAmount,
+            promotionAmount: discountAmount,
+            totalDiscountAmount: discountAmount,
+            finalPrice,
+            unitPrice: finalPrice,
+            salePrice: finalPrice,
+            price: finalPrice,
+            amount,
+            netAmount: amount,
+            saleMethod: PROMOTION,
+            saleMode: PROMOTION,
+            pricingMode: PROMOTION,
+            priceLocked: true,
+            lockedPrice: true,
+            lockedPromotion: true,
+            promotionCalculated: true,
+            promotionRows,
+            ...promotionIdentity
+          };
+        });
+
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+        const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount), 0);
+        const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0);
+        const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+        const promotionCodes = Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)));
+        if (paidAmount > totalAmount) return fail(400, 'Tiền thu không được lớn hơn tổng đơn');
+
+        const orderId = makeId('SO');
+        const salesOrder = {
+          id: orderId,
+          code: String(body.code || body.orderCode || orderId).trim(),
+          date,
+          customerId: customer.id || String(customer._id || customer.code || ''),
+          customerCode: customer.code || customer.customerCode || '',
+          customerName: customer.name || customer.customerName || '',
+          customerPhone: customer.phone || '',
+          customerAddress: customer.address || '',
+          salesStaffCode: getMobileSalesStaffCode(mobileUser),
+          salesStaffName: getMobileSalesStaffName(mobileUser),
+          salesmanCode: getMobileSalesStaffCode(mobileUser),
+          salesmanName: getMobileSalesStaffName(mobileUser),
+          staffCode: '',
+          staffName: '',
+          source: 'mobile_sales_app',
+          orderSource: 'NVBH',
+          orderSourceName: 'Từ NVBH',
           saleMethod: PROMOTION,
           saleMode: PROMOTION,
           pricingMode: PROMOTION,
+          orderPricingMode: PROMOTION,
+          isPromotionSale: true,
+          promotionCalculated: true,
+          isChildOrder: true,
+          masterOrderId: '',
+          mergeStatus: 'unmerged',
+          note: String(body.note || 'Tạo từ mobile app').trim(),
+          items,
+          totalQuantity,
+          grossAmount: totalGrossAmount,
+          totalGrossAmount,
+          grossAmountBeforePromotion: totalGrossAmount,
+          discountAmount: totalDiscountAmount,
+          totalDiscountAmount,
+          promotionAmount: totalDiscountAmount,
+          totalPromotionAmount: totalDiscountAmount,
+          netAmount: totalAmount,
+          goodsAmountAfterPromotion: totalAmount,
+          promotionCodes,
           priceLocked: true,
           lockedPrice: true,
           lockedPromotion: true,
-          promotionCalculated: true,
-          promotionRows,
-          ...promotionIdentity
+          totalAmount,
+          paidAmount,
+          debtAmount: totalAmount - paidAmount,
+          status: 'pending',
+          lifecycleStatus: 'pending',
+          orderDate: date,
+          deliveryStatus: 'pending',
+          accountingStatus: 'pending',
+          stockPosted: true,
+          stockPostedAt: new Date().toISOString(),
+          stockPostedBy: mobileUser.code || mobileUser.name || 'mobile_sales',
+          createdAt: new Date().toISOString()
         };
-        // MOBILE_PROMOTION_PRICE_LOCK_END
-      });
 
-      const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-      // MOBILE_PROMOTION_PRICE_LOCK_START
-      const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount), 0);
-      const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0);
-      const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-      const promotionCodes = Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)));
-      // MOBILE_PROMOTION_PRICE_LOCK_END
-      if (paidAmount > totalAmount) return fail(400, 'Tiền thu không được lớn hơn tổng đơn');
+        const created = await SalesOrder.create([salesOrder], { session });
+        const savedOrder = created[0];
+        const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
+        perf('create_sales_order_direct');
 
-      const salesOrder = {
-        id: makeId('SO'),
-        code: buildSalesCode(data),
-        date,
-        customerId: customer.id,
-        customerCode: customer.code,
-        customerName: customer.name,
-        customerPhone: customer.phone,
-        customerAddress: customer.address,
-        salesStaffCode: getMobileSalesStaffCode(mobileUser),
-        salesStaffName: getMobileSalesStaffName(mobileUser),
-        salesmanCode: getMobileSalesStaffCode(mobileUser),
-        salesmanName: getMobileSalesStaffName(mobileUser),
-        // Legacy mirror chỉ để UI cũ đọc, không dùng để match quyền nữa.
-        staffCode: '',
-        staffName: '',
-        source: 'mobile_sales_app',
-        orderSource: 'NVBH',
-        orderSourceName: 'Từ NVBH',
-        saleMethod: PROMOTION,
-        saleMode: PROMOTION,
-        pricingMode: PROMOTION,
-        orderPricingMode: PROMOTION,
-        isPromotionSale: true,
-        promotionCalculated: true,
-        isChildOrder: true,
-        masterOrderId: '',
-        mergeStatus: 'unmerged',
-        note: String(body.note || 'Tạo từ mobile app').trim(),
-        items,
-        totalQuantity,
-        // MOBILE_PROMOTION_PRICE_LOCK_START
-        grossAmount: totalGrossAmount,
-        totalGrossAmount,
-        grossAmountBeforePromotion: totalGrossAmount,
-        discountAmount: totalDiscountAmount,
-        totalDiscountAmount,
-        promotionAmount: totalDiscountAmount,
-        totalPromotionAmount: totalDiscountAmount,
-        netAmount: totalAmount,
-        goodsAmountAfterPromotion: totalAmount,
-        promotionCodes,
-        priceLocked: true,
-        lockedPrice: true,
-        lockedPromotion: true,
-        // MOBILE_PROMOTION_PRICE_LOCK_END
-        totalAmount,
-        paidAmount,
-        debtAmount: totalAmount - paidAmount,
-        status: 'pending',
-        lifecycleStatus: 'pending',
-        orderDate: date,
-        deliveryStatus: 'pending',
-        accountingStatus: 'pending',
-        stockPosted: true,
-        stockPostedAt: new Date().toISOString(),
-        stockPostedBy: mobileUser.code || mobileUser.name || 'mobile_sales',
-        createdAt: new Date().toISOString()
-      };
+        await InventoryPostingService.postSaleOut(savedOrderObject, { session });
+        perf('post_inventory_sale_out');
 
-      const created = await SalesOrder.create([salesOrder], { session });
-      const savedOrder = created[0];
-      const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
-      perf('create_sales_order');
-
-      await InventoryPostingService.postSaleOut(savedOrderObject, { session });
-      perf('post_inventory_sale_out');
-
-      await Payment.create([{
-        id: makeId('PM'),
-        date,
-        type: 'sale_debt',
-        refType: 'salesOrder',
-        refId: salesOrder.id,
-        refCode: salesOrder.code,
-        customerId: customer.id,
-        customerCode: customer.code,
-        customerName: customer.name,
-        debit: totalAmount,
-        credit: paidAmount,
-        note: `Phát sinh từ đơn mobile ${salesOrder.code}`,
-        createdAt: new Date().toISOString()
-      }], { session });
-
-      if (paidAmount > 0) {
-        await Cashbook.create([{
-          id: makeId('CB'),
-          code: buildCashCode(data, 'in'),
+        await Payment.create([{
+          id: makeId('PM'),
           date,
-          type: 'in',
-          source: 'mobile_sales_payment',
+          type: 'sale_debt',
           refType: 'salesOrder',
           refId: salesOrder.id,
           refCode: salesOrder.code,
-          customerId: customer.id,
-          customerCode: customer.code,
-          customerName: customer.name,
-          staffName: mobileUser.name || '',
-          amount: paidAmount,
-          note: `Thu tiền từ đơn mobile ${salesOrder.code}`,
+          customerId: salesOrder.customerId,
+          customerCode: salesOrder.customerCode,
+          customerName: salesOrder.customerName,
+          debit: totalAmount,
+          credit: paidAmount,
+          note: `Phát sinh từ đơn mobile ${salesOrder.code}`,
           createdAt: new Date().toISOString()
         }], { session });
-      }
 
-      await MobileLog.create([{
-        id: makeId('ML'),
-        action: 'mobile_create_sales_order',
-        actorCode: mobileUser.code || mobileUser.staffCode || '',
-        actorName: mobileUser.fullName || mobileUser.name || '',
-        refType: 'salesOrder',
-        refId: salesOrder.id,
-        refCode: salesOrder.code,
-        note: `Tạo đơn ${salesOrder.code} từ mobile`,
-        createdAt: new Date().toISOString()
-      }], { session });
-      perf('save_operational_documents');
+        if (paidAmount > 0) {
+          await Cashbook.create([{
+            id: makeId('CB'),
+            code: makeId('CB'),
+            date,
+            type: 'in',
+            source: 'mobile_sales_payment',
+            refType: 'salesOrder',
+            refId: salesOrder.id,
+            refCode: salesOrder.code,
+            customerId: salesOrder.customerId,
+            customerCode: salesOrder.customerCode,
+            customerName: salesOrder.customerName,
+            staffName: mobileUser.name || '',
+            amount: paidAmount,
+            note: `Thu tiền từ đơn mobile ${salesOrder.code}`,
+            createdAt: new Date().toISOString()
+          }], { session });
+        }
 
-      createdOrder = savedOrderObject;
-      return { statusCode: 201, body: { ok: true, source: 'mobile-sales-route', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
+        await MobileLog.create([{
+          id: makeId('ML'),
+          action: 'mobile_create_sales_order',
+          actorCode: mobileUser.code || mobileUser.staffCode || '',
+          actorName: mobileUser.fullName || mobileUser.name || '',
+          refType: 'salesOrder',
+          refId: salesOrder.id,
+          refCode: salesOrder.code,
+          note: `Tạo đơn ${salesOrder.code} từ mobile`,
+          createdAt: new Date().toISOString()
+        }], { session });
+        perf('save_operational_documents_direct');
+
+        createdOrder = savedOrderObject;
+        return { statusCode: 201, body: { ok: true, source: 'mobile-sales-route-direct', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
       });
     } catch (err) {
       if (err && err.code === 'INSUFFICIENT_STOCK') {
@@ -488,15 +777,17 @@ function createMobileSalesService(ctx) {
     return rememberIdempotentResult(idemKey, finalResult);
   }
 
+  
   async function getSalesOrder({ params = {}, mobileUser }) {
-    if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
-    const data = await repo.getPrimaryDataSnapshot();
-    const order = repo.findSalesOrder(data, params.id);
+    const identity = buildSalesOrderIdentityFilter(params.id);
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
+    const order = await SalesOrder.findOne({ $and: [identity, owner] }).lean();
     if (!order) return fail(404, 'Không tìm thấy đơn bán');
-    if (!isOwnedByMobileUser(order, mobileUser)) return fail(403, 'Bạn chỉ được xem đơn của mình');
-    return { body: { ok: true, source: 'mobile-sales-route', order: { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' } } };
+    return { body: { ok: true, source: 'mobile-sales-route-direct', order: { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' } } };
   }
 
+  
   async function updateSalesOrder({ params = {}, body = {}, mobileUser }) {
     const idemKey = getIdempotencyKey(body, ['sales-update', mobileUser && (mobileUser.id || mobileUser.code), params.id]);
     const cachedResult = readIdempotentResult(idemKey);
@@ -542,82 +833,141 @@ function createMobileSalesService(ctx) {
   }
 
   async function deleteSalesOrder({ params = {}, mobileUser }) {
-    return withMongoTransaction(async () => {
-      if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
-      const data = await repo.getPrimaryDataSnapshot();
-      const order = repo.findSalesOrder(data, params.id);
-      if (!order) return fail(404, 'Không tìm thấy đơn bán');
-      if (!isOwnedByMobileUser(order, mobileUser)) return fail(403, 'Bạn chỉ được xóa đơn của mình');
-      if (order.masterOrderId || order.masterOrderCode || order.masterOrderNo || (order.mergeStatus || 'unmerged') === 'merged') {
-        return fail(403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
+    const identity = buildSalesOrderIdentityFilter(params.id);
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
+
+    const order = await SalesOrder.findOne({ $and: [identity, owner] }).lean();
+    if (!order) return fail(404, 'Không tìm thấy đơn bán');
+    if (order.masterOrderId || order.masterOrderCode || order.masterOrderNo || (order.mergeStatus || 'unmerged') === 'merged') {
+      return fail(403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
+    }
+
+    const returnFilter = returnOrderIdentityFilterForSalesOrder(order);
+    const activeReturn = returnFilter ? await ReturnOrder.findOne(returnFilter).lean() : null;
+    if (activeReturn && (returnOrderIsLocked(activeReturn) || returnOrderHasValue(activeReturn))) {
+      return fail(400, 'Đơn chờ trả hàng đã có số lượng trả hoặc đã khóa, không được xóa đơn bán trước khi xử lý phiếu trả');
+    }
+
+    const now = new Date().toISOString();
+    const patch = {
+      status: 'void',
+      deliveryStatus: 'void',
+      deletedAt: now,
+      deleteReason: 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng',
+      updatedAt: now
+    };
+
+    const result = await withMongoTransaction(async (session) => {
+      if (activeReturn && returnFilter) {
+        await ReturnOrder.updateOne(returnFilter, { $set: { status: 'cancelled', returnStatus: 'cancelled', cancelledAt: now, updatedAt: now } }, { session });
       }
 
-      const cancelDraft = cancelReturnDraftInSnapshot(data, order);
-      if (cancelDraft && cancelDraft.error) return fail(400, cancelDraft.error);
+      if (order.stockPosted) {
+        await InventoryPostingService.reverseMovement(order, {
+          type: 'SALE',
+          reverseType: 'SALE_REVERSAL',
+          direction: 'OUT',
+          refType: 'SALES_ORDER',
+          refId: order.id || order._id || order.code,
+          refCode: order.code || order.id,
+          date: dateUtil.todayVN(),
+          note: 'Đảo xuất kho do xóa đơn từ app bán hàng'
+        }, { session });
+        patch.stockPosted = false;
+        patch.stockReversedAt = now;
+      }
 
-      order.status = 'void';
-      order.deliveryStatus = 'void';
-      order.deletedAt = new Date().toISOString();
-      order.deleteReason = 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng';
-      order.updatedAt = new Date().toISOString();
-      writeMobileLog(data, mobileUser, 'mobile_delete_sales_order', {
+      const updated = await SalesOrder.findOneAndUpdate({ $and: [identity, owner] }, { $set: patch }, { new: true, lean: true, session });
+      await MobileLog.create([{
+        id: makeId('ML'),
+        action: 'mobile_delete_sales_order',
+        actorCode: mobileUser.code || mobileUser.staffCode || '',
+        actorName: mobileUser.fullName || mobileUser.name || '',
         refType: 'salesOrder',
         refId: order.id,
         refCode: order.code,
-        note: `Xóa đơn ${order.code} từ mobile khi chưa gộp đơn tổng`
-      });
-      await repo.saveOperationalData(data);
-      return { body: { ok: true, source: 'mobile-sales-route', message: `Đã xóa đơn ${order.code || ''}`, salesOrder: order } };
+        note: `Xóa đơn ${order.code} từ mobile khi chưa gộp đơn tổng`,
+        createdAt: now
+      }], { session });
+      return updated || { ...order, ...patch };
     });
+
+    return { body: { ok: true, source: 'mobile-sales-route-direct', message: `Đã xóa đơn ${result.code || ''}`, salesOrder: result } };
   }
 
+  
   async function listSalesOrders({ query = {}, mobileUser }) {
-    if (typeof repo.refreshOrderDocumentCacheFromMongo === 'function') await repo.refreshOrderDocumentCacheFromMongo();
-    const data = await repo.getPrimaryDataSnapshot();
     const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const onlyMine = String(query.mine || '1') !== '0';
-    const q = normalizeText(query.q);
+    const q = String(query.q || '').trim();
 
-    let items = (data.salesOrders || [])
-      .filter((order) => !['void', 'cancelled', 'canceled', 'deleted'].includes(String(order.status || '').toLowerCase()))
-      .filter((order) => !date || dateUtil.toDateOnly(order.date || order.orderDate) === date)
-      .filter((order) => !onlyMine || isOwnedByMobileUser(order, mobileUser));
-
+    const and = [activeSalesOrderMongoFilter()];
+    if (date) and.push({ $or: [{ date }, { orderDate: date }] });
+    if (onlyMine) {
+      const owner = mobileSalesOwnerMongoFilter(mobileUser);
+      if (!owner) return { body: { ok: true, source: 'mobile-sales-route-direct', date, items: [] } };
+      and.push(owner);
+    }
     if (q) {
-      items = items.filter((order) => [order.code, order.customerCode, order.customerName, order.customerPhone, order.customerAddress].some((value) => normalizeText(value).includes(q)));
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      and.push({ $or: [
+        { code: rx },
+        { orderCode: rx },
+        { salesOrderCode: rx },
+        { customerCode: rx },
+        { customerName: rx },
+        { customerPhone: rx },
+        { customerAddress: rx }
+      ] });
     }
 
-    items = items
-      .slice()
-      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
-      .slice(0, 100)
-      .map((order) => ({
-        id: order.id,
-        code: order.code,
-        date: order.date,
-        customerName: order.customerName,
-        totalAmount: toNumber(order.totalAmount),
-        paidAmount: toNumber(order.paidAmount),
-        debtAmount: toNumber(order.debtAmount),
-        status: order.status,
-        deliveryStatus: order.deliveryStatus || 'pending',
-        masterOrderId: order.masterOrderId || '',
-        masterOrderCode: order.masterOrderCode || '',
-        mergeStatus: order.mergeStatus || 'unmerged',
-        canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && (order.mergeStatus || 'unmerged') !== 'merged',
-        customerId: order.customerId,
-        customerCode: order.customerCode,
-        customerPhone: order.customerPhone,
-        customerAddress: order.customerAddress,
-        items: order.items || [],
-        note: order.note || '',
-        createdAt: order.createdAt
-      }));
+    const rows = await SalesOrder.find(and.length === 1 ? and[0] : { $and: and })
+      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress totalAmount paidAmount debtAmount status deliveryStatus masterOrderId masterOrderCode masterOrderNo mergeStatus items note createdAt')
+      .sort({ createdAt: -1, date: -1 })
+      .limit(100)
+      .lean();
 
-    return { body: { ok: true, source: 'mobile-sales-route', date, items } };
+    const items = rows.map((order) => ({
+      id: order.id,
+      code: order.code,
+      date: order.date || order.orderDate,
+      customerName: order.customerName,
+      totalAmount: toNumber(order.totalAmount),
+      paidAmount: toNumber(order.paidAmount),
+      debtAmount: toNumber(order.debtAmount),
+      status: order.status,
+      deliveryStatus: order.deliveryStatus || 'pending',
+      masterOrderId: order.masterOrderId || '',
+      masterOrderCode: order.masterOrderCode || '',
+      mergeStatus: order.mergeStatus || 'unmerged',
+      canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && (order.mergeStatus || 'unmerged') !== 'merged',
+      customerId: order.customerId,
+      customerCode: order.customerCode,
+      customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      items: order.items || [],
+      note: order.note || '',
+      createdAt: order.createdAt
+    }));
+
+    return { body: { ok: true, source: 'mobile-sales-route-direct', date, items } };
   }
 
+  
   async function listDebts({ query = {}, mobileUser } = {}) {
+    const fast = await listMobileSalesDebtsDirect({ query, mobileUser });
+    if (fast) {
+      return {
+        body: {
+          ok: true,
+          source: 'mobile-sales-ar-ledger-debts-fast',
+          items: fast.items,
+          summary: fast.summary
+        }
+      };
+    }
+
     const scopedQuery = {
       ...query,
       limit: query.limit || 100,
@@ -676,6 +1026,7 @@ function createMobileSalesService(ctx) {
       }
     };
   }
+
 
   return {
     createSalesOrder,

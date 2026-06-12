@@ -1092,28 +1092,34 @@ async function cancelOrder(id, body = {}) {
   if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
   const returnDraftCancel = await returnOrderService.cancelReturnDraftForSalesOrder(current, { dryRun: true });
   if (returnDraftCancel && returnDraftCancel.error) return returnDraftCancel;
-  const cancelled = {
-    ...current,
+
+  const now = dateUtil.nowIso();
+  const currentWasPosted = isSalesOrderStockPosted(current);
+  const cancelPatch = {
     status: 'cancelled',
     deliveryStatus: 'cancelled',
     cancelReason: String(body.reason || body.cancelReason || '').trim(),
-    cancelledAt: dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
+    cancelledAt: now,
+    updatedAt: now,
+    ...(currentWasPosted ? { stockPosted: false, stockReversedAt: now } : {})
   };
-  const currentWasPosted = isSalesOrderStockPosted(current);
+
+  let cancelled = { ...current, ...cancelPatch };
   await tx.withMongoTransaction(async (session) => {
-    await orderRepository.upsert(cancelled, { session });
-    await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
     if (currentWasPosted) {
       await reverseSalesOrderPosting(current, { session });
     }
     await reverseSalesOrderArIfPosted(current, { session });
+    await returnOrderService.cancelReturnDraftForSalesOrder(current, { session });
+    const patched = await orderRepository.patchByIdentity(current.id || current.code || id, cancelPatch, { session });
+    if (patched) cancelled = patched;
   });
   if (cancelled.masterOrderId || cancelled.masterOrderCode) {
     await syncMasterOrderSummary(cancelled.masterOrderId || cancelled.masterOrderCode);
   }
   return { salesOrder: toClient(cancelled) };
 }
+
 
 async function deleteOrder(id, body = {}) {
   const current = await orderRepository.findByIdOrCode(id);

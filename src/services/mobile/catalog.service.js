@@ -6,6 +6,23 @@ const inventoryStockService = require('../inventoryStock.service');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../../utils/common.util');
 const { normalizeText } = require('../../utils/search.util');
 
+const MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS = Math.max(0, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS || 5000));
+const mobileCatalogProductsCache = new Map();
+
+function cacheGet(map, key) {
+  const row = map.get(key);
+  if (!row || row.expiresAt <= Date.now()) {
+    if (row) map.delete(key);
+    return null;
+  }
+  return row.value;
+}
+
+function cacheSet(map, key, value, ttlMs) {
+  if (ttlMs > 0) map.set(key, { value, expiresAt: Date.now() + ttlMs });
+  return value;
+}
+
 function regexFilter(q, fields = []) {
   const keyword = String(q || '').trim();
   if (!keyword) return { isActive: { $ne: false } };
@@ -114,29 +131,40 @@ function createMobileCatalogService(ctx = {}) {
     const q = String(query.q || query.search || '').trim();
     const group = normalizeText(query.group || query.category || query.productGroup || '');
     const limit = Math.min(Math.max(toNumber(query.limit || (q ? 500 : 1000)), 1), 2000);
+    const inStockFlag = truthyFlag(query.inStockOnly || query.onlyInStock);
+    const cacheKey = JSON.stringify({ q, group, limit, inStockFlag });
+    const cached = cacheGet(mobileCatalogProductsCache, cacheKey);
+    if (cached) return cached;
+
     const filter = regexFilter(q, ['code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category', 'groupName', 'productGroup']);
-    let rows = await Product.find(filter).sort({ code: 1 }).limit(limit).lean();
+    let rows = await Product.find(filter)
+      .select('id code productCode sku barcode name productName unit baseUnit conversionRate packing packingQty unitsPerCase brand category groupName productGroup salePrice price isActive')
+      .sort({ code: 1 })
+      .limit(limit)
+      .lean();
     if (group) {
       rows = rows.filter((row) => [row.category, row.categoryName, row.group, row.groupName, row.productGroup, row.productGroupName]
         .some((value) => normalizeText(value).includes(group)));
     }
 
     let products = await enrichProductsWithInventory(rows);
-    if (truthyFlag(query.inStockOnly || query.onlyInStock)) {
+    if (inStockFlag) {
       products = products.filter((product) => toNumber(product.availableQty) > 0);
     }
 
-    return {
+    const response = {
       body: {
         ok: true,
         success: true,
         source: 'mobile-catalog-route',
         inventorySource: 'inventories',
+        cacheTtlMs: MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS,
         products,
         items: products,
         total: products.length
       }
     };
+    return cacheSet(mobileCatalogProductsCache, cacheKey, response, MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS);
   }
 
   async function stock({ query = {} } = {}) {

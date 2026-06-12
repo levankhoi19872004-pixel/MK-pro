@@ -50,6 +50,7 @@ const INDEX_DEFINITIONS = {
     [{ customerId: 1 }, { name: 'idx_orders_customer_id', sparse: true }],
     [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_customer_order_date' }],
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
+    [{ salesStaffCode: 1, date: -1, status: 1, createdAt: -1 }, { name: 'idx_orders_sales_staff_date_status_created' }],
     [{ staffCode: 1, orderDate: -1 }, { name: 'idx_orders_staff_order_date', sparse: true }],
     [{ status: 1, orderDate: -1 }, { name: 'idx_orders_status_order_date' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
@@ -153,6 +154,18 @@ const INDEX_DEFINITIONS = {
     [
       { type: 1, deliveryStaffCode: 1, date: -1 },
       { name: 'idx_ar_receipt_delivery_staff_date' }
+    ],
+    [
+      { type: 1, salesmanCode: 1, date: -1 },
+      { name: 'idx_ar_sale_salesman_type_date' }
+    ],
+    [
+      { type: 1, salesStaffCode: 1, date: -1 },
+      { name: 'idx_ar_sale_sales_staff_type_date' }
+    ],
+    [
+      { type: 1, nvbhCode: 1, date: -1 },
+      { name: 'idx_ar_sale_nvbh_type_date' }
     ],
     [
       { masterOrderCode: 1, deliveryStaffCode: 1, date: -1 },
