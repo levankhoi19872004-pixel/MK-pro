@@ -13,12 +13,14 @@ function read(file) {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('delivery today renders NVBH branch filter under selected NVGH', () => {
+test('delivery today renders NVBH branch filter as a full-width section below filters', () => {
   const source = read(viewPath);
-  assert.match(source, /deliverySalesBranchBox/);
+  assert.match(source, /<section id="deliverySalesBranchBox"/);
   assert.match(source, /function renderSalesBranchFilter/);
   assert.match(source, /branchRowsFromOrders/);
   assert.match(source, /data-sales-branch-key/);
+  assert.doesNotMatch(source, /deliveryCoreReconcile/);
+  assert.doesNotMatch(source, />Đối soát<|Đối soát<\/button>/);
 });
 
 test('delivery today KPI and list are filtered by checked sales staff branches', () => {
@@ -34,4 +36,5 @@ test('delivery branch filter has scoped CSS', () => {
   assert.match(css, /DELIVERY_BRANCH_SALES_STAFF_FILTER_START/);
   assert.match(css, /delivery-v46-sales-branch-list/);
   assert.match(css, /delivery-v46-sales-branch-item\.checked/);
+  assert.match(css, /delivery-v46-sales-branch-money i/);
 });

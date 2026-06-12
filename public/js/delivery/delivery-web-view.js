@@ -75,10 +75,9 @@
           '<label>Trạng thái<select id="deliveryCoreStatus"><option value="all">Tất cả</option><option value="delivered">Đã giao</option><option value="pending">Chưa giao</option><option value="return">Trả hàng</option><option value="debt">Công nợ</option></select></label>' +
           '<label>Tìm kiếm<input id="deliveryCoreSearch" placeholder="Mã đơn / khách hàng"></label>' +
           '<button id="deliveryCoreReload" type="button">Tải đơn</button>' +
-          '<button id="deliveryCoreReconcile" type="button" class="secondary">Đối soát</button>' +
         '</div>' +
-        '<div id="deliverySalesBranchBox" class="delivery-v46-sales-branch empty"></div>' +
       '</section>' +
+      '<section id="deliverySalesBranchBox" class="delivery-v46-sales-branch empty"></section>' +
       '<section class="delivery-v46-kpis">' +
         '<div class="delivery-v46-kpi kpi-pt"><span>Phải thu</span><b id="deliveryKpiReceivable">0</b></div>' +
         '<div class="delivery-v46-kpi kpi-tm"><span>Tiền mặt</span><b id="deliveryKpiCash">0</b></div>' +
@@ -110,7 +109,6 @@
 
     byId('deliveryCoreDate').value = today();
     byId('deliveryCoreReload').addEventListener('click', load);
-    if (byId('deliveryCoreReconcile')) byId('deliveryCoreReconcile').addEventListener('click', reconcile);
     if (byId('deliverySelectAllAccounting')) byId('deliverySelectAllAccounting').addEventListener('click', toggleSelectAllAccounting);
     if (byId('deliveryBulkAccountingButton')) byId('deliveryBulkAccountingButton').addEventListener('click', confirmSelectedAccounting);
     ['deliveryCoreDate', 'deliveryCoreDeliveryStaff', 'deliveryCoreSalesStaff', 'deliveryCoreStatus', 'deliveryCoreSearch'].forEach(function (id) {
@@ -334,7 +332,14 @@
             '<label class="delivery-v46-sales-branch-item ' + (checked ? 'checked' : '') + '">' +
               '<input type="checkbox" data-sales-branch-key="' + esc(row.key) + '" ' + (checked ? 'checked' : '') + '>' +
               '<span class="delivery-v46-sales-branch-name"><b>' + esc(label) + '</b><em>' + esc(row.count) + ' đơn</em></span>' +
-              '<span class="delivery-v46-sales-branch-money">PT ' + esc(money(row.receivable)) + ' · CN ' + esc(money(row.debt)) + '</span>' +
+              '<span class="delivery-v46-sales-branch-money">' +
+                '<i>PT <b>' + esc(money(row.receivable)) + '</b></i>' +
+                '<i>TM <b>' + esc(money(row.cash)) + '</b></i>' +
+                '<i>CK <b>' + esc(money(row.bank)) + '</b></i>' +
+                '<i>TH <b>' + esc(money(row.reward)) + '</b></i>' +
+                '<i>HT <b>' + esc(money(row.returnAmount)) + '</b></i>' +
+                '<i>CN <b>' + esc(money(row.debt)) + '</b></i>' +
+              '</span>' +
             '</label>';
         }).join('') +
       '</div>';
@@ -728,7 +733,7 @@
     var r = (order && order.reconciliation) || {};
     var debtForStatus = normalizeDebtAmount(amount(order, 'debt'));
     var cls = r.balanced === false ? ' danger-text' : (debtForStatus > 0 ? ' danger-text' : ' success-text');
-    var msg = r.message || (debtForStatus > 0 ? 'Còn công nợ' : 'Đối soát OK');
+    var msg = r.message || (debtForStatus > 0 ? 'Còn công nợ' : 'Đã thu đủ');
     var returnAmount = returnAmountFromReturnOrders(order);
 
     // MK-SCOPED-FIX: PAYMENT_ACCOUNTING_LOCK_START
@@ -910,18 +915,6 @@
       message(json.message || 'Đã xác nhận kế toán các đơn đã chọn');
       await load();
     } catch (err) { message(err.message || 'Không xác nhận kế toán được các đơn đã chọn', true); }
-  }
-
-
-  async function reconcile() {
-    try {
-      message('Đang đối soát cuối ngày...');
-      var r = await window.DeliveryCore.loadReconciliation(filters());
-      var msg = r && r.message ? r.message : 'Đã đối soát';
-      message(msg, r && r.balanced === false);
-      renderKpis();
-      if (window.DeliveryCore.state.selectedOrder) renderDetail(window.DeliveryCore.state.selectedOrder);
-    } catch (err) { message(err.message, true); }
   }
 
   async function select(key) {
