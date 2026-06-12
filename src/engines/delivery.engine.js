@@ -211,6 +211,55 @@ function applyStaffFilters(rows = [], query = {}) {
   });
 }
 
+// DELIVERY_ORDERS_PERF_FILTER_START
+function staffCodeVariantsForMongo(value) {
+  const raw = text(value);
+  if (!raw) return [];
+  return unique([raw, raw.toLowerCase(), raw.toUpperCase()]);
+}
+
+function looksLikeStaffCode(value) {
+  const raw = text(value);
+  const c = compact(raw);
+  return Boolean(c) && c.length <= 16 && !/\s/.test(raw);
+}
+
+function buildStaffMongoFilter(query = {}, type = '') {
+  const keyword = type === 'delivery'
+    ? queryKeyword(query, ['deliveryStaffCode', 'deliveryCode', 'nvghCode', 'staffDeliveryCode'])
+    : queryKeyword(query, ['salesStaffCode', 'salesmanCode', 'salesCode', 'nvbhCode']);
+  const nameKeyword = type === 'delivery'
+    ? queryKeyword(query, ['deliveryStaffName', 'deliveryStaff', 'deliveryStaffKeyword', 'deliveryName', 'nvgh', 'nvghName'])
+    : queryKeyword(query, ['salesStaffName', 'salesStaff', 'salesStaffKeyword', 'salesName', 'nvbh', 'nvbhName']);
+
+  const codeValue = keyword || (looksLikeStaffCode(nameKeyword) ? nameKeyword : '');
+  if (codeValue) {
+    const values = staffCodeVariantsForMongo(codeValue);
+    const fields = type === 'delivery'
+      ? ['deliveryStaffCode', 'deliveryCode', 'shipperCode', 'nvghCode', 'staffDeliveryCode']
+      : ['salesStaffCode', 'salesmanCode', 'saleCode', 'nvbhCode'];
+    return { $or: fields.map((field) => ({ [field]: { $in: values } })) };
+  }
+
+  if (nameKeyword) {
+    const rx = new RegExp(escapeRegex(nameKeyword), 'i');
+    const fields = type === 'delivery'
+      ? ['deliveryStaffName', 'deliveryName', 'shipperName', 'nvghName', 'staffDeliveryName']
+      : ['salesStaffName', 'salesmanName', 'saleName', 'nvbhName'];
+    return { $or: fields.map((field) => ({ [field]: rx })) };
+  }
+
+  return null;
+}
+
+function pushStaffMongoFilters(and = [], query = {}) {
+  const deliveryFilter = buildStaffMongoFilter(query, 'delivery');
+  const salesFilter = buildStaffMongoFilter(query, 'sales');
+  if (deliveryFilter) and.push(deliveryFilter);
+  if (salesFilter) and.push(salesFilter);
+}
+// DELIVERY_ORDERS_PERF_FILTER_END
+
 
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
@@ -599,17 +648,32 @@ class DeliveryEngine {
   async findOrders(query = {}) {
     const date = text(query.date || query.deliveryDate || today());
     const filter = {};
+    const and = [];
     if (date) filter.deliveryDate = date;
 
-    const status = norm(query.status);
+    const status = norm(query.status || query.deliveryStatus);
     if (status && !['all', 'tat ca', 'tất cả', '*'].includes(status)) {
-      filter.deliveryStatus = text(query.status);
+      filter.deliveryStatus = text(query.status || query.deliveryStatus);
     }
 
-    // Không lọc NVGH/NVBH trực tiếp bằng 1 field Mongo ở đây.
-    // Dữ liệu cũ có nhiều tên field khác nhau (salesStaffCode/staffCode/salesmanCode,
-    // deliveryStaffCode/shipperCode/staffDeliveryCode...). Nếu query DB theo 1 field,
-    // hệ thống dễ trả sai hoặc rơi vào nhánh masterOrder và bỏ qua lọc NVBH.
+    // DELIVERY_ORDERS_PERF_FILTER_START
+    // Đẩy lọc NVGH/NVBH xuống Mongo trước khi lấy danh sách.
+    // Vẫn giữ applyStaffFilters() phía dưới làm guard cuối cho dữ liệu cũ nhiều alias.
+    pushStaffMongoFilters(and, query);
+    const q = norm(query.q || query.keyword);
+    if (q) {
+      const rx = new RegExp(escapeRegex(query.q || query.keyword), 'i');
+      and.push({ $or: [
+        { code: rx },
+        { orderCode: rx },
+        { salesOrderCode: rx },
+        { customerCode: rx },
+        { customerName: rx }
+      ] });
+    }
+    if (and.length) filter.$and = and;
+    // DELIVERY_ORDERS_PERF_FILTER_END
+
     let orders = await this.SalesOrder.find(filter)
       .sort({ deliveryStaffCode: 1, customerName: 1, code: 1 })
       .limit(1000)
@@ -628,7 +692,6 @@ class DeliveryEngine {
 
     orders = applyStaffFilters(orders, query);
 
-    const q = norm(query.q || query.keyword);
     if (q) {
       orders = orders.filter((o) => [
         o.code,
@@ -686,7 +749,7 @@ class DeliveryEngine {
     const returns = await this.findReturnOrdersFor(orders);
     let rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
     rows = applyDeliveryStatusFilter(rows, query);
-    if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || query.staffCheck !== '0') {
+    if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || truthy(query.staffCheck)) {
       rows = await this.enrichStaffAssignment(rows);
     }
     return { rows, summary: summarizeOrders(rows), reconciliation: this.reconcileRows(rows) };

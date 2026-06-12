@@ -197,7 +197,11 @@
       salesStaffCode: byId('deliveryCoreSalesStaff') && byId('deliveryCoreSalesStaff').value,
       statusFilter: byId('deliveryCoreStatus') && byId('deliveryCoreStatus').value,
       q: byId('deliveryCoreSearch') && byId('deliveryCoreSearch').value,
-      checkStaffAssignment: '1'
+      // DELIVERY_ORDERS_FAST_LOAD_START
+      // Không kiểm tra nhân viên hệ thống mặc định cho danh sách.
+      // Việc này giảm một query User nặng trên mỗi lần tải đơn.
+      staffCheck: '0'
+      // DELIVERY_ORDERS_FAST_LOAD_END
     };
   }
 
@@ -771,12 +775,23 @@
         return;
       }
       await window.DeliveryCore.loadOrders(f);
-      await window.DeliveryCore.loadReturns(f);
+      // DELIVERY_ORDERS_FAST_LOAD_START
+      // /api/delivery/orders đã overlay returnOrders để tính KPI/hàng trả/còn nợ.
+      // Không gọi /api/delivery/returns toàn bộ ở lần tải danh sách vì endpoint đó lại gọi listOrders() lần hai.
+      window.DeliveryCore.state.returns = [];
+      window.DeliveryCore.state.returnsLoaded = false;
+      // DELIVERY_ORDERS_FAST_LOAD_END
       if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = orderKey(window.DeliveryCore.state.orders[0]);
       if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
       renderList();
       renderDetail(window.DeliveryCore.state.selectedOrder);
       message('');
+      // Chỉ tải returnOrders cho đơn đang chọn, không tải cả ngày.
+      if (window.DeliveryCore.state.selectedOrder && typeof window.DeliveryCore.loadReturnsForOrder === 'function') {
+        window.DeliveryCore.loadReturnsForOrder(window.DeliveryCore.state.selectedOrder)
+          .then(function () { renderDetail(window.DeliveryCore.state.selectedOrder); })
+          .catch(function (err) { console.error('load selected returnOrders failed', err); });
+      }
     } catch (err) {
       if (list) list.innerHTML = '<div class="empty-state danger-text">' + esc(err.message) + '</div>';
       message(err.message, true);
