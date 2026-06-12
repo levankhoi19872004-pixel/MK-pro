@@ -19,6 +19,7 @@ const promotionService = require('../promotionService');
 const reportService = require('../reportService');
 const { PROMOTION } = require('../../constants/pricingModes');
 const { normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
+const orderStatusUtil = require('../../utils/orderStatus.util');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -117,8 +118,20 @@ function mobileSalesOwnerMongoFilter(mobileUser = {}) {
 }
 // MOBILE_SALES_OWNER_FILTER_CANONICAL_END
 
+const INACTIVE_MOBILE_ORDER_STATUS_VALUES = ['cancelled', 'canceled', 'void', 'deleted', 'removed'];
+const TRUTHY_MOBILE_DELETE_VALUES = [true, 'true', 1, '1', 'yes', 'YES', 'y', 'Y'];
+
 function activeSalesOrderMongoFilter() {
-  return { status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] } };
+  return {
+    $and: [
+      { status: { $nin: INACTIVE_MOBILE_ORDER_STATUS_VALUES } },
+      { lifecycleStatus: { $nin: INACTIVE_MOBILE_ORDER_STATUS_VALUES } },
+      { deliveryStatus: { $nin: INACTIVE_MOBILE_ORDER_STATUS_VALUES } },
+      { deleted: { $nin: TRUTHY_MOBILE_DELETE_VALUES } },
+      { isDeleted: { $nin: TRUTHY_MOBILE_DELETE_VALUES } },
+      { deletedAt: { $in: [null, ''] } }
+    ]
+  };
 }
 
 function customerLookupKeysFromOrderBody(body = {}) {
@@ -992,7 +1005,6 @@ function createMobileSalesService(ctx) {
 
     const result = await SalesOrderDeletionService.deleteSalesOrder(params.id, {
       source: 'mobile-sales-app',
-      reason: 'Xóa từ app bán hàng mobile',
       actorCode: mobileUser.code || mobileUser.staffCode || '',
       actorName: mobileUser.fullName || mobileUser.name || '',
       ownerFilter: owner
@@ -1008,8 +1020,7 @@ function createMobileSalesService(ctx) {
         source: 'mobile-sales-delete-service',
         message: result.message || `Đã xóa đơn ${result.salesOrder?.code || ''}`,
         mode: result.mode,
-        hardDeleted: result.hardDeleted,
-        tombstoneId: result.tombstoneId || '',
+        hardDeleted: true,
         salesOrder: result.salesOrder,
         order: result.salesOrder
       }
@@ -1042,7 +1053,7 @@ function createMobileSalesService(ctx) {
     }
 
     const rows = await SalesOrder.find(and.length === 1 ? and[0] : { $and: and })
-      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status deliveryStatus masterOrderId masterOrderCode masterOrderNo mergeStatus items note createdAt')
+      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status lifecycleStatus deliveryStatus deleted isDeleted deletedAt deleteMode deleteReason masterOrderId masterOrderCode masterOrderNo mergeStatus items note createdAt')
       .sort({ createdAt: -1, date: -1 })
       .limit(100)
       .lean();
@@ -1056,7 +1067,13 @@ function createMobileSalesService(ctx) {
       paidAmount: toNumber(order.paidAmount),
       debtAmount: toNumber(order.debtAmount),
       status: order.status,
+      lifecycleStatus: order.lifecycleStatus || order.status || '',
       deliveryStatus: order.deliveryStatus || 'pending',
+      deleted: Boolean(order.deleted),
+      isDeleted: Boolean(order.isDeleted),
+      deletedAt: order.deletedAt || '',
+      deleteMode: order.deleteMode || '',
+      deleteReason: order.deleteReason || '',
       masterOrderId: order.masterOrderId || '',
       masterOrderCode: order.masterOrderCode || '',
       mergeStatus: order.mergeStatus || 'unmerged',
@@ -1078,7 +1095,7 @@ function createMobileSalesService(ctx) {
       items: order.items || [],
       note: order.note || '',
       createdAt: order.createdAt
-    }));
+    })).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
 
     return { body: { ok: true, source: 'mobile-sales-route-direct', date, items } };
   }

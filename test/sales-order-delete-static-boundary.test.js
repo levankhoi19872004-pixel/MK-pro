@@ -15,3 +15,19 @@ test('mobile sales service must delegate sales order deletion to SalesOrderDelet
   assert.doesNotMatch(source, /SalesOrder\.deleteOne\(/);
   assert.doesNotMatch(source, /SalesOrder\.findOneAndUpdate\([^)]*status:\s*['"]void['"]/s);
 });
+
+test('normal sales order deletion flow must not use tombstone or soft-void copy', () => {
+  const files = [
+    'src/domain/lifecycle/salesOrderDeletion.policy.js',
+    'src/domain/lifecycle/SalesOrderDeletionService.js',
+    'src/controllers/orderController.js',
+    'src/services/mobile/sales.service.js'
+  ];
+
+  for (const rel of files) {
+    const source = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    assert.doesNotMatch(source, /tombstone/i, `${rel} must not reference tombstone`);
+    assert.doesNotMatch(source, /SOFT_VOID_WITH_REVERSAL/, `${rel} must not soft-void normal delete`);
+    assert.doesNotMatch(source, /HARD_DELETE_WITH_TOMBSTONE/, `${rel} must not hard-delete with tombstone`);
+  }
+});

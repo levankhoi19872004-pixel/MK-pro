@@ -7,63 +7,62 @@ const {
   decideSalesOrderDeletion
 } = require('../src/domain/lifecycle/salesOrderDeletion.policy');
 
-test('draft order can be hard deleted', () => {
+test('draft order can be hard deleted from orders', () => {
   const decision = decideSalesOrderDeletion(
     { code: 'SO1', status: 'pending' },
     {},
-    { reason: 'Nhập sai' }
+    {}
   );
 
   assert.equal(decision.allowed, true);
-  assert.equal(decision.mode, 'HARD_DELETE_DRAFT');
+  assert.equal(decision.mode, 'HARD_DELETE');
   assert.equal(decision.hardDelete, true);
+  assert.equal(decision.reverseStock, false);
 });
 
-test('stock posted order is reversed then hard deleted with tombstone', () => {
+test('stock posted order is reversed then hard deleted without tombstone', () => {
   const decision = decideSalesOrderDeletion(
     { code: 'SO2', status: 'pending', stockPosted: true },
     {},
-    { reason: 'Nhập sai' }
+    {}
   );
 
   assert.equal(decision.allowed, true);
-  assert.equal(decision.mode, 'HARD_DELETE_WITH_TOMBSTONE_AND_STOCK_REVERSAL');
+  assert.equal(decision.mode, 'REVERSE_STOCK_THEN_HARD_DELETE');
   assert.equal(decision.reverseStock, true);
-  assert.equal(decision.archiveTombstone, true);
+  assert.equal(decision.hardDelete, true);
+  assert.equal(decision.archiveTombstone, undefined);
 });
 
 test('merged order cannot be deleted directly', () => {
   const decision = decideSalesOrderDeletion(
     { code: 'SO3', masterOrderCode: 'MO1', status: 'pending' },
     {},
-    { reason: 'Nhập sai' }
+    {}
   );
 
   assert.equal(decision.allowed, false);
   assert.equal(decision.code, 'ORDER_ALREADY_MERGED');
 });
 
-test('locked return blocks deletion', () => {
+test('return dependency blocks deletion', () => {
   const decision = decideSalesOrderDeletion(
     { code: 'SO4', status: 'pending' },
     { activeReturnLocked: true },
-    { reason: 'Nhập sai' }
+    {}
   );
 
   assert.equal(decision.allowed, false);
-  assert.equal(decision.code, 'RETURN_ORDER_LOCKED');
+  assert.equal(decision.code, 'RETURN_DEPENDENCY_EXISTS');
 });
 
-test('accounting order becomes soft void with reversal', () => {
+test('accounting order cannot be deleted through normal delete flow', () => {
   const decision = decideSalesOrderDeletion(
     { code: 'SO5', accountingConfirmed: true, stockPosted: true },
     { hasArLedger: true },
-    { reason: 'Sai nghiệp vụ' }
+    {}
   );
 
-  assert.equal(decision.allowed, true);
-  assert.equal(decision.mode, 'SOFT_VOID_WITH_REVERSAL');
-  assert.equal(decision.hardDelete, false);
-  assert.equal(decision.reverseStock, true);
-  assert.equal(decision.reverseAr, true);
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.code, 'FINANCIAL_DEPENDENCY_EXISTS');
 });

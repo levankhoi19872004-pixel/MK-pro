@@ -17,7 +17,8 @@ function lower(value) {
 }
 
 function isInactiveOrder(order = {}) {
-  return INACTIVE_STATUSES.has(lower(order.status)) || Boolean(order.deletedAt || order.isDeleted || order.deleted);
+  return INACTIVE_STATUSES.has(lower(order.status))
+    || Boolean(order.deletedAt || order.deleted || order.isDeleted);
 }
 
 function isMergedOrder(order = {}) {
@@ -25,7 +26,13 @@ function isMergedOrder(order = {}) {
     || lower(order.mergeStatus) === 'merged';
 }
 
-function isDeliveredOrAccountingLocked(order = {}) {
+function isStockPosted(order = {}) {
+  const stockStatus = lower(order.stockStatus || order.inventoryStatus);
+  return Boolean(order.stockPosted)
+    || ['posted', 'confirmed', 'locked'].includes(stockStatus);
+}
+
+function isAccountingLocked(order = {}) {
   const status = lower(order.status);
   const deliveryStatus = lower(order.deliveryStatus);
   const accountingStatus = lower(order.accountingStatus || order.arStatus);
@@ -36,15 +43,6 @@ function isDeliveredOrAccountingLocked(order = {}) {
     || ['delivered', 'completed', 'done'].includes(status);
 }
 
-function isStockPosted(order = {}) {
-  const stockStatus = lower(order.stockStatus || order.inventoryStatus);
-  return Boolean(order.stockPosted) || ['posted', 'confirmed', 'locked'].includes(stockStatus);
-}
-
-function hasLockedReturn(related = {}) {
-  return Boolean(related.activeReturnLocked || related.activeReturnHasValue);
-}
-
 function hasFinancialDependency(related = {}) {
   return Boolean(
     related.hasArLedger ||
@@ -53,6 +51,10 @@ function hasFinancialDependency(related = {}) {
     related.hasBankbook ||
     related.hasFundLedger
   );
+}
+
+function hasReturnDependency(related = {}) {
+  return Boolean(related.activeReturnLocked || related.activeReturnHasValue);
 }
 
 function decideSalesOrderDeletion(order = {}, related = {}, command = {}) {
@@ -68,17 +70,9 @@ function decideSalesOrderDeletion(order = {}, related = {}, command = {}) {
   if (isInactiveOrder(order)) {
     return {
       allowed: true,
-      mode: 'NOOP_ALREADY_DELETED',
+      mode: 'ALREADY_DELETED',
+      hardDelete: false,
       message: 'Đơn đã được xóa/hủy trước đó'
-    };
-  }
-
-  if (!text(command.reason)) {
-    return {
-      allowed: false,
-      status: 400,
-      code: 'DELETE_REASON_REQUIRED',
-      message: 'Cần nhập lý do xóa đơn'
     };
   }
 
@@ -87,57 +81,44 @@ function decideSalesOrderDeletion(order = {}, related = {}, command = {}) {
       allowed: false,
       status: 409,
       code: 'ORDER_ALREADY_MERGED',
-      message: 'Đơn đã nằm trong đơn tổng. Cần hủy/tách khỏi đơn tổng trước khi xóa đơn con.'
+      message: 'Đơn đã nằm trong đơn tổng. Cần hủy/tách khỏi đơn tổng trước khi xóa.'
     };
   }
 
-  if (hasLockedReturn(related)) {
+  if (hasReturnDependency(related)) {
     return {
       allowed: false,
       status: 409,
-      code: 'RETURN_ORDER_LOCKED',
-      message: 'Đơn đã có phiếu trả hàng có giá trị hoặc đã khóa, không được xóa trực tiếp.'
+      code: 'RETURN_DEPENDENCY_EXISTS',
+      message: 'Đơn đã có trả hàng. Cần xử lý phiếu trả hàng trước khi xóa đơn.'
     };
   }
 
-  const stockPosted = isStockPosted(order);
-  const accountingLocked = isDeliveredOrAccountingLocked(order);
-  const financialDependency = hasFinancialDependency(related);
-
-  if (accountingLocked || financialDependency) {
+  if (isAccountingLocked(order) || hasFinancialDependency(related)) {
     return {
-      allowed: true,
-      mode: 'SOFT_VOID_WITH_REVERSAL',
-      reverseStock: stockPosted,
-      reverseAr: Boolean(related.hasArLedger),
-      cancelReturnDraft: Boolean(related.hasReturnDraft),
-      hardDelete: false,
-      message: 'Đơn đã phát sinh nghiệp vụ, hệ thống sẽ xóa mềm/void để giữ audit.'
+      allowed: false,
+      status: 409,
+      code: 'FINANCIAL_DEPENDENCY_EXISTS',
+      message: 'Đơn đã phát sinh công nợ/thu tiền/kế toán. Không được xóa thường.'
     };
   }
 
-  if (stockPosted) {
+  if (isStockPosted(order)) {
     return {
       allowed: true,
-      mode: 'HARD_DELETE_WITH_TOMBSTONE_AND_STOCK_REVERSAL',
+      mode: 'REVERSE_STOCK_THEN_HARD_DELETE',
       reverseStock: true,
-      reverseAr: false,
-      cancelReturnDraft: Boolean(related.hasReturnDraft),
       hardDelete: true,
-      archiveTombstone: true,
-      message: 'Đơn chưa phát sinh kế toán nhưng đã trừ tồn, hệ thống sẽ đảo tồn rồi xóa khỏi danh sách.'
+      message: 'Đơn đã trừ tồn. Hệ thống sẽ đảo tồn rồi xóa đơn.'
     };
   }
 
   return {
     allowed: true,
-    mode: 'HARD_DELETE_DRAFT',
+    mode: 'HARD_DELETE',
     reverseStock: false,
-    reverseAr: false,
-    cancelReturnDraft: Boolean(related.hasReturnDraft),
     hardDelete: true,
-    archiveTombstone: true,
-    message: 'Đơn nháp chưa phát sinh nghiệp vụ, được xóa hẳn khỏi danh sách.'
+    message: 'Đã xóa đơn.'
   };
 }
 
@@ -145,6 +126,6 @@ module.exports = {
   decideSalesOrderDeletion,
   isInactiveOrder,
   isMergedOrder,
-  isDeliveredOrAccountingLocked,
-  isStockPosted
+  isStockPosted,
+  isAccountingLocked
 };

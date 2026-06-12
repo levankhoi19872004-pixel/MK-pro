@@ -76,17 +76,17 @@ async function remove(req, res) {
     });
 
     return handleServiceResult(res, result, 200, (r) => ({
-      message: r.message || (r.hardDeleted
-        ? `Đã xóa hẳn đơn bán ${r.salesOrder.code}`
-        : `Đã xóa mềm đơn bán ${r.salesOrder.code}`),
+      message: r.message || `Đã xóa đơn bán ${r.salesOrder?.code || ''}`,
       mode: r.mode,
-      hardDeleted: r.hardDeleted,
-      tombstoneId: r.tombstoneId || '',
+      hardDeleted: true,
       salesOrder: r.salesOrder,
       order: r.salesOrder
     }));
   } catch (err) {
-    res.status(400).json({ ok: false, message: err.message || 'Không xóa được đơn bán' });
+    res.status(err.status || 400).json({
+      ok: false,
+      message: err.message || 'Không xóa được đơn bán'
+    });
   }
 }
 
