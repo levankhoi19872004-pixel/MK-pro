@@ -12,6 +12,7 @@ const Payment = require('../../models/Payment');
 const Cashbook = require('../../models/Cashbook');
 const MobileLog = require('../../models/MobileLog');
 const InventoryPostingService = require('../../domain/posting/InventoryPostingService');
+const SalesOrderDeletionService = require('../../domain/lifecycle/SalesOrderDeletionService');
 const inventoryStockService = require('../inventoryStock.service');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
@@ -986,69 +987,34 @@ function createMobileSalesService(ctx) {
   }
 
   async function deleteSalesOrder({ params = {}, mobileUser }) {
-    const identity = buildSalesOrderIdentityFilter(params.id);
     const owner = mobileSalesOwnerMongoFilter(mobileUser);
-    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
+    if (!owner) return fail(403, 'Không xác định được nhân viên bán hàng');
 
-    const order = await SalesOrder.findOne({ $and: [identity, owner] }).lean();
-    if (!order) return fail(404, 'Không tìm thấy đơn bán');
-    if (order.masterOrderId || order.masterOrderCode || order.masterOrderNo || (order.mergeStatus || 'unmerged') === 'merged') {
-      return fail(403, 'Đơn đã gộp đơn tổng, app bán hàng không được xóa');
-    }
-
-    const returnFilter = returnOrderIdentityFilterForSalesOrder(order);
-    const activeReturn = returnFilter ? await ReturnOrder.findOne(returnFilter).lean() : null;
-    if (activeReturn && (returnOrderIsLocked(activeReturn) || returnOrderHasValue(activeReturn))) {
-      return fail(400, 'Đơn chờ trả hàng đã có số lượng trả hoặc đã khóa, không được xóa đơn bán trước khi xử lý phiếu trả');
-    }
-
-    const now = new Date().toISOString();
-    const patch = {
-      status: 'void',
-      deliveryStatus: 'void',
-      deletedAt: now,
-      deleteReason: 'Xóa từ app bán hàng mobile trước khi gộp đơn tổng',
-      updatedAt: now
-    };
-
-    const result = await withMongoTransaction(async (session) => {
-      if (activeReturn && returnFilter) {
-        await ReturnOrder.updateOne(returnFilter, { $set: { status: 'cancelled', returnStatus: 'cancelled', cancelledAt: now, updatedAt: now } }, { session });
-      }
-
-      if (order.stockPosted) {
-        await InventoryPostingService.reverseMovement(order, {
-          type: 'SALE',
-          reverseType: 'SALE_REVERSAL',
-          direction: 'OUT',
-          refType: 'SALES_ORDER',
-          refId: order.id || order._id || order.code,
-          refCode: order.code || order.id,
-          date: dateUtil.todayVN(),
-          note: 'Đảo xuất kho do xóa đơn từ app bán hàng'
-        }, { session });
-        patch.stockPosted = false;
-        patch.stockReversedAt = now;
-      }
-
-      const updated = await SalesOrder.findOneAndUpdate({ $and: [identity, owner] }, { $set: patch }, { new: true, lean: true, session });
-      await MobileLog.create([{
-        id: makeId('ML'),
-        action: 'mobile_delete_sales_order',
-        actorCode: mobileUser.code || mobileUser.staffCode || '',
-        actorName: mobileUser.fullName || mobileUser.name || '',
-        refType: 'salesOrder',
-        refId: order.id,
-        refCode: order.code,
-        note: `Xóa đơn ${order.code} từ mobile khi chưa gộp đơn tổng`,
-        createdAt: now
-      }], { session });
-      return updated || { ...order, ...patch };
+    const result = await SalesOrderDeletionService.deleteSalesOrder(params.id, {
+      source: 'mobile-sales-app',
+      reason: 'Xóa từ app bán hàng mobile',
+      actorCode: mobileUser.code || mobileUser.staffCode || '',
+      actorName: mobileUser.fullName || mobileUser.name || '',
+      ownerFilter: owner
     });
 
-    return { body: { ok: true, source: 'mobile-sales-route-direct', message: `Đã xóa đơn ${result.code || ''}`, salesOrder: result } };
-  }
+    if (result.error) {
+      return fail(result.status || 400, result.error);
+    }
 
+    return {
+      body: {
+        ok: true,
+        source: 'mobile-sales-delete-service',
+        message: result.message || `Đã xóa đơn ${result.salesOrder?.code || ''}`,
+        mode: result.mode,
+        hardDeleted: result.hardDeleted,
+        tombstoneId: result.tombstoneId || '',
+        salesOrder: result.salesOrder,
+        order: result.salesOrder
+      }
+    };
+  }
   
   async function listSalesOrders({ query = {}, mobileUser }) {
     const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
