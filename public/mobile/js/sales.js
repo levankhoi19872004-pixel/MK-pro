@@ -96,6 +96,45 @@ function customerSalesValue(customer = {}) {
 }
 
 
+// MOBILE_SALES_CLIENT_OWNER_GUARD_START
+function normalizeSalesStaffToken(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function currentSalesStaffCode() {
+  return String(
+    user.salesStaffCode ||
+    user.salesmanCode ||
+    user.nvbhCode ||
+    user.maNVBH ||
+    user.staffCode ||
+    user.code ||
+    ''
+  ).trim();
+}
+
+function orderSalesStaffCode(order = {}) {
+  return String(
+    order.salesStaffCode ||
+    order.salesPersonCode ||
+    order.salesmanCode ||
+    order.nvbhCode ||
+    order.maNVBH ||
+    (order.salesStaff && order.salesStaff.code) ||
+    ''
+  ).trim();
+}
+
+function filterOrdersForCurrentSalesUser(items = []) {
+  const rows = Array.isArray(items) ? items : [];
+  if (String(user.role || '') !== 'sales') return rows;
+  const code = normalizeSalesStaffToken(currentSalesStaffCode());
+  if (!code) return [];
+  return rows.filter((order) => normalizeSalesStaffToken(orderSalesStaffCode(order)) === code);
+}
+// MOBILE_SALES_CLIENT_OWNER_GUARD_END
+
+
 function cleanCustomerText(value, fallback = '') {
   const text = String(value ?? '').trim();
   return text && text !== 'undefined' && text !== 'null' ? text : fallback;
@@ -1042,7 +1081,16 @@ function upsertTodayOrder(order = {}) {
 async function loadTodayOrders() {
   try {
     const data = await mobileApi.getMySalesOrders();
-    renderTodayOrders(data.items || []);
+    const rawItems = data.items || [];
+    const scopedItems = filterOrdersForCurrentSalesUser(rawItems);
+    renderTodayOrders(scopedItems);
+    if (rawItems.length !== scopedItems.length) {
+      console.warn('[MOBILE_SALES_OWNER_GUARD]', {
+        currentSalesStaffCode: currentSalesStaffCode(),
+        received: rawItems.length,
+        rendered: scopedItems.length
+      });
+    }
   } catch (err) {
     todayOrders.className = 'order-list empty';
     todayOrders.textContent = err.message;

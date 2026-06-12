@@ -19,6 +19,7 @@ const dateUtil = require('../utils/date.util');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { verifyPassword } = require('../security/passwordPolicy');
+const { pickSalesStaffCode, pickSalesStaffName, pickUserAccountSalesStaffCode } = require('../domain/staff/staffIdentity');
 
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
@@ -117,8 +118,12 @@ function buildSafeUser(staff) {
   const role = ['admin', 'manager', 'accountant', 'warehouse', 'sales', 'delivery'].includes(String(staff.role || staff.type || '').trim())
     ? String(staff.role || staff.type).trim()
     : (staff.isDelivery ? 'delivery' : staff.isSalesman ? 'sales' : 'sales');
-  const staffCode = String(staff.staffCode || staff.code || '').trim();
-  const fullName = String(staff.fullName || staff.name || staff.username || staffCode).trim();
+  const salesStaffCode = role === 'sales'
+    ? (pickSalesStaffCode(staff) || pickUserAccountSalesStaffCode(staff))
+    : pickSalesStaffCode(staff);
+  const salesStaffName = pickSalesStaffName(staff);
+  const staffCode = String(salesStaffCode || staff.staffCode || staff.code || '').trim();
+  const fullName = String(salesStaffName || staff.fullName || staff.name || staff.username || staffCode).trim();
   return {
     id: String(staff.id || staff._id || staffCode).trim(),
     code: staffCode,
@@ -127,7 +132,11 @@ function buildSafeUser(staff) {
     name: fullName,
     fullName,
     role,
-    roleLabel: ROLE_LABELS[role] || role
+    roleLabel: ROLE_LABELS[role] || role,
+    salesStaffCode,
+    salesStaffName,
+    salesmanCode: salesStaffCode,
+    salesmanName: salesStaffName
   };
 }
 
@@ -1669,15 +1678,29 @@ router.get('/sales/orders', requireMobileLogin, requireMobileRole(['sales', 'adm
       status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
       $or: [{ date: targetDate }, { orderDate: targetDate }]
     };
-    if (mine && user.role !== 'admin') {
-      filter.$and = [{
-        $or: [
-          { staffCode: user.code },
-          { salesStaffCode: user.code },
-          { staffName: user.name },
-          { salesStaffName: user.name }
-        ]
-      }];
+    if (mine) {
+      const userCode = String(user.salesStaffCode || user.salesmanCode || user.staffCode || user.code || '').trim();
+      const userName = String(user.salesStaffName || user.salesmanName || user.fullName || user.name || '').trim();
+      const ownerOr = [];
+      if (userCode) {
+        ownerOr.push(
+          { salesStaffCode: userCode },
+          { salesPersonCode: userCode },
+          { salesmanCode: userCode },
+          { nvbhCode: userCode },
+          { maNVBH: userCode }
+        );
+      } else if (userName) {
+        ownerOr.push(
+          { salesStaffName: userName },
+          { salesPersonName: userName },
+          { salesmanName: userName },
+          { nvbhName: userName },
+          { maNVBHName: userName }
+        );
+      }
+      if (!ownerOr.length) return ok(res, { source: 'mobile-users-auth-route', date: targetDate, items: [] });
+      filter.$and = [{ $or: ownerOr }];
     }
     const rows = await SalesOrder.find(filter).sort({ createdAt: -1 }).limit(100).lean();
     let items = rows.map(stripMongoFields).map((order) => ({

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { jwtSecret, requireAuth } = require('../middlewares/auth.middleware');
 const { verifyPassword } = require('../security/passwordPolicy');
+const { pickSalesStaffCode, pickSalesStaffName, pickUserAccountSalesStaffCode } = require('../domain/staff/staffIdentity');
 
 const router = express.Router();
 
@@ -22,17 +23,26 @@ const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || process
 
 function safeUser(user = {}) {
   const role = String(user.role || '').trim() || 'sales';
-  const code = String(user.staffCode || user.code || '').trim();
+  const salesStaffCode = role === 'sales'
+    ? (pickSalesStaffCode(user) || pickUserAccountSalesStaffCode(user))
+    : pickSalesStaffCode(user);
+  const salesStaffName = pickSalesStaffName(user);
+  const code = String(salesStaffCode || user.staffCode || user.code || '').trim();
+  const name = String(salesStaffName || user.fullName || user.name || user.username || code || '').trim();
   return {
     id: String(user._id || user.id || code || '').trim(),
     code,
     staffCode: code,
     username: String(user.username || code || '').trim(),
-    name: String(user.name || user.fullName || user.username || code || '').trim(),
-    fullName: String(user.fullName || user.name || user.username || code || '').trim(),
+    name,
+    fullName: name,
     phone: String(user.phone || '').trim(),
     role,
     roleLabel: ROLE_LABELS[role] || role,
+    salesStaffCode,
+    salesStaffName,
+    salesmanCode: salesStaffCode,
+    salesmanName: salesStaffName,
     isActive: user.isActive !== false
   };
 }

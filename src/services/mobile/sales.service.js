@@ -56,26 +56,65 @@ function buildSalesOrderIdentityFilter(value) {
   };
 }
 
+// MOBILE_SALES_OWNER_FILTER_CANONICAL_START
 function mobileUserSalesStaffCode(mobileUser = {}) {
-  return String(mobileUser.salesStaffCode || mobileUser.staffCode || mobileUser.code || '').trim();
+  return String(
+    mobileUser.salesStaffCode ||
+    mobileUser.salesmanCode ||
+    mobileUser.nvbhCode ||
+    mobileUser.maNVBH ||
+    mobileUser.staffCode ||
+    mobileUser.code ||
+    ''
+  ).trim();
 }
 
 function mobileUserSalesStaffName(mobileUser = {}) {
-  return String(mobileUser.salesStaffName || mobileUser.fullName || mobileUser.name || '').trim();
+  return String(
+    mobileUser.salesStaffName ||
+    mobileUser.salesmanName ||
+    mobileUser.nvbhName ||
+    mobileUser.maNVBHName ||
+    mobileUser.fullName ||
+    mobileUser.name ||
+    ''
+  ).trim();
 }
 
 function mobileSalesOwnerMongoFilter(mobileUser = {}) {
   const staffCode = mobileUserSalesStaffCode(mobileUser);
-  const variants = caseVariants(staffCode);
-  if (!variants.length) return null;
+  const codeVariants = caseVariants(staffCode);
+  if (codeVariants.length) {
+    return {
+      $or: [
+        { salesStaffCode: { $in: codeVariants } },
+        { salesPersonCode: { $in: codeVariants } },
+        { salesmanCode: { $in: codeVariants } },
+        { nvbhCode: { $in: codeVariants } },
+        { maNVBH: { $in: codeVariants } },
+        { 'salesStaff.code': { $in: codeVariants } }
+      ]
+    };
+  }
+
+  // Nếu tài khoản cũ chưa có mã NVBH thì chỉ cho fallback theo field tên NVBH canonical.
+  // Không dùng generic staffCode/staffName để tránh app bán hàng nhìn thấy đơn của NVGH/NV khác.
+  const staffName = mobileUserSalesStaffName(mobileUser);
+  const nameVariants = caseVariants(staffName);
+  if (!nameVariants.length) return null;
   return {
     $or: [
-      { salesStaffCode: { $in: variants } },
-      { salesmanCode: { $in: variants } },
-      { nvbhCode: { $in: variants } }
+      { salesStaffName: { $in: nameVariants } },
+      { salesPersonName: { $in: nameVariants } },
+      { salesmanName: { $in: nameVariants } },
+      { nvbhName: { $in: nameVariants } },
+      { maNVBHName: { $in: nameVariants } },
+      { 'salesStaff.name': { $in: nameVariants } },
+      { 'salesStaff.fullName': { $in: nameVariants } }
     ]
   };
 }
+// MOBILE_SALES_OWNER_FILTER_CANONICAL_END
 
 function activeSalesOrderMongoFilter() {
   return { status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] } };
@@ -384,21 +423,11 @@ function createMobileSalesService(ctx) {
 
   // MOBILE_SALES_STAFF_CANONICAL_MATCH_START
   function getMobileSalesStaffCode(mobileUser = {}) {
-    return String(
-      mobileUser.salesStaffCode ||
-      mobileUser.staffCode ||
-      mobileUser.code ||
-      ''
-    ).trim();
+    return mobileUserSalesStaffCode(mobileUser);
   }
 
   function getMobileSalesStaffName(mobileUser = {}) {
-    return String(
-      mobileUser.salesStaffName ||
-      mobileUser.fullName ||
-      mobileUser.name ||
-      ''
-    ).trim();
+    return mobileUserSalesStaffName(mobileUser);
   }
   // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
 
@@ -541,7 +570,14 @@ function createMobileSalesService(ctx) {
     const userSalesCode = normalizeText(getMobileSalesStaffCode(mobileUser));
     if (!userSalesCode) return false;
 
-    return normalizeText(order.salesStaffCode || order.salesmanCode) === userSalesCode;
+    return [
+      order.salesStaffCode,
+      order.salesPersonCode,
+      order.salesmanCode,
+      order.nvbhCode,
+      order.maNVBH,
+      order.salesStaff && order.salesStaff.code
+    ].some((value) => normalizeText(value) === userSalesCode);
   }
   // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
 
@@ -1040,7 +1076,7 @@ function createMobileSalesService(ctx) {
     }
 
     const rows = await SalesOrder.find(and.length === 1 ? and[0] : { $and: and })
-      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress totalAmount paidAmount debtAmount status deliveryStatus masterOrderId masterOrderCode masterOrderNo mergeStatus items note createdAt')
+      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status deliveryStatus masterOrderId masterOrderCode masterOrderNo mergeStatus items note createdAt')
       .sort({ createdAt: -1, date: -1 })
       .limit(100)
       .lean();
@@ -1063,6 +1099,16 @@ function createMobileSalesService(ctx) {
       customerCode: order.customerCode,
       customerPhone: order.customerPhone,
       customerAddress: order.customerAddress,
+      salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
+      salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
+      salesPersonCode: order.salesPersonCode || '',
+      salesPersonName: order.salesPersonName || '',
+      salesmanCode: order.salesmanCode || '',
+      salesmanName: order.salesmanName || '',
+      nvbhCode: order.nvbhCode || '',
+      nvbhName: order.nvbhName || '',
+      maNVBH: order.maNVBH || '',
+      maNVBHName: order.maNVBHName || '',
       items: order.items || [],
       note: order.note || '',
       createdAt: order.createdAt
