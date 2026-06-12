@@ -55,7 +55,7 @@ async function reverseMovement(document = {}, movement = {}, options = {}) {
 }
 
 async function reconcileInventory(options = {}) {
-  return inventoryService.rebuildSnapshotsFromTransactions(options);
+  return inventoryService.rebuildCurrentInventoryFromTransactions(options);
 }
 
 module.exports = {

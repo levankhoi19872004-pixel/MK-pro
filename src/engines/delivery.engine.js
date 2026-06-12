@@ -712,6 +712,29 @@ class DeliveryEngine {
     });
   }
 
+
+  async execSalesOrderFind(filter = {}, { select = DELIVERY_ORDER_SELECT, sort = {}, limit = 1000 } = {}) {
+    let query = this.SalesOrder.find(filter);
+
+    if (query && typeof query.select === 'function') {
+      query = query.select(select);
+    }
+
+    if (query && typeof query.sort === 'function') {
+      query = query.sort(sort);
+    }
+
+    if (query && typeof query.limit === 'function') {
+      query = query.limit(limit);
+    }
+
+    if (query && typeof query.lean === 'function') {
+      return query.lean();
+    }
+
+    return query;
+  }
+
   async findOrders(query = {}) {
     const date = text(query.date || query.deliveryDate || today());
     const status = norm(query.status || query.deliveryStatus);
@@ -747,11 +770,10 @@ class DeliveryEngine {
       const and = [{ deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } }];
       applyKeywordToAnd(and);
       const fastFilter = { ...makeBaseFilter(), $and: and };
-      orders = await this.SalesOrder.find(fastFilter)
-        .select(DELIVERY_ORDER_SELECT)
-        .sort({ deliveryDate: -1, deliveryStaffCode: 1, customerName: 1, code: 1 })
-        .limit(300)
-        .lean();
+      orders = await this.execSalesOrderFind(fastFilter, {
+        sort: { deliveryDate: -1, deliveryStaffCode: 1, customerName: 1, code: 1 },
+        limit: 300
+      });
     }
 
     if (!orders.length) {
@@ -761,11 +783,10 @@ class DeliveryEngine {
       applyKeywordToAnd(and);
       if (and.length) filter.$and = and;
 
-      orders = await this.SalesOrder.find(filter)
-        .select(DELIVERY_ORDER_SELECT)
-        .sort({ deliveryStaffCode: 1, customerName: 1, code: 1 })
-        .limit(1000)
-        .lean();
+      orders = await this.execSalesOrderFind(filter, {
+        sort: { deliveryStaffCode: 1, customerName: 1, code: 1 },
+        limit: 1000
+      });
     }
 
     if (!orders.length && date && this.MasterOrder) {
@@ -775,10 +796,10 @@ class DeliveryEngine {
       const filteredMasters = applyStaffFilters(masters, query);
       const childIds = unique(filteredMasters.flatMap((m) => Array.isArray(m.childOrderIds) ? m.childOrderIds : []));
       if (childIds.length) {
-        orders = await this.SalesOrder.find({ $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] })
-          .select(DELIVERY_ORDER_SELECT)
-          .limit(1000)
-          .lean();
+        orders = await this.execSalesOrderFind(
+          { $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] },
+          { limit: 1000 }
+        );
       }
     }
 

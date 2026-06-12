@@ -138,9 +138,9 @@ test('SalesOrder cancel reverses stock and customer debt impact', async () => {
   const restoreMongoose = patch(mongoose, { startSession: async () => fakeSession() });
   const restoreOrderRepo = patch(orderRepository, {
     findByIdOrCode: async () => order,
-    upsert: async (updated, options = {}) => {
-      assert.ok(options.session, 'cancel upsert must receive transaction session');
-      Object.assign(order, updated);
+    patchByIdentity: async (idOrCode, patchDoc, options = {}) => {
+      assert.ok(options.session, 'cancel patch must receive transaction session');
+      Object.assign(order, patchDoc);
       return order;
     }
   });

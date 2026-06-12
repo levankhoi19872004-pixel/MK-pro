@@ -42,6 +42,7 @@ function createMobileService(ctx) {
     saveOperationalData,
     refreshOrderDocumentCacheFromMongo,
     writeMobileLog,
+    writeMobileLogDirect,
     findCustomer,
     findProduct,
     getProductAvailableQty,
@@ -87,7 +88,6 @@ function createMobileService(ctx) {
   // MOBILE_LEGACY_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
 
   async function login({ body = {} }) {
-    const data = await getPrimaryDataSnapshot();
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
     if (!username || !password) return fail(400, 'Thiếu tài khoản hoặc mật khẩu');
@@ -107,10 +107,7 @@ function createMobileService(ctx) {
       return fail(400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
     }
 
-    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng users' });
-    const loginSnapshot = { ...data };
-    delete loginSnapshot.returnOrders;
-    await persistPrimaryDataSnapshot(loginSnapshot);
+    await writeMobileLogDirect(user, 'mobile_login', { note: 'Đăng nhập mobile app bằng users' });
     return { body: { ok: true, success: true, source: 'mobile-users-route', token: encodeMobileToken(user), refreshToken: encodeMobileRefreshToken(user), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user } };
   }
 

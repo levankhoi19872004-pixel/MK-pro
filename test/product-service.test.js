@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const productRepository = require('../src/repositories/productRepository');
 const productService = require('../src/services/productService');
+const inventoryStockService = require('../src/services/inventoryStock.service');
 
 function patch(target, replacements) {
   const originals = {};
@@ -59,7 +60,10 @@ test('ProductService.createProduct normalizes packing and rejects duplicate code
 
 test('ProductService.listProducts maps stock display fields for frontend', async () => {
   const restore = patch(productRepository, {
-    findAll: async () => [{ code: 'P002', name: 'Kem đánh răng', availableStock: 25, conversionRate: 12 }]
+    findAll: async () => [{ code: 'P002', name: 'Kem đánh răng', conversionRate: 12 }]
+  });
+  const restoreInventory = patch(inventoryStockService, {
+    getAvailableStocks: async () => ({ P002: 25 })
   });
 
   try {
@@ -69,6 +73,7 @@ test('ProductService.listProducts maps stock display fields for frontend', async
     assert.equal(result.products[0].stockQuantity, 25);
     assert.ok(result.products[0].stockDisplay);
   } finally {
+    restoreInventory();
     restore();
   }
 });

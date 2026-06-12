@@ -357,6 +357,8 @@ function toClient(order) {
     orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH',
     mergeStatus: merged,
     isMerged: merged === 'merged',
+    salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
+    salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
     visibleInHistory: orderStatusUtil.isOrderVisibleInHistory({ ...order, ...lifecycle })
   };
 }
@@ -465,11 +467,11 @@ function orderMatchesStrictSalesStaffCode(order = {}, code = '') {
 }
 
 function toVisibleSalesStaffCode(order = {}) {
-  return order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || order.staffCode || getPathValue(order, 'salesStaff.code') || '';
+  return order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || getPathValue(order, 'salesStaff.code') || '';
 }
 
 function toVisibleSalesStaffName(order = {}) {
-  return order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || order.staffName || getPathValue(order, 'salesStaff.name') || getPathValue(order, 'salesStaff.fullName') || '';
+  return order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || getPathValue(order, 'salesStaff.name') || getPathValue(order, 'salesStaff.fullName') || '';
 }
 
 function buildOrderSearchFilter(query = {}) {
@@ -513,8 +515,7 @@ function buildOrderSearchFilter(query = {}) {
     guardedQuery.salesStaffCode ||
     guardedQuery.salesmanCode ||
     guardedQuery.nvbhCode ||
-    guardedQuery.maNVBH ||
-    guardedQuery.staffCode
+    guardedQuery.maNVBH
   );
 
   if (strictSalesStaffCode) {
@@ -538,8 +539,6 @@ function buildOrderSearchFilter(query = {}) {
         { nvbhName: staffRx },
         { maNVBH: staffRx },
         { maNVBHName: staffRx },
-        { staffCode: staffRx },
-        { staffName: staffRx },
         { 'salesStaff.code': staffRx },
         { 'salesStaff.name': staffRx },
         { 'salesStaff.fullName': staffRx }
@@ -885,11 +884,18 @@ async function listOrders(query = {}) {
 
   const staffCodeFilter = extractStaffCodeParam(
     guardedQuery.salesStaffCode ||
-    guardedQuery.staffCode ||
     guardedQuery.salesmanCode ||
     guardedQuery.nvbhCode ||
     guardedQuery.maNVBH
   );
+
+  const staffTextFilter = String(
+    guardedQuery.salesStaffText ||
+    guardedQuery.salesStaffName ||
+    guardedQuery.salesmanName ||
+    ''
+  ).trim();
+
   if (staffCodeFilter) {
     const codeValues = [staffCodeFilter];
     const numericCode = Number(staffCodeFilter);
@@ -904,6 +910,27 @@ async function listOrders(query = {}) {
         { nvbhCode: { $in: codeValues } },
         { maNVBH: { $in: codeValues } },
         { 'salesStaff.code': { $in: codeValues } }
+      ]
+    });
+  } else if (staffTextFilter) {
+    const staffRx = queryGuard.buildRegex(staffTextFilter);
+
+    filter.$and = filter.$and || [];
+    filter.$and.push({
+      $or: [
+        { salesStaffCode: staffRx },
+        { salesStaffName: staffRx },
+        { salesPersonCode: staffRx },
+        { salesPersonName: staffRx },
+        { salesmanCode: staffRx },
+        { salesmanName: staffRx },
+        { nvbhCode: staffRx },
+        { nvbhName: staffRx },
+        { maNVBH: staffRx },
+        { maNVBHName: staffRx },
+        { 'salesStaff.code': staffRx },
+        { 'salesStaff.name': staffRx },
+        { 'salesStaff.fullName': staffRx }
       ]
     });
   }

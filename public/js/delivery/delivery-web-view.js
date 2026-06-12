@@ -62,13 +62,13 @@
   function today() { return new Date().toISOString().slice(0, 10); }
   function staffLabel(item) {
     item = item || {};
-    var code = item.deliveryStaffCode || item.staffCode || item.code || item.employeeCode || '';
-    var name = item.deliveryStaffName || item.fullName || item.name || '';
+    var code = item.deliveryStaffCode || item.deliveryCode || item.nvghCode || '';
+    var name = item.deliveryStaffName || item.deliveryName || item.nvghName || '';
     return [code, name].filter(Boolean).join(' - ');
   }
   function staffCode(item) {
     item = item || {};
-    return item.deliveryStaffCode || item.staffCode || item.code || item.employeeCode || '';
+    return item.deliveryStaffCode || item.deliveryCode || item.nvghCode || '';
   }
 
   var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {}, selectedSalesStaffKeys: {}, salesBranchScope: '', salesBranchRowCount: 0 };
@@ -239,12 +239,24 @@
 
   function salesStaffKey(order) {
     order = order || {};
-    return cleanKey(order.salesStaffCode || order.staffCode || order.salesmanCode || order.nvbhCode || order.salesCode || order.salesStaffName || order.staffName || order.salesmanName || 'NO_SALES_STAFF');
+    return cleanKey(
+      order.salesStaffCode ||
+      order.salesPersonCode ||
+      order.salesmanCode ||
+      order.nvbhCode ||
+      order.maNVBH ||
+      order.salesStaffName ||
+      order.salesPersonName ||
+      order.salesmanName ||
+      order.nvbhName ||
+      order.maNVBHName ||
+      'NO_SALES_STAFF'
+    );
   }
 
   function salesStaffName(order) {
     order = order || {};
-    return cleanKey(order.salesStaffName || order.staffName || order.salesmanName || order.nvbhName || 'Chưa gán NVBH');
+    return cleanKey(order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || 'Chưa gán NVBH');
   }
 
   function currentBranchScope() {

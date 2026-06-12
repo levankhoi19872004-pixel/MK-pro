@@ -941,6 +941,14 @@ function getSalesOrderStaffSelection(){
   };
 }
 
+function getSalesOrderStaffFilterCode(){
+  return getSalesOrderStaffSelection().code || '';
+}
+
+function getSalesOrderStaffFilterName(){
+  return getSalesOrderStaffSelection().raw || '';
+}
+
 function normalizeOrderDateForFilter(value){
   return toDateOnly(value);
 }
@@ -960,7 +968,8 @@ function buildSalesOrderSearchParams(page = 1){
   const dateType='orderDate';
   const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
   const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
-  const staff=getSalesOrderStaffSelection();
+  const staffCodeFilter=getSalesOrderStaffFilterCode();
+  const staffTextFilter=getSalesOrderStaffFilterName();
   const params=new URLSearchParams();
 
   if(dateFrom)params.set('dateFrom',dateFrom);
@@ -971,12 +980,12 @@ function buildSalesOrderSearchParams(page = 1){
 
   // Quy tắc mới: lọc NVBH chỉ dùng mã NVBH chuẩn, không OR tên vào cùng query.
   // Tên chỉ dùng để hiển thị/debug; backend nhận strictStaff=1 để không trả lẫn NVBH khác.
-  if(staff.code){
-    params.set('salesStaffCode',staff.code);
+  if(staffCodeFilter){
+    params.set('salesStaffCode',staffCodeFilter);
     params.set('strictStaff','1');
     params.set('includeStaffAliases','1');
-  }else if(staff.raw){
-    params.set('salesStaffName',staff.raw);
+  } else if(staffTextFilter){
+    params.set('salesStaffName',staffTextFilter);
   }
 
   params.set('page',String(page));
@@ -1004,7 +1013,6 @@ function getOrderVisibleSalesStaffCode(order){
     order?.salesmanCode ||
     order?.nvbhCode ||
     order?.maNVBH ||
-    order?.staffCode ||
     order?.salesStaff?.code ||
     ''
   );
@@ -1104,7 +1112,7 @@ async function loadSalesOrders({page=1, append=false} = {}){
         selectedStaffCode:selectedStaff.code,
         removedByClientGuard,
         requestUrl,
-        removed:rawOrders.filter(o=>!orders.includes(o)).map(o=>({code:o.code||o.id,salesStaffCode:getOrderVisibleSalesStaffCode(o),salesStaffName:o.salesStaffName||o.salesmanName||o.staffName||''})).slice(0,10)
+        removed:rawOrders.filter(o=>!orders.includes(o)).map(o=>({code:o.code||o.id,salesStaffCode:getOrderVisibleSalesStaffCode(o),salesStaffName:o.salesStaffName||o.salesPersonName||o.salesmanName||o.nvbhName||o.maNVBHName||''})).slice(0,10)
       });
     }
 

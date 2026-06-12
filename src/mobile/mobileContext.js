@@ -11,6 +11,7 @@ const { makeId, toNumber, stripMongoFields, formatCaseLooseQty } = require('../u
 const { MongoStore, readCollection, replaceCollection } = require('../services/mongoSyncService');
 const inventoryStockService = require('../services/inventoryStock.service');
 const postingEngine = require('../engines/posting.engine');
+const MobileLog = require('../models/MobileLog');
 const {
   pickSalesStaffCode,
   pickSalesStaffName,
@@ -55,12 +56,8 @@ const SNAPSHOT_KEYS = [
 ];
 
 const PERSIST_KEYS = [
-  'stock',
-  'inventories',
-  'salesOrders',
-  'payments',
-  'cashbooks',
-  'bankbooks',
+  // Không cho primary snapshot ghi đè dữ liệu nghiệp vụ sống.
+  // salesOrders/payments/cashbooks/bankbooks/inventories phải ghi bằng repository/service trực tiếp.
   'mobileLogs'
 ];
 
@@ -303,6 +300,21 @@ function writeMobileLog(data = {}, user = {}, action = '', meta = {}) {
   });
 }
 
+async function writeMobileLogDirect(user = {}, action = '', meta = {}, options = {}) {
+  const doc = {
+    id: makeId('ML'),
+    action,
+    actorCode: user.code || user.staffCode || '',
+    actorName: user.fullName || user.name || '',
+    ...meta,
+    createdAt: new Date().toISOString()
+  };
+
+  const session = options.session || null;
+  const created = await MobileLog.create([doc], session ? { session } : {});
+  return created[0];
+}
+
 function createMobileContext() {
   return {
     ROLE_LABELS,
@@ -335,6 +347,7 @@ function createMobileContext() {
     refreshOrderDocumentCacheFromMongo,
 
     writeMobileLog,
+    writeMobileLogDirect,
     findCustomer,
     findProduct,
     getProductAvailableQty,

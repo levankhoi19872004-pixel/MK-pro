@@ -55,9 +55,9 @@ async function withPatchedCancel(order, assertions) {
   const restoreMongoose = patch(mongoose, { startSession: async () => fakeSession() });
   const restoreOrderRepo = patch(orderRepository, {
     findByIdOrCode: async () => savedOrder,
-    upsert: async (updated, options = {}) => {
-      assert.ok(options.session, 'cancel upsert must receive transaction session');
-      savedOrder = { ...updated };
+    patchByIdentity: async (idOrCode, patchDoc, options = {}) => {
+      assert.ok(options.session, 'cancel patch must receive transaction session');
+      savedOrder = { ...savedOrder, ...patchDoc };
       return savedOrder;
     }
   });

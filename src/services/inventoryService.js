@@ -190,7 +190,10 @@ async function normalizeProductInventoryToMain({ productCode, productId, session
   // làm atomic filter availableQty >= qty trả null và báo thiếu tồn.
   const isSingleMainRow = rows.length === 1 && String(baseRow.warehouseCode || '').trim() === whCode;
   if (isSingleMainRow) {
-    const filter = baseRow._id ? { _id: baseRow._id } : { productCode: patch.productCode, warehouseCode: whCode };
+    const filter = baseRow._id
+      ? { _id: baseRow._id }
+      : { productCode: patch.productCode, warehouseCode: whCode };
+
     await withOptionalSession(InventoryLegacy.updateOne(filter, { $set: patch }), session);
     return { ...baseRow, ...patch };
   }
@@ -776,7 +779,7 @@ async function postStockMovementBulkImportIn(document = {}, movement = {}, optio
   ];
 }
 
-async function rebuildSnapshotsFromTransactions() {
+async function rebuildCurrentInventoryFromTransactions() {
   await InventoryLegacy.deleteMany({});
   const rows = await StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();
   const balances = new Map();
@@ -941,7 +944,7 @@ async function rebuildStockLedgerFromDocuments(options = {}) {
     }
   }
 
-  const stock = await rebuildSnapshotsFromTransactions();
+  const stock = await rebuildCurrentInventoryFromTransactions();
 
   // Phase 3.4: sau khi đã chuyển tồn legacy thành OPENING transaction,
   // xóa tồn khỏi products để products chỉ còn là danh mục.
@@ -1023,7 +1026,8 @@ module.exports = {
   reverseStockMovement,
   getCurrentStock,
   getStockTransactions,
-  rebuildSnapshotsFromTransactions,
+  rebuildCurrentInventoryFromTransactions,
+  rebuildSnapshotsFromTransactions: rebuildCurrentInventoryFromTransactions,
   rebuildStockLedgerFromDocuments,
   normalizeOneWarehouse,
   normalizeProductInventoryToMain,

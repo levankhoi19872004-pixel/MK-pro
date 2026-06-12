@@ -19,11 +19,10 @@ function createMobileAuthService(ctx) {
     encodeMobileToken,
     encodeMobileRefreshToken,
     decodeMobileRefreshToken,
-    writeMobileLog
+    writeMobileLogDirect
   } = ctx;
 
   async function login({ body = {} }) {
-    const data = await repo.getPrimaryDataSnapshot();
     const username = String(body.username || '').trim();
     const password = String(body.password || '').trim();
     if (!username || !password) return fail(400, 'Thiếu tài khoản hoặc mật khẩu');
@@ -39,10 +38,7 @@ function createMobileAuthService(ctx) {
       return fail(400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
     }
 
-    writeMobileLog(data, user, 'mobile_login', { note: 'Đăng nhập mobile app bằng users' });
-    const loginSnapshot = { ...data };
-    delete loginSnapshot.returnOrders;
-    await repo.persistPrimaryDataSnapshot(loginSnapshot);
+    await writeMobileLogDirect(user, 'mobile_login', { note: 'Đăng nhập mobile app bằng users' });
     return {
       body: {
         ok: true,

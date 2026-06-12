@@ -96,6 +96,16 @@ function createInMemoryInventoryStore(initialSnapshots = []) {
       });
       return created;
     },
+    rewriteInventory: async (filter = {}, update = {}) => {
+      const set = update.$set || {};
+      const target = Array.from(snapshots.values()).find((row) => {
+        if (filter._id && row._id) return String(row._id) === String(filter._id);
+        return String(row.productCode || '').toUpperCase() === String(filter.productCode || '').toUpperCase()
+          && String(row.warehouseCode || 'MAIN') === String(filter.warehouseCode || 'MAIN');
+      });
+      if (target) Object.assign(target, set);
+      return { acknowledged: true, matchedCount: target ? 1 : 0, modifiedCount: target ? 1 : 0 };
+    },
     applyDelta: async (filter = {}, update = {}, options = {}) => {
       const code = filter.productCode;
       let snapshot = snapshots.get(code) || null;
@@ -134,6 +144,7 @@ async function withPatchedInventoryStore(initialSnapshots, fn) {
   const restoreSnapshotDelete = patch(InventoryLegacy, { deleteMany: async (filter) => store.deleteInventory(filter) });
   const restoreSnapshotCreate = patch(InventoryLegacy, { create: async (docs) => store.createInventory(Array.isArray(docs) ? docs : [docs]) });
   const restoreSnapshotFindOneAndUpdate = patch(InventoryLegacy, { findOneAndUpdate: async (filter, update, options) => store.applyDelta(filter, update, options) });
+  const restoreSnapshotUpdateOne = patch(InventoryLegacy, { updateOne: async (filter, update) => store.rewriteInventory(filter, update) });
   const restoreAvailability = patch(inventoryStockService, {
     getAvailableStock: async (productCode) => ({ productCode, availableQty: store.snapshots.get(productCode)?.availableQty ?? 0 })
   });
@@ -149,6 +160,7 @@ async function withPatchedInventoryStore(initialSnapshots, fn) {
     restoreSnapshotDelete();
     restoreSnapshotCreate();
     restoreSnapshotFindOneAndUpdate();
+    restoreSnapshotUpdateOne();
     restoreAvailability();
   }
 }
