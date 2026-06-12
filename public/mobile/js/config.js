@@ -14,6 +14,7 @@ export const MOBILE_ROUTES = {
   stock: '/api/mobile/stock',
   salesOrders: '/api/mobile/sales/orders',
   salesDebts: '/api/mobile/debts',
+  debtCollections: '/api/mobile/debt-collections',
   deliveryOrders: '/api/delivery/orders',
   deliveryConfirm: '/api/delivery/confirm',
   deliveryReturns: '/api/delivery/returns',

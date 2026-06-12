@@ -11,6 +11,19 @@ function sendResult(res, result = {}, successStatus = 200) {
   return res.status(status).json({ ok: true, ...body });
 }
 
+
+async function submit(req, res) {
+  try {
+    const result = await DebtCollectionService.submitDebtCollection({
+      body: req.body || {},
+      mobileUser: req.user || req.body?.collector || {}
+    });
+    return sendResult(res, result, 201);
+  } catch (err) {
+    return res.status(err.status || 400).json({ ok: false, message: err.message || 'Không ghi nhận được phiếu thu nợ' });
+  }
+}
+
 async function list(req, res) {
   try {
     const result = await DebtCollectionService.listDebtCollections(req.query || {});
@@ -47,6 +60,7 @@ async function reject(req, res) {
 }
 
 module.exports = {
+  submit,
   list,
   confirm,
   reject

@@ -28,6 +28,7 @@
       <button class="tab-button" data-tab="masterReturnOrdersTab">Đơn tổng trả hàng</button>
       <button class="tab-button" data-tab="deliveryTodayTab">Đơn giao hôm nay</button>
       <button class="tab-button" data-tab="debtTab">Công nợ</button>
+      <button class="tab-button" data-tab="debtCollectionsTab">Thu nợ chờ xác nhận</button>
       <button class="tab-button" data-tab="fundsTab">Quỹ tiền</button>
       <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
       <button class="tab-button" data-tab="usersTab">Tài khoản</button>
@@ -776,7 +777,7 @@
                 <select id="debtPaymentMethod" name="paymentMethod">
                   <option value="cash">Tiền mặt</option>
                   <option value="transfer">Chuyển khoản</option>
-                  <option value="return">Hàng trả / bù trừ</option>
+                  <option value="other">Khác</option>
                 </select>
               </label>
             </div>
@@ -784,7 +785,7 @@
               <input name="note" placeholder="VD: khách thanh toán nhiều đơn, phân bổ đơn cũ trước" />
             </label>
             <div class="form-actions">
-              <button type="submit">Ghi chứng từ công nợ</button>
+              <button type="submit">Gửi phiếu thu chờ kế toán xác nhận</button>
               <button type="button" class="secondary" id="clearDebtCustomerButton">Bỏ chọn khách</button>
             </div>
             <p id="collectionMessage" class="message"></p>
@@ -807,6 +808,59 @@
           </div>
         </section>
       </main>
+    </section>
+
+
+    <section id="debtCollectionsTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar sticky-filter-bar">
+          <div>
+            <h2>Thu nợ chờ kế toán xác nhận</h2>
+            <p id="debtCollectionCount" class="muted">Danh sách phiếu thu nợ do app bán hàng/app giao hàng gửi lên. Chỉ khi kế toán xác nhận mới trừ công nợ và ghi quỹ.</p>
+          </div>
+          <div class="sales-history-filters">
+            <select id="debtCollectionStatusFilter" title="Trạng thái phiếu thu nợ">
+              <option value="submitted">Chờ xác nhận</option>
+              <option value="accounting_confirmed">Đã xác nhận</option>
+              <option value="rejected">Đã từ chối</option>
+              <option value="all">Tất cả</option>
+            </select>
+            <select id="debtCollectionCollectorTypeFilter" title="Nguồn thu">
+              <option value="">Tất cả nguồn</option>
+              <option value="sales">App bán hàng</option>
+              <option value="delivery">App giao hàng</option>
+            </select>
+            <input id="debtCollectionDateFrom" type="date" title="Từ ngày" />
+            <input id="debtCollectionDateTo" type="date" title="Đến ngày" />
+            <input id="debtCollectionSearchInput" placeholder="Mã phiếu / KH / nhân viên" />
+            <button id="reloadDebtCollectionsButton" class="primary-action" type="button">Tải phiếu</button>
+          </div>
+        </div>
+        <div class="debt-v2-kpis debt-v2-kpis-4">
+          <div><span>Tổng tiền</span><b id="debtCollectionTotalKpi">0</b></div>
+          <div><span>Chờ xác nhận</span><b id="debtCollectionSubmittedKpi">0</b></div>
+          <div><span>Đã xác nhận</span><b id="debtCollectionConfirmedKpi">0</b></div>
+          <div><span>Từ chối</span><b id="debtCollectionRejectedKpi">0</b></div>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã phiếu</th>
+                <th>Khách hàng</th>
+                <th>Người thu</th>
+                <th>Số tiền</th>
+                <th>Hình thức</th>
+                <th>Trạng thái</th>
+                <th>Phân bổ</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="debtCollectionTable"><tr><td colspan="8">Bấm Tải phiếu để xem danh sách thu nợ chờ xác nhận.</td></tr></tbody>
+          </table>
+        </div>
+        <p id="debtCollectionMessage" class="message"></p>
+      </section>
     </section>
 
 
@@ -1601,7 +1655,7 @@
   <script src="/js/search/unifiedSearchEngine.js?v=staff-auto-users-v5"></script>
 <script src="/js/search/productSearchBox.js?v=staff-auto-users-v5"></script>
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
-  <script src="/js/app/00-dom-state.js?v=staff-auto-users-v5"></script>
+  <script src="/js/app/00-dom-state.js?v=debt-collections-ui-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=staff-auto-users-v5"></script>
@@ -1610,9 +1664,9 @@
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/app/06-master-delivery.js?v=returnorders-app-save-tab3-v2"></script>
-  <script src="/js/app/07-debt-cashbook.js?v=staff-auto-users-v5"></script>
+  <script src="/js/app/07-debt-cashbook.js?v=debt-collections-ui-v1"></script>
   <script src="/js/app/08-reports-users-promotions-import-excel.js?v=vat-tt78-export-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
-  <script src="/app.js?v=staff-auto-users-v5"></script>
+  <script src="/app.js?v=debt-collections-ui-v1"></script>
 </body>
 </html>

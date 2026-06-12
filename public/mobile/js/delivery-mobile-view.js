@@ -263,9 +263,12 @@
   function renderPayment(body) {
     var order = currentOrder();
     if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
+    var debt = Math.max(0, amount(order, 'debt'));
     body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
-      '<form id="mPaymentForm" class="m-payment-form"><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>';
+      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>' +
+      '<form id="mDebtCollectionForm" class="m-payment-form"><h3>Báo thu công nợ chờ kế toán</h3><p class="m-help-text">Phiếu này chỉ ghi nhận chờ xác nhận. Công nợ chỉ giảm sau khi kế toán xác nhận trên web.</p><label>Số tiền đã thu<input name="amount" type="number" min="0" value="' + esc(debt) + '"></label><label>Hình thức<select name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label><label>Ghi chú<input name="note" placeholder="VD: Khách trả một phần"></label><button type="submit">Gửi phiếu thu chờ KT</button></form>';
     el('mPaymentForm').addEventListener('submit', savePayment);
+    el('mDebtCollectionForm').addEventListener('submit', submitDeliveryDebtCollection);
   }
 
   function renderReport(body) {
@@ -297,6 +300,37 @@
       state.tab = 'payment';
       render();
     } catch (err) { msg(err.message, true); }
+  }
+
+
+  async function submitDeliveryDebtCollection(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    var order = currentOrder();
+    if (!order) return;
+    var form = new FormData(event.target);
+    var amountValue = num(form.get('amount'));
+    if (amountValue <= 0) { msg('Số tiền thu phải lớn hơn 0', true); return; }
+    try {
+      msg('Đang gửi phiếu thu nợ chờ kế toán...');
+      await window.DeliveryCore.api('/api/mobile/debt-collections', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerId: order.customerId || '',
+          customerCode: order.customerCode || '',
+          customerName: order.customerName || '',
+          amount: amountValue,
+          paymentMethod: form.get('paymentMethod') || 'cash',
+          note: form.get('note') || '',
+          allocations: [{
+            salesOrderId: order.salesOrderId || order.orderId || '',
+            salesOrderCode: order.salesOrderCode || order.orderCode || '',
+            allocatedAmount: amountValue
+          }],
+          idempotencyKey: 'delivery-' + (order.orderCode || order.orderId || Date.now()) + '-' + Date.now()
+        })
+      });
+      msg('Đã ghi nhận thu nợ, chờ kế toán xác nhận');
+    } catch (err) { msg(err.message || 'Không gửi được phiếu thu nợ', true); }
   }
 
   async function savePayment(event) {

@@ -25,6 +25,20 @@ router.get('/', [
   query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit không hợp lệ')
 ], validateRequest, controller.list);
 
+
+router.post('/', [
+  body('customerCode').isString().trim().notEmpty().withMessage('Thiếu mã khách hàng'),
+  body('amount').isFloat({ gt: 0 }).withMessage('Số tiền thu phải lớn hơn 0'),
+  body('paymentMethod').optional().isIn(['cash', 'bank_transfer', 'bank', 'transfer', 'other']).withMessage('Hình thức thanh toán không hợp lệ'),
+  body('note').optional().isString().trim(),
+  body('collectorType').optional().isIn(['sales', 'delivery']).withMessage('collectorType không hợp lệ'),
+  body('allocations').isArray({ min: 1 }).withMessage('Cần chọn ít nhất một đơn nợ'),
+  body('allocations.*.salesOrderCode').optional().isString().trim(),
+  body('allocations.*.orderCode').optional().isString().trim(),
+  body('allocations.*.allocatedAmount').isFloat({ gt: 0 }).withMessage('Số tiền phân bổ phải lớn hơn 0'),
+  body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
+], validateRequest, controller.submit);
+
 router.post('/:id/confirm', [
   param('id').isString().trim().notEmpty().withMessage('Thiếu mã phiếu thu nợ'),
   body('actualReceivedAmount').isFloat({ gt: 0 }).withMessage('Số tiền thực nhận phải lớn hơn 0'),

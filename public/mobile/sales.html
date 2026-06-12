@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V45 Mobile - Bán hàng</title>
-  <link rel="stylesheet" href="./mobile.css?v=speed-monitor-v1" />
+  <link rel="stylesheet" href="./mobile.css?v=debt-collections-app-v1" />
 </head>
 <body>
   <main class="mobile-page sales-app-page">
@@ -98,6 +98,7 @@
         <div class="mobile-kpi-grid">
           <div class="kpi-card"><span>Tổng công nợ NVBH</span><strong id="debtTotalAmount">0</strong></div>
           <div class="kpi-card"><span>Số khách còn nợ</span><strong id="debtCustomerCount">0</strong></div>
+          <div class="kpi-card"><span>Đã báo thu chờ KT</span><strong id="debtPendingAmount">0</strong></div>
         </div>
       </section>
       <section class="card">
@@ -105,7 +106,7 @@
         <div id="debtList" class="order-list empty">Đang tải công nợ...</div>
       </section>
       <section class="card">
-        <h2>Sổ công nợ</h2>
+        <h2>Sổ công nợ & báo thu</h2>
         <div id="debtLedgerList" class="order-list empty">Chọn khách hàng để xem chi tiết.</div>
       </section>
     </section>
@@ -143,6 +144,6 @@
 <script src="../js/search/catalogCacheService.js?v=staff-auto-users-v5"></script>
   <script src="../js/search/unifiedSearchEngine.js?v=mobile-product-suggest-v2"></script>
   <script src="../js/search/productSearchBox.js?v=mobile-product-suggest-v2"></script>
-  <script type="module" src="./js/sales.js?v=mobile-debt-tab-load-fix-v10"></script>
+  <script type="module" src="./js/sales.js?v=debt-collections-app-v1"></script>
 </body>
 </html>

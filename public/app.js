@@ -245,6 +245,9 @@ async function loadTabDataOnce(tabName, options = {}){
         ]);
         if(typeof renderCollectionCustomerSelect === 'function') renderCollectionCustomerSelect();
         break;
+      case 'debtCollectionsTab':
+        if(typeof loadDebtCollections === 'function') await loadDebtCollections();
+        break;
       case 'reportsTab':
         if(typeof loadReports === 'function') await loadReports();
         break;

@@ -155,6 +155,9 @@ export const mobileApi = {
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return apiRequest(`${MOBILE_ROUTES.salesDebts}${suffix}`);
   },
+  submitDebtCollection(payload = {}) {
+    return apiRequest(MOBILE_ROUTES.debtCollections || '/api/mobile/debt-collections', { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'debt-collection')) });
+  },
   getDeliveryOrders(params = {}) {
     const query = new URLSearchParams(params);
     const suffix = query.toString() ? `?${query.toString()}` : '';

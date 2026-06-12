@@ -65,6 +65,7 @@ const debtList = document.getElementById('debtList');
 const debtLedgerList = document.getElementById('debtLedgerList');
 const debtTotalAmount = document.getElementById('debtTotalAmount');
 const debtCustomerCount = document.getElementById('debtCustomerCount');
+const debtPendingAmount = document.getElementById('debtPendingAmount');
 
 function switchTab(tabId) {
   tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabId));
@@ -89,6 +90,25 @@ function formatDisplayDate(value) {
 
 function customerDebtValue(customer = {}) {
   return Number(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.arDebt ?? 0);
+}
+
+
+function customerAvailableDebtValue(customer = {}) {
+  return Number(customer.availableDebtAmount ?? customer.availableDebt ?? customer.debtAmount ?? customer.debt ?? 0);
+}
+
+function customerPendingCollectedValue(customer = {}) {
+  return Number(customer.pendingCollectedAmount ?? customer.pendingCollected ?? 0);
+}
+
+function parseMobileMoneyInput(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return 0;
+  const multiplier = raw.endsWith('k') ? 1000 : (raw.endsWith('tr') ? 1000000 : 1);
+  const cleaned = raw.replace(/tr|k/g, '').replace(/[^0-9,.-]/g, '').replace(/[.,](?=\d{3}(\D|$))/g, '').replace(',', '.');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n * multiplier)) : 0;
 }
 
 function customerSalesValue(customer = {}) {
@@ -800,6 +820,7 @@ async function loadDebts(options = {}) {
   if (debtLoaded && !force && debtCache.length && !silent) {
     renderDebts(debtCache, {
       totalDebt: debtCache.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0),
+      pendingCollected: debtCache.reduce((sum, item) => sum + customerPendingCollectedValue(item), 0),
       customerCount: debtCache.length
     });
     return;
@@ -814,7 +835,7 @@ async function loadDebts(options = {}) {
       debtList.textContent = 'Đang tải công nợ...';
     }
 
-    const data = await mobileApi.getSalesDebts({ limit: 100, includePaid: '0' });
+    const data = await mobileApi.getSalesDebts({ limit: 100, includePaid: '0', includePendingCollections: '1', collectorType: 'sales' });
 
     if (requestSeq !== debtRequestSeq) return;
 
@@ -842,8 +863,10 @@ async function loadDebts(options = {}) {
 
 function renderDebts(items = debtCache, summary = {}) {
   const total = Number(summary.totalDebt ?? items.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0));
+  const pending = Number(summary.pendingCollected ?? items.reduce((sum, item) => sum + customerPendingCollectedValue(item), 0));
   if (debtTotalAmount) debtTotalAmount.textContent = money(total);
   if (debtCustomerCount) debtCustomerCount.textContent = String(summary.customerCount ?? items.length);
+  if (debtPendingAmount) debtPendingAmount.textContent = money(pending);
 
   if (!items.length) {
     debtList.className = 'order-list empty';
@@ -859,7 +882,8 @@ function renderDebts(items = debtCache, summary = {}) {
   debtList.innerHTML = items.map((item, index) => `
     <button class="debt-card" data-debt-index="${index}">
       <strong>${item.customerCode || ''} - ${item.customerName || ''}</strong>
-      <span>Công nợ: ${money(item.debtAmount || 0)} · ${item.orderCount || 0} đơn · Nợ cũ nhất: ${formatDisplayDate(item.oldestDebtDate || '')}</span>
+      <span>Công nợ: ${money(item.debtAmount || 0)} · Chờ KT: ${money(customerPendingCollectedValue(item))} · Có thể thu: ${money(customerAvailableDebtValue(item))}</span>
+      <span>${item.orderCount || 0} đơn · Nợ cũ nhất: ${formatDisplayDate(item.oldestDebtDate || '')}</span>
     </button>
   `).join('');
 
@@ -868,17 +892,66 @@ function renderDebts(items = debtCache, summary = {}) {
   });
 }
 
+function debtOrderRows(item = {}) {
+  const orders = Array.isArray(item.orders) ? item.orders : [];
+  if (orders.length) return orders.filter((row) => Number(row.availableDebt ?? row.debt ?? 0) > 0);
+  const ledgers = Array.isArray(item.ledgers) ? item.ledgers : [];
+  return ledgers
+    .filter((row) => Number(row.debt || 0) > 0)
+    .map((row) => ({
+      salesOrderCode: row.salesOrderCode || row.refCode || row.orderCode || '',
+      orderCode: row.salesOrderCode || row.refCode || row.orderCode || '',
+      orderDate: row.date || row.documentDate || '',
+      debt: Number(row.debt || 0),
+      availableDebt: Number(row.debt || 0),
+      pendingCollectedAmount: 0
+    }));
+}
+
+function selectedDebtCollectionAllocations(item = {}, amount = 0) {
+  const rows = debtOrderRows(item);
+  const checked = [...document.querySelectorAll('.mobile-debt-order-check:checked')]
+    .map((el) => Number(el.dataset.index))
+    .filter((index) => Number.isFinite(index));
+  let remain = Math.max(0, Number(amount || 0));
+  const allocations = [];
+  checked.forEach((index) => {
+    const order = rows[index];
+    const available = Math.max(0, Number(order?.availableDebt ?? order?.debt ?? 0));
+    const allocatedAmount = Math.min(available, remain);
+    if (order && allocatedAmount > 0) {
+      allocations.push({
+        salesOrderId: order.salesOrderId || order.orderId || '',
+        salesOrderCode: order.salesOrderCode || order.orderCode || '',
+        allocatedAmount
+      });
+      remain -= allocatedAmount;
+    }
+  });
+  return allocations;
+}
+
+function updateMobileDebtCollectionAmount(item = {}) {
+  const rows = debtOrderRows(item);
+  const total = [...document.querySelectorAll('.mobile-debt-order-check:checked')].reduce((sum, el) => {
+    const row = rows[Number(el.dataset.index)];
+    return sum + Math.max(0, Number(row?.availableDebt ?? row?.debt ?? 0));
+  }, 0);
+  const input = document.getElementById('mobileDebtCollectionAmount');
+  if (input) input.value = String(total);
+}
+
 function renderDebtLedger(item = {}) {
   const rows = Array.isArray(item.ledgers) ? item.ledgers : [];
   if (!debtLedgerList) return;
-  if (!rows.length) {
+  const orderRows = debtOrderRows(item);
+  if (!rows.length && !orderRows.length) {
     debtLedgerList.className = 'order-list empty';
     debtLedgerList.textContent = 'Khách hàng này chưa có dòng sổ công nợ.';
     return;
   }
   let balance = 0;
-  debtLedgerList.className = 'order-list';
-  debtLedgerList.innerHTML = rows.map((row) => {
+  const ledgerHtml = rows.map((row) => {
     balance += Number(row.debit || 0) - Number(row.credit || 0);
     return `
       <div class="order-item">
@@ -888,6 +961,62 @@ function renderDebtLedger(item = {}) {
       </div>
     `;
   }).join('');
+  const ordersHtml = orderRows.length ? `
+    <form id="mobileDebtCollectionForm" class="order-list mobile-debt-collection-form">
+      <strong>Báo thu nợ chờ kế toán xác nhận</strong>
+      <span>Chọn đơn nợ, nhập số tiền đã thu. Công nợ chỉ giảm sau khi kế toán xác nhận.</span>
+      <div class="order-list">
+        ${orderRows.map((order, index) => `
+          <label class="order-item debt-order-check-row">
+            <input type="checkbox" class="mobile-debt-order-check" data-index="${index}" checked />
+            <strong>${order.salesOrderCode || order.orderCode || ''}</strong>
+            <span>Ngày: ${formatDisplayDate(order.orderDate || order.documentDate || '')} · Nợ: ${money(order.debt || 0)} · Chờ KT: ${money(order.pendingCollectedAmount || 0)} · Có thể thu: ${money(order.availableDebt ?? order.debt ?? 0)}</span>
+          </label>
+        `).join('')}
+      </div>
+      <label>Số tiền đã thu<input id="mobileDebtCollectionAmount" name="amount" inputmode="numeric" value="${Math.max(0, Math.round(customerAvailableDebtValue(item)))}" /></label>
+      <label>Hình thức<select id="mobileDebtCollectionMethod" name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label>
+      <label>Ghi chú<input id="mobileDebtCollectionNote" name="note" placeholder="VD: Khách trả một phần" /></label>
+      <button type="submit" class="primary-btn full-btn">Gửi phiếu thu chờ kế toán</button>
+      <p id="mobileDebtCollectionMessage" class="message"></p>
+    </form>` : '<div class="order-item"><span>Không còn đơn có thể báo thu.</span></div>';
+  debtLedgerList.className = 'order-list';
+  debtLedgerList.innerHTML = ordersHtml + ledgerHtml;
+  debtLedgerList.querySelectorAll('.mobile-debt-order-check').forEach((el) => el.addEventListener('change', () => updateMobileDebtCollectionAmount(item)));
+  const form = document.getElementById('mobileDebtCollectionForm');
+  if (form) form.addEventListener('submit', (event) => submitMobileDebtCollection(event, item));
+}
+
+async function submitMobileDebtCollection(event, item = {}) {
+  event.preventDefault();
+  const form = event.target;
+  const msg = document.getElementById('mobileDebtCollectionMessage');
+  const amount = parseMobileMoneyInput(form.elements.amount?.value || 0);
+  if (amount <= 0) return setMessage(msg, 'Số tiền thu phải lớn hơn 0', 'error');
+  const allocations = selectedDebtCollectionAllocations(item, amount);
+  if (!allocations.length) return setMessage(msg, 'Cần chọn ít nhất một đơn nợ', 'error');
+  const totalAllocated = allocations.reduce((sum, row) => sum + Number(row.allocatedAmount || 0), 0);
+  if (totalAllocated !== amount) return setMessage(msg, 'Tổng tiền phân bổ phải bằng số tiền thu', 'error');
+  const button = form.querySelector('button[type="submit"]');
+  setButtonBusy(button, true, 'Đang gửi...');
+  try {
+    const data = await mobileApi.submitDebtCollection({
+      customerId: item.customerId || '',
+      customerCode: item.customerCode || '',
+      customerName: item.customerName || '',
+      amount,
+      paymentMethod: form.elements.paymentMethod?.value || 'cash',
+      note: form.elements.note?.value || '',
+      allocations
+    });
+    setMessage(msg, data.message || 'Đã ghi nhận thu nợ, chờ kế toán xác nhận', 'success');
+    debtLoaded = false;
+    await loadDebts({ force: true });
+  } catch (err) {
+    setMessage(msg, err.message || 'Không gửi được phiếu thu nợ', 'error');
+  } finally {
+    setButtonBusy(button, false);
+  }
 }
 
 submitOrderBtn.addEventListener('click', async () => {
