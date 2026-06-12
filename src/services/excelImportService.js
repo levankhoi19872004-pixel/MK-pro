@@ -1006,9 +1006,17 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       const product = productMap.get(cleanText(productCode));
       const quantity = getQtyFromRow(row);
       const costPrice = toNumber(product?.costPrice || 0);
-      if (!product || quantity <= 0) {
+
+      // Phiếu nhập kho: dòng SL = 0 nghĩa là không nhập sản phẩm này.
+      // Bỏ qua an toàn, không ghi lỗi.
+      if (quantity === 0) {
         skipped += 1;
-        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Dòng nhập kho không hợp lệ' });
+        continue;
+      }
+
+      if (!product || quantity < 0) {
+        skipped += 1;
+        errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Số lượng nhập không được âm' });
         continue;
       }
       items.push({
@@ -2361,6 +2369,8 @@ async function previewMongoNative(type, rows = []) {
       const errors = [];
       const detailErrors = [];
       const lineDetails = [];
+      const importRows = [];
+      let skippedZeroQuantity = 0;
       let totalQuantity = 0;
       let totalAmount = 0;
 
@@ -2368,12 +2378,20 @@ async function previewMongoNative(type, rows = []) {
         const productCode = getProductCodeFromRow(row);
         const product = productMap.get(cleanText(productCode));
         const quantity = getQtyFromRow(row);
+
+        // Phiếu nhập kho: dòng SL = 0 nghĩa là không nhập sản phẩm này.
+        // Bỏ qua, không coi là lỗi.
+        if (quantity === 0) {
+          skippedZeroQuantity += 1;
+          continue;
+        }
+
         const costPrice = toNumber(product?.costPrice || 0);
         const amount = quantity * costPrice;
         const lineErrors = [];
         if (!productCode) lineErrors.push('Thiếu mã sản phẩm');
         if (!product) lineErrors.push('Không tìm thấy sản phẩm');
-        if (quantity <= 0) lineErrors.push('Số lượng nhập phải lớn hơn 0');
+        if (quantity < 0) lineErrors.push('Số lượng nhập không được âm');
         if (lineErrors.length) detailErrors.push({ rowNo: row.__rowNo || row.rowNo || '', productCode, productName: product?.name || '', errors: lineErrors });
 
         totalQuantity += Math.max(0, quantity);
@@ -2387,8 +2405,10 @@ async function previewMongoNative(type, rows = []) {
           amount,
           errors: lineErrors
         });
+        importRows.push(row);
       }
 
+      if (!importRows.length) errors.push('Phiếu nhập không có dòng sản phẩm nào có số lượng lớn hơn 0');
       if (detailErrors.length) errors.push(`${detailErrors.length} dòng hàng lỗi`);
       return {
         ...rowBase(first),
@@ -2398,7 +2418,9 @@ async function previewMongoNative(type, rows = []) {
         supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
         customerCode: '',
         customerName: '',
-        lineCount: group.length,
+        lineCount: lineDetails.length,
+        sourceLineCount: group.length,
+        skippedZeroQuantity,
         totalQuantity,
         totalAmount,
         amount: totalAmount,
@@ -2408,7 +2430,7 @@ async function previewMongoNative(type, rows = []) {
         shortageReport: [],
         lineDetails,
         detailErrors,
-        __importRows: group,
+        __importRows: importRows,
         errors,
         valid: errors.length === 0
       };
