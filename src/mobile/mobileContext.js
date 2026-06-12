@@ -228,7 +228,7 @@ function findByIdOrCode(rows = [], key) {
   const text = String(key || '').trim();
   if (!text) return null;
   return (Array.isArray(rows) ? rows : []).find((row) => {
-    return [row.id, row._id, row.code, row.customerCode, row.productCode, row.sku].some((value) => String(value || '').trim() === text);
+    return [row.id, row._id, row.code, row.customerId, row.customerCode, row.productCode, row.sku].some((value) => String(value || '').trim() === text);
   }) || null;
 }
 

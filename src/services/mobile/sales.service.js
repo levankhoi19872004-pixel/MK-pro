@@ -91,6 +91,37 @@ function createMobileSalesService(ctx) {
   }
   // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
 
+  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_START
+  function cleanLookupValue(value) {
+    return String(value || '').trim();
+  }
+
+  function customerLookupKeysFromBody(body = {}) {
+    const customerPayload = body.customer || {};
+    return [
+      customerPayload.id,
+      customerPayload._id,
+      customerPayload.customerId,
+      customerPayload.code,
+      customerPayload.customerCode,
+      body.customerId,
+      body.customerCode
+    ]
+      .map(cleanLookupValue)
+      .filter(Boolean)
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+  }
+
+  function findCustomerFromOrderPayload(data = {}, body = {}) {
+    const keys = customerLookupKeysFromBody(body);
+    for (const key of keys) {
+      const customer = repo.findCustomer(data, key);
+      if (customer) return customer;
+    }
+    return null;
+  }
+  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_END
+
   function returnDraftLineKey(item = {}) {
     return [String(item.productCode || item.code || item.productId || '').trim(), String(item.unit || item.baseUnit || '').trim(), String(toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0))].join('|');
   }
@@ -204,7 +235,8 @@ function createMobileSalesService(ctx) {
   // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
 
   async function createSalesOrder({ body = {}, mobileUser }) {
-    const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || (body.customer && body.customer.code), Array.isArray(body.items) ? body.items.length : 0]);
+    const customerKeysForIdem = customerLookupKeysFromBody(body);
+    const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || customerKeysForIdem[0] || '', Array.isArray(body.items) ? body.items.length : 0]);
     const cachedResult = readIdempotentResult(idemKey);
     if (cachedResult) return cachedResult;
     const perf = createStepTimer('sales.createOrder');
@@ -214,8 +246,7 @@ function createMobileSalesService(ctx) {
       perf('start');
       const data = await repo.getPrimaryDataSnapshot();
       perf('load_snapshot');
-      const customerPayload = body.customer || {};
-      const customer = repo.findCustomer(data, customerPayload.id || customerPayload.code || body.customerId || body.customerCode);
+      const customer = findCustomerFromOrderPayload(data, body);
       const rawItems = Array.isArray(body.items) ? body.items : [];
       const paidAmount = toNumber(body.paidAmount);
       const date = dateUtil.todayVN();
@@ -461,10 +492,12 @@ function createMobileSalesService(ctx) {
       }
 
       const customerPayload = body.customer || {};
+      const customerKeys = customerLookupKeysFromBody(body);
       const patchBody = {
         ...body,
-        customerId: customerPayload.id || customerPayload.code || body.customerId || body.customerCode || order.customerId,
-        customerCode: customerPayload.code || body.customerCode || order.customerCode,
+        customerId: customerPayload.id || customerPayload.customerId || customerPayload.code || customerPayload.customerCode || body.customerId || body.customerCode || order.customerId,
+        customerCode: customerPayload.code || customerPayload.customerCode || body.customerCode || customerKeys[0] || order.customerCode,
+        customerName: customerPayload.name || customerPayload.customerName || body.customerName || order.customerName,
         salesStaffCode: getMobileSalesStaffCode(mobileUser),
         salesStaffName: getMobileSalesStaffName(mobileUser),
         salesmanCode: getMobileSalesStaffCode(mobileUser),

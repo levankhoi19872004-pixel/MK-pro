@@ -114,6 +114,30 @@ function customerAddressValue(customer = {}) {
   return cleanCustomerText(customer.address || customer.customerAddress || customer.fullAddress || customer.diaChi || customer.routeAddress || '', 'Chưa có địa chỉ');
 }
 
+// MOBILE_SALES_CUSTOMER_CANONICAL_PAYLOAD_START
+function normalizeSelectedCustomerForSubmit(customer = {}) {
+  const code = customerCodeValue(customer);
+  const name = customerNameValue(customer);
+  const id = cleanCustomerText(customer.id || customer._id || customer.customerId || '');
+  const phone = cleanCustomerText(customer.phone || customer.customerPhone || customer.mobile || customer.tel || customer.telephone || customer.contactPhone || customer.sdt || '');
+  const address = cleanCustomerText(customer.address || customer.customerAddress || customer.fullAddress || customer.diaChi || customer.routeAddress || '');
+
+  return {
+    ...customer,
+    id,
+    customerId: cleanCustomerText(customer.customerId || id || code),
+    code,
+    customerCode: code,
+    name,
+    customerName: name,
+    phone,
+    customerPhone: phone,
+    address,
+    customerAddress: address
+  };
+}
+// MOBILE_SALES_CUSTOMER_CANONICAL_PAYLOAD_END
+
 function debtClassName(customer = {}) {
   const debt = customerDebtValue(customer);
   if (debt > 10000000) return 'debt-high';
@@ -236,7 +260,7 @@ function renderCustomerList(items) {
 }
 
 function selectCustomer(customer) {
-  const mergedCustomer = mergeCustomerDebt(customer);
+  const mergedCustomer = normalizeSelectedCustomerForSubmit(mergeCustomerDebt(customer));
   selectedCustomer = mergedCustomer;
   const code = customerCodeValue(mergedCustomer);
   const name = customerNameValue(mergedCustomer);
@@ -795,6 +819,10 @@ submitOrderBtn.addEventListener('click', async () => {
   if (submitOrderBtn.disabled) return;
   setMessage(message, '');
   if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng', 'error');
+  const customerPayload = normalizeSelectedCustomerForSubmit(selectedCustomer);
+  if (!customerPayload.code && !customerPayload.customerCode && !customerPayload.id && !customerPayload.customerId) {
+    return setMessage(message, 'Thiếu mã khách hàng, vui lòng chọn lại khách ở tab Khách hàng', 'error');
+  }
   if (!cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
   setButtonBusy(submitOrderBtn, true);
 
@@ -803,7 +831,10 @@ submitOrderBtn.addEventListener('click', async () => {
     // MOBILE_SALES_CART_PROMOTION_RECALC_SUBMIT_START
     await recalculateCartPromotions({ silent: true });
     const payload = {
-      customer: selectedCustomer,
+      customer: customerPayload,
+      customerId: customerPayload.customerId || customerPayload.id || customerPayload.code || '',
+      customerCode: customerPayload.customerCode || customerPayload.code || '',
+      customerName: customerPayload.customerName || customerPayload.name || '',
       items: cart.map((item) => ({
         ...item,
         grossPrice: Number(item.grossPrice || item.originalPrice || item.catalogSalePrice || item.salePrice || item.price || 0),
