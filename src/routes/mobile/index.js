@@ -16,6 +16,12 @@ function forwardTo(router, targetPath) {
 }
 
 function addCompatibilityAliases(router) {
+  // Alias cũ app bán hàng: giữ API flat để frontend/mobile cũ không rơi vào 404.
+  router.get('/customers', forwardTo(router, '/catalog/customers'));
+  router.get('/products', forwardTo(router, '/catalog/products'));
+  router.get('/stock', forwardTo(router, '/catalog/stock'));
+  router.get('/debts', forwardTo(router, '/sales/debts'));
+
   // Alias cũ: POST /api/mobile/orders -> /api/mobile/sales/orders
   router.post('/orders', forwardTo(router, '/sales/orders'));
 
@@ -23,6 +29,7 @@ function addCompatibilityAliases(router) {
   router.post('/delivery/save-money', forwardTo(router, '/delivery/payment'));
   router.get('/delivery/report', forwardTo(router, '/delivery/orders'));
   router.get('/delivery-orders', forwardTo(router, '/delivery/orders'));
+  router.post('/cash/submit', forwardTo(router, '/delivery/cash/submit'));
 }
 
 // MOBILE_MODULAR_ROUTE_ONLY_START

@@ -32,6 +32,12 @@ function createMobileSalesRouter(ctx) {
     query('q').optional().isString().trim()
   ], validateRequest, controller.listOrders);
 
+  router.get('/debts', ...onlySales, [
+    query('q').optional().isString().trim(),
+    query('limit').optional().isInt({ min: 1, max: 300 }).withMessage('limit công nợ không hợp lệ'),
+    query('includePaid').optional().isIn(['0', '1']).withMessage('includePaid chỉ nhận 0 hoặc 1')
+  ], validateRequest, controller.listDebts);
+
   return router;
 }
 

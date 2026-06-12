@@ -6,7 +6,9 @@ const { createMobileSalesRepository } = require('../../repositories/mobile/sales
 const inventoryStockService = require('../inventoryStock.service');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
+const reportService = require('../reportService');
 const { PROMOTION } = require('../../constants/pricingModes');
+const { normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -560,7 +562,74 @@ function createMobileSalesService(ctx) {
     return { body: { ok: true, source: 'mobile-sales-route', date, items } };
   }
 
-  return { createSalesOrder, getSalesOrder, updateSalesOrder, deleteSalesOrder, listSalesOrders };
+  async function listDebts({ query = {}, mobileUser } = {}) {
+    const scopedQuery = {
+      ...query,
+      limit: query.limit || 100,
+      includePaid: query.includePaid || '0'
+    };
+
+    if (String(mobileUser?.role || '') === 'sales') {
+      const staffCode = getMobileSalesStaffCode(mobileUser);
+      const staffName = getMobileSalesStaffName(mobileUser);
+      scopedQuery.salesman = staffCode || staffName;
+    }
+
+    const result = await reportService.debtCustomers(scopedQuery);
+    const sourceRows = Array.isArray(result.customerSummary) ? result.customerSummary : [];
+
+    const items = sourceRows
+      .map((row) => {
+        const debtAmount = normalizeDebtAmount(row.debt ?? row.debtAmount ?? 0);
+        const orders = Array.isArray(row.orders) ? row.orders : [];
+        const oldestDebtDate = orders
+          .filter((order) => hasOpenDebt(order.debt))
+          .map((order) => dateUtil.toDateOnly(order.documentDate || order.dueDate || ''))
+          .filter(Boolean)
+          .sort()[0] || '';
+
+        return {
+          customerId: row.customerId || '',
+          customerCode: row.customerCode || '',
+          customerName: row.customerName || '',
+          phone: row.phone || '',
+          address: row.address || '',
+          salesmanCode: row.salesmanCode || '',
+          salesmanName: row.salesmanName || '',
+          debtAmount,
+          orderCount: toNumber(row.orderCount || orders.length),
+          oldestDebtDate,
+          orders
+        };
+      })
+      .filter((item) => hasOpenDebt(item.debtAmount))
+      .sort((a, b) => toNumber(b.debtAmount) - toNumber(a.debtAmount));
+
+    const summary = {
+      ...(result.summary || {}),
+      totalDebt: items.reduce((sum, item) => sum + toNumber(item.debtAmount), 0),
+      customerCount: items.length,
+      source: 'arLedgers'
+    };
+
+    return {
+      body: {
+        ok: true,
+        source: 'mobile-sales-ar-ledger-debts-modular',
+        items,
+        summary
+      }
+    };
+  }
+
+  return {
+    createSalesOrder,
+    getSalesOrder,
+    updateSalesOrder,
+    deleteSalesOrder,
+    listSalesOrders,
+    listDebts
+  };
 }
 
 module.exports = { createMobileSalesService };

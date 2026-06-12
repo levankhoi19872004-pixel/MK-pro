@@ -10,7 +10,8 @@ function createMobileSalesController(ctx) {
     getOrder: wrapMobile(service, 'getSalesOrder', 500, 'Không đọc được đơn mobile'),
     updateOrder: wrapMobile(service, 'updateSalesOrder', 400, 'Không sửa được đơn mobile'),
     deleteOrder: wrapMobile(service, 'deleteSalesOrder', 400, 'Không xóa được đơn mobile'),
-    listOrders: wrapMobile(service, 'listSalesOrders', 500, 'Không tải được đơn mobile')
+    listOrders: wrapMobile(service, 'listSalesOrders', 500, 'Không tải được đơn mobile'),
+    listDebts: wrapMobile(service, 'listDebts', 500, 'Không tải được công nợ mobile')
   };
 }
 
