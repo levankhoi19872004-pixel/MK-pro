@@ -20,6 +20,7 @@ const reportService = require('../reportService');
 const { PROMOTION } = require('../../constants/pricingModes');
 const { normalizeDebtAmount, hasOpenDebt } = require('../../constants/finance.constants');
 const orderStatusUtil = require('../../utils/orderStatus.util');
+const { normalizeText, toNumber } = require('../../utils/common.util');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
