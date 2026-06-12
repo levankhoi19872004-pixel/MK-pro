@@ -890,48 +890,58 @@ window.cancelSalesOrder=cancelSalesOrder;
 
 
 
-function extractStaffCodeFromDisplay(value){
+function normalizeSalesOrderStaffToken(value){
   const raw=String(value||'').trim();
   if(!raw)return '';
   const first=raw.split(/\s+-\s+|\|/)[0].trim();
-  const m=first.match(/[A-Za-z0-9_.-]+/);
-  return (m?m[0]:first).trim();
+  const match=first.match(/[A-Za-z0-9_.-]+/);
+  return String(match?match[0]:first).trim();
 }
 
-function isSalesOrderStaffDatasetCurrent(){
-  if(!salesOrderStaffFilter)return false;
-  const value=String(salesOrderStaffFilter.value||'').trim();
+function clearSalesOrderStaffDataset(){
+  if(!salesOrderStaffFilter || !salesOrderStaffFilter.dataset)return;
+  delete salesOrderStaffFilter.dataset.selectedId;
+  delete salesOrderStaffFilter.dataset.id;
+  delete salesOrderStaffFilter.dataset.code;
+  delete salesOrderStaffFilter.dataset.name;
+  delete salesOrderStaffFilter.dataset.type;
+  delete salesOrderStaffFilter.dataset.label;
+  delete salesOrderStaffFilter.dataset.selectedLabel;
+}
+
+function getSalesOrderStaffSelection(){
+  if(!salesOrderStaffFilter)return { code:'', name:'', label:'', raw:'', selected:false };
+
+  const raw=String(salesOrderStaffFilter.value||'').trim();
   const label=String(salesOrderStaffFilter.dataset?.label || salesOrderStaffFilter.dataset?.selectedLabel || '').trim();
-  return !!value && !!label && value===label;
-}
+  const datasetCode=String(salesOrderStaffFilter.dataset?.code || '').trim();
+  const datasetName=String(salesOrderStaffFilter.dataset?.name || '').trim();
+  const selected=!!raw && !!label && raw===label && !!datasetCode;
 
-function getSalesOrderStaffFilterCode(){
-  if(!salesOrderStaffFilter)return '';
-  // Chuẩn Unified Search V2: code phải lấy từ dataset.code sau khi chọn gợi ý.
-  // Không dùng input.value để lọc vì input.value chỉ là label hiển thị.
-  if(isSalesOrderStaffDatasetCurrent()){
-    const code=String(salesOrderStaffFilter.dataset?.code || '').trim();
-    if(code)return code;
+  if(selected){
+    return {
+      code: normalizeSalesOrderStaffToken(datasetCode),
+      name: datasetName,
+      label,
+      raw,
+      selected:true
+    };
   }
-  // Fallback cho trường hợp người dùng tự gõ mã NVBH mà chưa chọn gợi ý.
-  return extractStaffCodeFromDisplay(salesOrderStaffFilter.value || '');
-}
 
-function getSalesOrderStaffFilterName(){
-  if(!salesOrderStaffFilter)return '';
-  if(isSalesOrderStaffDatasetCurrent()){
-    return String(salesOrderStaffFilter.dataset?.name || '').trim();
-  }
-  const raw=String(salesOrderStaffFilter.value || '').trim();
-  if(!raw)return '';
+  const code=normalizeSalesOrderStaffToken(raw);
   const parts=raw.split(/\s+-\s+/).map(s=>s.trim()).filter(Boolean);
-  return parts.length>=2 ? parts[1] : raw;
+  return {
+    code,
+    name: parts.length>=2 ? parts[1] : '',
+    label: raw,
+    raw,
+    selected:false
+  };
 }
 
 function normalizeOrderDateForFilter(value){
   return toDateOnly(value);
 }
-
 
 const SALES_ORDER_PAGE_LIMIT = 50;
 let salesOrderCurrentPage = 1;
@@ -939,6 +949,7 @@ let salesOrderTotalRows = 0;
 let salesOrderHasMore = false;
 let salesOrderSearchTimer = null;
 let salesOrderRequestSeq = 0;
+let salesOrderAbortController = null;
 const salesOrderDetailCache = new Map();
 
 function buildSalesOrderSearchParams(page = 1){
@@ -947,26 +958,28 @@ function buildSalesOrderSearchParams(page = 1){
   const dateType='orderDate';
   const dateFrom=String(salesOrderDateFrom?.value||today()).trim();
   const dateTo=String(salesOrderDateTo?.value||dateFrom).trim();
+  const staff=getSalesOrderStaffSelection();
   const params=new URLSearchParams();
+
   if(dateFrom)params.set('dateFrom',dateFrom);
   if(dateTo)params.set('dateTo',dateTo);
-  if(dateType)params.set('dateType',dateType);
+  params.set('dateType',dateType);
   if(source)params.set('source',source);
   if(q)params.set('q',q);
-  const staffCodeFilter=getSalesOrderStaffFilterCode();
-  const staffTextFilter=getSalesOrderStaffFilterName();
 
-  if(staffCodeFilter){
-    // Khi đã có mã NVBH, chỉ lọc bằng mã.
-    // Không gửi thêm salesStaffName vì backend có thể nới rộng điều kiện bằng OR.
-    params.set('salesStaffCode',staffCodeFilter);
+  // Quy tắc mới: lọc NVBH chỉ dùng mã NVBH chuẩn, không OR tên vào cùng query.
+  // Tên chỉ dùng để hiển thị/debug; backend nhận strictStaff=1 để không trả lẫn NVBH khác.
+  if(staff.code){
+    params.set('salesStaffCode',staff.code);
+    params.set('strictStaff','1');
     params.set('includeStaffAliases','1');
-  } else if(staffTextFilter){
-    // Tên chỉ là fallback khi người dùng gõ tự do mà chưa chọn được mã.
-    params.set('salesStaffName',staffTextFilter);
+  }else if(staff.raw){
+    params.set('salesStaffName',staff.raw);
   }
+
   params.set('page',String(page));
   params.set('limit',String(SALES_ORDER_PAGE_LIMIT));
+  params.set('_t',String(Date.now()));
   return params;
 }
 
@@ -980,6 +993,25 @@ async function fetchSalesOrderDetail(order){
   const detail=json.salesOrder||json.order||order;
   salesOrderDetailCache.set(key,detail);
   return detail;
+}
+
+function getOrderVisibleSalesStaffCode(order){
+  return normalizeSalesOrderStaffToken(
+    order?.salesStaffCode ||
+    order?.salesPersonCode ||
+    order?.salesmanCode ||
+    order?.nvbhCode ||
+    order?.maNVBH ||
+    order?.staffCode ||
+    order?.salesStaff?.code ||
+    ''
+  );
+}
+
+function filterSalesOrderRowsByCurrentStaff(rows){
+  const staff=getSalesOrderStaffSelection();
+  if(!staff.code)return Array.isArray(rows)?rows:[];
+  return (Array.isArray(rows)?rows:[]).filter(order=>getOrderVisibleSalesStaffCode(order)===staff.code);
 }
 
 function renderSalesOrderRows(orders, {append=false} = {}){
@@ -1028,11 +1060,16 @@ function updateSalesOrderLoadMoreButton(){
 
 function debounceLoadSalesOrders(){
   clearTimeout(salesOrderSearchTimer);
-  salesOrderSearchTimer=setTimeout(()=>loadSalesOrders({page:1,append:false}),300);
+  salesOrderSearchTimer=setTimeout(()=>loadSalesOrders({page:1,append:false}),250);
 }
 
 async function loadSalesOrders({page=1, append=false} = {}){
-  const requestSeq = ++salesOrderRequestSeq;
+  const requestSeq=++salesOrderRequestSeq;
+
+  if(salesOrderAbortController){
+    try{salesOrderAbortController.abort();}catch(_err){}
+  }
+  salesOrderAbortController=new AbortController();
 
   try{
     if(!append){
@@ -1041,61 +1078,61 @@ async function loadSalesOrders({page=1, append=false} = {}){
     }
 
     const params=buildSalesOrderSearchParams(page);
-
-    // Chống browser/proxy dùng lại response cũ khi filter đổi nhanh.
-    params.set('_t', String(Date.now()));
-
-    const requestQuery=params.toString();
-    const requestUrl=`/api/sales-orders/search?${requestQuery}`;
+    const requestUrl=`/api/sales-orders/search?${params.toString()}`;
+    const selectedStaff=getSalesOrderStaffSelection();
     const clientStartedAt=performance.now();
-
-    const res=await fetch(requestUrl);
+    const res=await fetch(requestUrl,{signal:salesOrderAbortController.signal,cache:'no-store'});
     const json=await res.json();
 
-    // Nếu đã có request mới hơn, bỏ response cũ, không cho render đè bảng.
-    if(requestSeq !== salesOrderRequestSeq){
-      console.warn('[SALES_ORDER_LIST_STALE_IGNORED]', {
-        requestSeq,
-        latestSeq: salesOrderRequestSeq,
-        requestUrl
-      });
+    if(requestSeq!==salesOrderRequestSeq){
+      console.warn('[SALES_ORDER_SEARCH_STALE_IGNORED]',{requestSeq,latestSeq:salesOrderRequestSeq,requestUrl});
       return;
     }
 
     const clientMs=Math.round(performance.now()-clientStartedAt);
     const serverMs=Number(json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms')||0);
-
-    console.log('[SALES_ORDER_LIST_PERF]', {
-      clientMs,
-      serverMs,
-      queryMs: json.queryMs,
-      countMs: json.countMs,
-      mapMs: json.mapMs,
-      page,
-      total: json.total,
-      returned: (json.salesOrders||json.rows||[]).length,
-      requestUrl
-    });
-
     if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
 
-    const orders=json.salesOrders||json.rows||[];
+    const rawOrders=json.salesOrders||json.rows||[];
+    const orders=filterSalesOrderRowsByCurrentStaff(rawOrders);
+    const removedByClientGuard=rawOrders.length-orders.length;
+
+    if(removedByClientGuard>0){
+      console.warn('[SALES_ORDER_SEARCH_CLIENT_GUARD_REMOVED]',{
+        selectedStaffCode:selectedStaff.code,
+        removedByClientGuard,
+        requestUrl,
+        removed:rawOrders.filter(o=>!orders.includes(o)).map(o=>({code:o.code||o.id,salesStaffCode:getOrderVisibleSalesStaffCode(o),salesStaffName:o.salesStaffName||o.salesmanName||o.staffName||''})).slice(0,10)
+      });
+    }
+
     salesOrderCurrentPage=Number(json.page||page||1);
     salesOrderTotalRows=Number(json.total||orders.length||0);
-    salesOrderHasMore=Boolean(json.hasMore);
+    salesOrderHasMore=Boolean(json.hasMore) && removedByClientGuard===0;
 
     const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
     const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
-    // SALES_HISTORY_COMPACT_TOOLBAR_PATCH_START: KPI gom thành các chip ngắn để nằm cùng khối tiêu đề.
     const perfText=`API ${serverMs||json.ms||0}ms · Trình duyệt ${clientMs}ms${json.queryMs?` · Query ${json.queryMs}ms`:''}${json.countMs?` · Count ${json.countMs}ms`:''}`;
-    salesOrderCount.innerHTML=`<span><strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn</span><span>Trang này <strong>${money(totalAmountPage)}</strong></span><span>${perfText}</span>`;
-    // SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END
+    const staffText=selectedStaff.code?` · NVBH ${selectedStaff.code}`:'';
+    const guardText=removedByClientGuard?` · Chặn sai NVBH ${removedByClientGuard}`:'';
+    salesOrderCount.innerHTML=`<span><strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn</span><span>Trang này <strong>${money(totalAmountPage)}</strong></span><span>${perfText}${staffText}${guardText}</span>`;
+
+    console.log('[SALES_ORDER_SEARCH_REBUILT]',{
+      requestUrl,
+      selectedStaffCode:selectedStaff.code,
+      rawReturned:rawOrders.length,
+      rendered:orders.length,
+      removedByClientGuard,
+      total:json.total,
+      clientMs,
+      serverMs
+    });
 
     renderSalesOrderRows(orders,{append});
     updateSalesOrderLoadMoreButton();
   }catch(err){
-    if(requestSeq !== salesOrderRequestSeq) return;
-
+    if(err && err.name==='AbortError')return;
+    if(requestSeq!==salesOrderRequestSeq)return;
     salesOrderCount.textContent='Lỗi tải lịch sử';
     salesOrderList.innerHTML=err.message;
     salesOrderHasMore=false;

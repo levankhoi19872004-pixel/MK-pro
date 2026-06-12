@@ -406,6 +406,73 @@ function rangeFilter(dateFrom, dateTo) {
   return range;
 }
 
+
+const SALES_ORDER_SEARCH_STAFF_CODE_FIELDS = [
+  'salesStaffCode',
+  'salesPersonCode',
+  'salesmanCode',
+  'nvbhCode',
+  'maNVBH',
+  'staffCode',
+  'salesStaff.code'
+];
+
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeSalesOrderStaffCode(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const first = raw.split(/\s+-\s+|\|/)[0].trim();
+  const match = first.match(/[A-Za-z0-9_.-]+/);
+  return String(match ? match[0] : first).trim();
+}
+
+function getPathValue(obj = {}, path = '') {
+  return String(path || '').split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+}
+
+function buildExactCodeFieldClauses(field, code) {
+  const normalized = normalizeSalesOrderStaffCode(code);
+  if (!normalized) return [];
+  const values = [normalized];
+  const numeric = Number(normalized);
+  if (Number.isFinite(numeric)) values.push(numeric);
+  return [
+    { [field]: { $in: values } },
+    { [field]: { $regex: `^\\s*${escapeRegex(normalized)}\\s*$`, $options: 'i' } }
+  ];
+}
+
+function buildStrictSalesStaffCodeClause(code) {
+  const normalized = normalizeSalesOrderStaffCode(code);
+  if (!normalized) return null;
+  const clauses = SALES_ORDER_SEARCH_STAFF_CODE_FIELDS.flatMap((field) => buildExactCodeFieldClauses(field, normalized));
+  return clauses.length ? { $or: clauses } : null;
+}
+
+function readSalesStaffCodeCandidates(order = {}) {
+  return SALES_ORDER_SEARCH_STAFF_CODE_FIELDS
+    .map((field) => getPathValue(order, field))
+    .map(normalizeSalesOrderStaffCode)
+    .filter(Boolean);
+}
+
+function orderMatchesStrictSalesStaffCode(order = {}, code = '') {
+  const expected = normalizeSalesOrderStaffCode(code);
+  if (!expected) return true;
+  return readSalesStaffCodeCandidates(order).some((candidate) => candidate === expected);
+}
+
+function toVisibleSalesStaffCode(order = {}) {
+  return order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || order.staffCode || getPathValue(order, 'salesStaff.code') || '';
+}
+
+function toVisibleSalesStaffName(order = {}) {
+  return order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || order.staffName || getPathValue(order, 'salesStaff.name') || getPathValue(order, 'salesStaff.fullName') || '';
+}
+
 function buildOrderSearchFilter(query = {}) {
   const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
   const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
@@ -416,9 +483,6 @@ function buildOrderSearchFilter(query = {}) {
   const filter = {};
   const and = [];
 
-  // V45 FAST PATH:
-  // Màn lịch sử đơn bán đang lọc theo ngày bán. Không dùng $or qua nhiều trường ngày ở mặc định,
-  // vì Mongo rất dễ bỏ index và quét nhiều document, gây 2.000ms+ dù chỉ trả 50 dòng.
   if (dateFrom || dateTo) {
     const range = rangeFilter(dateFrom, dateTo);
     if (dateType === 'deliveryDate') {
@@ -434,7 +498,6 @@ function buildOrderSearchFilter(query = {}) {
     } else if (dateType === 'date') {
       filter.date = range;
     } else {
-      // Mặc định: orderDate. Đây là đường nhanh nhất cho màn Lịch sử đơn bán.
       filter.orderDate = range;
     }
   }
@@ -447,76 +510,56 @@ function buildOrderSearchFilter(query = {}) {
   const exactMasterOrderCode = String(guardedQuery.masterOrderCode || guardedQuery.masterCode || '').trim();
   if (exactMasterOrderCode) filter.masterOrderCode = exactMasterOrderCode;
 
-  const staffCodeFilter = extractStaffCodeParam(
+  const strictSalesStaffCode = normalizeSalesOrderStaffCode(
     guardedQuery.salesStaffCode ||
-    guardedQuery.staffCode ||
     guardedQuery.salesmanCode ||
     guardedQuery.nvbhCode ||
-    guardedQuery.maNVBH
+    guardedQuery.maNVBH ||
+    guardedQuery.staffCode
   );
-  const staffTextFilter = String(
-    guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || ''
-  ).trim();
 
-  if (staffCodeFilter) {
-    const codeValues = [staffCodeFilter];
-    const numericCode = Number(staffCodeFilter);
-    if (Number.isFinite(numericCode)) {
-      codeValues.push(numericCode);
+  if (strictSalesStaffCode) {
+    // Search bán hàng viết lại: mã NVBH là điều kiện AND bắt buộc, exact theo mã.
+    // Không OR với tên, username, id, _id. Không để text search nới rộng ra NVBH khác.
+    pushAnd(and, buildStrictSalesStaffCodeClause(strictSalesStaffCode));
+  } else {
+    const staffTextFilter = String(
+      guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || ''
+    ).trim();
+    if (staffTextFilter) {
+      const staffRx = queryGuard.buildRegex(staffTextFilter);
+      pushAnd(and, { $or: [
+        { salesStaffCode: staffRx },
+        { salesStaffName: staffRx },
+        { salesPersonCode: staffRx },
+        { salesPersonName: staffRx },
+        { salesmanCode: staffRx },
+        { salesmanName: staffRx },
+        { nvbhCode: staffRx },
+        { nvbhName: staffRx },
+        { maNVBH: staffRx },
+        { maNVBHName: staffRx },
+        { staffCode: staffRx },
+        { staffName: staffRx },
+        { 'salesStaff.code': staffRx },
+        { 'salesStaff.name': staffRx },
+        { 'salesStaff.fullName': staffRx }
+      ] });
     }
-
-    if (String(guardedQuery.includeStaffAliases || '0') === '1') {
-      // Khi có mã NVBH, chỉ lọc theo các field mã NVBH rõ nghĩa.
-      // Không OR thêm tên, không dùng staff.code generic để tránh ăn nhầm NVGH/audit/user.
-      pushAnd(and, {
-        $or: [
-          { salesStaffCode: { $in: codeValues } },
-          { salesPersonCode: { $in: codeValues } },
-          { salesmanCode: { $in: codeValues } },
-          { nvbhCode: { $in: codeValues } },
-          { maNVBH: { $in: codeValues } },
-          { 'salesStaff.code': { $in: codeValues } }
-        ]
-      });
-    } else {
-      filter.salesStaffCode = { $in: codeValues };
-    }
-  } else if (staffTextFilter) {
-    const staffRx = queryGuard.buildRegex(staffTextFilter);
-    pushAnd(and, { $or: [
-      { salesStaffCode: staffRx },
-      { salesStaffName: staffRx },
-      { salesPersonCode: staffRx },
-      { salesPersonName: staffRx },
-      { salesmanCode: staffRx },
-      { salesmanName: staffRx },
-      { nvbhCode: staffRx },
-      { nvbhName: staffRx },
-      { maNVBH: staffRx },
-      { maNVBHName: staffRx },
-      { 'salesStaff.code': staffRx },
-      { 'salesStaff.name': staffRx },
-      { 'salesStaff.fullName': staffRx }
-    ] });
   }
 
-  const deliveryStaffCodeFilter = extractStaffCodeParam(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);
+  const deliveryStaffCodeFilter = normalizeSalesOrderStaffCode(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);
   if (deliveryStaffCodeFilter) {
-    if (String(guardedQuery.includeDeliveryAliases || '0') === '1') {
-      pushAnd(and, { $or: [
-        { deliveryStaffCode: deliveryStaffCodeFilter },
-        { deliveryCode: deliveryStaffCodeFilter },
-        { 'deliveryStaff.code': deliveryStaffCodeFilter }
-      ] });
-    } else {
-      filter.deliveryStaffCode = deliveryStaffCodeFilter;
-    }
+    pushAnd(and, { $or: [
+      { deliveryStaffCode: deliveryStaffCodeFilter },
+      { deliveryCode: deliveryStaffCodeFilter },
+      { 'deliveryStaff.code': deliveryStaffCodeFilter }
+    ] });
   }
 
   const exactSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
   const sourceKey = orderStatusUtil.normalizeOrderSource(exactSource);
   if (sourceKey && sourceKey !== 'manual') {
-    // Nhận cả chữ thường/chữ hoa để lọc đúng dữ liệu cũ: DMS/dms, NVBH/nvbh.
     const sourceVariants = Array.from(new Set([
       sourceKey,
       sourceKey.toUpperCase(),
@@ -547,7 +590,6 @@ function buildOrderSearchFilter(query = {}) {
     const isLikelyOrderCode = /^[A-Z0-9_-]{5,}$/i.test(q);
     const qOr = isLikelyOrderCode
       ? [
-          // Mã đơn ưu tiên exact match để tìm HU90202627 nhanh hơn và tránh regex lan rộng.
           { code: q },
           { id: q },
           { orderCode: q },
@@ -557,34 +599,25 @@ function buildOrderSearchFilter(query = {}) {
           { customerCode: rx },
           { customerName: rx },
           { customerId: rx },
-          { staffName: rx },
-          { salesStaffName: rx },
-          // SALES_HISTORY_NOTE_SEARCH_PATCH_START: cho ô tìm kiếm đơn bán tìm cả ghi chú.
           { note: rx },
           { remark: rx },
           { description: rx }
-          // SALES_HISTORY_NOTE_SEARCH_PATCH_END
         ]
       : [
           { customerCode: rx },
           { customerName: rx },
           { customerId: rx },
           { customerPhone: rx },
-          { staffName: rx },
-          { salesStaffName: rx },
-          { deliveryStaffName: rx },
           { masterOrderCode: rx },
-          // SALES_HISTORY_NOTE_SEARCH_PATCH_START: cho ô tìm kiếm đơn bán tìm cả ghi chú.
           { note: rx },
           { remark: rx },
           { description: rx }
-          // SALES_HISTORY_NOTE_SEARCH_PATCH_END
         ];
     pushAnd(and, { $or: qOr });
   }
 
   if (and.length) filter.$and = and;
-  return { filter, guardedQuery };
+  return { filter, guardedQuery, strictSalesStaffCode };
 }
 
 function toListClient(order = {}) {
@@ -605,10 +638,10 @@ function toListClient(order = {}) {
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
     customerPhone: order.customerPhone || '',
-    staffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
-    staffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
-    salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
-    salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
+    staffCode: toVisibleSalesStaffCode(order),
+    staffName: toVisibleSalesStaffName(order),
+    salesStaffCode: toVisibleSalesStaffCode(order),
+    salesStaffName: toVisibleSalesStaffName(order),
     deliveryStaffCode: order.deliveryStaffCode || '',
     deliveryStaffName: order.deliveryStaffName || '',
     masterOrderId: order.masterOrderId || '',
@@ -660,6 +693,9 @@ const ORDER_LIST_PROJECTION = {
   nvbhName: 1,
   maNVBH: 1,
   maNVBHName: 1,
+  'salesStaff.code': 1,
+  'salesStaff.name': 1,
+  'salesStaff.fullName': 1,
   deliveryStaffCode: 1,
   deliveryStaffName: 1,
   masterOrderId: 1,
@@ -681,7 +717,7 @@ const ORDER_LIST_PROJECTION = {
 
 async function searchOrders(query = {}) {
   const startedAt = Date.now();
-  const { filter, guardedQuery } = buildOrderSearchFilter(query);
+  const { filter, guardedQuery, strictSalesStaffCode } = buildOrderSearchFilter(query);
   const page = queryGuard.getPagination(guardedQuery, { defaultLimit: 50, maxLimit: 100 });
   const sort = guardedQuery.dateType === 'deliveryDate'
     ? { deliveryDate: -1, createdAt: -1, code: -1 }
@@ -707,11 +743,15 @@ async function searchOrders(query = {}) {
   const [{ orders, queryMs }, { total, countMs }] = await Promise.all([rowsPromise, totalPromise]);
 
   const mapStartedAt = Date.now();
-  const rows = orders.map(toListClient);
+  const mappedRows = orders.map(toListClient);
+  const rows = strictSalesStaffCode
+    ? mappedRows.filter((order) => orderMatchesStrictSalesStaffCode(order, strictSalesStaffCode))
+    : mappedRows;
+  const removedByStrictGuard = mappedRows.length - rows.length;
   const mapMs = Date.now() - mapStartedAt;
   const ms = Date.now() - startedAt;
 
-  debugLog('DEBUG_ORDER_FLOW', '[ORDER_SEARCH_FAST]', {
+  debugLog('DEBUG_ORDER_FLOW', '[SALES_ORDER_SEARCH_REBUILT]', {
     ms,
     queryMs,
     countMs,
@@ -720,6 +760,8 @@ async function searchOrders(query = {}) {
     limit: page.limit,
     total,
     returned: rows.length,
+    strictSalesStaffCode,
+    removedByStrictGuard,
     filter
   });
 
@@ -727,15 +769,17 @@ async function searchOrders(query = {}) {
     rows,
     salesOrders: rows,
     orders: rows,
-    total,
+    total: strictSalesStaffCode && removedByStrictGuard ? Math.max(rows.length, page.skip + rows.length) : total,
     page: page.page,
     limit: page.limit,
     returned: rows.length,
-    hasMore: page.skip + rows.length < total,
+    hasMore: strictSalesStaffCode && removedByStrictGuard ? false : page.skip + rows.length < total,
     ms,
     queryMs,
     countMs,
-    mapMs
+    mapMs,
+    strictSalesStaffCode,
+    removedByStrictGuard
   };
 }
 
