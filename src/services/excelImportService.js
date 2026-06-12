@@ -267,12 +267,70 @@ function getPackingFromRow(row = {}, product = null) {
   return Math.max(1, toNumber(product?.conversionRate ?? product?.packingQty ?? row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach']));
 }
 
+const CARTON_QTY_FIELDS = [
+  'cartons',
+  'cartonQty',
+  'Số lượng thùng',
+  'So luong thung',
+  'SL thùng',
+  'SL thung',
+  'Thùng',
+  'Thung'
+];
+
+const UNIT_QTY_FIELDS = [
+  'units',
+  'unitQty',
+  'Số lượng SU',
+  'So luong SU',
+  'SL lẻ',
+  'SL le',
+  'Lẻ',
+  'Le'
+];
+
+function hasAnyQuantityColumn(row = {}, fields = []) {
+  return fields.some((field) => Object.prototype.hasOwnProperty.call(row, field));
+}
+
+function hasCartonUnitQuantityColumns(row = {}) {
+  return hasAnyQuantityColumn(row, CARTON_QTY_FIELDS) || hasAnyQuantityColumn(row, UNIT_QTY_FIELDS);
+}
+
 function getCartonsFromRow(row = {}) {
-  return toNumber(row.cartons ?? row.cartonQty ?? row['Số lượng thùng'] ?? row['So luong thung'] ?? row['SL thùng'] ?? row['SL thung'] ?? row['Thùng'] ?? row['Thung']);
+  return toNumber(
+    row.cartons ??
+    row.cartonQty ??
+    row['Số lượng thùng'] ??
+    row['So luong thung'] ??
+    row['SL thùng'] ??
+    row['SL thung'] ??
+    row['Thùng'] ??
+    row['Thung'] ??
+    0
+  );
 }
 
 function getUnitsFromRow(row = {}) {
-  return toNumber(row.units ?? row.unitQty ?? row['Số lượng SU'] ?? row['So luong SU'] ?? row['SL lẻ'] ?? row['SL le'] ?? row['Lẻ'] ?? row['Le']);
+  return toNumber(
+    row.units ??
+    row.unitQty ??
+    row['Số lượng SU'] ??
+    row['So luong SU'] ??
+    row['SL lẻ'] ??
+    row['SL le'] ??
+    row['Lẻ'] ??
+    row['Le'] ??
+    0
+  );
+}
+
+function getCartonUnitQuantityFromRow(row = {}, product = null) {
+  const packing = getPackingFromRow(row, product);
+  const cartons = getCartonsFromRow(row);
+  const units = getUnitsFromRow(row);
+
+  return (cartons * packing) + units;
 }
 
 function getPromoCartonsFromRow(row = {}) {
@@ -364,12 +422,14 @@ function isZeroAmountPromoLineFromRow(row = {}) {
 
 function getDmsQuantityFromRow(row = {}, product = null) {
   if (isZeroAmountPromoLineFromRow(row)) return 0;
-  const directQty = getRawDmsQuantityValue(row);
-  const packing = getPackingFromRow(row, product);
-  const cartons = getCartonsFromRow(row);
-  const units = getUnitsFromRow(row);
-  if (cartons || units) return (cartons * packing) + units;
-  return directQty;
+
+  // Ưu tiên cột SL thùng / SL lẻ nếu file có 2 cột này.
+  // Kể cả SL thùng = 0, SL lẻ = 0 thì vẫn hiểu là người dùng chủ động nhập 0.
+  if (hasCartonUnitQuantityColumns(row)) {
+    return getCartonUnitQuantityFromRow(row, product);
+  }
+
+  return getRawDmsQuantityValue(row);
 }
 
 function getDmsPromoQuantityFromRow(row = {}, product = null) {
@@ -459,7 +519,13 @@ function getRouteCodeFromRow(row = {}) {
   return cleanText(row.routeCode || row['Tuyến bán hàng'] || row['Tuyen ban hang'] || row['Mã tuyến'] || row['Ma tuyen'] || text(row, ['routeCode', 'tuyến bán hàng', 'tuyen ban hang', 'mã tuyến', 'ma tuyen']));
 }
 
-function getQtyFromRow(row = {}) {
+function getQtyFromRow(row = {}, product = null) {
+  // Nếu Excel có cột SL thùng / SL lẻ thì luôn ưu tiên 2 cột này.
+  // Không phụ thuộc vào cột "Số lượng" để tránh nhầm.
+  if (hasCartonUnitQuantityColumns(row)) {
+    return getCartonUnitQuantityFromRow(row, product);
+  }
+
   const directQty = toNumber(
     row.quantity ??
     row.qty ??
@@ -474,10 +540,18 @@ function getQtyFromRow(row = {}) {
     row['sl'] ??
     number(row, ['quantity', 'qty', 'số lượng', 'so luong', 'số lượng tồn đầu', 'so luong ton dau', 'sl'])
   );
-  if (directQty > 0 || Object.prototype.hasOwnProperty.call(row, 'quantity') || Object.prototype.hasOwnProperty.call(row, 'Số lượng')) {
+
+  if (
+    directQty > 0 ||
+    Object.prototype.hasOwnProperty.call(row, 'quantity') ||
+    Object.prototype.hasOwnProperty.call(row, 'Số lượng') ||
+    Object.prototype.hasOwnProperty.call(row, 'SL') ||
+    Object.prototype.hasOwnProperty.call(row, 'sl')
+  ) {
     return directQty;
   }
-  return getDmsQuantityFromRow(row);
+
+  return getDmsQuantityFromRow(row, product);
 }
 
 function getCostFromRow(row = {}) {
@@ -911,8 +985,8 @@ async function importOpeningStock(rows = []) {
 
   for (const row of rows) {
     const productCode = getProductCodeFromRow(row);
-    const quantity = getQtyFromRow(row);
     const product = productMap.get(cleanText(productCode)) || null;
+    const quantity = getQtyFromRow(row, product);
     if (!productCode || quantity < 0) {
       skipped += 1;
       errors.push({ productCode, message: !productCode ? 'Thiếu mã sản phẩm' : 'Tồn đầu không được âm' });
@@ -1004,7 +1078,7 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
     for (const row of group) {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
-      const quantity = getQtyFromRow(row);
+      const quantity = getQtyFromRow(row, product);
       const costPrice = toNumber(product?.costPrice || 0);
 
       // Phiếu nhập kho: dòng SL = 0 nghĩa là không nhập sản phẩm này.
@@ -2342,7 +2416,7 @@ async function previewMongoNative(type, rows = []) {
     result = safeRows.map((row) => {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
-      const quantity = getQtyFromRow(row);
+      const quantity = getQtyFromRow(row, product);
       const warehouseCode = product ? (cleanText(product.warehouseCode || product.defaultWarehouseCode) || 'KHO_HC') : '';
       const item = {
         ...rowBase(row),
@@ -2377,7 +2451,7 @@ async function previewMongoNative(type, rows = []) {
       for (const row of group) {
         const productCode = getProductCodeFromRow(row);
         const product = productMap.get(cleanText(productCode));
-        const quantity = getQtyFromRow(row);
+        const quantity = getQtyFromRow(row, product);
 
         // Phiếu nhập kho: dòng SL = 0 nghĩa là không nhập sản phẩm này.
         // Bỏ qua, không coi là lỗi.
