@@ -186,11 +186,22 @@ function arSaleStaffMatchForMobileSales(mobileUser = {}) {
   if (!variants.length) return null;
   return {
     ...activeArLedgerMatch(),
-    type: 'ar_sale',
-    $or: [
-      { salesmanCode: { $in: variants } },
-      { salesStaffCode: { $in: variants } },
-      { nvbhCode: { $in: variants } }
+    $and: [
+      {
+        $or: [
+          { type: { $regex: /sale/i } },
+          { refType: { $regex: /sale/i } },
+          { code: { $regex: /^AR[-_]?SALE/i } },
+          { id: { $regex: /^AR[-_]?SALE/i } }
+        ]
+      },
+      {
+        $or: [
+          { salesmanCode: { $in: variants } },
+          { salesStaffCode: { $in: variants } },
+          { nvbhCode: { $in: variants } }
+        ]
+      }
     ]
   };
 }
@@ -211,7 +222,10 @@ async function listMobileSalesDebtsDirect({ query = {}, mobileUser } = {}) {
   const orderCodes = uniqueClean(saleRows.flatMap((row) => [row.orderCode, row.salesOrderCode, row.refCode]));
 
   if (!orderIds.length && !orderCodes.length) {
-    return { items: [], summary: { totalDebt: 0, customerCount: 0, source: 'arLedgers-mobile-fast' } };
+    // Không kết luận nhân viên không có công nợ ở fast-path.
+    // Dữ liệu cũ có thể thiếu type=ar_sale hoặc thiếu staff field trên dòng seed,
+    // cho phép fallback sang reportService.debtCustomers() để tránh app hiển thị rỗng sai.
+    return null;
   }
 
   const match = activeArLedgerMatch();
@@ -957,7 +971,7 @@ function createMobileSalesService(ctx) {
   
   async function listDebts({ query = {}, mobileUser } = {}) {
     const fast = await listMobileSalesDebtsDirect({ query, mobileUser });
-    if (fast) {
+    if (fast && Array.isArray(fast.items) && fast.items.length) {
       return {
         body: {
           ok: true,

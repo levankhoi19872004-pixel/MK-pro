@@ -34,6 +34,9 @@ let lastCustomers = [];
 let customerCatalog = [];
 let todayOrderCache = [];
 let debtCache = [];
+let debtLoaded = false;
+let debtLoading = false;
+let debtRequestSeq = 0;
 
 const tabs = document.querySelectorAll('.tab-btn');
 const panels = document.querySelectorAll('.tab-panel');
@@ -177,7 +180,10 @@ function mergeCustomerDebt(customer = {}, debtLookup = buildDebtLookup()) {
   };
 }
 
-tabs.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+tabs.forEach((btn) => btn.addEventListener('click', () => {
+  switchTab(btn.dataset.tab);
+  if (btn.dataset.tab === 'debtTab') loadDebts({ force: true });
+}));
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
 document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); await loadDebts({ silent: true }); loadCustomers(customerSearch.value.trim()); });
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
@@ -748,20 +754,50 @@ function renderCart() {
 
 async function loadDebts(options = {}) {
   const silent = !!options.silent;
+  const force = !!options.force;
+  const isDebtTabActive = document.getElementById('debtTab')?.classList.contains('active');
+
+  if (debtLoading && !force) return;
+  if (debtLoaded && !force && debtCache.length && !silent) {
+    renderDebts(debtCache, {
+      totalDebt: debtCache.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0),
+      customerCount: debtCache.length
+    });
+    return;
+  }
+
+  const requestSeq = ++debtRequestSeq;
+  debtLoading = true;
+
   try {
-    if (debtList && !silent) {
+    if (debtList && (!silent || isDebtTabActive)) {
       debtList.className = 'order-list empty';
       debtList.textContent = 'Đang tải công nợ...';
     }
-    const data = await mobileApi.getSalesDebts({});
+
+    const data = await mobileApi.getSalesDebts({ limit: 100, includePaid: '0' });
+
+    if (requestSeq !== debtRequestSeq) return;
+
     debtCache = Array.isArray(data.items) ? data.items : [];
+    debtLoaded = true;
+
     if (debtList) renderDebts(debtCache, data.summary || {});
     if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
   } catch (err) {
-    if (debtList && !silent) {
-      debtList.className = 'order-list empty';
+    if (requestSeq !== debtRequestSeq) return;
+    debtLoaded = false;
+
+    // Không nuốt lỗi khi người dùng đang ở tab Công nợ. Trước đây initSalesApp gọi silent=true,
+    // nếu API lỗi thì UI đứng mãi ở "Đang tải công nợ..." và người dùng không biết nguyên nhân.
+    if (debtList && (!silent || isDebtTabActive)) {
+      debtList.className = 'order-list empty error-text';
       debtList.textContent = err.message || 'Không tải được công nợ';
     }
+    if (debtTotalAmount && (!silent || isDebtTabActive)) debtTotalAmount.textContent = '0';
+    if (debtCustomerCount && (!silent || isDebtTabActive)) debtCustomerCount.textContent = '0';
+  } finally {
+    if (requestSeq === debtRequestSeq) debtLoading = false;
   }
 }
 
