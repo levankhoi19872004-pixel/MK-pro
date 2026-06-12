@@ -40,13 +40,17 @@ test('legacy mobile sales create/edit/delete post or reverse stock through Inven
   assertHasInventoryReversal(routeBlock(source, 'delete', '/sales/orders/:id'), 'DELETE /mobile/sales/orders/:id');
 });
 
-test('modular mobile sales service reduces in-memory stock immediately', () => {
+test('modular mobile sales create writes order and stock atomically without snapshot stock mutation', () => {
   const source = read('src/services/mobile/sales.service.js');
   const createStart = source.indexOf('async function createSalesOrder');
   assert.notEqual(createStart, -1, 'missing createSalesOrder service');
   const createBlock = source.slice(createStart, source.indexOf('\n  async function ', createStart + 1) === -1 ? source.length : source.indexOf('\n  async function ', createStart + 1));
 
-  assert.match(createBlock, /reduceStock\s*\(/, 'createSalesOrder must reduce stock immediately');
+  assert.match(createBlock, /withMongoTransaction\s*\(async \(session\)/, 'createSalesOrder must receive Mongo session');
+  assert.match(createBlock, /SalesOrder\.create\s*\(\[salesOrder\], \{ session \}\)/, 'createSalesOrder must persist SalesOrder through session');
+  assert.match(createBlock, /InventoryPostingService\.postSaleOut\s*\([^,]+, \{ session \}\)/, 'createSalesOrder must post stock ledger through session');
+  assert.doesNotMatch(createBlock, /reduceStock\s*\(/, 'createSalesOrder must not mutate snapshot stock');
+  assert.doesNotMatch(createBlock, /repo\.saveOperationalData\s*\(data\)/, 'createSalesOrder must not replace snapshot collections');
 });
 
 test('legacy mobile service reduces JSON stock immediately', () => {

@@ -3,6 +3,11 @@
 const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
+const SalesOrder = require('../../models/SalesOrder');
+const Payment = require('../../models/Payment');
+const Cashbook = require('../../models/Cashbook');
+const MobileLog = require('../../models/MobileLog');
+const InventoryPostingService = require('../../domain/posting/InventoryPostingService');
 const inventoryStockService = require('../inventoryStock.service');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
@@ -62,7 +67,6 @@ function createMobileSalesService(ctx) {
     toNumber,
     formatCaseLooseQty,
     buildProductLineMeta,
-    reduceStock,
     makeId,
     buildSalesCode,
     buildCashCode,
@@ -242,7 +246,9 @@ function createMobileSalesService(ctx) {
     const perf = createStepTimer('sales.createOrder');
     let createdOrder = null;
 
-    const result = await withMongoTransaction(async () => {
+    let result;
+    try {
+      result = await withMongoTransaction(async (session) => {
       perf('start');
       const data = await repo.getPrimaryDataSnapshot();
       perf('load_snapshot');
@@ -409,11 +415,15 @@ function createMobileSalesService(ctx) {
         createdAt: new Date().toISOString()
       };
 
-      repo.addSalesOrder(data, salesOrder);
-      syncReturnDraftInSnapshot(data, salesOrder);
-      items.forEach((item) => reduceStock(data, item));
-      // Mobile sales orders post/hold stock immediately to prevent oversell.
-      repo.addPayment(data, {
+      const created = await SalesOrder.create([salesOrder], { session });
+      const savedOrder = created[0];
+      const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
+      perf('create_sales_order');
+
+      await InventoryPostingService.postSaleOut(savedOrderObject, { session });
+      perf('post_inventory_sale_out');
+
+      await Payment.create([{
         id: makeId('PM'),
         date,
         type: 'sale_debt',
@@ -427,10 +437,10 @@ function createMobileSalesService(ctx) {
         credit: paidAmount,
         note: `Phát sinh từ đơn mobile ${salesOrder.code}`,
         createdAt: new Date().toISOString()
-      });
+      }], { session });
 
       if (paidAmount > 0) {
-        repo.addCashbookEntry(data, {
+        await Cashbook.create([{
           id: makeId('CB'),
           code: buildCashCode(data, 'in'),
           date,
@@ -446,20 +456,32 @@ function createMobileSalesService(ctx) {
           amount: paidAmount,
           note: `Thu tiền từ đơn mobile ${salesOrder.code}`,
           createdAt: new Date().toISOString()
-        });
+        }], { session });
       }
 
-      writeMobileLog(data, mobileUser, 'mobile_create_sales_order', {
+      await MobileLog.create([{
+        id: makeId('ML'),
+        action: 'mobile_create_sales_order',
+        actorCode: mobileUser.code || mobileUser.staffCode || '',
+        actorName: mobileUser.fullName || mobileUser.name || '',
         refType: 'salesOrder',
         refId: salesOrder.id,
         refCode: salesOrder.code,
-        note: `Tạo đơn ${salesOrder.code} từ mobile`
+        note: `Tạo đơn ${salesOrder.code} từ mobile`,
+        createdAt: new Date().toISOString()
+      }], { session });
+      perf('save_operational_documents');
+
+      createdOrder = savedOrderObject;
+      return { statusCode: 201, body: { ok: true, source: 'mobile-sales-route', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
       });
-      await repo.saveOperationalData(data);
-      perf('save_operational_data');
-      createdOrder = salesOrder;
-      return { statusCode: 201, body: { ok: true, source: 'mobile-sales-route', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder } };
-    });
+    } catch (err) {
+      if (err && err.code === 'INSUFFICIENT_STOCK') {
+        const stockFail = fail(400, err.message || 'Không đủ tồn kho');
+        return rememberIdempotentResult(idemKey, stockFail);
+      }
+      throw err;
+    }
 
     const finalResult = result || { statusCode: 201, body: { ok: true, salesOrder: createdOrder } };
     perf('done');
