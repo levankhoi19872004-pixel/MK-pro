@@ -63,7 +63,7 @@ function toClient(order) {
 
 function isInactiveStatus(row = {}) {
   const status = String(row.status || '').toLowerCase();
-  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status) || Boolean(row.deletedAt);
+  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled', 'cleared'].includes(status) || Boolean(row.deletedAt);
 }
 
 function getReturnOrderValue(row = {}) {
@@ -199,7 +199,7 @@ function scoreReturnOrderCandidate(row = {}, returnCode = '') {
   if (String(row.id || '').startsWith('RO-DRAFT-')) score += 10;
   if (String(row.id || '').startsWith('RO-MOBILE-')) score -= 20;
   if (String(row.code || '').startsWith('THH')) score -= 80;
-  if (status === 'duplicate_cancelled') score -= 500;
+  if (['cancelled', 'canceled', 'cleared', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status)) score -= 500;
   return score;
 }
 
@@ -208,7 +208,7 @@ async function findExistingReturnOrderForSalesOrder({ salesOrderId = '', salesOr
   if (!filter) return null;
   const rows = await returnOrderRepository.findAll(filter, { sort: { createdAt: 1 }, limit: 50 });
   return (rows || [])
-    .filter((row) => row && !['deleted', 'duplicate_cancelled'].includes(String(row.status || '').toLowerCase()))
+    .filter((row) => row && !isInactiveStatus(row))
     .sort((a, b) => scoreReturnOrderCandidate(b, returnCode) - scoreReturnOrderCandidate(a, returnCode))[0] || null;
 }
 
