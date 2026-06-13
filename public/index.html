@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KHO Minh Khai Pro V44</title>
-  <link rel="stylesheet" href="/style.css?v=speed-monitor-v1" />
+  <link rel="stylesheet" href="/style.css?v=sales-order-compact-v1" />
   <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
 </head>
 <body>
@@ -379,9 +379,9 @@
     <div id="salesOrderModal" class="modal-backdrop" aria-hidden="true">
       <section class="modal-card sales-order-modal-card sales-order-workspace" role="dialog" aria-modal="true" aria-labelledby="salesOrderModalTitle">
         <div class="modal-head sales-order-workspace-head">
-          <div>
+          <div class="sales-order-head-copy">
             <h3 id="salesOrderModalTitle">Tạo đơn bán hàng</h3>
-            <p class="muted">Cửa sổ tạo/sửa đơn toàn màn hình: thông tin đơn, thêm sản phẩm, giỏ hàng và tổng kết luôn dễ thao tác.</p>
+            <p class="muted sales-order-head-meta">Thông tin đơn gọn · danh sách sản phẩm là khu vực thao tác chính</p>
           </div>
           <button type="button" class="secondary small" id="closeSalesOrderModalButton">Đóng</button>
         </div>
@@ -405,26 +405,30 @@
                   </div>
                 </label>
                 <label>Ngày bán<input name="date" type="date" /></label>
-                <div class="sales-mode-box sales-mode-inline">
-                  <div class="sales-mode-title">Phương thức bán</div>
-                  <label class="sales-mode-option"><input type="radio" name="saleMode" value="direct" /> Bán thẳng giá mặc định</label>
-                  <label class="sales-mode-option"><input type="radio" name="saleMode" value="promotion" checked /> Bán theo khuyến mại</label>
+                <div class="sales-mode-box sales-mode-inline" aria-label="Phương thức bán">
+                  <div class="sales-mode-title">Phương thức</div>
+                  <div class="sales-compact-options">
+                    <label class="sales-mode-option" title="Bán thẳng theo giá mặc định"><input type="radio" name="saleMode" value="direct" /> Giá mặc định</label>
+                    <label class="sales-mode-option" title="Bán theo chương trình khuyến mại"><input type="radio" name="saleMode" value="promotion" checked /> Theo KM</label>
+                  </div>
                 </div>
-                <div class="sales-vat-option">
+                <div class="sales-vat-option" aria-label="Yêu cầu hóa đơn VAT">
                   <div class="sales-mode-title">Hóa đơn VAT</div>
-                  <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="true" checked /> Xuất hóa đơn</label>
-                  <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="false" /> Không xuất hóa đơn</label>
-                  <label class="sales-vat-note">Lý do / ghi chú<input name="vatInvoiceNote" placeholder="VD: Khách hàng không lấy hóa đơn" /></label>
-                  <button type="button" id="saveSalesVatSettingButton" class="secondary small" hidden>Lưu riêng thiết lập VAT</button>
+                  <div class="sales-compact-options">
+                    <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="true" checked /> Xuất HĐ</label>
+                    <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="false" /> Không xuất</label>
+                  </div>
+                  <button type="button" id="saveSalesVatSettingButton" class="secondary small sales-vat-save-button" hidden>Lưu VAT</button>
                 </div>
-                <label class="sales-note-field">Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
+                <label class="sales-note-field">Ghi chú đơn<input name="note" placeholder="VD: giao trong ngày" /></label>
+                <label class="sales-vat-note" hidden>Lý do không xuất HĐ<input name="vatInvoiceNote" placeholder="VD: Khách hàng không lấy hóa đơn" /></label>
               </div>
             </section>
 
             <section class="import-line-box sales-product-toolbar" aria-label="Thêm dòng bán">
               <div class="sales-product-toolbar-title">
-                <h3>Thêm dòng bán</h3>
-                <span class="muted">Nhập thùng/lẻ, hệ thống vẫn lưu số lượng lẻ để trừ tồn và xuất Excel.</span>
+                <h3>Thêm sản phẩm</h3>
+                <span class="muted">Nhập thùng/lẻ</span>
               </div>
               <div class="sales-product-toolbar-grid">
                 <label class="sales-product-field">Sản phẩm
@@ -1749,7 +1753,7 @@
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=unified-search-v1"></script>
   <script src="/js/app/04-import-orders.js?v=staff-auto-users-v5"></script>
-  <script src="/js/app/05-sales-orders.js?v=vat-invoice-setting-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=sales-order-compact-v1"></script>
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/app/06-master-delivery.js?v=returnorders-app-save-tab3-v2"></script>

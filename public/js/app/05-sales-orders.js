@@ -365,12 +365,22 @@ function syncVatPermissionUi(){
   salesForm.querySelectorAll('input[name="vatInvoiceRequired"]').forEach(input=>{input.disabled=!allowed;});
   if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.disabled=!allowed;
   if(!allowed&&!editingSalesOrderId)setVatInvoiceRequired(true);
+  syncVatConditionalUi();
+}
+function syncVatConditionalUi(){
+  if(!salesForm)return;
+  const required=getVatInvoiceRequired();
+  const note=salesForm.querySelector('.sales-vat-note');
+  const grid=salesForm.querySelector('.sales-order-info-grid');
+  if(note)note.hidden=required;
+  if(grid)grid.classList.toggle('vat-note-visible',!required);
 }
 function setVatInvoiceRequired(required){
   if(!salesForm)return;
   const value=required===false?'false':'true';
   const radio=salesForm.querySelector(`input[name="vatInvoiceRequired"][value="${value}"]`);
   if(radio)radio.checked=true;
+  syncVatConditionalUi();
 }
 function getVatInvoiceRequired(){
   const selected=salesForm?.querySelector('input[name="vatInvoiceRequired"]:checked');
@@ -1281,6 +1291,8 @@ if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
 
 
 if(salesForm){
+  salesForm.querySelectorAll('input[name="vatInvoiceRequired"]').forEach(input=>input.addEventListener('change',syncVatConditionalUi));
+  syncVatConditionalUi();
   salesForm.querySelectorAll('input[name="saleMode"]').forEach(input=>input.addEventListener('change',async()=>{
     syncSalesModeUi();
     await recalculateSalesPromotionPrices();
