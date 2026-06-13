@@ -254,7 +254,10 @@ function collectItemPromotionSources(item = {}) {
     item.product?.promotionCode
   );
 
-  if (inlineDescription || inlineCode) {
+  // Inline promotion fields are a legacy fallback only.
+  // When structured promotion rows already exist, appending the inline aggregate
+  // creates a duplicate row (for example 17% + 2% rows plus an extra 19% row).
+  if (!sources.length && (inlineDescription || inlineCode)) {
     sources.push({
       code: inlineCode,
       promotionCode: inlineCode,
