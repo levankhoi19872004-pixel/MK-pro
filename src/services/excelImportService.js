@@ -1329,8 +1329,19 @@ async function importSalesOrders(rows = [], options = {}) {
       const originalPromoQuantity = rawPromoQuantity;
       const salePrice = getDmsPriceFromRow(row, rawSaleQuantity);
       let lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
-      let catalogPriceAfterVat = getDmsCatalogPriceAfterVatFromRow(row, rawSaleQuantity, salePrice);
-      let preTaxPriceAtOrder = getListPriceBeforeVatFromRow(row);
+
+      // Cột 4 của mẫu đơn con là giá bán chuẩn trong danh mục sản phẩm,
+      // không phải giá thực tế lấy từ file DMS. Đóng băng giá này ngay lúc import
+      // để việc in lại đơn cũ không thay đổi khi danh mục sản phẩm đổi giá.
+      const productCatalogSalePrice = toNumber(
+        product?.salePrice ?? product?.giaBan ?? product?.price ?? 0
+      );
+      let catalogPriceAfterVat = productCatalogSalePrice > 0
+        ? productCatalogSalePrice
+        : getDmsCatalogPriceAfterVatFromRow(row, rawSaleQuantity, salePrice);
+      let preTaxPriceAtOrder = catalogPriceAfterVat > 0
+        ? Math.round(catalogPriceAfterVat / 1.08)
+        : 0;
       let vatAmountAtOrder = getDmsVatAmountForLine(row, rawSaleQuantity, salePrice, lineAmount);
       const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Kho'] || product?.warehouseCode) || 'MAIN';
       const normalizedProductCode = cleanText(product?.code || productCode);
@@ -1348,8 +1359,14 @@ async function importSalesOrders(rows = [], options = {}) {
         rawPromoQuantity = allocation.allowedPromoQuantity;
         deliveredQuantity = allocation.allowedDeliveredQuantity;
         lineAmount = rawSaleQuantity * salePrice;
-        catalogPriceAfterVat = getDmsCatalogPriceAfterVatFromRow(row, rawSaleQuantity, salePrice);
-        preTaxPriceAtOrder = getListPriceBeforeVatFromRow(row) || (catalogPriceAfterVat > 0 ? Math.round(catalogPriceAfterVat / 1.08) : 0);
+        // Không thay đổi giá danh mục khi cắt số lượng theo tồn kho.
+        // Cột 4 vẫn là product.salePrice đã chốt ở thời điểm import.
+        catalogPriceAfterVat = productCatalogSalePrice > 0
+          ? productCatalogSalePrice
+          : getDmsCatalogPriceAfterVatFromRow(row, rawSaleQuantity, salePrice);
+        preTaxPriceAtOrder = catalogPriceAfterVat > 0
+          ? Math.round(catalogPriceAfterVat / 1.08)
+          : 0;
         vatAmountAtOrder = getDmsVatAmountForLine(row, rawSaleQuantity, salePrice, lineAmount);
         shortageReport.push({
           documentCode: docCodeCheck === 'AUTO' ? '' : docCodeCheck,
@@ -1389,9 +1406,17 @@ async function importSalesOrders(rows = [], options = {}) {
       }
 
       productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
-      const listPriceBeforeVat = preTaxPriceAtOrder || (catalogPriceAfterVat > 0 ? Math.round(catalogPriceAfterVat / 1.08) : 0);
       const conversionRateAtOrder = getPackingFromRow(row, product);
-      const catalogSalePriceAtOrder = catalogPriceAfterVat || salePrice;
+      const catalogSalePriceAtOrder = productCatalogSalePrice > 0
+        ? productCatalogSalePrice
+        : (catalogPriceAfterVat || salePrice);
+      const catalogSalePriceSource = productCatalogSalePrice > 0
+        ? 'product.salePrice'
+        : 'dms_legacy_fallback';
+      // Cột 3 luôn bằng cột 4 / 1.08 theo mẫu đơn con đã chốt.
+      const listPriceBeforeVat = catalogSalePriceAtOrder > 0
+        ? Math.round(catalogSalePriceAtOrder / 1.08)
+        : 0;
       const baseItem = {
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
@@ -1401,6 +1426,8 @@ async function importSalesOrders(rows = [], options = {}) {
         conversionRate: conversionRateAtOrder,
         conversionRateAtOrder,
         catalogSalePriceAtOrder,
+        catalogSalePriceSource,
+        priceAfterTaxBeforePromotionSource: catalogSalePriceSource,
         warehouseCodeAtOrder: warehouseCode,
         appliedPromotionRows: [],
         promotionRows: [],

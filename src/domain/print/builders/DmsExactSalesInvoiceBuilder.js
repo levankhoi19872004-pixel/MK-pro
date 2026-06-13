@@ -23,6 +23,46 @@ function calculateVatFromAmount(amount = 0) {
   return Math.max(0, Math.round(total - (total / 1.08)));
 }
 
+
+function productCatalogPrice(product = {}) {
+  return firstPositive(product.salePrice, product.giaBan, product.price);
+}
+
+function hasProductCatalogSnapshot(item = {}) {
+  const source = cleanText(
+    item.catalogSalePriceSource ||
+    item.catalogPriceSource ||
+    item.priceAfterTaxBeforePromotionSource
+  ).toLowerCase();
+  return source === 'product.saleprice' || source === 'product.sale_price';
+}
+
+function catalogPriceForLine(item = {}, order = {}, product = {}, normalizedLine = {}, finalPrice = 0) {
+  const snapshotPrice = firstPositive(
+    item.catalogSalePriceAtOrder,
+    item.priceAfterTaxBeforePromotionAtOrder,
+    item.priceAfterTaxBeforePromotion,
+    item.listPriceAfterVat,
+    item.productSnapshot?.salePrice
+  );
+  const currentProductPrice = productCatalogPrice(product);
+
+  // Đơn DMS cũ từng lưu nhầm giá thực tế import vào catalogSalePriceAtOrder.
+  // Nếu chưa có marker nguồn snapshot mới, ưu tiên product.salePrice để khôi phục cột 4.
+  // Đơn import mới có marker product.salePrice sẽ giữ nguyên snapshot lịch sử.
+  if (PrintPromotionPolicy.isImportedOrder(order)) {
+    if (hasProductCatalogSnapshot(item) && snapshotPrice > 0) return snapshotPrice;
+    if (currentProductPrice > 0) return currentProductPrice;
+  }
+
+  return firstPositive(
+    snapshotPrice,
+    normalizedLine.catalogPrice,
+    currentProductPrice,
+    finalPrice
+  );
+}
+
 function salesStaff(order = {}) {
   return {
     id: cleanText(order.salesStaffId || order.salesmanId),
@@ -65,29 +105,25 @@ function exactLine(item = {}, order = {}, product = {}) {
     item.salePrice,
     item.price
   );
-  const catalogPrice = firstPositive(
-    item.catalogSalePriceAtOrder,
-    item.priceAfterTaxBeforePromotionAtOrder,
-    item.priceAfterTaxBeforePromotion,
-    item.listPriceAfterVat,
-    line.catalogPrice,
-    finalPrice
-  );
+  const catalogPrice = catalogPriceForLine(item, order, product, line, finalPrice);
   const lineAmount = firstPositive(
     item.lineAmountAtOrder,
     item.lineAmount,
     item.amount,
     quantity > 0 && finalPrice > 0 ? Math.round(quantity * finalPrice) : 0
   );
-  const priceBeforeTax = firstPositive(
-    item.preTaxPriceAtOrder,
-    item.priceBeforeTaxBeforePromotion,
-    item.listPriceBeforeVat,
-    item.priceBeforeTax,
-    item.priceBeforeVat,
-    catalogPrice > 0 ? Math.round(catalogPrice / 1.08) : 0,
-    finalPrice > 0 ? Math.round(finalPrice / 1.08) : 0
-  );
+  // Cột 3 của mẫu đơn con được suy ra trực tiếp từ cột 4.
+  // Không lấy giá trước thuế từ file DMS vì cột 4 là giá bán chuẩn của sản phẩm.
+  const priceBeforeTax = catalogPrice > 0
+    ? Math.round(catalogPrice / 1.08)
+    : firstPositive(
+      item.preTaxPriceAtOrder,
+      item.priceBeforeTaxBeforePromotion,
+      item.listPriceBeforeVat,
+      item.priceBeforeTax,
+      item.priceBeforeVat,
+      finalPrice > 0 ? Math.round(finalPrice / 1.08) : 0
+    );
 
   // Một số đơn DMS cũ đã lưu snapshot Thuế/giá trước thuế bằng 0.
   // Giá trị 0 không được chặn fallback tính toán cho dòng hàng bán có tiền.
@@ -148,6 +184,8 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
     isPromo: line.lineType === 'PROMO',
     catalogSalePrice: line.catalogPrice,
     catalogSalePriceAtOrder: line.catalogPrice,
+    catalogSalePriceSource: line.raw?.catalogSalePriceSource || line.raw?.catalogPriceSource || '',
+    priceAfterTaxBeforePromotionSource: line.raw?.priceAfterTaxBeforePromotionSource || '',
     salePrice: line.catalogPrice,
     finalPrice: line.finalPrice,
     priceAfterPromotion: line.finalPrice,
@@ -256,5 +294,7 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
 
 module.exports = {
   buildDmsExactSalesInvoice,
-  buildSalesInvoice: buildDmsExactSalesInvoice
+  buildSalesInvoice: buildDmsExactSalesInvoice,
+  catalogPriceForLine,
+  hasProductCatalogSnapshot
 };

@@ -37,7 +37,9 @@ test('Excel DMS import captures historical price, pack and warehouse snapshots',
   const source = read('src/services/excelImportService.js');
   for (const field of REQUIRED_SNAPSHOT_FIELDS) assert.match(source, new RegExp(field));
   assert.match(source, /const conversionRateAtOrder = getPackingFromRow\(row, product\)/);
-  assert.match(source, /const catalogSalePriceAtOrder = catalogPriceAfterVat \|\| salePrice/);
+  assert.match(source, /const productCatalogSalePrice = toNumber/);
+  assert.match(source, /const catalogSalePriceAtOrder = productCatalogSalePrice > 0/);
+  assert.match(source, /catalogSalePriceSource/);
   assert.match(source, /preTaxPriceAtOrder:\s*listPriceBeforeVat/);
   assert.match(source, /vatAmountAtOrder/);
   assert.match(source, /finalPriceAtOrder:\s*salePrice/);
