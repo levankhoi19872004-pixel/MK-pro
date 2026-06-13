@@ -19,7 +19,7 @@ test('critical web catalog and order renderers encode database-controlled text',
   assert.match(products, /escapeProductHtml\(p\.code/);
   assert.match(customers, /escapeHtml\(c\.name/);
   assert.match(customers, /editCustomerByRow/);
-  assert.match(imports, /escapeImportHtml\(i\.productName/);
+  assert.match(imports, /escapeImportOrderHtml\(i\.productName/);
   assert.match(sales, /escapeSalesHtml\(i\.productName/);
   assert.match(sales, /const customerName=escapeSalesHtml/);
   assert.doesNotMatch(sales, /salesOrderList\.innerHTML=err\.message/);

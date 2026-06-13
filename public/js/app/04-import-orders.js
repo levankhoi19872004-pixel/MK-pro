@@ -1,4 +1,4 @@
-const escapeImportHtml = (window.V45Common && window.V45Common.escapeHtml) || ((value='')=>String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])));
+const escapeImportOrderHtml = (window.V45Common && window.V45Common.escapeHtml) || ((value='')=>String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])));
 // Product autocomplete is handled centrally by public/js/search/autocompleteEngine.js + productSearchBox.js.
 function importProductCost(p){
   return Number(p?.costPrice ?? p?.importPrice ?? p?.purchasePrice ?? p?.lastCostPrice ?? 0);
@@ -43,7 +43,7 @@ function renderImportItems(){
   const tq=importItems.reduce((s,i)=>s+Number(i.quantity||0),0);const ta=importItems.reduce((s,i)=>s+Number(i.amount||0),0);
   importTotalQuantity.textContent=money(tq);importTotalAmount.textContent=money(ta);
   if(!importItems.length){importItemsTable.innerHTML='<tr><td colspan="6">Chưa có dòng hàng</td></tr>';return}
-  importItemsTable.innerHTML=importItems.map((i,idx)=>`<tr><td><strong>${escapeImportHtml(i.productCode||'')}</strong></td><td>${escapeImportHtml(i.productName||'')}</td><td>${escapeImportHtml(displayImportItemQtyTL(i))}</td><td class="price">${money(i.costPrice)}</td><td class="price">${money(i.amount)}</td><td><button type="button" class="small danger" onclick="removeImportItem(${idx})">Xóa</button></td></tr>`).join('');
+  importItemsTable.innerHTML=importItems.map((i,idx)=>`<tr><td><strong>${escapeImportOrderHtml(i.productCode||'')}</strong></td><td>${escapeImportOrderHtml(i.productName||'')}</td><td>${escapeImportOrderHtml(displayImportItemQtyTL(i))}</td><td class="price">${money(i.costPrice)}</td><td class="price">${money(i.amount)}</td><td><button type="button" class="small danger" onclick="removeImportItem(${idx})">Xóa</button></td></tr>`).join('');
 }
 window.removeImportItem=index=>{importItems.splice(index,1);renderImportItems()};
 function addImportItem(){
