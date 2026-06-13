@@ -319,7 +319,7 @@ function renderSalesItems(){
     <td class="sales-product-name-cell"><span class="sales-product-name-text">${escapeSalesHtml(i.productName||'')}</span></td>
     <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" onchange="updateSalesItemCase(${idx}, this.value)"></td>
     <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" onchange="updateSalesItemLoose(${idx}, this.value)"></td>
-    <td class="price"><input class="sales-line-input price" type="number" min="0" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
+    <td class="price"><input class="sales-line-input price" type="number" min="0" step="any" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
     <td class="price">${money(i.amount)}</td>
     <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>
   </tr>`).join('');

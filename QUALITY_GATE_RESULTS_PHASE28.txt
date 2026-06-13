@@ -1,0 +1,13 @@
+MK-PRO PHASE 28 — DMS DECIMAL PRICE INPUT FIX
+
+Specialized regression:      3/3 PASS
+Full regression:             367/367 PASS
+JavaScript syntax:           491 files PASS
+OpenAPI:                     270 operations, up to date
+npm audit --omit=dev:        0 known vulnerabilities
+
+Scope:
+- Add step="any" to per-line sales price input.
+- Add step="any" to new-item sales price input.
+- Preserve imported DMS decimal price and total amount.
+- Bump frontend cache version.

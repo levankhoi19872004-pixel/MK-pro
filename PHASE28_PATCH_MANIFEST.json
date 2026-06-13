@@ -1,0 +1,21 @@
+{
+  "release": "MK-pro-phase28-dms-decimal-price-input-fix",
+  "sourceArchive": "MK-pro-phase27-delivery-filter-cookie-auth-fix-patched(2).zip",
+  "scope": "Allow decimal DMS sale prices in sales-order edit/add inputs without rounding",
+  "changedFiles": [
+    "public/js/app/05-sales-orders.js",
+    "public/index.html"
+  ],
+  "addedFiles": [
+    "test/sales-order-decimal-price-input.test.js",
+    "PHASE28_DMS_DECIMAL_PRICE_INPUT_FIX_REPORT.md",
+    "PHASE28_PATCH_MANIFEST.json"
+  ],
+  "qualityGate": {
+    "tests": "367/367 pass",
+    "specializedTests": "3/3 pass",
+    "javascriptSyntax": "491 files pass",
+    "openApiOperations": 270,
+    "npmAuditVulnerabilities": 0
+  }
+}
