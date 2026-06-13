@@ -24,6 +24,11 @@ const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../..
 const { normalizeOrderSourceValue } = require('../../utils/orderSource.util');
 const Product = require('../../models/Product');
 const { debugLog } = require('../../utils/debug.util');
+const {
+  buildDetachedSalesOrderMongoUpdate,
+  hasDeliveryOperationalData,
+  canonicalMasterChildReferencePatch
+} = require('../../utils/masterOrderAssignment.util');
 
 
 
@@ -122,6 +127,10 @@ function normalizeMasterSalesOrderRefs(masterOrder = {}) {
     refs: [...new Set([...salesOrderIds, ...salesOrderCodes])]
   };
 }
+
+// MASTER_ORDER_DETACH_INVARIANT:
+// masterOrders.childOrderIds là nguồn duy nhất; khi detach phải xóa đồng bộ
+// master/NVGH/ngày giao/route khỏi salesOrders và returnOrders trong cùng transaction.
 
 function masterChildOrderRefs(masterOrder = {}) {
   return normalizeMasterSalesOrderRefs(masterOrder).refs;
@@ -3552,9 +3561,8 @@ async function createMasterOrder(body = {}) {
     deliveryStaffName: deliveryStaff?.name || body.deliveryStaffName || '',
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_ONLY_NVGH_START =====
     // Đơn tổng chỉ là nguồn gán NVGH. Không nhận/ghi đè NVBH của đơn con.
-    childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
+    ...canonicalMasterChildReferencePatch(children),
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_ONLY_NVGH_END =====
-    children: [],
     status: body.status || 'assigned',
     ...orderService.summarizeOrders(children),
     createdAt: body.createdAt || dateUtil.nowIso(),
@@ -3701,9 +3709,8 @@ async function updateMasterOrder(id, body = {}) {
     salesStaffId: current.salesStaffId || '',
     salesStaffCode: current.salesStaffCode || '',
     salesStaffName: current.salesStaffName || '',
-    childOrderIds: normalizeSalesOrderIds(children.map((order) => order.id)),
+    ...canonicalMasterChildReferencePatch(children),
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_MASTER_UPDATE_ONLY_NVGH_END =====
-    children: [],
     updatedAt: dateUtil.nowIso()
   };
 
@@ -3724,6 +3731,14 @@ async function updateMasterOrder(id, body = {}) {
     .filter(Boolean)))];
   const removedChildCodes = [...new Set(removedChildren.map((child) => String(child.code || child.orderCode || child.salesOrderCode || '').trim()).filter(Boolean))];
   const now = dateUtil.nowIso();
+
+  const lockedRemovedChild = removedChildren.find(hasDeliveryOperationalData);
+  if (lockedRemovedChild) {
+    return {
+      error: `Đơn con ${lockedRemovedChild.code || lockedRemovedChild.id} đã phát sinh giao hàng/thu tiền/trả hàng hoặc xác nhận kế toán, không thể bỏ khỏi đơn tổng. Cần hoàn tác nghiệp vụ trước.`,
+      status: 409
+    };
+  }
 
   await withMongoTransaction(async (session) => {
     await masterOrderRepository.upsert(updated, { session });
@@ -3765,7 +3780,7 @@ async function updateMasterOrder(id, body = {}) {
             { orderCode: child.orderCode },
             { salesOrderCode: child.salesOrderCode }
           ].filter((item) => Object.values(item)[0]) },
-          update: { $set: { mergeStatus: 'unmerged', status: 'pending', updatedAt: now }, $unset: { masterOrderId: '', masterOrderCode: '' } }
+          update: buildDetachedSalesOrderMongoUpdate(now)
         }
       })), { ordered: false, session });
     }
@@ -3802,24 +3817,11 @@ async function updateMasterOrder(id, body = {}) {
     }
 
     if (removedChildKeys.length || removedChildCodes.length) {
-      await MongoStore.returnOrders.updateMany(
-        {
-          $or: [
-            { salesOrderId: { $in: removedChildKeys } },
-            { orderId: { $in: removedChildKeys } },
-            { sourceOrderId: { $in: removedChildKeys } },
-            { deliveryOrderId: { $in: removedChildKeys } },
-            { salesOrderCode: { $in: removedChildCodes } },
-            { orderCode: { $in: removedChildCodes } },
-            { sourceOrderCode: { $in: removedChildCodes } },
-            { deliveryOrderCode: { $in: removedChildCodes } }
-          ],
-          masterOrderCode: current.code,
-          status: { $nin: ['posted', 'confirmed', 'cancelled', 'canceled', 'void', 'deleted', 'duplicate_cancelled'] }
-        },
-        { $set: { updatedAt: now }, $unset: { masterOrderId: '', masterOrderCode: '' } },
-        { session }
-      );
+      await returnOrderService.detachMasterOrderFromReturnDrafts(removedChildren, {
+        session,
+        expectedMasterOrderId: current.id,
+        expectedMasterOrderCode: current.code
+      });
     }
   });
   const updatedChildren = await orderService.getMasterChildren(updated);
@@ -3842,25 +3844,27 @@ async function cancelMasterOrder(id, body = {}) {
     cancelledAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
+  const now = dateUtil.nowIso();
   await withMongoTransaction(async (session) => {
-    for (const child of children) {
-      const updatedChild = {
-        ...child,
-        masterOrderId: '',
-        masterOrderCode: '',
-        mergeStatus: 'unmerged',
-        status: 'pending',
-        lifecycleStatus: 'pending',
-        deliveryStatus: 'pending',
-        deliveryStaffId: '',
-        deliveryStaffCode: '',
-        deliveryStaffName: '',
-        routeName: '',
-        deliveryRoute: '',
-        updatedAt: dateUtil.nowIso()
-      };
-      await orderRepository.upsert(updatedChild, { session });
-      await returnOrderService.detachMasterOrderFromReturnDrafts([updatedChild], { session });
+    if (children.length) {
+      await MongoStore.salesOrders.bulkWrite(children.map((child) => ({
+        updateOne: {
+          filter: { $or: [
+            { id: child.id },
+            { code: child.code },
+            { documentCode: child.documentCode },
+            { orderCode: child.orderCode },
+            { salesOrderCode: child.salesOrderCode }
+          ].filter((item) => Object.values(item)[0]) },
+          update: buildDetachedSalesOrderMongoUpdate(now)
+        }
+      })), { ordered: false, session });
+
+      await returnOrderService.detachMasterOrderFromReturnDrafts(children, {
+        session,
+        expectedMasterOrderId: masterOrder.id,
+        expectedMasterOrderCode: masterOrder.code
+      });
     }
     await masterOrderRepository.upsert(cancelled, { session });
   });
@@ -3878,42 +3882,32 @@ async function deleteMasterOrder(id, body = {}) {
     deleteReason: String(body.reason || body.deleteReason || '').trim(),
     updatedAt: dateUtil.nowIso()
   };
+  const now = dateUtil.nowIso();
   await withMongoTransaction(async (session) => {
-    for (const child of children) {
-      const updatedChild = {
-        ...child,
-        masterOrderId: '',
-        masterOrderCode: '',
-        mergeStatus: 'unmerged',
-        status: 'pending',
-        lifecycleStatus: 'pending',
-        deliveryStatus: 'pending',
-        deliveryStaffId: '',
-        deliveryStaffCode: '',
-        deliveryStaffName: '',
-        routeName: '',
-        deliveryRoute: '',
-        updatedAt: dateUtil.nowIso()
-      };
-      await orderRepository.upsert(updatedChild, { session });
-      await returnOrderService.detachMasterOrderFromReturnDrafts([updatedChild], { session });
+    if (children.length) {
+      await MongoStore.salesOrders.bulkWrite(children.map((child) => ({
+        updateOne: {
+          filter: { $or: [
+            { id: child.id },
+            { code: child.code },
+            { documentCode: child.documentCode },
+            { orderCode: child.orderCode },
+            { salesOrderCode: child.salesOrderCode }
+          ].filter((item) => Object.values(item)[0]) },
+          update: buildDetachedSalesOrderMongoUpdate(now)
+        }
+      })), { ordered: false, session });
+
+      await returnOrderService.detachMasterOrderFromReturnDrafts(children, {
+        session,
+        expectedMasterOrderId: current.id,
+        expectedMasterOrderCode: current.code
+      });
     }
     await masterOrderRepository.upsert(removed, { session });
   });
-  
-const summary = rows.reduce((acc,row)=>{
-  acc.totalReceivable += Number(row.totalAmount||0);
-  acc.cashAmount += Number(row.cashAmount||0);
-  acc.bankAmount += Number(row.bankAmount||0);
-  acc.bonusAmount += Number(row.bonusAmount||0);
-  acc.returnAmount += Number(row.returnAmount||0);
-  acc.debtAmount += Number(row.debtAmount||0);
-  return acc;
-},{
- totalReceivable:0,cashAmount:0,bankAmount:0,bonusAmount:0,returnAmount:0,debtAmount:0
-});
 
-return { masterOrder: toClient(removed, []) };
+  return { masterOrder: toClient(removed, []) };
 }
 
 module.exports = {
@@ -3939,6 +3933,9 @@ module.exports = {
     hydrateReturnOrdersForAccounting,
     directReturnOrdersForSalesOrder,
     returnOrderTotalAmount,
-    masterChildCountForReturnFallback
+    masterChildCountForReturnFallback,
+    buildDetachedSalesOrderMongoUpdate,
+    hasDeliveryOperationalData,
+    canonicalMasterChildReferencePatch
   }
 };

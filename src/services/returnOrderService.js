@@ -1118,9 +1118,56 @@ async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {})
     or.push({ orderCode: { $in: orderCodes } });
   }
   if (!or.length) return [];
+
+  const expectedMasterKeys = uniqueStrings([
+    options.expectedMasterOrderId,
+    options.expectedMasterOrderCode
+  ]);
+  const filter = {
+    $or: or,
+    status: { $in: ACTIVE_RETURN_ORDER_STATUSES }
+  };
+  if (expectedMasterKeys.length) {
+    filter.$and = [{
+      $or: [
+        { masterOrderId: { $in: expectedMasterKeys } },
+        { masterOrderCode: { $in: expectedMasterKeys } },
+        { deliveryMasterId: { $in: expectedMasterKeys } },
+        { deliveryMasterCode: { $in: expectedMasterKeys } }
+      ]
+    }];
+  }
+
   await ReturnOrder.updateMany(
-    { $or: or, status: { $in: ACTIVE_RETURN_ORDER_STATUSES } },
-    { $set: { masterOrderId: '', masterOrderCode: '', deliveryStaffId: '', deliveryStaffCode: '', deliveryStaffName: '', deliveryDate: null, routeName: '', deliveryRoute: '', updatedAt: dateUtil.nowIso() } },
+    filter,
+    {
+      $set: { updatedAt: dateUtil.nowIso() },
+      $unset: {
+        masterOrderId: '',
+        masterOrderCode: '',
+        deliveryMasterId: '',
+        deliveryMasterCode: '',
+        deliveryStaffId: '',
+        deliveryStaffCode: '',
+        deliveryStaffName: '',
+        deliveryCode: '',
+        deliveryName: '',
+        shipperCode: '',
+        shipperName: '',
+        nvghCode: '',
+        nvghName: '',
+        staffDeliveryCode: '',
+        staffDeliveryName: '',
+        driverId: '',
+        driverCode: '',
+        driverName: '',
+        staffCode: '',
+        staffName: '',
+        deliveryDate: '',
+        routeName: '',
+        deliveryRoute: ''
+      }
+    },
     options.session ? { session: options.session } : {}
   );
   return findReturnOrdersBySalesOrderRefs(childOrders);

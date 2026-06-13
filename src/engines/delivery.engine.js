@@ -279,6 +279,22 @@ function shouldTryFastDeliveryCodeQuery(query = {}) {
   return Boolean(directDeliveryCodeFromQuery(query)) && !query.salesStaffCode && !query.salesmanCode && !query.salesCode && !query.nvbhCode && !query.salesman;
 }
 
+// DELIVERY_MASTER_LINK_GUARD_START
+// Đơn giao hàng phải còn liên kết với một đơn tổng. Không được chỉ dựa vào
+// deliveryDate/deliveryStaffCode vì các snapshot cũ có thể còn sót sau detach.
+function masterAssignmentMongoClause() {
+  return {
+    $or: [
+      { masterOrderId: { $exists: true, $nin: [null, ''] } },
+      { masterOrderCode: { $exists: true, $nin: [null, ''] } },
+      { masterOrderNo: { $exists: true, $nin: [null, ''] } },
+      { deliveryMasterId: { $exists: true, $nin: [null, ''] } },
+      { deliveryMasterCode: { $exists: true, $nin: [null, ''] } }
+    ]
+  };
+}
+// DELIVERY_MASTER_LINK_GUARD_END
+
 
 function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
 function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
@@ -767,7 +783,10 @@ class DeliveryEngine {
     // Tránh $or regex trên nhiều alias không index, nguyên nhân làm /api/delivery/orders và /returns chậm.
     if (shouldTryFastDeliveryCodeQuery(query)) {
       const deliveryCode = directDeliveryCodeFromQuery(query);
-      const and = [{ deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } }];
+      const and = [
+        masterAssignmentMongoClause(),
+        { deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } }
+      ];
       applyKeywordToAnd(and);
       const fastFilter = { ...makeBaseFilter(), $and: and };
       orders = await this.execSalesOrderFind(fastFilter, {
@@ -778,7 +797,7 @@ class DeliveryEngine {
 
     if (!orders.length) {
       const filter = makeBaseFilter();
-      const and = [];
+      const and = [masterAssignmentMongoClause()];
       pushStaffMongoFilters(and, query);
       applyKeywordToAnd(and);
       if (and.length) filter.$and = and;

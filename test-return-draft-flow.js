@@ -90,15 +90,23 @@ function patch(target, replacements) {
     for (const op of ops) {
       const filter = op.updateOne?.filter?.$or || [];
       const patch = op.updateOne?.update?.$set || {};
+      const unset = op.updateOne?.update?.$unset || {};
       for (const order of orders) {
-        if (filter.some((cond) => Object.entries(cond).some(([k, v]) => v && order[k] === v))) Object.assign(order, patch);
+        if (filter.some((cond) => Object.entries(cond).some(([k, v]) => v && order[k] === v))) {
+          Object.assign(order, patch);
+          Object.keys(unset).forEach((key) => delete order[key]);
+        }
       }
     }
     return { modifiedCount: ops.length };
   } }));
   restores.push(patch(MongoStore.returnOrders, { updateMany: async (filter = {}, update = {}) => {
     const patch = update.$set || {};
-    for (const row of returns) Object.assign(row, patch);
+    const unset = update.$unset || {};
+    for (const row of returns) {
+      Object.assign(row, patch);
+      Object.keys(unset).forEach((key) => delete row[key]);
+    }
     return { modifiedCount: returns.length };
   } }));
 
@@ -135,7 +143,7 @@ function patch(target, replacements) {
     assert.equal(returns[0].deliveryStaffCode, 'GH01');
 
     await masterService.cancelMasterOrder(master.masterOrder.id, { reason: 'test' });
-    assert.equal(returns[0].masterOrderId, '', 'hủy đơn tổng phải gỡ masterOrderId khỏi returnOrder');
+    assert.equal(returns[0].masterOrderId || '', '', 'hủy đơn tổng phải gỡ masterOrderId khỏi returnOrder');
     assert.equal(returns[0].status, 'cleared', 'hủy đơn tổng không hủy returnOrder đã clear');
 
     console.log('RETURN_DRAFT_FLOW_TEST_OK');
