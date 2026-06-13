@@ -11,6 +11,8 @@ module.exports = flexModel('ArLedger', 'arLedgers', {
   customerName: String,
   salesmanCode: String,
   salesmanName: String,
+  salesStaffCode: String,
+  salesStaffName: String,
   deliveryStaffCode: String,
   deliveryStaffName: String,
   orderId: String,
@@ -26,6 +28,14 @@ module.exports = flexModel('ArLedger', 'arLedgers', {
   note: String,
   status: String,
   source: String,
+  sourceType: String,
+  sourceId: String,
+  sourceCode: String,
+  orderType: String,
+  collectorType: String,
+  collectorCode: String,
+  collectorName: String,
+  accountingConfirmedBy: String,
 
   // A4 - Cash in transit metadata
   method: String,

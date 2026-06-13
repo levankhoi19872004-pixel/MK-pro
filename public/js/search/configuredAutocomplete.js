@@ -165,6 +165,10 @@
       if (collectionCustomerSelect) collectionCustomerSelect.dataset.debt = String(item.debt || item.debtAmount || 0);
       if (typeof updateSelectedCustomerDebt === 'function') updateSelectedCustomerDebt();
     }
+    if (config.afterSelect === 'setExternalDebtCustomerDefaults') {
+      const fn = getGlobalValue('setExternalDebtCustomerDefaults');
+      if (typeof fn === 'function') fn(item);
+    }
   }
 
   function applyConfiguredSelect(config, item) {

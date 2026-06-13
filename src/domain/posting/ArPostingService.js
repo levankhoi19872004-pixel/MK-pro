@@ -50,6 +50,42 @@ async function markReversed(rows = [], user = {}, options = {}) {
   return reversed;
 }
 
+
+async function postExternalDebt(order = {}, options = {}) {
+  const amount = Math.max(0, toNumber(order.debit ?? order.amount ?? order.totalAmount));
+  if (amount <= 0) return null;
+
+  const sourceId = String(order.orderId || order.sourceId || order.refId || order.id || order.code || '').trim();
+  const sourceCode = String(order.orderCode || order.sourceCode || order.refCode || order.code || order.id || '').trim();
+  const suppliedId = String(order.ledgerId || order.arLedgerId || order.id || '').trim();
+  const suppliedCode = String(order.ledgerCode || order.arLedgerCode || order.code || '').trim();
+  const entry = sanitizeLedgerRow({
+    ...order,
+    id: suppliedId.startsWith('AR-EXTERNAL-') ? suppliedId : `AR-EXTERNAL-${sourceId || sourceCode}`,
+    code: suppliedCode.startsWith('AR-EXTERNAL-') ? suppliedCode : `AR-EXTERNAL-${sourceCode || sourceId}`,
+    type: 'ar_external_debt',
+    account: 'AR',
+    orderType: 'external_debt',
+    refType: order.refType || 'EXTERNAL_DEBT_ORDER',
+    refId: order.refId || id,
+    refCode: order.refCode || code,
+    sourceType: order.sourceType || 'externalDebtOrder',
+    sourceId: order.sourceId || id,
+    sourceCode: order.sourceCode || code,
+    debit: amount,
+    credit: 0,
+    amount,
+    status: order.status || 'posted',
+    accountingConfirmed: true,
+    accountingStatus: 'confirmed',
+    createdAt: order.createdAt || dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
+  });
+
+  await paymentRepository.upsert(entry, options);
+  return entry;
+}
+
 async function postSale(order = {}, options = {}) {
   return postingEngine.postSalesOrderAR(order, options);
 }
@@ -117,6 +153,7 @@ async function postBonusAllowance(order = {}, options = {}) {
 }
 
 module.exports = {
+  postExternalDebt,
   postSale,
   postReceipt,
   postReturn,

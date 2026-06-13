@@ -292,6 +292,55 @@
       emptyText: 'Không tìm thấy nhân viên bán hàng'
     }
 
+    ,{
+      key: 'externalDebtCustomer',
+      type: 'customer',
+      inputId: 'externalDebtCustomerSearch',
+      boxId: 'externalDebtCustomerSuggestions',
+      source: 'customers',
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'externalDebtCustomerId', value: 'id' },
+        { targetId: 'externalDebtCustomerCode', value: 'customerCode' },
+        { targetId: 'externalDebtCustomerName', value: 'customerName' },
+        { targetId: 'externalDebtCustomerSearch', value: 'label' }
+      ],
+      afterSelect: 'setExternalDebtCustomerDefaults',
+      emptyText: 'Không tìm thấy khách hàng'
+    }
+    ,{
+      key: 'externalDebtSalesStaff',
+      type: 'staff',
+      inputId: 'externalDebtSalesStaffSearch',
+      boxId: 'externalDebtSalesStaffSuggestions',
+      source: 'users',
+      roles: ['sales'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'externalDebtSalesStaffCode', value: 'businessStaffCode' },
+        { targetId: 'externalDebtSalesStaffName', value: 'businessStaffName' },
+        { targetId: 'externalDebtSalesStaffSearch', value: 'label' }
+      ],
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    }
+    ,{
+      key: 'externalDebtDeliveryStaff',
+      type: 'staff',
+      inputId: 'externalDebtDeliveryStaffSearch',
+      boxId: 'externalDebtDeliveryStaffSuggestions',
+      source: 'users',
+      roles: ['delivery'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'externalDebtDeliveryStaffCode', value: 'businessStaffCode' },
+        { targetId: 'externalDebtDeliveryStaffName', value: 'businessStaffName' },
+        { targetId: 'externalDebtDeliveryStaffSearch', value: 'label' }
+      ],
+      emptyText: 'Không tìm thấy nhân viên giao hàng'
+    }
 
   ];
 })();

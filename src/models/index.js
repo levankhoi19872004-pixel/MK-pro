@@ -22,6 +22,8 @@ module.exports = {
   bankbooks: require('./Bankbook'),
   fundLedgers: require('./FundLedger'),
   debtCollections: require('./DebtCollection'),
+  debtCollectionLocks: require('./DebtCollectionLock'),
+  externalDebtOrders: require('./ExternalDebtOrder'),
   deliveryCashSubmissions: require('./DeliveryCashSubmission'),
   expenseVouchers: require('./ExpenseVoucher'),
   fundTransfers: require('./FundTransfer'),

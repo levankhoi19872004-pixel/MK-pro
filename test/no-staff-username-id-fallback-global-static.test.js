@@ -74,10 +74,10 @@ test('frontend staff code helpers must not use username or id fallback', () => {
   assert.match(importUi, /u\.employeeCode/);
 
   const config = read('public/js/search/searchFieldsConfig.js');
-  const autocomplete = read('public/js/app/03-customers-autocomplete.js');
+  const autocomplete = read('public/js/search/configuredAutocomplete.js');
   assert.doesNotMatch(config, /codeOrUsernameOrId|nameOrFullNameOrUsername/);
   assert.match(config, /businessStaffCode/);
-  assert.match(autocomplete, /valueType==='businessStaffCode'/);
+  assert.match(autocomplete, /valueType\s*===\s*['"]businessStaffCode['"]/);
 });
 
 test('userService must not synthesize staff code from username or _id', () => {

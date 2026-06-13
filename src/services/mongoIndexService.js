@@ -174,7 +174,10 @@ const INDEX_DEFINITIONS = {
     [
       { masterOrderCode: 1, deliveryStaffCode: 1, date: -1 },
       { name: 'idx_ar_master_delivery_staff_date', sparse: true }
-    ]
+    ],
+    [{ salesStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_sales_staff_customer_created' }],
+    [{ deliveryStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_delivery_staff_customer_created' }],
+    [{ orderCode: 1, status: 1 }, { name: 'idx_ar_order_status' }]
   ],
   payments: [
     [{ id: 1 }, { name: 'idx_payments_id' }],
@@ -211,7 +214,23 @@ const INDEX_DEFINITIONS = {
     [{ status: 1, submittedAt: -1 }, { name: 'idx_debt_collections_status_submitted_at' }],
     [{ customerCode: 1, status: 1 }, { name: 'idx_debt_collections_customer_status' }],
     [{ collectorType: 1, collectorCode: 1, status: 1 }, { name: 'idx_debt_collections_collector_status' }],
-    [{ 'allocations.salesOrderCode': 1, status: 1 }, { name: 'idx_debt_collections_allocation_order_status' }]
+    [{ 'allocations.salesOrderCode': 1, status: 1 }, { name: 'idx_debt_collections_allocation_order_status' }],
+    [{ salesStaffCode: 1, status: 1, submittedAt: -1 }, { name: 'idx_debt_collections_sales_staff_status' }],
+    [{ deliveryStaffCode: 1, status: 1, submittedAt: -1 }, { name: 'idx_debt_collections_delivery_staff_status' }],
+    [{ collectorCode: 1, status: 1, submittedAt: -1 }, { name: 'idx_debt_collections_collector_code_status' }]
+  ],
+
+  debtCollectionLocks: [
+    [{ orderCode: 1 }, { name: 'uniq_debt_collection_locks_order', unique: true }]
+  ],
+
+  externalDebtOrders: [
+    [{ id: 1 }, { name: 'uniq_external_debt_orders_id', unique: true, sparse: true }],
+    [{ code: 1 }, { name: 'uniq_external_debt_orders_code', unique: true, sparse: true }],
+    [{ idempotencyKey: 1 }, { name: 'uniq_external_debt_orders_idempotency', unique: true, sparse: true }],
+    [{ salesStaffCode: 1, status: 1, documentDate: -1 }, { name: 'idx_external_debt_sales_staff_status_date' }],
+    [{ deliveryStaffCode: 1, status: 1, documentDate: -1 }, { name: 'idx_external_debt_delivery_staff_status_date' }],
+    [{ customerCode: 1, status: 1 }, { name: 'idx_external_debt_customer_status' }]
   ],
 
   fundLedgers: [

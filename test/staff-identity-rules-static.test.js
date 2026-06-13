@@ -59,7 +59,7 @@ test('reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, khô
   assert.match(src, /DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START/);
   assert.match(src, /saleSalesmanCode/);
   assert.match(src, /saleDeliveryStaffName/);
-  assert.match(src, /regex:\s*'sale'/);
+  assert.match(src, /regex:\s*'sale\|external_debt'/);
   assert.match(src, /row\.saleSalesmanCode \|\| row\.fallbackSalesmanCode/);
   assert.match(src, /row\.saleDeliveryStaffName \|\| row\.fallbackDeliveryStaffName/);
 });

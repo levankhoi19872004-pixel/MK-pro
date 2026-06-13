@@ -550,7 +550,7 @@ async function buildDebtLedgerMatchWithStaffScope(query = {}) {
 
   const seedMatch = {
     ...buildDebtLedgerMatch({}),
-    type: 'ar_sale',
+    type: { $in: ['ar_sale', 'ar_external_debt'] },
     ...staffCondition
   };
   if (query.dateFrom || query.dateTo || query.date) {
@@ -643,6 +643,7 @@ async function debtReport(query = {}) {
       date: { $ifNull: ['$date', '$createdAt'] },
       code: 1,
       type: 1,
+      orderType: 1,
       refType: 1,
       refId: 1,
       refCode: 1,
@@ -688,8 +689,8 @@ async function debtReport(query = {}) {
       lastDate: { $max: '$date' },
       phone: { $max: '$phone' },
       address: { $max: '$address' },
-      debit: { $sum: { $cond: [{ $gt: ['$debit', 0] }, '$debit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, '$amount', 0] }] } },
-      credit: { $sum: { $cond: [{ $gt: ['$credit', 0] }, '$credit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } }, 0, '$amount'] }] } },
+      debit: { $sum: { $cond: [{ $gt: ['$debit', 0] }, '$debit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } }, '$amount', 0] }] } },
+      credit: { $sum: { $cond: [{ $gt: ['$credit', 0] }, '$credit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } }, 0, '$amount'] }] } },
       receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
       bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
@@ -698,23 +699,28 @@ async function debtReport(query = {}) {
       // PAYMENT/RETURN có thể mang staff audit/legacy và làm $max chọn sai NVBH/NVGH khi trùng mã.
       // Vì vậy nhân sự hiển thị theo đơn nợ phải lấy từ dòng AR-SALE gốc của chính đơn đó.
       saleSalesmanCode: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
         { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] },
         ''
       ] } },
       saleSalesmanName: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
         { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] },
         ''
       ] } },
       saleDeliveryStaffCode: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
         { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] },
         ''
       ] } },
       saleDeliveryStaffName: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale' } },
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
         { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] },
+        ''
+      ] } },
+      saleOrderType: { $max: { $cond: [
+        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
+        { $ifNull: ['$orderType', { $cond: [{ $eq: ['$type', 'ar_external_debt'] }, 'external_debt', 'sales_order'] }] },
         ''
       ] } },
       salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
@@ -758,6 +764,7 @@ async function debtReport(query = {}) {
       salesmanName: row.saleSalesmanName || row.fallbackSalesmanName || '',
       deliveryStaffCode: row.saleDeliveryStaffCode || row.fallbackDeliveryStaffCode || '',
       deliveryStaffName: row.saleDeliveryStaffName || row.fallbackDeliveryStaffName || '',
+      orderType: row.saleOrderType || (/^NDNBLH/i.test(String(id.orderCode || '')) ? 'external_debt' : 'sales_order'),
       // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_END =====
       documentDate,
       dueDate: documentDate,
@@ -834,7 +841,8 @@ async function debtReport(query = {}) {
       salesmanCode: row.salesmanCode,
       salesmanName: row.salesmanName,
       deliveryStaffCode: row.deliveryStaffCode,
-      deliveryStaffName: row.deliveryStaffName
+      deliveryStaffName: row.deliveryStaffName,
+      orderType: row.orderType || 'sales_order'
     });
     target.overdueDays = Math.max(toNumber(target.overdueDays), toNumber(row.overdueDays));
     target.agingDays = Math.max(toNumber(target.agingDays), toNumber(row.agingDays));

@@ -40,7 +40,8 @@ test('DebtReadService response includes ledgers for frontend', () => {
   const source = fs.readFileSync(DEBT_READ_FILE, 'utf8');
 
   assert.match(source, /ledgers:\s*orders\.map/);
-  assert.match(source, /type:\s*['"]AR-SALE['"]/);
+  assert.match(source, /AR-EXTERNAL-DEBT/);
+  assert.match(source, /AR-SALE/);
   assert.match(source, /salesOrderCode:\s*order\.salesOrderCode/);
   assert.match(source, /refCode:\s*order\.salesOrderCode/);
   assert.match(source, /debit:\s*toNumber\(order\.debit\)/);

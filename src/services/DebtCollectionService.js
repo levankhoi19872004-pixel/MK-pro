@@ -1,6 +1,8 @@
 'use strict';
 
 const DebtCollection = require('../models/DebtCollection');
+const DebtCollectionLock = require('../models/DebtCollectionLock');
+const ExternalDebtOrder = require('../models/ExternalDebtOrder');
 const DebtReadService = require('./DebtReadService');
 const ArPostingService = require('../domain/posting/ArPostingService');
 const FundPostingService = require('../domain/posting/FundPostingService');
@@ -27,13 +29,16 @@ function okBody(body = {}, statusCode) {
 }
 
 function collectorTypeOf(user = {}, body = {}) {
+  const authenticatedRole = text(user.role).toLowerCase();
+  if (authenticatedRole === 'sales' || authenticatedRole === 'delivery') return authenticatedRole;
+
   const requested = text(body.collectorType).toLowerCase();
   if (requested === 'sales' || requested === 'delivery') return requested;
-  return String(user.role || '').toLowerCase() === 'delivery' ? 'delivery' : 'sales';
+  return 'sales';
 }
 
 function collectorCodeOf(user = {}) {
-  return text(user.staffCode || user.code || user.salesStaffCode || user.deliveryStaffCode || user.username);
+  return text(user.staffCode || user.code || user.salesStaffCode || user.salesmanCode || user.deliveryStaffCode || user.shipperCode);
 }
 
 function collectorNameOf(user = {}) {
@@ -49,9 +54,24 @@ function normalizePaymentMethod(value = '') {
 
 async function makeDebtCollectionCode(now = dateUtil.nowIso()) {
   const date = dateUtil.toDateOnly(now || dateUtil.todayVN()).replace(/-/g, '');
-  const prefix = `DC${date}`;
-  const count = await DebtCollection.countDocuments({ code: new RegExp(`^${prefix}`) }).catch(() => 0);
-  return `${prefix}${String(count + 1).padStart(4, '0')}`;
+  const entropy = `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`.slice(-10);
+  return `DC${date}${entropy}`;
+}
+
+async function ensureDebtCollectionLocks(orderKeys = []) {
+  for (const orderCode of orderKeys) {
+    try {
+      await DebtCollectionLock.findOneAndUpdate(
+        { orderCode },
+        { $setOnInsert: { orderCode, version: 0 }, $set: { updatedAt: dateUtil.nowIso() } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    } catch (err) {
+      // Hai request đầu tiên có thể cùng tạo lock. Unique index đảm bảo chỉ một dòng;
+      // request còn lại tiếp tục vì lock đã tồn tại.
+      if (!err || err.code !== 11000) throw err;
+    }
+  }
 }
 
 function buildCollectorFields(mobileUser = {}, body = {}) {
@@ -89,63 +109,96 @@ async function submitDebtCollection({ body = {}, mobileUser = {} } = {}) {
   if (totalAllocated !== amount) return fail(400, 'Tổng tiền phân bổ phải bằng số tiền thu');
 
   const idempotencyKey = text(body.idempotencyKey);
-  if (idempotencyKey) {
-    const existed = await DebtCollection.findOne({ idempotencyKey, status: { $in: ACTIVE_STATUSES } }).lean();
-    if (existed) {
-      return okBody({
-        ok: true,
-        message: 'Phiếu thu nợ đã được ghi nhận trước đó',
-        collection: existed
-      });
-    }
-  }
-
-  const now = dateUtil.nowIso();
   const collector = buildCollectorFields(mobileUser, body);
-  const debtScope = collector.collectorType === 'delivery'
-    ? { delivery: collector.deliveryStaffCode || collector.deliveryStaffName }
-    : { salesman: collector.salesStaffCode || collector.salesStaffName };
+  if (!collector.collectorCode) return fail(403, 'Không xác định được mã nhân viên thực tế thu tiền');
 
-  const debtCheck = await DebtReadService.checkAvailableDebt({
-    customerCode: body.customerCode,
-    customerId: body.customerId,
-    allocations,
-    scope: debtScope
+  const orderKeys = [...new Set(allocations
+    .map((row) => text(row.salesOrderCode || row.orderCode || row.salesOrderId || row.orderId))
+    .filter(Boolean))]
+    .sort();
+  if (!orderKeys.length) return fail(400, 'Cần chọn ít nhất một đơn nợ hợp lệ');
+
+  await ensureDebtCollectionLocks(orderKeys);
+
+  return withMongoTransaction(async (session) => {
+    if (idempotencyKey) {
+      const existed = await DebtCollection.findOne({ idempotencyKey, status: { $in: ACTIVE_STATUSES } }).session(session).lean();
+      if (existed) {
+        return okBody({
+          ok: true,
+          message: 'Phiếu thu nợ đã được ghi nhận trước đó',
+          collection: existed
+        });
+      }
+    }
+
+    const now = dateUtil.nowIso();
+
+    // Khóa logic theo từng đơn nợ. Hai NVBH/NVGH thu đồng thời trên cùng đơn
+    // sẽ tranh chấp cùng document lock và được Mongo transaction tuần tự hóa.
+    for (const orderCode of orderKeys) {
+      await DebtCollectionLock.findOneAndUpdate(
+        { orderCode },
+        { $inc: { version: 1 }, $set: { updatedAt: now } },
+        { new: true, session }
+      );
+    }
+
+    const debtScope = collector.collectorType === 'delivery'
+      ? { delivery: collector.collectorCode }
+      : { salesman: collector.collectorCode };
+
+    const debtCheck = await DebtReadService.checkAvailableDebt({
+      customerCode: body.customerCode,
+      customerId: body.customerId,
+      allocations,
+      scope: debtScope,
+      session
+    });
+
+    if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ');
+
+    const collection = {
+      id: makeId('DC'),
+      code: await makeDebtCollectionCode(now),
+      status: 'submitted',
+
+      customerId: debtCheck.customerId || text(body.customerId),
+      customerCode: debtCheck.customerCode || text(body.customerCode),
+      customerName: debtCheck.customerName || text(body.customerName),
+
+      collectorType: collector.collectorType,
+      collectorUserId: collector.collectorUserId,
+      collectorCode: collector.collectorCode,
+      collectorName: collector.collectorName,
+
+      // Người phụ trách lấy từ AR gốc của đơn, không tin tên/mã do frontend gửi.
+      salesStaffCode: debtCheck.salesStaffCode || '',
+      salesStaffName: debtCheck.salesStaffName || '',
+      deliveryStaffCode: debtCheck.deliveryStaffCode || '',
+      deliveryStaffName: debtCheck.deliveryStaffName || '',
+
+      amount,
+      paymentMethod: normalizePaymentMethod(body.paymentMethod),
+      note: text(body.note),
+      allocations: debtCheck.allocations,
+
+      submittedAt: now,
+      submittedBy: text(mobileUser.username || mobileUser.name || mobileUser.fullName),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    if (idempotencyKey) collection.idempotencyKey = idempotencyKey;
+
+    const created = await DebtCollection.create([collection], { session });
+
+    return okBody({
+      ok: true,
+      message: 'Đã ghi nhận thu nợ, chờ kế toán xác nhận',
+      collection: created[0]
+    }, 201);
   });
-
-  if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ không hợp lệ');
-  const collection = {
-    id: makeId('DC'),
-    code: await makeDebtCollectionCode(now),
-    status: 'submitted',
-
-    customerId: debtCheck.customerId || text(body.customerId),
-    customerCode: debtCheck.customerCode || text(body.customerCode),
-    customerName: debtCheck.customerName || text(body.customerName),
-
-    ...collector,
-
-    amount,
-    paymentMethod: normalizePaymentMethod(body.paymentMethod),
-    note: text(body.note),
-
-    allocations: debtCheck.allocations,
-
-    submittedAt: now,
-    submittedBy: text(mobileUser.username || mobileUser.name || mobileUser.fullName),
-    createdAt: now,
-    updatedAt: now
-  };
-
-  if (idempotencyKey) collection.idempotencyKey = idempotencyKey;
-
-  const created = await DebtCollection.create([collection]);
-
-  return okBody({
-    ok: true,
-    message: 'Đã ghi nhận thu nợ, chờ kế toán xác nhận',
-    collection: created[0]
-  }, 201);
 }
 
 function buildListFilter(query = {}) {
@@ -200,7 +253,8 @@ async function confirmDebtCollection(idOrCode, command = {}) {
     const debtCheck = await DebtReadService.checkAvailableDebt({
       customerCode: collection.customerCode,
       allocations: collection.allocations,
-      excludeCollectionId: collection.id
+      excludeCollectionId: collection.id,
+      session
     });
     if (!debtCheck.ok) return fail(debtCheck.status || 409, debtCheck.message || 'Công nợ đã thay đổi, không thể xác nhận phiếu thu');
 
@@ -215,6 +269,11 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       allocations: collection.allocations.map((row) => ({
         orderId: row.salesOrderId || '',
         orderCode: row.salesOrderCode || '',
+        orderType: row.orderType || '',
+        salesStaffCode: row.salesStaffCode || collection.salesStaffCode || '',
+        salesStaffName: row.salesStaffName || collection.salesStaffName || '',
+        deliveryStaffCode: row.deliveryStaffCode || collection.deliveryStaffCode || '',
+        deliveryStaffName: row.deliveryStaffName || collection.deliveryStaffName || '',
         amount: row.allocatedAmount
       })),
       refType: 'debtCollection',
@@ -223,15 +282,43 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       source: 'DebtCollectionPostingService',
       method: collection.paymentMethod,
       paymentMethod: collection.paymentMethod,
+      orderType: collection.allocations?.[0]?.orderType || '',
+      salesStaffCode: collection.salesStaffCode,
+      salesStaffName: collection.salesStaffName,
       salesmanCode: collection.salesStaffCode,
       salesmanName: collection.salesStaffName,
       deliveryStaffCode: collection.deliveryStaffCode,
       deliveryStaffName: collection.deliveryStaffName,
+      collectorType: collection.collectorType,
+      collectorCode: collection.collectorCode,
+      collectorName: collection.collectorName,
+      sourceType: 'debtCollection',
+      sourceId: collection.id,
+      sourceCode: collection.code,
+      accountingConfirmedBy: text(command.accountingUserName || command.accountingConfirmedBy || command.user?.name || command.user?.username),
       note: `Xác nhận thu nợ ${collection.code}`
     };
 
     const arPosted = await ArPostingService.postReceipt(receiptDoc, { session });
     const arLedgers = (Array.isArray(arPosted) ? arPosted : [arPosted]).filter(Boolean);
+
+    for (const allocation of debtCheck.allocations || []) {
+      if (allocation.orderType !== 'external_debt') continue;
+      const remainingDebt = Math.max(0, money(allocation.beforeDebt) - money(allocation.allocatedAmount));
+      await ExternalDebtOrder.findOneAndUpdate({
+        $or: [
+          { id: allocation.salesOrderId },
+          { code: allocation.salesOrderCode }
+        ]
+      }, {
+        $inc: { paidAmount: money(allocation.allocatedAmount) },
+        $set: {
+          remainingDebt,
+          status: remainingDebt > 0 ? 'active' : 'paid',
+          updatedAt: dateUtil.nowIso()
+        }
+      }, { session });
+    }
 
     const fundLedger = await FundPostingService.postCashIn({
       amount: collection.amount,
@@ -247,8 +334,11 @@ async function confirmDebtCollection(idOrCode, command = {}) {
       referenceCode: collection.code,
       customerCode: collection.customerCode,
       customerName: collection.customerName,
+      collectorType: collection.collectorType,
       collectorCode: collection.collectorCode,
       collectorName: collection.collectorName,
+      salesStaffCode: collection.salesStaffCode,
+      salesStaffName: collection.salesStaffName,
       staffCode: collection.collectorCode,
       staffName: collection.collectorName,
       deliveryStaffCode: collection.deliveryStaffCode,
@@ -311,6 +401,7 @@ module.exports = {
   rejectDebtCollection,
   _internal: {
     makeDebtCollectionCode,
+    ensureDebtCollectionLocks,
     buildCollectorFields,
     buildListFilter,
     normalizePaymentMethod

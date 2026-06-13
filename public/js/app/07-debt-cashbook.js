@@ -497,6 +497,133 @@ function clearDebtCustomerSelection(){
 }
 
 
+function setExternalDebtField(element, value){
+  if(element)element.value=String(value||'').trim();
+}
+
+function setExternalDebtCustomerDefaults(item={}){
+  const customerCode=item.customerCode||item.code||'';
+  const customerName=item.customerName||item.name||'';
+  const salesCode=item.salesStaffCode||item.salesmanCode||item.nvbhCode||item.staffCode||'';
+  const salesName=item.salesStaffName||item.salesmanName||item.nvbhName||item.staffName||'';
+  const deliveryCode=item.deliveryStaffCode||item.deliveryCode||item.nvghCode||'';
+  const deliveryName=item.deliveryStaffName||item.deliveryName||item.nvghName||'';
+
+  setExternalDebtField(externalDebtCustomerId,item.id||item._id||customerCode);
+  setExternalDebtField(externalDebtCustomerCode,customerCode);
+  setExternalDebtField(externalDebtCustomerName,customerName);
+
+  if(salesCode){
+    setExternalDebtField(externalDebtSalesStaffCode,salesCode);
+    setExternalDebtField(externalDebtSalesStaffName,salesName);
+    setExternalDebtField(externalDebtSalesStaffSearch,[salesCode,salesName].filter(Boolean).join(' - '));
+  }
+  if(deliveryCode){
+    setExternalDebtField(externalDebtDeliveryStaffCode,deliveryCode);
+    setExternalDebtField(externalDebtDeliveryStaffName,deliveryName);
+    setExternalDebtField(externalDebtDeliveryStaffSearch,[deliveryCode,deliveryName].filter(Boolean).join(' - '));
+  }
+}
+window.setExternalDebtCustomerDefaults=setExternalDebtCustomerDefaults;
+
+function resetExternalDebtForm(){
+  if(!externalDebtForm)return;
+  externalDebtForm.reset();
+  [externalDebtCustomerId,externalDebtCustomerCode,externalDebtCustomerName,
+    externalDebtSalesStaffCode,externalDebtSalesStaffName,
+    externalDebtDeliveryStaffCode,externalDebtDeliveryStaffName].forEach(function(input){if(input)input.value=''});
+  if(externalDebtDocumentDate)externalDebtDocumentDate.value=today();
+  if(externalDebtMessage)externalDebtMessage.textContent='';
+  if(externalDebtForm)delete externalDebtForm.dataset.idempotencyKey;
+}
+
+function openExternalDebtModal(){
+  if(!externalDebtModal)return;
+  resetExternalDebtForm();
+  externalDebtModal.classList.add('show');
+  externalDebtModal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  setTimeout(function(){if(externalDebtCustomerSearch)externalDebtCustomerSearch.focus()},20);
+}
+
+function closeExternalDebtModal(){
+  if(!externalDebtModal)return;
+  externalDebtModal.classList.remove('show');
+  externalDebtModal.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+
+function clearExternalDebtSelectionOnTyping(input, hiddenFields=[]){
+  if(!input)return;
+  input.addEventListener('input',function(){
+    const selectedLabel=String(input.dataset.selectedLabel||'');
+    if(selectedLabel&&input.value===selectedLabel)return;
+    hiddenFields.forEach(function(field){if(field)field.value=''});
+  });
+}
+
+async function submitExternalDebtOrder(event){
+  event.preventDefault();
+  const customerCode=String(externalDebtCustomerCode?.value||'').trim();
+  const salesStaffCode=String(externalDebtSalesStaffCode?.value||'').trim();
+  const deliveryStaffCode=String(externalDebtDeliveryStaffCode?.value||'').trim();
+  const amount=parseDebtMoneyInput(externalDebtAmount?.value||'');
+  const documentDate=String(externalDebtDocumentDate?.value||'').trim();
+  const dueDate=String(externalDebtDueDate?.value||'').trim();
+  const referenceCode=String(externalDebtReferenceCode?.value||'').trim();
+  const reason=String(externalDebtReason?.value||'').trim();
+
+  if(!customerCode){showMessage(externalDebtMessage,'Cần chọn khách hàng từ danh sách gợi ý.',true);return}
+  if(!salesStaffCode){showMessage(externalDebtMessage,'Cần chọn nhân viên bán hàng phụ trách.',true);return}
+  if(!deliveryStaffCode){showMessage(externalDebtMessage,'Cần chọn nhân viên giao hàng phụ trách.',true);return}
+  if(amount<=0){showMessage(externalDebtMessage,'Số tiền công nợ phải lớn hơn 0.',true);return}
+  if(!documentDate){showMessage(externalDebtMessage,'Cần chọn ngày ghi nhận.',true);return}
+  if(!reason){showMessage(externalDebtMessage,'Cần nhập lý do tạo công nợ.',true);return}
+
+  const idempotencySeed=(referenceCode||documentDate||'manual').replace(/[^a-zA-Z0-9_-]+/g,'').slice(0,60);
+  if(!externalDebtForm.dataset.idempotencyKey){
+    externalDebtForm.dataset.idempotencyKey=`external-debt-${customerCode}-${idempotencySeed}-${Date.now()}`;
+  }
+  const payload={
+    customerCode,
+    salesStaffCode,
+    deliveryStaffCode,
+    amount,
+    documentDate,
+    dueDate,
+    referenceCode,
+    reason,
+    idempotencyKey:externalDebtForm.dataset.idempotencyKey
+  };
+
+  try{
+    showMessage(externalDebtMessage,'Đang tạo công nợ ngoài luồng...');
+    const res=await fetch('/api/external-debt-orders',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tạo được công nợ ngoài luồng');
+    showMessage(externalDebtMessage,json.message||'Đã tạo công nợ ngoài luồng');
+    if(debtSearchInput)debtSearchInput.value=customerCode;
+    await loadDebts();
+    setTimeout(function(){closeExternalDebtModal();resetExternalDebtForm()},500);
+  }catch(err){showMessage(externalDebtMessage,err.message||'Không tạo được công nợ ngoài luồng',true)}
+}
+
+if(openExternalDebtModalButton)openExternalDebtModalButton.addEventListener('click',openExternalDebtModal);
+if(closeExternalDebtModalButton)closeExternalDebtModalButton.addEventListener('click',closeExternalDebtModal);
+if(resetExternalDebtFormButton)resetExternalDebtFormButton.addEventListener('click',resetExternalDebtForm);
+if(reloadDebtsButton)reloadDebtsButton.addEventListener('click',loadDebts);
+if(externalDebtForm)externalDebtForm.addEventListener('submit',submitExternalDebtOrder);
+if(externalDebtModal)externalDebtModal.addEventListener('click',function(event){if(event.target===externalDebtModal)closeExternalDebtModal()});
+if(externalDebtAmount)externalDebtAmount.addEventListener('blur',function(){const value=parseDebtMoneyInput(externalDebtAmount.value);externalDebtAmount.value=value>0?money(value):''});
+clearExternalDebtSelectionOnTyping(externalDebtCustomerSearch,[externalDebtCustomerId,externalDebtCustomerCode,externalDebtCustomerName]);
+clearExternalDebtSelectionOnTyping(externalDebtSalesStaffSearch,[externalDebtSalesStaffCode,externalDebtSalesStaffName]);
+clearExternalDebtSelectionOnTyping(externalDebtDeliveryStaffSearch,[externalDebtDeliveryStaffCode,externalDebtDeliveryStaffName]);
+if(externalDebtDocumentDate&&!externalDebtDocumentDate.value)externalDebtDocumentDate.value=today();
+
 function setDebtPanel(panelId){
   if(!panelId)return;
   debtInnerTabs.forEach(btn=>btn.classList.toggle('active',btn.dataset.debtPanel===panelId));

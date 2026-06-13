@@ -9513,3 +9513,15 @@ body::after{
   #deliveryTodayTab .delivery-v46-sales-branch-head button{margin-left:0;}
 }
 /* MK-SCOPED-FIX: DELIVERY_BRANCH_SALES_STAFF_FILTER_END */
+
+/* PHASE 16: external debt order modal */
+.debt-v2-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.external-debt-modal-card{width:min(920px,94vw);max-height:92vh;overflow:auto}
+.external-debt-form{padding:18px 20px 22px}
+.external-debt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.external-debt-span-2{grid-column:1/-1}
+.external-debt-form label{display:flex;flex-direction:column;gap:6px;font-weight:600}
+.external-debt-form input,.external-debt-form textarea{width:100%}
+.external-debt-form .required{color:#b91c1c}
+.external-debt-assignment-note{margin:14px 0;padding:12px 14px;background:#f8fafc;border:1px solid #dbe5f3;border-radius:10px;color:#334155}
+@media(max-width:760px){.external-debt-grid{grid-template-columns:1fr}.external-debt-span-2{grid-column:auto}.debt-v2-head-actions{justify-content:flex-start}}
