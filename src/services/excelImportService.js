@@ -26,8 +26,9 @@ const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/bus
 const importRules = require('../rules/importRules');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
-const { saveImportFiles } = require('../utils/importTempFileStore');
+const { saveImportFiles, cleanupImportFiles } = require('../utils/importTempFileStore');
 const { enqueueImportPreviewJob } = require('../jobs/importPreviewQueue');
+const { runImportPreviewPipeline } = require('../jobs/importPreviewRunner');
 const promotionService = require('./promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
 const {
@@ -2978,14 +2979,26 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
   if (asyncPreview) {
     const storedFiles = await saveImportFiles(session.id, normalizedFiles);
 
-    await importSessionService.markQueued(session.id);
+    await importSessionService.markQueued(session.id, { files: storedFiles });
 
-    enqueueImportPreviewJob({
-      sessionId: session.id,
-      type,
-      files: storedFiles,
-      userName
-    });
+    let queueResult;
+    try {
+      queueResult = enqueueImportPreviewJob({
+        sessionId: session.id,
+        type,
+        files: storedFiles,
+        userName
+      });
+    } catch (err) {
+      await importSessionService.markFailed(session.id, err.message || 'Không thể đưa file vào hàng đợi import').catch(() => {});
+      await cleanupImportFiles(storedFiles).catch(() => {});
+      return {
+        error: err.message || 'Hàng đợi import đang quá tải',
+        status: Number(err.statusCode || err.status || 503),
+        sessionId: session.id,
+        importSessionId: session.id
+      };
+    }
 
     await auditService.log('IMPORT_PREVIEW_QUEUED', {
       refType: 'importSession',
@@ -3007,18 +3020,19 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
       status: 'queued',
       message: 'File import đã được đưa vào hàng chờ xử lý',
       sessionId: session.id,
-      importSessionId: session.id
+      importSessionId: session.id,
+      queue: queueResult
     };
   }
 
-  // Fallback inline cho test/dev hoặc khi cần giữ hành vi cũ.
-  const { runImportPreviewJob } = require('../jobs/importExcelJob');
-
-  const result = await runImportPreviewJob({
+  // Fallback inline dùng runner độc lập, tránh vòng phụ thuộc
+  // excelImportService -> importExcelJob -> excelImportService.
+  const result = await runImportPreviewPipeline({
     sessionId: session.id,
     type,
     files: normalizedFiles,
-    userName
+    userName,
+    buildPreviewFromRows
   });
 
   if (result.error) return { ...result, sessionId: session.id, importSessionId: session.id };

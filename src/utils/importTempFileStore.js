@@ -16,7 +16,7 @@ function safeName(value = '') {
 
 async function saveImportFiles(sessionId, files = []) {
   const dir = path.join(IMPORT_TMP_DIR, String(sessionId));
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
 
   const storedFiles = [];
 
@@ -27,7 +27,7 @@ async function saveImportFiles(sessionId, files = []) {
     const filePath = path.join(dir, finalName);
     const buffer = file.buffer || Buffer.alloc(0);
 
-    await fs.writeFile(filePath, buffer);
+    await fs.writeFile(filePath, buffer, { mode: 0o600 });
 
     storedFiles.push({
       fileName,
@@ -53,7 +53,16 @@ async function cleanupImportFiles(files = []) {
   }
 }
 
+
+async function cleanupImportSession(sessionId) {
+  const value = String(sessionId || '').trim();
+  if (!value) return;
+  const dir = path.join(IMPORT_TMP_DIR, value);
+  await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+}
+
 module.exports = {
   saveImportFiles,
-  cleanupImportFiles
+  cleanupImportFiles,
+  cleanupImportSession
 };

@@ -3,6 +3,7 @@
 // MOBILE_MODULAR_CONTEXT_START
 
 const jwt = require('jsonwebtoken');
+const { readAccessToken } = require('../security/accessTokenCookie');
 const rateLimit = require('express-rate-limit');
 const { validationResult } = require('express-validator');
 
@@ -31,7 +32,7 @@ const ROLE_LABELS = {
 };
 
 const VALID_ROLES = Object.keys(ROLE_LABELS);
-const ACCESS_TOKEN_EXPIRES_IN = process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || '1d';
+const ACCESS_TOKEN_EXPIRES_IN = process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.MOBILE_REFRESH_TOKEN_EXPIRES_IN || '30d';
 
 const SNAPSHOT_KEYS = [
@@ -62,22 +63,32 @@ const PERSIST_KEYS = [
 ];
 
 function jwtSecret() {
-  const secret = [process.env.JWT_SECRET, process.env.MOBILE_JWT_SECRET].find(Boolean);
+  const secret = [process.env.MOBILE_JWT_SECRET, process.env.JWT_SECRET].find(Boolean);
   if (!secret) throw new Error('Missing JWT_SECRET');
   return secret;
 }
 
+function mobileRefreshJwtSecret() {
+  return process.env.MOBILE_REFRESH_TOKEN_SECRET || process.env.JWT_REFRESH_SECRET || jwtSecret();
+}
+
+function tokenTypeOk(payload = {}, expected = 'access') {
+  if (payload.tokenType === expected) return true;
+  return !payload.tokenType && process.env.ALLOW_LEGACY_UNTYPED_TOKENS === 'true';
+}
+
 function encodeMobileToken(user) {
-  return jwt.sign(user, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
+  return jwt.sign({ ...user, tokenType: 'access' }, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
 }
 
 function encodeMobileRefreshToken(user) {
-  return jwt.sign(user, jwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  return jwt.sign({ ...user, tokenType: 'refresh' }, mobileRefreshJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
 }
 
 function decodeMobileRefreshToken(token) {
   try {
-    return jwt.verify(String(token || ''), jwtSecret());
+    const payload = jwt.verify(String(token || ''), mobileRefreshJwtSecret());
+    return tokenTypeOk(payload, 'refresh') ? payload : null;
   } catch (_) {
     return null;
   }
@@ -85,14 +96,19 @@ function decodeMobileRefreshToken(token) {
 
 function requireMobileLogin(req, res, next) {
   const header = String(req.headers.authorization || '');
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const bearerToken = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const token = bearerToken || readAccessToken(req);
 
   if (!token) {
     return res.status(401).json({ ok: false, success: false, message: 'Bạn chưa đăng nhập mobile app' });
   }
 
   try {
-    req.mobileUser = jwt.verify(token, jwtSecret());
+    const payload = jwt.verify(token, jwtSecret());
+    if (!tokenTypeOk(payload, 'access')) throw new Error('Invalid access token type');
+    req.mobileUser = payload;
+    req.user = payload;
+    req.authSource = bearerToken ? 'bearer' : 'cookie';
     return next();
   } catch (_) {
     return res.status(401).json({ ok: false, success: false, message: 'Phiên đăng nhập đã hết hạn' });

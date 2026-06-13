@@ -9,12 +9,14 @@ function read(file) {
   return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 }
 
-test('web UI patches fetch to attach Authorization bearer token for /api requests', () => {
+test('web UI patches fetch to use HttpOnly cookie auth and automatic refresh for API requests', () => {
   const src = read('public/js/auth-guard.js');
 
   assert.match(src, /WEB_AUTH_FETCH_BOUNDARY_START/);
   assert.match(src, /window\.fetch\s*=\s*window\.authFetch/);
-  assert.match(src, /headers\.set\(['"]Authorization['"],\s*['"]Bearer ['"]/);
+  assert.match(src, /headers\.delete\(['"]Authorization['"]\)/);
+  assert.match(src, /credentials:'same-origin'/);
+  assert.doesNotMatch(src, /localStorage\.setItem\([^\n]*(mk_web_token|v43_mobile_token)/);
   assert.match(src, /res\.status\s*===\s*401/);
 });
 

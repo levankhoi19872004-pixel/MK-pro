@@ -8,14 +8,16 @@
   function canOpen(target, user){var r=roleOf(user); if(r==='admin')return true; if(target==='sales')return r==='sales'; if(target==='delivery')return r==='delivery'; if(target==='web')return ['manager','accountant','warehouse','admin'].indexOf(r)>=0; return false;}
   function targetUrl(target){if(target==='sales')return '/mobile/sales.html'; if(target==='delivery')return '/mobile/delivery.html'; return '/';}
   function saveSession(data){
-    localStorage.setItem(WEB_TOKEN,data.token||''); localStorage.setItem(WEB_REFRESH,data.refreshToken||''); localStorage.setItem(WEB_USER,JSON.stringify(data.user||{}));
-    localStorage.setItem(MOBILE_TOKEN,data.token||''); localStorage.setItem(MOBILE_REFRESH,data.refreshToken||''); localStorage.setItem(MOBILE_USER,JSON.stringify(data.user||{}));
+    localStorage.removeItem(WEB_TOKEN); localStorage.removeItem(MOBILE_TOKEN);
+    localStorage.removeItem(WEB_REFRESH); localStorage.removeItem(MOBILE_REFRESH);
+    localStorage.setItem(WEB_USER,JSON.stringify(data.user||{}));
+    localStorage.setItem(MOBILE_USER,JSON.stringify(data.user||{}));
   }
   el('webLoginForm')?.addEventListener('submit', async function(ev){
     ev.preventDefault(); setMsg('Đang đăng nhập...');
     var username=el('username').value.trim(); var password=el('password').value; var target=el('targetApp').value||'web';
     try{
-      var res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username,password:password})});
+      var res=await fetch('/api/auth/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:username,password:password})});
       var data=await res.json().catch(function(){return {}});
       if(!res.ok||data.ok===false)throw new Error(data.message||'Không đăng nhập được');
       if(!canOpen(target,data.user))throw new Error('Tài khoản không có quyền vào màn hình đã chọn');

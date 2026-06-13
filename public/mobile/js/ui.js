@@ -1,3 +1,12 @@
+export function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function setMessage(el, text, type = '') {
   if (!el) return;
   el.textContent = text || '';
@@ -25,22 +34,23 @@ export function renderSuggestions(container, items, renderItem, onSelect) {
     const div = document.createElement('button');
     div.type = 'button';
     div.className = 'suggestion-item';
-    div.innerHTML = renderItem(item);
+    div.textContent = String(renderItem(item) ?? '');
     div.addEventListener('click', () => onSelect(item));
     container.appendChild(div);
   });
 }
 
 export function requireLogin() {
-  const token = localStorage.getItem('v43_mobile_token');
-  if (!token) window.location.href = './login.html';
+  let user = {};
+  try { user = JSON.parse(localStorage.getItem('v43_mobile_user') || localStorage.getItem('mk_web_user') || '{}'); } catch (_) {}
+  if (!user || !user.role) window.location.href = './login.html';
 }
 
 export function bindLogout(button) {
   if (!button) return;
   button.addEventListener('click', () => {
     ['v43_mobile_token','v43_mobile_refresh_token','v43_mobile_user','mk_web_token','mk_web_refresh_token','mk_web_user'].forEach((key) => localStorage.removeItem(key));
-    window.location.href = './login.html';
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(() => {}).finally(() => { window.location.href = './login.html'; });
   });
 }
 

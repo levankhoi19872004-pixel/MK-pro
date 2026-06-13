@@ -29,6 +29,7 @@ const catalogRoutes = require('./catalogRoutes');
 const fundRoutes = require('./fundRoutes');
 const deliveryRoutes = require('./deliveryRoutes');
 const inventoryRoutes = require('./inventoryRoutes');
+const { requireRole } = require('../middlewares/auth.middleware');
 
 function registerApiRoutes(app) {
   // API docs must be mounted before legacy guard.
@@ -57,9 +58,12 @@ function registerApiRoutes(app) {
 
   mobileModule.registerMobileRoutes(app, mobileCtx);
 
-  // Legacy chỉ giữ tạm ở namespace riêng để rollback có kiểm soát.
-  // Không được mount legacy vào /api/mobile nữa.
-  app.use('/api/mobile-legacy', legacyMobileRoutes);
+  // Legacy chỉ được bật tạm thời trong cửa sổ rollback có kiểm soát.
+  // Mặc định không mount để tránh hai command path ghi cùng một nghiệp vụ.
+  if (process.env.ENABLE_LEGACY_MOBILE_ROUTES === 'true') {
+    app.use('/api/mobile-legacy', legacyMobileRoutes);
+    console.warn('⚠️ ENABLE_LEGACY_MOBILE_ROUTES=true: namespace mobile legacy đang được bật tạm thời');
+  }
   // MOBILE_MODULAR_ROUTE_MOUNT_END
 
   // Step 1: Products / Customers / Users
@@ -74,7 +78,7 @@ function registerApiRoutes(app) {
   app.use('/api/orders', orderRoutes);
   app.use('/api/master-orders', masterOrderRoutes);
   // Web dashboard alias for delivery operation UI.
-  app.get('/api/delivery-today', masterOrderController.listDeliveryToday);
+  app.get('/api/delivery-today', requireRole(['admin', 'manager', 'accountant', 'warehouse']), masterOrderController.listDeliveryToday);
 
   // Step 3: Import Orders / Return Orders
   app.use('/api/import-orders', importOrderRoutes);

@@ -3,7 +3,7 @@ const v45Common = window.V45Common || {};
 const todayValue = v45Common.todayValue;
 const calculateCartonUnit = v45Common.calculateCartonUnit;
 import { mobileApi, getUser } from './api.js';
-import { bindLogout, debounce, money, requireLogin, requireRole, setMessage } from './ui.js';
+import { bindLogout, debounce, escapeHtml, money, requireLogin, requireRole, setMessage } from './ui.js';
 
 requireLogin();
 requireRole(['sales']);
@@ -308,9 +308,9 @@ function renderCustomerList(items) {
     const address = customerAddressValue(customer);
     return `
       <button class="customer-card ${debtClassName(customer)}" data-customer-index="${index}">
-        <strong>${code || ''}${code && name ? ' - ' : ''}${name || ''}</strong>
-        <span class="customer-contact">SĐT: ${phone}</span>
-        <span class="customer-contact">ĐC: ${address}</span>
+        <strong>${escapeHtml(code || '')}${code && name ? ' - ' : ''}${escapeHtml(name || '')}</strong>
+        <span class="customer-contact">SĐT: ${escapeHtml(phone)}</span>
+        <span class="customer-contact">ĐC: ${escapeHtml(address)}</span>
         <div class="customer-metrics">
           <em class="metric-debt">Nợ: ${money(debt)}</em>
           <em>DS tháng: ${money(customerSalesValue(customer))}</em>
@@ -330,9 +330,9 @@ function selectCustomer(customer) {
   const code = customerCodeValue(mergedCustomer);
   const name = customerNameValue(mergedCustomer);
   selectedCustomerBox.innerHTML = `
-    <strong>${code || ''}${code && name ? ' - ' : ''}${name || ''}</strong><br />
-    <span>SĐT: ${customerPhoneValue(mergedCustomer)}</span><br />
-    <span>ĐC: ${customerAddressValue(mergedCustomer)}</span><br />
+    <strong>${escapeHtml(code || '')}${code && name ? ' - ' : ''}${escapeHtml(name || '')}</strong><br />
+    <span>SĐT: ${escapeHtml(customerPhoneValue(mergedCustomer))}</span><br />
+    <span>ĐC: ${escapeHtml(customerAddressValue(mergedCustomer))}</span><br />
     <span>Nợ: ${money(customerDebtValue(mergedCustomer))} · DS tháng: ${money(customerSalesValue(mergedCustomer))}</span>
   `;
   selectedCustomerBox.classList.remove('muted');
@@ -589,9 +589,9 @@ function pickProduct(product) {
     ? `<span>Giá gốc<strong>${money(selectedProductOriginalPrice)}</strong></span>`
     : '';
   selectedProductBox.innerHTML = `
-    <div class="mobile-selected-product-name">${p.code || ''} - ${p.name || ''}</div>
+    <div class="mobile-selected-product-name">${escapeHtml(p.code || '')} - ${escapeHtml(p.name || '')}</div>
     <div class="mobile-selected-product-meta">
-      <span>Tồn<strong>${p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate)}</strong></span>
+      <span>Tồn<strong>${escapeHtml(p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate))}</strong></span>
       <span>${selectedProductPriceLabel}</span>
       ${selectedProductOriginalLabel}
     </div>
@@ -792,7 +792,7 @@ function renderCart() {
       : `Giá bán: ${money(unitPrice)}`;
     return `
     <div class="cart-item">
-      <strong>${item.productCode} - ${item.productName}</strong>
+      <strong>${escapeHtml(item.productCode)} - ${escapeHtml(item.productName)}</strong>
       <span>SL: ${quantityDisplayTL(item)} · ${priceInfo} · Thành tiền: ${money(item.amount)}</span>
       <button class="danger-btn small-btn" data-remove="${index}">Xóa</button>
     </div>`;
@@ -881,7 +881,7 @@ function renderDebts(items = debtCache, summary = {}) {
   debtList.className = 'order-list';
   debtList.innerHTML = items.map((item, index) => `
     <button class="debt-card" data-debt-index="${index}">
-      <strong>${item.customerCode || ''} - ${item.customerName || ''}</strong>
+      <strong>${escapeHtml(item.customerCode || '')} - ${escapeHtml(item.customerName || '')}</strong>
       <span>Công nợ: ${money(item.debtAmount || 0)} · Chờ KT: ${money(customerPendingCollectedValue(item))} · Có thể thu: ${money(customerAvailableDebtValue(item))}</span>
       <span>${item.orderCount || 0} đơn · Nợ cũ nhất: ${formatDisplayDate(item.oldestDebtDate || '')}</span>
     </button>
@@ -955,8 +955,8 @@ function renderDebtLedger(item = {}) {
     balance += Number(row.debit || 0) - Number(row.credit || 0);
     return `
       <div class="order-item">
-        <strong>${formatDisplayDate(row.date)} · ${row.type || row.refType || ''}</strong>
-        <span>Đơn: ${row.salesOrderCode || row.refCode || ''}</span>
+        <strong>${escapeHtml(formatDisplayDate(row.date))} · ${escapeHtml(row.type || row.refType || '')}</strong>
+        <span>Đơn: ${escapeHtml(row.salesOrderCode || row.refCode || '')}</span>
         <span>Phát sinh: ${money(row.debit || 0)} · Thanh toán: ${money(row.credit || 0)} · Dư nợ: ${money(Math.max(0, balance))}</span>
       </div>
     `;
@@ -969,7 +969,7 @@ function renderDebtLedger(item = {}) {
         ${orderRows.map((order, index) => `
           <label class="order-item debt-order-check-row">
             <input type="checkbox" class="mobile-debt-order-check" data-index="${index}" checked />
-            <strong>${order.salesOrderCode || order.orderCode || ''}</strong>
+            <strong>${escapeHtml(order.salesOrderCode || order.orderCode || '')}</strong>
             <span>Ngày: ${formatDisplayDate(order.orderDate || order.documentDate || '')} · Nợ: ${money(order.debt || 0)} · Chờ KT: ${money(order.pendingCollectedAmount || 0)} · Có thể thu: ${money(order.availableDebt ?? order.debt ?? 0)}</span>
           </label>
         `).join('')}
@@ -1111,7 +1111,7 @@ async function editTodayOrder(orderId) {
       debtAmount: order.customerDebt || 0,
       monthRevenue: order.customerMonthRevenue || 0
     };
-    selectedCustomerBox.innerHTML = `<strong>${order.customerCode || ''} - ${order.customerName || ''}</strong><br /><span>${order.customerPhone || ''} · ${order.customerAddress || ''}</span>`;
+    selectedCustomerBox.innerHTML = `<strong>${escapeHtml(order.customerCode || '')} - ${escapeHtml(order.customerName || '')}</strong><br /><span>${escapeHtml(order.customerPhone || '')} · ${escapeHtml(order.customerAddress || '')}</span>`;
     selectedCustomerBox.classList.remove('muted');
 
     cart = (order.items || []).map((item) => ({
@@ -1180,11 +1180,11 @@ function renderTodayOrders(items = todayOrderCache) {
   todayOrders.className = 'order-list';
   todayOrders.innerHTML = todayOrderCache.map((order) => `
     <div class="order-item">
-      <strong>${order.code} - ${order.customerName || ''}</strong>
+      <strong>${escapeHtml(order.code)} - ${escapeHtml(order.customerName || '')}</strong>
       <span>Ngày: ${formatShortDate(order.date)} · Tổng: ${money(order.totalAmount)} · Đã thu: ${money(order.paidAmount)} · Còn nợ: ${money(order.debtAmount)}</span>
-      <span>Trạng thái: ${order.status || ''} / ${order.deliveryStatus || ''} · ${order.canEdit ? 'Chưa gộp đơn tổng' : 'Đã gộp đơn tổng'}</span>
+      <span>Trạng thái: ${escapeHtml(order.status || '')} / ${escapeHtml(order.deliveryStatus || '')} · ${order.canEdit ? 'Chưa gộp đơn tổng' : 'Đã gộp đơn tổng'}</span>
       <div class="row-actions">
-        ${order.canEdit ? `<button class="ghost-btn small-btn" data-edit-order="${order.id || order.code}">Chỉnh sửa</button><button class="danger-btn small-btn" data-delete-order="${order.id || order.code}" data-order-code="${order.code}">Xóa</button>` : '<span class="muted">Đã gộp đơn tổng - không sửa/xóa trên app</span>'}
+        ${order.canEdit ? `<button class="ghost-btn small-btn" data-edit-order="${escapeHtml(order.id || order.code)}">Chỉnh sửa</button><button class="danger-btn small-btn" data-delete-order="${escapeHtml(order.id || order.code)}" data-order-code="${escapeHtml(order.code)}">Xóa</button>` : '<span class="muted">Đã gộp đơn tổng - không sửa/xóa trên app</span>'}
       </div>
     </div>
   `).join('');

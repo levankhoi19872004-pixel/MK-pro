@@ -1,4 +1,5 @@
 // Products
+const escapeProductHtml = (window.V45Common && window.V45Common.escapeHtml) || ((value='')=>String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])));
 let productListRequestSeq = 0;
 
 function openProductModal(){
@@ -86,7 +87,7 @@ async function loadProducts(options = {}){
     }
     if(productCount)productCount.textContent=`${productTotal} sản phẩm`;
     renderProductTable();renderProductPagination();renderImportProductSelect();renderSalesProductSelect();
-  }catch(err){if(productCount)productCount.textContent='Lỗi tải dữ liệu';if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${err.message}</td></tr>`}
+  }catch(err){if(productCount)productCount.textContent='Lỗi tải dữ liệu';if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${escapeProductHtml(err.message)}</td></tr>`}
 }
 function getProductPageRows(){
   return productsCache || [];
@@ -132,24 +133,31 @@ function renderProductTable(){
     const selected=selectedProductIds.has(p.id);
     const active=p.isActive!==false;
     const packingText=p.packing||((p.baseUnit&&p.conversionRate>1)?`1 ${p.unit||''} = ${p.conversionRate} ${p.baseUnit}`:'');
+    const id=escapeProductHtml(p.id||'');
+    const code=escapeProductHtml(p.code||'');
+    const name=escapeProductHtml(p.name||'');
+    const category=escapeProductHtml(p.category||'');
+    const safePacking=escapeProductHtml(packingText||'');
+    const warehouse=escapeProductHtml(p.warehouseName||p.warehouseCode||'KHO HC');
+    const unit=escapeProductHtml(p.unit||'');
     return `
     <tr class="product-compact-row ${selected?'selected':''}">
       <td class="product-select-cell">
-        <input type="checkbox" class="product-row-check" data-id="${p.id}" ${selected?'checked':''} aria-label="Chọn sản phẩm ${p.code||''}" />
+        <input type="checkbox" class="product-row-check" data-id="${id}" ${selected?'checked':''} aria-label="Chọn sản phẩm ${code}" />
       </td>
       <td class="product-compact-cell" colspan="2">
         <div class="product-compact-main">
           <div class="product-title-wrap">
-            <strong class="product-code-chip">${p.code||''}</strong>
-            <span class="product-name-line" title="${p.name||''}">${p.name||''}</span>
+            <strong class="product-code-chip">${code}</strong>
+            <span class="product-name-line" title="${name}">${name}</span>
             <span class="product-status-badge ${active?'active':'inactive'}">${active?'Mở bán':'Ngừng bán'}</span>
           </div>
         </div>
         <div class="product-compact-meta">
-          ${p.category?`<span>Nhóm: <b>${p.category}</b></span>`:''}
-          ${packingText?`<span>Quy cách: <b>${packingText}</b></span>`:''}
-          <span>Kho: <b>${p.warehouseName||p.warehouseCode||'KHO HC'}</b></span>
-          <span>ĐVT: <b>${p.unit||''}</b></span>
+          ${category?`<span>Nhóm: <b>${category}</b></span>`:''}
+          ${safePacking?`<span>Quy cách: <b>${safePacking}</b></span>`:''}
+          <span>Kho: <b>${warehouse}</b></span>
+          <span>ĐVT: <b>${unit}</b></span>
           <span>Nhập: <b>${money(p.costPrice)}</b></span>
           <span>Bán: <b>${money(p.salePrice)}</b></span>
           <span>Min/max: <b>${money(p.minStock)} / ${money(p.maxStock)}</b></span>

@@ -7,7 +7,11 @@
   function money(v) { return window.DeliveryCore ? window.DeliveryCore.money(v) : String(Math.round(Number(v || 0))); }
   function amount(o, k) { return num(o && o.amounts && o.amounts[k]); }
   function keyOf(o) { return window.DeliveryCore.orderKey(o); }
-  function today() { return new Date().toISOString().slice(0, 10); }
+  function today() {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
 
   var state = {
     selectedKey: '',
@@ -35,17 +39,16 @@
   }
   function isDelivered(order) { return ['delivered', 'success', 'done', 'completed'].indexOf(deliveryStatusOf(order)) >= 0; }
   function requireDeliveryLogin() {
-    var token = localStorage.getItem('v43_mobile_token') || localStorage.getItem('mk_web_token') || '';
     var user = readUser();
     var role = String(user.role || '').toLowerCase();
-    if (!token) { window.location.href = '/login.html?target=delivery'; return false; }
+    if (!user || !user.role) { window.location.href = '/login.html?target=delivery'; return false; }
     if (role !== 'admin' && role !== 'delivery') { alert('Tài khoản không có quyền vào App giao hàng.'); window.location.href = '/login.html?target=delivery'; return false; }
     return true;
   }
 
   function logout() {
     ['mk_web_token','mk_web_refresh_token','mk_web_user','v43_mobile_token','v43_mobile_refresh_token','v43_mobile_user'].forEach(function (key) { localStorage.removeItem(key); });
-    window.location.href = '/login.html';
+    fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'}}).catch(function(){}).finally(function(){window.location.href='/login.html';});
   }
 
   function root() {

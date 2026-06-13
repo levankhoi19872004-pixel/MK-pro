@@ -76,7 +76,7 @@ async function loadCustomers(options = {}){
     }
     if(customerCount)customerCount.textContent=`${customerTotal} khách hàng`;
     renderCustomerTable();renderSalesCustomerSelect();renderCollectionCustomerSelect();
-  }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="8">${err.message}</td></tr>`}
+  }catch(err){if(customerCount)customerCount.textContent='Lỗi tải khách';if(customerTable)customerTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message)}</td></tr>`}
 }
 function getCustomerTotalPages(){
   return Math.max(1,Number(customerTotalPages||1));
@@ -117,15 +117,15 @@ function renderCustomerTable(){
   }
   selectedCustomerIds=new Set([...selectedCustomerIds].filter(id=>customersCache.some(c=>c.id===id)));
   const rows=getCustomerPageRows();
-  customerTable.innerHTML=rows.map(c=>`<tr class="${selectedCustomerIds.has(c.id)?'selected':''}">
-    <td><input type="checkbox" class="customer-row-check" data-id="${c.id}" ${selectedCustomerIds.has(c.id)?'checked':''} /></td>
-    <td><strong>${c.code||''}</strong></td>
-    <td>${c.name||''}</td>
-    <td>${c.phone||''}</td>
-    <td>${c.address||''}</td>
-    <td>${c.area||''}</td>
-    <td>${legacyCustomerStaffLabel(c)}</td>
-    <td class="row-actions"><button type="button" class="small" onclick="editCustomer('${c.id}')">Sửa</button><button type="button" class="small danger" onclick="deleteCustomer('${c.id}')">Xóa</button></td>
+  customerTable.innerHTML=rows.map((c,rowIndex)=>`<tr class="${selectedCustomerIds.has(c.id)?'selected':''}">
+    <td><input type="checkbox" class="customer-row-check" data-id="${escapeHtml(c.id||'')}" ${selectedCustomerIds.has(c.id)?'checked':''} /></td>
+    <td><strong>${escapeHtml(c.code||'')}</strong></td>
+    <td>${escapeHtml(c.name||'')}</td>
+    <td>${escapeHtml(c.phone||'')}</td>
+    <td>${escapeHtml(c.address||'')}</td>
+    <td>${escapeHtml(c.area||'')}</td>
+    <td>${escapeHtml(legacyCustomerStaffLabel(c)||'')}</td>
+    <td class="row-actions"><button type="button" class="small" onclick="editCustomerByRow(${rowIndex})">Sửa</button><button type="button" class="small danger" onclick="deleteCustomerByRow(${rowIndex})">Xóa</button></td>
   </tr>`).join('');
   updateCustomerBulkUI();
 }
@@ -150,6 +150,8 @@ function fillCustomerForm(c){
   showMessage(customerMessage,'Đang sửa khách hàng. Bấm "Nhập mới" nếu muốn thêm khách hàng khác.');
 }
 window.editCustomer=id=>{const c=customersCache.find(x=>x.id===id);if(c){fillCustomerForm(c);openCustomerModal();}};
+window.editCustomerByRow=rowIndex=>{const c=getCustomerPageRows()[Number(rowIndex)];if(c)window.editCustomer(c.id);};
+window.deleteCustomerByRow=rowIndex=>{const c=getCustomerPageRows()[Number(rowIndex)];if(c)window.deleteCustomer(c.id);};
 window.deleteCustomer=async id=>{
   if(!confirm('Xóa khách hàng này?'))return;
   try{

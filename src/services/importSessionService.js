@@ -3,6 +3,7 @@
 const { makeId } = require('../utils/common.util');
 const ImportSession = require('../models/ImportSession');
 const ImportSessionRow = require('../models/ImportSessionRow');
+const { cleanupImportFiles, cleanupImportSession } = require('../utils/importTempFileStore');
 
 const IMPORT_PREVIEW_LIMIT = Number(process.env.IMPORT_PREVIEW_LIMIT || 100);
 const IMPORT_SESSION_ROW_BATCH_SIZE = Number(process.env.IMPORT_SESSION_ROW_BATCH_SIZE || 500);
@@ -132,7 +133,7 @@ async function createUploadedSession({ type, fileName = '', fileNames = [], crea
   });
 }
 
-async function markQueued(id) {
+async function markQueued(id, { files = [] } = {}) {
   const value = cleanText(id);
   if (!value) return null;
 
@@ -146,7 +147,12 @@ async function markQueued(id) {
         progress: {
           percent: 0,
           step: 'queued'
-        }
+        },
+        tempFiles: (Array.isArray(files) ? files : []).map((file) => ({
+          fileName: cleanText(file.fileName),
+          path: cleanText(file.path),
+          size: Number(file.size || 0)
+        }))
       }
     },
     { new: true }
@@ -241,7 +247,8 @@ async function savePreviewResult(id, { rows = [], previewRows = [], fileNames = 
       $unset: {
         errors: '',
         validDataRows: '',
-        rawRows: ''
+        rawRows: '',
+        tempFiles: ''
       }
     },
     { new: true }
@@ -338,6 +345,25 @@ async function selectRows(session, selectedOrderCodes = []) {
   );
 }
 
+
+async function recoverStaleImportSessions({ olderThanMs = Number(process.env.IMPORT_STALE_SESSION_MS || 15 * 60 * 1000), limit = 100 } = {}) {
+  const cutoff = new Date(Date.now() - Math.max(60_000, Number(olderThanMs) || 15 * 60 * 1000));
+  const stale = await ImportSession.find({
+    status: { $in: ['queued', 'parsing'] },
+    updatedAt: { $lt: cutoff }
+  }).sort({ updatedAt: 1 }).limit(Math.max(1, Math.min(500, Number(limit) || 100))).lean();
+
+  for (const session of stale) {
+    const sessionId = cleanText(session.sessionId || session.id);
+    await markFailed(sessionId, 'Import bị gián đoạn do server restart hoặc worker không phản hồi. Vui lòng tải lại file.');
+    const files = Array.isArray(session.tempFiles) ? session.tempFiles : [];
+    if (files.length) await cleanupImportFiles(files).catch(() => {});
+    await cleanupImportSession(sessionId).catch(() => {});
+  }
+
+  return { recovered: stale.length, cutoff };
+}
+
 module.exports = {
   createUploadedSession,
   markQueued,
@@ -345,6 +371,7 @@ module.exports = {
   markParsing,
   savePreviewResult,
   markFailed,
+  recoverStaleImportSessions,
   getSession,
   markImporting,
   markDone,

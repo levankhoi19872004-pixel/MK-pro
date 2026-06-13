@@ -27,6 +27,18 @@ function createMobileAuthRepository(ctx) {
         ]
       }).lean();
     },
+    async findActiveStaffByIdentity(identity = {}) {
+      const id = String(identity.id || '').trim();
+      const username = String(identity.username || '').trim();
+      const staffCode = String(identity.staffCode || identity.code || '').trim();
+      const or = [];
+      if (/^[a-f\d]{24}$/i.test(id)) or.push({ _id: id });
+      if (id) or.push({ id });
+      if (username) or.push({ username });
+      if (staffCode) or.push({ staffCode }, { code: staffCode });
+      if (!or.length) return null;
+      return User.findOne({ isActive: { $ne: false }, $or: or }).lean();
+    },
     async listActiveRoles() {
       return MongoStore.roles.find({ isActive: { $ne: false } }).sort({ code: 1 }).lean();
     }

@@ -336,6 +336,11 @@ const INDEX_DEFINITIONS = {
     [{ action: 1 }, { name: 'idx_audit_logs_action' }],
     [{ createdAt: -1 }, { name: 'idx_audit_logs_created_at' }]
   ],
+  idempotencyRequests: [
+    [{ key: 1 }, { name: 'uniq_idempotency_requests_key', unique: true }],
+    [{ expiresAt: 1 }, { name: 'ttl_idempotency_requests_expires_at', expireAfterSeconds: 0 }],
+    [{ scope: 1, actorCode: 1, createdAt: -1 }, { name: 'idx_idempotency_scope_actor_created' }]
+  ],
   mobileLogs: [
     [{ userId: 1, createdAt: -1 }, { name: 'idx_mobile_logs_user_created' }],
     [{ action: 1, createdAt: -1 }, { name: 'idx_mobile_logs_action_created' }]

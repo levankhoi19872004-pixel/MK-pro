@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { requireRole } = require('../middlewares/auth.middleware');
 const importRuntimeController = require('../controllers/importRuntimeController');
 const {
   uploadImportExcel,
@@ -10,17 +11,19 @@ const {
 } = require('../middlewares/importUpload.middleware');
 
 const router = express.Router();
+const manageImports = requireRole(['admin', 'accountant', 'warehouse']);
 
 router.post(
   '/preview',
+  manageImports,
   rejectLargeUploadByContentLength,
   handleImportUpload(uploadImportExcel.single('file')),
   validateUploadedExcelFiles,
   importRuntimeController.preview
 );
 
-router.get('/sessions/:sessionId', importRuntimeController.sessionStatus);
-router.post('/commit', importRuntimeController.commit);
-router.get('/logs', importRuntimeController.logs);
+router.get('/sessions/:sessionId', manageImports, importRuntimeController.sessionStatus);
+router.post('/commit', manageImports, importRuntimeController.commit);
+router.get('/logs', manageImports, importRuntimeController.logs);
 
 module.exports = router;

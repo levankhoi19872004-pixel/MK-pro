@@ -7,7 +7,7 @@ async function list(req, res) {
     const importOrders = await importOrderService.listImportOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', importOrders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được phiếu nhập từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được phiếu nhập từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

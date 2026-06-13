@@ -8,8 +8,8 @@ const router = express.Router();
 
 // Legacy-compatible system endpoints mounted before legacy fallback.
 router.get('/health', systemController.health);
-router.get('/data', systemController.data);
-router.get('/system/data-source', systemController.dataSource);
+router.get('/data', requireRole(['admin']), systemController.data);
+router.get('/system/data-source', requireRole(['admin', 'manager']), systemController.dataSource);
 
 // Phase 2.9.3 clean system endpoints.
 router.get('/system/status', systemController.status);
@@ -23,6 +23,8 @@ router.get('/system/settings', requireRole(['admin', 'manager']), systemControll
 router.get('/system/settings/:key', requireRole(['admin', 'manager']), systemController.getSetting);
 router.put('/system/settings/:key', requireRole(['admin']), systemController.saveSetting);
 router.post('/system/backup', requireRole(['admin']), systemController.backup);
+router.get('/system/backups', requireRole(['admin']), systemController.listBackups);
+router.post('/system/backups/:fileName/verify', requireRole(['admin']), systemController.verifyBackup);
 router.post('/system/reset', requireRole(['admin']), systemController.reset);
 
 module.exports = router;

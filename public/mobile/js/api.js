@@ -1,16 +1,16 @@
 import { API_URL, STORAGE_KEYS, MOBILE_ROUTES } from './config.js';
 
 export function getToken() {
-  return localStorage.getItem(STORAGE_KEYS.token) || '';
+  return '';
 }
 
-export function setToken(token, refreshToken = '') {
-  localStorage.setItem(STORAGE_KEYS.token, token);
-  if (refreshToken) localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+export function setToken() {
+  localStorage.removeItem(STORAGE_KEYS.token);
+  localStorage.removeItem(STORAGE_KEYS.refreshToken);
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(STORAGE_KEYS.refreshToken) || '';
+  return '';
 }
 
 export function clearToken() {
@@ -43,17 +43,19 @@ function withClientRequestId(payload = {}, prefix = 'mobile') {
 }
 
 export async function apiRequest(path, options = {}) {
+  const requestOptions = { ...options };
+  const authRetried = Boolean(requestOptions.__authRetried);
+  delete requestOptions.__authRetried;
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {})
+    ...(requestOptions.headers || {})
   };
 
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   const clientStartedAt = performance.now();
   const res = await fetch(`${API_URL}${path}`, {
-    ...options,
+    ...requestOptions,
+    credentials: requestOptions.credentials || 'include',
     headers
   });
   const clientMs = Math.round(performance.now() - clientStartedAt);
@@ -64,10 +66,10 @@ export async function apiRequest(path, options = {}) {
   if (/\/api\/mobile\/(sales\/orders|delivery\/orders|delivery-orders)/.test(path)) {
     console.log('[MOBILE_API_PERF]', data.__clientPerf);
   }
-  if (res.status === 401 && path !== MOBILE_ROUTES.login && path !== MOBILE_ROUTES.refresh && getRefreshToken()) {
+  if (res.status === 401 && path !== MOBILE_ROUTES.login && path !== MOBILE_ROUTES.refresh && !authRetried) {
     const refreshed = await refreshSession().catch(() => null);
     if (refreshed?.token) {
-      return apiRequest(path, options);
+      return apiRequest(path, { ...options, __authRetried: true });
     }
   }
   if (res.status === 401) {
@@ -82,19 +84,18 @@ export async function apiRequest(path, options = {}) {
 }
 
 export async function refreshSession() {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
   const res = await fetch(`${API_URL}${MOBILE_ROUTES.refresh}`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken })
+    body: '{}'
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) {
     clearToken();
     return null;
   }
-  setToken(data.token, data.refreshToken);
+  setToken(data.token);
   if (data.user) setUser(data.user);
   return data;
 }

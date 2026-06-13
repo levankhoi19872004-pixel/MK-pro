@@ -2,13 +2,16 @@
 
 const express = require('express');
 const importOrderController = require('../controllers/importOrderController');
+const { requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
+const manageImportOrders = requireRole(['admin', 'accountant', 'warehouse']);
+const viewImportOrders = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
 
-router.get('/', importOrderController.list);
-router.post('/', importOrderController.create);
-router.put('/:id', importOrderController.update);
-router.post('/:id/post', importOrderController.post);
-router.post('/:id/cancel', importOrderController.cancel);
+router.get('/', viewImportOrders, importOrderController.list);
+router.post('/', manageImportOrders, importOrderController.create);
+router.put('/:id', manageImportOrders, importOrderController.update);
+router.post('/:id/post', manageImportOrders, importOrderController.post);
+router.post('/:id/cancel', manageImportOrders, importOrderController.cancel);
 
 module.exports = router;

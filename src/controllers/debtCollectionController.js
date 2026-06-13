@@ -29,7 +29,7 @@ async function list(req, res) {
     const result = await DebtCollectionService.listDebtCollections(req.query || {});
     return res.json({ ok: true, source: 'DebtCollectionService', ...result });
   } catch (err) {
-    return res.status(500).json({ ok: false, message: err.message || 'Không tải được danh sách thu nợ' });
+    return res.status(500).json({ ok: false, message: process.env.NODE_ENV === 'production' ? 'Không tải được danh sách thu nợ' : (err.message || 'Không tải được danh sách thu nợ') });
   }
 }
 

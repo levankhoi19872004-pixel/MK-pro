@@ -24,7 +24,7 @@ async function list(req, res) {
     const result = await ExternalDebtOrderService.listExternalDebtOrders(req.query || {});
     return res.json({ ok: true, source: 'ExternalDebtOrderService', ...result });
   } catch (err) {
-    return res.status(500).json({ ok: false, message: err.message || 'Không tải được công nợ ngoài luồng' });
+    return res.status(500).json({ ok: false, message: process.env.NODE_ENV === 'production' ? 'Không tải được công nợ ngoài luồng' : (err.message || 'Không tải được công nợ ngoài luồng') });
   }
 }
 

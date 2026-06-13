@@ -10,12 +10,12 @@ function sendResult(res, result, successMessage = 'OK', statusCode = 200) {
 
 async function listLedger(req, res) {
   try { sendResult(res, await fundService.listFundLedgers(req.query || {}), 'Đã tải sổ quỹ'); }
-  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được sổ quỹ fundLedgers', error: err.message }); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được sổ quỹ fundLedgers', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
 async function listDeliverySubmissions(req, res) {
   try { sendResult(res, await fundService.listDeliveryCashSubmissions(req.query || {}), 'Đã tải phiếu nộp quỹ giao hàng'); }
-  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu nộp quỹ giao hàng', error: err.message }); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu nộp quỹ giao hàng', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
 
@@ -31,7 +31,7 @@ async function deliveryCashInTransit(req, res) {
       ok: false,
       success: false,
       message: 'Không tải được báo cáo tiền NVGH còn phải nộp',
-      error: err.message
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
     });
   }
 }
@@ -39,17 +39,17 @@ async function deliveryCashInTransit(req, res) {
 
 async function listExpenses(req, res) {
   try { sendResult(res, await fundService.listExpenseVouchers(req.query || {}), 'Đã tải phiếu chi'); }
-  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chi', error: err.message }); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chi', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
 async function listTransfers(req, res) {
   try { sendResult(res, await fundService.listFundTransfers(req.query || {}), 'Đã tải phiếu chuyển quỹ'); }
-  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chuyển quỹ', error: err.message }); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không tải được phiếu chuyển quỹ', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
 async function previewDeliverySubmission(req, res) {
   try { sendResult(res, await fundService.buildDeliverySubmissionDraft({ ...(req.query || {}), ...(req.body || {}) }), 'Đã lập nháp phiếu nộp quỹ'); }
-  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không lập được nháp nộp quỹ', error: err.message }); }
+  catch (err) { res.status(500).json({ ok: false, success: false, message: 'Không lập được nháp nộp quỹ', error: process.env.NODE_ENV === 'production' ? undefined : err.message }); }
 }
 
 async function createDeliverySubmission(req, res) {

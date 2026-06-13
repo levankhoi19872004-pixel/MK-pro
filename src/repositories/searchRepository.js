@@ -11,6 +11,7 @@ const Journal = require('../models/Journal');
 const SalesOrder = require('../models/SalesOrder');
 const inventoryStockService = require('../services/inventoryStock.service');
 const { escapeRegex } = require('../utils/query.util');
+const { customerOwnershipFilter, combineFilters } = require('../domain/staff/customerOwnership');
 
 const SEARCH_RETURN_MAX = 50;
 
@@ -292,10 +293,18 @@ async function findCustomers(query = {}) {
   const nq = normalizeText(q);
   const limit = parseLimit(query);
   const baseFilter = activeFilter(query);
-  const select = 'code customerCode name customerName phone address area route routeName staffCode staffName openingDebt debtLimit debtAmount currentDebt debt balance isActive searchText';
+  const ownershipFilter = (query.ownerSalesStaffCode || query.ownerSalesStaffName)
+    ? customerOwnershipFilter({
+        salesStaffCode: query.ownerSalesStaffCode,
+        salesStaffName: query.ownerSalesStaffName,
+        requireIdentity: true
+      })
+    : {};
+  const scopedBaseFilter = combineFilters(baseFilter, ownershipFilter);
+  const select = 'code customerCode name customerName phone address area route routeName salesStaffCode salesStaffName salesmanCode salesmanName assignedSalesStaffCode assignedSalesStaffName nvbhCode nvbhName staffCode staffName openingDebt debtLimit debtAmount currentDebt debt balance isActive searchText';
 
   if (!q) {
-    return Customer.find(baseFilter)
+    return Customer.find(scopedBaseFilter)
       .select(select)
       .sort({ code: 1 })
       .limit(limit)
@@ -304,8 +313,7 @@ async function findCustomers(query = {}) {
 
   const rawRegex = { $regex: escapeRegex(q), $options: 'i' };
   const normalizedRegex = { $regex: escapeRegex(nq), $options: 'i' };
-  const filter = {
-    ...baseFilter,
+  const searchFilter = {
     $or: [
       { code: rawRegex },
       { customerCode: rawRegex },
@@ -321,6 +329,7 @@ async function findCustomers(query = {}) {
       { searchText: normalizedRegex }
     ]
   };
+  const filter = combineFilters(scopedBaseFilter, searchFilter);
   const scanned = await Customer.find(filter)
     .select(select)
     .sort({ code: 1 })

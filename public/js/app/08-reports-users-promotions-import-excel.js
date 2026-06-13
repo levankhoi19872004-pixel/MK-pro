@@ -82,8 +82,11 @@ if(document.readyState==='loading'){
 
 
 function roleText(role){
-  const map={admin:'Admin',accountant:'Kế toán',sales:'Bán hàng',delivery:'Giao hàng'};
+  const map={admin:'Admin',manager:'Quản lý',accountant:'Kế toán',warehouse:'Kho',sales:'Bán hàng',delivery:'Giao hàng'};
   return map[role]||role||'';
+}
+function safeInlineEncodedArg(value){
+  return encodeURIComponent(String(value ?? ''));
 }
 async function loadUsers(){
   try{
@@ -98,12 +101,15 @@ async function loadUsers(){
     if(!userTable)return;
     if(userCount)userCount.textContent=`${usersCache.length} tài khoản`;
     if(!usersCache.length){userTable.innerHTML='<tr><td colspan="7">Chưa có tài khoản.</td></tr>';return}
-    userTable.innerHTML=usersCache.map(u=>`<tr>
-      <td><strong>${u.code||''}</strong></td><td>${u.username||''}</td><td>${u.name||u.fullName||''}</td><td>${u.phone||''}</td>
-      <td><span class="badge active">${roleText(u.role)}</span></td><td>${u.isActive!==false?'Đang hoạt động':'Ngừng'}</td>
-      <td class="row-actions"><button class="small" onclick="editUser('${u.id}')">Sửa</button><button class="small danger" onclick="deleteUser('${u.id}')">Xóa</button></td>
-    </tr>`).join('');
-  }catch(err){userTable.innerHTML=`<tr><td colspan="7">${err.message}</td></tr>`}
+    userTable.innerHTML=usersCache.map(u=>{
+      const encodedId=safeInlineEncodedArg(u.id);
+      return `<tr>
+      <td><strong>${escapeImportHtml(u.code||'')}</strong></td><td>${escapeImportHtml(u.username||'')}</td><td>${escapeImportHtml(u.name||u.fullName||'')}</td><td>${escapeImportHtml(u.phone||'')}</td>
+      <td><span class="badge active">${escapeImportHtml(roleText(u.role))}</span></td><td>${u.isActive!==false?'Đang hoạt động':'Ngừng'}</td>
+      <td class="row-actions"><button class="small" onclick="editUser(decodeURIComponent('${encodedId}'))">Sửa</button><button class="small danger" onclick="deleteUser(decodeURIComponent('${encodedId}'))">Xóa</button></td>
+    </tr>`;
+    }).join('');
+  }catch(err){userTable.innerHTML=`<tr><td colspan="7">${escapeImportHtml(err.message)}</td></tr>`}
 }
 function resetUserForm(){if(userForm){userForm.reset();userForm.elements.id.value='';userForm.elements.isActive.checked=true} if(userMessage)showMessage(userMessage,'')}
 function editUser(id){
@@ -132,15 +138,19 @@ async function loadPromotions(){
     const json=await res.json(); if(!json.ok)throw new Error(json.message||'Không tải được khuyến mại');
     promotionsCache=json.promotions||[]; if(promotionCount)promotionCount.textContent=`${promotionsCache.length} chương trình`;
     if(!promotionsCache.length){promotionTable.innerHTML='<tr><td colspan="6">Chưa có chương trình khuyến mại.</td></tr>';return}
-    promotionTable.innerHTML=promotionsCache.map(p=>`<tr>
-      <td><strong>${p.code||''}</strong><br><span class="muted">${promotionTypeText(p.type)}</span></td>
-      <td><strong>${p.name||''}</strong><br><span class="muted">Điều kiện: ${p.conditionText||'-'}</span><br><span class="muted">CK/Thưởng: ${p.discountText||'-'}</span>${p.displayReward?`<br><span class="muted">Trưng bày: ${p.displayReward}</span>`:''}${p.couponText?`<br><span class="muted">Coupon: ${p.couponText}</span>`:''}${p.ontopText?`<br><span class="muted">Ontop: ${p.ontopText}</span>`:''}</td>
-      <td>${(p.productCodes||[]).slice(0,8).join(', ')}${(p.productCodes||[]).length>8?'...':''}</td>
-      <td>${p.startDate||''} ${p.endDate?`→ ${p.endDate}`:''}</td>
+    promotionTable.innerHTML=promotionsCache.map(p=>{
+      const encodedId=safeInlineEncodedArg(p.id);
+      const productCodes=(p.productCodes||[]).slice(0,8).map(escapeImportHtml).join(', ');
+      return `<tr>
+      <td><strong>${escapeImportHtml(p.code||'')}</strong><br><span class="muted">${escapeImportHtml(promotionTypeText(p.type))}</span></td>
+      <td><strong>${escapeImportHtml(p.name||'')}</strong><br><span class="muted">Điều kiện: ${escapeImportHtml(p.conditionText||'-')}</span><br><span class="muted">CK/Thưởng: ${escapeImportHtml(p.discountText||'-')}</span>${p.displayReward?`<br><span class="muted">Trưng bày: ${escapeImportHtml(p.displayReward)}</span>`:''}${p.couponText?`<br><span class="muted">Coupon: ${escapeImportHtml(p.couponText)}</span>`:''}${p.ontopText?`<br><span class="muted">Ontop: ${escapeImportHtml(p.ontopText)}</span>`:''}</td>
+      <td>${productCodes}${(p.productCodes||[]).length>8?'...':''}</td>
+      <td>${escapeImportHtml(p.startDate||'')} ${p.endDate?`→ ${escapeImportHtml(p.endDate)}`:''}</td>
       <td><span class="badge ${p.isActive!==false?'active':'inactive'}">${p.isActive!==false?'Đang áp dụng':'Ngừng'}</span></td>
-      <td class="row-actions"><button class="small" onclick="editPromotion('${p.id}')">Sửa</button><button class="small danger" onclick="deletePromotion('${p.id}')">Xóa</button></td>
-    </tr>`).join('');
-  }catch(err){promotionTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
+      <td class="row-actions"><button class="small" onclick="editPromotion(decodeURIComponent('${encodedId}'))">Sửa</button><button class="small danger" onclick="deletePromotion(decodeURIComponent('${encodedId}'))">Xóa</button></td>
+    </tr>`;
+    }).join('');
+  }catch(err){promotionTable.innerHTML=`<tr><td colspan="6">${escapeImportHtml(err.message)}</td></tr>`}
 }
 function resetPromotionForm(){if(promotionForm){promotionForm.reset();promotionForm.elements.id.value='';promotionForm.elements.isActive.checked=true} if(promotionMessage)showMessage(promotionMessage,'')}
 function editPromotion(id){
@@ -795,8 +805,8 @@ function renderImportPreview(result){
           <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
           <td>${row.rowNo||''}</td>
           <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
-          <td>${importRowToText(row)}</td>
-          <td>${[(row.errors||[]).join('; '),(row.warnings||[]).join('; ')].filter(Boolean).join(' | ')}</td>
+          <td>${escapeImportHtml(importRowToText(row))}</td>
+          <td>${escapeImportHtml([(row.errors||[]).join('; '),(row.warnings||[]).join('; ')].filter(Boolean).join(' | '))}</td>
         </tr>`).join('')+hiddenNote;
     }
     bindImportInlinePreviewChecks();

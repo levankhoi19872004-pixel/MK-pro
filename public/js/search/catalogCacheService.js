@@ -50,14 +50,11 @@
     return '';
   }
 
-  function authHeaders(){
-    const token = localStorage.getItem('v43_mobile_token') || localStorage.getItem('mobile_token') || '';
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
+  function authHeaders(){ return {}; }
 
   async function fetchJson(url){
     const sep = url.includes('?') ? '&' : '?';
-    const res = await fetch(`${url}${sep}_t=${Date.now()}`, { headers: authHeaders() });
+    const res = await fetch(`${url}${sep}_t=${Date.now()}`, { credentials: 'same-origin', headers: authHeaders() });
     const json = await res.json();
     if(!json.ok) throw new Error(json.message || 'Không tải được dữ liệu');
     return json;

@@ -3,8 +3,12 @@
 const express = require('express');
 const { body, param, query, validationResult } = require('express-validator');
 const controller = require('../controllers/debtCollectionController');
+const { requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
+const viewCollections = requireRole(['admin', 'manager', 'accountant']);
+const submitCollection = requireRole(['admin', 'manager', 'sales', 'delivery']);
+const accountCollection = requireRole(['admin', 'accountant']);
 
 function validateRequest(req, res, next) {
   const errors = validationResult(req);
@@ -16,7 +20,7 @@ function validateRequest(req, res, next) {
   });
 }
 
-router.get('/', [
+router.get('/', viewCollections, [
   query('status').optional().isString().trim(),
   query('fromDate').optional().isISO8601().withMessage('fromDate không hợp lệ'),
   query('toDate').optional().isISO8601().withMessage('toDate không hợp lệ'),
@@ -26,7 +30,7 @@ router.get('/', [
 ], validateRequest, controller.list);
 
 
-router.post('/', [
+router.post('/', submitCollection, [
   body('customerCode').isString().trim().notEmpty().withMessage('Thiếu mã khách hàng'),
   body('amount').isFloat({ gt: 0 }).withMessage('Số tiền thu phải lớn hơn 0'),
   body('paymentMethod').optional().isIn(['cash', 'bank_transfer', 'bank', 'transfer', 'other']).withMessage('Hình thức thanh toán không hợp lệ'),
@@ -39,13 +43,13 @@ router.post('/', [
   body('idempotencyKey').optional().isString().trim().isLength({ max: 160 })
 ], validateRequest, controller.submit);
 
-router.post('/:id/confirm', [
+router.post('/:id/confirm', accountCollection, [
   param('id').isString().trim().notEmpty().withMessage('Thiếu mã phiếu thu nợ'),
   body('actualReceivedAmount').isFloat({ gt: 0 }).withMessage('Số tiền thực nhận phải lớn hơn 0'),
   body('accountingNote').optional().isString().trim()
 ], validateRequest, controller.confirm);
 
-router.post('/:id/reject', [
+router.post('/:id/reject', accountCollection, [
   param('id').isString().trim().notEmpty().withMessage('Thiếu mã phiếu thu nợ'),
   body('reason').isString().trim().notEmpty().withMessage('Cần nhập lý do từ chối')
 ], validateRequest, controller.reject);

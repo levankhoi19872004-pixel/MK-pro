@@ -53,6 +53,41 @@ function filterByQuery(rows = [], query = {}, fields = []) {
   return rows.filter((row) => fields.some((field) => normalizeText(row[field]).includes(q)));
 }
 
+function buildDateMongoFilter(query = {}, fields = ['date', 'createdAt']) {
+  const exact = dateUtil.toDateOnly(query.date || '');
+  const from = dateUtil.toDateOnly(query.dateFrom || exact || '');
+  const to = dateUtil.toDateOnly(query.dateTo || exact || '');
+  if (!from && !to) return {};
+
+  const stringRange = exact ? exact : {
+    ...(from ? { $gte: from } : {}),
+    ...(to ? { $lte: to } : {})
+  };
+  const clauses = fields
+    .filter((field) => field !== 'createdAt')
+    .map((field) => ({ [field]: stringRange }));
+
+  if (fields.includes('createdAt')) {
+    const dateRange = {};
+    if (from) dateRange.$gte = new Date(`${from}T00:00:00+07:00`);
+    if (to) {
+      const nextDay = new Date(`${to}T00:00:00+07:00`);
+      nextDay.setDate(nextDay.getDate() + 1);
+      dateRange.$lt = nextDay;
+    }
+    clauses.push({ createdAt: dateRange });
+  }
+
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
+}
+
+function buildActiveDateMongoFilter(query = {}, fields = ['date', 'createdAt']) {
+  return {
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
+    ...buildDateMongoFilter(query, fields)
+  };
+}
+
 function buildStockTxFilter(query = {}) {
   const filter = {};
   if (query.productCode) filter.productCode = String(query.productCode).trim();
@@ -85,7 +120,7 @@ async function stockReport(query = {}) {
     const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
     const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
     const [transactions, products] = await Promise.all([
-      StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
+      StockTransaction.find(buildDateMongoFilter({ dateTo }, ['date', 'createdAt'])).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
       Product.find({}).lean()
     ]);
     const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
@@ -1030,7 +1065,7 @@ async function debtByDeliveryReport(query = {}) {
 }
 
 async function salesReport(query = {}) {
-  let orders = await SalesOrder.find({}).sort({ date: -1, createdAt: -1 }).lean();
+  let orders = await SalesOrder.find(buildActiveDateMongoFilter(query, ['date', 'orderDate', 'documentDate', 'createdAt'])).sort({ date: -1, createdAt: -1 }).lean();
   orders = orders.filter(isActive).filter((row) => matchDate(row, query));
   orders = filterByQuery(orders, query, ['code', 'orderCode', 'customerCode', 'customerName', 'salesmanName', 'staffName']);
 
@@ -1072,10 +1107,10 @@ async function salesReport(query = {}) {
 
 async function financeReport(query = {}) {
   const [receipts, cashbooks, bankbooks, returns] = await Promise.all([
-    Receipt.find({}).lean(),
-    Cashbook.find({}).lean(),
-    Bankbook.find({}).lean(),
-    ReturnOrder.find({}).lean()
+    Receipt.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt'])).lean(),
+    Cashbook.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt'])).lean(),
+    Bankbook.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt'])).lean(),
+    ReturnOrder.find(buildActiveDateMongoFilter(query, ['date', 'returnDate', 'documentDate', 'deliveryDate', 'createdAt'])).lean()
   ]);
 
   const receiptRows = receipts.filter(isActive).filter((row) => matchDate(row, query));
@@ -1110,7 +1145,7 @@ async function financeReport(query = {}) {
 }
 
 async function deliveryReport(query = {}) {
-  let masterOrders = await MasterOrder.find({}).sort({ deliveryDate: -1, createdAt: -1 }).lean();
+  let masterOrders = await MasterOrder.find(buildActiveDateMongoFilter(query, ['deliveryDate', 'date', 'createdAt'])).sort({ deliveryDate: -1, createdAt: -1 }).lean();
   masterOrders = masterOrders.filter(isActive).filter((row) => matchDate(row, query));
   masterOrders = filterByQuery(masterOrders, query, ['code', 'masterOrderCode', 'deliveryStaffCode', 'deliveryStaffName', 'status']);
 
@@ -1157,7 +1192,7 @@ async function dashboardReport(query = {}) {
     stockReport(query),
     financeReport(query),
     deliveryReport(query),
-    ImportOrder.find({}).lean()
+    ImportOrder.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'importDate', 'createdAt'])).lean()
   ]);
 
   const activeImports = imports.filter(isActive).filter((row) => matchDate(row, query));

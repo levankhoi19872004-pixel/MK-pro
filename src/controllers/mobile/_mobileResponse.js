@@ -1,8 +1,11 @@
 'use strict';
 
+const { attachRefreshToken } = require('../../security/refreshTokenCookie');
+const { attachAccessToken } = require('../../security/accessTokenCookie');
+
 function sendMobileResponse(res, result) {
   const status = result.statusCode || result.status || 200;
-  const body = result.body || result;
+  const body = attachAccessToken(res, attachRefreshToken(res, result.body || result));
   return res.status(status).json(body);
 }
 
@@ -17,10 +20,14 @@ function wrapMobile(service, method, fallbackStatus = 500, fallbackMessage = 'Lá
         mobileUser: req.mobileUser
       }));
     } catch (err) {
-      return res.status(err.statusCode || err.status || fallbackStatus).json({
+      const status = err.statusCode || err.status || fallbackStatus;
+      const publicMessage = process.env.NODE_ENV === 'production' && Number(status) >= 500
+        ? fallbackMessage
+        : (err.message || fallbackMessage);
+      return res.status(status).json({
         ok: false,
         success: false,
-        message: err.message || fallbackMessage,
+        message: publicMessage,
         error: process.env.NODE_ENV === 'production' ? undefined : err.message
       });
     }

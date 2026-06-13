@@ -203,24 +203,17 @@
     return [];
   }
 
-  function sessionToken() {
-    return localStorage.getItem('mk_web_token') || localStorage.getItem('v43_mobile_token') || '';
-  }
+  function sessionToken() { return ''; }
 
-  function sessionRefreshToken() {
-    return localStorage.getItem('mk_web_refresh_token') || localStorage.getItem('v43_mobile_refresh_token') || '';
-  }
+  function sessionRefreshToken() { return ''; }
 
   function saveSession(data) {
     data = data || {};
-    if (data.token) {
-      localStorage.setItem('mk_web_token', data.token);
-      localStorage.setItem('v43_mobile_token', data.token);
-    }
-    if (data.refreshToken) {
-      localStorage.setItem('mk_web_refresh_token', data.refreshToken);
-      localStorage.setItem('v43_mobile_refresh_token', data.refreshToken);
-    }
+    localStorage.removeItem('mk_web_token');
+    localStorage.removeItem('v43_mobile_token');
+    // Refresh token nằm trong cookie HttpOnly; luôn xóa bản legacy có thể còn lại.
+    localStorage.removeItem('mk_web_refresh_token');
+    localStorage.removeItem('v43_mobile_refresh_token');
     if (data.user) {
       var userJson = JSON.stringify(data.user || {});
       localStorage.setItem('mk_web_user', userJson);
@@ -243,13 +236,13 @@
   }
 
   async function refreshSession() {
-    var refreshToken = sessionRefreshToken();
-    if (!refreshToken) return false;
+    var legacyRefreshToken = sessionRefreshToken();
     try {
       var res = await fetch('/api/auth/refresh', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: refreshToken })
+        body: '{}'
       });
       var json = await readJson(res, 'Không làm mới được phiên đăng nhập');
       if (!json || !json.token) return false;
@@ -285,9 +278,7 @@
 
       async function sendRequest() {
         var headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
-        var token = sessionToken();
-        if (token) headers.Authorization = 'Bearer ' + token;
-        return fetch(path, Object.assign({}, options, { headers: headers }));
+        return fetch(path, Object.assign({}, options, { credentials: options.credentials || 'same-origin', headers: headers }));
       }
 
       var res = await sendRequest();

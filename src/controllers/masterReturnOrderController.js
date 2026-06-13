@@ -14,7 +14,7 @@ async function listUnmerged(req, res) {
     const returnOrders = await masterReturnOrderService.listUnmergedReturnOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', returnOrders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được phiếu trả hàng chưa gộp', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được phiếu trả hàng chưa gộp', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -23,7 +23,7 @@ async function list(req, res) {
     const masterReturnOrders = await masterReturnOrderService.listMasterReturnOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', masterReturnOrders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn tổng trả hàng', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được đơn tổng trả hàng', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -32,7 +32,7 @@ async function get(req, res) {
     const result = await masterReturnOrderService.getMasterReturnOrder(req.params.id);
     return handleServiceResult(res, result, 200, (r) => ({ masterReturnOrder: r.masterReturnOrder }));
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được chi tiết đơn tổng trả hàng', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được chi tiết đơn tổng trả hàng', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

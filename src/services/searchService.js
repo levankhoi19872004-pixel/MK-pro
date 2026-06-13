@@ -8,7 +8,9 @@ const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../utils/com
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
+  manager: 'Quản lý',
   accountant: 'Kế toán',
+  warehouse: 'Kho',
   sales: 'Bán hàng',
   delivery: 'Giao hàng'
 };

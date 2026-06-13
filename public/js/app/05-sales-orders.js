@@ -1,3 +1,4 @@
+const escapeSalesHtml = (window.V45Common && window.V45Common.escapeHtml) || ((value='')=>String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])));
 const PRICING_DIRECT_PRICE='DIRECT_PRICE';
 const PRICING_PROMOTION='PROMOTION';
 function normalizePricingModeClient(value){
@@ -314,8 +315,8 @@ function renderSalesItems(){
   salesTotalQuantity.textContent=money(tq);salesTotalAmount.textContent=money(ta);
   if(!salesItems.length){salesItemsTable.innerHTML='<tr><td colspan="7">Chưa có dòng hàng</td></tr>';return}
   salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>
-    <td><strong>${i.productCode}</strong></td>
-    <td class="sales-product-name-cell"><span class="sales-product-name-text">${i.productName}</span></td>
+    <td><strong>${escapeSalesHtml(i.productCode||'')}</strong></td>
+    <td class="sales-product-name-cell"><span class="sales-product-name-text">${escapeSalesHtml(i.productName||'')}</span></td>
     <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" onchange="updateSalesItemCase(${idx}, this.value)"></td>
     <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" onchange="updateSalesItemLoose(${idx}, this.value)"></td>
     <td class="price"><input class="sales-line-input price" type="number" min="0" value="${Number(i.salePrice||0)}" ${direct?'':'readonly'} onchange="updateSalesItemPrice(${idx}, this.value)"></td>
@@ -533,12 +534,12 @@ async function loadStock(){
     const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được tồn kho');
     const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`;
     if(!stock.length){stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho. Hãy tạo phiếu nhập trước.</td></tr>';return}
-    stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${r.productCode||''}</strong></td><td>${r.productName||''}</td><td>${r.unit||''}</td><td>${productPackingText(r)}</td><td class="stock-qty">${displayQtyTL(r.availableQty ?? r.quantity,r)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString('vi-VN'):''}</td></tr>`).join('');
-  }catch(err){stockCount.textContent='Lỗi tải tồn kho';stockTable.innerHTML=`<tr><td colspan="6">${err.message}</td></tr>`}
+    stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${escapeSalesHtml(r.productCode||'')}</strong></td><td>${escapeSalesHtml(r.productName||'')}</td><td>${escapeSalesHtml(r.unit||'')}</td><td>${escapeSalesHtml(productPackingText(r))}</td><td class="stock-qty">${displayQtyTL(r.availableQty ?? r.quantity,r)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString('vi-VN'):''}</td></tr>`).join('');
+  }catch(err){stockCount.textContent='Lỗi tải tồn kho';stockTable.innerHTML=`<tr><td colspan="6">${escapeSalesHtml(err.message)}</td></tr>`}
 }
 async function openImportOrderDetail(idx){
   const order=window.__importOrdersCache?.[idx];if(!order)return;
-  const lines=(order.items||[]).map(i=>`<li>${i.productCode} - ${i.productName}: ${displayQtyTL(i.quantity,i)} × ${money(i.costPrice)} = ${money(i.amount)}</li>`).join('');
+  const lines=(order.items||[]).map(i=>`<li>${escapeSalesHtml(i.productCode||'')} - ${escapeSalesHtml(i.productName||'')}: ${escapeSalesHtml(displayQtyTL(i.quantity,i))} × ${money(i.costPrice)} = ${money(i.amount)}</li>`).join('');
   const card=document.querySelector(`[data-import-detail="${idx}"]`);
   if(card)card.innerHTML=card.innerHTML?'' : `<ul class="order-items">${lines}</ul>`;
 }
@@ -709,16 +710,18 @@ async function loadImportOrders(){
       ${orders.map((o,idx)=>{
         const posted=String(o.status||'draft').toLowerCase()==='posted';
         const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';
-        const supplier=o.supplier||'Chưa khai báo';
-        const code=o.code||o.id||'';
+        const supplier=escapeSalesHtml(o.supplier||'Chưa khai báo');
+        const code=escapeSalesHtml(o.code||o.id||'');
+        const note=escapeSalesHtml(o.note||'');
+        const safeDisplayDate=escapeSalesHtml(displayDate);
         const statusHtml=`<span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span>`;
         const actionHtml=posted
           ? `<button class="small secondary" onclick="editImportOrder(${idx})">Xem</button>`
           : `<button class="small success" onclick="editImportOrder(${idx})">Sửa</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ</button>`;
-        return `<div class="import-order-one-line-row" title="${code} - ${supplier}${o.note?' - '+o.note:''}">
+        return `<div class="import-order-one-line-row" title="${code} - ${supplier}${note?' - '+note:''}">
           <div><input type="checkbox" class="import-order-check" data-idx="${idx}"></div>
           <div class="import-order-cell-code">${code}</div>
-          <div class="import-order-cell">${displayDate}</div>
+          <div class="import-order-cell">${safeDisplayDate}</div>
           <div class="import-order-cell">${supplier}</div>
           <div class="import-order-cell">${money(o.totalQuantity)}</div>
           <div class="import-order-cell import-order-money">${money(o.totalAmount)}</div>
@@ -734,7 +737,7 @@ async function loadImportOrders(){
       });
     }
     // IMPORT_HISTORY_LAYOUT_GROUPED_END
-  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';updateImportOrderSummaryCards([]);if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.innerHTML=err.message}
+  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';updateImportOrderSummaryCards([]);if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.textContent=err.message}
 }
 initImportDateFilterControls();
 function normalizeOrderSourceClient(order){
@@ -1130,17 +1133,20 @@ function renderSalesOrderRows(orders, {append=false} = {}){
     const idx=startIndex+localIdx;
     const orderDateText=typeof formatDateVN==='function'?formatDateVN(o.orderDate||o.date||''):(o.orderDate||o.date||'');
     // SALES_HISTORY_NVBH_COLUMN_PATCH_START: hiển thị NV bán hàng theo field canonical.
-    const salesStaffName=canonicalSalesStaffLabel(o)||'-';
+    const salesStaffName=escapeSalesHtml(canonicalSalesStaffLabel(o)||'-');
+    const orderCode=escapeSalesHtml(o.code||o.id||'');
+    const customerName=escapeSalesHtml(o.customerName||o.customerCode||'');
+    const safeOrderDate=escapeSalesHtml(orderDateText||'-');
     // SALES_HISTORY_NVBH_COLUMN_PATCH_END
     return `
       <article class="sales-order-row">
         <label class="sales-order-select"><input type="checkbox" class="sales-order-check" data-idx="${idx}"></label>
-        <strong class="sales-order-code-text" title="Mã đơn: ${o.code||o.id||''}">${o.code||o.id||''}</strong>
-        <span class="sales-order-customer-inline" title="Khách hàng: ${o.customerName||o.customerCode||''}">${o.customerName||o.customerCode||''}</span>
+        <strong class="sales-order-code-text" title="Mã đơn: ${orderCode}">${orderCode}</strong>
+        <span class="sales-order-customer-inline" title="Khách hàng: ${customerName}">${customerName}</span>
         <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START -->
         <span class="sales-order-staff-inline" title="NV bán hàng: ${salesStaffName}">${salesStaffName}</span>
         <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_END -->
-        <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
+        <span class="sales-order-date" title="Ngày bán">${safeOrderDate}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
         ${canManageVatInvoiceSetting()
@@ -1238,7 +1244,7 @@ async function loadSalesOrders({page=1, append=false} = {}){
     if(err && err.name==='AbortError')return;
     if(requestSeq!==salesOrderRequestSeq)return;
     salesOrderCount.textContent='Lỗi tải lịch sử';
-    salesOrderList.innerHTML=err.message;
+    salesOrderList.textContent=err.message;
     salesOrderHasMore=false;
     updateSalesOrderLoadMoreButton();
   }

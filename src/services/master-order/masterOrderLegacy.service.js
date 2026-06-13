@@ -1328,6 +1328,44 @@ async function postDeliveryCollectionsAfterAccountingConfirmed(order = {}, optio
     posted.push(entry);
   }
 
+
+  // MOBILE_SALES_PENDING_COLLECTION_POST_START
+  // App bán hàng chỉ lưu khoản thu tạm trên salesOrders. Chỉ sau khi kế toán xác nhận
+  // mới sinh AR-RECEIPT để tránh journals/cashbooks trở thành nguồn dữ liệu song song.
+  const pendingSalesCollectionAmount = toNumber(order.salesCollectionAmount || 0);
+  if (order.salesCollectionPendingAccounting === true && pendingSalesCollectionAmount > 0) {
+    const rawMethod = String(order.salesCollectionMethod || 'cash').toLowerCase();
+    const method = ['transfer', 'bank', 'bank_transfer'].includes(rawMethod) ? 'transfer' : 'cash';
+    const entry = await postingEngine.postReceiptAR({
+      id: `MOBILE-SALES-COLLECTION-${method.toUpperCase()}-${key || code}`,
+      code: `MOBILE-SALES-COLLECTION-${method.toUpperCase()}-${code || key}`,
+      date: order.orderDate || order.date || dateUtil.todayVN(),
+      customerId: order.customerId || '',
+      customerCode: order.customerCode || '',
+      customerName: order.customerName || '',
+      amount: pendingSalesCollectionAmount,
+      method,
+      source: 'mobile_sales_accounting_confirmed',
+      refType: 'MOBILE_SALES_ACCOUNTING',
+      refId: key || code,
+      refCode: code || key,
+      orderId: currentOrderId,
+      orderCode: currentOrderCode,
+      accountingConfirmed: true,
+      accountingStatus: 'confirmed',
+      masterOrderId: order.masterOrderId || order.deliveryMasterId || '',
+      masterOrderCode: order.masterOrderCode || order.deliveryMasterCode || '',
+      salesmanCode: order.salesmanCode || order.salesStaffCode || order.salesCollectionStaffCode || '',
+      salesmanName: order.salesmanName || order.salesStaffName || order.salesCollectionStaffName || '',
+      salesStaffCode: order.salesStaffCode || order.salesmanCode || order.salesCollectionStaffCode || '',
+      salesStaffName: order.salesStaffName || order.salesmanName || order.salesCollectionStaffName || '',
+      allocations: [{ orderId: currentOrderId, orderCode: currentOrderCode, amount: pendingSalesCollectionAmount }],
+      note: `Kế toán xác nhận khoản thu từ app bán hàng ${code || key}`
+    }, options);
+    posted.push(entry);
+  }
+  // MOBILE_SALES_PENDING_COLLECTION_POST_END
+
   // ===== SCOPED FIX: POST_AR_RETURN_FROM_RETURNORDERS_ROWS_START =====
   // AR-RETURN phải được ghi từ chính returnOrders. Nếu chỉ post bằng object ảo của salesOrder,
   // hệ thống dễ mất ref RO-* và khó audit. Ưu tiên các returnOrders đã hydrate khi xác nhận kế toán.

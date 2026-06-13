@@ -32,7 +32,8 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   paidAmount: Number,
   debtAmount: Number,
   createdAt: String,
-  updatedAt: String
+  updatedAt: String,
+  version: { type: Number, default: 0 }
 });
 
 // Index được chuẩn hoá tập trung tại src/services/mongoIndexService.js

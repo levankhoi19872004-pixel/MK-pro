@@ -18,7 +18,7 @@ async function list(req, res) {
     const returnOrders = await returnOrderService.listReturnOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', returnOrders, returns: returnOrders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được phiếu trả hàng từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được phiếu trả hàng từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -94,7 +94,7 @@ async function confirmAccounting(req, res) {
       ok: false,
       success: false,
       message: 'Không xác nhận được kế toán phiếu trả hàng',
-      error: err.message
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
     });
   }
 }

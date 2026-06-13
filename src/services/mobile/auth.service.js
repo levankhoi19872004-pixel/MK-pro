@@ -2,6 +2,7 @@
 
 const { createMobileAuthRepository } = require('../../repositories/mobile/auth.repository');
 const { verifyPassword } = require('../../security/passwordPolicy');
+const { readRefreshToken } = require('../../security/refreshTokenCookie');
 
 function fail(statusCode, message) {
   return { statusCode, body: { ok: false, success: false, message } };
@@ -28,9 +29,8 @@ function createMobileAuthService(ctx) {
     if (!username || !password) return fail(400, 'Thiếu tài khoản hoặc mật khẩu');
 
     const staffDoc = await repo.findActiveStaffByLogin(username);
-    const staff = staffDoc && await verifyPassword(password, staffDoc.password)
-      ? staffMongoToClient(staffDoc)
-      : null;
+    const passwordValid = await verifyPassword(password, staffDoc && staffDoc.password);
+    const staff = staffDoc && passwordValid ? staffMongoToClient(staffDoc) : null;
     if (!staff) return fail(401, 'Sai tài khoản hoặc mật khẩu');
 
     const user = buildJwtPayload(staffDoc);
@@ -52,11 +52,14 @@ function createMobileAuthService(ctx) {
     };
   }
 
-  async function refresh({ body = {} }) {
-    const refreshToken = String(body.refreshToken || '').trim();
-    const user = decodeMobileRefreshToken(refreshToken);
-    if (!user) return fail(401, 'Refresh token không hợp lệ hoặc đã hết hạn');
-    const safeUser = buildJwtPayload(user);
+  async function refresh({ req = {}, body = {} }) {
+    req.body = body;
+    const refreshToken = readRefreshToken(req);
+    const payload = decodeMobileRefreshToken(refreshToken);
+    if (!payload) return fail(401, 'Refresh token không hợp lệ hoặc đã hết hạn');
+    const currentStaff = await repo.findActiveStaffByIdentity(payload);
+    if (!currentStaff) return fail(401, 'Tài khoản không còn hoạt động');
+    const safeUser = buildJwtPayload(currentStaff);
     return {
       body: {
         ok: true,

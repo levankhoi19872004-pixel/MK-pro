@@ -13,7 +13,8 @@ async function health(req, res) {
 }
 
 async function dbHealth(req, res) {
-  res.json(systemService.dbHealth());
+  const health = systemService.dbHealth();
+  res.status(health.ok ? 200 : 503).json(health);
 }
 
 async function status(req, res) {
@@ -26,9 +27,16 @@ async function status(req, res) {
 
 async function data(req, res) {
   try {
-    res.json({ ok: true, source: 'mongo-route', data: await systemService.getDataSnapshot() });
+    if (process.env.ALLOW_SYSTEM_DATA_EXPORT !== 'true') {
+      return res.status(403).json({
+        ok: false,
+        success: false,
+        message: 'API xuất toàn bộ dữ liệu hệ thống đang bị khóa; hãy dùng chức năng backup có kiểm soát'
+      });
+    }
+    return res.json({ ok: true, source: 'mongo-route', data: await systemService.getDataSnapshot() });
   } catch (err) {
-    sendError(res, err, 'Không đọc được dữ liệu MongoDB');
+    return sendError(res, err, 'Không đọc được dữ liệu MongoDB');
   }
 }
 
@@ -72,6 +80,28 @@ async function backup(req, res) {
     res.json({ ok: true, data: await systemService.createBackup() });
   } catch (err) {
     sendError(res, err, 'Không tạo được backup');
+  }
+}
+
+async function listBackups(req, res) {
+  try {
+    res.json({ ok: true, data: await systemService.listBackups() });
+  } catch (err) {
+    sendError(res, err, 'Không đọc được danh sách backup');
+  }
+}
+
+async function verifyBackup(req, res) {
+  try {
+    res.json({ ok: true, data: await systemService.verifyBackup(req.params.fileName) });
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({
+      ok: false,
+      success: false,
+      message: err.message || 'Không xác minh được backup',
+      details: process.env.NODE_ENV === 'production' ? undefined : err.details
+    });
   }
 }
 
@@ -145,6 +175,8 @@ module.exports = {
   getSetting,
   saveSetting,
   backup,
+  listBackups,
+  verifyBackup,
   reset,
   apiMonitor,
   resetApiMonitor,

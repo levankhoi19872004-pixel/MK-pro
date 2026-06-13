@@ -41,5 +41,6 @@ module.exports = {
   promotionGroupRules: require('./PromotionGroupRule'),
   importTemplates: require('./ImportTemplate'),
   roles: require('./Role'),
-  permissions: require('./Permission')
+  permissions: require('./Permission'),
+  idempotencyRequests: require('./IdempotencyRequest')
 };

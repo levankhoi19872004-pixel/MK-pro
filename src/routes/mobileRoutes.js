@@ -1,5 +1,7 @@
 'use strict';
 
+const { customerOwnershipFilterForSalesUser } = require('../domain/staff/customerOwnership');
+
 const { normalizeText } = require('../utils/search.util');
 const { normalizeOrderCodes } = require('../utils/orderKey.util');
 
@@ -19,6 +21,8 @@ const dateUtil = require('../utils/date.util');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { verifyPassword } = require('../security/passwordPolicy');
+const { readRefreshToken, setRefreshTokenCookie, clearRefreshTokenCookie, exposeRefreshTokenInBody } = require('../security/refreshTokenCookie');
+const { readAccessToken, setAccessTokenCookie, clearAccessTokenCookie } = require('../security/accessTokenCookie');
 const { pickSalesStaffCode, pickSalesStaffName, pickUserAccountSalesStaffCode } = require('../domain/staff/staffIdentity');
 
 const Product = require('../models/Product');
@@ -68,7 +72,7 @@ const ROLE_LABELS = {
   delivery: 'Giao hàng'
 };
 
-const ACCESS_TOKEN_EXPIRES_IN = process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || '1d';
+const ACCESS_TOKEN_EXPIRES_IN = process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.MOBILE_REFRESH_TOKEN_EXPIRES_IN || '30d';
 
 function jwtSecret() {
@@ -110,8 +114,13 @@ function fail(res, status, message) {
   return res.status(status).json({ ok: false, success: false, message });
 }
 
-function signToken(user, expiresIn = ACCESS_TOKEN_EXPIRES_IN) {
-  return jwt.sign(user, jwtSecret(), { expiresIn });
+function refreshJwtSecret() {
+  return process.env.MOBILE_REFRESH_TOKEN_SECRET || process.env.JWT_REFRESH_SECRET || jwtSecret();
+}
+
+function signToken(user, expiresIn = ACCESS_TOKEN_EXPIRES_IN, tokenType = 'access') {
+  const secret = tokenType === 'refresh' ? refreshJwtSecret() : jwtSecret();
+  return jwt.sign({ ...user, tokenType }, secret, { expiresIn });
 }
 
 function buildSafeUser(staff) {
@@ -142,10 +151,17 @@ function buildSafeUser(staff) {
 
 function requireMobileLogin(req, res, next) {
   const header = String(req.headers.authorization || '');
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const bearerToken = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const token = bearerToken || readAccessToken(req);
   if (!token) return fail(res, 401, 'Bạn chưa đăng nhập mobile app');
   try {
-    req.mobileUser = jwt.verify(token, jwtSecret());
+    const payload = jwt.verify(token, jwtSecret());
+    if (payload.tokenType !== 'access' && !(process.env.ALLOW_LEGACY_UNTYPED_TOKENS === 'true' && !payload.tokenType)) {
+      return fail(res, 401, 'Loại token không hợp lệ');
+    }
+    req.mobileUser = payload;
+    req.user = payload;
+    req.authSource = bearerToken ? 'bearer' : 'cookie';
     return next();
   } catch (err) {
     return fail(res, 401, 'Phiên đăng nhập đã hết hạn');
@@ -1217,7 +1233,8 @@ router.post('/login', async (req, res) => {
       isActive: { $ne: false },
       $or: [{ username }, { staffCode: username }, { code: username }, { phone: username }]
     }).lean();
-    if (!staff || !(await verifyPassword(password, staff.password))) {
+    const passwordValid = await verifyPassword(password, staff && staff.password);
+    if (!staff || !passwordValid) {
       return fail(res, 401, 'Sai tài khoản hoặc mật khẩu');
     }
 
@@ -1225,10 +1242,14 @@ router.post('/login', async (req, res) => {
     if (['sales', 'delivery'].includes(user.role) && !user.staffCode) {
       return fail(res, 400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
     }
+    const accessToken = signToken(user, ACCESS_TOKEN_EXPIRES_IN, 'access');
+    const refreshToken = signToken(user, REFRESH_TOKEN_EXPIRES_IN, 'refresh');
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, refreshToken);
     return ok(res, {
       source: 'mobile-users-auth-route',
-      token: signToken(user),
-      refreshToken: signToken(user, REFRESH_TOKEN_EXPIRES_IN),
+      token: accessToken,
+      ...(exposeRefreshTokenInBody() ? { refreshToken } : {}),
       expiresIn: ACCESS_TOKEN_EXPIRES_IN,
       user
     });
@@ -1239,14 +1260,41 @@ router.post('/login', async (req, res) => {
 
 router.post('/refresh', async (req, res) => {
   try {
-    const refreshToken = String(req.body?.refreshToken || '').trim();
+    const refreshToken = readRefreshToken(req);
     if (!refreshToken) return fail(res, 401, 'Refresh token không hợp lệ');
-    const user = jwt.verify(refreshToken, jwtSecret());
-    const safeUser = { id: user.id, code: user.code, username: user.username, name: user.name, role: user.role, roleLabel: user.roleLabel };
-    return ok(res, { token: signToken(safeUser), refreshToken: signToken(safeUser, REFRESH_TOKEN_EXPIRES_IN), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user: safeUser });
+    const payload = jwt.verify(refreshToken, refreshJwtSecret());
+    if (payload.tokenType !== 'refresh' && !(process.env.ALLOW_LEGACY_UNTYPED_TOKENS === 'true' && !payload.tokenType)) {
+      return fail(res, 401, 'Loại token không hợp lệ');
+    }
+    const identity = [
+      payload.id && { _id: /^[a-f\d]{24}$/i.test(String(payload.id)) ? payload.id : undefined },
+      payload.id && { id: payload.id },
+      payload.username && { username: payload.username },
+      payload.staffCode && { staffCode: payload.staffCode },
+      payload.code && { code: payload.code }
+    ].filter((entry) => entry && Object.values(entry)[0]);
+    const currentUser = identity.length ? await User.findOne({ isActive: { $ne: false }, $or: identity }).lean() : null;
+    if (!currentUser) return fail(res, 401, 'Tài khoản không còn hoạt động');
+    const safeUser = buildSafeUser(currentUser);
+    const accessToken = signToken(safeUser, ACCESS_TOKEN_EXPIRES_IN, 'access');
+    const rotatedRefreshToken = signToken(safeUser, REFRESH_TOKEN_EXPIRES_IN, 'refresh');
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, rotatedRefreshToken);
+    return ok(res, {
+      token: accessToken,
+      ...(exposeRefreshTokenInBody() ? { refreshToken: rotatedRefreshToken } : {}),
+      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+      user: safeUser
+    });
   } catch (err) {
     return fail(res, 401, 'Refresh token không hợp lệ hoặc đã hết hạn');
   }
+});
+
+router.post('/logout', (req, res) => {
+  clearAccessTokenCookie(res);
+  clearRefreshTokenCookie(res);
+  return ok(res, { message: 'Đã đăng xuất' });
 });
 
 router.get('/me', requireMobileLogin, (req, res) => ok(res, { user: req.mobileUser, roles: ROLE_LABELS }));
@@ -1441,24 +1489,8 @@ function mobileCustomerIdentityKeys(customer = {}) {
 }
 
 function buildSalesMobileCustomerFilter(mobileUser = {}) {
-  const user = mobileUser || {};
-  if (String(user.role || '') !== 'sales') return {};
-  const staffCode = String(user.code || user.staffCode || '').trim();
-  const staffName = String(user.name || user.fullName || '').trim();
-  const staffOr = [];
-  if (staffCode) staffOr.push(
-    { staffCode },
-    { salesStaffCode: staffCode },
-    { assignedSalesStaffCode: staffCode },
-    { employeeCode: staffCode }
-  );
-  if (staffName) staffOr.push(
-    { staffName },
-    { salesStaffName: staffName },
-    { assignedSalesStaffName: staffName },
-    { employeeName: staffName }
-  );
-  return staffOr.length ? { $or: staffOr } : {};
+  if (String(mobileUser?.role || '').trim().toLowerCase() !== 'sales') return {};
+  return customerOwnershipFilterForSalesUser(mobileUser);
 }
 
 async function buildDebtFirstMobileCustomers(req) {
@@ -1501,15 +1533,6 @@ async function buildDebtFirstMobileCustomers(req) {
     .sort({ code: 1, customerCode: 1, name: 1, customerName: 1 })
     .limit(maxCustomerRows)
     .lean();
-
-  // Nếu danh mục khách chưa gán đúng NVBH và đơn bán cũng không đủ khóa,
-  // fallback lấy danh mục khách để app không bị trắng màn hình.
-  if (!customers.length && isSalesUser) {
-    customers = await Customer.find({})
-      .sort({ code: 1, customerCode: 1, name: 1, customerName: 1 })
-      .limit(maxCustomerRows)
-      .lean();
-  }
 
   const mergedByKey = new Map();
   const addCustomer = (customer = {}, sourceRank = 0) => {
@@ -1573,7 +1596,7 @@ async function buildDebtFirstMobileCustomers(req) {
     .map(({ sourceRank, ...item }) => item);
 }
 
-router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 'sales', 'delivery']), async (req, res) => {
+router.get('/customers', requireMobileLogin, requireMobileRole(['admin', 'manager', 'accountant', 'sales']), async (req, res) => {
   try {
     const keyword = String(req.query.q || req.query.keyword || req.query.search || '').trim();
     if (!keyword) {
@@ -1581,8 +1604,14 @@ router.get('/customers', requireMobileLogin, requireMobileRole(['accountant', 's
       return ok(res, { source: 'mobile-customers-debt-first-ar-ledger', items });
     }
 
+    const mobileUser = req.mobileUser || {};
+    const isSalesUser = String(mobileUser.role || '').trim().toLowerCase() === 'sales';
     const rawItems = await searchService.searchCustomers({
       ...req.query,
+      ...(isSalesUser ? {
+        ownerSalesStaffCode: String(mobileUser.code || mobileUser.staffCode || '').trim(),
+        ownerSalesStaffName: String(mobileUser.name || mobileUser.fullName || '').trim()
+      } : {}),
       includeMetrics: '1',
       mobile: '1',
       allowEmpty: '1',
@@ -1653,7 +1682,7 @@ router.get('/stock', requireMobileLogin, requireMobileRole(['accountant', 'sales
 });
 
 
-router.post('/inventory/rebuild', requireMobileLogin, requireMobileRole(['admin', 'accountant']), async (req, res) => {
+router.post('/inventory/rebuild', requireMobileLogin, requireMobileRole(['admin']), async (req, res) => {
   try {
     const result = await inventoryService.rebuildStockLedgerFromDocuments({
       resetTransactions: ['1', 'true', 'yes'].includes(String(req.body?.resetTransactions || req.query.resetTransactions || '1').toLowerCase())

@@ -7,7 +7,7 @@ async function list(req, res) {
     const result = await customerService.listCustomers(req.query);
     res.json({ ok: true, source: 'mongo-route', customers: result.customers, meta: result.meta || undefined });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được danh sách khách hàng từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không lấy được danh sách khách hàng từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -16,7 +16,7 @@ async function search(req, res) {
     const customers = await customerService.searchCustomers(req.query);
     res.json({ ok: true, source: 'mongo-search', items: customers, customers });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tìm kiếm được khách hàng từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tìm kiếm được khách hàng từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -26,7 +26,7 @@ async function create(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.status(201).json({ ok: true, source: 'mongo-route', message: 'Đã tạo khách hàng và lưu vào MongoDB', customer: result.customer });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tạo được khách hàng trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tạo được khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -36,7 +36,7 @@ async function update(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, source: 'mongo-route', message: 'Đã cập nhật khách hàng vào MongoDB', customer: result.customer });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không cập nhật được khách hàng trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không cập nhật được khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -46,7 +46,7 @@ async function setStatus(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, source: 'mongo-route', message: result.customer.isActive ? 'Đã kích hoạt khách hàng trong MongoDB' : 'Đã ngừng hoạt động khách hàng trong MongoDB', customer: result.customer });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đổi được trạng thái khách hàng trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không đổi được trạng thái khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -56,7 +56,7 @@ async function remove(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, source: 'mongo-route', message: 'Đã xóa khách hàng khỏi MongoDB', customer: result.customer });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được khách hàng trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không xóa được khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -66,7 +66,7 @@ async function bulkDelete(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, source: 'mongo-route', message: `Đã xóa ${result.deleted} khách hàng khỏi MongoDB`, deleted: result.deleted });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa nhiều khách hàng trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không xóa nhiều khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

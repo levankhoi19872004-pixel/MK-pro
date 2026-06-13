@@ -1,0 +1,27 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+
+test('financial books and debt collection administration require business roles', () => {
+  const fund = read('src/routes/fundRoutes.js');
+  const debt = read('src/routes/debtCollectionRoutes.js');
+  const cash = read('src/routes/cashbookRoutes.js');
+  const receipt = read('src/routes/receiptRoutes.js');
+  assert.match(fund, /const viewFund = requireRole/);
+  assert.match(fund, /\/ledger', viewFund/);
+  assert.match(debt, /const viewCollections = requireRole/);
+  assert.match(debt, /accountCollection/);
+  assert.match(cash, /router\.get\('\/', requireRole/);
+  assert.match(receipt, /router\.get\('\/', requireRole/);
+});
+
+test('web reports are role-gated and inventory rebuild is admin-only on legacy mobile route', () => {
+  const reports = read('src/routes/reportRoutes.js');
+  const mobile = read('src/routes/mobileRoutes.js');
+  assert.match(reports, /viewBusinessReports/);
+  assert.match(reports, /viewStockReports/);
+  assert.match(mobile, /\/inventory\/rebuild', requireMobileLogin, requireMobileRole\(\['admin'\]\)/);
+});

@@ -2,6 +2,7 @@
 
 const express = require('express');
 const controller = require('../controllers/importExportController');
+const { requireRole } = require('../middlewares/auth.middleware');
 const {
   uploadImportExcel,
   handleImportUpload,
@@ -12,6 +13,11 @@ const {
 
 const importRouter = express.Router();
 const exportRouter = express.Router();
+const manageImports = requireRole(['admin', 'accountant', 'warehouse']);
+const viewExports = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
+
+importRouter.use(manageImports);
+exportRouter.use(viewExports);
 
 // Import runtime
 importRouter.post(

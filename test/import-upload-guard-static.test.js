@@ -36,6 +36,6 @@ test('Excel import routes do not parse uploads on disabled direct endpoint', () 
     assert.match(src, /validateUploadedExcelFiles/);
   }
 
-  assert.match(excelRoute, /router\.post\('\/direct',\s*excelImportController\.direct\)/);
+  assert.match(excelRoute, /router\.post\('\/direct',\s*manageImports,\s*excelImportController\.direct\)/);
   assert.match(importExportRoute, /importRouter\.post\('\/direct',\s*controller\.directImport\)/);
 });

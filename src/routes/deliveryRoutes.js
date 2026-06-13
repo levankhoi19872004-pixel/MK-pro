@@ -9,9 +9,13 @@ const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
+const { requireRole } = require('../middlewares/auth.middleware');
+const { withMongoTransaction } = require('../utils/transaction.util');
 
 const router = express.Router();
 const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+const deliveryReadRoles = requireRole(['delivery', 'admin', 'manager', 'accountant']);
+const deliveryWriteRoles = requireRole(['delivery', 'admin', 'manager']);
 
 function jwtSecret() {
   const secret = [process.env.JWT_SECRET, process.env.MOBILE_JWT_SECRET].find(Boolean);
@@ -53,7 +57,10 @@ function bindDeliveryUser(input = {}, user = {}) {
     deliveryStaffCode: staffCode,
     deliveryStaffName: staffName,
     staffCode,
-    staffName
+    staffName,
+    actorDeliveryStaffCode: staffCode,
+    actorStaffCode: staffCode,
+    enforceDeliveryOwnership: true
   };
 }
 
@@ -62,7 +69,7 @@ function sendError(res, err, fallback) {
   return res.status(status).json({ ok: false, success: false, message: (err && err.message) || fallback || 'API giao hàng lỗi' });
 }
 
-router.get('/orders', requireLogin, async (req, res) => {
+router.get('/orders', requireLogin, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
     const result = await engine.listOrders(query);
@@ -82,7 +89,7 @@ router.get('/orders', requireLogin, async (req, res) => {
   }
 });
 
-router.get('/returns', requireLogin, async (req, res) => {
+router.get('/returns', requireLogin, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
     const result = await engine.listReturns(query);
@@ -101,10 +108,10 @@ router.get('/returns', requireLogin, async (req, res) => {
   }
 });
 
-router.post('/return', requireLogin, async (req, res) => {
+router.post('/return', requireLogin, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
-    const result = await engine.saveReturn(body);
+    const result = await withMongoTransaction((session) => engine.saveReturn(body, { session }));
     const order = result.order || {};
     const rows = result.rows || result.returns || result.returnOrders || [];
     return res.json({
@@ -123,27 +130,27 @@ router.post('/return', requireLogin, async (req, res) => {
   }
 });
 
-router.post('/payment', requireLogin, async (req, res) => {
+router.post('/payment', requireLogin, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
-    const result = await engine.savePayment(body);
+    const result = await withMongoTransaction((session) => engine.savePayment(body, { session }));
     return res.json({ ok: true, success: true, message: result.message, order: result.order, allocation: result.allocation });
   } catch (err) {
     return sendError(res, err, 'Không lưu được tiền thu');
   }
 });
 
-router.post('/confirm', requireLogin, async (req, res) => {
+router.post('/confirm', requireLogin, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
-    const result = await engine.confirm(body);
+    const result = await withMongoTransaction((session) => engine.confirm(body, { session }));
     return res.json({ ok: true, success: true, message: result.message, order: result.order });
   } catch (err) {
     return sendError(res, err, 'Không xác nhận được giao hàng');
   }
 });
 
-router.get('/reconciliation', requireLogin, async (req, res) => {
+router.get('/reconciliation', requireLogin, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
     const reconciliation = await engine.reconciliation(query);

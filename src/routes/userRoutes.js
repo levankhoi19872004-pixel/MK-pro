@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/users', requireRole(['admin', 'manager']), userController.listUsers);
 router.post('/users', requireRole(['admin']), userController.saveUser);
 router.delete('/users/:id', requireRole(['admin']), userController.deleteUser);
-router.get('/staffs', userController.listStaffs);
+router.get('/staffs', requireRole(['admin', 'manager', 'accountant', 'warehouse']), userController.listStaffs);
 router.get('/roles', requireRole(['admin', 'manager']), userController.listRoles);
 router.get('/permissions', requireRole(['admin']), userController.listPermissions);
 

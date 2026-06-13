@@ -7,7 +7,7 @@ async function list(req, res) {
     const result = await productService.listProducts(req.query);
     res.json({ ok: true, source: 'mongo-route', products: result.products, meta: result.meta || undefined });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được danh sách sản phẩm từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không lấy được danh sách sản phẩm từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -16,7 +16,7 @@ async function search(req, res) {
     const products = await productService.searchProducts(req.query);
     res.json({ ok: true, source: 'mongo-search', items: products, products });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tìm kiếm được sản phẩm từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tìm kiếm được sản phẩm từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -26,7 +26,7 @@ async function create(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.status(201).json({ ok: true, source: 'mongo-route', message: 'Đã tạo sản phẩm và lưu vào MongoDB', product: result.product });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tạo được sản phẩm trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tạo được sản phẩm trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -36,7 +36,7 @@ async function update(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, source: 'mongo-route', message: 'Đã cập nhật sản phẩm vào MongoDB', product: result.product });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không cập nhật được sản phẩm trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không cập nhật được sản phẩm trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -46,7 +46,7 @@ async function setStatus(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, source: 'mongo-route', message: result.product.isActive ? 'Đã mở bán sản phẩm trong MongoDB' : 'Đã ngừng bán sản phẩm trong MongoDB', product: result.product });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đổi được trạng thái sản phẩm trên MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không đổi được trạng thái sản phẩm trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

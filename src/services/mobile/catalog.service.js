@@ -5,8 +5,11 @@ const Customer = require('../../models/Customer');
 const inventoryStockService = require('../inventoryStock.service');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../../utils/common.util');
 const { normalizeText } = require('../../utils/search.util');
+const { escapeRegex } = require('../../utils/query.util');
+const { customerOwnershipFilterForSalesUser, combineFilters } = require('../../domain/staff/customerOwnership');
 
 const MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS = Math.max(0, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS || 5000));
+const MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES = Math.max(10, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES || 200));
 const mobileCatalogProductsCache = new Map();
 
 function cacheGet(map, key) {
@@ -18,8 +21,24 @@ function cacheGet(map, key) {
   return row.value;
 }
 
+function pruneCache(map) {
+  const now = Date.now();
+  for (const [key, row] of map.entries()) {
+    if (!row || row.expiresAt <= now) map.delete(key);
+  }
+  while (map.size >= MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES) {
+    const oldestKey = map.keys().next().value;
+    if (oldestKey === undefined) break;
+    map.delete(oldestKey);
+  }
+}
+
 function cacheSet(map, key, value, ttlMs) {
-  if (ttlMs > 0) map.set(key, { value, expiresAt: Date.now() + ttlMs });
+  if (ttlMs > 0) {
+    pruneCache(map);
+    map.delete(key);
+    map.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
   return value;
 }
 
@@ -28,7 +47,7 @@ function regexFilter(q, fields = []) {
   if (!keyword) return { isActive: { $ne: false } };
   return {
     isActive: { $ne: false },
-    $or: fields.map((field) => ({ [field]: { $regex: keyword, $options: 'i' } }))
+    $or: fields.map((field) => ({ [field]: { $regex: escapeRegex(keyword), $options: 'i' } }))
   };
 }
 
@@ -116,10 +135,16 @@ async function enrichProductsWithInventory(products = []) {
 }
 
 function createMobileCatalogService(ctx = {}) {
-  async function customers({ query = {} } = {}) {
+  async function customers({ query = {}, mobileUser = {} } = {}) {
     const q = String(query.q || query.search || '').trim();
     const limit = Math.min(Math.max(toNumber(query.limit || (q ? 200 : 500)), 1), 1000);
-    const rows = await Customer.find(regexFilter(q, ['code', 'customerCode', 'name', 'customerName', 'phone', 'address', 'area', 'route']))
+    const role = String(mobileUser.role || '').trim().toLowerCase();
+    const ownershipFilter = role === 'sales' ? customerOwnershipFilterForSalesUser(mobileUser) : {};
+    const filter = combineFilters(
+      regexFilter(q, ['code', 'customerCode', 'name', 'customerName', 'phone', 'address', 'area', 'route']),
+      ownershipFilter
+    );
+    const rows = await Customer.find(filter)
       .sort({ code: 1 })
       .limit(limit)
       .lean();
@@ -159,6 +184,7 @@ function createMobileCatalogService(ctx = {}) {
         source: 'mobile-catalog-route',
         inventorySource: 'inventories',
         cacheTtlMs: MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS,
+        cacheMaxEntries: MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES,
         products,
         items: products,
         total: products.length

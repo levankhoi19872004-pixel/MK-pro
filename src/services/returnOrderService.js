@@ -2,6 +2,7 @@
 
 const dateUtil = require('../utils/date.util');
 const queryGuard = require('../utils/queryGuard.util');
+const { escapeRegex } = require('../utils/query.util');
 const returnOrderRepository = require('../repositories/returnOrderRepository');
 const orderRepository = require('../repositories/orderRepository');
 const customerRepository = require('../repositories/customerRepository');
@@ -15,12 +16,6 @@ const ReturnOrder = require('../models/ReturnOrder');
 const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
 const { RETURN_STATES } = ReturnStateMachine;
 
-const SalesOrder = require('../models/SalesOrder');
-const MasterOrder = require('../models/MasterOrder');
-const StockTransaction = require('../models/StockTransaction');
-const ArLedger = require('../models/ArLedger');
-const User = require('../models/User');
-const { DeliveryEngine } = require('../engines/delivery.engine');
 const {
   pickSalesStaffCode,
   pickSalesStaffName,
@@ -291,12 +286,73 @@ function buildFastReturnCode(body = {}, existing = null, salesOrder = null) {
 }
 
 async function listReturnOrders(query = {}) {
-  // V46 canonical rule: Đơn trả hàng chỉ là adapter đọc từ DeliveryEngine/returnOrders.
-  // Không tự tính/merge hàng trả riêng trong service này nữa.
-  const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
-  const result = await engine.listReturnDocuments(query || {});
+  // returnOrders là nguồn duy nhất. Service đọc trực tiếp repository để tránh
+  // vòng phụ thuộc returnOrderService -> DeliveryEngine -> ReturnLifecycleService.
+  const filter = {
+    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
+  };
+  const and = [];
+  const from = dateUtil.toDateOnly(query.dateFrom || query.fromDate || query.from || '');
+  const to = dateUtil.toDateOnly(query.dateTo || query.toDate || query.to || query.date || '');
+  const exactDate = dateUtil.toDateOnly(query.date || '');
+  if (from || to || exactDate) {
+    const range = exactDate ? exactDate : {
+      ...(from ? { $gte: from } : {}),
+      ...(to ? { $lte: to } : {})
+    };
+    and.push({ $or: [
+      { date: range }, { documentDate: range }, { deliveryDate: range }, { returnDate: range }
+    ] });
+  }
+
+  const directValues = uniqueClean([
+    query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode,
+    query.orderKey, query.code, query.id
+  ]);
+  if (directValues.length) {
+    and.push({ $or: [
+      { salesOrderId: { $in: directValues } }, { orderId: { $in: directValues } },
+      { sourceOrderId: { $in: directValues } }, { deliveryOrderId: { $in: directValues } },
+      { salesOrderCode: { $in: directValues } }, { orderCode: { $in: directValues } },
+      { sourceOrderCode: { $in: directValues } }, { deliveryOrderCode: { $in: directValues } },
+      { id: { $in: directValues } }, { code: { $in: directValues } }
+    ] });
+  }
+
+  if (query.masterOrderId) filter.masterOrderId = String(query.masterOrderId).trim();
+  if (query.masterOrderCode) filter.masterOrderCode = String(query.masterOrderCode).trim();
+  if (query.customerCode) filter.customerCode = String(query.customerCode).trim();
+
+  const deliveryKeyword = String(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.delivery || '').trim();
+  if (deliveryKeyword) {
+    const rx = new RegExp(escapeRegex(deliveryKeyword), 'i');
+    and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }, { nvghCode: rx }, { nvghName: rx }] });
+  }
+  const salesKeyword = String(query.salesStaffCode || query.salesmanCode || query.nvbhCode || query.salesman || '').trim();
+  if (salesKeyword) {
+    const rx = new RegExp(escapeRegex(salesKeyword), 'i');
+    and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { salesmanCode: rx }, { salesmanName: rx }, { nvbhCode: rx }, { nvbhName: rx }] });
+  }
+  const keyword = String(query.q || query.keyword || query.search || '').trim();
+  if (keyword) {
+    const rx = new RegExp(escapeRegex(keyword), 'i');
+    and.push({ $or: [
+      { id: rx }, { code: rx }, { salesOrderCode: rx }, { orderCode: rx },
+      { customerCode: rx }, { customerName: rx }, { deliveryStaffCode: rx },
+      { deliveryStaffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx }, { note: rx }
+    ] });
+  }
+  if (and.length) filter.$and = and;
+
+  const page = Math.max(1, Number(query.page || 1));
+  const limit = Math.min(500, Math.max(1, Number(query.limit || 100)));
+  const docs = await returnOrderRepository.findAll(filter, {
+    sort: { createdAt: -1, code: -1 },
+    skip: (page - 1) * limit,
+    limit
+  });
+
   const includeZeroValue = String(query.includeZeroValue ?? query.showZero ?? '0') === '1';
-  const docs = Array.isArray(result.returnOrders) ? result.returnOrders : [];
   const seen = new Set();
   return docs
     .map(toClient)

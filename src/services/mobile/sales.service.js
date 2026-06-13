@@ -7,8 +7,6 @@ const SalesOrder = require('../../models/SalesOrder');
 const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
 const ReturnOrder = require('../../models/ReturnOrder');
-const Payment = require('../../models/Payment');
-const Cashbook = require('../../models/Cashbook');
 const MobileLog = require('../../models/MobileLog');
 const InventoryPostingService = require('../../domain/posting/InventoryPostingService');
 const SalesOrderDeletionService = require('../../domain/lifecycle/SalesOrderDeletionService');
@@ -19,6 +17,7 @@ const DebtReadService = require('../DebtReadService');
 const { PROMOTION } = require('../../constants/pricingModes');
 const orderStatusUtil = require('../../utils/orderStatus.util');
 const { normalizeText, toNumber } = require('../../utils/common.util');
+const { buildPersistentKey, findRequest, beginRequest, completeRequest } = require('../requestIdempotency.service');
 
 
 function inventoryRowOpenSaleQty(row = {}) {
@@ -441,6 +440,17 @@ function createMobileSalesService(ctx) {
     const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || customerKeysForIdem[0] || '', Array.isArray(body.items) ? body.items.length : 0]);
     const cachedResult = readIdempotentResult(idemKey);
     if (cachedResult) return cachedResult;
+
+    const actorCode = mobileUser && (mobileUser.staffCode || mobileUser.code || mobileUser.id || 'mobile-sales');
+    const persistentKey = buildPersistentKey('mobile.sales.create', actorCode, idemKey);
+    const persistedResult = await findRequest(persistentKey);
+    if (persistedResult && persistedResult.status === 'completed' && persistedResult.response) {
+      return rememberIdempotentResult(idemKey, persistedResult.response);
+    }
+    if (persistedResult && persistedResult.status === 'processing') {
+      return fail(409, 'Yêu cầu tạo đơn trùng đang được xử lý');
+    }
+
     const perf = createStepTimer('sales.createOrder');
     let createdOrder = null;
 
@@ -614,6 +624,12 @@ function createMobileSalesService(ctx) {
           totalAmount,
           paidAmount,
           debtAmount: totalAmount - paidAmount,
+          salesCollectionPendingAccounting: paidAmount > 0,
+          salesCollectionAmount: paidAmount,
+          salesCollectionMethod: String(body.paymentMethod || body.collectionMethod || 'cash').trim().toLowerCase(),
+          salesCollectionSource: paidAmount > 0 ? 'mobile_sales_pending_accounting' : '',
+          salesCollectionStaffCode: getMobileSalesStaffCode(mobileUser),
+          salesCollectionStaffName: getMobileSalesStaffName(mobileUser),
           status: 'pending',
           lifecycleStatus: 'pending',
           orderDate: date,
@@ -625,6 +641,14 @@ function createMobileSalesService(ctx) {
           createdAt: new Date().toISOString()
         };
 
+        const persistentRequest = await beginRequest({
+          scope: 'mobile.sales.create',
+          actorCode,
+          requestKey: idemKey
+        }, { session });
+        if (persistentRequest.replay) return persistentRequest.response;
+        perf('idempotency_begin');
+
         const created = await SalesOrder.create([salesOrder], { session });
         const savedOrder = created[0];
         const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
@@ -633,41 +657,9 @@ function createMobileSalesService(ctx) {
         await InventoryPostingService.postSaleOut(savedOrderObject, { session });
         perf('post_inventory_sale_out');
 
-        await Payment.create([{
-          id: makeId('PM'),
-          date,
-          type: 'sale_debt',
-          refType: 'salesOrder',
-          refId: salesOrder.id,
-          refCode: salesOrder.code,
-          customerId: salesOrder.customerId,
-          customerCode: salesOrder.customerCode,
-          customerName: salesOrder.customerName,
-          debit: totalAmount,
-          credit: paidAmount,
-          note: `Phát sinh từ đơn mobile ${salesOrder.code}`,
-          createdAt: new Date().toISOString()
-        }], { session });
-
-        if (paidAmount > 0) {
-          await Cashbook.create([{
-            id: makeId('CB'),
-            code: makeId('CB'),
-            date,
-            type: 'in',
-            source: 'mobile_sales_payment',
-            refType: 'salesOrder',
-            refId: salesOrder.id,
-            refCode: salesOrder.code,
-            customerId: salesOrder.customerId,
-            customerCode: salesOrder.customerCode,
-            customerName: salesOrder.customerName,
-            staffName: mobileUser.name || '',
-            amount: paidAmount,
-            note: `Thu tiền từ đơn mobile ${salesOrder.code}`,
-            createdAt: new Date().toISOString()
-          }], { session });
-        }
+        // Không ghi journals/cashbooks trực tiếp tại app bán hàng.
+        // paidAmount chỉ được lưu như khoản thu chờ kế toán trên salesOrders;
+        // AR/Fund ledger sẽ được post tại bước xác nhận kế toán bằng idempotency key ổn định.
 
         await MobileLog.create([{
           id: makeId('ML'),
@@ -683,7 +675,10 @@ function createMobileSalesService(ctx) {
         perf('save_operational_documents_direct');
 
         createdOrder = savedOrderObject;
-        return { statusCode: 201, body: { ok: true, source: 'mobile-sales-route-direct', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
+        const response = { statusCode: 201, body: { ok: true, source: 'mobile-sales-route-direct', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
+        await completeRequest(persistentRequest.key, response, { session });
+        perf('idempotency_complete');
+        return response;
       });
     } catch (err) {
       if (err && err.code === 'INSUFFICIENT_STOCK') {
@@ -705,7 +700,7 @@ function createMobileSalesService(ctx) {
     if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
     const order = await SalesOrder.findOne({ $and: [identity, owner] }).lean();
     if (!order) return fail(404, 'Không tìm thấy đơn bán');
-    return { body: { ok: true, source: 'mobile-sales-route-direct', order: { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' } } };
+    return { body: { ok: true, source: 'mobile-sales-route-direct', order: { ...order, canEdit: order.stockPosted !== true && !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' } } };
   }
 
   
@@ -939,7 +934,7 @@ function createMobileSalesService(ctx) {
       masterOrderId: order.masterOrderId || '',
       masterOrderCode: order.masterOrderCode || '',
       mergeStatus: order.mergeStatus || 'unmerged',
-      canEdit: !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && (order.mergeStatus || 'unmerged') !== 'merged',
+      canEdit: order.stockPosted !== true && !order.masterOrderId && !order.masterOrderCode && !order.masterOrderNo && (order.mergeStatus || 'unmerged') !== 'merged',
       customerId: order.customerId,
       customerCode: order.customerCode,
       customerPhone: order.customerPhone,

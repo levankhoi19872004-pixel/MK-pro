@@ -15,7 +15,7 @@ try {
   return;
 }
 
-const { verifyPassword, hashPasswordSync, isBcryptHash } = policy;
+const { verifyPassword, hashPasswordSync, isBcryptHash, validatePasswordStrength } = policy;
 
 test('verifyPassword rejects missing, plaintext and default fallback password', async () => {
   assert.equal(await verifyPassword('123456', ''), false);
@@ -33,4 +33,21 @@ test('verifyPassword accepts valid bcrypt hash only', async () => {
 
 test('hashPasswordSync rejects empty password', () => {
   assert.throws(() => hashPasswordSync(''));
+});
+
+
+test('new passwords must satisfy minimum strength without invalidating existing hashes', () => {
+  assert.match(validatePasswordStrength('12345678'), /phổ biến|kết hợp/);
+  assert.match(validatePasswordStrength('abcdefgh'), /kết hợp/);
+  assert.match(validatePasswordStrength('Khoi1987', { username: 'khoi1987' }), /tên đăng nhập/);
+  assert.equal(validatePasswordStrength('StrongPass@2026'), '');
+  assert.throws(() => hashPasswordSync('12345678'));
+  assert.equal(isBcryptHash(hashPasswordSync('StrongPass@2026')), true);
+});
+
+
+test('unknown users still execute a bcrypt comparison through the dummy hash', async () => {
+  const started = Date.now();
+  assert.equal(await verifyPassword('WrongPassword@2026', ''), false);
+  assert.ok(Date.now() - started >= 20);
 });

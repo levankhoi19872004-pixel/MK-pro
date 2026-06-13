@@ -104,7 +104,7 @@ async function sessionStatus(req, res) {
       ...result
     });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -119,7 +119,7 @@ async function importLogs(req, res) {
   try {
     res.json({ ok: true, source: 'import-export-route', importLogs: await importExportService.getImportLogs() });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được lịch sử import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được lịch sử import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -143,7 +143,7 @@ async function listCustomTemplates(req, res) {
   try {
     res.json({ ok: true, templates: await importExportService.listCustomTemplates() });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được mẫu import tự tạo', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được mẫu import tự tạo', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -153,7 +153,7 @@ async function saveCustomTemplate(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, message: 'Đã lưu mẫu import', template: result.template });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lưu được mẫu import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không lưu được mẫu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -163,7 +163,7 @@ async function removeCustomTemplate(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     res.json({ ok: true, message: 'Đã xóa mẫu import' });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được mẫu import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không xóa được mẫu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -171,7 +171,7 @@ async function downloadCustomTemplate(req, res) {
   try {
     sendWorkbook(res, await importExportService.buildCustomTemplateFile(req.params.id));
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tạo được file mẫu import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tạo được file mẫu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -183,7 +183,7 @@ async function exportExcel(req, res) {
   try {
     sendWorkbook(res, await importExportService.exportToExcel(req.params.type, req.query || {}));
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không export được dữ liệu', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không export được dữ liệu', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

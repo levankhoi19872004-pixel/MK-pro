@@ -75,7 +75,10 @@ test('reconciliation job is env guarded and app startup uses it safely', () => {
   assert.match(job, /AUTO_RECONCILIATION_JOB/);
   assert.match(job, /RECONCILIATION_ALREADY_RUNNING/);
   assert.match(app, /startReconciliationJob\(\)/);
-  assert.match(env, /AUTO_RECONCILIATION_JOB=false/);
+  assert.match(env, /AUTO_RECONCILIATION_JOB=true/);
+  assert.match(job, /process\.env\.AUTO_RECONCILIATION_JOB !== 'false'/);
+  assert.match(job, /intervalTimer\.unref/);
+  assert.match(job, /startupTimer\.unref/);
   assert.equal(pkg.scripts.reconcile, 'node scripts/run-reconciliation.js');
   assert.equal(pkg.scripts['reconcile:stock'], 'node scripts/run-reconciliation.js --type=stock');
   assert.equal(pkg.scripts['reconcile:ar'], 'node scripts/run-reconciliation.js --type=ar');

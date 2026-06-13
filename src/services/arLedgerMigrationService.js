@@ -22,7 +22,8 @@ function cleanLedger(row = {}) {
   return {
     ...clean,
     account: clean.account || 'AR',
-    status: clean.status || 'posted',
+    status: clean.status || 'migration_pending_review',
+    accountingConfirmed: clean.accountingConfirmed === true,
     source: clean.source || 'legacy_journals_backfill',
     updatedAt: clean.updatedAt || new Date().toISOString()
   };

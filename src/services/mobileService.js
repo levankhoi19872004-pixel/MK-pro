@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const inventoryStockService = require('./inventoryStock.service');
 const { verifyPassword } = require('../security/passwordPolicy');
+const { readRefreshToken } = require('../security/refreshTokenCookie');
 const User = require('../models/User');
 const { MongoStore } = require('./mongoSyncService');
 
@@ -101,7 +102,8 @@ function createMobileService(ctx) {
         { phone: username }
       ]
     }).lean();
-    const user = staffDoc && await verifyPassword(password, staffDoc.password) ? buildJwtPayload(staffDoc) : null;
+    const passwordValid = await verifyPassword(password, staffDoc && staffDoc.password);
+    const user = staffDoc && passwordValid ? buildJwtPayload(staffDoc) : null;
     if (!user) return fail(401, 'Sai tài khoản hoặc mật khẩu');
     if (['sales', 'delivery'].includes(user.role) && !user.staffCode) {
       return fail(400, 'Tài khoản chưa được gán mã nhân viên nghiệp vụ');
@@ -111,11 +113,20 @@ function createMobileService(ctx) {
     return { body: { ok: true, success: true, source: 'mobile-users-route', token: encodeMobileToken(user), refreshToken: encodeMobileRefreshToken(user), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user } };
   }
 
-  async function refresh({ body = {} }) {
-    const refreshToken = String(body.refreshToken || '').trim();
-    const user = decodeMobileRefreshToken(refreshToken);
-    if (!user) return fail(401, 'Refresh token không hợp lệ hoặc đã hết hạn');
-    const safeUser = buildJwtPayload(user);
+  async function refresh({ req = {}, body = {} }) {
+    req.body = body;
+    const refreshToken = readRefreshToken(req);
+    const payload = decodeMobileRefreshToken(refreshToken);
+    if (!payload) return fail(401, 'Refresh token không hợp lệ hoặc đã hết hạn');
+    const or = [];
+    if (/^[a-f\d]{24}$/i.test(String(payload.id || ''))) or.push({ _id: payload.id });
+    if (payload.id) or.push({ id: payload.id });
+    if (payload.username) or.push({ username: payload.username });
+    if (payload.staffCode) or.push({ staffCode: payload.staffCode });
+    if (payload.code) or.push({ code: payload.code });
+    const currentUser = or.length ? await User.findOne({ isActive: { $ne: false }, $or: or }).lean() : null;
+    if (!currentUser) return fail(401, 'Tài khoản không còn hoạt động');
+    const safeUser = buildJwtPayload(currentUser);
     return { body: { ok: true, success: true, source: 'mobile-route', token: encodeMobileToken(safeUser), refreshToken: encodeMobileRefreshToken(safeUser), expiresIn: ACCESS_TOKEN_EXPIRES_IN, user: safeUser } };
   }
 

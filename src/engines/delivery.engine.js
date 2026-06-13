@@ -393,12 +393,61 @@ function getReturnLifecycleService() {
   return require('../domain/lifecycle/ReturnLifecycleService');
 }
 
+
+function applyQuerySession(query, session) {
+  if (session && query && typeof query.session === 'function') return query.session(session);
+  return query;
+}
+
+function deliveryActorCodeOf(body = {}) {
+  return text(body.actorDeliveryStaffCode || body.actorStaffCode || body.authenticatedStaffCode || '');
+}
+
+function assertDeliveryOwnership(order = {}, body = {}) {
+  if (!body.enforceDeliveryOwnership) return;
+  const actorCode = deliveryActorCodeOf(body);
+  const assignedCode = text(order.deliveryStaffCode || order.shipperCode || order.driverCode || order.staffDeliveryCode);
+
+  if (!actorCode) {
+    const err = new Error('Không xác định được mã nhân viên giao hàng đang đăng nhập');
+    err.status = 403;
+    err.code = 'DELIVERY_ACTOR_REQUIRED';
+    throw err;
+  }
+
+  if (!assignedCode || compact(assignedCode) !== compact(actorCode)) {
+    const err = new Error('Đơn giao hàng không thuộc nhân viên đang đăng nhập');
+    err.status = 403;
+    err.code = 'DELIVERY_ORDER_FORBIDDEN';
+    throw err;
+  }
+}
+
 function buildOrderLookup(value) {
   const key = text(value);
   if (!key) return null;
   const or = [{ id: key }, { code: key }, { orderCode: key }, { salesOrderId: key }, { salesOrderCode: key }];
   if (/^[a-f\d]{24}$/i.test(key)) or.push({ _id: key });
   return { $or: or };
+}
+
+
+function versionedOrderFilter(key, current = {}) {
+  const lookup = buildOrderLookup(key);
+  const hasVersion = current.version !== undefined && current.version !== null && current.version !== '';
+  const expectedVersion = hasVersion ? Number(current.version) : 0;
+  const versionClause = hasVersion
+    ? { version: expectedVersion }
+    : { $or: [{ version: { $exists: false } }, { version: 0 }, { version: null }] };
+  return { $and: [lookup, versionClause] };
+}
+
+function assertVersionedUpdate(updated) {
+  if (updated) return updated;
+  const err = new Error('Dữ liệu đơn đã thay đổi bởi thao tác khác. Vui lòng tải lại trước khi lưu.');
+  err.status = 409;
+  err.code = 'ORDER_VERSION_CONFLICT';
+  throw err;
 }
 
 function returnMatchesOrder(ret = {}, order = {}) {
@@ -848,7 +897,7 @@ class DeliveryEngine {
   }
 
 
-  async findReturnOrdersFor(orders = []) {
+  async findReturnOrdersFor(orders = [], options = {}) {
     const ids = unique(orders.flatMap((o) => [orderIdOf(o), o.id, o._id, o.salesOrderId, o.orderId, o.sourceOrderId, o.deliveryOrderId]));
     const codes = unique(orders.flatMap((o) => [orderCodeOf(o), o.code, o.orderCode, o.salesOrderCode, o.sourceOrderCode, o.deliveryOrderCode]));
     const idVariants = unique(ids.flatMap(keyVariants));
@@ -869,16 +918,20 @@ class DeliveryEngine {
       );
     }
     if (!or.length) return [];
-    const docs = await this.ReturnOrder.find({ ...activeReturnFilter(), $or: or }).lean();
+    let query = this.ReturnOrder.find({ ...activeReturnFilter(), $or: or });
+    query = applyQuerySession(query, options.session);
+    const docs = await query.lean();
     return docs.map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument);
   }
 
-  async getCanonicalOrderByKey(key) {
+  async getCanonicalOrderByKey(key, options = {}) {
     const lookup = buildOrderLookup(key);
     if (!lookup) return null;
-    const order = await this.SalesOrder.findOne(lookup).lean();
+    let query = this.SalesOrder.findOne(lookup);
+    query = applyQuerySession(query, options.session);
+    const order = await query.lean();
     if (!order) return null;
-    const returns = await this.findReturnOrdersFor([order]);
+    const returns = await this.findReturnOrdersFor([order], options);
     return buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order)));
   }
 
@@ -905,13 +958,17 @@ class DeliveryEngine {
   }
 
   async saveReturn(body = {}) {
+    const options = arguments[1] || {};
     const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
-    const order = await this.SalesOrder.findOne(buildOrderLookup(key)).lean();
+    let query = this.SalesOrder.findOne(buildOrderLookup(key));
+    query = applyQuerySession(query, options.session);
+    const order = await query.lean();
     if (!order) {
       const err = new Error('Không tìm thấy đơn giao hàng');
       err.status = 404;
       throw err;
     }
+    assertDeliveryOwnership(order, body);
 
     const items = this.normalizeReturnItems(body.items, order);
     const totalAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
@@ -957,7 +1014,9 @@ class DeliveryEngine {
       clearedAt: items.length ? '' : new Date().toISOString()
     };
 
-    const result = await getReturnLifecycleService().createPendingReturn(patch);
+    const result = options.session
+      ? await getReturnLifecycleService().createPendingReturn(patch, options)
+      : await getReturnLifecycleService().createPendingReturn(patch);
     if (result && result.error) {
       const err = new Error(result.error);
       err.status = result.status || 400;
@@ -967,7 +1026,7 @@ class DeliveryEngine {
 
     // V46 rule: returnOrders is the single source of truth for return goods.
     // Do not mirror returnAmount/returnItems into salesOrders. All delivery views must reload/overlay from returnOrders.
-    const canonical = await this.getCanonicalOrderByKey(orderIdOf(order));
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(order), options);
     const returnRows = flattenReturnOrderRows(returnOrder, canonical || order);
     return {
       order: canonical,
@@ -979,14 +1038,15 @@ class DeliveryEngine {
     };
   }
 
-  async savePayment(body = {}) {
+  async savePayment(body = {}, options = {}) {
     const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
-    const current = await this.getCanonicalOrderByKey(key);
+    const current = await this.getCanonicalOrderByKey(key, options);
     if (!current) {
       const err = new Error('Không tìm thấy đơn giao hàng');
       err.status = 404;
       throw err;
     }
+    assertDeliveryOwnership(current, body);
     // MK-SCOPED-FIX: PAYMENT_REACCOUNTING_GUARD_START
     // Chỉ khoanh vùng nghiệp vụ lưu thu tiền app giao hàng.
     // Đã xác nhận kế toán thì không cho sửa, trừ khi admin đã mở khóa/reopen.
@@ -1065,19 +1125,24 @@ class DeliveryEngine {
       // MK-SCOPED-FIX: PAYMENT_REACCOUNTING_STATUS_END
       updatedAt: new Date().toISOString()
     };
-    const updated = await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), { $set: patch }, { new: true, lean: true });
-    const canonical = await this.getCanonicalOrderByKey(orderIdOf(updated));
+    const updated = assertVersionedUpdate(await this.SalesOrder.findOneAndUpdate(
+      versionedOrderFilter(key, current),
+      { $set: patch, $inc: { version: 1 } },
+      { new: true, lean: true, session: options.session }
+    ));
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(updated), options);
     return { order: canonical, allocation, message: 'Đã lưu thu tiền' };
   }
 
-  async confirm(body = {}) {
+  async confirm(body = {}, options = {}) {
     const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
-    const current = await this.getCanonicalOrderByKey(key);
+    const current = await this.getCanonicalOrderByKey(key, options);
     if (!current) {
       const err = new Error('Không tìm thấy đơn giao hàng');
       err.status = 404;
       throw err;
     }
+    assertDeliveryOwnership(current, body);
     if (current.reconciliation && !current.reconciliation.balanced) {
       const err = new Error(current.reconciliation.message || 'Đơn chưa cân đối, không thể xác nhận giao');
       err.status = 400;
@@ -1096,8 +1161,12 @@ class DeliveryEngine {
       deliveredAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    const updated = await this.SalesOrder.findOneAndUpdate(buildOrderLookup(key), { $set: patch }, { new: true, lean: true });
-    const canonical = await this.getCanonicalOrderByKey(orderIdOf(updated));
+    const updated = assertVersionedUpdate(await this.SalesOrder.findOneAndUpdate(
+      versionedOrderFilter(key, current),
+      { $set: patch, $inc: { version: 1 } },
+      { new: true, lean: true, session: options.session }
+    ));
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(updated), options);
     return { order: canonical, message: 'Đã xác nhận giao hàng' };
   }
 

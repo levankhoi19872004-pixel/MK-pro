@@ -10,7 +10,7 @@ async function preview(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     return res.status(result.accepted ? 202 : 200).json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không đọc được file import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -20,7 +20,7 @@ async function commit(req, res) {
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không ghi được dữ liệu import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -41,7 +41,7 @@ async function sessionStatus(req, res) {
 
     return res.json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không lấy được trạng thái import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -51,7 +51,7 @@ async function logs(req, res) {
     const logs = await excelImportService.logs();
     res.json({ ok: true, source: 'mongo-native-import-controller', logs: logs.slice(0, limit), importLogs: logs.slice(0, limit) });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không lấy được lịch sử import', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không lấy được lịch sử import', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

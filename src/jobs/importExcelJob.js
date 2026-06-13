@@ -1,76 +1,15 @@
 'use strict';
 
-const fs = require('fs/promises');
-const { parseExcelBuffer } = require('../../utils/excelParser');
 const excelImportService = require('../services/excelImportService');
-const importSessionService = require('../services/importSessionService');
+const { runImportPreviewPipeline } = require('./importPreviewRunner');
 
-async function runImportPreviewJob({ sessionId, type, files = [], userName = '' }) {
-  await importSessionService.markParsing(sessionId);
-
-  try {
-    const rows = [];
-    const fileNames = [];
-
-    for (const file of files) {
-      const currentFileName = file.fileName || file.originalname || 'import.xlsx';
-      const buffer = file.buffer || await fs.readFile(file.path);
-
-      await importSessionService.updateProgress(sessionId, {
-        percent: 20,
-        step: `parsing:${currentFileName}`
-      });
-
-      const fileRows = (await parseExcelBuffer(buffer)).map((row, index) => ({
-        ...row,
-        __sourceFile: currentFileName,
-        sourceFile: currentFileName,
-        fileName: currentFileName,
-        __rowNo: row.__rowNo || row.rowNo || index + 2
-      }));
-
-      fileNames.push(currentFileName);
-      rows.push(...fileRows);
-    }
-
-    await importSessionService.updateProgress(sessionId, {
-      percent: 60,
-      step: 'validating'
-    });
-
-    const result = await excelImportService.buildPreviewFromRows({ type, rows, userName });
-    if (result.error) {
-      await importSessionService.markFailed(sessionId, result.error);
-      return result;
-    }
-
-    await importSessionService.updateProgress(sessionId, {
-      percent: 85,
-      step: 'saving_preview'
-    });
-
-    await importSessionService.savePreviewResult(sessionId, {
-      rows: result.rows || [],
-      previewRows: result.rows || [],
-      fileNames
-    });
-
-    return {
-      ...result,
-      files: fileNames.map((fileName) => ({
-        fileName,
-        totalRows: rows.filter((row) => row.fileName === fileName).length,
-        totalOrders: (result.rows || []).filter((row) => row.fileName === fileName || row.sourceFile === fileName).length,
-        errors: (result.rows || []).filter((row) => (row.fileName === fileName || row.sourceFile === fileName) && row.valid === false).flatMap((row) => row.errors || []).slice(0, 20)
-      })),
-      totalFiles: fileNames.length
-    };
-  } catch (err) {
-    await importSessionService.markFailed(sessionId, err.message);
-    throw err;
-  }
+// parseExcelBuffer/readFile và updateProgress nằm trong importPreviewRunner để worker và
+// inline fallback dùng chung mà không tạo circular dependency.
+async function runImportPreviewJob(args = {}) {
+  return runImportPreviewPipeline({
+    ...args,
+    buildPreviewFromRows: excelImportService.buildPreviewFromRows
+  });
 }
 
-module.exports = {
-  runImportPreviewJob
-};
+module.exports = { runImportPreviewJob };

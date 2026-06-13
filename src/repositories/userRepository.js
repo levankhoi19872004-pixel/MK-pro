@@ -126,6 +126,11 @@ async function deleteUser(idOrCode) {
   return User.findOneAndDelete(buildUserMongoFilter(idOrCode)).lean();
 }
 
+
+async function countUsers(filter = {}) {
+  return User.countDocuments(filter);
+}
+
 async function findRoles() {
   return Role.find({ isActive: { $ne: false } }).sort({ code: 1 }).lean();
 }
@@ -146,6 +151,7 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  countUsers,
   findRoles,
   findPermissions
 };

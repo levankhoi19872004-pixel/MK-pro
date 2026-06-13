@@ -30,7 +30,10 @@
     "reconcile:ar": "node scripts/run-reconciliation.js --type=ar",
     "reconcile:fund": "node scripts/run-reconciliation.js --type=fund",
     "migrate:return-state": "node scripts/migrate-return-state-machine.js",
-    "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js"
+    "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
+    "check:syntax": "node scripts/check-js-syntax.js",
+    "quality": "npm run check:syntax && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
+    "check:production": "node scripts/production-readiness-check.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -46,5 +49,9 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "read-excel-file": "^9.2.0"
+  },
+  "engines": {
+    "node": ">=20 <23",
+    "npm": ">=10"
   }
 }

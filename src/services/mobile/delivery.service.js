@@ -10,6 +10,7 @@ const returnOrderService = require('../returnOrderService');
 const returnOrderRepository = require('../../repositories/returnOrderRepository');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const { DeliveryEngine } = require('../../engines/delivery.engine');
+const { beginRequest, completeRequest } = require('../requestIdempotency.service');
 const SalesOrder = require('../../models/SalesOrder');
 const MasterOrder = require('../../models/MasterOrder');
 const ReturnOrder = require('../../models/ReturnOrder');
@@ -40,6 +41,7 @@ function createMobileDeliveryService(ctx) {
     createReceiptDocument,
     auditLog,
     writeMobileLog,
+    writeMobileLogDirect,
     buildReturnItemsFromRequest,
     createReturnOrderDocument,
     makeId,
@@ -320,142 +322,188 @@ function createMobileDeliveryService(ctx) {
     };
   }
 
-  async function confirmDelivery({ body = {}, mobileUser }) {
-    const orderIdForKey = String(body.orderId || '').trim();
-    const confirmAmountsKey = JSON.stringify({ cashAmount: body.cashAmount, bankAmount: body.bankAmount, rewardAmount: body.rewardAmount, collectAmount: body.collectAmount, debtOrderIds: body.debtOrderIds || [] });
-    const idemKey = getIdempotencyKey(body, ['delivery-confirm', mobileUser && (mobileUser.id || mobileUser.code), orderIdForKey, body.status, confirmAmountsKey]);
+  function mobileDeliveryActorPayload(mobileUser = {}) {
+    const actorCode = String(mobileUser.staffCode || mobileUser.code || '').trim();
+    const actorName = String(mobileUser.fullName || mobileUser.name || '').trim();
+    return {
+      actorDeliveryStaffCode: actorCode,
+      actorStaffCode: actorCode,
+      enforceDeliveryOwnership: true,
+      deliveryStaffCode: actorCode,
+      deliveryStaffName: actorName,
+      staffCode: actorCode,
+      staffName: actorName
+    };
+  }
+
+  function normalizeMobileCollection(body = {}) {
+    const hasSplitAmounts = body.cashAmount !== undefined
+      || body.bankAmount !== undefined
+      || body.rewardAmount !== undefined;
+    const legacyAmount = toNumber(body.collectAmount);
+    const method = String(body.collectionMethod || body.paymentMethod || 'cash').trim().toLowerCase();
+
+    if (hasSplitAmounts) {
+      return {
+        supplied: true,
+        cashAmount: toNumber(body.cashAmount),
+        bankAmount: toNumber(body.bankAmount),
+        rewardAmount: toNumber(body.rewardAmount)
+      };
+    }
+
+    if (body.collectAmount !== undefined) {
+      return {
+        supplied: true,
+        cashAmount: method === 'transfer' ? 0 : legacyAmount,
+        bankAmount: method === 'transfer' ? legacyAmount : 0,
+        rewardAmount: 0
+      };
+    }
+
+    return { supplied: false, cashAmount: 0, bankAmount: 0, rewardAmount: 0 };
+  }
+
+  async function confirmDelivery({ body = {}, mobileUser = {} }) {
+    const orderId = String(body.orderId || body.salesOrderId || body.orderCode || body.salesOrderCode || '').trim();
+    const status = String(body.status || '').trim().toLowerCase();
+    const collection = normalizeMobileCollection(body);
+    const confirmAmountsKey = JSON.stringify({
+      cashAmount: collection.cashAmount,
+      bankAmount: collection.bankAmount,
+      rewardAmount: collection.rewardAmount,
+      debtOrderIds: body.debtOrderIds || []
+    });
+    const idemKey = getIdempotencyKey(body, [
+      'delivery-confirm-canonical',
+      mobileUser && (mobileUser.id || mobileUser.code),
+      orderId,
+      status,
+      confirmAmountsKey
+    ]);
     const cachedResult = readIdempotentResult(idemKey);
     if (cachedResult) return cachedResult;
-    const perf = createStepTimer('delivery.confirm');
-    const result = await withMongoTransaction(async () => {
-    perf('start');
-    const data = await repo.getPrimaryDataSnapshot();
-    perf('load_snapshot');
-    const orderId = String(body.orderId || '').trim();
-    const status = String(body.status || '').trim();
-    const hasSplitAmounts = body.cashAmount !== undefined || body.bankAmount !== undefined || body.rewardAmount !== undefined;
-    const legacyCollectAmount = toNumber(body.collectAmount);
-    const cashAmount = hasSplitAmounts ? toNumber(body.cashAmount) : 0;
-    const bankAmount = hasSplitAmounts ? toNumber(body.bankAmount) : 0;
-    const rewardAmount = hasSplitAmounts ? toNumber(body.rewardAmount) : 0;
-    const collectAmount = hasSplitAmounts ? cashAmount + bankAmount + rewardAmount : legacyCollectAmount;
-    const collectionMethodRaw = String(body.collectionMethod || body.paymentMethod || 'cash').trim().toLowerCase();
-    const collectionMethod = ['cash', 'transfer'].includes(collectionMethodRaw) ? collectionMethodRaw : 'cash';
-    const note = String(body.note || '').trim();
-    const order = repo.findSalesOrder(data, orderId);
-    perf('find_order');
 
-    if (!order) return { statusCode: 404, body: { ok: false, message: 'Không tìm thấy đơn giao hàng' } };
-    syncOrderReturnAmountFromReturnOrders(data, order);
-    perf('sync_return_amount');
-    if (!['success', 'failed'].includes(status)) return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
-    if (collectAmount < 0 || cashAmount < 0 || bankAmount < 0 || rewardAmount < 0) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
-    const orderDueLimit = Math.max(0, deliveryFinance.deliveryDebtBase(order) - toNumber(order.returnAmount ?? order.returnedAmount ?? 0));
-    if (status === 'success' && collectAmount > orderDueLimit) return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được lớn hơn giá trị phải thu của đơn' } };
-
-    order.deliveryStatus = status === 'success' ? 'delivered' : 'failed';
-    order.deliveryStaffName = mobileUser.name || '';
-    order.deliveryStaffCode = mobileUser.code || '';
-    order.deliveryNote = note;
-    order.deliveredAt = new Date().toISOString();
-    if (status === 'success') order.status = 'delivered';
-    if (status === 'failed') order.status = 'delivery_failed';
-
-    if (status === 'failed') {
-      const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
-      if (lockedReturnOrder) {
-        return { statusCode: 400, body: { ok: false, message: `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả` } };
-      }
-      const fullItems = buildReturnItemsFromRequest(order, [], 'full');
-      if (fullItems.length) {
-        const date = dateUtil.todayVN();
-        const customer = repo.findCustomer(data, order.customerId || order.customerCode) || { id: order.customerId, code: order.customerCode, name: order.customerName };
-        const stableReturnId = `RO-${String(order.code || order.orderCode || order.salesOrderCode || order.id || '').replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
-        const result = await returnOrderService.upsertDeliveryReturnOrder({
-          id: stableReturnId,
-          salesOrderId: order.id,
-          salesOrderCode: order.code,
-          orderId: order.id,
-          orderCode: order.code,
-          customerId: customer.id || order.customerId || '',
-          customerCode: customer.code || order.customerCode || '',
-          customerName: customer.name || order.customerName || '',
-          date,
-          items: fullItems,
-          staffCode: mobileUser.code || '',
-          staffName: mobileUser.name || '',
-          deliveryStaffCode: mobileUser.code || '',
-          deliveryStaffName: mobileUser.name || '',
-          note: note || `Không giao được - trả toàn bộ đơn ${order.code}`,
-          source: 'mobile_delivery',
-          accountingStatus: 'pending',
-          accountingConfirmed: false,
-          refType: 'mobileDeliveryFullReturn',
-          returnType: 'full'
-        });
-        if (result.error) return { statusCode: result.status || 400, body: { ok: false, message: result.error } };
-        order.returnAmount = toNumber(result.returnOrder.totalAmount || result.returnOrder.amount);
-        order.returnedAmount = order.returnAmount;
-      }
-      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
-      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
-      order.debt = order.debtAmount;
+    if (!orderId) {
+      return { statusCode: 400, body: { ok: false, message: 'Thiếu mã đơn giao hàng' } };
+    }
+    if (!['success', 'failed'].includes(status)) {
+      return { statusCode: 400, body: { ok: false, message: 'Trạng thái giao hàng không hợp lệ' } };
+    }
+    if ([collection.cashAmount, collection.bankAmount, collection.rewardAmount].some((value) => value < 0)) {
+      return { statusCode: 400, body: { ok: false, message: 'Tiền thu không được âm' } };
     }
 
-    if (status === 'success' && collectAmount > 0) {
-      // V45 chuẩn kế toán: app giao hàng chỉ lưu số tiền NVGH đã thu vào đơn giao.
-      // Không sinh phiếu thu thật ở đây, vì phiếu thu/AR Ledger chỉ được tạo sau khi kế toán xác nhận.
-      auditLog(data, 'mobile_delivery_collection_pending_accounting', 'order', {
-        orderId: order.id,
-        orderCode: order.code,
-        cashAmount,
-        bankAmount,
-        legacyCollectAmount,
-        collectionMethod
-      }, null, null, 'App giao hàng lưu tiền thu tạm, chờ kế toán xác nhận', mobileUser.name || '');
+    const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+    const actor = mobileDeliveryActorPayload(mobileUser);
+    const perf = createStepTimer('delivery.confirm.canonical');
 
-      if (hasSplitAmounts) {
-        // App gửi số đang hiển thị trong ô nhập là số tuyệt đối, không phải số cộng thêm.
-        // Vì vậy khi sửa 200000 xuống 100000 phải ghi đè về 100000, không được cộng dồn hoặc giữ số cũ.
-        order.cashCollected = cashAmount;
-        order.cashAmount = cashAmount;
-        order.bankCollected = bankAmount;
-        order.bankAmount = bankAmount;
-        order.transferAmount = bankAmount;
-        order.rewardAmount = rewardAmount;
-        order.displayRewardAmount = rewardAmount;
-        order.paidAmount = cashAmount + bankAmount;
-        order.collectedAmount = cashAmount + bankAmount;
-      } else if (collectionMethod === 'transfer') {
-        order.bankCollected = legacyCollectAmount;
-        order.bankAmount = legacyCollectAmount;
-        order.transferAmount = legacyCollectAmount;
-        order.paidAmount = toNumber(order.cashCollected) + legacyCollectAmount;
-        order.collectedAmount = order.paidAmount;
-      } else {
-        order.cashCollected = legacyCollectAmount;
-        order.cashAmount = legacyCollectAmount;
-        order.paidAmount = legacyCollectAmount + toNumber(order.bankCollected);
-        order.collectedAmount = order.paidAmount;
-      }
-      order.debtBeforeCollection = deliveryFinance.deliveryDebtBase(order);
-      order.debtAmount = deliveryFinance.calculateDeliveryDebt(order);
-      order.debt = order.debtAmount;
+    try {
+      const result = await withMongoTransaction(async (session) => {
+        perf('start');
+        const persistentRequest = await beginRequest({
+          scope: 'mobile.delivery.confirm',
+          actorCode: actor.actorDeliveryStaffCode,
+          requestKey: idemKey
+        }, { session });
+        if (persistentRequest.replay) return persistentRequest.response;
+        perf('idempotency_begin');
+        const current = await engine.getCanonicalOrderByKey(orderId, { session });
+        perf('load_order');
+        if (!current) {
+          const err = new Error('Không tìm thấy đơn giao hàng');
+          err.status = 404;
+          throw err;
+        }
+
+        let paymentResult = null;
+        let returnResult = null;
+
+        if (status === 'success' && collection.supplied) {
+          paymentResult = await engine.savePayment({
+            ...body,
+            ...actor,
+            orderId,
+            salesOrderId: current.salesOrderId,
+            cashAmount: collection.cashAmount,
+            bankAmount: collection.bankAmount,
+            rewardAmount: collection.rewardAmount,
+            date: body.date || dateUtil.todayVN()
+          }, { session });
+          perf('save_payment');
+        }
+
+        if (status === 'failed') {
+          const fullItems = buildReturnItemsFromRequest(current, [], 'full');
+          returnResult = await engine.saveReturn({
+            ...body,
+            ...actor,
+            orderId,
+            salesOrderId: current.salesOrderId,
+            salesOrderCode: current.salesOrderCode,
+            returnType: 'full',
+            items: fullItems,
+            note: String(body.note || `Không giao được - trả toàn bộ đơn ${current.salesOrderCode || current.orderCode || orderId}`).trim(),
+            source: 'mobile_delivery_canonical'
+          }, { session });
+          perf('save_full_return');
+        }
+
+        const confirmed = await engine.confirm({
+          ...body,
+          ...actor,
+          orderId,
+          salesOrderId: current.salesOrderId,
+          deliveryStatus: status === 'success' ? 'delivered' : 'failed',
+          status: status === 'success' ? 'delivered' : 'failed'
+        }, { session });
+        perf('confirm_order');
+
+        await writeMobileLogDirect(mobileUser, 'mobile_confirm_delivery', {
+          refType: 'salesOrder',
+          refId: current.salesOrderId || current.orderId || orderId,
+          refCode: current.salesOrderCode || current.orderCode || orderId,
+          detail: {
+            status,
+            cashAmount: collection.cashAmount,
+            bankAmount: collection.bankAmount,
+            rewardAmount: collection.rewardAmount
+          },
+          note: `${status === 'success' ? 'Giao thành công' : 'Giao thất bại'} ${current.salesOrderCode || current.orderCode || orderId}`
+        }, { session });
+        perf('write_log');
+
+        const response = {
+          statusCode: 200,
+          body: {
+            ok: true,
+            success: true,
+            source: 'delivery-engine',
+            message: 'Đã cập nhật trạng thái giao hàng',
+            order: confirmed.order,
+            allocation: paymentResult && paymentResult.allocation,
+            returnOrder: returnResult && returnResult.returnOrder
+          }
+        };
+        await completeRequest(persistentRequest.key, response, { session });
+        perf('idempotency_complete');
+        return response;
+      });
+
+      perf('done');
+      return rememberIdempotentResult(idemKey, result);
+    } catch (err) {
+      const response = {
+        statusCode: Number(err && err.status) || 500,
+        body: {
+          ok: false,
+          success: false,
+          code: err && err.code,
+          message: (err && err.message) || 'Không cập nhật được giao hàng mobile'
+        }
+      };
+      return rememberIdempotentResult(idemKey, response);
     }
-
-    writeMobileLog(data, mobileUser, 'mobile_confirm_delivery', {
-      refType: 'salesOrder',
-      refId: order.id,
-      refCode: order.code,
-      note: `${status === 'success' ? 'Giao thành công' : 'Giao thất bại'} ${order.code}`
-    });
-
-    await persistDeliverySnapshotSafely(data);
-    perf('persist_snapshot');
-    return { statusCode: 200, body: { ok: true, source: 'mobile-delivery-route', message: 'Đã cập nhật trạng thái giao hàng', order } };
-    });
-    perf('done');
-    return rememberIdempotentResult(idemKey, result);
   }
 
   async function createReturnFromDelivery({ body = {}, mobileUser }) {
@@ -469,18 +517,16 @@ function createMobileDeliveryService(ctx) {
     if (cachedResult) return cachedResult;
 
     const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
+    const actor = mobileDeliveryActorPayload(mobileUser || {});
     try {
-      const result = await engine.saveReturn({
+      const result = await withMongoTransaction((session) => engine.saveReturn({
         ...body,
+        ...actor,
         orderId: body.orderId || body.salesOrderId || body.orderCode || body.salesOrderCode,
         salesOrderId: body.salesOrderId || body.orderId,
         salesOrderCode: body.salesOrderCode || body.orderCode,
-        deliveryStaffCode: body.deliveryStaffCode || (mobileUser && mobileUser.code),
-        deliveryStaffName: body.deliveryStaffName || (mobileUser && mobileUser.name),
-        staffCode: (mobileUser && mobileUser.code) || body.staffCode,
-        staffName: (mobileUser && mobileUser.name) || body.staffName,
         source: 'mobile_delivery_canonical'
-      });
+      }, { session }));
       const response = {
         statusCode: 200,
         body: {
@@ -502,9 +548,11 @@ function createMobileDeliveryService(ctx) {
   }
 
 
-  async function listDeliveryReturns({ query = {} }) {
+  async function listDeliveryReturns({ query = {}, mobileUser = {} }) {
     const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
-    const result = await engine.listReturns(query || {});
+    const actorCode = String(mobileUser.staffCode || mobileUser.code || '').trim();
+    const scopedQuery = { ...(query || {}), deliveryStaffCode: actorCode };
+    const result = await engine.listReturns(scopedQuery);
     return {
       statusCode: 200,
       body: {

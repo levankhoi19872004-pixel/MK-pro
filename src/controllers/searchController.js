@@ -7,7 +7,7 @@ function ok(res, type, items, extra = {}) {
 }
 
 function fail(res, message, err) {
-  res.status(500).json({ ok: false, message, error: err.message });
+  res.status(500).json({ ok: false, message, error: process.env.NODE_ENV === 'production' ? undefined : err.message });
 }
 
 async function products(req, res) {

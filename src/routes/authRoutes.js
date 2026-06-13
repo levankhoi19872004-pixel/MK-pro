@@ -2,9 +2,12 @@
 
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const User = require('../models/User');
-const { jwtSecret, requireAuth } = require('../middlewares/auth.middleware');
+const { jwtSecret, refreshJwtSecret, assertTokenType, requireAuth } = require('../middlewares/auth.middleware');
 const { verifyPassword } = require('../security/passwordPolicy');
+const { readRefreshToken, setRefreshTokenCookie, clearRefreshTokenCookie, exposeRefreshTokenInBody } = require('../security/refreshTokenCookie');
+const { setAccessTokenCookie, clearAccessTokenCookie } = require('../security/accessTokenCookie');
 const { pickSalesStaffCode, pickSalesStaffName, pickUserAccountSalesStaffCode } = require('../domain/staff/staffIdentity');
 
 const router = express.Router();
@@ -18,8 +21,25 @@ const ROLE_LABELS = {
   delivery: 'Giao hàng'
 };
 
-const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || '1d';
+const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || process.env.MOBILE_ACCESS_TOKEN_EXPIRES_IN || '15m';
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || process.env.MOBILE_REFRESH_TOKEN_EXPIRES_IN || '30d';
+
+const authLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { ok: false, success: false, message: 'Quá nhiều lần đăng nhập không thành công. Vui lòng thử lại sau.' }
+});
+
+const refreshLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  max: Number(process.env.AUTH_REFRESH_RATE_LIMIT_MAX || 60),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, success: false, message: 'Quá nhiều yêu cầu làm mới phiên đăng nhập.' }
+});
 
 function safeUser(user = {}) {
   const role = String(user.role || '').trim() || 'sales';
@@ -47,11 +67,28 @@ function safeUser(user = {}) {
   };
 }
 
-function signToken(user, expiresIn = ACCESS_TOKEN_EXPIRES_IN) {
-  return jwt.sign(safeUser(user), jwtSecret(), { expiresIn });
+function signAccessToken(user) {
+  return jwt.sign({ ...safeUser(user), tokenType: 'access' }, jwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
 }
 
-router.post('/login', async (req, res) => {
+function signRefreshToken(user) {
+  return jwt.sign({ ...safeUser(user), tokenType: 'refresh' }, refreshJwtSecret(), { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+}
+
+async function reloadActiveUser(tokenPayload = {}) {
+  const id = String(tokenPayload.id || '').trim();
+  const username = String(tokenPayload.username || '').trim();
+  const staffCode = String(tokenPayload.staffCode || tokenPayload.code || '').trim();
+  const or = [];
+  if (/^[a-f\d]{24}$/i.test(id)) or.push({ _id: id });
+  if (id) or.push({ id });
+  if (username) or.push({ username });
+  if (staffCode) or.push({ staffCode }, { code: staffCode });
+  if (!or.length) return null;
+  return User.findOne({ isActive: { $ne: false }, $or: or }).lean();
+}
+
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '').trim();
@@ -63,13 +100,12 @@ router.post('/login', async (req, res) => {
         { username },
         { staffCode: username },
         { code: username },
-        { phone: username },
-        { name: username },
-        { fullName: username }
+        { phone: username }
       ]
     }).lean();
 
-    if (!user || !(await verifyPassword(password, user.password))) {
+    const passwordValid = await verifyPassword(password, user && user.password);
+    if (!user || !passwordValid) {
       return res.status(401).json({ ok: false, success: false, message: 'Sai tài khoản hoặc mật khẩu' });
     }
 
@@ -77,12 +113,16 @@ router.post('/login', async (req, res) => {
     if (['sales', 'delivery'].includes(clientUser.role) && !clientUser.staffCode) {
       return res.status(400).json({ ok: false, success: false, message: 'Tài khoản chưa được gán mã nhân viên nghiệp vụ' });
     }
+    const accessToken = signAccessToken(clientUser);
+    const refreshToken = signRefreshToken(clientUser);
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, refreshToken);
     return res.json({
       ok: true,
       success: true,
       source: 'users-auth-route',
-      token: signToken(clientUser),
-      refreshToken: signToken(clientUser, REFRESH_TOKEN_EXPIRES_IN),
+      token: accessToken,
+      ...(exposeRefreshTokenInBody() ? { refreshToken } : {}),
       expiresIn: ACCESS_TOKEN_EXPIRES_IN,
       user: clientUser
     });
@@ -91,27 +131,39 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', refreshLimiter, async (req, res) => {
   try {
-    const refreshToken = String(req.body?.refreshToken || '').trim();
+    const refreshToken = readRefreshToken(req);
     if (!refreshToken) return res.status(401).json({ ok: false, success: false, message: 'Refresh token không hợp lệ' });
-    const user = jwt.verify(refreshToken, jwtSecret());
-    const clientUser = safeUser(user);
+    const payload = assertTokenType(jwt.verify(refreshToken, refreshJwtSecret()), 'refresh');
+    const currentUser = await reloadActiveUser(payload);
+    if (!currentUser) return res.status(401).json({ ok: false, success: false, message: 'Tài khoản không còn hoạt động' });
+    const clientUser = safeUser(currentUser);
     if (['sales', 'delivery'].includes(clientUser.role) && !clientUser.staffCode) {
       return res.status(400).json({ ok: false, success: false, message: 'Tài khoản chưa được gán mã nhân viên nghiệp vụ' });
     }
+    const accessToken = signAccessToken(clientUser);
+    const rotatedRefreshToken = signRefreshToken(clientUser);
+    setAccessTokenCookie(res, accessToken);
+    setRefreshTokenCookie(res, rotatedRefreshToken);
     return res.json({
       ok: true,
       success: true,
       source: 'users-auth-route',
-      token: signToken(clientUser),
-      refreshToken: signToken(clientUser, REFRESH_TOKEN_EXPIRES_IN),
+      token: accessToken,
+      ...(exposeRefreshTokenInBody() ? { refreshToken: rotatedRefreshToken } : {}),
       expiresIn: ACCESS_TOKEN_EXPIRES_IN,
       user: clientUser
     });
   } catch (err) {
     return res.status(401).json({ ok: false, success: false, message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
   }
+});
+
+router.post('/logout', (req, res) => {
+  clearAccessTokenCookie(res);
+  clearRefreshTokenCookie(res);
+  return res.json({ ok: true, success: true, message: 'Đã đăng xuất' });
 });
 
 router.get('/me', requireAuth, (req, res) => res.json({ ok: true, success: true, source: 'users-auth-route', user: safeUser(req.user), roleLabels: ROLE_LABELS }));

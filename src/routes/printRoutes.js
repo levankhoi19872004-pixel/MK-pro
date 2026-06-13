@@ -2,8 +2,12 @@
 
 const express = require('express');
 const printController = require('../controllers/printController');
+const { requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
+const viewPrintDocuments = requireRole(['admin', 'manager', 'accountant', 'warehouse']);
+
+router.use(viewPrintDocuments);
 
 router.get('/types', printController.listTypes);
 router.post('/render', printController.render);

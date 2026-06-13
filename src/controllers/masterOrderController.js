@@ -15,7 +15,7 @@ async function listUnmergedChildOrders(req, res) {
     const orders = await masterOrderService.listUnmergedChildOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', orders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn con chưa gộp từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được đơn con chưa gộp từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -24,7 +24,7 @@ async function list(req, res) {
     const masterOrders = await masterOrderService.listMasterOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', masterOrders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn tổng từ MongoDB', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được đơn tổng từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -33,7 +33,7 @@ async function listDeliveryToday(req, res) {
     const result = await masterOrderService.listDeliveryToday(req.query || {});
     res.json({ ok: true, source: 'mongo-route', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được đơn đi giao hôm nay', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được đơn đi giao hôm nay', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -44,7 +44,7 @@ async function listDeliveryTodaySummary(req, res) {
     const result = await masterOrderService.listDeliveryTodaySummaryFast(req.query || {});
     res.json({ ok: true, source: 'mongo-route', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được tổng hợp NVGH hôm nay', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được tổng hợp NVGH hôm nay', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -53,7 +53,7 @@ async function listDeliveryTodaySalesSummary(req, res) {
     const result = await masterOrderService.listDeliveryTodaySalesSummary(req.params.deliveryStaffCode, req.query || {});
     res.json({ ok: true, source: 'mongo-route', ...result });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được chi tiết NVBH theo NVGH', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được chi tiết NVBH theo NVGH', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
@@ -66,7 +66,7 @@ async function listDeliveryTodayOrdersCompact(req, res) {
     res.status(500).json({
       ok: false,
       message: 'Không tải được danh sách đơn theo NVGH/NVBH',
-      error: err.message
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
     });
   }
 }
@@ -118,7 +118,7 @@ async function get(req, res) {
     const result = await masterOrderService.getMasterOrder(req.params.id);
     return handleServiceResult(res, result, 200, (r) => ({ masterOrder: r.masterOrder }));
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được chi tiết đơn tổng', error: err.message });
+    res.status(500).json({ ok: false, message: 'Không tải được chi tiết đơn tổng', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
