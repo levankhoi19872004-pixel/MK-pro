@@ -1,7 +1,6 @@
 'use strict';
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const ReturnOrder = require('../models/ReturnOrder');
@@ -9,38 +8,13 @@ const StockTransaction = require('../models/StockTransaction');
 const ArLedger = require('../models/ArLedger');
 const User = require('../models/User');
 const { DeliveryEngine } = require('../engines/delivery.engine');
-const { requireRole } = require('../middlewares/auth.middleware');
+const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 const { withMongoTransaction } = require('../utils/transaction.util');
 
 const router = express.Router();
 const engine = new DeliveryEngine({ SalesOrder, MasterOrder, ReturnOrder, StockTransaction, ArLedger, User });
 const deliveryReadRoles = requireRole(['delivery', 'admin', 'manager', 'accountant']);
 const deliveryWriteRoles = requireRole(['delivery', 'admin', 'manager']);
-
-function jwtSecret() {
-  const secret = [process.env.JWT_SECRET, process.env.MOBILE_JWT_SECRET].find(Boolean);
-  if (!secret) {
-    throw new Error('Missing JWT_SECRET');
-  }
-  return secret;
-}
-
-function requireLogin(req, res, next) {
-  const header = String(req.headers.authorization || '');
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-
-  if (!token) {
-    return res.status(401).json({ ok: false, success: false, message: 'Bạn chưa đăng nhập' });
-  }
-
-  try {
-    req.user = jwt.verify(token, jwtSecret());
-    req.mobileUser = req.user;
-    return next();
-  } catch (err) {
-    return res.status(401).json({ ok: false, success: false, message: 'Phiên đăng nhập đã hết hạn' });
-  }
-}
 
 function bindDeliveryUser(input = {}, user = {}) {
   const role = String(user.role || '').toLowerCase();
@@ -69,7 +43,7 @@ function sendError(res, err, fallback) {
   return res.status(status).json({ ok: false, success: false, message: (err && err.message) || fallback || 'API giao hàng lỗi' });
 }
 
-router.get('/orders', requireLogin, deliveryReadRoles, async (req, res) => {
+router.get('/orders', requireAuth, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
     const result = await engine.listOrders(query);
@@ -89,7 +63,7 @@ router.get('/orders', requireLogin, deliveryReadRoles, async (req, res) => {
   }
 });
 
-router.get('/returns', requireLogin, deliveryReadRoles, async (req, res) => {
+router.get('/returns', requireAuth, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
     const result = await engine.listReturns(query);
@@ -108,7 +82,7 @@ router.get('/returns', requireLogin, deliveryReadRoles, async (req, res) => {
   }
 });
 
-router.post('/return', requireLogin, deliveryWriteRoles, async (req, res) => {
+router.post('/return', requireAuth, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
     const result = await withMongoTransaction((session) => engine.saveReturn(body, { session }));
@@ -130,7 +104,7 @@ router.post('/return', requireLogin, deliveryWriteRoles, async (req, res) => {
   }
 });
 
-router.post('/payment', requireLogin, deliveryWriteRoles, async (req, res) => {
+router.post('/payment', requireAuth, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
     const result = await withMongoTransaction((session) => engine.savePayment(body, { session }));
@@ -140,7 +114,7 @@ router.post('/payment', requireLogin, deliveryWriteRoles, async (req, res) => {
   }
 });
 
-router.post('/confirm', requireLogin, deliveryWriteRoles, async (req, res) => {
+router.post('/confirm', requireAuth, deliveryWriteRoles, async (req, res) => {
   try {
     const body = bindDeliveryUser(req.body || {}, req.user);
     const result = await withMongoTransaction((session) => engine.confirm(body, { session }));
@@ -150,7 +124,7 @@ router.post('/confirm', requireLogin, deliveryWriteRoles, async (req, res) => {
   }
 });
 
-router.get('/reconciliation', requireLogin, deliveryReadRoles, async (req, res) => {
+router.get('/reconciliation', requireAuth, deliveryReadRoles, async (req, res) => {
   try {
     const query = bindDeliveryUser(req.query || {}, req.user);
     const reconciliation = await engine.reconciliation(query);
