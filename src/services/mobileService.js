@@ -299,6 +299,9 @@ function createMobileService(ctx) {
         finalPrice: salePrice,
         salePrice,
         price: salePrice,
+        preTaxPriceAtOrder: Math.round(salePrice / 1.08),
+        vatAmountAtOrder: Math.round((salePrice - (salePrice / 1.08)) * quantity),
+        lineAmountAtOrder: quantity * salePrice,
         amount: quantity * salePrice,
         appliedPromotionRows: []
       });

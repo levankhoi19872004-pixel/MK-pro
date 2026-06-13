@@ -1,3 +1,5 @@
+const dmsExactSalesInvoiceTemplate = require('./print/dmsExactSalesInvoice.template');
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -1082,8 +1084,10 @@ function dmsDeliveryInvoiceTemplate(data) {
 }
 
 module.exports = {
-  ORDER_SINGLE: dmsDeliveryInvoiceTemplate,
-  DMS_DELIVERY_INVOICE: dmsDeliveryInvoiceTemplate,
+  ORDER_SINGLE: dmsExactSalesInvoiceTemplate,
+  DMS_DELIVERY_INVOICE: dmsExactSalesInvoiceTemplate,
+  SALES_INVOICE: dmsExactSalesInvoiceTemplate,
+  SALES_INVOICE_DMS_EXACT_V1: dmsExactSalesInvoiceTemplate,
   ORDER_TOTAL: warehousePickingTemplate,
   WAREHOUSE_PICKING: warehousePickingTemplate,
   IMPORT_ORDER: warehousePickingTemplate,

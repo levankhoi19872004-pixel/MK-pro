@@ -8,10 +8,12 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
-test('all canonical templates load print tokens after legacy print css', () => {
+test('canonical warehouse templates use print tokens and child invoice uses isolated exact CSS', () => {
   const templates = read('templates/printTemplates.js');
+  const exactTemplate = read('templates/print/dmsExactSalesInvoice.template.js');
   assert.match(templates, /print-tokens\.css/);
   assert.match(templates, /WAREHOUSE_PICKING:\s*warehousePickingTemplate/);
+  assert.match(exactTemplate, /dms-exact-sales-invoice\.css\?v=dms-exact-v1/);
 });
 
 test('print tokens define one canonical A4 spacing system', () => {
@@ -23,15 +25,15 @@ test('print tokens define one canonical A4 spacing system', () => {
   assert.match(css, /min-height:\s*18mm/);
 });
 
-test('DMS invoice column widths total exactly 100 percent', () => {
-  const templates = read('templates/printTemplates.js');
-  const block = templates.slice(
-    templates.indexOf('<table class="dms-invoice-table">'),
-    templates.indexOf('</thead>', templates.indexOf('<table class="dms-invoice-table">'))
+test('DMS exact invoice column widths total the Invoice-36 content width', () => {
+  const template = read('templates/print/dmsExactSalesInvoice.template.js');
+  const block = template.slice(
+    template.indexOf('<table class="dmsx-items-table">'),
+    template.indexOf('</colgroup>', template.indexOf('<table class="dmsx-items-table">'))
   );
-  const widths = [...block.matchAll(/width:(\d+)%/g)].map((match) => Number(match[1]));
-  assert.deepEqual(widths, [4, 9, 31, 7, 6, 9, 9, 9, 7, 9]);
-  assert.equal(widths.reduce((sum, value) => sum + value, 0), 100);
+  const widths = [...block.matchAll(/width:(\d+(?:\.\d+)?)pt/g)].map((match) => Number(match[1]));
+  assert.deepEqual(widths, [21.60, 44.28, 213.84, 37.44, 25.20, 40.32, 54.72, 40.32, 40.32, 54.72]);
+  assert.equal(Number(widths.reduce((sum, value) => sum + value, 0).toFixed(2)), 572.76);
 });
 
 

@@ -5,7 +5,7 @@ const printRepository = require('../repositories/printRepository');
 const PrintReadService = require('../domain/print/PrintReadService');
 
 const SUPPORTED_PRINT_TYPES = [
-  { type: 'SALES_INVOICE', profile: 'SALES_INVOICE', name: 'Phiếu giao nhận và thanh toán', source: 'salesOrders' },
+  { type: 'SALES_INVOICE_DMS_EXACT_V1', profile: 'SALES_INVOICE_DMS_EXACT_V1', name: 'Phiếu giao nhận và thanh toán - mẫu Invoice-36', source: 'salesOrders' },
   { type: 'WAREHOUSE_PICKING', profile: 'WAREHOUSE_PICKING', name: 'Phiếu nhặt hàng/kho dùng chung', source: 'masterOrders/importOrders/returnOrders' },
   { type: 'PAYMENT_RECEIPT', profile: 'PAYMENT_RECEIPT', name: 'Phiếu thu tiền', source: 'receipts/cashbooks/bankbooks' }
 ];
@@ -23,14 +23,14 @@ function renderFromDocument(type, document, options = {}) {
 
 async function renderSalesOrder(id, options = {}) {
   const [document] = await PrintReadService.readSalesOrders([id]);
-  return { html: renderPrintHtml('SALES_INVOICE', document, options), printType: 'SALES_INVOICE', document };
+  return { html: renderPrintHtml('SALES_INVOICE', document, options), printType: 'SALES_INVOICE_DMS_EXACT_V1', document };
 }
 
 async function renderSalesOrdersBatch(ids = [], options = {}) {
   const documents = await PrintReadService.readSalesOrders(ids);
   return {
     html: renderPrintBatchHtml('SALES_INVOICE', documents, { ...options, title: `In ${documents.length} đơn bán` }),
-    printType: 'SALES_INVOICE',
+    printType: 'SALES_INVOICE_DMS_EXACT_V1',
     documents
   };
 }
@@ -63,7 +63,7 @@ async function renderById(type, id, options = {}) {
   const printType = printRepository.normalizePrintType(type);
   if (!printType || !id) return { error: 'Thiếu loại mẫu in hoặc mã chứng từ', status: 400 };
 
-  if (['ORDER_SINGLE', 'DMS_DELIVERY_INVOICE', 'SALES_INVOICE'].includes(printType)) {
+  if (['ORDER_SINGLE', 'DMS_DELIVERY_INVOICE', 'SALES_INVOICE', 'SALES_INVOICE_DMS_EXACT_V1'].includes(printType)) {
     return renderSalesOrder(id, options);
   }
   if (['ORDER_TOTAL', 'MASTER_ORDER', 'WAREHOUSE_PICKING'].includes(printType)) {

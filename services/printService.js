@@ -6,7 +6,7 @@ function resolvePrintType(type, rawDocument) {
 
   // Mọi đơn con dùng chung profile SALES_INVOICE.
   if (['ORDER_SINGLE', 'SALES_ORDER', 'ORDER', 'DMS_DELIVERY_INVOICE', 'SALES_INVOICE'].includes(key)) {
-    return 'DMS_DELIVERY_INVOICE';
+    return 'SALES_INVOICE_DMS_EXACT_V1';
   }
 
   // Mọi chứng từ nhặt hàng/kho dùng chung profile WAREHOUSE_PICKING.
@@ -37,7 +37,7 @@ function stripStandaloneHtml(html = '') {
 
   // Do not parse <body> with a non-greedy regex: the export script contains
   // a literal "</body>" string, which previously truncated all print pages.
-  body = body.replace(/<div class="print-preview-actions">[\s\S]*?<\/div>\s*<script>[\s\S]*?<\/script>/i, '');
+  body = body.replace(/<div class="[^"]*print-preview-actions[^"]*">[\s\S]*?<\/div>\s*(?:<script>[\s\S]*?<\/script>)?/i, '');
   body = body.replace(/<script>[\s\S]*?<\/script>/gi, '');
   return body.trim();
 }
@@ -51,7 +51,7 @@ function previewActions() {
   </div>
   <script>
     function exportCurrentPrintToExcel(){
-      var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page'));
+      var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page, .dmsx-page'));
       var html = pages.length ? pages.map(function(page){ return page.outerHTML; }).join('') : document.body.innerHTML;
       var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}</style></head><body>' + html + '</body></html>';
       var blob = new Blob(['\\ufeff' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
@@ -71,7 +71,9 @@ function renderPrintBatchHtml(type, documents = [], options = {}) {
   const rows = Array.isArray(documents) ? documents.filter(Boolean) : [];
   if (!rows.length) throw new Error('Không có chứng từ để in');
   const pages = rows.map((document) => stripStandaloneHtml(renderPrintHtml(type, document, options))).join('\n');
-  const bodyClass = resolvePrintType(type) === 'DMS_DELIVERY_INVOICE' ? 'dms-print-body' : 'warehouse-picking-body';
+  const resolvedType = resolvePrintType(type);
+  const isExactSalesInvoice = resolvedType === 'SALES_INVOICE_DMS_EXACT_V1';
+  const bodyClass = isExactSalesInvoice ? 'dms-exact-body' : 'warehouse-picking-body';
   const title = options.title || `In ${rows.length} chứng từ`;
 
   return `<!DOCTYPE html>
@@ -80,8 +82,7 @@ function renderPrintBatchHtml(type, documents = [], options = {}) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${String(title).replace(/[<>]/g, '')}</title>
-  <link rel="stylesheet" href="/print.css" />
-  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
+  ${isExactSalesInvoice ? '<link rel="stylesheet" href="/dms-exact-sales-invoice.css?v=dms-exact-v1" />' : '<link rel="stylesheet" href="/print.css" /><link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />'}
 </head>
 <body class="${bodyClass}">
   ${previewActions()}

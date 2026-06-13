@@ -103,6 +103,8 @@ function getItemQuantity(item) {
 function getItemPack(item) {
   // Quy cách phải lấy từ dữ liệu Mongo/snapshot số học, không parse từ tên sản phẩm hoặc chuỗi packing.
   return toNumber(pick(
+    item.conversionRateAtOrder,
+    item.packingQtyAtOrder,
     item.packingQty,
     item.conversionRate,
     item.unitsPerCase,
@@ -150,6 +152,8 @@ function getCatalogSalePrice(item) {
   // Cột 4 của mẫu DMS/V46: giá bán sau thuế, trước khuyến mại.
   // Ưu tiên giá bán trong danh mục sản phẩm đã được enrich từ Mongo.
   return toNumber(pick(
+    item.catalogSalePriceAtOrder,
+    item.priceAfterTaxBeforePromotion,
     item.catalogSalePrice,
     item.product?.salePrice,
     item.productSnapshot?.salePrice,
@@ -395,9 +399,17 @@ function normalizeOneItem(item, index, sourceOrder = null) {
   // Cột 4: giá bán sau thuế, trước KM = products.salePrice.
   // Cột 5: giá sau thuế, sau KM/CK = cột 4 - cột 4 * %CK, hoặc giá bán thẳng người tạo đơn nhập.
   const priceAfterTaxBeforePromotion = getCatalogSalePrice(item);
-  const priceBeforeTax = Math.round(priceAfterTaxBeforePromotion / 1.08);
+  const priceBeforeTax = toNumber(pick(
+    item.preTaxPriceAtOrder,
+    item.priceBeforeTaxBeforePromotion,
+    item.listPriceBeforeVat,
+    item.priceBeforeTax,
+    item.priceBeforeVat,
+    Math.round(priceAfterTaxBeforePromotion / 1.08)
+  ));
   const discountPercent = getDiscountPercent(item);
   const directNetPrice = toNumber(pick(
+    item.priceAfterTaxAfterPromotion,
     item.priceAfterPromotion,
     item.priceAfterVatAfterDiscount,
     item.netPrice,
@@ -428,8 +440,10 @@ function normalizeOneItem(item, index, sourceOrder = null) {
       : normalizedLineType === 'IMPORT'
         ? 'Hàng nhập kho'
         : 'Hàng bán';
-  const tax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
-  const amount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
+  const calculatedTax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
+  const tax = isPromo ? 0 : toNumber(pick(item.vatAmountAtOrder, item.vatAmount, item.taxAmount, item.tax, calculatedTax));
+  const calculatedAmount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
+  const amount = isPromo ? 0 : toNumber(pick(item.lineAmountAtOrder, item.lineAmount, item.amount, calculatedAmount));
   const caseInfo = normalizeQuantityByPack(qty, pack);
   const promotionRows = normalizeItemPromotionRows(item, {
     code: pick(item.code, item.productCode, item.sku, item.maHang),
@@ -716,6 +730,7 @@ function normalizeInvoiceItem(item, index) {
     item.unitPrice
   ));
   const priceBeforeTaxBeforePromotion = toNumber(pick(
+    item.preTaxPriceAtOrder,
     item.priceBeforeTaxBeforePromotion,
     item.priceBeforeTax,
     item.priceBeforeVat,
@@ -725,6 +740,7 @@ function normalizeInvoiceItem(item, index) {
   const discountPercent = toNumber(item.discountPercent);
   const priceAfterTaxAfterPromotion = toNumber(pick(
     item.priceAfterTaxAfterPromotion,
+    item.priceAfterTaxAfterPromotion,
     item.priceAfterPromotion,
     item.priceAfterVatAfterDiscount,
     item.priceAfterDiscount,
@@ -733,12 +749,14 @@ function normalizeInvoiceItem(item, index) {
       : priceAfterTaxBeforePromotion
   ));
   const vatAmount = toNumber(pick(
+    item.vatAmountAtOrder,
     item.vatAmount,
     item.tax,
     item.taxAmount,
     Math.round((priceAfterTaxAfterPromotion - priceAfterTaxAfterPromotion / 1.08) * quantity)
   ));
   const lineAmount = toNumber(pick(
+    item.lineAmountAtOrder,
     item.lineAmount,
     item.amount,
     Math.round(quantity * priceAfterTaxAfterPromotion)

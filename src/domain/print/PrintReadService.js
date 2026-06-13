@@ -11,7 +11,7 @@ const cashbookRepository = require('../../repositories/cashbookRepository');
 const bankbookRepository = require('../../repositories/bankbookRepository');
 
 const { cleanText, isActiveDocument, uniqueText } = require('./PrintContract');
-const { buildSalesInvoice } = require('./builders/SalesInvoiceBuilder');
+const { buildDmsExactSalesInvoice } = require('./builders/DmsExactSalesInvoiceBuilder');
 const { buildMasterPicking } = require('./builders/MasterPickingBuilder');
 const { buildImportPicking } = require('./builders/ImportPickingBuilder');
 const { buildReturnPicking } = require('./builders/ReturnPickingBuilder');
@@ -75,7 +75,7 @@ async function readSalesOrders(ids = []) {
   assertFound(requestedIds, rows, 'đơn bán');
   const productMap = await loadProductMap(rows);
   const enrichedRows = await LegacyPromotionFallbackService.enrichSalesOrders(rows, productMap);
-  return enrichedRows.map((row) => buildSalesInvoice(row, { productMap }));
+  return enrichedRows.map((row) => buildDmsExactSalesInvoice(row, { productMap }));
 }
 
 function masterChildIds(master = {}) {

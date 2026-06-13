@@ -1347,10 +1347,12 @@ async function importSalesOrders(rows = [], options = {}) {
           defaultWarehouse: warehouseCode
         },
         listPriceBeforeVat,
+        preTaxPriceAtOrder: listPriceBeforeVat,
         listPriceAfterVat: listPriceBeforeVat ? listPriceBeforeVat * 1.08 : 0,
         gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
         nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
         vatAmount: getVatAmountFromRow(row),
+        vatAmountAtOrder: getVatAmountFromRow(row),
         warehouseCode,
         warehouseName: cleanText(product.warehouseName || (warehouseCode === 'KHO_PC' ? 'KHO PC' : warehouseCode === 'KHO_HC' ? 'KHO HC' : 'Kho chính'))
       };

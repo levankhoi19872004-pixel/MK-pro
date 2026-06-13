@@ -180,11 +180,26 @@ function normalizeLine(item = {}, context = {}) {
   const finalPrice = lineType === 'PROMO' ? 0 : finalPriceOf(item, product);
   const costPrice = costPriceOf(item, product);
   const unitPrice = mode === 'import' ? costPrice : catalogPrice;
-  const lineAmount = mode === 'import'
+  const calculatedLineAmount = mode === 'import'
     ? Math.round(quantity * costPrice)
     : lineType === 'PROMO'
       ? 0
       : Math.round(quantity * (mode === 'return' ? finalPriceOf(item, product) : finalPrice));
+  const lineAmount = toNumber(firstDefined(item.lineAmountAtOrder, item.lineAmount, item.amount, calculatedLineAmount));
+  const priceBeforeTaxBeforePromotion = toNumber(firstDefined(
+    item.preTaxPriceAtOrder,
+    item.priceBeforeTaxBeforePromotion,
+    item.listPriceBeforeVat,
+    item.priceBeforeTax,
+    catalogPrice > 0 ? Math.round(catalogPrice / 1.08) : 0
+  ));
+  const vatAmount = lineType === 'PROMO' ? 0 : toNumber(firstDefined(
+    item.vatAmountAtOrder,
+    item.vatAmount,
+    item.taxAmount,
+    item.tax,
+    finalPrice > 0 ? Math.round((finalPrice - (finalPrice / 1.08)) * quantity) : 0
+  ));
 
   return {
     lineType,
@@ -202,7 +217,8 @@ function normalizeLine(item = {}, context = {}) {
     finalPrice: mode === 'import' ? costPrice : finalPrice,
     costPrice,
     unitPrice,
-    vatAmount: lineType === 'PROMO' ? 0 : toNumber(firstDefined(item.vatAmount, item.taxAmount, item.tax, 0)),
+    priceBeforeTaxBeforePromotion,
+    vatAmount,
     lineAmount,
     sourceOrderCodes: sourceOrderCodesOf(item, parent),
     promotionRows: Array.isArray(item.appliedPromotionRows)

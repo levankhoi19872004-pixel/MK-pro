@@ -113,3 +113,27 @@ Frontend code may only:
 3. open the returned HTML.
 
 Frontend must not calculate product price, warehouse, pack conversion, promotion, return amount, aggregate quantity, or aggregate total for printing.
+
+## SALES_INVOICE_DMS_EXACT_V1 - Đơn con theo mẫu Invoice-36
+
+Profile đơn con không dùng hệ token A4 của chứng từ kho. Đây là profile cố định theo mẫu đối chiếu `Invoice-36(7).pdf`:
+
+- Khổ giấy: US Letter dọc, 612 x 792 pt.
+- Hai liên: in toàn bộ Liên 1, sau đó toàn bộ Liên 2.
+- Header lặp trên mọi trang và hiển thị `Trang: n/tổng` riêng cho từng liên.
+- Bảng hàng hóa: 10 cột, tổng chiều rộng 572,76 pt.
+- Khóa dữ liệu lịch sử: giá, quy cách, VAT và thành tiền ưu tiên snapshot trên dòng đơn.
+- Dòng hàng không bị cắt giữa trang; STT tiếp tục xuyên trang.
+- Tổng tiền/chữ ký chỉ xuất hiện sau dòng hàng cuối.
+- Khuyến mại và cấn trừ được phân trang theo chiều cao ước lượng, lặp header bảng khi sang trang.
+
+Các file canonical:
+
+```text
+src/domain/print/builders/DmsExactSalesInvoiceBuilder.js
+src/domain/print/DmsExactPagination.js
+templates/print/dmsExactSalesInvoice.template.js
+public/dms-exact-sales-invoice.css
+```
+
+Không được đưa logic đơn con exact trở lại `public/print.css` hoặc template kho 7 cột.

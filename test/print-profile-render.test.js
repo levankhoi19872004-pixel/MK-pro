@@ -32,11 +32,11 @@ test('SALES_INVOICE renders from canonical builder with snapshot values', () => 
   assert.match(html, /PHIẾU GIAO NHẬN VÀ THANH TOÁN/);
   assert.match(html, /SP1/);
   assert.match(html, /2\/1/);
-  assert.match(html, /print-tokens\.css\?v=print-domain-v1/);
+  assert.match(html, /dms-exact-sales-invoice\.css\?v=dms-exact-v1/);
 
   const batch = renderPrintBatchHtml('SALES_INVOICE', [order, order], { title: 'Sales batch' });
   assert.match(batch, /<title>Sales batch<\/title>/);
-  assert.ok((batch.match(/dms-print-page/g) || []).length >= 4, 'two orders should keep both invoice copies');
+  assert.ok((batch.match(/dmsx-page/g) || []).length >= 4, 'two orders should keep both invoice copies');
 });
 
 test('WAREHOUSE_PICKING renders warehouse and line-type separation consistently', () => {

@@ -293,6 +293,12 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
       price
     );
 
+    const finalPriceAtOrder = toNumber(item.finalPrice || item.priceAfterPromotion || price);
+    const quantityAtOrder = toNumber(item.quantity || item.qty || 0);
+    const preTaxPriceAtOrder = toNumber(item.preTaxPriceAtOrder || item.listPriceBeforeVat || Math.round(catalogSalePriceAtOrder / 1.08));
+    const lineAmountAtOrder = toNumber(item.lineAmountAtOrder || item.lineAmount || item.amount || Math.round(quantityAtOrder * finalPriceAtOrder));
+    const vatAmountAtOrder = toNumber(item.vatAmountAtOrder || item.vatAmount || item.taxAmount || Math.round((finalPriceAtOrder - (finalPriceAtOrder / 1.08)) * quantityAtOrder));
+
     return {
       ...item,
       productId: item.productId || product.id || product.code,
@@ -300,8 +306,11 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
       productName,
       price,
       salePrice: price,
-      finalPrice: toNumber(item.finalPrice || item.priceAfterPromotion || price),
+      finalPrice: finalPriceAtOrder,
       catalogSalePriceAtOrder,
+      preTaxPriceAtOrder,
+      vatAmountAtOrder,
+      lineAmountAtOrder,
       conversionRateAtOrder,
       warehouseCodeAtOrder,
       appliedPromotionRows: Array.isArray(item.appliedPromotionRows)
@@ -321,7 +330,7 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
         warehouseCode: warehouseCodeAtOrder,
         defaultWarehouse: warehouseCodeAtOrder
       },
-      amount: toNumber(item.amount || (toNumber(item.quantity) * price)),
+      amount: lineAmountAtOrder,
       saleMethod: lineMode,
       saleMode: lineMode,
       pricingMode: lineMode,
