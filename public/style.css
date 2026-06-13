@@ -9169,7 +9169,7 @@ body::after{
 #salesTab .sales-order-list-head,
 #salesTab .sales-order-row{
   display:grid!important;
-  grid-template-columns:26px minmax(120px,150px) minmax(150px,1.3fr) minmax(130px,180px) 90px minmax(95px,110px) 70px 100px!important;
+  grid-template-columns:26px minmax(120px,150px) minmax(150px,1.3fr) minmax(130px,180px) 90px minmax(95px,110px) 70px 82px 100px!important;
   align-items:center!important;
 }
 #salesTab .sales-order-staff-inline{
@@ -9525,3 +9525,9 @@ body::after{
 .external-debt-form .required{color:#b91c1c}
 .external-debt-assignment-note{margin:14px 0;padding:12px 14px;background:#f8fafc;border:1px solid #dbe5f3;border-radius:10px;color:#334155}
 @media(max-width:760px){.external-debt-grid{grid-template-columns:1fr}.external-debt-span-2{grid-column:auto}.debt-v2-head-actions{justify-content:flex-start}}
+
+/* VAT invoice setting */
+#salesOrderModal .sales-vat-option{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px;border:1px solid var(--border-color,#d9dee8);border-radius:8px;}
+#salesOrderModal .sales-vat-note{flex:1 1 240px;}
+.sales-vat-badge.vat-required{background:#e8f7ee;color:#176b3a;border-color:#b9e2c8;}
+.sales-vat-badge.vat-not-required{background:#fff3df;color:#8a5200;border-color:#f0cf94;}

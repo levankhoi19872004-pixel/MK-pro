@@ -61,7 +61,8 @@ const INDEX_DEFINITIONS = {
     [{ arStatus: 1, deliveryDate: 1 }, { name: 'idx_orders_ar_status_delivery_date' }],
     [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
     [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
-    [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }]
+    [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }],
+    [{ vatInvoiceRequired: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_vat_required_order_date_status' }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],

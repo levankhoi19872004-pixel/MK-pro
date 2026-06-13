@@ -350,6 +350,37 @@ async function addSalesItem(){
   await recalculateSalesPromotionPrices();
   if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';window.__selectedSalesProduct=null;if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
 }
+function getCurrentWebRole(){
+  try{
+    const user=JSON.parse(localStorage.getItem('mk_web_user')||'{}');
+    return String(user.role||'').toLowerCase();
+  }catch(_err){return ''}
+}
+function canManageVatInvoiceSetting(){
+  return ['admin','accountant'].includes(getCurrentWebRole());
+}
+function syncVatPermissionUi(){
+  if(!salesForm)return;
+  const allowed=canManageVatInvoiceSetting();
+  salesForm.querySelectorAll('input[name="vatInvoiceRequired"]').forEach(input=>{input.disabled=!allowed;});
+  if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.disabled=!allowed;
+  if(!allowed&&!editingSalesOrderId)setVatInvoiceRequired(true);
+}
+function setVatInvoiceRequired(required){
+  if(!salesForm)return;
+  const value=required===false?'false':'true';
+  const radio=salesForm.querySelector(`input[name="vatInvoiceRequired"][value="${value}"]`);
+  if(radio)radio.checked=true;
+}
+function getVatInvoiceRequired(){
+  const selected=salesForm?.querySelector('input[name="vatInvoiceRequired"]:checked');
+  return String(selected?.value||'true')!=='false';
+}
+function syncVatSettingButton(){
+  const button=document.getElementById('saveSalesVatSettingButton');
+  if(button)button.hidden=!editingSalesOrderId||!canManageVatInvoiceSetting();
+}
+
 function resetSalesFormAfterSave(){
   editingSalesOrderId='';
   salesItems=[];
@@ -357,6 +388,8 @@ function resetSalesFormAfterSave(){
   salesForm.elements.date.value=today();
   // Đơn tạo tay/App mặc định bán theo khuyến mại; radio vẫn mở để kế toán/admin đổi linh động.
   setSalesMode(PRICING_PROMOTION);
+  setVatInvoiceRequired(true);
+  if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.value='';
   salesForm.elements.paidAmount.value=0;
   if(salesCustomerSearch)salesCustomerSearch.value='';
   salesCustomerSelect.value='';
@@ -365,6 +398,7 @@ function resetSalesFormAfterSave(){
   if(salesStaffName)salesStaffName.value='';
   const submitBtn=salesForm.querySelector('[type="submit"]');
   if(submitBtn)submitBtn.textContent='Tạo đơn bán & trừ tồn';
+  syncVatSettingButton();
   syncSalesModeUi();
   renderSalesItems();
 }
@@ -420,6 +454,8 @@ function openSalesOrderModal(mode='create'){
     editingSalesOrderId='';
   }
   setSalesOrderModalTitle(mode);
+  syncVatSettingButton();
+  syncVatPermissionUi();
   modal.classList.add('show');
   modal.setAttribute('aria-hidden','false');
   document.body.classList.add('modal-open');
@@ -457,7 +493,12 @@ async function submitSalesOrder(event){
   payload.orderPricingMode=saleMode;
   payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,conversionRate:normalizePackingRate(i),packingQty:normalizePackingRate(i),unitsPerCase:normalizePackingRate(i),grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:saleMode,saleMode:saleMode,pricingMode:saleMode,priceLocked:saleMode!==PRICING_DIRECT_PRICE}));
   payload.paidAmount=Number(payload.paidAmount||0);
-  if(editingSalesOrderId)payload.actorRole='admin';
+  payload.vatInvoiceRequired=String(payload.vatInvoiceRequired||'true')!=='false';
+  if(editingSalesOrderId){
+    payload.actorRole='admin';
+    delete payload.vatInvoiceRequired;
+    delete payload.vatInvoiceNote;
+  }
   try{
     const url=editingSalesOrderId?`/api/sales-orders/${encodeURIComponent(editingSalesOrderId)}`:'/api/sales-orders';
     const method=editingSalesOrderId?'PUT':'POST';
@@ -858,6 +899,8 @@ async function openSalesOrderEdit(idx){
   salesForm.elements.date.value=toDateOnly(order.orderDate||order.date||order.documentDate||order.importDate||order.displayDate||today());
   salesForm.elements.paidAmount.value=Number(order.paidAmount||0);
   if(salesForm.elements.note)salesForm.elements.note.value=order.note||'';
+  setVatInvoiceRequired(order.vatInvoiceRequired!==false);
+  if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.value=order.vatInvoiceNote||'';
   const c=customersCache.find(item=>String(item.id)===String(order.customerId)||String(item.code)===String(order.customerCode));
   salesCustomerSelect.value=c?.id||order.customerId||order.customerCode||'';
   if(salesCustomerSearch)salesCustomerSearch.value=c?customerSuggestionLabel(c):`${order.customerCode||''} - ${order.customerName||''}`;
@@ -872,6 +915,53 @@ async function openSalesOrderEdit(idx){
   openSalesOrderModal('edit');
 }
 window.openSalesOrderEdit=openSalesOrderEdit;
+
+function salesOrderVatRequired(order){
+  return order?.vatInvoiceRequired !== false;
+}
+function salesOrderVatLabel(order){
+  return salesOrderVatRequired(order)?'Xuất HĐ':'Không xuất';
+}
+function salesOrderVatClass(order){
+  return salesOrderVatRequired(order)?'vat-required':'vat-not-required';
+}
+async function patchSalesOrderVatSetting(order, required, note){
+  const key=getSalesOrderDeleteIdentity(order);
+  if(!key)throw new Error('Không xác định được mã đơn');
+  const res=await fetch(`/api/sales-orders/${encodeURIComponent(key)}/vat-invoice-setting`,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({vatInvoiceRequired:Boolean(required),note:String(note||'').trim()})
+  });
+  const json=await res.json();
+  if(!res.ok||!json.ok)throw new Error(json.message||'Không cập nhật được thiết lập VAT');
+  return json.salesOrder||json.order;
+}
+async function toggleSalesOrderVat(idx){
+  const order=window.__salesOrdersCache?.[idx];
+  if(!order)return;
+  const next=!salesOrderVatRequired(order);
+  const note=prompt(next?'Ghi chú khi chuyển sang xuất hóa đơn:':'Lý do không xuất hóa đơn:',next?(order.vatInvoiceNote||''):(order.vatInvoiceNote||'Khách hàng không lấy hóa đơn'));
+  if(note===null)return;
+  try{
+    const updated=await patchSalesOrderVatSetting(order,next,note);
+    window.__salesOrdersCache[idx]={...order,...updated};
+    await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
+  }catch(err){alert(err.message||'Không cập nhật được thiết lập VAT')}
+}
+window.toggleSalesOrderVat=toggleSalesOrderVat;
+
+async function saveSalesVatSettingFromModal(){
+  if(!editingSalesOrderId)return;
+  const order=(window.__salesOrdersCache||[]).find(row=>String(row.id||row.code)===String(editingSalesOrderId))||{id:editingSalesOrderId,code:editingSalesOrderId};
+  try{
+    const updated=await patchSalesOrderVatSetting(order,getVatInvoiceRequired(),salesForm.elements.vatInvoiceNote?.value||'');
+    showMessage(salesMessage,`Đã lưu thiết lập VAT cho đơn ${updated.code||editingSalesOrderId}`);
+    salesOrderDetailCache.delete(String(editingSalesOrderId));
+    await loadSalesOrders({page:salesOrderCurrentPage||1,append:false});
+  }catch(err){showMessage(salesMessage,err.message||'Không lưu được thiết lập VAT',true)}
+}
+window.saveSalesVatSettingFromModal=saveSalesVatSettingFromModal;
 
 function getSalesOrderDeleteIdentity(order){
   return String(
@@ -1078,6 +1168,9 @@ function renderSalesOrderRows(orders, {append=false} = {}){
         <span class="sales-order-date" title="Ngày bán">${orderDateText||'-'}</span>
         <strong class="sales-order-total-one-line" title="Giá trị đơn hàng">${money(o.totalAmount)}</strong>
         <span class="badge ${getOrderSourceClass(o)} sales-order-source-one-line" title="Nguồn đơn">${getOrderSourceText(o)}</span>
+        ${canManageVatInvoiceSetting()
+          ? `<button type="button" class="small sales-vat-badge ${salesOrderVatClass(o)}" title="Đổi thiết lập hóa đơn VAT" onclick="toggleSalesOrderVat(${idx})">${salesOrderVatLabel(o)}</button>`
+          : `<span class="badge sales-vat-badge ${salesOrderVatClass(o)}">${salesOrderVatLabel(o)}</span>`}
         <div class="sales-order-actions sales-order-actions-one-line">
           <button class="small" onclick="openSalesOrderEdit(${idx})">Sửa</button>
           ${['cancelled','void','delivered','returned'].includes(String(o.status||'').toLowerCase())?'':`<button class="small danger" onclick="deleteSalesOrder(${idx})">Xóa</button>`}
@@ -1210,6 +1303,8 @@ const openCreateSalesOrderButton=document.getElementById('openCreateSalesOrderBu
 const closeSalesOrderModalButton=document.getElementById('closeSalesOrderModalButton');
 if(openCreateSalesOrderButton)openCreateSalesOrderButton.addEventListener('click',()=>openSalesOrderModal('create'));
 if(closeSalesOrderModalButton)closeSalesOrderModalButton.addEventListener('click',()=>closeSalesOrderModal(false));
+const saveSalesVatSettingButton=document.getElementById('saveSalesVatSettingButton');
+if(saveSalesVatSettingButton)saveSalesVatSettingButton.addEventListener('click',saveSalesVatSettingFromModal);
 const salesOrderModalEl=document.getElementById('salesOrderModal');
 if(salesOrderModalEl)salesOrderModalEl.addEventListener('click',(event)=>{if(event.target===salesOrderModalEl)closeSalesOrderModal(false);});
 document.addEventListener('keydown',(event)=>{if(event.key==='Escape'&&document.getElementById('salesOrderModal')?.classList.contains('show'))closeSalesOrderModal(false);});

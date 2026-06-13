@@ -39,6 +39,12 @@ function normalizeOrderDate(value) {
   return dateUtil.toDateOnly(value);
 }
 
+function normalizeVatInvoiceRequired(value, fallback = true) {
+  if (value === false || String(value).trim().toLowerCase() === 'false') return false;
+  if (value === true || String(value).trim().toLowerCase() === 'true') return true;
+  return fallback !== false;
+}
+
 
 function extractStaffCodeParam(value) {
   const raw = String(value || '').trim();
@@ -357,6 +363,11 @@ function toClient(order) {
     orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH',
     mergeStatus: merged,
     isMerged: merged === 'merged',
+    vatInvoiceRequired: order.vatInvoiceRequired !== false,
+    vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
+    vatInvoiceNote: String(order.vatInvoiceNote || ''),
+    vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
+    vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || ''),
     salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
     salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
     visibleInHistory: orderStatusUtil.isOrderVisibleInHistory({ ...order, ...lifecycle })
@@ -671,6 +682,11 @@ function toListClient(order = {}) {
     isMerged: mergeStatus === 'merged',
     accountingStatus: order.accountingStatus || '',
     accountingConfirmed: Boolean(order.accountingConfirmed),
+    vatInvoiceRequired: order.vatInvoiceRequired !== false,
+    vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
+    vatInvoiceNote: String(order.vatInvoiceNote || ''),
+    vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
+    vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || ''),
     source: normalizedOrderSource,
     orderSource: normalizedOrderSource,
     orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH',
@@ -729,6 +745,11 @@ const ORDER_LIST_PROJECTION = {
   mergeStatus: 1,
   accountingStatus: 1,
   accountingConfirmed: 1,
+  vatInvoiceRequired: 1,
+  vatInvoiceDecisionSource: 1,
+  vatInvoiceNote: 1,
+  vatInvoiceUpdatedAt: 1,
+  vatInvoiceUpdatedBy: 1,
   source: 1,
   orderSource: 1,
   totalAmount: 1,
@@ -986,7 +1007,7 @@ async function listOrders(query = {}) {
     .filter((order) => !accountingStatusFilter || orderStatusUtil.normalizeAccountingStatus(order) === accountingStatusFilter);
 }
 
-async function createOrder(body = {}) {
+async function createOrder(body = {}, actor = {}) {
   const startedAt = Date.now();
   const customer = await resolveCustomer(body);
   const staff = await resolveStaff(body);
@@ -1002,6 +1023,13 @@ async function createOrder(body = {}) {
   const normalizedOrderDate = dateUtil.toDateOnly(body.orderDate || body.date || dateUtil.todayVN());
   const normalizedDeliveryDate = dateUtil.toDateOnly(body.deliveryDate || normalizedOrderDate);
   const salesStaffSnapshot = buildSalesStaffSnapshot(body, customer, staff);
+  const vatActorRole = String(actor.role || '').trim().toLowerCase();
+  const canSetVatManually = ['admin', 'accountant'].includes(vatActorRole);
+  const vatInvoiceRequired = canSetVatManually
+    ? normalizeVatInvoiceRequired(body.vatInvoiceRequired, true)
+    : true;
+  const vatDecisionSource = vatInvoiceRequired ? 'default' : 'manual';
+  const vatActor = String(actor.username || actor.name || actor.fullName || actor.code || body.updatedBy || body.userName || '').trim();
   const order = {
     ...body,
     id: generatedOrderId,
@@ -1047,6 +1075,11 @@ async function createOrder(body = {}) {
     status: body.status || 'pending',
     lifecycleStatus: body.lifecycleStatus || body.status || 'pending',
     accountingStatus: body.accountingStatus || 'pending',
+    vatInvoiceRequired,
+    vatInvoiceDecisionSource: vatDecisionSource,
+    vatInvoiceNote: vatInvoiceRequired ? '' : String(body.vatInvoiceNote || body.noteVat || '').trim(),
+    vatInvoiceUpdatedAt: vatDecisionSource === 'manual' ? dateUtil.nowIso() : '',
+    vatInvoiceUpdatedBy: vatDecisionSource === 'manual' ? (vatActor || 'system') : '',
     arStatus: body.arStatus || 'pending',
     arBalance: 0,
     createdAt: body.createdAt || dateUtil.nowIso(),
@@ -1106,6 +1139,12 @@ async function updateOrder(id, body = {}) {
     totalAmount,
     paidAmount,
     debtAmount: toNumber(body.debtAmount ?? Math.max(0, totalAmount - paidAmount)),
+    // VAT setting is changed only through updateVatInvoiceSetting(); generic edit must not trigger VAT mutation.
+    vatInvoiceRequired: current.vatInvoiceRequired !== false,
+    vatInvoiceDecisionSource: current.vatInvoiceDecisionSource || 'default',
+    vatInvoiceNote: String(current.vatInvoiceNote || ''),
+    vatInvoiceUpdatedAt: String(current.vatInvoiceUpdatedAt || ''),
+    vatInvoiceUpdatedBy: String(current.vatInvoiceUpdatedBy || ''),
     // ===== SCOPED FIX: ORDER_DATA_LINEAGE_LOCK_NVBH_ON_UPDATE_START =====
     // Không cho updateOrder/master/delivery/accounting ghi đè NVBH đã chốt trên salesOrders.
     salesStaffId: salesStaffSnapshot.salesStaffId,
@@ -1141,6 +1180,27 @@ async function updateOrder(id, body = {}) {
     }
   });
   return { salesOrder: toClient(orderResultForClient) };
+}
+
+async function updateVatInvoiceSetting(id, body = {}, actor = {}) {
+  const current = await orderRepository.findByIdOrCode(id);
+  if (!current) return { error: 'Không tìm thấy đơn bán', status: 404 };
+  if (typeof body.vatInvoiceRequired !== 'boolean') {
+    return { error: 'Thiết lập hóa đơn VAT không hợp lệ', status: 400 };
+  }
+
+  const now = dateUtil.nowIso();
+  const patch = {
+    vatInvoiceRequired: body.vatInvoiceRequired,
+    vatInvoiceDecisionSource: 'manual',
+    vatInvoiceNote: String(body.note || body.vatInvoiceNote || '').trim(),
+    vatInvoiceUpdatedAt: now,
+    vatInvoiceUpdatedBy: String(actor.username || actor.name || actor.fullName || actor.code || 'system').trim(),
+    updatedAt: now
+  };
+
+  const updated = await orderRepository.patchByIdentity(current.id || current.code || id, patch);
+  return { salesOrder: toClient(updated || { ...current, ...patch }) };
 }
 
 async function cancelOrder(id, body = {}) {
@@ -1310,6 +1370,7 @@ module.exports = {
   getOrder,
   createOrder,
   updateOrder,
+  updateVatInvoiceSetting,
   cancelOrder,
   deleteOrder,
   getMasterChildren,

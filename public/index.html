@@ -367,6 +367,7 @@
             <span>Ngày bán</span>
             <span>Giá trị</span>
             <span>Nguồn</span>
+            <span>HĐ VAT</span>
             <span>Thao tác</span>
           </div>
           <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
@@ -408,6 +409,13 @@
                   <div class="sales-mode-title">Phương thức bán</div>
                   <label class="sales-mode-option"><input type="radio" name="saleMode" value="direct" /> Bán thẳng giá mặc định</label>
                   <label class="sales-mode-option"><input type="radio" name="saleMode" value="promotion" checked /> Bán theo khuyến mại</label>
+                </div>
+                <div class="sales-vat-option">
+                  <div class="sales-mode-title">Hóa đơn VAT</div>
+                  <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="true" checked /> Xuất hóa đơn</label>
+                  <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="false" /> Không xuất hóa đơn</label>
+                  <label class="sales-vat-note">Lý do / ghi chú<input name="vatInvoiceNote" placeholder="VD: Khách hàng không lấy hóa đơn" /></label>
+                  <button type="button" id="saveSalesVatSettingButton" class="secondary small" hidden>Lưu riêng thiết lập VAT</button>
                 </div>
                 <label class="sales-note-field">Ghi chú<input name="note" placeholder="VD: giao trong ngày" /></label>
               </div>
@@ -1184,6 +1192,7 @@
             <button type="button" class="secondary report-export-btn" data-report-type="customer-info-report">Xuất thông tin khách hàng</button>
             <button type="button" class="secondary report-export-btn" data-report-type="user-info-report">Xuất thông tin tài khoản</button>
             <button id="exportVatInvoiceTT78Button" type="button" class="secondary">Xuất hóa đơn VAT TT78</button>
+            <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary report-export-btn" data-report-type="vat-non-invoice-orders">Xuất danh sách đơn không xuất HĐ</button>
           </div>
           <p id="vatInvoiceExportSummary" class="muted">VAT TT78: Sheet1 sau khi đã đối trừ hàng trả từ returnOrders.</p>
         </section>
@@ -1740,12 +1749,12 @@
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=unified-search-v1"></script>
   <script src="/js/app/04-import-orders.js?v=staff-auto-users-v5"></script>
-  <script src="/js/app/05-sales-orders.js?v=sales-order-search-rebuilt-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=vat-invoice-setting-v1"></script>
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/app/06-master-delivery.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/app/07-debt-cashbook.js?v=external-debt-v1"></script>
-  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=vat-tt78-export-v1"></script>
+  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=vat-invoice-setting-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
   <script src="/app.js?v=external-debt-v1"></script>
 </body>

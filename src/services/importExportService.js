@@ -384,7 +384,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
 
   const filteredOrders = (orders || [])
     .filter(isActiveDoc)
-    .filter((order) => dateInRange(order.orderDate || order.date || order.deliveryDate || order.createdAt, query))
+    .filter((order) => order.vatInvoiceRequired !== false)
+    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query))
     .filter((order) => {
       if (!query.customerCode && !query.customerId) return true;
       const target = cleanText(query.customerCode || query.customerId);
@@ -395,13 +396,13 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
       const target = cleanText(query.salesStaffCode || query.salesmanCode);
       return [order.salesStaffCode, order.salesmanCode, order.nvbhCode].map(cleanText).includes(target);
     })
-    .sort((a, b) => cleanText(a.orderDate || a.date || a.createdAt).localeCompare(cleanText(b.orderDate || b.date || b.createdAt)) || orderCode(a).localeCompare(orderCode(b)));
+    .sort((a, b) => cleanText(a.orderDate || a.date || a.documentDate || a.createdAt).localeCompare(cleanText(b.orderDate || b.date || b.documentDate || b.createdAt)) || orderCode(a).localeCompare(orderCode(b)));
 
   for (const order of filteredOrders) {
     const detailLines = [];
     const ci = customerInfo(order, customerMap);
     const currentOrderCode = orderCode(order);
-    const orderDate = normalizeDateOnly(order.orderDate || order.date || order.deliveryDate || order.createdAt || dateUtil.todayVN());
+    const orderDate = normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt || dateUtil.todayVN());
 
     for (const item of Array.isArray(order.items) ? order.items : []) {
       const pcode = productCodeOf(item);
@@ -523,11 +524,13 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
 async function buildVatInvoiceTT78Workbook(query = {}) {
   const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
   const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
-  const orderFilter = {};
+  const orderFilter = { vatInvoiceRequired: { $ne: false } };
   if (dateFrom || dateTo) {
     orderFilter.$or = [
       { orderDate: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { date: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } }
+      { date: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
+      { documentDate: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
+      { createdAt: { ...(dateFrom ? { $gte: `${dateFrom}T00:00:00.000Z` } : {}), ...(dateTo ? { $lte: `${dateTo}T23:59:59.999Z` } : {}) } }
     ];
   }
   const [orders, returnOrders, customers, products] = await Promise.all([
@@ -574,6 +577,131 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
   const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
   const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
   return { buffer, rows: rows.length, fileName: `HoaDonVAT_TT78_${fromName}_${toName}.xlsx` };
+}
+
+
+function salesStaffDisplay(order = {}) {
+  const code = cleanText(order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH);
+  const name = cleanText(order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName);
+  return [code, name].filter(Boolean).join(' - ');
+}
+
+function orderSourceDisplay(order = {}) {
+  return cleanText(order.orderSourceName || order.orderSource || order.source || order.sourceType || order.importSource || '');
+}
+
+async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
+  const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
+  const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
+  const range = {
+    ...(dateFrom !== '0000-01-01' ? { $gte: dateFrom } : {}),
+    ...(dateTo !== '9999-12-31' ? { $lte: dateTo } : {})
+  };
+  const orderFilter = {
+    vatInvoiceRequired: false,
+    ...(Object.keys(range).length ? {
+      $or: [
+        { orderDate: range },
+        { date: range },
+        { documentDate: range },
+        { createdAt: {
+          ...(dateFrom !== '0000-01-01' ? { $gte: `${dateFrom}T00:00:00.000Z` } : {}),
+          ...(dateTo !== '9999-12-31' ? { $lte: `${dateTo}T23:59:59.999Z` } : {})
+        } }
+      ]
+    } : {})
+  };
+
+  const [orders, returnOrders, customers, products] = await Promise.all([
+    SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
+    ReturnOrder.find(activeReturnOrderFilter()).lean(),
+    Customer.find({}).lean(),
+    Product.find({}).lean()
+  ]);
+
+  const activeOrders = (orders || [])
+    .filter(isActiveDoc)
+    .filter((order) => order.vatInvoiceRequired === false)
+    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query));
+  const returnQtyMap = buildReturnQtyMap(returnOrders);
+  const customerMap = buildCustomerMap(customers);
+  const productMap = buildProductMap(products);
+  const orderRows = [];
+  const detailRows = [];
+  let totalOrderAmount = 0;
+  let totalReturnAmount = 0;
+  let totalRemainingAmount = 0;
+
+  activeOrders.forEach((order, index) => {
+    const ci = customerInfo(order, customerMap);
+    const code = orderCode(order);
+    let orderReturnAmount = 0;
+    let orderRemainingAmount = 0;
+
+    for (const item of Array.isArray(order.items) ? order.items : []) {
+      const pcode = productCodeOf(item);
+      const product = productMap.get(pcode) || {};
+      const soldQty = qtyOf(item);
+      const returnQty = Math.min(soldQty, getReturnQtyForOrderLine(returnQtyMap, order, item));
+      const remainingQty = Math.max(0, soldQty - returnQty);
+      const unitPrice = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
+      const lineAmount = roundMoney(remainingQty * unitPrice, 2);
+      orderReturnAmount += roundMoney(returnQty * unitPrice, 2);
+      orderRemainingAmount += lineAmount;
+      detailRows.push({
+        'Mã đơn': code,
+        'Mã sản phẩm': pcode,
+        'Tên sản phẩm': productNameOf(item) || cleanText(product.name || product.productName),
+        'Số lượng bán': soldQty,
+        'Số lượng trả': returnQty,
+        'Số lượng còn lại': remainingQty,
+        'Đơn giá': unitPrice,
+        'Thành tiền': lineAmount
+      });
+    }
+
+    const orderAmount = toNumber(order.totalAmount || order.grandTotal || 0);
+    const paidAmount = toNumber(order.paidAmount || order.paymentAmount || 0);
+    const debtAmount = toNumber(order.debtAmount ?? Math.max(0, orderAmount - paidAmount));
+    totalOrderAmount += orderAmount;
+    totalReturnAmount += orderReturnAmount;
+    totalRemainingAmount += orderRemainingAmount;
+    orderRows.push({
+      'STT': index + 1,
+      'Ngày bán': normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt),
+      'Mã đơn': code,
+      'Mã khách hàng': ci.code,
+      'Tên khách hàng': ci.name,
+      'NVBH': salesStaffDisplay(order),
+      'Nguồn đơn': orderSourceDisplay(order),
+      'Giá trị đơn': orderAmount,
+      'Tiền đã thu': paidAmount,
+      'Công nợ': debtAmount,
+      'Lý do không xuất': cleanText(order.vatInvoiceNote),
+      'Người thay đổi': cleanText(order.vatInvoiceUpdatedBy),
+      'Thời gian thay đổi': cleanText(order.vatInvoiceUpdatedAt)
+    });
+  });
+
+  const workbook = createWorkbook();
+  const orderHeaders = ['STT', 'Ngày bán', 'Mã đơn', 'Mã khách hàng', 'Tên khách hàng', 'NVBH', 'Nguồn đơn', 'Giá trị đơn', 'Tiền đã thu', 'Công nợ', 'Lý do không xuất', 'Người thay đổi', 'Thời gian thay đổi'];
+  const detailHeaders = ['Mã đơn', 'Mã sản phẩm', 'Tên sản phẩm', 'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Đơn giá', 'Thành tiền'];
+  appendAoaSheet(workbook, 'DanhSachDon', orderHeaders, orderRows);
+  appendAoaSheet(workbook, 'ChiTietHang', detailHeaders, detailRows);
+  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+    ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
+    ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
+    ['Số đơn không xuất hóa đơn', orderRows.length],
+    ['Tổng giá trị đơn', roundMoney(totalOrderAmount, 2)],
+    ['Tổng hàng trả', roundMoney(totalReturnAmount, 2)],
+    ['Giá trị còn lại', roundMoney(totalRemainingAmount, 2)]
+  ]);
+
+  const buffer = writeWorkbook(workbook);
+  const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
+  const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
+  const rangeName = fromName === toName ? fromName : `${fromName}_${toName}`;
+  return { buffer, rows: orderRows.length, fileName: `DanhSach_Don_Khong_Xuat_HoaDon_${rangeName}.xlsx` };
 }
 
 
@@ -1003,13 +1131,16 @@ async function buildCustomTemplateFile(id) {
 }
 
 function getExportTypes() {
-  return [...new Set([...exportRepository.getExportTypes(), 'vatInvoiceTT78', ...BUSINESS_REPORT_TYPES])].sort();
+  return [...new Set([...exportRepository.getExportTypes(), 'vatInvoiceTT78', 'vat-non-invoice-orders', ...BUSINESS_REPORT_TYPES])].sort();
 }
 
 async function exportToExcel(type, query = {}) {
   const normalizedType = String(type || '').trim();
   if (['vatInvoiceTT78', 'vat-invoice-tt78', 'hoa-don-vat-tt78'].includes(normalizedType)) {
     return buildVatInvoiceTT78Workbook(query);
+  }
+  if (['vat-non-invoice-orders', 'vatNonInvoiceOrders'].includes(normalizedType)) {
+    return buildVatNonInvoiceOrdersWorkbook(query);
   }
   if (BUSINESS_REPORT_BUILDERS[normalizedType]) {
     return BUSINESS_REPORT_BUILDERS[normalizedType](query);

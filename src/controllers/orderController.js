@@ -40,7 +40,7 @@ async function get(req, res) {
 
 async function create(req, res) {
   try {
-    const result = await orderService.createOrder(req.body || {});
+    const result = await orderService.createOrder(req.body || {}, req.user || {});
     return handleServiceResult(res, result, 201, (r) => ({ message: `Đã tạo đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không tạo được đơn bán' });
@@ -53,6 +53,19 @@ async function update(req, res) {
     return handleServiceResult(res, result, 200, (r) => ({ message: `Đã cập nhật đơn bán ${r.salesOrder.code}`, salesOrder: r.salesOrder, order: r.salesOrder }));
   } catch (err) {
     res.status(400).json({ ok: false, message: err.message || 'Không sửa được đơn bán' });
+  }
+}
+
+async function updateVatInvoiceSetting(req, res) {
+  try {
+    const result = await orderService.updateVatInvoiceSetting(req.params.id, req.body || {}, req.user || {});
+    return handleServiceResult(res, result, 200, (r) => ({
+      message: `Đã chuyển đơn ${r.salesOrder.code} sang ${r.salesOrder.vatInvoiceRequired ? 'xuất hóa đơn' : 'không xuất hóa đơn'}`,
+      salesOrder: r.salesOrder,
+      order: r.salesOrder
+    }));
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message || 'Không cập nhật được thiết lập hóa đơn VAT' });
   }
 }
 
@@ -90,4 +103,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { list, search, get, create, update, cancel, remove };
+module.exports = { list, search, get, create, update, updateVatInvoiceSetting, cancel, remove };

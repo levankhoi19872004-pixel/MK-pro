@@ -314,6 +314,11 @@ function createMobileService(ctx) {
       source: 'mobile_sales_app',
       orderSource: 'NVBH',
       orderSourceName: 'Từ NVBH',
+      vatInvoiceRequired: true,
+      vatInvoiceDecisionSource: 'default',
+      vatInvoiceNote: '',
+      vatInvoiceUpdatedAt: '',
+      vatInvoiceUpdatedBy: '',
       isChildOrder: true,
       masterOrderId: '',
       mergeStatus: 'unmerged',
@@ -404,7 +409,12 @@ function createMobileService(ctx) {
       salesStaffCode: getMobileSalesStaffCode(mobileUser),
       salesStaffName: getMobileSalesStaffName(mobileUser),
       salesmanCode: getMobileSalesStaffCode(mobileUser),
-      salesmanName: getMobileSalesStaffName(mobileUser)
+      salesmanName: getMobileSalesStaffName(mobileUser),
+      vatInvoiceRequired: order.vatInvoiceRequired !== false,
+      vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
+      vatInvoiceNote: String(order.vatInvoiceNote || ''),
+      vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
+      vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || '')
     };
     const salesOrder = updateSalesOrderWithRepost(data, order, patchBody);
     writeMobileLog(data, mobileUser, 'mobile_edit_sales_order', { refType: 'salesOrder', refId: salesOrder.id, refCode: salesOrder.code, note: `Sửa đơn ${salesOrder.code} từ mobile khi chưa gộp đơn tổng` });

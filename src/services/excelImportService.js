@@ -1410,6 +1410,11 @@ async function importSalesOrders(rows = [], options = {}) {
       sourceType: 'dms_import',
       orderSource: 'DMS',
       orderSourceName: 'Từ DMS',
+      vatInvoiceRequired: true,
+      vatInvoiceDecisionSource: 'default',
+      vatInvoiceNote: '',
+      vatInvoiceUpdatedAt: '',
+      vatInvoiceUpdatedBy: '',
       // DMS_DIRECT_PRICE_LOCK_START
       saleMethod: DIRECT_PRICE,
       saleMode: DIRECT_PRICE,

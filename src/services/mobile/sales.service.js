@@ -570,6 +570,11 @@ function createMobileSalesService(ctx) {
           source: 'mobile_sales_app',
           orderSource: 'NVBH',
           orderSourceName: 'Từ NVBH',
+          vatInvoiceRequired: true,
+          vatInvoiceDecisionSource: 'default',
+          vatInvoiceNote: '',
+          vatInvoiceUpdatedAt: '',
+          vatInvoiceUpdatedBy: '',
           saleMethod: PROMOTION,
           saleMode: PROMOTION,
           pricingMode: PROMOTION,
@@ -727,6 +732,11 @@ function createMobileSalesService(ctx) {
       salesStaffName: getMobileSalesStaffName(mobileUser),
       salesmanCode: getMobileSalesStaffCode(mobileUser),
       salesmanName: getMobileSalesStaffName(mobileUser),
+      vatInvoiceRequired: order.vatInvoiceRequired !== false,
+      vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
+      vatInvoiceNote: String(order.vatInvoiceNote || ''),
+      vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
+      vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || ''),
       updatedAt: now
     };
 
