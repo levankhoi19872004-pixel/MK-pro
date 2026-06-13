@@ -3,6 +3,7 @@
 const Product = require('../../models/Product');
 const Customer = require('../../models/Customer');
 const inventoryStockService = require('../inventoryStock.service');
+const customerMonthlySalesService = require('../customerMonthlySales.service');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../../utils/common.util');
 const { normalizeText } = require('../../utils/search.util');
 const { escapeRegex } = require('../../utils/query.util');
@@ -148,8 +149,21 @@ function createMobileCatalogService(ctx = {}) {
       .sort({ code: 1 })
       .limit(limit)
       .lean();
-    const customers = rows.map(stripMongoFields);
-    return { body: { ok: true, success: true, source: 'mobile-catalog-route', customers, items: customers, total: customers.length } };
+    const rawCustomers = rows.map(stripMongoFields);
+    const salesMonth = customerMonthlySalesService.normalizeMonthKey(query.month);
+    const monthlySales = await customerMonthlySalesService.loadMonthlySalesByCustomer(rawCustomers, { month: salesMonth });
+    const customers = customerMonthlySalesService.attachMonthlySales(rawCustomers, monthlySales, salesMonth);
+    return {
+      body: {
+        ok: true,
+        success: true,
+        source: 'mobile-catalog-route-with-monthly-sales',
+        salesMonth,
+        customers,
+        items: customers,
+        total: customers.length
+      }
+    };
   }
 
   async function products({ query = {} } = {}) {
