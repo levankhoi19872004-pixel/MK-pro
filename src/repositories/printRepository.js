@@ -1,6 +1,7 @@
 'use strict';
 
 const { toNumber } = require('../utils/common.util');
+const PrintPromotionPolicy = require('../domain/print/PrintPromotionPolicy');
 
 const orderRepository = require('./orderRepository');
 const masterOrderRepository = require('./masterOrderRepository');
@@ -89,7 +90,8 @@ function asArray(value) {
 }
 
 function hasPromotionRows(item = {}) {
-  return asArray(item.promotionRows).length
+  return asArray(item.appliedPromotionRows).length
+    || asArray(item.promotionRows).length
     || asArray(item.appliedPromotions).length
     || asArray(item.promotions).length
     || asArray(item.productSnapshot?.promotions).length
@@ -288,6 +290,10 @@ async function enrichMasterOrderForPrint(masterOrder = {}) {
 
 
 async function enrichSalesOrderForPrint(order = {}) {
+  if (PrintPromotionPolicy.shouldSuppressPromotionDetails(order)) {
+    return PrintPromotionPolicy.suppressPromotionDetails(order);
+  }
+
   const items = Array.isArray(order.items) ? order.items : [];
   const productCodes = Array.from(new Set(items.map(getItemProductCode).filter(Boolean)));
   if (!productCodes.length) return order;
@@ -351,9 +357,11 @@ async function enrichSalesOrderForPrint(order = {}) {
     const product = productMap.get(code) || {};
     const catalogSalePrice = toNumber(product.salePrice ?? product.giaBan ?? product.price ?? item.catalogSalePrice ?? 0);
     const catalogConversionRate = getItemPack(item, product);
-    const promotionRows = hasPromotionRows(item)
-      ? asArray(item.promotionRows)
-      : buildPrintPromotionRowsFromRules(item, product, promotionContext);
+    const promotionRows = asArray(item.appliedPromotionRows).length
+      ? asArray(item.appliedPromotionRows)
+      : hasPromotionRows(item)
+        ? asArray(item.promotionRows)
+        : buildPrintPromotionRowsFromRules(item, product, promotionContext);
 
     return {
       ...item,

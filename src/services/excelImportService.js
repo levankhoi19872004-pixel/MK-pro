@@ -484,7 +484,69 @@ function getListPriceBeforeVatFromRow(row = {}) {
 }
 
 function getVatAmountFromRow(row = {}) {
-  return toNumber(row.vatAmount ?? row.taxAmount ?? row['Thuế'] ?? row['Thue']);
+  return toNumber(
+    row.vatAmount ??
+    row.taxAmount ??
+    row['Thuế'] ??
+    row['Thue'] ??
+    row['Thuế GTGT'] ??
+    row['Thue GTGT'] ??
+    row['VAT'] ??
+    0
+  );
+}
+
+function getGsvAmountFromRow(row = {}) {
+  return toNumber(
+    row.gsvAmount ??
+    row['GSV bán ra'] ??
+    row['GSV ban ra'] ??
+    row['Giá trị trước khuyến mại'] ??
+    row['Gia tri truoc khuyen mai'] ??
+    0
+  );
+}
+
+function getNivAmountFromRow(row = {}) {
+  return toNumber(
+    row.nivAmount ??
+    row['NIV bán ra'] ??
+    row['NIV ban ra'] ??
+    row['Giá trị trước thuế sau chiết khấu'] ??
+    row['Gia tri truoc thue sau chiet khau'] ??
+    0
+  );
+}
+
+function getDmsCatalogPriceAfterVatFromRow(row = {}, quantity = 0, finalPrice = 0) {
+  const beforeVat = getListPriceBeforeVatFromRow(row);
+  if (beforeVat > 0) return beforeVat * 1.08;
+
+  const gsvAmount = getGsvAmountFromRow(row);
+  if (gsvAmount > 0 && quantity > 0) return gsvAmount / quantity;
+
+  return toNumber(finalPrice);
+}
+
+function getDmsVatAmountForLine(row = {}, quantity = 0, finalPrice = 0, lineAmount = 0) {
+  const explicitVat = getVatAmountFromRow(row);
+  if (explicitVat > 0) return explicitVat;
+
+  const actualAmount = toNumber(lineAmount || getActualAmountFromRow(row));
+  const nivAmount = getNivAmountFromRow(row);
+  if (actualAmount > 0 && nivAmount > 0 && actualAmount >= nivAmount) {
+    return Math.round(actualAmount - nivAmount);
+  }
+
+  if (actualAmount > 0) {
+    return Math.max(0, Math.round(actualAmount - (actualAmount / 1.08)));
+  }
+
+  if (quantity > 0 && finalPrice > 0) {
+    return Math.max(0, Math.round((finalPrice - (finalPrice / 1.08)) * quantity));
+  }
+
+  return 0;
 }
 
 function getDmsPriceFromRow(row = {}, quantity = 0) {
@@ -1267,6 +1329,9 @@ async function importSalesOrders(rows = [], options = {}) {
       const originalPromoQuantity = rawPromoQuantity;
       const salePrice = getDmsPriceFromRow(row, rawSaleQuantity);
       let lineAmount = getDmsAmountFromRow(row, rawSaleQuantity, salePrice);
+      let catalogPriceAfterVat = getDmsCatalogPriceAfterVatFromRow(row, rawSaleQuantity, salePrice);
+      let preTaxPriceAtOrder = getListPriceBeforeVatFromRow(row);
+      let vatAmountAtOrder = getDmsVatAmountForLine(row, rawSaleQuantity, salePrice, lineAmount);
       const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Kho'] || product?.warehouseCode) || 'MAIN';
       const normalizedProductCode = cleanText(product?.code || productCode);
       // warehouseCode của dòng DMS chỉ là nhóm in/gộp đơn; tồn kho kiểm tra theo productCode chung.
@@ -1283,6 +1348,9 @@ async function importSalesOrders(rows = [], options = {}) {
         rawPromoQuantity = allocation.allowedPromoQuantity;
         deliveredQuantity = allocation.allowedDeliveredQuantity;
         lineAmount = rawSaleQuantity * salePrice;
+        catalogPriceAfterVat = getDmsCatalogPriceAfterVatFromRow(row, rawSaleQuantity, salePrice);
+        preTaxPriceAtOrder = getListPriceBeforeVatFromRow(row) || (catalogPriceAfterVat > 0 ? Math.round(catalogPriceAfterVat / 1.08) : 0);
+        vatAmountAtOrder = getDmsVatAmountForLine(row, rawSaleQuantity, salePrice, lineAmount);
         shortageReport.push({
           documentCode: docCodeCheck === 'AUTO' ? '' : docCodeCheck,
           customerCode,
@@ -1321,9 +1389,9 @@ async function importSalesOrders(rows = [], options = {}) {
       }
 
       productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
-      const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
+      const listPriceBeforeVat = preTaxPriceAtOrder || (catalogPriceAfterVat > 0 ? Math.round(catalogPriceAfterVat / 1.08) : 0);
       const conversionRateAtOrder = getPackingFromRow(row, product);
-      const catalogSalePriceAtOrder = salePrice;
+      const catalogSalePriceAtOrder = catalogPriceAfterVat || salePrice;
       const baseItem = {
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
@@ -1335,6 +1403,12 @@ async function importSalesOrders(rows = [], options = {}) {
         catalogSalePriceAtOrder,
         warehouseCodeAtOrder: warehouseCode,
         appliedPromotionRows: [],
+        promotionRows: [],
+        appliedPromotions: [],
+        promotions: [],
+        promotionCode: '',
+        promotionDescription: '',
+        discountPercent: 0,
         productSnapshot: {
           code: product.code,
           productCode: product.code,
@@ -1348,11 +1422,13 @@ async function importSalesOrders(rows = [], options = {}) {
         },
         listPriceBeforeVat,
         preTaxPriceAtOrder: listPriceBeforeVat,
-        listPriceAfterVat: listPriceBeforeVat ? listPriceBeforeVat * 1.08 : 0,
-        gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
-        nivAmount: toNumber(row.nivAmount ?? row['NIV bán ra'] ?? row['NIV ban ra']),
-        vatAmount: getVatAmountFromRow(row),
-        vatAmountAtOrder: getVatAmountFromRow(row),
+        listPriceAfterVat: catalogSalePriceAtOrder,
+        priceAfterTaxBeforePromotionAtOrder: catalogSalePriceAtOrder,
+        priceAfterTaxBeforePromotion: catalogSalePriceAtOrder,
+        gsvAmount: getGsvAmountFromRow(row),
+        nivAmount: getNivAmountFromRow(row),
+        vatAmount: vatAmountAtOrder,
+        vatAmountAtOrder,
         warehouseCode,
         warehouseName: cleanText(product.warehouseName || (warehouseCode === 'KHO_PC' ? 'KHO PC' : warehouseCode === 'KHO_HC' ? 'KHO HC' : 'Kho chính'))
       };
@@ -1373,6 +1449,11 @@ async function importSalesOrders(rows = [], options = {}) {
           salePrice,
           price: salePrice,
           finalPrice: salePrice,
+          finalPriceAtOrder: salePrice,
+          priceAfterTaxAfterPromotion: salePrice,
+          priceAfterPromotion: salePrice,
+          lineAmountAtOrder: lineAmount,
+          lineAmount,
           amount: lineAmount
         });
       }
@@ -1395,7 +1476,11 @@ async function importSalesOrders(rows = [], options = {}) {
           salePrice: 0,
           referenceSalePrice: salePrice,
           finalPrice: 0,
+          finalPriceAtOrder: 0,
+          priceAfterTaxAfterPromotion: 0,
           price: 0,
+          lineAmountAtOrder: 0,
+          lineAmount: 0,
           amount: 0
         });
       }
@@ -1445,7 +1530,14 @@ async function importSalesOrders(rows = [], options = {}) {
       priceLocked: true,
       lockedPrice: true,
       lockedPromotion: false,
+      isPromotionSale: false,
       promotionCalculated: false,
+      promotionMode: 'none',
+      promotions: [],
+      promotionRows: [],
+      totalPromotionAmount: 0,
+      promotionAmount: 0,
+      promotionValue: 0,
       isPromotionSale: false,
       grossAmount: totalAmount,
       totalGrossAmount: totalAmount,

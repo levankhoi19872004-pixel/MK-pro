@@ -96,6 +96,14 @@ function pick(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '') ?? '';
 }
 
+function pickPositive(...values) {
+  for (const value of values) {
+    const number = toNumber(value);
+    if (number > 0) return number;
+  }
+  return 0;
+}
+
 function getItemQuantity(item) {
   return toNumber(pick(item.qty, item.quantity, item.soLuong, item.totalQty, item.totalQuantity));
 }
@@ -724,46 +732,52 @@ function parseCsSu(csSu) {
 function normalizeInvoiceItem(item, index) {
   const csSu = parseCsSu(item.csSu || item.quantityCsSu || item.caseDisplay);
   const quantity = toNumber(pick(item.quantity, item.qty, item.totalQty, item.csSuUnitQty, item.unitQty));
-  const priceAfterTaxBeforePromotion = toNumber(pick(
+  const priceAfterTaxBeforePromotion = pickPositive(
     item.priceAfterTaxBeforePromotion,
     item.priceAfterVatBeforeDiscount,
     item.listPriceAfterVat,
+    item.catalogSalePriceAtOrder,
     item.salePrice,
     item.price,
     item.unitPrice
-  ));
-  const priceBeforeTaxBeforePromotion = toNumber(pick(
+  );
+  // Snapshot 0 ở dữ liệu DMS cũ không được chặn fallback từ giá sau thuế.
+  const priceBeforeTaxBeforePromotion = pickPositive(
     item.preTaxPriceAtOrder,
     item.priceBeforeTaxBeforePromotion,
     item.priceBeforeTax,
     item.priceBeforeVat,
     item.listPriceBeforeVat,
     Math.round(priceAfterTaxBeforePromotion / 1.08)
-  ));
+  );
   const discountPercent = toNumber(item.discountPercent);
-  const priceAfterTaxAfterPromotion = toNumber(pick(
+  const priceAfterTaxAfterPromotion = pickPositive(
     item.priceAfterTaxAfterPromotion,
-    item.priceAfterTaxAfterPromotion,
+    item.finalPriceAtOrder,
+    item.finalPrice,
     item.priceAfterPromotion,
     item.priceAfterVatAfterDiscount,
     item.priceAfterDiscount,
     discountPercent > 0
       ? Math.round(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
       : priceAfterTaxBeforePromotion
-  ));
-  const vatAmount = toNumber(pick(
-    item.vatAmountAtOrder,
-    item.vatAmount,
-    item.tax,
-    item.taxAmount,
-    Math.round((priceAfterTaxAfterPromotion - priceAfterTaxAfterPromotion / 1.08) * quantity)
-  ));
-  const lineAmount = toNumber(pick(
+  );
+  const lineAmount = pickPositive(
     item.lineAmountAtOrder,
     item.lineAmount,
     item.amount,
     Math.round(quantity * priceAfterTaxAfterPromotion)
-  ));
+  );
+  const vatAmount = Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO')
+    ? 0
+    : pickPositive(
+        item.vatAmountAtOrder,
+        item.vatAmount,
+        item.tax,
+        item.taxAmount,
+        lineAmount > 0 ? Math.round(lineAmount - (lineAmount / 1.08)) : 0,
+        Math.round((priceAfterTaxAfterPromotion - priceAfterTaxAfterPromotion / 1.08) * quantity)
+      );
 
   return {
     lineNo: item.lineNo || item.stt || index + 1,

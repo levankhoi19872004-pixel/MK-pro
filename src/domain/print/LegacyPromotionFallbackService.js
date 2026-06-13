@@ -8,6 +8,7 @@ const PromotionGroupRule = require('../../models/PromotionGroupRule');
 const { toNumber } = require('../../utils/common.util');
 const { cleanText } = require('./PrintContract');
 const { normalizeLine } = require('./PrintLineNormalizer');
+const PrintPromotionPolicy = require('./PrintPromotionPolicy');
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -195,13 +196,23 @@ function buildLegacyRows(item = {}, order = {}, productMap = new Map(), context 
 }
 
 async function enrichSalesOrders(orders = [], productMap = new Map()) {
-  const documents = asArray(orders);
-  const missingItems = documents.flatMap((order) => asArray(order.items).filter((item) => !promotionRowsOf(item).length));
+  const documents = asArray(orders).map((order) => (
+    PrintPromotionPolicy.shouldSuppressPromotionDetails(order)
+      ? PrintPromotionPolicy.suppressPromotionDetails(order)
+      : order
+  ));
+
+  const eligibleDocuments = documents.filter(PrintPromotionPolicy.shouldApplyLegacyPromotionFallback);
+  const missingItems = eligibleDocuments.flatMap((order) => (
+    asArray(order.items).filter((item) => !promotionRowsOf(item).length)
+  ));
   const productCodes = missingItems.map(productCodeOf).filter(Boolean);
   if (!productCodes.length) return documents;
 
   const context = await loadRuleContext(productCodes);
   return documents.map((order) => {
+    if (!PrintPromotionPolicy.shouldApplyLegacyPromotionFallback(order)) return order;
+
     const groupTotals = buildOrderGroupTotals(order, productMap, context);
     let fallbackApplied = false;
     const items = asArray(order.items).map((item) => {
