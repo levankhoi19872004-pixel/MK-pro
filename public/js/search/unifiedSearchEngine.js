@@ -58,6 +58,7 @@
   function normalizeSuggestion(item, fallbackType) {
     if (!item || typeof item !== 'object') return item;
     const code = String(
+      item.businessStaffCode ||
       item.code ||
       item.customerCode ||
       item.productCode ||
@@ -65,9 +66,21 @@
       item.salesStaffCode ||
       item.salesmanCode ||
       item.deliveryStaffCode ||
+      item.staffCode ||
       ''
     ).trim();
-    const name = String(item.name || item.fullName || item.customerName || item.productName || item.displayName || item.salesStaffName || item.salesmanName || item.deliveryStaffName || '').trim();
+    const name = String(
+      item.businessStaffName ||
+      item.name ||
+      item.fullName ||
+      item.customerName ||
+      item.productName ||
+      item.displayName ||
+      item.salesStaffName ||
+      item.salesmanName ||
+      item.deliveryStaffName ||
+      ''
+    ).trim();
     const phone = String(item.phone || item.mobile || item.customerPhone || '').trim();
     const type = item.type || fallbackType || '';
     const aliases = Array.isArray(item.aliases) && item.aliases.length

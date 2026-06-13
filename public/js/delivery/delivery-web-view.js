@@ -60,16 +60,6 @@
   }
   function orderKey(order) { return window.DeliveryCore.orderKey(order); }
   function today() { return new Date().toISOString().slice(0, 10); }
-  function staffLabel(item) {
-    item = item || {};
-    var code = item.deliveryStaffCode || item.deliveryCode || item.nvghCode || '';
-    var name = item.deliveryStaffName || item.deliveryName || item.nvghName || '';
-    return [code, name].filter(Boolean).join(' - ');
-  }
-  function staffCode(item) {
-    item = item || {};
-    return item.deliveryStaffCode || item.deliveryCode || item.nvghCode || '';
-  }
 
   var state = { selectedKey: '', activeTab: 'products', accountingSelectedKeys: {}, selectedSalesStaffKeys: {}, salesBranchScope: '', salesBranchRowCount: 0 };
 
@@ -134,74 +124,36 @@
     byId('deliveryCoreReload').addEventListener('click', load);
     if (byId('deliverySelectAllAccounting')) byId('deliverySelectAllAccounting').addEventListener('click', toggleSelectAllAccounting);
     if (byId('deliveryBulkAccountingButton')) byId('deliveryBulkAccountingButton').addEventListener('click', confirmSelectedAccounting);
-    ['deliveryCoreDate', 'deliveryCoreDeliveryStaff', 'deliveryCoreSalesStaff', 'deliveryCoreStatus', 'deliveryCoreSearch'].forEach(function (id) {
+    ['deliveryCoreDate', 'deliveryCoreStatus'].forEach(function (id) {
       var input = byId(id);
       if (!input) return;
-      input.addEventListener((id === 'deliveryCoreSearch' || id === 'deliveryCoreDeliveryStaff' || id === 'deliveryCoreSalesStaff') ? 'input' : 'change', debounce(load, 300));
+      input.addEventListener('change', debounce(load, 300));
     });
-    attachStaffSuggest('deliveryCoreDeliveryStaff', 'deliveryCoreDeliveryStaffSuggestions', 'delivery');
-    attachStaffSuggest('deliveryCoreSalesStaff', 'deliveryCoreSalesStaffSuggestions', 'sales');
+    var searchInput = byId('deliveryCoreSearch');
+    if (searchInput) {
+      searchInput.addEventListener('input', debounce(load, 300));
+    }
+    bindDeliveryCoreAutocomplete();
     renderSalesBranchFilter();
   }
 
 
-  function attachStaffSuggest(inputId, boxId, type) {
-    var input = byId(inputId);
-    var box = byId(boxId);
-    if (!input || !box) return;
-    var lastRun = 0;
-    async function searchNow() {
-      var q = String(input.value || '').trim();
-      var stamp = Date.now();
-      lastRun = stamp;
-      if (!q && document.activeElement !== input) {
-        box.innerHTML = '';
-        box.classList.remove('show');
-        return;
-      }
-      try {
-        var rows = [];
-        if (window.UnifiedSearchEngine) {
-          rows = type === 'delivery'
-            ? await window.UnifiedSearchEngine.searchDeliveryStaff(q, { limit: 12, minChars: 0, allowEmpty: '1' })
-            : await window.UnifiedSearchEngine.searchSalesStaff(q, { limit: 12, minChars: 0, allowEmpty: '1' });
-        } else {
-          var path = type === 'delivery' ? 'delivery-staff' : 'sales-staff';
-          var res = await fetch('/api/search/' + path + '?q=' + encodeURIComponent(q) + '&limit=12&allowEmpty=1&activeOnly=1', { headers: { Accept: 'application/json' } });
-          var json = await res.json().catch(function () { return {}; });
-          rows = json.items || json.users || json.staffs || [];
-        }
-        if (stamp !== lastRun) return;
-        rows = (rows || []).filter(function (item) { return staffCode(item); }).slice(0, 12);
-        if (!rows.length) {
-          box.innerHTML = '<button type="button" class="delivery-v46-suggest-empty">Không có nhân viên trong Hệ thống</button>';
-          box.classList.add('show');
-          return;
-        }
-        box.innerHTML = rows.map(function (item, idx) {
-          var code = staffCode(item);
-          var name = item.deliveryStaffName || item.fullName || item.name || '';
-          return '<button type="button" data-staff-idx="' + idx + '"><b>' + esc(code) + '</b><span>' + esc(name) + '</span></button>';
-        }).join('');
-        box.classList.add('show');
-        box.querySelectorAll('[data-staff-idx]').forEach(function (button) {
-          button.addEventListener('mousedown', function (ev) {
-            ev.preventDefault();
-            var item = rows[Number(button.getAttribute('data-staff-idx'))] || {};
-            input.value = staffCode(item);
-            input.dataset.staffName = item.deliveryStaffName || item.fullName || item.name || '';
-            box.classList.remove('show');
-            load();
-          });
-        });
-      } catch (err) {
-        box.innerHTML = '<button type="button" class="delivery-v46-suggest-empty">Không tải được gợi ý</button>';
-        box.classList.add('show');
-      }
-    }
-    input.addEventListener('focus', searchNow);
-    input.addEventListener('input', debounce(searchNow, 220));
-    input.addEventListener('blur', function () { setTimeout(function () { box.classList.remove('show'); }, 160); });
+
+  function bindDeliveryCoreAutocomplete() {
+    if (typeof window.bindConfiguredAutocomplete !== 'function') return;
+
+    var configs = window.SEARCH_FIELD_CONFIGS || [];
+
+    var deliveryStaffConfig = configs.find(function (config) {
+      return config.key === 'deliveryCoreDeliveryStaff';
+    });
+
+    var salesStaffConfig = configs.find(function (config) {
+      return config.key === 'deliveryCoreSalesStaff';
+    });
+
+    if (deliveryStaffConfig) window.bindConfiguredAutocomplete(deliveryStaffConfig);
+    if (salesStaffConfig) window.bindConfiguredAutocomplete(salesStaffConfig);
   }
 
   function debounce(fn, wait) {

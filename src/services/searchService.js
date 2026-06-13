@@ -246,38 +246,87 @@ async function searchCustomers(query = {}) {
 
 function toStaffSuggestion(staff = {}) {
   const raw = stripMongoFields(staff);
+
   const roleRaw = String(staff.role || staff.type || staff.roleCode || '').trim().toLowerCase();
   const role = ['admin', 'accountant', 'sales', 'delivery'].includes(roleRaw)
     ? roleRaw
     : (staff.isDelivery ? 'delivery' : staff.isSalesman || staff.isSalesStaff ? 'sales' : 'sales');
+
   const type = role === 'delivery' ? 'deliveryStaff' : 'salesStaff';
-  const code = String(staff.code || staff.staffCode || '').trim();
+
+  const code = String(
+    staff.code ||
+    staff.staffCode ||
+    staff.salesStaffCode ||
+    staff.salesmanCode ||
+    staff.deliveryStaffCode ||
+    staff.shipperCode ||
+    staff.employeeCode ||
+    staff.maNhanVien ||
+    ''
+  ).trim();
+
   if ((type === 'deliveryStaff' || type === 'salesStaff') && !code) return null;
+
   const username = String(staff.username || '').trim();
-  const name = String(staff.name || staff.fullName || staff.displayName || username || code || '').trim();
+  const name = String(staff.name || staff.fullName || staff.displayName || code || '').trim();
   const phone = String(staff.phone || staff.mobile || staff.tel || '').trim();
-  const meta = buildSuggestionMeta([
-    code, username, name, staff.fullName, staff.displayName, phone,
-    role, ROLE_LABELS[role], staff.position, staff.department
-  ]);
-  return {
+
+  const result = {
     ...raw,
+
     type,
     staffType: type,
-    id: String(staff._id || staff.id || code || username || '').trim(),
+
+    id: String(staff._id || staff.id || code || '').trim(),
+
     code,
-    staffCode: staff.staffCode || code,
+    staffCode: code,
+    businessStaffCode: code,
+
     username,
     name,
     fullName: staff.fullName || name,
+    businessStaffName: staff.fullName || name,
+
     phone,
     role,
     roleLabel: ROLE_LABELS[role] || role,
+
     label: [code, name, phone].filter(Boolean).join(' - '),
-    value: code,
-    aliases: meta.aliases,
-    searchText: meta.searchText
+    value: code
   };
+
+  if (role === 'delivery') {
+    result.deliveryStaffCode = code;
+    result.deliveryStaffName = result.businessStaffName;
+    result.shipperCode = code;
+    result.shipperName = result.businessStaffName;
+  }
+
+  if (role === 'sales') {
+    result.salesStaffCode = code;
+    result.salesStaffName = result.businessStaffName;
+    result.salesmanCode = code;
+    result.salesmanName = result.businessStaffName;
+  }
+
+  const meta = buildSuggestionMeta([
+    code,
+    username,
+    name,
+    result.fullName,
+    phone,
+    role,
+    result.roleLabel,
+    staff.position,
+    staff.department
+  ]);
+
+  result.aliases = meta.aliases;
+  result.searchText = meta.searchText;
+
+  return result;
 }
 
 function allowsEmptyStaffSearch(query = {}) {

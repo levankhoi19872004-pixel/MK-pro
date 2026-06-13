@@ -261,6 +261,37 @@
       afterSelect: 'loadUnmergedReturnOrders',
       emptyText: 'Không tìm thấy nhân viên giao hàng'
     }
+    ,{
+      key: 'deliveryCoreDeliveryStaff',
+      type: 'staff',
+      inputId: 'deliveryCoreDeliveryStaff',
+      boxId: 'deliveryCoreDeliveryStaffSuggestions',
+      source: 'users',
+      roles: ['delivery'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'deliveryCoreDeliveryStaff', value: 'businessStaffCode' }
+      ],
+      afterSelect: 'loadDeliveryToday',
+      emptyText: 'Không tìm thấy nhân viên giao hàng'
+    }
+    ,{
+      key: 'deliveryCoreSalesStaff',
+      type: 'staff',
+      inputId: 'deliveryCoreSalesStaff',
+      boxId: 'deliveryCoreSalesStaffSuggestions',
+      source: 'users',
+      roles: ['sales'],
+      onlyActive: true,
+      limit: 20,
+      fill: [
+        { targetId: 'deliveryCoreSalesStaff', value: 'businessStaffCode' }
+      ],
+      afterSelect: 'loadDeliveryToday',
+      emptyText: 'Không tìm thấy nhân viên bán hàng'
+    }
+
 
   ];
 })();
