@@ -540,6 +540,14 @@ function createMobileSalesService(ctx) {
             lockedPromotion: true,
             promotionCalculated: true,
             promotionRows,
+            appliedPromotionRows: promotionRows,
+            productSnapshot: {
+              ...(item.productSnapshot || {}),
+              salePrice: grossPrice,
+              conversionRate: item.conversionRateAtOrder || item.conversionRate || 1,
+              warehouseCode: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC',
+              defaultWarehouse: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC'
+            },
             ...promotionIdentity
           };
         });

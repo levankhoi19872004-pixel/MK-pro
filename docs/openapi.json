@@ -7314,6 +7314,46 @@
         }
       }
     },
+    "/api/print/import-orders/aggregate": {
+      "post": {
+        "tags": [
+          "Print"
+        ],
+        "summary": "POST /api/print/import-orders/aggregate",
+        "operationId": "postPrintImportOrdersAggregate",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/print/master-order/{id}": {
       "get": {
         "tags": [
@@ -7378,6 +7418,118 @@
         }
       }
     },
+    "/api/print/master-orders/batch": {
+      "post": {
+        "tags": [
+          "Print"
+        ],
+        "summary": "POST /api/print/master-orders/batch",
+        "operationId": "postPrintMasterOrdersBatch",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/print/master-return-orders/{id}": {
+      "get": {
+        "tags": [
+          "Print"
+        ],
+        "summary": "GET /api/print/master-return-orders/{id}",
+        "operationId": "getPrintMasterReturnOrdersId",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/api/print/master-return-orders/batch": {
+      "post": {
+        "tags": [
+          "Print"
+        ],
+        "summary": "POST /api/print/master-return-orders/batch",
+        "operationId": "postPrintMasterReturnOrdersBatch",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/print/order/{id}": {
       "get": {
         "tags": [
@@ -7440,6 +7592,46 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
+      }
+    },
+    "/api/print/orders/batch": {
+      "post": {
+        "tags": [
+          "Print"
+        ],
+        "summary": "POST /api/print/orders/batch",
+        "operationId": "postPrintOrdersBatch",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/print/receipts/{id}": {

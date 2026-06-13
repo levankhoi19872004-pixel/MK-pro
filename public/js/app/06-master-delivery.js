@@ -409,8 +409,7 @@ window.toggleSelectAllMasterOrders = toggleSelectAllMasterOrders;
 function printMasterOrderIds(ids) {
   const list = (ids || []).filter(Boolean);
   if (!list.length) return alert('Chưa chọn đơn tổng để in');
-  if (list.length === 1) return window.open(`/api/print/master-orders/${encodeURIComponent(list[0])}`, '_blank');
-  fetch('/api/master-orders/print-aggregate', {
+  fetch('/api/print/master-orders/batch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ masterOrderIds: list })

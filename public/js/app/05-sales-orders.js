@@ -564,37 +564,23 @@ function buildPrintPreviewHtml(title, bodyClass, bodyHtml){
 }
 
 window.buildPrintPreviewHtml=buildPrintPreviewHtml;
-function getImportItemWarehouse(item, order){
-  const product = findProductByKey(item?.productCode || item?.productId || '');
-  const rawCode = String(item?.printGroup || item?.warehouseCode || item?.warehouse || order?.printGroup || order?.warehouseCode || order?.warehouse || product?.printGroup || product?.defaultWarehouse || product?.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
-  const code = rawCode === 'KHO_PC' ? 'KHO_PC' : 'KHO_HC';
-  return {code,name:String(item?.printGroupName||item?.warehouseName||order?.printGroupName||order?.warehouseName||product?.printGroupName||product?.warehouseName||(code==='KHO_PC'?'KHO PC':'KHO HC')).trim()};
-}
-function printSelectedImportOrders(){
-  const checks=[...document.querySelectorAll('.import-order-check:checked')];
-  const orders=checks.map(ch=>window.__importOrdersCache?.[Number(ch.dataset.idx)]).filter(isActiveDocument);
-  if(!orders.length){alert('Chưa chọn phiếu nhập để in gộp');return}
-  const groups=new Map();
-  orders.forEach(o=>{
-    (o.items||[]).forEach(i=>{
-      const wh=getImportItemWarehouse(i,o);
-      const costPrice=Number(i.costPrice||0);
-      const key=[wh.code,i.productCode||i.productId||'',costPrice].join('@@');
-      if(!groups.has(wh.code))groups.set(wh.code,{warehouseCode:wh.code,warehouseName:wh.name,lines:new Map(),sourceCodes:new Set()});
-      const g=groups.get(wh.code);g.sourceCodes.add(o.code||o.id||'');
-      const line=g.lines.get(key)||{productCode:i.productCode||'',productName:i.productName||'',unit:i.unit||'',quantity:0,costPrice,amount:0};
-      line.quantity+=Number(i.quantity||i.qty||0);
-      line.amount+=Number(i.amount||Number(i.quantity||i.qty||0)*costPrice);
-      g.lines.set(key,line);
+async function printSelectedImportOrders(){
+  try{
+    const checks=[...document.querySelectorAll('.import-order-check:checked')];
+    const orders=checks.map(ch=>window.__importOrdersCache?.[Number(ch.dataset.idx)]).filter(isActiveDocument);
+    const ids=orders.map(order=>order.id||order.code).filter(Boolean);
+    if(!ids.length){alert('Chưa chọn phiếu nhập để in gộp');return}
+    const res=await fetch('/api/print/import-orders/aggregate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({importOrderIds:ids})
     });
-  });
-  const html=[...groups.values()].map(g=>{
-    const lines=[...g.lines.values()];
-    const totalQty=lines.reduce((sum,i)=>sum+Number(i.quantity||0),0);
-    const totalAmount=lines.reduce((sum,i)=>sum+Number(i.amount||0),0);
-    return `<section class="print-page"><h2>ĐƠN TỔNG NHẬP KHO - ${g.warehouseName||g.warehouseCode}</h2><p>Gồm các phiếu: ${[...g.sourceCodes].filter(Boolean).join(', ')}</p><p>Tổng SL: ${money(totalQty)} · Tổng tiền: ${money(totalAmount)}</p><table class="print-table"><thead><tr><th>Mã</th><th>Tên</th><th>ĐVT</th><th>SL gộp</th><th>Giá</th><th>Tiền</th></tr></thead><tbody>${lines.map(i=>`<tr><td>${i.productCode||''}</td><td>${i.productName||''}</td><td>${i.unit||''}</td><td>${displayQtyTL(i.quantity,i)}</td><td>${money(i.costPrice)}</td><td>${money(i.amount)}</td></tr>`).join('')}</tbody></table></section>`;
-  }).join('');
-  const w=window.open('','_blank');if(!w){alert('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');return;}w.document.write(buildPrintPreviewHtml('In gộp phiếu nhập','',html));w.document.close();
+    const html=await res.text();
+    if(!res.ok)throw new Error(html||'Không in được các phiếu nhập đã chọn');
+    const w=window.open('','_blank');
+    if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
+    w.document.open();w.document.write(html);w.document.close();
+  }catch(err){alert(err.message||'Không in được phiếu nhập')}
 }
 window.printSelectedImportOrders=printSelectedImportOrders;
 function isActiveDocument(row){
@@ -811,28 +797,6 @@ function renderSalesOrderItems(items){
   const more=(items||[]).length>3?`<div class="sales-order-more">+ ${(items||[]).length-3} dòng hàng khác</div>`:'';
   return rows+more;
 }
-async function renderSalesOrderPrintHtml(order){
-  const key=String(
-    order?.id ||
-    order?.code ||
-    order?.orderCode ||
-    order?.invoiceCode ||
-    ''
-  ).trim();
-  if(!key)throw new Error('Thiếu mã đơn để in');
-
-  // Luồng in đơn con phải đi qua API theo ID để backend enrich dữ liệu in
-  // từ printRepository.enrichSalesOrderForPrint(), bao gồm fallback CTKM cho đơn cũ.
-  const res=await fetch(`/api/print/orders/${encodeURIComponent(key)}`);
-  const html=await res.text();
-  if(!res.ok)throw new Error(html||'Không tạo được mẫu in đơn con');
-  return html;
-}
-
-function extractPrintBody(html){
-  const doc=new DOMParser().parseFromString(html,'text/html');
-  return doc.body ? doc.body.innerHTML.replace(/<script[\s\S]*?<\/script>/gi,'') : html;
-}
 
 
 function toggleSelectAllSalesOrders(){
@@ -850,17 +814,18 @@ async function printSelectedSalesOrders(){
   try{
     const checks=[...document.querySelectorAll('.sales-order-check:checked')];
     const orders=checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
-    if(!orders.length){alert('Chưa chọn đơn con để in');return}
-    const bodies=[];
-    for(const order of orders){
-      // Gọi trực tiếp API in theo ID/code; không lấy detail từ /api/sales-orders để tránh bỏ qua enrich CTKM.
-      bodies.push(extractPrintBody(await renderSalesOrderPrintHtml(order)));
-    }
+    const ids=orders.map(order=>order.id||order.code||order.orderCode||order.salesOrderCode).filter(Boolean);
+    if(!ids.length){alert('Chưa chọn đơn con để in');return}
+    const res=await fetch('/api/print/orders/batch',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({salesOrderIds:ids})
+    });
+    const html=await res.text();
+    if(!res.ok)throw new Error(html||'Không in được nhiều đơn con');
     const w=window.open('','_blank');
     if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
-    w.document.open();
-    w.document.write(buildPrintPreviewHtml('In nhiều đơn con','dms-print-body',bodies.join('')));
-    w.document.close();
+    w.document.open();w.document.write(html);w.document.close();
   }catch(err){alert(err.message||'Không in được nhiều đơn con')}
 }
 window.printSelectedSalesOrders=printSelectedSalesOrders;

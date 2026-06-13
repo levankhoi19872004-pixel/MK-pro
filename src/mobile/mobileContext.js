@@ -247,13 +247,34 @@ async function getProductAvailableQty(product = {}) {
 }
 
 function buildProductLineMeta(product = {}) {
+  const productCode = product.code || product.productCode || product.sku || '';
+  const productName = product.name || product.productName || '';
+  const unit = product.unit || product.baseUnit || '';
+  const conversionRate = toNumber(product.conversionRate || 1) || 1;
+  const warehouseCode = product.defaultWarehouse || product.warehouseCode || 'KHO_HC';
+  const catalogSalePrice = toNumber(product.salePrice || product.price || 0);
+
   return {
-    unit: product.unit || product.baseUnit || '',
-    baseUnit: product.baseUnit || product.unit || '',
-    conversionRate: toNumber(product.conversionRate || 1),
+    unit,
+    baseUnit: product.baseUnit || unit,
+    conversionRate,
+    conversionRateAtOrder: conversionRate,
     packing: product.packing || '',
+    warehouseCodeAtOrder: warehouseCode,
+    catalogSalePriceAtOrder: catalogSalePrice,
     brand: product.brand || '',
-    category: product.category || product.groupName || product.productGroup || ''
+    category: product.category || product.groupName || product.productGroup || '',
+    productSnapshot: {
+      code: productCode,
+      productCode,
+      name: productName,
+      productName,
+      unit,
+      conversionRate,
+      salePrice: catalogSalePrice,
+      warehouseCode,
+      defaultWarehouse: warehouseCode
+    }
   };
 }
 

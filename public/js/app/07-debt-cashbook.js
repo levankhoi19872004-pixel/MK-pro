@@ -1160,216 +1160,15 @@ async function receiveMasterReturnOrder(id, buttonEl){
   }
 }
 
-function masterReturnItemQty(item={}){
-  return Number(item.returnQty??item.qtyReturn??item.returnQuantity??item.returnedQty??item.quantity??item.qty??0)||0;
-}
-function masterReturnItemPrice(item={}){
-  return Number(item.salePrice??item.productSalePrice??item.price??item.unitPrice??0)||0;
-}
-function masterReturnItemAmount(item={}){
-  const direct=Number(item.returnAmount??item.amount??item.totalAmount??0)||0;
-  if(direct>0)return direct;
-  return masterReturnItemQty(item)*masterReturnItemPrice(item);
-}
-function masterReturnFirstValue(...values){
-  for(const value of values){
-    if(value===null||value===undefined)continue;
-    if(typeof value==='string' && !value.trim())continue;
-    return value;
-  }
-  return undefined;
-}
-function masterReturnNormalizeWarehouse(raw){
-  const value=String(raw||'').trim().toUpperCase();
-  if(!value)return '';
-  if(value.includes('KHO_PC')||value.includes('KHO PC')||value==='PC'||value.includes(' PC'))return 'KHO_PC';
-  if(value.includes('KHO_HC')||value.includes('KHO HC')||value==='HC'||value.includes(' HC'))return 'KHO_HC';
-  if(value.includes('PC'))return 'KHO_PC';
-  if(value.includes('HC'))return 'KHO_HC';
-  return '';
-}
-function masterReturnParsePack(value){
-  if(value===null||value===undefined)return 0;
-  if(typeof value==='number')return Number.isFinite(value)&&value>0?value:0;
-  const raw=String(value||'').trim();
-  if(!raw)return 0;
-  const direct=Number(raw.replace(',', '.'));
-  if(Number.isFinite(direct)&&direct>0)return direct;
-  const slashMatch=raw.match(/\/\s*(\d+(?:[.,]\d+)?)/);
-  if(slashMatch){
-    const parsed=Number(String(slashMatch[1]).replace(',', '.'));
-    if(Number.isFinite(parsed)&&parsed>0)return parsed;
-  }
-  return 0;
-}
-function masterReturnItemPack(item={}){
-  const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
-  const product=item.product||item.productInfo||{};
-  const candidates=[
-    item.packingQty,
-    item.conversionRate,
-    item.unitsPerCase,
-    item.qtyPerCase,
-    item.unitPerCase,
-    productSnapshot.conversionRate,
-    productSnapshot.packingQty,
-    productSnapshot.unitsPerCase,
-    productSnapshot.qtyPerCase,
-    productSnapshot.unitPerCase,
-    product.conversionRate,
-    product.packingQty,
-    product.unitsPerCase,
-    product.qtyPerCase,
-    product.unitPerCase,
-    item.pack,
-    productSnapshot.pack,
-    product.pack,
-    item.packing,
-    productSnapshot.packing,
-    product.packing
-  ];
-  for(const candidate of candidates){
-    const pack=masterReturnParsePack(candidate);
-    if(pack>0)return Math.max(1,Math.round(pack));
-  }
-  return 1;
-}
-function masterReturnCaseDisplay(qty, pack){
-  const q=Math.max(0,Math.round(Number(qty||0)));
-  const p=Math.max(1,Math.round(Number(pack||1)));
-  const cases=Math.floor(q/p);
-  const loose=q%p;
-  return `${cases}/${loose}`;
-}
-function masterReturnLineAmount(item={}){
-  return masterReturnItemQty(item)*masterReturnItemPrice(item);
-}
-function masterReturnWarehouseCode(item={}, child={}){
-  const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
-  const product=item.product||item.productInfo||{};
-  const candidates=[
-    item.warehouseCode,
-    item.defaultWarehouse,
-    item.warehouse,
-    item.warehouseId,
-    item.stockWarehouseCode,
-    productSnapshot.defaultWarehouse,
-    productSnapshot.defaultWarehouseCode,
-    productSnapshot.warehouseCode,
-    productSnapshot.warehouse,
-    productSnapshot.warehouseId,
-    product.defaultWarehouse,
-    product.defaultWarehouseCode,
-    product.warehouseCode,
-    product.warehouse,
-    product.warehouseId,
-    child.warehouseCode,
-    child.defaultWarehouse,
-    child.warehouse,
-    child.warehouseId
-  ];
-  for(const candidate of candidates){
-    const normalized=masterReturnNormalizeWarehouse(candidate);
-    if(normalized)return normalized;
-  }
-  return 'KHO_HC';
-}
-function buildMasterReturnPrintPages(r={}, children=[]){
-  const byWarehouse={};
-  const getWarehouseMap=(warehouseCode)=>{
-    if(!byWarehouse[warehouseCode])byWarehouse[warehouseCode]=new Map();
-    return byWarehouse[warehouseCode];
-  };
-  children.forEach(child=>{
-    (Array.isArray(child.items)?child.items:[]).forEach(item=>{
-      const qty=masterReturnItemQty(item);
-      if(qty<=0)return;
-      const wh=masterReturnWarehouseCode(item,child);
-      const productSnapshot=item.productSnapshot||item.productSnapShot||item.snapshot||{};
-      const product=item.product||item.productInfo||{};
-      const code=String(masterReturnFirstValue(item.productCode,item.code,item.sku,item.barcode,productSnapshot.productCode,productSnapshot.code,product.code,product.productCode,'')||'').trim();
-      const name=String(masterReturnFirstValue(item.productName,item.name,item.description,productSnapshot.productName,productSnapshot.name,product.name,'')||'').trim();
-      const pack=masterReturnItemPack(item);
-      const price=masterReturnItemPrice(item);
-      const normalizedPrice=Math.round(Number(price||0));
-      const key=[wh,code,normalizedPrice].join('|');
-      const map=getWarehouseMap(wh);
-      const old=map.get(key)||{warehouseCode:wh,productCode:code,productName:name,pack,qty:0,salePrice:price,amount:0};
-      old.qty+=qty;
-      old.pack=old.pack||pack;
-      if(!old.productName&&name)old.productName=name;
-      old.salePrice=old.salePrice||price;
-      old.caseDisplay=masterReturnCaseDisplay(old.qty, old.pack);
-      old.amount=old.qty*old.salePrice;
-      map.set(key,old);
-    });
-  });
-  const order=['KHO_HC','KHO_PC'];
-  return Object.entries(byWarehouse)
-    .sort(([a],[b])=>{
-      const ai=order.indexOf(a), bi=order.indexOf(b);
-      if(ai!==-1||bi!==-1)return (ai===-1?99:ai)-(bi===-1?99:bi);
-      return a.localeCompare(b);
-    })
-    .map(([warehouseCode,map])=>({
-      warehouseCode,
-      warehouseName:warehouseCode==='KHO_PC'?'KHO PC':warehouseCode==='KHO_HC'?'KHO HC':warehouseCode,
-      items:[...map.values()].sort((a,b)=>String(a.productCode||'').localeCompare(String(b.productCode||'')))
-    }))
-    .filter(page=>page.items.length);
-}
-function buildMasterReturnKpiRows(r={}, children=[]){
-  const rows=children.map(child=>{
-    const saleAmount=(Array.isArray(child.items)?child.items:[]).reduce((sum,item)=>sum+(masterReturnItemQty(item)*masterReturnItemPrice(item)),0);
-    const payable=Number(child.debtReduction??child.totalAmount??child.amount??0)||0;
-    return {
-      code: child.code||child.id||'',
-      note: child.note||child.customerName||'',
-      saleAmount,
-      discountAmount: Math.max(0,saleAmount-payable),
-      payableAmount: payable
-    };
-  });
-  const totals=rows.reduce((acc,row)=>({
-    saleAmount: acc.saleAmount+row.saleAmount,
-    discountAmount: acc.discountAmount+row.discountAmount,
-    payableAmount: acc.payableAmount+row.payableAmount
-  }),{saleAmount:0,discountAmount:0,payableAmount:0});
-  return {rows,totals};
-}
 async function printMasterReturnOrder(id){
   if(!id)return;
   try{
-    const res=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}`);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được đơn tổng trả để in');
-    const r=json.masterReturnOrder||{};
-    const children=Array.isArray(r.children)?r.children:[];
-    const pages=buildMasterReturnPrintPages(r,children);
-    const kpi=buildMasterReturnKpiRows(r,children);
-    const kpiRows=kpi.rows.map(row=>`<tr><td><strong>${escapeHtml(row.code)}</strong><br><small>${escapeHtml(row.note||'')}</small></td><td>${money(row.saleAmount)}</td><td>${money(row.discountAmount)}</td><td>${money(row.payableAmount)}</td></tr>`).join('');
-    const kpiTable=`<h3>BÁO CÁO KPI ĐƠN TỔNG TRẢ ĐÃ GỘP</h3><table class="print-table"><thead><tr><th>Mã đơn + ghi chú</th><th>Giá trị hàng trả theo giá bán</th><th>Tổng giảm trừ/KM</th><th>Tổng giá trị giảm công nợ</th></tr></thead><tbody>${kpiRows||'<tr><td colspan="4">Không có KPI.</td></tr>'}<tr><th>Tổng cộng</th><th>${money(kpi.totals.saleAmount)}</th><th>${money(kpi.totals.discountAmount)}</th><th>${money(kpi.totals.payableAmount)}</th></tr></tbody></table>`;
-    const body=(pages.length?pages:[{warehouseCode:'KHO_HC',warehouseName:'KHO HC',items:[]}]).map((page,pageIdx)=>{
-      const rows=page.items.map((item,i)=>{
-        const lineAmount=Number(item.qty||0)*Number(item.salePrice||0);
-        return `<tr><td>${i+1}</td><td>${escapeHtml(item.productCode)}</td><td>${escapeHtml(item.productName)}</td><td>${escapeHtml(item.caseDisplay||masterReturnCaseDisplay(item.qty,item.pack))}</td><td>${money(item.qty)}</td><td>${money(item.salePrice)}</td><td>${money(lineAmount)}</td></tr>`;
-      }).join('');
-      const pageBreak=pageIdx>0?' page-break-before':'';
-      return `<section class="print-page${pageBreak}">
-        <h1>ĐƠN TỔNG TRẢ HÀNG - LIÊN ${escapeHtml(page.warehouseName)}</h1>
-        <p><b>Mã:</b> ${escapeHtml(r.code||r.id||'')} &nbsp; <b>Ngày trả:</b> ${escapeHtml(r.returnDate||r.date||'')} &nbsp; <b>NVGH:</b> ${escapeHtml(debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName))}</p>
-        ${pageIdx===0?kpiTable:''}
-        <h3>${escapeHtml(page.warehouseName)} - Hàng trả nhập kho</h3>
-        <table class="print-table"><thead><tr><th>STT</th><th>Mã sản phẩm</th><th>Tên sản phẩm</th><th>Thùng/Lẻ</th><th>SL lẻ</th><th>Giá bán</th><th>Tổng giá trị</th></tr></thead><tbody>${rows||'<tr><td colspan="7">Không có hàng thuộc kho này.</td></tr>'}</tbody></table>
-        <p class="total">Tổng SL: ${money(page.items.reduce((s,it)=>s+Number(it.qty||0),0))} · Tổng tiền: ${money(page.items.reduce((s,it)=>s+(Number(it.qty||0)*Number(it.salePrice||0)),0))}</p>
-      </section>`;
-    }).join('');
-    const html=typeof buildPrintPreviewHtml==='function'
-      ? buildPrintPreviewHtml(escapeHtml(r.code||'Đơn tổng trả'),'',body)
-      : `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(r.code||'Đơn tổng trả')}</title><link rel="stylesheet" href="/print.css"></head><body>${body}</body></html>`;
+    const res=await fetch(`/api/print/master-return-orders/${encodeURIComponent(id)}`);
+    const html=await res.text();
+    if(!res.ok)throw new Error(html||'Không in được đơn tổng trả hàng');
     const w=window.open('','_blank');
     if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in');
-    w.document.write(html);w.document.close();w.focus();
+    w.document.open();w.document.write(html);w.document.close();w.focus();
   }catch(err){alert(err.message||'Không in được đơn tổng trả')}
 }
 
@@ -1400,8 +1199,20 @@ function toggleSelectAllMasterReturnOrders(){
 }
 async function printSelectedMasterReturnOrders(){
   const orders=selectedMasterReturnOrders();
-  if(!orders.length){alert('Chưa chọn đơn tổng trả để in');return}
-  for(const r of orders){ await printMasterReturnOrder(r.id||r.code); }
+  const ids=orders.map(order=>order.id||order.code).filter(Boolean);
+  if(!ids.length){alert('Chưa chọn đơn tổng trả để in');return}
+  try{
+    const res=await fetch('/api/print/master-return-orders/batch',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({masterReturnOrderIds:ids})
+    });
+    const html=await res.text();
+    if(!res.ok)throw new Error(html||'Không in được các đơn tổng trả đã chọn');
+    const w=window.open('','_blank');
+    if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in');
+    w.document.open();w.document.write(html);w.document.close();w.focus();
+  }catch(err){alert(err.message||'Không in được các đơn tổng trả đã chọn')}
 }
 async function receiveSelectedMasterReturnOrders(){
   const orders=selectedMasterReturnOrders();

@@ -288,7 +288,20 @@ function createMobileService(ctx) {
       if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
       const availableQty = await getInventoryQtyForProduct(product);
       if (availableQty < quantity) return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
-      items.push({ productId: product.id, productCode: product.code, productName: product.name, ...buildProductLineMeta(product), quantity, salePrice, amount: quantity * salePrice });
+      items.push({
+        productId: product.id,
+        productCode: product.code,
+        productName: product.name,
+        ...buildProductLineMeta(product),
+        quantity,
+        catalogSalePrice: salePrice,
+        catalogSalePriceAtOrder: salePrice,
+        finalPrice: salePrice,
+        salePrice,
+        price: salePrice,
+        amount: quantity * salePrice,
+        appliedPromotionRows: []
+      });
     }
 
     const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);

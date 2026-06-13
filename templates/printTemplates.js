@@ -469,6 +469,8 @@ function getMasterPrintLineAmount(item) {
 
 function renderMasterWarehouseLineSection(data, title, items = [], options = {}) {
   const isPromo = Boolean(options.isPromo);
+  const priceLabel = options.priceLabel || 'Giá bán';
+  const amountLabel = options.amountLabel || 'Thành tiền';
   const rows = items.length
     ? items.map((item, index) => {
         const lineAmount = getMasterPrintLineAmount(item);
@@ -494,13 +496,13 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
       <table class="print-table master-picking-table">
         <thead>
           <tr>
-            <th style="width:8mm">STT</th>
-            <th style="width:26mm">Mã sản phẩm</th>
-            <th>Tên sản phẩm</th>
-            <th style="width:22mm">Thùng/Lẻ</th>
-            <th style="width:18mm">SL lẻ</th>
-            <th style="width:24mm">Giá bán</th>
-            <th style="width:30mm">Tổng giá trị</th>
+            <th style="width:4%">STT</th>
+            <th style="width:13%">Mã sản phẩm</th>
+            <th style="width:39%">Tên sản phẩm</th>
+            <th style="width:10%">Thùng/Lẻ</th>
+            <th style="width:8%">SL lẻ</th>
+            <th style="width:11%">${text(priceLabel)}</th>
+            <th style="width:15%">${text(amountLabel)}</th>
           </tr>
         </thead>
         <tbody>
@@ -576,6 +578,7 @@ function baseLayout(title, data, bodyHtml, options = {}) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${text(title)} - ${text(data.document.code)}</title>
   <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
 </head>
 <body>
   ${printPreviewActionsScript()}
@@ -625,6 +628,7 @@ function orderTotalTemplate(data) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${text(title)} - ${text(data.document.code)}</title>
   <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
 </head>
 <body>
   ${printPreviewActionsScript()}
@@ -644,6 +648,102 @@ function orderTotalTemplate(data) {
     </div>
     ${renderSignature(['Người lập phiếu', 'Người giao hàng', 'Kho HC', 'Kho PC'])}`;
   return baseLayout(title, data, body);
+}
+
+
+function warehousePickingMode(data) {
+  const mode = String(data.document?.printMode || '').toUpperCase();
+  if (mode.includes('RETURN')) return 'RETURN';
+  if (mode.includes('IMPORT')) return 'IMPORT';
+  return 'MASTER';
+}
+
+function warehousePickingTitle(data) {
+  if (data.document?.title) return data.document.title;
+  const mode = warehousePickingMode(data);
+  if (mode === 'RETURN') return 'ĐƠN TỔNG TRẢ HÀNG';
+  if (mode === 'IMPORT') return data.document?.printMode === 'IMPORT_AGGREGATE_SELECTED' ? 'ĐƠN TỔNG NHẬP KHO' : 'PHIẾU NHẬP KHO';
+  return data.document?.printMode === 'MASTER_AGGREGATE_SELECTED' ? 'ĐƠN TỔNG GỘP' : 'PHIẾU NHẶT HÀNG ĐƠN TỔNG';
+}
+
+function renderWarehousePickingInfo(data, mode) {
+  const sourceCodes = Array.isArray(data.document?.sourceCodes) && data.document.sourceCodes.length
+    ? data.document.sourceCodes
+    : Array.isArray(data.document?.masterOrderCodes) ? data.document.masterOrderCodes : [];
+  const sourceLabel = mode === 'RETURN' ? 'Phiếu trả hàng' : mode === 'IMPORT' ? 'Phiếu nhập' : 'Đơn tổng';
+  return `
+    <div class="info-grid print-info-compact">
+      <div><b>Ngày chứng từ:</b> ${text(data.document.date)}</div>
+      ${mode === 'IMPORT' ? `<div><b>Nhà cung cấp:</b> ${text(data.customer.name)}</div>` : ''}
+      ${mode !== 'IMPORT' ? `<div><b>NV giao hàng:</b> ${text(data.delivery.code)}${data.delivery.name ? ` - ${text(data.delivery.name)}` : ''}</div>` : ''}
+      ${data.delivery.route ? `<div><b>Tuyến:</b> ${text(data.delivery.route)}</div>` : ''}
+      <div><b>Số chứng từ con:</b> ${money(data, data.totals.orderCount)}</div>
+      ${sourceCodes.length ? `<div class="full"><b>${sourceLabel}:</b> ${text(sourceCodes.join(', '))}</div>` : ''}
+      ${data.document.note ? `<div class="full"><b>Ghi chú:</b> ${text(data.document.note)}</div>` : ''}
+    </div>`;
+}
+
+function warehousePickingTemplate(data) {
+  const mode = warehousePickingMode(data);
+  const title = warehousePickingTitle(data);
+  const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
+    ? data.warehouseGroups
+    : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], saleItems: data.items || [], promoItems: [], importItems: [], returnItems: [] }];
+
+  const pages = groups.map((group, pageIndex) => {
+    const saleItems = Array.isArray(group.saleItems) ? group.saleItems : [];
+    const promoItems = Array.isArray(group.promoItems) ? group.promoItems : [];
+    const importItems = Array.isArray(group.importItems) && group.importItems.length ? group.importItems : (mode === 'IMPORT' ? group.items || [] : []);
+    const returnItems = Array.isArray(group.returnItems) && group.returnItems.length ? group.returnItems : (mode === 'RETURN' ? group.items || [] : []);
+    const pageItems = mode === 'IMPORT' ? importItems : mode === 'RETURN' ? returnItems : [...saleItems, ...promoItems];
+    const pageQty = pageItems.reduce((sum, item) => sum + Number(item.qty || item.quantity || 0), 0);
+    const pageAmount = pageItems.reduce((sum, item) => sum + getMasterPrintLineAmount(item), 0);
+    const signatures = mode === 'IMPORT'
+      ? ['Người lập phiếu', 'Người giao hàng', 'Thủ kho']
+      : mode === 'RETURN'
+        ? ['Người lập phiếu', 'Nhân viên giao hàng', 'Thủ kho']
+        : ['Người lập phiếu', 'Người giao hàng', group.name || group.code];
+
+    const detail = mode === 'IMPORT'
+      ? renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng nhập kho`, importItems, { priceLabel: 'Giá nhập' })
+      : mode === 'RETURN'
+        ? renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng trả nhập kho`, returnItems, { priceLabel: 'Giá trả' })
+        : `${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng bán`, saleItems, { priceLabel: 'Giá bán' })}${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Xuất khuyến mại`, promoItems, { isPromo: true, priceLabel: 'Giá tham chiếu' })}`;
+
+    return `
+      <section class="print-page warehouse-picking-page${pageIndex > 0 ? ' page-break-before' : ''}">
+        <div class="simple-print-header">
+          <div><h2>${text(data.company.name)}</h2><p>${text(data.company.address)}</p></div>
+          <div class="print-code"><b>Mã chứng từ</b><span>${text(data.document.code)}</span></div>
+        </div>
+        <h1 class="print-title">${text(title)} - ${text(group.name || group.code)}</h1>
+        ${renderWarehousePickingInfo(data, mode)}
+        ${pageIndex === 0 ? renderMasterKpiTable(data) : ''}
+        ${detail}
+        <div class="total-box print-total-compact">
+          <div><span>Tổng số lượng:</span><b>${money(data, pageQty)}</b></div>
+          <div><span>Tổng giá trị:</span><b>${money(data, pageAmount)}</b></div>
+          <div><span>Số chứng từ con:</span><b>${money(data, data.totals.orderCount)}</b></div>
+        </div>
+        ${renderSignature(signatures)}
+        <div class="print-footer">In lúc: ${text(data.meta.printedAt)}</div>
+      </section>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${text(title)} - ${text(data.document.code)}</title>
+  <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
+</head>
+<body class="warehouse-picking-body">
+  ${printPreviewActionsScript()}
+  ${pages}
+</body>
+</html>`;
 }
 
 function importOrderTemplate(data) {
@@ -718,15 +818,15 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
       <thead>
         <tr>
           <th style="width:4%">STT</th>
-          <th style="width:8%">Mã hàng</th>
-          <th style="width:36%">Tên sản phẩm</th>
+          <th style="width:9%">Mã hàng</th>
+          <th style="width:31%">Tên sản phẩm</th>
           <th style="width:7%">Số lượng<br/>(CS/SU)</th>
-          <th style="width:5%">Số<br/>lượng<br/>(lẻ)</th>
-          <th style="width:8%">Đơn Giá<br/>(Trước Thuế/KM)</th>
-          <th style="width:10%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:6%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:9%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:9%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
           <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
           <th style="width:7%">Thuế<br/>GTGT</th>
-          <th style="width:10%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:9%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
         </tr>
         <tr class="dms-formula-row">
           <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
@@ -972,6 +1072,7 @@ function dmsDeliveryInvoiceTemplate(data) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Phiếu giao nhận DMS - ${text(data.document.code)}</title>
   <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
 </head>
 <body class="dms-print-body">
   ${printPreviewActionsScript()}
@@ -983,7 +1084,8 @@ function dmsDeliveryInvoiceTemplate(data) {
 module.exports = {
   ORDER_SINGLE: dmsDeliveryInvoiceTemplate,
   DMS_DELIVERY_INVOICE: dmsDeliveryInvoiceTemplate,
-  ORDER_TOTAL: orderTotalTemplate,
-  IMPORT_ORDER: importOrderTemplate,
+  ORDER_TOTAL: warehousePickingTemplate,
+  WAREHOUSE_PICKING: warehousePickingTemplate,
+  IMPORT_ORDER: warehousePickingTemplate,
   PAYMENT_RECEIPT: paymentReceiptTemplate
 };

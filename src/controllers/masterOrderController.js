@@ -101,16 +101,15 @@ async function updateDeliveryTodayOrder(req, res) {
 
 async function printAggregate(req, res) {
   try {
-    const result = await masterOrderService.buildAggregateMasterPrintDocument(req.body || {});
-    if (result && result.error) {
-      return res.status(result.status || 400).send(result.error);
-    }
-    const rendered = printDocumentService.renderFromDocument('ORDER_TOTAL', result.document, req.query || {});
-    if (rendered.error) return res.status(rendered.status || 400).send(rendered.error);
+    const inputIds = req.body?.masterOrderIds || req.body?.ids || req.body?.masterOrders || [];
+    const ids = Array.isArray(inputIds)
+      ? inputIds
+      : String(inputIds || '').split(',').map((value) => value.trim()).filter(Boolean);
+    const rendered = await printDocumentService.renderMasterOrders(ids, req.query || {});
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(rendered.html);
   } catch (err) {
-    return res.status(500).send(err.message || 'Không in được đơn tổng gộp');
+    return res.status(err.status || 500).send(err.message || 'Không in được đơn tổng gộp');
   }
 }
 

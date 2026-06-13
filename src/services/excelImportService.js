@@ -1322,12 +1322,30 @@ async function importSalesOrders(rows = [], options = {}) {
 
       productStockMap.set(normalizedProductCode, Math.max(0, toNumber(productStockMap.get(normalizedProductCode)) - deliveredQuantity));
       const listPriceBeforeVat = getListPriceBeforeVatFromRow(row);
+      const conversionRateAtOrder = getPackingFromRow(row, product);
+      const catalogSalePriceAtOrder = salePrice;
       const baseItem = {
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
         productName: product.name,
         unit: product.unit,
-        packingQty: getPackingFromRow(row, product),
+        packingQty: conversionRateAtOrder,
+        conversionRate: conversionRateAtOrder,
+        conversionRateAtOrder,
+        catalogSalePriceAtOrder,
+        warehouseCodeAtOrder: warehouseCode,
+        appliedPromotionRows: [],
+        productSnapshot: {
+          code: product.code,
+          productCode: product.code,
+          name: product.name,
+          productName: product.name,
+          unit: product.unit || product.baseUnit || '',
+          salePrice: catalogSalePriceAtOrder,
+          conversionRate: conversionRateAtOrder,
+          warehouseCode,
+          defaultWarehouse: warehouseCode
+        },
         listPriceBeforeVat,
         listPriceAfterVat: listPriceBeforeVat ? listPriceBeforeVat * 1.08 : 0,
         gsvAmount: toNumber(row.gsvAmount ?? row['GSV bán ra'] ?? row['GSV ban ra']),
@@ -1352,6 +1370,7 @@ async function importSalesOrders(rows = [], options = {}) {
           promoQuantity: 0,
           salePrice,
           price: salePrice,
+          finalPrice: salePrice,
           amount: lineAmount
         });
       }
@@ -1373,6 +1392,7 @@ async function importSalesOrders(rows = [], options = {}) {
           promoQuantity: rawPromoQuantity,
           salePrice: 0,
           referenceSalePrice: salePrice,
+          finalPrice: 0,
           price: 0,
           amount: 0
         });

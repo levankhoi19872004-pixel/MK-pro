@@ -414,8 +414,20 @@ function normalizeOneItem(item, index, sourceOrder = null) {
   const discount = getItemDiscount(item);
   const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
   const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true;
-  const normalizedLineType = isPromo ? 'PROMO' : 'SALE';
-  const lineTypeName = isPromo ? 'Xuất khuyến mại' : 'Hàng bán';
+  const normalizedLineType = isPromo
+    ? 'PROMO'
+    : lineType === 'RETURN'
+      ? 'RETURN'
+      : lineType === 'IMPORT'
+        ? 'IMPORT'
+        : 'SALE';
+  const lineTypeName = normalizedLineType === 'PROMO'
+    ? 'Xuất khuyến mại'
+    : normalizedLineType === 'RETURN'
+      ? 'Hàng trả nhập kho'
+      : normalizedLineType === 'IMPORT'
+        ? 'Hàng nhập kho'
+        : 'Hàng bán';
   const tax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
   const amount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
   const caseInfo = normalizeQuantityByPack(qty, pack);
@@ -576,6 +588,8 @@ function buildWarehouseGroups(items = []) {
         items: [],
         saleItems: [],
         promoItems: [],
+        returnItems: [],
+        importItems: [],
         totalQty: 0,
         saleQty: 0,
         promoQty: 0,
@@ -635,6 +649,8 @@ function buildWarehouseGroups(items = []) {
       groupItemMap.set(mergeKey, merged);
       group.items.push(merged);
       if (lineType === 'PROMO') group.promoItems.push(merged);
+      else if (lineType === 'RETURN') group.returnItems.push(merged);
+      else if (lineType === 'IMPORT') group.importItems.push(merged);
       else group.saleItems.push(merged);
     }
 
@@ -663,7 +679,7 @@ function buildWarehouseGroups(items = []) {
   for (const group of map.values()) {
     group.saleItems.sort(comparePrintItems);
     group.promoItems.sort(comparePrintItems);
-    group.items = [...group.saleItems, ...group.promoItems];
+    group.items = [...group.saleItems, ...group.promoItems, ...group.returnItems, ...group.importItems];
     group.items.forEach((item, index) => {
       item.stt = index + 1;
       delete item.__mergeKey;
@@ -995,7 +1011,7 @@ function buildPrintData(document = {}, options = {}) {
     ...document,
     invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
     orderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
-    orderDateTime: formatDateTime(pick(document.orderDateTime, document.date, document.createdAt)),
+    orderDateTime: formatDateTime(pick(document.orderDateTime, document.orderDate, document.documentDate, document.date, document.createdAt)),
     invoiceType: pick(document.invoiceType, document.invoiceTypeName, document.orderSourceName, 'Từ NVTT'),
     paymentTerm: pick(document.terms, document.paymentTerms, document.paymentTerm, 'đáo hạn trong 7 ngày'),
     truckNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
@@ -1014,8 +1030,8 @@ function buildPrintData(document = {}, options = {}) {
       taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst)
     },
     salesStaff: {
-      staffCode: pick(document.staffCode, document.salesStaffCode, document.salesCode, document.salesStaffId),
-      staffName: pick(document.staffName, document.salesStaffName, document.salesName, document.createdBy),
+      staffCode: pick(document.salesStaffCode, document.salesPersonCode, document.salesmanCode, document.nvbhCode, document.maNVBH, document.salesCode, document.salesStaffId),
+      staffName: pick(document.salesStaffName, document.salesPersonName, document.salesmanName, document.nvbhName, document.maNVBHName, document.salesName, document.createdBy),
       phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
     },
     items,
@@ -1041,15 +1057,17 @@ function buildPrintData(document = {}, options = {}) {
       code: pick(document.code, document.orderCode, document.refCode, document.id, document._id),
       invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
       customerOrderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
-      date: formatDate(pick(document.date, document.createdAt)),
-      dateTime: formatDateTime(pick(document.date, document.createdAt)),
-      rawDate: pick(document.date, document.createdAt),
+      date: formatDate(pick(document.orderDate, document.deliveryDate, document.importDate, document.returnDate, document.documentDate, document.date, document.createdAt)),
+      dateTime: formatDateTime(pick(document.orderDateTime, document.orderDate, document.deliveryDate, document.importDate, document.returnDate, document.documentDate, document.date, document.createdAt)),
+      rawDate: pick(document.orderDate, document.deliveryDate, document.importDate, document.returnDate, document.documentDate, document.date, document.createdAt),
       type: pick(document.invoiceType, document.type, document.orderType, document.orderSourceName, 'NVTT'),
       note: document.note || '',
       terms: pick(document.terms, document.paymentTerms, 'đáo hạn trong 7 ngày'),
       page: options.page || '1 / 1',
       vehicleNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
       printMode: document.printMode || '',
+      title: document.printContract?.document?.title || document.printTitle || '',
+      sourceCodes: Array.isArray(document.sourceCodes) ? document.sourceCodes : (document.printContract?.document?.sourceCodes || []),
       masterOrderCodes: Array.isArray(document.masterOrderCodes) ? document.masterOrderCodes : [],
       selectedMasterOrderCount: document.selectedMasterOrderCount || 0
     },
@@ -1061,13 +1079,13 @@ function buildPrintData(document = {}, options = {}) {
       taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst)
     },
     staff: {
-      code: pick(document.staffCode, document.salesStaffCode, document.salesCode, document.salesStaffId),
-      name: pick(document.staffName, document.salesStaffName, document.salesName, document.createdBy),
+      code: pick(document.salesStaffCode, document.salesPersonCode, document.salesmanCode, document.nvbhCode, document.maNVBH, document.salesCode, document.salesStaffId),
+      name: pick(document.salesStaffName, document.salesPersonName, document.salesmanName, document.nvbhName, document.maNVBHName, document.salesName, document.createdBy),
       phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
     },
     delivery: {
-      code: pick(document.deliveryCode, document.deliveryStaffCode),
-      name: pick(document.deliveryName, document.deliveryStaffName),
+      code: pick(document.deliveryStaffCode, document.deliveryCode),
+      name: pick(document.deliveryStaffName, document.deliveryName),
       phone: pick(document.deliveryPhone, document.deliveryStaffPhone),
       route: pick(document.route, document.routeName, document.tuyen)
     },
@@ -1103,6 +1121,8 @@ function buildPrintData(document = {}, options = {}) {
       copyLabel: options.copyLabel || 'Liên 1'
     },
     erpInvoiceV46: structuredInvoicePayload,
+    printContract: document.printContract || null,
+    printProfile: document.printProfile || document.printContract?.profile || '',
 
     formatMoney
   };
