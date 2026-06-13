@@ -7,7 +7,9 @@ const fundLedgerRepository = require('../repositories/fundLedgerRepository');
 const deliveryCashSubmissionRepository = require('../repositories/deliveryCashSubmissionRepository');
 const expenseVoucherRepository = require('../repositories/expenseVoucherRepository');
 const fundTransferRepository = require('../repositories/fundTransferRepository');
-const masterOrderService = require('./masterOrderService');
+function getMasterOrderDeliveryService() {
+  return require('./master-order/masterOrderDelivery.service');
+}
 const { pickDeliveryStaffCode } = require('../domain/staff/staffIdentity');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
@@ -195,7 +197,7 @@ async function buildDeliverySubmissionDraft(query = {}) {
   const deliveryDate = dateOnly(query.deliveryDate || query.date);
   const deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery || '').trim();
   if (!deliveryStaffCode) return { error: 'Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ', status: 400 };
-  const data = await masterOrderService.listDeliveryToday({ date: deliveryDate, delivery: deliveryStaffCode, deliveryStaffCode, page: 1, limit: 5000 });
+  const data = await getMasterOrderDeliveryService().listDeliveryToday({ date: deliveryDate, delivery: deliveryStaffCode, deliveryStaffCode, page: 1, limit: 5000 });
   const orders = data.orders || [];
   if (!orders.length) return { error: 'Không có đơn giao để tạo phiếu nộp quỹ', status: 404 };
   const deliveryStaffName = orders.find((row) => row.deliveryStaffName)?.deliveryStaffName || deliveryStaffCode;
