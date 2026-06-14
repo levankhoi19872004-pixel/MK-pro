@@ -2763,3 +2763,88 @@
   }
 }
 
+
+/* PHASE36 - Return order compact filter, no Today selector */
+#returnOrdersTab .sticky-filter-bar{
+  display:grid!important;
+  grid-template-columns:minmax(220px,.55fr) minmax(620px,1.45fr)!important;
+  gap:14px!important;
+  align-items:end!important;
+  padding:12px 14px!important;
+}
+#returnOrdersTab .sticky-filter-bar>div:first-child h2{
+  margin:0 0 4px!important;
+}
+#returnOrdersTab .sticky-filter-bar>div:first-child p{
+  margin:0!important;
+  line-height:1.35!important;
+}
+#returnOrdersTab .return-order-filter-form{
+  display:grid!important;
+  grid-template-columns:minmax(280px,1fr) minmax(330px,420px) auto!important;
+  align-items:end!important;
+  gap:10px!important;
+  min-width:0!important;
+  margin:0!important;
+}
+#returnOrdersTab .return-order-filter-form label{
+  display:grid!important;
+  gap:4px!important;
+  min-width:0!important;
+  margin:0!important;
+}
+#returnOrdersTab .return-order-filter-form label>span{
+  color:#64748b!important;
+  font-size:11px!important;
+  font-weight:800!important;
+  line-height:1!important;
+}
+#returnOrdersTab .return-order-search-field input,
+#returnOrdersTab .return-order-date-range input{
+  width:100%!important;
+  max-width:none!important;
+  min-height:38px!important;
+  height:38px!important;
+  margin:0!important;
+}
+#returnOrdersTab .return-order-date-range{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  gap:8px!important;
+  min-width:0!important;
+}
+#returnOrdersTab .return-order-filter-actions{
+  display:flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  white-space:nowrap!important;
+}
+#returnOrdersTab .return-order-filter-actions button{
+  min-height:38px!important;
+  height:38px!important;
+  padding:7px 14px!important;
+  margin:0!important;
+}
+#returnOrdersTab #applyReturnOrderFiltersButton{min-width:72px!important;}
+#returnOrdersTab #clearReturnOrderFiltersButton{min-width:88px!important;}
+@media(max-width:1180px){
+  #returnOrdersTab .sticky-filter-bar{
+    grid-template-columns:1fr!important;
+    align-items:start!important;
+  }
+  #returnOrdersTab .return-order-filter-form{
+    grid-template-columns:minmax(240px,1fr) minmax(300px,380px) auto!important;
+  }
+}
+@media(max-width:780px){
+  #returnOrdersTab .return-order-filter-form{grid-template-columns:1fr!important;}
+  #returnOrdersTab .return-order-date-range{grid-template-columns:1fr 1fr!important;}
+  #returnOrdersTab .return-order-filter-actions{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+  }
+  #returnOrdersTab .return-order-filter-actions button{width:100%!important;}
+}
+@media(max-width:460px){
+  #returnOrdersTab .return-order-date-range{grid-template-columns:1fr!important;}
+}

@@ -384,32 +384,7 @@ async function receiveSelectedMasterReturnOrders(){
   if(typeof loadStock==='function')await loadStock();
 }
 
-if(returnOrderDateMode) returnOrderDateMode.addEventListener('change',()=>{
-  const mode=String(returnOrderDateMode.value||'today');
-  if(returnOrderDateFrom) returnOrderDateFrom.disabled=(mode==='all');
-  if(returnOrderDateTo) returnOrderDateTo.disabled=(mode==='all');
-  loadReturnOrders();
-});
-if(returnOrderDateFrom) returnOrderDateFrom.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
-if(returnOrderDateTo) returnOrderDateTo.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
-if(returnOrderSearchInput) returnOrderSearchInput.addEventListener('input',()=>{ clearTimeout(window.__returnOrderSearchTimer); window.__returnOrderSearchTimer=setTimeout(loadReturnOrders,250); });
-if(reloadReturnOrdersButton) reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
-if(returnOrderTable){
-  returnOrderTable.addEventListener('click',event=>{
-    const tr=event.target.closest('tr[data-return-key]');
-    if(tr)selectReturnOrderByKey(tr.dataset.returnKey);
-  });
-  returnOrderTable.addEventListener('keydown',event=>{
-    if(event.key!=='Enter'&&event.key!==' ')return;
-    const tr=event.target.closest('tr[data-return-key]');
-    if(!tr)return;
-    event.preventDefault();
-    selectReturnOrderByKey(tr.dataset.returnKey);
-  });
-}
-if(closeReturnOrderDetailModalButton)closeReturnOrderDetailModalButton.addEventListener('click',()=>closeReturnOrderDetailPopup());
-if(returnOrderDetailModal)returnOrderDetailModal.addEventListener('click',event=>{if(event.target===returnOrderDetailModal)closeReturnOrderDetailPopup();});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&isReturnOrderDetailModalOpen())closeReturnOrderDetailPopup();});
+// Return-order UI events are owned by 07b-return-orders.js.
 
 window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
 window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;

@@ -33,7 +33,9 @@
     "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
     "check:syntax": "node scripts/check-js-syntax.js",
     "quality": "npm run check:syntax && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
-    "check:production": "node scripts/production-readiness-check.js"
+    "check:production": "node scripts/production-readiness-check.js",
+    "cleanup:retired": "node scripts/cleanup-retired-files.js",
+    "pretest": "npm run cleanup:retired"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

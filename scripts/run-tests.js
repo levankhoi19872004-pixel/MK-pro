@@ -1,5 +1,7 @@
 'use strict';
 
+require('./cleanup-retired-files');
+
 const { spawnSync } = require('child_process');
 
 const env = { ...process.env, NODE_ENV: process.env.NODE_ENV || 'test' };

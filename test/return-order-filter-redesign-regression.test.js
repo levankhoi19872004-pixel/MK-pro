@@ -85,13 +85,13 @@ test('listReturnOrders rejects reversed date range before querying MongoDB', asy
   }
 });
 
-test('return-order filter UI is compact and has no Today mode selector', () => {
+test('return-order filter UI is compact, modular and has no Today mode selector', () => {
   const root = path.resolve(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
-  const dom = fs.readFileSync(path.join(root, 'public/js/app/00-dom-state.js'), 'utf8');
-  const js = fs.readFileSync(path.join(root, 'public/js/app/07-debt-cashbook.js'), 'utf8');
-  const bootstrap = fs.readFileSync(path.join(root, 'public/app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(root, 'public/style.css'), 'utf8');
+  const dom = fs.readFileSync(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'public/js/app/debt/07b-return-orders.js'), 'utf8');
+  const masterReturnJs = fs.readFileSync(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'public/css/10-operational-overrides.css'), 'utf8');
 
   assert.match(html, /id="returnOrderFilterForm" class="return-order-filter-form"/);
   assert.match(html, /id="applyReturnOrderFiltersButton"[^>]*>Lọc<\/button>/);
@@ -106,7 +106,8 @@ test('return-order filter UI is compact and has no Today mode selector', () => {
   assert.match(js, /clearReturnOrderFiltersButton\.addEventListener\('click'/);
   assert.match(js, /formatDateVN\(returnDate\)/);
   assert.doesNotMatch(js, /params\.set\('dateMode'/);
-  assert.doesNotMatch(bootstrap, /reloadReturnOrdersButton/);
+  assert.doesNotMatch(masterReturnJs, /returnOrderFilterForm\.addEventListener/);
+  assert.doesNotMatch(masterReturnJs, /returnOrderDateMode/);
 
   assert.match(css, /#returnOrdersTab \.return-order-filter-form\{/);
   assert.match(css, /grid-template-columns:minmax\(280px,1fr\) minmax\(330px,420px\) auto!important/);
