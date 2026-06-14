@@ -48,8 +48,16 @@
   padding:0 14px!important;
 }
 #masterReturnOrdersTab .master-return-fixed-list{
-  height:620px!important;
+  height:min(620px,calc(100vh - 300px))!important;
+  min-height:260px!important;
   overflow:auto!important;
+  align-content:start!important;
+  grid-auto-rows:max-content!important;
+}
+#masterReturnOrdersTab .master-return-fixed-list > .master-return-list-head,
+#masterReturnOrdersTab .master-return-fixed-list > .master-return-one-line,
+#masterReturnOrdersTab .master-return-fixed-list > .empty-state{
+  align-self:start!important;
 }
 
 #masterReturnOrderModal .master-return-modal-workspace{
