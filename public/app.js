@@ -54,23 +54,27 @@ if(debtSearchInput){
 if(debtStatusFilter)debtStatusFilter.addEventListener('change',loadDebts);
 if(debtClearFiltersButton)debtClearFiltersButton.addEventListener('click',()=>resetDebtFilters());
 if(receiptSearchInput)receiptSearchInput.addEventListener('input',loadReceipts);
-// Bộ lọc đơn trả hàng được submit tập trung qua returnOrderFilterForm
-// trong 07-debt-cashbook.js để tránh gọi API lặp khi đổi từng trường.
+if(returnOrderSearchInput)returnOrderSearchInput.addEventListener('input',loadReturnOrders);
+if(returnOrderDateFrom)returnOrderDateFrom.addEventListener('change',loadReturnOrders);
+if(returnOrderDateTo)returnOrderDateTo.addEventListener('change',loadReturnOrders);
+if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
 if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
 if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
-if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{selectedReturnOrderIdsForMaster.clear();loadUnmergedReturnOrders();});
+if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{
+  if(typeof resetSelectedMasterReturnOrders==='function')resetSelectedMasterReturnOrders();
+  else { selectedReturnOrderIdsForMaster.clear(); loadUnmergedReturnOrders(); }
+});
 if(unmergedReturnOrderTable)unmergedReturnOrderTable.addEventListener('change',event=>{
   const check=event.target.closest('.master-return-check');
   if(!check)return;
   if(check.checked)selectedReturnOrderIdsForMaster.add(check.dataset.id);else selectedReturnOrderIdsForMaster.delete(check.dataset.id);
-  loadUnmergedReturnOrders();
+  if(typeof renderUnmergedReturnOrders==='function')renderUnmergedReturnOrders(window.__unmergedReturnOrdersCache||[]);
+  else loadUnmergedReturnOrders();
 });
 const selectAllUnmergedReturnOrdersButton=document.getElementById('selectAllUnmergedReturnOrdersButton');
 if(selectAllUnmergedReturnOrdersButton)selectAllUnmergedReturnOrdersButton.addEventListener('click',()=>{
-  document.querySelectorAll('.master-return-check').forEach(input=>{
-    if(input.dataset.id)selectedReturnOrderIdsForMaster.add(input.dataset.id);
-  });
-  loadUnmergedReturnOrders();
+  if(typeof toggleSelectAllUnmergedReturnOrders==='function')toggleSelectAllUnmergedReturnOrders();
+  else loadUnmergedReturnOrders();
 });
 const reloadUnmergedReturnOrdersInlineButton=document.getElementById('reloadUnmergedReturnOrdersInlineButton');
 if(reloadUnmergedReturnOrdersInlineButton)reloadUnmergedReturnOrdersInlineButton.addEventListener('click',loadUnmergedReturnOrders);
@@ -83,10 +87,14 @@ if(reloadMasterReturnOrdersButton)reloadMasterReturnOrdersButton.addEventListene
 if(masterReturnOrderSearchInput)masterReturnOrderSearchInput.addEventListener('input',loadMasterReturnOrders);
 if(masterReturnOrderDateFrom)masterReturnOrderDateFrom.addEventListener('change',loadMasterReturnOrders);
 if(masterReturnOrderDateTo)masterReturnOrderDateTo.addEventListener('change',loadMasterReturnOrders);
+if(openMasterReturnOrderModalButton && typeof openMasterReturnOrderModal==='function')openMasterReturnOrderModalButton.addEventListener('click',()=>{ if(typeof resetMasterReturnOrderModal==='function')resetMasterReturnOrderModal(); openMasterReturnOrderModal(); });
+if(closeMasterReturnOrderModalButton && typeof closeMasterReturnOrderModal==='function')closeMasterReturnOrderModalButton.addEventListener('click',closeMasterReturnOrderModal);
+if(masterReturnOrderModal)masterReturnOrderModal.addEventListener('click',event=>{ if(event.target===masterReturnOrderModal && typeof closeMasterReturnOrderModal==='function')closeMasterReturnOrderModal(); });
 window.cancelMasterReturnOrder=cancelMasterReturnOrder;
 window.viewMasterReturnOrder=viewMasterReturnOrder;
 window.receiveMasterReturnOrder=receiveMasterReturnOrder;
 window.printMasterReturnOrder=printMasterReturnOrder;
+document.addEventListener('keydown',event=>{ if(event.key==='Escape' && typeof isMasterReturnOrderModalOpen==='function' && isMasterReturnOrderModalOpen() && typeof closeMasterReturnOrderModal==='function')closeMasterReturnOrderModal(); });
 debtInnerTabs.forEach(btn=>btn.addEventListener('click',()=>setDebtPanel(btn.dataset.debtPanel)));
 window.voidReceipt=voidReceipt;
 if(cashbookSearchInput)cashbookSearchInput.addEventListener('input',loadCashbook);

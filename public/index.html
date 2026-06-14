@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KHO Minh Khai Pro V44</title>
-  <link rel="stylesheet" href="/style.css?v=phase33-return-filter-v1" />
+  <link rel="stylesheet" href="/style.css?v=sales-order-compact-v1" />
   <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
 </head>
 <body>
@@ -610,63 +610,31 @@
 
 
     <section id="masterReturnOrdersTab" class="tab-content">
-      <main class="master-return-split-layout">
-        <section class="card master-create-card master-return-create-card master-return-top-create">
-          <form id="masterReturnOrderForm" class="form master-return-inline-form">
-            <div class="master-return-top-title">
-              <h2>Gộp đơn tổng trả</h2>
-              <p id="masterReturnOrderMessage" class="message"></p>
+      <main class="grid master-return-grid master-return-list-only-grid">
+        <section class="card">
+          <div class="master-return-toolbar-grouped">
+            <div class="master-return-title-row">
+              <div>
+                <h2>Đơn tổng trả hàng</h2>
+                <p id="masterReturnOrderCount" class="muted">Đang tải...</p>
+              </div>
+              <button id="openMasterReturnOrderModalButton" type="button">Tạo đơn tổng trả</button>
             </div>
-            <label>Ngày trả hàng<input name="returnDate" id="masterReturnDate" type="date" /></label>
-            <label>NV giao hàng<input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="Mã/tên NVGH" /></label>
-            <label class="master-return-note">Ghi chú<input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" /></label>
-            <div class="master-selection-summary master-return-inline-summary">
-              <span>Đã chọn: <strong id="selectedMasterReturnCount">0</strong> phiếu</span>
-              <span>Tổng SL: <strong id="selectedMasterReturnQty">0</strong></span>
-              <span>Tổng giá trị: <strong id="selectedMasterReturnValue">0</strong></span>
-              <span id="unmergedReturnOrderSummary">Chưa tải phiếu trả hàng chưa gộp.</span>
-            </div>
-            <div class="button-row master-return-top-actions">
-              <button type="submit">Tạo đơn tổng trả</button>
-              <button type="button" id="clearMasterReturnSelectionButton" class="secondary">Bỏ chọn</button>
-              <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="card master-filter-card master-return-unmerged-card master-return-half-card">
-          <div class="toolbar master-return-compact-toolbar">
-            <div>
-              <h2>Phiếu trả hàng chưa gộp</h2>
-              <p class="muted">Chọn phiếu để gộp.</p>
-            </div>
-            <button id="selectAllUnmergedReturnOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
-          </div>
-          <div class="master-filter-row master-return-filter-row">
-            <input id="unmergedReturnOrderSearchInput" placeholder="Tìm mã trả hàng, khách, NVGH..." />
-            <input id="unmergedReturnOrderDateFrom" type="date" title="Từ ngày" />
-            <input id="unmergedReturnOrderDateTo" type="date" title="Đến ngày" />
-            <button id="reloadUnmergedReturnOrdersInlineButton" class="secondary" type="button">Tải lại</button>
-          </div>
-          <div id="unmergedReturnOrderTable" class="order-list compact-order-list master-return-unmerged-list master-return-scroll-list">Đang tải phiếu trả hàng chưa gộp...</div>
-        </section>
-
-        <section class="card master-list-card master-return-list-card master-return-half-card">
-          <div class="toolbar master-return-compact-toolbar">
-            <div>
-              <h2>Danh sách đơn tổng trả hàng</h2>
-              <p id="masterReturnOrderCount" class="muted">Đang tải...</p>
-            </div>
-            <div class="sales-history-filters">
-              <input id="masterReturnOrderDateFrom" type="date" title="Từ ngày" />
-              <input id="masterReturnOrderDateTo" type="date" title="Đến ngày" />
-              <button id="selectAllMasterReturnOrdersButton" class="secondary" type="button">Chọn tất cả</button>
-              <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In</button>
-              <button id="receiveSelectedMasterReturnOrdersButton" class="secondary" type="button">Nhập kho</button>
-              <button id="reloadMasterReturnOrdersButton" class="secondary" type="button">Tải lại</button>
+            <p id="masterReturnOrderMessage" class="message"></p>
+            <div class="master-return-toolbar-row">
+              <div class="master-return-date-box">
+                <input id="masterReturnOrderDateFrom" type="date" title="Từ ngày" />
+                <input id="masterReturnOrderDateTo" type="date" title="Đến ngày" />
+              </div>
+              <div class="master-return-action-box">
+                <button id="selectAllMasterReturnOrdersButton" class="secondary" type="button">Chọn tất cả</button>
+                <button id="printSelectedMasterReturnOrdersButton" class="secondary" type="button">In</button>
+                <button id="receiveSelectedMasterReturnOrdersButton" class="secondary" type="button">Nhập kho</button>
+                <button id="reloadMasterReturnOrdersButton" class="secondary" type="button">Tải lại</button>
+              </div>
             </div>
           </div>
-          <div id="masterReturnOrderTable" class="order-list master-return-scroll-list">Đang tải đơn tổng trả hàng...</div>
+          <div id="masterReturnOrderTable" class="order-list master-return-fixed-list">Đang tải đơn tổng trả hàng...</div>
         </section>
 
         <div class="master-return-hidden-kpis" hidden>
@@ -677,9 +645,68 @@
           <strong id="masterReturnKpiMasterValue">0</strong>
         </div>
       </main>
+
+      <div id="masterReturnOrderModal" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-card master-return-modal-workspace" role="dialog" aria-modal="true" aria-labelledby="masterReturnOrderModalTitle">
+          <div class="modal-header">
+            <div>
+              <h2 id="masterReturnOrderModalTitle">Tạo đơn tổng trả</h2>
+              <p class="muted">Chọn các phiếu trả hàng chưa gộp rồi tạo đơn tổng trả trong popup.</p>
+            </div>
+            <button id="closeMasterReturnOrderModalButton" type="button" class="secondary">Đóng</button>
+          </div>
+          <div class="master-return-popup-layout">
+            <section class="card master-return-popup-info">
+              <form id="masterReturnOrderForm" class="form master-return-popup-form">
+                <label>Ngày trả hàng<input name="returnDate" id="masterReturnDate" type="date" /></label>
+                <label>NV giao hàng<input name="deliveryStaffCode" id="masterReturnDeliveryStaff" placeholder="Mã/tên NVGH" /></label>
+                <label class="master-return-note">Ghi chú<input name="note" placeholder="VD: Kho nhận hàng trả cuối ngày" /></label>
+                <div class="master-selection-summary master-return-popup-summary">
+                  <span>Đã chọn: <strong id="selectedMasterReturnCount">0</strong> phiếu</span>
+                  <span>Tổng SL: <strong id="selectedMasterReturnQty">0</strong></span>
+                  <span>Tổng giá trị: <strong id="selectedMasterReturnValue">0</strong></span>
+                  <span id="unmergedReturnOrderSummary">Chưa tải phiếu trả hàng chưa gộp.</span>
+                </div>
+                <div class="button-row master-return-popup-actions">
+                  <button type="submit">Tạo đơn tổng trả</button>
+                  <button type="button" id="clearMasterReturnSelectionButton" class="secondary">Bỏ chọn</button>
+                  <button id="reloadUnmergedReturnOrdersButton" class="secondary" type="button">Tải phiếu</button>
+                </div>
+              </form>
+
+              <section class="master-return-selected-card">
+                <div class="toolbar compact-toolbar">
+                  <div>
+                    <h3>Phiếu đã chọn</h3>
+                    <p class="muted">Danh sách này giống lớp chọn ở phần Đơn tổng.</p>
+                  </div>
+                </div>
+                <div id="selectedMasterReturnOrderList" class="order-list compact-order-list selected-master-return-list">
+                  <div class="empty-cell">Chưa có phiếu trả hàng nào được chọn để gộp.</div>
+                </div>
+              </section>
+            </section>
+
+            <section class="card master-return-popup-unmerged">
+              <div class="toolbar master-return-popup-toolbar">
+                <div>
+                  <h3>Phiếu trả hàng chưa gộp</h3>
+                  <p class="muted">Lọc theo NV giao ở form bên trái và tìm nhanh theo mã/khách.</p>
+                </div>
+                <button id="selectAllUnmergedReturnOrdersButton" type="button" class="secondary small">Chọn tất cả</button>
+              </div>
+              <div class="master-filter-row master-return-popup-filter-row">
+                <input id="unmergedReturnOrderSearchInput" placeholder="Tìm mã trả hàng, khách, NVGH..." />
+                <button id="reloadUnmergedReturnOrdersInlineButton" class="secondary" type="button">Tải lại</button>
+              </div>
+              <div id="unmergedReturnOrderTable" class="order-list compact-order-list master-return-unmerged-list master-return-popup-list">Đang tải phiếu trả hàng chưa gộp...</div>
+            </section>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <section id="deliveryTodayTab" class="tab-content">
+<section id="deliveryTodayTab" class="tab-content">
       <section id="deliveryTodayRoot" class="delivery-v46-shell">
         <section class="card">
           <h2>Đơn giao hôm nay</h2>
@@ -962,26 +989,17 @@
             <h2>Đơn trả hàng</h2>
             <p id="returnOrderCount" class="muted">Quản lý riêng phiếu trả hàng từ app giao hàng và phần mềm. Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>.</p>
           </div>
-          <form id="returnOrderFilterForm" class="return-order-filter-form" autocomplete="off">
-            <label class="return-order-search-field" for="returnOrderSearchInput">
-              <span>Tìm kiếm</span>
-              <input id="returnOrderSearchInput" placeholder="Mã trả hàng, khách hàng, đơn bán, nhân viên giao" />
-            </label>
-            <div class="return-order-date-range" aria-label="Khoảng ngày trả hàng">
-              <label for="returnOrderDateFrom">
-                <span>Từ ngày</span>
-                <input id="returnOrderDateFrom" type="date" />
-              </label>
-              <label for="returnOrderDateTo">
-                <span>Đến ngày</span>
-                <input id="returnOrderDateTo" type="date" />
-              </label>
-            </div>
-            <div class="return-order-filter-actions">
-              <button id="applyReturnOrderFiltersButton" type="submit">Lọc</button>
-              <button id="clearReturnOrderFiltersButton" class="secondary" type="button">Xóa lọc</button>
-            </div>
-          </form>
+          <div class="sales-history-filters return-order-filters">
+            <input id="returnOrderSearchInput" placeholder="Tìm mã trả hàng, khách, đơn bán, NV giao..." />
+            <select id="returnOrderDateMode" title="Chế độ lọc ngày">
+              <option value="today">Hôm nay</option>
+              <option value="all">Tất cả</option>
+              <option value="range">Từ ngày đến ngày</option>
+            </select>
+            <input id="returnOrderDateFrom" type="date" title="Từ ngày" />
+            <input id="returnOrderDateTo" type="date" title="Đến ngày" />
+            <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
+          </div>
         </div>
         <div class="return-order-list-card return-order-list-full">
           <div class="return-order-section-title">
@@ -1773,7 +1791,7 @@
 <script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
 <script src="/js/search/productSearchBox.js?v=unified-search-v1"></script>
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
-  <script src="/js/app/00-dom-state.js?v=phase33-return-filter-v1"></script>
+  <script src="/js/app/00-dom-state.js?v=external-debt-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=unified-search-v1"></script>
@@ -1782,9 +1800,9 @@
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/app/06-master-delivery.js?v=returnorders-app-save-tab3-v2"></script>
-  <script src="/js/app/07-debt-cashbook.js?v=phase33-return-filter-v1"></script>
+  <script src="/js/app/07-debt-cashbook.js?v=external-debt-v1"></script>
   <script src="/js/app/08-reports-users-promotions-import-excel.js?v=vat-invoice-setting-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
-  <script src="/app.js?v=phase33-return-filter-v1"></script>
+  <script src="/app.js?v=external-debt-v1"></script>
 </body>
 </html>
