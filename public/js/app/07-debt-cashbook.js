@@ -658,7 +658,7 @@ async function voidReceipt(id){
 }
 
 
-// V45 - Return Orders readonly split panel state
+// PHASE31 - Return Orders full-width list + readonly detail popup state
 let returnOrdersCache = [];
 let selectedReturnOrderKey = '';
 
@@ -701,13 +701,35 @@ function canCancelReturnOrder(order){
   if(order?.masterReturnOrderId||order?.masterReturnOrderCode||String(order?.returnMergeStatus||'').toLowerCase()==='merged')return false;
   return ['waiting_receive','pending_warehouse_receive','pending','draft','has_return'].includes(status);
 }
+function isReturnOrderDetailModalOpen(){
+  return Boolean(returnOrderDetailModal?.classList.contains('show'));
+}
+function openReturnOrderDetailModal(){
+  if(!returnOrderDetailModal)return;
+  returnOrderDetailModal.classList.add('show');
+  returnOrderDetailModal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  setTimeout(()=>closeReturnOrderDetailModalButton?.focus(),20);
+}
+function closeReturnOrderDetailPopup(options={}){
+  if(!returnOrderDetailModal)return;
+  returnOrderDetailModal.classList.remove('show');
+  returnOrderDetailModal.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+  if(options.clearSelection!==false){
+    selectedReturnOrderKey='';
+    returnOrderTable?.querySelectorAll('tr[data-return-key]').forEach(tr=>tr.classList.remove('active'));
+  }
+}
 function renderReturnOrderDetail(order){
   const panel=document.getElementById('returnOrderDetailPanel');
   if(!panel) return;
   if(!order){
-    panel.innerHTML='<div class="return-detail-empty"><strong>Chi tiết đơn trả hàng</strong><p>Chọn một phiếu bên trái để xem sản phẩm trả. Khu vực này chỉ xem, không cho chỉnh sửa.</p></div>';
+    panel.innerHTML='<div class="return-detail-empty"><strong>Chưa chọn phiếu trả hàng</strong><p>Đóng popup và chọn một phiếu trong danh sách.</p></div>';
+    if(returnOrderDetailModalTitle)returnOrderDetailModalTitle.textContent='Chi tiết phiếu trả hàng';
     return;
   }
+  if(returnOrderDetailModalTitle)returnOrderDetailModalTitle.textContent=`Chi tiết ${order.code||order.id||'phiếu trả hàng'}`;
   const items=returnOrderItems(order);
   const totalQty=items.reduce((sum,it)=>sum+returnItemQty(it),0) || Number(order.totalQuantity||0);
   const totalAmount=items.reduce((sum,it)=>sum+returnItemAmount(it),0) || Number(order.debtReduction ?? order.totalAmount ?? order.amount ?? 0);
@@ -757,13 +779,15 @@ function renderReturnOrderDetail(order){
     </div>
   `;
 }
-function selectReturnOrderByKey(key){
+function selectReturnOrderByKey(key, options={}){
   selectedReturnOrderKey=String(key||'');
   const order=returnOrdersCache.find(r=>returnOrderRowKey(r)===selectedReturnOrderKey)||null;
+  if(!order)return;
   if(returnOrderTable){
     returnOrderTable.querySelectorAll('tr[data-return-key]').forEach(tr=>tr.classList.toggle('active', tr.dataset.returnKey===selectedReturnOrderKey));
   }
   renderReturnOrderDetail(order);
+  if(options.open!==false)openReturnOrderDetailModal();
 }
 
 async function cancelReturnOrder(key){
@@ -781,6 +805,7 @@ async function cancelReturnOrder(key){
     const json=await res.json();
     if(!json.ok)throw new Error(json.message||'Không hủy được phiếu trả hàng');
     alert(json.message||'Đã hủy phiếu trả hàng');
+    closeReturnOrderDetailPopup();
     await loadReturnOrders();
   }catch(err){alert(err.message||'Không hủy được phiếu trả hàng')}
 }
@@ -816,33 +841,37 @@ async function loadReturnOrders(){
     const rows = rawRows.filter(row => (typeof isActiveDocument === 'function' ? isActiveDocument(row) : true));
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
     const modeLabel=returnOrderDateMode?.value==='all'?'Tất cả':(returnOrderDateMode?.value==='range'?'Theo khoảng ngày':'Hôm nay');
-    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Chọn một phiếu để xem sản phẩm trả · <strong>Readonly</strong>`;
+    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Nhấn một phiếu để mở chi tiết · <strong>Readonly</strong>`;
     returnOrdersCache=rows;
     if(!rows.length){
       selectedReturnOrderKey='';
-      returnOrderTable.innerHTML='<tr><td colspan="6">Chưa có đơn trả hàng.</td></tr>';
+      returnOrderTable.innerHTML='<tr><td colspan="7">Chưa có đơn trả hàng.</td></tr>';
       renderReturnOrderDetail(null);
       return;
     }
-    if(!rows.some(r=>returnOrderRowKey(r)===selectedReturnOrderKey)) selectedReturnOrderKey=returnOrderRowKey(rows[0]);
+    if(!rows.some(r=>returnOrderRowKey(r)===selectedReturnOrderKey)){
+      selectedReturnOrderKey='';
+      if(isReturnOrderDetailModalOpen())closeReturnOrderDetailPopup();
+    }
     returnOrderTable.innerHTML=rows.map(r=>{
       const key=returnOrderRowKey(r);
       const status=String(r.status||'posted');
       const totalQty=Number(r.totalQuantity||0) || returnOrderItems(r).reduce((sum,it)=>sum+returnItemQty(it),0);
       const totalAmount=Number(r.debtReduction??r.totalAmount??r.amount??0) || returnOrderItems(r).reduce((sum,it)=>sum+returnItemAmount(it),0);
-      return `<tr data-return-key="${escapeHtml(key)}" class="${key===selectedReturnOrderKey?'active':''}" title="Bấm để xem chi tiết sản phẩm trả">
+      return `<tr data-return-key="${escapeHtml(key)}" class="${key===selectedReturnOrderKey?'active':''}" title="Bấm để mở popup chi tiết sản phẩm trả" tabindex="0">
         <td><strong>${escapeHtml(r.code||r.id||'')}</strong><div class="muted tiny-text">${escapeHtml(r.salesOrderCode||r.orderCode||'')}</div></td>
-        <td>${escapeHtml(r.date||r.documentDate||r.returnDate||'')}</td>
+        <td>${escapeHtml(r.returnDate||r.date||r.documentDate||r.deliveryDate||'')}</td>
         <td>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</td>
         <td class="price">${money(totalQty)}</td>
         <td class="price cash-in">${money(totalAmount)}</td>
         <td><span class="badge ${returnOrderStatusBadgeClass(status)}">${escapeHtml(returnOrderStatusLabel(status))}</span></td>
+        <td><button type="button" class="secondary small return-order-view-button" data-return-action="view">Xem chi tiết</button></td>
       </tr>`;
     }).join('');
-    selectReturnOrderByKey(selectedReturnOrderKey);
+    if(isReturnOrderDetailModalOpen()&&selectedReturnOrderKey)selectReturnOrderByKey(selectedReturnOrderKey,{open:false});
   }catch(err){
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
-    returnOrderTable.innerHTML=`<tr><td colspan="6">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
+    returnOrderTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
     renderReturnOrderDetail(null);
   }
 }
@@ -1240,7 +1269,22 @@ if(returnOrderDateFrom) returnOrderDateFrom.addEventListener('change',()=>{ if(r
 if(returnOrderDateTo) returnOrderDateTo.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
 if(returnOrderSearchInput) returnOrderSearchInput.addEventListener('input',()=>{ clearTimeout(window.__returnOrderSearchTimer); window.__returnOrderSearchTimer=setTimeout(loadReturnOrders,250); });
 if(reloadReturnOrdersButton) reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
-if(returnOrderTable) returnOrderTable.addEventListener('click',event=>{ const tr=event.target.closest('tr[data-return-key]'); if(tr) selectReturnOrderByKey(tr.dataset.returnKey); });
+if(returnOrderTable){
+  returnOrderTable.addEventListener('click',event=>{
+    const tr=event.target.closest('tr[data-return-key]');
+    if(tr)selectReturnOrderByKey(tr.dataset.returnKey);
+  });
+  returnOrderTable.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'&&event.key!==' ')return;
+    const tr=event.target.closest('tr[data-return-key]');
+    if(!tr)return;
+    event.preventDefault();
+    selectReturnOrderByKey(tr.dataset.returnKey);
+  });
+}
+if(closeReturnOrderDetailModalButton)closeReturnOrderDetailModalButton.addEventListener('click',()=>closeReturnOrderDetailPopup());
+if(returnOrderDetailModal)returnOrderDetailModal.addEventListener('click',event=>{if(event.target===returnOrderDetailModal)closeReturnOrderDetailPopup();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&isReturnOrderDetailModalOpen())closeReturnOrderDetailPopup();});
 
 window.toggleSelectAllMasterReturnOrders=toggleSelectAllMasterReturnOrders;
 window.printSelectedMasterReturnOrders=printSelectedMasterReturnOrders;

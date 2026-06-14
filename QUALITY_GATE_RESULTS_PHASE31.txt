@@ -1,0 +1,20 @@
+PHASE 31 QUALITY GATE
+=====================
+
+Root-cause regression:
+- listReturnOrders no longer calls undefined uniqueClean(): PASS
+- GET list service returns rows with date filters: PASS
+- cancelReturnOrderById uses current return order state: PASS
+
+Popup/UI regression:
+- full-width return-order list: PASS
+- readonly detail modal exists: PASS
+- row/button/keyboard open behavior: PASS
+- close button/backdrop/Escape behavior: PASS
+- no automatic first-row popup: PASS
+
+Project gates:
+- JavaScript syntax: 496 files PASS
+- OpenAPI drift check: 270 operations current
+- Full automated suite: 378/378 PASS
+- npm audit --omit=dev --audit-level=high: 0 vulnerabilities

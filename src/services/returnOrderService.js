@@ -305,7 +305,7 @@ async function listReturnOrders(query = {}) {
     ] });
   }
 
-  const directValues = uniqueClean([
+  const directValues = uniqueStrings([
     query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode,
     query.orderKey, query.code, query.id
   ]);
@@ -1382,7 +1382,7 @@ async function cancelReturnOrderById(idOrCode, body = {}, options = {}) {
   }
   const cancelled = {
     ...current,
-    ...ReturnStateMachine.patchForState(existing, RETURN_STATES.CANCELLED),
+    ...ReturnStateMachine.patchForState(current, RETURN_STATES.CANCELLED),
     returnState: RETURN_STATES.CANCELLED,
     warehouseReceiveStatus: 'cancelled',
     accountingStatus: 'cancelled',

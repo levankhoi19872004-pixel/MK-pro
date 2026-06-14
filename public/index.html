@@ -974,31 +974,45 @@
             <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
           </div>
         </div>
-        <div class="return-order-split-layout">
-          <div class="return-order-list-card">
-            <div class="return-order-section-title">Danh sách phiếu trả</div>
-            <div class="table-wrap compact-table return-order-one-line-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Mã trả hàng</th>
-                    <th>Ngày</th>
-                    <th>Khách</th>
-                    <th>SL</th>
-                    <th>Giá trị</th>
-                    <th>Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody id="returnOrderTable"><tr><td colspan="6">Đang tải đơn trả hàng...</td></tr></tbody>
-              </table>
-            </div>
+        <div class="return-order-list-card return-order-list-full">
+          <div class="return-order-section-title">
+            <span>Danh sách phiếu trả</span>
+            <small>Nhấn vào một dòng hoặc nút Xem chi tiết để mở popup.</small>
           </div>
-          <aside id="returnOrderDetailPanel" class="return-order-detail-panel">
-            <div class="return-detail-empty">
-              <strong>Chi tiết đơn trả hàng</strong>
-              <p>Chọn một phiếu bên trái để xem sản phẩm trả. Khu vực này chỉ xem, không cho chỉnh sửa.</p>
+          <div class="table-wrap compact-table return-order-one-line-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã trả hàng</th>
+                  <th>Ngày</th>
+                  <th>Khách</th>
+                  <th>SL</th>
+                  <th>Giá trị</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="returnOrderTable"><tr><td colspan="7">Đang tải đơn trả hàng...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="returnOrderDetailModal" class="modal-backdrop return-order-detail-modal" aria-hidden="true">
+          <section class="modal-card return-order-detail-modal-card" role="dialog" aria-modal="true" aria-labelledby="returnOrderDetailModalTitle">
+            <div class="modal-head return-order-modal-head">
+              <div>
+                <h3 id="returnOrderDetailModalTitle">Chi tiết phiếu trả hàng</h3>
+                <p class="muted">Chỉ xem dữ liệu từ returnOrders; không chỉnh sửa trực tiếp trong popup.</p>
+              </div>
+              <button id="closeReturnOrderDetailModal" class="secondary" type="button" aria-label="Đóng popup chi tiết">Đóng</button>
             </div>
-          </aside>
+            <div id="returnOrderDetailPanel" class="return-order-detail-panel return-order-modal-body">
+              <div class="return-detail-empty">
+                <strong>Chưa chọn phiếu trả hàng</strong>
+                <p>Đóng popup và chọn một phiếu trong danh sách.</p>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     </section>

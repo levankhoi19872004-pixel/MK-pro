@@ -18,7 +18,27 @@ async function list(req, res) {
     const returnOrders = await returnOrderService.listReturnOrders(req.query || {});
     res.json({ ok: true, source: 'mongo-route', returnOrders, returns: returnOrders });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không tải được phiếu trả hàng từ MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    const requestId = String(req.requestId || req.headers?.['x-request-id'] || `return-${Date.now()}`);
+    console.error('[RETURN_ORDER_LIST_FAILED]', {
+      requestId,
+      message: err?.message || String(err),
+      code: err?.code || err?.name || 'UNKNOWN',
+      query: {
+        q: String(req.query?.q || '').slice(0, 80),
+        dateFrom: String(req.query?.dateFrom || ''),
+        dateTo: String(req.query?.dateTo || ''),
+        date: String(req.query?.date || ''),
+        page: String(req.query?.page || ''),
+        limit: String(req.query?.limit || '')
+      }
+    });
+    res.status(500).json({
+      ok: false,
+      message: 'Không tải được phiếu trả hàng từ MongoDB',
+      errorCode: 'RETURN_ORDER_LIST_FAILED',
+      requestId,
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
   }
 }
 
