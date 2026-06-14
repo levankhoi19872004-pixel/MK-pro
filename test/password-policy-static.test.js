@@ -12,7 +12,7 @@ function read(file) {
 test('login only accepts bcrypt password hashes and never plaintext/default password', () => {
   const policy = read('src/security/passwordPolicy.js');
   const authRoutes = read('src/routes/authRoutes.js');
-  const mobileRoutes = read('src/routes/mobileRoutes.js');
+  const mobileAuth = read('src/services/mobile/auth.service.js');
   const userService = read('src/services/userService.js');
 
   assert.match(policy, /function verifyPassword/);
@@ -24,9 +24,9 @@ test('login only accepts bcrypt password hashes and never plaintext/default pass
   assert.doesNotMatch(authRoutes, /return password === saved/);
   assert.doesNotMatch(authRoutes, /user\.(?:pass|pin)\b/);
 
-  assert.doesNotMatch(mobileRoutes, /String\(password \|\| ''\) === ['"]123456['"]/);
-  assert.doesNotMatch(mobileRoutes, /return String\(password \|\| ''\) === stored/);
-  assert.doesNotMatch(mobileRoutes, /staff\.(?:pass|pin)\b/);
+  assert.doesNotMatch(mobileAuth, /String\(password \|\| ''\) === ['"]123456['"]/);
+  assert.doesNotMatch(mobileAuth, /return String\(password \|\| ''\) === stored/);
+  assert.doesNotMatch(mobileAuth, /staff\.(?:pass|pin)\b/);
 
   assert.doesNotMatch(userService, /hashPasswordSync\(['"]123456['"]\)/);
 });

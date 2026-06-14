@@ -34,12 +34,11 @@ test('combined catalog filter preserves search and ownership constraints', () =>
 
 test('mobile catalog blocks delivery customer enumeration and legacy fallback-to-all is removed', () => {
   const modularRoutes = fs.readFileSync(path.join(__dirname, '../src/routes/mobile/catalog.routes.js'), 'utf8');
-  const legacyRoutes = fs.readFileSync(path.join(__dirname, '../src/routes/mobileRoutes.js'), 'utf8');
   const service = fs.readFileSync(path.join(__dirname, '../src/services/mobile/catalog.service.js'), 'utf8');
 
   assert.match(modularRoutes, /allowCustomerRead.*\['admin', 'manager', 'accountant', 'sales'\]/);
   assert.doesNotMatch(modularRoutes, /allowCustomerRead.*delivery/);
   assert.match(service, /customerOwnershipFilterForSalesUser\(mobileUser\)/);
-  assert.doesNotMatch(legacyRoutes, /fallback lấy danh mục khách để app không bị trắng màn hình/);
-  assert.match(legacyRoutes, /ownerSalesStaffCode/);
+  assert.equal(fs.existsSync(path.join(__dirname, '../src/routes/mobileRoutes.js')), false);
+  assert.match(service, /customerOwnershipFilterForSalesUser/);
 });

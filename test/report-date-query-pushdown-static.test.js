@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/reportService.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/reportLegacy.service.js'), 'utf8');
 
 test('high-volume reports push date and active status filters into Mongo', () => {
   assert.match(source, /function buildDateMongoFilter/);

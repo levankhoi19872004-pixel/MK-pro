@@ -4,13 +4,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const readPublicCss = require('./helpers/readPublicCss');
 
 test('master-return-order screen uses list-only layout with popup create workspace', () => {
   const root = path.resolve(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
-  const js = fs.readFileSync(path.join(root, 'public/js/app/07-debt-cashbook.js'), 'utf8');
-  const dom = fs.readFileSync(path.join(root, 'public/js/app/00-dom-state.js'), 'utf8');
-  const css = fs.readFileSync(path.join(root, 'public/style.css'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'), 'utf8');
+  const dom = fs.readFileSync(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'), 'utf8');
+  const css = readPublicCss(root);
 
   assert.match(html, /id="openMasterReturnOrderModalButton"/);
   assert.match(html, /id="masterReturnOrderModal" class="modal-backdrop"/);

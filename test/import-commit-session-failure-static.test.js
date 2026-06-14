@@ -19,9 +19,15 @@ test('excel import commit marks session failed when commit implementation throws
   assert.match(service, /status:\s*500/);
   assert.match(service, /detail:\s*message/);
 
-  assert.match(service, /if \(type === 'products'\) result = await upsertProducts\(commitRows\)/);
-  assert.match(service, /else if \(type === 'salesOrders'\) result = await importSalesOrders\(commitRows, \{ autoCutStock: true \}\)/);
-  assert.match(service, /else if \(type === 'openingDebt'\) result = await importOpeningDebt\(commitRows\)/);
+  const orchestrator = read('src/services/import/ImportCommitOrchestrator.js');
+  const registry = read('src/services/import/ImportHandlerRegistry.js');
+  const salesHandler = read('src/services/import/handlers/SalesOrderImportHandler.js');
+
+  assert.match(service, /importCommitOrchestrator\.commit\(type, commitRows,/);
+  assert.match(orchestrator, /return registry\.commit\(type, rows, context\)/);
+  assert.match(registry, /IMPORT_TYPE_UNSUPPORTED/);
+  assert.match(salesHandler, /createOperationHandler\('salesOrders', 'importSalesOrders', \{ autoCutStock: true \}\)/);
+  assert.doesNotMatch(service, /if \(type === 'products'\) result = await upsertProducts\(commitRows\)/);
 });
 
 test('excel import commit audit log is best effort after markDone', () => {

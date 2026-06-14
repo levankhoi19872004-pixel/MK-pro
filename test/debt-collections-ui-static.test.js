@@ -10,8 +10,8 @@ const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
 test('web UI exposes debt collection pending confirmation tab and actions', () => {
   const html = read('public/index.html');
-  const appState = read('public/js/app/00-dom-state.js');
-  const debtJs = read('public/js/app/07-debt-cashbook.js');
+  const appState = read('public/js/app/state/00b-debt-return-fund-state.js');
+  const debtJs = read('public/js/app/debt/07e-debt-collections.js');
   const routes = read('src/routes/debtCollectionRoutes.js');
   const controller = read('src/controllers/debtCollectionController.js');
 

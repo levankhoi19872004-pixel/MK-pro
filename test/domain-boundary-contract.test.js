@@ -63,7 +63,7 @@ test('domain boundaries delegate to the intended posting/lifecycle services', ()
 });
 
 test('master-order accounting strangler keeps legacy fallback and ENV-gated domain path', () => {
-  const source = read('src/services/master-order/masterOrderAccounting.service.js');
+  const source = read('src/services/master-order/deliveryAccounting.service.js');
 
   assert.match(source, /const legacy = require\('\.\/masterOrderLegacy\.service'\)/);
   assert.match(source, /DeliverySettlementService/);

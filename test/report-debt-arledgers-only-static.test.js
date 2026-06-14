@@ -10,7 +10,7 @@ function read(file) {
 }
 
 test('debt report reads only arLedgers and does not remap from Customer/User', () => {
-  const src = read('src/services/reportService.js');
+  const src = read('src/services/reportLegacy.service.js');
 
   assert.match(src, /REPORT_DEBT_ARLEDGER_ONLY_MATCH_START/);
 

@@ -37,7 +37,7 @@ test('print domain has canonical contract, normalizer, merge service and builder
 test('frontend delegates all print aggregation to backend print domain', () => {
   const sales = read('public/js/app/05-sales-orders.js');
   const master = read('public/js/app/06-master-delivery.js');
-  const returns = read('public/js/app/07-debt-cashbook.js');
+  const returns = read('public/js/app/debt/07d-master-return-orders.js');
 
   assert.match(sales, /\/api\/print\/orders\/batch/);
   assert.match(sales, /\/api\/print\/import-orders\/aggregate/);

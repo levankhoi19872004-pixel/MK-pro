@@ -33,7 +33,11 @@ test('fundService lazily resolves the delivery-only master order service', () =>
   );
 });
 
-test('masterOrderDelivery service exposes listDeliveryToday', () => {
-  const source = read('src/services/master-order/masterOrderDelivery.service.js');
-  assert.match(source, /listDeliveryToday\s*:\s*legacy\.listDeliveryToday/);
+test('masterOrderDelivery service exposes listDeliveryToday through the query boundary', () => {
+  const facade = read('src/services/master-order/masterOrderDelivery.service.js');
+  const deliveryQuery = read('src/services/master-order/deliveryTodayQuery.service.js');
+
+  assert.match(facade, /const deliveryQuery = require\('\.\/deliveryTodayQuery\.service'\)/);
+  assert.match(facade, /module\.exports = \{ \.\.\.query, \.\.\.command, \.\.\.deliveryQuery, \.\.\.deliveryCommand \}/);
+  assert.match(deliveryQuery, /listDeliveryToday:\s*\(\.\.\.args\) => legacy\.listDeliveryToday\(\.\.\.args\)/);
 });

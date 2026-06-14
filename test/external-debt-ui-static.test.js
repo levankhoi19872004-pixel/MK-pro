@@ -21,7 +21,7 @@ test('debt web UI exposes create and reload buttons plus mandatory assignee fiel
 
 test('external debt modal uses unified autocomplete and posts canonical payload', () => {
   const config = read('public/js/search/searchFieldsConfig.js');
-  const ui = read('public/js/app/07-debt-cashbook.js');
+  const ui = read('public/js/app/debt/07a-debt-core.js');
   assert.match(config, /key:\s*'externalDebtCustomer'/);
   assert.match(config, /key:\s*'externalDebtSalesStaff'/);
   assert.match(config, /roles:\s*\['sales'\]/);

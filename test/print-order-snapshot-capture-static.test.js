@@ -16,7 +16,7 @@ const REQUIRED_SNAPSHOT_FIELDS = [
 ];
 
 test('web sales order capture keeps print-critical product snapshot fields', () => {
-  const source = read('src/services/orderService.js');
+  const source = read('src/services/orderLegacy.service.js');
   for (const field of REQUIRED_SNAPSHOT_FIELDS) assert.match(source, new RegExp(field));
   assert.match(source, /appliedPromotionRows/);
   assert.match(source, /finalPrice/);

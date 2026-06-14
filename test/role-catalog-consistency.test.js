@@ -15,7 +15,7 @@ const EXPECTED = ['admin', 'manager', 'accountant', 'warehouse', 'sales', 'deliv
 test('user management recognizes every canonical role', () => {
   for (const role of EXPECTED) assert.ok(userService.VALID_ROLES.includes(role), role);
   const ui = read('public/index.html');
-  const labels = read('public/js/app/08-reports-users-promotions-import-excel.js');
+  const labels = [read('public/js/app/admin/08a-reports.js'),read('public/js/app/admin/08b-users.js'),read('public/js/app/admin/08c-promotions-legacy.js'),read('public/js/app/admin/08d-import-excel.js'),read('public/js/app/admin/08e-promotion-programs.js'),read('public/js/app/admin/08f-vat-export.js')].join('\n');
   for (const role of EXPECTED) {
     assert.match(ui, new RegExp(`value=["']${role}["']`), role);
     assert.match(labels, new RegExp(`${role}:`), role);

@@ -14,14 +14,14 @@ function read(file) {
 const BUSINESS_FILES = [
   'src/rules/staffRules.js',
   'src/rules/importRules.js',
-  'src/engines/delivery.engine.js',
+  'src/engines/delivery.legacy.engine.js',
   'src/engines/posting.engine.js',
-  'src/services/orderService.js',
+  'src/services/orderLegacy.service.js',
   'src/services/excelImportService.js',
   'src/services/fundService.js',
-  'src/services/importExportService.js',
+  'src/services/importExportLegacy.service.js',
   'src/services/masterReturnOrderService.js',
-  'src/services/returnOrderService.js'
+  'src/services/returnOrderLegacy.service.js'
 ];
 
 test('business staff matching does not fallback between canonical and generic staff fields', () => {

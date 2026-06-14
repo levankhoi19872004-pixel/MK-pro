@@ -16,7 +16,7 @@ test('Excel import is two-phase and direct import is disabled', () => {
   const controller = read('src/controllers/excelImportController.js');
   const importExportController = read('src/controllers/importExportController.js');
   const job = read('src/jobs/importExcelJob.js');
-  const ui = read('public/js/app/08-reports-users-promotions-import-excel.js');
+  const ui = [read('public/js/app/admin/08a-reports.js'),read('public/js/app/admin/08b-users.js'),read('public/js/app/admin/08c-promotions-legacy.js'),read('public/js/app/admin/08d-import-excel.js'),read('public/js/app/admin/08e-promotion-programs.js'),read('public/js/app/admin/08f-vat-export.js')].join('\n');
 
   assert.match(model, /preview_ready/);
   assert.match(model, /importing/);

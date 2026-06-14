@@ -31,7 +31,12 @@ test('facade export surface is preserved by domain index', () => {
     read('src/services/master-order/index.js'),
     read('src/services/master-order/masterOrderDelivery.service.js'),
     read('src/services/master-order/masterOrderAccounting.service.js'),
-    read('src/services/master-order/masterOrderPrint.service.js')
+    read('src/services/master-order/masterOrderPrint.service.js'),
+    read('src/services/master-order/masterOrderQuery.service.js'),
+    read('src/services/master-order/masterOrderCommand.service.js'),
+    read('src/services/master-order/deliveryTodayQuery.service.js'),
+    read('src/services/master-order/deliveryOrderCommand.service.js'),
+    read('src/services/master-order/deliveryAccounting.service.js')
   ].join('\n');
   for (const name of [
     ...snapshot.deliveryExports,

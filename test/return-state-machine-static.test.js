@@ -32,7 +32,7 @@ test('ReturnStateMachine defines canonical A5 states and transitions', () => {
 });
 
 test('confirmReceiveReturnOrder only receives stock and does not post AR directly', () => {
-  const source = read('src/services/returnOrderService.js');
+  const source = read('src/services/returnOrderLegacy.service.js');
   const match = source.match(/async function confirmReceiveReturnOrder[\s\S]*?\n}\n\nasync function confirmAccountingReturnOrder/);
   assert.ok(match, 'confirmReceiveReturnOrder block must exist');
 
@@ -45,7 +45,7 @@ test('confirmReceiveReturnOrder only receives stock and does not post AR directl
 });
 
 test('AR return posting is blocked unless return order is accounting_confirmed', () => {
-  const source = read('src/services/returnOrderService.js');
+  const source = read('src/services/returnOrderLegacy.service.js');
   const match = source.match(/async function postReturnOrderArIfNeeded[\s\S]*?SCOPED FIX: RETURN_ORDER_POST_AR_DIRECT_END/);
   assert.ok(match, 'postReturnOrderArIfNeeded block must exist');
 
@@ -55,7 +55,7 @@ test('AR return posting is blocked unless return order is accounting_confirmed',
 });
 
 test('return edit/cancel paths use state machine guards', () => {
-  const source = read('src/services/returnOrderService.js');
+  const source = read('src/services/returnOrderLegacy.service.js');
 
   assert.match(source, /assertCanEdit/);
   assert.match(source, /assertCanCancel/);

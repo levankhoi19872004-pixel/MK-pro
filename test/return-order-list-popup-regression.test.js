@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const readPublicCss = require('./helpers/readPublicCss');
 
 const returnOrderRepository = require('../src/repositories/returnOrderRepository');
 const returnOrderService = require('../src/services/returnOrderService');
@@ -67,10 +68,13 @@ test('listReturnOrders no longer throws uniqueClean ReferenceError and returns M
 test('return-order screen uses a full-width list and readonly detail popup', () => {
   const root = path.resolve(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
-  const js = fs.readFileSync(path.join(root, 'public/js/app/07-debt-cashbook.js'), 'utf8');
-  const dom = fs.readFileSync(path.join(root, 'public/js/app/00-dom-state.js'), 'utf8');
-  const css = fs.readFileSync(path.join(root, 'public/style.css'), 'utf8');
-  const service = fs.readFileSync(path.join(root, 'src/services/returnOrderService.js'), 'utf8');
+  const js = [
+    fs.readFileSync(path.join(root, 'public/js/app/debt/07b-return-orders.js'), 'utf8'),
+    fs.readFileSync(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'), 'utf8')
+  ].join('\n');
+  const dom = fs.readFileSync(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'), 'utf8');
+  const css = readPublicCss(root);
+  const service = fs.readFileSync(path.join(root, 'src/services/returnOrderLegacy.service.js'), 'utf8');
 
   assert.match(html, /id="returnOrderDetailModal" class="modal-backdrop return-order-detail-modal"/);
   assert.match(html, /id="returnOrderDetailPanel" class="return-order-detail-panel return-order-modal-body"/);

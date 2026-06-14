@@ -1,21 +1,8 @@
 'use strict';
 
-// Refactor phase 1: thin domain module over the preserved implementation.
-// Business behavior is intentionally unchanged; routes continue through the facade.
-const legacy = require('./masterOrderLegacy.service');
+const query = require('./masterOrderQuery.service');
+const command = require('./masterOrderCommand.service');
+const deliveryQuery = require('./deliveryTodayQuery.service');
+const deliveryCommand = require('./deliveryOrderCommand.service');
 
-module.exports = {
-  listUnmergedChildOrders: legacy.listUnmergedChildOrders,
-  listMasterOrders: legacy.listMasterOrders,
-  listDeliveryToday: legacy.listDeliveryToday,
-  listDeliveryTodaySummary: legacy.listDeliveryTodaySummary,
-  listDeliveryTodaySummaryFast: legacy.listDeliveryTodaySummaryFast,
-  listDeliveryTodaySalesSummary: legacy.listDeliveryTodaySalesSummary,
-  listDeliveryTodayOrdersCompact: legacy.listDeliveryTodayOrdersCompact,
-  updateDeliveryTodayOrder: legacy.updateDeliveryTodayOrder,
-  getMasterOrder: legacy.getMasterOrder,
-  createMasterOrder: legacy.createMasterOrder,
-  updateMasterOrder: legacy.updateMasterOrder,
-  cancelMasterOrder: legacy.cancelMasterOrder,
-  deleteMasterOrder: legacy.deleteMasterOrder,
-};
+module.exports = { ...query, ...command, ...deliveryQuery, ...deliveryCommand };

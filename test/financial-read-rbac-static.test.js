@@ -18,10 +18,10 @@ test('financial books and debt collection administration require business roles'
   assert.match(receipt, /router\.get\('\/', requireRole/);
 });
 
-test('web reports are role-gated and inventory rebuild is admin-only on legacy mobile route', () => {
+test('web reports and canonical inventory reads are role-gated', () => {
   const reports = read('src/routes/reportRoutes.js');
-  const mobile = read('src/routes/mobileRoutes.js');
+  const inventory = read('src/routes/inventoryRoutes.js');
   assert.match(reports, /viewBusinessReports/);
   assert.match(reports, /viewStockReports/);
-  assert.match(mobile, /\/inventory\/rebuild', requireMobileLogin, requireMobileRole\(\['admin'\]\)/);
+  assert.match(inventory, /router\.get\('\/current', requireRole\(\['admin', 'manager', 'accountant', 'warehouse'\]\)/);
 });

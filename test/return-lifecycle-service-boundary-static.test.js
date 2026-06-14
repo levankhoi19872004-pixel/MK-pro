@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
 test('delivery engine writes returnOrders through ReturnLifecycleService boundary', () => {
-  const source = read('src/engines/delivery.engine.js');
+  const source = read('src/engines/delivery.legacy.engine.js');
   const saveReturnBlock = source.match(/async saveReturn\(body = \{\}\) \{[\s\S]*?\n  async savePayment\(/)?.[0] || '';
 
   assert.match(source, /function getReturnLifecycleService\(\)/);

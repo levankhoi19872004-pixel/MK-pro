@@ -9,7 +9,7 @@ const Customer = require('../src/models/Customer');
 
 function assertNoSalesmanStaffFallback() {
   const masterSource = fs.readFileSync('src/services/master-order/masterOrderLegacy.service.js', 'utf8');
-  const reportSource = fs.readFileSync('src/services/reportService.js', 'utf8');
+  const reportSource = fs.readFileSync('src/services/reportLegacy.service.js', 'utf8');
 
   assert.doesNotMatch(
     masterSource,

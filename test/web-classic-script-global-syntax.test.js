@@ -35,7 +35,7 @@ test('web admin classic scripts share one valid global lexical scope', () => {
 
 test('import order and import report modules use separate HTML escape identifiers', () => {
   const importOrderSource = fs.readFileSync(path.join(ROOT, 'public/js/app/04-import-orders.js'), 'utf8');
-  const importReportSource = fs.readFileSync(path.join(ROOT, 'public/js/app/08-reports-users-promotions-import-excel.js'), 'utf8');
+  const importReportSource = fs.readFileSync(path.join(ROOT, 'public/js/app/admin/08d-import-excel.js'), 'utf8');
 
   assert.match(importOrderSource, /const\s+escapeImportOrderHtml\s*=/);
   assert.doesNotMatch(importOrderSource, /const\s+escapeImportHtml\s*=/);

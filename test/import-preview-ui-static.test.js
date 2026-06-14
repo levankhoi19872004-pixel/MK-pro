@@ -12,7 +12,7 @@ function read(file) {
 }
 
 test('import preview UI polls session when backend returns 202 queued', () => {
-  const source = read('public/js/app/08-reports-users-promotions-import-excel.js');
+  const source = [read('public/js/app/admin/08a-reports.js'),read('public/js/app/admin/08b-users.js'),read('public/js/app/admin/08c-promotions-legacy.js'),read('public/js/app/admin/08d-import-excel.js'),read('public/js/app/admin/08e-promotion-programs.js'),read('public/js/app/admin/08f-vat-export.js')].join('\n');
 
   assert.match(source, /waitImportPreviewSession/);
   assert.match(source, /\/api\/import\/sessions\//);
@@ -23,7 +23,7 @@ test('import preview UI polls session when backend returns 202 queued', () => {
 });
 
 test('import template download uses authenticated fetch instead of window.location.href', () => {
-  const source = read('public/js/app/08-reports-users-promotions-import-excel.js');
+  const source = [read('public/js/app/admin/08a-reports.js'),read('public/js/app/admin/08b-users.js'),read('public/js/app/admin/08c-promotions-legacy.js'),read('public/js/app/admin/08d-import-excel.js'),read('public/js/app/admin/08e-promotion-programs.js'),read('public/js/app/admin/08f-vat-export.js')].join('\n');
 
   assert.match(source, /downloadImportBlob/);
   assert.match(source, /fetch\(url\)/);

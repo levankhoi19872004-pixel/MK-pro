@@ -31,7 +31,7 @@ test('mobile auth must read users instead of legacy staffs collection', () => {
 });
 
 test('DeliveryEngine staff lookup accepts users code and staffCode', () => {
-  const src = read('src/engines/delivery.engine.js');
+  const src = read('src/engines/delivery.legacy.engine.js');
   assert.match(src, /USER_ACCOUNT_SALES_STAFF_CODE_FIELDS/);
   assert.match(src, /USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS/);
   assert.match(src, /pickUserAccountSalesStaffCode/);
@@ -55,11 +55,11 @@ test('business staff repository lookup does not match username or _id', () => {
 
 test('web and mobile tokens must not use username as staffCode fallback', () => {
   const authRoutes = read('src/routes/authRoutes.js');
-  const mobileRoutes = read('src/routes/mobileRoutes.js');
+  const mobileAuth = read('src/services/mobile/auth.service.js');
   const mobileContext = read('src/mobile/mobileContext.js');
 
   assert.doesNotMatch(authRoutes, /user\.staffCode\s*\|\|\s*user\.code\s*\|\|\s*user\.username/);
-  assert.doesNotMatch(mobileRoutes, /staff\.staffCode\s*\|\|\s*staff\.code\s*\|\|\s*staff\.username/);
+  assert.doesNotMatch(mobileAuth, /staff\.staffCode\s*\|\|\s*staff\.code\s*\|\|\s*staff\.username/);
   assert.match(mobileContext, /pickUserAccountSalesStaffCode/);
   assert.match(mobileContext, /pickUserAccountDeliveryStaffCode/);
 });
@@ -68,7 +68,7 @@ test('frontend staff code helpers must not use username or id fallback', () => {
   const mobileView = read('public/mobile/js/delivery-mobile-view.js');
   assert.doesNotMatch(mobileView, /staffCode\s*\|\|\s*user\.code\s*\|\|\s*user\.username/);
 
-  const importUi = read('public/js/app/08-reports-users-promotions-import-excel.js');
+  const importUi = [read('public/js/app/admin/08a-reports.js'),read('public/js/app/admin/08b-users.js'),read('public/js/app/admin/08c-promotions-legacy.js'),read('public/js/app/admin/08d-import-excel.js'),read('public/js/app/admin/08e-promotion-programs.js'),read('public/js/app/admin/08f-vat-export.js')].join('\n');
   assert.doesNotMatch(importUi, /\[u\.code,u\.staffCode,u\.salesStaffCode,u\.username,u\.id\]/);
   assert.match(importUi, /u\.salesmanCode/);
   assert.match(importUi, /u\.employeeCode/);

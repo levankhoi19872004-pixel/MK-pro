@@ -12,7 +12,7 @@ const SCAN_DIRS = ['src/engines', 'src/services', 'src/controllers', 'src/routes
 
 const ALLOWED_FILES = new Set([
   path.normalize('src/domain/lifecycle/ReturnLifecycleService.js'),
-  path.normalize('src/services/returnOrderService.js'),
+  path.normalize('src/services/returnOrderLegacy.service.js'),
   path.normalize('src/services/masterReturnOrderService.js')
 ]);
 
@@ -60,7 +60,7 @@ test('returnOrders are not written directly outside return lifecycle/service bou
 });
 
 test('DeliveryEngine.saveReturn uses ReturnLifecycleService instead of direct ReturnOrder upsert', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/engines/delivery.engine.js'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'src/engines/delivery.legacy.engine.js'), 'utf8');
   const saveReturnIndex = source.indexOf('async saveReturn(');
   assert.notEqual(saveReturnIndex, -1, 'DeliveryEngine.saveReturn() must exist');
   const nextMethodIndex = source.indexOf('\n  async ', saveReturnIndex + 'async saveReturn('.length);

@@ -11,7 +11,7 @@ const ALLOWED = new Set([
   path.normalize('src/services/inventoryStock.service.js'),
   path.normalize('src/services/inventoryService.js'),
   path.normalize('src/domain/reconciliation/ReconciliationService.js'),
-  path.normalize('src/services/reportService.js')
+  path.normalize('src/services/reportLegacy.service.js')
 ]);
 
 const FORBIDDEN = [

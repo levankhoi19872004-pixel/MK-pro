@@ -18,7 +18,7 @@ function functionBlock(source, name) {
 }
 
 test('master order accounting facade uses Strangler env switch with legacy fallback', () => {
-  const source = read('src/services/master-order/masterOrderAccounting.service.js');
+  const source = read('src/services/master-order/deliveryAccounting.service.js');
 
   assert.match(source, /const legacy = require\('\.\/masterOrderLegacy\.service'\);/);
   assert.match(source, /const DeliverySettlementService = require\('\.\.\/\.\.\/domain\/settlement\/DeliverySettlementService'\);/);

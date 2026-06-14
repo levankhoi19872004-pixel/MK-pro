@@ -7,10 +7,11 @@ const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const readPublicCss = require('./helpers/readPublicCss');
 
 test('sales order modal uses compact option A layout and keeps product list as primary workspace', () => {
   const html = read('public/index.html');
-  const css = read('public/style.css');
+  const css = readPublicCss(ROOT);
 
   assert.match(html, /sales-order-head-meta/);
   assert.match(html, /sales-compact-options/);

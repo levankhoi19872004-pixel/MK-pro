@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (relPath) => fs.readFileSync(path.join(ROOT, relPath), 'utf8');
 
 test('sales order inventory posting goes through InventoryPostingService boundary', () => {
-  const orderService = read('src/services/orderService.js');
+  const orderService = read('src/services/orderLegacy.service.js');
   const lifecycle = read('src/domain/lifecycle/SalesLifecycleService.js');
 
   assert.match(orderService, /InventoryPostingService\.postSaleOut\(order, options\)/);

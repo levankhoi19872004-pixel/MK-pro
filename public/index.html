@@ -4,7 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KHO Minh Khai Pro V44</title>
-  <link rel="stylesheet" href="/style.css?v=sales-order-compact-v1" />
+  <link rel="stylesheet" href="/css/00-base.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/30-master-orders.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/50-promotions.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/60-finance-external-debt.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/70-master-return-orders.css?v=phase35-css-split-v1" />
   <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
 </head>
 <body>
@@ -1791,7 +1798,9 @@
 <script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
 <script src="/js/search/productSearchBox.js?v=unified-search-v1"></script>
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
-  <script src="/js/app/00-dom-state.js?v=external-debt-v1"></script>
+  <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase35-state-split-v1"></script>
+  <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=unified-search-v1"></script>
@@ -1800,9 +1809,21 @@
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/app/06-master-delivery.js?v=returnorders-app-save-tab3-v2"></script>
-  <script src="/js/app/07-debt-cashbook.js?v=external-debt-v1"></script>
-  <script src="/js/app/08-reports-users-promotions-import-excel.js?v=vat-invoice-setting-v1"></script>
+  <script src="/js/app/debt/07a-debt-core.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07b-return-orders.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07d-master-return-orders.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/admin/08a-reports.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08f-vat-export.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
-  <script src="/app.js?v=external-debt-v1"></script>
+  <script src="/js/bootstrap/01-catalog-orders.js?v=phase35-bootstrap-split-v1"></script>
+  <script src="/js/bootstrap/02-delivery-system.js?v=phase35-bootstrap-split-v1"></script>
+  <script src="/js/bootstrap/03-tab-loader.js?v=phase35-bootstrap-split-v1"></script>
 </body>
 </html>

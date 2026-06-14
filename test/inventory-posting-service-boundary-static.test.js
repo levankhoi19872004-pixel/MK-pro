@@ -35,7 +35,7 @@ test('InventoryPostingService wraps single-document stock posting operations', (
 });
 
 test('orderService posts sales inventory through InventoryPostingService boundary', () => {
-  const source = read('src/services/orderService.js');
+  const source = read('src/services/orderLegacy.service.js');
   const applyBlock = functionBlock(source, 'applySalesOrderPosting');
 
   assert.match(source, /const InventoryPostingService = require\('\.\.\/domain\/posting\/InventoryPostingService'\);/);
@@ -45,7 +45,7 @@ test('orderService posts sales inventory through InventoryPostingService boundar
 });
 
 test('returnOrderService warehouse receive posts return stock through InventoryPostingService boundary', () => {
-  const source = read('src/services/returnOrderService.js');
+  const source = read('src/services/returnOrderLegacy.service.js');
   const receiveBlock = functionBlock(source, 'confirmReceiveReturnOrder');
 
   assert.match(source, /const InventoryPostingService = require\('\.\.\/domain\/posting\/InventoryPostingService'\);/);

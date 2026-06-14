@@ -6,7 +6,7 @@ const path = require('path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const engine = fs.readFileSync(path.join(root, 'src/engines/delivery.engine.js'), 'utf8');
+const engine = fs.readFileSync(path.join(root, 'src/engines/delivery.legacy.engine.js'), 'utf8');
 const core = fs.readFileSync(path.join(root, 'public/js/delivery/delivery-core.js'), 'utf8');
 
 test('DeliveryEngine dedupes duplicate salesOrders by business order code before summary', () => {

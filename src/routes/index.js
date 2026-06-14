@@ -22,7 +22,6 @@ const printRoutes = require('./printRoutes');
 const { importRouter, exportRouter } = require('./importExportRoutes');
 const swaggerRoutes = require('./swaggerRoutes');
 const mobileModule = require('./mobile');
-const legacyMobileRoutes = require('./mobileRoutes');
 const { createMobileContext } = require('../mobile/mobileContext');
 const searchRoutes = require('./searchRoutes');
 const catalogRoutes = require('./catalogRoutes');
@@ -30,6 +29,7 @@ const fundRoutes = require('./fundRoutes');
 const deliveryRoutes = require('./deliveryRoutes');
 const inventoryRoutes = require('./inventoryRoutes');
 const { requireRole } = require('../middlewares/auth.middleware');
+const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
 
 function registerApiRoutes(app) {
   // API docs must be mounted before legacy guard.
@@ -58,12 +58,12 @@ function registerApiRoutes(app) {
 
   mobileModule.registerMobileRoutes(app, mobileCtx);
 
-  // Legacy chỉ được bật tạm thời trong cửa sổ rollback có kiểm soát.
-  // Mặc định không mount để tránh hai command path ghi cùng một nghiệp vụ.
-  if (process.env.ENABLE_LEGACY_MOBILE_ROUTES === 'true') {
-    app.use('/api/mobile-legacy', legacyMobileRoutes);
-    console.warn('⚠️ ENABLE_LEGACY_MOBILE_ROUTES=true: namespace mobile legacy đang được bật tạm thời');
-  }
+  // Namespace legacy đã bị loại bỏ vĩnh viễn. Giữ 410 guard để phát hiện client cũ,
+  // tuyệt đối không mount lại command path ghi dữ liệu thứ hai.
+  app.use('/api/mobile-legacy', retiredRoute('mobile-legacy', {
+    replacement: '/api/mobile',
+    message: 'Mobile legacy đã ngừng hoạt động. Vui lòng cập nhật app để dùng /api/mobile.'
+  }));
   // MOBILE_MODULAR_ROUTE_MOUNT_END
 
   // Step 1: Products / Customers / Users

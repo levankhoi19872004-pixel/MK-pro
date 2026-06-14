@@ -20,7 +20,7 @@ test('order data lineage document exists and defines canonical sources', () => {
 });
 
 test('create/update sales order locks NVBH on salesStaff fields', () => {
-  const src = read('src/services/orderService.js');
+  const src = read('src/services/orderLegacy.service.js');
   assert.ok(src.includes('ORDER_DATA_LINEAGE_CREATE_ORDER_NVBH_START'));
   assert.ok(src.includes('ORDER_DATA_LINEAGE_LOCK_NVBH_ON_UPDATE_START'));
   assert.ok(src.includes('function buildSalesStaffSnapshot'));
@@ -47,8 +47,8 @@ test('confirmDeliveryAccounting posts AR-SALE staff from salesOrders/masterOrder
 });
 
 test('returnOrders snapshot NVBH/NVGH and never treat staffName as NVBH', () => {
-  const service = read('src/services/returnOrderService.js');
-  const engine = read('src/engines/delivery.engine.js');
+  const service = read('src/services/returnOrderLegacy.service.js');
+  const engine = read('src/engines/delivery.legacy.engine.js');
   assert.ok(service.includes('ORDER_DATA_LINEAGE_RETURN_SNAPSHOT_STAFF_START'));
   assert.ok(service.includes('ORDER_DATA_LINEAGE_DELIVERY_RETURN_SNAPSHOT_STAFF_START'));
   assert.ok(engine.includes('ORDER_DATA_LINEAGE_ENGINE_RETURN_SNAPSHOT_STAFF_START'));
@@ -57,7 +57,7 @@ test('returnOrders snapshot NVBH/NVGH and never treat staffName as NVBH', () => 
 });
 
 test('debt report displays staff from arLedgers AR-SALE row, not customer/user/payment metadata', () => {
-  const src = read('src/services/reportService.js');
+  const src = read('src/services/reportLegacy.service.js');
   assert.ok(src.includes('DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START'));
   assert.ok(src.includes('ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START'));
   assert.ok(src.includes("salesmanName: row.saleSalesmanName || row.fallbackSalesmanName || ''"));
@@ -67,7 +67,7 @@ test('debt report displays staff from arLedgers AR-SALE row, not customer/user/p
 });
 
 test('orderService resolves new order sales staff only from salesStaffCode/salesmanCode', () => {
-  const src = read('src/services/orderService.js');
+  const src = read('src/services/orderLegacy.service.js');
 
   assert.ok(src.includes('ORDER_CREATE_SALES_STAFF_FROM_EXPLICIT_CODE_START'));
   assert.match(src, /body\.salesStaffCode\s*\|\|\s*body\.salesmanCode/);

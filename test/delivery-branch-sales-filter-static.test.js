@@ -7,7 +7,7 @@ const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
 const viewPath = path.join(ROOT, 'public/js/delivery/delivery-web-view.js');
-const cssPath = path.join(ROOT, 'public/style.css');
+const readPublicCss = require('./helpers/readPublicCss');
 
 function read(file) {
   return fs.readFileSync(file, 'utf8');
@@ -32,7 +32,7 @@ test('delivery today KPI and list are filtered by checked sales staff branches',
 });
 
 test('delivery branch filter has scoped CSS', () => {
-  const css = read(cssPath);
+  const css = readPublicCss(ROOT);
   assert.match(css, /DELIVERY_BRANCH_SALES_STAFF_FILTER_START/);
   assert.match(css, /delivery-v46-sales-branch-list/);
   assert.match(css, /delivery-v46-sales-branch-item\.checked/);
@@ -53,7 +53,7 @@ test('delivery return rows update the order list and do not zero other orders af
 
 test('delivery return tab uses compact four-column display inside the right panel', () => {
   const view = read(viewPath);
-  const css = read(cssPath);
+  const css = readPublicCss(ROOT);
 
   assert.match(view, /delivery-v46-return-table-compact/);
   assert.match(view, /<span>Đơn \/ Khách<\/span><span>Sản phẩm<\/span><span>SL trả<\/span><span>Thành tiền<\/span>/);

@@ -25,7 +25,7 @@ test('masterOrderLegacy.service.js không dùng child/master staff* để ghi AR
 });
 
 test('reportService.js không dùng order.staffCode/order.staffName cho salesman/delivery report', () => {
-  const src = read('src/services/reportService.js');
+  const src = read('src/services/reportLegacy.service.js');
   assert.doesNotMatch(src, /salesmanCode:\s*[^\n]*order\.staffCode/);
   assert.doesNotMatch(src, /salesmanName:\s*[^\n]*order\.staffName/);
   assert.doesNotMatch(src, /deliveryStaffCode:\s*[^\n]*order\.staffCode/);
@@ -33,7 +33,7 @@ test('reportService.js không dùng order.staffCode/order.staffName cho salesman
 });
 
 test('delivery.engine.js tách filter NVBH/NVGH, không dùng staffCode/staffName trong filter riêng', () => {
-  const src = read('src/engines/delivery.engine.js');
+  const src = read('src/engines/delivery.legacy.engine.js');
   const deliveryFilter = src.match(/if \(query\.deliveryStaffCode[\s\S]*?\n    \}/)?.[0] || '';
   const salesFilter = src.match(/if \(query\.salesStaffCode[\s\S]*?\n    \}/)?.[0] || '';
   assert.doesNotMatch(deliveryFilter, /\bstaffCode\b|\bstaffName\b/g);
@@ -41,13 +41,13 @@ test('delivery.engine.js tách filter NVBH/NVGH, không dùng staffCode/staffNam
 });
 
 test('returnOrderService.js không lấy salesStaff từ order.staffCode/order.staffName', () => {
-  const src = read('src/services/returnOrderService.js');
+  const src = read('src/services/returnOrderLegacy.service.js');
   assert.doesNotMatch(src, /salesStaffCode:\s*[^\n]*order\.staffCode/);
   assert.doesNotMatch(src, /salesStaffName:\s*[^\n]*order\.staffName/);
 });
 
 test('reportService.js staff seed filter không dùng staffCode/staffName khi lọc NVBH/NVGH', () => {
-  const src = read('src/services/reportService.js');
+  const src = read('src/services/reportLegacy.service.js');
   const block = src.match(/function buildLedgerStaffSeedCondition\(query = \{\}\) \{[\s\S]*?\n\}/)?.[0] || '';
   assert.ok(block, 'buildLedgerStaffSeedCondition block must exist');
   assert.doesNotMatch(block, /\{\s*staffCode\s*:/);
@@ -55,7 +55,7 @@ test('reportService.js staff seed filter không dùng staffCode/staffName khi l�
 });
 
 test('reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, không để PAYMENT/RETURN override', () => {
-  const src = read('src/services/reportService.js');
+  const src = read('src/services/reportLegacy.service.js');
   assert.match(src, /DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START/);
   assert.match(src, /saleSalesmanCode/);
   assert.match(src, /saleDeliveryStaffName/);
@@ -65,7 +65,7 @@ test('reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, khô
 });
 
 test('UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers', () => {
-  const src = read('public/js/app/07-debt-cashbook.js');
+  const src = [read('public/js/app/debt/07a-debt-core.js'),read('public/js/app/debt/07b-return-orders.js'),read('public/js/app/debt/07d-master-return-orders.js')].join('\n');
   assert.match(src, /DEBT_UI_RENDER_FROM_DEBT_ROWS_START/);
   assert.match(src, /window\.debtLedgerRowsCache=ledger/);
   assert.match(src, /mergeDebtCustomerSummaryFromDebtRows\(json\.customerSummary, ledger\)/);

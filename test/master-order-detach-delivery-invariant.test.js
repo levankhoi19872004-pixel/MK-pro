@@ -75,8 +75,8 @@ test('orders with delivery/accounting activity cannot be detached silently', () 
 
 test('update/cancel/delete master-order flows use the same detach invariant and return draft sync', () => {
   const masterSource = read('src/services/master-order/masterOrderLegacy.service.js');
-  const returnSource = read('src/services/returnOrderService.js');
-  const deliveryEngineSource = read('src/engines/delivery.engine.js');
+  const returnSource = read('src/services/returnOrderLegacy.service.js');
+  const deliveryEngineSource = read('src/engines/delivery.legacy.engine.js');
   const repairSource = read('scripts/repair-detached-delivery-assignments.js');
 
   assert.match(masterSource, /update:\s*buildDetachedSalesOrderMongoUpdate\(now\)/);

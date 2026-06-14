@@ -31,7 +31,7 @@ test('sales orders UI sends staff name only when staff code is absent', () => {
 });
 
 test('orderService locks sales staff code filter to business code fields only', () => {
-  const source = read('src/services/orderService.js');
+  const source = read('src/services/orderLegacy.service.js');
   const match = source.match(/const staffCodeFilter = extractStaffCodeParam\([\s\S]*?const deliveryStaffCodeFilter = extractStaffCodeParam/);
   assert.ok(match, 'buildOrderSearchFilter staff block must exist');
 
@@ -54,7 +54,7 @@ test('orderService locks sales staff code filter to business code fields only', 
 });
 
 test('sales order list projection and client mapping preserve NVBH aliases', () => {
-  const source = read('src/services/orderService.js');
+  const source = read('src/services/orderLegacy.service.js');
 
   for (const field of [
     'salesPersonCode',

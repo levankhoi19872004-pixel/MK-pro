@@ -6,7 +6,7 @@ const path = require('path');
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
 test('return service no longer depends on delivery engine', () => {
-  const source = read('src/services/returnOrderService.js');
+  const source = read('src/services/returnOrderLegacy.service.js');
   assert.doesNotMatch(source, /require\(['"]\.\.\/engines\/delivery\.engine['"]\)/);
   assert.match(source, /returnOrderRepository\.findAll/);
 });

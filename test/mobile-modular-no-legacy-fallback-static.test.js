@@ -21,7 +21,7 @@ test('mobile modular routes require ctx and do not fallback to legacy under /api
 
   assert.match(routeIndex, /createMobileContext/);
   assert.match(routeIndex, /mobileModule\.registerMobileRoutes\(app,\s*mobileCtx\)/);
-  assert.match(routeIndex, /app\.use\(['"]\/api\/mobile-legacy['"],\s*legacyMobileRoutes\)/);
+  assert.match(routeIndex, /retiredRoute\('mobile-legacy'/);
 
   assert.doesNotMatch(routeIndex, /registerMobileRoutes\(app\);/);
 });

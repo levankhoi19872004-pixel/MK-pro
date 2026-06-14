@@ -29,6 +29,7 @@ const auditService = require('./auditService');
 const { saveImportFiles, cleanupImportFiles } = require('../utils/importTempFileStore');
 const { enqueueImportPreviewJob } = require('../jobs/importPreviewQueue');
 const { runImportPreviewPipeline } = require('../jobs/importPreviewRunner');
+const importCommitOrchestrator = require('./import/ImportCommitOrchestrator');
 const promotionService = require('./promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
 const {
@@ -3177,27 +3178,33 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       ? flattenAdjustedCommitRows(validRows)
       : flattenCommitRows(validRows);
 
-    if (type === 'products') result = await upsertProducts(commitRows);
-    else if (type === 'customers') result = await upsertCustomers(commitRows);
-    else if (type === 'users') result = await importUsers(commitRows);
-    else if (type === 'openingStock') result = await importOpeningStock(commitRows);
-    else if (type === 'importOrders') result = await importImportOrders(commitRows);
-    else if (type === 'salesOrders') result = await importSalesOrders(commitRows, { autoCutStock: true });
-    else if (type === 'openingDebt') result = await importOpeningDebt(commitRows);
-    else if (type === 'debtCollections') result = await importDebtCollections(commitRows);
-    else if (type === 'cashbook') result = await importCashbook(commitRows);
-    else if (type === 'promotionProductRules') result = await importPromotionProductRules(commitRows);
-    else if (type === 'promotionGroupItems') result = await importPromotionGroupItems(commitRows);
-    else if (type === 'promotionGroupRules') result = await importPromotionGroupRules(commitRows);
-    else {
+    if (!importCommitOrchestrator.supports(type)) {
       await importSessionService.markFailed(currentSessionId, 'Loại import không hợp lệ');
       return {
         error: 'Loại import không hợp lệ',
         status: 400,
+        supportedTypes: importCommitOrchestrator.supportedTypes(),
         sessionId: currentSessionId,
         importSessionId: currentSessionId
       };
     }
+
+    result = await importCommitOrchestrator.commit(type, commitRows, {
+      operations: {
+        upsertProducts,
+        upsertCustomers,
+        importUsers,
+        importOpeningStock,
+        importImportOrders,
+        importSalesOrders,
+        importOpeningDebt,
+        importDebtCollections,
+        importCashbook,
+        importPromotionProductRules,
+        importPromotionGroupItems,
+        importPromotionGroupRules
+      }
+    });
 
     if (result && result.error) {
       throw new Error(result.error);

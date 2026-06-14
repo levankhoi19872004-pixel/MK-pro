@@ -26,8 +26,15 @@ test('critical web catalog and order renderers encode database-controlled text',
 });
 
 test('users promotions debt and import previews encode database-controlled text', () => {
-  const reports = read('public/js/app/08-reports-users-promotions-import-excel.js');
-  const debt = read('public/js/app/07-debt-cashbook.js');
+  const reports = [read('public/js/app/admin/08a-reports.js'),read('public/js/app/admin/08b-users.js'),read('public/js/app/admin/08c-promotions-legacy.js'),read('public/js/app/admin/08d-import-excel.js'),read('public/js/app/admin/08e-promotion-programs.js'),read('public/js/app/admin/08f-vat-export.js')].join('\n');
+  const debt = [
+    read('public/js/app/debt/07a-debt-core.js'),
+    read('public/js/app/debt/07b-return-orders.js'),
+    read('public/js/app/debt/07c-ar-cashbook.js'),
+    read('public/js/app/debt/07d-master-return-orders.js'),
+    read('public/js/app/debt/07e-debt-collections.js'),
+    read('public/js/app/debt/07f-fund-ledger.js')
+  ].join('\n');
 
   assert.match(reports, /escapeImportHtml\(u\.username/);
   assert.match(reports, /escapeImportHtml\(p\.conditionText/);
