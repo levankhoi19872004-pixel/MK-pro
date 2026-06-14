@@ -9,6 +9,7 @@ const SalesOrder = require('../models/SalesOrder');
 const MasterOrder = require('../models/MasterOrder');
 const Receipt = require('../models/Receipt');
 const ArLedger = require('../models/ArLedger');
+const FundLedger = require('../models/FundLedger');
 const Cashbook = require('../models/Cashbook');
 const Bankbook = require('../models/Bankbook');
 const ReturnOrder = require('../models/ReturnOrder');
@@ -45,6 +46,75 @@ function totalOf(row = {}) {
 
 function sum(rows = [], picker = totalOf) {
   return rows.reduce((total, row) => total + toNumber(picker(row)), 0);
+}
+
+const REPORT_INACTIVE_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'];
+
+function reportDataSourceError(error, reportName, query = {}) {
+  if (process.env.NODE_ENV !== 'test') {
+    console.error('[REPORT_DATA_SOURCE_FAILED]', {
+      report: reportName,
+      query,
+      error: error?.message || String(error || '')
+    });
+  }
+  const wrapped = new Error(`Không thể tải dữ liệu báo cáo ${reportName}`);
+  wrapped.code = 'REPORT_DATA_SOURCE_FAILED';
+  wrapped.status = 503;
+  wrapped.cause = error;
+  return wrapped;
+}
+
+async function runReportSource(reportName, query, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    throw reportDataSourceError(error, reportName, query);
+  }
+}
+
+function reportPagination(query = {}, defaultLimit = 50, maxLimit = 200) {
+  const page = getPage(query.page);
+  const limit = getSafeLimit(query.limit, defaultLimit, maxLimit);
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+function reportMeta(page, limit, total) {
+  const safeTotal = Math.max(0, toNumber(total));
+  return {
+    page,
+    limit,
+    total: safeTotal,
+    totalPages: safeTotal > 0 ? Math.ceil(safeTotal / limit) : 0,
+    hasMore: page * limit < safeTotal
+  };
+}
+
+function withReportTextFilter(filter = {}, query = {}, fields = []) {
+  const text = String(query.q || query.keyword || query.search || '').trim();
+  if (!text) return filter;
+  const rx = new RegExp(escapeRegExp(text), 'i');
+  return {
+    $and: [
+      filter,
+      { $or: fields.map((field) => ({ [field]: rx })) }
+    ]
+  };
+}
+
+function firstValueExpression(fields = [], fallback = 0) {
+  return fields.reduceRight((next, field) => ({ $ifNull: [`$${field}`, next] }), fallback);
+}
+
+function numberExpression(fields = [], fallback = 0) {
+  return {
+    $convert: {
+      input: firstValueExpression(fields, fallback),
+      to: 'double',
+      onError: 0,
+      onNull: 0
+    }
+  };
 }
 
 function filterByQuery(rows = [], query = {}, fields = []) {
@@ -115,31 +185,32 @@ function stockQty(row = {}) {
 async function stockReport(query = {}) {
   const q = normalizeText(query.q);
   const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
+  const fullResult = ['1', 'true', 'yes'].includes(String(query.full || query.export || '').toLowerCase());
+  const { page, limit, skip } = reportPagination(query, 50, 200);
 
   if (hasPeriod) {
     const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
     const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
-    const [transactions, products] = await Promise.all([
+    const [transactions, products] = await runReportSource('tồn kho theo kỳ', query, () => Promise.all([
       StockTransaction.find(buildDateMongoFilter({ dateTo }, ['date', 'createdAt'])).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
       Product.find({}).lean()
-    ]);
-    const productMap = new Map(products.map((p) => [String(p.code || p.id || p._id), p]));
+    ]));
+    const productMap = new Map(products.map((product) => [String(product.code || product.id || product._id), product]));
     const byKey = new Map();
 
-    transactions.forEach((tx) => {
-      const txDate = dateUtil.toDateOnly(tx.date || tx.createdAt);
-      if (txDate > dateTo) return;
-      const productCode = String(tx.productCode || tx.productId || '').trim();
-      const key = productCode;
+    transactions.forEach((transaction) => {
+      const transactionDate = dateUtil.toDateOnly(transaction.date || transaction.createdAt);
+      if (transactionDate > dateTo) return;
+      const productCode = String(transaction.productCode || transaction.productId || '').trim();
       const product = productMap.get(productCode) || {};
-      if (!byKey.has(key)) {
-        byKey.set(key, {
-          productId: tx.productId || product.id || String(product._id || ''),
+      if (!byKey.has(productCode)) {
+        byKey.set(productCode, {
+          productId: transaction.productId || product.id || String(product._id || ''),
           productCode,
-          productName: tx.productName || product.name || '',
+          productName: transaction.productName || product.name || '',
           warehouseCode: STOCK_WAREHOUSE_CODE,
           warehouseName: STOCK_WAREHOUSE_NAME,
-          unit: product.unit || tx.unit || '',
+          unit: product.unit || transaction.unit || '',
           openingQty: 0,
           importQty: 0,
           exportQty: 0,
@@ -148,21 +219,21 @@ async function stockReport(query = {}) {
           endingQty: 0
         });
       }
-      const row = byKey.get(key);
-      const qty = stockQty(tx);
-      if (txDate < dateFrom) {
-        row.openingQty += qty;
+      const row = byKey.get(productCode);
+      const quantity = stockQty(transaction);
+      if (transactionDate < dateFrom) {
+        row.openingQty += quantity;
       } else {
-        const type = String(tx.type || '').toUpperCase();
-        if (type.includes('RETURN')) row.returnQty += Math.abs(qty);
-        else if (type.includes('IMPORT') || isInType(tx)) row.importQty += Math.abs(qty);
-        else if (type.includes('SALE') || !isInType(tx)) row.exportQty += Math.abs(qty);
-        else row.adjustmentQty += qty;
+        const type = String(transaction.type || '').toUpperCase();
+        if (type.includes('RETURN')) row.returnQty += Math.abs(quantity);
+        else if (type.includes('IMPORT') || isInType(transaction)) row.importQty += Math.abs(quantity);
+        else if (type.includes('SALE') || !isInType(transaction)) row.exportQty += Math.abs(quantity);
+        else row.adjustmentQty += quantity;
       }
-      row.endingQty += qty;
+      row.endingQty += quantity;
     });
 
-    let stock = Array.from(byKey.values()).map((row) => ({
+    let allStock = Array.from(byKey.values()).map((row) => ({
       ...row,
       inQty: row.importQty + row.returnQty + Math.max(0, row.adjustmentQty),
       outQty: row.exportQty + Math.abs(Math.min(0, row.adjustmentQty)),
@@ -170,41 +241,93 @@ async function stockReport(query = {}) {
       qty: row.endingQty,
       availableQty: row.endingQty
     }));
-    if (q) stock = stock.filter((row) => [row.productCode, row.productName].some((value) => normalizeText(value).includes(q)));
-    const negativeStockRows = stock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
-    const summary = stock.reduce((acc, row) => {
-      acc.totalRows += 1;
-      acc.openingQty += toNumber(row.openingQty);
-      acc.importQty += toNumber(row.importQty);
-      acc.exportQty += toNumber(row.exportQty);
-      acc.returnQty += toNumber(row.returnQty);
-      acc.endingQty += toNumber(row.endingQty);
-      return acc;
+    if (q) allStock = allStock.filter((row) => [row.productCode, row.productName].some((value) => normalizeText(value).includes(q)));
+    const negativeStockRows = allStock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
+    const summary = allStock.reduce((accumulator, row) => {
+      accumulator.totalRows += 1;
+      accumulator.openingQty += toNumber(row.openingQty);
+      accumulator.importQty += toNumber(row.importQty);
+      accumulator.exportQty += toNumber(row.exportQty);
+      accumulator.returnQty += toNumber(row.returnQty);
+      accumulator.endingQty += toNumber(row.endingQty);
+      return accumulator;
     }, { totalRows: 0, openingQty: 0, importQty: 0, exportQty: 0, returnQty: 0, endingQty: 0 });
     summary.negativeStockCount = negativeStockRows.length;
-    return { source: 'mongo_stock_transactions', dateFrom, dateTo, stock, summary, negativeStockCount: negativeStockRows.length, negativeStockRows };
+    const stock = fullResult ? allStock : allStock.slice(skip, skip + limit);
+    return {
+      source: 'mongo_stock_transactions',
+      dateFrom,
+      dateTo,
+      stock,
+      items: stock,
+      meta: fullResult ? reportMeta(1, Math.max(allStock.length, 1), allStock.length) : reportMeta(page, limit, allStock.length),
+      summary,
+      negativeStockCount: negativeStockRows.length,
+      negativeStockRows
+    };
   }
 
-  const currentStock = await inventoryStockService.getInventorySummary(query);
+  const currentStock = await runReportSource('tồn kho hiện tại', query, () => inventoryStockService.getInventorySummary(query));
+  const allStock = currentStock.stock || [];
+  const stock = fullResult ? allStock : allStock.slice(skip, skip + limit);
   return {
     ...currentStock,
     source: 'mongo_inventories_canonical',
     inventorySource: 'inventories',
-    stock: currentStock.stock,
+    stock,
+    items: stock,
+    meta: fullResult ? reportMeta(1, Math.max(allStock.length, 1), allStock.length) : reportMeta(page, limit, allStock.length),
     summary: currentStock.summary,
     negativeStockCount: currentStock.negativeStockCount,
     negativeStockRows: currentStock.negativeStockRows
   };
 }
 
+
 async function stockCardReport(query = {}) {
-  let rows = await StockTransaction.find(buildStockTxFilter(query)).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();
-  rows = filterByQuery(rows, query, ['productCode', 'productName', 'warehouseCode', 'refCode', 'refType', 'type']);
-  let runningByKey = new Map();
-  const transactions = rows.map((tx) => {
-    const key = `${tx.productCode || ''}`;
-    const running = toNumber(runningByKey.get(key)) + stockQty(tx);
-    runningByKey.set(key, running);
+  const { page, limit, skip } = reportPagination(query, 50, 200);
+  const filter = withReportTextFilter(
+    buildStockTxFilter(query),
+    query,
+    ['productCode', 'productName', 'warehouseCode', 'refCode', 'refType', 'type']
+  );
+  const qtyExpr = numberExpression(['quantity', 'qty'], 0);
+
+  const result = await runReportSource('thẻ kho', query, () =>
+    StockTransaction.aggregate([
+      { $match: filter },
+      { $sort: { productCode: 1, date: 1, createdAt: 1, _id: 1 } },
+      {
+        $setWindowFields: {
+          partitionBy: { $ifNull: ['$productCode', '$productId'] },
+          sortBy: { date: 1, createdAt: 1, _id: 1 },
+          output: {
+            runningBalance: {
+              $sum: qtyExpr,
+              window: { documents: ['unbounded', 'current'] }
+            }
+          }
+        }
+      },
+      {
+        $facet: {
+          rows: [{ $skip: skip }, { $limit: limit }],
+          totals: [{
+            $group: {
+              _id: null,
+              transactionCount: { $sum: 1 },
+              inQty: { $sum: { $cond: [{ $gt: [qtyExpr, 0] }, qtyExpr, 0] } },
+              outQty: { $sum: { $cond: [{ $lt: [qtyExpr, 0] }, { $abs: qtyExpr }, 0] } }
+            }
+          }]
+        }
+      }
+    ]).allowDiskUse(true).exec()
+  );
+
+  const facet = result?.[0] || {};
+  const transactions = (facet.rows || []).map((tx) => {
+    const quantity = stockQty(tx);
     return {
       id: tx.id || String(tx._id || ''),
       date: dateUtil.toDateOnly(tx.date || tx.createdAt),
@@ -214,20 +337,21 @@ async function stockCardReport(query = {}) {
       type: tx.type || '',
       refType: tx.refType || '',
       refCode: tx.refCode || '',
-      inQty: toNumber(tx.inQty || (stockQty(tx) > 0 ? stockQty(tx) : 0)),
-      outQty: toNumber(tx.outQty || (stockQty(tx) < 0 ? Math.abs(stockQty(tx)) : 0)),
-      quantity: stockQty(tx),
-      balanceQty: toNumber(tx.balanceQty || running),
+      inQty: toNumber(tx.inQty || (quantity > 0 ? quantity : 0)),
+      outQty: toNumber(tx.outQty || (quantity < 0 ? Math.abs(quantity) : 0)),
+      quantity,
+      balanceQty: toNumber(tx.balanceQty ?? tx.runningBalance),
       note: tx.note || ''
     };
   });
-  const summary = transactions.reduce((acc, row) => {
-    acc.transactionCount += 1;
-    acc.inQty += toNumber(row.inQty);
-    acc.outQty += toNumber(row.outQty);
-    return acc;
-  }, { transactionCount: 0, inQty: 0, outQty: 0 });
-  return { source: 'mongo_stock_transactions', transactions, summary };
+  const totals = facet.totals?.[0] || {};
+  const meta = reportMeta(page, limit, totals.transactionCount || 0);
+  const summary = {
+    transactionCount: toNumber(totals.transactionCount),
+    inQty: toNumber(totals.inQty),
+    outQty: toNumber(totals.outQty)
+  };
+  return { source: 'mongo_stock_transactions', transactions, items: transactions, meta, summary };
 }
 
 
@@ -595,11 +719,12 @@ async function buildDebtLedgerMatchWithStaffScope(query = {}) {
     if (query.date) seedMatch.date = dateUtil.toDateOnly(query.date);
   }
 
-  const saleRows = await ArLedger.find(seedMatch)
-    .select('orderId orderCode salesOrderId salesOrderCode refId refCode')
-    .limit(5000)
-    .lean()
-    .catch(() => []);
+  const saleRows = await runReportSource('phạm vi nhân viên công nợ', query, () =>
+    ArLedger.find(seedMatch)
+      .select('orderId orderCode salesOrderId salesOrderCode refId refCode')
+      .limit(5000)
+      .lean()
+  );
 
   const orderIds = Array.from(new Set(saleRows
     .flatMap((row) => [row.orderId, row.salesOrderId, row.refId])
@@ -672,7 +797,7 @@ async function debtReport(query = {}) {
     match.date = match.date || { $gte: dateUtil.toDateOnly(dateUtil.todayVN()) };
   }
 
-  const grouped = await ArLedger.aggregate([
+  const grouped = await runReportSource('tổng hợp công nợ', query, () => ArLedger.aggregate([
     { $match: match },
     { $project: {
       date: { $ifNull: ['$date', '$createdAt'] },
@@ -771,7 +896,7 @@ async function debtReport(query = {}) {
     { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
     { $sort: { debt: -1, lastDate: -1 } },
     { $limit: Math.max(skip + limit + 1, limit + 1) }
-  ]).allowDiskUse(true).exec().catch(() => []);
+  ]).allowDiskUse(true).exec());
 
   const now = dateUtil.todayVN();
   let debts = grouped.map((row) => {
@@ -894,11 +1019,12 @@ async function debtReport(query = {}) {
     }))
     .sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
 
-  const arLedgerRows = await ArLedger.find(match)
-    .sort({ date: -1, createdAt: -1 })
-    .limit(200)
-    .lean()
-    .catch(() => []);
+  const arLedgerRows = await runReportSource('chi tiết công nợ', query, () =>
+    ArLedger.find(match)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(200)
+      .lean()
+  );
   let arLedger = arLedgerRows.map(normalizeArLedgerEntry);
   arLedger = filterByQuery(arLedger, query, ['code', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note']);
 
@@ -961,7 +1087,9 @@ async function debtArLedger(query = {}) {
     const rx = new RegExp(escapeRegExp(query.q || query.keyword || query.search), 'i');
     pushDebtLedgerAnd(match, { $or: [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { customerId: rx }, { type: rx }, { note: rx }] });
   }
-  const rows = await ArLedger.find(match).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit + 1).lean().catch(() => []);
+  const rows = await runReportSource('sổ công nợ', query, () =>
+    ArLedger.find(match).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit + 1).lean()
+  );
   const hasMore = rows.length > limit;
   const data = hasMore ? rows.slice(0, limit) : rows;
   const arLedger = data.map(normalizeArLedgerEntry);
@@ -1065,152 +1193,374 @@ async function debtByDeliveryReport(query = {}) {
 }
 
 async function salesReport(query = {}) {
-  let orders = await SalesOrder.find(buildActiveDateMongoFilter(query, ['date', 'orderDate', 'documentDate', 'createdAt'])).sort({ date: -1, createdAt: -1 }).lean();
-  orders = orders.filter(isActive).filter((row) => matchDate(row, query));
-  orders = filterByQuery(orders, query, ['code', 'orderCode', 'customerCode', 'customerName', 'salesmanName', 'staffName']);
+  const { page, limit, skip } = reportPagination(query, 50, 200);
+  const filter = withReportTextFilter(
+    buildActiveDateMongoFilter(query, ['date', 'orderDate', 'documentDate', 'createdAt']),
+    query,
+    ['code', 'orderCode', 'customerCode', 'customerName', 'salesStaffCode', 'salesStaffName']
+  );
+  const totalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
+  const paidExpr = numberExpression(['paidAmount', 'paymentAmount'], 0);
+  const debtExpr = {
+    $let: {
+      vars: { remaining: { $subtract: [totalExpr, paidExpr] } },
+      in: { $cond: [{ $gt: ['$$remaining', 0] }, '$$remaining', 0] }
+    }
+  };
+  const staffCodeExpr = firstValueExpression(['salesStaffCode', 'salesmanCode', 'nvbhCode'], '');
+  const staffNameExpr = firstValueExpression(['salesStaffName', 'salesmanName', 'nvbhName'], '');
 
-  const rows = orders.map((order) => ({
+  const result = await runReportSource('bán hàng', query, () =>
+    SalesOrder.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          rows: [
+            { $sort: { date: -1, orderDate: -1, createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+          ],
+          totals: [{
+            $group: {
+              _id: null,
+              orderCount: { $sum: 1 },
+              totalAmount: { $sum: totalExpr },
+              paidAmount: { $sum: paidExpr },
+              debtAmount: { $sum: debtExpr }
+            }
+          }],
+          bySalesman: [
+            {
+              $group: {
+                _id: { code: staffCodeExpr, name: staffNameExpr },
+                orderCount: { $sum: 1 },
+                totalAmount: { $sum: totalExpr }
+              }
+            },
+            { $sort: { totalAmount: -1, '_id.name': 1 } }
+          ]
+        }
+      }
+    ]).allowDiskUse(true).exec()
+  );
+
+  const facet = result?.[0] || {};
+  const rows = (facet.rows || []).map((order) => ({
     id: order.id || String(order._id || ''),
     code: order.code || order.orderCode || '',
     date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
     customerCode: order.customerCode || '',
     customerName: order.customerName || '',
-    salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
-    salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || '',
+    salesmanCode: order.salesStaffCode || order.salesmanCode || order.nvbhCode || '',
+    salesmanName: order.salesStaffName || order.salesmanName || order.nvbhName || '',
     totalAmount: totalOf(order),
     paidAmount: toNumber(order.paidAmount || order.paymentAmount),
     debtAmount: Math.max(0, totalOf(order) - toNumber(order.paidAmount || order.paymentAmount)),
     status: order.status || ''
   }));
-
-  const bySalesman = new Map();
-  rows.forEach((row) => {
-    const key = row.salesmanCode || row.salesmanName || 'UNKNOWN';
-    if (!bySalesman.has(key)) bySalesman.set(key, { salesmanCode: row.salesmanCode, salesmanName: row.salesmanName, orderCount: 0, totalAmount: 0 });
-    const target = bySalesman.get(key);
-    target.orderCount += 1;
-    target.totalAmount += row.totalAmount;
-  });
+  const totals = facet.totals?.[0] || {};
+  const meta = reportMeta(page, limit, totals.orderCount || 0);
+  const bySalesman = (facet.bySalesman || []).map((row) => ({
+    salesmanCode: row?._id?.code || '',
+    salesmanName: row?._id?.name || '',
+    orderCount: toNumber(row.orderCount),
+    totalAmount: toNumber(row.totalAmount)
+  }));
 
   return {
-    source: 'mongo',
+    source: 'mongo_aggregate',
     sales: rows,
-    bySalesman: Array.from(bySalesman.values()),
+    items: rows,
+    meta,
+    bySalesman,
     summary: {
-      orderCount: rows.length,
-      totalAmount: sum(rows, (row) => row.totalAmount),
-      paidAmount: sum(rows, (row) => row.paidAmount),
-      debtAmount: sum(rows, (row) => row.debtAmount)
+      orderCount: toNumber(totals.orderCount),
+      totalAmount: toNumber(totals.totalAmount),
+      paidAmount: toNumber(totals.paidAmount),
+      debtAmount: toNumber(totals.debtAmount)
     }
   };
 }
 
+
 async function financeReport(query = {}) {
-  const [receipts, cashbooks, bankbooks, returns] = await Promise.all([
-    Receipt.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt'])).lean(),
-    Cashbook.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt'])).lean(),
-    Bankbook.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt'])).lean(),
-    ReturnOrder.find(buildActiveDateMongoFilter(query, ['date', 'returnDate', 'documentDate', 'deliveryDate', 'createdAt'])).lean()
-  ]);
+  const { page, limit, skip } = reportPagination(query, 50, 200);
+  const activeFundFilter = buildActiveDateMongoFilter(query, ['date', 'createdAt']);
+  const receiptFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt']);
+  const moneyFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt']);
+  const returnFilter = buildActiveDateMongoFilter(query, ['date', 'returnDate', 'documentDate', 'deliveryDate', 'createdAt']);
 
-  const receiptRows = receipts.filter(isActive).filter((row) => matchDate(row, query));
-  const cashRows = cashbooks.filter(isActive).filter((row) => matchDate(row, query));
-  const bankRows = bankbooks.filter(isActive).filter((row) => matchDate(row, query));
-  const returnRows = returns.filter(isActive).filter((row) => matchDate(row, query));
+  const [receipts, cashbooks, bankbooks, returns, receiptTotals, returnTotals, fundTotals, counts] = await runReportSource(
+    'tài chính',
+    query,
+    () => Promise.all([
+      Receipt.find(receiptFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Cashbook.find(moneyFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Bankbook.find(moneyFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ReturnOrder.find(returnFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Receipt.aggregate([{ $match: receiptFilter }, { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: numberExpression(['amount', 'totalAmount', 'grandTotal', 'total', 'value'], 0) } } }]),
+      ReturnOrder.aggregate([{ $match: returnFilter }, { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: numberExpression(['returnAmount', 'totalAmount', 'amount', 'debtReduction'], 0) } } }]),
+      FundLedger.aggregate([
+        { $match: activeFundFilter },
+        { $group: { _id: { fundType: '$fundType', direction: '$direction' }, amount: { $sum: numberExpression(['amount'], 0) }, count: { $sum: 1 } } }
+      ]),
+      Promise.all([
+        Receipt.countDocuments(receiptFilter),
+        Cashbook.countDocuments(moneyFilter),
+        Bankbook.countDocuments(moneyFilter),
+        ReturnOrder.countDocuments(returnFilter)
+      ])
+    ])
+  );
 
-  const cashIn = sum(cashRows.filter((row) => String(row.type || row.direction || '').toLowerCase() !== 'out'));
-  const cashOut = sum(cashRows.filter((row) => String(row.type || row.direction || '').toLowerCase() === 'out'));
-  const bankIn = sum(bankRows.filter((row) => String(row.type || row.direction || '').toLowerCase() !== 'out'));
-  const bankOut = sum(bankRows.filter((row) => String(row.type || row.direction || '').toLowerCase() === 'out'));
+  const totalFor = (fundType, direction) => {
+    const row = (fundTotals || []).find((item) =>
+      String(item?._id?.fundType || '').toLowerCase() === fundType
+      && String(item?._id?.direction || '').toLowerCase() === direction
+    );
+    return toNumber(row?.amount);
+  };
+  const cashIn = totalFor('cash', 'in');
+  const cashOut = totalFor('cash', 'out');
+  const bankIn = totalFor('bank', 'in');
+  const bankOut = totalFor('bank', 'out');
+  const receiptSummary = receiptTotals?.[0] || {};
+  const returnSummary = returnTotals?.[0] || {};
+  const categoryCounts = {
+    receipts: toNumber(counts?.[0]),
+    cashbook: toNumber(counts?.[1]),
+    bankbook: toNumber(counts?.[2]),
+    returns: toNumber(counts?.[3])
+  };
+  const maxTotal = Math.max(...Object.values(categoryCounts), 0);
 
   return {
-    source: 'mongo',
+    source: 'mongo_paged',
+    fundSource: 'fundLedgers',
+    meta: { ...reportMeta(page, limit, maxTotal), categoryCounts },
     summary: {
-      receiptCount: receiptRows.length,
-      totalReceipts: sum(receiptRows),
+      receiptCount: toNumber(receiptSummary.count),
+      totalReceipts: toNumber(receiptSummary.amount),
       cashIn,
       cashOut,
       cashBalance: cashIn - cashOut,
       bankIn,
       bankOut,
       bankBalance: bankIn - bankOut,
-      returnCount: returnRows.length,
-      totalReturns: sum(returnRows)
+      totalFundIn: cashIn + bankIn,
+      totalFundOut: cashOut + bankOut,
+      totalFundBalance: cashIn + bankIn - cashOut - bankOut,
+      returnCount: toNumber(returnSummary.count),
+      totalReturns: toNumber(returnSummary.amount)
     },
-    receipts: receiptRows,
-    cashbook: cashRows,
-    bankbook: bankRows,
-    returns: returnRows
+    receipts,
+    cashbook: cashbooks,
+    bankbook: bankbooks,
+    returns
   };
 }
 
-async function deliveryReport(query = {}) {
-  let masterOrders = await MasterOrder.find(buildActiveDateMongoFilter(query, ['deliveryDate', 'date', 'createdAt'])).sort({ deliveryDate: -1, createdAt: -1 }).lean();
-  masterOrders = masterOrders.filter(isActive).filter((row) => matchDate(row, query));
-  masterOrders = filterByQuery(masterOrders, query, ['code', 'masterOrderCode', 'deliveryStaffCode', 'deliveryStaffName', 'status']);
 
-  const rows = masterOrders.map((order) => ({
+async function deliveryReport(query = {}) {
+  const { page, limit, skip } = reportPagination(query, 50, 200);
+  const filter = withReportTextFilter(
+    buildActiveDateMongoFilter(query, ['deliveryDate', 'date', 'createdAt']),
+    query,
+    ['code', 'masterOrderCode', 'deliveryStaffCode', 'deliveryStaffName', 'status']
+  );
+  const totalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
+  const collectedExpr = numberExpression(['collectedAmount', 'paidAmount'], 0);
+  const orderCountExpr = {
+    $convert: {
+      input: {
+        $ifNull: [
+          '$orderCount',
+          {
+            $ifNull: [
+              '$childOrderCount',
+              {
+                $cond: [
+                  { $isArray: '$childOrderIds' },
+                  { $size: '$childOrderIds' },
+                  { $cond: [{ $isArray: '$orderIds' }, { $size: '$orderIds' }, 0] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      to: 'double',
+      onError: 0,
+      onNull: 0
+    }
+  };
+  const staffCodeExpr = firstValueExpression(['deliveryStaffCode', 'deliveryCode', 'nvghCode'], '');
+  const staffNameExpr = firstValueExpression(['deliveryStaffName', 'deliveryName', 'nvghName'], '');
+
+  const result = await runReportSource('giao hàng', query, () =>
+    MasterOrder.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          rows: [
+            { $sort: { deliveryDate: -1, createdAt: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+          ],
+          totals: [{
+            $group: {
+              _id: null,
+              tripCount: { $sum: 1 },
+              orderCount: { $sum: orderCountExpr },
+              totalAmount: { $sum: totalExpr },
+              collectedAmount: { $sum: collectedExpr }
+            }
+          }],
+          byStaff: [
+            {
+              $group: {
+                _id: { code: staffCodeExpr, name: staffNameExpr },
+                tripCount: { $sum: 1 },
+                orderCount: { $sum: orderCountExpr },
+                totalAmount: { $sum: totalExpr },
+                collectedAmount: { $sum: collectedExpr }
+              }
+            },
+            { $sort: { totalAmount: -1, '_id.name': 1 } }
+          ]
+        }
+      }
+    ]).allowDiskUse(true).exec()
+  );
+
+  const facet = result?.[0] || {};
+  const rows = (facet.rows || []).map((order) => ({
     id: order.id || String(order._id || ''),
     code: order.code || order.masterOrderCode || '',
     deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || order.createdAt),
     deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
     deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
-    orderCount: toNumber(order.orderCount || (Array.isArray(order.childOrders) ? order.childOrders.length : 0)),
+    orderCount: toNumber(order.orderCount || order.childOrderCount || (Array.isArray(order.childOrderIds) ? order.childOrderIds.length : (Array.isArray(order.orderIds) ? order.orderIds.length : 0))),
     totalAmount: totalOf(order),
     collectedAmount: toNumber(order.collectedAmount || order.paidAmount),
     status: order.status || ''
   }));
-
-  const byStaff = new Map();
-  rows.forEach((row) => {
-    const key = row.deliveryStaffCode || row.deliveryStaffName || 'UNKNOWN';
-    if (!byStaff.has(key)) byStaff.set(key, { deliveryStaffCode: row.deliveryStaffCode, deliveryStaffName: row.deliveryStaffName, tripCount: 0, orderCount: 0, totalAmount: 0, collectedAmount: 0 });
-    const target = byStaff.get(key);
-    target.tripCount += 1;
-    target.orderCount += row.orderCount;
-    target.totalAmount += row.totalAmount;
-    target.collectedAmount += row.collectedAmount;
-  });
+  const totals = facet.totals?.[0] || {};
+  const meta = reportMeta(page, limit, totals.tripCount || 0);
+  const byStaff = (facet.byStaff || []).map((row) => ({
+    deliveryStaffCode: row?._id?.code || '',
+    deliveryStaffName: row?._id?.name || '',
+    tripCount: toNumber(row.tripCount),
+    orderCount: toNumber(row.orderCount),
+    totalAmount: toNumber(row.totalAmount),
+    collectedAmount: toNumber(row.collectedAmount)
+  }));
 
   return {
-    source: 'mongo',
+    source: 'mongo_aggregate',
     delivery: rows,
-    byStaff: Array.from(byStaff.values()),
+    items: rows,
+    meta,
+    byStaff,
     summary: {
-      tripCount: rows.length,
-      orderCount: sum(rows, (row) => row.orderCount),
-      totalAmount: sum(rows, (row) => row.totalAmount),
-      collectedAmount: sum(rows, (row) => row.collectedAmount)
+      tripCount: toNumber(totals.tripCount),
+      orderCount: toNumber(totals.orderCount),
+      totalAmount: toNumber(totals.totalAmount),
+      collectedAmount: toNumber(totals.collectedAmount)
     }
   };
 }
 
-async function dashboardReport(query = {}) {
-  const [sales, debts, stock, finance, delivery, imports] = await Promise.all([
-    salesReport(query),
-    debtReport(query),
-    stockReport(query),
-    financeReport(query),
-    deliveryReport(query),
-    ImportOrder.find(buildActiveDateMongoFilter(query, ['date', 'documentDate', 'importDate', 'createdAt'])).lean()
-  ]);
 
-  const activeImports = imports.filter(isActive).filter((row) => matchDate(row, query));
+async function dashboardReport(query = {}) {
+  const salesTotalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
+  const salesPaidExpr = numberExpression(['paidAmount', 'paymentAmount'], 0);
+  const salesFilter = buildActiveDateMongoFilter(query, ['date', 'orderDate', 'documentDate', 'createdAt']);
+  const deliveryFilter = buildActiveDateMongoFilter(query, ['deliveryDate', 'date', 'createdAt']);
+  const fundFilter = buildActiveDateMongoFilter(query, ['date', 'createdAt']);
+  const importFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'importDate', 'createdAt']);
+  const activeArFilter = { status: { $nin: REPORT_INACTIVE_STATUSES } };
+
+  const [salesRows, debtRows, stockData, fundRows, deliveryRows, importRows] = await runReportSource(
+    'dashboard',
+    query,
+    () => Promise.all([
+      SalesOrder.aggregate([
+        { $match: salesFilter },
+        { $group: { _id: null, orderCount: { $sum: 1 }, totalAmount: { $sum: salesTotalExpr }, paidAmount: { $sum: salesPaidExpr } } }
+      ]),
+      ArLedger.aggregate([
+        { $match: activeArFilter },
+        { $group: { _id: null, debit: { $sum: numberExpression(['debit', 'arDebit'], 0) }, credit: { $sum: numberExpression(['credit', 'arCredit'], 0) } } }
+      ]),
+      inventoryStockService.getInventorySummary({}),
+      FundLedger.aggregate([
+        { $match: fundFilter },
+        { $group: { _id: { fundType: '$fundType', direction: '$direction' }, amount: { $sum: numberExpression(['amount'], 0) } } }
+      ]),
+      MasterOrder.aggregate([
+        { $match: deliveryFilter },
+        { $group: { _id: null, tripCount: { $sum: 1 }, totalAmount: { $sum: numberExpression(['totalAmount', 'amount'], 0) }, collectedAmount: { $sum: numberExpression(['collectedAmount', 'paidAmount'], 0) } } }
+      ]),
+      ImportOrder.aggregate([
+        { $match: importFilter },
+        { $group: { _id: null, importCount: { $sum: 1 }, totalImportAmount: { $sum: numberExpression(['totalAmount', 'amount'], 0) } } }
+      ])
+    ])
+  );
+
+  const sales = salesRows?.[0] || {};
+  const debt = debtRows?.[0] || {};
+  const delivery = deliveryRows?.[0] || {};
+  const imports = importRows?.[0] || {};
+  const fundAmount = (fundType, direction) => toNumber((fundRows || []).find((row) =>
+    String(row?._id?.fundType || '').toLowerCase() === fundType
+    && String(row?._id?.direction || '').toLowerCase() === direction
+  )?.amount);
+  const cashIn = fundAmount('cash', 'in');
+  const cashOut = fundAmount('cash', 'out');
+  const bankIn = fundAmount('bank', 'in');
+  const bankOut = fundAmount('bank', 'out');
+  const totalDebt = normalizeDebtAmount(toNumber(debt.debit) - toNumber(debt.credit));
+
   return {
-    source: 'mongo',
+    source: 'mongo_summary_only',
     dashboard: {
-      sales: sales.summary,
-      debts: debts.summary,
-      stock: stock.summary,
-      finance: finance.summary,
-      delivery: delivery.summary,
+      sales: {
+        orderCount: toNumber(sales.orderCount),
+        totalAmount: toNumber(sales.totalAmount),
+        paidAmount: toNumber(sales.paidAmount),
+        debtAmount: Math.max(0, toNumber(sales.totalAmount) - toNumber(sales.paidAmount))
+      },
+      debts: {
+        totalDebit: toNumber(debt.debit),
+        totalCredit: toNumber(debt.credit),
+        totalDebt,
+        debtZeroTolerance: DEBT_ZERO_TOLERANCE
+      },
+      stock: stockData?.summary || {},
+      finance: {
+        cashIn,
+        cashOut,
+        cashBalance: cashIn - cashOut,
+        bankIn,
+        bankOut,
+        bankBalance: bankIn - bankOut,
+        totalFundBalance: cashIn + bankIn - cashOut - bankOut
+      },
+      delivery: {
+        tripCount: toNumber(delivery.tripCount),
+        totalAmount: toNumber(delivery.totalAmount),
+        collectedAmount: toNumber(delivery.collectedAmount)
+      },
       imports: {
-        importCount: activeImports.length,
-        totalImportAmount: sum(activeImports)
+        importCount: toNumber(imports.importCount),
+        totalImportAmount: toNumber(imports.totalImportAmount)
       }
     }
   };
 }
+
 
 module.exports = {
   stockReport,

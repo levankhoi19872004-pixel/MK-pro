@@ -18,12 +18,12 @@ test('sales order search/list must exclude soft-deleted orders by deleted flags,
   assert.match(source, /filter\.deletedAt = \{ \$in: \[null, ''\] \}/);
 });
 
-test('sales order search projection and mapping must preserve deletion flags for final visibility guard', () => {
+test('sales order search projection and mapping preserve deletion flags and visibility state', () => {
   assert.match(source, /deleted: 1/);
   assert.match(source, /isDeleted: 1/);
   assert.match(source, /deletedAt: 1/);
   assert.match(source, /deleted: Boolean\(order\.deleted\)/);
   assert.match(source, /isDeleted: Boolean\(order\.isDeleted\)/);
   assert.match(source, /deletedAt: order\.deletedAt \|\| ''/);
-  assert.match(source, /orderStatusUtil\.isOrderVisibleInHistory\(order, \{ includeCancelled \}\)/);
+  assert.match(source, /visibleInHistory:\s*orderStatusUtil\.isOrderVisibleInHistory\(/);
 });

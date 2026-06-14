@@ -1,6 +1,7 @@
 'use strict';
 
 const collectionRepository = require('./mongoCollection.repository');
+const { canonicalizeOperationalStaff } = require('../utils/canonicalStaffWrite.util');
 const { buildIdentityFilter, normalizeIdOrCode } = require('../utils/identity.util');
 
 const RECEIPT_KEY = 'receipts';
@@ -23,7 +24,7 @@ async function findByIdOrCode(idOrCode) {
 }
 
 async function upsert(receipt, options = {}) {
-  return collectionRepository.upsertByIdentity(RECEIPT_KEY, receipt, ['id', 'code'], options);
+  return collectionRepository.upsertByIdentity(RECEIPT_KEY, canonicalizeOperationalStaff(receipt), ['id', 'code'], options);
 }
 
 module.exports = { findAll, findByIdOrCode, upsert };

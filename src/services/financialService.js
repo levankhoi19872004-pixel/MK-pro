@@ -10,7 +10,7 @@ const returnOrderRepository = require('../repositories/returnOrderRepository');
 const customerRepository = require('../repositories/customerRepository');
 const orderRepository = require('../repositories/orderRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
-const { withMongoTransaction } = require('../utils/transaction.util');
+const { withMongoTransaction, withOptionalMongoTransaction } = require('../utils/transaction.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
 const arLedgerUtil = require('../utils/arLedger.util');
 const postingEngine = require('../engines/posting.engine');
@@ -135,6 +135,7 @@ async function postReceiptFundLedger(input = {}, options = {}) {
     fundType,
     direction,
     amount: toNumber(input.amount),
+    idempotencyKey: String(input.idempotencyKey || '').trim(),
     sourceType,
     sourceId: String(input.sourceId || '').trim(),
     sourceCode,
@@ -341,7 +342,46 @@ async function resolveCustomer(body = {}) {
   return null;
 }
 
-async function createReceipt(body = {}) {
+async function persistReceipt(receipt, moneyEntry, method, options = {}) {
+  return withOptionalMongoTransaction(options, async (session) => {
+    await receiptRepository.upsert(receipt, { session });
+    await postingEngine.postReceiptAR(receipt, { session });
+    await applyReceiptToOrderDebts(receipt, { session });
+    if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
+    else await cashbookRepository.upsert(moneyEntry, { session });
+    await postReceiptFundLedger({
+      idempotencyKey: receipt.importIdempotencyKey
+        ? `FUND|${receipt.importIdempotencyKey}`
+        : '',
+      date: receipt.date,
+      fundType: method === 'transfer' ? 'bank' : 'cash',
+      direction: 'in',
+      amount: receipt.amount,
+      sourceType: 'AR_RECEIPT',
+      sourceId: receipt.id,
+      sourceCode: receipt.code,
+      refType: 'RECEIPT',
+      refId: receipt.id,
+      refCode: receipt.code,
+      customerCode: receipt.customerCode,
+      customerName: receipt.customerName,
+      staffName: receipt.staffName,
+      note: receipt.note || `Thu công nợ ${receipt.code}`
+    }, { session });
+  });
+}
+
+async function createReceipt(body = {}, options = {}) {
+  const importIdempotencyKey = String(body.importIdempotencyKey || '').trim();
+  if (importIdempotencyKey) {
+    const existing = await receiptRepository.findAll(
+      { importIdempotencyKey },
+      { limit: 1, session: options.session }
+    );
+    if (existing[0]) {
+      return { receipt: existing[0], duplicate: true };
+    }
+  }
   const amount = toNumber(body.amount);
   if (amount <= 0) return { error: 'Số tiền thu phải lớn hơn 0', status: 400 };
   const unsafeAmount = assertSafeMoneyAmount(amount, 'Số tiền thu');
@@ -374,6 +414,7 @@ async function createReceipt(body = {}) {
     salesOrderId: body.salesOrderId || body.orderId || body.refId || primaryAllocation.orderId || '',
     salesOrderCode: body.salesOrderCode || body.orderCode || body.refCode || primaryAllocation.orderCode || '',
     allocations,
+    importIdempotencyKey,
     status: body.status === 'void' || body.status === 'cancelled' ? 'void' : 'posted',
     voidReason: body.voidReason || '',
     voidedAt: body.voidedAt || '',
@@ -426,31 +467,7 @@ async function createReceipt(body = {}) {
     createdAt: now,
     updatedAt: now
   };
-  await withMongoTransaction(async (session) => {
-    await receiptRepository.upsert(receipt, { session });
-    await postingEngine.postReceiptAR(receipt, { session });
-    await applyReceiptToOrderDebts(receipt, { session });
-    if (method === 'transfer') await bankbookRepository.upsert(moneyEntry, { session });
-    else await cashbookRepository.upsert(moneyEntry, { session });
-    // V45 Fund Ledger: mọi khoản thu tiền phải vào fundLedgers để sổ quỹ là nguồn chuẩn.
-    await postReceiptFundLedger({
-      date: receipt.date,
-      fundType: method === 'transfer' ? 'bank' : 'cash',
-      direction: 'in',
-      amount: receipt.amount,
-      sourceType: 'AR_RECEIPT',
-      sourceId: receipt.id,
-      sourceCode: receipt.code,
-      refType: 'RECEIPT',
-      refId: receipt.id,
-      refCode: receipt.code,
-      customerCode: receipt.customerCode,
-      customerName: receipt.customerName,
-      staffName: receipt.staffName,
-      note: receipt.note || `Thu công nợ ${receipt.code}`
-    }, { session });
-  });
-
+  await persistReceipt(receipt, moneyEntry, method, options);
   return { receipt };
 }
 

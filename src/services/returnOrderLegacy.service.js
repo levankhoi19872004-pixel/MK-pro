@@ -863,8 +863,9 @@ async function createPendingReturnOrder(body = {}, options = {}) {
   return { returnOrder: toClient({ ...pendingReturnOrder, status: RETURN_STATES.WAITING_RECEIVE, warehouseReceiveStatus: RETURN_STATES.WAITING_RECEIVE }), updatedExisting: Boolean(existing) };
 }
 
-async function confirmReceiveReturnOrder(idOrCode, options = {}) {
-  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
+async function confirmReceiveReturnOrderInSession(idOrCode, options = {}) {
+  const session = options.session;
+  const current = await returnOrderRepository.findByIdOrCode(idOrCode, { session });
   if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
 
   const currentState = ReturnStateMachine.getReturnState(current);
@@ -878,20 +879,27 @@ async function confirmReceiveReturnOrder(idOrCode, options = {}) {
     return { error: err.message, code: err.code, status: 400 };
   }
 
-  let received = {
+  const received = {
     ...current,
     ...ReturnStateMachine.patchForState(current, RETURN_STATES.RECEIVED),
     returnState: RETURN_STATES.RECEIVED,
+    receivedBy: String(options.receivedBy || current.receivedBy || '').trim(),
     stateChangedAt: dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
 
-  await withMongoTransaction(async (session) => {
-    await returnOrderRepository.upsert(received, { session });
-    await InventoryPostingService.postReturnIn(received, { session });
-  });
-
+  await returnOrderRepository.upsert(received, { session });
+  await InventoryPostingService.postReturnIn(received, { session });
   return { returnOrder: toClient(received), alreadyReceived: false };
+}
+
+async function confirmReceiveReturnOrder(idOrCode, options = {}) {
+  if (options.session) {
+    return confirmReceiveReturnOrderInSession(idOrCode, options);
+  }
+  return withMongoTransaction((session) =>
+    confirmReceiveReturnOrderInSession(idOrCode, { ...options, session })
+  );
 }
 
 async function confirmAccountingReturnOrder(idOrCode, body = {}, options = {}) {

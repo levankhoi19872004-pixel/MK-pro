@@ -1,6 +1,7 @@
 'use strict';
 
 const collectionRepository = require('./mongoCollection.repository');
+const { canonicalizeOperationalStaff } = require('../utils/canonicalStaffWrite.util');
 const { buildIdentityFilter, normalizeIdOrCode } = require('../utils/identity.util');
 
 const ORDER_KEY = 'salesOrders';
@@ -45,15 +46,15 @@ async function findManyByIdentity(keys = [], options = {}) {
 }
 
 async function upsert(order, options = {}) {
-  return collectionRepository.upsertByIdentity(ORDER_KEY, order, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
+  return collectionRepository.upsertByIdentity(ORDER_KEY, canonicalizeOperationalStaff(order), ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
 async function replaceAll(orders) {
-  return collectionRepository.replaceAll(ORDER_KEY, orders || []);
+  return collectionRepository.replaceAll(ORDER_KEY, (orders || []).map((row) => canonicalizeOperationalStaff(row)));
 }
 
 async function patchByIdentity(idOrCode, patch = {}, options = {}) {
-  return collectionRepository.patchByIdentity(ORDER_KEY, idOrCode, patch, ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
+  return collectionRepository.patchByIdentity(ORDER_KEY, idOrCode, canonicalizeOperationalStaff(patch), ['id', 'code', 'documentCode', 'invoiceCode', 'orderCode', 'salesOrderCode'], options);
 }
 
 async function remove(idOrCode, options = {}) {

@@ -28,9 +28,13 @@ test('sales order inventory posting is separated from AR posting', () => {
   assert.doesNotMatch(applyBlock, /postingEngine\.postSalesOrderAR\s*\(/, 'sales order stock posting must not post AR');
 });
 
-test('DMS sales order import marks orders as stockPosted because inventory is cut in bulk', () => {
+test('DMS sales order import posts order and inventory in atomic chunks', () => {
   const source = read('src/services/excelImportService.js');
-  assert.match(source, /stockPosted:\s*true/, 'imported sales orders must be marked stockPosted');
-  assert.match(source, /stockPostedBy:\s*options\.userName\s*\|\|\s*options\.username\s*\|\|\s*options\.createdBy\s*\|\|\s*'excel_import'/, 'imported sales orders must store stockPostedBy');
-  assert.match(source, /applyInventoryMovementsBulk\(movements, inventoryDeltas\)/, 'DMS import must cut stock through bulk inventory posting');
+  const block = functionBlock(source, 'importSalesOrders');
+  assert.match(block, /runAtomicChunks\s*\(/, 'DMS import must use atomic chunks');
+  assert.match(block, /SalesOrder\.insertMany\([\s\S]*?chunk\.map\(\(row\) => canonicalizeOperationalStaff\(row\)\),\s*\{[\s\S]*session,[\s\S]*ordered:\s*true/, 'order insert must use the chunk session');
+  assert.match(block, /InventoryPostingService\.postSaleOut\(order,\s*\{\s*session\s*\}\)/, 'stock must post through InventoryPostingService in the same session');
+  assert.match(block, /stockPosted:\s*false/, 'orders must start unposted inside the transaction');
+  assert.match(block, /stockPosted:\s*true/, 'orders must be marked posted only after inventory succeeds');
+  assert.doesNotMatch(block, /applyInventoryMovementsBulk\(movements, inventoryDeltas\)/, 'sales import must not use the non-atomic bulk inventory path');
 });

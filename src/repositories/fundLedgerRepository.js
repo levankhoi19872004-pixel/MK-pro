@@ -1,5 +1,6 @@
 'use strict';
 const collectionRepository = require('./mongoCollection.repository');
+const FundLedger = require('../models/FundLedger');
 const { buildIdentityFilter, normalizeIdOrCode } = require('../utils/identity.util');
 const KEY = 'fundLedgers';
 function identityFilter(idOrCode) {
@@ -14,8 +15,14 @@ async function findByIdempotencyKey(idempotencyKey, options = {}) {
   const rows = await findAll({ idempotencyKey: key }, { ...options, limit: 1 });
   return rows[0] || null;
 }
+async function aggregate(pipeline = [], options = {}) {
+  let query = FundLedger.aggregate(Array.isArray(pipeline) ? pipeline : []);
+  if (options.session && typeof query.session === 'function') query = query.session(options.session);
+  return query.exec();
+}
+
 async function upsert(row, options = {}) {
   const identity = row && row.idempotencyKey ? ['idempotencyKey'] : ['id', 'code'];
   return collectionRepository.upsertByIdentity(KEY, row, identity, options);
 }
-module.exports = { findAll, findByIdOrCode, findByIdempotencyKey, upsert };
+module.exports = { findAll, findByIdOrCode, findByIdempotencyKey, aggregate, upsert };

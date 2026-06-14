@@ -35,7 +35,9 @@
     "quality": "npm run check:syntax && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
     "check:production": "node scripts/production-readiness-check.js",
     "cleanup:retired": "node scripts/cleanup-retired-files.js",
-    "pretest": "npm run cleanup:retired"
+    "pretest": "npm run cleanup:retired",
+    "migrate:staff-identity:dry": "node scripts/migrate-canonical-staff-identity.js",
+    "migrate:staff-identity": "node scripts/migrate-canonical-staff-identity.js --write"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

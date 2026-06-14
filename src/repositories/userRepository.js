@@ -122,8 +122,20 @@ async function updateUser(idOrCode, payload) {
   return User.findOneAndUpdate(buildUserMongoFilter(idOrCode), payload, { new: true, runValidators: false }).lean();
 }
 
-async function deleteUser(idOrCode) {
-  return User.findOneAndDelete(buildUserMongoFilter(idOrCode)).lean();
+async function deactivateUser(idOrCode, metadata = {}) {
+  return User.findOneAndUpdate(
+    buildUserMongoFilter(idOrCode),
+    {
+      $set: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deactivatedBy: String(metadata.actorCode || '').trim(),
+        deactivationReason: String(metadata.reason || '').trim(),
+        updatedAt: new Date()
+      }
+    },
+    { new: true }
+  ).lean();
 }
 
 
@@ -150,7 +162,7 @@ module.exports = {
   findDuplicateUser,
   createUser,
   updateUser,
-  deleteUser,
+  deactivateUser,
   countUsers,
   findRoles,
   findPermissions

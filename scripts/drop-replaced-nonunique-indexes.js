@@ -4,11 +4,19 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 const TARGETS = [
+  ['products', ['idx_products_code']],
+  ['customers', ['idx_customers_code']],
+  ['users', ['idx_users_username_search', 'idx_users_staff_code']],
   ['orders', ['idx_sales_orders_id', 'idx_orders_id', 'idx_orders_code']],
   ['arLedgers', ['idx_ar_ledgers_id', 'idx_ar_ledgers_code']],
   ['master_orders', ['idx_master_orders_id', 'idx_master_orders_code']],
   ['returnOrders', ['idx_return_orders_id', 'idx_return_orders_code']],
-  ['fundLedgers', ['idx_fund_ledgers_id', 'idx_fund_ledgers_code']]
+  ['masterReturnOrders', ['idx_master_return_orders_id', 'idx_master_return_orders_code']],
+  ['receipts', ['idx_receipts_id', 'idx_receipts_code']],
+  ['fundLedgers', ['idx_fund_ledgers_id', 'idx_fund_ledgers_code']],
+  ['deliveryCashSubmissions', ['idx_delivery_cash_submissions_id', 'idx_delivery_cash_submissions_code']],
+  ['expenseVouchers', ['idx_expense_vouchers_id', 'idx_expense_vouchers_code']],
+  ['fundTransfers', ['idx_fund_transfers_id', 'idx_fund_transfers_code']]
 ];
 
 async function main() {

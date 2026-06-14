@@ -5,16 +5,30 @@ const mongoose = require('mongoose');
 const MongoStore = require('../src/models');
 
 const TARGETS = [
+  ['products', 'code'],
+  ['customers', 'code'],
+  ['users', 'username'],
+  ['users', 'staffCode'],
   ['salesOrders', 'id'],
   ['salesOrders', 'code'],
-  ['arLedgers', 'id'],
-  ['arLedgers', 'code'],
   ['masterOrders', 'id'],
   ['masterOrders', 'code'],
   ['returnOrders', 'id'],
   ['returnOrders', 'code'],
+  ['masterReturnOrders', 'id'],
+  ['masterReturnOrders', 'code'],
+  ['receipts', 'id'],
+  ['receipts', 'code'],
+  ['arLedgers', 'id'],
+  ['arLedgers', 'code'],
   ['fundLedgers', 'id'],
-  ['fundLedgers', 'code']
+  ['fundLedgers', 'code'],
+  ['deliveryCashSubmissions', 'id'],
+  ['deliveryCashSubmissions', 'code'],
+  ['expenseVouchers', 'id'],
+  ['expenseVouchers', 'code'],
+  ['fundTransfers', 'id'],
+  ['fundTransfers', 'code']
 ];
 
 async function findDuplicates(Model, field) {
@@ -32,6 +46,29 @@ async function findDuplicates(Model, field) {
     { $sort: { count: -1 } },
     { $limit: 100 }
   ]);
+}
+
+async function buildReferenceSummary(collectionKey, field, value) {
+  const summary = {};
+  if (collectionKey === 'products' && field === 'code') {
+    summary.inventoryRows = await MongoStore.inventories.countDocuments({ productCode: value });
+    summary.stockTransactions = await MongoStore.stockTransactions.countDocuments({ productCode: value });
+    summary.salesOrders = await MongoStore.salesOrders.countDocuments({ 'items.productCode': value });
+    summary.returnOrders = await MongoStore.returnOrders.countDocuments({ 'items.productCode': value });
+  } else if (collectionKey === 'customers' && field === 'code') {
+    summary.salesOrders = await MongoStore.salesOrders.countDocuments({ customerCode: value });
+    summary.returnOrders = await MongoStore.returnOrders.countDocuments({ customerCode: value });
+    summary.arLedgers = await MongoStore.arLedgers.countDocuments({ customerCode: value });
+    summary.receipts = await MongoStore.receipts.countDocuments({ customerCode: value });
+  } else if (collectionKey === 'users' && ['staffCode', 'username'].includes(field)) {
+    const staffFilter = field === 'staffCode'
+      ? { $or: [{ salesStaffCode: value }, { deliveryStaffCode: value }] }
+      : { createdBy: value };
+    summary.salesOrders = await MongoStore.salesOrders.countDocuments(staffFilter);
+    summary.returnOrders = await MongoStore.returnOrders.countDocuments(staffFilter);
+    summary.arLedgers = await MongoStore.arLedgers.countDocuments(staffFilter);
+  }
+  return summary;
 }
 
 async function main() {
@@ -52,11 +89,19 @@ async function main() {
     console.log(`\n[${collectionKey}.${field}] duplicates=${duplicates.length}`);
 
     for (const item of duplicates) {
+      const protectedMasterData = ['products', 'customers', 'users'].includes(collectionKey);
+      const references = protectedMasterData
+        ? await buildReferenceSummary(collectionKey, field, item._id)
+        : {};
       console.log(JSON.stringify({
         value: item._id,
         count: item.count,
         ids: item.ids,
-        samples: item.samples.slice(0, 5)
+        samples: item.samples.slice(0, 5),
+        resolution: protectedMasterData
+          ? 'MANUAL_CANONICAL_MERGE_REQUIRED'
+          : 'TRANSACTIONAL_KEY_RENAME_SUPPORTED',
+        references
       }, null, 2));
     }
   }

@@ -1,5 +1,7 @@
 'use strict';
 
+const { canonicalizeOperationalStaff } = require('../../utils/canonicalStaffWrite.util');
+
 const dateUtil = require('../../utils/date.util');
 const { withMongoTransaction } = require('../../utils/transaction.util');
 const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
@@ -649,7 +651,8 @@ function createMobileSalesService(ctx) {
         if (persistentRequest.replay) return persistentRequest.response;
         perf('idempotency_begin');
 
-        const created = await SalesOrder.create([salesOrder], { session });
+        const canonicalSalesOrder = canonicalizeOperationalStaff(salesOrder);
+        const created = await SalesOrder.create([canonicalSalesOrder], { session });
         const savedOrder = created[0];
         const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
         perf('create_sales_order_direct');
@@ -667,9 +670,9 @@ function createMobileSalesService(ctx) {
           actorCode: mobileUser.code || mobileUser.staffCode || '',
           actorName: mobileUser.fullName || mobileUser.name || '',
           refType: 'salesOrder',
-          refId: salesOrder.id,
-          refCode: salesOrder.code,
-          note: `Tạo đơn ${salesOrder.code} từ mobile`,
+          refId: canonicalSalesOrder.id,
+          refCode: canonicalSalesOrder.code,
+          note: `Tạo đơn ${canonicalSalesOrder.code} từ mobile`,
           createdAt: new Date().toISOString()
         }], { session });
         perf('save_operational_documents_direct');

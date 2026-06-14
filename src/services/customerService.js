@@ -118,17 +118,24 @@ async function setCustomerStatus(id, isActive) {
   return { customer: toClient(customer) };
 }
 
-async function deleteCustomer(id) {
-  const customer = await customerRepository.removeByIdOrCode(id);
+async function deleteCustomer(id, options = {}) {
+  const customer = await customerRepository.deactivateByIdOrCode(id, {
+    actorCode: options.actor?.staffCode || options.actor?.code || options.actor?.username || '',
+    reason: options.reason || 'Ngừng hoạt động qua API DELETE'
+  });
   if (!customer) return { error: 'Không tìm thấy khách hàng trong MongoDB', status: 404 };
-  return { customer: toClient(customer) };
+  return { customer: toClient(customer), deactivated: true };
 }
 
-async function bulkDeleteCustomers(ids) {
+async function bulkDeleteCustomers(ids, options = {}) {
   const cleanIds = Array.isArray(ids) ? ids.map(String).map(v => v.trim()).filter(Boolean) : [];
-  if (!cleanIds.length) return { error: 'Chưa chọn khách hàng để xóa', status: 400 };
-  const result = await customerRepository.bulkDelete(cleanIds);
-  return { deleted: result.deletedCount || 0 };
+  if (!cleanIds.length) return { error: 'Chưa chọn khách hàng để ngừng hoạt động', status: 400 };
+  const result = await customerRepository.bulkDeactivate(cleanIds, {
+    actorCode: options.actor?.staffCode || options.actor?.code || options.actor?.username || '',
+    reason: options.reason || 'Ngừng hoạt động hàng loạt'
+  });
+  const deactivated = result.modifiedCount || 0;
+  return { deactivated, deleted: deactivated };
 }
 
 module.exports = {

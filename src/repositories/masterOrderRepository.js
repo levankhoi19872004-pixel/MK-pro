@@ -1,6 +1,7 @@
 'use strict';
 
 const collectionRepository = require('./mongoCollection.repository');
+const { canonicalizeOperationalStaff } = require('../utils/canonicalStaffWrite.util');
 const { buildIdentityFilter, normalizeIdOrCode } = require('../utils/identity.util');
 
 const MASTER_KEY = 'masterOrders';
@@ -23,11 +24,11 @@ async function findByIdOrCode(idOrCode) {
 }
 
 async function upsert(masterOrder, options = {}) {
-  return collectionRepository.upsertByIdentity(MASTER_KEY, masterOrder, ['id', 'code'], options);
+  return collectionRepository.upsertByIdentity(MASTER_KEY, canonicalizeOperationalStaff(masterOrder), ['id', 'code'], options);
 }
 
 async function replaceAll(masterOrders) {
-  return collectionRepository.replaceAll(MASTER_KEY, masterOrders || []);
+  return collectionRepository.replaceAll(MASTER_KEY, (masterOrders || []).map((row) => canonicalizeOperationalStaff(row)));
 }
 
 async function remove(idOrCode, options = {}) {

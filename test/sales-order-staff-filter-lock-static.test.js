@@ -30,27 +30,23 @@ test('sales orders UI sends staff name only when staff code is absent', () => {
   );
 });
 
-test('orderService locks sales staff code filter to business code fields only', () => {
+test('orderService locks sales staff code filter to canonical indexed field', () => {
   const source = read('src/services/orderLegacy.service.js');
   const match = source.match(/const staffCodeFilter = extractStaffCodeParam\([\s\S]*?const deliveryStaffCodeFilter = extractStaffCodeParam/);
-  assert.ok(match, 'buildOrderSearchFilter staff block must exist');
+  assert.ok(match, 'listOrders staff block must exist');
 
   const block = match[0];
-  assert.match(block, /const codeValues = \[staffCodeFilter\]/);
-  assert.match(block, /Number\(staffCodeFilter\)/);
-  assert.match(block, /salesStaffCode: \{ \$in: codeValues \}/);
-  assert.match(block, /salesPersonCode: \{ \$in: codeValues \}/);
-  assert.match(block, /salesmanCode: \{ \$in: codeValues \}/);
-  assert.match(block, /nvbhCode: \{ \$in: codeValues \}/);
-  assert.match(block, /maNVBH: \{ \$in: codeValues \}/);
-  assert.match(block, /'salesStaff\.code': \{ \$in: codeValues \}/);
+  assert.match(block, /filter\.salesStaffCode = staffCodeFilter/);
+  assert.doesNotMatch(block, /salesPersonCode: \{ \$in:/);
+  assert.doesNotMatch(block, /salesmanCode: \{ \$in:/);
+  assert.doesNotMatch(block, /nvbhCode: \{ \$in:/);
+  assert.doesNotMatch(block, /maNVBH: \{ \$in:/);
+  assert.doesNotMatch(block, /'salesStaff\.code': \{ \$in:/);
 
   const codeBranch = block.match(/if \(staffCodeFilter\) \{[\s\S]*?\n\s*\} else if \(staffTextFilter\)/);
   assert.ok(codeBranch, 'staffCodeFilter branch must be explicit');
   assert.doesNotMatch(codeBranch[0], /staffRx/);
   assert.doesNotMatch(codeBranch[0], /salesStaffName: staffRx/);
-  assert.doesNotMatch(codeBranch[0], /'staff\.code'/);
-  assert.doesNotMatch(codeBranch[0], /'staff\.name'/);
 });
 
 test('sales order list projection and client mapping preserve NVBH aliases', () => {

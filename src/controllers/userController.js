@@ -23,11 +23,11 @@ async function saveUser(req, res) {
 
 async function deleteUser(req, res) {
   try {
-    const result = await userService.deleteUser(req.params.id, { actor: req.user || {} });
+    const result = await userService.deleteUser(req.params.id, { actor: req.user || {}, reason: req.body?.reason });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.json({ ok: true, source: 'mongo-route', message: 'Đã xóa tài khoản khỏi MongoDB', user: result.user });
+    res.json({ ok: true, source: 'mongo-route', message: 'Đã vô hiệu hóa tài khoản; lịch sử thao tác được giữ nguyên', deactivated: true, user: result.user });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được tài khoản trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    res.status(500).json({ ok: false, message: 'Không vô hiệu hóa được tài khoản trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

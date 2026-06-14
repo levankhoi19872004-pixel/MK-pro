@@ -4,7 +4,7 @@ const MongoStore = require('../models');
 
 const INDEX_DEFINITIONS = {
   products: [
-    [{ code: 1 }, { name: 'idx_products_code' }],
+    [{ code: 1 }, { name: 'uniq_products_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ barcode: 1 }, { name: 'idx_products_barcode', sparse: true }],
     [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }],
     [{ isActive: 1, category: 1 }, { name: 'idx_products_active_category' }],
@@ -13,7 +13,7 @@ const INDEX_DEFINITIONS = {
     [{ searchText: 'text' }, { name: 'txt_products_search_text', default_language: 'none' }]
   ],
   customers: [
-    [{ code: 1 }, { name: 'idx_customers_code' }],
+    [{ code: 1 }, { name: 'uniq_customers_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ customerCode: 1 }, { name: 'idx_customers_customer_code', sparse: true }],
     [{ phone: 1 }, { name: 'idx_customers_phone', sparse: true }],
     [{ staffCode: 1, route: 1, isActive: 1 }, { name: 'idx_customers_staff_route_active' }],
@@ -29,8 +29,8 @@ const INDEX_DEFINITIONS = {
     [{ role: 1, isActive: 1 }, { name: 'idx_staffs_role_active' }]
   ],
   users: [
-    [{ username: 1 }, { name: 'idx_users_username_search', sparse: true }],
-    [{ staffCode: 1 }, { name: 'idx_users_staff_code', sparse: true }],
+    [{ username: 1 }, { name: 'uniq_users_username', unique: true, partialFilterExpression: { username: { $type: 'string', $gt: '' } } }],
+    [{ staffCode: 1 }, { name: 'uniq_users_staff_code', unique: true, partialFilterExpression: { staffCode: { $type: 'string', $gt: '' } } }],
     [{ code: 1 }, { name: 'idx_users_code', sparse: true }],
     [{ employeeCode: 1 }, { name: 'idx_users_employee_code', sparse: true }],
     [{ salesStaffCode: 1 }, { name: 'idx_users_sales_staff_code', sparse: true }],
@@ -116,15 +116,16 @@ const INDEX_DEFINITIONS = {
     [{ deliveryOrderCode: 1 }, { name: 'idx_return_orders_delivery_order_code', sparse: true }]
   ],
   masterReturnOrders: [
-    [{ id: 1 }, { name: 'idx_master_return_orders_id' }],
-    [{ code: 1 }, { name: 'idx_master_return_orders_code' }],
+    [{ id: 1 }, { name: 'uniq_master_return_orders_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_master_return_orders_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ deliveryStaffCode: 1 }, { name: 'idx_master_return_orders_delivery_staff_code' }],
     [{ returnDate: 1, status: 1 }, { name: 'idx_master_return_orders_date_status' }],
     [{ createdAt: -1 }, { name: 'idx_master_return_orders_created_at' }]
   ],
   receipts: [
-    [{ id: 1 }, { name: 'idx_receipts_id' }],
-    [{ code: 1 }, { name: 'idx_receipts_code' }],
+    [{ id: 1 }, { name: 'uniq_receipts_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_receipts_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
+    [{ importIdempotencyKey: 1 }, { name: 'uniq_receipts_import_idempotency', unique: true, partialFilterExpression: { importIdempotencyKey: { $type: 'string', $gt: '' } } }],
     [{ customerId: 1 }, { name: 'idx_receipts_customer_id', sparse: true }],
     [{ customerCode: 1 }, { name: 'idx_receipts_customer_code' }],
     [{ staffCode: 1 }, { name: 'idx_receipts_staff_code', sparse: true }],
@@ -248,20 +249,20 @@ const INDEX_DEFINITIONS = {
     [{ createdAt: -1 }, { name: 'idx_fund_ledgers_created_at' }]
   ],
   deliveryCashSubmissions: [
-    [{ id: 1 }, { name: 'idx_delivery_cash_submissions_id' }],
-    [{ code: 1 }, { name: 'idx_delivery_cash_submissions_code' }],
+    [{ id: 1 }, { name: 'uniq_delivery_cash_submissions_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_delivery_cash_submissions_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_delivery_cash_submissions_date_staff_status' }],
     [{ createdAt: -1 }, { name: 'idx_delivery_cash_submissions_created_at' }]
   ],
   expenseVouchers: [
-    [{ id: 1 }, { name: 'idx_expense_vouchers_id' }],
-    [{ code: 1 }, { name: 'idx_expense_vouchers_code' }],
+    [{ id: 1 }, { name: 'uniq_expense_vouchers_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_expense_vouchers_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ date: 1, fundType: 1, status: 1 }, { name: 'idx_expense_vouchers_date_fund_status' }],
     [{ createdAt: -1 }, { name: 'idx_expense_vouchers_created_at' }]
   ],
   fundTransfers: [
-    [{ id: 1 }, { name: 'idx_fund_transfers_id' }],
-    [{ code: 1 }, { name: 'idx_fund_transfers_code' }],
+    [{ id: 1 }, { name: 'uniq_fund_transfers_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_fund_transfers_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ date: 1, fromFund: 1, toFund: 1, status: 1 }, { name: 'idx_fund_transfers_date_funds_status' }],
     [{ createdAt: -1 }, { name: 'idx_fund_transfers_created_at' }]
   ],
@@ -369,6 +370,7 @@ function sameIndexKey(left, right) {
 function sameIndexOptions(existing = {}, options = {}) {
   if (Boolean(existing.unique) !== Boolean(options.unique)) return false;
   if (Boolean(existing.sparse) !== Boolean(options.sparse)) return false;
+  if (JSON.stringify(existing.partialFilterExpression || null) !== JSON.stringify(options.partialFilterExpression || null)) return false;
   return true;
 }
 

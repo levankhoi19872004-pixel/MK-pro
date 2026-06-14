@@ -2,12 +2,13 @@
 
 const reportService = require('../services/reportService');
 const inventoryService = require('../services/inventoryService');
+const { DESTRUCTIVE_INVENTORY_CONFIRMATION, isInventoryMaintenanceMode } = require('../utils/inventoryMaintenance.util');
 const asyncHandler = require('../middlewares/asyncHandler');
 const queryGuard = require('../utils/queryGuard.util');
 
 
-function requireReportDateRange(req, res) {
-  const checked = queryGuard.requireDateRange(req.query || {});
+function requireReportDateRange(req, res, options = {}) {
+  const checked = queryGuard.requireDateRange(req.query || {}, options);
   if (!checked.ok) {
     res.status(400).json({ ok: false, message: checked.message });
     return null;
@@ -21,13 +22,13 @@ const stock = asyncHandler(async (req, res) => {
   // Chỉ báo cáo phát sinh/thẻ kho theo kỳ mới cần khoảng ngày.
   const query = req.query || {};
   const wantsMovement = query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement';
-  if (wantsMovement && !requireReportDateRange(req, res)) return;
+  if (wantsMovement && !requireReportDateRange(req, res, { maxDays: 31 })) return;
   const result = await reportService.stockReport(query);
   res.json({ ok: true, ...result });
 });
 
 const stockCard = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
+  if (!requireReportDateRange(req, res, { maxDays: 31 })) return;
   const result = await reportService.stockCardReport(req.query);
   res.json({ ok: true, ...result });
 });
@@ -105,33 +106,59 @@ const debtsByDelivery = asyncHandler(async (req, res) => {
 });
 
 const dashboard = asyncHandler(async (req, res) => {
+  req.query = queryGuard.normalizeQueryDateRange(req.query || {}, { defaultToday: true });
   const result = await reportService.dashboardReport(req.query);
   res.json({ ok: true, ...result });
 });
 
 const sales = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
+  if (!requireReportDateRange(req, res, { maxDays: 31 })) return;
   const result = await reportService.salesReport(req.query);
   res.json({ ok: true, ...result });
 });
 
 const finance = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
+  if (!requireReportDateRange(req, res, { maxDays: 31 })) return;
   const result = await reportService.financeReport(req.query);
   res.json({ ok: true, ...result });
 });
 
 const delivery = asyncHandler(async (req, res) => {
-  if (!requireReportDateRange(req, res)) return;
+  if (!requireReportDateRange(req, res, { maxDays: 31 })) return;
   const result = await reportService.deliveryReport(req.query);
   res.json({ ok: true, ...result });
 });
 
 
+function assertDestructiveInventoryRequest(req, operation) {
+  if (process.env.ENABLE_DESTRUCTIVE_INVENTORY_REBUILD !== 'true') {
+    const error = new Error(`${operation} đang bị khóa trên môi trường này`);
+    error.status = 403;
+    error.code = 'DESTRUCTIVE_INVENTORY_OPERATION_DISABLED';
+    throw error;
+  }
+  if (!isInventoryMaintenanceMode()) {
+    const error = new Error('Phải bật SYSTEM_MAINTENANCE_MODE=inventory trước khi rebuild tồn kho');
+    error.status = 409;
+    error.code = 'INVENTORY_MAINTENANCE_MODE_REQUIRED';
+    throw error;
+  }
+  const confirmation = String(req.body?.confirmation || req.query?.confirmation || '').trim();
+  if (confirmation !== DESTRUCTIVE_INVENTORY_CONFIRMATION) {
+    const error = new Error('Thiếu mã xác nhận rebuild tồn kho');
+    error.status = 400;
+    error.code = 'INVENTORY_REBUILD_CONFIRMATION_REQUIRED';
+    throw error;
+  }
+  return confirmation;
+}
+
 const rebuildInventory = asyncHandler(async (req, res) => {
-  const resetFlag = req.body?.resetTransactions ?? req.query?.resetTransactions ?? '1';
+  const confirmation = assertDestructiveInventoryRequest(req, 'Rebuild tồn kho');
+  const resetFlag = req.body?.resetTransactions ?? req.query?.resetTransactions ?? '0';
   const result = await inventoryService.rebuildStockLedgerFromDocuments({
-    resetTransactions: ['1', 'true', 'yes'].includes(String(resetFlag).toLowerCase())
+    resetTransactions: ['1', 'true', 'yes'].includes(String(resetFlag).toLowerCase()),
+    confirmDestructive: confirmation
   });
   res.json({
     ok: true,
@@ -140,7 +167,8 @@ const rebuildInventory = asyncHandler(async (req, res) => {
   });
 });
 const normalizeOneWarehouse = asyncHandler(async (req, res) => {
-  const result = await inventoryService.normalizeOneWarehouse();
+  const confirmation = assertDestructiveInventoryRequest(req, 'Chuẩn hóa một kho');
+  const result = await inventoryService.normalizeOneWarehouse({ confirmDestructive: confirmation });
   res.json({
     ok: true,
     message: 'Đã gom tồn kho về 1 kho chính MAIN. KHO_HC/KHO_PC chỉ còn là nhóm in/gộp đơn.',

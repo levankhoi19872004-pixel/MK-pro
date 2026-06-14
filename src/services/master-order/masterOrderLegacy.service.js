@@ -3465,6 +3465,30 @@ async function buildAggregateMasterPrintDocument(body = {}) {
   };
 }
 
+function buildUnclaimedChildOrderFilter(child = {}) {
+  const identity = [
+    child.id ? { id: child.id } : null,
+    child.code ? { code: child.code } : null,
+    child.documentCode ? { documentCode: child.documentCode } : null,
+    child.orderCode ? { orderCode: child.orderCode } : null,
+    child.salesOrderCode ? { salesOrderCode: child.salesOrderCode } : null
+  ].filter(Boolean);
+  return {
+    $and: [
+      { $or: identity },
+      {
+        $or: [
+          { masterOrderId: { $exists: false } },
+          { masterOrderId: null },
+          { masterOrderId: '' }
+        ]
+      },
+      { mergeStatus: { $ne: 'merged' } },
+      { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] } }
+    ]
+  };
+}
+
 async function createMasterOrder(body = {}) {
   const startedAt = Date.now();
   const childIds = [...new Set((Array.isArray(body.childOrderIds) ? body.childOrderIds : [])
@@ -3538,18 +3562,26 @@ async function createMasterOrder(body = {}) {
       updatedAt: now
     };
 
-    await MongoStore.salesOrders.bulkWrite(children.map((child) => ({
+    const claimResult = await MongoStore.salesOrders.bulkWrite(children.map((child) => ({
       updateOne: {
-        filter: { $or: [
-          { id: child.id },
-          { code: child.code },
-          { documentCode: child.documentCode },
-          { orderCode: child.orderCode },
-          { salesOrderCode: child.salesOrderCode }
-        ].filter((item) => Object.values(item)[0]) },
+        filter: buildUnclaimedChildOrderFilter(child),
         update: { $set: { ...setPatch, deliveryStatus: child.deliveryStatus || 'pending' } }
       }
-    })), { ordered: false, session });
+    })), { ordered: true, session });
+
+    const claimedCount = Number(
+      claimResult.matchedCount ??
+      claimResult.nMatched ??
+      claimResult.result?.nMatched ??
+      claimResult.modifiedCount ??
+      0
+    );
+    if (claimedCount !== children.length) {
+      const error = new Error('Một hoặc nhiều đơn đã được gộp bởi thao tác khác');
+      error.code = 'CHILD_ORDER_ALREADY_CLAIMED';
+      error.status = 409;
+      throw error;
+    }
 
     // Sync returnOrders bằng một lệnh bulk, không gọi từng đơn trong vòng lặp.
     if (childOrderKeys.length || childCodes.length) {

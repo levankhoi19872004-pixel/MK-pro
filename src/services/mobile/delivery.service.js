@@ -31,12 +31,6 @@ function createMobileDeliveryService(ctx) {
   const {
     normalizeText,
     toNumber,
-    buildDebtLedgerRows,
-    getOrderDeliveryDate,
-    isOrderApprovedForDelivery,
-    getOrderDeliveryInfo,
-    isOrderAssignedToDeliveryUser,
-    buildDeliveryOrderRow,
     isDeliveryOrderActive,
     createReceiptDocument,
     auditLog,
@@ -190,58 +184,129 @@ function createMobileDeliveryService(ctx) {
     return { total, returnItems };
   }
 
+  function activeLedgerBalanceByOrder(rows = []) {
+    const balances = new Map();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const delta = toNumber(row.debit) - toNumber(row.credit);
+      const keys = [row.orderId, row.salesOrderId, row.orderCode, row.salesOrderCode, row.refId, row.refCode]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+      for (const key of keys) balances.set(key, toNumber(balances.get(key)) + delta);
+    }
+    return balances;
+  }
+
+  function masterOrderLookup(rows = []) {
+    const map = new Map();
+    for (const row of Array.isArray(rows) ? rows : []) {
+      [row.id, row._id, row.code]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .forEach((key) => map.set(key, row));
+    }
+    return map;
+  }
+
+  function scopedDeliveryRow(order = {}, masterMap = new Map(), debtByOrder = new Map()) {
+    const masterKey = String(order.masterOrderId || order.masterOrderCode || '').trim();
+    const master = masterMap.get(masterKey) || {};
+    const orderKeys = [order.id, order._id, order.code, order.orderCode, order.salesOrderCode]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    const ledgerBalance = orderKeys.reduce((value, key) => debtByOrder.has(key) ? debtByOrder.get(key) : value, null);
+    const fallbackDebt = toNumber(order.debtAmount ?? order.debt ?? order.arBalance ?? order.totalAmount);
+    const debtAmount = ledgerBalance == null ? fallbackDebt : Math.max(0, Math.round(ledgerBalance));
+    const deliveryStatus = String(order.deliveryStatus || order.status || 'pending').trim().toLowerCase();
+
+    return {
+      ...order,
+      deliveryDate: order.deliveryDate || master.deliveryDate || order.orderDate || order.date || '',
+      deliveryStaffCode: order.deliveryStaffCode || master.deliveryStaffCode || '',
+      deliveryStaffName: order.deliveryStaffName || master.deliveryStaffName || '',
+      routeName: order.routeName || master.routeName || '',
+      masterOrderId: order.masterOrderId || master.id || '',
+      masterOrderCode: order.masterOrderCode || master.code || '',
+      arBalance: debtAmount,
+      debtAmount,
+      debt: debtAmount,
+      deliveryStatus,
+      visualStatus: deliveryStatus,
+      isLate: false
+    };
+  }
+
   async function listDeliveryOrders({ query = {}, mobileUser }) {
     const totalStartedAt = Date.now();
-
-    const snapshotStartedAt = Date.now();
-    const data = await repo.getPrimaryDataSnapshot();
-    const snapshotMs = Date.now() - snapshotStartedAt;
     const targetDate = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
     const q = normalizeText(query.q);
     const status = normalizeText(query.status);
-    const includeCompleted = String(query.includeCompleted || '') === '1';
-    const ledgerStartedAt = Date.now();
-    const ledger = buildDebtLedgerRows(data);
-    const ledgerMs = Date.now() - ledgerStartedAt;
-    const debtByOrder = new Map(ledger.map((row) => [String(row.orderId), row]));
+    const includeCompleted = ['1', 'true'].includes(String(query.includeCompleted || '').toLowerCase());
+    const actorCode = String(
+      mobileUser.deliveryStaffCode || mobileUser.staffCode || mobileUser.code || ''
+    ).trim();
 
-    const sourceOrdersStartedAt = Date.now();
-    let sourceOrders = (data.salesOrders || [])
-      .filter((order) => isOrderApprovedForDelivery(order))
-      .filter((order) => getOrderDeliveryDate(data, order) === targetDate)
-      .filter((order) => isOrderAssignedToDeliveryUser(order, getOrderDeliveryInfo(data, order), mobileUser));
-    const sourceOrdersMs = Date.now() - sourceOrdersStartedAt;
+    if (!actorCode) {
+      return { ok: true, date: targetDate, user: {}, items: [], perf: { totalMs: Date.now() - totalStartedAt, rows: 0 } };
+    }
 
-    // V45 speed fix: chỉ refresh returnOrders liên quan đến các đơn app đang hiển thị.
-    // Không load toàn bộ returnOrders từ Mongo.
-    const returnStartedAt = Date.now();
-    data.returnOrders = await findReturnOrdersForOrders(sourceOrders);
-    const returnQueryMs = Date.now() - returnStartedAt;
+    const masterStartedAt = Date.now();
+    const masterOrders = await repo.findAssignedMasterOrders({
+      deliveryDate: targetDate,
+      deliveryStaffCode: actorCode,
+      limit: 300
+    });
+    const masterQueryMs = Date.now() - masterStartedAt;
 
-    const buildRowsStartedAt = Date.now();
+    const ordersStartedAt = Date.now();
+    const sourceOrders = await repo.findDeliveryOrders({
+      deliveryDate: targetDate,
+      deliveryStaffCode: actorCode,
+      masterOrders,
+      includeCompleted,
+      limit: 300
+    });
+    const orderQueryMs = Date.now() - ordersStartedAt;
+
+    const relatedStartedAt = Date.now();
+    const [returnOrders, arLedgers] = await Promise.all([
+      findReturnOrdersForOrders(sourceOrders),
+      repo.findArLedgersForOrders(sourceOrders)
+    ]);
+    const relatedQueryMs = Date.now() - relatedStartedAt;
+
+    const data = { salesOrders: sourceOrders, masterOrders, returnOrders, arLedgers };
+    const masterMap = masterOrderLookup(masterOrders);
+    const debtByOrder = activeLedgerBalanceByOrder(arLedgers);
+
     let items = sourceOrders
+      .map((order) => scopedDeliveryRow(order, masterMap, debtByOrder))
+      .filter((order) => order.deliveryDate === targetDate)
+      .filter((order) => order.deliveryStaffCode === actorCode)
       .map((order) => {
         const syncedReturn = syncOrderReturnAmountFromReturnOrders(data, order);
         const lockedReturnOrder = getLockedReturnOrderForSalesOrder(data, order);
-        const row = buildDeliveryOrderRow(data, order, debtByOrder.get(String(order.id)), targetDate);
-        row.returnAmount = toNumber(syncedReturn.total);
-        row.returnedAmount = row.returnAmount;
-        row.returnItems = syncedReturn.returnItems;
-        row.deliveryReturnItems = syncedReturn.returnItems;
-        row.items = mergeOrderItemsWithReturnItems(row, syncedReturn.returnItems);
+        const row = {
+          ...order,
+          returnAmount: toNumber(syncedReturn.total),
+          returnedAmount: toNumber(syncedReturn.total),
+          returnItems: syncedReturn.returnItems,
+          deliveryReturnItems: syncedReturn.returnItems,
+          items: mergeOrderItemsWithReturnItems(order, syncedReturn.returnItems),
+          returnLocked: Boolean(lockedReturnOrder),
+          returnLockMessage: lockedReturnOrder
+            ? `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả.`
+            : '',
+          returnMergeStatus: lockedReturnOrder ? (lockedReturnOrder.returnMergeStatus || 'merged') : 'unmerged',
+          masterReturnOrderId: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '',
+          masterReturnOrderCode: lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '',
+          warehouseReceiveStatus: lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : ''
+        };
         row.debtBeforeCollection = deliveryFinance.deliveryDebtBase(row);
-        row.debtAmount = deliveryFinance.calculateDeliveryDebt(row);
-        row.debt = row.debtAmount;
-        row.returnLocked = Boolean(lockedReturnOrder);
-        row.returnLockMessage = lockedReturnOrder ? `Phiếu trả hàng đã gộp vào đơn tổng ${lockedReturnOrder.masterReturnOrderCode || lockedReturnOrder.masterReturnOrderId || ''}, không được sửa hàng trả.` : '';
-        row.returnMergeStatus = lockedReturnOrder ? (lockedReturnOrder.returnMergeStatus || 'merged') : 'unmerged';
-        row.masterReturnOrderId = lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderId || '') : '';
-        row.masterReturnOrderCode = lockedReturnOrder ? (lockedReturnOrder.masterReturnOrderCode || '') : '';
-        row.warehouseReceiveStatus = lockedReturnOrder ? (lockedReturnOrder.warehouseReceiveStatus || '') : '';
-        return deliveryFinance.buildCanonicalDeliveryOrder(row, { returnItems: syncedReturn.returnItems, returnAmountOverride: syncedReturn.total });
-      })
-      .filter((order) => includeCompleted || isDeliveryOrderActive(order.deliveryStatus));
-    const buildRowsMs = Date.now() - buildRowsStartedAt;
+        return deliveryFinance.buildCanonicalDeliveryOrder(row, {
+          returnItems: syncedReturn.returnItems,
+          returnAmountOverride: syncedReturn.total
+        });
+      });
 
     const deliveryStaffKeyword = normalizeText(
       query.deliveryStaffCode || query.deliveryStaffName || query.deliveryStaff || query.nvgh || query.deliveryStaffKeyword
@@ -251,37 +316,17 @@ function createMobileDeliveryService(ctx) {
     );
 
     if (deliveryStaffKeyword) {
-      items = items.filter((order) => [
-        order.deliveryStaffCode,
-        order.deliveryStaffName,
-        order.shipperCode,
-        order.shipperName,
-        order.staffDeliveryCode,
-        order.staffDeliveryName
-      ].some((value) => normalizeText(value).includes(deliveryStaffKeyword)));
+      items = items.filter((order) => [order.deliveryStaffCode, order.deliveryStaffName]
+        .some((value) => normalizeText(value).includes(deliveryStaffKeyword)));
     }
-
     if (salesStaffKeyword) {
-      items = items.filter((order) => [
-        order.salesStaffCode,
-        order.salesStaffName,
-        order.staffCode,
-        order.staffName,
-        order.saleCode,
-        order.saleName
-      ].some((value) => normalizeText(value).includes(salesStaffKeyword)));
+      items = items.filter((order) => [order.salesStaffCode, order.salesStaffName]
+        .some((value) => normalizeText(value).includes(salesStaffKeyword)));
     }
-
     if (q) {
       items = items.filter((order) => [
-        order.code,
-        order.orderCode,
-        order.salesOrderCode,
-        order.customerCode,
-        order.customerName,
-        order.phone,
-        order.address,
-        order.routeName
+        order.code, order.orderCode, order.salesOrderCode, order.customerCode,
+        order.customerName, order.phone, order.address, order.routeName
       ].some((value) => normalizeText(value).includes(q)));
     }
     if (status) {
@@ -292,29 +337,20 @@ function createMobileDeliveryService(ctx) {
       });
     }
 
-    const sortStartedAt = Date.now();
     items = items
       .sort((a, b) => String(a.routeName).localeCompare(String(b.routeName)) || String(a.createdAt).localeCompare(String(b.createdAt)))
-      .slice(0, 100)
-      .map((order) => deliveryFinance.buildCanonicalDeliveryOrder(order, {
-        returnItems: Array.isArray(order.deliveryReturnItems) ? order.deliveryReturnItems : (Array.isArray(order.returnItems) ? order.returnItems : []),
-        returnAmountOverride: order.amounts && order.amounts.returnAmount != null ? order.amounts.returnAmount : order.returnAmount
-      }));
-    const sortMs = Date.now() - sortStartedAt;
+      .slice(0, 100);
 
     return {
       ok: true,
       date: targetDate,
-      user: { id: mobileUser.id, code: mobileUser.code, name: mobileUser.name },
-      formula: 'deliveryDate = ngày được chọn + deliveryStaff = nhân viên đang đăng nhập + deliveryStatus chưa hoàn tất/hủy',
+      user: { id: mobileUser.id, code: actorCode, name: mobileUser.name || mobileUser.fullName || '' },
+      formula: 'deliveryDate = ngày được chọn + deliveryStaffCode = nhân viên đang đăng nhập',
       items,
       perf: {
-        snapshotMs,
-        ledgerMs,
-        sourceOrdersMs,
-        returnQueryMs,
-        buildRowsMs,
-        sortMs,
+        masterQueryMs,
+        orderQueryMs,
+        relatedQueryMs,
         totalMs: Date.now() - totalStartedAt,
         sourceOrders: sourceOrders.length,
         rows: items.length

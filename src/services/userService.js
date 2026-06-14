@@ -130,7 +130,7 @@ async function deleteUser(id, options = {}) {
   const current = await userRepository.findUserByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy tài khoản trong collection users', status: 404 };
   if (isSameUserIdentity(current, options.actor || {})) {
-    return { error: 'Không được tự xóa tài khoản đang đăng nhập', status: 409 };
+    return { error: 'Không được tự vô hiệu hóa tài khoản đang đăng nhập', status: 409 };
   }
   if (current.role === 'admin' && current.isActive !== false) {
     const otherAdmins = await userRepository.countUsers({
@@ -140,8 +140,12 @@ async function deleteUser(id, options = {}) {
     });
     if (otherAdmins < 1) return { error: 'Hệ thống phải luôn còn ít nhất một tài khoản admin hoạt động', status: 409 };
   }
-  const staff = await userRepository.deleteUser(id);
-  return { user: staffToClient(staff) };
+  const actor = options.actor || {};
+  const staff = await userRepository.deactivateUser(id, {
+    actorCode: actor.staffCode || actor.code || actor.username || '',
+    reason: options.reason || 'Ngừng hoạt động qua API DELETE'
+  });
+  return { user: staffToClient(staff), deactivated: true };
 }
 
 async function listStaffs(query) {

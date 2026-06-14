@@ -1,5 +1,7 @@
 'use strict';
 
+const { canonicalizeOperationalStaff } = require('../utils/canonicalStaffWrite.util');
+
 const { normalizeSearchText } = require('../utils/search.util');
 
 const dateUtil = require('../utils/date.util');
@@ -30,6 +32,9 @@ const { saveImportFiles, cleanupImportFiles } = require('../utils/importTempFile
 const { enqueueImportPreviewJob } = require('../jobs/importPreviewQueue');
 const { runImportPreviewPipeline } = require('../jobs/importPreviewRunner');
 const importCommitOrchestrator = require('./import/ImportCommitOrchestrator');
+const { runAtomicChunks } = require('./import/importTransaction.service');
+const InventoryPostingService = require('../domain/posting/InventoryPostingService');
+const financialService = require('./financialService');
 const promotionService = require('./promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
 const {
@@ -1252,10 +1257,6 @@ async function importSalesOrders(rows = [], options = {}) {
   const orderDocs = [];
   // ERP/DMS chuẩn: import Excel DMS chỉ tạo đơn con chờ gộp/giao.
   // Không tạo Payment/Cashbook/AR ngay tại bước import, vì công nợ chỉ phát sinh khi giao hàng thành công.
-  const paymentDocs = [];
-  const cashbookDocs = [];
-  const movements = [];
-  const inventoryDeltas = new Map();
   const shortageReport = [];
 
   for (const group of groups) {
@@ -1599,9 +1600,9 @@ async function importSalesOrders(rows = [], options = {}) {
       arStatus: 'pending',
       lifecycleStatus: 'pending',
       status: 'pending',
-      stockPosted: true,
-      stockPostedAt: now,
-      stockPostedBy: options.userName || options.username || options.createdBy || 'excel_import',
+      stockPosted: false,
+      stockPostedAt: '',
+      stockPostedBy: '',
       warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'KHO_HC',
       warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho HC',
       createdAt: now,
@@ -1610,52 +1611,95 @@ async function importSalesOrders(rows = [], options = {}) {
     Object.assign(doc, applyOrderSourceFields(doc, ORDER_SOURCE.DMS));
     orderDocs.push(doc);
     if (doc.documentCode) importedDocumentSet.add(cleanText(doc.documentCode));
-    for (const item of items) {
-      pushInventoryMovement({
-        movements,
-        inventoryDeltas,
-        item,
-        direction: 'OUT',
-        type: item.lineType === 'PROMO' || item.isPromo ? 'PROMO_OUT' : 'SALE',
-        refType: 'SALES_ORDER',
-        refId: doc.id,
-        refCode: doc.code,
-        date: doc.date,
-        warehouseCode: doc.warehouseCode,
-        warehouseName: doc.warehouseName,
-        note: doc.note
+  }
+
+  const postedBy = options.userName || options.username || options.createdBy || 'excel_import';
+  const chunkSize = Number(process.env.SALES_IMPORT_TX_CHUNK_SIZE || 25);
+  const atomicResults = await runAtomicChunks(
+    orderDocs,
+    async (chunk, { session }) => {
+      const insertedOrders = await SalesOrder.insertMany(
+        chunk.map((row) => canonicalizeOperationalStaff(row)),
+        {
+          session,
+          ordered: true
+        }
+      );
+      let stockTransactions = 0;
+      for (const order of insertedOrders) {
+        const transactions = await InventoryPostingService.postSaleOut(order, { session });
+        stockTransactions += Array.isArray(transactions)
+          ? transactions.filter((row) => !row?.skipped).length
+          : 0;
+        await SalesOrder.updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              stockPosted: true,
+              stockPostedAt: dateUtil.nowIso(),
+              stockPostedBy: postedBy,
+              updatedAt: dateUtil.nowIso()
+            }
+          },
+          { session }
+        );
+      }
+      return { imported: insertedOrders.length, stockTransactions };
+    },
+    { chunkSize }
+  );
+
+  let imported = 0;
+  let stockTransactions = 0;
+  for (const result of atomicResults) {
+    if (result.ok) {
+      imported += Number(result.value?.imported || 0);
+      stockTransactions += Number(result.value?.stockTransactions || 0);
+      continue;
+    }
+    skipped += result.count;
+    const failedChunk = orderDocs.slice(result.chunkIndex * chunkSize, result.chunkIndex * chunkSize + result.count);
+    for (const order of failedChunk) {
+      errors.push({
+        documentCode: order.documentCode || order.code || '',
+        customerCode: order.customerCode || '',
+        code: result.code,
+        message: result.error
       });
     }
   }
 
-  const orderResult = await insertManyInBatches(SalesOrder, orderDocs);
-  // V45 lazy return-order: import/tạo đơn bán không sinh RO-DRAFT rỗng.
-  // Phiếu trả chỉ được tạo khi có phát sinh returnQty > 0 từ app/phần mềm giao hàng.
-  const returnDraftResult = { errors: [] };
-  const paymentResult = { errors: [] };
-  const cashResult = { errors: [] };
-  const inventoryResult = await applyInventoryMovementsBulk(movements, inventoryDeltas);
-
-  skipped += orderResult.errors.length + returnDraftResult.errors.length + paymentResult.errors.length + cashResult.errors.length;
-  errors.push(...orderResult.errors.map((error) => ({ customerCode: '', message: error.message })));
-  errors.push(...paymentResult.errors.map((error) => ({ customerCode: '', message: `Payment: ${error.message}` })));
-  errors.push(...cashResult.errors.map((error) => ({ customerCode: '', message: `Cashbook: ${error.message}` })));
-  const imported = Math.max(0, orderDocs.length - orderResult.errors.length);
   await addImportLog('salesOrders', {
     imported,
     skipped,
-    errors: errors.slice(0, 30),
-    mode: 'bulkSalesOrders',
-    batchSize: IMPORT_BATCH_SIZE,
-    payments: paymentDocs.length,
-    cashbook: cashbookDocs.length,
+    failed: orderDocs.length - imported,
+    errors: errors.slice(0, 100),
+    mode: 'atomicSalesOrderChunks',
+    batchSize: chunkSize,
+    payments: 0,
+    cashbook: 0,
     returnDrafts: 0,
-    stockTransactions: inventoryResult.transactionCount,
-    inventoryRows: inventoryResult.inventoryRows,
+    stockTransactions,
+    inventoryRows: stockTransactions,
+    chunks: atomicResults.map((result) => ({
+      chunkIndex: result.chunkIndex,
+      ok: result.ok,
+      count: result.count,
+      imported: Number(result.value?.imported || 0),
+      code: result.code || '',
+      error: result.error || ''
+    })),
     shortageCount: shortageReport.length,
     shortageReport: shortageReport.slice(0, 100)
   });
-  return { imported, skipped, errors, shortageReport };
+  return {
+    imported,
+    failed: orderDocs.length - imported,
+    skipped,
+    errors,
+    shortageReport,
+    chunks: atomicResults
+  };
 }
 
 async function importOpeningDebt(rows = []) {
@@ -1702,95 +1746,102 @@ async function importOpeningDebt(rows = []) {
   return { imported, skipped, errors };
 }
 
-async function importDebtCollections(rows = []) {
+function normalizeImportPaymentMethod(row = {}) {
+  const raw = normalizeText(
+    row.method ||
+    row.paymentMethod ||
+    row['Phương thức'] ||
+    row['Phuong thuc'] ||
+    row['Hình thức'] ||
+    row['Hinh thuc'] ||
+    'cash'
+  );
+  return raw.includes('chuyen') || raw.includes('transfer') || raw.includes('bank')
+    ? 'transfer'
+    : 'cash';
+}
+
+async function importDebtCollections(rows = [], options = {}) {
   let skipped = 0;
+  let imported = 0;
   const errors = [];
   const customerMap = await preloadCustomersByCode(rows);
-  const receiptDocs = [];
-  const paymentDocs = [];
-  const cashbookDocs = [];
-  const receiptCodes = await buildRunningCodes(Receipt, 'TH', rows.length);
-  const cashCodes = await buildRunningCodes(Cashbook, 'PT', rows.length);
-  let codeIdx = 0;
-  let cashCodeIdx = 0;
+  const importSessionId = cleanText(options.importSessionId || options.sessionId || 'manual');
 
-  for (const row of rows) {
+  for (const [rowIndex, row] of rows.entries()) {
     const customerCode = getCustomerCodeFromRow(row);
-    const customer = customerMap.get(cleanText(customerCode)) || await findCustomerByAny(customerCode);
-    const amount = toNumber(row.amount ?? row['Số tiền'] ?? row['So tien'] ?? row['Tiền thu'] ?? row['Tien thu'] ?? number(row, ['amount', 'số tiền', 'so tien', 'tiền thu', 'tien thu']));
-    if (!customer || amount <= 0) {
+    try {
+      const customer = customerMap.get(cleanText(customerCode)) || await findCustomerByAny(customerCode);
+      const amount = toNumber(
+        row.amount ??
+        row['Số tiền'] ??
+        row['So tien'] ??
+        row['Tiền thu'] ??
+        row['Tien thu'] ??
+        number(row, ['amount', 'số tiền', 'so tien', 'tiền thu', 'tien thu'])
+      );
+      if (!customer) {
+        const error = new Error('Không tìm thấy khách hàng');
+        error.code = 'CUSTOMER_NOT_FOUND';
+        throw error;
+      }
+      if (amount <= 0) {
+        const error = new Error('Số tiền thu phải lớn hơn 0');
+        error.code = 'INVALID_RECEIPT_AMOUNT';
+        throw error;
+      }
+
+      const sourceRow = Number(row.__sourceRow || row.__rowNumber || rowIndex + 2);
+      const explicitCode = cleanText(row.code || row.receiptCode || row['Mã phiếu'] || row['Ma phieu']);
+      const importIdempotencyKey = [
+        'EXCEL_DEBT',
+        importSessionId,
+        sourceRow,
+        cleanText(customer.code || customerCode),
+        amount
+      ].join('|');
+
+      const result = await financialService.createReceipt({
+        code: explicitCode,
+        date: dateOnly(row.date || dateUtil.todayVN()),
+        customerId: String(customer.id || customer._id || customer.code),
+        customerCode: customer.code,
+        customerName: customer.name,
+        method: normalizeImportPaymentMethod(row),
+        amount,
+        staffName: cleanText(row.staffName || row['Người thu'] || row['Nguoi thu'] || row['Nhân viên']),
+        note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import thu công nợ Excel',
+        source: 'excel_debt_collection_import',
+        refType: 'debt_collection_import',
+        importIdempotencyKey
+      });
+
+      if (result?.error) {
+        const error = new Error(result.error);
+        error.status = result.status;
+        error.code = result.code || 'DEBT_COLLECTION_IMPORT_FAILED';
+        throw error;
+      }
+      if (result?.duplicate) skipped += 1;
+      else imported += 1;
+    } catch (error) {
       skipped += 1;
-      errors.push({ customerCode, message: !customer ? 'Không tìm thấy khách hàng' : 'Số tiền thu phải lớn hơn 0' });
-      continue;
+      errors.push({
+        row: Number(row.__sourceRow || row.__rowNumber || rowIndex + 2),
+        customerCode,
+        code: error?.code || 'DEBT_COLLECTION_IMPORT_FAILED',
+        message: error?.message || String(error)
+      });
     }
-    const now = dateUtil.nowIso();
-    const code = cleanText(row.code || row.receiptCode || row['Mã phiếu'] || row['Ma phieu']) || receiptCodes[codeIdx++] || `TH${Date.now()}${codeIdx}`;
-    const receipt = {
-      id: makeId('RC'),
-      code,
-      date: dateOnly(row.date || dateUtil.todayVN()),
-      customerId: String(customer.id || customer._id || customer.code),
-      customerCode: customer.code,
-      customerName: customer.name,
-      method: 'cash',
-      amount,
-      staffName: cleanText(row.staffName || row['Người thu'] || row['Nguoi thu'] || row['Nhân viên']),
-      note: cleanText(row.note || row['Ghi chú'] || row['Ghi chu']) || 'Import thu công nợ Excel',
-      refType: 'receipt',
-      refId: '',
-      refCode: code,
-      status: 'posted',
-      createdAt: now,
-      updatedAt: now
-    };
-    receiptDocs.push(receipt);
-    paymentDocs.push({
-      id: makeId('PM'),
-      date: receipt.date,
-      type: 'debt',
-      refType: 'receipt',
-      refId: receipt.id,
-      refCode: receipt.code,
-      customerId: receipt.customerId,
-      customerCode: receipt.customerCode,
-      customerName: receipt.customerName,
-      debit: 0,
-      credit: amount,
-      amount,
-      note: receipt.note,
-      status: 'posted',
-      createdAt: now,
-      updatedAt: now
-    });
-    cashbookDocs.push({
-      id: makeId('CB'),
-      code: cashCodes[cashCodeIdx++] || `PT${Date.now()}${cashCodeIdx}`,
-      date: receipt.date,
-      type: 'in',
-      source: 'debt_collection_import',
-      refType: 'receipt',
-      refId: receipt.id,
-      refCode: receipt.code,
-      customerId: receipt.customerId,
-      customerCode: receipt.customerCode,
-      customerName: receipt.customerName,
-      staffName: receipt.staffName,
-      amount,
-      note: receipt.note,
-      status: 'posted',
-      createdAt: now,
-      updatedAt: now
-    });
   }
 
-  const receiptResult = await insertManyInBatches(Receipt, receiptDocs);
-  const paymentResult = { errors: [] };
-  const cashResult = { errors: [] };
-  const insertErrors = [...receiptResult.errors, ...paymentResult.errors, ...cashResult.errors];
-  skipped += insertErrors.length;
-  errors.push(...insertErrors.map((e) => ({ customerCode: '', message: e.message })));
-  const imported = Math.max(0, receiptDocs.length - receiptResult.errors.length);
-  await addImportLog('debtCollections', { imported, skipped, errors: errors.slice(0, 30), mode: 'insertMany', batchSize: IMPORT_BATCH_SIZE });
+  await addImportLog('debtCollections', {
+    imported,
+    skipped,
+    errors: errors.slice(0, 100),
+    mode: 'atomicReceiptArFundPerRow',
+    importSessionId
+  });
   return { imported, skipped, errors };
 }
 
@@ -3190,6 +3241,10 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     }
 
     result = await importCommitOrchestrator.commit(type, commitRows, {
+      options: {
+        importSessionId: currentSessionId,
+        sessionId: currentSessionId
+      },
       operations: {
         upsertProducts,
         upsertCustomers,

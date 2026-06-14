@@ -7,10 +7,10 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/reportLe
 
 test('high-volume reports push date and active status filters into Mongo', () => {
   assert.match(source, /function buildDateMongoFilter/);
-  assert.match(source, /SalesOrder\.find\(buildActiveDateMongoFilter/);
-  assert.match(source, /Receipt\.find\(buildActiveDateMongoFilter/);
-  assert.match(source, /MasterOrder\.find\(buildActiveDateMongoFilter/);
-  assert.match(source, /ImportOrder\.find\(buildActiveDateMongoFilter/);
+  assert.match(source, /const salesFilter = buildActiveDateMongoFilter/);
+  assert.match(source, /const receiptFilter = buildActiveDateMongoFilter/);
+  assert.match(source, /const deliveryFilter = buildActiveDateMongoFilter/);
+  assert.match(source, /const importFilter = buildActiveDateMongoFilter/);
   assert.doesNotMatch(source, /SalesOrder\.find\(\{\}\)/);
   assert.doesNotMatch(source, /Receipt\.find\(\{\}\)/);
   assert.doesNotMatch(source, /MasterOrder\.find\(\{\}\)/);

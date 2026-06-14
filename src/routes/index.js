@@ -30,8 +30,11 @@ const deliveryRoutes = require('./deliveryRoutes');
 const inventoryRoutes = require('./inventoryRoutes');
 const { requireRole } = require('../middlewares/auth.middleware');
 const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
+const { inventoryMaintenanceGuard } = require('../middlewares/inventoryMaintenance.middleware');
 
 function registerApiRoutes(app) {
+  // Khi chạy rebuild/normalize tồn kho, chặn mọi command có thể ghi tồn song song.
+  app.use('/api', inventoryMaintenanceGuard);
   // API docs must be mounted before legacy guard.
   app.use('/api', swaggerRoutes);
 

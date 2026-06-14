@@ -118,11 +118,30 @@ function ensureSearchKeyword(query = {}, minLength = 2) {
   return { ok: true, q };
 }
 
-function requireDateRange(query = {}) {
-  const normalized = normalizeQueryDateRange(query);
+function requireDateRange(query = {}, options = {}) {
+  const normalized = normalizeQueryDateRange(query, options);
   if (!normalized.dateFrom || !normalized.dateTo) {
     return { ok: false, message: 'Vui lòng chọn khoảng thời gian', query: normalized };
   }
+
+  const from = new Date(`${normalized.dateFrom}T00:00:00+07:00`);
+  const to = new Date(`${normalized.dateTo}T00:00:00+07:00`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+    return { ok: false, message: 'Khoảng thời gian không hợp lệ', query: normalized };
+  }
+
+  const maxDays = Number(options.maxDays || 0);
+  if (maxDays > 0) {
+    const inclusiveDays = Math.floor((to.getTime() - from.getTime()) / 86400000) + 1;
+    if (inclusiveDays > maxDays) {
+      return {
+        ok: false,
+        message: `Khoảng thời gian tối đa là ${maxDays} ngày`,
+        query: normalized
+      };
+    }
+  }
+
   return { ok: true, query: normalized };
 }
 

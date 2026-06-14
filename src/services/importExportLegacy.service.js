@@ -807,7 +807,7 @@ async function buildArLedgerDetailWorkbook(query = {}) {
 }
 
 async function buildStockReportWorkbook(query = {}) {
-  const result = await reportService.stockReport(query);
+  const result = await reportService.stockReport({ ...query, full: '1', export: '1' });
   const rows = (result.stock || []).map((s, idx) => ({
     STT: idx + 1,
     MaSP: cleanText(s.productCode || s.code || s.productId),

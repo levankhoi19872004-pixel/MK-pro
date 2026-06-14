@@ -10,6 +10,8 @@ const ReturnOrder = require('../models/ReturnOrder');
 const { makeId, toNumber, normalizeText } = require('../utils/common.util');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 const inventoryStockService = require('./inventoryStock.service');
+const { assertDestructiveInventoryOperation } = require('../utils/inventoryMaintenance.util');
+const InventoryRebuildService = require('../domain/reconciliation/InventoryRebuildService');
 
 function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
 function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
@@ -779,51 +781,13 @@ async function postStockMovementBulkImportIn(document = {}, movement = {}, optio
   ];
 }
 
-async function rebuildCurrentInventoryFromTransactions() {
-  await InventoryLegacy.deleteMany({});
-  const rows = await StockTransaction.find({}).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();
-  const balances = new Map();
-  const lastTxAt = new Map();
-
-  for (const row of rows) {
-    const productCode = String(row.productCode || row.productId || '').trim();
-    if (!productCode) continue;
-    const key = productCode;
-    balances.set(key, toNumber(balances.get(key)) + toNumber(row.quantity ?? row.qty));
-    lastTxAt.set(key, row.updatedAt || row.createdAt || dateUtil.nowIso());
-  }
-
-  const docs = [];
-  for (const [productCode, qty] of balances.entries()) {
-    const product = await Product.findOne({
-      $or: [
-        { code: productCode },
-        { sku: productCode },
-        { productCode },
-        { id: productCode }
-      ]
-    }).lean();
-    const productId = String(product?.id || product?._id || productCode).trim();
-    docs.push({
-      id: makeId('IV'),
-      productId,
-      productCode,
-      productName: String(product?.name || '').trim(),
-      warehouseId: stockWarehouseCode(),
-      warehouseCode: stockWarehouseCode(),
-      warehouseName: stockWarehouseName(),
-      qty,
-      quantity: qty,
-      onHand: qty,
-      reservedQty: 0,
-      availableQty: qty,
-      lastTransactionAt: lastTxAt.get(productCode) || dateUtil.nowIso(),
-      updatedAt: dateUtil.nowIso()
-    });
-  }
-
-  if (docs.length) await InventoryLegacy.insertMany(docs, { ordered: false });
-  return getCurrentStock();
+async function rebuildCurrentInventoryFromTransactions(options = {}) {
+  assertDestructiveInventoryOperation(options, 'Rebuild inventories từ stockTransactions');
+  const result = await InventoryRebuildService.rebuildInventoryFromTransactions(options);
+  if (inventoryStockService.invalidateInventorySummaryCache) inventoryStockService.invalidateInventorySummaryCache();
+  const stock = await getCurrentStock();
+  Object.defineProperty(stock, 'rebuildMeta', { value: result, enumerable: false });
+  return stock;
 }
 
 async function buildTransactionsFromDocuments() {
@@ -931,20 +895,19 @@ async function buildTransactionsFromDocuments() {
 }
 
 async function rebuildStockLedgerFromDocuments(options = {}) {
-  const resetTransactions = options.resetTransactions !== false;
-  if (resetTransactions) await StockTransaction.deleteMany({});
+  assertDestructiveInventoryOperation(options, 'Rebuild stock ledger');
+  const resetTransactions = options.resetTransactions === true;
   const beforeTxCount = await StockTransaction.countDocuments({});
   let createdTransactions = 0;
+  let transactionRebuild = null;
 
   if (resetTransactions || beforeTxCount === 0) {
     const transactions = await buildTransactionsFromDocuments();
-    if (transactions.length) {
-      await StockTransaction.insertMany(transactions, { ordered: false });
-      createdTransactions = transactions.length;
-    }
+    transactionRebuild = await InventoryRebuildService.replaceStockTransactions(transactions, options);
+    createdTransactions = transactions.length;
   }
 
-  const stock = await rebuildCurrentInventoryFromTransactions();
+  const stock = await rebuildCurrentInventoryFromTransactions(options);
 
   // Phase 3.4: sau khi đã chuyển tồn legacy thành OPENING transaction,
   // xóa tồn khỏi products để products chỉ còn là danh mục.
@@ -966,55 +929,31 @@ async function rebuildStockLedgerFromDocuments(options = {}) {
     resetTransactions,
     transactionCount: await StockTransaction.countDocuments({}),
     createdTransactions,
+    transactionRebuild,
+    inventoryRebuild: stock.rebuildMeta || null,
     inventoryRows: stock.length,
     totalAvailableQty: stock.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.quantity ?? row.qty), 0)
   };
 }
 
-async function normalizeOneWarehouse() {
-  const rows = await InventoryLegacy.find({}).lean();
-  const grouped = new Map();
-  for (const row of rows) {
-    const productCode = String(row.productCode || row.productId || '').trim();
-    if (!productCode) continue;
-    const qty = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
-    if (!grouped.has(productCode)) grouped.set(productCode, { row, qty: 0 });
-    grouped.get(productCode).qty += qty;
-  }
-
-  await InventoryLegacy.deleteMany({});
-  const docs = [];
-  for (const [productCode, value] of grouped.entries()) {
-    const row = value.row || {};
-    const qty = value.qty;
-    docs.push({
-      ...row,
-      _id: undefined,
-      id: row.id || makeId('IV'),
-      productCode,
-      warehouseId: stockWarehouseCode(),
-      warehouseCode: stockWarehouseCode(),
-      warehouseName: stockWarehouseName(),
-      qty,
-      quantity: qty,
-      onHand: qty,
-      availableQty: qty - toNumber(row.reservedQty),
-      updatedAt: dateUtil.nowIso()
-    });
-  }
-  if (docs.length) await InventoryLegacy.insertMany(docs, { ordered: false });
-  await StockTransaction.updateMany({}, {
+async function normalizeOneWarehouse(options = {}) {
+  assertDestructiveInventoryOperation(options, 'Chuẩn hóa tồn về một kho');
+  const now = dateUtil.nowIso();
+  const transactionResult = await StockTransaction.updateMany({}, {
     $set: {
       warehouseId: stockWarehouseCode(),
       warehouseCode: stockWarehouseCode(),
       warehouseName: stockWarehouseName(),
-      updatedAt: dateUtil.nowIso()
+      updatedAt: now
     }
   });
+  const stock = await rebuildCurrentInventoryFromTransactions(options);
   return {
     normalized: true,
-    inventoryRows: docs.length,
-    transactionRows: await StockTransaction.countDocuments({})
+    inventoryRows: stock.length,
+    transactionRows: await StockTransaction.countDocuments({}),
+    modifiedTransactions: transactionResult.modifiedCount ?? transactionResult.nModified ?? 0,
+    inventoryRebuild: stock.rebuildMeta || null
   };
 }
 

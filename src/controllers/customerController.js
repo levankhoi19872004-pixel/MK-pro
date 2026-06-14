@@ -52,21 +52,21 @@ async function setStatus(req, res) {
 
 async function remove(req, res) {
   try {
-    const result = await customerService.deleteCustomer(req.params.id);
+    const result = await customerService.deleteCustomer(req.params.id, { actor: req.user || {}, reason: req.body?.reason });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.json({ ok: true, source: 'mongo-route', message: 'Đã xóa khách hàng khỏi MongoDB', customer: result.customer });
+    res.json({ ok: true, source: 'mongo-route', message: 'Đã ngừng hoạt động khách hàng; lịch sử giao dịch được giữ nguyên', deactivated: true, customer: result.customer });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa được khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    res.status(500).json({ ok: false, message: 'Không ngừng hoạt động được khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 
 async function bulkDelete(req, res) {
   try {
-    const result = await customerService.bulkDeleteCustomers(req.body?.ids);
+    const result = await customerService.bulkDeleteCustomers(req.body?.ids, { actor: req.user || {}, reason: req.body?.reason });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
-    res.json({ ok: true, source: 'mongo-route', message: `Đã xóa ${result.deleted} khách hàng khỏi MongoDB`, deleted: result.deleted });
+    res.json({ ok: true, source: 'mongo-route', message: `Đã ngừng hoạt động ${result.deactivated} khách hàng`, deactivated: result.deactivated, deleted: result.deleted });
   } catch (err) {
-    res.status(500).json({ ok: false, message: 'Không xóa nhiều khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+    res.status(500).json({ ok: false, message: 'Không ngừng hoạt động được nhiều khách hàng trên MongoDB', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
   }
 }
 

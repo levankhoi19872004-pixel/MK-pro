@@ -9,6 +9,7 @@ const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const returnOrderService = require('./returnOrderService');
 const { pickDeliveryStaffCode, pickDeliveryStaffName } = require('../domain/staff/staffIdentity');
+const MongoStore = require('../models');
 
 
 function isInactiveStatus(row = {}) {
@@ -132,7 +133,7 @@ function summarizeReturnOrders(returnOrders = []) {
   };
 }
 
-async function getChildren(masterReturnOrder = {}) {
+async function getChildren(masterReturnOrder = {}, options = {}) {
   const ids = Array.isArray(masterReturnOrder.returnOrderIds) ? masterReturnOrder.returnOrderIds.map(String).filter(Boolean) : [];
   if (!ids.length) return [];
   return returnOrderRepository.findAll({
@@ -140,7 +141,11 @@ async function getChildren(masterReturnOrder = {}) {
       { id: { $in: ids } },
       { code: { $in: ids } }
     ]
-  }, { sort: { createdAt: 1 }, limit: Math.max(ids.length, 1) });
+  }, {
+    sort: { createdAt: 1 },
+    limit: Math.max(ids.length, 1),
+    session: options.session
+  });
 }
 
 async function listUnmergedReturnOrders(query = {}) {
@@ -213,7 +218,9 @@ async function getMasterReturnOrder(id) {
 }
 
 async function createMasterReturnOrder(body = {}) {
-  const returnOrderIds = Array.isArray(body.returnOrderIds) ? body.returnOrderIds.map(String) : [];
+  const returnOrderIds = [...new Set((Array.isArray(body.returnOrderIds) ? body.returnOrderIds : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))];
   if (!returnOrderIds.length) return { error: 'Chưa chọn phiếu trả hàng để gộp', status: 400 };
 
   const children = await returnOrderRepository.findAll({
@@ -266,22 +273,61 @@ async function createMasterReturnOrder(body = {}) {
   delete masterReturnOrder.returnItems;
 
   await withMongoTransaction(async (session) => {
-    await masterReturnOrderRepository.upsert(masterReturnOrder, { session });
-    for (const child of children) {
-      await returnOrderRepository.upsert({
-        ...child,
-        masterReturnOrderId: masterReturnOrder.id,
-        masterReturnOrderCode: masterReturnOrder.code,
-        returnMergeStatus: 'merged',
-        status: 'grouped',
-        warehouseStatus: masterReturnOrder.warehouseStatus,
-        warehouseReceiveStatus: masterReturnOrder.warehouseReceiveStatus,
-        deliveryStaffId: masterReturnOrder.deliveryStaffId,
-        deliveryStaffCode: masterReturnOrder.deliveryStaffCode,
-        deliveryStaffName: masterReturnOrder.deliveryStaffName,
-        updatedAt: dateUtil.nowIso()
-      }, { session });
+    const now = dateUtil.nowIso();
+    const claimResult = await MongoStore.returnOrders.updateMany(
+      {
+        $and: [
+          { $or: [{ id: { $in: returnOrderIds } }, { code: { $in: returnOrderIds } }] },
+          {
+            $or: [
+              { masterReturnOrderId: { $exists: false } },
+              { masterReturnOrderId: null },
+              { masterReturnOrderId: '' }
+            ]
+          },
+          { returnMergeStatus: { $ne: 'merged' } },
+          {
+            status: {
+              $nin: [
+                'cancelled', 'canceled', 'void', 'deleted',
+                'received', 'accounting_confirmed', 'posted_to_ar'
+              ]
+            }
+          }
+        ]
+      },
+      {
+        $set: {
+          masterReturnOrderId: masterReturnOrder.id,
+          masterReturnOrderCode: masterReturnOrder.code,
+          returnMergeStatus: 'merged',
+          status: 'grouped',
+          warehouseStatus: masterReturnOrder.warehouseStatus,
+          warehouseReceiveStatus: masterReturnOrder.warehouseReceiveStatus,
+          deliveryStaffId: masterReturnOrder.deliveryStaffId,
+          deliveryStaffCode: masterReturnOrder.deliveryStaffCode,
+          deliveryStaffName: masterReturnOrder.deliveryStaffName,
+          updatedAt: now
+        }
+      },
+      { session }
+    );
+
+    const claimedCount = Number(
+      claimResult.matchedCount ??
+      claimResult.nMatched ??
+      claimResult.result?.nMatched ??
+      claimResult.modifiedCount ??
+      0
+    );
+    if (claimedCount !== children.length) {
+      const error = new Error('Một hoặc nhiều phiếu trả hàng đã được gộp bởi thao tác khác');
+      error.code = 'RETURN_ORDER_ALREADY_CLAIMED';
+      error.status = 409;
+      throw error;
     }
+
+    await masterReturnOrderRepository.upsert(masterReturnOrder, { session });
   });
 
   const updatedChildren = await getChildren(masterReturnOrder);
@@ -329,42 +375,60 @@ async function updateMasterReturnOrder(id, body = {}) {
 
 
 async function confirmReceiveMasterReturnOrder(id, body = {}) {
-  const current = await masterReturnOrderRepository.findByIdOrCode(id);
-  if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
-  if (isInactiveStatus(current)) return { error: 'Đơn tổng trả hàng đã hủy/xóa, không thể nhập kho', status: 400 };
-  if (String(current.warehouseStatus || current.warehouseReceiveStatus || current.status || '').toLowerCase() === 'posted' || String(current.status || '').toLowerCase() === 'received') {
-    const children = await getChildren(current);
-    return { masterReturnOrder: toClient(current, children), alreadyReceived: true };
-  }
+  return withMongoTransaction(async (session) => {
+    const current = await masterReturnOrderRepository.findByIdOrCode(id, { session });
+    if (!current) return { error: 'Không tìm thấy đơn tổng trả hàng', status: 404 };
+    if (isInactiveStatus(current)) {
+      return { error: 'Đơn tổng trả hàng đã hủy/xóa, không thể nhập kho', status: 400 };
+    }
+    if (String(current.warehouseStatus || current.warehouseReceiveStatus || current.status || '').toLowerCase() === 'posted' || String(current.status || '').toLowerCase() === 'received') {
+      const children = await getChildren(current, { session });
+      return { masterReturnOrder: toClient(current, children), alreadyReceived: true };
+    }
 
-  const children = await getChildren(current);
-  if (!children.length) return { error: 'Đơn tổng trả hàng chưa có phiếu trả hàng con', status: 400 };
+    const children = await getChildren(current, { session });
+    if (!children.length) return { error: 'Đơn tổng trả hàng chưa có phiếu trả hàng con', status: 400 };
+    if (children.length !== (current.returnOrderIds || []).length) {
+      const error = new Error('Thiếu phiếu trả hàng con trong đơn tổng');
+      error.code = 'MASTER_RETURN_CHILD_MISSING';
+      error.status = 409;
+      throw error;
+    }
 
-  for (const child of children) {
-    const result = await returnOrderService.confirmReceiveReturnOrder(child.id || child.code);
-    if (result && result.error) return result;
-  }
+    for (const child of children) {
+      const result = await returnOrderService.confirmReceiveReturnOrder(child.id || child.code, {
+        session,
+        receivedBy: body.receivedBy
+      });
+      if (result?.error) {
+        const error = new Error(result.error);
+        error.code = result.code || 'MASTER_RETURN_CHILD_FAILED';
+        error.status = result.status || 400;
+        throw error;
+      }
+    }
 
-  const receivedChildren = await getChildren(current);
-  const received = {
-    ...current,
-    status: 'received',
-    warehouseStatus: 'posted',
-    warehouseReceiveStatus: 'posted',
-    stockReceiveStatus: 'posted',
-    stockPosted: true,
-    receivedAt: dateUtil.nowIso(),
-    stockPostedAt: dateUtil.nowIso(),
-    receivedBy: String(body.receivedBy || '').trim(),
-    stockPostedBy: String(body.receivedBy || '').trim(),
-    updatedAt: dateUtil.nowIso(),
-    ...summarizeReturnOrders(receivedChildren)
-  };
+    const receivedChildren = await getChildren(current, { session });
+    const now = dateUtil.nowIso();
+    const received = {
+      ...current,
+      status: 'received',
+      warehouseStatus: 'posted',
+      warehouseReceiveStatus: 'posted',
+      stockReceiveStatus: 'posted',
+      stockPosted: true,
+      receivedAt: now,
+      stockPostedAt: now,
+      receivedBy: String(body.receivedBy || '').trim(),
+      stockPostedBy: String(body.receivedBy || '').trim(),
+      updatedAt: now,
+      ...summarizeReturnOrders(receivedChildren)
+    };
 
-  await withMongoTransaction(async (session) => {
     await masterReturnOrderRepository.upsert(received, { session });
+    const finalChildren = [];
     for (const child of receivedChildren) {
-      await returnOrderRepository.upsert({
+      const updatedChild = {
         ...child,
         status: 'received',
         warehouseStatus: 'posted',
@@ -372,13 +436,17 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
         returnMergeStatus: 'merged',
         masterReturnOrderId: received.id,
         masterReturnOrderCode: received.code,
-        updatedAt: dateUtil.nowIso()
-      }, { session });
+        updatedAt: now
+      };
+      await returnOrderRepository.upsert(updatedChild, { session });
+      finalChildren.push(updatedChild);
     }
-  });
 
-  const finalChildren = await getChildren(received);
-  return { masterReturnOrder: toClient(received, finalChildren), alreadyReceived: false };
+    return {
+      masterReturnOrder: toClient(received, finalChildren),
+      alreadyReceived: false
+    };
+  });
 }
 
 async function cancelMasterReturnOrder(id, body = {}) {

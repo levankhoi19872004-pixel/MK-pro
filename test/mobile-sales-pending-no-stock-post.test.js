@@ -21,7 +21,8 @@ test('modular mobile sales create writes order and stock atomically without snap
   const next = source.indexOf('\n  async function ', createStart + 1);
   const createBlock = source.slice(createStart, next === -1 ? source.length : next);
   assert.match(createBlock, /withMongoTransaction\s*\(async \(session\)/);
-  assert.match(createBlock, /SalesOrder\.create\s*\(\[salesOrder\], \{ session \}\)/);
+  assert.match(createBlock, /canonicalSalesOrder = canonicalizeOperationalStaff\(salesOrder\)/);
+  assert.match(createBlock, /SalesOrder\.create\s*\(\[canonicalSalesOrder\], \{ session \}\)/);
   assert.match(createBlock, /InventoryPostingService\.postSaleOut\s*\([^,]+, \{ session \}\)/);
   assert.doesNotMatch(createBlock, /reduceStock\s*\(/);
   assert.doesNotMatch(createBlock, /repo\.saveOperationalData\s*\(data\)/);

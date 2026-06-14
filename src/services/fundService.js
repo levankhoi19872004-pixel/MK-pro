@@ -87,16 +87,78 @@ function summarizeFundLedgers(rows = []) {
 }
 
 async function listFundLedgers(query = {}) {
-  const filter = {};
+  const filter = {
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted'] }
+  };
   if (query.fundType && query.fundType !== 'all') filter.fundType = String(query.fundType);
   if (query.direction && query.direction !== 'all') filter.direction = String(query.direction);
   const dateFrom = query.dateFrom ? dateOnly(query.dateFrom) : '';
   const dateTo = query.dateTo ? dateOnly(query.dateTo) : '';
   if (dateFrom || dateTo) filter.date = { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) };
-  let rows = await fundLedgerRepository.findAll(filter, { sort: { date: -1, createdAt: -1, code: -1 }, limit: query.limit || 1000 });
-  const q = normalizeText(query.q || query.search || '');
-  if (q) rows = rows.filter((row) => matchQuery(row, q));
-  return { fundLedgers: rows, summary: summarizeFundLedgers(rows) };
+
+  const q = String(query.q || query.search || '').trim();
+  if (q) {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(escaped, 'i');
+    filter.$or = [
+      'code', 'sourceCode', 'sourceType', 'deliveryStaffCode', 'deliveryStaffName',
+      'customerCode', 'customerName', 'staffName', 'note', 'status'
+    ].map((field) => ({ [field]: rx }));
+  }
+
+  const page = Math.max(Number(query.page || 1), 1);
+  const limit = Math.min(Math.max(Number(query.limit || 50), 1), 200);
+  const skip = (page - 1) * limit;
+  const result = await fundLedgerRepository.aggregate([
+    { $match: filter },
+    {
+      $facet: {
+        rows: [
+          { $sort: { date: -1, createdAt: -1, code: -1 } },
+          { $skip: skip },
+          { $limit: limit }
+        ],
+        totals: [
+          {
+            $group: {
+              _id: { fundType: '$fundType', direction: '$direction' },
+              amount: { $sum: { $ifNull: ['$amount', 0] } },
+              count: { $sum: 1 }
+            }
+          }
+        ],
+        count: [{ $count: 'total' }]
+      }
+    }
+  ]);
+
+  const facet = result[0] || { rows: [], totals: [], count: [] };
+  const summaryRows = (facet.totals || []).map((row) => ({
+    fundType: row._id?.fundType,
+    direction: row._id?.direction,
+    amount: toNumber(row.amount),
+    count: toNumber(row.count)
+  }));
+  const summary = summarizeFundLedgers(summaryRows.map((row) => ({
+    fundType: row.fundType,
+    direction: row.direction,
+    amount: row.amount,
+    status: 'posted'
+  })));
+  const total = toNumber(facet.count?.[0]?.total);
+
+  return {
+    fundLedgers: facet.rows || [],
+    items: facet.rows || [],
+    summary: { ...summary, groups: summaryRows },
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + (facet.rows || []).length < total
+    }
+  };
 }
 
 async function findExistingFundLedger(sourceType, sourceCode, fundType, direction, sourceId = '', account = '') {

@@ -75,13 +75,36 @@ async function save(document, options = {}) {
   return document;
 }
 
-async function removeByIdOrCode(idOrCode) {
-  return Customer.findOneAndDelete(buildMongoFilter(idOrCode)).lean();
+async function deactivateByIdOrCode(idOrCode, metadata = {}) {
+  return Customer.findOneAndUpdate(
+    buildMongoFilter(idOrCode),
+    {
+      $set: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deactivatedBy: String(metadata.actorCode || '').trim(),
+        deactivationReason: String(metadata.reason || '').trim(),
+        updatedAt: new Date()
+      }
+    },
+    { new: true }
+  ).lean();
 }
 
-async function bulkDelete(ids) {
+async function bulkDeactivate(ids, metadata = {}) {
   const objectIds = ids.filter((id) => /^[a-f\d]{24}$/i.test(id));
-  return Customer.deleteMany({ $or: [{ code: { $in: ids } }, { _id: { $in: objectIds } }] });
+  return Customer.updateMany(
+    { $or: [{ code: { $in: ids } }, { _id: { $in: objectIds } }] },
+    {
+      $set: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deactivatedBy: String(metadata.actorCode || '').trim(),
+        deactivationReason: String(metadata.reason || '').trim(),
+        updatedAt: new Date()
+      }
+    }
+  );
 }
 
 module.exports = {
@@ -92,6 +115,6 @@ module.exports = {
   findDuplicateCode,
   create,
   save,
-  removeByIdOrCode,
-  bulkDelete
+  deactivateByIdOrCode,
+  bulkDeactivate
 };

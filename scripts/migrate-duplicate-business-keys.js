@@ -5,17 +5,38 @@ const mongoose = require('mongoose');
 const MongoStore = require('../src/models');
 
 const TARGETS = [
+  ['products', 'code'],
+  ['customers', 'code'],
+  ['users', 'username'],
+  ['users', 'staffCode'],
   ['salesOrders', 'id'],
   ['salesOrders', 'code'],
-  ['arLedgers', 'id'],
-  ['arLedgers', 'code'],
   ['masterOrders', 'id'],
   ['masterOrders', 'code'],
   ['returnOrders', 'id'],
   ['returnOrders', 'code'],
+  ['masterReturnOrders', 'id'],
+  ['masterReturnOrders', 'code'],
+  ['receipts', 'id'],
+  ['receipts', 'code'],
+  ['arLedgers', 'id'],
+  ['arLedgers', 'code'],
   ['fundLedgers', 'id'],
-  ['fundLedgers', 'code']
+  ['fundLedgers', 'code'],
+  ['deliveryCashSubmissions', 'id'],
+  ['deliveryCashSubmissions', 'code'],
+  ['expenseVouchers', 'id'],
+  ['expenseVouchers', 'code'],
+  ['fundTransfers', 'id'],
+  ['fundTransfers', 'code']
 ];
+
+const MANUAL_MERGE_TARGETS = new Set([
+  'products.code',
+  'customers.code',
+  'users.username',
+  'users.staffCode'
+]);
 
 async function migrateField(Model, collectionKey, field, dryRun) {
   const duplicates = await Model.aggregate([
@@ -68,7 +89,11 @@ async function main() {
   for (const [collectionKey, field] of TARGETS) {
     const Model = MongoStore[collectionKey];
     if (!Model) continue;
-
+    const targetKey = `${collectionKey}.${field}`;
+    if (MANUAL_MERGE_TARGETS.has(targetKey)) {
+      console.log(`[SKIP] ${targetKey}: dữ liệu danh mục/nhân sự phải chọn bản ghi canonical và merge thủ công; không tự đổi business code.`);
+      continue;
+    }
     totalChanged += await migrateField(Model, collectionKey, field, dryRun);
   }
 

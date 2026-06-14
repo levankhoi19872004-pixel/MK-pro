@@ -47,6 +47,7 @@ test('debtReport keeps NVBH separate from NVGH when staffName contains delivery 
   assertNoSalesmanStaffFallback();
 
   const originalAggregate = ArLedger.aggregate;
+  const originalArFind = ArLedger.find;
   const originalFind = Customer.find;
   let capturedPipeline = null;
 
@@ -76,6 +77,14 @@ test('debtReport keeps NVBH separate from NVGH when staffName contains delivery 
     };
   };
 
+  ArLedger.find = () => ({
+    select() { return this; },
+    sort() { return this; },
+    skip() { return this; },
+    limit() { return this; },
+    lean: async () => []
+  });
+
   Customer.find = () => ({
     select() { return this; },
     limit() { return this; },
@@ -104,6 +113,7 @@ test('debtReport keeps NVBH separate from NVGH when staffName contains delivery 
     );
   } finally {
     ArLedger.aggregate = originalAggregate;
+    ArLedger.find = originalArFind;
     Customer.find = originalFind;
     delete require.cache[require.resolve('../src/services/reportService')];
   }
