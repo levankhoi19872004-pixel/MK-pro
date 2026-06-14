@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>V45 Mobile - Bán hàng</title>
-  <link rel="stylesheet" href="./mobile.css?v=debt-collections-app-v1" />
+  <link rel="stylesheet" href="./mobile.css?v=debt-subtabs-v2" />
 </head>
 <body>
   <main class="mobile-page sales-app-page">
@@ -93,21 +93,48 @@
       <section class="card">
         <div class="section-title-row">
           <h2>Công nợ khách hàng</h2>
-          <button id="reloadDebtsBtn" class="ghost-btn small-btn">Tải lại</button>
+          <button id="reloadDebtsBtn" type="button" class="ghost-btn small-btn">Tải lại</button>
         </div>
         <div class="mobile-kpi-grid">
           <div class="kpi-card"><span>Tổng công nợ NVBH</span><strong id="debtTotalAmount">0</strong></div>
           <div class="kpi-card"><span>Số khách còn nợ</span><strong id="debtCustomerCount">0</strong></div>
           <div class="kpi-card"><span>Đã báo thu chờ KT</span><strong id="debtPendingAmount">0</strong></div>
         </div>
+        <p id="debtTabMessage" class="message" aria-live="polite"></p>
       </section>
-      <section class="card">
-        <h2>Danh sách công nợ</h2>
-        <div id="debtList" class="order-list empty">Đang tải công nợ...</div>
-      </section>
-      <section class="card">
-        <h2>Sổ công nợ & báo thu</h2>
-        <div id="debtLedgerList" class="order-list empty">Chọn khách hàng để xem chi tiết.</div>
+
+      <section class="card debt-workspace">
+        <div class="debt-subtabs" role="tablist" aria-label="Nghiệp vụ công nợ">
+          <button id="debtCustomersSubtab" type="button" class="debt-subtab active" role="tab" aria-selected="true" aria-controls="debtCustomersPanel">Khách nợ</button>
+          <button id="debtCollectSubtab" type="button" class="debt-subtab" role="tab" aria-selected="false" aria-controls="debtCollectPanel">Thu nợ</button>
+        </div>
+
+        <section id="debtCustomersPanel" class="debt-subpanel active" role="tabpanel" aria-labelledby="debtCustomersSubtab">
+          <div class="section-title-row debt-panel-title">
+            <h2>Danh sách khách nợ</h2>
+          </div>
+          <div class="debt-list-toolbar">
+            <input id="debtCustomerSearch" type="search" autocomplete="off" placeholder="Tìm mã / tên / SĐT khách hàng" aria-label="Tìm khách hàng đang nợ" />
+            <select id="debtCustomerSort" aria-label="Sắp xếp danh sách công nợ">
+              <option value="debt_desc">Nợ cao nhất</option>
+              <option value="available_desc">Có thể thu cao nhất</option>
+              <option value="oldest_asc">Nợ cũ nhất</option>
+            </select>
+          </div>
+          <div id="debtList" class="order-list empty">Đang tải công nợ...</div>
+        </section>
+
+        <section id="debtCollectPanel" class="debt-subpanel" role="tabpanel" aria-labelledby="debtCollectSubtab">
+          <div class="section-title-row debt-panel-title">
+            <h2>Thu nợ khách hàng</h2>
+          </div>
+          <div id="debtLedgerList" class="order-list empty">
+            <div class="debt-empty-state">
+              <strong>Chưa chọn khách hàng để thu nợ</strong>
+              <button id="chooseDebtCustomerBtn" type="button" class="ghost-btn">Chọn khách hàng</button>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
 
@@ -144,6 +171,6 @@
 <script src="../js/search/catalogCacheService.js?v=staff-auto-users-v5"></script>
   <script src="../js/search/unifiedSearchEngine.js?v=mobile-product-suggest-v2"></script>
   <script src="../js/search/productSearchBox.js?v=mobile-product-suggest-v2"></script>
-  <script type="module" src="./js/sales.js?v=debt-collections-app-v1"></script>
+  <script type="module" src="./js/sales.js?v=debt-subtabs-v2"></script>
 </body>
 </html>

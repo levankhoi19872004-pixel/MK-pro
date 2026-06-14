@@ -1411,4 +1411,189 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
 
 
 /* Delivery mobile debt tab */
-.m-debt-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px}.m-debt-summary div{background:#fff;border:1px solid #dbe4f0;border-radius:14px;padding:10px}.m-debt-summary span{display:block;font-size:11px;font-weight:900;color:#64748b}.m-debt-summary b{font-size:16px}.m-debt-layout{display:grid;gap:8px}.m-debt-list,.m-debt-detail{display:flex;flex-direction:column;gap:8px}.m-debt-order-row{display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:start;border-bottom:1px solid #eef2f7;padding:9px 0}.m-debt-order-row:last-child{border-bottom:0}.m-debt-order-row input{margin-top:2px}.m-debt-order-row b,.m-debt-order-row small,.m-debt-order-row em{display:block}.m-debt-order-row small{font-size:11px;color:#64748b}.m-debt-order-row em{font-style:normal;font-size:11px;color:#475569}.m-help-text{margin:0;color:#64748b;font-size:12px;font-weight:800;line-height:1.4}.m-payment-form select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:10px;margin-top:5px;background:#fff}@media (min-width:760px){.m-debt-summary{grid-template-columns:repeat(4,1fr)}.m-debt-layout{grid-template-columns:minmax(280px,.9fr) 1.1fr;align-items:start}}
+.m-debt-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px}.m-debt-summary div{background:#fff;border:1px solid #dbe4f0;border-radius:14px;padding:10px}.m-debt-summary span{display:block;font-size:11px;font-weight:900;color:#64748b}.m-debt-summary b{font-size:16px}.m-debt-list,.m-debt-detail{display:flex;flex-direction:column;gap:8px}.m-debt-order-row{display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:start;border-bottom:1px solid #eef2f7;padding:9px 0}.m-debt-order-row:last-child{border-bottom:0}.m-debt-order-row input{margin-top:2px}.m-debt-order-row b,.m-debt-order-row small,.m-debt-order-row em{display:block}.m-debt-order-row small{font-size:11px;color:#64748b}.m-debt-order-row em{font-style:normal;font-size:11px;color:#475569}.m-help-text{margin:0;color:#64748b;font-size:12px;font-weight:800;line-height:1.4}.m-payment-form select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:10px;margin-top:5px;background:#fff}@media (min-width:760px){.m-debt-summary{grid-template-columns:repeat(4,1fr)}}
+
+
+/* MOBILE_DEBT_SUBTABS_V2_START: tách danh sách khách nợ và biểu mẫu thu nợ */
+.debt-workspace {
+  overflow: visible;
+}
+.debt-subtabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
+  background: #eef2f7;
+}
+.debt-subtab {
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #475569;
+  font-weight: 900;
+  cursor: pointer;
+}
+.debt-subtab.active {
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10);
+}
+.debt-subpanel {
+  display: none;
+}
+.debt-subpanel.active {
+  display: block;
+}
+.debt-panel-title {
+  margin-bottom: 8px;
+}
+.debt-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.42fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.debt-list-toolbar input,
+.debt-list-toolbar select {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 9px 10px;
+  color: #0f172a;
+}
+.debt-customer-list,
+.m-debt-list {
+  display: grid;
+  gap: 8px;
+}
+.debt-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.debt-card.selected,
+.m-debt-customer-card.selected {
+  border-color: #2563eb;
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.14);
+}
+.debt-card-content {
+  min-width: 0;
+}
+.debt-collect-action,
+.m-debt-collect-action {
+  min-width: 92px;
+  border: 0;
+  border-radius: 11px;
+  padding: 10px 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+.debt-collect-action[disabled],
+.m-debt-collect-action.disabled {
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+}
+.debt-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px 10px;
+  text-align: center;
+}
+.debt-empty-state span {
+  color: #64748b;
+  font-size: 12px;
+}
+.debt-selected-customer {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+  padding: 12px;
+}
+.debt-selected-customer span {
+  color: #475569;
+  font-size: 12px;
+}
+.mobile-debt-collection-form {
+  overflow: visible;
+}
+.debt-order-selection-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.debt-submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  margin: 4px -4px -4px;
+  padding: 8px 4px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid #dbe4f0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+}
+.debt-submit-bar button {
+  width: 100%;
+}
+.debt-ledger-details {
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+}
+.debt-ledger-details summary {
+  cursor: pointer;
+  color: #334155;
+  font-weight: 900;
+}
+.debt-no-available {
+  border-color: #fde68a;
+  background: #fffdf4;
+}
+.m-debt-reload-row {
+  grid-template-columns: 1fr;
+  margin-bottom: 8px;
+}
+.m-debt-subtabs {
+  margin-bottom: 8px;
+}
+.m-debt-customer-card {
+  display: grid;
+  gap: 9px;
+}
+.m-debt-customer-card .m-debt-collect-action {
+  width: 100%;
+}
+.m-debt-empty-action {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px 14px;
+  color: #1d4ed8;
+  font-weight: 900;
+}
+@media (max-width: 520px) {
+  .debt-list-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .debt-card {
+    grid-template-columns: 1fr;
+  }
+  .debt-collect-action {
+    width: 100%;
+  }
+}
+/* MOBILE_DEBT_SUBTABS_V2_END */

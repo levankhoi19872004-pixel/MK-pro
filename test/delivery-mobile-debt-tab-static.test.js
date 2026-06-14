@@ -15,6 +15,8 @@ test('delivery mobile replaces report tab with independent debt tab', () => {
   assert.match(source, /debts:\s*\[\]/);
   assert.match(source, /debtSummary:\s*\{\}/);
   assert.match(source, /selectedDebtIndex:\s*-1/);
+  assert.match(source, /debtSubtab:\s*'customers'/);
+  assert.match(source, /selectedDebtKey:\s*''/);
   assert.match(source, /debtLoaded:\s*false/);
   assert.match(source, /debtLoading:\s*false/);
 
@@ -33,12 +35,17 @@ test('delivery mobile debt tab uses shared mobile debts API and pending collecti
 
   assert.match(source, /\/api\/mobile\/debts\?collectorType=delivery&includePendingCollections=1&includePaid=0&limit=100/);
   assert.match(source, /function renderDebtApp\(body\)/);
-  assert.match(source, /function renderDebtCustomers\(rows\)/);
+  assert.match(source, /function renderDebtCustomers\(entries\)/);
   assert.match(source, /function renderDebtCustomerDetail\(customer\)/);
   assert.match(source, /function submitDeliveryDebtCollectionFromDebtTab\(event, customer\)/);
   assert.match(source, /\/api\/mobile\/debt-collections/);
   assert.match(source, /collectorType:\s*'delivery'/);
   assert.match(source, /Công nợ chỉ giảm sau khi kế toán xác nhận trên web/);
 
-  assert.match(html, /delivery-debt-tab-v1/);
+  assert.match(html, /delivery-debt-subtabs-v2/);
+  assert.match(source, /mDebtCustomersSubtab/);
+  assert.match(source, /mDebtCollectSubtab/);
+  assert.match(source, /setDeliveryDebtSubtab/);
+  assert.match(source, /debt-submit-bar/);
+  assert.match(source, /Đang chờ KT/);
 });

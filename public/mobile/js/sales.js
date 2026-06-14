@@ -37,6 +37,10 @@ let debtCache = [];
 let debtLoaded = false;
 let debtLoading = false;
 let debtRequestSeq = 0;
+let debtSubtab = 'customers';
+let selectedDebtCustomerKey = '';
+let debtFormDirty = false;
+let debtListScrollTop = 0;
 
 const tabs = document.querySelectorAll('.tab-btn');
 const panels = document.querySelectorAll('.tab-panel');
@@ -66,6 +70,13 @@ const debtLedgerList = document.getElementById('debtLedgerList');
 const debtTotalAmount = document.getElementById('debtTotalAmount');
 const debtCustomerCount = document.getElementById('debtCustomerCount');
 const debtPendingAmount = document.getElementById('debtPendingAmount');
+const debtTabMessage = document.getElementById('debtTabMessage');
+const debtCustomersSubtab = document.getElementById('debtCustomersSubtab');
+const debtCollectSubtab = document.getElementById('debtCollectSubtab');
+const debtCustomersPanel = document.getElementById('debtCustomersPanel');
+const debtCollectPanel = document.getElementById('debtCollectPanel');
+const debtCustomerSearch = document.getElementById('debtCustomerSearch');
+const debtCustomerSort = document.getElementById('debtCustomerSort');
 
 function switchTab(tabId) {
   tabs.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabId));
@@ -246,12 +257,22 @@ tabs.forEach((btn) => btn.addEventListener('click', () => {
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
 document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); await loadDebts({ silent: true }); loadCustomers(customerSearch.value.trim()); });
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
-document.getElementById('reloadDebtsBtn')?.addEventListener('click', loadDebts);
+document.getElementById('reloadDebtsBtn')?.addEventListener('click', () => {
+  if (debtFormDirty && !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')) return;
+  debtFormDirty = false;
+  loadDebts({ force: true });
+});
+debtCustomersSubtab?.addEventListener('click', () => setDebtSubtab('customers'));
+debtCollectSubtab?.addEventListener('click', () => setDebtSubtab('collect'));
+debtCustomerSearch?.addEventListener('input', () => renderDebtCustomerList(debtCache));
+debtCustomerSort?.addEventListener('change', () => renderDebtCustomerList(debtCache));
 document.getElementById('clearOrderBtn')?.addEventListener('click', clearOrderForm);
 
 initSalesApp();
 
 async function initSalesApp() {
+  renderDebtLedger();
+  setDebtSubtab('customers', { restoreScroll: false });
   await loadDebts({ silent: true });
   await loadCustomers('');
   loadTodayOrders();
@@ -811,12 +832,109 @@ function renderCart() {
 }
 
 
+function debtCustomerKey(item = {}) {
+  return String(
+    item.customerId ||
+    item.customerCode ||
+    item.code ||
+    item.id ||
+    item._id ||
+    item.customerName ||
+    ''
+  ).trim();
+}
+
+function selectedDebtCustomer() {
+  if (!selectedDebtCustomerKey) return null;
+  return debtCache.find((item) => debtCustomerKey(item) === selectedDebtCustomerKey) || null;
+}
+
+function setDebtSubtab(nextSubtab, options = {}) {
+  const next = nextSubtab === 'collect' ? 'collect' : 'customers';
+  debtSubtab = next;
+
+  debtCustomersSubtab?.classList.toggle('active', next === 'customers');
+  debtCollectSubtab?.classList.toggle('active', next === 'collect');
+  debtCustomersSubtab?.setAttribute('aria-selected', String(next === 'customers'));
+  debtCollectSubtab?.setAttribute('aria-selected', String(next === 'collect'));
+  debtCustomersPanel?.classList.toggle('active', next === 'customers');
+  debtCollectPanel?.classList.toggle('active', next === 'collect');
+
+  if (next === 'collect') {
+    if (options.scroll !== false) {
+      document.getElementById('debtTab')?.scrollIntoView({ block: 'start', behavior: options.behavior || 'smooth' });
+    }
+    return;
+  }
+
+  if (options.restoreScroll !== false) {
+    window.requestAnimationFrame(() => window.scrollTo({ top: debtListScrollTop, behavior: 'auto' }));
+  }
+}
+
+function bindChooseDebtCustomerButton() {
+  document.getElementById('chooseDebtCustomerBtn')?.addEventListener('click', () => setDebtSubtab('customers'));
+}
+
+function openDebtCollection(item = {}) {
+  const nextKey = debtCustomerKey(item);
+  if (!nextKey || customerAvailableDebtValue(item) <= 0) return;
+
+  if (selectedDebtCustomerKey === nextKey) {
+    setDebtSubtab('collect');
+    return;
+  }
+
+  if (
+    debtFormDirty &&
+    selectedDebtCustomerKey &&
+    selectedDebtCustomerKey !== nextKey &&
+    !window.confirm('Bạn đang có phiếu thu chưa gửi. Dữ liệu hiện tại sẽ bị xóa khi chuyển khách hàng.')
+  ) {
+    return;
+  }
+
+  debtListScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+  selectedDebtCustomerKey = nextKey;
+  debtFormDirty = false;
+  renderDebtLedger(item);
+  setDebtSubtab('collect');
+}
+
+function filteredAndSortedDebts(items = debtCache) {
+  const keyword = String(debtCustomerSearch?.value || '').trim().toLowerCase();
+  const sortMode = String(debtCustomerSort?.value || 'debt_desc');
+  const rows = (Array.isArray(items) ? items : [])
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => {
+      if (!keyword) return true;
+      return [item.customerCode, item.customerName, item.phone, item.customerPhone]
+        .some((value) => String(value || '').toLowerCase().includes(keyword));
+    });
+
+  rows.sort((left, right) => {
+    const a = left.item;
+    const b = right.item;
+    if (sortMode === 'available_desc') {
+      return customerAvailableDebtValue(b) - customerAvailableDebtValue(a);
+    }
+    if (sortMode === 'oldest_asc') {
+      const aDate = formatShortDate(a.oldestDebtDate || '9999-12-31');
+      const bDate = formatShortDate(b.oldestDebtDate || '9999-12-31');
+      return aDate.localeCompare(bDate);
+    }
+    return customerDebtValue(b) - customerDebtValue(a);
+  });
+
+  return rows;
+}
+
 async function loadDebts(options = {}) {
   const silent = !!options.silent;
   const force = !!options.force;
   const isDebtTabActive = document.getElementById('debtTab')?.classList.contains('active');
 
-  if (debtLoading && !force) return;
+  if (debtLoading) return;
   if (debtLoaded && !force && debtCache.length && !silent) {
     renderDebts(debtCache, {
       totalDebt: debtCache.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0),
@@ -842,20 +960,19 @@ async function loadDebts(options = {}) {
     debtCache = Array.isArray(data.items) ? data.items : [];
     debtLoaded = true;
 
-    if (debtList) renderDebts(debtCache, data.summary || {});
+    renderDebts(debtCache, data.summary || {});
     if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
   } catch (err) {
     if (requestSeq !== debtRequestSeq) return;
     debtLoaded = false;
 
-    // Không nuốt lỗi khi người dùng đang ở tab Công nợ. Trước đây initSalesApp gọi silent=true,
-    // nếu API lỗi thì UI đứng mãi ở "Đang tải công nợ..." và người dùng không biết nguyên nhân.
     if (debtList && (!silent || isDebtTabActive)) {
       debtList.className = 'order-list empty error-text';
       debtList.textContent = err.message || 'Không tải được công nợ';
     }
     if (debtTotalAmount && (!silent || isDebtTabActive)) debtTotalAmount.textContent = '0';
     if (debtCustomerCount && (!silent || isDebtTabActive)) debtCustomerCount.textContent = '0';
+    if (debtPendingAmount && (!silent || isDebtTabActive)) debtPendingAmount.textContent = '0';
   } finally {
     if (requestSeq === debtRequestSeq) debtLoading = false;
   }
@@ -868,27 +985,58 @@ function renderDebts(items = debtCache, summary = {}) {
   if (debtCustomerCount) debtCustomerCount.textContent = String(summary.customerCount ?? items.length);
   if (debtPendingAmount) debtPendingAmount.textContent = money(pending);
 
-  if (!items.length) {
+  renderDebtCustomerList(items);
+
+  if (selectedDebtCustomerKey) {
+    const selected = selectedDebtCustomer();
+    if (selected) {
+      if (!debtFormDirty) renderDebtLedger(selected);
+    } else {
+      selectedDebtCustomerKey = '';
+      debtFormDirty = false;
+      renderDebtLedger();
+    }
+  } else {
+    renderDebtLedger();
+  }
+}
+
+function renderDebtCustomerList(items = debtCache) {
+  if (!debtList) return;
+  const source = Array.isArray(items) ? items : [];
+
+  if (!source.length) {
     debtList.className = 'order-list empty';
     debtList.textContent = 'Không có khách hàng còn nợ';
-    if (debtLedgerList) {
-      debtLedgerList.className = 'order-list empty';
-      debtLedgerList.textContent = 'Chọn khách hàng để xem chi tiết.';
-    }
     return;
   }
 
-  debtList.className = 'order-list';
-  debtList.innerHTML = items.map((item, index) => `
-    <button class="debt-card" data-debt-index="${index}">
-      <strong>${escapeHtml(item.customerCode || '')} - ${escapeHtml(item.customerName || '')}</strong>
-      <span>Công nợ: ${money(item.debtAmount || 0)} · Chờ KT: ${money(customerPendingCollectedValue(item))} · Có thể thu: ${money(customerAvailableDebtValue(item))}</span>
-      <span>${item.orderCount || 0} đơn · Nợ cũ nhất: ${formatDisplayDate(item.oldestDebtDate || '')}</span>
-    </button>
-  `).join('');
+  const visible = filteredAndSortedDebts(source);
+  if (!visible.length) {
+    debtList.className = 'order-list empty';
+    debtList.textContent = 'Không tìm thấy khách hàng phù hợp';
+    return;
+  }
 
-  debtList.querySelectorAll('[data-debt-index]').forEach((btn) => {
-    btn.addEventListener('click', () => renderDebtLedger(items[Number(btn.dataset.debtIndex)]));
+  debtList.className = 'order-list debt-customer-list';
+  debtList.innerHTML = visible.map(({ item, originalIndex }) => {
+    const available = customerAvailableDebtValue(item);
+    const disabled = available <= 0;
+    return `
+      <article class="debt-card${debtCustomerKey(item) === selectedDebtCustomerKey ? ' selected' : ''}">
+        <div class="debt-card-content">
+          <strong>${escapeHtml(item.customerCode || '')} - ${escapeHtml(item.customerName || '')}</strong>
+          <span>Công nợ: ${money(item.debtAmount || 0)} · Chờ KT: ${money(customerPendingCollectedValue(item))} · Có thể thu: ${money(available)}</span>
+          <span>${item.orderCount || 0} đơn · Nợ cũ nhất: ${formatDisplayDate(item.oldestDebtDate || '')}</span>
+        </div>
+        <button type="button" class="${disabled ? 'ghost-btn' : 'primary-btn'} small-btn debt-collect-action" data-debt-index="${originalIndex}" ${disabled ? 'disabled aria-disabled="true"' : ''}>
+          ${disabled ? 'Đang chờ KT' : 'Thu nợ'}
+        </button>
+      </article>`;
+  }).join('');
+
+  debtList.querySelectorAll('[data-debt-index]:not([disabled])').forEach((btn) => {
+    btn.addEventListener('click', () => openDebtCollection(source[Number(btn.dataset.debtIndex)]));
   });
 }
 
@@ -939,52 +1087,85 @@ function updateMobileDebtCollectionAmount(item = {}) {
   }, 0);
   const input = document.getElementById('mobileDebtCollectionAmount');
   if (input) input.value = String(total);
+  debtFormDirty = true;
 }
 
 function renderDebtLedger(item = {}) {
-  const rows = Array.isArray(item.ledgers) ? item.ledgers : [];
   if (!debtLedgerList) return;
-  const orderRows = debtOrderRows(item);
-  if (!rows.length && !orderRows.length) {
+  const key = debtCustomerKey(item);
+  if (!key) {
     debtLedgerList.className = 'order-list empty';
-    debtLedgerList.textContent = 'Khách hàng này chưa có dòng sổ công nợ.';
+    debtLedgerList.innerHTML = `
+      <div class="debt-empty-state">
+        <strong>Chưa chọn khách hàng để thu nợ</strong>
+        <span>Chọn một khách hàng trong tab Khách nợ để mở biểu mẫu.</span>
+        <button id="chooseDebtCustomerBtn" type="button" class="ghost-btn">Chọn khách hàng</button>
+      </div>`;
+    bindChooseDebtCustomerButton();
     return;
   }
+
+  const rows = Array.isArray(item.ledgers) ? item.ledgers : [];
+  const orderRows = debtOrderRows(item);
   let balance = 0;
-  const ledgerHtml = rows.map((row) => {
-    balance += Number(row.debit || 0) - Number(row.credit || 0);
-    return `
-      <div class="order-item">
-        <strong>${escapeHtml(formatDisplayDate(row.date))} · ${escapeHtml(row.type || row.refType || '')}</strong>
-        <span>Đơn: ${escapeHtml(row.salesOrderCode || row.refCode || '')}</span>
-        <span>Phát sinh: ${money(row.debit || 0)} · Thanh toán: ${money(row.credit || 0)} · Dư nợ: ${money(Math.max(0, balance))}</span>
+  const ledgerHtml = rows.length ? `
+    <details class="debt-ledger-details">
+      <summary>Sổ công nợ (${rows.length} dòng)</summary>
+      <div class="order-list">
+        ${rows.map((row) => {
+          balance += Number(row.debit || 0) - Number(row.credit || 0);
+          return `
+            <div class="order-item">
+              <strong>${escapeHtml(formatDisplayDate(row.date))} · ${escapeHtml(row.type || row.refType || '')}</strong>
+              <span>Đơn: ${escapeHtml(row.salesOrderCode || row.refCode || '')}</span>
+              <span>Phát sinh: ${money(row.debit || 0)} · Thanh toán: ${money(row.credit || 0)} · Dư nợ: ${money(Math.max(0, balance))}</span>
+            </div>`;
+        }).join('')}
       </div>
-    `;
-  }).join('');
-  const ordersHtml = orderRows.length ? `
+    </details>` : '';
+
+  const customerHeader = `
+    <div class="debt-selected-customer">
+      <strong>${escapeHtml(item.customerCode || '')} - ${escapeHtml(item.customerName || '')}</strong>
+      <span>Nợ: ${money(customerDebtValue(item))} · Chờ KT: ${money(customerPendingCollectedValue(item))} · Có thể thu: ${money(customerAvailableDebtValue(item))}</span>
+    </div>`;
+
+  const formHtml = orderRows.length ? `
     <form id="mobileDebtCollectionForm" class="order-list mobile-debt-collection-form">
       <strong>Báo thu nợ chờ kế toán xác nhận</strong>
       <span>Chọn đơn nợ, nhập số tiền đã thu. Công nợ chỉ giảm sau khi kế toán xác nhận.</span>
-      <div class="order-list">
+      <div class="order-list debt-order-selection-list">
         ${orderRows.map((order, index) => `
           <label class="order-item debt-order-check-row">
             <input type="checkbox" class="mobile-debt-order-check" data-index="${index}" checked />
             <strong>${escapeHtml(order.salesOrderCode || order.orderCode || '')}</strong>
             <span>Ngày: ${formatDisplayDate(order.orderDate || order.documentDate || '')} · Nợ: ${money(order.debt || 0)} · Chờ KT: ${money(order.pendingCollectedAmount || 0)} · Có thể thu: ${money(order.availableDebt ?? order.debt ?? 0)}</span>
-          </label>
-        `).join('')}
+          </label>`).join('')}
       </div>
       <label>Số tiền đã thu<input id="mobileDebtCollectionAmount" name="amount" inputmode="numeric" value="${Math.max(0, Math.round(customerAvailableDebtValue(item)))}" /></label>
       <label>Hình thức<select id="mobileDebtCollectionMethod" name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label>
       <label>Ghi chú<input id="mobileDebtCollectionNote" name="note" placeholder="VD: Khách trả một phần" /></label>
-      <button type="submit" class="primary-btn full-btn">Gửi phiếu thu chờ kế toán</button>
+      <div class="debt-submit-bar">
+        <button type="submit" class="primary-btn full-btn">Gửi phiếu thu chờ kế toán</button>
+      </div>
       <p id="mobileDebtCollectionMessage" class="message"></p>
-    </form>` : '<div class="order-item"><span>Không còn đơn có thể báo thu.</span></div>';
+    </form>` : `
+      <div class="order-item debt-no-available">
+        <strong>Không còn số tiền có thể thu</strong>
+        <span>Khách hàng đang có phiếu thu chờ kế toán hoặc công nợ đã được xử lý.</span>
+      </div>`;
+
   debtLedgerList.className = 'order-list';
-  debtLedgerList.innerHTML = ordersHtml + ledgerHtml;
-  debtLedgerList.querySelectorAll('.mobile-debt-order-check').forEach((el) => el.addEventListener('change', () => updateMobileDebtCollectionAmount(item)));
+  debtLedgerList.innerHTML = customerHeader + formHtml + ledgerHtml;
+  debtLedgerList.querySelectorAll('.mobile-debt-order-check').forEach((el) => {
+    el.addEventListener('change', () => updateMobileDebtCollectionAmount(item));
+  });
   const form = document.getElementById('mobileDebtCollectionForm');
-  if (form) form.addEventListener('submit', (event) => submitMobileDebtCollection(event, item));
+  if (form) {
+    form.addEventListener('input', () => { debtFormDirty = true; });
+    form.addEventListener('change', () => { debtFormDirty = true; });
+    form.addEventListener('submit', (event) => submitMobileDebtCollection(event, item));
+  }
 }
 
 async function submitMobileDebtCollection(event, item = {}) {
@@ -1009,9 +1190,14 @@ async function submitMobileDebtCollection(event, item = {}) {
       note: form.elements.note?.value || '',
       allocations
     });
-    setMessage(msg, data.message || 'Đã ghi nhận thu nợ, chờ kế toán xác nhận', 'success');
+    const successText = data.message || 'Đã ghi nhận thu nợ, chờ kế toán xác nhận';
+    setMessage(msg, successText, 'success');
+    setMessage(debtTabMessage, successText, 'success');
+    debtFormDirty = false;
+    selectedDebtCustomerKey = '';
     debtLoaded = false;
     await loadDebts({ force: true });
+    setDebtSubtab('customers', { restoreScroll: true });
   } catch (err) {
     setMessage(msg, err.message || 'Không gửi được phiếu thu nợ', 'error');
   } finally {

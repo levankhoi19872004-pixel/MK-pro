@@ -19,6 +19,12 @@
     debts: [],
     debtSummary: {},
     selectedDebtIndex: -1,
+    selectedDebtKey: '',
+    debtSubtab: 'customers',
+    debtSearch: '',
+    debtSort: 'debt_desc',
+    debtFormDirty: false,
+    debtListScrollTop: 0,
     debtLoaded: false,
     debtLoading: false
   };
@@ -95,7 +101,17 @@
     el('mSearch').addEventListener('input', debounce(load, 250));
     document.querySelectorAll('[data-m-tab]').forEach(function (button) {
       button.addEventListener('click', function () {
-        state.tab = button.getAttribute('data-m-tab');
+        var nextTab = button.getAttribute('data-m-tab');
+        if (
+          state.tab === 'debt' &&
+          nextTab !== 'debt' &&
+          state.debtFormDirty &&
+          !window.confirm('Bạn đang có phiếu thu chưa gửi. Rời Công nợ sẽ xóa dữ liệu đang nhập.')
+        ) {
+          return;
+        }
+        if (state.tab === 'debt' && nextTab !== 'debt') state.debtFormDirty = false;
+        state.tab = nextTab;
         render();
         if (state.tab === 'returns') loadSelectedReturnsDirect();
         if (state.tab === 'debt') loadDeliveryDebts();
@@ -225,6 +241,110 @@
     });
   }
 
+  function deliveryDebtCustomerKey(customer) {
+    customer = customer || {};
+    return String(
+      customer.customerId ||
+      customer.customerCode ||
+      customer.code ||
+      customer.id ||
+      customer._id ||
+      customer.customerName ||
+      ''
+    ).trim();
+  }
+
+  function selectedDeliveryDebtCustomer() {
+    if (!state.selectedDebtKey) return null;
+    return (state.debts || []).find(function (customer) {
+      return deliveryDebtCustomerKey(customer) === state.selectedDebtKey;
+    }) || null;
+  }
+
+  function visibleDeliveryDebtCustomers() {
+    var keyword = String(state.debtSearch || '').trim().toLowerCase();
+    var rows = (state.debts || []).map(function (customer, originalIndex) {
+      return { customer: customer, originalIndex: originalIndex };
+    }).filter(function (entry) {
+      if (!keyword) return true;
+      var customer = entry.customer || {};
+      return [customer.customerCode, customer.customerName, customer.phone, customer.customerPhone].some(function (value) {
+        return String(value || '').toLowerCase().indexOf(keyword) >= 0;
+      });
+    });
+
+    rows.sort(function (left, right) {
+      if (state.debtSort === 'available_desc') {
+        return debtAvailableValue(right.customer) - debtAvailableValue(left.customer);
+      }
+      if (state.debtSort === 'oldest_asc') {
+        return String(left.customer.oldestDebtDate || '9999-12-31').localeCompare(String(right.customer.oldestDebtDate || '9999-12-31'));
+      }
+      return debtMoneyValue(right.customer) - debtMoneyValue(left.customer);
+    });
+
+    return rows;
+  }
+
+  function setDeliveryDebtSubtab(nextSubtab, options) {
+    options = options || {};
+    state.debtSubtab = nextSubtab === 'collect' ? 'collect' : 'customers';
+    var customerActive = state.debtSubtab === 'customers';
+    var customerTab = el('mDebtCustomersSubtab');
+    var collectTab = el('mDebtCollectSubtab');
+    var customerPanel = el('mDebtCustomersPanel');
+    var collectPanel = el('mDebtCollectPanel');
+
+    if (customerTab) {
+      customerTab.classList.toggle('active', customerActive);
+      customerTab.setAttribute('aria-selected', String(customerActive));
+    }
+    if (collectTab) {
+      collectTab.classList.toggle('active', !customerActive);
+      collectTab.setAttribute('aria-selected', String(!customerActive));
+    }
+    if (customerPanel) customerPanel.classList.toggle('active', customerActive);
+    if (collectPanel) collectPanel.classList.toggle('active', !customerActive);
+
+    if (customerActive && options.restoreScroll !== false) {
+      window.requestAnimationFrame(function () {
+        window.scrollTo({ top: state.debtListScrollTop || 0, behavior: 'auto' });
+      });
+    } else if (!customerActive && options.scroll !== false) {
+      var body = el('mBody');
+      if (body) body.scrollIntoView({ block: 'start', behavior: options.behavior || 'smooth' });
+    }
+  }
+
+  function openDeliveryDebtCollection(index) {
+    var customer = (state.debts || [])[index];
+    if (!customer || debtAvailableValue(customer) <= 0) return;
+    var nextKey = deliveryDebtCustomerKey(customer);
+
+    if (state.selectedDebtKey === nextKey) {
+      setDeliveryDebtSubtab('collect');
+      return;
+    }
+
+    if (
+      state.debtFormDirty &&
+      state.selectedDebtKey &&
+      state.selectedDebtKey !== nextKey &&
+      !window.confirm('Bạn đang có phiếu thu chưa gửi. Dữ liệu hiện tại sẽ bị xóa khi chuyển khách hàng.')
+    ) {
+      return;
+    }
+
+    state.debtListScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+    state.selectedDebtIndex = index;
+    state.selectedDebtKey = nextKey;
+    state.debtFormDirty = false;
+    state.debtSubtab = 'collect';
+    render();
+    var body = el('mBody');
+    if (body) body.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
   async function loadDeliveryDebts(force) {
     if (state.debtLoading) return;
     if (state.debtLoaded && !force) {
@@ -232,10 +352,11 @@
       return;
     }
 
-    try {
-      state.debtLoading = true;
-      msg('Đang tải công nợ...');
+    state.debtLoading = true;
+    msg('Đang tải công nợ...');
 
+    try {
+      var previousKey = state.selectedDebtKey;
       var json = await window.DeliveryCore.api(
         '/api/mobile/debts?collectorType=delivery&includePendingCollections=1&includePaid=0&limit=100'
       );
@@ -243,14 +364,23 @@
       state.debts = Array.isArray(json.items) ? json.items : [];
       state.debtSummary = json.summary || {};
       state.debtLoaded = true;
-      state.selectedDebtIndex = state.debts.length ? 0 : -1;
+      state.selectedDebtIndex = previousKey
+        ? state.debts.findIndex(function (customer) { return deliveryDebtCustomerKey(customer) === previousKey; })
+        : -1;
+
+      if (state.selectedDebtIndex < 0) {
+        state.selectedDebtIndex = -1;
+        state.selectedDebtKey = '';
+        state.debtFormDirty = false;
+      }
 
       msg('');
-      render();
     } catch (err) {
+      state.debtLoaded = false;
       msg(err.message || 'Không tải được công nợ giao hàng', true);
     } finally {
       state.debtLoading = false;
+      render();
     }
   }
 
@@ -263,7 +393,8 @@
       return;
     }
 
-    var selected = rows[state.selectedDebtIndex] || null;
+    var selected = selectedDeliveryDebtCustomer();
+    var customerTabActive = state.debtSubtab !== 'collect';
 
     body.innerHTML =
       '<section class="m-debt-summary">' +
@@ -272,33 +403,69 @@
         '<div><span>Có thể thu</span><b>' + money(summary.availableDebt || summary.availableDebtAmount || 0) + '</b></div>' +
         '<div><span>Khách nợ</span><b>' + esc(summary.customerCount || rows.length) + '</b></div>' +
       '</section>' +
-      '<div class="m-action-row">' +
+      '<div class="m-action-row m-debt-reload-row">' +
         '<button id="mReloadDebt" type="button">Tải lại công nợ</button>' +
       '</div>' +
-      '<section class="m-debt-layout">' +
-        '<div class="m-debt-list">' +
-          renderDebtCustomers(rows) +
+      '<div class="debt-subtabs m-debt-subtabs" role="tablist" aria-label="Nghiệp vụ công nợ">' +
+        '<button id="mDebtCustomersSubtab" type="button" class="debt-subtab' + (customerTabActive ? ' active' : '') + '" role="tab" aria-selected="' + customerTabActive + '">Khách nợ</button>' +
+        '<button id="mDebtCollectSubtab" type="button" class="debt-subtab' + (!customerTabActive ? ' active' : '') + '" role="tab" aria-selected="' + (!customerTabActive) + '">Thu nợ</button>' +
+      '</div>' +
+      '<section id="mDebtCustomersPanel" class="debt-subpanel' + (customerTabActive ? ' active' : '') + '">' +
+        '<div class="debt-list-toolbar">' +
+          '<input id="mDebtCustomerSearch" type="search" value="' + esc(state.debtSearch) + '" placeholder="Tìm mã / tên / SĐT khách hàng" aria-label="Tìm khách hàng đang nợ">' +
+          '<select id="mDebtCustomerSort" aria-label="Sắp xếp danh sách công nợ">' +
+            '<option value="debt_desc"' + (state.debtSort === 'debt_desc' ? ' selected' : '') + '>Nợ cao nhất</option>' +
+            '<option value="available_desc"' + (state.debtSort === 'available_desc' ? ' selected' : '') + '>Có thể thu cao nhất</option>' +
+            '<option value="oldest_asc"' + (state.debtSort === 'oldest_asc' ? ' selected' : '') + '>Nợ cũ nhất</option>' +
+          '</select>' +
         '</div>' +
-        '<div class="m-debt-detail">' +
-          renderDebtCustomerDetail(selected) +
-        '</div>' +
+        '<div id="mDebtCustomerList" class="m-debt-list">' + renderDebtCustomers(visibleDeliveryDebtCustomers()) + '</div>' +
+      '</section>' +
+      '<section id="mDebtCollectPanel" class="debt-subpanel' + (!customerTabActive ? ' active' : '') + '">' +
+        '<div id="mDebtDetailContainer" class="m-debt-detail">' + renderDebtCustomerDetail(selected) + '</div>' +
       '</section>';
 
     var reload = el('mReloadDebt');
     if (reload) reload.addEventListener('click', function () {
+      if (state.debtFormDirty && !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')) return;
+      state.debtFormDirty = false;
       state.debtLoaded = false;
       loadDeliveryDebts(true);
     });
 
-    body.querySelectorAll('[data-debt-index]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        state.selectedDebtIndex = Number(button.getAttribute('data-debt-index'));
-        render();
-      });
+    var customerTab = el('mDebtCustomersSubtab');
+    if (customerTab) customerTab.addEventListener('click', function () {
+      setDeliveryDebtSubtab('customers');
     });
+
+    var collectTab = el('mDebtCollectSubtab');
+    if (collectTab) collectTab.addEventListener('click', function () {
+      setDeliveryDebtSubtab('collect');
+    });
+
+    var chooseCustomer = el('mChooseDebtCustomer');
+    if (chooseCustomer) chooseCustomer.addEventListener('click', function () {
+      setDeliveryDebtSubtab('customers');
+    });
+
+    var search = el('mDebtCustomerSearch');
+    if (search) search.addEventListener('input', debounce(function () {
+      state.debtSearch = search.value || '';
+      renderDeliveryDebtCustomerList();
+    }, 120));
+
+    var sort = el('mDebtCustomerSort');
+    if (sort) sort.addEventListener('change', function () {
+      state.debtSort = sort.value || 'debt_desc';
+      renderDeliveryDebtCustomerList();
+    });
+
+    bindDeliveryDebtCustomerActions(body);
 
     var form = el('mDeliveryDebtCollectionForm');
     if (form && selected) {
+      form.addEventListener('input', function () { state.debtFormDirty = true; });
+      form.addEventListener('change', function () { state.debtFormDirty = true; });
       form.addEventListener('submit', function (event) {
         submitDeliveryDebtCollectionFromDebtTab(event, selected);
       });
@@ -307,42 +474,73 @@
     body.querySelectorAll('.m-debt-order-check').forEach(function (input) {
       input.addEventListener('change', function () {
         updateDeliveryDebtAmount(selected);
+        state.debtFormDirty = true;
       });
     });
   }
 
-  function renderDebtCustomers(rows) {
-    if (!rows.length) {
+  function bindDeliveryDebtCustomerActions(container) {
+    if (!container) return;
+    container.querySelectorAll('[data-debt-index]:not([disabled])').forEach(function (button) {
+      button.addEventListener('click', function () {
+        openDeliveryDebtCollection(Number(button.getAttribute('data-debt-index')));
+      });
+    });
+  }
+
+  function renderDeliveryDebtCustomerList() {
+    var list = el('mDebtCustomerList');
+    if (!list) return;
+    list.innerHTML = renderDebtCustomers(visibleDeliveryDebtCustomers());
+    bindDeliveryDebtCustomerActions(list);
+  }
+
+  function renderDebtCustomers(entries) {
+    if (!(state.debts || []).length) {
       return '<div class="m-empty">Không có khách hàng còn nợ.</div>';
     }
+    if (!entries.length) {
+      return '<div class="m-empty">Không tìm thấy khách hàng phù hợp.</div>';
+    }
 
-    return rows.map(function (customer, index) {
-      var selected = index === state.selectedDebtIndex ? ' selected' : '';
+    return entries.map(function (entry) {
+      var customer = entry.customer;
+      var index = entry.originalIndex;
+      var selected = deliveryDebtCustomerKey(customer) === state.selectedDebtKey ? ' selected' : '';
+      var available = debtAvailableValue(customer);
+      var disabled = available <= 0;
 
-      return '<button type="button" class="m-order-card' + selected + '" data-debt-index="' + index + '">' +
+      return '<article class="m-order-card m-debt-customer-card' + selected + '">' +
         '<div class="m-order-top">' +
           '<b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b>' +
         '</div>' +
         '<div class="m-order-metrics">' +
           '<span>Nợ ' + money(debtMoneyValue(customer)) + '</span>' +
           '<span>Chờ KT ' + money(debtPendingValue(customer)) + '</span>' +
-          '<span>Có thể thu ' + money(debtAvailableValue(customer)) + '</span>' +
+          '<span>Có thể thu ' + money(available) + '</span>' +
           '<span>' + esc(customer.orderCount || 0) + ' đơn</span>' +
         '</div>' +
-      '</button>';
+        '<button type="button" class="m-debt-collect-action' + (disabled ? ' disabled' : '') + '" data-debt-index="' + index + '"' + (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
+          (disabled ? 'Đang chờ KT' : 'Thu nợ') +
+        '</button>' +
+      '</article>';
     }).join('');
   }
 
   function renderDebtCustomerDetail(customer) {
     if (!customer) {
-      return '<div class="m-empty">Chọn khách hàng để xem đơn nợ.</div>';
+      return '<div class="m-empty debt-empty-state">' +
+        '<b>Chưa chọn khách hàng để thu nợ</b>' +
+        '<span>Chọn một khách hàng trong tab Khách nợ để mở biểu mẫu.</span>' +
+        '<button id="mChooseDebtCustomer" type="button" class="m-debt-empty-action">Chọn khách hàng</button>' +
+      '</div>';
     }
 
     var orders = debtOrderRows(customer);
 
     if (!orders.length) {
-      return '<div class="m-selected-order"><b>' + esc(customer.customerName || '') + '</b></div>' +
-        '<div class="m-empty">Khách hàng này chưa có đơn nợ có thể thu.</div>';
+      return '<div class="m-selected-order"><b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b></div>' +
+        '<div class="m-empty">Khách hàng này không còn số tiền có thể thu hoặc đang chờ kế toán xác nhận.</div>';
     }
 
     var rowsHtml = orders.map(function (order, index) {
@@ -373,11 +571,11 @@
       '<form id="mDeliveryDebtCollectionForm" class="m-payment-form">' +
         '<h3>Gửi phiếu thu nợ chờ kế toán</h3>' +
         '<p class="m-help-text">Công nợ chỉ giảm sau khi kế toán xác nhận trên web.</p>' +
-        '<div class="m-return-scroll">' + rowsHtml + '</div>' +
+        '<div class="m-return-scroll debt-order-selection-list">' + rowsHtml + '</div>' +
         '<label>Số tiền đã thu<input id="mDeliveryDebtAmount" name="amount" type="number" min="0" value="' + esc(debtAvailableValue(customer)) + '"></label>' +
         '<label>Hình thức<select name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label>' +
         '<label>Ghi chú<input name="note" placeholder="VD: Khách trả một phần"></label>' +
-        '<button type="submit">Gửi phiếu thu chờ KT</button>' +
+        '<div class="debt-submit-bar"><button type="submit">Gửi phiếu thu chờ KT</button></div>' +
       '</form>';
   }
 
@@ -401,7 +599,8 @@
   async function submitDeliveryDebtCollectionFromDebtTab(event, customer) {
     if (event && event.preventDefault) event.preventDefault();
 
-    var form = new FormData(event.target);
+    var formElement = event.target;
+    var form = new FormData(formElement);
     var amountValue = num(form.get('amount'));
 
     if (amountValue <= 0) {
@@ -452,6 +651,12 @@
       return num(row.allocatedAmount) > 0;
     });
 
+    var submitButton = formElement.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Đang gửi...';
+    }
+
     try {
       msg('Đang gửi phiếu thu nợ chờ kế toán...');
 
@@ -470,11 +675,22 @@
         })
       });
 
-      msg('Đã ghi nhận thu nợ, chờ kế toán xác nhận');
+      state.debtFormDirty = false;
+      state.selectedDebtIndex = -1;
+      state.selectedDebtKey = '';
+      state.debtSubtab = 'customers';
       state.debtLoaded = false;
       await loadDeliveryDebts(true);
+      msg('Đã ghi nhận thu nợ, chờ kế toán xác nhận');
+      window.requestAnimationFrame(function () {
+        window.scrollTo({ top: state.debtListScrollTop || 0, behavior: 'auto' });
+      });
     } catch (err) {
       msg(err.message || 'Không gửi được phiếu thu nợ', true);
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Gửi phiếu thu chờ KT';
+      }
     }
   }
 
@@ -635,6 +851,14 @@
 
   async function load() {
     if (!requireDeliveryLogin()) return;
+    if (
+      state.tab === 'debt' &&
+      state.debtFormDirty &&
+      !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')
+    ) {
+      return;
+    }
+    if (state.tab === 'debt') state.debtFormDirty = false;
     if (!el('mBody')) renderShell();
     el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
     try {
