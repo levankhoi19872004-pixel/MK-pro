@@ -1597,3 +1597,64 @@ input,select,textarea{min-height:36px;border-radius:10px;padding:8px 10px;font-s
   }
 }
 /* MOBILE_DEBT_SUBTABS_V2_END */
+
+/* MOBILE_DEBT_COMPACT_CHECKBOX_V3_START
+ * Checkbox thu nợ chỉ hiển thị 18x18px; toàn bộ dòng label vẫn là vùng chạm.
+ * Override scoped để không ảnh hưởng checkbox ở các nghiệp vụ khác.
+ */
+.debt-order-check-row {
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 9px;
+  row-gap: 2px;
+  align-items: start;
+  cursor: pointer;
+}
+.debt-order-check-row > input[type="checkbox"] {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.debt-order-check-row > strong,
+.debt-order-check-row > span {
+  grid-column: 2;
+  min-width: 0;
+}
+.m-debt-order-row {
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 9px;
+  cursor: pointer;
+}
+.debt-order-check-row > input[type="checkbox"],
+.m-debt-order-row > input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  border-radius: 4px;
+  box-sizing: border-box;
+  justify-self: start;
+  align-self: start;
+  accent-color: #2563eb;
+  flex: 0 0 18px;
+}
+@media (max-width: 380px) {
+  .debt-order-check-row,
+  .m-debt-order-row {
+    grid-template-columns: 18px minmax(0, 1fr);
+    column-gap: 8px;
+  }
+  .debt-order-check-row > input[type="checkbox"],
+  .m-debt-order-row > input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    min-width: 17px;
+    min-height: 17px;
+    max-width: 17px;
+    max-height: 17px;
+    flex-basis: 17px;
+  }
+}
+/* MOBILE_DEBT_COMPACT_CHECKBOX_V3_END */
