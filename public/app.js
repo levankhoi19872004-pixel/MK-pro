@@ -54,10 +54,8 @@ if(debtSearchInput){
 if(debtStatusFilter)debtStatusFilter.addEventListener('change',loadDebts);
 if(debtClearFiltersButton)debtClearFiltersButton.addEventListener('click',()=>resetDebtFilters());
 if(receiptSearchInput)receiptSearchInput.addEventListener('input',loadReceipts);
-if(returnOrderSearchInput)returnOrderSearchInput.addEventListener('input',loadReturnOrders);
-if(returnOrderDateFrom)returnOrderDateFrom.addEventListener('change',loadReturnOrders);
-if(returnOrderDateTo)returnOrderDateTo.addEventListener('change',loadReturnOrders);
-if(reloadReturnOrdersButton)reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
+// Bộ lọc đơn trả hàng được submit tập trung qua returnOrderFilterForm
+// trong 07-debt-cashbook.js để tránh gọi API lặp khi đổi từng trường.
 if(reloadUnmergedReturnOrdersButton)reloadUnmergedReturnOrdersButton.addEventListener('click',loadUnmergedReturnOrders);
 if(masterReturnOrderForm)masterReturnOrderForm.addEventListener('submit',submitMasterReturnOrder);
 if(clearMasterReturnSelectionButton)clearMasterReturnSelectionButton.addEventListener('click',()=>{selectedReturnOrderIdsForMaster.clear();loadUnmergedReturnOrders();});

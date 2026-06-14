@@ -661,6 +661,7 @@ async function voidReceipt(id){
 // PHASE31 - Return Orders full-width list + readonly detail popup state
 let returnOrdersCache = [];
 let selectedReturnOrderKey = '';
+let returnOrderRequestSeq = 0;
 
 function returnOrderRowKey(r){
   return String(r?.id || r?._id || r?.code || r?.returnCode || r?.salesOrderCode || r?.orderCode || '').trim();
@@ -813,26 +814,36 @@ window.cancelReturnOrder=cancelReturnOrder;
 
 async function loadReturnOrders(){
   if(!returnOrderTable)return;
+  const requestSeq=++returnOrderRequestSeq;
   const q=returnOrderSearchInput?returnOrderSearchInput.value.trim():'';
+  const dateFrom=String(returnOrderDateFrom?.value||'').trim();
+  const dateTo=String(returnOrderDateTo?.value||'').trim();
+  if(dateFrom&&dateTo&&dateFrom>dateTo){
+    if(returnOrderCount)returnOrderCount.textContent='Từ ngày không được lớn hơn đến ngày.';
+    returnOrderTable.innerHTML='<tr><td colspan="7">Vui lòng kiểm tra lại khoảng ngày.</td></tr>';
+    return;
+  }
+
   const params=new URLSearchParams();
   if(q)params.set('q',q);
-  const mode=returnOrderDateMode?String(returnOrderDateMode.value||'today'):'today';
-  params.set('dateMode',mode);
-  if(mode==='today'){
-    params.set('dateFrom', today());
-    params.set('dateTo', today());
-  }else if(mode==='range'){
-    if(returnOrderDateFrom?.value)params.set('dateFrom',returnOrderDateFrom.value);
-    if(returnOrderDateTo?.value)params.set('dateTo',returnOrderDateTo.value);
-  }
+  if(dateFrom)params.set('dateFrom',dateFrom);
+  if(dateTo)params.set('dateTo',dateTo);
   params.set('page','1');
   params.set('limit','50');
   params.set('excludeInactive','1');
-  const url=`/api/return-orders?${params.toString()}`;
+
+  const originalButtonText=applyReturnOrderFiltersButton?.textContent||'Lọc';
+  if(applyReturnOrderFiltersButton){
+    applyReturnOrderFiltersButton.disabled=true;
+    applyReturnOrderFiltersButton.textContent='Đang lọc...';
+  }
+
   try{
-    const res=await fetch(url);
+    const res=await fetch(`/api/return-orders?${params.toString()}`);
     const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
+    if(!res.ok||!json.ok)throw new Error(json.message||'Không tải được đơn trả hàng');
+    if(requestSeq!==returnOrderRequestSeq)return;
+
     const rawRows = Array.isArray(json.returnOrders) ? json.returnOrders :
       Array.isArray(json.returns) ? json.returns :
       Array.isArray(json.rows) ? json.rows :
@@ -840,12 +851,14 @@ async function loadReturnOrders(){
       Array.isArray(json.data) ? json.data : [];
     const rows = rawRows.filter(row => (typeof isActiveDocument === 'function' ? isActiveDocument(row) : true));
     const totalValue=rows.reduce((sum,r)=>sum+Number(r.debtReduction??r.totalAmount??0),0);
-    const modeLabel=returnOrderDateMode?.value==='all'?'Tất cả':(returnOrderDateMode?.value==='range'?'Theo khoảng ngày':'Hôm nay');
-    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(modeLabel)} · Tổng giảm nợ ${money(totalValue)} · Nhấn một phiếu để mở chi tiết · <strong>Readonly</strong>`;
+    const dateLabel=dateFrom&&dateTo
+      ? (dateFrom===dateTo ? formatDateVN(dateFrom) : `${formatDateVN(dateFrom)} - ${formatDateVN(dateTo)}`)
+      : (dateFrom ? `Từ ${formatDateVN(dateFrom)}` : (dateTo ? `Đến ${formatDateVN(dateTo)}` : 'Tất cả ngày'));
+    if(returnOrderCount) returnOrderCount.innerHTML=`${rows.length} phiếu · ${escapeHtml(dateLabel)} · Tổng giảm nợ ${money(totalValue)} · Nhấn một phiếu để mở chi tiết · <strong>Readonly</strong>`;
     returnOrdersCache=rows;
     if(!rows.length){
       selectedReturnOrderKey='';
-      returnOrderTable.innerHTML='<tr><td colspan="7">Chưa có đơn trả hàng.</td></tr>';
+      returnOrderTable.innerHTML='<tr><td colspan="7">Không có phiếu trả hàng phù hợp bộ lọc.</td></tr>';
       renderReturnOrderDetail(null);
       return;
     }
@@ -858,9 +871,10 @@ async function loadReturnOrders(){
       const status=String(r.status||'posted');
       const totalQty=Number(r.totalQuantity||0) || returnOrderItems(r).reduce((sum,it)=>sum+returnItemQty(it),0);
       const totalAmount=Number(r.debtReduction??r.totalAmount??r.amount??0) || returnOrderItems(r).reduce((sum,it)=>sum+returnItemAmount(it),0);
+      const returnDate=r.returnDate||r.date||r.documentDate||r.deliveryDate||'';
       return `<tr data-return-key="${escapeHtml(key)}" class="${key===selectedReturnOrderKey?'active':''}" title="Bấm để mở popup chi tiết sản phẩm trả" tabindex="0">
         <td><strong>${escapeHtml(r.code||r.id||'')}</strong><div class="muted tiny-text">${escapeHtml(r.salesOrderCode||r.orderCode||'')}</div></td>
-        <td>${escapeHtml(r.returnDate||r.date||r.documentDate||r.deliveryDate||'')}</td>
+        <td>${escapeHtml(typeof formatDateVN==='function'?formatDateVN(returnDate):returnDate)}</td>
         <td>${escapeHtml((r.customerCode||'')+' '+(r.customerName||''))}</td>
         <td class="price">${money(totalQty)}</td>
         <td class="price cash-in">${money(totalAmount)}</td>
@@ -870,12 +884,17 @@ async function loadReturnOrders(){
     }).join('');
     if(isReturnOrderDetailModalOpen()&&selectedReturnOrderKey)selectReturnOrderByKey(selectedReturnOrderKey,{open:false});
   }catch(err){
+    if(requestSeq!==returnOrderRequestSeq)return;
     if(returnOrderCount) returnOrderCount.textContent='Không tải được đơn trả hàng';
     returnOrderTable.innerHTML=`<tr><td colspan="7">${escapeHtml(err.message||'Không tải được đơn trả hàng')}</td></tr>`;
     renderReturnOrderDetail(null);
+  }finally{
+    if(requestSeq===returnOrderRequestSeq&&applyReturnOrderFiltersButton){
+      applyReturnOrderFiltersButton.disabled=false;
+      applyReturnOrderFiltersButton.textContent=originalButtonText;
+    }
   }
 }
-
 
 
 function renderDebtMovement(rows){
@@ -1259,16 +1278,18 @@ async function receiveSelectedMasterReturnOrders(){
   if(typeof loadStock==='function')await loadStock();
 }
 
-if(returnOrderDateMode) returnOrderDateMode.addEventListener('change',()=>{
-  const mode=String(returnOrderDateMode.value||'today');
-  if(returnOrderDateFrom) returnOrderDateFrom.disabled=(mode==='all');
-  if(returnOrderDateTo) returnOrderDateTo.disabled=(mode==='all');
+if(returnOrderDateFrom&&!returnOrderDateFrom.value)returnOrderDateFrom.value=today();
+if(returnOrderDateTo&&!returnOrderDateTo.value)returnOrderDateTo.value=today();
+if(returnOrderFilterForm) returnOrderFilterForm.addEventListener('submit',event=>{
+  event.preventDefault();
   loadReturnOrders();
 });
-if(returnOrderDateFrom) returnOrderDateFrom.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
-if(returnOrderDateTo) returnOrderDateTo.addEventListener('change',()=>{ if(returnOrderDateMode && returnOrderDateMode.value!=='range') returnOrderDateMode.value='range'; loadReturnOrders(); });
-if(returnOrderSearchInput) returnOrderSearchInput.addEventListener('input',()=>{ clearTimeout(window.__returnOrderSearchTimer); window.__returnOrderSearchTimer=setTimeout(loadReturnOrders,250); });
-if(reloadReturnOrdersButton) reloadReturnOrdersButton.addEventListener('click',loadReturnOrders);
+if(clearReturnOrderFiltersButton) clearReturnOrderFiltersButton.addEventListener('click',()=>{
+  if(returnOrderSearchInput)returnOrderSearchInput.value='';
+  if(returnOrderDateFrom)returnOrderDateFrom.value='';
+  if(returnOrderDateTo)returnOrderDateTo.value='';
+  loadReturnOrders();
+});
 if(returnOrderTable){
   returnOrderTable.addEventListener('click',event=>{
     const tr=event.target.closest('tr[data-return-key]');

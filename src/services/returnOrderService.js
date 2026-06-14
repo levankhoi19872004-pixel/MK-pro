@@ -44,11 +44,22 @@ function buildReturnCode(existingOrders = []) {
   return `THH${String(max + 1).padStart(5, '0')}`;
 }
 
+function resolveReturnOrderBusinessDate(order = {}) {
+  const candidates = [order.returnDate, order.date, order.documentDate, order.deliveryDate];
+  for (const value of candidates) {
+    const normalized = dateUtil.toDateOnly(value || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+  }
+  return '';
+}
+
 function toClient(order) {
+  const businessDate = resolveReturnOrderBusinessDate(order);
   return {
     ...order,
     id: order.id || order.code,
     code: order.code || order.id,
+    returnDate: businessDate || order.returnDate || '',
     items: Array.isArray(order.items) ? order.items : [],
     totalQuantity: toNumber(order.totalQuantity),
     totalAmount: toNumber(order.totalAmount)
@@ -295,13 +306,22 @@ async function listReturnOrders(query = {}) {
   const from = dateUtil.toDateOnly(query.dateFrom || query.fromDate || query.from || '');
   const to = dateUtil.toDateOnly(query.dateTo || query.toDate || query.to || query.date || '');
   const exactDate = dateUtil.toDateOnly(query.date || '');
-  if (from || to || exactDate) {
+  const hasDateFilter = Boolean(from || to || exactDate);
+  if (from && to && from > to) {
+    const err = new Error('Từ ngày không được lớn hơn đến ngày');
+    err.status = 400;
+    err.code = 'INVALID_RETURN_ORDER_DATE_RANGE';
+    throw err;
+  }
+  if (hasDateFilter) {
     const range = exactDate ? exactDate : {
       ...(from ? { $gte: from } : {}),
       ...(to ? { $lte: to } : {})
     };
+    // Mongo lọc trước để dùng index. Phía dưới vẫn kiểm tra lại theo ngày nghiệp vụ
+    // có cùng thứ tự ưu tiên với UI, tránh trường hợp các field ngày cũ bị lệch nhau.
     and.push({ $or: [
-      { date: range }, { documentDate: range }, { deliveryDate: range }, { returnDate: range }
+      { returnDate: range }, { date: range }, { documentDate: range }, { deliveryDate: range }
     ] });
   }
 
@@ -356,6 +376,11 @@ async function listReturnOrders(query = {}) {
   const seen = new Set();
   return docs
     .map(toClient)
+    .filter((order) => !hasDateFilter || dateUtil.isDateInRange(resolveReturnOrderBusinessDate(order), {
+      date: exactDate,
+      dateFrom: from,
+      dateTo: to
+    }))
     .filter((order) => includeZeroValue || hasPositiveReturnValue(order))
     .filter((order) => {
       const stableKey = String(order.id || order.code || order._id || '').trim();

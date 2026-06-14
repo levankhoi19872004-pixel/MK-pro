@@ -32,10 +32,11 @@ async function list(req, res) {
         limit: String(req.query?.limit || '')
       }
     });
-    res.status(500).json({
+    const status = Number(err?.status || 500);
+    res.status(status).json({
       ok: false,
-      message: 'Không tải được phiếu trả hàng từ MongoDB',
-      errorCode: 'RETURN_ORDER_LIST_FAILED',
+      message: status === 400 ? (err.message || 'Bộ lọc đơn trả hàng không hợp lệ') : 'Không tải được phiếu trả hàng từ MongoDB',
+      errorCode: err?.code || 'RETURN_ORDER_LIST_FAILED',
       requestId,
       error: process.env.NODE_ENV === 'production' ? undefined : err.message
     });

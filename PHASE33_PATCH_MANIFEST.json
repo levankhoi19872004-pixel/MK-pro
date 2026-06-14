@@ -1,0 +1,24 @@
+{
+  "phase": 33,
+  "name": "return-order-filter-redesign",
+  "changedFiles": [
+    "public/index.html",
+    "public/style.css",
+    "public/app.js",
+    "public/js/app/00-dom-state.js",
+    "public/js/app/07-debt-cashbook.js",
+    "src/models/ReturnOrder.js",
+    "src/services/returnOrderService.js",
+    "src/controllers/returnOrderController.js",
+    "test/return-order-filter-redesign-regression.test.js"
+  ],
+  "databaseMigrationRequired": false,
+  "apiContractChanged": false,
+  "quality": {
+    "syntaxFiles": 498,
+    "openApiOperations": 270,
+    "testsPassed": 384,
+    "testsFailed": 0,
+    "highVulnerabilities": 0
+  }
+}
