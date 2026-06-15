@@ -17,7 +17,7 @@ function normalizeUploadedFiles(req) {
 async function preview(req, res) {
   try {
     const files = req.importFiles || normalizeUploadedFiles(req);
-    const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), files, buffer: files[0]?.buffer, fileName: files[0]?.originalname || '', userName: req.user?.username || req.user?.fullName || '' });
+    const result = await excelImportService.preview({ type: String(req.body?.type || '').trim(), files, buffer: files[0]?.buffer, fileName: files[0]?.originalname || '', userName: req.user?.username || req.user?.fullName || '', importMode: String(req.body?.importMode || req.query?.importMode || '').trim() });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
     return res.status(result.accepted ? 202 : 200).json({ ok: true, ...result });
   } catch (err) {

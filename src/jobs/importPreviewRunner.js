@@ -4,7 +4,7 @@ const fs = require('fs/promises');
 const { parseExcelBuffer } = require('../../utils/excelParser');
 const importSessionService = require('../services/importSessionService');
 
-async function runImportPreviewPipeline({ sessionId, type, files = [], userName = '', buildPreviewFromRows }) {
+async function runImportPreviewPipeline({ sessionId, type, files = [], userName = '', importMode = 'create', buildPreviewFromRows }) {
   if (typeof buildPreviewFromRows !== 'function') throw new TypeError('Thiếu buildPreviewFromRows');
   await importSessionService.markParsing(sessionId);
 
@@ -27,7 +27,7 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
     }
 
     await importSessionService.updateProgress(sessionId, { percent: 60, step: 'validating' });
-    const result = await buildPreviewFromRows({ type, rows, userName });
+    const result = await buildPreviewFromRows({ type, rows, userName, importMode });
     if (result.error) {
       await importSessionService.markFailed(sessionId, result.error);
       return result;

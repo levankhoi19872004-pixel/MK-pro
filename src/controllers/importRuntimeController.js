@@ -6,7 +6,7 @@ async function preview(req, res) {
   try {
     const file = (req.importFiles && req.importFiles[0]) || req.file;
     if (!file) return res.status(400).json({ ok: false, message: 'Chưa có file Excel để import' });
-    const result = await excelImportService.preview({ type: String(req.body?.type || req.query?.type || '').trim(), buffer: file.buffer, fileName: file.originalname || '', userName: req.user?.username || req.user?.fullName || '' });
+    const result = await excelImportService.preview({ type: String(req.body?.type || req.query?.type || '').trim(), buffer: file.buffer, fileName: file.originalname || '', userName: req.user?.username || req.user?.fullName || '', importMode: String(req.body?.importMode || req.query?.importMode || '').trim() });
     if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error, ...result });
     return res.status(result.accepted ? 202 : 200).json({ ok: true, source: 'mongo-native-import-controller', ...result });
   } catch (err) {

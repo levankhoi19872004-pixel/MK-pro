@@ -10,7 +10,7 @@ const TEMPLATE_DEFINITIONS = {
       ['SP001', 'OMO Bột giặt 5.5kg', 'Thùng', 'Túi', 6, '1 thùng = 6 túi', '893000000001', 'Giặt tẩy', 145000, 169000, 'KHO_HC', 10, 200],
       ['SP002', 'Comfort Đậm Đặc 3.8L', 'Thùng', 'Chai', 4, '1 thùng = 4 chai', '893000000002', 'Nước xả', 115000, 139000, 'KHO_PC', 10, 150]
     ],
-    notes: ['Bắt buộc: code, name.', 'Quy đổi là số đơn vị gốc trong 1 đơn vị bán, ví dụ 1 thùng = 12 chai thì nhập 12.', 'Mã sản phẩm không được trùng với danh mục hiện có.']
+    notes: ['Bắt buộc khi thêm mới: code, name. Khi dùng Cập nhật an toàn chỉ bắt buộc Mã sản phẩm.', 'Quy đổi là số đơn vị gốc trong 1 đơn vị bán, ví dụ 1 thùng = 12 chai thì nhập 12.', 'Chế độ Cập nhật an toàn: ô trống/cột thiếu giữ nguyên dữ liệu Mongo; chỉ giá trị khác dữ liệu cũ mới được cập nhật.', 'Chế độ Import thông thường không chấp nhận mã sản phẩm đã tồn tại.']
   },
   customers: {
     title: 'Mẫu import khách hàng',
@@ -21,7 +21,7 @@ const TEMPLATE_DEFINITIONS = {
       ['KH001', 'Tạp hóa Minh Anh', '0987654321', 'Số 1 Minh Khai', '1001234567', 'Số 1 Minh Khai, phường Minh Khai, tỉnh Hưng Yên', 'Tuyến 1', 'NVBH01', 'Nguyễn Văn A'],
       ['KH002', 'Siêu thị mini An Bình', '0912345678', 'Số 2 Bạch Mai', '1007654321-001', 'Số 2 Bạch Mai, phường Bạch Mai, Hà Nội', 'Tuyến 2', 'NVBH02', 'Trần Văn B']
     ],
-    notes: ['Bắt buộc: code, name.', 'Mã số thuế nên định dạng Text trong Excel để không mất số 0 đầu.', 'Địa chỉ hóa đơn thuế được ưu tiên khi xuất hóa đơn VAT; nếu để trống hệ thống mới dùng địa chỉ giao hàng.', 'Cột Mã NVBH là dữ liệu chính để gán nhân viên phụ trách; Tên NVBH chỉ để tham khảo.']
+    notes: ['Bắt buộc khi thêm mới: code, name. Khi dùng Cập nhật an toàn chỉ bắt buộc Mã khách hàng.', 'Chế độ Cập nhật an toàn: ô trống/cột thiếu giữ nguyên dữ liệu Mongo; chỉ giá trị khác dữ liệu cũ mới được cập nhật.', 'Mã số thuế nên định dạng Text trong Excel để không mất số 0 đầu.', 'Địa chỉ hóa đơn thuế được ưu tiên khi xuất hóa đơn VAT; nếu để trống hệ thống mới dùng địa chỉ giao hàng.', 'Cột Mã NVBH là dữ liệu chính để gán nhân viên phụ trách; Tên NVBH chỉ để tham khảo.']
   },
 
   users: {
@@ -36,8 +36,9 @@ const TEMPLATE_DEFINITIONS = {
     notes: [
       'Bắt buộc: Tên đăng nhập, Họ tên, Mã nhân viên, Vai trò.',
       'Vai trò hợp lệ: admin, manager, accountant, sales, delivery, warehouse.',
-      'Nếu tên đăng nhập đã tồn tại thì cập nhật thông tin; nếu chưa tồn tại thì tạo mới.',
-      'Nếu để trống mật khẩu khi cập nhật thì giữ mật khẩu cũ; nếu tạo mới mà để trống thì dùng 123456.',
+      'Chế độ Cập nhật an toàn chỉ yêu cầu Tên đăng nhập; ô trống/cột thiếu giữ nguyên dữ liệu cũ.',
+      'Nếu nhập mật khẩu mới thì hệ thống thay mật khẩu; để trống thì giữ mật khẩu hiện tại.',
+      'Chế độ Import thông thường giữ hành vi hiện tại: tạo mới hoặc cập nhật đầy đủ theo dòng Excel.',
       'Không nhập passwordHash/token/secret vào file Excel.'
     ]
   },

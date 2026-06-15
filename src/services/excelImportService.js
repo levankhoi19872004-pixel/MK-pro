@@ -34,6 +34,15 @@ const { enqueueImportPreviewJob } = require('../jobs/importPreviewQueue');
 const { runImportPreviewPipeline } = require('../jobs/importPreviewRunner');
 const importCommitOrchestrator = require('./import/ImportCommitOrchestrator');
 const { runAtomicChunks } = require('./import/importTransaction.service');
+const {
+  IMPORT_MODE_CREATE,
+  IMPORT_MODE_UPDATE,
+  normalizeImportMode,
+  getProvidedField,
+  parseImportBoolean,
+  buildChanges,
+  omitUnchanged
+} = require('./import/selectiveUpdate.util');
 const InventoryPostingService = require('../domain/posting/InventoryPostingService');
 const financialService = require('./financialService');
 const promotionService = require('./promotionService');
@@ -227,6 +236,170 @@ function pickCustomerPayload(row = {}) {
   if (taxProfile.hasTaxCode) payload.taxCode = taxProfile.taxCode;
   if (taxProfile.hasTaxInvoiceAddress) payload.taxInvoiceAddress = taxProfile.taxInvoiceAddress;
   return payload;
+}
+
+const PRODUCT_UPDATE_LABELS = Object.freeze({
+  name: 'Tên sản phẩm', unit: 'Đơn vị bán', baseUnit: 'Đơn vị gốc', conversionRate: 'Quy đổi',
+  packing: 'Quy cách', barcode: 'Barcode', category: 'Nhóm hàng', brand: 'Thương hiệu',
+  warehouseCode: 'Kho mặc định', costPrice: 'Giá nhập', salePrice: 'Giá bán',
+  minStock: 'Tồn tối thiểu', maxStock: 'Tồn tối đa', isActive: 'Trạng thái'
+});
+
+const CUSTOMER_UPDATE_LABELS = Object.freeze({
+  name: 'Tên khách hàng', phone: 'Số điện thoại', address: 'Địa chỉ giao hàng',
+  taxCode: 'Mã số thuế', taxInvoiceAddress: 'Địa chỉ hóa đơn thuế', area: 'Khu vực', route: 'Tuyến',
+  staffCode: 'Mã NVBH', staffName: 'Tên NVBH', openingDebt: 'Công nợ đầu kỳ',
+  debtLimit: 'Hạn mức nợ', isActive: 'Trạng thái'
+});
+
+const USER_UPDATE_LABELS = Object.freeze({
+  fullName: 'Họ tên', staffCode: 'Mã nhân viên', role: 'Vai trò', phone: 'Số điện thoại',
+  email: 'Email', area: 'Khu vực', route: 'Tuyến', permissions: 'Quyền truy cập',
+  isActive: 'Trạng thái', password: 'Mật khẩu'
+});
+
+function applyTextPatch(row, patch, field, aliases) {
+  const provided = getProvidedField(row, aliases);
+  if (provided.hasValue) patch[field] = cleanText(provided.value);
+  return provided;
+}
+
+function applyNumberPatch(row, patch, field, aliases) {
+  const provided = getProvidedField(row, aliases);
+  if (provided.hasValue) patch[field] = toNumber(provided.value);
+  return provided;
+}
+
+function applyBooleanPatch(row, patch, field, aliases, fallback = true) {
+  const provided = getProvidedField(row, aliases);
+  if (provided.hasValue) patch[field] = parseImportBoolean(provided.value, fallback);
+  return provided;
+}
+
+function buildProductSelectiveUpdate(row = {}, current = {}) {
+  const patch = {};
+  applyTextPatch(row, patch, 'name', ['name', 'productName', 'Tên sản phẩm', 'Ten san pham']);
+  applyTextPatch(row, patch, 'barcode', ['barcode', 'Mã vạch', 'Ma vach']);
+  applyTextPatch(row, patch, 'category', ['category', 'Nhóm hàng', 'Nhom hang']);
+  applyTextPatch(row, patch, 'brand', ['brand', 'Thương hiệu', 'Thuong hieu']);
+  applyNumberPatch(row, patch, 'costPrice', ['costPrice', 'importPrice', 'Giá nhập', 'Gia nhap']);
+  applyNumberPatch(row, patch, 'salePrice', ['salePrice', 'price', 'Giá bán', 'Gia ban']);
+  applyNumberPatch(row, patch, 'minStock', ['minStock', 'Tồn tối thiểu', 'Ton toi thieu']);
+  applyNumberPatch(row, patch, 'maxStock', ['maxStock', 'Tồn tối đa', 'Ton toi da']);
+  applyBooleanPatch(row, patch, 'isActive', ['isActive', 'Trạng thái', 'Trang thai', 'Hoạt động', 'Hoat dong'], current.isActive !== false);
+
+  const warehouse = getProvidedField(row, ['warehouseCode', 'warehouse', 'kho', 'Kho', 'Kho mặc định', 'Kho mac dinh']);
+  if (warehouse.hasValue) {
+    const warehouseCode = normalizeProductWarehouseCode(warehouse.value);
+    const warehouseName = productWarehouseName(warehouseCode);
+    patch.warehouseCode = warehouseCode;
+    patch.warehouseName = warehouseName;
+    patch.printGroup = warehouseCode;
+    patch.printGroupName = warehouseName;
+  }
+
+  const unit = getProvidedField(row, ['unit', 'Đơn vị', 'Don vi', 'Đơn vị bán', 'Don vi ban']);
+  const baseUnit = getProvidedField(row, ['baseUnit', 'Đơn vị gốc', 'Don vi goc']);
+  const conversionRate = getProvidedField(row, ['conversionRate', 'Quy đổi', 'Quy doi', 'Tỷ lệ', 'Ty le']);
+  const packing = getProvidedField(row, ['packing', 'package', 'Quy cách', 'Quy cach']);
+  if (unit.hasValue || baseUnit.hasValue || conversionRate.hasValue || packing.hasValue) {
+    const normalized = normalizePacking({
+      unit: unit.hasValue ? unit.value : current.unit,
+      baseUnit: baseUnit.hasValue ? baseUnit.value : current.baseUnit,
+      conversionRate: conversionRate.hasValue ? conversionRate.value : current.conversionRate,
+      packing: packing.hasValue ? packing.value : ''
+    });
+    patch.unit = normalized.unit;
+    patch.baseUnit = normalized.baseUnit;
+    patch.conversionRate = normalized.conversionRate;
+    patch.packing = normalized.packing;
+    patch.units = normalized.units;
+  }
+
+  const merged = { ...current, ...patch };
+  if (Object.keys(patch).length) patch.searchText = productSearchText(merged);
+  const update = omitUnchanged(current, patch);
+  return { patch: update, changes: buildChanges(current, update, PRODUCT_UPDATE_LABELS) };
+}
+
+function buildCustomerSelectiveUpdate(row = {}, current = {}, resolvedStaff = null) {
+  const patch = {};
+  applyTextPatch(row, patch, 'name', ['name', 'customerName', 'Tên khách hàng', 'Ten khach hang']);
+  applyTextPatch(row, patch, 'phone', ['phone', 'customerPhone', 'Số điện thoại', 'So dien thoai', 'SĐT', 'SDT']);
+  applyTextPatch(row, patch, 'address', ['address', 'customerAddress', 'Địa chỉ giao hàng', 'Dia chi giao hang', 'Địa chỉ', 'Dia chi']);
+  applyTextPatch(row, patch, 'taxCode', ['taxCode', 'customerTaxCode', 'Mã số thuế', 'Ma so thue', 'MST', 'taxNumber', 'vatNumber']);
+  applyTextPatch(row, patch, 'taxInvoiceAddress', ['taxInvoiceAddress', 'customerTaxInvoiceAddress', 'Địa chỉ hóa đơn thuế', 'Dia chi hoa don thue', 'invoiceAddress', 'billingAddress']);
+  applyTextPatch(row, patch, 'area', ['area', 'Khu vực', 'Khu vuc']);
+  applyTextPatch(row, patch, 'route', ['route', 'Tuyến', 'Tuyen']);
+  applyNumberPatch(row, patch, 'openingDebt', ['openingDebt', 'Công nợ đầu kỳ', 'Cong no dau ky']);
+  applyNumberPatch(row, patch, 'debtLimit', ['debtLimit', 'Hạn mức nợ', 'Han muc no']);
+  applyBooleanPatch(row, patch, 'isActive', ['isActive', 'Trạng thái', 'Trang thai', 'Hoạt động', 'Hoat dong'], current.isActive !== false);
+
+  const staffCode = getProvidedField(row, ['legacyStaffCode', 'staffCode', 'Mã NVBH', 'Ma NVBH', 'Mã nhân viên', 'Ma nhan vien', 'Mã nhân viên']);
+  if (staffCode.hasValue && resolvedStaff && resolvedStaff.found && resolvedStaff.validRole) {
+    patch.legacyStaffCode = resolvedStaff.staffCode;
+    patch.staffCode = resolvedStaff.staffCode;
+    patch.legacyStaffName = resolvedStaff.staffName;
+    patch.staffName = resolvedStaff.staffName;
+  }
+
+  const merged = { ...current, ...patch };
+  if (Object.keys(patch).length) patch.searchText = customerSearchText(merged);
+  const update = omitUnchanged(current, patch);
+  return { patch: update, changes: buildChanges(current, update, CUSTOMER_UPDATE_LABELS) };
+}
+
+function getUserUpdateInput(row = {}) {
+  return {
+    fullName: getProvidedField(row, ['fullName', 'name', 'Họ tên', 'Ho ten', 'Tên nhân viên', 'Ten nhan vien', 'Tên NV', 'Ten NV']),
+    staffCode: getProvidedField(row, ['staffCode', 'code', 'Mã nhân viên', 'Ma nhan vien', 'Mã NV', 'Ma NV', 'StaffCode']),
+    role: getProvidedField(row, ['role', 'Vai trò', 'Vai tro', 'Quyền', 'Quyen', 'Role']),
+    password: getProvidedField(row, ['password', 'Mật khẩu', 'Mat khau', 'Password']),
+    phone: getProvidedField(row, ['phone', 'mobile', 'SĐT', 'SDT', 'Điện thoại', 'Dien thoai']),
+    email: getProvidedField(row, ['email', 'Email']),
+    area: getProvidedField(row, ['area', 'Khu vực', 'Khu vuc']),
+    route: getProvidedField(row, ['route', 'Tuyến', 'Tuyen']),
+    permissions: getProvidedField(row, ['permissions', 'permission', 'Quyền truy cập', 'Quyen truy cap']),
+    isActive: getProvidedField(row, ['isActive', 'status', 'Trạng thái', 'Trang thai'])
+  };
+}
+
+function buildUserSelectiveUpdate(row = {}, current = {}, { hashPassword = false } = {}) {
+  const input = getUserUpdateInput(row);
+  const patch = {};
+  if (input.fullName.hasValue) {
+    patch.fullName = cleanText(input.fullName.value);
+    patch.name = patch.fullName;
+  }
+  if (input.staffCode.hasValue) {
+    patch.staffCode = cleanText(input.staffCode.value);
+    patch.code = patch.staffCode;
+  }
+  if (input.role.hasValue) {
+    const role = normalizeImportRole(input.role.value);
+    if (role) {
+      patch.role = role;
+      patch.isSalesman = role === 'sales';
+      patch.isDelivery = role === 'delivery';
+    }
+  }
+  if (input.phone.hasValue) patch.phone = cleanText(input.phone.value);
+  if (input.email.hasValue) patch.email = cleanText(input.email.value);
+  if (input.area.hasValue) patch.area = cleanText(input.area.value);
+  if (input.route.hasValue) patch.route = cleanText(input.route.value);
+  if (input.permissions.hasValue) patch.permissions = cleanText(input.permissions.value);
+  if (input.isActive.hasValue) patch.isActive = parseImportBoolean(input.isActive.value, current.isActive !== false);
+  if (input.password.hasValue && hashPassword) {
+    const password = cleanText(input.password.value);
+    patch.password = isBcryptHash(password) ? password : hashPasswordSync(password);
+  }
+
+  const update = omitUnchanged(current, patch);
+  const changes = buildChanges(current, update, USER_UPDATE_LABELS, new Set(['password']));
+  if (input.password.hasValue && !hashPassword) {
+    changes.push({ field: 'password', label: 'Mật khẩu', oldValue: 'Đã thiết lập', newValue: 'Sẽ cập nhật' });
+  }
+  return { patch: update, changes, input };
 }
 
 async function buildRunningCode(Model, prefix, field = 'code') {
@@ -952,7 +1125,83 @@ async function setOpeningStockInventoriesBulk(rows = []) {
   return { inventoryRows: ops.length };
 }
 
-async function upsertProducts(rows = []) {
+async function upsertProducts(rows = [], options = {}) {
+  const importMode = normalizeImportMode(options.importMode, 'products');
+  if (importMode === IMPORT_MODE_UPDATE) {
+    let skipped = 0;
+    let unchanged = 0;
+    const errors = [];
+    const ops = [];
+    const seen = new Set();
+    const codes = Array.from(new Set(rows.map((row) => cleanText(row.code || row.productCode || row['Mã sản phẩm'] || row['Ma san pham'])).filter(Boolean)));
+    const existingRows = codes.length ? await Product.find({ code: { $in: codes } }).lean() : [];
+    const existingMap = new Map(existingRows.map((row) => [normalizeText(row.code), row]));
+
+    for (const row of rows) {
+      const code = cleanText(row.code || row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
+      const codeKey = normalizeText(code);
+      if (!code) {
+        skipped += 1;
+        errors.push({ code, message: 'Thiếu mã sản phẩm' });
+        continue;
+      }
+      if (seen.has(codeKey)) {
+        skipped += 1;
+        errors.push({ code, message: 'Mã sản phẩm bị trùng trong file cập nhật' });
+        continue;
+      }
+      seen.add(codeKey);
+      const current = existingMap.get(codeKey);
+      if (!current) {
+        skipped += 1;
+        errors.push({ code, message: 'Không tìm thấy sản phẩm để cập nhật' });
+        continue;
+      }
+
+      const conversion = getProvidedField(row, ['conversionRate', 'Quy đổi', 'Quy doi', 'Tỷ lệ', 'Ty le']);
+      const costPrice = getProvidedField(row, ['costPrice', 'importPrice', 'Giá nhập', 'Gia nhap']);
+      const salePrice = getProvidedField(row, ['salePrice', 'price', 'Giá bán', 'Gia ban']);
+      if (conversion.hasValue && toNumber(conversion.value) < 1) {
+        skipped += 1;
+        errors.push({ code, message: 'Quy đổi phải lớn hơn hoặc bằng 1' });
+        continue;
+      }
+      if ((costPrice.hasValue && toNumber(costPrice.value) < 0) || (salePrice.hasValue && toNumber(salePrice.value) < 0)) {
+        skipped += 1;
+        errors.push({ code, message: 'Giá không được âm' });
+        continue;
+      }
+
+      const { patch } = buildProductSelectiveUpdate(row, current);
+      if (!Object.keys(patch).length) {
+        unchanged += 1;
+        continue;
+      }
+      ops.push({
+        updateOne: {
+          filter: { code: current.code },
+          update: { $set: { ...patch, updatedAt: dateUtil.nowIso() } },
+          upsert: false
+        }
+      });
+    }
+
+    const bulk = await bulkWriteInBatches(Product, ops);
+    skipped += bulk.errors.length;
+    errors.push(...bulk.errors.map((e) => ({ code: '', message: e.message })));
+    const updated = Math.max(0, ops.length - bulk.errors.length);
+    await addImportLog('products', { imported: updated, updated, unchanged, skipped, errors: errors.slice(0, 30), mode: 'selective-update', batchSize: IMPORT_BATCH_SIZE });
+    return {
+      imported: updated,
+      updated,
+      unchanged,
+      skipped,
+      errors,
+      importMode,
+      message: `Đã cập nhật ${updated} sản phẩm${unchanged ? `, giữ nguyên ${unchanged} dòng không thay đổi` : ''}${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
+    };
+  }
+
   let skipped = 0;
   const errors = [];
   const ops = [];
@@ -996,10 +1245,89 @@ async function upsertProducts(rows = []) {
   errors.push(...bulk.errors.map((e) => ({ code: '', message: e.message })));
   const imported = Math.max(0, ops.length - bulk.errors.length);
   await addImportLog('products', { imported, skipped, errors: errors.slice(0, 30), mode: 'bulkWrite', batchSize: IMPORT_BATCH_SIZE });
-  return { imported, skipped, errors };
+  return { imported, skipped, errors, importMode };
 }
 
-async function upsertCustomers(rows = []) {
+async function upsertCustomers(rows = [], options = {}) {
+  const importMode = normalizeImportMode(options.importMode, 'customers');
+  if (importMode === IMPORT_MODE_UPDATE) {
+    let skipped = 0;
+    let unchanged = 0;
+    const errors = [];
+    const ops = [];
+    const seen = new Set();
+    const salesStaffUserMap = await preloadSalesStaffUsersByCode(rows);
+    const codes = Array.from(new Set(rows.map((row) => cleanText(row.code || row.customerCode || row['Mã khách hàng'] || row['Ma khach hang'])).filter(Boolean)));
+    const existingRows = codes.length ? await Customer.find({ code: { $in: codes } }).lean() : [];
+    const existingMap = new Map(existingRows.map((row) => [normalizeText(row.code), row]));
+
+    for (const row of rows) {
+      const code = cleanText(row.code || row.customerCode || row['Mã khách hàng'] || row['Ma khach hang']);
+      const codeKey = normalizeText(code);
+      if (!code) {
+        skipped += 1;
+        errors.push({ code, message: 'Thiếu mã khách hàng' });
+        continue;
+      }
+      if (seen.has(codeKey)) {
+        skipped += 1;
+        errors.push({ code, message: 'Mã khách hàng bị trùng trong file cập nhật' });
+        continue;
+      }
+      seen.add(codeKey);
+      const current = existingMap.get(codeKey);
+      if (!current) {
+        skipped += 1;
+        errors.push({ code, message: 'Không tìm thấy khách hàng để cập nhật' });
+        continue;
+      }
+
+      let resolvedStaff = null;
+      const staffField = getProvidedField(row, ['legacyStaffCode', 'staffCode', 'Mã NVBH', 'Ma NVBH', 'Mã nhân viên', 'Ma nhan vien', 'Mã nhân viên']);
+      if (staffField.hasValue) {
+        resolvedStaff = resolveSalesStaffForImportRow(row, salesStaffUserMap);
+        if (!resolvedStaff.found) {
+          skipped += 1;
+          errors.push({ code, message: `Không tìm thấy mã NVBH ${cleanText(staffField.value)} trong tài khoản hệ thống` });
+          continue;
+        }
+        if (!resolvedStaff.validRole) {
+          skipped += 1;
+          errors.push({ code, message: `Mã ${cleanText(staffField.value)} không phải nhân viên bán hàng` });
+          continue;
+        }
+      }
+
+      const { patch } = buildCustomerSelectiveUpdate(row, current, resolvedStaff);
+      if (!Object.keys(patch).length) {
+        unchanged += 1;
+        continue;
+      }
+      ops.push({
+        updateOne: {
+          filter: { code: current.code },
+          update: { $set: { ...patch, updatedAt: dateUtil.nowIso() } },
+          upsert: false
+        }
+      });
+    }
+
+    const bulk = await bulkWriteInBatches(Customer, ops);
+    skipped += bulk.errors.length;
+    errors.push(...bulk.errors.map((e) => ({ code: '', message: e.message })));
+    const updated = Math.max(0, ops.length - bulk.errors.length);
+    await addImportLog('customers', { imported: updated, updated, unchanged, skipped, errors: errors.slice(0, 30), mode: 'selective-update', batchSize: IMPORT_BATCH_SIZE });
+    return {
+      imported: updated,
+      updated,
+      unchanged,
+      skipped,
+      errors,
+      importMode,
+      message: `Đã cập nhật ${updated} khách hàng${unchanged ? `, giữ nguyên ${unchanged} dòng không thay đổi` : ''}${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
+    };
+  }
+
   let skipped = 0;
   const errors = [];
   const ops = [];
@@ -1046,7 +1374,7 @@ async function upsertCustomers(rows = []) {
   errors.push(...bulk.errors.map((e) => ({ code: '', message: e.message })));
   const imported = Math.max(0, ops.length - bulk.errors.length);
   await addImportLog('customers', { imported, skipped, errors: errors.slice(0, 30), mode: 'bulkWrite', batchSize: IMPORT_BATCH_SIZE });
-  return { imported, skipped, errors };
+  return { imported, skipped, errors, importMode };
 }
 
 async function importOpeningStock(rows = []) {
@@ -2348,37 +2676,82 @@ function pickUserImportPayload(row = {}) {
   };
 }
 
-async function importUsers(rows = []) {
+async function importUsers(rows = [], options = {}) {
+  const importMode = normalizeImportMode(options.importMode, 'users');
   const errors = [];
   const warnings = [];
   let imported = 0;
   let created = 0;
   let updated = 0;
+  let unchanged = 0;
   let skipped = 0;
-  const validRows = [];
   const seen = new Map();
 
   rows.forEach((raw, index) => {
     const item = pickUserImportPayload(raw);
+    item.raw = raw;
     const rowNo = item.rowNo || item.__rowNo || index + 2;
     const rowErrors = [];
     if (!item.username) rowErrors.push('Thiếu tên đăng nhập');
-    if (!item.fullName) rowErrors.push('Thiếu họ tên');
-    if (!item.staffCode) rowErrors.push('Thiếu mã nhân viên');
-    if (!item.role) rowErrors.push('Vai trò không hợp lệ');
+
+    if (importMode === IMPORT_MODE_UPDATE) {
+      const input = getUserUpdateInput(raw);
+      if (input.role.hasValue && !normalizeImportRole(input.role.value)) rowErrors.push('Vai trò không hợp lệ');
+    } else {
+      if (!item.fullName) rowErrors.push('Thiếu họ tên');
+      if (!item.staffCode) rowErrors.push('Thiếu mã nhân viên');
+      if (!item.role) rowErrors.push('Vai trò không hợp lệ');
+    }
+
     if (rowErrors.length) {
       skipped += 1;
       errors.push({ row: rowNo, username: item.username, message: rowErrors.join('; ') });
       return;
     }
     const key = item.username.toLowerCase();
-    if (seen.has(key)) warnings.push({ row: rowNo, username: item.username, warning: 'Trùng tên đăng nhập trong file, hệ thống lấy dòng cuối cùng' });
+    if (seen.has(key)) {
+      if (importMode === IMPORT_MODE_UPDATE) {
+        skipped += 1;
+        errors.push({ row: rowNo, username: item.username, message: 'Trùng tên đăng nhập trong file cập nhật' });
+        seen.delete(key);
+        return;
+      }
+      warnings.push({ row: rowNo, username: item.username, warning: 'Trùng tên đăng nhập trong file, hệ thống lấy dòng cuối cùng' });
+    }
     seen.set(key, item);
   });
 
-  validRows.push(...seen.values());
+  const validRows = [...seen.values()];
+  const usernames = validRows.map((item) => item.username).filter(Boolean);
+  const currentRows = usernames.length ? await User.find({ username: { $in: usernames } }).lean() : [];
+  const currentMap = new Map(currentRows.map((row) => [String(row.username || '').toLowerCase(), row]));
+  const ops = [];
+
   for (const item of validRows) {
-    const current = await User.findOne({ username: item.username }).lean();
+    const current = currentMap.get(item.username.toLowerCase()) || null;
+
+    if (importMode === IMPORT_MODE_UPDATE) {
+      if (!current) {
+        skipped += 1;
+        errors.push({ row: item.rowNo || item.__rowNo || '', username: item.username, message: 'Không tìm thấy tài khoản để cập nhật' });
+        continue;
+      }
+      const { patch } = buildUserSelectiveUpdate(item.raw || item, current, { hashPassword: true });
+      if (!Object.keys(patch).length) {
+        unchanged += 1;
+        continue;
+      }
+      ops.push({
+        updateOne: {
+          filter: { username: current.username },
+          update: { $set: { ...patch, updatedAt: dateUtil.nowIso() } },
+          upsert: false
+        }
+      });
+      updated += 1;
+      continue;
+    }
+
     if (!current && !item.password) {
       skipped += 1;
       errors.push({
@@ -2411,13 +2784,45 @@ async function importUsers(rows = []) {
       updatedAt: dateUtil.nowIso()
     };
     if (!current) payload.createdAt = dateUtil.nowIso();
-    await User.updateOne({ username: item.username }, { $set: payload, $setOnInsert: { id: item.staffCode || item.username } }, { upsert: true });
-    imported += 1;
+    ops.push({
+      updateOne: {
+        filter: { username: item.username },
+        update: { $set: payload, $setOnInsert: { id: item.staffCode || item.username } },
+        upsert: true
+      }
+    });
     if (current) updated += 1; else created += 1;
   }
 
-  await addImportLog('users', { imported, created, updated, skipped, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50), mode: 'upsert' });
-  return { imported, created, updated, skipped, errors, warnings, message: `Đã import ${imported} tài khoản: tạo mới ${created}, cập nhật ${updated}${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
+  const bulk = await bulkWriteInBatches(User, ops);
+  skipped += bulk.errors.length;
+  errors.push(...bulk.errors.map((e) => ({ row: '', username: '', message: e.message })));
+  imported = Math.max(0, ops.length - bulk.errors.length);
+  if (bulk.errors.length && importMode === IMPORT_MODE_UPDATE) updated = Math.max(0, updated - bulk.errors.length);
+
+  await addImportLog('users', {
+    imported,
+    created,
+    updated,
+    unchanged,
+    skipped,
+    errors: errors.slice(0, 50),
+    warnings: warnings.slice(0, 50),
+    mode: importMode === IMPORT_MODE_UPDATE ? 'selective-update' : 'upsert'
+  });
+  return {
+    imported,
+    created,
+    updated,
+    unchanged,
+    skipped,
+    errors,
+    warnings,
+    importMode,
+    message: importMode === IMPORT_MODE_UPDATE
+      ? `Đã cập nhật ${updated} tài khoản${unchanged ? `, giữ nguyên ${unchanged} dòng không thay đổi` : ''}${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
+      : `Đã import ${imported} tài khoản: tạo mới ${created}, cập nhật ${updated}${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}`
+  };
 }
 
 async function importPromotionProductRules(rows = []) {
@@ -2571,34 +2976,58 @@ async function importPromotionGroupRules(rows = []) {
   return { imported, skipped, errors, warnings, message: `Đã import nhanh ${imported} dòng điều kiện nhóm KM bằng bulkWrite${skipped ? `, bỏ qua ${skipped} dòng lỗi` : ''}` };
 }
 
-async function previewMongoNative(type, rows = []) {
+async function previewMongoNative(type, rows = [], options = {}) {
   const safeRows = Array.isArray(rows) ? rows : [];
   let result = [];
 
   if (type === 'products') {
-    const payloads = safeRows.map((row) => ({ ...rowBase(row), ...pickProductPayload(row), errors: [] }));
+    const importMode = normalizeImportMode(options.importMode, type);
+    const payloads = safeRows.map((row) => ({ ...rowBase(row), ...pickProductPayload(row), errors: [], warnings: [], importMode }));
     const codes = Array.from(new Set(payloads.map((p) => cleanText(p.code)).filter(Boolean)));
-    const existingRows = codes.length ? await Product.find({ code: { $in: codes } }).select('code').lean() : [];
-    const existing = new Set(existingRows.map((p) => cleanText(p.code)));
+    const existingRows = codes.length ? await Product.find({ code: { $in: codes } }).lean() : [];
+    const existing = new Map(existingRows.map((p) => [normalizeText(p.code), p]));
     const seen = new Set();
     result = payloads.map((item) => {
+      const codeKey = normalizeText(item.code);
+      const current = existing.get(codeKey) || null;
       if (!item.code) item.errors.push('Thiếu mã sản phẩm');
-      if (!item.name) item.errors.push('Thiếu tên sản phẩm');
-      if (item.code && existing.has(cleanText(item.code))) item.errors.push('Mã sản phẩm đã tồn tại');
-      if (item.code && seen.has(cleanText(item.code))) item.errors.push('Mã sản phẩm bị trùng trong file');
-      if (item.code) seen.add(cleanText(item.code));
-      if (toNumber(item.conversionRate) < 1) item.errors.push('Quy đổi phải lớn hơn hoặc bằng 1');
-      if (toNumber(item.costPrice) < 0 || toNumber(item.salePrice) < 0) item.errors.push('Giá không được âm');
+      if (item.code && seen.has(codeKey)) item.errors.push('Mã sản phẩm bị trùng trong file');
+      if (item.code) seen.add(codeKey);
+
+      if (importMode === IMPORT_MODE_UPDATE) {
+        if (item.code && !current) item.errors.push('Không tìm thấy sản phẩm để cập nhật');
+        const conversion = getProvidedField(item.raw, ['conversionRate', 'Quy đổi', 'Quy doi', 'Tỷ lệ', 'Ty le']);
+        const costPrice = getProvidedField(item.raw, ['costPrice', 'importPrice', 'Giá nhập', 'Gia nhap']);
+        const salePrice = getProvidedField(item.raw, ['salePrice', 'price', 'Giá bán', 'Gia ban']);
+        if (conversion.hasValue && toNumber(conversion.value) < 1) item.errors.push('Quy đổi phải lớn hơn hoặc bằng 1');
+        if ((costPrice.hasValue && toNumber(costPrice.value) < 0) || (salePrice.hasValue && toNumber(salePrice.value) < 0)) item.errors.push('Giá không được âm');
+        const updateInfo = current ? buildProductSelectiveUpdate(item.raw, current) : { patch: {}, changes: [] };
+        item.changes = updateInfo.changes;
+        item.changeCount = updateInfo.changes.length;
+        item.action = item.errors.length ? 'error' : (item.changeCount ? 'update' : 'no_change');
+        item.statusText = item.errors.length ? 'Có lỗi' : (item.changeCount ? `Cập nhật ${item.changeCount} trường` : 'Không thay đổi');
+        item.canImport = item.errors.length === 0 && item.changeCount > 0;
+      } else {
+        if (!item.name) item.errors.push('Thiếu tên sản phẩm');
+        if (item.code && current) item.errors.push('Mã sản phẩm đã tồn tại');
+        if (toNumber(item.conversionRate) < 1) item.errors.push('Quy đổi phải lớn hơn hoặc bằng 1');
+        if (toNumber(item.costPrice) < 0 || toNumber(item.salePrice) < 0) item.errors.push('Giá không được âm');
+        item.action = item.errors.length ? 'error' : 'create';
+        item.statusText = item.errors.length ? 'Có lỗi' : 'Thêm mới';
+      }
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'customers') {
+    const importMode = normalizeImportMode(options.importMode, type);
     const salesStaffUserMap = await preloadSalesStaffUsersByCode(safeRows);
     const payloads = safeRows.map((row) => {
-      const payload = { ...rowBase(row), ...pickCustomerPayload(row), errors: [] };
-      if (payload.staffCode) {
+      const payload = { ...rowBase(row), ...pickCustomerPayload(row), errors: [], warnings: [], importMode };
+      const staffField = getProvidedField(row, ['legacyStaffCode', 'staffCode', 'Mã NVBH', 'Ma NVBH', 'Mã nhân viên', 'Ma nhan vien', 'Mã nhân viên']);
+      if (staffField.hasValue) {
         const resolvedStaff = resolveSalesStaffForImportRow(row, salesStaffUserMap);
-        if (!resolvedStaff.found) payload.errors.push(`Không tìm thấy mã NVBH ${payload.staffCode} trong tài khoản hệ thống`);
-        else if (!resolvedStaff.validRole) payload.errors.push(`Mã ${payload.staffCode} không phải nhân viên bán hàng`);
+        payload.resolvedStaff = resolvedStaff;
+        if (!resolvedStaff.found) payload.errors.push(`Không tìm thấy mã NVBH ${cleanText(staffField.value)} trong tài khoản hệ thống`);
+        else if (!resolvedStaff.validRole) payload.errors.push(`Mã ${cleanText(staffField.value)} không phải nhân viên bán hàng`);
         else {
           payload.staffCode = resolvedStaff.staffCode;
           payload.staffName = resolvedStaff.staffName;
@@ -2607,15 +3036,31 @@ async function previewMongoNative(type, rows = []) {
       return payload;
     });
     const codes = Array.from(new Set(payloads.map((c) => cleanText(c.code)).filter(Boolean)));
-    const existingRows = codes.length ? await Customer.find({ code: { $in: codes } }).select('code').lean() : [];
-    const existing = new Set(existingRows.map((c) => cleanText(c.code)));
+    const existingRows = codes.length ? await Customer.find({ code: { $in: codes } }).lean() : [];
+    const existing = new Map(existingRows.map((c) => [normalizeText(c.code), c]));
     const seen = new Set();
     result = payloads.map((item) => {
+      const codeKey = normalizeText(item.code);
+      const current = existing.get(codeKey) || null;
       if (!item.code) item.errors.push('Thiếu mã khách hàng');
-      if (!item.name) item.errors.push('Thiếu tên khách hàng');
-      if (item.code && existing.has(cleanText(item.code))) item.errors.push('Mã khách hàng đã tồn tại');
-      if (item.code && seen.has(cleanText(item.code))) item.errors.push('Mã khách hàng bị trùng trong file');
-      if (item.code) seen.add(cleanText(item.code));
+      if (item.code && seen.has(codeKey)) item.errors.push('Mã khách hàng bị trùng trong file');
+      if (item.code) seen.add(codeKey);
+
+      if (importMode === IMPORT_MODE_UPDATE) {
+        if (item.code && !current) item.errors.push('Không tìm thấy khách hàng để cập nhật');
+        const updateInfo = current ? buildCustomerSelectiveUpdate(item.raw, current, item.resolvedStaff || null) : { patch: {}, changes: [] };
+        item.changes = updateInfo.changes;
+        item.changeCount = updateInfo.changes.length;
+        item.action = item.errors.length ? 'error' : (item.changeCount ? 'update' : 'no_change');
+        item.statusText = item.errors.length ? 'Có lỗi' : (item.changeCount ? `Cập nhật ${item.changeCount} trường` : 'Không thay đổi');
+        item.canImport = item.errors.length === 0 && item.changeCount > 0;
+      } else {
+        if (!item.name) item.errors.push('Thiếu tên khách hàng');
+        if (item.code && current) item.errors.push('Mã khách hàng đã tồn tại');
+        item.action = item.errors.length ? 'error' : 'create';
+        item.statusText = item.errors.length ? 'Có lỗi' : 'Thêm mới';
+      }
+      delete item.resolvedStaff;
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'openingStock') {
@@ -2931,19 +3376,38 @@ async function previewMongoNative(type, rows = []) {
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'users') {
+    const importMode = normalizeImportMode(options.importMode, type);
+    const usernames = Array.from(new Set(safeRows.map((row) => cleanText(row.username || row['Tên đăng nhập'] || row['Ten dang nhap'] || row['Tài khoản'] || row['Tai khoan'] || row['User'] || row['Username'])).filter(Boolean)));
+    const existingRows = usernames.length ? await User.find({ username: { $in: usernames } }).lean() : [];
+    const existing = new Map(existingRows.map((row) => [String(row.username || '').toLowerCase(), row]));
     const seen = new Set();
     result = safeRows.map((row) => {
-      const item = pickUserImportPayload(row);
-      item.errors = [];
-      item.warnings = [];
-      if (!item.username) item.errors.push('Thiếu tên đăng nhập');
-      if (!item.fullName) item.errors.push('Thiếu họ tên');
-      if (!item.staffCode) item.errors.push('Thiếu mã nhân viên');
-      if (!item.role) item.errors.push('Vai trò không hợp lệ');
+      const item = { ...rowBase(row), ...pickUserImportPayload(row), errors: [], warnings: [], importMode };
       const key = item.username.toLowerCase();
-      if (key && seen.has(key)) item.warnings.push('Trùng tên đăng nhập trong file; khi import hệ thống lấy dòng cuối cùng');
+      const current = existing.get(key) || null;
+      if (!item.username) item.errors.push('Thiếu tên đăng nhập');
+      if (key && seen.has(key)) item.errors.push('Trùng tên đăng nhập trong file');
       if (key) seen.add(key);
-      item.passwordStatus = item.password ? 'Có nhập mật khẩu' : 'Để trống: giữ mật khẩu cũ; tạo mới bắt buộc nhập mật khẩu';
+
+      if (importMode === IMPORT_MODE_UPDATE) {
+        const input = getUserUpdateInput(row);
+        if (item.username && !current) item.errors.push('Không tìm thấy tài khoản để cập nhật');
+        if (input.role.hasValue && !normalizeImportRole(input.role.value)) item.errors.push('Vai trò không hợp lệ');
+        const updateInfo = current ? buildUserSelectiveUpdate(row, current, { hashPassword: false }) : { changes: [] };
+        item.changes = updateInfo.changes;
+        item.changeCount = updateInfo.changes.length;
+        item.action = item.errors.length ? 'error' : (item.changeCount ? 'update' : 'no_change');
+        item.statusText = item.errors.length ? 'Có lỗi' : (item.changeCount ? `Cập nhật ${item.changeCount} trường` : 'Không thay đổi');
+        item.canImport = item.errors.length === 0 && item.changeCount > 0;
+        item.passwordStatus = input.password.hasValue ? 'Sẽ cập nhật mật khẩu' : 'Không có mật khẩu mới: giữ nguyên';
+      } else {
+        if (!item.fullName) item.errors.push('Thiếu họ tên');
+        if (!item.staffCode) item.errors.push('Thiếu mã nhân viên');
+        if (!item.role) item.errors.push('Vai trò không hợp lệ');
+        item.action = item.errors.length ? 'error' : (current ? 'update' : 'create');
+        item.statusText = item.errors.length ? 'Có lỗi' : (current ? 'Cập nhật toàn bộ' : 'Thêm mới');
+        item.passwordStatus = item.password ? 'Có nhập mật khẩu' : 'Để trống: giữ mật khẩu cũ; tạo mới bắt buộc nhập mật khẩu';
+      }
       return { ...item, valid: item.errors.length === 0 };
     });
   } else if (type === 'openingDebt') {
@@ -2998,18 +3462,20 @@ function normalizeImportFiles({ files = [], buffer = null, fileName = '' } = {})
   return list;
 }
 
-async function buildPreviewFromRows({ type, rows = [], userName = '' } = {}) {
+async function buildPreviewFromRows({ type, rows = [], userName = '', importMode = '' } = {}) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
   if (!Array.isArray(rows) || !rows.length) return { error: 'File Excel không có dữ liệu', status: 400 };
 
-  const result = await previewMongoNative(type, rows);
+  const normalizedImportMode = normalizeImportMode(importMode, type);
+  const result = await previewMongoNative(type, rows, { importMode: normalizedImportMode });
 
   if (type === 'salesOrders') {
     const validatedRows = await importRules.validateImportBatch(result.rows || []);
 
     return {
       ...result,
+      importMode: normalizedImportMode,
       rows: validatedRows,
       total: validatedRows.length,
       valid: validatedRows.filter((r) => r.valid).length,
@@ -3017,12 +3483,13 @@ async function buildPreviewFromRows({ type, rows = [], userName = '' } = {}) {
     };
   }
 
-  return result;
+  return { ...result, importMode: normalizedImportMode };
 }
 
-async function preview({ type, files = [], buffer = null, fileName = '', userName = '' }) {
+async function preview({ type, files = [], buffer = null, fileName = '', userName = '', importMode = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
+  const normalizedImportMode = normalizeImportMode(importMode, type);
 
   const normalizedFiles = normalizeImportFiles({ files, buffer, fileName });
   if (!normalizedFiles.length) return { error: 'Chưa chọn file Excel', status: 400 };
@@ -3031,7 +3498,8 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     type,
     fileName: normalizedFiles[0]?.fileName || '',
     fileNames: normalizedFiles.map((f) => f.fileName),
-    createdBy: userName
+    createdBy: userName,
+    importMode: normalizedImportMode
   });
 
   const asyncPreview = process.env.IMPORT_PREVIEW_ASYNC !== 'false';
@@ -3047,7 +3515,8 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
         sessionId: session.id,
         type,
         files: storedFiles,
-        userName
+        userName,
+        importMode: normalizedImportMode
       });
     } catch (err) {
       await importSessionService.markFailed(session.id, err.message || 'Không thể đưa file vào hàng đợi import').catch(() => {});
@@ -3067,6 +3536,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
       userName,
       summary: {
         type,
+        importMode: normalizedImportMode,
         totalFiles: storedFiles.length,
         fileNames: storedFiles.map((file) => file.fileName)
       }
@@ -3081,6 +3551,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
       message: 'File import đã được đưa vào hàng chờ xử lý',
       sessionId: session.id,
       importSessionId: session.id,
+      importMode: normalizedImportMode,
       queue: queueResult
     };
   }
@@ -3092,6 +3563,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     type,
     files: normalizedFiles,
     userName,
+    importMode: normalizedImportMode,
     buildPreviewFromRows
   });
 
@@ -3104,6 +3576,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     userName,
     summary: {
       type,
+      importMode: normalizedImportMode,
       totalRows: result.total || result.rows?.length || 0,
       validRows: result.valid || 0,
       invalidRows: result.invalid || 0
@@ -3114,6 +3587,7 @@ async function preview({ type, files = [], buffer = null, fileName = '', userNam
     ...result,
     sessionId: session.id,
     importSessionId: session.id,
+    importMode: normalizedImportMode,
     status: 'preview_ready'
   };
 }
@@ -3133,6 +3607,7 @@ async function getSessionStatus(sessionId) {
     sessionId: session.sessionId || session.id,
     importSessionId: session.sessionId || session.id,
     type: session.type,
+    importMode: normalizeImportMode(session.importMode, session.type),
     status: session.status,
     progress: session.progress || { percent: 0, step: '' },
     totalRows: session.totalRows || 0,
@@ -3181,6 +3656,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
   }
 
   const currentSessionId = session.sessionId || session.id;
+  const importMode = normalizeImportMode(session.importMode, type);
 
   let sourceRows = [];
   let validRows = [];
@@ -3251,7 +3727,8 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     result = await importCommitOrchestrator.commit(type, commitRows, {
       options: {
         importSessionId: currentSessionId,
-        sessionId: currentSessionId
+        sessionId: currentSessionId,
+        importMode
       },
       operations: {
         upsertProducts,
@@ -3310,6 +3787,7 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       userName,
       summary: {
         type,
+        importMode,
         totalSelected: sourceRows.length,
         totalValid: validRows.length,
         totalCommitRows: commitRows.length,
@@ -3336,7 +3814,8 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     ...result,
     source: 'mongo-import-session-confirm',
     ok: true,
-    message: `Đã import ${result.imported || 0} chứng từ`,
+    message: result.message || `Đã import ${result.imported || 0} chứng từ`,
+    importMode,
     totalRows: sourceRows.length,
     totalCommitRows: commitRows.length,
     hasShortage: type === 'salesOrders' && (hasShortage || shortageRows.length > 0),

@@ -146,6 +146,9 @@ const expenseVoucherTable=document.getElementById('expenseVoucherTable');
 const fundTransferTable=document.getElementById('fundTransferTable');
 
 const importDataType=document.getElementById('importDataType');
+const importDataMode=document.getElementById('importDataMode');
+const importModeLabel=document.getElementById('importModeLabel');
+const importModeHelp=document.getElementById('importModeHelp');
 const importExcelFile=document.getElementById('importExcelFile');
 const previewImportButton=document.getElementById('previewImportButton');
 const downloadImportTemplateButton=document.getElementById('downloadImportTemplateButton');

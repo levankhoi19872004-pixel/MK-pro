@@ -34,6 +34,7 @@ const ImportSessionSchema = new mongoose.Schema({
 
   fileName: { type: String, default: '', trim: true },
   fileNames: { type: [String], default: [] },
+  importMode: { type: String, enum: ['create', 'update'], default: 'create' },
 
   status: {
     type: String,

@@ -1590,6 +1590,12 @@
               <option value="promotionGroupRules">Import điều kiện nhóm KM</option>
             </select>
           </label>
+          <label id="importModeLabel">Chế độ import
+            <select id="importDataMode">
+              <option value="create">Import thông thường</option>
+              <option value="update">Cập nhật an toàn dữ liệu hiện có</option>
+            </select>
+          </label>
           <label>File Excel
             <input id="importExcelFile" type="file" accept=".xlsx,.xls" multiple />
           </label>
@@ -1605,6 +1611,7 @@
           <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file và bấm <b>Import ngay</b>.</p>
           <p>Nếu file Excel có tên cột riêng, dùng khu vực <b>Tự tạo mẫu import</b> để map cột Excel về trường dữ liệu.</p>
           <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
+          <p id="importModeHelp"><b>Cập nhật an toàn</b> chỉ áp dụng cho Sản phẩm, Khách hàng và Tài khoản: ô trống/cột thiếu giữ nguyên dữ liệu cũ; chỉ field có giá trị mới và khác dữ liệu Mongo mới được cập nhật.</p>
         </div>
 
         <div class="custom-import-designer">
@@ -1900,7 +1907,7 @@
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
   <script src="/js/app/00-dashboard.js?v=home-dashboard-v3"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
-  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase35-state-split-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase44-selective-update-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=phase42-fund-customer-v1"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
@@ -1919,7 +1926,7 @@
   <script src="/js/app/admin/08a-reports.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
-  <script src="/js/app/admin/08d-import-excel.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.js?v=phase44-selective-update-v1"></script>
   <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08f-vat-export.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>

@@ -19,6 +19,7 @@ function getRowDocumentCode(row = {}) {
     row.code ||
     row.refCode ||
     row.invoiceCode ||
+    row.username ||
     ''
   );
 }
@@ -117,7 +118,7 @@ async function insertRowsInBatches(docs = []) {
   }
 }
 
-async function createUploadedSession({ type, fileName = '', fileNames = [], createdBy = '' }) {
+async function createUploadedSession({ type, fileName = '', fileNames = [], createdBy = '', importMode = 'create' }) {
   const id = makeId('IMP');
 
   return ImportSession.create({
@@ -126,6 +127,7 @@ async function createUploadedSession({ type, fileName = '', fileNames = [], crea
     type,
     fileName,
     fileNames,
+    importMode: importMode === 'update' ? 'update' : 'create',
     status: 'uploaded',
     createdBy,
     createdAt: new Date(),

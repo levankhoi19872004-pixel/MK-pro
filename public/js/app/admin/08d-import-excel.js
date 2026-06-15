@@ -1,6 +1,37 @@
 'use strict';
 
 // Import dữ liệu Excel
+const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(['products','customers','users']);
+function getSelectedImportMode(){
+  const type=importDataType?importDataType.value:'';
+  if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return 'create';
+  return importDataMode&&importDataMode.value==='update'?'update':'create';
+}
+function syncImportModeAvailability(){
+  const supported=SELECTIVE_UPDATE_IMPORT_TYPES.has(importDataType?importDataType.value:'');
+  if(importModeLabel)importModeLabel.hidden=!supported;
+  if(importModeHelp)importModeHelp.hidden=!supported;
+  if(importDataMode){
+    importDataMode.disabled=!supported;
+    if(!supported)importDataMode.value='create';
+  }
+}
+function resetImportPreviewForModeChange(){
+  importPreviewRows=[];
+  importPreviewSessionId='';
+  importSelectedRowKeySet=new Set();
+  if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="5">Chọn file rồi bấm xem trước.</td></tr>';
+  if(commitImportButton){
+    commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);
+    commitImportButton.textContent='Xem trước dữ liệu import';
+  }
+  resetImportPreviewMessage();
+}
+function formatSelectiveUpdateChanges(row){
+  const changes=Array.isArray(row&&row.changes)?row.changes:[];
+  if(!changes.length)return '';
+  return changes.map(change=>`${change.label||change.field}: ${change.oldValue??''} → ${change.newValue??''}`).join(' | ');
+}
 
 function getCurrentImportFields(){
   return customImportFields || [];
@@ -67,6 +98,8 @@ function loadSelectedCustomTemplateToEditor(){
   if(!template){showMessage(importDataMessage,'Bạn chưa chọn mẫu tự tạo',true);return;}
   if(customImportTemplateName)customImportTemplateName.value=template.name||'';
   if(importDataType)importDataType.value=template.type||importDataType.value;
+  syncImportModeAvailability();
+  resetImportPreviewForModeChange();
   loadImportFieldOptions().then(()=>renderCustomImportMapping(template.fields||[]));
 }
 async function saveCustomImportTemplate(){
@@ -136,7 +169,7 @@ function resetImportPreviewMessage(){
   if(importDataMessage)showMessage(importDataMessage,'');
 }
 function getImportRowSelectKey(row,index){
-  const code=String(row?.documentCode||row?.orderCode||row?.code||'').trim();
+  const code=String(row?.documentCode||row?.orderCode||row?.code||row?.username||'').trim();
   return code || `ROW_${index}`;
 }
 function initImportSelectedRows(rows=[]){
@@ -178,8 +211,10 @@ function importRowToText(row){
     const sourceFile=row.sourceFile||row.fileName||'';
     return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | File: ${sourceFile||'-'} | Trạng thái: ${status}${shortage}`;
   }
-  const skip=['valid','errors','rowNo','raw','__importRows','__adjustedRows','lineDetails','shortageReport','detailErrors','password'];
-  return Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??''}`).join(' | ');
+  const skip=['valid','errors','rowNo','raw','__importRows','__adjustedRows','lineDetails','shortageReport','detailErrors','password','changes','changeCount','importMode','canImport','action','statusText'];
+  const base=Object.keys(row).filter(k=>!skip.includes(k)).map(k=>`${k}: ${row[k]??''}`).join(' | ');
+  const changes=formatSelectiveUpdateChanges(row);
+  return [base,changes?`Thay đổi: ${changes}`:''].filter(Boolean).join(' | ');
 }
 function getImportRowMainFields(row){
   if(row&&row.previewMode==='order'){
@@ -494,6 +529,7 @@ function renderImportPreviewModal(result){
           ${renderImportOrderDetailHtml(row)}
         ` : `
           <div class="import-preview-grid">${fieldHtml}</div>
+          ${Array.isArray(row.changes)&&row.changes.length?`<div class="import-preview-change"><b>Thay đổi:</b> ${escapeImportHtml(formatSelectiveUpdateChanges(row))}</div>`:''}
           ${errors.length?`<div class="import-preview-error"><b>Lỗi:</b> ${escapeImportHtml(errors.join('; '))}</div>`:''}
         `}
       </article>`;
@@ -601,11 +637,14 @@ function renderImportPreview(result){
   initImportSelectedRows(importPreviewRows);
   const total=importPreviewRows.length;
   const valid=importPreviewRows.filter(r=>r&&r.valid).length;
+  const selectable=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length;
+  const unchanged=importPreviewRows.filter(r=>r&&r.action==='no_change').length;
   const invalid=Math.max(0,total-valid);
   if(importPreviewSummary){
     const fileCount=Number(result.totalFiles||0);
     const fileText=fileCount>1?`<span>Số file: <strong>${fileCount}</strong></span>`:'';
-    importPreviewSummary.innerHTML=`${fileText}<span>Tổng dòng/đơn: <strong>${total}</strong></span><span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`;
+    const updateText=getSelectedImportMode()==='update'?`<span>Có thay đổi: <strong>${selectable}</strong></span><span>Giữ nguyên: <strong>${unchanged}</strong></span>`:'';
+    importPreviewSummary.innerHTML=`${fileText}<span>Tổng dòng/đơn: <strong>${total}</strong></span>${updateText}<span>Hợp lệ: <strong>${valid}</strong></span><span>Lỗi: <strong>${invalid}</strong></span>`;
   }
   if(!importPreviewRows.length){
     if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Không có dữ liệu import.</td></tr>';
@@ -644,7 +683,7 @@ function renderImportPreview(result){
   }
   // Bỏ cửa sổ popup preview: chỉ hiển thị báo cáo gọn ngay trên màn import.
   renderImportShortageActions(importPreviewRows);
-  if(commitImportButton){commitImportButton.disabled=valid<=0;commitImportButton.textContent='Import các đơn đã chọn';}
+  if(commitImportButton){commitImportButton.disabled=selectable<=0;commitImportButton.textContent=getSelectedImportMode()==='update'?'Cập nhật các dòng đã chọn':'Import các dòng đã chọn';}
 }
 function sleepImportPreview(ms){
   return new Promise(resolve=>setTimeout(resolve,ms));
@@ -673,6 +712,7 @@ async function waitImportPreviewSession(sessionId){
         sessionId:json.sessionId||sessionId,
         importSessionId:json.importSessionId||json.sessionId||sessionId,
         status,
+        importMode:json.importMode||getSelectedImportMode(),
         rows:json.previewRows||[],
         total:json.totalRows||0,
         valid:json.validRows||0,
@@ -744,9 +784,12 @@ async function previewImportExcel(){
     await ensureImportUsersCache();
     renderImportPreview(json);
     const validNow=importPreviewRows.filter(r=>r&&r.valid).length;
+    const selectableNow=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length;
+    const unchangedNow=importPreviewRows.filter(r=>r&&r.action==='no_change').length;
     const invalidNow=Math.max(0,importPreviewRows.length-validNow);
     const fileCount=Array.from(importExcelFile.files||[]).length;
-    showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${validNow} dòng/đơn hợp lệ, ${invalidNow} lỗi. Hãy tick chọn đơn rồi bấm Import các đơn đã chọn.`);
+    const modeText=getSelectedImportMode()==='update'?`${selectableNow} dòng có thay đổi, ${unchangedNow} dòng giữ nguyên`:`${validNow} dòng/đơn hợp lệ`;
+    showMessage(importDataMessage,`Đã đọc ${fileCount} file: ${modeText}, ${invalidNow} lỗi. Hãy chọn dòng rồi xác nhận.`);
   }catch(err){
     importPreviewRows=[];
     if(commitImportButton)commitImportButton.disabled=true;
@@ -762,6 +805,7 @@ async function previewImportExcelSilent(){
 
   const formData=new FormData();
   formData.append('type',importDataType.value);
+  formData.append('importMode',getSelectedImportMode());
 
   if(customImportTemplateSelect&&customImportTemplateSelect.value){
     formData.append('templateId',customImportTemplateSelect.value);
@@ -827,8 +871,9 @@ async function commitImportExcel(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         type:importDataType.value,
+        importMode:getSelectedImportMode(),
         importSessionId:importPreviewSessionId,
-        selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||'').trim()).filter(Boolean),
+        selectedOrderCodes:selectedRows.map(r=>String(r.documentCode||r.orderCode||r.code||r.username||'').trim()).filter(Boolean),
         shortageMode:importShortageActionMode||'cut'
       })
     });
@@ -901,5 +946,7 @@ if(saveCustomImportTemplateButton)saveCustomImportTemplateButton.addEventListene
 if(loadCustomImportTemplateButton)loadCustomImportTemplateButton.addEventListener('click',loadSelectedCustomTemplateToEditor);
 if(downloadCustomImportTemplateButton)downloadCustomImportTemplateButton.addEventListener('click',downloadCustomImportTemplate);
 if(deleteCustomImportTemplateButton)deleteCustomImportTemplateButton.addEventListener('click',deleteCustomImportTemplate);
-if(importDataType)importDataType.addEventListener('change',async()=>{importPreviewRows=[];if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr>';if(commitImportButton){commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);commitImportButton.textContent='Xem trước đơn import';}resetImportPreviewMessage();await loadImportFieldOptions();await loadCustomImportTemplates();});
+if(importDataType)importDataType.addEventListener('change',async()=>{syncImportModeAvailability();resetImportPreviewForModeChange();await loadImportFieldOptions();await loadCustomImportTemplates();});
+if(importDataMode)importDataMode.addEventListener('change',resetImportPreviewForModeChange);
+syncImportModeAvailability();
 // PHASE35_IMPORT_EVENT_OWNERSHIP_END
