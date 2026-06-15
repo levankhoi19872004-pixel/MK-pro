@@ -6,6 +6,7 @@ const ArLedger = require('../models/ArLedger');
 const dateUtil = require('../utils/date.util');
 const { toNumber } = require('../utils/common.util');
 const { normalizeDebtAmount, hasOpenDebt } = require('../constants/finance.constants');
+const { arEntryBalanceEffect } = require('../utils/arLedger.util');
 
 const PENDING_STATUSES = ['submitted', 'under_review'];
 const INACTIVE_AR_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'];
@@ -319,7 +320,7 @@ async function getOrderDebt(orderCode, options = {}) {
     loadPendingRows([key], options)
   ]);
   const matching = rows.filter((row) => rowMatchesOrder(row, key));
-  const officialDebt = normalizeDebtAmount(matching.reduce((sum, row) => sum + toNumber(row.debit) - toNumber(row.credit), 0));
+  const officialDebt = normalizeDebtAmount(matching.reduce((sum, row) => sum + arEntryBalanceEffect(row), 0));
   const pendingAmount = pendingForOrder(pendingRows, key);
   return {
     officialDebt,
@@ -351,6 +352,17 @@ async function checkAvailableDebt(input = {}) {
     return { ok: false, status: 400, message: 'Dòng phân bổ thiếu đơn nợ hoặc số tiền' };
   }
 
+  const seenKeys = new Set();
+  const duplicateKey = normalized.reduce((found, row) => {
+    if (found) return found;
+    if (seenKeys.has(row.key)) return row.key;
+    seenKeys.add(row.key);
+    return '';
+  }, '');
+  if (duplicateKey) {
+    return { ok: false, status: 400, message: `Đơn nợ ${duplicateKey} bị phân bổ trùng` };
+  }
+
   const keys = normalized.map((row) => row.key);
   const options = {
     session: input.session,
@@ -379,11 +391,22 @@ async function checkAvailableDebt(input = {}) {
       return { ok: false, status: 403, message: `Bạn không được thu công nợ của đơn ${row.key}` };
     }
 
-    const officialDebt = normalizeDebtAmount(matching.reduce((sum, ledger) => sum + toNumber(ledger.debit) - toNumber(ledger.credit), 0));
+    const officialDebt = normalizeDebtAmount(matching.reduce((sum, ledger) => sum + arEntryBalanceEffect(ledger), 0));
     const pendingAmount = pendingForOrder(pendingRows, row.key);
     const availableDebt = Math.max(0, normalizeDebtAmount(officialDebt - pendingAmount));
     if (row.allocatedAmount > availableDebt + 0.0001) {
-      return { ok: false, status: 409, message: `Số tiền thu vượt công nợ còn có thể thu của đơn ${row.key}` };
+      return {
+        ok: false,
+        status: 409,
+        message: `Số tiền thu vượt công nợ còn có thể thu của đơn ${row.key}`,
+        detail: {
+          orderCode: row.key,
+          requestedAmount: row.allocatedAmount,
+          officialDebt,
+          pendingAmount,
+          availableDebt
+        }
+      };
     }
 
     const assignment = assignmentFromRow(source);
@@ -433,6 +456,7 @@ module.exports = {
     orderRefCondition,
     assignmentFromRow,
     scopeMatches,
-    pendingForOrder
+    pendingForOrder,
+    arEntryBalanceEffect
   }
 };

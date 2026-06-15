@@ -26,16 +26,56 @@ function entryMatchesAnyOrderKey(entry = {}, keys = []) {
   return orderKeysFrom(entry).some((key) => keySet.has(key));
 }
 
+function isSaleLikeArEntry(entry = {}) {
+  const type = String(entry.type || '').trim().toLowerCase();
+  return /sale|external_debt/.test(type);
+}
+
+function firstPositiveMoney(...values) {
+  for (const value of values) {
+    const number = toNumber(value);
+    if (number > 0) return number;
+  }
+  return 0;
+}
+
+/**
+ * Chuẩn hóa các dòng AR legacy. Một số dữ liệu cũ chỉ có `amount` mà chưa có
+ * `debit`/`credit`. Quy tắc này phải giống báo cáo công nợ:
+ * - SALE/EXTERNAL_DEBT: amount là debit fallback.
+ * - RECEIPT/RETURN/BONUS/...: amount là credit fallback.
+ */
+function effectiveArDebit(entry = {}) {
+  const explicitDebit = firstPositiveMoney(entry.debit, entry.arDebit);
+  if (explicitDebit > 0) return explicitDebit;
+  return isSaleLikeArEntry(entry) ? Math.max(0, toNumber(entry.amount)) : 0;
+}
+
+function effectiveArCredit(entry = {}) {
+  const explicitCredit = firstPositiveMoney(entry.credit, entry.arCredit);
+  if (explicitCredit > 0) return explicitCredit;
+  return isSaleLikeArEntry(entry) ? 0 : Math.max(0, toNumber(entry.amount));
+}
+
+function arEntryBalanceEffect(entry = {}) {
+  return effectiveArDebit(entry) - effectiveArCredit(entry);
+}
+
 function isActiveArEntry(entry = {}) {
-  const status = String(entry.status || '').toLowerCase();
-  return !['void', 'cancelled', 'canceled', 'deleted', 'removed', 'draft'].includes(status);
+  const status = String(entry.status || '').trim().toLowerCase();
+  const type = String(entry.type || '').trim().toLowerCase();
+  const refType = String(entry.refType || '').trim().toLowerCase();
+  if (entry.reversed === true) return false;
+  if (refType === 'ar_ledger_reversal') return false;
+  if (['ar_reversal', 'reversal', 'ar_void'].includes(type)) return false;
+  return !['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed', 'removed', 'draft'].includes(status);
 }
 
 function arBalance(entries = [], keys = []) {
   return normalizeDebtAmount((Array.isArray(entries) ? entries : [])
     .filter(isActiveArEntry)
     .filter((entry) => entryMatchesAnyOrderKey(entry, keys))
-    .reduce((sum, entry) => sum + toNumber(entry.debit) - toNumber(entry.credit), 0));
+    .reduce((sum, entry) => sum + arEntryBalanceEffect(entry), 0));
 }
 
 function normalizeAllocations(value) {
@@ -102,6 +142,10 @@ module.exports = {
   normalizeArKey,
   orderKeysFrom,
   entryMatchesAnyOrderKey,
+  isSaleLikeArEntry,
+  effectiveArDebit,
+  effectiveArCredit,
+  arEntryBalanceEffect,
   isActiveArEntry,
   arBalance,
   normalizeAllocations,
