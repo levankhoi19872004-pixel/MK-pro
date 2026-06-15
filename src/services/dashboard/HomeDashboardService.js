@@ -437,7 +437,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
   ] = await Promise.all([
     timed('activeStaff', () => listActiveStaff()),
     timed('targets', () => SalesTargetService.listByPeriod(range.period)),
-    timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo)),
+    timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo, { requireAccountingConfirmed: false })),
     timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today, { requireAccountingConfirmed: false })),
     timed('monthlyReturns', () => SalesDashboardQuery.aggregateReturns(range.dateFrom, range.dateTo)),
     timed('currentDebt', () => DebtDashboardQuery.aggregateCurrentDebt()),

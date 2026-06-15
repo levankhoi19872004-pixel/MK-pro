@@ -1,0 +1,21 @@
+{
+  "phase": 53,
+  "name": "dashboard-active-month-sales-fix",
+  "summary": "Dashboard monthly sales now includes every active sales order in the selected month while keeping catalog sale-price valuation.",
+  "changedFiles": [
+    "src/services/dashboard/HomeDashboardService.js",
+    "public/js/app/00-dashboard.js",
+    "public/index.html",
+    "test/home-dashboard.test.js",
+    "PHASE53_DASHBOARD_ACTIVE_MONTH_SALES_FIX_REPORT.md",
+    "PHASE53_DEPLOYMENT_CHECKLIST.md"
+  ],
+  "databaseMigrationRequired": false,
+  "apiBreakingChange": false,
+  "tests": {
+    "targetedDashboard": "22/22 pass",
+    "fullSuite": "522/522 pass",
+    "openapiOperations": 256,
+    "npmAuditHigh": 0
+  }
+}

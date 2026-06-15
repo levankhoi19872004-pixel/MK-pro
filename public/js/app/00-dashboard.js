@@ -114,7 +114,7 @@
     elements.debtTotal.textContent=formatMoney(summary.debtAmount);
     elements.todaySalesTotal.textContent=formatMoney(summary.todaySalesAmount);
     elements.achievementText.textContent=`Đạt ${formatPercent(summary.achievementRate)}`;
-    elements.orderCount.textContent=`${Number(summary.orderCount||0)} đơn đã xác nhận · theo giá bán SP`;
+    elements.orderCount.textContent=`${Number(summary.orderCount||0)} đơn phát sinh hợp lệ · theo giá bán SP`;
     elements.todayOrderCount.textContent=`${Number(summary.todayOrderCount||0)} đơn phát sinh hôm nay`;
   }
 

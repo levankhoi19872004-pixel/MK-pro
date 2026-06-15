@@ -240,6 +240,15 @@ test('dashboard return value uses current product catalog salePrice and return q
   assert.doesNotMatch(serialized, /\"input\":\"\$returnAmount\"|\"input\":\"\$debtReduction\"/);
 });
 
+
+
+test('home dashboard monthly sales includes every active order instead of waiting for accounting confirmation', () => {
+  const homeQuery = read('src/services/dashboard/HomeDashboardService.js');
+  const monthlyCall = homeQuery.match(/timed\('monthlySales'[\s\S]*?\),\n\s*timed\('todaySales'/)?.[0] || '';
+
+  assert.ok(monthlyCall);
+  assert.match(monthlyCall, /aggregateSales\(range\.dateFrom, range\.dateTo, \{ requireAccountingConfirmed: false \}\)/);
+});
 test('dashboard today sales includes active orders before accounting confirmation', () => {
   const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
   const confirmedPipeline = JSON.stringify(
@@ -257,9 +266,10 @@ test('dashboard UI explains catalog-price revenue and today operational orders',
   const html = read('public/index.html');
   const client = read('public/js/app/00-dashboard.js');
 
-  assert.match(html, /đều tính theo giá bán đang lưu trên sản phẩm/);
-  assert.match(html, /phase52-dashboard-catalog-price-v1/);
+  assert.match(html, /toàn bộ đơn bán hợp lệ/);
+  assert.match(html, /phase53-dashboard-active-month-sales-v1/);
   assert.match(client, /đơn phát sinh hôm nay/);
+  assert.match(client, /đơn phát sinh hợp lệ/);
   assert.match(client, /theo giá bán SP/);
 });
 
