@@ -21,6 +21,33 @@ function canonicalFundStaffLabel(row = {}) {
   return canonicalDeliveryStaffLabel(row) || canonicalSalesStaffLabel(row);
 }
 
+function canonicalCustomerLabel(row = {}) {
+  const code = row.customerCode || row.customerId || '';
+  const name = row.customerName || row.name || '';
+  return [code, name].filter(Boolean).join(' - ');
+}
+
+function isDebtCollectionFundEntry(row = {}) {
+  const source = String(
+    row.sourceType ||
+    row.refType ||
+    row.referenceType ||
+    ''
+  ).trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return source === 'debtcollection';
+}
+
+function canonicalFundCounterpartyLabel(row = {}) {
+  const customerLabel = canonicalCustomerLabel(row);
+  const staffLabel = canonicalFundStaffLabel(row);
+
+  // Thu công nợ là giao dịch của khách hàng. Vẫn giữ thông tin người thu
+  // trong fundLedger để audit, nhưng Sổ quỹ phải ưu tiên khách hàng.
+  if (isDebtCollectionFundEntry(row)) return customerLabel || staffLabel;
+
+  return staffLabel || customerLabel;
+}
+
 function legacyCustomerStaffLabel(row = {}) {
   const code = row.legacyStaffCode || '';
   const name = row.legacyStaffName || '';

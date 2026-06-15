@@ -108,8 +108,8 @@ async function loadFundLedger(){
       fundLedgerTable.innerHTML=rows.length?rows.map(e=>{
         const isIn=String(e.direction)==='in';
         const key=e.id||e.code||`${e.date}-${e.sourceCode}-${e.amount}`;
-        const staffLabel=canonicalFundStaffLabel(e)||[e.customerCode,e.customerName].filter(Boolean).join(' ');
-        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml(staffLabel)}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
+        const counterpartyLabel=canonicalFundCounterpartyLabel(e);
+        return `<tr><td>${escapeHtml(e.date||'')}</td><td><strong>${escapeHtml(e.code||'')}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):''}</td><td class="price cash-out">${!isIn?money(e.amount):''}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||'')}</td><td>${escapeHtml(counterpartyLabel)}</td><td>${escapeHtml(e.note||'')}</td></tr>`;
       }).join(''):'<tr><td colspan="9">Chưa có phát sinh fundLedgers.</td></tr>';
     }
   }catch(err){
