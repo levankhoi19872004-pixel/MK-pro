@@ -483,7 +483,14 @@ function rangeFilter(dateFrom, dateTo) {
 }
 
 
-const SALES_ORDER_SEARCH_STAFF_CODE_FIELDS = ['salesStaffCode'];
+const SALES_ORDER_SEARCH_STAFF_CODE_FIELDS = [
+  'salesStaffCode',
+  'salesPersonCode',
+  'salesmanCode',
+  'nvbhCode',
+  'maNVBH',
+  'salesStaff.code'
+];
 
 function escapeRegex(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -513,11 +520,20 @@ function buildExactCodeFieldClauses(field, code) {
   ];
 }
 
-function buildStrictSalesStaffCodeClause(code) {
+function buildStrictSalesStaffCodeClause(code, options = {}) {
   const normalized = normalizeSalesOrderStaffCode(code);
   if (!normalized) return null;
-  // P1.3: mã NVBH canonical đã được backfill thành string.
-  return { salesStaffCode: normalized };
+
+  // Fast path production: canonical field uses the compound Mongo index.
+  if (!options.includeAliases) return { salesStaffCode: normalized };
+
+  // Compatibility path: old DMS/import rows may still store NVBH in an alias.
+  // All clauses are pushed into Mongo BEFORE skip/limit, so search is global
+  // across the full date range instead of filtering only the first 50 rows.
+  const clauses = SALES_ORDER_SEARCH_STAFF_CODE_FIELDS.flatMap((field) =>
+    buildExactCodeFieldClauses(field, normalized)
+  );
+  return { $or: clauses };
 }
 
 function readSalesStaffCodeCandidates(order = {}) {
@@ -586,9 +602,14 @@ function buildOrderSearchFilter(query = {}) {
   );
 
   if (strictSalesStaffCode) {
-    // Search bán hàng viết lại: mã NVBH là điều kiện AND bắt buộc, exact theo mã.
-    // Không OR với tên, username, id, _id. Không để text search nới rộng ra NVBH khác.
-    pushAnd(and, buildStrictSalesStaffCodeClause(strictSalesStaffCode));
+    // Mã NVBH là điều kiện AND bắt buộc. Alias chỉ được bật có chủ đích để đọc
+    // đơn lịch sử; không OR với tên, username, id hoặc _id.
+    const includeStaffAliases = ['1', 'true', 'yes'].includes(
+      String(guardedQuery.includeStaffAliases || '').trim().toLowerCase()
+    );
+    pushAnd(and, buildStrictSalesStaffCodeClause(strictSalesStaffCode, {
+      includeAliases: includeStaffAliases
+    }));
   } else {
     const staffTextFilter = String(
       guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || ''

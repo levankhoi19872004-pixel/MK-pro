@@ -31,7 +31,7 @@ test('new sales item price accepts decimal values', () => {
   );
 });
 
-test('sales order script cache version is bumped for decimal-price patch', () => {
+test('sales order script remains cache-busted after later patches', () => {
   const html = read('public/index.html');
-  assert.match(html, /05-sales-orders\.js\?v=phase28-dms-decimal-price-input-v1/);
+  assert.match(html, /05-sales-orders\.js\?v=phase49-sales-order-global-search-v1/);
 });

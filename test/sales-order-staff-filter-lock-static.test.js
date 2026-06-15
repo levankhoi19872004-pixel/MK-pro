@@ -30,23 +30,36 @@ test('sales orders UI sends staff name only when staff code is absent', () => {
   );
 });
 
-test('orderService locks sales staff code filter to canonical indexed field', () => {
+test('order search applies exact NVBH aliases in Mongo before skip/limit', () => {
   const source = read('src/services/orderLegacy.service.js');
-  const match = source.match(/const staffCodeFilter = extractStaffCodeParam\([\s\S]*?const deliveryStaffCodeFilter = extractStaffCodeParam/);
-  assert.ok(match, 'listOrders staff block must exist');
 
-  const block = match[0];
-  assert.match(block, /filter\.salesStaffCode = staffCodeFilter/);
-  assert.doesNotMatch(block, /salesPersonCode: \{ \$in:/);
-  assert.doesNotMatch(block, /salesmanCode: \{ \$in:/);
-  assert.doesNotMatch(block, /nvbhCode: \{ \$in:/);
-  assert.doesNotMatch(block, /maNVBH: \{ \$in:/);
-  assert.doesNotMatch(block, /'salesStaff\.code': \{ \$in:/);
+  assert.match(source, /const SALES_ORDER_SEARCH_STAFF_CODE_FIELDS = \[[\s\S]*?'salesStaffCode'[\s\S]*?'salesPersonCode'[\s\S]*?'salesmanCode'[\s\S]*?'nvbhCode'[\s\S]*?'maNVBH'[\s\S]*?'salesStaff\.code'[\s\S]*?\];/);
+  assert.match(source, /guardedQuery\.includeStaffAliases/);
+  assert.match(source, /buildStrictSalesStaffCodeClause\(strictSalesStaffCode, \{[\s\S]*?includeAliases: includeStaffAliases/);
+  assert.match(source, /SALES_ORDER_SEARCH_STAFF_CODE_FIELDS\.flatMap/);
+  assert.match(source, /buildExactCodeFieldClauses\(field, normalized\)/);
 
-  const codeBranch = block.match(/if \(staffCodeFilter\) \{[\s\S]*?\n\s*\} else if \(staffTextFilter\)/);
-  assert.ok(codeBranch, 'staffCodeFilter branch must be explicit');
-  assert.doesNotMatch(codeBranch[0], /staffRx/);
-  assert.doesNotMatch(codeBranch[0], /salesStaffName: staffRx/);
+  const searchFn = source.match(/async function searchOrders\(query = \{\}\) \{[\s\S]*?\n\}/);
+  assert.ok(searchFn, 'searchOrders must exist');
+  assert.match(searchFn[0], /buildOrderSearchFilter\(query\)/);
+  assert.match(searchFn[0], /skip: page\.skip/);
+  assert.match(searchFn[0], /limit: page\.limit/);
+  assert.doesNotMatch(searchFn[0], /filter\([^)]*orderMatchesStrictSalesStaffCode/);
+});
+
+test('sales order schema declares every NVBH query path under strictQuery', () => {
+  const source = read('src/models/SalesOrder.js');
+
+  for (const field of [
+    'salesStaffCode',
+    'salesPersonCode',
+    'salesmanCode',
+    'nvbhCode',
+    'maNVBH',
+    'salesStaff'
+  ]) {
+    assert.match(source, new RegExp(`\\b${field}\\s*:`), `SalesOrder schema must declare ${field}`);
+  }
 });
 
 test('sales order list projection and client mapping preserve NVBH aliases', () => {
@@ -65,6 +78,13 @@ test('sales order list projection and client mapping preserve NVBH aliases', () 
     assert.match(source, new RegExp(`${field}: 1`), `ORDER_LIST_PROJECTION must include ${field}`);
   }
 
-  assert.match(source, /salesStaffCode: order\.salesStaffCode \|\| order\.salesPersonCode \|\| order\.salesmanCode \|\| order\.nvbhCode \|\| order\.maNVBH \|\| ''/);
-  assert.match(source, /salesStaffName: order\.salesStaffName \|\| order\.salesPersonName \|\| order\.salesmanName \|\| order\.nvbhName \|\| order\.maNVBHName \|\| ''/);
+  assert.match(source, /function toVisibleSalesStaffCode\(order = \{\}\)/);
+  assert.match(source, /salesStaffCode: toVisibleSalesStaffCode\(order\)/);
+  assert.match(source, /salesStaffName: toVisibleSalesStaffName\(order\)/);
+});
+
+test('browser guard cannot disable pagination after one mismatched page', () => {
+  const source = read('public/js/app/05-sales-orders.js');
+  assert.match(source, /salesOrderHasMore=Boolean\(json\.hasMore\);/);
+  assert.doesNotMatch(source, /salesOrderHasMore=Boolean\(json\.hasMore\)\s*&&\s*removedByClientGuard===0/);
 });

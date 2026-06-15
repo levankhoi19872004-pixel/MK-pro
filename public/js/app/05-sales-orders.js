@@ -1218,7 +1218,10 @@ async function loadSalesOrders({page=1, append=false} = {}){
 
     salesOrderCurrentPage=Number(json.page||page||1);
     salesOrderTotalRows=Number(json.total||orders.length||0);
-    salesOrderHasMore=Boolean(json.hasMore) && removedByClientGuard===0;
+    // Không khóa pagination chỉ vì client guard loại một số dòng. Backend mới lọc
+    // NVBH trước skip/limit; nhánh này vẫn cho phép tải trang kế tiếp khi server cũ
+    // hoặc dữ liệu legacy còn trả về dòng lệch mã.
+    salesOrderHasMore=Boolean(json.hasMore);
 
     const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
     const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
