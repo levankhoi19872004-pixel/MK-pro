@@ -2,6 +2,8 @@
 
 // Import dữ liệu Excel
 const SELECTIVE_UPDATE_IMPORT_TYPES=new Set(['products','customers','users']);
+const IMPORT_SESSION_ROWS_PAGE_SIZE=500;
+const IMPORT_SESSION_ROWS_MAX=20000;
 function getSelectedImportMode(){
   const type=importDataType?importDataType.value:'';
   if(!SELECTIVE_UPDATE_IMPORT_TYPES.has(type))return 'create';
@@ -635,8 +637,10 @@ function renderImportPreview(result){
   }
   importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
   initImportSelectedRows(importPreviewRows);
-  const total=importPreviewRows.length;
-  const valid=importPreviewRows.filter(r=>r&&r.valid).length;
+  const total=Math.max(importPreviewRows.length,Number(result.total||result.totalRows||0));
+  const valid=importPreviewRows.length===total
+    ? importPreviewRows.filter(r=>r&&r.valid).length
+    : Number(result.valid||result.validRows||0);
   const selectable=importPreviewRows.filter(r=>r&&r.valid&&r.canImport!==false).length;
   const unchanged=importPreviewRows.filter(r=>r&&r.action==='no_change').length;
   const invalid=Math.max(0,total-valid);
@@ -689,6 +693,32 @@ function sleepImportPreview(ms){
   return new Promise(resolve=>setTimeout(resolve,ms));
 }
 
+async function loadAllImportSessionRows(sessionId,totalRows){
+  const expected=Math.max(0,Number(totalRows||0));
+  if(!expected)return[];
+  if(expected>IMPORT_SESSION_ROWS_MAX){
+    throw new Error(`File có ${formatNumber(expected)} dòng, vượt giới hạn xem trước ${formatNumber(IMPORT_SESSION_ROWS_MAX)} dòng. Vui lòng tách file để kiểm tra an toàn trước khi cập nhật.`);
+  }
+
+  const rows=[];
+  let offset=0;
+  while(offset<expected){
+    const res=await fetch(`/api/import/sessions/${encodeURIComponent(sessionId)}/rows?offset=${offset}&limit=${IMPORT_SESSION_ROWS_PAGE_SIZE}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.error||json.message||'Không tải được toàn bộ dòng import');
+    const pageRows=Array.isArray(json.rows)?json.rows:[];
+    rows.push(...pageRows);
+    offset+=pageRows.length;
+    if(!json.hasMore)break;
+    if(!pageRows.length)throw new Error('Phiên import bị thiếu dữ liệu dòng. Vui lòng tải lại file.');
+  }
+
+  if(rows.length!==expected){
+    throw new Error(`Phiên import đọc thiếu dòng: Mongo đã ghi nhận ${formatNumber(expected)} nhưng chỉ tải được ${formatNumber(rows.length)}. Hệ thống đã dừng để tránh cập nhật thiếu.`);
+  }
+  return rows;
+}
+
 async function waitImportPreviewSession(sessionId){
   if(!sessionId)throw new Error('Thiếu mã phiên import');
 
@@ -706,6 +736,9 @@ async function waitImportPreviewSession(sessionId){
     const status=String(json.status||'').toLowerCase();
 
     if(status==='preview_ready'){
+      const totalRows=Math.max(0,Number(json.totalRows||0));
+      const rows=await loadAllImportSessionRows(json.sessionId||sessionId,totalRows);
+      if(importDataMode&&json.importMode==='update')importDataMode.value='update';
       return {
         ok:true,
         source:'import-session-status',
@@ -713,8 +746,8 @@ async function waitImportPreviewSession(sessionId){
         importSessionId:json.importSessionId||json.sessionId||sessionId,
         status,
         importMode:json.importMode||getSelectedImportMode(),
-        rows:json.previewRows||[],
-        total:json.totalRows||0,
+        rows,
+        total:totalRows,
         valid:json.validRows||0,
         invalid:json.errorRows||0,
         importErrors:json.importErrors||[],

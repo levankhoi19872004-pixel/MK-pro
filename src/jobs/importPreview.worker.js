@@ -26,7 +26,8 @@ async function main() {
       sessionId: payload.sessionId,
       type: payload.type,
       files: payload.files || [],
-      userName: payload.userName || ''
+      userName: payload.userName || '',
+      importMode: payload.importMode || 'create'
     });
 
     await cleanupImportFiles(payload.files || []);

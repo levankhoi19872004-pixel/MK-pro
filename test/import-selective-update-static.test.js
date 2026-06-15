@@ -19,10 +19,13 @@ test('UI có chế độ cập nhật an toàn và gửi importMode qua preview'
 
 test('import session lưu mode và worker truyền mode tới preview', () => {
   const model = read('src/models/ImportSession.js');
+  const worker = read('src/jobs/importPreview.worker.js');
   const runner = read('src/jobs/importPreviewRunner.js');
   const sessionService = read('src/services/importSessionService.js');
   assert.match(model, /importMode: \{ type: String, enum: \['create', 'update'\]/);
-  assert.match(runner, /buildPreviewFromRows\(\{ type, rows, userName, importMode \}\)/);
+  assert.match(worker, /importMode: payload\.importMode \|\| 'create'/);
+  assert.match(runner, /const effectiveImportMode = parsingSession\?\.importMode === 'update'/);
+  assert.match(runner, /importMode: effectiveImportMode/);
   assert.match(sessionService, /importMode: importMode === 'update' \? 'update' : 'create'/);
 });
 

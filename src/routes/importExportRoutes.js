@@ -31,6 +31,7 @@ importRouter.post(
 // Direct import đã bị khóa, không được parse file upload.
 importRouter.post('/direct', controller.directImport);
 
+importRouter.get('/sessions/:sessionId/rows', controller.sessionRows);
 importRouter.get('/sessions/:sessionId', controller.sessionStatus);
 importRouter.post('/commit', controller.commitImport);
 importRouter.get('/logs', controller.importLogs);

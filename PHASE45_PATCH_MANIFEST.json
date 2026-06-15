@@ -1,0 +1,19 @@
+{
+  "phase": 45,
+  "name": "import-update-preview-fullrows-fix",
+  "changes": [
+    "Preserve update importMode through async worker and Mongo import session",
+    "Add paginated import session row API",
+    "Load all preview rows in frontend instead of using 100-row sample",
+    "Guard against partial row loading before commit",
+    "Cache-bust import frontend asset"
+  ],
+  "tests": {
+    "syntaxFiles": 616,
+    "targetedPassed": 12,
+    "regressionPassed": 487,
+    "openApiOperations": 252,
+    "npmAuditVulnerabilities": 0,
+    "syntheticExcelRows": 705
+  }
+}

@@ -3613,6 +3613,7 @@ async function getSessionStatus(sessionId) {
     totalRows: session.totalRows || 0,
     validRows: session.validRows || 0,
     errorRows: session.errorRows || 0,
+    storedRows: session.storedRows || 0,
     previewRows: session.previewRows || [],
     importErrors: session.importErrors || [],
     errorMessage: session.errorMessage || '',
@@ -3624,6 +3625,20 @@ async function getSessionStatus(sessionId) {
     finishedAt: session.finishedAt,
     failedAt: session.failedAt
   };
+}
+
+
+async function getSessionRows(sessionId, { offset = 0, limit = 500 } = {}) {
+  const result = await importSessionService.listSessionRows(sessionId, { offset, limit });
+
+  if (!result) {
+    return {
+      error: 'Không tìm thấy phiên import',
+      status: 404
+    };
+  }
+
+  return result;
 }
 
 
@@ -3839,4 +3854,4 @@ async function logs() {
   return logs;
 }
 
-module.exports = { buildPreviewFromRows, preview, getSessionStatus, commit, importDirect, logs };
+module.exports = { buildPreviewFromRows, preview, getSessionStatus, getSessionRows, commit, importDirect, logs };

@@ -6,7 +6,13 @@ const importSessionService = require('../services/importSessionService');
 
 async function runImportPreviewPipeline({ sessionId, type, files = [], userName = '', importMode = 'create', buildPreviewFromRows }) {
   if (typeof buildPreviewFromRows !== 'function') throw new TypeError('Thiếu buildPreviewFromRows');
-  await importSessionService.markParsing(sessionId);
+  const parsingSession = await importSessionService.markParsing(sessionId);
+  // Import mode is persisted in Mongo when the preview session is created. Always
+  // prefer that value so a queue/worker serialization bug cannot silently turn an
+  // update preview back into create mode.
+  const effectiveImportMode = parsingSession?.importMode === 'update'
+    ? 'update'
+    : (importMode === 'update' ? 'update' : 'create');
 
   try {
     const rows = [];
@@ -27,7 +33,7 @@ async function runImportPreviewPipeline({ sessionId, type, files = [], userName 
     }
 
     await importSessionService.updateProgress(sessionId, { percent: 60, step: 'validating' });
-    const result = await buildPreviewFromRows({ type, rows, userName, importMode });
+    const result = await buildPreviewFromRows({ type, rows, userName, importMode: effectiveImportMode });
     if (result.error) {
       await importSessionService.markFailed(sessionId, result.error);
       return result;

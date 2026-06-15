@@ -36,6 +36,34 @@ async function commit(req, res) {
 }
 
 
+async function sessionRows(req, res) {
+  try {
+    const result = await excelImportService.getSessionRows(
+      String(req.params.sessionId || req.query.sessionId || '').trim(),
+      {
+        offset: Number(req.query.offset || 0),
+        limit: Number(req.query.limit || 500)
+      }
+    );
+
+    if (result.error) {
+      return res.status(result.status || 400).json({
+        ok: false,
+        message: result.error,
+        ...result
+      });
+    }
+
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      message: 'Không tải được danh sách dòng import',
+      error: process.env.NODE_ENV === 'production' ? undefined : err.message
+    });
+  }
+}
+
 async function sessionStatus(req, res) {
   try {
     const result = await excelImportService.getSessionStatus(
@@ -78,4 +106,4 @@ async function logs(req, res) {
   }
 }
 
-module.exports = { preview, commit, direct, logs, sessionStatus };
+module.exports = { preview, commit, direct, logs, sessionStatus, sessionRows };

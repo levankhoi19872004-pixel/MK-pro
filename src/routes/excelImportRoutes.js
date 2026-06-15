@@ -23,6 +23,7 @@ router.post(
   excelImportController.preview
 );
 
+router.get('/sessions/:sessionId/rows', manageImports, excelImportController.sessionRows);
 router.get('/sessions/:sessionId', manageImports, excelImportController.sessionStatus);
 router.post('/commit', manageImports, excelImportController.commit);
 

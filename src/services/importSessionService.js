@@ -286,6 +286,44 @@ async function getSession(id) {
   }).lean();
 }
 
+
+async function listSessionRows(id, { offset = 0, limit = 500 } = {}) {
+  const session = await getSession(id);
+  if (!session) return null;
+
+  const sessionId = cleanText(session.sessionId || session.id);
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 500));
+
+  const [docs, total] = await Promise.all([
+    ImportSessionRow.find({ sessionId })
+      .sort({ rowNo: 1, _id: 1 })
+      .skip(safeOffset)
+      .limit(safeLimit)
+      .select({ normalizedRow: 1, rowNo: 1, documentCode: 1, valid: 1, canImport: 1, status: 1 })
+      .lean(),
+    ImportSessionRow.countDocuments({ sessionId })
+  ]);
+
+  const rows = docs.map((doc) => {
+    const row = compactPreviewRow(doc.normalizedRow || {});
+    if (!row.rowNo && doc.rowNo) row.rowNo = doc.rowNo;
+    if (!row.documentCode && doc.documentCode) row.documentCode = doc.documentCode;
+    if (row.valid === undefined) row.valid = doc.valid;
+    if (row.canImport === undefined) row.canImport = doc.canImport;
+    return row;
+  });
+
+  return {
+    sessionId,
+    rows,
+    offset: safeOffset,
+    limit: safeLimit,
+    total,
+    hasMore: safeOffset + rows.length < total
+  };
+}
+
 async function markImporting(id) {
   const value = cleanText(id);
   if (!value) return null;
@@ -375,6 +413,7 @@ module.exports = {
   markFailed,
   recoverStaleImportSessions,
   getSession,
+  listSessionRows,
   markImporting,
   markDone,
   selectRows
