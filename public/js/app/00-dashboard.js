@@ -5,6 +5,9 @@
     month: document.getElementById('dashboardMonth'),
     refresh: document.getElementById('dashboardRefreshButton'),
     targetButton: document.getElementById('dashboardTargetButton'),
+    targetTemplateButton: document.getElementById('dashboardTargetTemplateButton'),
+    targetUploadButton: document.getElementById('dashboardTargetUploadButton'),
+    targetUploadInput: document.getElementById('dashboardTargetUploadInput'),
     state: document.getElementById('dashboardLoadState'),
     salesTable: document.getElementById('dashboardSalesTable'),
     deliveryMonthTable: document.getElementById('dashboardDeliveryMonthTable'),
@@ -72,7 +75,10 @@
 
   function updateTargetPermission(user=readStoredUser()){
     const role=String(user?.role||'').toLowerCase();
-    elements.targetButton.hidden=!['admin','manager'].includes(role);
+    const canManageTargets=['admin','manager'].includes(role);
+    elements.targetButton.hidden=!canManageTargets;
+    elements.targetTemplateButton.hidden=!canManageTargets;
+    elements.targetUploadButton.hidden=!canManageTargets;
   }
 
   function setState(message,isError=false){
@@ -254,6 +260,75 @@
     }
   }
 
+  function responseErrorMessage(payload={},fallback='Có lỗi xảy ra'){
+    const message=String(payload?.message||fallback);
+    const details=Array.isArray(payload?.details)?payload.details:[];
+    if(!details.length) return message;
+    const first=details.slice(0,3).map(item=>`Dòng ${item.row||'?'}: ${item.message||'Không hợp lệ'}`).join('; ');
+    return `${message}. ${first}`;
+  }
+
+  async function downloadTargetTemplate(){
+    const month=String(elements.month.value||currentMonthVN());
+    elements.targetTemplateButton.disabled=true;
+    setState(`Đang tạo file mẫu chỉ tiêu tháng ${month}...`);
+    try{
+      const response=await fetch(`/api/dashboard/targets/template?period=${encodeURIComponent(month)}`);
+      if(!response.ok){
+        const payload=await response.json().catch(()=>({}));
+        throw new Error(responseErrorMessage(payload,'Không tải được file mẫu chỉ tiêu'));
+      }
+      const blob=await response.blob();
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.href=url;
+      link.download=`Mau_Chi_Tieu_NVBH_${month}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setState(`Đã tải file mẫu chỉ tiêu tháng ${month}.`);
+    }catch(error){
+      setState(error?.message||'Không tải được file mẫu chỉ tiêu',true);
+    }finally{
+      elements.targetTemplateButton.disabled=false;
+    }
+  }
+
+  async function uploadTargetFile(file){
+    if(!file) return;
+    const month=String(elements.month.value||currentMonthVN());
+    const confirmed=window.confirm(`Upload chỉ tiêu cho tháng ${month}? Dữ liệu hợp lệ trong file sẽ cập nhật theo mã NVBH.`);
+    if(!confirmed){
+      elements.targetUploadInput.value='';
+      return;
+    }
+
+    elements.targetUploadButton.disabled=true;
+    elements.targetButton.disabled=true;
+    setState(`Đang kiểm tra và upload chỉ tiêu tháng ${month}...`);
+    try{
+      const formData=new FormData();
+      formData.append('file',file,file.name||`chi-tieu-${month}.xlsx`);
+      const response=await fetch(`/api/dashboard/targets/${encodeURIComponent(month)}/import`,{
+        method:'POST',
+        body:formData
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok || !payload.ok){
+        throw new Error(responseErrorMessage(payload,'Không upload được chỉ tiêu'));
+      }
+      await loadHomeDashboard({force:true});
+      setState(payload.message||`Đã upload chỉ tiêu tháng ${month}.`);
+    }catch(error){
+      setState(error?.message||'Không upload được chỉ tiêu',true);
+    }finally{
+      elements.targetUploadInput.value='';
+      elements.targetUploadButton.disabled=false;
+      elements.targetButton.disabled=false;
+    }
+  }
+
   async function saveTargets(){
     const month=String(elements.month.value||currentMonthVN());
     const inputs=Array.from(elements.targetTable.querySelectorAll('.dashboard-target-input'));
@@ -290,6 +365,9 @@
   elements.month.addEventListener('change',()=>loadHomeDashboard({force:false}));
   elements.refresh.addEventListener('click',()=>loadHomeDashboard({force:true}));
   elements.targetButton.addEventListener('click',openTargetModal);
+  elements.targetTemplateButton.addEventListener('click',downloadTargetTemplate);
+  elements.targetUploadButton.addEventListener('click',()=>elements.targetUploadInput.click());
+  elements.targetUploadInput.addEventListener('change',()=>uploadTargetFile(elements.targetUploadInput.files?.[0]));
   elements.targetClose.addEventListener('click',closeTargetModal);
   elements.targetSave.addEventListener('click',saveTargets);
   elements.targetModal.addEventListener('click',(event)=>{

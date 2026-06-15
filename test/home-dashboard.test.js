@@ -42,6 +42,58 @@ test('dashboard sales merge calculates net sales without mutating business docum
   assert.equal(rows[0].todaySalesAmount, 300000);
 });
 
+
+test('dashboard sales merge rejects delivery identities even when names overlap', () => {
+  const rows = dashboardService.mergeSalesRows({
+    activeStaff: [{ salesStaffCode: '33949', salesStaffName: 'Đỗ Thị Anh' }],
+    targets: [],
+    monthlySales: [{ salesStaffCode: '33949', salesStaffName: 'Đỗ Thị Anh', orderCount: 8, salesAmount: 141755949 }],
+    monthlyReturns: [],
+    currentDebt: [
+      { salesStaffCode: '33949', salesStaffName: 'Đỗ Thị Anh', debtAmount: 334300942 },
+      { salesStaffCode: 'ghtp', salesStaffName: 'Đỗ Thị Anh', debtAmount: 4978114 },
+      { salesStaffCode: 'ghtn', salesStaffName: 'Đặng Trung Thành', debtAmount: 6826860 }
+    ],
+    todaySales: []
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].salesStaffCode, '33949');
+  assert.equal(rows[0].debtAmount, 334300942);
+  assert.equal(rows.some((row) => row.salesStaffCode === 'ghtp'), false);
+  assert.equal(rows.some((row) => row.salesStaffCode === 'ghtn'), false);
+});
+
+test('dashboard can map a code-less source only by a unique sales staff name', () => {
+  const rows = dashboardService.mergeSalesRows({
+    activeStaff: [{ salesStaffCode: '35128', salesStaffName: 'Nguyễn Thị Thùy' }],
+    targets: [],
+    monthlySales: [{ salesStaffCode: '', salesStaffName: 'Nguyễn Thị Thùy', orderCount: 2, salesAmount: 100000 }],
+    monthlyReturns: [],
+    currentDebt: [],
+    todaySales: []
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].salesStaffCode, '35128');
+  assert.equal(rows[0].salesAmount, 100000);
+});
+
+test('sales target Excel rows accept Vietnamese headers and reject duplicates', () => {
+  const rows = targetService.parseTargetImportRows([
+    { __rowNo: 2, 'Mã NVBH': '35128', 'Tên NVBH': 'Nguyễn Thị Thùy', 'Chỉ tiêu tháng': '4.000.000.000' }
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].salesStaffCode, '35128');
+  assert.equal(rows[0].targetAmount, 4000000000);
+
+  assert.throws(() => targetService.parseTargetImportRows([
+    { __rowNo: 2, 'Mã NVBH': '35128', 'Chỉ tiêu tháng': 1000 },
+    { __rowNo: 3, 'Mã NVBH': '35128', 'Chỉ tiêu tháng': 2000 }
+  ]), /Trùng mã|không hợp lệ/);
+  assert.throws(() => targetService.normalizeImportedTargetAmount('4 tỷ'), /không phải số hợp lệ/);
+});
+
 test('dashboard delivery status classification is stable', () => {
   assert.equal(dashboardService.resolveDeliveryBucket('delivered'), 'delivered');
   assert.equal(dashboardService.resolveDeliveryBucket('delivery_failed'), 'failed');
@@ -60,6 +112,8 @@ test('dashboard API is isolated and protected by roles', () => {
   const routeIndex = read('src/routes/index.js');
   assert.match(routes, /router\.get\('\/home'/);
   assert.match(routes, /router\.put\('\/targets\/:period'/);
+  assert.match(routes, /router\.get\('\/targets\/template'/);
+  assert.match(routes, /'\/targets\/:period\/import'/);
   assert.match(routes, /requireRole\(\['admin', 'manager', 'accountant'\]\)/);
   assert.match(routes, /requireRole\(\['admin', 'manager'\]\)/);
   assert.match(routeIndex, /app\.use\('\/api\/dashboard', dashboardRoutes\)/);
@@ -71,6 +125,8 @@ test('home UI is the initial lazy-loaded tab and legacy product tab remains avai
   assert.match(html, /data-tab="dashboardTab">Tổng quan/);
   assert.match(html, /id="dashboardTab" class="tab-content active"/);
   assert.match(html, /id="productsTab" class="tab-content"/);
+  assert.match(html, /id="dashboardTargetUploadButton"/);
+  assert.match(html, /id="dashboardTargetTemplateButton"/);
   assert.match(loader, /case 'dashboardTab'/);
   assert.match(loader, /loadHomeDashboard/);
 });

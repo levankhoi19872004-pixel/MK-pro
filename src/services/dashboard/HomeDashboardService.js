@@ -436,9 +436,60 @@ function staffKey(code, name) {
   return `name:${String(name || '').trim().toLowerCase()}`;
 }
 
+function normalizeStaffIdentity(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function buildSalesStaffIndex(activeStaff = []) {
+  const byCode = new Map();
+  const nameCandidates = new Map();
+
+  for (const source of activeStaff) {
+    const salesStaffCode = String(source?.salesStaffCode || '').trim();
+    const salesStaffName = String(source?.salesStaffName || '').trim();
+    if (!salesStaffCode && !salesStaffName) continue;
+
+    const canonical = { salesStaffCode, salesStaffName };
+    const normalizedCode = normalizeStaffIdentity(salesStaffCode);
+    const normalizedName = normalizeStaffIdentity(salesStaffName);
+    if (normalizedCode) byCode.set(normalizedCode, canonical);
+    if (normalizedName) {
+      const candidates = nameCandidates.get(normalizedName) || [];
+      candidates.push(canonical);
+      nameCandidates.set(normalizedName, candidates);
+    }
+  }
+
+  const byUniqueName = new Map();
+  for (const [name, candidates] of nameCandidates.entries()) {
+    if (candidates.length === 1) byUniqueName.set(name, candidates[0]);
+  }
+
+  return { byCode, byUniqueName };
+}
+
+function resolveCanonicalSalesStaff(source = {}, staffIndex = {}) {
+  const code = String(source.salesStaffCode || '').trim();
+  const name = String(source.salesStaffName || '').trim();
+
+  // Khi chứng từ đã có mã, chỉ chấp nhận mã thuộc users.role=sales.
+  // Không fallback sang tên vì NVGH có thể trùng tên NVBH và làm sai công nợ.
+  if (code) return staffIndex.byCode?.get(normalizeStaffIdentity(code)) || null;
+  if (name) return staffIndex.byUniqueName?.get(normalizeStaffIdentity(name)) || null;
+  return null;
+}
+
 function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], monthlyReturns = [], currentDebt = [], todaySales = [] }) {
   const rows = new Map();
-  const ensure = (source = {}) => {
+  const staffIndex = buildSalesStaffIndex(activeStaff);
+  const ensureCanonical = (source = {}) => {
     const code = String(source.salesStaffCode || '').trim();
     const name = String(source.salesStaffName || '').trim();
     const key = staffKey(code, name);
@@ -460,35 +511,37 @@ function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], mon
         status: 'no_target'
       });
     }
-    const row = rows.get(key);
-    if (!row.salesStaffCode && code) row.salesStaffCode = code;
-    if (!row.salesStaffName && name) row.salesStaffName = name;
-    return row;
+    return rows.get(key);
+  };
+  const resolveRow = (source = {}) => {
+    const canonical = resolveCanonicalSalesStaff(source, staffIndex);
+    return canonical ? ensureCanonical(canonical) : null;
   };
 
-  activeStaff.forEach(ensure);
+  // Danh sách gốc chỉ được sinh từ tài khoản NVBH đang hoạt động.
+  activeStaff.forEach(ensureCanonical);
   targets.forEach((source) => {
-    const row = ensure(source);
+    const row = resolveRow(source);
     if (row) row.targetAmount = normalizeMoney(source.targetAmount);
   });
   monthlySales.forEach((source) => {
-    const row = ensure(source);
+    const row = resolveRow(source);
     if (!row) return;
     row.orderCount = normalizeMoney(source.orderCount);
     row.salesAmount = normalizeMoney(source.salesAmount);
   });
   monthlyReturns.forEach((source) => {
-    const row = ensure(source);
+    const row = resolveRow(source);
     if (!row) return;
     row.returnCount = normalizeMoney(source.returnCount);
     row.returnAmount = normalizeMoney(source.returnAmount);
   });
   currentDebt.forEach((source) => {
-    const row = ensure(source);
+    const row = resolveRow(source);
     if (row) row.debtAmount = normalizeMoney(source.debtAmount);
   });
   todaySales.forEach((source) => {
-    const row = ensure(source);
+    const row = resolveRow(source);
     if (!row) return;
     row.todayOrderCount = normalizeMoney(source.orderCount);
     row.todaySalesAmount = normalizeMoney(source.salesAmount);
@@ -672,6 +725,8 @@ module.exports = {
   resolveDeliveryBucket,
   parseMonth,
   buildDateRangeFilter,
+  buildSalesStaffIndex,
+  resolveCanonicalSalesStaff,
   mergeSalesRows,
   mergeDeliveryRows,
   buildSummary,

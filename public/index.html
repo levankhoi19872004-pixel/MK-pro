@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KHO Minh Khai Pro V44</title>
   <link rel="stylesheet" href="/css/00-base.css?v=phase35-css-split-v1" />
-  <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v1" />
+  <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v2" />
   <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/30-master-orders.css?v=phase35-css-split-v1" />
@@ -58,6 +58,9 @@
               <input id="dashboardMonth" type="month" />
             </label>
             <button id="dashboardTargetButton" type="button" class="secondary" hidden>Cập nhật chỉ tiêu</button>
+            <button id="dashboardTargetTemplateButton" type="button" class="secondary" hidden>Tải mẫu chỉ tiêu</button>
+            <button id="dashboardTargetUploadButton" type="button" class="secondary" hidden>Upload chỉ tiêu</button>
+            <input id="dashboardTargetUploadInput" type="file" accept=".xlsx" hidden />
             <button id="dashboardRefreshButton" type="button">Tải lại</button>
           </div>
         </section>
@@ -1891,7 +1894,7 @@
 <script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
 <script src="/js/search/productSearchBox.js?v=unified-search-v1"></script>
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
-  <script src="/js/app/00-dashboard.js?v=home-dashboard-v1"></script>
+  <script src="/js/app/00-dashboard.js?v=home-dashboard-v2"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>

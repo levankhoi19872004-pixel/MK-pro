@@ -85,8 +85,44 @@ const saveTargets = asyncHandler(async (req, res) => {
   });
 });
 
+
+const downloadTargetTemplate = asyncHandler(async (req, res) => {
+  const result = await SalesTargetService.buildImportTemplate(req.query.period);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(result.fileName)}"`);
+  return res.send(result.buffer);
+});
+
+const importTargets = asyncHandler(async (req, res) => {
+  const file = req.file || req.importFiles?.[0];
+  const result = await SalesTargetService.importFromExcel(
+    req.params.period,
+    file?.buffer,
+    req.user || {}
+  );
+  HomeDashboardService.invalidateDashboardCache(result.period);
+
+  req.log?.info({
+    event: 'dashboard.sales_targets.imported',
+    period: result.period,
+    importedRows: result.importedRows,
+    savedCount: result.savedCount,
+    fileName: file?.originalname || '',
+    userId: req.user?.id || req.user?._id || req.user?.userId || '',
+    role: req.user?.role || ''
+  }, 'Sales targets imported');
+
+  return res.json({
+    ok: true,
+    message: `Đã upload ${result.savedCount} chỉ tiêu tháng`,
+    data: result
+  });
+});
+
 module.exports = {
   home,
   listTargets,
-  saveTargets
+  saveTargets,
+  downloadTargetTemplate,
+  importTargets
 };
