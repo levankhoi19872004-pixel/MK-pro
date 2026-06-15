@@ -234,7 +234,7 @@
           <div class="toolbar customer-list-toolbar">
             <div><h2>Danh sách khách hàng</h2><p id="customerCount" class="muted">Đang tải...</p></div>
             <div class="customer-toolbar-actions">
-              <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, địa chỉ..." />
+              <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, MST, địa chỉ..." />
               <button type="button" id="openCustomerModalButton" class="primary-action">+ Thêm khách hàng</button>
             </div>
           </div>
@@ -282,6 +282,10 @@
               <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
             </div>
             <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
+            <div class="two-cols">
+              <label>Mã số thuế<input name="taxCode" maxlength="30" placeholder="VD: 1001234567 hoặc 1001234567-001" /></label>
+              <label>Địa chỉ hóa đơn thuế<input name="taxInvoiceAddress" maxlength="500" placeholder="Địa chỉ đăng ký với cơ quan thuế" /></label>
+            </div>
             <label>Nhân viên phụ trách
               <input id="customerStaffSearch" placeholder="Gõ mã/tên NVBH..." autocomplete="off" />
               <input name="legacyStaffCode" id="customerStaffCode" type="hidden" />
@@ -1900,7 +1904,7 @@
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=phase42-fund-customer-v1"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
-  <script src="/js/app/03-customers-autocomplete.js?v=unified-search-v1"></script>
+  <script src="/js/app/03-customers-autocomplete.js?v=phase43-customer-tax-profile-v1"></script>
   <script src="/js/app/04-import-orders.js?v=phase26-bootstrap-collision-fix-v1"></script>
   <script src="/js/app/05-sales-orders.js?v=phase28-dms-decimal-price-input-v1"></script>
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>

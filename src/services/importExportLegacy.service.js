@@ -54,6 +54,7 @@ async function buildWorkbook({ type, rows }) {
 
 
 const TT78_VAT_RATE = 0.08;
+const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
 const TT78_HEADERS = [
   'STT', 'NgayHoaDon', 'MaKhachHang', 'TenKhachHang', 'TenNguoiMua', 'MaSoThue',
   'DiaChiKhachHang', 'DienThoaiKhachHang', 'SoTaiKhoan', 'NganHang', 'HinhThucTT',
@@ -351,12 +352,15 @@ function customerInfo(order = {}, customerMap = new Map()) {
     || customerMap.get(cleanText(order.customerId))
     || customerMap.get(cleanText(order.customerName))
     || {};
+  const orderTax = extractCustomerTaxProfile(order);
+  const customerTax = extractCustomerTaxProfile(customer);
   return {
     code: cleanText(order.customerCode || customer.code || customer.customerCode || order.customerId || customer.id),
     name: cleanText(order.customerName || customer.name || customer.customerName),
     buyer: cleanText(order.buyerName || order.contactName || customer.buyerName || customer.representative || customer.contactName || order.customerName || customer.name),
-    taxCode: cleanText(order.taxCode || order.customerTaxCode || customer.taxCode || customer.vatCode || customer.mst),
-    address: cleanText(order.customerAddress || order.address || customer.invoiceAddress || customer.address || customer.deliveryAddress),
+    // Chỉ ưu tiên snapshot thuế riêng trên đơn; không lấy địa chỉ giao hàng thay cho địa chỉ thuế khi hồ sơ KH đã có.
+    taxCode: cleanText(orderTax.taxCode || customerTax.taxCode),
+    address: cleanText(orderTax.taxInvoiceAddress || customerTax.taxInvoiceAddress || order.customerAddress || order.address || customer.address || customer.deliveryAddress),
     phone: cleanText(order.customerPhone || order.phone || customer.phone || customer.mobile),
     bankAccount: cleanText(customer.bankAccount || customer.accountNumber || order.bankAccount),
     bankName: cleanText(customer.bankName || order.bankName),
@@ -501,6 +505,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         MaDon: orderCode(order),
         MaKhachHang: ci.code,
         TenKhachHang: ci.name,
+        MaSoThue: ci.taxCode,
+        DiaChiHoaDon: ci.address,
         MaSanPham: line.productCode,
         SanPham: line.productName,
         SoLuongBan: line.soldQty,
@@ -545,7 +551,7 @@ async function buildVatInvoiceTT78Workbook(query = {}) {
   appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
 
   const auditHeaders = [
-    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSanPham', 'SanPham',
+    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSoThue', 'DiaChiHoaDon', 'MaSanPham', 'SanPham',
     'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
     'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
   ];
@@ -989,9 +995,12 @@ function valueByKeys(map, keys = []) {
 }
 
 function customerInfoRow(customer = {}, idx = 0, debtMap = new Map(), monthSalesMap = new Map()) {
+  const taxProfile = extractCustomerTaxProfile(customer);
   const used = [
     'code', 'customerCode', 'name', 'customerName', 'phone', 'mobile', 'customerPhone',
-    'address', 'customerAddress', 'route', 'area', 'region', 'staffCode', 'staffName',
+    'address', 'customerAddress', 'taxCode', 'customerTaxCode', 'taxNumber', 'vatNumber', 'vatCode', 'mst',
+    'taxInvoiceAddress', 'customerTaxInvoiceAddress', 'invoiceAddress', 'vatInvoiceAddress', 'billingAddress',
+    'route', 'area', 'region', 'staffCode', 'staffName',
     'salesStaffCode', 'salesStaffName', 'deliveryStaffCode', 'deliveryStaffName',
     'isActive', 'status', 'createdAt', 'updatedAt'
   ];
@@ -1002,6 +1011,8 @@ function customerInfoRow(customer = {}, idx = 0, debtMap = new Map(), monthSales
     TenKH: firstText(customer, ['name', 'customerName']),
     SDT: firstText(customer, ['phone', 'mobile', 'customerPhone', 'tel']),
     DiaChi: firstText(customer, ['address', 'customerAddress', 'fullAddress']),
+    MaSoThue: taxProfile.taxCode,
+    DiaChiHoaDonThue: taxProfile.taxInvoiceAddress,
     Tuyen: firstText(customer, ['route', 'routeName', 'line']),
     KhuVuc: firstText(customer, ['area', 'areaName', 'region', 'province']),
     MaNVBH: firstText(customer, ['staffCode', 'salesStaffCode', 'salesmanCode']),

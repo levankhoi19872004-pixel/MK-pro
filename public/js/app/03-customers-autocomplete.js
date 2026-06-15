@@ -131,7 +131,7 @@ function renderCustomerTable(){
 }
 function fillCustomerForm(c){
   if(!customerForm||!c)return;
-  ['code','name','phone','area','address'].forEach(k=>{if(customerForm.elements[k])customerForm.elements[k].value=c[k]||''});
+  ['code','name','phone','area','address','taxCode','taxInvoiceAddress'].forEach(k=>{if(customerForm.elements[k])customerForm.elements[k].value=c[k]||''});
   const staffSearch=document.getElementById('customerStaffSearch');
   const staffCode=document.getElementById('customerStaffCode');
   const staffName=document.getElementById('customerStaffName');
@@ -263,7 +263,7 @@ function getCustomerListMatches(){
   const q=customerSearchInput?customerSearchInput.value.trim():'';
   if(window.UnifiedSearchEngine) return window.UnifiedSearchEngine.searchCustomer(q,{limit:20});
   if(!q)return customersCache.filter(c=>c.isActive!==false).slice(0,10);
-  return customersCache.filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route]));
+  return customersCache.filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.taxCode,c.taxInvoiceAddress,c.area,c.route]));
 }
 function selectCustomerFromListSuggestion(c){
   if(!c)return;

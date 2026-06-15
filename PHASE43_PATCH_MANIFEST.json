@@ -1,0 +1,66 @@
+{
+  "phase": 43,
+  "name": "customer-tax-profile-vat-export",
+  "sourceArchive": "MK-pro-phase42-fund-ledger-debt-customer-display-patched(1).zip",
+  "scope": [
+    "customer-tax-code-and-tax-invoice-address",
+    "customer-excel-import-template-preview-commit",
+    "vat-tt78-canonical-customer-tax-profile",
+    "customer-search-and-info-report"
+  ],
+  "databaseMigration": false,
+  "apiContractChanged": true,
+  "apiCompatibility": "additive-only",
+  "newFields": [
+    "customers.taxCode",
+    "customers.taxInvoiceAddress"
+  ],
+  "legacyAliasesRead": [
+    "customerTaxCode",
+    "taxNumber",
+    "vatNumber",
+    "vatCode",
+    "mst",
+    "customerTaxInvoiceAddress",
+    "invoiceAddress",
+    "vatInvoiceAddress",
+    "billingAddress"
+  ],
+  "changedFiles": [
+    "public/index.html",
+    "public/js/app/03-customers-autocomplete.js",
+    "services/excelTemplateService.js",
+    "src/models/Customer.js",
+    "src/repositories/customerRepository.js",
+    "src/repositories/searchRepository.js",
+    "src/services/customerService.js",
+    "src/services/excelImportService.js",
+    "src/services/importExportLegacy.service.js",
+    "src/services/searchService.js"
+  ],
+  "addedFiles": [
+    "src/utils/customerTaxProfile.util.js",
+    "test/customer-tax-profile-behavior.test.js",
+    "test/customer-tax-profile-vat-static.test.js",
+    "PHASE43_CUSTOMER_TAX_PROFILE_VAT_EXPORT_REPORT.md",
+    "QUALITY_GATE_RESULTS_PHASE43.txt"
+  ],
+  "untouchedBusinessFlows": [
+    "sales-order-posting",
+    "inventory-posting",
+    "return-posting",
+    "ar-posting",
+    "debt-collection",
+    "fund-ledger",
+    "delivery-assignment",
+    "vat-amount-calculation"
+  ],
+  "tests": {
+    "syntax": "612/612 JavaScript files",
+    "targeted": "12/12",
+    "regression": "475/475",
+    "openapi": "252 operations, up to date",
+    "customerTemplateXlsx": "PASS",
+    "productionAudit": "0 vulnerabilities"
+  }
+}

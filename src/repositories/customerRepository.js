@@ -27,6 +27,13 @@ function buildQueryFilter(query = {}) {
       { customerName: { $regex: rawRegex, $options: 'i' } },
       { phone: { $regex: rawRegex, $options: 'i' } },
       { address: { $regex: rawRegex, $options: 'i' } },
+      { taxCode: { $regex: rawRegex, $options: 'i' } },
+      { customerTaxCode: { $regex: rawRegex, $options: 'i' } },
+      { taxNumber: { $regex: rawRegex, $options: 'i' } },
+      { vatNumber: { $regex: rawRegex, $options: 'i' } },
+      { mst: { $regex: rawRegex, $options: 'i' } },
+      { taxInvoiceAddress: { $regex: rawRegex, $options: 'i' } },
+      { invoiceAddress: { $regex: rawRegex, $options: 'i' } },
       { area: { $regex: rawRegex, $options: 'i' } },
       { route: { $regex: rawRegex, $options: 'i' } },
       { searchText: { $regex: normalizedRegex, $options: 'i' } }
@@ -50,7 +57,7 @@ async function search(query = {}) {
   const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
   const limit = Math.min(Number.parseInt(query.limit, 10) || 20, 50);
   return Customer.find(filter)
-    .select('code name phone address area route staffCode staffName legacyStaffCode legacyStaffName openingDebt debtLimit isActive')
+    .select('code name phone address taxCode taxInvoiceAddress customerTaxCode taxNumber vatNumber vatCode mst invoiceAddress vatInvoiceAddress billingAddress area route staffCode staffName legacyStaffCode legacyStaffName openingDebt debtLimit isActive')
     .sort({ code: 1 })
     .limit(limit)
     .lean();

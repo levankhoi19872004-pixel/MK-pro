@@ -301,7 +301,7 @@ async function findCustomers(query = {}) {
       })
     : {};
   const scopedBaseFilter = combineFilters(baseFilter, ownershipFilter);
-  const select = 'code customerCode name customerName phone address area route routeName salesStaffCode salesStaffName salesmanCode salesmanName assignedSalesStaffCode assignedSalesStaffName nvbhCode nvbhName staffCode staffName openingDebt debtLimit debtAmount currentDebt debt balance isActive searchText';
+  const select = 'code customerCode name customerName phone address taxCode taxInvoiceAddress customerTaxCode taxNumber vatNumber vatCode mst invoiceAddress vatInvoiceAddress billingAddress area route routeName salesStaffCode salesStaffName salesmanCode salesmanName assignedSalesStaffCode assignedSalesStaffName nvbhCode nvbhName staffCode staffName openingDebt debtLimit debtAmount currentDebt debt balance isActive searchText';
 
   if (!q) {
     return Customer.find(scopedBaseFilter)
@@ -321,6 +321,13 @@ async function findCustomers(query = {}) {
       { customerName: rawRegex },
       { phone: rawRegex },
       { address: rawRegex },
+      { taxCode: rawRegex },
+      { customerTaxCode: rawRegex },
+      { taxNumber: rawRegex },
+      { vatNumber: rawRegex },
+      { mst: rawRegex },
+      { taxInvoiceAddress: rawRegex },
+      { invoiceAddress: rawRegex },
       { area: rawRegex },
       { route: rawRegex },
       { routeName: rawRegex },

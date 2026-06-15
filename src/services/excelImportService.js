@@ -26,6 +26,7 @@ const { applyOrderSourceFields, ORDER_SOURCE } = require('../utils/orderSource.u
 const { DIRECT_PRICE } = require('../constants/pricingModes');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 const importRules = require('../rules/importRules');
+const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
 const { saveImportFiles, cleanupImportFiles } = require('../utils/importTempFileStore');
@@ -206,11 +207,12 @@ function pickCustomerPayload(row = {}) {
   const code = cleanText(row.code || row.customerCode || row['Mã khách hàng'] || row['Ma khach hang']);
   const legacyStaffCode = cleanText(row.legacyStaffCode || row.staffCode || row['Mã NVBH'] || row['Ma NVBH'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã nhân viên']);
   const legacyStaffName = cleanText(row.legacyStaffName || row.staffName || row['Tên NVBH'] || row['Ten NVBH']);
-  return {
+  const taxProfile = extractCustomerTaxProfile(row);
+  const payload = {
     code,
     name: cleanText(row.name || row.customerName || row['Tên khách hàng'] || row['Ten khach hang']),
     phone: cleanText(row.phone || row.customerPhone || row['Số điện thoại'] || row['So dien thoai']),
-    address: cleanText(row.address || row.customerAddress || row['Địa chỉ'] || row['Dia chi']),
+    address: cleanText(row.address || row.customerAddress || row['Địa chỉ giao hàng'] || row['Địa chỉ'] || row['Dia chi giao hang'] || row['Dia chi']),
     area: cleanText(row.area || row['Khu vực'] || row['Khu vuc']),
     route: cleanText(row.route || row['Tuyến'] || row['Tuyen']),
     legacyStaffCode,
@@ -221,6 +223,10 @@ function pickCustomerPayload(row = {}) {
     debtLimit: toNumber(row.debtLimit || row['Hạn mức nợ'] || row['Han muc no']),
     isActive: row.isActive !== false
   };
+  // Import bằng mẫu cũ không được xóa thông tin thuế đã có của khách hàng.
+  if (taxProfile.hasTaxCode) payload.taxCode = taxProfile.taxCode;
+  if (taxProfile.hasTaxInvoiceAddress) payload.taxInvoiceAddress = taxProfile.taxInvoiceAddress;
+  return payload;
 }
 
 async function buildRunningCode(Model, prefix, field = 'code') {
@@ -726,6 +732,8 @@ function customerSearchText(payload = {}) {
     payload.customerName,
     payload.phone,
     payload.address,
+    payload.taxCode,
+    payload.taxInvoiceAddress,
     payload.area,
     payload.route,
     payload.staffCode,
