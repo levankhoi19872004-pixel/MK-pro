@@ -1,20 +1,19 @@
 'use strict';
 
-const SalesOrder = require('../../models/SalesOrder');
-const ReturnOrder = require('../../models/ReturnOrder');
-const ArLedger = require('../../models/ArLedger');
 const User = require('../../models/User');
 const dateUtil = require('../../utils/date.util');
-const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount } = require('../../constants/finance.constants');
+const { DEBT_ZERO_TOLERANCE } = require('../../constants/finance.constants');
 const SalesTargetService = require('./SalesTargetService');
+const SalesDashboardQuery = require('./SalesDashboardQuery');
+const DebtDashboardQuery = require('./DebtDashboardQuery');
+const DeliveryDashboardQuery = require('./DeliveryDashboardQuery');
+const DashboardCacheService = require('./DashboardCacheService');
+const { firstValidDateExpression } = require('./DashboardMongoExpressions');
 
-const INACTIVE_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'];
-const ACCOUNTING_CONFIRMED_STATUSES = ['confirmed', 'accounting_confirmed', 'posted', 'completed'];
-const DELIVERED_STATUSES = ['delivered', 'success', 'completed', 'done', 'paid', 'accounting_confirmed'];
-const FAILED_DELIVERY_STATUSES = ['failed', 'cancelled', 'canceled', 'returned', 'delivery_failed'];
-const DELIVERING_STATUSES = ['delivering', 'in_progress', 'on_route', 'shipping'];
-const CACHE_TTL_MS = Math.max(5_000, Number(process.env.HOME_DASHBOARD_CACHE_TTL_MS || 45_000));
-const dashboardCache = new Map();
+const DELIVERED_STATUSES = DeliveryDashboardQuery.DELIVERED_STATUSES;
+const FAILED_DELIVERY_STATUSES = DeliveryDashboardQuery.FAILED_DELIVERY_STATUSES;
+const DELIVERING_STATUSES = DeliveryDashboardQuery.DELIVERING_STATUSES;
+const CACHE_TTL_MS = DashboardCacheService.CACHE_TTL_MS;
 
 function dashboardEnabled() {
   return String(process.env.FEATURE_HOME_DASHBOARD ?? 'true').trim().toLowerCase() !== 'false';
@@ -62,328 +61,20 @@ function parseMonth(month) {
   };
 }
 
-function stringExpression(field) {
-  return {
-    $trim: {
-      input: {
-        $convert: {
-          input: `$${field}`,
-          to: 'string',
-          onError: '',
-          onNull: ''
-        }
-      }
-    }
-  };
-}
-
-function firstNonBlankExpression(fields = [], fallback = '') {
-  return fields.reduceRight((next, field) => ({
-    $let: {
-      vars: { current: stringExpression(field) },
-      in: {
-        $cond: [
-          { $gt: [{ $strLenCP: '$$current' }, 0] },
-          '$$current',
-          next
-        ]
-      }
-    }
-  }), fallback);
-}
-
-function numberExpression(fields = [], fallback = 0) {
-  const source = fields.reduceRight((next, field) => ({ $ifNull: [`$${field}`, next] }), fallback);
-  return {
-    $convert: {
-      input: source,
-      to: 'double',
-      onError: 0,
-      onNull: 0
-    }
-  };
-}
-
+/**
+ * Tương thích export cũ. Bộ lọc mới chọn đúng field ngày ưu tiên rồi mới
+ * fallback createdAt; không dùng $or giữa ngày nghiệp vụ và createdAt.
+ */
 function buildDateRangeFilter(dateFrom, dateTo, fields = []) {
-  const clauses = fields.map((field) => ({
-    [field]: { $gte: dateFrom, $lte: dateTo }
-  }));
-
-  const start = new Date(`${dateFrom}T00:00:00+07:00`);
-  const end = new Date(`${dateTo}T00:00:00+07:00`);
-  end.setDate(end.getDate() + 1);
-  clauses.push({ createdAt: { $gte: start, $lt: end } });
-
-  return clauses.length === 1 ? clauses[0] : { $or: clauses };
-}
-
-function activeFilter() {
-  return { status: { $nin: INACTIVE_STATUSES } };
-}
-
-function accountingConfirmedFilter() {
+  const businessDate = firstValidDateExpression(fields, 'createdAt');
   return {
-    $or: [
-      { accountingConfirmed: true },
-      { accountingStatus: { $in: ACCOUNTING_CONFIRMED_STATUSES } },
-      { lifecycleStatus: { $in: ACCOUNTING_CONFIRMED_STATUSES } },
-      { arStatus: { $in: ['posted', 'confirmed', 'accounting_confirmed'] } },
-      { status: 'accounting_confirmed' }
-    ]
+    $expr: {
+      $and: [
+        { $gte: [businessDate, dateFrom] },
+        { $lte: [businessDate, dateTo] }
+      ]
+    }
   };
-}
-
-function returnConfirmedFilter() {
-  return {
-    $or: [
-      { arPosted: true },
-      { accountingConfirmed: true },
-      { accountingStatus: { $in: ACCOUNTING_CONFIRMED_STATUSES } },
-      { returnState: { $in: ['accounting_confirmed', 'posted_to_ar'] } },
-      { status: { $in: ['accounting_confirmed', 'posted_to_ar'] } }
-    ]
-  };
-}
-
-function salesStaffCodeExpression() {
-  return firstNonBlankExpression(['salesStaffCode', 'salesmanCode', 'nvbhCode'], '');
-}
-
-function salesStaffNameExpression() {
-  return firstNonBlankExpression(['salesStaffName', 'salesmanName', 'nvbhName'], '');
-}
-
-function deliveryStaffCodeExpression() {
-  return firstNonBlankExpression(['deliveryStaffCode', 'deliveryCode', 'nvghCode'], '');
-}
-
-function deliveryStaffNameExpression() {
-  return firstNonBlankExpression(['deliveryStaffName', 'deliveryName', 'nvghName'], '');
-}
-
-async function aggregateSales(dateFrom, dateTo) {
-  const totalAmount = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
-  const result = await SalesOrder.aggregate([
-    {
-      $match: {
-        $and: [
-          activeFilter(),
-          accountingConfirmedFilter(),
-          buildDateRangeFilter(dateFrom, dateTo, ['orderDate', 'date', 'documentDate'])
-        ]
-      }
-    },
-    {
-      $group: {
-        _id: {
-          code: salesStaffCodeExpression(),
-          name: salesStaffNameExpression()
-        },
-        orderCount: { $sum: 1 },
-        salesAmount: { $sum: totalAmount }
-      }
-    },
-    { $sort: { '_id.name': 1, '_id.code': 1 } }
-  ]).allowDiskUse(true).exec();
-
-  return result.map((row) => ({
-    salesStaffCode: String(row?._id?.code || '').trim(),
-    salesStaffName: String(row?._id?.name || '').trim(),
-    orderCount: normalizeMoney(row.orderCount),
-    salesAmount: normalizeMoney(row.salesAmount)
-  })).filter((row) => row.salesStaffCode || row.salesStaffName);
-}
-
-async function aggregateReturns(dateFrom, dateTo) {
-  const returnAmount = numberExpression(['returnAmount', 'amount', 'totalAmount', 'debtReduction'], 0);
-  const result = await ReturnOrder.aggregate([
-    {
-      $match: {
-        $and: [
-          activeFilter(),
-          returnConfirmedFilter(),
-          buildDateRangeFilter(dateFrom, dateTo, ['returnDate', 'date', 'documentDate', 'deliveryDate'])
-        ]
-      }
-    },
-    {
-      $group: {
-        _id: {
-          code: salesStaffCodeExpression(),
-          name: salesStaffNameExpression()
-        },
-        returnCount: { $sum: 1 },
-        returnAmount: { $sum: returnAmount }
-      }
-    }
-  ]).allowDiskUse(true).exec();
-
-  return result.map((row) => ({
-    salesStaffCode: String(row?._id?.code || '').trim(),
-    salesStaffName: String(row?._id?.name || '').trim(),
-    returnCount: normalizeMoney(row.returnCount),
-    returnAmount: Math.max(0, normalizeMoney(row.returnAmount))
-  })).filter((row) => row.salesStaffCode || row.salesStaffName);
-}
-
-async function aggregateCurrentDebt() {
-  const debit = numberExpression(['debit', 'arDebit'], 0);
-  const credit = numberExpression(['credit', 'arCredit'], 0);
-  const amount = numberExpression(['amount'], 0);
-  const type = { $toLower: firstNonBlankExpression(['type'], '') };
-  const isSaleType = { $regexMatch: { input: type, regex: 'sale|external_debt' } };
-  const orderKey = firstNonBlankExpression(
-    ['orderCode', 'salesOrderCode', 'orderId', 'salesOrderId', 'refCode', 'refId'],
-    { $concat: ['orphan:', { $toString: '$_id' }] }
-  );
-
-  // Công nợ phải nhóm theo đơn trước rồi mới nhóm theo NVBH. AR-RECEIPT/AR-RETURN
-  // có thể không mang thông tin nhân viên; lấy nhân viên từ dòng AR-SALE để credit
-  // vẫn giảm đúng công nợ của người phụ trách đơn.
-  const result = await ArLedger.aggregate([
-    {
-      $match: {
-        status: { $nin: [...INACTIVE_STATUSES, 'reversed'] },
-        reversed: { $ne: true },
-        refType: { $ne: 'AR_LEDGER_REVERSAL' },
-        type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
-      }
-    },
-    {
-      $group: {
-        _id: orderKey,
-        debit: {
-          $sum: {
-            $cond: [
-              { $gt: [debit, 0] },
-              debit,
-              { $cond: [isSaleType, amount, 0] }
-            ]
-          }
-        },
-        credit: {
-          $sum: {
-            $cond: [
-              { $gt: [credit, 0] },
-              credit,
-              { $cond: [isSaleType, 0, amount] }
-            ]
-          }
-        },
-        salesStaffCode: { $max: { $cond: [isSaleType, salesStaffCodeExpression(), ''] } },
-        salesStaffName: { $max: { $cond: [isSaleType, salesStaffNameExpression(), ''] } }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          code: '$salesStaffCode',
-          name: '$salesStaffName'
-        },
-        debtAmount: { $sum: { $subtract: ['$debit', '$credit'] } }
-      }
-    }
-  ]).allowDiskUse(true).exec();
-
-  return result.map((row) => {
-    const debtAmount = normalizeDebtAmount(normalizeMoney(row.debtAmount));
-    const code = String(row?._id?.code || '').trim();
-    const name = String(row?._id?.name || '').trim();
-    return {
-      salesStaffCode: code,
-      salesStaffName: name || (!code && debtAmount > 0 ? 'Chưa gán' : ''),
-      debtAmount: Math.max(0, normalizeMoney(debtAmount))
-    };
-  }).filter((row) => row.debtAmount > 0 || row.salesStaffCode || row.salesStaffName);
-}
-
-async function aggregateDelivery(dateFrom, dateTo) {
-  const totalAmount = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
-  const rawStatus = firstNonBlankExpression(['deliveryStatus', 'status'], 'pending');
-  const status = { $toLower: rawStatus };
-  const deliveredCondition = { $in: [status, DELIVERED_STATUSES] };
-  const failedCondition = { $in: [status, FAILED_DELIVERY_STATUSES] };
-  const deliveringCondition = { $in: [status, DELIVERING_STATUSES] };
-
-  const result = await SalesOrder.aggregate([
-    {
-      $match: {
-        $and: [
-          activeFilter(),
-          buildDateRangeFilter(dateFrom, dateTo, ['deliveryDate', 'date', 'orderDate'])
-        ]
-      }
-    },
-    {
-      $group: {
-        _id: {
-          code: deliveryStaffCodeExpression(),
-          name: deliveryStaffNameExpression()
-        },
-        assignedOrders: { $sum: 1 },
-        deliveredOrders: { $sum: { $cond: [deliveredCondition, 1, 0] } },
-        failedOrders: { $sum: { $cond: [failedCondition, 1, 0] } },
-        deliveringOrders: { $sum: { $cond: [deliveringCondition, 1, 0] } },
-        pendingOrders: {
-          $sum: {
-            $cond: [
-              { $or: [deliveredCondition, failedCondition, deliveringCondition] },
-              0,
-              1
-            ]
-          }
-        },
-        assignedAmount: { $sum: totalAmount },
-        deliveredAmount: { $sum: { $cond: [deliveredCondition, totalAmount, 0] } },
-        salesStaffCodes: { $addToSet: salesStaffCodeExpression() }
-      }
-    },
-    { $sort: { assignedOrders: -1, '_id.name': 1 } }
-  ]).allowDiskUse(true).exec();
-
-  return result.map((row) => ({
-    deliveryStaffCode: String(row?._id?.code || '').trim(),
-    deliveryStaffName: String(row?._id?.name || '').trim(),
-    assignedOrders: normalizeMoney(row.assignedOrders),
-    deliveredOrders: normalizeMoney(row.deliveredOrders),
-    failedOrders: normalizeMoney(row.failedOrders),
-    deliveringOrders: normalizeMoney(row.deliveringOrders),
-    pendingOrders: normalizeMoney(row.pendingOrders),
-    assignedAmount: normalizeMoney(row.assignedAmount),
-    deliveredAmount: normalizeMoney(row.deliveredAmount),
-    salesStaffCount: Array.isArray(row.salesStaffCodes)
-      ? row.salesStaffCodes.filter((code) => String(code || '').trim()).length
-      : 0
-  })).filter((row) => row.deliveryStaffCode || row.deliveryStaffName);
-}
-
-async function aggregateDeliveryReturns(dateFrom, dateTo) {
-  const returnAmount = numberExpression(['returnAmount', 'amount', 'totalAmount', 'debtReduction'], 0);
-  const result = await ReturnOrder.aggregate([
-    {
-      $match: {
-        $and: [
-          activeFilter(),
-          buildDateRangeFilter(dateFrom, dateTo, ['deliveryDate', 'returnDate', 'date', 'documentDate'])
-        ]
-      }
-    },
-    {
-      $group: {
-        _id: {
-          code: deliveryStaffCodeExpression(),
-          name: deliveryStaffNameExpression()
-        },
-        returnAmount: { $sum: returnAmount }
-      }
-    }
-  ]).allowDiskUse(true).exec();
-
-  return result.map((row) => ({
-    deliveryStaffCode: String(row?._id?.code || '').trim(),
-    deliveryStaffName: String(row?._id?.name || '').trim(),
-    returnAmount: Math.max(0, normalizeMoney(row.returnAmount))
-  })).filter((row) => row.deliveryStaffCode || row.deliveryStaffName);
 }
 
 function userCode(user = {}, type = 'sales') {
@@ -447,18 +138,19 @@ function normalizeStaffIdentity(value = '') {
     .replace(/\s+/g, ' ');
 }
 
-function buildSalesStaffIndex(activeStaff = []) {
+function buildStaffIndex(activeStaff = [], type = 'sales') {
   const byCode = new Map();
   const nameCandidates = new Map();
+  const codeField = type === 'delivery' ? 'deliveryStaffCode' : 'salesStaffCode';
+  const nameField = type === 'delivery' ? 'deliveryStaffName' : 'salesStaffName';
 
   for (const source of activeStaff) {
-    const salesStaffCode = String(source?.salesStaffCode || '').trim();
-    const salesStaffName = String(source?.salesStaffName || '').trim();
-    if (!salesStaffCode && !salesStaffName) continue;
-
-    const canonical = { salesStaffCode, salesStaffName };
-    const normalizedCode = normalizeStaffIdentity(salesStaffCode);
-    const normalizedName = normalizeStaffIdentity(salesStaffName);
+    const code = String(source?.[codeField] || '').trim();
+    const name = String(source?.[nameField] || '').trim();
+    if (!code && !name) continue;
+    const canonical = { [codeField]: code, [nameField]: name };
+    const normalizedCode = normalizeStaffIdentity(code);
+    const normalizedName = normalizeStaffIdentity(name);
     if (normalizedCode) byCode.set(normalizedCode, canonical);
     if (normalizedName) {
       const candidates = nameCandidates.get(normalizedName) || [];
@@ -471,19 +163,37 @@ function buildSalesStaffIndex(activeStaff = []) {
   for (const [name, candidates] of nameCandidates.entries()) {
     if (candidates.length === 1) byUniqueName.set(name, candidates[0]);
   }
-
-  return { byCode, byUniqueName };
+  return { byCode, byUniqueName, codeField, nameField };
 }
 
-function resolveCanonicalSalesStaff(source = {}, staffIndex = {}) {
-  const code = String(source.salesStaffCode || '').trim();
-  const name = String(source.salesStaffName || '').trim();
+function buildSalesStaffIndex(activeStaff = []) {
+  return buildStaffIndex(activeStaff, 'sales');
+}
 
-  // Khi chứng từ đã có mã, chỉ chấp nhận mã thuộc users.role=sales.
-  // Không fallback sang tên vì NVGH có thể trùng tên NVBH và làm sai công nợ.
+function resolveCanonicalStaff(source = {}, staffIndex = {}) {
+  const code = String(source?.[staffIndex.codeField] || '').trim();
+  const name = String(source?.[staffIndex.nameField] || '').trim();
   if (code) return staffIndex.byCode?.get(normalizeStaffIdentity(code)) || null;
   if (name) return staffIndex.byUniqueName?.get(normalizeStaffIdentity(name)) || null;
   return null;
+}
+
+function resolveCanonicalSalesStaff(source = {}, staffIndex = {}) {
+  const normalizedIndex = staffIndex.codeField ? staffIndex : {
+    ...staffIndex,
+    codeField: 'salesStaffCode',
+    nameField: 'salesStaffName'
+  };
+  return resolveCanonicalStaff(source, normalizedIndex);
+}
+
+function resolveCanonicalDeliveryStaff(source = {}, staffIndex = {}) {
+  const normalizedIndex = staffIndex.codeField ? staffIndex : {
+    ...staffIndex,
+    codeField: 'deliveryStaffCode',
+    nameField: 'deliveryStaffName'
+  };
+  return resolveCanonicalStaff(source, normalizedIndex);
 }
 
 function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], monthlyReturns = [], currentDebt = [], todaySales = [] }) {
@@ -518,7 +228,6 @@ function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], mon
     return canonical ? ensureCanonical(canonical) : null;
   };
 
-  // Danh sách gốc chỉ được sinh từ tài khoản NVBH đang hoạt động.
   activeStaff.forEach(ensureCanonical);
   targets.forEach((source) => {
     const row = resolveRow(source);
@@ -527,24 +236,24 @@ function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], mon
   monthlySales.forEach((source) => {
     const row = resolveRow(source);
     if (!row) return;
-    row.orderCount = normalizeMoney(source.orderCount);
-    row.salesAmount = normalizeMoney(source.salesAmount);
+    row.orderCount += normalizeMoney(source.orderCount);
+    row.salesAmount += normalizeMoney(source.salesAmount);
   });
   monthlyReturns.forEach((source) => {
     const row = resolveRow(source);
     if (!row) return;
-    row.returnCount = normalizeMoney(source.returnCount);
-    row.returnAmount = normalizeMoney(source.returnAmount);
+    row.returnCount += normalizeMoney(source.returnCount);
+    row.returnAmount += normalizeMoney(source.returnAmount);
   });
   currentDebt.forEach((source) => {
     const row = resolveRow(source);
-    if (row) row.debtAmount = normalizeMoney(source.debtAmount);
+    if (row) row.debtAmount += normalizeMoney(source.debtAmount);
   });
   todaySales.forEach((source) => {
     const row = resolveRow(source);
     if (!row) return;
-    row.todayOrderCount = normalizeMoney(source.orderCount);
-    row.todaySalesAmount = normalizeMoney(source.salesAmount);
+    row.todayOrderCount += normalizeMoney(source.orderCount);
+    row.todaySalesAmount += normalizeMoney(source.salesAmount);
   });
 
   return Array.from(rows.values()).map((row) => {
@@ -557,7 +266,8 @@ function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], mon
 
 function mergeDeliveryRows(activeStaff = [], deliveryRows = [], returnRows = []) {
   const rows = new Map();
-  const ensure = (source = {}) => {
+  const staffIndex = buildStaffIndex(activeStaff, 'delivery');
+  const ensureCanonical = (source = {}) => {
     const code = String(source.deliveryStaffCode || '').trim();
     const name = String(source.deliveryStaffName || '').trim();
     if (!code && !name) return null;
@@ -566,6 +276,7 @@ function mergeDeliveryRows(activeStaff = [], deliveryRows = [], returnRows = [])
       rows.set(key, {
         deliveryStaffCode: code,
         deliveryStaffName: name,
+        tripCount: 0,
         salesStaffCount: 0,
         assignedOrders: 0,
         deliveredOrders: 0,
@@ -578,30 +289,31 @@ function mergeDeliveryRows(activeStaff = [], deliveryRows = [], returnRows = [])
         completionRate: 0
       });
     }
-    const row = rows.get(key);
-    if (!row.deliveryStaffCode && code) row.deliveryStaffCode = code;
-    if (!row.deliveryStaffName && name) row.deliveryStaffName = name;
-    return row;
+    return rows.get(key);
+  };
+  const resolveRow = (source = {}) => {
+    const canonical = resolveCanonicalDeliveryStaff(source, staffIndex);
+    return canonical ? ensureCanonical(canonical) : null;
   };
 
-  activeStaff.forEach(ensure);
+  activeStaff.forEach(ensureCanonical);
   deliveryRows.forEach((source) => {
-    const row = ensure(source);
+    const row = resolveRow(source);
     if (!row) return;
-    Object.assign(row, {
-      salesStaffCount: normalizeMoney(source.salesStaffCount),
-      assignedOrders: normalizeMoney(source.assignedOrders),
-      deliveredOrders: normalizeMoney(source.deliveredOrders),
-      deliveringOrders: normalizeMoney(source.deliveringOrders),
-      pendingOrders: normalizeMoney(source.pendingOrders),
-      failedOrders: normalizeMoney(source.failedOrders),
-      assignedAmount: normalizeMoney(source.assignedAmount),
-      deliveredAmount: normalizeMoney(source.deliveredAmount)
-    });
+    row.tripCount += normalizeMoney(source.tripCount);
+    row.salesStaffCount = Math.max(row.salesStaffCount, normalizeMoney(source.salesStaffCount));
+    row.assignedOrders += normalizeMoney(source.assignedOrders);
+    row.deliveredOrders += normalizeMoney(source.deliveredOrders);
+    row.deliveringOrders += normalizeMoney(source.deliveringOrders);
+    row.pendingOrders += normalizeMoney(source.pendingOrders);
+    row.failedOrders += normalizeMoney(source.failedOrders);
+    row.assignedAmount += normalizeMoney(source.assignedAmount);
+    row.deliveredAmount += normalizeMoney(source.deliveredAmount);
+    row.returnAmount += normalizeMoney(source.returnAmount);
   });
   returnRows.forEach((source) => {
-    const row = ensure(source);
-    if (row) row.returnAmount = normalizeMoney(source.returnAmount);
+    const row = resolveRow(source);
+    if (row) row.returnAmount += normalizeMoney(source.returnAmount);
   });
 
   return Array.from(rows.values()).map((row) => {
@@ -610,8 +322,48 @@ function mergeDeliveryRows(activeStaff = [], deliveryRows = [], returnRows = [])
   }).sort((left, right) => right.assignedOrders - left.assignedOrders || String(left.deliveryStaffName || left.deliveryStaffCode).localeCompare(String(right.deliveryStaffName || right.deliveryStaffCode), 'vi'));
 }
 
-function buildSummary(salesByStaff = []) {
-  const summary = salesByStaff.reduce((result, row) => {
+function unresolvedMetric(rows = [], staffIndex, type, options = {}) {
+  const countField = options.countField || '';
+  const amountField = options.amountField || '';
+  const unresolved = rows.filter((row) => {
+    return type === 'delivery'
+      ? !resolveCanonicalDeliveryStaff(row, staffIndex)
+      : !resolveCanonicalSalesStaff(row, staffIndex);
+  });
+  return {
+    rowCount: unresolved.length,
+    documentCount: unresolved.reduce((sum, row) => sum + normalizeMoney(row[countField]), 0),
+    amount: unresolved.reduce((sum, row) => sum + normalizeMoney(row[amountField]), 0),
+    identities: unresolved.slice(0, 20).map((row) => ({
+      code: String(row[staffIndex.codeField] || '').trim(),
+      name: String(row[staffIndex.nameField] || '').trim()
+    }))
+  };
+}
+
+function buildDataQuality({ activeStaff, monthlySales, todaySales, monthlyReturns, currentDebt, deliveryMonthRaw, deliveryTodayRaw }) {
+  const salesIndex = buildSalesStaffIndex(activeStaff.sales);
+  const deliveryIndex = buildStaffIndex(activeStaff.delivery, 'delivery');
+  const unmapped = {
+    monthlySales: unresolvedMetric(monthlySales, salesIndex, 'sales', { countField: 'orderCount', amountField: 'salesAmount' }),
+    todaySales: unresolvedMetric(todaySales, salesIndex, 'sales', { countField: 'orderCount', amountField: 'salesAmount' }),
+    monthlyReturns: unresolvedMetric(monthlyReturns, salesIndex, 'sales', { countField: 'returnCount', amountField: 'returnAmount' }),
+    currentDebt: unresolvedMetric(currentDebt, salesIndex, 'sales', { countField: 'debtDocumentCount', amountField: 'debtAmount' }),
+    deliveryMonth: unresolvedMetric(deliveryMonthRaw, deliveryIndex, 'delivery', { countField: 'assignedOrders', amountField: 'assignedAmount' }),
+    deliveryToday: unresolvedMetric(deliveryTodayRaw, deliveryIndex, 'delivery', { countField: 'assignedOrders', amountField: 'assignedAmount' })
+  };
+  const warnings = [];
+  if (unmapped.monthlySales.documentCount > 0) warnings.push(`${unmapped.monthlySales.documentCount} đơn bán tháng chưa map được NVBH`);
+  if (unmapped.todaySales.documentCount > 0) warnings.push(`${unmapped.todaySales.documentCount} đơn hôm nay chưa map được NVBH`);
+  if (unmapped.monthlyReturns.documentCount > 0) warnings.push(`${unmapped.monthlyReturns.documentCount} phiếu trả chưa map được NVBH`);
+  if (unmapped.currentDebt.amount > 0) warnings.push(`Có ${unmapped.currentDebt.amount} đồng công nợ chưa map được NVBH`);
+  if (unmapped.deliveryMonth.documentCount > 0) warnings.push(`${unmapped.deliveryMonth.documentCount} đơn giao tháng chưa map được NVGH`);
+  if (unmapped.deliveryToday.documentCount > 0) warnings.push(`${unmapped.deliveryToday.documentCount} đơn giao hôm nay chưa map được NVGH`);
+  return { unmapped, warnings };
+}
+
+function buildSummary(salesByStaff = [], canonicalTotals = {}) {
+  const staffTotals = salesByStaff.reduce((result, row) => {
     result.targetAmount += normalizeMoney(row.targetAmount);
     result.orderCount += normalizeMoney(row.orderCount);
     result.salesAmount += normalizeMoney(row.salesAmount);
@@ -632,66 +384,88 @@ function buildSummary(salesByStaff = []) {
     todaySalesAmount: 0,
     achievementRate: 0
   });
+
+  const summary = {
+    ...staffTotals,
+    orderCount: canonicalTotals.sales?.orderCount ?? staffTotals.orderCount,
+    salesAmount: canonicalTotals.sales?.salesAmount ?? staffTotals.salesAmount,
+    returnAmount: canonicalTotals.returns?.returnAmount ?? staffTotals.returnAmount,
+    debtAmount: canonicalTotals.debt?.debtAmount ?? staffTotals.debtAmount,
+    todayOrderCount: canonicalTotals.todaySales?.orderCount ?? staffTotals.todayOrderCount,
+    todaySalesAmount: canonicalTotals.todaySales?.salesAmount ?? staffTotals.todaySalesAmount
+  };
+  summary.netSalesAmount = summary.salesAmount - summary.returnAmount;
   summary.achievementRate = calculateRate(summary.netSalesAmount, summary.targetAmount);
   return summary;
 }
 
-function readCache(key) {
-  const cached = dashboardCache.get(key);
-  if (!cached || cached.expiresAt <= Date.now()) {
-    dashboardCache.delete(key);
-    return null;
-  }
-  return cached.value;
-}
-
-function writeCache(key, value) {
-  dashboardCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
-}
-
 function invalidateDashboardCache(period = '') {
-  const normalizedPeriod = String(period || '').trim();
-  if (!normalizedPeriod) {
-    dashboardCache.clear();
-    return;
-  }
-  for (const key of dashboardCache.keys()) {
-    if (key.startsWith(`${normalizedPeriod}:`)) dashboardCache.delete(key);
-  }
+  DashboardCacheService.invalidate(period);
 }
 
 async function getHomeDashboard({ month, force = false } = {}) {
   const range = parseMonth(month);
   const today = dateUtil.todayVN();
   const cacheKey = `${range.period}:${today}`;
+  const cacheVersion = await DashboardCacheService.freshnessVersion();
   if (!force) {
-    const cached = readCache(cacheKey);
+    const cached = DashboardCacheService.read(cacheKey, cacheVersion);
     if (cached) return { ...cached, cacheHit: true };
   }
 
-  const [activeStaff, targets, monthlySales, todaySales, monthlyReturns, currentDebt, deliveryMonthRaw, deliveryTodayRaw, deliveryMonthReturns, deliveryTodayReturns] = await Promise.all([
-    listActiveStaff(),
-    SalesTargetService.listByPeriod(range.period),
-    aggregateSales(range.dateFrom, range.dateTo),
-    aggregateSales(today, today),
-    aggregateReturns(range.dateFrom, range.dateTo),
-    aggregateCurrentDebt(),
-    aggregateDelivery(range.dateFrom, range.dateTo),
-    aggregateDelivery(today, today),
-    aggregateDeliveryReturns(range.dateFrom, range.dateTo),
-    aggregateDeliveryReturns(today, today)
+  const queryDurationMs = {};
+  const timed = async (name, factory) => {
+    const startedAt = Date.now();
+    try {
+      return await factory();
+    } finally {
+      queryDurationMs[name] = Date.now() - startedAt;
+    }
+  };
+
+  const [
+    activeStaff,
+    targets,
+    monthlySalesResult,
+    todaySalesResult,
+    monthlyReturnsResult,
+    currentDebtResult,
+    deliveryMonthResult,
+    deliveryTodayResult,
+    deliveryMonthReturns,
+    deliveryTodayReturns
+  ] = await Promise.all([
+    timed('activeStaff', () => listActiveStaff()),
+    timed('targets', () => SalesTargetService.listByPeriod(range.period)),
+    timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo)),
+    timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today)),
+    timed('monthlyReturns', () => SalesDashboardQuery.aggregateReturns(range.dateFrom, range.dateTo)),
+    timed('currentDebt', () => DebtDashboardQuery.aggregateCurrentDebt()),
+    timed('deliveryMonth', () => DeliveryDashboardQuery.aggregateDeliveryMonth(range.dateFrom, range.dateTo)),
+    timed('deliveryToday', () => DeliveryDashboardQuery.aggregateDeliveryToday(today)),
+    timed('deliveryMonthReturns', () => DeliveryDashboardQuery.aggregateDeliveryReturns(range.dateFrom, range.dateTo)),
+    timed('deliveryTodayReturns', () => DeliveryDashboardQuery.aggregateDeliveryReturns(today, today))
   ]);
 
   const salesByStaff = mergeSalesRows({
     activeStaff: activeStaff.sales,
     targets,
-    monthlySales,
-    monthlyReturns,
-    currentDebt,
-    todaySales
+    monthlySales: monthlySalesResult.rows,
+    monthlyReturns: monthlyReturnsResult.rows,
+    currentDebt: currentDebtResult.rows,
+    todaySales: todaySalesResult.rows
   });
-  const deliveryMonth = mergeDeliveryRows(activeStaff.delivery, deliveryMonthRaw, deliveryMonthReturns);
-  const deliveryToday = mergeDeliveryRows(activeStaff.delivery, deliveryTodayRaw, deliveryTodayReturns);
+  const deliveryMonth = mergeDeliveryRows(activeStaff.delivery, deliveryMonthResult.rows, deliveryMonthReturns);
+  const deliveryToday = mergeDeliveryRows(activeStaff.delivery, deliveryTodayResult.rows, deliveryTodayReturns);
+  const dataQuality = buildDataQuality({
+    activeStaff,
+    monthlySales: monthlySalesResult.rows,
+    todaySales: todaySalesResult.rows,
+    monthlyReturns: monthlyReturnsResult.rows,
+    currentDebt: currentDebtResult.rows,
+    deliveryMonthRaw: deliveryMonthResult.rows,
+    deliveryTodayRaw: deliveryTodayResult.rows
+  });
   const generatedAt = new Date().toISOString();
 
   const result = {
@@ -703,16 +477,36 @@ async function getHomeDashboard({ month, force = false } = {}) {
       today,
       timezone: dateUtil.VIETNAM_TIME_ZONE
     },
-    summary: buildSummary(salesByStaff),
+    summary: buildSummary(salesByStaff, {
+      sales: monthlySalesResult.totals,
+      todaySales: todaySalesResult.totals,
+      returns: monthlyReturnsResult.totals,
+      debt: currentDebtResult.totals
+    }),
     salesByStaff,
     deliveryMonth,
     deliveryToday,
+    dataQuality,
+    sources: {
+      sales: monthlySalesResult.source,
+      returns: monthlyReturnsResult.source,
+      debt: currentDebtResult.source,
+      deliveryMonth: deliveryMonthResult.source,
+      deliveryToday: deliveryTodayResult.source,
+      snapshot: false
+    },
+    metrics: {
+      queryDurationMs,
+      deliveryMonth: deliveryMonthResult.perf || null,
+      deliveryToday: deliveryTodayResult.perf || null
+    },
     debtZeroTolerance: DEBT_ZERO_TOLERANCE,
     generatedAt,
-    cacheHit: false
+    cacheHit: false,
+    cacheEnabled: DashboardCacheService.enabled()
   };
 
-  writeCache(cacheKey, result);
+  DashboardCacheService.write(cacheKey, cacheVersion, result);
   return result;
 }
 
@@ -729,6 +523,7 @@ module.exports = {
   resolveCanonicalSalesStaff,
   mergeSalesRows,
   mergeDeliveryRows,
+  buildDataQuality,
   buildSummary,
   invalidateDashboardCache,
   getHomeDashboard

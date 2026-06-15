@@ -189,8 +189,11 @@
     renderDeliveryRows(data.deliveryMonth||[],elements.deliveryMonthTable,false);
     renderDeliveryRows(data.deliveryToday||[],elements.deliveryTodayTable,true);
     const generated=data.generatedAt?new Date(data.generatedAt).toLocaleString('vi-VN'):'—';
-    const cached=data.cacheHit===true?' · dữ liệu cache ngắn hạn':'';
-    setState(`Cập nhật lúc ${generated}${cached}`);
+    const cached=data.cacheHit===true?' · cache có kiểm tra phiên bản Mongo':'';
+    const source=data.sources?.snapshot===false?' · nguồn trực tiếp MongoDB':'';
+    const warnings=Array.isArray(data.dataQuality?.warnings)?data.dataQuality.warnings:[];
+    const warningText=warnings.length?` · Cảnh báo dữ liệu: ${warnings.join('; ')}`:'';
+    setState(`Cập nhật lúc ${generated}${source}${cached}${warningText}`,warnings.length>0);
   }
 
   async function loadHomeDashboard(options={}){

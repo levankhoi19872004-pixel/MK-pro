@@ -39,7 +39,11 @@ const home = asyncHandler(async (req, res) => {
     deliveryMonthRows: result.deliveryMonth?.length || 0,
     deliveryTodayRows: result.deliveryToday?.length || 0,
     durationMs,
-    cacheHit: result.cacheHit === true
+    cacheHit: result.cacheHit === true,
+    cacheEnabled: result.cacheEnabled === true,
+    sources: result.sources || {},
+    dataQualityWarningCount: result.dataQuality?.warnings?.length || 0,
+    queryDurationMs: result.metrics?.queryDurationMs || {}
   }, 'Home dashboard loaded');
 
   return res.json({

@@ -1867,10 +1867,12 @@ function buildDeliverySummaryAccumulator(row = {}) {
   return {
     orderCount: 0,
     deliveredCount: 0,
+    deliveringCount: 0,
     pendingCount: 0,
     failedCount: 0,
     totalReceivable: 0,
     totalAmount: 0,
+    deliveredAmount: 0,
     cashAmount: 0,
     bankAmount: 0,
     bonusAmount: 0,
@@ -1878,19 +1880,29 @@ function buildDeliverySummaryAccumulator(row = {}) {
     returnAmount: 0,
     collectedAmount: 0,
     debtAmount: 0,
-    remainingAmount: 0
+    remainingAmount: 0,
+    _salesStaffCodes: []
   };
 }
 
 function addDeliveryRowToSummary(acc, row = {}) {
   const visual = String(row.visualStatus || row.deliveryStatus || '').toLowerCase();
+  const delivered = ['delivered', 'done', 'completed'].includes(visual);
+  const failed = ['failed', 'cancelled', 'canceled', 'returned', 'delivery_failed'].includes(visual);
+  const delivering = ['delivering', 'in_progress', 'on_route', 'shipping'].includes(visual);
   acc.orderCount += 1;
-  if (['delivered', 'done', 'completed'].includes(visual)) acc.deliveredCount += 1;
-  else if (['failed', 'cancelled', 'canceled', 'returned', 'delivery_failed'].includes(visual)) acc.failedCount += 1;
-  else acc.pendingCount += 1;
+  if (delivered) acc.deliveredCount += 1;
+  else if (failed) acc.failedCount += 1;
+  else {
+    // Giữ pendingCount tương thích với màn giao hàng cũ; deliveringCount là field
+    // bổ sung để Dashboard có thể tách "đang giao" khỏi "chưa giao".
+    acc.pendingCount += 1;
+    if (delivering) acc.deliveringCount += 1;
+  }
   const amount = buildDeliveryAmount(row, row.returnAmount);
   acc.totalReceivable += amount.totalReceivable;
   acc.totalAmount += amount.totalReceivable;
+  if (delivered) acc.deliveredAmount += amount.totalReceivable;
   acc.cashAmount += amount.cashAmount;
   acc.bankAmount += amount.bankAmount;
   acc.bonusAmount += amount.bonusAmount;
@@ -1899,12 +1911,16 @@ function addDeliveryRowToSummary(acc, row = {}) {
   acc.collectedAmount += amount.collectedAmount;
   acc.debtAmount += amount.debtAmount;
   acc.remainingAmount += amount.debtAmount;
+  const salesStaffCode = String(row.salesStaffCode || '').trim();
+  if (salesStaffCode && !acc._salesStaffCodes.includes(salesStaffCode)) acc._salesStaffCodes.push(salesStaffCode);
   return acc;
 }
 
 function finalizeDeliverySummaryRow(row = {}) {
-  const roundKeys = ['totalReceivable', 'totalAmount', 'cashAmount', 'bankAmount', 'bonusAmount', 'rewardAmount', 'returnAmount', 'collectedAmount', 'debtAmount', 'remainingAmount'];
+  const roundKeys = ['totalReceivable', 'totalAmount', 'deliveredAmount', 'cashAmount', 'bankAmount', 'bonusAmount', 'rewardAmount', 'returnAmount', 'collectedAmount', 'debtAmount', 'remainingAmount'];
   for (const key of roundKeys) row[key] = Math.max(0, normalizeDebtAmount(Math.round(toNumber(row[key]))));
+  row.salesStaffCount = Array.isArray(row._salesStaffCodes) ? row._salesStaffCodes.length : 0;
+  delete row._salesStaffCodes;
   return row;
 }
 

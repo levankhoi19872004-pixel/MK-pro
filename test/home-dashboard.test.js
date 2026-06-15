@@ -137,3 +137,83 @@ test('dashboard keeps the legacy report endpoint intact', () => {
   assert.match(reportRoutes, /router\.get\('\/dashboard'/);
   assert.match(legacyDashboardService, /legacy\.dashboardReport/);
 });
+
+test('dashboard canonical date filter chooses one business date instead of OR-ing createdAt', () => {
+  const filter = dashboardService.buildDateRangeFilter('2026-06-01', '2026-06-30', ['orderDate', 'date']);
+  const serialized = JSON.stringify(filter);
+  assert.match(serialized, /\$expr/);
+  assert.match(serialized, /orderDate/);
+  assert.match(serialized, /createdAt/);
+  assert.doesNotMatch(serialized, /"\$or"/);
+});
+
+test('dashboard summary uses Mongo canonical totals while staff table remains sales-only', () => {
+  const rows = dashboardService.mergeSalesRows({
+    activeStaff: [{ salesStaffCode: '35128', salesStaffName: 'Nguyễn Thị Thùy' }],
+    targets: [{ salesStaffCode: '35128', targetAmount: 1000000 }],
+    monthlySales: [{ salesStaffCode: '35128', orderCount: 1, salesAmount: 800000 }],
+    monthlyReturns: [{ salesStaffCode: '35128', returnCount: 1, returnAmount: 50000 }],
+    currentDebt: [{ salesStaffCode: '35128', debtAmount: 100000 }],
+    todaySales: []
+  });
+  const summary = dashboardService.buildSummary(rows, {
+    sales: { orderCount: 2, salesAmount: 900000 },
+    returns: { returnAmount: 70000 },
+    debt: { debtAmount: 150000 },
+    todaySales: { orderCount: 0, salesAmount: 0 }
+  });
+
+  assert.equal(summary.targetAmount, 1000000);
+  assert.equal(summary.orderCount, 2);
+  assert.equal(summary.salesAmount, 900000);
+  assert.equal(summary.returnAmount, 70000);
+  assert.equal(summary.netSalesAmount, 830000);
+  assert.equal(summary.debtAmount, 150000);
+});
+
+test('dashboard reports unmapped Mongo documents instead of silently adding delivery identities to sales table', () => {
+  const quality = dashboardService.buildDataQuality({
+    activeStaff: {
+      sales: [{ salesStaffCode: '35128', salesStaffName: 'Nguyễn Thị Thùy' }],
+      delivery: [{ deliveryStaffCode: 'ghtp', deliveryStaffName: 'Đỗ Thị Anh' }]
+    },
+    monthlySales: [{ salesStaffCode: 'ghtp', salesStaffName: 'Đỗ Thị Anh', orderCount: 2, salesAmount: 100000 }],
+    todaySales: [],
+    monthlyReturns: [],
+    currentDebt: [{ salesStaffCode: '', salesStaffName: '', debtDocumentCount: 1, debtAmount: 50000 }],
+    deliveryMonthRaw: [],
+    deliveryTodayRaw: []
+  });
+
+  assert.equal(quality.unmapped.monthlySales.documentCount, 2);
+  assert.equal(quality.unmapped.monthlySales.amount, 100000);
+  assert.equal(quality.unmapped.currentDebt.amount, 50000);
+  assert.ok(quality.warnings.length >= 2);
+});
+
+test('dashboard query contracts use canonical Mongo sources and no snapshot reader', () => {
+  const salesQuery = read('src/services/dashboard/SalesDashboardQuery.js');
+  const debtQuery = read('src/services/dashboard/DebtDashboardQuery.js');
+  const deliveryQuery = read('src/services/dashboard/DeliveryDashboardQuery.js');
+  const homeQuery = read('src/services/dashboard/HomeDashboardService.js');
+  const cacheService = read('src/services/dashboard/DashboardCacheService.js');
+
+  assert.match(salesQuery, /SalesOrder\.aggregate/);
+  assert.match(salesQuery, /ReturnOrder\.aggregate/);
+  assert.match(debtQuery, /ArLedger\.aggregate/);
+  assert.match(deliveryQuery, /MasterOrder\.aggregate/);
+  assert.match(deliveryQuery, /listDeliveryTodaySummary/);
+  assert.doesNotMatch([salesQuery, debtQuery, deliveryQuery, homeQuery].join('\n'), /inventorySnapshots|mobileContext|getPrimaryDataSnapshot|data\/.*\.json/);
+  assert.match(cacheService, /HOME_DASHBOARD_CACHE_TTL_MS \|\| 0/);
+});
+
+test('dashboard accounting contract excludes lifecycle completed from confirmed sales', () => {
+  const expressions = read('src/services/dashboard/DashboardMongoExpressions.js');
+  const filterBlock = expressions.match(/function accountingConfirmedFilter\(\)[\s\S]*?\n}\n\nfunction returnConfirmedFilter/)?.[0] || '';
+  assert.ok(filterBlock);
+  assert.match(filterBlock, /accountingConfirmed/);
+  assert.match(filterBlock, /accountingStatus/);
+  assert.match(filterBlock, /arPosted/);
+  assert.doesNotMatch(filterBlock, /lifecycleStatus/);
+  assert.doesNotMatch(filterBlock, /completed/);
+});
