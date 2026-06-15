@@ -234,6 +234,35 @@ function removeSelectedGroupedChildOrders() {
   renderMasterOrderGroupingLayers();
 }
 window.removeSelectedGroupedChildOrders = removeSelectedGroupedChildOrders;
+
+// MASTER_ORDER_CHILD_SELECTION_FIX_START:
+// Danh sách được render lại bằng innerHTML nên phải bắt sự kiện theo delegation.
+// Trước đây checkbox chỉ đổi trạng thái trên DOM, không cập nhật Set; vì vậy nút
+// "Bỏ khỏi danh sách gộp" luôn đọc selectedGroupedChildOrderCheckIds rỗng.
+function syncMasterChildCheckboxSelection(selectionSet, checkbox) {
+  const id = String(checkbox?.dataset?.id || '').trim();
+  if (!id) return false;
+  if (checkbox.checked) selectionSet.add(id);
+  else selectionSet.delete(id);
+  const row = checkbox.closest('.master-child-one-line');
+  if (row) row.classList.toggle('selected', checkbox.checked);
+  return true;
+}
+
+function handleUnmergedChildSelectionChange(event) {
+  const check = event?.target?.closest?.('.child-order-check');
+  if (!check || !unmergedOrderList?.contains(check)) return;
+  if (!syncMasterChildCheckboxSelection(selectedUnmergedChildOrderIds, check)) return;
+  selectedChildOrderIds = selectedUnmergedChildOrderIds;
+  window.selectedChildOrderIds = selectedChildOrderIds;
+}
+
+function handleGroupedChildSelectionChange(event) {
+  const check = event?.target?.closest?.('.grouped-child-order-check');
+  if (!check || !selectedMasterChildOrderList?.contains(check)) return;
+  syncMasterChildCheckboxSelection(selectedGroupedChildOrderCheckIds, check);
+}
+// MASTER_ORDER_CHILD_SELECTION_FIX_END
 // MASTER_ORDER_POPUP_PATCH_END
 
 function isMasterOrderLocked(order) {
@@ -542,6 +571,8 @@ if (typeof closeMasterOrderModalButton !== 'undefined' && closeMasterOrderModalB
 if (typeof masterOrderForm !== 'undefined' && masterOrderForm) masterOrderForm.addEventListener('submit', submitMasterOrder);
 if (typeof moveToGroupedOrdersButton !== 'undefined' && moveToGroupedOrdersButton) moveToGroupedOrdersButton.addEventListener('click', moveSelectedUnmergedToGrouped);
 if (typeof removeFromGroupedOrdersButton !== 'undefined' && removeFromGroupedOrdersButton) removeFromGroupedOrdersButton.addEventListener('click', removeSelectedGroupedChildOrders);
+if (typeof unmergedOrderList !== 'undefined' && unmergedOrderList) unmergedOrderList.addEventListener('change', handleUnmergedChildSelectionChange);
+if (typeof selectedMasterChildOrderList !== 'undefined' && selectedMasterChildOrderList) selectedMasterChildOrderList.addEventListener('change', handleGroupedChildSelectionChange);
 if (typeof selectAllUnmergedOrdersButton !== 'undefined' && selectAllUnmergedOrdersButton) selectAllUnmergedOrdersButton.addEventListener('click', toggleSelectAllUnmergedOrders);
 if (typeof selectAllMasterOrdersButton !== 'undefined' && selectAllMasterOrdersButton) selectAllMasterOrdersButton.addEventListener('click', toggleSelectAllMasterOrders);
 if (typeof printSelectedMasterOrdersButton !== 'undefined' && printSelectedMasterOrdersButton) printSelectedMasterOrdersButton.addEventListener('click', printSelectedMasterOrders);
