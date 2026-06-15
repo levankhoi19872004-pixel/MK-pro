@@ -257,6 +257,29 @@ tabs.forEach((btn) => btn.addEventListener('click', () => {
 customerSearch.addEventListener('input', debounce(() => loadCustomers(customerSearch.value.trim()), 250));
 document.getElementById('reloadCustomersBtn')?.addEventListener('click', async () => { await preloadCustomers(true); await loadDebts({ silent: true }); loadCustomers(customerSearch.value.trim()); });
 document.getElementById('reloadOrdersBtn')?.addEventListener('click', loadTodayOrders);
+
+todayOrders?.addEventListener('click', async (event) => {
+  const editButton = event.target.closest('[data-edit-order]');
+  if (editButton && todayOrders.contains(editButton)) {
+    setButtonBusy(editButton, true, 'Đang mở...');
+    try {
+      await editTodayOrder(editButton.dataset.editOrder);
+    } finally {
+      setButtonBusy(editButton, false);
+    }
+    return;
+  }
+
+  const deleteButton = event.target.closest('[data-delete-order]');
+  if (deleteButton && todayOrders.contains(deleteButton)) {
+    setButtonBusy(deleteButton, true, 'Đang xóa...');
+    try {
+      await deleteTodayOrder(deleteButton.dataset.deleteOrder, deleteButton.dataset.orderCode);
+    } finally {
+      setButtonBusy(deleteButton, false);
+    }
+  }
+});
 document.getElementById('reloadDebtsBtn')?.addEventListener('click', () => {
   if (debtFormDirty && !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')) return;
   debtFormDirty = false;
@@ -1311,7 +1334,7 @@ async function editTodayOrder(orderId) {
   try {
     const data = await mobileApi.getSalesOrder(orderId);
     const order = data.order;
-    if (!order.canEdit) return setMessage(message, 'Đơn đã gộp đơn tổng, app bán hàng không được sửa.', 'error');
+    if (!order.canEdit) return setMessage(message, order.editLockReason || 'Đơn hiện không thể chỉnh sửa trên app bán hàng.', 'error');
 
     editingOrderId = order.id || order.code;
     selectedCustomer = {
@@ -1352,7 +1375,7 @@ async function editTodayOrder(orderId) {
     await recalculateCartPromotions({ silent: true });
     // MOBILE_SALES_CART_PROMOTION_RECALC_EDIT_END
     renderCart();
-    setMessage(message, `Đang sửa đơn ${order.code || ''}. Chỉ sửa được khi chưa gộp đơn tổng.`, 'success');
+    setMessage(message, `Đang sửa đơn ${order.code || ''}. Khi lưu, hệ thống sẽ tự điều chỉnh tồn kho và hạn mức bán App theo phần chênh lệch.`, 'success');
     switchTab('orderTab');
   } catch (err) {
     setMessage(message, err.message, 'error');
@@ -1394,25 +1417,23 @@ function renderTodayOrders(items = todayOrderCache) {
     <div class="order-item">
       <strong>${escapeHtml(order.code)} - ${escapeHtml(order.customerName || '')}</strong>
       <span>Ngày: ${formatShortDate(order.date)} · Tổng: ${money(order.totalAmount)} · Đã thu: ${money(order.paidAmount)} · Còn nợ: ${money(order.debtAmount)}</span>
-      <span>Trạng thái: ${escapeHtml(order.status || '')} / ${escapeHtml(order.deliveryStatus || '')} · ${order.canEdit ? 'Chưa gộp đơn tổng' : 'Đã gộp đơn tổng'}</span>
+      <span>Trạng thái: ${escapeHtml(order.status || '')} / ${escapeHtml(order.deliveryStatus || '')} · ${order.canEdit ? 'Có thể chỉnh sửa' : escapeHtml(order.editLockReason || 'Không thể chỉnh sửa')}</span>
       <div class="row-actions">
-        ${order.canEdit ? `<button class="ghost-btn small-btn" data-edit-order="${escapeHtml(order.id || order.code)}">Chỉnh sửa</button><button class="danger-btn small-btn" data-delete-order="${escapeHtml(order.id || order.code)}" data-order-code="${escapeHtml(order.code)}">Xóa</button>` : '<span class="muted">Đã gộp đơn tổng - không sửa/xóa trên app</span>'}
+        ${order.canEdit ? `<button type="button" class="ghost-btn small-btn" data-edit-order="${escapeHtml(order.id || order.code)}">Chỉnh sửa</button><button type="button" class="danger-btn small-btn" data-delete-order="${escapeHtml(order.id || order.code)}" data-order-code="${escapeHtml(order.code)}">Xóa</button>` : `<span class="muted">${escapeHtml(order.editLockReason || 'Không thể sửa/xóa trên app')}</span>`}
       </div>
     </div>
   `).join('');
 
-  todayOrders.querySelectorAll('[data-edit-order]').forEach((btn) => {
-    btn.addEventListener('click', () => editTodayOrder(btn.dataset.editOrder));
-  });
-  todayOrders.querySelectorAll('[data-delete-order]').forEach((btn) => {
-    btn.addEventListener('click', () => deleteTodayOrder(btn.dataset.deleteOrder, btn.dataset.orderCode));
-  });
 }
 
 function upsertTodayOrder(order = {}) {
   if (!order || !(order.id || order.code)) return;
   const key = String(order.id || order.code);
-  const normalized = { ...order, canEdit: !order.masterOrderId && (order.mergeStatus || 'unmerged') !== 'merged' };
+  const normalized = {
+    ...order,
+    canEdit: order.canEdit !== false && !order.masterOrderId && !order.masterOrderCode && (order.mergeStatus || 'unmerged') !== 'merged',
+    editLockReason: order.editLockReason || ''
+  };
   const index = todayOrderCache.findIndex((item) => String(item.id || item.code) === key || String(item.code || '') === String(order.code || ''));
   if (index >= 0) todayOrderCache[index] = { ...todayOrderCache[index], ...normalized };
   else todayOrderCache.unshift(normalized);

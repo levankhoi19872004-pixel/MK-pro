@@ -13,7 +13,11 @@ test('mobile sales creation persists idempotency in Mongo transaction', () => {
   assert.match(source, /completeRequest\(persistentRequest\.key, response, \{ session \}\)/);
 });
 
-test('mobile sales UI capability agrees with stock-posted update guard', () => {
-  assert.match(source, /canEdit: order\.stockPosted !== true/);
-  assert.match(source, /if \(order\.stockPosted\)/);
+test('mobile sales update persists idempotency and permits stock-posted unmerged orders through delta repost flow', () => {
+  assert.match(source, /buildPersistentKey\('mobile\.sales\.update'/);
+  assert.match(source, /scope: 'mobile\.sales\.update'/);
+  assert.match(source, /mobileSalesOrderCanEdit\(order\)/);
+  assert.match(source, /adjustForOrderEdit\(/);
+  assert.match(source, /postSaleEditDelta\(/);
+  assert.doesNotMatch(source, /Đơn đã post tồn, không được sửa trực tiếp/);
 });

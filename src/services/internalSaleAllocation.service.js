@@ -119,6 +119,199 @@ async function consumeForOrder({ orderId, orderCode, items, actorCode = '', acto
   return consumed;
 }
 
+
+function quotaConsumedItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => String(item.saleAllocationType || '').toUpperCase() === 'INTERNAL_APP_QUOTA'
+      || toNumber(item.allocationConsumedQty ?? item.quotaConsumedQty) > 0
+      || String(item.internalSaleAllocationId || '').trim())
+    .map((item) => ({
+      ...item,
+      quantity: item.allocationConsumedQty ?? item.quotaConsumedQty ?? item.quantity ?? item.qty
+    }));
+}
+
+
+function buildQuotaEditPlan(previousItems = [], nextItems = []) {
+  const previousAllByCode = aggregateItems(previousItems);
+  const previousQuotaByCode = aggregateItems(quotaConsumedItems(previousItems));
+  const nextByCode = aggregateItems(nextItems);
+  const productCodes = Array.from(new Set([...previousAllByCode.keys(), ...nextByCode.keys()])).sort();
+
+  return productCodes.map((productCode) => {
+    const previousQty = Math.max(0, toNumber(previousAllByCode.get(productCode)));
+    const previousQuotaQty = Math.max(0, toNumber(previousQuotaByCode.get(productCode)));
+    const nextQty = Math.max(0, toNumber(nextByCode.get(productCode)));
+    const deltaQty = nextQty - previousQty;
+    const releaseQty = deltaQty < 0 ? Math.min(Math.abs(deltaQty), previousQuotaQty) : 0;
+    const consumeQty = Math.max(0, deltaQty);
+    const nextQuotaQty = Math.max(0, previousQuotaQty + consumeQty - releaseQty);
+    return {
+      productCode,
+      previousQty,
+      previousQuotaQty,
+      nextQty,
+      deltaQty,
+      consumeQty,
+      releaseQty,
+      nextQuotaQty
+    };
+  });
+}
+
+function safeEventPart(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9:_-]/g, '_')
+    .slice(0, 120);
+}
+
+async function adjustForOrderEdit({
+  orderId,
+  orderCode,
+  previousItems = [],
+  nextItems = [],
+  commandId = '',
+  actorCode = '',
+  actorName = ''
+} = {}, options = {}) {
+  if (!isQuotaEnabled()) return { allocations: new Map(), consumedQtyByCode: new Map(), deltas: [] };
+  const session = options.session;
+  if (!session) {
+    const err = new Error('Điều chỉnh hạn mức bán App cần chạy trong Mongo transaction');
+    err.code = 'DMS_QUOTA_SESSION_REQUIRED';
+    throw err;
+  }
+
+  const plan = buildQuotaEditPlan(previousItems, nextItems);
+  const nextByCode = aggregateItems(nextItems);
+  const allocations = new Map();
+  const consumedQtyByCode = new Map();
+  const deltas = [];
+  const now = dateUtil.nowIso();
+  const sourceOrderId = String(orderId || orderCode || '');
+  const sourceOrderCode = String(orderCode || orderId || '');
+  const commandKey = safeEventPart(commandId || makeId('EDIT'));
+
+  for (const row of plan) {
+    const { productCode, previousQty, previousQuotaQty, nextQty, nextQuotaQty, deltaQty, consumeQty, releaseQty } = row;
+    consumedQtyByCode.set(productCode, nextQuotaQty);
+    deltas.push(row);
+
+    if (consumeQty > 0) {
+      const eventKey = `EDIT_CONSUME:${commandKey}:${safeEventPart(sourceOrderId || sourceOrderCode)}:${productCode}`;
+      const existing = await InternalSaleAllocationLedger.findOne({ eventKey }).session(session).lean();
+      if (existing) {
+        const existingAllocation = await InternalSaleAllocation.findOne({
+          $or: [
+            { id: existing.allocationId },
+            { _id: /^[a-f0-9]{24}$/i.test(String(existing.allocationId || '')) ? existing.allocationId : undefined }
+          ].filter((row) => Object.values(row)[0] !== undefined)
+        }).session(session).lean();
+        if (existingAllocation) allocations.set(productCode, existingAllocation);
+        continue;
+      }
+
+      const allocation = await InternalSaleAllocation.findOneAndUpdate(
+        {
+          productCode,
+          status: 'active',
+          remainingQty: { $gte: consumeQty }
+        },
+        {
+          $inc: {
+            consumedQty: consumeQty,
+            remainingQty: -consumeQty
+          },
+          $set: { updatedAt: now }
+        },
+        { new: true, session, lean: true }
+      );
+
+      if (!allocation) {
+        const current = await InternalSaleAllocation.findOne({ productCode, status: 'active' })
+          .session(session)
+          .lean();
+        const err = new Error(current
+          ? `Sản phẩm ${productCode} chỉ còn được bán qua App ${Math.max(0, toNumber(current.remainingQty))} đơn vị`
+          : `Sản phẩm ${productCode} chưa có hạn mức bán qua App. Vui lòng cập nhật file tồn DMS buổi sáng.`);
+        err.code = 'DMS_APP_QUOTA_EXCEEDED';
+        err.productCode = productCode;
+        err.availableQuota = Math.max(0, toNumber(current?.remainingQty));
+        err.requiredQty = consumeQty;
+        throw err;
+      }
+
+      await InternalSaleAllocationLedger.create([{
+        id: makeId('ISAL'),
+        eventKey,
+        allocationId: String(allocation.id || allocation._id || ''),
+        productCode,
+        direction: 'OUT',
+        type: 'ORDER_EDIT_CONSUME',
+        quantity: consumeQty,
+        sourceOrderId,
+        sourceOrderCode,
+        actorCode: String(actorCode || ''),
+        actorName: String(actorName || ''),
+        note: `Trừ thêm hạn mức do sửa đơn ${sourceOrderCode || sourceOrderId}`,
+        createdAt: now
+      }], { session });
+
+      allocations.set(productCode, allocation);
+      continue;
+    }
+
+    if (deltaQty < 0 && releaseQty > 0) {
+      const eventKey = `EDIT_RELEASE:${commandKey}:${safeEventPart(sourceOrderId || sourceOrderCode)}:${productCode}`;
+      const existing = await InternalSaleAllocationLedger.findOne({ eventKey }).session(session).lean();
+      if (existing) {
+        const current = await InternalSaleAllocation.findOne({ productCode, status: 'active' }).session(session).lean();
+        if (current) allocations.set(productCode, current);
+        continue;
+      }
+
+      let allocation = await InternalSaleAllocation.findOneAndUpdate(
+        { productCode, status: 'active' },
+        {
+          $inc: { releasedQty: releaseQty, remainingQty: releaseQty },
+          $set: { updatedAt: now }
+        },
+        { new: true, session, lean: true }
+      );
+      if (!allocation) allocation = await createReleaseAllocation(productCode, releaseQty, { id: sourceOrderId, code: sourceOrderCode }, { session });
+      if (!allocation) continue;
+
+      await InternalSaleAllocationLedger.create([{
+        id: makeId('ISAL'),
+        eventKey,
+        allocationId: String(allocation.id || allocation._id || ''),
+        productCode,
+        direction: 'IN',
+        type: 'ORDER_EDIT_RELEASE',
+        quantity: releaseQty,
+        sourceOrderId,
+        sourceOrderCode,
+        actorCode: String(actorCode || ''),
+        actorName: String(actorName || ''),
+        note: `Hoàn hạn mức do giảm số lượng khi sửa đơn ${sourceOrderCode || sourceOrderId}`,
+        createdAt: now
+      }], { session });
+
+      allocations.set(productCode, allocation);
+    }
+  }
+
+  const nextCodes = Array.from(nextByCode.keys());
+  if (nextCodes.length) {
+    const active = await getActiveAllocations(nextCodes, { session });
+    for (const [productCode, allocation] of active.entries()) allocations.set(productCode, allocation);
+  }
+
+  invalidateMobileCatalogCache();
+  return { allocations, consumedQtyByCode, deltas };
+}
+
 async function createReleaseAllocation(productCode, quantity, order = {}, options = {}) {
   const session = options.session;
   const latestImport = await DmsInventoryImport.findOne({ status: 'completed' })
@@ -233,8 +426,10 @@ async function releaseForDeletedOrder(order = {}, actor = {}, options = {}) {
 module.exports = {
   isQuotaEnabled,
   aggregateItems,
+  buildQuotaEditPlan,
   getActiveAllocations,
   consumeForOrder,
+  adjustForOrderEdit,
   releaseForDeletedOrder,
   invalidateMobileCatalogCache
 };

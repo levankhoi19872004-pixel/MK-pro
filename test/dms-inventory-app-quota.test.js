@@ -125,5 +125,5 @@ test('admin and mobile UI expose actual stock, DMS difference, and App selling l
   assert.match(mobileJs, /Tồn thực tế/);
   assert.match(mobileJs, /Được bán App/);
   assert.match(mobileJs, /qty > maxOrderQty/);
-  assert.match(mobileHtml, /sales\.js\?v=phase50-dms-quota-v1/);
+  assert.match(mobileHtml, /sales\.js\?v=phase51-mobile-edit-posted-v1/);
 });

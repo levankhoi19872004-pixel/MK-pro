@@ -21,7 +21,7 @@ test('mobile sales list must exclude soft-deleted orders by deletion flags', () 
 
 test('mobile sales projection keeps delete flags and applies final visibility guard', () => {
   assert.match(source, /orderStatusUtil = require\('\.\.\/\.\.\/utils\/orderStatus\.util'\)/);
-  assert.match(source, /status lifecycleStatus deliveryStatus deleted isDeleted deletedAt deleteMode deleteReason/);
+  assert.match(source, /status lifecycleStatus deliveryStatus[\s\S]*deleted isDeleted deletedAt deleteMode deleteReason/);
   assert.match(source, /deleted: Boolean\(order\.deleted\)/);
   assert.match(source, /isDeleted: Boolean\(order\.isDeleted\)/);
   assert.match(source, /deletedAt: order\.deletedAt \|\| ''/);
@@ -35,7 +35,7 @@ test('mobile delete button is wired to modular DELETE API', () => {
   const serviceSource = source;
 
   assert.match(frontSource, /data-delete-order/);
-  assert.match(frontSource, /deleteTodayOrder\(btn\.dataset\.deleteOrder, btn\.dataset\.orderCode\)/);
+  assert.match(frontSource, /deleteTodayOrder\(deleteButton\.dataset\.deleteOrder, deleteButton\.dataset\.orderCode\)/);
   assert.match(apiSource, /deleteSalesOrder\(id\) \{/);
   assert.match(apiSource, /method: 'DELETE'/);
   assert.match(routeSource, /router\.delete\('\/orders\/:id'/);

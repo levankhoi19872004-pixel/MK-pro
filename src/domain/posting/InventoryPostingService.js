@@ -58,6 +58,36 @@ async function postSaleOut(order = {}, options = {}) {
   }, options);
 }
 
+
+async function postSaleEditDelta(order = {}, items = [], direction = 'OUT', options = {}) {
+  if (!options.session && options.allowUnsafeNoSession !== true) {
+    const err = new Error('postSaleEditDelta cần chạy trong Mongo session để đảm bảo atomic inventory posting');
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+
+  const normalizedDirection = String(direction || '').toUpperCase() === 'IN' ? 'IN' : 'OUT';
+  const commandId = String(options.commandId || options.idempotencyKey || Date.now()).trim();
+  const orderIdentity = String(order.id || order._id || order.code || '').trim();
+  const refId = `${orderIdentity}:EDIT:${commandId}:${normalizedDirection}`;
+
+  return inventoryService.postStockMovement({
+    ...order,
+    id: refId,
+    items: Array.isArray(items) ? items : []
+  }, {
+    type: normalizedDirection === 'IN' ? 'SALE_EDIT_IN' : 'SALE_EDIT_OUT',
+    direction: normalizedDirection,
+    refType: 'SALES_ORDER_EDIT',
+    refId,
+    refCode: order.code || order.id,
+    date: order.date || order.orderDate || order.createdAt,
+    note: normalizedDirection === 'IN'
+      ? `Hoàn tồn do sửa đơn bán ${order.code || order.id || ''}`
+      : `Trừ thêm tồn do sửa đơn bán ${order.code || order.id || ''}`
+  }, options);
+}
+
 async function postReturnIn(returnOrder = {}, options = {}) {
   return inventoryService.postStockMovement(returnOrder, {
     type: 'RETURN',
@@ -82,6 +112,7 @@ module.exports = {
   postImportIn,
   postSaleOut,
   postSalesOrdersBulkOut,
+  postSaleEditDelta,
   postReturnIn,
   reverseMovement,
   reconcileInventory
