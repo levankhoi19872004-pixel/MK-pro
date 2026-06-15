@@ -20,6 +20,26 @@ async function postImportIn(importOrder = {}, options = {}) {
   return inventoryService.postStockMovement(importOrder, movement, options);
 }
 
+
+async function postSalesOrdersBulkOut(orders = [], options = {}) {
+  if (!options.session && options.allowUnsafeNoSession !== true) {
+    const err = new Error('postSalesOrdersBulkOut cần chạy trong Mongo session để đảm bảo atomic inventory posting');
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+
+  if (inventoryService.postStockMovementBulkSalesOut && options.disableBulkSalesPosting !== true) {
+    return inventoryService.postStockMovementBulkSalesOut(orders, options);
+  }
+
+  const transactions = [];
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const rows = await postSaleOut(order, options);
+    transactions.push(...(Array.isArray(rows) ? rows : []));
+  }
+  return transactions;
+}
+
 async function postSaleOut(order = {}, options = {}) {
   if (!options.session && options.allowUnsafeNoSession !== true) {
     const err = new Error('postSaleOut cần chạy trong Mongo session để đảm bảo atomic inventory posting');
@@ -61,6 +81,7 @@ async function reconcileInventory(options = {}) {
 module.exports = {
   postImportIn,
   postSaleOut,
+  postSalesOrdersBulkOut,
   postReturnIn,
   reverseMovement,
   reconcileInventory

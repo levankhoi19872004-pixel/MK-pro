@@ -17,8 +17,8 @@ test('sales import transaction helper never swallows a successful/failed chunk b
 
 test('sales import inserts, posts stock and marks posted in one shared session', () => {
   assert.match(source, /SalesOrder\.insertMany\([\s\S]*?chunk\.map\(\(row\) => canonicalizeOperationalStaff\(row\)\),[\s\S]*?session,[\s\S]*?ordered:\s*true/);
-  assert.match(source, /InventoryPostingService\.postSaleOut\(order,\s*\{\s*session\s*\}\)/);
-  assert.match(source, /SalesOrder\.updateOne\([\s\S]*?stockPosted:\s*true[\s\S]*?\{\s*session\s*\}/);
+  assert.match(source, /InventoryPostingService\.postSalesOrdersBulkOut\([\s\S]*?insertedOrders,[\s\S]*?\{\s*session\s*\}/);
+  assert.match(source, /SalesOrder\.updateMany\([\s\S]*?stockPosted:\s*true[\s\S]*?\{\s*session\s*\}/);
 });
 
 test('failed sales chunks are reported and not counted as imported', () => {

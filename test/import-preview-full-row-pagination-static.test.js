@@ -14,8 +14,9 @@ test('session preview vẫn lưu toàn bộ dòng trong collection và có API p
   const controller = read('src/controllers/importExportController.js');
   assert.match(sessionService, /ImportSessionRow\.insertMany/);
   assert.match(sessionService, /async function listSessionRows/);
-  assert.match(sessionService, /\.skip\(safeOffset\)/);
-  assert.match(sessionService, /\.limit\(safeLimit\)/);
+  assert.match(sessionService, /\$skip:\s*safeOffset/);
+  assert.match(sessionService, /\$limit:\s*safeLimit/);
+  assert.match(sessionService, /\$ifNull:\s*\['\$previewRow', '\$normalizedRow'\]/);
   assert.match(routes, /\/sessions\/:sessionId\/rows/);
   assert.match(controller, /excelImportService\.getSessionRows/);
 });

@@ -1565,6 +1565,7 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
 }
 
 async function importSalesOrders(rows = [], options = {}) {
+  const startedAtMs = Date.now();
   const autoCutStock = Boolean(options.autoCutStock);
   let skipped = 0;
   const errors = [];
@@ -1961,6 +1962,8 @@ async function importSalesOrders(rows = [], options = {}) {
 
   const postedBy = options.userName || options.username || options.createdBy || 'excel_import';
   const chunkSize = Number(process.env.SALES_IMPORT_TX_CHUNK_SIZE || 25);
+  const importSessionId = cleanText(options.importSessionId || options.sessionId);
+  const totalChunks = Math.max(1, Math.ceil(orderDocs.length / Math.max(1, chunkSize)));
   const atomicResults = await runAtomicChunks(
     orderDocs,
     async (chunk, { session }) => {
@@ -1971,28 +1974,43 @@ async function importSalesOrders(rows = [], options = {}) {
           ordered: true
         }
       );
-      let stockTransactions = 0;
-      for (const order of insertedOrders) {
-        const transactions = await InventoryPostingService.postSaleOut(order, { session });
-        stockTransactions += Array.isArray(transactions)
-          ? transactions.filter((row) => !row?.skipped).length
-          : 0;
-        await SalesOrder.updateOne(
-          { _id: order._id },
-          {
-            $set: {
-              stockPosted: true,
-              stockPostedAt: dateUtil.nowIso(),
-              stockPostedBy: postedBy,
-              updatedAt: dateUtil.nowIso()
-            }
-          },
-          { session }
-        );
-      }
+
+      const transactions = await InventoryPostingService.postSalesOrdersBulkOut(
+        insertedOrders,
+        { session }
+      );
+      const stockTransactions = Array.isArray(transactions)
+        ? transactions.filter((row) => !row?.skipped).length
+        : 0;
+
+      const postedAt = dateUtil.nowIso();
+      await SalesOrder.updateMany(
+        { _id: { $in: insertedOrders.map((order) => order._id) } },
+        {
+          $set: {
+            stockPosted: true,
+            stockPostedAt: postedAt,
+            stockPostedBy: postedBy,
+            updatedAt: postedAt
+          }
+        },
+        { session }
+      );
+
       return { imported: insertedOrders.length, stockTransactions };
     },
-    { chunkSize }
+    {
+      chunkSize,
+      onChunkComplete: importSessionId
+        ? async ({ completedChunks, completedRows, totalRows }) => {
+            const ratio = totalRows > 0 ? completedRows / totalRows : completedChunks / totalChunks;
+            await importSessionService.updateProgress(importSessionId, {
+              percent: 20 + Math.round(Math.min(1, ratio) * 70),
+              step: `committing:${completedChunks}/${totalChunks}`
+            });
+          }
+        : null
+    }
   );
 
   let imported = 0;
@@ -2015,13 +2033,18 @@ async function importSalesOrders(rows = [], options = {}) {
     }
   }
 
+  const durationMs = Date.now() - startedAtMs;
   await addImportLog('salesOrders', {
     imported,
     skipped,
     failed: orderDocs.length - imported,
     errors: errors.slice(0, 100),
-    mode: 'atomicSalesOrderChunks',
+    mode: 'atomicBulkSalesOrderChunks',
     batchSize: chunkSize,
+    durationMs,
+    ordersPerSecond: durationMs > 0 ? Number((imported * 1000 / durationMs).toFixed(2)) : imported,
+    stockTransactionsPerSecond: durationMs > 0 ? Number((stockTransactions * 1000 / durationMs).toFixed(2)) : stockTransactions,
+    uniqueProducts: productCodes.length,
     payments: 0,
     cashbook: 0,
     returnDrafts: 0,
@@ -2044,7 +2067,15 @@ async function importSalesOrders(rows = [], options = {}) {
     skipped,
     errors,
     shortageReport,
-    chunks: atomicResults
+    chunks: atomicResults,
+    performance: {
+      mode: 'atomicBulkSalesOrderChunks',
+      durationMs,
+      batchSize: chunkSize,
+      uniqueProducts: productCodes.length,
+      ordersPerSecond: durationMs > 0 ? Number((imported * 1000 / durationMs).toFixed(2)) : imported,
+      stockTransactionsPerSecond: durationMs > 0 ? Number((stockTransactions * 1000 / durationMs).toFixed(2)) : stockTransactions
+    }
   };
 }
 
@@ -3701,6 +3732,10 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     }
 
     sourceRows = await importSessionService.selectRows(session, selectedOrderCodes);
+    await importSessionService.updateProgress(currentSessionId, {
+      percent: 5,
+      step: 'loading_selected_rows'
+    });
     if (!sourceRows.length) {
       await importSessionService.markFailed(currentSessionId, 'Không có dòng hợp lệ để import');
       return {
@@ -3712,6 +3747,10 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     }
 
     if (type === 'salesOrders') {
+      await importSessionService.updateProgress(currentSessionId, {
+        percent: 10,
+        step: 'revalidating_orders'
+      });
       sourceRows = await importRules.validateImportBatch(sourceRows);
     }
 
@@ -3749,6 +3788,11 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       };
     }
 
+    await importSessionService.updateProgress(currentSessionId, {
+      percent: 18,
+      step: 'committing'
+    });
+
     result = await importCommitOrchestrator.commit(type, commitRows, {
       options: {
         importSessionId: currentSessionId,
@@ -3774,6 +3818,11 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     if (result && result.error) {
       throw new Error(result.error);
     }
+
+    await importSessionService.updateProgress(currentSessionId, {
+      percent: 95,
+      step: 'finalizing'
+    });
   } catch (err) {
     const message = await safeMarkImportFailed(currentSessionId, err, 'Import thất bại');
 

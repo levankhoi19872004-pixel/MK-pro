@@ -61,6 +61,12 @@ const ImportSessionRowSchema = new mongoose.Schema({
     default: {}
   },
 
+  // Bản rút gọn dành riêng cho API preview. Commit vẫn dùng normalizedRow đầy đủ.
+  previewRow: {
+    type: Mixed,
+    default: undefined
+  },
+
   rawRow: {
     type: Mixed,
     default: {}

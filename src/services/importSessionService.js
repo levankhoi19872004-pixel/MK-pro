@@ -102,6 +102,7 @@ function buildSessionRowDoc(sessionId, type, row = {}, index = 0) {
     canImport: row.canImport !== false,
     status: valid ? 'valid' : 'invalid',
     normalizedRow: row,
+    previewRow: compactPreviewRow(row),
     rawRow: row.raw || {},
     rowErrors,
     createdAt: new Date(),
@@ -296,17 +297,27 @@ async function listSessionRows(id, { offset = 0, limit = 500 } = {}) {
   const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 500));
 
   const [docs, total] = await Promise.all([
-    ImportSessionRow.find({ sessionId })
-      .sort({ rowNo: 1, _id: 1 })
-      .skip(safeOffset)
-      .limit(safeLimit)
-      .select({ normalizedRow: 1, rowNo: 1, documentCode: 1, valid: 1, canImport: 1, status: 1 })
-      .lean(),
+    ImportSessionRow.aggregate([
+      { $match: { sessionId } },
+      { $sort: { rowNo: 1, _id: 1 } },
+      { $skip: safeOffset },
+      { $limit: safeLimit },
+      {
+        $project: {
+          row: { $ifNull: ['$previewRow', '$normalizedRow'] },
+          rowNo: 1,
+          documentCode: 1,
+          valid: 1,
+          canImport: 1,
+          status: 1
+        }
+      }
+    ]),
     ImportSessionRow.countDocuments({ sessionId })
   ]);
 
   const rows = docs.map((doc) => {
-    const row = compactPreviewRow(doc.normalizedRow || {});
+    const row = compactPreviewRow(doc.row || {});
     if (!row.rowNo && doc.rowNo) row.rowNo = doc.rowNo;
     if (!row.documentCode && doc.documentCode) row.documentCode = doc.documentCode;
     if (row.valid === undefined) row.valid = doc.valid;
@@ -330,7 +341,16 @@ async function markImporting(id) {
 
   return ImportSession.findOneAndUpdate(
     { $or: [{ id: value }, { sessionId: value }], status: 'preview_ready' },
-    { $set: { status: 'importing', updatedAt: new Date() } },
+    {
+      $set: {
+        status: 'importing',
+        updatedAt: new Date(),
+        progress: {
+          percent: 1,
+          step: 'preparing_commit'
+        }
+      }
+    },
     { new: true }
   );
 }
@@ -346,7 +366,11 @@ async function markDone(id, result = {}) {
         status: 'done',
         result,
         confirmedAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        progress: {
+          percent: 100,
+          step: 'done'
+        }
       }
     },
     { new: true }

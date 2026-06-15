@@ -17,18 +17,36 @@ async function runAtomicChunks(rows = [], handler, options = {}) {
   }
   const chunks = chunkRows(rows, options.chunkSize || 25);
   const results = [];
+  let completedRows = 0;
   for (const [chunkIndex, chunk] of chunks.entries()) {
+    let result;
     try {
       const value = await withMongoTransaction((session) => handler(chunk, { session, chunkIndex }));
-      results.push({ chunkIndex, ok: true, count: chunk.length, value });
+      result = { chunkIndex, ok: true, count: chunk.length, value };
     } catch (error) {
-      results.push({
+      result = {
         chunkIndex,
         ok: false,
         count: chunk.length,
         error: error?.message || String(error),
         code: error?.code || 'IMPORT_CHUNK_FAILED'
-      });
+      };
+    }
+    results.push(result);
+    completedRows += chunk.length;
+
+    if (typeof options.onChunkComplete === 'function') {
+      try {
+        await options.onChunkComplete({
+          ...result,
+          completedChunks: chunkIndex + 1,
+          totalChunks: chunks.length,
+          completedRows,
+          totalRows: rows.length
+        });
+      } catch (_) {
+        // Tiến độ chỉ phục vụ UI/monitoring; lỗi ghi progress không được làm hỏng nghiệp vụ import.
+      }
     }
   }
   return results;
