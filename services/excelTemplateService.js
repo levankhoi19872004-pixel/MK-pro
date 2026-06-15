@@ -15,13 +15,13 @@ const TEMPLATE_DEFINITIONS = {
   customers: {
     title: 'Mẫu import khách hàng',
     fileName: 'mau-import-khach-hang.xlsx',
-    columns: ['code', 'name', 'phone', 'address', 'taxCode', 'taxInvoiceAddress', 'area', 'staffCode', 'staffName'],
-    headers: ['Mã khách hàng', 'Tên khách hàng', 'SĐT', 'Địa chỉ giao hàng', 'Mã số thuế', 'Địa chỉ hóa đơn thuế', 'Khu vực', 'Mã NVBH', 'Tên NVBH tham khảo'],
+    columns: ['code', 'name', 'businessName', 'phone', 'address', 'taxCode', 'taxInvoiceAddress', 'area', 'staffCode', 'staffName'],
+    headers: ['Mã khách hàng', 'Tên khách hàng', 'Tên hộ kinh doanh', 'SĐT', 'Địa chỉ giao hàng', 'Mã số thuế', 'Địa chỉ hóa đơn thuế', 'Khu vực', 'Mã NVBH', 'Tên NVBH tham khảo'],
     sample: [
-      ['KH001', 'Tạp hóa Minh Anh', '0987654321', 'Số 1 Minh Khai', '1001234567', 'Số 1 Minh Khai, phường Minh Khai, tỉnh Hưng Yên', 'Tuyến 1', 'NVBH01', 'Nguyễn Văn A'],
-      ['KH002', 'Siêu thị mini An Bình', '0912345678', 'Số 2 Bạch Mai', '1007654321-001', 'Số 2 Bạch Mai, phường Bạch Mai, Hà Nội', 'Tuyến 2', 'NVBH02', 'Trần Văn B']
+      ['KH001', 'Tạp hóa Minh Anh', 'HỘ KINH DOANH MINH ANH', '0987654321', 'Số 1 Minh Khai', '1001234567', 'Số 1 Minh Khai, phường Minh Khai, tỉnh Hưng Yên', 'Tuyến 1', 'NVBH01', 'Nguyễn Văn A'],
+      ['KH002', 'Siêu thị mini An Bình', 'HỘ KINH DOANH AN BÌNH', '0912345678', 'Số 2 Bạch Mai', '1007654321-001', 'Số 2 Bạch Mai, phường Bạch Mai, Hà Nội', 'Tuyến 2', 'NVBH02', 'Trần Văn B']
     ],
-    notes: ['Bắt buộc khi thêm mới: code, name. Khi dùng Cập nhật an toàn chỉ bắt buộc Mã khách hàng.', 'Chế độ Cập nhật an toàn: ô trống/cột thiếu giữ nguyên dữ liệu Mongo; chỉ giá trị khác dữ liệu cũ mới được cập nhật.', 'Mã số thuế nên định dạng Text trong Excel để không mất số 0 đầu.', 'Địa chỉ hóa đơn thuế được ưu tiên khi xuất hóa đơn VAT; nếu để trống hệ thống mới dùng địa chỉ giao hàng.', 'Cột Mã NVBH là dữ liệu chính để gán nhân viên phụ trách; Tên NVBH chỉ để tham khảo.']
+    notes: ['Bắt buộc khi thêm mới: code, name. Khi dùng Cập nhật an toàn chỉ bắt buộc Mã khách hàng.', 'Chế độ Cập nhật an toàn: ô trống/cột thiếu giữ nguyên dữ liệu Mongo; chỉ giá trị khác dữ liệu cũ mới được cập nhật.', 'Tên hộ kinh doanh là tên đăng ký pháp lý dùng khi xuất hóa đơn VAT; để trống sẽ dùng Tên khách hàng.', 'Mã số thuế nên định dạng Text trong Excel để không mất số 0 đầu.', 'Địa chỉ hóa đơn thuế được ưu tiên khi xuất hóa đơn VAT; nếu để trống hệ thống mới dùng địa chỉ giao hàng.', 'Cột Mã NVBH là dữ liệu chính để gán nhân viên phụ trách; Tên NVBH chỉ để tham khảo.']
   },
 
   users: {

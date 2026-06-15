@@ -21,6 +21,7 @@ test('customer schema, API payload and form include tax profile fields', () => {
 test('customer import template and parser include tax fields without breaking old templates', () => {
   const template = read('services/excelTemplateService.js');
   const importer = read('src/services/excelImportService.js');
+  assert.match(template, /'businessName',\s*'phone'/);
   assert.match(template, /'taxCode',\s*'taxInvoiceAddress'/);
   assert.match(template, /'Mã số thuế',\s*'Địa chỉ hóa đơn thuế'/);
   assert.match(importer, /extractCustomerTaxProfile\(row\)/);

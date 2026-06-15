@@ -27,6 +27,7 @@ const { DIRECT_PRICE } = require('../constants/pricingModes');
 const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 const importRules = require('../rules/importRules');
 const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
+const { extractCustomerBusinessProfile } = require('../utils/customerBusinessProfile.util');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
 const { saveImportFiles, cleanupImportFiles } = require('../utils/importTempFileStore');
@@ -217,6 +218,7 @@ function pickCustomerPayload(row = {}) {
   const legacyStaffCode = cleanText(row.legacyStaffCode || row.staffCode || row['Mã NVBH'] || row['Ma NVBH'] || row['Mã nhân viên'] || row['Ma nhan vien'] || row['Mã nhân viên']);
   const legacyStaffName = cleanText(row.legacyStaffName || row.staffName || row['Tên NVBH'] || row['Ten NVBH']);
   const taxProfile = extractCustomerTaxProfile(row);
+  const businessProfile = extractCustomerBusinessProfile(row);
   const payload = {
     code,
     name: cleanText(row.name || row.customerName || row['Tên khách hàng'] || row['Ten khach hang']),
@@ -232,7 +234,8 @@ function pickCustomerPayload(row = {}) {
     debtLimit: toNumber(row.debtLimit || row['Hạn mức nợ'] || row['Han muc no']),
     isActive: row.isActive !== false
   };
-  // Import bằng mẫu cũ không được xóa thông tin thuế đã có của khách hàng.
+  // Import bằng mẫu cũ không được xóa tên hộ kinh doanh/thông tin thuế đã có của khách hàng.
+  if (businessProfile.hasBusinessName) payload.businessName = businessProfile.businessName;
   if (taxProfile.hasTaxCode) payload.taxCode = taxProfile.taxCode;
   if (taxProfile.hasTaxInvoiceAddress) payload.taxInvoiceAddress = taxProfile.taxInvoiceAddress;
   return payload;
@@ -246,7 +249,7 @@ const PRODUCT_UPDATE_LABELS = Object.freeze({
 });
 
 const CUSTOMER_UPDATE_LABELS = Object.freeze({
-  name: 'Tên khách hàng', phone: 'Số điện thoại', address: 'Địa chỉ giao hàng',
+  name: 'Tên khách hàng', businessName: 'Tên hộ kinh doanh', phone: 'Số điện thoại', address: 'Địa chỉ giao hàng',
   taxCode: 'Mã số thuế', taxInvoiceAddress: 'Địa chỉ hóa đơn thuế', area: 'Khu vực', route: 'Tuyến',
   staffCode: 'Mã NVBH', staffName: 'Tên NVBH', openingDebt: 'Công nợ đầu kỳ',
   debtLimit: 'Hạn mức nợ', isActive: 'Trạng thái'
@@ -325,6 +328,7 @@ function buildProductSelectiveUpdate(row = {}, current = {}) {
 function buildCustomerSelectiveUpdate(row = {}, current = {}, resolvedStaff = null) {
   const patch = {};
   applyTextPatch(row, patch, 'name', ['name', 'customerName', 'Tên khách hàng', 'Ten khach hang']);
+  applyTextPatch(row, patch, 'businessName', ['businessName', 'customerBusinessName', 'householdBusinessName', 'taxBusinessName', 'invoiceBusinessName', 'tenHoKinhDoanh', 'Tên hộ kinh doanh', 'Ten ho kinh doanh']);
   applyTextPatch(row, patch, 'phone', ['phone', 'customerPhone', 'Số điện thoại', 'So dien thoai', 'SĐT', 'SDT']);
   applyTextPatch(row, patch, 'address', ['address', 'customerAddress', 'Địa chỉ giao hàng', 'Dia chi giao hang', 'Địa chỉ', 'Dia chi']);
   applyTextPatch(row, patch, 'taxCode', ['taxCode', 'customerTaxCode', 'Mã số thuế', 'Ma so thue', 'MST', 'taxNumber', 'vatNumber']);
@@ -903,6 +907,12 @@ function customerSearchText(payload = {}) {
     payload.customerCode,
     payload.name,
     payload.customerName,
+    payload.businessName,
+    payload.customerBusinessName,
+    payload.householdBusinessName,
+    payload.taxBusinessName,
+    payload.invoiceBusinessName,
+    payload.tenHoKinhDoanh,
     payload.phone,
     payload.address,
     payload.taxCode,

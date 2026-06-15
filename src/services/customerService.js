@@ -8,9 +8,11 @@ const searchService = require('./searchService');
 
 const { toNumber } = require('../utils/common.util');
 const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
+const { extractCustomerBusinessProfile } = require('../utils/customerBusinessProfile.util');
 
 function pickCustomerPayload(body = {}, options = {}) {
   const taxProfile = extractCustomerTaxProfile(body);
+  const businessProfile = extractCustomerBusinessProfile(body);
   const payload = {
     code: String(body.code || body.customerCode || '').trim(),
     name: String(body.name || body.customerName || '').trim(),
@@ -32,7 +34,8 @@ function pickCustomerPayload(body = {}, options = {}) {
     isActive: body.isActive !== false
   };
 
-  // Với request cập nhật từ client cũ, không tự xóa thông tin thuế nếu client chưa gửi field mới.
+  // Với request cập nhật từ client cũ, không tự xóa tên hộ kinh doanh/thông tin thuế nếu client chưa gửi field mới.
+  if (!options.partialBusinessFields || businessProfile.hasBusinessName) payload.businessName = businessProfile.businessName;
   if (!options.partialTaxFields || taxProfile.hasTaxCode) payload.taxCode = taxProfile.taxCode;
   if (!options.partialTaxFields || taxProfile.hasTaxInvoiceAddress) payload.taxInvoiceAddress = taxProfile.taxInvoiceAddress;
   return payload;
@@ -41,6 +44,7 @@ function pickCustomerPayload(body = {}, options = {}) {
 function validateCustomer(payload) {
   if (!payload.code) return 'Thiếu mã khách hàng';
   if (!payload.name) return 'Thiếu tên khách hàng';
+  if (String(payload.businessName || '').length > 250) return 'Tên hộ kinh doanh không được vượt quá 250 ký tự';
   if (payload.openingDebt < 0 || payload.debtLimit < 0) return 'Công nợ đầu kỳ / hạn mức nợ không được âm';
   return '';
 }
@@ -50,10 +54,12 @@ function toClient(customer) {
   const raw = typeof customer?.toObject === 'function' ? customer.toObject() : (customer || {});
   const code = String(raw.code || raw.customerCode || raw.id || raw._id || '').trim();
   const taxProfile = extractCustomerTaxProfile(raw);
+  const businessProfile = extractCustomerBusinessProfile(raw);
   return {
     ...raw,
     code,
     customerCode: raw.customerCode || code,
+    businessName: businessProfile.businessName,
     taxCode: taxProfile.taxCode,
     taxInvoiceAddress: taxProfile.taxInvoiceAddress,
     id: code,
@@ -90,6 +96,7 @@ async function createCustomer(body) {
   payload.searchText = normalizeSearchText([
     payload.code,
     payload.name,
+    payload.businessName,
     payload.phone,
     payload.address,
     payload.taxCode,
@@ -105,14 +112,16 @@ async function createCustomer(body) {
 async function updateCustomer(id, body) {
   const current = await customerRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy khách hàng trong MongoDB', status: 404 };
-  const payload = pickCustomerPayload(body, { partialTaxFields: true });
+  const payload = pickCustomerPayload(body, { partialTaxFields: true, partialBusinessFields: true });
   const error = validateCustomer(payload);
   if (error) return { error, status: 400 };
   if (await customerRepository.findDuplicateCode(payload.code, current._id)) return { error: 'Mã khách hàng đã tồn tại trong MongoDB', status: 409 };
   const currentTaxProfile = extractCustomerTaxProfile(current);
+  const currentBusinessProfile = extractCustomerBusinessProfile(current);
   payload.searchText = normalizeSearchText([
     payload.code,
     payload.name,
+    payload.businessName ?? currentBusinessProfile.businessName,
     payload.phone,
     payload.address,
     payload.taxCode ?? currentTaxProfile.taxCode,

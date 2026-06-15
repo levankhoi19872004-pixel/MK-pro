@@ -199,7 +199,9 @@ function toCustomerSuggestion(customer = {}, revenueByCustomer = new Map()) {
   const phone = String(customer.phone || customer.mobile || customer.customerPhone || '').trim();
   const debt = toNumber(customer.debtAmount ?? customer.currentDebt ?? customer.debt ?? customer.balance ?? customer.openingDebt ?? 0);
   const meta = buildSuggestionMeta([
-    code, name, phone, customer.address, customer.taxCode, customer.customerTaxCode,
+    code, name, customer.businessName, customer.customerBusinessName, customer.householdBusinessName,
+    customer.taxBusinessName, customer.invoiceBusinessName, customer.tenHoKinhDoanh,
+    phone, customer.address, customer.taxCode, customer.customerTaxCode,
     customer.taxNumber, customer.vatNumber, customer.mst, customer.taxInvoiceAddress,
     customer.invoiceAddress, customer.area, customer.route,
     customer.routeName, customer.staffCode, customer.staffName

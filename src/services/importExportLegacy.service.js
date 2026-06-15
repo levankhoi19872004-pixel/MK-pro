@@ -55,6 +55,7 @@ async function buildWorkbook({ type, rows }) {
 
 const TT78_VAT_RATE = 0.08;
 const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
+const { extractCustomerBusinessProfile } = require('../utils/customerBusinessProfile.util');
 const TT78_HEADERS = [
   'STT', 'NgayHoaDon', 'MaKhachHang', 'TenKhachHang', 'TenNguoiMua', 'MaSoThue',
   'DiaChiKhachHang', 'DienThoaiKhachHang', 'SoTaiKhoan', 'NganHang', 'HinhThucTT',
@@ -354,10 +355,15 @@ function customerInfo(order = {}, customerMap = new Map()) {
     || {};
   const orderTax = extractCustomerTaxProfile(order);
   const customerTax = extractCustomerTaxProfile(customer);
+  const orderBusiness = extractCustomerBusinessProfile(order);
+  const customerBusiness = extractCustomerBusinessProfile(customer);
+  const customerDisplayName = cleanText(order.customerName || customer.name || customer.customerName);
+  const businessName = cleanText(orderBusiness.businessName || customerBusiness.businessName);
   return {
     code: cleanText(order.customerCode || customer.code || customer.customerCode || order.customerId || customer.id),
-    name: cleanText(order.customerName || customer.name || customer.customerName),
-    buyer: cleanText(order.buyerName || order.contactName || customer.buyerName || customer.representative || customer.contactName || order.customerName || customer.name),
+    // Tên hộ kinh doanh là tên pháp lý trên hóa đơn; nếu chưa khai báo thì dùng tên khách hàng hiện tại.
+    name: businessName || customerDisplayName,
+    buyer: cleanText(order.buyerName || order.contactName || customer.buyerName || customer.representative || customer.contactName || customerDisplayName),
     // Chỉ ưu tiên snapshot thuế riêng trên đơn; không lấy địa chỉ giao hàng thay cho địa chỉ thuế khi hồ sơ KH đã có.
     taxCode: cleanText(orderTax.taxCode || customerTax.taxCode),
     address: cleanText(orderTax.taxInvoiceAddress || customerTax.taxInvoiceAddress || order.customerAddress || order.address || customer.address || customer.deliveryAddress),
@@ -996,8 +1002,9 @@ function valueByKeys(map, keys = []) {
 
 function customerInfoRow(customer = {}, idx = 0, debtMap = new Map(), monthSalesMap = new Map()) {
   const taxProfile = extractCustomerTaxProfile(customer);
+  const businessProfile = extractCustomerBusinessProfile(customer);
   const used = [
-    'code', 'customerCode', 'name', 'customerName', 'phone', 'mobile', 'customerPhone',
+    'code', 'customerCode', 'name', 'customerName', 'businessName', 'customerBusinessName', 'householdBusinessName', 'taxBusinessName', 'invoiceBusinessName', 'tenHoKinhDoanh', 'phone', 'mobile', 'customerPhone',
     'address', 'customerAddress', 'taxCode', 'customerTaxCode', 'taxNumber', 'vatNumber', 'vatCode', 'mst',
     'taxInvoiceAddress', 'customerTaxInvoiceAddress', 'invoiceAddress', 'vatInvoiceAddress', 'billingAddress',
     'route', 'area', 'region', 'staffCode', 'staffName',
@@ -1009,6 +1016,7 @@ function customerInfoRow(customer = {}, idx = 0, debtMap = new Map(), monthSales
     STT: idx + 1,
     MaKH: firstText(customer, ['code', 'customerCode', 'id']),
     TenKH: firstText(customer, ['name', 'customerName']),
+    TenHoKinhDoanh: businessProfile.businessName,
     SDT: firstText(customer, ['phone', 'mobile', 'customerPhone', 'tel']),
     DiaChi: firstText(customer, ['address', 'customerAddress', 'fullAddress']),
     MaSoThue: taxProfile.taxCode,

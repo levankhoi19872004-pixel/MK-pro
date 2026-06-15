@@ -24,6 +24,9 @@ function buildQueryFilter(query = {}) {
       { code: { $regex: rawRegex, $options: 'i' } },
       { customerCode: { $regex: rawRegex, $options: 'i' } },
       { name: { $regex: rawRegex, $options: 'i' } },
+      { businessName: { $regex: rawRegex, $options: 'i' } },
+      { customerBusinessName: { $regex: rawRegex, $options: 'i' } },
+      { householdBusinessName: { $regex: rawRegex, $options: 'i' } },
       { customerName: { $regex: rawRegex, $options: 'i' } },
       { phone: { $regex: rawRegex, $options: 'i' } },
       { address: { $regex: rawRegex, $options: 'i' } },
@@ -57,7 +60,7 @@ async function search(query = {}) {
   const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
   const limit = Math.min(Number.parseInt(query.limit, 10) || 20, 50);
   return Customer.find(filter)
-    .select('code name phone address taxCode taxInvoiceAddress customerTaxCode taxNumber vatNumber vatCode mst invoiceAddress vatInvoiceAddress billingAddress area route staffCode staffName legacyStaffCode legacyStaffName openingDebt debtLimit isActive')
+    .select('code name businessName customerBusinessName householdBusinessName taxBusinessName invoiceBusinessName tenHoKinhDoanh phone address taxCode taxInvoiceAddress customerTaxCode taxNumber vatNumber vatCode mst invoiceAddress vatInvoiceAddress billingAddress area route staffCode staffName legacyStaffCode legacyStaffName openingDebt debtLimit isActive')
     .sort({ code: 1 })
     .limit(limit)
     .lean();
