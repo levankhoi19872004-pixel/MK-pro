@@ -438,7 +438,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
     timed('activeStaff', () => listActiveStaff()),
     timed('targets', () => SalesTargetService.listByPeriod(range.period)),
     timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo)),
-    timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today)),
+    timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today, { requireAccountingConfirmed: false })),
     timed('monthlyReturns', () => SalesDashboardQuery.aggregateReturns(range.dateFrom, range.dateTo)),
     timed('currentDebt', () => DebtDashboardQuery.aggregateCurrentDebt()),
     timed('deliveryMonth', () => DeliveryDashboardQuery.aggregateDeliveryMonth(range.dateFrom, range.dateTo)),
@@ -465,6 +465,26 @@ async function getHomeDashboard({ month, force = false } = {}) {
     currentDebt: currentDebtResult.rows,
     deliveryMonthRaw: deliveryMonthResult.rows,
     deliveryTodayRaw: deliveryTodayResult.rows
+  });
+  dataQuality.catalogPricing = {
+    monthlySales: monthlySalesResult.dataQuality || {},
+    todaySales: todaySalesResult.dataQuality || {},
+    monthlyReturns: monthlyReturnsResult.dataQuality || {}
+  };
+  const catalogWarningSources = [
+    ['đơn bán tháng', monthlySalesResult.dataQuality],
+    ['đơn bán hôm nay', todaySalesResult.dataQuality],
+    ['hàng trả tháng', monthlyReturnsResult.dataQuality]
+  ];
+  catalogWarningSources.forEach(([label, quality = {}]) => {
+    const missingCount = normalizeMoney(quality.missingProductItemCount);
+    const zeroPriceCount = normalizeMoney(quality.zeroSalePriceItemCount);
+    if (missingCount > 0) {
+      dataQuality.warnings.push(`${missingCount} dòng ${label} không tìm thấy mã sản phẩm nên chưa tính theo giá danh mục`);
+    }
+    if (zeroPriceCount > 0) {
+      dataQuality.warnings.push(`${zeroPriceCount} dòng ${label} có giá bán sản phẩm bằng 0 nên doanh số đang bằng 0`);
+    }
   });
   const generatedAt = new Date().toISOString();
 

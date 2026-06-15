@@ -217,3 +217,54 @@ test('dashboard accounting contract excludes lifecycle completed from confirmed 
   assert.doesNotMatch(filterBlock, /lifecycleStatus/);
   assert.doesNotMatch(filterBlock, /completed/);
 });
+
+test('dashboard revenue pipeline uses current product catalog salePrice instead of actual order totals', () => {
+  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
+  const pipeline = salesQuery.buildCatalogSalesPipeline('2026-06-01', '2026-06-30');
+  const serialized = JSON.stringify(pipeline);
+
+  assert.match(serialized, /"\$lookup"/);
+  assert.match(serialized, /"from":"products"/);
+  assert.match(serialized, /_dashboardProduct\.salePrice/);
+  assert.match(serialized, /items\.quantity/);
+  assert.doesNotMatch(serialized, /totalAmount|grandTotal|finalUnitPrice|priceAfterDiscount/);
+});
+
+test('dashboard return value uses current product catalog salePrice and return quantity', () => {
+  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
+  const pipeline = salesQuery.buildCatalogReturnsPipeline('2026-06-01', '2026-06-30');
+  const serialized = JSON.stringify(pipeline);
+
+  assert.match(serialized, /_dashboardProduct\.salePrice/);
+  assert.match(serialized, /items\.returnQty/);
+  assert.doesNotMatch(serialized, /\"input\":\"\$returnAmount\"|\"input\":\"\$debtReduction\"/);
+});
+
+test('dashboard today sales includes active orders before accounting confirmation', () => {
+  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
+  const confirmedPipeline = JSON.stringify(
+    salesQuery.buildCatalogSalesPipeline('2026-06-15', '2026-06-15')
+  );
+  const todayPipeline = JSON.stringify(
+    salesQuery.buildCatalogSalesPipeline('2026-06-15', '2026-06-15', { requireAccountingConfirmed: false })
+  );
+
+  assert.match(confirmedPipeline, /accountingConfirmed/);
+  assert.doesNotMatch(todayPipeline, /accountingConfirmed|arPosted|accountingNeedsReconfirm/);
+});
+
+test('dashboard UI explains catalog-price revenue and today operational orders', () => {
+  const html = read('public/index.html');
+  const client = read('public/js/app/00-dashboard.js');
+
+  assert.match(html, /đều tính theo giá bán đang lưu trên sản phẩm/);
+  assert.match(html, /phase52-dashboard-catalog-price-v1/);
+  assert.match(client, /đơn phát sinh hôm nay/);
+  assert.match(client, /theo giá bán SP/);
+});
+
+test('dashboard cache freshness includes product catalog changes', () => {
+  const cacheService = read('src/services/dashboard/DashboardCacheService.js');
+  assert.match(cacheService, /models\/Product/);
+  assert.match(cacheService, /latestVersionForModel\(Product\)/);
+});

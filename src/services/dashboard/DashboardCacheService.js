@@ -6,6 +6,7 @@ const ArLedger = require('../../models/ArLedger');
 const MasterOrder = require('../../models/MasterOrder');
 const User = require('../../models/User');
 const SalesTarget = require('../../models/SalesTarget');
+const Product = require('../../models/Product');
 
 // Mặc định tắt cache để Dashboard luôn đọc Mongo mới nhất. Chỉ bật khi đặt ENV > 0.
 const CACHE_TTL_MS = Math.max(0, Number(process.env.HOME_DASHBOARD_CACHE_TTL_MS || 0));
@@ -31,7 +32,8 @@ async function freshnessVersion() {
     latestVersionForModel(ArLedger),
     latestVersionForModel(MasterOrder),
     latestVersionForModel(User),
-    latestVersionForModel(SalesTarget)
+    latestVersionForModel(SalesTarget),
+    latestVersionForModel(Product)
   ]);
   return versions.join('|');
 }
