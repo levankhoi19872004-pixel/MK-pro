@@ -46,6 +46,19 @@ module.exports = flexModel('ReturnOrder', 'returnOrders', {
   stateChangedBy: String,
   stateHistory: Array,
 
+  // Trạng thái gộp tách biệt hoàn toàn với vòng đời phiếu trả.
+  returnMergeStatus: String,
+  masterReturnOrderId: String,
+  masterReturnOrderCode: String,
+
+  warehouseStatus: String,
+  warehouseReceiveStatus: String,
+  stockReceiveStatus: String,
+  stockPosted: Boolean,
+  stockPostedAt: String,
+  receivedAt: String,
+  receivedBy: String,
+
   accountingStatus: String,
   accountingConfirmed: Boolean,
   accountingConfirmedAt: String,

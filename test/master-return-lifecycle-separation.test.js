@@ -1,0 +1,69 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+
+const ROOT = path.resolve(__dirname, '..');
+const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const ReturnStateMachine = require('../src/domain/lifecycle/ReturnStateMachine');
+
+test('legacy grouped status is normalized to waiting_receive and can be received', () => {
+  const { RETURN_STATES } = ReturnStateMachine;
+  assert.equal(ReturnStateMachine.normalizeReturnState('grouped'), RETURN_STATES.WAITING_RECEIVE);
+  assert.equal(ReturnStateMachine.getReturnState({ status: 'grouped' }), RETURN_STATES.WAITING_RECEIVE);
+  assert.equal(ReturnStateMachine.canTransition('grouped', RETURN_STATES.RECEIVED), true);
+});
+
+test('creating a master return keeps lifecycle separate from merge status', () => {
+  const source = read('src/services/masterReturnOrderService.js');
+  const start = source.indexOf('async function createMasterReturnOrder');
+  const end = source.indexOf('async function updateMasterReturnOrder', start);
+  const block = source.slice(start, end);
+
+  assert.match(block, /ReturnStateMachine\.patchForState\(\{\}, RETURN_STATES\.WAITING_RECEIVE\)/);
+  assert.match(block, /returnMergeStatus:\s*'merged'/);
+  assert.doesNotMatch(block, /status:\s*'grouped'/);
+});
+
+test('received master returns are not classified as cancelled/deleted', () => {
+  const source = read('src/services/masterReturnOrderService.js');
+  const inactiveBlock = source.slice(
+    source.indexOf('const INACTIVE_RETURN_STATUSES'),
+    source.indexOf('const GROUPABLE_RETURN_STATUSES')
+  );
+  assert.doesNotMatch(inactiveBlock, /'received'/);
+  assert.doesNotMatch(inactiveBlock, /'completed'/);
+  assert.match(source, /alreadyReceived:\s*true/);
+});
+
+test('received child keeps canonical received lifecycle and separate merged flag', () => {
+  const source = read('src/services/masterReturnOrderService.js');
+  const start = source.indexOf('async function confirmReceiveMasterReturnOrder');
+  const end = source.indexOf('async function cancelMasterReturnOrder', start);
+  const block = source.slice(start, end);
+
+  assert.match(block, /patchForState\(child, RETURN_STATES\.RECEIVED\)/);
+  assert.match(block, /returnState:\s*RETURN_STATES\.RECEIVED/);
+  assert.match(block, /returnMergeStatus:\s*'merged'/);
+  assert.doesNotMatch(block, /warehouseReceiveStatus:\s*'posted'/);
+});
+
+test('master return UI excludes inactive rows from selection and batch receiving', () => {
+  const source = read('public/js/app/debt/07d-master-return-orders.js');
+  assert.match(source, /MASTER_RETURN_INACTIVE_STATES/);
+  assert.match(source, /master-return-order-check:checked:not\(:disabled\)/);
+  assert.match(source, /master-return-order-check:not\(:disabled\)/);
+  assert.match(source, /selected\.filter\(order=>!canReceiveMasterReturnOrder\(order\)\)/);
+});
+
+test('return-state migration supports dry-run and canonicalizes legacy grouped rows', () => {
+  const source = read('scripts/migrate-return-state-machine.js');
+  const pkg = read('package.json');
+  assert.match(source, /process\.argv\.includes\('--write'\)/);
+  assert.match(source, /\['grouped', 'merged'\]/);
+  assert.match(source, /patch\.returnMergeStatus = 'merged'/);
+  assert.match(pkg, /migrate:return-state:dry/);
+  assert.match(pkg, /migrate-return-state-machine\.js --write/);
+});

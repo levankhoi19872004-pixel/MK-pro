@@ -8,14 +8,31 @@ const staffRules = require('../rules/staffRules');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const returnOrderService = require('./returnOrderService');
+const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
+const { RETURN_STATES } = ReturnStateMachine;
 const { pickDeliveryStaffCode, pickDeliveryStaffName } = require('../domain/staff/staffIdentity');
 const MongoStore = require('../models');
 
 
+const INACTIVE_RETURN_STATUSES = new Set([
+  'cancelled',
+  'canceled',
+  'void',
+  'voided',
+  'deleted',
+  'removed',
+  'duplicate_cancelled',
+  'cleared'
+]);
+
 function isInactiveStatus(row = {}) {
-  const status = String(row.status || '').toLowerCase();
-  const returnStatus = String(row.returnStatus || '').toLowerCase();
-  return BLOCKED_RETURN_STATUSES.has(status) || BLOCKED_RETURN_STATUSES.has(returnStatus) || Boolean(row.deletedAt);
+  const status = String(row.status || '').trim().toLowerCase();
+  const returnStatus = String(row.returnStatus || '').trim().toLowerCase();
+  const returnState = String(row.returnState || '').trim().toLowerCase();
+  return INACTIVE_RETURN_STATUSES.has(status)
+    || INACTIVE_RETURN_STATUSES.has(returnStatus)
+    || INACTIVE_RETURN_STATUSES.has(returnState)
+    || Boolean(row.deletedAt);
 }
 
 const GROUPABLE_RETURN_STATUSES = new Set([
@@ -27,16 +44,15 @@ const GROUPABLE_RETURN_STATUSES = new Set([
   'pending_warehouse_receive'
 ]);
 
-const BLOCKED_RETURN_STATUSES = new Set([
-  'cancelled',
-  'canceled',
-  'void',
-  'deleted',
-  'removed',
-  'duplicate_cancelled',
-  'cleared',
+const NON_GROUPABLE_RETURN_STATUSES = new Set([
+  ...INACTIVE_RETURN_STATUSES,
+  'grouped',
   'merged',
   'received',
+  'warehouse_received',
+  'accounting_confirmed',
+  'posted_to_ar',
+  'posted',
   'completed'
 ]);
 
@@ -51,7 +67,7 @@ function hasPositiveReturnValue(row = {}) {
 function groupableReturnOrderMongoFilter(extra = {}) {
   return {
     ...extra,
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled', 'cleared'] },
+    status: { $nin: [...INACTIVE_RETURN_STATUSES] },
     $or: [
       { masterReturnOrderId: { $exists: false } },
       { masterReturnOrderId: null },
@@ -79,7 +95,7 @@ function isGroupableReturnStatus(row = {}) {
   const returnStatus = String(row?.returnStatus || '').toLowerCase();
   const warehouseReceiveStatus = String(row?.warehouseReceiveStatus || '').toLowerCase();
 
-  if (BLOCKED_RETURN_STATUSES.has(status) || BLOCKED_RETURN_STATUSES.has(returnStatus) || BLOCKED_RETURN_STATUSES.has(warehouseReceiveStatus)) {
+  if (NON_GROUPABLE_RETURN_STATUSES.has(status) || NON_GROUPABLE_RETURN_STATUSES.has(returnStatus) || NON_GROUPABLE_RETURN_STATUSES.has(warehouseReceiveStatus)) {
     return false;
   }
 
@@ -187,7 +203,7 @@ async function listMasterReturnOrders(query = {}) {
     if (dateTo) range.$lte = dateTo;
     filter.$or = [{ returnDate: range }, { date: range }];
   }
-  if (excludeInactive) filter.status = { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed'] };
+  if (excludeInactive) filter.status = { $nin: [...INACTIVE_RETURN_STATUSES] };
   if (delivery || q) {
     const clauses = [];
     if (delivery) {
@@ -289,8 +305,18 @@ async function createMasterReturnOrder(body = {}) {
           {
             status: {
               $nin: [
-                'cancelled', 'canceled', 'void', 'deleted',
-                'received', 'accounting_confirmed', 'posted_to_ar'
+                ...INACTIVE_RETURN_STATUSES,
+                'grouped', 'merged', 'received', 'accounting_confirmed', 'posted_to_ar'
+              ]
+            }
+          },
+          {
+            returnState: {
+              $nin: [
+                RETURN_STATES.RECEIVED,
+                RETURN_STATES.ACCOUNTING_CONFIRMED,
+                RETURN_STATES.POSTED_TO_AR,
+                RETURN_STATES.CANCELLED
               ]
             }
           }
@@ -298,15 +324,15 @@ async function createMasterReturnOrder(body = {}) {
       },
       {
         $set: {
+          ...ReturnStateMachine.patchForState({}, RETURN_STATES.WAITING_RECEIVE),
           masterReturnOrderId: masterReturnOrder.id,
           masterReturnOrderCode: masterReturnOrder.code,
           returnMergeStatus: 'merged',
-          status: 'grouped',
-          warehouseStatus: masterReturnOrder.warehouseStatus,
-          warehouseReceiveStatus: masterReturnOrder.warehouseReceiveStatus,
+          warehouseStatus: 'pending',
           deliveryStaffId: masterReturnOrder.deliveryStaffId,
           deliveryStaffCode: masterReturnOrder.deliveryStaffCode,
           deliveryStaffName: masterReturnOrder.deliveryStaffName,
+          stateChangedAt: now,
           updatedAt: now
         }
       },
@@ -414,7 +440,7 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
       ...current,
       status: 'received',
       warehouseStatus: 'posted',
-      warehouseReceiveStatus: 'posted',
+      warehouseReceiveStatus: 'received',
       stockReceiveStatus: 'posted',
       stockPosted: true,
       receivedAt: now,
@@ -430,9 +456,12 @@ async function confirmReceiveMasterReturnOrder(id, body = {}) {
     for (const child of receivedChildren) {
       const updatedChild = {
         ...child,
-        status: 'received',
+        ...ReturnStateMachine.patchForState(child, RETURN_STATES.RECEIVED),
+        returnState: RETURN_STATES.RECEIVED,
         warehouseStatus: 'posted',
-        warehouseReceiveStatus: 'posted',
+        stockReceiveStatus: 'posted',
+        stockPosted: true,
+        stockPostedAt: child.stockPostedAt || now,
         returnMergeStatus: 'merged',
         masterReturnOrderId: received.id,
         masterReturnOrderCode: received.code,
@@ -467,15 +496,16 @@ async function cancelMasterReturnOrder(id, body = {}) {
   };
   await withMongoTransaction(async (session) => {
     for (const child of children) {
+      const now = dateUtil.nowIso();
       await returnOrderRepository.upsert({
         ...child,
+        ...ReturnStateMachine.patchForState(child, RETURN_STATES.WAITING_RECEIVE),
+        returnState: RETURN_STATES.WAITING_RECEIVE,
         masterReturnOrderId: '',
         masterReturnOrderCode: '',
         returnMergeStatus: 'unmerged',
-        status: 'pending',
-        warehouseStatus: '',
-        warehouseReceiveStatus: '',
-        updatedAt: dateUtil.nowIso()
+        warehouseStatus: 'pending',
+        updatedAt: now
       }, { session });
     }
     await masterReturnOrderRepository.upsert(cancelled, { session });

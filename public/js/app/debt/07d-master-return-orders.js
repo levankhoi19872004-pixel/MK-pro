@@ -2,6 +2,28 @@
 
 const selectedReturnOrderIdsForMaster = new Set();
 
+
+const MASTER_RETURN_INACTIVE_STATES=new Set(['cancelled','canceled','void','voided','deleted','removed','duplicate_cancelled','cleared']);
+const MASTER_RETURN_RECEIVED_STATES=new Set(['posted','received','confirmed','completed','accounting_confirmed','posted_to_ar']);
+
+function masterReturnStateValues(order={}){
+  return [order.status,order.warehouseStatus,order.warehouseReceiveStatus,order.accountingStatus]
+    .map(value=>String(value||'').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isInactiveMasterReturnOrder(order={}){
+  return Boolean(order.deletedAt) || masterReturnStateValues(order).some(value=>MASTER_RETURN_INACTIVE_STATES.has(value));
+}
+
+function isReceivedMasterReturnOrder(order={}){
+  return Boolean(order.stockPosted) || masterReturnStateValues(order).some(value=>MASTER_RETURN_RECEIVED_STATES.has(value));
+}
+
+function canReceiveMasterReturnOrder(order={}){
+  return !isInactiveMasterReturnOrder(order) && !isReceivedMasterReturnOrder(order);
+}
+
 function getUnmergedReturnOrdersCache(){
   return Array.isArray(window.__unmergedReturnOrdersCache) ? window.__unmergedReturnOrdersCache : [];
 }
@@ -187,16 +209,19 @@ function renderMasterReturnOrders(rows = []){
   window.__masterReturnOrdersCache=rows;
   if(selectAllMasterReturnOrdersButton)selectAllMasterReturnOrdersButton.textContent='Chọn tất cả';
   masterReturnOrderTable.innerHTML=head+rows.map((r,idx)=>{
-    const warehouseStatus=String(r.warehouseStatus||r.warehouseReceiveStatus||r.status||'pending').toLowerCase();
-    const accountingStatus=String(r.accountingStatus||'pending').toLowerCase();
-    const locked=['posted','received','confirmed','completed'].includes(warehouseStatus) || accountingStatus==='confirmed' || r.stockPosted;
+    const inactive=isInactiveMasterReturnOrder(r);
+    const locked=isReceivedMasterReturnOrder(r);
     const staff=debtPersonLabel(r.deliveryStaffCode,r.deliveryStaffName);
     const id=escapeHtml(r.id||r.code||'');
-    const cancelCell=locked
-      ? `<span class="erp-doc-action-state">Đã khóa</span>`
-      : `<button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>`;
-    return `<article class="erp-doc-row master-return-one-line">
-      <label class="erp-doc-check"><input type="checkbox" class="master-return-order-check" data-idx="${idx}"></label>
+    const checkboxDisabled=inactive?'disabled':'';
+    const checkboxTitle=inactive?'Đơn đã hủy/xóa, không thể chọn':(locked?'Đơn đã nhập kho; chỉ nên chọn để in':'Chọn đơn tổng trả');
+    const cancelCell=inactive
+      ? `<span class="erp-doc-action-state">Đã hủy</span>`
+      : locked
+        ? `<span class="erp-doc-action-state">Đã khóa</span>`
+        : `<button class="secondary small danger" type="button" onclick="cancelMasterReturnOrder('${id}')">Hủy</button>`;
+    return `<article class="erp-doc-row master-return-one-line${inactive?' is-inactive':''}">
+      <label class="erp-doc-check" title="${escapeHtml(checkboxTitle)}"><input type="checkbox" class="master-return-order-check" data-idx="${idx}" ${checkboxDisabled}></label>
       <strong class="erp-doc-code" title="${escapeHtml(r.code||r.id||'')}">${escapeHtml(r.code||r.id||'')}</strong>
       <span class="erp-doc-party" title="${escapeHtml(staff)}">${escapeHtml(staff)}</span>
       <span class="erp-doc-date" title="Ngày trả">${escapeHtml(r.returnDate||r.date||'')}</span>
@@ -341,11 +366,13 @@ async function cancelMasterReturnOrder(id){
 
 
 function selectedMasterReturnOrders(){
-  const checks=[...document.querySelectorAll('.master-return-order-check:checked')];
-  return checks.map(ch=>window.__masterReturnOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+  const checks=[...document.querySelectorAll('.master-return-order-check:checked:not(:disabled)')];
+  return checks
+    .map(ch=>window.__masterReturnOrdersCache?.[Number(ch.dataset.idx)])
+    .filter(order=>order && !isInactiveMasterReturnOrder(order));
 }
 function toggleSelectAllMasterReturnOrders(){
-  const checks=[...document.querySelectorAll('.master-return-order-check')];
+  const checks=[...document.querySelectorAll('.master-return-order-check:not(:disabled)')];
   if(!checks.length)return;
   const shouldCheck=checks.some(ch=>!ch.checked);
   checks.forEach(ch=>{ch.checked=shouldCheck;});
@@ -369,9 +396,17 @@ async function printSelectedMasterReturnOrders(){
   }catch(err){alert(err.message||'Không in được các đơn tổng trả đã chọn')}
 }
 async function receiveSelectedMasterReturnOrders(){
-  const orders=selectedMasterReturnOrders();
-  if(!orders.length){alert('Chưa chọn đơn tổng trả để nhập kho');return}
-  if(!confirm(`Xác nhận nhập kho ${orders.length} đơn tổng trả đã chọn?\n\nSau khi xác nhận, hệ thống sẽ cộng tồn kho hàng trả và chặn nhập kho lặp.`))return;
+  const selected=selectedMasterReturnOrders();
+  if(!selected.length){alert('Chưa chọn đơn tổng trả để nhập kho');return}
+  const blocked=selected.filter(order=>!canReceiveMasterReturnOrder(order));
+  if(blocked.length){
+    alert(`Có ${blocked.length} đơn đã nhập kho hoặc không còn hợp lệ. Hãy bỏ chọn các đơn này trước khi nhập kho.`);
+    return;
+  }
+  const orders=selected.filter(canReceiveMasterReturnOrder);
+  if(!confirm(`Xác nhận nhập kho ${orders.length} đơn tổng trả đã chọn?
+
+Sau khi xác nhận, hệ thống sẽ cộng tồn kho hàng trả và chặn nhập kho lặp.`))return;
   for(const r of orders){
     const id=r.id||r.code;
     const result=await fetch(`/api/master-return-orders/${encodeURIComponent(id)}/receive`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receivedBy:'Kho'})});

@@ -29,7 +29,7 @@
     "reconcile:stock": "node scripts/run-reconciliation.js --type=stock",
     "reconcile:ar": "node scripts/run-reconciliation.js --type=ar",
     "reconcile:fund": "node scripts/run-reconciliation.js --type=fund",
-    "migrate:return-state": "node scripts/migrate-return-state-machine.js",
+    "migrate:return-state": "node scripts/migrate-return-state-machine.js --write",
     "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
     "check:syntax": "node scripts/check-js-syntax.js",
     "quality": "npm run check:syntax && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
@@ -37,7 +37,8 @@
     "cleanup:retired": "node scripts/cleanup-retired-files.js",
     "pretest": "npm run cleanup:retired",
     "migrate:staff-identity:dry": "node scripts/migrate-canonical-staff-identity.js",
-    "migrate:staff-identity": "node scripts/migrate-canonical-staff-identity.js --write"
+    "migrate:staff-identity": "node scripts/migrate-canonical-staff-identity.js --write",
+    "migrate:return-state:dry": "node scripts/migrate-return-state-machine.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
