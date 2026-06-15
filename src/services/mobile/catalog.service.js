@@ -2,7 +2,9 @@
 
 const Product = require('../../models/Product');
 const Customer = require('../../models/Customer');
+const InternalSaleAllocation = require('../../models/InternalSaleAllocation');
 const inventoryStockService = require('../inventoryStock.service');
+const internalSaleAllocationService = require('../internalSaleAllocation.service');
 const customerMonthlySalesService = require('../customerMonthlySales.service');
 const { toNumber, stripMongoFields, formatCaseLooseQty } = require('../../utils/common.util');
 const { normalizeText } = require('../../utils/search.util');
@@ -12,6 +14,10 @@ const { customerOwnershipFilterForSalesUser, combineFilters } = require('../../d
 const MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS = Math.max(0, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_TTL_MS || 5000));
 const MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES = Math.max(10, Number(process.env.MOBILE_CATALOG_PRODUCTS_CACHE_MAX_ENTRIES || 200));
 const mobileCatalogProductsCache = new Map();
+
+function invalidateMobileCatalogProductsCache() {
+  mobileCatalogProductsCache.clear();
+}
 
 function cacheGet(map, key) {
   const row = map.get(key);
@@ -103,7 +109,17 @@ function packingRateOf(product = {}) {
 async function enrichProductsWithInventory(products = []) {
   const normalizedProducts = (products || []).map(stripMongoFields);
   const codes = normalizedProducts.map(productCodeOf).filter(Boolean);
-  const stockMap = await inventoryStockService.getAvailableStocks(codes);
+  const normalizedCodes = codes.map(normalizeProductCode).filter(Boolean);
+  const quotaEnforced = internalSaleAllocationService.isQuotaEnabled();
+  const [stockMap, allocationRows] = await Promise.all([
+    inventoryStockService.getAvailableStocks(codes),
+    quotaEnforced
+      ? InternalSaleAllocation.find({ productCode: { $in: normalizedCodes }, status: 'active' })
+        .select('id code importId importCode snapshotDate snapshotAt productCode openingQty consumedQty releasedQty remainingQty activatedAt updatedAt')
+        .lean()
+      : Promise.resolve([])
+  ]);
+  const allocationMap = new Map((allocationRows || []).map((row) => [normalizeProductCode(row.productCode), row]));
 
   return normalizedProducts.map((product) => {
     const code = productCodeOf(product);
@@ -111,6 +127,11 @@ async function enrichProductsWithInventory(products = []) {
     const availableQty = toNumber(stockMap[stockKey] ?? stockMap[code] ?? 0);
     const conversionRate = Math.max(1, packingRateOf(product));
     const stockDisplay = formatCaseLooseQty(availableQty, conversionRate);
+    const allocation = allocationMap.get(stockKey) || null;
+    const recommendedRemainingQty = Math.max(0, toNumber(allocation?.remainingQty));
+    const maxOrderQty = quotaEnforced
+      ? Math.max(0, Math.min(availableQty, recommendedRemainingQty))
+      : Math.max(0, availableQty);
 
     return {
       ...product,
@@ -129,6 +150,21 @@ async function enrichProductsWithInventory(products = []) {
       stock: availableQty,
       _availableQty: availableQty,
       stockDisplay,
+      maxOrderQty,
+      internalSaleQuota: {
+        enforced: quotaEnforced,
+        enabled: quotaEnforced && Boolean(allocation),
+        allocationId: cleanCode(allocation?.id || allocation?._id || ''),
+        importId: cleanCode(allocation?.importId || ''),
+        snapshotDate: cleanCode(allocation?.snapshotDate || ''),
+        snapshotAt: cleanCode(allocation?.snapshotAt || ''),
+        openingQty: Math.max(0, toNumber(allocation?.openingQty)),
+        consumedQty: Math.max(0, toNumber(allocation?.consumedQty)),
+        releasedQty: Math.max(0, toNumber(allocation?.releasedQty)),
+        remainingQty: recommendedRemainingQty,
+        currentlyAllowedQty: maxOrderQty,
+        display: formatCaseLooseQty(recommendedRemainingQty, conversionRate)
+      },
       inventorySource: 'inventories',
       stockSource: 'inventoryStock.service'
     };
@@ -218,4 +254,4 @@ function createMobileCatalogService(ctx = {}) {
   return { customers, products, stock };
 }
 
-module.exports = { createMobileCatalogService };
+module.exports = { createMobileCatalogService, invalidateMobileCatalogProductsCache };

@@ -514,6 +514,16 @@ function toMobileProduct(product = {}) {
   ).trim();
   // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_END
 
+  const internalSaleQuota = product.internalSaleQuota && typeof product.internalSaleQuota === 'object'
+    ? product.internalSaleQuota
+    : {};
+  const maxOrderQty = Math.max(0, Number(
+    product.maxOrderQty ??
+    internalSaleQuota.currentlyAllowedQty ??
+    internalSaleQuota.remainingQty ??
+    0
+  ));
+
   return {
     ...product,
     id: product.id || product._id || code,
@@ -527,7 +537,13 @@ function toMobileProduct(product = {}) {
     conversionRate: normalizePackingRate(product),
     packingQty: normalizePackingRate(product),
     unitsPerCase: normalizePackingRate(product),
-    stockDisplay: formatStockTL(availableQty, normalizePackingRate(product))
+    stockDisplay: formatStockTL(availableQty, normalizePackingRate(product)),
+    maxOrderQty,
+    internalSaleQuota: {
+      ...internalSaleQuota,
+      remainingQty: Math.max(0, Number(internalSaleQuota.remainingQty || 0)),
+      currentlyAllowedQty: maxOrderQty
+    }
   };
 }
 
@@ -612,10 +628,12 @@ function pickProduct(product) {
   selectedProductBox.innerHTML = `
     <div class="mobile-selected-product-name">${escapeHtml(p.code || '')} - ${escapeHtml(p.name || '')}</div>
     <div class="mobile-selected-product-meta">
-      <span>Tồn<strong>${escapeHtml(p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate))}</strong></span>
+      <span>Tồn thực tế<strong>${escapeHtml(p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate))}</strong></span>
+      <span class="mobile-app-quota-meta">Được bán App<strong>${escapeHtml(formatStockTL(p.maxOrderQty, p.conversionRate))}</strong></span>
       <span>${selectedProductPriceLabel}</span>
       ${selectedProductOriginalLabel}
     </div>
+    <div class="mobile-selected-product-quota-note">Hạn mức theo file DMS: ${escapeHtml(p.internalSaleQuota?.snapshotDate || 'chưa cập nhật')}</div>
   `;
   // MOBILE_SELECTED_PRODUCT_CARD_RENDER_END
   selectedProductBox.classList.remove('muted');
@@ -733,13 +751,18 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
   // V45 fix: tồn hiển thị trên autocomplete có thể bị cache/stale.
   // Không chặn cứng ở frontend khi availableQty = 0/không có; backend sẽ kiểm tra lại tồn Mongo thật khi ghi đơn.
   const availableQty = Number(selectedProduct.availableQty || 0);
-  if (availableQty > 0 && qty > availableQty) return setMessage(message, 'Số lượng vượt tồn mở bán', 'error');
+  const maxOrderQty = Math.max(0, Number(selectedProduct.maxOrderQty || 0));
+  if (availableQty > 0 && qty > availableQty) return setMessage(message, 'Số lượng vượt tồn thực tế', 'error');
+  if (qty > maxOrderQty) return setMessage(message, maxOrderQty > 0
+    ? `Sản phẩm chỉ còn được bán qua App ${formatStockTL(maxOrderQty, packingRate)}`
+    : 'Sản phẩm chưa có hạn mức bán qua App. Vui lòng cập nhật file tồn DMS buổi sáng.', 'error');
 
   const grossPrice = Number(selectedProduct.salePrice || selectedProduct.price || 0);
   const existed = cart.find((item) => item.productCode === selectedProduct.code);
   if (existed) {
     const nextQty = Number(existed.quantity || 0) + qty;
-    if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn mở bán', 'error');
+    if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn thực tế', 'error');
+    if (nextQty > maxOrderQty) return setMessage(message, `Tổng số lượng vượt hạn mức bán App. Còn tối đa ${formatStockTL(maxOrderQty, packingRate)}`, 'error');
     existed.quantity = nextQty;
     existed.originalPrice = Number(existed.originalPrice || existed.grossPrice || existed.catalogSalePrice || grossPrice);
     existed.grossPrice = existed.originalPrice;
@@ -774,7 +797,9 @@ document.getElementById('addItemBtn').addEventListener('click', async () => {
       saleMethod: 'promotion',
       saleMode: 'promotion',
       pricingMode: 'promotion',
-      priceLocked: true
+      priceLocked: true,
+      maxOrderQty,
+      internalSaleQuota: selectedProduct.internalSaleQuota || {}
     }, selectedProduct));
   }
 
@@ -1248,6 +1273,7 @@ submitOrderBtn.addEventListener('click', async () => {
       : await mobileApi.createSalesOrder(payload);
 
     const code = data.salesOrder?.code || '';
+    if (window.CatalogCache) window.CatalogCache.invalidate('products');
     clearOrderForm(false);
     upsertTodayOrder(data.salesOrder);
     setMessage(message, `${data.message || 'Đã lưu đơn'} ${code}`, 'success');

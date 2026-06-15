@@ -13,6 +13,7 @@ const MobileLog = require('../../models/MobileLog');
 const InventoryPostingService = require('../../domain/posting/InventoryPostingService');
 const SalesOrderDeletionService = require('../../domain/lifecycle/SalesOrderDeletionService');
 const inventoryStockService = require('../inventoryStock.service');
+const internalSaleAllocationService = require('../internalSaleAllocation.service');
 const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
 const promotionService = require('../promotionService');
 const DebtReadService = require('../DebtReadService');
@@ -651,6 +652,35 @@ function createMobileSalesService(ctx) {
         if (persistentRequest.replay) return persistentRequest.response;
         perf('idempotency_begin');
 
+        const quotaAllocations = await internalSaleAllocationService.consumeForOrder({
+          orderId,
+          orderCode: salesOrder.code,
+          items,
+          actorCode: getMobileSalesStaffCode(mobileUser),
+          actorName: getMobileSalesStaffName(mobileUser)
+        }, { session });
+        salesOrder.items = items.map((item) => {
+          const allocation = quotaAllocations.get(inventoryStockService.normalizeProductCode(item.productCode));
+          if (!allocation) return item;
+          return {
+            ...item,
+            saleAllocationType: 'INTERNAL_APP_QUOTA',
+            internalSaleAllocationId: String(allocation.id || allocation._id || ''),
+            allocationSnapshotDate: String(allocation.snapshotDate || ''),
+            allocationConsumedQty: toNumber(item.quantity)
+          };
+        });
+        salesOrder.usesInternalSaleQuota = quotaAllocations.size > 0;
+        salesOrder.internalSaleAllocationRefs = Array.from(quotaAllocations.values()).map((allocation) => ({
+          allocationId: String(allocation.id || allocation._id || ''),
+          productCode: String(allocation.productCode || ''),
+          snapshotDate: String(allocation.snapshotDate || ''),
+          quantity: toNumber(items
+            .filter((item) => inventoryStockService.normalizeProductCode(item.productCode) === inventoryStockService.normalizeProductCode(allocation.productCode))
+            .reduce((sum, item) => sum + toNumber(item.quantity), 0))
+        }));
+        perf('consume_internal_sale_quota', { products: quotaAllocations.size });
+
         const canonicalSalesOrder = canonicalizeOperationalStaff(salesOrder);
         const created = await SalesOrder.create([canonicalSalesOrder], { session });
         const savedOrder = created[0];
@@ -687,6 +717,13 @@ function createMobileSalesService(ctx) {
       if (err && err.code === 'INSUFFICIENT_STOCK') {
         const stockFail = fail(400, err.message || 'Không đủ tồn kho');
         return rememberIdempotentResult(idemKey, stockFail);
+      }
+      if (err && err.code === 'DMS_APP_QUOTA_EXCEEDED') {
+        const quotaFail = fail(409, err.message || 'Số lượng bán vượt hạn mức theo tồn DMS mới nhất');
+        quotaFail.body.productCode = err.productCode || '';
+        quotaFail.body.availableQuota = toNumber(err.availableQuota);
+        quotaFail.body.requiredQty = toNumber(err.requiredQty);
+        return rememberIdempotentResult(idemKey, quotaFail);
       }
       throw err;
     }

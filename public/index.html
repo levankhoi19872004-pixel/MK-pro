@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/50-promotions.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/60-finance-external-debt.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/70-master-return-orders.css?v=phase37-master-return-list-v1" />
+  <link rel="stylesheet" href="/css/80-dms-inventory.css?v=phase50-dms-quota-v1" />
   <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
 </head>
 <body>
@@ -582,10 +583,87 @@
     </div>
 
     <section id="stockTab" class="tab-content">
-      <section class="card">
-        <div class="toolbar"><div><h2>Tồn kho hiện tại</h2><p id="stockCount" class="muted">Đang tải...</p></div><input id="stockSearchInput" placeholder="Tìm mã / tên sản phẩm..." /></div>
-        <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Quy cách</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="6">Đang tải tồn kho...</td></tr></tbody></table></div>
+      <div class="stock-subtabs" role="tablist" aria-label="Quản lý tồn kho">
+        <button id="stockCurrentSubtab" type="button" class="stock-subtab active" data-stock-panel="stockCurrentPanel">Tồn kho hiện tại</button>
+        <button id="stockDmsSubtab" type="button" class="stock-subtab" data-stock-panel="dmsInventoryPanel">Đối chiếu tồn DMS</button>
+      </div>
+
+      <section id="stockCurrentPanel" class="stock-subpanel active">
+        <section class="card">
+          <div class="toolbar"><div><h2>Tồn kho hiện tại</h2><p id="stockCount" class="muted">Đang tải...</p></div><input id="stockSearchInput" placeholder="Tìm mã / tên sản phẩm..." /></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Quy cách</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="6">Đang tải tồn kho...</td></tr></tbody></table></div>
+        </section>
       </section>
+
+      <section id="dmsInventoryPanel" class="stock-subpanel" hidden>
+        <section class="card dms-inventory-shell">
+          <div class="dms-inventory-head">
+            <div>
+              <h2>Đối chiếu tồn DMS Unilever</h2>
+              <p id="dmsInventoryLatestInfo" class="muted">Chưa có dữ liệu đối chiếu.</p>
+            </div>
+            <div class="dms-inventory-actions">
+              <button id="dmsInventoryHistoryButton" type="button" class="secondary">Lịch sử</button>
+              <button id="dmsInventoryReloadButton" type="button" class="secondary">Tải lại</button>
+              <button id="dmsInventoryUploadButton" type="button">+ Tải file DMS buổi sáng</button>
+            </div>
+          </div>
+
+          <div class="dms-kpi-grid">
+            <article class="dms-kpi-card danger"><span>DMS nhiều hơn thực tế</span><strong id="dmsGreaterSkuCount">0 SKU</strong><small id="dmsGreaterQty">0 đơn vị lẻ</small></article>
+            <article class="dms-kpi-card primary"><span>Thực tế nhiều hơn DMS</span><strong id="internalGreaterSkuCount">0 SKU</strong><small id="internalGreaterQty">0 đơn vị lẻ</small></article>
+            <article class="dms-kpi-card success"><span>Khớp hoàn toàn</span><strong id="dmsMatchedSkuCount">0 SKU</strong><small>Không có chênh lệch</small></article>
+            <article class="dms-kpi-card warning"><span>Cần kiểm tra mã/quy cách</span><strong id="dmsWarningSkuCount">0 SKU</strong><small>Chưa ghép mã hoặc sai quy cách</small></article>
+          </div>
+
+          <div class="dms-inventory-toolbar">
+            <input id="dmsInventorySearch" type="search" placeholder="Tìm toàn bộ theo mã hoặc tên sản phẩm..." />
+            <select id="dmsInventoryTypeFilter">
+              <option value="internal_greater">Thực tế nhiều hơn DMS</option>
+              <option value="dms_greater">DMS nhiều hơn thực tế</option>
+              <option value="matched">Khớp hoàn toàn</option>
+              <option value="unmapped">Chưa ghép mã</option>
+              <option value="conversion_mismatch">Sai quy cách</option>
+              <option value="all">Tất cả</option>
+            </select>
+          </div>
+
+          <p id="dmsInventoryMessage" class="message"></p>
+          <div class="table-wrap dms-inventory-table-wrap">
+            <table class="dms-inventory-table">
+              <thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Quy cách</th><th>Tồn DMS</th><th>Tồn thực tế</th><th>Chênh lệch</th><th>Hạn mức mở</th><th>Đã bán App</th><th>Còn bán App</th><th>Trạng thái</th></tr></thead>
+              <tbody id="dmsInventoryTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="dms-pagination">
+            <span id="dmsInventoryCount" class="muted">0 dòng</span>
+            <div><button id="dmsInventoryPrevButton" type="button" class="secondary small">Trang trước</button><button id="dmsInventoryNextButton" type="button" class="secondary small">Trang sau</button></div>
+          </div>
+        </section>
+      </section>
+
+      <div id="dmsInventoryUploadModal" class="modal-backdrop" aria-hidden="true" hidden>
+        <section class="modal-card dms-upload-modal" role="dialog" aria-modal="true" aria-labelledby="dmsInventoryUploadTitle">
+          <div class="modal-header"><div><h2 id="dmsInventoryUploadTitle">Tải file tồn DMS buổi sáng</h2><p class="muted">Hệ thống dùng cột U, V, W, AX, AY và không ghi đè tồn kho thực tế.</p></div><button id="dmsInventoryUploadCloseButton" type="button" class="secondary">Đóng</button></div>
+          <div class="dms-upload-form">
+            <label>File Excel DMS<input id="dmsInventoryFileInput" type="file" accept=".xlsx" /></label>
+            <label>Ngày dữ liệu<input id="dmsInventorySnapshotDate" type="date" /></label>
+            <label class="dms-upload-note">Ghi chú<input id="dmsInventoryNote" type="text" placeholder="Ví dụ: File tồn đầu ngày sau khi DMS cập nhật" /></label>
+            <button id="dmsInventoryPreviewButton" type="button">Đọc và kiểm tra file</button>
+          </div>
+          <p id="dmsInventoryUploadMessage" class="message"></p>
+          <div id="dmsInventoryPreviewSummary" class="dms-preview-summary" hidden></div>
+          <div class="table-wrap dms-preview-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên</th><th>DMS</th><th>Thực tế</th><th>Loại</th></tr></thead><tbody id="dmsInventoryPreviewTable"><tr><td colspan="5">Chưa đọc file.</td></tr></tbody></table></div>
+          <div class="modal-actions"><button id="dmsInventoryCommitButton" type="button" disabled>Xác nhận cập nhật hạn mức bán App</button></div>
+        </section>
+      </div>
+
+      <div id="dmsInventoryHistoryModal" class="modal-backdrop" aria-hidden="true" hidden>
+        <section class="modal-card dms-history-modal" role="dialog" aria-modal="true" aria-labelledby="dmsInventoryHistoryTitle">
+          <div class="modal-header"><div><h2 id="dmsInventoryHistoryTitle">Lịch sử tải file tồn DMS</h2><p class="muted">Mỗi lần cập nhật mới thay thế hạn mức đang hoạt động của lần trước.</p></div><button id="dmsInventoryHistoryCloseButton" type="button" class="secondary">Đóng</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>File</th><th>DMS &gt; thực tế</th><th>Thực tế &gt; DMS</th><th>Người tải</th></tr></thead><tbody id="dmsInventoryHistoryTable"><tr><td colspan="5">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </div>
     </section>
 
     <section id="masterOrdersTab" class="tab-content">
@@ -1904,7 +1982,7 @@
   <script src="/js/search/catalogCacheService.js?v=unified-search-v1"></script>
   <script src="/js/search/unifiedSearchEngine.js?v=unified-search-v1"></script>
 <script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
-<script src="/js/search/productSearchBox.js?v=unified-search-v1"></script>
+<script src="/js/search/productSearchBox.js?v=phase50-dms-quota-v1"></script>
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
   <script src="/js/app/00-dashboard.js?v=home-dashboard-v3"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
@@ -1931,6 +2009,7 @@
   <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08f-vat-export.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
+  <script src="/js/app/10-dms-inventory.js?v=phase50-dms-quota-v1"></script>
   <script src="/js/bootstrap/01-catalog-orders.js?v=phase35-bootstrap-split-v1"></script>
   <script src="/js/bootstrap/02-delivery-system.js?v=phase35-bootstrap-split-v1"></script>
   <script src="/js/bootstrap/03-tab-loader.js?v=phase35-bootstrap-split-v1"></script>

@@ -9,6 +9,7 @@ const deletionRepository = require('../../repositories/salesOrderDeletion.reposi
 
 const InventoryPostingService = require('../posting/InventoryPostingService');
 const returnOrderService = require('../../services/returnOrderService');
+const internalSaleAllocationService = require('../../services/internalSaleAllocation.service');
 
 const {
   decideSalesOrderDeletion,
@@ -111,6 +112,8 @@ async function deleteSalesOrder(idOrCode, command = {}) {
         throw err;
       }
     }
+
+    await internalSaleAllocationService.releaseForDeletedOrder(order, actor, { session });
 
     await orderRepository.remove(order.id || order.code || idOrCode, { session });
   });

@@ -44,6 +44,17 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
   function stockText(product){
     return `Tồn: ${stockSlash(product)}`;
   }
+  function hasAppQuotaInfo(product){
+    return Boolean(product && (
+      Object.prototype.hasOwnProperty.call(product, 'maxOrderQty') ||
+      (product.internalSaleQuota && typeof product.internalSaleQuota === 'object')
+    ));
+  }
+  function appQuotaSlash(product){
+    const rate = Math.max(1, toNumber(product?.conversionRate || product?.unitsPerCase || 1));
+    const qty = Math.max(0, toNumber(product?.maxOrderQty ?? product?.internalSaleQuota?.currentlyAllowedQty ?? product?.internalSaleQuota?.remainingQty ?? 0));
+    return `${Math.floor(qty / rate)}/${qty % rate}`;
+  }
   function packingText(product){
     if(product?.packing) return product.packing;
     if(product?.baseUnit && toNumber(product?.conversionRate) > 1) return `1 ${product.unit || ''} = ${product.conversionRate} ${product.baseUnit}`;
@@ -150,7 +161,7 @@ function numericDigits(value){ return String(value ?? '').replace(/\D/g,''); }
     // Tên sản phẩm đã có quy cách nên không hiển thị thêm QC/packing để NVBH đọc nhanh hơn.
     if(mode === 'sales'){
       const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
-      return `${code} | ${name}\n📦 ${stockSlash(product)}     💰 ${priceLabel}`;
+      return `${code} | ${name}\n📦 Tồn ${stockSlash(product)} · App ${appQuotaSlash(product)}     💰 ${priceLabel}`;
     }
 
     const packing = product._packingText || packingText(product);
@@ -167,8 +178,11 @@ function labelHtml(product, mode='sales'){
     const priceValue = toNumber(price);
     if(mode === 'sales'){
       const priceLabel = priceValue ? priceValue.toLocaleString('vi-VN') : '0';
+      const quotaBadge = hasAppQuotaInfo(product)
+        ? `<span class="stock-badge app-quota-badge">App ${escapeHtml(appQuotaSlash(product))}</span>`
+        : '';
       return `<div class="product-suggest-title">${escapeHtml(code)} | ${escapeHtml(name)}</div>`
-        + `<div class="product-suggest-meta"><span class="stock-badge">📦 ${escapeHtml(stockSlash(product))}</span><span class="price-badge">💰 ${escapeHtml(priceLabel)}</span></div>`;
+        + `<div class="product-suggest-meta"><span class="stock-badge">📦 Tồn ${escapeHtml(stockSlash(product))}</span>${quotaBadge}<span class="price-badge">💰 ${escapeHtml(priceLabel)}</span></div>`;
     }
     return escapeHtml(label(product, mode));
   }

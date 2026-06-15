@@ -43,5 +43,9 @@ module.exports = {
   importTemplates: require('./ImportTemplate'),
   roles: require('./Role'),
   permissions: require('./Permission'),
-  idempotencyRequests: require('./IdempotencyRequest')
+  idempotencyRequests: require('./IdempotencyRequest'),
+  dmsInventoryImports: require('./DmsInventoryImport'),
+  dmsInventorySnapshots: require('./DmsInventorySnapshot'),
+  internalSaleAllocations: require('./InternalSaleAllocation'),
+  internalSaleAllocationLedgers: require('./InternalSaleAllocationLedger')
 };

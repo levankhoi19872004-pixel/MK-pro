@@ -100,6 +100,8 @@ const SalesOrder = flexModel('SalesOrder', 'orders', {
   cancelReason: String,
 
   items: Array,
+  usesInternalSaleQuota: Boolean,
+  internalSaleAllocationRefs: Array,
   totalAmount: Number,
   amount: Number,
   total: Number,

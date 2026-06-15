@@ -8,7 +8,9 @@ const { APP_COLLECTION_KEYS } = require('../src/constants/collectionKeys');
 const REQUIRED = [
   'users', 'salesTargets', 'inventories', 'stockTransactions', 'salesOrders', 'returnOrders',
   'arLedgers', 'fundLedgers', 'debtCollections', 'externalDebtOrders',
-  'deliveryCashSubmissions', 'expenseVouchers', 'fundTransfers', 'auditLogs'
+  'deliveryCashSubmissions', 'expenseVouchers', 'fundTransfers', 'auditLogs',
+  'dmsInventoryImports', 'dmsInventorySnapshots',
+  'internalSaleAllocations', 'internalSaleAllocationLedgers'
 ];
 
 test('backup covers all canonical operational and financial collections', () => {

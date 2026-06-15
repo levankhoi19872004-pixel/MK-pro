@@ -127,19 +127,25 @@ async function getAvailableStock(productCode) {
   return { productCode: code, availableQty: toNumber(stocks[code]) };
 }
 
-async function getInventorySummary(query = {}) {
+async function getInventorySummary(query = {}, options = {}) {
   const q = normalizeProductCode(query.q || query.search || query.keyword || '');
+  const session = options.session || null;
   const cacheKey = JSON.stringify({ q });
   const nowMs = Date.now();
-  if (INVENTORY_SUMMARY_CACHE_TTL_MS > 0 && inventorySummaryCache.key === cacheKey && inventorySummaryCache.value && inventorySummaryCache.expiresAt > nowMs) {
+  if (!session && INVENTORY_SUMMARY_CACHE_TTL_MS > 0 && inventorySummaryCache.key === cacheKey && inventorySummaryCache.value && inventorySummaryCache.expiresAt > nowMs) {
     return inventorySummaryCache.value;
   }
 
+  let inventoryQuery = InventoryCurrent.find({}).sort({ productCode: 1 });
+  let productQuery = Product.find({})
+    .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock');
+  if (session) {
+    inventoryQuery = inventoryQuery.session(session);
+    productQuery = productQuery.session(session);
+  }
   const [inventoryRows, products] = await Promise.all([
-    InventoryCurrent.find({}).sort({ productCode: 1 }).lean(),
-    Product.find({})
-    .select('id code productCode sku name productName unit baseUnit conversionRate packing packingQty unitsPerCase minStock maxStock')
-    .lean()
+    inventoryQuery.lean(),
+    productQuery.lean()
   ]);
 
   const productMap = new Map();
@@ -207,7 +213,7 @@ async function getInventorySummary(query = {}) {
   }, { totalRows: 0, totalQuantity: 0, outOfStock: 0, lowStock: 0, negativeStockCount: 0 });
 
   const result = { source: 'inventoryStock.service', stock, summary, inventorySource: 'inventories', negativeStockCount: negativeStockRows.length, negativeStockRows, generatedAt: dateUtil.nowIso(), cacheTtlMs: INVENTORY_SUMMARY_CACHE_TTL_MS };
-  if (INVENTORY_SUMMARY_CACHE_TTL_MS > 0) {
+  if (!session && INVENTORY_SUMMARY_CACHE_TTL_MS > 0) {
     inventorySummaryCache = { key: cacheKey, expiresAt: Date.now() + INVENTORY_SUMMARY_CACHE_TTL_MS, value: result };
   }
   return result;

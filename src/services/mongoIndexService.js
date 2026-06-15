@@ -362,6 +362,29 @@ const INDEX_DEFINITIONS = {
     [{ sessionId: 1 }, { name: 'uniq_importSessions_sessionId', unique: true, sparse: true }],
     [{ status: 1, createdAt: -1 }, { name: 'idx_importSessions_status_createdAt' }],
     [{ createdAt: 1 }, { name: 'ttl_importSessions_createdAt', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 86400) }]
+  ],
+  dmsInventoryImports: [
+    [{ id: 1 }, { name: 'uniq_dms_inventory_import_id', unique: true }],
+    [{ fileHash: 1, status: 1 }, { name: 'idx_dms_inventory_file_status' }],
+    [{ fileHash: 1 }, { name: 'uniq_dms_inventory_completed_file', unique: true, partialFilterExpression: { status: 'completed' } }],
+    [{ status: 1, committedAt: -1 }, { name: 'idx_dms_inventory_status_committed' }],
+    [{ expiresAt: 1 }, { name: 'ttl_dms_inventory_preview', expireAfterSeconds: 0 }]
+  ],
+  dmsInventorySnapshots: [
+    [{ importId: 1, productCode: 1 }, { name: 'uniq_dms_snapshot_import_product', unique: true }],
+    [{ importId: 1, comparisonType: 1, internalExcessQty: -1 }, { name: 'idx_dms_snapshot_import_type_internal' }],
+    [{ productCode: 1, snapshotAt: -1 }, { name: 'idx_dms_snapshot_product_time' }],
+    [{ expiresAt: 1 }, { name: 'ttl_dms_inventory_snapshot_preview', expireAfterSeconds: 0 }]
+  ],
+  internalSaleAllocations: [
+    [{ productCode: 1, status: 1 }, { name: 'uniq_internal_sale_allocation_active', unique: true, partialFilterExpression: { status: 'active' } }],
+    [{ importId: 1, status: 1 }, { name: 'idx_internal_sale_allocation_import_status' }],
+    [{ status: 1, remainingQty: 1 }, { name: 'idx_internal_sale_allocation_status_remaining' }]
+  ],
+  internalSaleAllocationLedgers: [
+    [{ eventKey: 1 }, { name: 'uniq_internal_sale_allocation_event', unique: true }],
+    [{ allocationId: 1, createdAt: -1 }, { name: 'idx_internal_sale_allocation_ledger_allocation' }],
+    [{ sourceOrderId: 1, productCode: 1 }, { name: 'idx_internal_sale_allocation_ledger_order_product' }]
   ]
 };
 
