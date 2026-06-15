@@ -9,6 +9,7 @@ const APP_COLLECTION_KEYS = [
   'customers',
   'staffs',
   'users',
+  'salesTargets',
   'warehouses',
   'suppliers',
 

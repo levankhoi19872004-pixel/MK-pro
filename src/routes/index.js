@@ -17,6 +17,7 @@ const cashbookRoutes = require('./cashbookRoutes');
 const bankbookRoutes = require('./bankbookRoutes');
 const promotionRoutes = require('./promotionRoutes');
 const reportRoutes = require('./reportRoutes');
+const dashboardRoutes = require('./dashboardRoutes');
 const systemRoutes = require('./systemRoutes');
 const printRoutes = require('./printRoutes');
 const { importRouter, exportRouter } = require('./importExportRoutes');
@@ -102,6 +103,8 @@ function registerApiRoutes(app) {
   app.use('/api/import', importRouter);
   app.use('/api/export', exportRouter);
   app.use('/api/print', printRoutes);
+  // Dashboard tổng quan là module đọc độc lập; route cũ /api/dashboard vẫn được giữ nguyên.
+  app.use('/api/dashboard', dashboardRoutes);
   app.use('/api', reportRoutes);
 }
 

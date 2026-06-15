@@ -3,6 +3,7 @@ module.exports = {
   customers: require('./Customer'),
   staffs: require('./Staff'),
   users: require('./User'),
+  salesTargets: require('./SalesTarget'),
   warehouses: require('./Warehouse'),
   suppliers: require('./Supplier'),
   stock: require('./InventoryLegacy'),

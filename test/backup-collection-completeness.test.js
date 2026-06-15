@@ -6,7 +6,7 @@ const models = require('../src/models');
 const { APP_COLLECTION_KEYS } = require('../src/constants/collectionKeys');
 
 const REQUIRED = [
-  'users', 'inventories', 'stockTransactions', 'salesOrders', 'returnOrders',
+  'users', 'salesTargets', 'inventories', 'stockTransactions', 'salesOrders', 'returnOrders',
   'arLedgers', 'fundLedgers', 'debtCollections', 'externalDebtOrders',
   'deliveryCashSubmissions', 'expenseVouchers', 'fundTransfers', 'auditLogs'
 ];

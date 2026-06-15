@@ -23,6 +23,9 @@ async function loadTabDataOnce(tabName, options = {}){
   markTabLoading(tabName, true);
   try{
     switch(tabName){
+      case 'dashboardTab':
+        if(typeof loadHomeDashboard === 'function') await loadHomeDashboard();
+        break;
       case 'productsTab':
         if(typeof loadProducts === 'function') await loadProducts({allowEmpty:true});
         break;

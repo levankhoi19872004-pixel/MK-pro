@@ -17,6 +17,8 @@ const repository = new AppDataRepository(APP_COLLECTION_KEYS);
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR || path.join(__dirname, '..', '..', 'backups'));
+// Cho phép kiểm tra backup tạo trước khi collection chỉ tiêu Dashboard tồn tại.
+const LEGACY_OPTIONAL_BACKUP_KEYS = new Set(['salesTargets']);
 
 function mongoState() {
   const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
@@ -204,7 +206,8 @@ async function verifyBackup(fileName, options = {}) {
     throw err;
   }
 
-  const missingCollections = APP_COLLECTION_KEYS.filter((key) => !Array.isArray(parsed.data[key]));
+  const legacyMissingCollections = APP_COLLECTION_KEYS.filter((key) => !Array.isArray(parsed.data[key]) && LEGACY_OPTIONAL_BACKUP_KEYS.has(key));
+  const missingCollections = APP_COLLECTION_KEYS.filter((key) => !Array.isArray(parsed.data[key]) && !LEGACY_OPTIONAL_BACKUP_KEYS.has(key));
   const countMismatches = [];
   for (const key of APP_COLLECTION_KEYS) {
     if (!Array.isArray(parsed.data[key])) continue;
@@ -230,7 +233,8 @@ async function verifyBackup(fileName, options = {}) {
     sha256: actualSha256,
     checksumVerified: Boolean(expectedSha256),
     collectionCount: APP_COLLECTION_KEYS.length,
-    counts: parsed.counts || {}
+    counts: parsed.counts || {},
+    legacyMissingCollections
   };
 }
 

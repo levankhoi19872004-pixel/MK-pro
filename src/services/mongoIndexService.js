@@ -37,6 +37,10 @@ const INDEX_DEFINITIONS = {
     [{ deliveryStaffCode: 1 }, { name: 'idx_users_delivery_staff_code', sparse: true }],
     [{ role: 1, isActive: 1, staffCode: 1 }, { name: 'idx_users_role_active_staff_code' }]
   ],
+  salesTargets: [
+    [{ period: 1, salesStaffCode: 1 }, { name: 'uniq_sales_targets_period_staff', unique: true }],
+    [{ period: 1, status: 1, salesStaffName: 1 }, { name: 'idx_sales_targets_period_status_name' }]
+  ],
   roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
   permissions: [[{ roleCode: 1, module: 1 }, { name: 'idx_permissions_role_module' }]],
   salesOrders: [
@@ -62,7 +66,8 @@ const INDEX_DEFINITIONS = {
     [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
     [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
     [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }],
-    [{ vatInvoiceRequired: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_vat_required_order_date_status' }]
+    [{ vatInvoiceRequired: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_vat_required_order_date_status' }],
+    [{ accountingStatus: 1, orderDate: -1, salesStaffCode: 1 }, { name: 'idx_orders_dashboard_accounting_date_staff' }]
   ],
   masterOrders: [
     [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],
@@ -113,7 +118,8 @@ const INDEX_DEFINITIONS = {
     [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_return_orders_delivery_staff_date_desc' }],
     [{ status: 1, deliveryDate: -1 }, { name: 'idx_return_orders_status_delivery_date_desc' }],
     [{ deliveryOrderId: 1 }, { name: 'idx_return_orders_delivery_order_id', sparse: true }],
-    [{ deliveryOrderCode: 1 }, { name: 'idx_return_orders_delivery_order_code', sparse: true }]
+    [{ deliveryOrderCode: 1 }, { name: 'idx_return_orders_delivery_order_code', sparse: true }],
+    [{ accountingStatus: 1, returnDate: -1, salesStaffCode: 1 }, { name: 'idx_return_dashboard_accounting_date_staff' }]
   ],
   masterReturnOrders: [
     [{ id: 1 }, { name: 'uniq_master_return_orders_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
