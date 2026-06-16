@@ -196,7 +196,15 @@ function resolveCanonicalDeliveryStaff(source = {}, staffIndex = {}) {
   return resolveCanonicalStaff(source, normalizedIndex);
 }
 
-function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], monthlyReturns = [], currentDebt = [], todaySales = [] }) {
+function mergeSalesRows({
+  activeStaff = [],
+  targets = [],
+  monthlySales = [],
+  monthlyPendingSales = [],
+  monthlyReturns = [],
+  currentDebt = [],
+  todaySales = []
+}) {
   const rows = new Map();
   const staffIndex = buildSalesStaffIndex(activeStaff);
   const ensureCanonical = (source = {}) => {
@@ -211,6 +219,9 @@ function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], mon
         targetAmount: 0,
         orderCount: 0,
         salesAmount: 0,
+        pendingOrderCount: 0,
+        pendingSalesAmount: 0,
+        promotionValue: 0,
         returnCount: 0,
         returnAmount: 0,
         netSalesAmount: 0,
@@ -238,6 +249,13 @@ function mergeSalesRows({ activeStaff = [], targets = [], monthlySales = [], mon
     if (!row) return;
     row.orderCount += normalizeMoney(source.orderCount);
     row.salesAmount += normalizeMoney(source.salesAmount);
+    row.promotionValue += normalizeMoney(source.promotionValue);
+  });
+  monthlyPendingSales.forEach((source) => {
+    const row = resolveRow(source);
+    if (!row) return;
+    row.pendingOrderCount += normalizeMoney(source.orderCount);
+    row.pendingSalesAmount += normalizeMoney(source.salesAmount);
   });
   monthlyReturns.forEach((source) => {
     const row = resolveRow(source);
@@ -341,11 +359,21 @@ function unresolvedMetric(rows = [], staffIndex, type, options = {}) {
   };
 }
 
-function buildDataQuality({ activeStaff, monthlySales, todaySales, monthlyReturns, currentDebt, deliveryMonthRaw, deliveryTodayRaw }) {
+function buildDataQuality({
+  activeStaff,
+  monthlySales,
+  monthlyPendingSales = [],
+  todaySales,
+  monthlyReturns,
+  currentDebt,
+  deliveryMonthRaw,
+  deliveryTodayRaw
+}) {
   const salesIndex = buildSalesStaffIndex(activeStaff.sales);
   const deliveryIndex = buildStaffIndex(activeStaff.delivery, 'delivery');
   const unmapped = {
     monthlySales: unresolvedMetric(monthlySales, salesIndex, 'sales', { countField: 'orderCount', amountField: 'salesAmount' }),
+    monthlyPendingSales: unresolvedMetric(monthlyPendingSales, salesIndex, 'sales', { countField: 'orderCount', amountField: 'salesAmount' }),
     todaySales: unresolvedMetric(todaySales, salesIndex, 'sales', { countField: 'orderCount', amountField: 'salesAmount' }),
     monthlyReturns: unresolvedMetric(monthlyReturns, salesIndex, 'sales', { countField: 'returnCount', amountField: 'returnAmount' }),
     currentDebt: unresolvedMetric(currentDebt, salesIndex, 'sales', { countField: 'debtDocumentCount', amountField: 'debtAmount' }),
@@ -353,7 +381,8 @@ function buildDataQuality({ activeStaff, monthlySales, todaySales, monthlyReturn
     deliveryToday: unresolvedMetric(deliveryTodayRaw, deliveryIndex, 'delivery', { countField: 'assignedOrders', amountField: 'assignedAmount' })
   };
   const warnings = [];
-  if (unmapped.monthlySales.documentCount > 0) warnings.push(`${unmapped.monthlySales.documentCount} đơn bán tháng chưa map được NVBH`);
+  if (unmapped.monthlySales.documentCount > 0) warnings.push(`${unmapped.monthlySales.documentCount} đơn thực đạt chưa map được NVBH`);
+  if (unmapped.monthlyPendingSales.documentCount > 0) warnings.push(`${unmapped.monthlyPendingSales.documentCount} đơn chờ xác nhận chưa map được NVBH`);
   if (unmapped.todaySales.documentCount > 0) warnings.push(`${unmapped.todaySales.documentCount} đơn hôm nay chưa map được NVBH`);
   if (unmapped.monthlyReturns.documentCount > 0) warnings.push(`${unmapped.monthlyReturns.documentCount} phiếu trả chưa map được NVBH`);
   if (unmapped.currentDebt.amount > 0) warnings.push(`Có ${unmapped.currentDebt.amount} đồng công nợ chưa map được NVBH`);
@@ -367,6 +396,9 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
     result.targetAmount += normalizeMoney(row.targetAmount);
     result.orderCount += normalizeMoney(row.orderCount);
     result.salesAmount += normalizeMoney(row.salesAmount);
+    result.pendingOrderCount += normalizeMoney(row.pendingOrderCount);
+    result.pendingSalesAmount += normalizeMoney(row.pendingSalesAmount);
+    result.promotionValue += normalizeMoney(row.promotionValue);
     result.returnAmount += normalizeMoney(row.returnAmount);
     result.netSalesAmount += normalizeMoney(row.netSalesAmount);
     result.debtAmount += normalizeMoney(row.debtAmount);
@@ -377,6 +409,9 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
     targetAmount: 0,
     orderCount: 0,
     salesAmount: 0,
+    pendingOrderCount: 0,
+    pendingSalesAmount: 0,
+    promotionValue: 0,
     returnAmount: 0,
     netSalesAmount: 0,
     debtAmount: 0,
@@ -389,6 +424,9 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
     ...staffTotals,
     orderCount: canonicalTotals.sales?.orderCount ?? staffTotals.orderCount,
     salesAmount: canonicalTotals.sales?.salesAmount ?? staffTotals.salesAmount,
+    promotionValue: canonicalTotals.sales?.promotionValue ?? staffTotals.promotionValue,
+    pendingOrderCount: canonicalTotals.pendingSales?.orderCount ?? staffTotals.pendingOrderCount,
+    pendingSalesAmount: canonicalTotals.pendingSales?.salesAmount ?? staffTotals.pendingSalesAmount,
     returnAmount: canonicalTotals.returns?.returnAmount ?? staffTotals.returnAmount,
     debtAmount: canonicalTotals.debt?.debtAmount ?? staffTotals.debtAmount,
     todayOrderCount: canonicalTotals.todaySales?.orderCount ?? staffTotals.todayOrderCount,
@@ -427,6 +465,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
     activeStaff,
     targets,
     monthlySalesResult,
+    monthlyPendingSalesResult,
     todaySalesResult,
     monthlyReturnsResult,
     currentDebtResult,
@@ -437,8 +476,9 @@ async function getHomeDashboard({ month, force = false } = {}) {
   ] = await Promise.all([
     timed('activeStaff', () => listActiveStaff()),
     timed('targets', () => SalesTargetService.listByPeriod(range.period)),
-    timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo, { requireAccountingConfirmed: false })),
-    timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today, { requireAccountingConfirmed: false })),
+    timed('monthlySales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo, { accountingScope: 'confirmed' })),
+    timed('monthlyPendingSales', () => SalesDashboardQuery.aggregateSales(range.dateFrom, range.dateTo, { accountingScope: 'pending' })),
+    timed('todaySales', () => SalesDashboardQuery.aggregateSales(today, today, { accountingScope: 'active' })),
     timed('monthlyReturns', () => SalesDashboardQuery.aggregateReturns(range.dateFrom, range.dateTo)),
     timed('currentDebt', () => DebtDashboardQuery.aggregateCurrentDebt()),
     timed('deliveryMonth', () => DeliveryDashboardQuery.aggregateDeliveryMonth(range.dateFrom, range.dateTo)),
@@ -451,6 +491,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
     activeStaff: activeStaff.sales,
     targets,
     monthlySales: monthlySalesResult.rows,
+    monthlyPendingSales: monthlyPendingSalesResult.rows,
     monthlyReturns: monthlyReturnsResult.rows,
     currentDebt: currentDebtResult.rows,
     todaySales: todaySalesResult.rows
@@ -460,30 +501,44 @@ async function getHomeDashboard({ month, force = false } = {}) {
   const dataQuality = buildDataQuality({
     activeStaff,
     monthlySales: monthlySalesResult.rows,
+    monthlyPendingSales: monthlyPendingSalesResult.rows,
     todaySales: todaySalesResult.rows,
     monthlyReturns: monthlyReturnsResult.rows,
     currentDebt: currentDebtResult.rows,
     deliveryMonthRaw: deliveryMonthResult.rows,
     deliveryTodayRaw: deliveryTodayResult.rows
   });
-  dataQuality.catalogPricing = {
-    monthlySales: monthlySalesResult.dataQuality || {},
-    todaySales: todaySalesResult.dataQuality || {},
+  dataQuality.valuation = {
+    monthlyConfirmedSales: monthlySalesResult.dataQuality || {},
+    monthlyPendingSales: monthlyPendingSalesResult.dataQuality || {},
+    todayOperationalSales: todaySalesResult.dataQuality || {},
     monthlyReturns: monthlyReturnsResult.dataQuality || {}
   };
-  const catalogWarningSources = [
-    ['đơn bán tháng', monthlySalesResult.dataQuality],
-    ['đơn bán hôm nay', todaySalesResult.dataQuality],
-    ['hàng trả tháng', monthlyReturnsResult.dataQuality]
+  // Giữ alias để client/monitor cũ không lỗi khi đọc key catalogPricing.
+  dataQuality.catalogPricing = dataQuality.valuation;
+  const valuationWarningSources = [
+    ['đơn thực đạt', monthlySalesResult.dataQuality],
+    ['đơn chờ xác nhận', monthlyPendingSalesResult.dataQuality],
+    ['đơn hôm nay', todaySalesResult.dataQuality],
+    ['hàng trả', monthlyReturnsResult.dataQuality]
   ];
-  catalogWarningSources.forEach(([label, quality = {}]) => {
-    const missingCount = normalizeMoney(quality.missingProductItemCount);
-    const zeroPriceCount = normalizeMoney(quality.zeroSalePriceItemCount);
-    if (missingCount > 0) {
-      dataQuality.warnings.push(`${missingCount} dòng ${label} không tìm thấy mã sản phẩm nên chưa tính theo giá danh mục`);
+  valuationWarningSources.forEach(([label, quality = {}]) => {
+    const missingValueCount = normalizeMoney(quality.missingActualValueItemCount);
+    const currentFallbackCount = normalizeMoney(quality.currentPriceFallbackItemCount);
+    const mismatchCount = normalizeMoney(quality.rootLineMismatchOrderCount);
+    const duplicateCount = normalizeMoney(quality.duplicateDocumentCount);
+    const duplicateAmount = normalizeMoney(quality.duplicateDiscardedAmount);
+    if (missingValueCount > 0) {
+      dataQuality.warnings.push(`${missingValueCount} dòng ${label} thiếu giá trị thực tế và không có snapshot giá`);
     }
-    if (zeroPriceCount > 0) {
-      dataQuality.warnings.push(`${zeroPriceCount} dòng ${label} có giá bán sản phẩm bằng 0 nên doanh số đang bằng 0`);
+    if (currentFallbackCount > 0) {
+      dataQuality.warnings.push(`${currentFallbackCount} dòng ${label} phải fallback giá danh mục hiện tại do thiếu giá lịch sử`);
+    }
+    if (mismatchCount > 0) {
+      dataQuality.warnings.push(`${mismatchCount} ${label} lệch giữa tổng đơn và tổng dòng; Dashboard ưu tiên tổng giá trị đã khóa trên chứng từ`);
+    }
+    if (duplicateCount > 0) {
+      dataQuality.warnings.push(`${duplicateCount} bản ghi trùng mã trong ${label} đã được loại khỏi phép cộng (${duplicateAmount} đồng)`);
     }
   });
   const generatedAt = new Date().toISOString();
@@ -499,6 +554,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
     },
     summary: buildSummary(salesByStaff, {
       sales: monthlySalesResult.totals,
+      pendingSales: monthlyPendingSalesResult.totals,
       todaySales: todaySalesResult.totals,
       returns: monthlyReturnsResult.totals,
       debt: currentDebtResult.totals
@@ -509,6 +565,7 @@ async function getHomeDashboard({ month, force = false } = {}) {
     dataQuality,
     sources: {
       sales: monthlySalesResult.source,
+      pendingSales: monthlyPendingSalesResult.source,
       returns: monthlyReturnsResult.source,
       debt: currentDebtResult.source,
       deliveryMonth: deliveryMonthResult.source,

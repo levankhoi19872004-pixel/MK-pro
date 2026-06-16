@@ -21,7 +21,7 @@
 .dashboard-card-head h3{margin:0 0 4px;font-size:17px}
 .dashboard-card-head p{margin:0;color:var(--muted);font-size:12px}
 .dashboard-table-wrap{width:100%;overflow:auto}
-.dashboard-table{width:100%;min-width:1080px;border-collapse:collapse;background:#fff}
+.dashboard-table{width:100%;min-width:1420px;border-collapse:collapse;background:#fff}
 .dashboard-table th,.dashboard-table td{padding:12px 13px;border-bottom:1px solid var(--line-soft);font-size:13px;text-align:right;white-space:nowrap}
 .dashboard-table th{position:sticky;top:0;z-index:1;background:#f8fafc;color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
 .dashboard-table th:first-child,.dashboard-table td:first-child,.dashboard-table th:nth-child(2),.dashboard-table td:nth-child(2){text-align:left}

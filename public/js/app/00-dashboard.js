@@ -14,12 +14,15 @@
     deliveryTodayTable: document.getElementById('dashboardDeliveryTodayTable'),
     targetTotal: document.getElementById('dashboardTargetTotal'),
     salesTotal: document.getElementById('dashboardSalesTotal'),
+    pendingSalesTotal: document.getElementById('dashboardPendingSalesTotal'),
+    promotionValueTotal: document.getElementById('dashboardPromotionValueTotal'),
     returnTotal: document.getElementById('dashboardReturnTotal'),
     netSalesTotal: document.getElementById('dashboardNetSalesTotal'),
     debtTotal: document.getElementById('dashboardDebtTotal'),
     todaySalesTotal: document.getElementById('dashboardTodaySalesTotal'),
     achievementText: document.getElementById('dashboardAchievementText'),
     orderCount: document.getElementById('dashboardOrderCount'),
+    pendingOrderCount: document.getElementById('dashboardPendingOrderCount'),
     todayOrderCount: document.getElementById('dashboardTodayOrderCount'),
     targetModal: document.getElementById('dashboardTargetModal'),
     targetClose: document.getElementById('dashboardTargetCloseButton'),
@@ -109,30 +112,35 @@
   function renderSummary(summary={}){
     elements.targetTotal.textContent=formatMoney(summary.targetAmount);
     elements.salesTotal.textContent=formatMoney(summary.salesAmount);
+    elements.pendingSalesTotal.textContent=formatMoney(summary.pendingSalesAmount);
+    elements.promotionValueTotal.textContent=formatMoney(summary.promotionValue);
     elements.returnTotal.textContent=formatMoney(summary.returnAmount);
     elements.netSalesTotal.textContent=formatMoney(summary.netSalesAmount);
     elements.debtTotal.textContent=formatMoney(summary.debtAmount);
     elements.todaySalesTotal.textContent=formatMoney(summary.todaySalesAmount);
     elements.achievementText.textContent=`Đạt ${formatPercent(summary.achievementRate)}`;
-    elements.orderCount.textContent=`${Number(summary.orderCount||0)} đơn phát sinh hợp lệ · theo giá bán SP`;
-    elements.todayOrderCount.textContent=`${Number(summary.todayOrderCount||0)} đơn phát sinh hôm nay`;
+    elements.orderCount.textContent=`${Number(summary.orderCount||0)} đơn đã xác nhận kế toán · giá trị thực tế`;
+    elements.pendingOrderCount.textContent=`${Number(summary.pendingOrderCount||0)} đơn chưa xác nhận kế toán`;
+    elements.todayOrderCount.textContent=`${Number(summary.todayOrderCount||0)} đơn phát sinh hôm nay, gồm cả chờ xác nhận`;
   }
 
   function renderSalesRows(rows=[]){
     if(!rows.length){
-      elements.salesTable.innerHTML='<tr><td colspan="10" class="empty-cell">Chưa có dữ liệu nhân viên bán hàng trong tháng.</td></tr>';
+      elements.salesTable.innerHTML='<tr><td colspan="12" class="empty-cell">Chưa có dữ liệu nhân viên bán hàng trong tháng.</td></tr>';
       return;
     }
     elements.salesTable.innerHTML=rows.map(row=>{
       const displayName=row.salesStaffName||row.salesStaffCode||'Chưa xác định';
       return `<tr>
-        <td><span class="dashboard-staff-name"><strong>${escapeHtml(displayName)}</strong><small>${Number(row.orderCount||0)} đơn tháng · ${Number(row.todayOrderCount||0)} đơn hôm nay</small></span></td>
+        <td><span class="dashboard-staff-name"><strong>${escapeHtml(displayName)}</strong><small>${Number(row.orderCount||0)} đơn xác nhận · ${Number(row.pendingOrderCount||0)} đơn chờ · ${Number(row.todayOrderCount||0)} đơn hôm nay</small></span></td>
         <td>${escapeHtml(row.salesStaffCode||'—')}</td>
         <td>${escapeHtml(formatMoney(row.targetAmount))}</td>
         <td>${escapeHtml(formatMoney(row.salesAmount))}</td>
+        <td>${escapeHtml(formatMoney(row.pendingSalesAmount))}</td>
         <td>${progressHtml(row.achievementRate)}</td>
         <td>${escapeHtml(formatMoney(row.returnAmount))}</td>
         <td><strong>${escapeHtml(formatMoney(row.netSalesAmount))}</strong></td>
+        <td>${escapeHtml(formatMoney(row.promotionValue))}</td>
         <td>${escapeHtml(formatMoney(row.debtAmount))}</td>
         <td>${escapeHtml(formatMoney(row.todaySalesAmount))}</td>
         <td><span class="dashboard-status-badge ${escapeHtml(row.status||'no_target')}">${escapeHtml(statusLabel(row.status))}</span></td>
@@ -219,7 +227,7 @@
     }catch(error){
       if(error?.name==='AbortError') return;
       setState(error?.message||'Không tải được Dashboard tổng quan',true);
-      elements.salesTable.innerHTML='<tr><td colspan="10" class="empty-cell">Không tải được dữ liệu.</td></tr>';
+      elements.salesTable.innerHTML='<tr><td colspan="12" class="empty-cell">Không tải được dữ liệu.</td></tr>';
       elements.deliveryMonthTable.innerHTML='<tr><td colspan="10" class="empty-cell">Không tải được dữ liệu.</td></tr>';
       elements.deliveryTodayTable.innerHTML='<tr><td colspan="10" class="empty-cell">Không tải được dữ liệu.</td></tr>';
     }finally{

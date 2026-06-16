@@ -29,7 +29,8 @@ test('dashboard sales merge calculates net sales without mutating business docum
   const rows = dashboardService.mergeSalesRows({
     activeStaff: [{ salesStaffCode: '35128', salesStaffName: 'Nguyễn Thị Thùy' }],
     targets: [{ salesStaffCode: '35128', targetAmount: 1000000 }],
-    monthlySales: [{ salesStaffCode: '35128', orderCount: 2, salesAmount: 900000 }],
+    monthlySales: [{ salesStaffCode: '35128', orderCount: 2, salesAmount: 900000, promotionValue: 120000 }],
+    monthlyPendingSales: [{ salesStaffCode: '35128', orderCount: 1, salesAmount: 250000 }],
     monthlyReturns: [{ salesStaffCode: '35128', returnCount: 1, returnAmount: 100000 }],
     currentDebt: [{ salesStaffCode: '35128', debtAmount: 200000 }],
     todaySales: [{ salesStaffCode: '35128', orderCount: 1, salesAmount: 300000 }]
@@ -40,6 +41,9 @@ test('dashboard sales merge calculates net sales without mutating business docum
   assert.equal(rows[0].achievementRate, 80);
   assert.equal(rows[0].status, 'near_target');
   assert.equal(rows[0].todaySalesAmount, 300000);
+  assert.equal(rows[0].pendingOrderCount, 1);
+  assert.equal(rows[0].pendingSalesAmount, 250000);
+  assert.equal(rows[0].promotionValue, 120000);
 });
 
 
@@ -151,13 +155,15 @@ test('dashboard summary uses Mongo canonical totals while staff table remains sa
   const rows = dashboardService.mergeSalesRows({
     activeStaff: [{ salesStaffCode: '35128', salesStaffName: 'Nguyễn Thị Thùy' }],
     targets: [{ salesStaffCode: '35128', targetAmount: 1000000 }],
-    monthlySales: [{ salesStaffCode: '35128', orderCount: 1, salesAmount: 800000 }],
+    monthlySales: [{ salesStaffCode: '35128', orderCount: 1, salesAmount: 800000, promotionValue: 60000 }],
+    monthlyPendingSales: [{ salesStaffCode: '35128', orderCount: 2, salesAmount: 200000 }],
     monthlyReturns: [{ salesStaffCode: '35128', returnCount: 1, returnAmount: 50000 }],
     currentDebt: [{ salesStaffCode: '35128', debtAmount: 100000 }],
     todaySales: []
   });
   const summary = dashboardService.buildSummary(rows, {
-    sales: { orderCount: 2, salesAmount: 900000 },
+    sales: { orderCount: 2, salesAmount: 900000, promotionValue: 70000 },
+    pendingSales: { orderCount: 3, salesAmount: 250000 },
     returns: { returnAmount: 70000 },
     debt: { debtAmount: 150000 },
     todaySales: { orderCount: 0, salesAmount: 0 }
@@ -167,6 +173,9 @@ test('dashboard summary uses Mongo canonical totals while staff table remains sa
   assert.equal(summary.orderCount, 2);
   assert.equal(summary.salesAmount, 900000);
   assert.equal(summary.returnAmount, 70000);
+  assert.equal(summary.pendingOrderCount, 3);
+  assert.equal(summary.pendingSalesAmount, 250000);
+  assert.equal(summary.promotionValue, 70000);
   assert.equal(summary.netSalesAmount, 830000);
   assert.equal(summary.debtAmount, 150000);
 });
@@ -218,59 +227,87 @@ test('dashboard accounting contract excludes lifecycle completed from confirmed 
   assert.doesNotMatch(filterBlock, /completed/);
 });
 
-test('dashboard revenue pipeline uses current product catalog salePrice instead of actual order totals', () => {
-  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
-  const pipeline = salesQuery.buildCatalogSalesPipeline('2026-06-01', '2026-06-30');
-  const serialized = JSON.stringify(pipeline);
+test('dashboard active-document filter excludes every legacy cancel/delete marker', () => {
+  const expressions = read('src/services/dashboard/DashboardMongoExpressions.js');
+  const activeBlock = expressions.match(/function activeDocumentFilter\(\)[\s\S]*?\n}\n\nfunction accountingConfirmedFilter/)?.[0] || '';
 
-  assert.match(serialized, /"\$lookup"/);
-  assert.match(serialized, /"from":"products"/);
-  assert.match(serialized, /_dashboardProduct\.salePrice/);
-  assert.match(serialized, /items\.quantity/);
-  assert.doesNotMatch(serialized, /totalAmount|grandTotal|finalUnitPrice|priceAfterDiscount/);
+  assert.match(activeBlock, /lifecycleStatus/);
+  assert.match(activeBlock, /deliveryStatus/);
+  assert.match(activeBlock, /returnStatus/);
+  assert.match(activeBlock, /returnState/);
+  assert.match(activeBlock, /deleted/);
+  assert.match(activeBlock, /isDeleted/);
+  assert.match(activeBlock, /deletedAt/);
 });
 
-test('dashboard return value uses current product catalog salePrice and return quantity', () => {
+test('dashboard actual-sales pipeline prioritizes locked order value and excludes promo lines', () => {
   const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
-  const pipeline = salesQuery.buildCatalogReturnsPipeline('2026-06-01', '2026-06-30');
+  const pipeline = salesQuery.buildActualSalesPipeline('2026-06-01', '2026-06-30', { accountingScope: 'confirmed' });
   const serialized = JSON.stringify(pipeline);
 
-  assert.match(serialized, /_dashboardProduct\.salePrice/);
+  assert.match(serialized, /accountingConfirmed/);
+  assert.match(serialized, /totalAfterPromotion/);
+  assert.match(serialized, /goodsAmountAfterPromotion/);
+  assert.match(serialized, /lineAmountAtOrder/);
+  assert.match(serialized, /finalPriceAtOrder/);
+  assert.match(read('src/services/dashboard/SalesDashboardQuery.js'), /firstDefinedNumberExpression/);
+  assert.match(serialized, /items\.isPromo/);
+  assert.match(serialized, /PROMO/);
+  assert.match(serialized, /promotionValue/);
+  assert.match(serialized, /duplicateDiscardedAmount/);
+  assert.match(serialized, /_dashboardHistoricalCatalogPrice/);
+  assert.match(serialized, /_dashboardCurrentCatalogPrice/);
+});
+
+test('dashboard pending-sales scope is the inverse of accounting-confirmed scope', () => {
+  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
+  const pendingPipeline = JSON.stringify(
+    salesQuery.buildActualSalesPipeline('2026-06-01', '2026-06-30', { accountingScope: 'pending' })
+  );
+  const activePipeline = JSON.stringify(
+    salesQuery.buildActualSalesPipeline('2026-06-01', '2026-06-30', { accountingScope: 'active' })
+  );
+
+  assert.match(pendingPipeline, /"\$nor"/);
+  assert.match(pendingPipeline, /accountingConfirmed/);
+  assert.doesNotMatch(activePipeline, /accountingNeedsReconfirm|"arPosted":true/);
+});
+
+test('dashboard return value uses locked return amount and excludes promo return lines', () => {
+  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
+  const pipeline = salesQuery.buildActualReturnsPipeline('2026-06-01', '2026-06-30');
+  const serialized = JSON.stringify(pipeline);
+
   assert.match(serialized, /items\.returnQty/);
-  assert.doesNotMatch(serialized, /\"input\":\"\$returnAmount\"|\"input\":\"\$debtReduction\"/);
+  assert.match(serialized, /items\.returnAmount/);
+  assert.match(serialized, /debtReduction/);
+  assert.match(serialized, /accounting_confirmed|posted_to_ar/);
+  assert.match(serialized, /_dashboardIsPromo/);
+  assert.match(serialized, /duplicateDiscardedAmount/);
 });
 
-
-
-test('home dashboard monthly sales includes every active order instead of waiting for accounting confirmation', () => {
+test('home dashboard separates confirmed, pending and today operational sales', () => {
   const homeQuery = read('src/services/dashboard/HomeDashboardService.js');
-  const monthlyCall = homeQuery.match(/timed\('monthlySales'[\s\S]*?\),\n\s*timed\('todaySales'/)?.[0] || '';
 
-  assert.ok(monthlyCall);
-  assert.match(monthlyCall, /aggregateSales\(range\.dateFrom, range\.dateTo, \{ requireAccountingConfirmed: false \}\)/);
-});
-test('dashboard today sales includes active orders before accounting confirmation', () => {
-  const salesQuery = require('../src/services/dashboard/SalesDashboardQuery');
-  const confirmedPipeline = JSON.stringify(
-    salesQuery.buildCatalogSalesPipeline('2026-06-15', '2026-06-15')
-  );
-  const todayPipeline = JSON.stringify(
-    salesQuery.buildCatalogSalesPipeline('2026-06-15', '2026-06-15', { requireAccountingConfirmed: false })
-  );
-
-  assert.match(confirmedPipeline, /accountingConfirmed/);
-  assert.doesNotMatch(todayPipeline, /accountingConfirmed|arPosted|accountingNeedsReconfirm/);
+  assert.match(homeQuery, /monthlySales'[\s\S]*accountingScope: 'confirmed'/);
+  assert.match(homeQuery, /monthlyPendingSales'[\s\S]*accountingScope: 'pending'/);
+  assert.match(homeQuery, /todaySales'[\s\S]*accountingScope: 'active'/);
+  assert.match(homeQuery, /pendingSalesAmount/);
+  assert.match(homeQuery, /promotionValue/);
 });
 
-test('dashboard UI explains catalog-price revenue and today operational orders', () => {
+test('dashboard UI explains actual confirmed revenue, pending sales and promotion value', () => {
   const html = read('public/index.html');
   const client = read('public/js/app/00-dashboard.js');
 
-  assert.match(html, /toàn bộ đơn bán hợp lệ/);
-  assert.match(html, /phase53-dashboard-active-month-sales-v1/);
-  assert.match(client, /đơn phát sinh hôm nay/);
-  assert.match(client, /đơn phát sinh hợp lệ/);
-  assert.match(client, /theo giá bán SP/);
+  assert.match(html, /đã xác nhận kế toán/);
+  assert.match(html, /Chờ xác nhận/);
+  assert.match(html, /Giá trị khuyến mại/);
+  assert.match(html, /không cộng vào thực đạt/);
+  assert.match(html, /phase55-dashboard-actual-confirmed-sales-v1/);
+  assert.match(client, /pendingSalesAmount/);
+  assert.match(client, /promotionValue/);
+  assert.match(client, /gồm cả chờ xác nhận/);
 });
 
 test('dashboard cache freshness includes product catalog changes', () => {
