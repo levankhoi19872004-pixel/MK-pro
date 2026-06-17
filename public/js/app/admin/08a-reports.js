@@ -47,8 +47,12 @@ function exportReportExcel(type){
   const params=new URLSearchParams();
   const from=reportFromDate?.value||document.getElementById('reportFromDate')?.value||'';
   const to=reportToDate?.value||document.getElementById('reportToDate')?.value||'';
-  if(from)params.set('dateFrom',from);
-  if(to)params.set('dateTo',to);
+  // Tồn kho hiện tại là snapshot canonical từ inventories, không phụ thuộc ngày.
+  // Nhập-xuất-tồn và thẻ kho mới dùng khoảng ngày.
+  if(cleanType!=='stock-report'){
+    if(from)params.set('dateFrom',from);
+    if(to)params.set('dateTo',to);
+  }
   params.set('limit','100000');
   window.location.href=`/api/export/${encodeURIComponent(cleanType)}.xlsx?${params.toString()}`;
 }

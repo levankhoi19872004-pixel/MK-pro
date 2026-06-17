@@ -11,6 +11,7 @@ const viewStockReports = requireRole(['admin', 'manager', 'accountant', 'warehou
 
 // Backward-compatible report endpoints used by old UI.
 router.get('/stock', viewStockReports, reportController.stock);
+router.get('/inventory-movement', viewStockReports, reportController.inventoryMovement);
 router.get('/stock-card', viewStockReports, reportController.stockCard);
 router.post('/inventory/rebuild', adminOnly, reportController.rebuildInventory);
 router.post('/inventory/normalize-one-warehouse', adminOnly, reportController.normalizeOneWarehouse);
@@ -25,6 +26,7 @@ router.get('/dashboard', viewBusinessReports, reportController.dashboard);
 
 // Clean report namespace for new UI/API.
 router.get('/reports/stock', viewStockReports, reportController.stock);
+router.get('/reports/inventory-movement', viewStockReports, reportController.inventoryMovement);
 router.get('/reports/stock-card', viewStockReports, reportController.stockCard);
 router.post('/reports/inventory/rebuild', adminOnly, reportController.rebuildInventory);
 router.post('/reports/inventory/normalize-one-warehouse', adminOnly, reportController.normalizeOneWarehouse);
@@ -39,5 +41,6 @@ router.get('/reports/dashboard', viewBusinessReports, reportController.dashboard
 router.get('/reports/sales', viewBusinessReports, reportController.sales);
 router.get('/reports/finance', viewBusinessReports, reportController.finance);
 router.get('/reports/delivery', viewBusinessReports, reportController.delivery);
+router.get('/reports/returns', viewBusinessReports, reportController.returns);
 
 module.exports = router;

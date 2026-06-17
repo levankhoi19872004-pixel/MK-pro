@@ -18,12 +18,15 @@ function requireReportDateRange(req, res, options = {}) {
 }
 
 const stock = asyncHandler(async (req, res) => {
-  // Tồn kho hiện tại được đọc trực tiếp từ inventories, không bắt buộc dateFrom/dateTo.
-  // Chỉ báo cáo phát sinh/thẻ kho theo kỳ mới cần khoảng ngày.
-  const query = req.query || {};
-  const wantsMovement = query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement';
-  if (wantsMovement && !requireReportDateRange(req, res, { maxDays: 31 })) return;
-  const result = await reportService.stockReport(query);
+  // Tồn kho hiện tại luôn đọc collection inventories và tuyệt đối không đổi nghĩa
+  // chỉ vì giao diện đang có dateFrom/dateTo.
+  const result = await reportService.stockReport({ ...(req.query || {}), mode: 'current' });
+  res.json({ ok: true, ...result });
+});
+
+const inventoryMovement = asyncHandler(async (req, res) => {
+  if (!requireReportDateRange(req, res, { maxDays: 31 })) return;
+  const result = await reportService.inventoryMovementReport(req.query);
   res.json({ ok: true, ...result });
 });
 
@@ -129,6 +132,12 @@ const delivery = asyncHandler(async (req, res) => {
   res.json({ ok: true, ...result });
 });
 
+const returns = asyncHandler(async (req, res) => {
+  if (!requireReportDateRange(req, res, { maxDays: 31 })) return;
+  const result = await reportService.returnReport(req.query);
+  res.json({ ok: true, ...result });
+});
+
 
 function assertDestructiveInventoryRequest(req, operation) {
   if (process.env.ENABLE_DESTRUCTIVE_INVENTORY_REBUILD !== 'true') {
@@ -179,6 +188,7 @@ const normalizeOneWarehouse = asyncHandler(async (req, res) => {
 
 module.exports = {
   stock,
+  inventoryMovement,
   stockCard,
   debts,
   debtsInit,
@@ -191,6 +201,7 @@ module.exports = {
   sales,
   finance,
   delivery,
+  returns,
   rebuildInventory,
   normalizeOneWarehouse
 };

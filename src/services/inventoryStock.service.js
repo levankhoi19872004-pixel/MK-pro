@@ -25,11 +25,26 @@ function stockWarehouseName() {
   return STOCK_WAREHOUSE_NAME || 'Kho chính';
 }
 
-function quantityOf(row = {}) {
+function onHandOf(row = {}) {
+  if (row.onHand !== undefined && row.onHand !== null) return toNumber(row.onHand);
+  if (row.quantity !== undefined && row.quantity !== null) return toNumber(row.quantity);
+  if (row.qty !== undefined && row.qty !== null) return toNumber(row.qty);
+  if (row.stockQuantity !== undefined && row.stockQuantity !== null) return toNumber(row.stockQuantity);
+  if (row.availableQty !== undefined && row.availableQty !== null) {
+    return toNumber(row.availableQty) + toNumber(row.reservedQty ?? row.reserved ?? 0);
+  }
+  return 0;
+}
+
+function availableQuantityOf(row = {}) {
   if (row.availableQty !== undefined && row.availableQty !== null) return toNumber(row.availableQty);
-  const onHand = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.stockQuantity);
-  const reserved = toNumber(row.reservedQty ?? row.reserved ?? 0);
-  return onHand - reserved;
+  return onHandOf(row) - toNumber(row.reservedQty ?? row.reserved ?? 0);
+}
+
+// Giữ API quantityOf cho các luồng kiểm tra khả dụng. quantityOf luôn là số
+// có thể bán; báo cáo tồn vật lý phải dùng onHandOf.
+function quantityOf(row = {}) {
+  return availableQuantityOf(row);
 }
 
 function productCodeOf(row = {}) {
@@ -162,7 +177,9 @@ async function getInventorySummary(query = {}, options = {}) {
     const product = productMap.get(rowCode) || {};
     const productCode = normalizeProductCode(product.code || product.productCode || row.productCode || row.code || row.sku || row.productId);
     if (!productCode) continue;
-    const quantity = quantityOf(row);
+    const onHand = onHandOf(row);
+    const reservedQty = toNumber(row.reservedQty ?? row.reserved ?? 0);
+    const availableQty = availableQuantityOf(row);
     if (!grouped.has(productCode)) {
       const packingRate = Math.max(1, packingRateOf(product, row));
 
@@ -191,11 +208,11 @@ async function getInventorySummary(query = {}, options = {}) {
       });
     }
     const acc = grouped.get(productCode);
-    acc.quantity += quantity;
-    acc.qty += quantity;
-    acc.onHand += quantity;
-    acc.availableQty += quantity;
-    acc.reservedQty += toNumber(row.reservedQty ?? row.reserved ?? 0);
+    acc.quantity += onHand;
+    acc.qty += onHand;
+    acc.onHand += onHand;
+    acc.availableQty += availableQty;
+    acc.reservedQty += reservedQty;
     const updatedAt = row.updatedAt || row.createdAt || row.lastTransactionAt || '';
     if (updatedAt > (acc.updatedAt || '')) acc.updatedAt = updatedAt;
   }
@@ -272,6 +289,8 @@ async function checkAvailableForItems(items = []) {
 module.exports = {
   normalizeProductCode,
   quantityOf,
+  onHandOf,
+  availableQuantityOf,
   getAvailableStock,
   getAvailableStocks,
   getInventorySummary,

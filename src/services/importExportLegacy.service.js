@@ -719,7 +719,7 @@ async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
 
 const BUSINESS_REPORT_TYPES = [
   'sales-report', 'delivery-report', 'return-report', 'debt-report', 'ar-ledger-detail',
-  'stock-report', 'stock-card-report', 'fund-report', 'salesman-report', 'deliveryman-report',
+  'stock-report', 'inventory-movement-report', 'stock-card-report', 'fund-report', 'salesman-report', 'deliveryman-report',
   'customer-sales-report', 'product-sales-report',
   'product-info-report', 'customer-info-report', 'user-info-report'
 ];
@@ -749,13 +749,30 @@ function appendAoaSheet(workbook, name, headers, rows) {
   appendAoaSheetToWorkbook(workbook, String(name || 'BaoCao').slice(0, 31), [headers, ...sheetRows]);
 }
 
+function reportBusinessRule(type = '') {
+  const rules = {
+    'stock-report': 'Tồn hiện tại đọc inventories; Tồn vật lý = onHand, Tồn khả dụng = onHand - reservedQty.',
+    'inventory-movement-report': 'Tồn đầu + Tổng nhập - Tổng xuất = Tồn cuối; chiều nhập/xuất theo dấu quantity; tồn cuối được backcast từ inventories khi có thể.',
+    'stock-card-report': 'Số dư chạy bắt đầu từ tồn đầu kỳ, không bắt đầu từ 0.',
+    'sales-report': 'Chỉ đơn đã xác nhận kế toán; loại hàng khuyến mại; giá trị thực tế lấy snapshot/tổng tiền của đơn.',
+    'return-report': 'Chỉ phiếu trả đã xác nhận kế toán; ưu tiên giá trị AR-RETURN đã post.',
+    'debt-report': 'Dư đầu kỳ + Phát sinh Nợ - Tổng phát sinh Có = Dư cuối kỳ; nguồn arLedgers.',
+    'ar-ledger-detail': 'Số dư từng dòng bắt đầu từ dư trước kỳ của khách hàng.',
+    'fund-report': 'Tồn đầu kỳ + Thu - Chi = Tồn cuối kỳ, tách theo fundType và account; nguồn fundLedgers.',
+    'delivery-report': 'Tổng đơn giao tính lại từ đơn con còn hiệu lực; tiền thu lấy fundLedgers, không lấy snapshot đơn tổng.',
+    'product-info-report': 'Thông tin sản phẩm ghép tồn kho hiện tại từ inventories và tách Tồn vật lý, Đã giữ chỗ, Tồn khả dụng.',
+    'customer-info-report': 'Công nợ lấy arLedgers; doanh số tháng chỉ gồm đơn đã xác nhận kế toán và giá trị thực tế tại thời điểm bán.'
+  };
+  return rules[type] || 'Báo cáo sử dụng nguồn dữ liệu nghiệp vụ chuẩn của hệ thống.';
+}
+
 async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
   const workbook = createWorkbook();
   appendAoaSheet(workbook, sheetName, headers, rows);
   const { from, to } = reportDateRange(query);
   appendAoaSheetToWorkbook(workbook, 'ThongTin', [
     ['Mẫu báo cáo', sheetName], ['Từ ngày', from], ['Đến ngày', to], ['Số dòng', rows.length], ['Thời gian xuất', new Date().toISOString()],
-    ['Quy tắc doanh số', 'Doanh số trước KM = số lượng x giá bán gốc; Doanh số sau KM = giá trị thực tế trên đơn sau khuyến mại; Chênh lệch KM = trước KM - sau KM']
+    ['Quy tắc nghiệp vụ', reportBusinessRule(type)]
   ]);
   const safeType = String(type || 'report').replace(/[^a-zA-Z0-9_-]/g, '-');
   const suffix = `${from || 'all'}_${to || dateUtil.todayVN()}`;
@@ -779,110 +796,335 @@ async function loadProductMap() {
 }
 
 async function buildSalesReportWorkbook(query = {}) {
-  const productMap = await loadProductMap();
-  const orders = await SalesOrder.find({ ...buildReportFilter(query), ...activeReturnOrderFilter() }).sort({ date: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
-  const rows = orders.map((o, idx) => {
-    const before = orderBeforePromo(o, productMap); const after = orderAfterPromo(o);
-    return { STT: idx + 1, Ngay: normalizeDateOnly(o.date || o.createdAt), MaDon: orderCode(o), Nguon: cleanText(o.orderSource || o.source || ''), MaKhachHang: cleanText(o.customerCode), KhachHang: cleanText(o.customerName), NVBH: staffName(o, 'sales'), NVGH: staffName(o, 'delivery'), SoLuong: orderQty(o), DoanhSoTruocKM: Math.round(before), DoanhSoSauKM: Math.round(after), ChenhLechKM: Math.round(before - after), DaThu: Math.round(toNumber(o.paidAmount)), ConNo: Math.round(toNumber(o.debtAmount)), TrangThaiGiaoHang: cleanText(o.deliveryStatus) };
-  });
-  return reportWorkbook('sales-report', 'BaoCaoBanHang', Object.keys(rows[0] || { STT:'', Ngay:'', MaDon:'', Nguon:'', MaKhachHang:'', KhachHang:'', NVBH:'', NVGH:'', SoLuong:'', DoanhSoTruocKM:'', DoanhSoSauKM:'', ChenhLechKM:'', DaThu:'', ConNo:'', TrangThaiGiaoHang:'' }), rows, query);
+  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
+  const rows = (result.sales || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaDon: row.code,
+    Nguon: row.source,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    MaNVBH: row.salesStaffCode,
+    NVBH: row.salesStaffName,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    SoLuongBan: row.saleQuantity,
+    SoLuongKhuyenMai: row.promoQuantity,
+    DoanhSoTruocKM: Math.round(toNumber(row.beforePromoAmount)),
+    DoanhSoThucTe: Math.round(toNumber(row.actualAmount)),
+    ChietKhauKM: Math.round(toNumber(row.promotionDiscountAmount)),
+    GiaTriHangKM: Math.round(toNumber(row.promotionValue)),
+    DaThuTheoAR: Math.round(toNumber(row.receiptAmount)),
+    TraHangTheoAR: Math.round(toNumber(row.returnAmount)),
+    DieuChinhCongNo: Math.round(toNumber(row.adjustmentAmount)),
+    ConNoTheoAR: Math.round(toNumber(row.debtAmount)),
+    TrangThaiGiaoHang: row.deliveryStatus,
+    TrangThaiKeToan: row.accountingStatus
+  }));
+  return reportWorkbook('sales-report', 'BaoCaoBanHang', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaDon:'', Nguon:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'',
+    SoLuongBan:'', SoLuongKhuyenMai:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', ChietKhauKM:'', GiaTriHangKM:'',
+    DaThuTheoAR:'', TraHangTheoAR:'', DieuChinhCongNo:'', ConNoTheoAR:'', TrangThaiGiaoHang:'', TrangThaiKeToan:''
+  }), rows, query);
 }
 
 async function buildDeliveryReportWorkbook(query = {}) {
-  const MasterOrder = models.masterOrders;
-  const rowsRaw = await MasterOrder.find(buildReportFilter(query, ['deliveryDate', 'date', 'createdAt'])).sort({ deliveryDate: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
-  const rows = rowsRaw.map((o, idx) => ({ STT: idx + 1, NgayGiao: normalizeDateOnly(o.deliveryDate || o.date || o.createdAt), MaDonTong: cleanText(o.code || o.id), NVGH: cleanText(o.deliveryStaffName || o.deliveryStaffCode), SoDon: toNumber(o.orderCount || o.childOrderCount || (Array.isArray(o.orderIds) ? o.orderIds.length : 0)), TongTien: Math.round(toNumber(o.totalAmount || o.amount)), TrangThai: cleanText(o.status || o.deliveryStatus) }));
-  return reportWorkbook('delivery-report', 'BaoCaoGiaoHang', Object.keys(rows[0] || { STT:'', NgayGiao:'', MaDonTong:'', NVGH:'', SoDon:'', TongTien:'', TrangThai:'' }), rows, query);
+  const result = await reportService.deliveryReport({ ...query, full: '1', export: '1' });
+  const rows = (result.delivery || []).map((row, idx) => ({
+    STT: idx + 1,
+    NgayGiao: row.deliveryDate,
+    MaDonTong: row.code,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    SoDonDangGan: row.assignedOrderCount,
+    SoDonDaGiao: row.orderCount,
+    TongTienDonCon: Math.round(toNumber(row.totalAmount)),
+    DoanhSoDaXacNhan: Math.round(toNumber(row.accountingConfirmedAmount)),
+    TienThuTheoQuy: Math.round(toNumber(row.collectedAmount)),
+    TrangThai: row.status,
+    LechSoDonSnapshot: toNumber(row.dataQuality?.snapshotOrderCountDifference),
+    LechTienSnapshot: Math.round(toNumber(row.dataQuality?.snapshotAmountDifference))
+  }));
+  return reportWorkbook('delivery-report', 'BaoCaoGiaoHang', Object.keys(rows[0] || {
+    STT:'', NgayGiao:'', MaDonTong:'', MaNVGH:'', NVGH:'', SoDonDangGan:'', SoDonDaGiao:'', TongTienDonCon:'',
+    DoanhSoDaXacNhan:'', TienThuTheoQuy:'', TrangThai:'', LechSoDonSnapshot:'', LechTienSnapshot:''
+  }), rows, query);
 }
 
 async function buildReturnReportWorkbook(query = {}) {
-  const rowsRaw = await ReturnOrder.find({ ...buildReportFilter(query), ...activeReturnOrderFilter() }).sort({ date: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
-  const rows = rowsRaw.map((r, idx) => ({ STT: idx + 1, Ngay: normalizeDateOnly(r.date || r.createdAt), MaTraHang: returnOrderCodeOf(r), MaDon: cleanText(r.salesOrderCode || r.orderCode), MaKhachHang: cleanText(r.customerCode), KhachHang: cleanText(r.customerName), GiaTriTra: Math.round(toNumber(r.amount || r.returnAmount || r.debtReduction)), TrangThai: cleanText(r.status) }));
-  return reportWorkbook('return-report', 'BaoCaoTraHang', Object.keys(rows[0] || { STT:'', Ngay:'', MaTraHang:'', MaDon:'', MaKhachHang:'', KhachHang:'', GiaTriTra:'', TrangThai:'' }), rows, query);
+  const result = await reportService.returnReport({ ...query, full: '1', export: '1' });
+  const rows = (result.returns || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaTraHang: row.code,
+    MaDon: row.salesOrderCode,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    MaNVBH: row.salesStaffCode,
+    NVBH: row.salesStaffName,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    GiaTriTra: Math.round(toNumber(row.amount)),
+    GiaTriChungTu: Math.round(toNumber(row.documentAmount)),
+    GiaTriARReturn: Math.round(toNumber(row.arAmount)),
+    TrangThaiNhapKho: row.warehouseReceiveStatus,
+    TrangThaiTraHang: row.returnState,
+    TrangThaiKeToan: row.accountingStatus
+  }));
+  return reportWorkbook('return-report', 'BaoCaoTraHang', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaTraHang:'', MaDon:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'',
+    GiaTriTra:'', GiaTriChungTu:'', GiaTriARReturn:'', TrangThaiNhapKho:'', TrangThaiTraHang:'', TrangThaiKeToan:''
+  }), rows, query);
 }
 
 async function buildDebtReportWorkbook(query = {}) {
-  const ArLedger = models.arLedgers;
-  const ledgers = await ArLedger.find(buildReportFilter(query, ['date', 'createdAt'])).sort({ customerCode: 1, date: 1 }).limit(safeLimit(query)).lean();
-  const map = new Map();
-  ledgers.forEach((l) => { const key = cleanText(l.customerCode || l.customerId || l.customerName); const row = map.get(key) || { MaKhachHang: cleanText(l.customerCode), KhachHang: cleanText(l.customerName), PhatSinhNo: 0, DaThu: 0, TraHang: 0, ConNo: 0 }; const debit = toNumber(l.debit || l.arDebit); const credit = toNumber(l.credit || l.arCredit); row.PhatSinhNo += debit; if (/RETURN|TRA/i.test(cleanText(l.type || l.source))) row.TraHang += credit; else row.DaThu += credit; row.ConNo += debit - credit; map.set(key, row); });
-  const rows = Array.from(map.values()).map((r, i) => ({ STT: i + 1, ...r, PhatSinhNo: Math.round(r.PhatSinhNo), DaThu: Math.round(r.DaThu), TraHang: Math.round(r.TraHang), ConNo: Math.round(r.ConNo) }));
-  return reportWorkbook('debt-report', 'BaoCaoCongNo', Object.keys(rows[0] || { STT:'', MaKhachHang:'', KhachHang:'', PhatSinhNo:'', DaThu:'', TraHang:'', ConNo:'' }), rows, query);
+  const result = await reportService.periodDebtReport({ ...query, full: '1', export: '1', includePaid: '1' });
+  const rows = (result.debts || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    MaNVBH: row.salesStaffCode,
+    NVBH: row.salesStaffName,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    DuDauKy: Math.round(toNumber(row.openingBalance)),
+    PhatSinhNo: Math.round(toNumber(row.debitInPeriod)),
+    DaThu: Math.round(toNumber(row.receiptInPeriod)),
+    TraHang: Math.round(toNumber(row.returnInPeriod)),
+    ChietKhauDieuChinh: Math.round(toNumber(row.adjustmentInPeriod) + toNumber(row.otherCreditInPeriod)),
+    TongPhatSinhCo: Math.round(toNumber(row.totalCreditInPeriod)),
+    DuCuoiKy: Math.round(toNumber(row.closingBalance))
+  }));
+  return reportWorkbook('debt-report', 'BaoCaoCongNo', Object.keys(rows[0] || {
+    STT:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'', DuDauKy:'', PhatSinhNo:'',
+    DaThu:'', TraHang:'', ChietKhauDieuChinh:'', TongPhatSinhCo:'', DuCuoiKy:''
+  }), rows, query);
 }
 
 async function buildArLedgerDetailWorkbook(query = {}) {
-  const ArLedger = models.arLedgers;
-  const ledgers = await ArLedger.find(buildReportFilter(query, ['date', 'createdAt'])).sort({ customerCode: 1, date: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
-  const balances = new Map();
-  const rows = ledgers.map((l, idx) => { const key = cleanText(l.customerCode || l.customerId || l.customerName); const debit = toNumber(l.debit || l.arDebit); const credit = toNumber(l.credit || l.arCredit); const balance = toNumber(balances.get(key)) + debit - credit; balances.set(key, balance); return { STT: idx + 1, Ngay: normalizeDateOnly(l.date || l.createdAt), MaKhachHang: cleanText(l.customerCode), KhachHang: cleanText(l.customerName), ChungTu: cleanText(l.code || l.referenceCode || l.salesOrderCode), DienGiai: cleanText(l.description || l.note || l.type), No: Math.round(debit), Co: Math.round(credit), Du: Math.round(balance) }; });
-  return reportWorkbook('ar-ledger-detail', 'SoCongNoChiTiet', Object.keys(rows[0] || { STT:'', Ngay:'', MaKhachHang:'', KhachHang:'', ChungTu:'', DienGiai:'', No:'', Co:'', Du:'' }), rows, query);
+  const result = await reportService.arLedgerDetailReport({ ...query, full: '1', export: '1' });
+  const rows = (result.ledger || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    ChungTu: row.documentCode,
+    Loai: row.type,
+    DienGiai: row.description,
+    DuTruocGiaoDich: Math.round(toNumber(row.openingBalance)),
+    No: Math.round(toNumber(row.debit)),
+    Co: Math.round(toNumber(row.credit)),
+    PhanLoaiCo: row.creditCategory,
+    DuSauGiaoDich: Math.round(toNumber(row.closingBalance))
+  }));
+  return reportWorkbook('ar-ledger-detail', 'SoCongNoChiTiet', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaKhachHang:'', KhachHang:'', ChungTu:'', Loai:'', DienGiai:'', DuTruocGiaoDich:'', No:'', Co:'', PhanLoaiCo:'', DuSauGiaoDich:''
+  }), rows, query);
 }
 
 async function buildStockReportWorkbook(query = {}) {
+  // Tồn kho hiện tại không nhận dateFrom/dateTo; nguồn duy nhất là inventories.
   const result = await reportService.stockReport({ ...query, full: '1', export: '1' });
-  const rows = (result.stock || []).map((s, idx) => ({
+  const rows = (result.stock || []).map((row, idx) => ({
     STT: idx + 1,
-    MaSP: cleanText(s.productCode || s.code || s.productId),
-    SanPham: cleanText(s.productName || s.name),
-    DonViTinh: cleanText(s.unit || s.baseUnit),
-    Ton: toNumber(s.availableQty ?? s.quantity ?? s.qty ?? s.onHand)
+    MaSP: cleanText(row.productCode || row.code || row.productId),
+    SanPham: cleanText(row.productName || row.name),
+    DonViTinh: cleanText(row.unit || row.baseUnit),
+    TonVatLy: toNumber(row.onHand ?? row.quantity ?? row.qty),
+    DaGiuCho: toNumber(row.reservedQty),
+    TonKhaDung: toNumber(row.availableQty)
   }));
-  return reportWorkbook('stock-report', 'BaoCaoTonKho', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', DonViTinh:'', Ton:'' }), rows, query);
+  return reportWorkbook('stock-report', 'TonKhoHienTai', Object.keys(rows[0] || {
+    STT:'', MaSP:'', SanPham:'', DonViTinh:'', TonVatLy:'', DaGiuCho:'', TonKhaDung:''
+  }), rows, {});
+}
+
+async function buildInventoryMovementReportWorkbook(query = {}) {
+  const result = await reportService.inventoryMovementReport({ ...query, full: '1', export: '1', mode: 'movement' });
+  const rows = (result.stock || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaSP: row.productCode,
+    SanPham: row.productName,
+    DonViTinh: row.unit,
+    TonDauKy: toNumber(row.openingQty),
+    NhapMua: toNumber(row.importQty),
+    HangTraNhapKho: toNumber(row.returnQty),
+    NhapKhac: toNumber(row.otherInQty),
+    TongNhap: toNumber(row.inQty),
+    XuatBan: toNumber(row.saleQty),
+    XuatDaoChungTu: toNumber(row.reversalOutQty),
+    XuatKhac: toNumber(row.otherOutQty),
+    TongXuat: toNumber(row.outQty),
+    DieuChinhRong: toNumber(row.adjustmentQty),
+    TonCuoiKy: toNumber(row.endingQty),
+    NguonTonCuoi: row.endingSource,
+    TonCuoiTheoLedger: toNumber(row.ledgerEndingQty),
+    ChenhLechDoiSoat: toNumber(row.reconciliationDifference)
+  }));
+  return reportWorkbook('inventory-movement-report', 'NhapXuatTon', Object.keys(rows[0] || {
+    STT:'', MaSP:'', SanPham:'', DonViTinh:'', TonDauKy:'', NhapMua:'', HangTraNhapKho:'', NhapKhac:'', TongNhap:'',
+    XuatBan:'', XuatDaoChungTu:'', XuatKhac:'', TongXuat:'', DieuChinhRong:'', TonCuoiKy:'', NguonTonCuoi:'', TonCuoiTheoLedger:'', ChenhLechDoiSoat:''
+  }), rows, query);
 }
 
 async function buildStockCardReportWorkbook(query = {}) {
-  const StockTransaction = models.stockTransactions || models.inventories;
-  const txs = await StockTransaction.find(buildReportFilter(query, ['date', 'createdAt'])).sort({ productCode: 1, date: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
-  const bal = new Map();
-  const rows = txs.map((t, idx) => { const key = `${cleanText(t.productCode || t.productId)}`; const inQty = toNumber(t.inQty || (String(t.transactionType || t.type).toUpperCase().includes('IN') ? t.qty : 0)); const outQty = toNumber(t.outQty || (String(t.transactionType || t.type).toUpperCase().includes('OUT') ? t.qty : 0)); const ton = toNumber(bal.get(key)) + inQty - outQty; bal.set(key, ton); return { STT: idx + 1, Ngay: normalizeDateOnly(t.date || t.createdAt), MaSP: cleanText(t.productCode || t.productId), SanPham: cleanText(t.productName), ChungTu: cleanText(t.referenceCode || t.code), Nhap: inQty, Xuat: outQty, Ton: ton }; });
-  return reportWorkbook('stock-card-report', 'TheKho', Object.keys(rows[0] || { STT:'', Ngay:'', MaSP:'', SanPham:'', ChungTu:'', Nhap:'', Xuat:'', Ton:'' }), rows, query);
+  const result = await reportService.stockCardReport({ ...query, full: '1', export: '1' });
+  const rows = (result.transactions || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaSP: row.productCode,
+    SanPham: row.productName,
+    ChungTu: row.refCode,
+    Loai: row.type,
+    PhanLoai: row.category,
+    TonTruocGiaoDich: toNumber(row.openingQty),
+    Nhap: toNumber(row.inQty),
+    Xuat: toNumber(row.outQty),
+    TonSauGiaoDich: toNumber(row.balanceQty),
+    GhiChu: row.note
+  }));
+  return reportWorkbook('stock-card-report', 'TheKho', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaSP:'', SanPham:'', ChungTu:'', Loai:'', PhanLoai:'', TonTruocGiaoDich:'', Nhap:'', Xuat:'', TonSauGiaoDich:'', GhiChu:''
+  }), rows, query);
 }
 
 async function buildFundReportWorkbook(query = {}) {
-  const FundLedger = models.fundLedgers || models.cashbooks;
-  const docs = await FundLedger.find(buildReportFilter(query, ['date', 'createdAt'])).sort({ date: 1, createdAt: 1 }).limit(safeLimit(query)).lean();
-  let balance = 0;
-  const rows = docs.map((f, idx) => { const type = cleanText(f.type || f.direction || f.transactionType).toLowerCase(); const amount = toNumber(f.amount); const thu = type.includes('in') || type.includes('thu') || type === 'receipt' ? amount : 0; const chi = type.includes('out') || type.includes('chi') || type === 'payment' ? amount : 0; balance += thu - chi; return { STT: idx + 1, Ngay: normalizeDateOnly(f.date || f.createdAt), ChungTu: cleanText(f.code || f.referenceCode), Loai: cleanText(f.type || f.transactionType), Quy: cleanText(f.fund || f.fundType || (f.isBank ? 'bank' : 'cash')), NguoiLienQuan: cleanText(f.customerName || f.staffName || f.partnerName), Thu: Math.round(thu), Chi: Math.round(chi), Ton: Math.round(balance), GhiChu: cleanText(f.note) }; });
-  return reportWorkbook('fund-report', 'BaoCaoQuyTien', Object.keys(rows[0] || { STT:'', Ngay:'', ChungTu:'', Loai:'', Quy:'', NguoiLienQuan:'', Thu:'', Chi:'', Ton:'', GhiChu:'' }), rows, query);
+  const result = await reportService.financeReport({ ...query, full: '1', export: '1' });
+  const rows = (result.fundLedger || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    ChungTu: row.code,
+    Loai: row.type,
+    LoaiQuy: row.fundType,
+    TaiKhoanQuy: row.account,
+    NguoiLienQuan: row.counterparty,
+    TonDauDong: Math.round(toNumber(row.openingBalance)),
+    Thu: Math.round(toNumber(row.inAmount)),
+    Chi: Math.round(toNumber(row.outAmount)),
+    TonCuoiDong: Math.round(toNumber(row.endingBalance)),
+    GhiChu: row.note
+  }));
+  return reportWorkbook('fund-report', 'BaoCaoQuyTien', Object.keys(rows[0] || {
+    STT:'', Ngay:'', ChungTu:'', Loai:'', LoaiQuy:'', TaiKhoanQuy:'', NguoiLienQuan:'', TonDauDong:'', Thu:'', Chi:'', TonCuoiDong:'', GhiChu:''
+  }), rows, query);
 }
 
 async function buildSalesmanReportWorkbook(query = {}) {
-  const productMap = await loadProductMap();
-  const orders = await SalesOrder.find({ ...buildReportFilter(query), ...activeReturnOrderFilter() }).limit(safeLimit(query)).lean();
-  const map = new Map();
-  orders.forEach((o) => { const key = staffCode(o, 'sales') || staffName(o, 'sales') || 'UNKNOWN'; const row = map.get(key) || { MaNVBH: staffCode(o, 'sales'), NVBH: staffName(o, 'sales'), SoDon: 0, SoKhachHang: new Set(), DoanhSoTruocKM: 0, DoanhSoSauKM: 0, ChenhLechKM: 0 }; const before = orderBeforePromo(o, productMap); const after = orderAfterPromo(o); row.SoDon += 1; row.SoKhachHang.add(cleanText(o.customerCode || o.customerName)); row.DoanhSoTruocKM += before; row.DoanhSoSauKM += after; row.ChenhLechKM += before - after; map.set(key, row); });
-  const rows = Array.from(map.values()).map((r, i) => ({ STT: i + 1, MaNVBH: r.MaNVBH, NVBH: r.NVBH, SoDon: r.SoDon, SoKhachHang: r.SoKhachHang.size, DoanhSoTruocKM: Math.round(r.DoanhSoTruocKM), DoanhSoSauKM: Math.round(r.DoanhSoSauKM), ChenhLechKM: Math.round(r.ChenhLechKM) }));
-  return reportWorkbook('salesman-report', 'BaoCaoNVBH', Object.keys(rows[0] || { STT:'', MaNVBH:'', NVBH:'', SoDon:'', SoKhachHang:'', DoanhSoTruocKM:'', DoanhSoSauKM:'', ChenhLechKM:'' }), rows, query);
+  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
+  const rows = (result.bySalesman || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaNVBH: row.salesmanCode,
+    NVBH: row.salesmanName,
+    SoDon: row.orderCount,
+    SoKhachHang: row.customerCount,
+    DoanhSoTruocKM: Math.round(toNumber(row.beforePromoAmount)),
+    DoanhSoThucTe: Math.round(toNumber(row.actualAmount)),
+    GiaTriHangKM: Math.round(toNumber(row.promotionValue)),
+    DaThuTheoAR: Math.round(toNumber(row.receiptAmount)),
+    TraHangTheoAR: Math.round(toNumber(row.returnAmount)),
+    ConNoTheoAR: Math.round(toNumber(row.debtAmount))
+  }));
+  return reportWorkbook('salesman-report', 'BaoCaoNVBH', Object.keys(rows[0] || {
+    STT:'', MaNVBH:'', NVBH:'', SoDon:'', SoKhachHang:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', GiaTriHangKM:'', DaThuTheoAR:'', TraHangTheoAR:'', ConNoTheoAR:''
+  }), rows, query);
 }
 
 async function buildDeliverymanReportWorkbook(query = {}) {
-  const productMap = await loadProductMap();
-  const orders = await SalesOrder.find({ ...buildReportFilter(query, ['deliveryDate', 'date', 'createdAt']), ...activeReturnOrderFilter() }).limit(safeLimit(query)).lean();
-  const map = new Map();
-  orders.forEach((o) => { const key = staffCode(o, 'delivery') || staffName(o, 'delivery') || 'UNKNOWN'; const row = map.get(key) || { MaNVGH: staffCode(o, 'delivery'), NVGH: staffName(o, 'delivery'), SoDonGiao: 0, DoanhSoTruocKM: 0, DoanhSoSauKM: 0, ChenhLechKM: 0, ThuTien: 0, TraHang: 0 }; const before = orderBeforePromo(o, productMap); const after = orderAfterPromo(o); row.SoDonGiao += 1; row.DoanhSoTruocKM += before; row.DoanhSoSauKM += after; row.ChenhLechKM += before - after; row.ThuTien += toNumber(o.paidAmount); row.TraHang += toNumber(o.returnAmount); map.set(key, row); });
-  const rows = Array.from(map.values()).map((r, i) => ({ STT: i + 1, ...r, DoanhSoTruocKM: Math.round(r.DoanhSoTruocKM), DoanhSoSauKM: Math.round(r.DoanhSoSauKM), ChenhLechKM: Math.round(r.ChenhLechKM), ThuTien: Math.round(r.ThuTien), TraHang: Math.round(r.TraHang) }));
-  return reportWorkbook('deliveryman-report', 'BaoCaoNVGH', Object.keys(rows[0] || { STT:'', MaNVGH:'', NVGH:'', SoDonGiao:'', DoanhSoTruocKM:'', DoanhSoSauKM:'', ChenhLechKM:'', ThuTien:'', TraHang:'' }), rows, query);
+  const result = await reportService.deliveryReport({ ...query, full: '1', export: '1' });
+  const rows = (result.byStaff || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    SoChuyen: row.tripCount,
+    SoDonDaGiao: row.orderCount,
+    TongTienDonCon: Math.round(toNumber(row.totalAmount)),
+    DoanhSoDaXacNhan: Math.round(toNumber(row.accountingConfirmedAmount)),
+    ThuTienTheoQuy: Math.round(toNumber(row.collectedAmount))
+  }));
+  return reportWorkbook('deliveryman-report', 'BaoCaoNVGH', Object.keys(rows[0] || {
+    STT:'', MaNVGH:'', NVGH:'', SoChuyen:'', SoDonDaGiao:'', TongTienDonCon:'', DoanhSoDaXacNhan:'', ThuTienTheoQuy:''
+  }), rows, query);
 }
 
 async function buildCustomerSalesReportWorkbook(query = {}) {
-  const productMap = await loadProductMap();
-  const orders = await SalesOrder.find({ ...buildReportFilter(query), ...activeReturnOrderFilter() }).limit(safeLimit(query)).lean();
+  const sales = await reportService.salesReport({ ...query, full: '1', export: '1' });
+  const debt = await reportService.periodDebtReport({ ...query, full: '1', export: '1', includePaid: '1' });
+  const debtMap = new Map((debt.debts || []).map((row) => [cleanText(row.customerCode || row.customerName), row]));
   const map = new Map();
-  orders.forEach((o) => { const key = cleanText(o.customerCode || o.customerId || o.customerName); const row = map.get(key) || { MaKhachHang: cleanText(o.customerCode), KhachHang: cleanText(o.customerName), NVBH: staffName(o, 'sales'), SoDon: 0, DoanhSoTruocKM: 0, DoanhSoSauKM: 0, ChenhLechKM: 0, DaThu: 0, ConNo: 0 }; const before = orderBeforePromo(o, productMap); const after = orderAfterPromo(o); row.SoDon += 1; row.DoanhSoTruocKM += before; row.DoanhSoSauKM += after; row.ChenhLechKM += before - after; row.DaThu += toNumber(o.paidAmount); row.ConNo += toNumber(o.debtAmount); map.set(key, row); });
-  const rows = Array.from(map.values()).map((r, i) => ({ STT: i + 1, ...r, DoanhSoTruocKM: Math.round(r.DoanhSoTruocKM), DoanhSoSauKM: Math.round(r.DoanhSoSauKM), ChenhLechKM: Math.round(r.ChenhLechKM), DaThu: Math.round(r.DaThu), ConNo: Math.round(r.ConNo) }));
-  return reportWorkbook('customer-sales-report', 'DoanhSoKhachHang', Object.keys(rows[0] || { STT:'', MaKhachHang:'', KhachHang:'', NVBH:'', SoDon:'', DoanhSoTruocKM:'', DoanhSoSauKM:'', ChenhLechKM:'', DaThu:'', ConNo:'' }), rows, query);
+  (sales.sales || []).forEach((order) => {
+    const key = cleanText(order.customerCode || order.customerName);
+    const row = map.get(key) || {
+      MaKhachHang: order.customerCode,
+      KhachHang: order.customerName,
+      MaNVBH: order.salesStaffCode,
+      NVBH: order.salesStaffName,
+      SoDon: 0,
+      DoanhSoTruocKM: 0,
+      DoanhSoThucTe: 0,
+      GiaTriHangKM: 0,
+      DaThuTheoAR: 0,
+      TraHangTheoAR: 0
+    };
+    row.SoDon += 1;
+    row.DoanhSoTruocKM += toNumber(order.beforePromoAmount);
+    row.DoanhSoThucTe += toNumber(order.actualAmount);
+    row.GiaTriHangKM += toNumber(order.promotionValue);
+    row.DaThuTheoAR += toNumber(order.receiptAmount);
+    row.TraHangTheoAR += toNumber(order.returnAmount);
+    map.set(key, row);
+  });
+  const rows = Array.from(map.entries()).map(([key, row], idx) => {
+    const ar = debtMap.get(key) || {};
+    return {
+      STT: idx + 1,
+      ...row,
+      DoanhSoTruocKM: Math.round(row.DoanhSoTruocKM),
+      DoanhSoThucTe: Math.round(row.DoanhSoThucTe),
+      GiaTriHangKM: Math.round(row.GiaTriHangKM),
+      DaThuTheoAR: Math.round(row.DaThuTheoAR),
+      TraHangTheoAR: Math.round(row.TraHangTheoAR),
+      DuDauKy: Math.round(toNumber(ar.openingBalance)),
+      DuCuoiKy: Math.round(toNumber(ar.closingBalance))
+    };
+  });
+  return reportWorkbook('customer-sales-report', 'DoanhSoKhachHang', Object.keys(rows[0] || {
+    STT:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', SoDon:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', GiaTriHangKM:'',
+    DaThuTheoAR:'', TraHangTheoAR:'', DuDauKy:'', DuCuoiKy:''
+  }), rows, query);
 }
 
 async function buildProductSalesReportWorkbook(query = {}) {
-  const productMap = await loadProductMap();
-  const orders = await SalesOrder.find({ ...buildReportFilter(query), ...activeReturnOrderFilter() }).limit(safeLimit(query)).lean();
+  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
   const map = new Map();
-  orders.forEach((o) => orderItems(o).forEach((item) => { const code = productCodeOf(item); const product = productMap.get(code) || {}; const row = map.get(code) || { MaSP: code, SanPham: productNameOf(item) || cleanText(product.name), NhanHang: cleanText(product.brand), SoLuongBan: 0, DoanhSoTruocKM: 0, DoanhSoSauKM: 0, ChenhLechKM: 0 }; const before = lineBeforePromo(item, product); const after = lineAfterPromo(item); row.SoLuongBan += qtyOf(item); row.DoanhSoTruocKM += before; row.DoanhSoSauKM += after; row.ChenhLechKM += before - after; map.set(code, row); }));
-  const totalAfter = Array.from(map.values()).reduce((s, r) => s + r.DoanhSoSauKM, 0) || 1;
-  const rows = Array.from(map.values()).map((r, i) => ({ STT: i + 1, ...r, SoLuongBan: r.SoLuongBan, DoanhSoTruocKM: Math.round(r.DoanhSoTruocKM), DoanhSoSauKM: Math.round(r.DoanhSoSauKM), ChenhLechKM: Math.round(r.ChenhLechKM), TyTrong: `${roundMoney((r.DoanhSoSauKM / totalAfter) * 100, 2)}%` }));
-  return reportWorkbook('product-sales-report', 'DoanhSoSanPham', Object.keys(rows[0] || { STT:'', MaSP:'', SanPham:'', NhanHang:'', SoLuongBan:'', DoanhSoTruocKM:'', DoanhSoSauKM:'', ChenhLechKM:'', TyTrong:'' }), rows, query);
+  (result.sales || []).forEach((order) => (order.items || []).forEach((item) => {
+    const key = cleanText(item.productCode || item.productName);
+    const row = map.get(key) || {
+      MaSP: item.productCode,
+      SanPham: item.productName,
+      NhanHang: item.brand,
+      SoLuongBan: 0,
+      DoanhSoTruocKM: 0,
+      DoanhSoThucTe: 0
+    };
+    row.SoLuongBan += toNumber(item.quantity);
+    row.DoanhSoTruocKM += toNumber(item.catalogAmount);
+    row.DoanhSoThucTe += toNumber(item.actualAmount);
+    map.set(key, row);
+  }));
+  const totalActual = Array.from(map.values()).reduce((sum, row) => sum + row.DoanhSoThucTe, 0) || 1;
+  const rows = Array.from(map.values()).map((row, idx) => ({
+    STT: idx + 1,
+    ...row,
+    SoLuongBan: row.SoLuongBan,
+    DoanhSoTruocKM: Math.round(row.DoanhSoTruocKM),
+    DoanhSoThucTe: Math.round(row.DoanhSoThucTe),
+    ChietKhauKM: Math.round(row.DoanhSoTruocKM - row.DoanhSoThucTe),
+    TyTrong: `${roundMoney((row.DoanhSoThucTe / totalActual) * 100, 2)}%`
+  }));
+  return reportWorkbook('product-sales-report', 'DoanhSoSanPham', Object.keys(rows[0] || {
+    STT:'', MaSP:'', SanPham:'', NhanHang:'', SoLuongBan:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', ChietKhauKM:'', TyTrong:''
+  }), rows, query);
 }
-
 
 
 const SENSITIVE_USER_FIELDS = new Set([
@@ -916,7 +1158,9 @@ function safeExtraJson(row = {}, usedFields = [], blockedFields = []) {
   return Object.keys(extra).length ? JSON.stringify(extra) : '';
 }
 
-function productInfoRow(product = {}, idx = 0) {
+function productInfoRow(product = {}, idx = 0, stockMap = new Map()) {
+  const productCode = firstText(product, ['code', 'productCode', 'sku', 'id']);
+  const stock = stockMap.get(cleanText(productCode).toUpperCase()) || {};
   const used = [
     'code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category',
     'unit', 'baseUnit', 'conversionRate', 'packing', 'salePrice', 'costPrice',
@@ -924,7 +1168,7 @@ function productInfoRow(product = {}, idx = 0) {
   ];
   return {
     STT: idx + 1,
-    MaSP: firstText(product, ['code', 'productCode', 'sku', 'id']),
+    MaSP: productCode,
     TenSP: firstText(product, ['name', 'productName', 'title']),
     Barcode: firstText(product, ['barcode', 'barCode']),
     NhanHang: firstText(product, ['brand', 'brandName']),
@@ -935,6 +1179,9 @@ function productInfoRow(product = {}, idx = 0) {
     QuyCach: firstText(product, ['packing', 'packaging']),
     GiaBan: Math.round(toNumber(product.salePrice || product.price || product.sellPrice)),
     GiaVon: Math.round(toNumber(product.costPrice || product.cost || product.purchasePrice)),
+    TonVatLy: toNumber(stock.onHand ?? stock.quantity ?? stock.qty),
+    DaGiuCho: toNumber(stock.reservedQty),
+    TonKhaDung: toNumber(stock.availableQty),
     KhoMacDinh: firstText(product, ['warehouseCode', 'defaultWarehouse', 'warehouseName']),
     TenKhoMacDinh: firstText(product, ['warehouseName', 'defaultWarehouseName']),
     TrangThai: boolStatus(product.isActive ?? product.status),
@@ -945,9 +1192,16 @@ function productInfoRow(product = {}, idx = 0) {
 }
 
 async function buildProductInfoReportWorkbook(query = {}) {
-  const docs = await Product.find({}).sort({ code: 1, name: 1 }).limit(safeLimit(query)).lean();
-  const rows = docs.map(productInfoRow);
-  const headers = Object.keys(rows[0] || productInfoRow({}, -1));
+  const [docs, stockReport] = await Promise.all([
+    Product.find({}).sort({ code: 1, name: 1 }).limit(safeLimit(query)).lean(),
+    reportService.stockReport({ full: '1', export: '1' })
+  ]);
+  const stockMap = new Map((stockReport.stock || stockReport.items || []).map((row) => [
+    cleanText(row.productCode || row.code).toUpperCase(),
+    row
+  ]));
+  const rows = docs.map((product, idx) => productInfoRow(product, idx, stockMap));
+  const headers = Object.keys(rows[0] || productInfoRow({}, -1, stockMap));
   return reportWorkbook('product-info-report', 'ThongTinSanPham', headers, rows, query);
 }
 
@@ -956,21 +1210,17 @@ function arDebtKeyValues(row = {}) {
 }
 
 async function loadCurrentDebtByCustomer() {
-  const ArLedger = models.arLedgers;
-  if (!ArLedger) return new Map();
-  const docs = await ArLedger.find({
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] },
-    accountingStatus: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] }
-  }).select('customerCode customerId customerName debit credit amount type').lean();
+  const result = await reportService.periodDebtReport({
+    dateFrom: '0000-01-01',
+    dateTo: dateUtil.todayVN(),
+    full: '1',
+    export: '1',
+    includePaid: '1'
+  });
   const map = new Map();
-  docs.forEach((d) => {
-    const type = cleanText(d.type).toLowerCase();
-    let delta = toNumber(d.debit) - toNumber(d.credit);
-    if (!delta && d.amount !== undefined) {
-      const amount = toNumber(d.amount);
-      delta = (type.includes('receipt') || type.includes('payment') || type.includes('return') || type.includes('credit')) ? -amount : amount;
-    }
-    arDebtKeyValues(d).forEach((key) => map.set(key, toNumber(map.get(key)) + delta));
+  (result.debts || result.items || []).forEach((row) => {
+    const balance = toNumber(row.closingBalance);
+    arDebtKeyValues(row).forEach((key) => map.set(key, balance));
   });
   return map;
 }
@@ -979,14 +1229,16 @@ async function loadMonthSalesByCustomer(query = {}) {
   const today = dateUtil.todayVN();
   const monthStart = cleanText(query.monthStart || query.monthFrom || `${today.slice(0, 7)}-01`);
   const monthEnd = cleanText(query.monthEnd || query.monthTo || today);
-  const docs = await SalesOrder.find({
-    ...buildReportFilter({ dateFrom: monthStart, dateTo: monthEnd }, ['date', 'documentDate', 'createdAt']),
-    ...activeReturnOrderFilter()
-  }).select('customerCode customerId customerName totalAmount amount afterPromoAmount totalAfterPromotion').lean();
+  const result = await reportService.salesReport({
+    dateFrom: monthStart,
+    dateTo: monthEnd,
+    full: '1',
+    export: '1'
+  });
   const map = new Map();
-  docs.forEach((o) => {
-    const amount = orderAfterPromo(o);
-    [o.customerCode, o.customerId, o.customerName].map(cleanText).filter(Boolean).forEach((key) => {
+  (result.sales || result.items || []).forEach((order) => {
+    const amount = toNumber(order.actualAmount);
+    [order.customerCode, order.customerId, order.customerName].map(cleanText).filter(Boolean).forEach((key) => {
       map.set(key, toNumber(map.get(key)) + amount);
     });
   });
@@ -1098,6 +1350,7 @@ const BUSINESS_REPORT_BUILDERS = {
   'debt-report': buildDebtReportWorkbook,
   'ar-ledger-detail': buildArLedgerDetailWorkbook,
   'stock-report': buildStockReportWorkbook,
+  'inventory-movement-report': buildInventoryMovementReportWorkbook,
   'stock-card-report': buildStockCardReportWorkbook,
   'fund-report': buildFundReportWorkbook,
   'salesman-report': buildSalesmanReportWorkbook,

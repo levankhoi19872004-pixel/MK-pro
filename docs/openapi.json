@@ -3300,6 +3300,46 @@
         ]
       }
     },
+    "/api/inventory-movement": {
+      "get": {
+        "tags": [
+          "Inventory Movement"
+        ],
+        "summary": "GET /api/inventory-movement",
+        "operationId": "getInventoryMovement",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/inventory/check": {
       "post": {
         "tags": [
@@ -10120,6 +10160,46 @@
         ]
       }
     },
+    "/api/reports/inventory-movement": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/reports/inventory-movement",
+        "operationId": "getReportsInventoryMovement",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/reports/inventory/normalize-one-warehouse": {
       "post": {
         "tags": [
@@ -10169,6 +10249,46 @@
         "operationId": "postReportsInventoryRebuild",
         "responses": {
           "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/returns": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/reports/returns",
+        "operationId": "getReportsReturns",
+        "responses": {
+          "200": {
             "description": "Success response",
             "content": {
               "application/json": {
