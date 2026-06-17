@@ -30,6 +30,7 @@ const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util'
 const { extractCustomerBusinessProfile } = require('../utils/customerBusinessProfile.util');
 const importSessionService = require('./importSessionService');
 const auditService = require('./auditService');
+const importShortageReportService = require('./importShortageReportService');
 const { saveImportFiles, cleanupImportFiles } = require('../utils/importTempFileStore');
 const { enqueueImportPreviewJob } = require('../jobs/importPreviewQueue');
 const { runImportPreviewPipeline } = require('../jobs/importPreviewRunner');
@@ -974,6 +975,163 @@ async function preloadCustomersByCode(rows = []) {
   return map;
 }
 
+const AUTO_CREATED_CUSTOMER_ADDRESS = 'NEW';
+
+function collectImportedCustomerCandidates(rows = [], existingCustomerMap = new Map()) {
+  const candidates = new Map();
+
+  for (const row of rows || []) {
+    const code = getCustomerCodeFromRow(row);
+    if (!code || existingCustomerMap.has(cleanText(code))) continue;
+
+    const key = cleanText(code);
+    const name = getCustomerNameFromRow(row);
+    if (!candidates.has(key)) {
+      candidates.set(key, {
+        code: key,
+        name: '',
+        names: new Map(),
+        rowNos: []
+      });
+    }
+
+    const candidate = candidates.get(key);
+    const rowNo = cleanText(row.__rowNo || row.rowNo || row.__rowNumber || row.rowNumber);
+    if (rowNo) candidate.rowNos.push(rowNo);
+    if (!name) continue;
+
+    const normalizedName = normalizeSearchText(name);
+    if (normalizedName && !candidate.names.has(normalizedName)) {
+      candidate.names.set(normalizedName, name);
+    }
+    if (!candidate.name) candidate.name = name;
+  }
+
+  for (const candidate of candidates.values()) {
+    candidate.nameConflict = candidate.names.size > 1;
+    candidate.distinctNames = Array.from(candidate.names.values());
+  }
+
+  return candidates;
+}
+
+function buildImportedCustomerPlaceholder(candidate = {}) {
+  const code = cleanText(candidate.code);
+  const name = cleanText(candidate.name);
+  if (!code || !name || candidate.nameConflict) return null;
+  return {
+    id: code,
+    code,
+    customerCode: code,
+    name,
+    customerName: name,
+    address: AUTO_CREATED_CUSTOMER_ADDRESS,
+    customerAddress: AUTO_CREATED_CUSTOMER_ADDRESS,
+    isActive: true,
+    __autoCreateCustomer: true
+  };
+}
+
+function importedCustomerCandidateError(candidate = {}, customerCode = '') {
+  const code = cleanText(candidate.code || customerCode);
+  if (candidate.nameConflict) {
+    return `Mã cửa hàng ${code} có nhiều tên khác nhau trong file: ${candidate.distinctNames.join(' / ')}`;
+  }
+  if (!cleanText(candidate.name)) {
+    return `Khách hàng mới ${code || '(chưa có mã)'} thiếu tên cửa hàng`;
+  }
+  return 'Không thể tự tạo khách hàng mới';
+}
+
+async function ensureImportedCustomersForOrderChunk(orderChunk = [], options = {}) {
+  const session = options.session;
+  const createdBy = cleanText(options.createdBy || 'excel_import');
+  const importSessionId = cleanText(options.importSessionId);
+  const candidates = new Map();
+
+  for (const order of orderChunk || []) {
+    const candidate = order?.__autoCreateCustomer;
+    const code = cleanText(candidate?.code || order?.customerCode);
+    const name = cleanText(candidate?.name || order?.customerName);
+    if (!candidate || !code || !name) continue;
+    if (!candidates.has(code)) candidates.set(code, { code, name });
+  }
+
+  if (!candidates.size) {
+    for (const order of orderChunk || []) delete order.__autoCreateCustomer;
+    return { createdCustomers: 0, customerCodes: [] };
+  }
+
+  const codes = Array.from(candidates.keys());
+  const query = Customer.find({
+    $or: [
+      { code: { $in: codes } },
+      { customerCode: { $in: codes } },
+      { id: { $in: codes } }
+    ]
+  });
+  if (session && typeof query.session === 'function') query.session(session);
+  const existingRows = await query.lean();
+  const customerMap = new Map();
+  for (const customer of existingRows || []) {
+    [customer.code, customer.customerCode, customer.id, String(customer._id || '')]
+      .filter(Boolean)
+      .forEach((value) => customerMap.set(cleanText(value), customer));
+  }
+
+  let createdCustomers = 0;
+  for (const candidate of candidates.values()) {
+    if (customerMap.has(candidate.code)) continue;
+    const payload = {
+      code: candidate.code,
+      customerCode: candidate.code,
+      name: candidate.name,
+      customerName: candidate.name,
+      phone: '',
+      address: AUTO_CREATED_CUSTOMER_ADDRESS,
+      customerAddress: AUTO_CREATED_CUSTOMER_ADDRESS,
+      area: '',
+      route: '',
+      openingDebt: 0,
+      debtLimit: 0,
+      isActive: true,
+      searchText: normalizeSearchText([
+        candidate.code,
+        candidate.name,
+        AUTO_CREATED_CUSTOMER_ADDRESS
+      ].join(' ')),
+      createdFrom: 'sales_order_import',
+      createdBy,
+      importSessionId,
+      needsProfileUpdate: true
+    };
+    const createdRows = await Customer.create([payload], session ? { session } : undefined);
+    const created = Array.isArray(createdRows) ? createdRows[0] : createdRows;
+    const raw = typeof created?.toObject === 'function' ? created.toObject() : created;
+    if (!raw) throw new Error(`Không thể tự tạo khách hàng mới ${candidate.code}`);
+    customerMap.set(candidate.code, raw);
+    createdCustomers += 1;
+  }
+
+  for (const order of orderChunk || []) {
+    const code = cleanText(order?.customerCode);
+    const customer = customerMap.get(code);
+    if (order?.__autoCreateCustomer && !customer) {
+      throw new Error(`Không tìm thấy khách hàng mới ${code} sau khi tạo`);
+    }
+    if (customer) {
+      order.customerId = String(customer.id || customer._id || customer.code || code);
+      order.customerCode = cleanText(customer.code || customer.customerCode || code);
+      order.customerName = cleanText(order.customerName || customer.name || customer.customerName);
+      order.customerPhone = cleanText(customer.phone || order.customerPhone);
+      order.customerAddress = cleanText(customer.address || customer.customerAddress || order.customerAddress || AUTO_CREATED_CUSTOMER_ADDRESS);
+    }
+    delete order.__autoCreateCustomer;
+  }
+
+  return { createdCustomers, customerCodes: codes };
+}
+
 
 function pushInventoryMovement({ movements, inventoryDeltas, item, direction, type, refType, refId, refCode, date, warehouseCode, warehouseName, note }) {
   const rawQty = toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty);
@@ -1590,6 +1748,7 @@ async function importSalesOrders(rows = [], options = {}) {
   let skipped = 0;
   const errors = [];
   const customerMap = await preloadCustomersByCode(rows);
+  const importedCustomerCandidates = collectImportedCustomerCandidates(rows, customerMap);
   const productMap = await preloadProductsByCode(rows);
   const salesStaffUserMap = await preloadSalesStaffUsersByCode(rows);
   const productCodes = Array.from(new Set(rows.map(getProductCodeFromRow).map(cleanText).filter(Boolean)));
@@ -1642,10 +1801,16 @@ async function importSalesOrders(rows = [], options = {}) {
     }
 
     const customerCode = getCustomerCodeFromRow(first);
-    const customer = customerMap.get(cleanText(customerCode));
+    const customerCandidate = importedCustomerCandidates.get(cleanText(customerCode));
+    const customer = customerMap.get(cleanText(customerCode)) || buildImportedCustomerPlaceholder(customerCandidate);
     if (!customer) {
       skipped += group.length;
-      errors.push({ customerCode, message: 'Không tìm thấy khách hàng' });
+      errors.push({
+        customerCode,
+        message: customerCode
+          ? importedCustomerCandidateError(customerCandidate, customerCode)
+          : 'Thiếu mã khách hàng / mã cửa hàng'
+      });
       continue;
     }
     if (!resolvedSalesStaff.staffCode) {
@@ -1914,6 +2079,13 @@ async function importSalesOrders(rows = [], options = {}) {
       customerName: getCustomerNameFromRow(first) || customer.name,
       customerPhone: customer.phone || '',
       customerAddress: customer.address || '',
+      __autoCreateCustomer: customer.__autoCreateCustomer
+        ? {
+            code: customer.code,
+            name: customer.name,
+            address: AUTO_CREATED_CUSTOMER_ADDRESS
+          }
+        : null,
       // Mã NVBH lấy nguyên từ Excel; tên NVBH lấy từ users Mongo theo mã NVBH.
       staffCode: resolvedSalesStaff.staffCode,
       salesStaffCode: resolvedSalesStaff.salesStaffCode,
@@ -1999,6 +2171,11 @@ async function importSalesOrders(rows = [], options = {}) {
   const atomicResults = await runAtomicChunks(
     orderDocs,
     async (chunk, { session }) => {
+      const customerResult = await ensureImportedCustomersForOrderChunk(chunk, {
+        session,
+        createdBy: postedBy,
+        importSessionId
+      });
       const insertedOrders = await SalesOrder.insertMany(
         chunk.map((row) => canonicalizeOperationalStaff(row)),
         {
@@ -2029,7 +2206,11 @@ async function importSalesOrders(rows = [], options = {}) {
         { session }
       );
 
-      return { imported: insertedOrders.length, stockTransactions };
+      return {
+        imported: insertedOrders.length,
+        stockTransactions,
+        createdCustomers: Number(customerResult.createdCustomers || 0)
+      };
     },
     {
       chunkSize,
@@ -2047,10 +2228,12 @@ async function importSalesOrders(rows = [], options = {}) {
 
   let imported = 0;
   let stockTransactions = 0;
+  let createdCustomers = 0;
   for (const result of atomicResults) {
     if (result.ok) {
       imported += Number(result.value?.imported || 0);
       stockTransactions += Number(result.value?.stockTransactions || 0);
+      createdCustomers += Number(result.value?.createdCustomers || 0);
       continue;
     }
     skipped += result.count;
@@ -2077,6 +2260,7 @@ async function importSalesOrders(rows = [], options = {}) {
     ordersPerSecond: durationMs > 0 ? Number((imported * 1000 / durationMs).toFixed(2)) : imported,
     stockTransactionsPerSecond: durationMs > 0 ? Number((stockTransactions * 1000 / durationMs).toFixed(2)) : stockTransactions,
     uniqueProducts: productCodes.length,
+    createdCustomers,
     payments: 0,
     cashbook: 0,
     returnDrafts: 0,
@@ -2087,6 +2271,7 @@ async function importSalesOrders(rows = [], options = {}) {
       ok: result.ok,
       count: result.count,
       imported: Number(result.value?.imported || 0),
+      createdCustomers: Number(result.value?.createdCustomers || 0),
       code: result.code || '',
       error: result.error || ''
     })),
@@ -2098,6 +2283,7 @@ async function importSalesOrders(rows = [], options = {}) {
     failed: orderDocs.length - imported,
     skipped,
     errors,
+    createdCustomers,
     shortageReport,
     chunks: atomicResults,
     performance: {
@@ -3237,6 +3423,7 @@ async function previewMongoNative(type, rows = [], options = {}) {
   } else if (type === 'salesOrders') {
     const productMap = await preloadProductsByCode(safeRows);
     const customerMap = await preloadCustomersByCode(safeRows);
+    const importedCustomerCandidates = collectImportedCustomerCandidates(safeRows, customerMap);
     const salesStaffUserMap = await preloadSalesStaffUsersByCode(safeRows);
     const stockMap = await getStockMapByProductCode(safeRows);
     const runningStockMap = new Map(stockMap);
@@ -3247,8 +3434,11 @@ async function previewMongoNative(type, rows = [], options = {}) {
       const resolvedSalesStaff = resolveSalesStaffForImportRow(first, salesStaffUserMap);
       const documentCode = getOrderDocumentCode(first);
       const customerCode = getCustomerCodeFromRow(first);
-      const customer = customerMap.get(cleanText(customerCode));
+      const customerCandidate = importedCustomerCandidates.get(cleanText(customerCode));
+      const customer = customerMap.get(cleanText(customerCode)) || buildImportedCustomerPlaceholder(customerCandidate);
+      const customerAutoCreate = Boolean(customer?.__autoCreateCustomer);
       const errors = [];
+      const warnings = [];
       const detailErrors = [];
       const shortageReport = [];
       const lineDetails = [];
@@ -3259,7 +3449,10 @@ async function previewMongoNative(type, rows = [], options = {}) {
       let adjustedAmount = 0;
 
       if (!customerCode) errors.push('Thiếu mã khách hàng / mã cửa hàng');
-      if (!customer) errors.push('Không tìm thấy khách hàng');
+      if (customerCode && !customer) errors.push(importedCustomerCandidateError(customerCandidate, customerCode));
+      if (customerAutoCreate) {
+        warnings.push(`Khách hàng mới ${customer.code} - ${customer.name} sẽ được tự tạo với địa chỉ NEW`);
+      }
       if (!resolvedSalesStaff.staffCode) errors.push('Thiếu mã NVBH trong file Excel import');
       else if (!resolvedSalesStaff.found) errors.push(`Mã NVBH ${resolvedSalesStaff.staffCode} không tồn tại trong users`);
       else if (!resolvedSalesStaff.validRole) errors.push(`Mã ${resolvedSalesStaff.staffCode} không phải nhân viên bán hàng`);
@@ -3353,6 +3546,8 @@ async function previewMongoNative(type, rows = [], options = {}) {
         blockingErrors.push(`${detailErrors.length} dòng hàng lỗi`);
       }
       const shortageSummary = summarizeOrderShortages(shortageReport);
+      const normalStatusText = customerAutoCreate ? 'Hợp lệ - tạo KH mới' : 'Hợp lệ';
+      const shortageStatusText = customerAutoCreate ? 'Vượt tồn - tạo KH mới' : 'Vượt tồn';
       return {
         ...rowBase(first),
         previewMode: 'order',
@@ -3360,6 +3555,9 @@ async function previewMongoNative(type, rows = [], options = {}) {
         date: getDateFromRow(first),
         customerCode,
         customerName: getCustomerNameFromRow(first) || customer?.name || '',
+        customerAddress: customer?.address || '',
+        customerAutoCreate,
+        customerProfileStatus: customerAutoCreate ? 'NEW' : '',
         // Mã NVBH phải lấy từ Excel; tên NVBH sẽ được validate/điền lại từ users Mongo theo mã này.
         staffCode: resolvedSalesStaff.staffCode,
         salesStaffCode: resolvedSalesStaff.salesStaffCode,
@@ -3382,13 +3580,18 @@ async function previewMongoNative(type, rows = [], options = {}) {
         shortageQuantity: shortageSummary.totalMissingQty,
         shortageAmount: shortageSummary.totalCutAmount,
         hasShortage: shortageReport.length > 0,
-        statusText: blockingErrors.length ? 'Có lỗi' : (detailErrors.length ? 'Có dòng bị bỏ qua' : (shortageReport.length ? 'Vượt tồn' : 'Hợp lệ')),
+        statusText: blockingErrors.length
+          ? 'Có lỗi'
+          : (detailErrors.length
+              ? (customerAutoCreate ? 'Có dòng bị bỏ qua - tạo KH mới' : 'Có dòng bị bỏ qua')
+              : (shortageReport.length ? shortageStatusText : normalStatusText)),
         shortageReport,
         lineDetails,
         detailErrors,
         __importRows: group,
         __adjustedRows: adjustedRows,
         errors: blockingErrors,
+        warnings,
         valid: blockingErrors.length === 0
       };
     });
@@ -3916,6 +4119,22 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
       ])
     : [];
 
+  let savedShortageReport = null;
+  if (type === 'salesOrders' && shortageRows.length) {
+    try {
+      savedShortageReport = await importShortageReportService.saveFromImport({
+        importSessionId: currentSessionId,
+        shortageRows,
+        userName
+      });
+    } catch (err) {
+      console.error('[IMPORT_SHORTAGE_REPORT_SAVE_ERROR]', {
+        sessionId: currentSessionId,
+        error: err && (err.stack || err.message || err)
+      });
+    }
+  }
+
   return {
     ...result,
     source: 'mongo-import-session-confirm',
@@ -3928,6 +4147,9 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     shortageMode: shortageRows.length ? 'cut' : '',
     shortageReport: shortageRows,
     shortageSummary: summarizeOrderShortages(shortageRows),
+    shortageReportId: savedShortageReport?._id || '',
+    shortageReportCode: savedShortageReport?.code || '',
+    shortageReportSaved: Boolean(savedShortageReport),
     sessionId: currentSessionId,
     importSessionId: currentSessionId
   };

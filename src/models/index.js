@@ -34,6 +34,7 @@ module.exports = {
   importLogs: require('./ImportLog'),
   importSessions: require('./ImportSession'),
   importSessionRows: require('./ImportSessionRow'),
+  importShortageReports: require('./ImportShortageReport'),
   mobileLogs: require('./MobileLog'),
   auditLogs: require('./AuditLog'),
   settings: require('./Setting'),

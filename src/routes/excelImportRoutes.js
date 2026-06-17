@@ -30,6 +30,10 @@ router.post('/commit', manageImports, excelImportController.commit);
 // Direct import đã bị khóa, không được gắn upload middleware để tránh tốn RAM.
 router.post('/direct', manageImports, excelImportController.direct);
 
+router.get('/shortage-reports', manageImports, excelImportController.shortageReports);
+router.get('/shortage-reports/:id', manageImports, excelImportController.shortageReportDetail);
+router.patch('/shortage-reports/:id', manageImports, excelImportController.updateShortageReport);
+
 router.get('/logs', manageImports, excelImportController.logs);
 
 module.exports = router;

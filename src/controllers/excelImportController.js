@@ -1,6 +1,7 @@
 'use strict';
 
 const excelImportService = require('../services/excelImportService');
+const importShortageReportService = require('../services/importShortageReportService');
 
 function normalizeUploadedFiles(req) {
   const files = [];
@@ -106,4 +107,38 @@ async function logs(req, res) {
   }
 }
 
-module.exports = { preview, commit, direct, logs, sessionStatus, sessionRows };
+async function shortageReports(req, res) {
+  try {
+    const reports = await importShortageReportService.list({
+      status: req.query.status,
+      search: req.query.search,
+      limit: req.query.limit
+    });
+    return res.json({ ok: true, reports });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: 'Không tải được báo cáo hàng thiếu', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+  }
+}
+
+async function shortageReportDetail(req, res) {
+  try {
+    const report = await importShortageReportService.getById(String(req.params.id || '').trim());
+    if (!report) return res.status(404).json({ ok: false, message: 'Không tìm thấy báo cáo hàng thiếu' });
+    return res.json({ ok: true, report });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: 'Không tải được chi tiết báo cáo hàng thiếu', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+  }
+}
+
+async function updateShortageReport(req, res) {
+  try {
+    const actor = req.user?.username || req.user?.fullName || '';
+    const result = await importShortageReportService.updateReport(String(req.params.id || '').trim(), req.body || {}, actor);
+    if (result.error) return res.status(result.status || 400).json({ ok: false, message: result.error });
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    return res.status(500).json({ ok: false, message: 'Không cập nhật được báo cáo hàng thiếu', error: process.env.NODE_ENV === 'production' ? undefined : err.message });
+  }
+}
+
+module.exports = { preview, commit, direct, logs, sessionStatus, sessionRows, shortageReports, shortageReportDetail, updateShortageReport };

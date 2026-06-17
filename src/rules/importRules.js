@@ -7,6 +7,7 @@ const Customer = require('../models/Customer');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const { makeBusinessError, makeBusinessWarning } = require('../utils/businessError.util');
+const { normalizeSearchText } = require('../utils/search.util');
 const {
   SALES_STAFF_CODE_FIELDS,
   USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
@@ -137,7 +138,7 @@ async function buildImportValidationContext(orders = []) {
   }
 
   const [customers, products, users] = await Promise.all([
-    customerCodes.size ? Customer.find({ isActive: { $ne: false }, $or: [
+    customerCodes.size ? Customer.find({ $or: [
       { code: { $in: Array.from(customerCodes) } },
       { customerCode: { $in: Array.from(customerCodes) } },
       { phone: { $in: Array.from(customerCodes) } },
@@ -176,6 +177,18 @@ function validateCustomerFromContext(customerCode, context = {}, orderCode = '')
   if (!code) return { valid: false, customer: null, error: makeBusinessError({ code: 'MISSING_CUSTOMER_CODE', message: 'Thiếu mã khách hàng', orderCode, field: 'customerCode' }) };
   const customer = context.customerMap?.get(code);
   if (!customer) return { valid: false, customer: null, error: makeBusinessError({ code: 'INVALID_CUSTOMER_CODE', message: `Mã khách hàng ${code} không tồn tại trong danh mục khách hàng`, orderCode, field: 'customerCode' }) };
+  if (customer.isActive === false) {
+    return {
+      valid: false,
+      customer: null,
+      error: makeBusinessError({
+        code: 'INACTIVE_CUSTOMER_CODE',
+        message: `Mã khách hàng ${code} đang ngừng hoạt động`,
+        orderCode,
+        field: 'customerCode'
+      })
+    };
+  }
   return { valid: true, customer: { ...customer, code: customer.code || customer.customerCode || code, name: customer.name || customer.customerName || '' }, error: null };
 }
 
@@ -204,9 +217,32 @@ async function validateImportSalesOrder(order = {}, context = {}) {
   if (!orderCode) pushUnique(errors, makeBusinessError({ code: 'MISSING_ORDER_CODE', message: 'Thiếu mã đơn / số hóa đơn', field: 'documentCode' }));
 
   const customerCode = normalizeCode(order.customerCode);
+  const importedCustomerName = cleanText(order.customerName);
   const customerResult = context.customerMap ? validateCustomerFromContext(customerCode, context, orderCode) : { valid: false, customer: null, error: makeBusinessError({ code: 'INVALID_CUSTOMER_CODE', message: `Mã khách hàng ${customerCode || '-'} chưa được preload`, orderCode, field: 'customerCode' }) };
-  if (!customerResult.valid) pushUnique(errors, customerResult.error);
-  else {
+  let customerAutoCreate = false;
+  if (!customerResult.valid) {
+    const canAutoCreateCustomer = customerResult.error?.code === 'INVALID_CUSTOMER_CODE';
+    if (canAutoCreateCustomer && customerCode && importedCustomerName) {
+      customerAutoCreate = true;
+      resolved.customerCode = customerCode;
+      resolved.customerName = importedCustomerName;
+      pushUnique(warnings, makeBusinessWarning({
+        code: 'AUTO_CREATE_CUSTOMER',
+        message: `Khách hàng mới ${customerCode} - ${importedCustomerName} sẽ được tự tạo với địa chỉ NEW`,
+        orderCode,
+        field: 'customerCode'
+      }));
+    } else if (canAutoCreateCustomer && customerCode && !importedCustomerName) {
+      pushUnique(errors, makeBusinessError({
+        code: 'MISSING_NEW_CUSTOMER_NAME',
+        message: `Khách hàng mới ${customerCode} thiếu tên cửa hàng`,
+        orderCode,
+        field: 'customerName'
+      }));
+    } else {
+      pushUnique(errors, customerResult.error);
+    }
+  } else {
     resolved.customerCode = customerResult.customer.code;
     resolved.customerName = customerResult.customer.name;
   }
@@ -246,6 +282,9 @@ async function validateImportSalesOrder(order = {}, context = {}) {
     orderCode: order.orderCode || orderCode,
     customerCode: resolved.customerCode || customerCode || order.customerCode || '',
     customerName: resolved.customerName || order.customerName || '',
+    customerAddress: customerAutoCreate ? 'NEW' : (order.customerAddress || ''),
+    customerAutoCreate,
+    customerProfileStatus: customerAutoCreate ? 'NEW' : (order.customerProfileStatus || ''),
     staffCode: '',
     salesStaffCode: salesStaffCode || resolved.salesStaffCode || order.salesStaffCode || '',
     staffName: '',
@@ -288,6 +327,45 @@ async function validateImportBatch(orders = []) {
   const context = await buildImportValidationContext(orders);
   const validated = [];
   for (const order of orders || []) validated.push(await validateImportSalesOrder(order, context));
+
+  const newCustomersByCode = new Map();
+  validated.forEach((row, index) => {
+    if (!row.customerAutoCreate) return;
+    const code = normalizeCode(row.customerCode);
+    const name = cleanText(row.customerName);
+    if (!code) return;
+    if (!newCustomersByCode.has(code)) {
+      newCustomersByCode.set(code, { indexes: [], names: new Map() });
+    }
+    const entry = newCustomersByCode.get(code);
+    entry.indexes.push(index);
+    const normalizedName = normalizeSearchText(name);
+    if (normalizedName && !entry.names.has(normalizedName)) entry.names.set(normalizedName, name);
+  });
+
+  for (const [code, entry] of newCustomersByCode.entries()) {
+    if (entry.names.size <= 1) continue;
+    const names = Array.from(entry.names.values());
+    const msg = `Mã cửa hàng ${code} có nhiều tên khác nhau trong file: ${names.join(' / ')}`;
+    for (const index of entry.indexes) {
+      const row = validated[index];
+      validated[index] = {
+        ...row,
+        valid: false,
+        canImport: false,
+        errors: [...new Set([...(row.errors || []), msg])],
+        businessErrors: [
+          ...(row.businessErrors || []),
+          makeBusinessError({
+            code: 'CONFLICTING_NEW_CUSTOMER_NAME',
+            message: msg,
+            orderCode: getOrderCode(row),
+            field: 'customerName'
+          })
+        ]
+      };
+    }
+  }
 
   const byCode = new Map();
   validated.forEach((row, index) => {

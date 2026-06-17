@@ -316,6 +316,13 @@ const INDEX_DEFINITIONS = {
     [{ sessionId: 1, documentCode: 1 }, { name: 'idx_importSessionRows_session_documentCode' }],
     [{ createdAt: 1 }, { name: 'ttl_importSessionRows_createdAt', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 86400) }]
   ],
+  importShortageReports: [
+    [{ code: 1 }, { name: 'uniq_importShortageReports_code', unique: true }],
+    [{ importSessionId: 1 }, { name: 'uniq_importShortageReports_session', unique: true }],
+    [{ importDate: -1 }, { name: 'idx_importShortageReports_importDate' }],
+    [{ status: 1, importDate: -1 }, { name: 'idx_importShortageReports_status_date' }],
+    [{ 'items.productCode': 1, importDate: -1 }, { name: 'idx_importShortageReports_product_date' }]
+  ],
   dmsInventoryImports: [
     [{ id: 1 }, { name: 'uniq_dms_inventory_import_id', unique: true }],
     [{ fileHash: 1, status: 1 }, { name: 'idx_dms_inventory_file_status' }],

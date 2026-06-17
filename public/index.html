@@ -1919,6 +1919,68 @@
             <tbody id="importPreviewTable"><tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr></tbody>
           </table>
         </div>
+
+
+        <section class="import-shortage-report-section">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>Báo cáo hàng thiếu khi import</h3>
+              <p class="muted">Báo cáo được lưu lâu dài theo từng lần import để kiểm tra và đối soát.</p>
+            </div>
+            <div class="button-row">
+              <select id="importShortageReportStatusFilter" aria-label="Lọc trạng thái báo cáo hàng thiếu">
+                <option value="">Tất cả trạng thái</option>
+                <option value="open">Chưa đối soát</option>
+                <option value="in_review">Đang đối soát</option>
+                <option value="resolved">Đã xử lý</option>
+              </select>
+              <input id="importShortageReportSearch" placeholder="Mã báo cáo / đơn / SP / khách" />
+              <button type="button" id="reloadImportShortageReportsButton" class="secondary">Tải lại</button>
+            </div>
+          </div>
+          <div class="table-wrap import-shortage-report-wrap">
+            <table>
+              <thead><tr><th>Mã báo cáo</th><th>Ngày import</th><th>File</th><th>Đơn</th><th>Sản phẩm</th><th>SL thiếu</th><th>Giá trị cắt</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+              <tbody id="importShortageReportTable"><tr><td colspan="9">Đang tải báo cáo...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div id="importShortageReportModal" class="app-modal" hidden>
+          <div class="app-modal__backdrop" data-close-import-shortage-report></div>
+          <section class="app-modal__dialog import-shortage-report-dialog" role="dialog" aria-modal="true" aria-labelledby="importShortageReportModalTitle">
+            <header class="app-modal__header">
+              <div>
+                <h2 id="importShortageReportModalTitle">Chi tiết báo cáo hàng thiếu</h2>
+                <p id="importShortageReportModalMeta" class="muted"></p>
+              </div>
+              <button type="button" class="secondary" data-close-import-shortage-report>Đóng</button>
+            </header>
+            <div class="app-modal__body">
+              <div id="importShortageReportModalSummary" class="summary-box"></div>
+              <div class="button-row import-shortage-report-actions">
+                <label>Trạng thái
+                  <select id="importShortageReportEditStatus">
+                    <option value="open">Chưa đối soát</option>
+                    <option value="in_review">Đang đối soát</option>
+                    <option value="resolved">Đã xử lý</option>
+                  </select>
+                </label>
+                <label class="import-shortage-note-label">Ghi chú chung
+                  <input id="importShortageReportEditNote" placeholder="Nội dung đối soát" />
+                </label>
+                <button type="button" id="saveImportShortageReportButton">Lưu đối soát</button>
+                <button type="button" id="downloadImportShortageReportButton" class="secondary">Tải CSV</button>
+              </div>
+              <div class="table-wrap import-shortage-detail-wrap">
+                <table>
+                  <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>SL yêu cầu</th><th>Tồn lúc import</th><th>SL thiếu</th><th>Giá trị cắt</th><th>Đối soát</th><th>Ghi chú</th></tr></thead>
+                  <tbody id="importShortageReportDetailTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
     </section>
 
@@ -2187,7 +2249,7 @@
   <script src="/js/app/admin/08a-reports.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
-  <script src="/js/app/admin/08d-import-excel.js?v=phase47-import-performance-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.js?v=phase47-import-performance-v1&patch=phase66-import-shortage-report-v1"></script>
   <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08f-vat-export.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>

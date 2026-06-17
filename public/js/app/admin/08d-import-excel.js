@@ -1001,7 +1001,8 @@ async function commitImportExcel(){
       : '';
     const durationMs=Number(json.performance&&json.performance.durationMs||0);
     const performanceText=durationMs>0?` · ${Math.max(0.1,durationMs/1000).toFixed(1)} giây`:'';
-    showMessage(importDataMessage,(json.message||'Import thành công')+shortageText+performanceText);
+    const savedReportText=json.shortageReportSaved&&json.shortageReportCode?` · Đã lưu báo cáo ${json.shortageReportCode}`:'';
+    showMessage(importDataMessage,(json.message||'Import thành công')+shortageText+savedReportText+performanceText);
 
     const reportRows=(json.shortageReport||[]).slice(0,80);
     if(importPreviewTable){
@@ -1034,6 +1035,7 @@ async function commitImportExcel(){
     }
 
     await refreshAfterImport(importDataType.value);
+    if(importDataType.value==='salesOrders')await loadImportShortageReports();
   }catch(err){
     if(commitImportButton){
       commitImportButton.disabled=false;
@@ -1043,6 +1045,125 @@ async function commitImportExcel(){
   }finally{
     stopProgressPolling();
   }
+}
+
+
+// Phase 66: persistent shortage report and reconciliation
+let activeImportShortageReport=null;
+function importShortageStatusLabel(status){return status==='resolved'?'Đã xử lý':status==='in_review'?'Đang đối soát':'Chưa đối soát';}
+function importShortageItemStatusLabel(status){return status==='resolved'?'Đã xử lý':status==='verified'?'Đã kiểm tra':'Chưa kiểm tra';}
+function formatImportReportDate(value){
+  if(!value)return'';
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime()))return String(value);
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function csvCell(value){const text=String(value==null?'':value);return `"${text.replace(/"/g,'""')}"`;}
+async function loadImportShortageReports(){
+  const table=document.getElementById('importShortageReportTable');
+  if(!table)return;
+  const status=document.getElementById('importShortageReportStatusFilter')?.value||'';
+  const search=document.getElementById('importShortageReportSearch')?.value||'';
+  table.innerHTML='<tr><td colspan="9">Đang tải báo cáo...</td></tr>';
+  try{
+    const params=new URLSearchParams({limit:'200'});
+    if(status)params.set('status',status);
+    if(search)params.set('search',search);
+    const res=await fetch(`/api/import/shortage-reports?${params.toString()}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được báo cáo hàng thiếu');
+    const rows=Array.isArray(json.reports)?json.reports:[];
+    table.innerHTML=rows.length?rows.map(report=>`<tr>
+      <td><strong>${escapeHtml(report.code||'')}</strong></td>
+      <td>${escapeHtml(formatImportReportDate(report.importDate||report.createdAt))}</td>
+      <td>${escapeHtml((report.fileNames||[]).join(', ')||'')}</td>
+      <td class="number">${formatNumber(report.orderCount||0)}</td>
+      <td class="number">${formatNumber(report.productCount||0)}</td>
+      <td class="number">${displayImportQtyTL(report.totalMissingQuantity||0)}</td>
+      <td class="number">${money(report.totalCutAmount||0)}</td>
+      <td><span class="status-badge ${report.status==='resolved'?'success':report.status==='in_review'?'warning':'danger'}">${importShortageStatusLabel(report.status)}</span></td>
+      <td><button type="button" class="secondary view-import-shortage-report" data-id="${escapeHtml(report._id||'')}">Chi tiết</button></td>
+    </tr>`).join(''):'<tr><td colspan="9">Chưa có báo cáo hàng thiếu nào.</td></tr>';
+  }catch(err){table.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message)}</td></tr>`;}
+}
+function closeImportShortageReportModal(){
+  const modal=document.getElementById('importShortageReportModal');
+  if(modal)modal.hidden=true;
+  activeImportShortageReport=null;
+}
+function renderImportShortageReportDetail(report){
+  activeImportShortageReport=report;
+  const modal=document.getElementById('importShortageReportModal');
+  const title=document.getElementById('importShortageReportModalTitle');
+  const meta=document.getElementById('importShortageReportModalMeta');
+  const summary=document.getElementById('importShortageReportModalSummary');
+  const status=document.getElementById('importShortageReportEditStatus');
+  const note=document.getElementById('importShortageReportEditNote');
+  const body=document.getElementById('importShortageReportDetailTable');
+  if(title)title.textContent=`Báo cáo hàng thiếu ${report.code||''}`;
+  if(meta)meta.textContent=`Import ${formatImportReportDate(report.importDate||report.createdAt)} · ${(report.fileNames||[]).join(', ')}`;
+  if(summary)summary.innerHTML=`<span>Đơn: <strong>${formatNumber(report.orderCount||0)}</strong></span><span>Sản phẩm: <strong>${formatNumber(report.productCount||0)}</strong></span><span>Số lượng thiếu: <strong>${displayImportQtyTL(report.totalMissingQuantity||0)}</strong></span><span>Giá trị cắt: <strong>${money(report.totalCutAmount||0)}</strong></span>`;
+  if(status)status.value=report.status||'open';
+  if(note)note.value=report.note||'';
+  if(body){
+    const items=Array.isArray(report.items)?report.items:[];
+    body.innerHTML=items.length?items.map(item=>`<tr data-item-id="${escapeHtml(item._id||'')}">
+      <td>${escapeHtml(item.documentCode||'')}</td>
+      <td>${escapeHtml([item.customerCode,item.customerName].filter(Boolean).join(' - '))}</td>
+      <td>${escapeHtml(item.productCode||'')}</td>
+      <td>${escapeHtml(item.productName||'')}</td>
+      <td class="number">${displayImportQtyTL(item.requestedQuantity||0,item)}</td>
+      <td class="number">${displayImportQtyTL(item.availableQuantity||0,item)}</td>
+      <td class="number"><strong>${displayImportQtyTL(item.missingQuantity||0,item)}</strong></td>
+      <td class="number">${money(item.cutAmount||0)}</td>
+      <td><select class="shortage-item-status"><option value="open" ${item.reconciliationStatus==='open'?'selected':''}>Chưa kiểm tra</option><option value="verified" ${item.reconciliationStatus==='verified'?'selected':''}>Đã kiểm tra</option><option value="resolved" ${item.reconciliationStatus==='resolved'?'selected':''}>Đã xử lý</option></select></td>
+      <td><input class="shortage-item-note" value="${escapeHtml(item.reconciliationNote||'')}" placeholder="Ghi chú đối soát" /></td>
+    </tr>`).join(''):'<tr><td colspan="10">Báo cáo không có dòng hàng thiếu.</td></tr>';
+  }
+  if(modal)modal.hidden=false;
+}
+async function openImportShortageReport(id){
+  try{
+    const res=await fetch(`/api/import/shortage-reports/${encodeURIComponent(id)}`);
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không tải được chi tiết báo cáo');
+    renderImportShortageReportDetail(json.report);
+  }catch(err){showMessage(importDataMessage,err.message,true);}
+}
+async function saveImportShortageReport(){
+  if(!activeImportShortageReport?._id)return;
+  const button=document.getElementById('saveImportShortageReportButton');
+  const rows=Array.from(document.querySelectorAll('#importShortageReportDetailTable tr[data-item-id]'));
+  const items=rows.map(row=>({
+    id:row.dataset.itemId,
+    reconciliationStatus:row.querySelector('.shortage-item-status')?.value||'open',
+    reconciliationNote:row.querySelector('.shortage-item-note')?.value||''
+  }));
+  if(button)button.disabled=true;
+  try{
+    const res=await fetch(`/api/import/shortage-reports/${encodeURIComponent(activeImportShortageReport._id)}`,{
+      method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        status:document.getElementById('importShortageReportEditStatus')?.value||'open',
+        note:document.getElementById('importShortageReportEditNote')?.value||'',items
+      })
+    });
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.message||'Không lưu được đối soát');
+    renderImportShortageReportDetail(json.report);
+    await loadImportShortageReports();
+    showMessage(importDataMessage,`Đã lưu đối soát báo cáo ${json.report?.code||''}`);
+  }catch(err){showMessage(importDataMessage,err.message,true);}finally{if(button)button.disabled=false;}
+}
+function downloadActiveImportShortageReport(){
+  const report=activeImportShortageReport;
+  if(!report)return;
+  const headers=['Mã báo cáo','Ngày import','Mã đơn','Mã KH','Tên KH','Mã SP','Tên SP','SL yêu cầu','Tồn lúc import','SL thiếu','Giá trị cắt','Trạng thái đối soát','Ghi chú'];
+  const lines=[headers.map(csvCell).join(',')];
+  (report.items||[]).forEach(item=>lines.push([
+    report.code,formatImportReportDate(report.importDate||report.createdAt),item.documentCode,item.customerCode,item.customerName,item.productCode,item.productName,item.requestedQuantity,item.availableQuantity,item.missingQuantity,item.cutAmount,importShortageItemStatusLabel(item.reconciliationStatus),item.reconciliationNote
+  ].map(csvCell).join(',')));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${report.code||'bao-cao-hang-thieu'}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 
 resetButton.addEventListener('click',resetForm);
@@ -1061,5 +1182,19 @@ if(downloadCustomImportTemplateButton)downloadCustomImportTemplateButton.addEven
 if(deleteCustomImportTemplateButton)deleteCustomImportTemplateButton.addEventListener('click',deleteCustomImportTemplate);
 if(importDataType)importDataType.addEventListener('change',async()=>{syncImportModeAvailability();resetImportPreviewForModeChange();await loadImportFieldOptions();await loadCustomImportTemplates();});
 if(importDataMode)importDataMode.addEventListener('change',resetImportPreviewForModeChange);
+const importShortageReportTable=document.getElementById('importShortageReportTable');
+if(importShortageReportTable)importShortageReportTable.addEventListener('click',event=>{const button=event.target.closest('.view-import-shortage-report');if(button)openImportShortageReport(button.dataset.id);});
+const reloadImportShortageReportsButton=document.getElementById('reloadImportShortageReportsButton');
+if(reloadImportShortageReportsButton)reloadImportShortageReportsButton.addEventListener('click',loadImportShortageReports);
+const importShortageReportStatusFilter=document.getElementById('importShortageReportStatusFilter');
+if(importShortageReportStatusFilter)importShortageReportStatusFilter.addEventListener('change',loadImportShortageReports);
+const importShortageReportSearch=document.getElementById('importShortageReportSearch');
+if(importShortageReportSearch)importShortageReportSearch.addEventListener('keydown',event=>{if(event.key==='Enter')loadImportShortageReports();});
+document.querySelectorAll('[data-close-import-shortage-report]').forEach(button=>button.addEventListener('click',closeImportShortageReportModal));
+const saveImportShortageReportButton=document.getElementById('saveImportShortageReportButton');
+if(saveImportShortageReportButton)saveImportShortageReportButton.addEventListener('click',saveImportShortageReport);
+const downloadImportShortageReportButton=document.getElementById('downloadImportShortageReportButton');
+if(downloadImportShortageReportButton)downloadImportShortageReportButton.addEventListener('click',downloadActiveImportShortageReport);
+loadImportShortageReports();
 syncImportModeAvailability();
 // PHASE35_IMPORT_EVENT_OWNERSHIP_END
