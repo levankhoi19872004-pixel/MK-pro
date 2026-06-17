@@ -1,4 +1,5 @@
 const { calculateCartonUnit } = require('../src/utils/common.util');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../src/utils/pickingZone.util');
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return 0;
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -153,7 +154,23 @@ function comparePrintItems(a, b) {
   if (codeCompare !== 0) return codeCompare;
   const priceCompare = normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
   if (priceCompare !== 0) return priceCompare;
-  return String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+  return String(a.name || '').localeCompare(String(b.name || ''), 'vi', { sensitivity: 'base', numeric: true });
+}
+
+function comparePrintItemsByName(a, b) {
+  const nameCompare = String(a.name || a.productName || '').localeCompare(
+    String(b.name || b.productName || ''),
+    'vi',
+    { sensitivity: 'base', numeric: true }
+  );
+  if (nameCompare !== 0) return nameCompare;
+  const codeCompare = normalizeMergeCode(a.code || a.productCode).localeCompare(
+    normalizeMergeCode(b.code || b.productCode),
+    'vi',
+    { numeric: true }
+  );
+  if (codeCompare !== 0) return codeCompare;
+  return normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
 }
 
 function getCatalogSalePrice(item) {
@@ -398,8 +415,9 @@ function getItemTax(item) {
 }
 
 function normalizeOneItem(item, index, sourceOrder = null) {
-  const warehouseCode = pick(item.warehouseCode, item.khoCode, item.warehouse, 'KHO_HC');
-  const warehouseName = pick(item.warehouseName, item.khoName, warehouseCode === 'KHO_PC' ? 'KHO PC' : 'KHO HC');
+  const pickingZone = normalizePickingZone(pickingZoneFrom(item), PICKING_ZONES.HC);
+  const warehouseCode = legacyPrintGroupCode(pickingZone);
+  const warehouseName = pickingZoneLabel(pickingZone);
   const qty = getItemQuantity(item);
   const pack = getItemPack(item);
 
@@ -509,6 +527,7 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     lineTypeName,
     note: item.note || '',
     sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',
+    pickingZone,
     warehouseCode,
     warehouseName,
     sourceOrderCodes: Array.isArray(item.sourceOrderCodes) ? item.sourceOrderCodes : [],
@@ -599,7 +618,7 @@ function normalizeDisplayRewards(document) {
 }
 
 
-function buildWarehouseGroups(items = []) {
+function buildWarehouseGroups(items = [], options = {}) {
   const map = new Map();
   const itemMaps = new Map();
 
@@ -701,9 +720,12 @@ function buildWarehouseGroups(items = []) {
     group.totalAmount += toNumber(item.amount);
   }
 
+  const itemComparator = options.sortByProductName ? comparePrintItemsByName : comparePrintItems;
   for (const group of map.values()) {
-    group.saleItems.sort(comparePrintItems);
-    group.promoItems.sort(comparePrintItems);
+    group.saleItems.sort(itemComparator);
+    group.promoItems.sort(itemComparator);
+    group.returnItems.sort(itemComparator);
+    group.importItems.sort(itemComparator);
     group.items = [...group.saleItems, ...group.promoItems, ...group.returnItems, ...group.importItems];
     group.items.forEach((item, index) => {
       item.stt = index + 1;
@@ -1008,7 +1030,9 @@ function buildPrintData(document = {}, options = {}) {
   const items = normalizeItems(document);
   const promotions = normalizePromotions(document);
   const displayRewards = normalizeDisplayRewards(document);
-  const warehouseGroups = buildWarehouseGroups(items);
+  const warehouseGroups = buildWarehouseGroups(items, {
+    sortByProductName: document.itemSort === 'PRODUCT_NAME_ASC' || String(document.printMode || '').startsWith('MASTER_')
+  });
 
   const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, document.summary?.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
   // PRINT_PROMOTION_TOTALS_START

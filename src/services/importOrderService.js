@@ -7,6 +7,8 @@ const productRepository = require('../repositories/productRepository');
 const { makeId, normalizeText, toNumber } = require('../utils/common.util');
 const { withMongoTransaction } = require('../utils/transaction.util');
 const InventoryPostingService = require('../domain/posting/InventoryPostingService');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, PICKING_ZONES } = require('../utils/pickingZone.util');
+const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
 
 
 function buildImportCode(existingOrders = []) {
@@ -159,11 +161,12 @@ async function hydrateItems(rawItems = []) {
         qty: quantity,
         costPrice,
         amount: quantity * costPrice,
-        // warehouseCode ở phiếu nhập chỉ còn là nhóm in/gộp đơn HC/PC, không phải kho tồn.
-        printGroup: String(raw.printGroup || raw.warehouseCode || raw.warehouse || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
-        printGroupName: String(raw.printGroupName || raw.warehouseName || product?.printGroupName || product?.warehouseName || ((String(raw.printGroup || raw.warehouseCode || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim(),
-        warehouseCode: String(raw.printGroup || raw.warehouseCode || raw.warehouse || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() || 'KHO_HC',
-        warehouseName: String(raw.printGroupName || raw.warehouseName || product?.printGroupName || product?.warehouseName || ((String(raw.printGroup || raw.warehouseCode || product?.printGroup || product?.warehouseCode || product?.defaultWarehouse || 'KHO_HC').trim() === 'KHO_PC') ? 'KHO PC' : 'KHO HC')).trim()
+        // Khu bốc chỉ phục vụ bản in HC/PC; kho tồn của phiếu nhập luôn MAIN.
+        pickingZone: normalizePickingZone(pickingZoneFrom(raw, product), PICKING_ZONES.HC),
+        printGroup: legacyPrintGroupCode(normalizePickingZone(pickingZoneFrom(raw, product), PICKING_ZONES.HC)),
+        printGroupName: normalizePickingZone(pickingZoneFrom(raw, product), PICKING_ZONES.HC),
+        warehouseCode: legacyPrintGroupCode(normalizePickingZone(pickingZoneFrom(raw, product), PICKING_ZONES.HC)),
+        warehouseName: normalizePickingZone(pickingZoneFrom(raw, product), PICKING_ZONES.HC)
       };
     })
     .filter((item) => item.quantity > 0 || item.productCode || item.productName);
@@ -191,6 +194,9 @@ async function createImportOrder(body = {}) {
     postedAt: '',
     postedBy: '',
     source: body.source || 'mongo_import_order_route',
+    // Chứng từ nhập kho luôn thuộc kho vật lý MAIN; HC/PC chỉ là khu bốc trên từng item.
+    warehouseCode: STOCK_WAREHOUSE_CODE,
+    warehouseName: STOCK_WAREHOUSE_NAME,
     createdAt: body.createdAt || dateUtil.nowIso(),
     updatedAt: dateUtil.nowIso()
   };
@@ -218,6 +224,9 @@ async function updateImportOrder(id, body = {}) {
     supplier: String(body.supplier ?? body.supplierName ?? current.supplier ?? '').trim(),
     supplierName: String(body.supplierName ?? body.supplier ?? current.supplierName ?? '').trim(),
     note: String(body.note ?? current.note ?? '').trim(),
+    // Không nhận kho HC/PC từ payload làm kho tồn.
+    warehouseCode: STOCK_WAREHOUSE_CODE,
+    warehouseName: STOCK_WAREHOUSE_NAME,
     items,
     totalQuantity: toNumber(body.totalQuantity ?? items.reduce((sum, item) => sum + toNumber(item.quantity), 0)),
     totalAmount: toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0)),

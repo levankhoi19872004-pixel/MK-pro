@@ -48,6 +48,7 @@ const InventoryPostingService = require('../domain/posting/InventoryPostingServi
 const financialService = require('./financialService');
 const promotionService = require('./promotionService');
 const { isBcryptHash, hashPasswordSync } = require('../security/passwordPolicy');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
 const {
   pickSalesStaffCode,
   pickSalesStaffName,
@@ -176,19 +177,29 @@ function number(row, names) {
   return toNumber(get(row, names));
 }
 
+function normalizeProductPickingZone(value) {
+  return normalizePickingZone(value, PICKING_ZONES.HC);
+}
+
+function productPickingZoneName(value) {
+  return pickingZoneLabel(normalizeProductPickingZone(value));
+}
+
+// Legacy print group aliases remain for old imported order snapshots only.
 function normalizeProductWarehouseCode(value) {
-  const raw = cleanText(value).toUpperCase().replace(/[\s-]+/g, '_');
-  if (raw === 'KHO_PC' || raw === 'PC') return 'KHO_PC';
-  if (raw === 'KHO_HC' || raw === 'HC') return 'KHO_HC';
-  return 'KHO_HC';
+  return legacyPrintGroupCode(normalizeProductPickingZone(value));
 }
 
 function productWarehouseName(code) {
-  return normalizeProductWarehouseCode(code) === 'KHO_PC' ? 'KHO PC' : 'KHO HC';
+  const zone = normalizeProductPickingZone(code);
+  return zone === PICKING_ZONES.PC ? 'KHO PC' : 'KHO HC';
 }
 
 function pickProductPayload(row = {}) {
-  const warehouseCode = normalizeProductWarehouseCode(row.warehouseCode || row.warehouse || row.kho || row['Kho'] || row['Kho mặc định'] || row['Kho mac dinh']);
+  const pickingZone = normalizeProductPickingZone(
+    row.pickingZone || row['Khu bốc hàng'] || row['Khu boc hang'] ||
+    row.warehouseCode || row.warehouse || row.kho || row['Kho'] || row['Kho mặc định'] || row['Kho mac dinh']
+  );
   const code = cleanText(row.code || row.productCode || row['Mã sản phẩm'] || row['Ma san pham']);
   const packingInfo = normalizePacking({
     unit: row.unit || row['Đơn vị'] || row['Don vi'],
@@ -203,8 +214,7 @@ function pickProductPayload(row = {}) {
     barcode: cleanText(row.barcode || row['Mã vạch'] || row['Ma vach']),
     category: cleanText(row.category || row['Nhóm hàng'] || row['Nhom hang']),
     brand: cleanText(row.brand || row['Thương hiệu'] || row['Thuong hieu']),
-    warehouseCode,
-    warehouseName: productWarehouseName(warehouseCode),
+    pickingZone,
     salePrice: toNumber(row.salePrice || row.price || row['Giá bán'] || row['Gia ban']),
     costPrice: toNumber(row.costPrice || row.importPrice || row['Giá nhập'] || row['Gia nhap']),
     minStock: toNumber(row.minStock || row['Tồn tối thiểu'] || row['Ton toi thieu']),
@@ -244,7 +254,7 @@ function pickCustomerPayload(row = {}) {
 const PRODUCT_UPDATE_LABELS = Object.freeze({
   name: 'Tên sản phẩm', unit: 'Đơn vị bán', baseUnit: 'Đơn vị gốc', conversionRate: 'Quy đổi',
   packing: 'Quy cách', barcode: 'Barcode', category: 'Nhóm hàng', brand: 'Thương hiệu',
-  warehouseCode: 'Kho mặc định', costPrice: 'Giá nhập', salePrice: 'Giá bán',
+  pickingZone: 'Khu bốc hàng', costPrice: 'Giá nhập', salePrice: 'Giá bán',
   minStock: 'Tồn tối thiểu', maxStock: 'Tồn tối đa', isActive: 'Trạng thái'
 });
 
@@ -291,14 +301,12 @@ function buildProductSelectiveUpdate(row = {}, current = {}) {
   applyNumberPatch(row, patch, 'maxStock', ['maxStock', 'Tồn tối đa', 'Ton toi da']);
   applyBooleanPatch(row, patch, 'isActive', ['isActive', 'Trạng thái', 'Trang thai', 'Hoạt động', 'Hoat dong'], current.isActive !== false);
 
-  const warehouse = getProvidedField(row, ['warehouseCode', 'warehouse', 'kho', 'Kho', 'Kho mặc định', 'Kho mac dinh']);
-  if (warehouse.hasValue) {
-    const warehouseCode = normalizeProductWarehouseCode(warehouse.value);
-    const warehouseName = productWarehouseName(warehouseCode);
-    patch.warehouseCode = warehouseCode;
-    patch.warehouseName = warehouseName;
-    patch.printGroup = warehouseCode;
-    patch.printGroupName = warehouseName;
+  const pickingZone = getProvidedField(row, [
+    'pickingZone', 'Khu bốc hàng', 'Khu boc hang',
+    'warehouseCode', 'warehouse', 'kho', 'Kho', 'Kho mặc định', 'Kho mac dinh'
+  ]);
+  if (pickingZone.hasValue) {
+    patch.pickingZone = normalizeProductPickingZone(pickingZone.value);
   }
 
   const unit = getProvidedField(row, ['unit', 'Đơn vị', 'Don vi', 'Đơn vị bán', 'Don vi ban']);
@@ -895,6 +903,7 @@ function productSearchText(payload = {}) {
     payload.barcode,
     payload.category,
     payload.brand,
+    payload.pickingZone,
     payload.packing,
     payload.unit,
     payload.baseUnit
@@ -1508,6 +1517,14 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
         errors.push({ productCode, message: !product ? 'Không tìm thấy sản phẩm' : 'Số lượng nhập không được âm' });
         continue;
       }
+      const pickingZone = normalizePickingZone(
+        pickingZoneFrom(
+          row.pickingZone || row['Khu bốc hàng'] || row['Khu boc hang'],
+          product,
+          row.warehouseCode || row.warehouse || row['Kho']
+        ),
+        PICKING_ZONES.HC
+      );
       items.push({
         productId: String(product.id || product._id || product.code),
         productCode: product.code,
@@ -1516,8 +1533,10 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
         quantity,
         costPrice,
         amount: quantity * costPrice,
-        warehouseCode: cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || row['Kho']) || cleanText(product.warehouseCode || product.defaultWarehouse) || 'KHO_HC',
-        warehouseName: cleanText(row.warehouseName || row['Tên kho'] || row['Ten kho']) || cleanText(product.warehouseName) || ((cleanText(row.warehouseCode || row.warehouse || row['Kho'] || product.warehouseCode || product.defaultWarehouse) === 'KHO_PC') ? 'KHO PC' : 'KHO HC')
+        pickingZone,
+        // Alias in phiếu nhập cũ; InventoryPostingService vẫn luôn ghi MAIN.
+        warehouseCode: legacyPrintGroupCode(pickingZone),
+        warehouseName: pickingZoneLabel(pickingZone)
       });
     }
     if (!items.length) continue;
@@ -1531,8 +1550,9 @@ const groups = groupRows(rows, (r) => `${cleanText(r.documentCode || r.code || r
       importDate,
       supplier: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
       supplierName: cleanText(first.supplier || first.supplierName || first['Nhà cung cấp'] || first['Nha cung cap']) || 'Import Excel',
-      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'KHO_HC',
-      warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho HC',
+      // Kho vật lý của chứng từ luôn là MAIN. HC/PC chỉ nằm ở pickingZone của từng dòng để phục vụ in/bốc hàng.
+      warehouseCode: STOCK_WAREHOUSE_CODE,
+      warehouseName: STOCK_WAREHOUSE_NAME,
       note: cleanText(first.note || first['Ghi chú'] || first['Ghi chu']) || 'Import Excel Mongo-native bulk',
       status: 'draft',
       items,
@@ -1693,7 +1713,16 @@ async function importSalesOrders(rows = [], options = {}) {
         ? Math.round(catalogPriceAfterVat / 1.08)
         : 0;
       let vatAmountAtOrder = getDmsVatAmountForLine(row, rawSaleQuantity, salePrice, lineAmount);
-      const warehouseCode = cleanText(row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Mã kho'] || row['Ma kho'] || first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Kho'] || product?.warehouseCode) || 'MAIN';
+      const pickingZoneAtOrder = normalizePickingZone(
+        pickingZoneFrom(
+          row.pickingZone || row['Khu bốc hàng'] || row['Khu boc hang'],
+          first.pickingZone || first['Khu bốc hàng'] || first['Khu boc hang'],
+          product,
+          row.warehouseCode || row.warehouse || row['Mã Kho'] || row['Ma Kho'] || row['Kho']
+        ),
+        PICKING_ZONES.HC
+      );
+      const warehouseCode = legacyPrintGroupCode(pickingZoneAtOrder);
       const normalizedProductCode = cleanText(product?.code || productCode);
       // warehouseCode của dòng DMS chỉ là nhóm in/gộp đơn; tồn kho kiểm tra theo productCode chung.
       let availableQty = toNumber(productStockMap.get(normalizedProductCode));
@@ -1778,6 +1807,7 @@ async function importSalesOrders(rows = [], options = {}) {
         catalogSalePriceAtOrder,
         catalogSalePriceSource,
         priceAfterTaxBeforePromotionSource: catalogSalePriceSource,
+        pickingZoneAtOrder,
         warehouseCodeAtOrder: warehouseCode,
         appliedPromotionRows: [],
         promotionRows: [],
@@ -1794,6 +1824,7 @@ async function importSalesOrders(rows = [], options = {}) {
           unit: product.unit || product.baseUnit || '',
           salePrice: catalogSalePriceAtOrder,
           conversionRate: conversionRateAtOrder,
+          pickingZone: pickingZoneAtOrder,
           warehouseCode,
           defaultWarehouse: warehouseCode
         },
@@ -1950,8 +1981,9 @@ async function importSalesOrders(rows = [], options = {}) {
       stockPosted: false,
       stockPostedAt: '',
       stockPostedBy: '',
-      warehouseCode: cleanText(first.warehouseCode || first.warehouse || first['Mã Kho'] || first['Ma Kho'] || first['Mã kho'] || first['Ma kho'] || first['Kho']) || 'KHO_HC',
-      warehouseName: cleanText(first.warehouseName || first['Tên kho'] || first['Ten kho']) || 'Kho HC',
+      // Kho vật lý của chứng từ luôn là MAIN. HC/PC chỉ nằm ở pickingZone của từng dòng để phục vụ in/bốc hàng.
+      warehouseCode: STOCK_WAREHOUSE_CODE,
+      warehouseName: STOCK_WAREHOUSE_NAME,
       createdAt: now,
       updatedAt: now
     };
@@ -3110,7 +3142,7 @@ async function previewMongoNative(type, rows = [], options = {}) {
       const productCode = getProductCodeFromRow(row);
       const product = productMap.get(cleanText(productCode));
       const quantity = getQtyFromRow(row, product);
-      const warehouseCode = product ? (cleanText(product.warehouseCode || product.defaultWarehouseCode) || 'KHO_HC') : '';
+      const warehouseCode = product ? (STOCK_WAREHOUSE_CODE || 'MAIN') : '';
       const item = {
         ...rowBase(row),
         documentCode: 'AUTO',
@@ -3118,7 +3150,7 @@ async function previewMongoNative(type, rows = [], options = {}) {
         productCode,
         productName: product?.name || '',
         warehouseCode,
-        warehouseName: product ? (cleanText(product.warehouseName || product.defaultWarehouseName) || productWarehouseName(warehouseCode)) : '',
+        warehouseName: product ? (STOCK_WAREHOUSE_NAME || 'Kho chính') : '',
         quantity,
         errors: []
       };

@@ -56,9 +56,9 @@ test('WAREHOUSE_PICKING renders warehouse and line-type separation consistently'
   });
 
   const html = renderPrintHtml('WAREHOUSE_PICKING', document);
-  assert.match(html, /KHO HC - Hàng bán/);
-  assert.match(html, /KHO HC - Xuất khuyến mại/);
-  assert.match(html, /KHO PC - Hàng bán/);
+  assert.match(html, /HC - Hàng bán/);
+  assert.match(html, /HC - Xuất khuyến mại/);
+  assert.match(html, /PC - Hàng bán/);
   assert.match(html, /Giá tham chiếu/);
 
   const batch = renderPrintBatchHtml('WAREHOUSE_PICKING', [document, document], { title: 'Batch' });

@@ -23,8 +23,7 @@ function getFormPayload(){
   const formData=new FormData(productForm);const payload=Object.fromEntries(formData.entries());
   payload.costPrice=Number(payload.costPrice||0);payload.salePrice=Number(payload.salePrice||0);
   payload.conversionRate=Number(payload.conversionRate||1);
-  payload.warehouseCode=payload.warehouseCode||'KHO_HC';
-  payload.warehouseName=payload.warehouseCode==='KHO_PC'?'KHO PC':'KHO HC';
+  payload.pickingZone=payload.pickingZone||'HC';
   payload.minStock=Number(payload.minStock||0);payload.maxStock=Number(payload.maxStock||0);
   payload.isActive=productForm.elements.isActive.checked;return payload;
 }
@@ -35,7 +34,7 @@ function fillForm(p){
   if(productForm.elements.baseUnit)productForm.elements.baseUnit.value=p.baseUnit||'';
   if(productForm.elements.conversionRate)productForm.elements.conversionRate.value=p.conversionRate||1;
   if(productForm.elements.packing)productForm.elements.packing.value=p.packing||'';
-  if(productForm.elements.warehouseCode)productForm.elements.warehouseCode.value=p.warehouseCode||'KHO_HC';
+  if(productForm.elements.pickingZone)productForm.elements.pickingZone.value=p.pickingZone||((p.warehouseCode||p.printGroup)==='KHO_PC'?'PC':'HC');
   productForm.elements.barcode.value=p.barcode||'';
   productForm.elements.costPrice.value=p.costPrice||0;productForm.elements.salePrice.value=p.salePrice||0;
   productForm.elements.minStock.value=p.minStock||0;productForm.elements.maxStock.value=p.maxStock||0;
@@ -138,7 +137,7 @@ function renderProductTable(){
     const name=escapeProductHtml(p.name||'');
     const category=escapeProductHtml(p.category||'');
     const safePacking=escapeProductHtml(packingText||'');
-    const warehouse=escapeProductHtml(p.warehouseName||p.warehouseCode||'KHO HC');
+    const pickingZone=escapeProductHtml(p.pickingZoneName||p.pickingZone||((p.warehouseCode||p.printGroup)==='KHO_PC'?'PC':'HC'));
     const unit=escapeProductHtml(p.unit||'');
     return `
     <tr class="product-compact-row ${selected?'selected':''}">
@@ -156,7 +155,7 @@ function renderProductTable(){
         <div class="product-compact-meta">
           ${category?`<span>Nhóm: <b>${category}</b></span>`:''}
           ${safePacking?`<span>Quy cách: <b>${safePacking}</b></span>`:''}
-          <span>Kho: <b>${warehouse}</b></span>
+          <span>Khu bốc: <b>${pickingZone}</b></span>
           <span>ĐVT: <b>${unit}</b></span>
           <span>Nhập: <b>${money(p.costPrice)}</b></span>
           <span>Bán: <b>${money(p.salePrice)}</b></span>

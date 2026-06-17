@@ -4,13 +4,13 @@ const TEMPLATE_DEFINITIONS = {
   products: {
     title: 'Mẫu import sản phẩm',
     fileName: 'mau-import-san-pham.xlsx',
-    columns: ['code', 'name', 'unit', 'baseUnit', 'conversionRate', 'packing', 'barcode', 'category', 'costPrice', 'salePrice', 'warehouseCode', 'minStock', 'maxStock'],
-    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị bán', 'Đơn vị gốc', 'Quy đổi', 'Quy cách', 'Barcode', 'Nhóm hàng', 'Giá nhập', 'Giá bán', 'Kho mặc định', 'Tồn tối thiểu', 'Tồn tối đa'],
+    columns: ['code', 'name', 'unit', 'baseUnit', 'conversionRate', 'packing', 'barcode', 'category', 'costPrice', 'salePrice', 'pickingZone', 'minStock', 'maxStock'],
+    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Đơn vị bán', 'Đơn vị gốc', 'Quy đổi', 'Quy cách', 'Barcode', 'Nhóm hàng', 'Giá nhập', 'Giá bán', 'Khu bốc hàng', 'Tồn tối thiểu', 'Tồn tối đa'],
     sample: [
-      ['SP001', 'OMO Bột giặt 5.5kg', 'Thùng', 'Túi', 6, '1 thùng = 6 túi', '893000000001', 'Giặt tẩy', 145000, 169000, 'KHO_HC', 10, 200],
-      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Thùng', 'Chai', 4, '1 thùng = 4 chai', '893000000002', 'Nước xả', 115000, 139000, 'KHO_PC', 10, 150]
+      ['SP001', 'OMO Bột giặt 5.5kg', 'Thùng', 'Túi', 6, '1 thùng = 6 túi', '893000000001', 'Giặt tẩy', 145000, 169000, 'HC', 10, 200],
+      ['SP002', 'Comfort Đậm Đặc 3.8L', 'Thùng', 'Chai', 4, '1 thùng = 4 chai', '893000000002', 'Nước xả', 115000, 139000, 'PC', 10, 150]
     ],
-    notes: ['Bắt buộc khi thêm mới: code, name. Khi dùng Cập nhật an toàn chỉ bắt buộc Mã sản phẩm.', 'Quy đổi là số đơn vị gốc trong 1 đơn vị bán, ví dụ 1 thùng = 12 chai thì nhập 12.', 'Chế độ Cập nhật an toàn: ô trống/cột thiếu giữ nguyên dữ liệu Mongo; chỉ giá trị khác dữ liệu cũ mới được cập nhật.', 'Chế độ Import thông thường không chấp nhận mã sản phẩm đã tồn tại.']
+    notes: ['Bắt buộc khi thêm mới: code, name. Khi dùng Cập nhật an toàn chỉ bắt buộc Mã sản phẩm.', 'Quy đổi là số đơn vị gốc trong 1 đơn vị bán, ví dụ 1 thùng = 12 chai thì nhập 12.', 'Khu bốc hàng chỉ nhận HC hoặc PC, dùng để tách phiếu bốc hàng đơn tổng; không ảnh hưởng tồn kho MAIN.', 'Chế độ Cập nhật an toàn: ô trống/cột thiếu giữ nguyên dữ liệu Mongo; chỉ giá trị khác dữ liệu cũ mới được cập nhật.', 'Chế độ Import thông thường không chấp nhận mã sản phẩm đã tồn tại.']
   },
   customers: {
     title: 'Mẫu import khách hàng',
@@ -64,11 +64,11 @@ const TEMPLATE_DEFINITIONS = {
   importOrders: {
     title: 'Mẫu import phiếu nhập kho',
     fileName: 'mau-import-phieu-nhap-kho.xlsx',
-    columns: ['documentCode', 'date', 'supplier', 'productCode', 'productName', 'cartons', 'units', 'warehouseCode', 'note'],
-    headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Tên sản phẩm', 'SL thùng', 'SL lẻ', 'Kho', 'Ghi chú'],
+    columns: ['documentCode', 'date', 'supplier', 'productCode', 'productName', 'cartons', 'units', 'pickingZone', 'note'],
+    headers: ['Mã phiếu', 'Ngày', 'Nhà cung cấp', 'Mã sản phẩm', 'Tên sản phẩm', 'SL thùng', 'SL lẻ', 'Khu bốc hàng', 'Ghi chú'],
     sample: [
-      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 'OMO Bột giặt 5.5kg', 2, 0, 'KHO_HC', 'Nhập 2 thùng'],
-      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 'Comfort Đậm Đặc 3.8L', 0, 2532, 'KHO_PC', 'Nhập 2532 lẻ']
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP001', 'OMO Bột giặt 5.5kg', 2, 0, 'HC', 'Nhập 2 thùng'],
+      ['PN-EXCEL-001', '26/05/2026', 'Unilever', 'SP002', 'Comfort Đậm Đặc 3.8L', 0, 2532, 'PC', 'Nhập 2532 lẻ']
     ],
     notes: [
       'Các dòng có cùng mã phiếu/ngày/nhà cung cấp sẽ được gộp thành một phiếu nhập.',

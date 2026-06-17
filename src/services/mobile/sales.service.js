@@ -703,6 +703,7 @@ function createMobileSalesService(ctx) {
               ...(item.productSnapshot || {}),
               salePrice: grossPrice,
               conversionRate: item.conversionRateAtOrder || item.conversionRate || 1,
+              pickingZone: item.pickingZoneAtOrder || item.productSnapshot?.pickingZone || ((item.warehouseCodeAtOrder || item.warehouseCode) === 'KHO_PC' ? 'PC' : 'HC'),
               warehouseCode: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC',
               defaultWarehouse: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC'
             },

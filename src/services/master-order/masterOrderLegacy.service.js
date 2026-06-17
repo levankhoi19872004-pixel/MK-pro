@@ -24,6 +24,7 @@ const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt } = require('../..
 const { normalizeOrderSourceValue } = require('../../utils/orderSource.util');
 const Product = require('../../models/Product');
 const { debugLog } = require('../../utils/debug.util');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../../utils/pickingZone.util');
 const {
   buildDetachedSalesOrderMongoUpdate,
   hasDeliveryOperationalData,
@@ -3339,12 +3340,12 @@ function getPayableAmountForMasterChild(child = {}) {
 }
 
 function normalizeWarehouseForMasterPrint(item = {}, product = {}) {
-  const raw = cleanMasterPrintText(product.defaultWarehouse || product.warehouseCode || item.warehouseCode || item.warehouse || item.khoCode || 'KHO_HC').toUpperCase();
-  return raw.includes('PC') ? 'KHO_PC' : 'KHO_HC';
+  const zone = normalizePickingZone(pickingZoneFrom(item, product), PICKING_ZONES.HC);
+  return legacyPrintGroupCode(zone);
 }
 
 function getWarehouseNameForMasterPrint(code) {
-  return code === 'KHO_PC' ? 'KHO PC' : 'KHO HC';
+  return pickingZoneLabel(code);
 }
 
 async function buildAggregateMasterPrintDocument(body = {}) {
@@ -3421,7 +3422,8 @@ async function buildAggregateMasterPrintDocument(body = {}) {
       const price = getItemPriceForMasterPrint(item, product);
       const quantity = getItemQuantityForMasterPrint(item);
       const pack = getItemPackForMasterPrint(item, product);
-      const key = [productCode, productName, unit, price].map(cleanMasterPrintText).join('|');
+      const pickingZone = normalizePickingZone(pickingZoneFrom(item, product), PICKING_ZONES.HC);
+      const key = [pickingZone, productCode, productName, unit, price].map(cleanMasterPrintText).join('|');
       const row = grouped.get(key) || {
         code: productCode,
         productCode,
@@ -3435,6 +3437,7 @@ async function buildAggregateMasterPrintDocument(body = {}) {
         amount: 0,
         conversionRate: pack,
         packingQty: pack,
+        pickingZone,
         warehouseCode: normalizeWarehouseForMasterPrint(item, product),
         warehouseName: getWarehouseNameForMasterPrint(normalizeWarehouseForMasterPrint(item, product)),
         sourceOrderCodes: [],
@@ -3449,7 +3452,14 @@ async function buildAggregateMasterPrintDocument(body = {}) {
     }
   }
 
-  const items = Array.from(grouped.values()).sort((a, b) => String(a.code).localeCompare(String(b.code), 'vi', { numeric: true }));
+  const items = Array.from(grouped.values()).sort((a, b) => {
+    const zoneOrder = { HC: 0, PC: 1, UNASSIGNED: 2 };
+    const zoneCompare = (zoneOrder[a.pickingZone] ?? 99) - (zoneOrder[b.pickingZone] ?? 99);
+    if (zoneCompare) return zoneCompare;
+    const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), 'vi', { sensitivity: 'base', numeric: true });
+    if (nameCompare) return nameCompare;
+    return String(a.code || '').localeCompare(String(b.code || ''), 'vi', { numeric: true });
+  });
   const totalQty = items.reduce((sum, item) => sum + toNumber(item.qty), 0);
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
   const firstMaster = masterOrders[0] || {};

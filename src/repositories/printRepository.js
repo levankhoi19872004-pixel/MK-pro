@@ -2,6 +2,7 @@
 
 const { toNumber } = require('../utils/common.util');
 const PrintPromotionPolicy = require('../domain/print/PrintPromotionPolicy');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 const orderRepository = require('./orderRepository');
 const masterOrderRepository = require('./masterOrderRepository');
@@ -231,8 +232,9 @@ async function enrichMasterOrderForPrint(masterOrder = {}) {
       const code = getItemProductCode(item);
       if (!code) continue;
       const product = productMap.get(code) || {};
-      const warehouseCode = normalizeWarehouseCode(product.warehouseCode || item.warehouseCode || item.warehouse || 'KHO_HC');
-      const warehouseName = cleanText(product.warehouseName || item.warehouseName) || warehouseNameFromCode(warehouseCode);
+      const pickingZone = normalizePickingZone(pickingZoneFrom(item, product), PICKING_ZONES.HC);
+      const warehouseCode = legacyPrintGroupCode(pickingZone);
+      const warehouseName = pickingZoneLabel(pickingZone);
       const qty = getItemQty(item);
       const salePrice = toNumber(product.salePrice ?? item.salePrice ?? item.price ?? item.unitPrice);
       const key = `${warehouseCode}|${code}`;
@@ -244,6 +246,7 @@ async function enrichMasterOrderForPrint(masterOrder = {}) {
         unit: cleanText(product.unit || item.unit || item.dvt || 'Cái'),
         conversionRate: getItemPack(item, product),
         packingQty: getItemPack(item, product),
+        pickingZone,
         warehouseCode,
         warehouseName,
         salePrice,

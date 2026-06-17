@@ -17,6 +17,7 @@ const {
   pickDeliveryStaffCode,
   pickDeliveryStaffName
 } = require('../domain/staff/staffIdentity');
+const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 function stripMongoFields(row = {}) {
   const plain = { ...row };
@@ -1164,7 +1165,7 @@ function productInfoRow(product = {}, idx = 0, stockMap = new Map()) {
   const used = [
     'code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category',
     'unit', 'baseUnit', 'conversionRate', 'packing', 'salePrice', 'costPrice',
-    'warehouseCode', 'warehouseName', 'defaultWarehouse', 'isActive', 'status', 'createdAt', 'updatedAt'
+    'pickingZone', 'warehouseCode', 'warehouseName', 'defaultWarehouse', 'isActive', 'status', 'createdAt', 'updatedAt'
   ];
   return {
     STT: idx + 1,
@@ -1182,8 +1183,7 @@ function productInfoRow(product = {}, idx = 0, stockMap = new Map()) {
     TonVatLy: toNumber(stock.onHand ?? stock.quantity ?? stock.qty),
     DaGiuCho: toNumber(stock.reservedQty),
     TonKhaDung: toNumber(stock.availableQty),
-    KhoMacDinh: firstText(product, ['warehouseCode', 'defaultWarehouse', 'warehouseName']),
-    TenKhoMacDinh: firstText(product, ['warehouseName', 'defaultWarehouseName']),
+    KhuBocHang: pickingZoneLabel(normalizePickingZone(pickingZoneFrom(product), PICKING_ZONES.HC)),
     TrangThai: boolStatus(product.isActive ?? product.status),
     NgayTao: normalizeDateOnly(product.createdAt),
     NgayCapNhat: normalizeDateOnly(product.updatedAt),

@@ -11,6 +11,7 @@ const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 const REQUIRED_SNAPSHOT_FIELDS = [
   'catalogSalePriceAtOrder',
   'conversionRateAtOrder',
+  'pickingZoneAtOrder',
   'warehouseCodeAtOrder',
   'productSnapshot'
 ];
@@ -33,7 +34,7 @@ test('mobile sales order capture keeps print-critical product snapshot fields', 
   assert.match(legacy, /finalPrice:\s*salePrice/);
 });
 
-test('Excel DMS import captures historical price, pack and warehouse snapshots', () => {
+test('Excel DMS import captures historical price, pack and picking-zone snapshots', () => {
   const source = read('src/services/excelImportService.js');
   for (const field of REQUIRED_SNAPSHOT_FIELDS) assert.match(source, new RegExp(field));
   assert.match(source, /const conversionRateAtOrder = getPackingFromRow\(row, product\)/);

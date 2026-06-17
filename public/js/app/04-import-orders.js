@@ -53,11 +53,12 @@ function addImportItem(){
   if(quantity<=0){showMessage(importMessage,'Số lượng nhập phải lớn hơn 0',true);return}
   const meta=productLineMeta(p);
   // HC/PC chỉ là nhóm in/gộp đơn nhập, không phải kho tồn.
-  const warehouseCode=meta.printGroup||meta.warehouseCode||p.printGroup||p.defaultWarehouse||p.warehouseCode||'KHO_HC';
-  const warehouseName=meta.printGroupName||meta.warehouseName||(warehouseCode==='KHO_PC'?'KHO PC':'KHO HC');
+  const pickingZone=meta.pickingZone||p.pickingZone||((meta.printGroup||meta.warehouseCode||p.printGroup||p.defaultWarehouse||p.warehouseCode)==='KHO_PC'?'PC':'HC');
+  const warehouseCode=pickingZone==='PC'?'KHO_PC':'KHO_HC';
+  const warehouseName=pickingZone;
   const productCode=p.code||p.productCode||p.sku||getProductKey(p);
   const existed=importItems.find(i=>i.productCode===productCode&&i.costPrice===costPrice&&String(i.warehouseCode||'KHO_HC')===String(warehouseCode));
-  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.costPrice}else importItems.push({productId:getProductKey(p),productCode,productName:p.name||p.productName||'',...meta,printGroup:warehouseCode,printGroupName:warehouseName,warehouseCode,warehouseName,quantity,costPrice,amount:quantity*costPrice});
+  if(existed){existed.quantity+=quantity;existed.amount=existed.quantity*existed.costPrice}else importItems.push({productId:getProductKey(p),productCode,productName:p.name||p.productName||'',...meta,pickingZone,printGroup:warehouseCode,printGroupName:warehouseName,warehouseCode,warehouseName,quantity,costPrice,amount:quantity*costPrice});
   importQuantity.value=1;importProductSelect.value='';window.__selectedImportProduct=null;if(importProductSearch){importProductSearch.value='';importProductSearch.dataset.selectedId='';}if(importCostPrice)importCostPrice.value=0;showMessage(importMessage,'');renderImportItems();
 }
 function resetImportFormAfterSave(){
@@ -118,6 +119,7 @@ function editImportOrder(idx){
     baseUnit:i.baseUnit||'',
     conversionRate:Number(i.conversionRate||1),
     packing:i.packing||'',
+    pickingZone:i.pickingZone||((i.printGroup||i.warehouseCode)==='KHO_PC'?'PC':'HC'),
     printGroup:i.printGroup||i.warehouseCode||'KHO_HC',
     printGroupName:i.printGroupName||i.warehouseName||((i.printGroup||i.warehouseCode||'KHO_HC')==='KHO_PC'?'KHO PC':'KHO HC'),
     warehouseCode:i.warehouseCode||i.printGroup||'KHO_HC',
@@ -139,7 +141,7 @@ async function submitImportOrder(event){
   event.preventDefault();
   if(!importItems.length){showMessage(importMessage,'Phiếu nhập chưa có dòng hàng',true);return}
   const payload=Object.fromEntries(new FormData(importForm).entries());
-  payload.items=importItems.map(i=>({productCode:i.productCode,productId:i.productId,quantity:i.quantity,printGroup:i.printGroup||i.warehouseCode,printGroupName:i.printGroupName||i.warehouseName,warehouseCode:i.warehouseCode,warehouseName:i.warehouseName}));
+  payload.items=importItems.map(i=>({productCode:i.productCode,productId:i.productId,quantity:i.quantity,pickingZone:i.pickingZone||((i.printGroup||i.warehouseCode)==='KHO_PC'?'PC':'HC'),printGroup:i.printGroup||i.warehouseCode,printGroupName:i.printGroupName||i.warehouseName,warehouseCode:i.warehouseCode,warehouseName:i.warehouseName}));
   try{
     const url=editingImportOrderId?`/api/import-orders/${encodeURIComponent(editingImportOrderId)}`:'/api/import-orders';
     const method=editingImportOrderId?'PUT':'POST';

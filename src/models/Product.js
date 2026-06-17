@@ -1,5 +1,6 @@
 const { normalizeSearchText } = require('../utils/search.util');
 const mongoose = require('mongoose');
+const { normalizePickingZone, pickingZoneFrom, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 
 
@@ -21,13 +22,19 @@ const productSchema = new mongoose.Schema({
   brand: { type: String, default: '', trim: true },
   costPrice: { type: Number, default: 0 },
   salePrice: { type: Number, default: 0 },
-  // Kho mặc định dùng để chia phiếu nhặt hàng/in đơn tổng cho NPP có nhiều kho.
-  // warehouseCode/warehouseName giữ lại để tương thích dữ liệu cũ.
-  // Không dùng các field này làm kho tồn; tồn kho luôn ghi vào MAIN.
-  warehouseCode: { type: String, default: 'KHO_HC', trim: true },
-  warehouseName: { type: String, default: 'KHO HC', trim: true },
-  printGroup: { type: String, default: 'KHO_HC', trim: true },
-  printGroupName: { type: String, default: 'KHO HC', trim: true },
+  // Khu bốc hàng chỉ dùng để phân chia phiếu in đơn tổng HC/PC.
+  // Không tham gia quản lý tồn kho; tồn vật lý luôn thuộc kho MAIN.
+  pickingZone: {
+    type: String,
+    enum: Object.values(PICKING_ZONES),
+    trim: true
+  },
+  // Các field cũ chỉ giữ để đọc dữ liệu lịch sử trong giai đoạn chuyển tiếp.
+  // Code mới không được dùng chúng để xác định kho tồn.
+  warehouseCode: { type: String, trim: true },
+  warehouseName: { type: String, trim: true },
+  printGroup: { type: String, trim: true },
+  printGroupName: { type: String, trim: true },
   // Products là danh mục: không lưu tồn thực tế tại đây.
   // minStock/maxStock chỉ là ngưỡng cảnh báo, không phải số tồn.
   minStock: { type: Number, default: 0 },
@@ -40,7 +47,8 @@ const productSchema = new mongoose.Schema({
 
 
 productSchema.pre('validate', function buildSearchText(next) {
-  this.searchText = normalizeSearchText([this.code, this.sku, this.productCode, this.name, this.productName, this.barcode, this.category, this.brand, this.warehouseCode, this.warehouseName, this.printGroup, this.printGroupName, this.packing, this.unit, this.baseUnit].filter(Boolean).join(' '));
+  this.pickingZone = normalizePickingZone(pickingZoneFrom(this), PICKING_ZONES.HC);
+  this.searchText = normalizeSearchText([this.code, this.sku, this.productCode, this.name, this.productName, this.barcode, this.category, this.brand, this.pickingZone, this.packing, this.unit, this.baseUnit].filter(Boolean).join(' '));
   next();
 });
 

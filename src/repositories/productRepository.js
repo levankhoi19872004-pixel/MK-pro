@@ -5,6 +5,7 @@ const { normalizeSearchText } = require('../utils/search.util');
 const Product = require('../models/Product');
 const { buildIdentityFilter } = require('../utils/identity.util');
 const { getPagination, wantsPagination, buildPageMeta, escapeRegex } = require('../utils/query.util');
+const { normalizePickingZone, pickingZoneFrom, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 
 function buildMongoFilter(idOrCode) {
@@ -55,6 +56,8 @@ function buildQueryFilter(query = {}) {
       { name: { $regex: rawRegex, $options: 'i' } },
       { category: { $regex: rawRegex, $options: 'i' } },
       { brand: { $regex: rawRegex, $options: 'i' } },
+      { pickingZone: { $regex: rawRegex, $options: 'i' } },
+      // Legacy read compatibility during migration.
       { warehouseCode: { $regex: rawRegex, $options: 'i' } },
       { warehouseName: { $regex: rawRegex, $options: 'i' } },
       { packing: { $regex: rawRegex, $options: 'i' } },
@@ -79,6 +82,7 @@ function productSearchRank(product = {}, keyword = '') {
   const category = normalizeSearchText(product.category || '');
   const brand = normalizeSearchText(product.brand || '');
   const packing = normalizeSearchText(product.packing || '');
+  const pickingZone = normalizeSearchText(normalizePickingZone(pickingZoneFrom(product), PICKING_ZONES.HC));
   const warehouseCode = normalizeSearchText(product.warehouseCode || '');
   const warehouseName = normalizeSearchText(product.warehouseName || '');
   const searchText = normalizeSearchText(product.searchText || '');
@@ -94,7 +98,7 @@ function productSearchRank(product = {}, keyword = '') {
   if (barcode && barcode.includes(q)) return 35;
   if (name.startsWith(q)) return 40;
   if (name.includes(q)) return 50;
-  if (category.includes(q) || brand.includes(q) || warehouseCode.includes(q) || warehouseName.includes(q) || packing.includes(q)) return 60;
+  if (category.includes(q) || brand.includes(q) || pickingZone.includes(q) || warehouseCode.includes(q) || warehouseName.includes(q) || packing.includes(q)) return 60;
   if (searchText.includes(q)) return 70;
   return 0;
 }
@@ -134,7 +138,7 @@ async function search(query = {}) {
 
   const filter = buildQueryFilter({ ...query, activeOnly: query.activeOnly ?? '1' });
   const candidates = await Product.find(filter)
-    .select('code name unit baseUnit conversionRate packing barcode category brand warehouseCode warehouseName salePrice costPrice minStock maxStock isActive searchText')
+    .select('code name unit baseUnit conversionRate packing barcode category brand pickingZone warehouseCode warehouseName salePrice costPrice minStock maxStock isActive searchText')
     .sort({ code: 1 })
     .lean();
 
@@ -155,7 +159,7 @@ async function findByCodes(codes = []) {
       { barcode: { $in: values } }
     ]
   })
-    .select('id code sku productCode name unit baseUnit conversionRate packing barcode category brand warehouseCode warehouseName salePrice costPrice isActive')
+    .select('id code sku productCode name unit baseUnit conversionRate packing barcode category brand pickingZone warehouseCode warehouseName salePrice costPrice isActive')
     .lean();
 }
 

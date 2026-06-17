@@ -38,6 +38,8 @@
     "pretest": "npm run cleanup:retired",
     "migrate:staff-identity:dry": "node scripts/migrate-canonical-staff-identity.js",
     "migrate:staff-identity": "node scripts/migrate-canonical-staff-identity.js --write",
+    "migrate:picking-zone:dry": "node scripts/migrate-product-picking-zone.js",
+    "migrate:picking-zone": "node scripts/migrate-product-picking-zone.js --write",
     "migrate:return-state:dry": "node scripts/migrate-return-state-machine.js",
     "mongo:index-audit": "node scripts/audit-mongo-indexes.js",
     "mongo:index-cleanup": "node scripts/audit-mongo-indexes.js --write",

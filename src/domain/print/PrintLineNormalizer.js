@@ -2,24 +2,19 @@
 
 const { calculateCartonUnit, toNumber } = require('../../utils/common.util');
 const { cleanText, uniqueText } = require('./PrintContract');
+const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, legacyPrintGroupCode, PICKING_ZONES } = require('../../utils/pickingZone.util');
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
 function normalizeWarehouseCode(value) {
-  const raw = cleanText(value).toUpperCase().replace(/[\s-]+/g, '_');
-  if (!raw) return 'KHO_HC';
-  if (raw === 'PC' || raw === 'KHO_PC' || raw.includes('KHO_PC')) return 'KHO_PC';
-  if (raw === 'HC' || raw === 'KHO_HC' || raw.includes('KHO_HC')) return 'KHO_HC';
-  return raw;
+  return legacyPrintGroupCode(normalizePickingZone(value, PICKING_ZONES.HC));
 }
 
 function warehouseNameFromCode(code) {
-  const normalized = normalizeWarehouseCode(code);
-  if (normalized === 'KHO_PC') return 'KHO PC';
-  if (normalized === 'KHO_HC') return 'KHO HC';
-  return normalized.replace(/_/g, ' ');
+  const zone = normalizePickingZone(code, PICKING_ZONES.UNASSIGNED);
+  return pickingZoneLabel(zone);
 }
 
 function productCodeOf(item = {}, product = {}) {
@@ -77,25 +72,15 @@ function conversionRateOf(item = {}, product = {}) {
   )) || 1;
 }
 
+function pickingZoneOf(item = {}, parent = {}, product = {}) {
+  return normalizePickingZone(
+    pickingZoneFrom(item, item.productSnapshot, item.product, parent, product),
+    PICKING_ZONES.HC
+  );
+}
+
 function warehouseCodeOf(item = {}, parent = {}, product = {}) {
-  return normalizeWarehouseCode(firstDefined(
-    item.warehouseCodeAtOrder,
-    item.defaultWarehouseAtOrder,
-    item.productSnapshot?.warehouseCode,
-    item.productSnapshot?.defaultWarehouse,
-    item.warehouseCode,
-    item.defaultWarehouse,
-    item.warehouse,
-    item.khoCode,
-    item.product?.warehouseCode,
-    item.product?.defaultWarehouse,
-    parent.warehouseCode,
-    parent.defaultWarehouse,
-    parent.warehouse,
-    product.defaultWarehouse,
-    product.warehouseCode,
-    'KHO_HC'
-  ));
+  return legacyPrintGroupCode(pickingZoneOf(item, parent, product));
 }
 
 function catalogPriceOf(item = {}, product = {}) {
@@ -174,7 +159,8 @@ function normalizeLine(item = {}, context = {}) {
   const quantity = quantityOf(item, mode);
   const conversionRate = conversionRateOf(item, product);
   const carton = calculateCartonUnit(quantity, conversionRate);
-  const warehouseCode = warehouseCodeOf(item, parent, product);
+  const pickingZone = pickingZoneOf(item, parent, product);
+  const warehouseCode = legacyPrintGroupCode(pickingZone);
   const lineType = lineTypeOf(item, mode);
   const catalogPrice = catalogPriceOf(item, product);
   const finalPrice = lineType === 'PROMO' ? 0 : finalPriceOf(item, product);
@@ -203,8 +189,9 @@ function normalizeLine(item = {}, context = {}) {
 
   return {
     lineType,
+    pickingZone,
     warehouseCode,
-    warehouseName: cleanText(firstDefined(item.warehouseNameAtOrder, item.warehouseName, warehouseNameFromCode(warehouseCode))),
+    warehouseName: pickingZoneLabel(pickingZone),
     productCode: productCodeOf(item, product),
     productName: productNameOf(item, product),
     baseUnit: cleanText(firstDefined(item.baseUnitAtOrder, item.unit, item.dvt, item.uom, item.productSnapshot?.unit, product.unit, product.baseUnit, 'Cái')),
@@ -240,6 +227,7 @@ module.exports = {
   productNameOf,
   quantityOf,
   conversionRateOf,
+  pickingZoneOf,
   warehouseCodeOf,
   catalogPriceOf,
   finalPriceOf,

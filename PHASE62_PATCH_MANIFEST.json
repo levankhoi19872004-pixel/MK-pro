@@ -1,0 +1,58 @@
+{
+  "phase": 62,
+  "name": "picking-zone-master-order-alpha",
+  "source": "MK-pro-phase61-delivery-fund-split-tabs-patched(1).zip",
+  "businessRules": {
+    "physicalWarehouse": "MAIN",
+    "pickingZones": ["HC", "PC", "UNASSIGNED"],
+    "pickingZoneAffectsInventory": false,
+    "masterOrderPrintPageOrder": ["HC", "PC", "UNASSIGNED"],
+    "masterOrderItemSort": "PRODUCT_NAME_ASC"
+  },
+  "addedFiles": [
+    "src/utils/pickingZone.util.js",
+    "scripts/migrate-product-picking-zone.js",
+    "test/picking-zone-master-order-alpha.test.js",
+    "PHASE62_PICKING_ZONE_MASTER_ORDER_ALPHA_REPORT.md",
+    "PHASE62_PATCH_MANIFEST.json",
+    "QUALITY_GATE_RESULTS_PHASE62.txt"
+  ],
+  "modifiedFiles": [
+    "package.json",
+    "public/index.html",
+    "public/js/app/01-utils-print-tabs.js",
+    "public/js/app/02-products.js",
+    "public/js/app/04-import-orders.js",
+    "services/excelTemplateService.js",
+    "services/printDataBuilder.legacy.js",
+    "src/domain/print/PrintLineNormalizer.js",
+    "src/domain/print/builders/MasterPickingBuilder.js",
+    "src/mobile/mobileContext.js",
+    "src/models/Product.js",
+    "src/repositories/printRepository.js",
+    "src/repositories/productRepository.js",
+    "src/services/excelImportService.js",
+    "src/services/importExportLegacy.service.js",
+    "src/services/importOrderService.js",
+    "src/services/master-order/masterOrderLegacy.service.js",
+    "src/services/mobile/sales.service.js",
+    "src/services/orderLegacy.service.js",
+    "src/services/productService.js",
+    "test/fund-ledger-customer-counterparty-ui.test.js",
+    "test/master-order-popup-selection-ui-static.test.js",
+    "test/print-order-snapshot-capture-static.test.js",
+    "test/print-profile-render.test.js"
+  ],
+  "migration": {
+    "dryRun": "npm run migrate:picking-zone:dry",
+    "write": "npm run migrate:picking-zone",
+    "destructive": false,
+    "removesLegacyFields": false
+  },
+  "qualityGate": {
+    "syntaxFiles": 652,
+    "testsPassed": 568,
+    "testsFailed": 0,
+    "testsSkipped": 0
+  }
+}

@@ -4,6 +4,25 @@ const { toNumber } = require('../../../utils/common.util');
 const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText, uniqueText } = require('../PrintContract');
 const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
+const { pickingZoneLabel, PICKING_ZONES } = require('../../../utils/pickingZone.util');
+
+
+function compareMasterPickingLines(a = {}, b = {}) {
+  const zoneOrder = { [PICKING_ZONES.HC]: 0, [PICKING_ZONES.PC]: 1, [PICKING_ZONES.UNASSIGNED]: 2 };
+  const zoneCompare = (zoneOrder[a.pickingZone] ?? 99) - (zoneOrder[b.pickingZone] ?? 99);
+  if (zoneCompare) return zoneCompare;
+
+  const nameCompare = cleanText(a.productName).localeCompare(cleanText(b.productName), 'vi', {
+    sensitivity: 'base',
+    numeric: true
+  });
+  if (nameCompare) return nameCompare;
+
+  const codeCompare = cleanText(a.productCode).localeCompare(cleanText(b.productCode), 'vi', { numeric: true });
+  if (codeCompare) return codeCompare;
+
+  return toNumber(a.catalogPrice) - toNumber(b.catalogPrice);
+}
 
 function payableAmount(child = {}) {
   const explicit = toNumber(child.payableAmount ?? child.mustPay ?? child.totalPayable ?? child.totalAmount ?? child.amount ?? child.grandTotal);
@@ -67,7 +86,7 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
     }
   }
 
-  const mergedLines = mergeLines(rawLines, { priceField: 'catalogPrice' });
+  const mergedLines = mergeLines(rawLines, { priceField: 'catalogPrice' }).sort(compareMasterPickingLines);
   const normalizedItems = mergedLines.map((line) => ({
     code: line.productCode,
     productCode: line.productCode,
@@ -78,8 +97,9 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
     qty: line.quantity,
     conversionRate: line.conversionRate,
     packingQty: line.conversionRate,
+    pickingZone: line.pickingZone,
     warehouseCode: line.warehouseCode,
-    warehouseName: line.warehouseName,
+    warehouseName: pickingZoneLabel(line.pickingZone),
     salePrice: line.catalogPrice,
     price: line.catalogPrice,
     finalPrice: line.finalPrice,
@@ -111,7 +131,7 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
       documentDate: cleanText(context.date || first.deliveryDate || first.date || first.documentDate || first.createdAt),
       sourceCodes: masterCodes,
       status: isAggregate ? 'aggregate' : first.status,
-      title: isAggregate ? 'ĐƠN TỔNG GỘP' : 'PHIẾU NHẶT HÀNG ĐƠN TỔNG',
+      title: isAggregate ? 'PHIẾU BỐC HÀNG ĐƠN TỔNG GỘP' : 'PHIẾU BỐC HÀNG ĐƠN TỔNG',
       printMode: isAggregate ? 'MASTER_AGGREGATE_SELECTED' : 'MASTER_PICKING_BY_WAREHOUSE',
       note: cleanText(first.note || first.deliveryNote)
     },
@@ -130,7 +150,9 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
       selectedMasterOrderCount: masterOrders.length
     },
     metadata: {
-      mergeKey: 'warehouseCode+lineType+productCode+catalogPrice',
+      mergeKey: 'pickingZone+lineType+productCode+catalogPrice',
+      itemSort: 'PRODUCT_NAME_ASC',
+      pickingZonePolicy: 'HC_PC_PRINT_ONLY_INVENTORY_MAIN',
       pricingPolicy: 'ORDER_SNAPSHOT_FIRST_PRODUCT_FALLBACK'
     }
   });
@@ -156,6 +178,7 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
     masterKpis: kpis.rows,
     masterKpiTotals: kpis.totals,
     items: normalizedItems,
+    itemSort: 'PRODUCT_NAME_ASC',
     printMode: contract.document.printMode,
     printProfile: contract.profile,
     printContract: contract
@@ -163,5 +186,6 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
 }
 
 module.exports = {
-  buildMasterPicking
+  buildMasterPicking,
+  compareMasterPickingLines
 };

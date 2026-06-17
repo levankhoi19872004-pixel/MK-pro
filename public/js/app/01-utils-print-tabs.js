@@ -117,8 +117,10 @@ function productLineMeta(p){
     unitsPerCase:conversionRate,
     packing:productPackingText({...p, conversionRate}),
     units:Array.isArray(p.units)?p.units:[],
-    warehouseCode:p.warehouseCode||p.defaultWarehouse||'KHO_HC',
-    warehouseName:p.warehouseName||((p.warehouseCode||p.defaultWarehouse)==='KHO_PC'?'KHO PC':'KHO HC')
+    pickingZoneAtOrder:p.pickingZone||((p.printGroup||p.warehouseCode||p.defaultWarehouse)==='KHO_PC'?'PC':'HC'),
+    // Alias chỉ phục vụ tương thích bản in cũ; tồn kho luôn là MAIN.
+    warehouseCode:(p.pickingZone==='PC'||p.printGroup==='KHO_PC'||p.warehouseCode==='KHO_PC'||p.defaultWarehouse==='KHO_PC')?'KHO_PC':'KHO_HC',
+    warehouseName:(p.pickingZone==='PC'||p.printGroup==='KHO_PC'||p.warehouseCode==='KHO_PC'||p.defaultWarehouse==='KHO_PC')?'KHO PC':'KHO HC'
   };
 }
 function getProductKey(p){return String(p?.code||p?.id||'')}

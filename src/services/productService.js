@@ -6,21 +6,11 @@ const productRepository = require('../repositories/productRepository');
 const queryGuard = require('../utils/queryGuard.util');
 const searchService = require('./searchService');
 const inventoryStockService = require('./inventoryStock.service');
+const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 
 const { toNumber, normalizePacking, formatCaseLooseQty } = require('../utils/common.util');
 
-
-function normalizeWarehouseCode(value) {
-  const raw = String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
-  if (raw === 'KHO_PC' || raw === 'PC') return 'KHO_PC';
-  if (raw === 'KHO_HC' || raw === 'HC') return 'KHO_HC';
-  return 'KHO_HC';
-}
-
-function warehouseNameFromCode(code) {
-  return normalizeWarehouseCode(code) === 'KHO_PC' ? 'KHO PC' : 'KHO HC';
-}
 
 function pickProductPayload(body = {}) {
   return {
@@ -32,11 +22,11 @@ function pickProductPayload(body = {}) {
     brand: String(body.brand || '').trim(),
     costPrice: toNumber(body.costPrice),
     salePrice: toNumber(body.salePrice),
-    // HC/PC là nhóm in/gộp đơn, không phải kho tồn.
-    warehouseCode: normalizeWarehouseCode(body.warehouseCode || body.warehouse || body.kho || body.printGroup),
-    warehouseName: warehouseNameFromCode(body.warehouseCode || body.warehouse || body.kho || body.printGroup),
-    printGroup: normalizeWarehouseCode(body.printGroup || body.warehouseCode || body.warehouse || body.kho),
-    printGroupName: warehouseNameFromCode(body.printGroup || body.warehouseCode || body.warehouse || body.kho),
+    // Chỉ là khu bốc hàng khi in đơn tổng; không phải kho tồn.
+    pickingZone: normalizePickingZone(
+      body.pickingZone || body.printGroup || body.warehouseCode || body.warehouse || body.kho,
+      PICKING_ZONES.HC
+    ),
     minStock: toNumber(body.minStock),
     maxStock: toNumber(body.maxStock),
     // Phase 3.4: products chỉ lưu danh mục, không nhận/lưu số tồn.
@@ -78,8 +68,11 @@ function toClient(product, snapshot = null) {
   // Nếu chưa có inventories thì hiển thị 0, không fallback về field tồn legacy trên products.
   const stockSource = snapshot || {};
   const stock = stockFromSnapshot({ ...stockSource, conversionRate: raw.conversionRate || 1 });
+  const pickingZone = normalizePickingZone(pickingZoneFrom(raw), PICKING_ZONES.HC);
   return {
     ...clean,
+    pickingZone,
+    pickingZoneName: pickingZoneLabel(pickingZone),
     code,
     sku: raw.sku || code,
     productCode: raw.productCode || code,
@@ -148,7 +141,7 @@ async function listProducts(query = {}) {
   const guardedQuery = { ...(query || {}), page: query?.page || 1, limit: queryGuard.clampLimit(query?.limit) };
   const q = String(guardedQuery.q || guardedQuery.search || '').trim();
   const allowUnfiltered = String(guardedQuery.allowAll || '') === '1';
-  if (!allowUnfiltered && q.length < 2 && !guardedQuery.code && !guardedQuery.productCode && !guardedQuery.warehouseCode) {
+  if (!allowUnfiltered && q.length < 2 && !guardedQuery.code && !guardedQuery.productCode && !guardedQuery.pickingZone && !guardedQuery.warehouseCode) {
     return { products: [], meta: { page: 1, limit: guardedQuery.limit, total: 0, message: 'Nhập ít nhất 2 ký tự để tải sản phẩm' } };
   }
   const result = await productRepository.findAll(guardedQuery);
@@ -170,7 +163,7 @@ async function searchProducts(query = {}) {
 
 async function createProduct(body) {
   const payload = pickProductPayload(body);
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.printGroup, payload.printGroupName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.pickingZone, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
@@ -183,12 +176,12 @@ async function updateProduct(id, body) {
   const current = await productRepository.findByIdOrCode(id);
   if (!current) return { error: 'Không tìm thấy sản phẩm trong MongoDB', status: 404 };
   const payload = pickProductPayload(body);
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.printGroup, payload.printGroupName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.pickingZone, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   const error = validateProduct(payload);
   if (error) return { error, status: 400 };
   if (await productRepository.findDuplicateCode(payload.code, current._id)) return { error: 'Mã sản phẩm đã tồn tại trong MongoDB', status: 409 };
   if (payload.barcode && await productRepository.findDuplicateBarcode(payload.barcode, current._id)) return { error: 'Mã vạch đã tồn tại trong MongoDB', status: 409 };
-  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.warehouseCode, payload.warehouseName, payload.printGroup, payload.printGroupName, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
+  payload.searchText = normalizeSearchText([payload.code, payload.name, payload.barcode, payload.category, payload.brand, payload.pickingZone, payload.packing, payload.unit, payload.baseUnit].filter(Boolean).join(' '));
   Object.assign(current, payload);
   // Xóa các field tồn cũ nếu còn sót trên document vì products chỉ là danh mục.
   for (const field of ['openingStock', 'availableStock', 'stockQuantity', 'availableQty', 'stock', 'quantity', 'qty', 'tonKho', 'tonDau']) {

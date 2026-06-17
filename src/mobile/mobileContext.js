@@ -21,6 +21,7 @@ const {
   pickUserAccountSalesStaffCode,
   pickUserAccountDeliveryStaffCode
 } = require('../domain/staff/staffIdentity');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 const ROLE_LABELS = {
   admin: 'Admin - toàn quyền',
@@ -267,7 +268,8 @@ function buildProductLineMeta(product = {}) {
   const productName = product.name || product.productName || '';
   const unit = product.unit || product.baseUnit || '';
   const conversionRate = toNumber(product.conversionRate || 1) || 1;
-  const warehouseCode = product.defaultWarehouse || product.warehouseCode || 'KHO_HC';
+  const pickingZone = normalizePickingZone(pickingZoneFrom(product), PICKING_ZONES.HC);
+  const warehouseCode = legacyPrintGroupCode(pickingZone);
   const catalogSalePrice = toNumber(product.salePrice || product.price || 0);
 
   return {
@@ -276,6 +278,7 @@ function buildProductLineMeta(product = {}) {
     conversionRate,
     conversionRateAtOrder: conversionRate,
     packing: product.packing || '',
+    pickingZoneAtOrder: pickingZone,
     warehouseCodeAtOrder: warehouseCode,
     catalogSalePriceAtOrder: catalogSalePrice,
     brand: product.brand || '',
@@ -288,6 +291,7 @@ function buildProductLineMeta(product = {}) {
       unit,
       conversionRate,
       salePrice: catalogSalePrice,
+      pickingZone,
       warehouseCode,
       defaultWarehouse: warehouseCode
     }

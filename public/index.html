@@ -205,11 +205,12 @@
               <label>Quy đổi / 1 ĐVT bán<input name="conversionRate" type="number" min="1" step="1" placeholder="VD: 12" /></label>
             </div>
             <label>Quy cách đóng gói<input name="packing" placeholder="VD: 1 thùng = 12 chai" /></label>
-            <label>Kho mặc định
-              <select name="warehouseCode">
-                <option value="KHO_HC">KHO HC</option>
-                <option value="KHO_PC">KHO PC</option>
+            <label>Khu bốc hàng khi in đơn tổng
+              <select name="pickingZone" required>
+                <option value="HC">HC</option>
+                <option value="PC">PC</option>
               </select>
+              <small class="muted">Chỉ dùng để tách phiếu bốc hàng HC/PC; không ảnh hưởng tồn kho MAIN.</small>
             </label>
             <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
             <div class="two-cols">
@@ -2077,14 +2078,14 @@
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
-  <script src="/js/app/01-utils-print-tabs.js?v=phase42-fund-customer-v1"></script>
-  <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
+  <script src="/js/app/01-utils-print-tabs.js?v=phase62-picking-zone-v1"></script>
+  <script src="/js/app/02-products.js?v=phase62-picking-zone-v1"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=phase46-customer-business-name-v1"></script>
-  <script src="/js/app/04-import-orders.js?v=phase26-bootstrap-collision-fix-v1"></script>
+  <script src="/js/app/04-import-orders.js?v=phase62-picking-zone-v1"></script>
   <script src="/js/app/05-sales-orders.js?v=phase49-sales-order-global-search-v1"></script>
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
-  <script src="/js/app/06-master-delivery.js?v=phase48-master-child-selection-fix-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=phase62-picking-zone-v1"></script>
   <script src="/js/app/debt/07a-debt-core.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07b-return-orders.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>

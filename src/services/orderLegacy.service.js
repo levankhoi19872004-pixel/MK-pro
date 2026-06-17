@@ -22,6 +22,7 @@ const promotionService = require('./promotionService');
 const orderStatusUtil = require('../utils/orderStatus.util');
 const { DIRECT_PRICE, PROMOTION, normalizePricingMode } = require('../constants/pricingModes');
 const { debugLog } = require('../utils/debug.util');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, PICKING_ZONES } = require('../utils/pickingZone.util');
 
 
 
@@ -277,14 +278,12 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
     const productCode = item.productCode || product.code || product.sku || product.productCode;
     const productName = item.productName || product.name;
     const conversionRateAtOrder = toNumber(item.conversionRateAtOrder || item.conversionRate || product.conversionRate || 1) || 1;
-    const warehouseCodeAtOrder = String(
-      item.warehouseCodeAtOrder ||
-      item.warehouseCode ||
-      item.defaultWarehouse ||
-      product.defaultWarehouse ||
-      product.warehouseCode ||
-      'KHO_HC'
-    ).trim();
+    const pickingZoneAtOrder = normalizePickingZone(
+      pickingZoneFrom(item, product),
+      PICKING_ZONES.HC
+    );
+    // Alias chỉ phục vụ tương thích mẫu in cũ; không phải kho tồn.
+    const warehouseCodeAtOrder = legacyPrintGroupCode(pickingZoneAtOrder);
     const catalogSalePriceAtOrder = toNumber(
       item.catalogSalePriceAtOrder ||
       item.catalogSalePrice ||
@@ -312,6 +311,7 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
       vatAmountAtOrder,
       lineAmountAtOrder,
       conversionRateAtOrder,
+      pickingZoneAtOrder,
       warehouseCodeAtOrder,
       appliedPromotionRows: Array.isArray(item.appliedPromotionRows)
         ? item.appliedPromotionRows
@@ -327,6 +327,7 @@ async function hydrateItemNames(items, saleMode = DIRECT_PRICE) {
         salePrice: catalogSalePriceAtOrder,
         conversionRate: conversionRateAtOrder,
         unit: item.unit || product.unit || product.baseUnit || '',
+        pickingZone: pickingZoneAtOrder,
         warehouseCode: warehouseCodeAtOrder,
         defaultWarehouse: warehouseCodeAtOrder
       },
