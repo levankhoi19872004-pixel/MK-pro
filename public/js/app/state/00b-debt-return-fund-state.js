@@ -144,6 +144,14 @@ const fundTypeFilter=document.getElementById('fundTypeFilter');
 const fundDirectionFilter=document.getElementById('fundDirectionFilter');
 const expenseVoucherTable=document.getElementById('expenseVoucherTable');
 const fundTransferTable=document.getElementById('fundTransferTable');
+const createExpenseVoucherButton=document.getElementById('createExpenseVoucherButton');
+const createFundTransferButton=document.getElementById('createFundTransferButton');
+const deliveryCashSubmissionModal=document.getElementById('deliveryCashSubmissionModal');
+const expenseVoucherModal=document.getElementById('expenseVoucherModal');
+const fundTransferModal=document.getElementById('fundTransferModal');
+const closeDeliveryCashSubmissionModalButton=document.getElementById('closeDeliveryCashSubmissionModalButton');
+const closeExpenseVoucherModalButton=document.getElementById('closeExpenseVoucherModalButton');
+const closeFundTransferModalButton=document.getElementById('closeFundTransferModalButton');
 
 const importDataType=document.getElementById('importDataType');
 const importDataMode=document.getElementById('importDataMode');

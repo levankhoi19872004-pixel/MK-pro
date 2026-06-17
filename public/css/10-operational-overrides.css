@@ -442,6 +442,14 @@
 .funds-main-table-scroll{max-height:calc(100vh - 360px);overflow:auto;border:1px solid #dbe7f6;border-radius:14px;}
 .fund-two-column{display:grid;grid-template-columns:38% 1fr;gap:14px;align-items:start;}
 .fund-form-card,.fund-list-card{border:1px solid #dbe7f6;border-radius:16px;background:#fff;padding:14px;}
+.fund-list-card-full{width:100%;}
+.fund-list-toolbar{align-items:center;}
+.fund-list-toolbar>div{display:grid;gap:3px;}
+.fund-list-toolbar h3{margin:0;}
+.fund-list-toolbar button{white-space:nowrap;}
+.fund-voucher-modal-card{width:min(760px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}
+.fund-voucher-modal-body{padding:16px 20px 20px;overflow:auto;background:#f8fbff;}
+.fund-voucher-modal .fund-form-grid{margin:0;}
 .fund-form-grid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;}
 .fund-form-grid .full-span{grid-column:1/-1;}
 .funds-sub-table-scroll{max-height:calc(100vh - 330px);overflow:auto;border:1px solid #e2e8f0;border-radius:12px;}
@@ -451,6 +459,7 @@
 .fund-status.bad{background:#fee2e2;color:#dc2626;}
 .compact-toolbar{margin-bottom:8px;}
 @media(max-width:1100px){.fund-two-column{grid-template-columns:1fr}.fund-filter-row{grid-template-columns:repeat(2,minmax(160px,1fr));}.fund-form-grid{grid-template-columns:1fr}}
+@media(max-width:640px){.fund-list-toolbar{align-items:stretch;flex-direction:column}.fund-list-toolbar button{width:100%}.fund-voucher-modal{padding:10px}.fund-voucher-modal-card{width:100%;max-height:96vh}.fund-voucher-modal-body{padding:14px}}
 .promotion-inner-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.promotion-panel{display:none}.promotion-panel.active{display:block}.compact-form{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}.compact-form .button-row{align-self:end}.inner-tab.active{background:#0f766e;color:#fff;border-color:#0f766e}
 
 /* ===== V45 Sales history for order-entry screen: only sales fields, no delivery/debt noise ===== */

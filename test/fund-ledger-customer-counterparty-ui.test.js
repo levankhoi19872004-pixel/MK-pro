@@ -71,5 +71,5 @@ test('index cache-busts các script Sổ quỹ đã sửa', () => {
   const file = path.join(ROOT, 'public/index.html');
   const source = fs.readFileSync(file, 'utf8');
   assert.match(source, /01-utils-print-tabs\.js\?v=phase42-fund-customer-v1/);
-  assert.match(source, /07f-fund-ledger\.js\?v=phase42-fund-customer-v1/);
+  assert.match(source, /07f-fund-ledger\.js\?v=phase58-fund-voucher-popup-v1/);
 });

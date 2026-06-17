@@ -61,6 +61,74 @@ function fundFillForm(form,row,keys){
   keys.forEach(k=>{if(form.elements[k])form.elements[k].value=row[k]??'';});
 }
 
+let activeFundVoucherModalType='';
+function fundVoucherUi(type){
+  if(type==='delivery')return {
+    modal:deliveryCashSubmissionModal,
+    form:deliveryCashSubmissionForm,
+    message:deliveryCashSubmissionMessage,
+    title:document.getElementById('deliveryCashSubmissionModalTitle'),
+    createTitle:'Tạo phiếu nộp quỹ giao hàng',
+    editTitle:'Sửa phiếu nộp quỹ giao hàng',
+    dateField:'deliveryDate'
+  };
+  if(type==='expense')return {
+    modal:expenseVoucherModal,
+    form:expenseVoucherForm,
+    message:expenseVoucherMessage,
+    title:document.getElementById('expenseVoucherModalTitle'),
+    createTitle:'Tạo phiếu chi',
+    editTitle:'Sửa phiếu chi',
+    dateField:'date'
+  };
+  if(type==='transfer')return {
+    modal:fundTransferModal,
+    form:fundTransferForm,
+    message:fundTransferMessage,
+    title:document.getElementById('fundTransferModalTitle'),
+    createTitle:'Tạo phiếu nộp ngân hàng',
+    editTitle:'Sửa phiếu nộp ngân hàng',
+    dateField:'date'
+  };
+  return null;
+}
+function fundResetVoucherForm(type){
+  const ui=fundVoucherUi(type);
+  if(!ui||!ui.form)return;
+  ui.form.reset();
+  if(ui.form.elements[ui.dateField])ui.form.elements[ui.dateField].value=today();
+  if(ui.message)showMessage(ui.message,'');
+  fundResetEditing(type);
+}
+function openFundVoucherModal(type,{reset=false}={}){
+  const ui=fundVoucherUi(type);
+  if(!ui||!ui.modal)return;
+  if(reset)fundResetVoucherForm(type);
+  if(ui.title)ui.title.textContent=fundEditing.type===type?ui.editTitle:ui.createTitle;
+  activeFundVoucherModalType=type;
+  ui.modal.classList.add('show');
+  ui.modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  const firstField=ui.form&&ui.form.querySelector('input, select, textarea');
+  if(firstField)window.requestAnimationFrame(()=>firstField.focus());
+}
+function closeFundVoucherModal(type=activeFundVoucherModalType,{reset=true}={}){
+  const ui=fundVoucherUi(type);
+  if(!ui||!ui.modal)return;
+  ui.modal.classList.remove('show');
+  ui.modal.setAttribute('aria-hidden','true');
+  if(reset)fundResetVoucherForm(type);
+  if(activeFundVoucherModalType===type)activeFundVoucherModalType='';
+  const hasOpenModal=document.querySelector('.modal-backdrop.show');
+  if(!hasOpenModal)document.body.classList.remove('modal-open');
+}
+function bindFundVoucherModal(type,openButton,closeButton){
+  const ui=fundVoucherUi(type);
+  if(openButton)openButton.addEventListener('click',()=>openFundVoucherModal(type,{reset:true}));
+  if(closeButton)closeButton.addEventListener('click',()=>closeFundVoucherModal(type));
+  if(ui&&ui.modal)ui.modal.addEventListener('click',event=>{if(event.target===ui.modal)closeFundVoucherModal(type);});
+}
+
 function setActiveFundTab(tab){
   activeFundTab=tab||'fundLedger';
   if(fundTabButtons)fundTabButtons.forEach(btn=>btn.classList.toggle('active',btn.dataset.fundTab===activeFundTab));
@@ -181,6 +249,7 @@ async function submitDeliveryCashSubmission(event){
     showMessage(deliveryCashSubmissionMessage,json.message||'Đã lưu phiếu nộp quỹ');
     await loadDeliveryCashSubmissions();
     await loadFundLedger();
+    closeFundVoucherModal('delivery');
   }catch(err){showMessage(deliveryCashSubmissionMessage,err.message,true)}
 }
 
@@ -202,6 +271,7 @@ function editFundVoucher(type,code){
   const row=(fundRowCache[type]||{})[code];
   if(!row){alert('Không tìm thấy dữ liệu phiếu để sửa');return;}
   if(!fundCanEdit(row)){alert('Phiếu đã xác nhận hoặc đã khóa, không được sửa');return;}
+  fundResetVoucherForm(type);
   fundEditing={type,id:code};
   if(type==='delivery'){
     fundFillForm(deliveryCashSubmissionForm,row,['deliveryDate','deliveryStaffCode','submittedCashAmount','submittedBankAmount','note']);
@@ -213,6 +283,7 @@ function editFundVoucher(type,code){
     fundFillForm(fundTransferForm,row,['date','fromFund','toFund','amount','bankName','note']);
     fundSetSubmitLabel(fundTransferForm,'Cập nhật chuyển quỹ');
   }
+  openFundVoucherModal(type);
 }
 window.editFundVoucher=editFundVoucher;
 
@@ -248,6 +319,7 @@ async function submitExpenseVoucher(event){
     showMessage(expenseVoucherMessage,json.message||'Đã lưu phiếu chi');
     await loadExpenseVouchers();
     await loadFundLedger();
+    closeFundVoucherModal('expense');
   }catch(err){showMessage(expenseVoucherMessage,err.message,true)}
 }
 
@@ -265,6 +337,7 @@ async function submitFundTransfer(event){
     showMessage(fundTransferMessage,json.message||'Đã lưu chuyển quỹ');
     await loadFundTransfers();
     await loadFundLedger();
+    closeFundVoucherModal('transfer');
   }catch(err){showMessage(fundTransferMessage,err.message,true)}
 }
 
@@ -275,6 +348,10 @@ function reloadActiveFundTab(){
   else if(activeFundTab==='bankTransfer')loadFundTransfers();
 }
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
+bindFundVoucherModal('delivery',createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton);
+bindFundVoucherModal('expense',createExpenseVoucherButton,closeExpenseVoucherModalButton);
+bindFundVoucherModal('transfer',createFundTransferButton,closeFundTransferModalButton);
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType);});
 if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',()=>{loadFundLedger();loadDeliveryCashSubmissions();loadExpenseVouchers();loadFundTransfers();});
 if(fundSearchInput)fundSearchInput.addEventListener('input',debounce(reloadActiveFundTab,300));
 [fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter].forEach(el=>{if(el)el.addEventListener('change',loadFundLedger)});

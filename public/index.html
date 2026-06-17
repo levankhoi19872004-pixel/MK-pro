@@ -6,7 +6,7 @@
   <title>KHO Minh Khai Pro V44</title>
   <link rel="stylesheet" href="/css/00-base.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v3" />
-  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase58-fund-voucher-popup-v1" />
   <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/30-master-orders.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
@@ -1287,39 +1287,92 @@
           </div>
 
           <div class="fund-tab-panel" data-fund-panel="deliverySubmission">
-            <div class="fund-two-column">
-              <section class="fund-form-card">
-                <h3>Phiếu nộp quỹ giao hàng</h3>
-                <p class="muted">Tạo phiếu theo ngày giao + NVGH. Phiếu tạo ở trạng thái pending, bấm Xác nhận mới ghi fundLedgers.</p>
+            <section class="fund-list-card fund-list-card-full">
+              <div class="toolbar compact-toolbar fund-list-toolbar">
+                <div>
+                  <h3>Danh sách phiếu nộp quỹ</h3>
+                  <span class="muted">Xác nhận mới ghi fundLedgers</span>
+                </div>
+                <button id="createDeliveryCashSubmissionButton" type="button">+ Tạo phiếu nộp quỹ</button>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                  <tbody id="deliveryCashSubmissionTable"><tr><td colspan="8">Chưa tải phiếu nộp quỹ.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="expenseVoucher">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="toolbar compact-toolbar fund-list-toolbar">
+                <div>
+                  <h3>Danh sách phiếu chi</h3>
+                  <span class="muted">Nguồn EXPENSE_VOUCHER</span>
+                </div>
+                <button id="createExpenseVoucherButton" type="button">+ Tạo phiếu chi</button>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Ngày</th><th>Quỹ</th><th>Loại chi</th><th>Người nhận</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                  <tbody id="expenseVoucherTable"><tr><td colspan="8">Chưa tải phiếu chi.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="bankTransfer">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="toolbar compact-toolbar fund-list-toolbar">
+                <div>
+                  <h3>Danh sách nộp ngân hàng</h3>
+                  <span class="muted">Nguồn FUND_TRANSFER</span>
+                </div>
+                <button id="createFundTransferButton" type="button">+ Tạo phiếu nộp ngân hàng</button>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Ngày</th><th>Từ quỹ</th><th>Đến quỹ</th><th>Ngân hàng</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                  <tbody id="fundTransferTable"><tr><td colspan="8">Chưa tải phiếu chuyển quỹ.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryCashSubmissionModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryCashSubmissionModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryCashSubmissionModalTitle">Tạo phiếu nộp quỹ giao hàng</h3>
+                  <p class="muted">Tạo phiếu theo ngày giao + NVGH. Xác nhận phiếu mới ghi fundLedgers.</p>
+                </div>
+                <button id="closeDeliveryCashSubmissionModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
                 <form id="deliveryCashSubmissionForm" class="form fund-form-grid">
                   <label>Ngày giao<input name="deliveryDate" type="date" /></label>
                   <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: ghth" /></label>
                   <label>Báo cáo/Thực nộp tiền mặt<input name="submittedCashAmount" type="number" min="0" step="1" placeholder="Để trống = theo báo cáo" /></label>
                   <label>Đối soát chuyển khoản<input name="submittedBankAmount" type="number" min="0" step="1" placeholder="Để trống = theo báo cáo" /></label>
                   <label class="full-span">Ghi chú<input name="note" placeholder="Ghi chú nộp quỹ" /></label>
-                  <div class="form-actions full-span">
-                    <button type="submit">Tạo phiếu nộp quỹ</button>
-                  </div>
+                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp quỹ</button></div>
                   <p id="deliveryCashSubmissionMessage" class="message full-span"></p>
                 </form>
-              </section>
-              <section class="fund-list-card">
-                <div class="toolbar compact-toolbar"><h3>Danh sách phiếu nộp quỹ</h3><span class="muted">Xác nhận mới ghi fundLedgers</span></div>
-                <div class="table-scroll funds-sub-table-scroll">
-                  <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="8">Chưa tải phiếu nộp quỹ.</td></tr></tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
+              </div>
+            </section>
           </div>
 
-          <div class="fund-tab-panel" data-fund-panel="expenseVoucher">
-            <div class="fund-two-column">
-              <section class="fund-form-card">
-                <h3>Phiếu chi</h3>
-                <p class="muted">Ghi nhận các khoản chi tiền mặt/ngân hàng. Phiếu tạo ở trạng thái pending, bấm Xác nhận mới ghi direction = out vào fundLedgers.</p>
+          <div id="expenseVoucherModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="expenseVoucherModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="expenseVoucherModalTitle">Tạo phiếu chi</h3>
+                  <p class="muted">Phiếu tạo ở trạng thái pending; xác nhận mới ghi direction = out vào fundLedgers.</p>
+                </div>
+                <button id="closeExpenseVoucherModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
                 <form id="expenseVoucherForm" class="form fund-form-grid">
                   <label>Ngày chi<input name="date" type="date" /></label>
                   <label>Quỹ chi<select name="fundType"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
@@ -1330,24 +1383,20 @@
                   <div class="form-actions full-span"><button type="submit">Ghi phiếu chi</button></div>
                   <p id="expenseVoucherMessage" class="message full-span"></p>
                 </form>
-              </section>
-              <section class="fund-list-card">
-                <div class="toolbar compact-toolbar"><h3>Danh sách phiếu chi</h3><span class="muted">Nguồn EXPENSE_VOUCHER</span></div>
-                <div class="table-scroll funds-sub-table-scroll">
-                  <table>
-                    <thead><tr><th>Mã</th><th>Ngày</th><th>Quỹ</th><th>Loại chi</th><th>Người nhận</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
-                    <tbody id="expenseVoucherTable"><tr><td colspan="8">Chưa tải phiếu chi.</td></tr></tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
+              </div>
+            </section>
           </div>
 
-          <div class="fund-tab-panel" data-fund-panel="bankTransfer">
-            <div class="fund-two-column">
-              <section class="fund-form-card">
-                <h3>Nộp ngân hàng / Chuyển quỹ</h3>
-                <p class="muted">Nộp tiền mặt vào ngân hàng sẽ tạo phiếu pending; bấm Xác nhận mới ghi 2 dòng: cash out và bank in.</p>
+          <div id="fundTransferModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="fundTransferModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="fundTransferModalTitle">Tạo phiếu nộp ngân hàng</h3>
+                  <p class="muted">Xác nhận phiếu mới ghi 2 dòng: tiền mặt chi và ngân hàng thu.</p>
+                </div>
+                <button id="closeFundTransferModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
                 <form id="fundTransferForm" class="form fund-form-grid">
                   <label>Ngày<input name="date" type="date" /></label>
                   <label>Từ quỹ<select name="fromFund"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
@@ -1358,17 +1407,8 @@
                   <div class="form-actions full-span"><button type="submit">Ghi chuyển quỹ</button></div>
                   <p id="fundTransferMessage" class="message full-span"></p>
                 </form>
-              </section>
-              <section class="fund-list-card">
-                <div class="toolbar compact-toolbar"><h3>Danh sách nộp ngân hàng</h3><span class="muted">Nguồn FUND_TRANSFER</span></div>
-                <div class="table-scroll funds-sub-table-scroll">
-                  <table>
-                    <thead><tr><th>Mã</th><th>Ngày</th><th>Từ quỹ</th><th>Đến quỹ</th><th>Ngân hàng</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
-                    <tbody id="fundTransferTable"><tr><td colspan="8">Chưa tải phiếu chuyển quỹ.</td></tr></tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
+              </div>
+            </section>
           </div>
         </section>
       </main>
@@ -1989,7 +2029,7 @@
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
   <script src="/js/app/00-dashboard.js?v=phase55-dashboard-actual-confirmed-sales-v1"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
-  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase44-selective-update-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase58-fund-voucher-popup-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=phase42-fund-customer-v1"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
@@ -2004,7 +2044,7 @@
   <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07d-master-return-orders.js?v=phase54-master-return-lifecycle-v1"></script>
   <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
-  <script src="/js/app/debt/07f-fund-ledger.js?v=phase42-fund-customer-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.js?v=phase58-fund-voucher-popup-v1"></script>
   <script src="/js/app/admin/08a-reports.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
