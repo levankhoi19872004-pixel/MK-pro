@@ -5494,3 +5494,8 @@ body::after{
   }
 }
 
+
+
+/* Phase 68: giải thích phân bổ tồn tuần tự khi import đơn */
+.import-stock-trace-small{display:block;margin-top:2px;color:#64748b;font-size:10px;line-height:1.25;white-space:normal}
+.import-order-shortage-line b{color:#7c2d12}

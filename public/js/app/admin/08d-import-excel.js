@@ -264,13 +264,17 @@ function renderImportOrderDetailHtml(row){
   const shortageHtml=shortages.length?`
     <div class="import-preview-shortage">
       <b>Báo cáo hàng bị cắt do vượt tồn</b>
+      <div class="muted">Tồn được phân bổ tuần tự theo thứ tự đơn trong file. Đơn đứng trước giữ hàng trước.</div>
       <div class="import-shortage-table">
         <div class="import-shortage-head">Mã SP</div><div class="import-shortage-head">Tên SP</div><div class="import-shortage-head">SL đặt</div><div class="import-shortage-head">Tồn</div><div class="import-shortage-head">SL nhập</div><div class="import-shortage-head">SL cắt</div><div class="import-shortage-head">Giá trị cắt</div>
         ${shortages.map(s=>`
           <div>${escapeImportHtml(s.productCode||'')}</div>
           <div>${escapeImportHtml(s.productName||'')}</div>
           <div>${displayImportQtyTL(s.requestedQuantity||0,s)}</div>
-          <div>${displayImportQtyTL(s.availableQuantity||0,s)}</div>
+          <div>
+            <b>${displayImportQtyTL(s.availableQuantity||0,s)}</b>
+            <small class="import-stock-trace-small">Đầu: ${displayImportQtyTL(s.initialAvailableQuantity??s.availableQuantity??0,s)} · Đã giữ: ${displayImportQtyTL(s.allocatedBeforeQuantity||0,s)}</small>
+          </div>
           <div>${displayImportQtyTL(s.importQuantity||0,s)}</div>
           <div>${displayImportQtyTL(s.missingQuantity||0,s)}</div>
           <div>${money(s.cutAmount||0)}</div>
@@ -286,7 +290,7 @@ function renderImportOrderDetailHtml(row){
             <b>${escapeImportHtml(l.productCode||'')}</b>
             <span>${escapeImportHtml(l.productName||'')}</span>
             <span>SL: ${displayImportQtyTL(l.requestedQuantity||l.quantity||0,l)}</span>
-            ${l.availableQuantity!==undefined?`<span>Tồn: ${displayImportQtyTL(l.availableQuantity||0,l)}</span>`:''}
+            ${l.availableQuantity!==undefined?`<span>Tồn đầu: ${displayImportQtyTL(l.initialAvailableQuantity??l.availableQuantity??0,l)} · Đã giữ trước: ${displayImportQtyTL(l.allocatedBeforeQuantity||0,l)} · Còn: ${displayImportQtyTL(l.availableQuantity||0,l)}</span>`:''}
             ${Number(l.missingQuantity||0)>0?`<span class="danger-text">Cắt: ${displayImportQtyTL(l.missingQuantity||0,l)}</span>`:''}
           </div>`).join('')}
       </div>
@@ -417,6 +421,21 @@ function normalizeImportPreviewSalesStaffFromAccounts(rows=[]){
   return Array.isArray(rows)?rows:[];
 }
 
+function getImportStockAllocationTrace(row={}){
+  const remaining=Number(row.availableQuantity??row.availableStock??0);
+  const initial=Number(row.initialAvailableQuantity??row.stockAtPreview??remaining);
+  const allocated=Number(row.allocatedBeforeQuantity??Math.max(0,initial-remaining));
+  const requested=Number(row.requestedQuantity??row.quantity??0);
+  const imported=Number(row.importQuantity??row.availableQuantityToImport??Math.min(requested,remaining));
+  const missing=Number(row.missingQuantity??row.shortageQuantity??Math.max(0,requested-imported));
+  return {initial,allocated,remaining,requested,imported,missing};
+}
+
+function renderImportStockAllocationTrace(row={}){
+  const trace=getImportStockAllocationTrace(row);
+  return `Cần ${displayImportQtyTL(trace.requested,row)} · Tồn đầu ${displayImportQtyTL(trace.initial,row)} · Đã giữ cho đơn trước ${displayImportQtyTL(trace.allocated,row)} · Còn trước đơn ${displayImportQtyTL(trace.remaining,row)} · Thiếu ${displayImportQtyTL(trace.missing,row)}`;
+}
+
 function getImportOrderShortageState(row){
   const shortages=Array.isArray(row.shortageReport)?row.shortageReport.filter(s=>Number(s.missingQuantity||s.shortageQuantity||0)>0):[];
   const lineCount=Number(row.lineCount||(Array.isArray(row.lineDetails)?row.lineDetails.length:0)||0);
@@ -438,7 +457,7 @@ function getImportOrderShortageState(row){
   if(fullShortage){
     return {type:'full-shortage',label:'🔴 Thiếu toàn bộ',count:shortages.length,shortages};
   }
-  return {type:'shortage',label:`🟡 Thiếu ${formatNumber(shortages.length)} SP`,count:shortages.length,shortages};
+  return {type:'shortage',label:`🟡 Thiếu ${formatNumber(shortages.length)} mã hàng`,count:shortages.length,shortages};
 }
 
 function renderImportOrderShortageLines(row,limit=2){
@@ -448,7 +467,7 @@ function renderImportOrderShortageLines(row,limit=2){
   const more=state.shortages.length-visible.length;
   return `<div class="import-order-shortage-lines">
     ${visible.map(s=>`
-      <div class="import-order-shortage-line">↳ ${escapeImportHtml(s.productName||s.productCode||'Sản phẩm')} (-${displayImportQtyTL(s.missingQuantity||s.shortageQuantity||0,s)})</div>
+      <div class="import-order-shortage-line">↳ <b>${escapeImportHtml(s.productName||s.productCode||'Sản phẩm')}</b> · ${escapeImportHtml(renderImportStockAllocationTrace(s))}</div>
     `).join('')}
     ${more>0?`<div class="import-order-shortage-line more">+ ${formatNumber(more)} sản phẩm khác...</div>`:''}
   </div>`;

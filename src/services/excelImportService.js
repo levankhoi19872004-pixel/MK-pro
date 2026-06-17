@@ -3488,7 +3488,13 @@ async function previewMongoNative(type, rows = [], options = {}) {
         const salePrice = getDmsPriceFromRow(row, quantity);
         const amount = getDmsAmountFromRow(row, quantity, salePrice);
         const normalizedProductCode = cleanText(product?.code || productCode);
-        const availableBefore = toNumber(runningStockMap.get(normalizedProductCode));
+        const rowProductCode = cleanText(productCode);
+        const stockLookupCode = runningStockMap.has(normalizedProductCode)
+          ? normalizedProductCode
+          : rowProductCode;
+        const initialAvailableQuantity = toNumber(stockMap.get(stockLookupCode));
+        const availableBefore = toNumber(runningStockMap.get(stockLookupCode));
+        const allocatedBeforeQuantity = Math.max(0, initialAvailableQuantity - availableBefore);
         const allocation = allocateStockForSaleAndPromo(quantity, promoQuantity, availableBefore);
         const allowedQuantity = allocation.allowedDeliveredQuantity;
         const missingQuantity = allocation.missingQuantity;
@@ -3517,6 +3523,8 @@ async function previewMongoNative(type, rows = [], options = {}) {
             requestedQuantity: deliveredQuantity,
             saleQuantity: quantity,
             promoQuantity,
+            initialAvailableQuantity,
+            allocatedBeforeQuantity,
             availableQuantity: availableBefore,
             importQuantity: allowedQuantity,
             allowedSaleQuantity: allocation.allowedSaleQuantity,
@@ -3538,7 +3546,7 @@ async function previewMongoNative(type, rows = [], options = {}) {
         adjustedRows.push(adjustedRow);
         adjustedQuantity += allowedQuantity;
         adjustedAmount += allocation.allowedSaleQuantity * salePrice;
-        if (product) runningStockMap.set(normalizedProductCode, Math.max(0, availableBefore - deliveredQuantity));
+        if (product) runningStockMap.set(stockLookupCode, Math.max(0, availableBefore - deliveredQuantity));
 
         lineDetails.push({
           rowNo: row.__rowNo || row.rowNo || '',
@@ -3550,6 +3558,8 @@ async function previewMongoNative(type, rows = [], options = {}) {
           saleQuantity: quantity,
           promoQuantity,
           requestedQuantity: deliveredQuantity,
+          initialAvailableQuantity,
+          allocatedBeforeQuantity,
           availableQuantity: availableBefore,
           importQuantity: allowedQuantity,
           allowedSaleQuantity: allocation.allowedSaleQuantity,
@@ -3613,6 +3623,7 @@ async function previewMongoNative(type, rows = [], options = {}) {
               ? (customerAutoCreate ? 'Có dòng bị bỏ qua - tạo KH mới' : 'Có dòng bị bỏ qua')
               : (shortageReport.length ? shortageStatusText : normalStatusText)),
         shortageReport,
+        stockAllocationPolicy: 'sequential_file_order',
         lineDetails,
         detailErrors,
         __importRows: group,
@@ -3963,6 +3974,27 @@ async function safeMarkImportFailed(sessionId, err, fallbackMessage = 'Import th
   return message;
 }
 
+
+async function rebuildSelectedSalesOrderPreviewRows(sourceRows = [], { userName = '', importMode = '' } = {}) {
+  const rawRows = flattenCommitRows(sourceRows);
+  if (!rawRows.length) return [];
+
+  const rebuilt = await buildPreviewFromRows({
+    type: 'salesOrders',
+    rows: rawRows,
+    userName,
+    importMode
+  });
+
+  if (rebuilt && rebuilt.error) {
+    const err = new Error(rebuilt.error);
+    err.status = rebuilt.status || 400;
+    throw err;
+  }
+
+  return Array.isArray(rebuilt?.rows) ? rebuilt.rows : [];
+}
+
 async function commit({ type, rows, shortageMode = '', sessionId = '', selectedOrderCodes = [], userName = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
@@ -4011,9 +4043,14 @@ async function commit({ type, rows, shortageMode = '', sessionId = '', selectedO
     if (type === 'salesOrders') {
       await importSessionService.updateProgress(currentSessionId, {
         percent: 10,
-        step: 'revalidating_orders'
+        step: 'reallocating_selected_orders_against_current_stock'
       });
-      sourceRows = await importRules.validateImportBatch(sourceRows);
+      // Rebuild lại preview từ đúng các đơn người dùng đã chọn và tồn kho hiện tại.
+      // Tránh trường hợp đơn bị cắt theo các đơn đã bỏ chọn hoặc theo snapshot tồn cũ.
+      sourceRows = await rebuildSelectedSalesOrderPreviewRows(sourceRows, {
+        userName,
+        importMode
+      });
     }
 
     validRows = sourceRows.filter((r) =>

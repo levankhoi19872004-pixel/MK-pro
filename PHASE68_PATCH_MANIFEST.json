@@ -1,0 +1,19 @@
+{
+  "phase": 68,
+  "name": "import-stock-allocation-trace",
+  "summary": "Làm rõ tồn đầu, lượng đã phân cho đơn trước, tồn còn trước đơn; tính lại phân bổ theo đúng các đơn được chọn khi commit.",
+  "changedFiles": [
+    "src/services/excelImportService.js",
+    "public/js/app/admin/08d-import-excel.js",
+    "public/css/00-base.css",
+    "public/index.html",
+    "test/import-stock-allocation-trace.test.js"
+  ],
+  "tests": {
+    "syntax": "SYNTAX_OK 665 JavaScript files",
+    "targeted": "6/6 passed",
+    "fullRegression": "593/593 passed"
+  },
+  "inventoryPolicy": "sequential_file_order",
+  "dataMigrationRequired": false
+}
