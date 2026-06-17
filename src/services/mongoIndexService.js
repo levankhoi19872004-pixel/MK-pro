@@ -6,63 +6,37 @@ const INDEX_DEFINITIONS = {
   products: [
     [{ code: 1 }, { name: 'uniq_products_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ barcode: 1 }, { name: 'idx_products_barcode', sparse: true }],
-    [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }],
-    [{ isActive: 1, category: 1 }, { name: 'idx_products_active_category' }],
-    [{ brand: 1 }, { name: 'idx_products_brand', sparse: true }],
-    [{ warehouseCode: 1, code: 1 }, { name: 'idx_products_warehouse_code_code' }],
-    [{ searchText: 'text' }, { name: 'txt_products_search_text', default_language: 'none' }]
+    [{ isActive: 1, code: 1 }, { name: 'idx_products_active_code' }]
   ],
   customers: [
     [{ code: 1 }, { name: 'uniq_customers_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
     [{ customerCode: 1 }, { name: 'idx_customers_customer_code', sparse: true }],
     [{ phone: 1 }, { name: 'idx_customers_phone', sparse: true }],
     [{ staffCode: 1, route: 1, isActive: 1 }, { name: 'idx_customers_staff_route_active' }],
-    [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }],
-    [{ routeName: 1 }, { name: 'idx_customers_route_name', sparse: true }],
-    [{ searchText: 'text' }, { name: 'txt_customers_search_text', default_language: 'none' }]
-  ],
-  staffs: [
-    [{ code: 1 }, { name: 'idx_staffs_code', sparse: true }],
-    [{ username: 1 }, { name: 'idx_staffs_username', sparse: true }],
-    [{ name: 1 }, { name: 'idx_staffs_name', sparse: true }],
-    [{ fullName: 1 }, { name: 'idx_staffs_full_name', sparse: true }],
-    [{ role: 1, isActive: 1 }, { name: 'idx_staffs_role_active' }]
+    [{ isActive: 1, code: 1 }, { name: 'idx_customers_active_code' }]
   ],
   users: [
-    [{ username: 1 }, { name: 'uniq_users_username', unique: true, partialFilterExpression: { username: { $type: 'string', $gt: '' } } }],
+    // username là required; unique thường khớp trực tiếp index username_1 cũ của Mongoose.
+    [{ username: 1 }, { name: 'uniq_users_username', unique: true }],
     [{ staffCode: 1 }, { name: 'uniq_users_staff_code', unique: true, partialFilterExpression: { staffCode: { $type: 'string', $gt: '' } } }],
-    [{ code: 1 }, { name: 'idx_users_code', sparse: true }],
-    [{ employeeCode: 1 }, { name: 'idx_users_employee_code', sparse: true }],
-    [{ salesStaffCode: 1 }, { name: 'idx_users_sales_staff_code', sparse: true }],
-    [{ deliveryStaffCode: 1 }, { name: 'idx_users_delivery_staff_code', sparse: true }],
     [{ role: 1, isActive: 1, staffCode: 1 }, { name: 'idx_users_role_active_staff_code' }]
   ],
   salesTargets: [
     [{ period: 1, salesStaffCode: 1 }, { name: 'uniq_sales_targets_period_staff', unique: true }],
     [{ period: 1, status: 1, salesStaffName: 1 }, { name: 'idx_sales_targets_period_status_name' }]
   ],
-  roles: [[{ code: 1 }, { name: 'idx_roles_code', unique: true, sparse: true }]],
-  permissions: [[{ roleCode: 1, module: 1 }, { name: 'idx_permissions_role_module' }]],
+  roles: [[{ code: 1 }, { name: 'uniq_roles_code', unique: true }]],
+  permissions: [[{ roleCode: 1, module: 1 }, { name: 'uniq_permissions_role_module', unique: true }]],
   salesOrders: [
     [{ id: 1 }, { name: 'uniq_salesOrders_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_salesOrders_code', unique: true, sparse: true }],
+    // Hai mã import được dùng để chặn trùng và tra cứu chứng từ DMS/Excel.
     [{ documentCode: 1 }, { name: 'idx_orders_document_code', sparse: true }],
     [{ invoiceCode: 1 }, { name: 'idx_orders_invoice_code', sparse: true }],
-    [{ orderCode: 1 }, { name: 'idx_orders_order_code', sparse: true }],
-    [{ orderNo: 1 }, { name: 'idx_orders_order_no', sparse: true }],
-    [{ salesOrderCode: 1 }, { name: 'idx_orders_sales_order_code', sparse: true }],
-    [{ customerId: 1 }, { name: 'idx_orders_customer_id', sparse: true }],
     [{ customerCode: 1, orderDate: -1 }, { name: 'idx_orders_customer_order_date' }],
     [{ salesStaffCode: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_sales_staff_order_date_status' }],
-    [{ salesStaffCode: 1, date: -1, status: 1, createdAt: -1 }, { name: 'idx_orders_sales_staff_date_status_created' }],
-    [{ staffCode: 1, orderDate: -1 }, { name: 'idx_orders_staff_order_date', sparse: true }],
-    [{ status: 1, orderDate: -1 }, { name: 'idx_orders_status_order_date' }],
     [{ orderDate: -1, createdAt: -1 }, { name: 'idx_orders_order_date_created_desc' }],
-    [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_sales_orders_delivery_date_staff_status' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, deliveryStatus: 1 }, { name: 'idx_orders_delivery_date_staff_status_desc' }],
-    [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_staff_date_desc' }],
-    [{ deliveryStatus: 1, deliveryDate: -1 }, { name: 'idx_orders_delivery_status_date_desc' }],
-    [{ arStatus: 1, deliveryDate: 1 }, { name: 'idx_orders_ar_status_delivery_date' }],
     [{ masterOrderId: 1 }, { name: 'idx_orders_master_order_id', sparse: true }],
     [{ masterOrderCode: 1 }, { name: 'idx_orders_master_order_code', sparse: true }],
     [{ source: 1, orderDate: -1, status: 1 }, { name: 'idx_orders_source_order_date_status', sparse: true }],
@@ -72,16 +46,13 @@ const INDEX_DEFINITIONS = {
   masterOrders: [
     [{ id: 1 }, { name: 'uniq_masterOrders_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_masterOrders_code', unique: true, sparse: true }],
-    [{ deliveryStaffId: 1 }, { name: 'idx_master_orders_delivery_staff_id', sparse: true }],
-    [{ deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_master_orders_delivery_staff_date_desc' }],
     [{ deliveryDate: -1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_master_orders_delivery_staff_status_desc' }],
     [{ deliveryStatus: 1, arStatus: 1, deliveryDate: 1 }, { name: 'idx_master_orders_delivery_ar_date' }],
     [{ accountingConfirmed: 1, deliveryDate: 1 }, { name: 'idx_master_orders_accounting_date' }],
-    [{ date: -1, deliveryStaffCode: 1 }, { name: 'idx_master_orders_date_staff_desc' }],
     [{ childOrderIds: 1 }, { name: 'idx_master_orders_child_order_ids' }],
     [{ 'children.id': 1 }, { name: 'idx_master_orders_children_id' }],
     [{ 'children.code': 1 }, { name: 'idx_master_orders_children_code' }],
-    [{ createdAt: -1 }, { name: 'idx_master_orders_created_at' }]
+    [{ deliveryDate: -1, createdAt: -1 }, { name: 'idx_master_orders_delivery_date_created_at' }]
   ],
   importOrders: [
     [{ id: 1 }, { name: 'idx_import_orders_id' }],
@@ -97,28 +68,17 @@ const INDEX_DEFINITIONS = {
   returnOrders: [
     [{ id: 1 }, { name: 'uniq_returnOrders_id', unique: true, sparse: true }],
     [{ code: 1 }, { name: 'uniq_returnOrders_code', unique: true, sparse: true }],
-    [{ customerCode: 1 }, { name: 'idx_return_orders_customer_code' }],
-    [{ salesOrderId: 1 }, { name: 'idx_return_orders_sales_order_id', sparse: true }],
+    // Compound index thay thế các index đơn cùng prefix.
     [{ salesOrderId: 1, status: 1 }, { name: 'idx_return_orders_sales_order_id_status', sparse: true }],
-    [{ salesOrderCode: 1 }, { name: 'idx_return_orders_sales_order_code', sparse: true }],
     [{ salesOrderCode: 1, status: 1 }, { name: 'idx_return_orders_sales_order_code_status', sparse: true }],
-    [{ orderId: 1 }, { name: 'idx_return_orders_order_id', sparse: true }],
-    [{ orderCode: 1 }, { name: 'idx_return_orders_order_code', sparse: true }],
-    [{ sourceOrderId: 1 }, { name: 'idx_return_orders_source_order' }],
-    [{ sourceOrderCode: 1 }, { name: 'idx_return_orders_source_order_code', sparse: true }],
-    [{ status: 1 }, { name: 'idx_return_orders_status' }],
     [{ sourceOrderId: 1, status: 1 }, { name: 'idx_return_orders_source_status' }],
     [{ masterReturnOrderId: 1 }, { name: 'idx_return_orders_master_return_id', sparse: true }],
     [{ masterReturnOrderCode: 1 }, { name: 'idx_return_orders_master_return_code', sparse: true }],
     [{ masterOrderId: 1 }, { name: 'idx_return_orders_master_order_id', sparse: true }],
+    [{ masterOrderCode: 1 }, { name: 'idx_return_orders_master_order_code', sparse: true }],
     [{ returnMergeStatus: 1, date: 1 }, { name: 'idx_return_orders_merge_date' }],
     [{ createdAt: -1 }, { name: 'idx_return_orders_created_at' }],
-    // V45 Performance Turbo: index cho sync returnOrders khi gộp đơn.
-    [{ masterOrderCode: 1 }, { name: 'idx_return_orders_master_order_code', sparse: true }],
     [{ deliveryDate: -1, deliveryStaffCode: 1 }, { name: 'idx_return_orders_delivery_staff_date_desc' }],
-    [{ status: 1, deliveryDate: -1 }, { name: 'idx_return_orders_status_delivery_date_desc' }],
-    [{ deliveryOrderId: 1 }, { name: 'idx_return_orders_delivery_order_id', sparse: true }],
-    [{ deliveryOrderCode: 1 }, { name: 'idx_return_orders_delivery_order_code', sparse: true }],
     [{ accountingStatus: 1, returnDate: -1, salesStaffCode: 1 }, { name: 'idx_return_dashboard_accounting_date_staff' }]
   ],
   masterReturnOrders: [
@@ -186,17 +146,6 @@ const INDEX_DEFINITIONS = {
     [{ salesStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_sales_staff_customer_created' }],
     [{ deliveryStaffCode: 1, customerCode: 1, createdAt: -1 }, { name: 'idx_ar_delivery_staff_customer_created' }],
     [{ orderCode: 1, status: 1 }, { name: 'idx_ar_order_status' }]
-  ],
-  payments: [
-    [{ id: 1 }, { name: 'idx_payments_id' }],
-    [{ code: 1 }, { name: 'idx_payments_code' }],
-    [{ type: 1, orderId: 1 }, { name: 'idx_payments_type_order_id' }],
-    [{ type: 1, orderCode: 1 }, { name: 'idx_payments_type_order_code' }],
-    [{ refType: 1, refId: 1 }, { name: 'idx_payments_ref' }],
-    [{ customerId: 1, date: 1 }, { name: 'idx_payments_customer_id_date', sparse: true }],
-    [{ customerCode: 1, date: 1 }, { name: 'idx_payments_customer_code_date' }],
-    [{ date: 1, type: 1, status: 1 }, { name: 'idx_payments_date_type_status' }],
-    [{ createdAt: -1 }, { name: 'idx_payments_created_at' }]
   ],
   cashbooks: [
     [{ id: 1 }, { name: 'idx_cashbooks_id' }],
@@ -272,10 +221,6 @@ const INDEX_DEFINITIONS = {
     [{ date: 1, fromFund: 1, toFund: 1, status: 1 }, { name: 'idx_fund_transfers_date_funds_status' }],
     [{ createdAt: -1 }, { name: 'idx_fund_transfers_created_at' }]
   ],
-  stock: [
-    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventory_snapshot_product_warehouse' }],
-    [{ warehouseCode: 1 }, { name: 'idx_inventory_snapshot_warehouse' }]
-  ],
   inventories: [
     [
       { productCode: 1, warehouseCode: 1 },
@@ -284,24 +229,14 @@ const INDEX_DEFINITIONS = {
         unique: true,
         sparse: true
       }
-    ],
-    [{ productCode: 1 }, { name: 'idx_inventories_product_code' }],
-    [{ warehouseCode: 1 }, { name: 'idx_inventories_warehouse_code' }]
-  ],
-  inventoriesLegacy: [
-    [{ productCode: 1, warehouseCode: 1 }, { name: 'idx_inventories_legacy_product_warehouse' }],
-    [{ productCode: 1 }, { name: 'idx_inventories_legacy_product_code' }],
-    [{ warehouseCode: 1 }, { name: 'idx_inventories_legacy_warehouse_code' }]
+    ]
   ],
   journals: [
-    [{ customerCode: 1 }, { name: 'idx_ar_ledger_customer_code' }],
-    [{ customerName: 1 }, { name: 'idx_ar_ledger_customer_name', sparse: true }],
-    [{ orderCode: 1 }, { name: 'idx_ar_ledger_order_code', sparse: true }],
-    [{ refCode: 1 }, { name: 'idx_ar_ledger_ref_code', sparse: true }],
-    [{ date: 1 }, { name: 'idx_ar_ledger_date' }],
-    [{ customerCode: 1, date: 1 }, { name: 'idx_ar_ledger_customer_date' }],
+    // journals chỉ còn là nguồn tương thích/migration; ba compound index này
+    // bao phủ lookup AR cũ và reverse payment mà không cần các index đơn.
     [{ customerCode: 1, type: 1, date: -1 }, { name: 'idx_ar_ledger_customer_type_date_desc' }],
-    [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledger_ref_code_type' }]
+    [{ refCode: 1, type: 1 }, { name: 'idx_ar_ledger_ref_code_type' }],
+    [{ refType: 1, refId: 1 }, { name: 'idx_journals_ref_type_id' }]
   ],
   stockTransactions: [
     [{ idempotencyKey: 1 }, { name: 'uniq_stock_tx_idempotency_key', unique: true, sparse: true }],
@@ -363,6 +298,11 @@ const INDEX_DEFINITIONS = {
     [{ status: 1, createdAt: -1 }, { name: 'idx_importSessions_status_createdAt' }],
     [{ createdAt: 1 }, { name: 'ttl_importSessions_createdAt', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 86400) }]
   ],
+  importSessionRows: [
+    [{ sessionId: 1, rowNo: 1 }, { name: 'idx_importSessionRows_session_rowNo' }],
+    [{ sessionId: 1, documentCode: 1 }, { name: 'idx_importSessionRows_session_documentCode' }],
+    [{ createdAt: 1 }, { name: 'ttl_importSessionRows_createdAt', expireAfterSeconds: Number(process.env.IMPORT_SESSION_TTL_SECONDS || 86400) }]
+  ],
   dmsInventoryImports: [
     [{ id: 1 }, { name: 'uniq_dms_inventory_import_id', unique: true }],
     [{ fileHash: 1, status: 1 }, { name: 'idx_dms_inventory_file_status' }],
@@ -388,34 +328,91 @@ const INDEX_DEFINITIONS = {
   ]
 };
 
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value).sort().reduce((result, key) => {
+    result[key] = stableValue(value[key]);
+    return result;
+  }, {});
+}
+
 function sameIndexKey(left, right) {
   try {
+    // Thứ tự field trong compound index có ý nghĩa nên không sort key.
     return JSON.stringify(left || {}) === JSON.stringify(right || {});
   } catch {
     return false;
   }
 }
 
-function sameIndexOptions(existing = {}, options = {}) {
-  if (Boolean(existing.unique) !== Boolean(options.unique)) return false;
-  if (Boolean(existing.sparse) !== Boolean(options.sparse)) return false;
-  if (JSON.stringify(existing.partialFilterExpression || null) !== JSON.stringify(options.partialFilterExpression || null)) return false;
-  return true;
+function comparableIndexOptions(index = {}) {
+  return {
+    unique: Boolean(index.unique),
+    sparse: Boolean(index.sparse),
+    expireAfterSeconds: index.expireAfterSeconds ?? null,
+    partialFilterExpression: stableValue(index.partialFilterExpression || null),
+    collation: stableValue(index.collation || null),
+    weights: stableValue(index.weights || null),
+    default_language: index.default_language || null,
+    language_override: index.language_override || null
+  };
 }
 
-async function ensureMongoIndexes({ logger = console } = {}) {
-  const results = [];
+function sameIndexOptions(existing = {}, options = {}) {
+  return JSON.stringify(comparableIndexOptions(existing)) === JSON.stringify(comparableIndexOptions(options));
+}
+
+function buildManagedIndexPlan() {
+  const byPhysicalCollection = new Map();
+
   for (const [collectionKey, definitions] of Object.entries(INDEX_DEFINITIONS)) {
     const Model = MongoStore[collectionKey];
     if (!Model || !Model.collection) continue;
 
+    const collectionName = Model.collection.name;
+    if (!byPhysicalCollection.has(collectionName)) {
+      byPhysicalCollection.set(collectionName, {
+        collectionName,
+        collectionKeys: [],
+        Model,
+        definitions: []
+      });
+    }
+
+    const plan = byPhysicalCollection.get(collectionName);
+    plan.collectionKeys.push(collectionKey);
+
+    for (const definition of definitions) {
+      const [fields, options] = definition;
+      const sameKey = plan.definitions.find(([knownFields]) => sameIndexKey(knownFields, fields));
+      if (sameKey && !sameIndexOptions(sameKey[1], options)) {
+        throw new Error(
+          `Conflicting managed indexes on ${collectionName}: ${sameKey[1]?.name || JSON.stringify(sameKey[0])} vs ${options?.name || JSON.stringify(fields)}`
+        );
+      }
+      if (!sameKey) plan.definitions.push(definition);
+    }
+  }
+
+  return Array.from(byPhysicalCollection.values());
+}
+
+async function ensureMongoIndexes({ logger = console } = {}) {
+  const results = [];
+  const plans = buildManagedIndexPlan();
+
+  for (const plan of plans) {
+    const { Model, collectionName, collectionKeys, definitions } = plan;
+    const collectionKey = collectionKeys.join(',');
+
     let existingIndexes = [];
     try {
-      // Tối ưu: mỗi collection chỉ đọc danh sách index 1 lần.
-      // Bản cũ gọi indexes() trong từng vòng lặp index, làm khởi động server chậm khi có nhiều index.
+      // Chỉ đọc danh sách index một lần cho mỗi collection vật lý. Điều này
+      // ngăn alias model (ví dụ stock/inventories) tạo policy chồng chéo.
       existingIndexes = await Model.collection.indexes();
     } catch (err) {
-      const message = `Không đọc được danh sách index ${collectionKey}: ${err.message}`;
+      const message = `Không đọc được danh sách index ${collectionName}: ${err.message}`;
       if (logger?.warn) logger.warn(message);
       else console.warn(message);
       continue;
@@ -423,23 +420,41 @@ async function ensureMongoIndexes({ logger = console } = {}) {
 
     for (const [fields, options] of definitions) {
       try {
+        const sameNameDifferentSpec = existingIndexes.find((idx) => {
+          return idx.name === options?.name
+            && (!sameIndexKey(idx.key, fields) || !sameIndexOptions(idx, options));
+        });
+
+        if (sameNameDifferentSpec) {
+          const message = `Index ${collectionName}.${options?.name} trùng tên nhưng khác key/option. Cần chạy audit index trước khi tạo lại.`;
+          if (logger?.warn) logger.warn(message);
+          else console.warn(message);
+          results.push({
+            collectionKey,
+            collection: collectionName,
+            indexName: options?.name,
+            conflictWith: sameNameDifferentSpec.name,
+            skipped: true
+          });
+          continue;
+        }
+
         const sameKeyDifferentOptions = existingIndexes.find((idx) => {
           return sameIndexKey(idx.key, fields) && !sameIndexOptions(idx, options);
         });
 
         if (sameKeyDifferentOptions) {
-          const message = `Index ${collectionKey}.${sameKeyDifferentOptions.name} cùng key nhưng khác option với ${options?.name}. Cần drop index cũ sau khi audit duplicate.`;
+          const message = `Index ${collectionName}.${sameKeyDifferentOptions.name} cùng key nhưng khác option với ${options?.name}. Cần drop index cũ sau khi audit duplicate trước khi thay thế.`;
           if (logger?.warn) logger.warn(message);
           else console.warn(message);
 
           results.push({
             collectionKey,
-            collection: Model.collection.name,
+            collection: collectionName,
             indexName: options?.name,
             conflictWith: sameKeyDifferentOptions.name,
             skipped: true
           });
-
           continue;
         }
 
@@ -450,7 +465,7 @@ async function ensureMongoIndexes({ logger = console } = {}) {
         if (hasEquivalentIndex) {
           results.push({
             collectionKey,
-            collection: Model.collection.name,
+            collection: collectionName,
             indexName: options?.name,
             skipped: true
           });
@@ -459,9 +474,9 @@ async function ensureMongoIndexes({ logger = console } = {}) {
 
         const indexName = await Model.collection.createIndex(fields, { background: true, ...options });
         existingIndexes.push({ key: fields, name: indexName, ...options });
-        results.push({ collectionKey, collection: Model.collection.name, indexName });
+        results.push({ collectionKey, collection: collectionName, indexName });
       } catch (err) {
-        const message = `Không tạo được index ${collectionKey}.${options?.name || JSON.stringify(fields)}: ${err.message}`;
+        const message = `Không tạo được index ${collectionName}.${options?.name || JSON.stringify(fields)}: ${err.message}`;
         if (logger?.warn) logger.warn(message);
         else console.warn(message);
       }
@@ -470,4 +485,11 @@ async function ensureMongoIndexes({ logger = console } = {}) {
   return results;
 }
 
-module.exports = { INDEX_DEFINITIONS, ensureMongoIndexes };
+module.exports = {
+  INDEX_DEFINITIONS,
+  buildManagedIndexPlan,
+  comparableIndexOptions,
+  sameIndexKey,
+  sameIndexOptions,
+  ensureMongoIndexes
+};

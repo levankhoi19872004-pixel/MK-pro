@@ -30,8 +30,8 @@ test('master data duplicate migration never renames product customer or staff co
   assert.match(migrate, /không tự đổi business code/);
 });
 
-test('critical business keys have unique partial indexes', () => {
-  for (const [collection, name] of [
+test('critical business keys have unique indexes and optional keys use partial filters', () => {
+  const requiredUnique = [
     ['products', 'uniq_products_code'],
     ['customers', 'uniq_customers_code'],
     ['users', 'uniq_users_username'],
@@ -44,10 +44,16 @@ test('critical business keys have unique partial indexes', () => {
     ['deliveryCashSubmissions', 'uniq_delivery_cash_submissions_id'],
     ['expenseVouchers', 'uniq_expense_vouchers_code'],
     ['fundTransfers', 'uniq_fund_transfers_code']
-  ]) {
+  ];
+
+  for (const [collection, name] of requiredUnique) {
     const index = findIndex(collection, name);
     assert.ok(index, `${collection}.${name} missing`);
     assert.equal(index[1].unique, true);
-    assert.ok(index[1].partialFilterExpression);
+  }
+
+  for (const [collection, name] of requiredUnique.filter(([, name]) => name !== 'uniq_users_username')) {
+    const index = findIndex(collection, name);
+    assert.ok(index[1].partialFilterExpression, `${collection}.${name} must be partial`);
   }
 });
