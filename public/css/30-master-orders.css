@@ -113,7 +113,7 @@
 }
 #masterOrderModal .master-order-form-v2{
   display:grid!important;
-  grid-template-columns:140px minmax(180px,1.2fr) 140px 180px minmax(220px,1.4fr) 130px;
+  grid-template-columns:140px 140px minmax(160px,1fr) 140px minmax(180px,1.2fr) minmax(190px,1.2fr) 130px;
   grid-template-rows:54px 28px;
   gap:6px 10px;
   align-items:end;
@@ -131,6 +131,12 @@
   height:34px;
   font-size:12px;
 }
+
+#masterOrderModal .master-order-form input[name="masterOrderDate"]{
+  background:#f1f5f9;
+  color:#475569;
+  cursor:not-allowed;
+}
 #masterOrderModal .master-order-note-field{
   grid-column:auto;
   grid-row:1;
@@ -145,7 +151,7 @@
   color:#475569;
 }
 #masterOrderModal .master-order-submit-button{
-  grid-column:6;
+  grid-column:7;
   grid-row:1;
   justify-self:end;
   align-self:end;

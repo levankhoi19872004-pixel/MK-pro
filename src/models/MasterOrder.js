@@ -4,6 +4,7 @@ module.exports = flexModel('MasterOrder', 'master_orders', {
   code: String,
   childOrderIds: Array,
   deliveryStaffName: String,
+  masterOrderDate: String,
   deliveryDate: String,
   routeName: String,
   note: String,

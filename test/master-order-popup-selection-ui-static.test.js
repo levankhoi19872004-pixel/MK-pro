@@ -22,5 +22,5 @@ test('remove grouped child action reads the state populated by grouped checkbox 
 });
 
 test('changed master-delivery bundle has a new cache-busting version', () => {
-  assert.match(indexHtml, /\/js\/app\/06-master-delivery\.js\?v=phase62-picking-zone-v1/);
+  assert.match(indexHtml, /\/js\/app\/06-master-delivery\.js\?v=phase64-master-order-dates-v1/);
 });

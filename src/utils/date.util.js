@@ -89,6 +89,25 @@ function toDateOnly(value, fallback = '') {
   return parseVietnamDate(value, fallback);
 }
 
+function addDaysToDateOnly(value, days) {
+  const dateOnly = toDateOnly(value);
+  const amount = Number(days);
+  if (!dateOnly || !Number.isFinite(amount)) return '';
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + Math.trunc(amount));
+  return formatDateOnly(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+}
+
+// Ngày giao mặc định: thứ 2-thứ 6 cộng 1 ngày; thứ 7 cộng 2 ngày để sang thứ 2.
+// Chủ nhật không phải ngày tạo thông thường nhưng vẫn trả về thứ 2 để dữ liệu an toàn.
+function nextDeliveryDateVN(baseDate = todayVN()) {
+  const dateOnly = toDateOnly(baseDate, todayVN());
+  const [year, month, day] = dateOnly.split('-').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return addDaysToDateOnly(dateOnly, dayOfWeek === 6 ? 2 : 1);
+}
+
 function isDateInRange(value, options = {}) {
   const date = toDateOnly(value);
   if (!date) return false;
@@ -107,6 +126,8 @@ module.exports = {
   toDateOnly,
   todayVN,
   nowIso,
+  addDaysToDateOnly,
+  nextDeliveryDateVN,
   isDateInRange,
   excelSerialToDate
 };

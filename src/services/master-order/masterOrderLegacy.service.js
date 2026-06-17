@@ -3537,13 +3537,15 @@ async function createMasterOrder(body = {}) {
   }
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
-  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || dateUtil.todayVN());
+  const masterOrderDate = dateUtil.todayVN();
+  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || body.date || dateUtil.nextDeliveryDateVN(masterOrderDate));
   const masterOrder = {
     ...body,
     id: String(body.id || makeId('MO')).trim(),
     // Không quét toàn bộ master_orders để sinh mã vì thao tác này rất chậm khi dữ liệu lớn.
     code: String(body.code || makeId('DT')).trim(),
     date: dateUtil.toDateOnly(body.date || deliveryDate),
+    masterOrderDate,
     deliveryDate,
     routeName: String(body.routeName || '').trim(),
     note: String(body.note || body.deliveryNote || '').trim(),
@@ -3659,7 +3661,8 @@ async function updateMasterOrder(id, body = {}) {
   }
 
   const deliveryStaff = await resolveStaff(body, 'delivery');
-  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || dateUtil.todayVN());
+  const masterOrderDate = dateUtil.toDateOnly(current.masterOrderDate || current.createdDate || current.createdAt || dateUtil.todayVN());
+  const deliveryDate = dateUtil.toDateOnly(body.deliveryDate || current.deliveryDate || body.date || current.date || dateUtil.nextDeliveryDateVN(masterOrderDate));
 
   // MASTER_ORDER_EDIT_MODAL_PATCH_START: cập nhật an toàn thông tin + danh sách đơn con, không chạm công nợ/tồn kho/kế toán
   const currentChildren = await orderService.getMasterChildren(current);
@@ -3697,6 +3700,7 @@ async function updateMasterOrder(id, body = {}) {
     ...current,
     ...body,
     date: dateUtil.toDateOnly(body.date || current.date || deliveryDate),
+    masterOrderDate,
     deliveryDate,
     routeName: String(body.routeName ?? current.routeName ?? '').trim(),
     note: String(body.note ?? body.deliveryNote ?? current.note ?? current.deliveryNote ?? '').trim(),

@@ -31,6 +31,48 @@ function masterOrderDate(value) {
   return String(value || '').slice(0, 10);
 }
 
+// MASTER_ORDER_DEFAULT_DATE_PATCH_START:
+// Ngày tạo luôn là hôm nay. Ngày giao mặc định là ngày kế tiếp;
+// nếu tạo vào thứ 7 thì bỏ qua chủ nhật và chuyển sang thứ 2.
+function masterOrderTodayDate() {
+  if (typeof today === 'function') return today();
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now).reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function masterOrderDefaultDeliveryDate(baseDate) {
+  const match = String(baseDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (Number.isNaN(date.getTime())) return '';
+  const dayOfWeek = date.getUTCDay();
+  const daysToAdd = dayOfWeek === 6 ? 2 : 1;
+  date.setUTCDate(date.getUTCDate() + daysToAdd);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+function applyMasterOrderDefaultDates(options = {}) {
+  if (!masterOrderForm) return;
+  const creationInput = masterOrderForm.elements.masterOrderDate;
+  const deliveryInput = masterOrderForm.elements.deliveryDate;
+  const creationDate = masterOrderTodayDate();
+  if (creationInput) creationInput.value = creationDate;
+  if (deliveryInput && (options.forceDelivery || !deliveryInput.value)) {
+    deliveryInput.value = masterOrderDefaultDeliveryDate(creationDate);
+  }
+}
+window.masterOrderDefaultDeliveryDate = masterOrderDefaultDeliveryDate;
+// MASTER_ORDER_DEFAULT_DATE_PATCH_END
+
 function masterOrderSetMessage(text, isError) {
   if (typeof showMessage === 'function') return showMessage(masterOrderMessage, text, !!isError);
   if (masterOrderMessage) {
@@ -350,9 +392,7 @@ function openMasterOrderModal(options = {}) {
   }
   masterOrderModal.classList.add('show');
   masterOrderModal.setAttribute('aria-hidden', 'false');
-  if (masterOrderForm && masterOrderForm.elements.deliveryDate && !masterOrderForm.elements.deliveryDate.value && typeof today === 'function') {
-    masterOrderForm.elements.deliveryDate.value = today();
-  }
+  if (!masterOrderEditMode) applyMasterOrderDefaultDates();
   if (!options.skipLoad) loadUnmergedChildOrders();
   renderSelectedGroupedChildOrders();
 }
@@ -374,9 +414,8 @@ function resetMasterOrderModal() {
   selectedGroupedChildOrderCheckIds.clear();
   selectedChildOrderIds = selectedUnmergedChildOrderIds;
   if (masterOrderForm) {
-    const keepDate = masterOrderForm.elements.deliveryDate && masterOrderForm.elements.deliveryDate.value;
     masterOrderForm.reset();
-    if (masterOrderForm.elements.deliveryDate) masterOrderForm.elements.deliveryDate.value = keepDate || (typeof today === 'function' ? today() : '');
+    applyMasterOrderDefaultDates({ forceDelivery: true });
     if (masterOrderForm.elements.groupBySalesStaff) masterOrderForm.elements.groupBySalesStaff.checked = true;
   }
   masterOrderSetMessage('');
@@ -503,6 +542,7 @@ async function editMasterOrderFromList(id) {
     });
 
     if (masterOrderForm) {
+      if (masterOrderForm.elements.masterOrderDate) masterOrderForm.elements.masterOrderDate.value = String(detail.masterOrderDate || detail.createdDate || detail.createdAt || masterOrderTodayDate()).slice(0, 10);
       if (masterOrderForm.elements.deliveryDate) masterOrderForm.elements.deliveryDate.value = String(detail.deliveryDate || detail.date || '').slice(0, 10);
       if (masterOrderForm.elements.routeName) masterOrderForm.elements.routeName.value = detail.routeName || detail.deliveryRoute || '';
       if (masterOrderForm.elements.deliveryStaffCode) masterOrderForm.elements.deliveryStaffCode.value = detail.deliveryStaffCode || '';

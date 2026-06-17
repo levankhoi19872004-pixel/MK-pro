@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v3" />
   <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1" />
   <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
-  <link rel="stylesheet" href="/css/30-master-orders.css?v=phase35-css-split-v1" />
+  <link rel="stylesheet" href="/css/30-master-orders.css?v=phase64-master-order-dates-v1" />
   <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/50-promotions.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/60-finance-external-debt.css?v=phase35-css-split-v1" />
@@ -735,7 +735,8 @@
                 </div>
               </div>
               <form id="masterOrderForm" class="form master-order-form master-order-form-v2">
-                <label>Ngày giao hàng<input name="deliveryDate" type="date" required /></label>
+                <label>Ngày tạo đơn tổng<input name="masterOrderDate" type="date" readonly aria-readonly="true" title="Ngày tạo đơn tổng được hệ thống lấy theo ngày hiện tại" /></label>
+                <label>Ngày giao hàng<input name="deliveryDate" type="date" required title="Mặc định là ngày kế tiếp; nếu tạo vào thứ 7 thì chuyển sang thứ 2" /></label>
                 <label>Tuyến / khu vực<input name="routeName" placeholder="VD: Tuyến Hải Phòng 1" required /></label>
                 <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: GH01" /></label>
                 <label>Tên NV giao hàng<input name="deliveryStaffName" placeholder="VD: Nguyễn Văn Giao" /></label>
@@ -2176,7 +2177,7 @@
   <script src="/js/app/05-sales-orders.js?v=phase49-sales-order-global-search-v1"></script>
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
-  <script src="/js/app/06-master-delivery.js?v=phase62-picking-zone-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=phase64-master-order-dates-v1"></script>
   <script src="/js/app/debt/07a-debt-core.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07b-return-orders.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
