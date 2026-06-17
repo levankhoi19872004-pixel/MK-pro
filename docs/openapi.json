@@ -2262,6 +2262,86 @@
         ]
       }
     },
+    "/api/funds/delivery-cash-shortages/{id}/history": {
+      "get": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "GET /api/funds/delivery-cash-shortages/{id}/history",
+        "operationId": "getFundsDeliveryCashShortagesIdHistory",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/funds/delivery-cash-shortages/{id}/repayments": {
+      "post": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "POST /api/funds/delivery-cash-shortages/{id}/repayments",
+        "operationId": "postFundsDeliveryCashShortagesIdRepayments",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/funds/delivery-cash-submissions": {
       "get": {
         "tags": [
@@ -2420,6 +2500,46 @@
         ]
       }
     },
+    "/api/funds/delivery-cash-submissions/{id}/shortages": {
+      "post": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "POST /api/funds/delivery-cash-submissions/{id}/shortages",
+        "operationId": "postFundsDeliveryCashSubmissionsIdShortages",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/funds/delivery-cash-submissions/preview": {
       "post": {
         "tags": [
@@ -2427,6 +2547,46 @@
         ],
         "summary": "POST /api/funds/delivery-cash-submissions/preview",
         "operationId": "postFundsDeliveryCashSubmissionsPreview",
+        "responses": {
+          "201": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/funds/delivery-shortage-repayments/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Funds"
+        ],
+        "summary": "POST /api/funds/delivery-shortage-repayments/{id}/confirm",
+        "operationId": "postFundsDeliveryShortageRepaymentsIdConfirm",
         "responses": {
           "201": {
             "description": "Success response",

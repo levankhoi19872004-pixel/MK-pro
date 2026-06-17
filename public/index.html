@@ -6,7 +6,7 @@
   <title>KHO Minh Khai Pro V44</title>
   <link rel="stylesheet" href="/css/00-base.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v3" />
-  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase61-delivery-fund-split-tabs-v1" />
+  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1" />
   <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/30-master-orders.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
@@ -1305,8 +1305,8 @@
               <div class="delivery-subtab-panel active" data-delivery-subpanel="cash" role="tabpanel">
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh TM</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="8">Chưa tải danh sách tiền mặt.</td></tr></tbody>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh TM</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="9">Chưa tải danh sách tiền mặt.</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -1314,8 +1314,8 @@
               <div class="delivery-subtab-panel" data-delivery-subpanel="bank" role="tabpanel" hidden>
                 <div class="table-scroll funds-sub-table-scroll">
                   <table>
-                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TK</th><th>Thực nhận TK</th><th>Chênh TK</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
-                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="8">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TK</th><th>Thực nhận TK</th><th>Chênh TK</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="9">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -1406,6 +1406,97 @@
                   <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp quỹ</button></div>
                   <p id="deliveryCashSubmissionMessage" class="message full-span"></p>
                 </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryShortageResolutionModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card fund-shortage-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryShortageResolutionTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryShortageResolutionTitle">Phân loại khoản thiếu trước khi xác nhận</h3>
+                  <p class="muted">Phiếu gốc được khóa sau xác nhận. Chỉ khoản NVGH đã thu nhưng chưa nộp mới tạo công nợ NVGH.</p>
+                </div>
+                <button id="closeDeliveryShortageResolutionModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="deliveryShortageResolutionForm" class="form fund-form-grid">
+                  <input id="deliveryShortageResolutionSubmissionCode" name="submissionCode" type="hidden" />
+                  <input id="deliveryShortageResolutionMode" name="mode" type="hidden" />
+                  <div id="deliveryShortageResolutionSummary" class="fund-shortage-summary full-span"></div>
+
+                  <section id="deliveryCashShortageResolutionSection" class="fund-shortage-resolution-section full-span" hidden>
+                    <div class="fund-shortage-section-head"><strong>Thiếu tiền mặt</strong><b id="deliveryCashShortageResolutionAmount">0</b></div>
+                    <div class="fund-shortage-resolution-grid">
+                      <label>Cách xử lý
+                        <select id="deliveryCashShortageReason" name="cashReasonType">
+                          <option value="">-- Chọn nguyên nhân --</option>
+                          <option value="collected_not_remitted">NVGH đã thu nhưng chưa nộp đủ</option>
+                          <option value="customer_not_paid">Khách hàng chưa thanh toán</option>
+                          <option value="approved_expense">Khoản chi/điều chỉnh đã được duyệt</option>
+                          <option value="pending_review">Chờ kiểm tra, chưa xác định trách nhiệm</option>
+                        </select>
+                      </label>
+                      <label>Ghi chú giải trình<input id="deliveryCashShortageNote" name="cashNote" placeholder="Nhập khi cần giải trình" /></label>
+                    </div>
+                  </section>
+
+                  <section id="deliveryBankShortageResolutionSection" class="fund-shortage-resolution-section full-span" hidden>
+                    <div class="fund-shortage-section-head"><strong>Thiếu chuyển khoản</strong><b id="deliveryBankShortageResolutionAmount">0</b></div>
+                    <div class="fund-shortage-resolution-grid">
+                      <label>Cách xử lý
+                        <select id="deliveryBankShortageReason" name="bankReasonType">
+                          <option value="">-- Chọn nguyên nhân --</option>
+                          <option value="pending_bank_reconciliation">Chờ đối soát ngân hàng</option>
+                          <option value="delivery_staff_liability">NVGH chịu trách nhiệm nộp bù</option>
+                          <option value="customer_not_paid">Khách hàng chưa chuyển khoản</option>
+                          <option value="approved_adjustment">Điều chỉnh đã được duyệt</option>
+                        </select>
+                      </label>
+                      <label>Ghi chú giải trình<input id="deliveryBankShortageNote" name="bankNote" placeholder="Thông tin giao dịch hoặc lý do" /></label>
+                    </div>
+                  </section>
+
+                  <div class="form-actions full-span">
+                    <button id="submitDeliveryShortageResolutionButton" type="submit">Xác nhận phiếu và ghi quỹ</button>
+                  </div>
+                  <p id="deliveryShortageResolutionMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryShortageRepaymentModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card fund-shortage-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryShortageRepaymentTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryShortageRepaymentTitle">Nộp bù thiếu quỹ NVGH</h3>
+                  <p class="muted">Phiếu nộp bù tạo ở trạng thái chờ xác nhận. Chỉ khi xác nhận mới tăng fundLedgers và giảm số còn thiếu.</p>
+                </div>
+                <button id="closeDeliveryShortageRepaymentModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <div id="deliveryShortageRepaymentSummary" class="delivery-shortage-kpis"></div>
+                <form id="deliveryShortageRepaymentForm" class="form fund-form-grid">
+                  <input id="deliveryShortageRepaymentShortageId" name="shortageId" type="hidden" />
+                  <label>Ngày nộp bù<input id="deliveryShortageRepaymentDate" name="repaymentDate" type="date" /></label>
+                  <label>Hình thức nhận
+                    <select id="deliveryShortageRepaymentFundType" name="fundType">
+                      <option value="cash">Tiền mặt</option>
+                      <option value="bank">Chuyển khoản</option>
+                    </select>
+                  </label>
+                  <label>Số tiền nộp bù<input id="deliveryShortageRepaymentAmount" name="amount" type="number" min="1" step="1" /></label>
+                  <label>Ghi chú<input id="deliveryShortageRepaymentNote" name="note" placeholder="Nộp bù lần..." /></label>
+                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp bù</button></div>
+                  <p id="deliveryShortageRepaymentMessage" class="message full-span"></p>
+                </form>
+                <div class="table-scroll delivery-shortage-history-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu bù</th><th>Ngày</th><th>Hình thức</th><th>Số tiền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryShortageRepaymentTable"><tr><td colspan="6">Chưa tải lịch sử nộp bù.</td></tr></tbody>
+                  </table>
+                </div>
               </div>
             </section>
           </div>
@@ -2076,7 +2167,7 @@
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
   <script src="/js/app/00-dashboard.js?v=phase55-dashboard-actual-confirmed-sales-v1"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
-  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=phase62-picking-zone-v1"></script>
   <script src="/js/app/02-products.js?v=phase62-picking-zone-v1"></script>
@@ -2091,7 +2182,7 @@
   <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07d-master-return-orders.js?v=phase54-master-return-lifecycle-v1"></script>
   <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
-  <script src="/js/app/debt/07f-fund-ledger.js?v=phase61-delivery-fund-split-tabs-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
   <script src="/js/app/admin/08a-reports.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>

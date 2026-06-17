@@ -209,6 +209,19 @@ const INDEX_DEFINITIONS = {
     [{ deliveryDate: 1, deliveryStaffCode: 1, status: 1 }, { name: 'idx_delivery_cash_submissions_date_staff_status' }],
     [{ createdAt: -1 }, { name: 'idx_delivery_cash_submissions_created_at' }]
   ],
+  deliveryCashShortages: [
+    [{ id: 1 }, { name: 'uniq_delivery_cash_shortages_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_delivery_cash_shortages_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
+    [{ sourceSubmissionCode: 1, fundType: 1 }, { name: 'uniq_delivery_cash_shortage_source_fund', unique: true }],
+    [{ deliveryStaffCode: 1, status: 1, deliveryDate: -1 }, { name: 'idx_delivery_cash_shortage_staff_status_date' }],
+    [{ responsibleType: 1, status: 1, outstandingAmount: -1 }, { name: 'idx_delivery_cash_shortage_responsible_status_outstanding' }]
+  ],
+  deliveryShortageRepayments: [
+    [{ id: 1 }, { name: 'uniq_delivery_shortage_repayments_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
+    [{ code: 1 }, { name: 'uniq_delivery_shortage_repayments_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],
+    [{ shortageId: 1, status: 1, createdAt: -1 }, { name: 'idx_delivery_shortage_repayment_shortage_status' }],
+    [{ deliveryStaffCode: 1, repaymentDate: -1, status: 1 }, { name: 'idx_delivery_shortage_repayment_staff_date_status' }]
+  ],
   expenseVouchers: [
     [{ id: 1 }, { name: 'uniq_expense_vouchers_id', unique: true, partialFilterExpression: { id: { $type: 'string', $gt: '' } } }],
     [{ code: 1 }, { name: 'uniq_expense_vouchers_code', unique: true, partialFilterExpression: { code: { $type: 'string', $gt: '' } } }],

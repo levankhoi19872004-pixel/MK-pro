@@ -32,6 +32,8 @@ const APP_COLLECTION_KEYS = [
   'debtCollections',
   'externalDebtOrders',
   'deliveryCashSubmissions',
+  'deliveryCashShortages',
+  'deliveryShortageRepayments',
   'expenseVouchers',
   'fundTransfers',
 

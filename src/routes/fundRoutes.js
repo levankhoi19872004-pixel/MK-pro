@@ -21,6 +21,10 @@ router.post('/delivery-cash-submissions/preview', manageFund, fundController.pre
 router.post('/delivery-cash-submissions', manageFund, fundController.createDeliverySubmission);
 router.put('/delivery-cash-submissions/:id', manageFund, fundController.updateDeliverySubmission);
 router.post('/delivery-cash-submissions/:id/confirm', manageFund, fundController.confirmDeliverySubmission);
+router.post('/delivery-cash-submissions/:id/shortages', manageFund, fundController.classifyDeliveryShortages);
+router.get('/delivery-cash-shortages/:id/history', viewFund, fundController.getDeliveryShortageHistory);
+router.post('/delivery-cash-shortages/:id/repayments', manageFund, fundController.createDeliveryShortageRepayment);
+router.post('/delivery-shortage-repayments/:id/confirm', manageFund, fundController.confirmDeliveryShortageRepayment);
 router.post('/expenses', requireRole(['admin', 'accountant']), fundController.createExpense);
 router.put('/expenses/:id', manageFund, fundController.updateExpense);
 router.post('/expenses/:id/confirm', manageFund, fundController.confirmExpense);

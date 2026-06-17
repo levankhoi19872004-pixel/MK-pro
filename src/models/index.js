@@ -26,6 +26,8 @@ module.exports = {
   debtCollectionLocks: require('./DebtCollectionLock'),
   externalDebtOrders: require('./ExternalDebtOrder'),
   deliveryCashSubmissions: require('./DeliveryCashSubmission'),
+  deliveryCashShortages: require('./DeliveryCashShortage'),
+  deliveryShortageRepayments: require('./DeliveryShortageRepayment'),
   expenseVouchers: require('./ExpenseVoucher'),
   fundTransfers: require('./FundTransfer'),
   cashbook: require('./Cashbook'),

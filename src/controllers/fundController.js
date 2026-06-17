@@ -62,9 +62,67 @@ async function updateDeliverySubmission(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không cập nhật được phiếu nộp quỹ' }); }
 }
 
+function actorCode(req) {
+  return String(
+    req.user?.staffCode || req.user?.code || req.user?.username || req.user?.name || req.user?.fullName || ''
+  ).trim();
+}
+
 async function confirmDeliverySubmission(req, res) {
-  try { sendResult(res, await fundService.confirmDeliveryCashSubmission(req.params.id, req.body || {}), 'Đã xác nhận phiếu nộp quỹ'); }
-  catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu nộp quỹ' }); }
+  try {
+    sendResult(
+      res,
+      await fundService.confirmDeliveryCashSubmission(req.params.id, { ...(req.body || {}), confirmedBy: actorCode(req) }),
+      'Đã xác nhận phiếu nộp quỹ'
+    );
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu nộp quỹ' });
+  }
+}
+
+async function classifyDeliveryShortages(req, res) {
+  try {
+    sendResult(
+      res,
+      await fundService.classifyConfirmedDeliveryShortages(req.params.id, { ...(req.body || {}), classifiedBy: actorCode(req) }),
+      'Đã phân loại khoản thiếu'
+    );
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, success: false, message: err.message || 'Không phân loại được khoản thiếu' });
+  }
+}
+
+async function getDeliveryShortageHistory(req, res) {
+  try {
+    sendResult(res, await fundService.getDeliveryCashShortageHistory(req.params.id), 'Đã tải lịch sử khoản thiếu');
+  } catch (err) {
+    res.status(err.status || 500).json({ ok: false, success: false, message: err.message || 'Không tải được lịch sử khoản thiếu' });
+  }
+}
+
+async function createDeliveryShortageRepayment(req, res) {
+  try {
+    sendResult(
+      res,
+      await fundService.createDeliveryShortageRepayment(req.params.id, { ...(req.body || {}), createdBy: actorCode(req) }),
+      'Đã tạo phiếu nộp bù',
+      201
+    );
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, success: false, message: err.message || 'Không tạo được phiếu nộp bù' });
+  }
+}
+
+async function confirmDeliveryShortageRepayment(req, res) {
+  try {
+    sendResult(
+      res,
+      await fundService.confirmDeliveryShortageRepayment(req.params.id, { ...(req.body || {}), confirmedBy: actorCode(req) }),
+      'Đã xác nhận phiếu nộp bù'
+    );
+  } catch (err) {
+    res.status(err.status || 400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu nộp bù' });
+  }
 }
 
 async function createExpense(req, res) {
@@ -97,4 +155,4 @@ async function confirmTransfer(req, res) {
   catch (err) { res.status(400).json({ ok: false, success: false, message: err.message || 'Không xác nhận được phiếu chuyển quỹ' }); }
 }
 
-module.exports = { listLedger, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };
+module.exports = { listLedger, listDeliverySubmissions, deliveryCashInTransit, listExpenses, listTransfers, previewDeliverySubmission, createDeliverySubmission, updateDeliverySubmission, confirmDeliverySubmission, classifyDeliveryShortages, getDeliveryShortageHistory, createDeliveryShortageRepayment, confirmDeliveryShortageRepayment, createExpense, updateExpense, confirmExpense, createTransfer, updateTransfer, confirmTransfer };

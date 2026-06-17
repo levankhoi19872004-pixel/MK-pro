@@ -26,7 +26,9 @@ async function fundReadJsonResponse(res, fallbackMessage){
 
 function fundSafeCode(value){return String(value||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ')}
 let fundEditing={type:'',id:''};
-const fundRowCache={delivery:{},expense:{},transfer:{}};
+const fundRowCache={delivery:{},expense:{},transfer:{},shortage:{},repayment:{}};
+let shortageResolutionContext={mode:'',submissionCode:''};
+let activeDeliveryShortageId='';
 function fundStatusText(row){
   const status=String(row&&row.status||'pending').toLowerCase();
   if(status==='confirmed')return 'confirmed';
@@ -47,6 +49,44 @@ function fundActionButtons(type,row){
   const actions=[];
   if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" onclick="editFundVoucher('${type}','${code}')">Sửa</button>`);
   if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action" onclick="confirmFundVoucher('${type}','${code}')">Xác nhận</button>`);
+  if(!actions.length)return '<span class="muted">Đã xác nhận</span>';
+  return actions.join(' ');
+}
+
+function deliveryShortageStatusText(shortage,row,diff){
+  if(Number(diff||0)>=0)return '';
+  if(!shortage){
+    return String(row&&row.status||'').toLowerCase()==='confirmed'
+      ? '<span class="fund-shortage-state needs-classification">Chưa phân loại</span>'
+      : '<span class="fund-shortage-state pending">Chờ xác nhận</span>';
+  }
+  const labels={
+    open:'NVGH còn nợ',
+    partial:'NVGH nợ một phần',
+    settled:'Đã tất toán',
+    pending_reconciliation:'Chờ đối soát NH',
+    customer_outstanding:'Công nợ khách hàng',
+    adjusted:'Đã điều chỉnh',
+    disputed:'Chờ kiểm tra',
+    cancelled:'Đã hủy'
+  };
+  const status=String(shortage.status||'open').toLowerCase();
+  return `<span class="fund-shortage-state ${escapeHtml(status)}">${escapeHtml(labels[status]||status)}</span>`;
+}
+
+function deliverySubmissionActions(row,{fundType='cash',baseActions=''}={}){
+  const code=fundSafeCode(row.code||row.id);
+  const diff=Number(fundType==='bank'?row.differenceBankAmount:row.differenceCashAmount)||0;
+  const shortage=fundType==='bank'?row.bankShortage:row.cashShortage;
+  const actions=[];
+  if((fundCanEdit(row)||fundCanConfirm(row))&&baseActions)actions.push(baseActions);
+  if(!fundCanConfirm(row)&&diff<0&&!shortage)actions.push(`<button type="button" class="secondary compact-action" onclick="classifyDeliveryCashShortages('${code}')">Phân loại thiếu</button>`);
+  if(shortage){
+    const shortageKey=fundSafeCode(shortage.id||shortage.code);
+    fundRowCache.shortage[shortageKey]=shortage;
+    const label=String(shortage.responsibleType||'')==='delivery_staff'&&Number(shortage.outstandingAmount||0)>0?'Nộp bù / Lịch sử':'Chi tiết thiếu';
+    actions.push(`<button type="button" class="secondary compact-action" onclick="openDeliveryShortageRepayment('${shortageKey}')">${label}</button>`);
+  }
   if(!actions.length)return '<span class="muted">Đã xác nhận</span>';
   return actions.join(' ');
 }
@@ -361,13 +401,18 @@ function renderDeliverySubmissionRows(rows,{fundType='cash'}={}){
   const reportField=isBank?'reportBankAmount':'reportCashAmount';
   const submittedField=isBank?'submittedBankAmount':'submittedCashAmount';
   const differenceField=isBank?'differenceBankAmount':'differenceCashAmount';
+  const shortageField=isBank?'bankShortage':'cashShortage';
   const emptyText=isBank?'Chưa có phiếu nộp quỹ chuyển khoản.':'Chưa có phiếu nộp quỹ tiền mặt.';
-  if(!rows.length)return `<tr><td colspan="8">${emptyText}</td></tr>`;
+  if(!rows.length)return `<tr><td colspan="9">${emptyText}</td></tr>`;
   return rows.map(r=>{
     const diff=Number(r[differenceField]||0);
+    const shortage=r[shortageField]||null;
+    const outstanding=shortage?Number(shortage.outstandingAmount||0):Math.max(0,-diff);
     const key=String(r.code||r.id||'');
     fundRowCache.delivery[key]=r;
-    return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.deliveryDate||'')}</td><td>${escapeHtml(((r.deliveryStaffCode||'')+' '+(r.deliveryStaffName||'')).trim())}</td><td class="price">${money(r[reportField]||0)}</td><td class="price">${money(r[submittedField]||0)}</td><td class="price ${diff===0?'cash-in':'cash-out'}">${diff>0?'+':''}${money(diff)}</td><td>${fundStatusLabel(diff)} ${escapeHtml(fundStatusText(r))}</td><td>${fundActionButtons('delivery',r)}</td></tr>`;
+    const shortageState=deliveryShortageStatusText(shortage,r,diff);
+    const baseActions=fundActionButtons('delivery',r);
+    return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.deliveryDate||'')}</td><td>${escapeHtml(((r.deliveryStaffCode||'')+' '+(r.deliveryStaffName||'')).trim())}</td><td class="price">${money(r[reportField]||0)}</td><td class="price">${money(r[submittedField]||0)}</td><td class="price ${diff===0?'cash-in':'cash-out'}">${diff>0?'+':''}${money(diff)}</td><td class="price ${outstanding>0?'cash-out':''}">${outstanding>0?money(outstanding):'0'}</td><td>${fundStatusLabel(diff)} ${escapeHtml(fundStatusText(r))}${shortageState?`<div class="fund-shortage-state-wrap">${shortageState}</div>`:''}</td><td>${deliverySubmissionActions(r,{fundType,baseActions})}</td></tr>`;
   }).join('');
 }
 
@@ -384,8 +429,8 @@ async function loadDeliveryCashSubmissions(){
     if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:'bank'});
   }catch(err){
     const message=escapeHtml(err.message||'Lỗi tải phiếu nộp quỹ');
-    if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="8">${message}</td></tr>`;
-    if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=`<tr><td colspan="8">${message}</td></tr>`;
+    if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="9">${message}</td></tr>`;
+    if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=`<tr><td colspan="9">${message}</td></tr>`;
   }
 }
 
@@ -437,19 +482,199 @@ async function submitDeliveryCashSubmission(event){
   }catch(err){showMessage(deliveryCashSubmissionMessage,err.message,true)}
 }
 
+function setFundAuxModal(modal,show){
+  if(!modal)return;
+  modal.classList.toggle('show',Boolean(show));
+  modal.setAttribute('aria-hidden',show?'false':'true');
+  if(show)document.body.classList.add('modal-open');
+  else if(!document.querySelector('.modal-backdrop.show'))document.body.classList.remove('modal-open');
+}
+
+function closeDeliveryShortageResolutionModal(){
+  setFundAuxModal(deliveryShortageResolutionModal,false);
+  shortageResolutionContext={mode:'',submissionCode:''};
+  if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.reset();
+  if(deliveryShortageResolutionMessage)showMessage(deliveryShortageResolutionMessage,'');
+}
+
+function openDeliveryShortageResolution(row,{mode='confirm'}={}){
+  if(!row)return;
+  const cashShortage=Math.max(0,-Number(row.differenceCashAmount||0));
+  const bankShortage=Math.max(0,-Number(row.differenceBankAmount||0));
+  if(cashShortage<=0&&bankShortage<=0){
+    if(mode==='confirm')return executeDeliveryCashSubmissionConfirmation(row.code||row.id,{});
+    alert('Phiếu không có khoản thiếu cần phân loại');
+    return;
+  }
+  shortageResolutionContext={mode,submissionCode:String(row.code||row.id||'')};
+  if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.reset();
+  if(deliveryShortageResolutionSubmissionCode)deliveryShortageResolutionSubmissionCode.value=shortageResolutionContext.submissionCode;
+  if(deliveryShortageResolutionMode)deliveryShortageResolutionMode.value=mode;
+  if(deliveryCashShortageResolutionSection)deliveryCashShortageResolutionSection.hidden=cashShortage<=0;
+  if(deliveryBankShortageResolutionSection)deliveryBankShortageResolutionSection.hidden=bankShortage<=0;
+  if(deliveryCashShortageResolutionAmount)deliveryCashShortageResolutionAmount.textContent=money(cashShortage);
+  if(deliveryBankShortageResolutionAmount)deliveryBankShortageResolutionAmount.textContent=money(bankShortage);
+  if(deliveryShortageResolutionSummary){
+    deliveryShortageResolutionSummary.innerHTML=`<strong>${escapeHtml(row.code||'')}</strong><span>${escapeHtml(((row.deliveryStaffCode||'')+' · '+(row.deliveryStaffName||'')).replace(/ · $/,''))}</span><span>Ngày giao ${escapeHtml(row.deliveryDate||'')}</span>`;
+  }
+  if(submitDeliveryShortageResolutionButton)submitDeliveryShortageResolutionButton.textContent=mode==='classify'?'Lưu phân loại khoản thiếu':'Xác nhận phiếu và ghi quỹ';
+  if(deliveryShortageResolutionMessage)showMessage(deliveryShortageResolutionMessage,'');
+  setFundAuxModal(deliveryShortageResolutionModal,true);
+}
+
+async function executeDeliveryCashSubmissionConfirmation(code,payload={}){
+  const res=await fetch(`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const json=await fundReadJsonResponse(res,'Không xác nhận được phiếu nộp quỹ');
+  if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu nộp quỹ');
+  await loadDeliveryCashSubmissions();
+  await loadFundLedger();
+  return json;
+}
+
 async function confirmDeliveryCashSubmission(code){
   if(!code)return;
+  const row=fundRowCache.delivery[code];
+  if(!row){alert('Không tìm thấy dữ liệu phiếu để xác nhận');return;}
+  const hasShortage=Number(row.differenceCashAmount||0)<0||Number(row.differenceBankAmount||0)<0;
+  if(hasShortage){
+    openDeliveryShortageResolution(row,{mode:'confirm'});
+    return;
+  }
   if(!confirm(`Xác nhận phiếu nộp quỹ ${code} và ghi vào fundLedgers?`))return;
   try{
-    const res=await fetch(`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const json=await fundReadJsonResponse(res,'Không xác nhận được phiếu nộp quỹ');
-    if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu nộp quỹ');
-    await loadDeliveryCashSubmissions();
-    await loadFundLedger();
+    const json=await executeDeliveryCashSubmissionConfirmation(code,{});
     alert(json.message||'Đã ghi sổ quỹ');
   }catch(err){alert(err.message||'Không xác nhận được phiếu nộp quỹ')}
 }
 window.confirmDeliveryCashSubmission=confirmDeliveryCashSubmission;
+
+function classifyDeliveryCashShortages(code){
+  const row=fundRowCache.delivery[code];
+  if(!row){alert('Không tìm thấy dữ liệu phiếu');return;}
+  openDeliveryShortageResolution(row,{mode:'classify'});
+}
+window.classifyDeliveryCashShortages=classifyDeliveryCashShortages;
+
+async function submitDeliveryShortageResolution(event){
+  event.preventDefault();
+  const row=fundRowCache.delivery[shortageResolutionContext.submissionCode];
+  if(!row){showMessage(deliveryShortageResolutionMessage,'Không tìm thấy dữ liệu phiếu',true);return;}
+  const payload={shortageResolution:{}};
+  if(Number(row.differenceCashAmount||0)<0){
+    const reasonType=String(deliveryCashShortageReason&&deliveryCashShortageReason.value||'').trim();
+    if(!reasonType){showMessage(deliveryShortageResolutionMessage,'Cần chọn cách xử lý khoản thiếu tiền mặt',true);return;}
+    payload.shortageResolution.cash={reasonType,note:String(deliveryCashShortageNote&&deliveryCashShortageNote.value||'').trim()};
+  }
+  if(Number(row.differenceBankAmount||0)<0){
+    const reasonType=String(deliveryBankShortageReason&&deliveryBankShortageReason.value||'').trim();
+    if(!reasonType){showMessage(deliveryShortageResolutionMessage,'Cần chọn cách xử lý khoản thiếu chuyển khoản',true);return;}
+    payload.shortageResolution.bank={reasonType,note:String(deliveryBankShortageNote&&deliveryBankShortageNote.value||'').trim()};
+  }
+  try{
+    const mode=shortageResolutionContext.mode;
+    const code=shortageResolutionContext.submissionCode;
+    const url=mode==='classify'
+      ?`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/shortages`
+      :`/api/funds/delivery-cash-submissions/${encodeURIComponent(code)}/confirm`;
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const json=await fundReadJsonResponse(res,mode==='classify'?'Không phân loại được khoản thiếu':'Không xác nhận được phiếu nộp quỹ');
+    if(!json.ok)throw new Error(json.message||'Không xử lý được khoản thiếu');
+    await loadDeliveryCashSubmissions();
+    await loadFundLedger();
+    closeDeliveryShortageResolutionModal();
+    alert(json.message||'Đã xử lý khoản thiếu');
+  }catch(err){showMessage(deliveryShortageResolutionMessage,err.message,true)}
+}
+
+function closeDeliveryShortageRepaymentModal(){
+  setFundAuxModal(deliveryShortageRepaymentModal,false);
+  activeDeliveryShortageId='';
+  if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.reset();
+  if(deliveryShortageRepaymentMessage)showMessage(deliveryShortageRepaymentMessage,'');
+}
+
+function deliveryShortageStatusLabel(status){
+  const labels={open:'Chưa nộp bù',partial:'Đã nộp một phần',settled:'Đã tất toán',pending_reconciliation:'Chờ đối soát ngân hàng',customer_outstanding:'Công nợ khách hàng',adjusted:'Đã điều chỉnh',disputed:'Chờ kiểm tra'};
+  return labels[String(status||'').toLowerCase()]||String(status||'');
+}
+
+async function loadDeliveryShortageHistory(shortageId){
+  const res=await fetch(`/api/funds/delivery-cash-shortages/${encodeURIComponent(shortageId)}/history`);
+  const json=await fundReadJsonResponse(res,'Không tải được lịch sử khoản thiếu');
+  if(!json.ok)throw new Error(json.message||'Không tải được lịch sử khoản thiếu');
+  const shortage=json.shortage||{};
+  const summary=json.summary||{};
+  activeDeliveryShortageId=String(shortage.id||shortage.code||shortageId);
+  fundRowCache.shortage[activeDeliveryShortageId]=shortage;
+  if(deliveryShortageRepaymentShortageId)deliveryShortageRepaymentShortageId.value=activeDeliveryShortageId;
+  if(deliveryShortageRepaymentSummary){
+    deliveryShortageRepaymentSummary.innerHTML=`
+      <div><span>NVGH</span><b>${escapeHtml(((shortage.deliveryStaffCode||'')+' '+(shortage.deliveryStaffName||'')).trim())}</b></div>
+      <div><span>Thiếu ban đầu</span><b>${money(summary.originalShortageAmount||0)}</b></div>
+      <div><span>Đã nộp bù</span><b>${money(summary.settledAmount||0)}</b></div>
+      <div><span>Phiếu đang chờ</span><b>${money(summary.pendingAmount||0)}</b></div>
+      <div><span>Còn thiếu</span><b>${money(summary.outstandingAmount||0)}</b></div>
+      <div><span>Trạng thái</span><b>${escapeHtml(deliveryShortageStatusLabel(shortage.status))}</b></div>`;
+  }
+  const canRepay=String(shortage.responsibleType||'')==='delivery_staff'&&Number(summary.availableToRepay||0)>0&&['open','partial'].includes(String(shortage.status||''));
+  if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.hidden=!canRepay;
+  if(deliveryShortageRepaymentAmount){
+    deliveryShortageRepaymentAmount.max=String(Math.max(0,Number(summary.availableToRepay||0)));
+    deliveryShortageRepaymentAmount.value=canRepay?String(Math.max(0,Number(summary.availableToRepay||0))):'';
+  }
+  if(deliveryShortageRepaymentDate&&!deliveryShortageRepaymentDate.value)deliveryShortageRepaymentDate.value=today();
+  const repayments=json.repayments||[];
+  repayments.forEach(r=>{fundRowCache.repayment[String(r.code||r.id||'')]=r;});
+  if(deliveryShortageRepaymentTable){
+    deliveryShortageRepaymentTable.innerHTML=repayments.length?repayments.map(r=>{
+      const code=fundSafeCode(r.code||r.id);
+      const pending=String(r.status||'').toLowerCase()==='pending'&&!r.fundPosted;
+      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.repaymentDate||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td><td>${pending?`<button type="button" class="secondary compact-action" onclick="confirmDeliveryShortageRepayment('${code}')">Xác nhận</button>`:'<span class="muted">Đã ghi quỹ</span>'}</td></tr>`;
+    }).join(''):'<tr><td colspan="6">Chưa có phiếu nộp bù.</td></tr>';
+  }
+  return json;
+}
+
+async function openDeliveryShortageRepayment(shortageId){
+  if(!shortageId)return;
+  activeDeliveryShortageId=shortageId;
+  if(deliveryShortageRepaymentDate)deliveryShortageRepaymentDate.value=today();
+  if(deliveryShortageRepaymentMessage)showMessage(deliveryShortageRepaymentMessage,'');
+  setFundAuxModal(deliveryShortageRepaymentModal,true);
+  try{await loadDeliveryShortageHistory(shortageId);}
+  catch(err){showMessage(deliveryShortageRepaymentMessage,err.message,true)}
+}
+window.openDeliveryShortageRepayment=openDeliveryShortageRepayment;
+
+async function submitDeliveryShortageRepayment(event){
+  event.preventDefault();
+  if(!activeDeliveryShortageId)return;
+  const payload=Object.fromEntries(new FormData(deliveryShortageRepaymentForm).entries());
+  payload.amount=Number(payload.amount||0);
+  try{
+    const res=await fetch(`/api/funds/delivery-cash-shortages/${encodeURIComponent(activeDeliveryShortageId)}/repayments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const json=await fundReadJsonResponse(res,'Không tạo được phiếu nộp bù');
+    if(!json.ok)throw new Error(json.message||'Không tạo được phiếu nộp bù');
+    showMessage(deliveryShortageRepaymentMessage,json.message||'Đã tạo phiếu nộp bù');
+    await loadDeliveryShortageHistory(activeDeliveryShortageId);
+    await loadDeliveryCashSubmissions();
+  }catch(err){showMessage(deliveryShortageRepaymentMessage,err.message,true)}
+}
+
+async function confirmDeliveryShortageRepayment(code){
+  if(!code)return;
+  if(!confirm(`Xác nhận phiếu nộp bù ${code} và ghi vào fundLedgers?`))return;
+  try{
+    const res=await fetch(`/api/funds/delivery-shortage-repayments/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const json=await fundReadJsonResponse(res,'Không xác nhận được phiếu nộp bù');
+    if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu nộp bù');
+    await loadDeliveryShortageHistory(activeDeliveryShortageId);
+    await loadDeliveryCashSubmissions();
+    await loadFundLedger();
+    alert(json.message||'Đã xác nhận nộp bù');
+  }catch(err){alert(err.message||'Không xác nhận được phiếu nộp bù')}
+}
+window.confirmDeliveryShortageRepayment=confirmDeliveryShortageRepayment;
 
 function editFundVoucher(type,code){
   const row=(fundRowCache[type]||{})[code];
@@ -536,7 +761,12 @@ if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.ad
 bindFundVoucherModal('delivery',createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton);
 bindFundVoucherModal('expense',createExpenseVoucherButton,closeExpenseVoucherModalButton);
 bindFundVoucherModal('transfer',createFundTransferButton,closeFundTransferModalButton);
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType);});
+document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape')return;
+  if(deliveryShortageResolutionModal&&deliveryShortageResolutionModal.classList.contains('show'))return closeDeliveryShortageResolutionModal();
+  if(deliveryShortageRepaymentModal&&deliveryShortageRepaymentModal.classList.contains('show'))return closeDeliveryShortageRepaymentModal();
+  if(activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType);
+});
 if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',()=>{loadFundLedger();loadDeliveryCashSubmissions();loadExpenseVouchers();loadFundTransfers();});
 if(fundSearchInput)fundSearchInput.addEventListener('input',debounce(reloadActiveFundTab,300));
 [fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter].forEach(el=>{if(el)el.addEventListener('change',loadFundLedger)});
@@ -548,9 +778,15 @@ if(deliveryCashSubmissionStaffCode){
 }
 [deliveryCashSubmissionCashInput,deliveryCashSubmissionBankInput].forEach(el=>{if(el)el.addEventListener('input',updateDeliveryCashSubmissionDifference);});
 if(deliveryCashSubmissionForm)deliveryCashSubmissionForm.addEventListener('submit',submitDeliveryCashSubmission);
+if(deliveryShortageResolutionForm)deliveryShortageResolutionForm.addEventListener('submit',submitDeliveryShortageResolution);
+if(deliveryShortageRepaymentForm)deliveryShortageRepaymentForm.addEventListener('submit',submitDeliveryShortageRepayment);
+if(closeDeliveryShortageResolutionModalButton)closeDeliveryShortageResolutionModalButton.addEventListener('click',closeDeliveryShortageResolutionModal);
+if(closeDeliveryShortageRepaymentModalButton)closeDeliveryShortageRepaymentModalButton.addEventListener('click',closeDeliveryShortageRepaymentModal);
+if(deliveryShortageResolutionModal)deliveryShortageResolutionModal.addEventListener('click',event=>{if(event.target===deliveryShortageResolutionModal)closeDeliveryShortageResolutionModal();});
+if(deliveryShortageRepaymentModal)deliveryShortageRepaymentModal.addEventListener('click',event=>{if(event.target===deliveryShortageRepaymentModal)closeDeliveryShortageRepaymentModal();});
 if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpenseVoucher);
 if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfer);
-[deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); });
+[deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm, deliveryShortageRepaymentForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); if(form&&form.elements.repaymentDate)form.elements.repaymentDate.value=today(); });
 clearDeliveryCashSubmissionPreview();
 setActiveDeliverySubmissionTab('cash');
 loadFundLedger();

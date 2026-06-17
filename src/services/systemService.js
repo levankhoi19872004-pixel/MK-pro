@@ -256,6 +256,8 @@ const RESET_SCOPES = {
     'debtCollections',
     'externalDebtOrders',
     'deliveryCashSubmissions',
+    'deliveryCashShortages',
+    'deliveryShortageRepayments',
     'expenseVouchers',
     'fundTransfers',
     'importLogs',

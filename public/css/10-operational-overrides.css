@@ -2886,3 +2886,24 @@
 }
 
 @media(max-width:640px){.delivery-subtab-nav{width:100%;display:grid;grid-template-columns:1fr 1fr}.delivery-subtab-button{width:100%;padding:9px 8px}}
+
+/* Phase 63 - quản lý thiếu quỹ NVGH và phiếu nộp bù */
+.fund-shortage-state-wrap{margin-top:4px;}
+.fund-shortage-state{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:900;white-space:nowrap;background:#e2e8f0;color:#475569;}
+.fund-shortage-state.open,.fund-shortage-state.partial,.fund-shortage-state.needs-classification{background:#fee2e2;color:#b91c1c;}
+.fund-shortage-state.settled,.fund-shortage-state.adjusted{background:#dcfce7;color:#15803d;}
+.fund-shortage-state.pending_reconciliation,.fund-shortage-state.pending,.fund-shortage-state.disputed{background:#fef3c7;color:#a16207;}
+.fund-shortage-state.customer_outstanding{background:#dbeafe;color:#1d4ed8;}
+.fund-shortage-modal-card{width:min(920px,96vw);}
+.fund-shortage-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid #cbdcf2;border-radius:12px;background:#eff6ff;color:#1e3a8a;}
+.fund-shortage-resolution-section{border:1px solid #fecaca;border-radius:14px;background:#fff;padding:12px;}
+.fund-shortage-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;color:#991b1b;}
+.fund-shortage-section-head b{font-size:18px;}
+.fund-shortage-resolution-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.delivery-shortage-kpis{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:8px;margin-bottom:12px;}
+.delivery-shortage-kpis>div{display:grid;gap:4px;padding:10px 12px;border:1px solid #dbe7f6;border-radius:12px;background:#f8fafc;}
+.delivery-shortage-kpis span{font-size:12px;color:#64748b;font-weight:800;}
+.delivery-shortage-kpis b{font-size:16px;color:#0f172a;}
+.delivery-shortage-history-scroll{max-height:300px;margin-top:14px;border:1px solid #dbe7f6;border-radius:12px;overflow:auto;}
+.delivery-shortage-history-scroll thead th{position:sticky;top:0;background:#eef4fb;z-index:1;}
+@media(max-width:760px){.fund-shortage-resolution-grid,.delivery-shortage-kpis{grid-template-columns:1fr;}}

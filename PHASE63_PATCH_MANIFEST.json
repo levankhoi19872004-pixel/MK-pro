@@ -1,0 +1,137 @@
+{
+  "phase": "63",
+  "name": "delivery-shortage-repayment",
+  "source": "MK-pro-phase62-picking-zone-master-order-alpha-patched(2).zip",
+  "output": "MK-pro-phase63-delivery-shortage-repayment-patched.zip",
+  "date": "2026-06-17",
+  "scope": [
+    "classify delivery cash submission shortages",
+    "track delivery staff cash liabilities separately from customer AR",
+    "create and confirm partial shortage repayments",
+    "post repayment to fundLedgers only after accounting confirmation",
+    "prevent concurrent pending repayment over-allocation",
+    "show shortage and repayment actions in cash/bank tabs"
+  ],
+  "database": {
+    "newCollections": [
+      "deliveryCashShortages",
+      "deliveryShortageRepayments"
+    ],
+    "migrationRequired": false,
+    "postDeployCommand": "npm run mongo:indexes"
+  },
+  "quality": {
+    "targetedTests": "6/6",
+    "fullRegression": "574/574",
+    "syntaxFiles": 658,
+    "openApiOperations": 263,
+    "productionAuditVulnerabilities": 0
+  },
+  "files": [
+    {
+      "path": "docs/openapi.json",
+      "size": 366894,
+      "sha256": "047a455e9ee134d96f53bce60d753efc68bfe8a69dcfcd75f0ea6073a66c7bf8"
+    },
+    {
+      "path": "public/css/10-operational-overrides.css",
+      "size": 118900,
+      "sha256": "b4a3145432d8ff99dd6cd42fb4c7532fd3cb6f6aa619e10da542abde29d16822"
+    },
+    {
+      "path": "public/index.html",
+      "size": 137810,
+      "sha256": "e7e846b00c75545df516062c21bbe97ab20f17baa8750fd804c18fc3fdce6ec4"
+    },
+    {
+      "path": "public/js/app/debt/07f-fund-ledger.js",
+      "size": 49136,
+      "sha256": "b890d7df8c4324eb15242e4e9f659cd6a6ba90e43a554c43417c98915df6af88"
+    },
+    {
+      "path": "public/js/app/state/00b-debt-return-fund-state.js",
+      "size": 17349,
+      "sha256": "071bf98c403c3fada767d58fcf131d739da47d3a3122c949a0a8d73f0a39aaae"
+    },
+    {
+      "path": "src/constants/collectionKeys.js",
+      "size": 1296,
+      "sha256": "40f037a1938d377756edc1672b2795080afa83ce83b309c8688bd8c5713fdeac"
+    },
+    {
+      "path": "src/controllers/fundController.js",
+      "size": 8136,
+      "sha256": "93958d356303d1817b262dc6c5f14e73c3ab017b3f5d1abe446a4622a2ecde46"
+    },
+    {
+      "path": "src/models/DeliveryCashShortage.js",
+      "size": 838,
+      "sha256": "c27bc43c6f3a9e4e8c3564039917efb04f7d1bce009b1893a4aaa10a859c501f"
+    },
+    {
+      "path": "src/models/DeliveryCashSubmission.js",
+      "size": 949,
+      "sha256": "bcb38472c4ed772e2a3f1d726b049647572604fe123635285bc604a3fcc47bc6"
+    },
+    {
+      "path": "src/models/DeliveryShortageRepayment.js",
+      "size": 694,
+      "sha256": "64ee6cba45ed109e2f2974b1744b085ba7facc601b0efbca0974a2eafa6b5508"
+    },
+    {
+      "path": "src/models/index.js",
+      "size": 2343,
+      "sha256": "985b0c16c64f369c631375066c367b6d8ce6509eec09da80cad4d6f085e4de6f"
+    },
+    {
+      "path": "src/repositories/deliveryCashShortageRepository.js",
+      "size": 3830,
+      "sha256": "b1abe3cd2f03649d71f9f9f18fadf61ca120e522011526b7b06d739e429cc7ab"
+    },
+    {
+      "path": "src/repositories/deliveryShortageRepaymentRepository.js",
+      "size": 1481,
+      "sha256": "11cbf4ee355a171a1428aa9d27e27486e8e2957d7cdd84b354322890447b3742"
+    },
+    {
+      "path": "src/routes/fundRoutes.js",
+      "size": 2143,
+      "sha256": "5b854c8c986a4680079c471b4fc78b82a0f80888b7f8b151cb4de576a8015913"
+    },
+    {
+      "path": "src/services/fundService.js",
+      "size": 49544,
+      "sha256": "41eba15e79de6556698fd80a84a99e8a4689342e38f20306878138faed35981f"
+    },
+    {
+      "path": "src/services/mongoIndexService.js",
+      "size": 27739,
+      "sha256": "fbfbb12c83016698a531a334d33814018655a3f7d72cd334e05f2e557bd3268e"
+    },
+    {
+      "path": "src/services/systemService.js",
+      "size": 10933,
+      "sha256": "c1118d406badada133f38b164a9b7053e534df8e87eba91fe55265db84e6dcf8"
+    },
+    {
+      "path": "test/fund-delivery-shortage-repayment-static.test.js",
+      "size": 2134,
+      "sha256": "db0819b0bc407c421ca924f1594c872b835934d3b3437dcd1417a014a8a96a3e"
+    },
+    {
+      "path": "test/fund-delivery-shortage-repayment.test.js",
+      "size": 9314,
+      "sha256": "0a8652621ecd9a9fb497dda5a4d408e1197e9beccb9070efb283c4ee032a6e0c"
+    },
+    {
+      "path": "PHASE63_DELIVERY_SHORTAGE_REPAYMENT_REPORT.md",
+      "size": 6204,
+      "sha256": "8541a2704b3c173ed7b2df47c091edf1f6ef302b75a17997fccf94f8a2909b40"
+    },
+    {
+      "path": "QUALITY_GATE_RESULTS_PHASE63.txt",
+      "size": 650,
+      "sha256": "74742648a82d0e2c1bbfb63264a261c7b2d8988f41480a7350978a18669a5acf"
+    }
+  ]
+}
