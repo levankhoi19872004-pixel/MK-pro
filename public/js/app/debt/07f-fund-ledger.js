@@ -2,6 +2,7 @@
 
 // Fund Ledger V45 - nguồn tiền chuẩn duy nhất cho thu/chi/chuyển quỹ.
 let activeFundTab='fundLedger';
+let activeDeliverySubmissionTab='cash';
 
 function fundStatusLabel(diff){
   const n=Number(diff||0);
@@ -341,8 +342,37 @@ async function loadFundLedger(){
   }
 }
 
+function setActiveDeliverySubmissionTab(tab='cash'){
+  activeDeliverySubmissionTab=tab==='bank'?'bank':'cash';
+  if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(button=>{
+    const active=button.dataset.deliverySubtab===activeDeliverySubmissionTab;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-selected',active?'true':'false');
+  });
+  if(deliverySubmissionTabPanels)deliverySubmissionTabPanels.forEach(panel=>{
+    const active=panel.dataset.deliverySubpanel===activeDeliverySubmissionTab;
+    panel.classList.toggle('active',active);
+    panel.hidden=!active;
+  });
+}
+
+function renderDeliverySubmissionRows(rows,{fundType='cash'}={}){
+  const isBank=fundType==='bank';
+  const reportField=isBank?'reportBankAmount':'reportCashAmount';
+  const submittedField=isBank?'submittedBankAmount':'submittedCashAmount';
+  const differenceField=isBank?'differenceBankAmount':'differenceCashAmount';
+  const emptyText=isBank?'Chưa có phiếu nộp quỹ chuyển khoản.':'Chưa có phiếu nộp quỹ tiền mặt.';
+  if(!rows.length)return `<tr><td colspan="8">${emptyText}</td></tr>`;
+  return rows.map(r=>{
+    const diff=Number(r[differenceField]||0);
+    const key=String(r.code||r.id||'');
+    fundRowCache.delivery[key]=r;
+    return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.deliveryDate||'')}</td><td>${escapeHtml(((r.deliveryStaffCode||'')+' '+(r.deliveryStaffName||'')).trim())}</td><td class="price">${money(r[reportField]||0)}</td><td class="price">${money(r[submittedField]||0)}</td><td class="price ${diff===0?'cash-in':'cash-out'}">${diff>0?'+':''}${money(diff)}</td><td>${fundStatusLabel(diff)} ${escapeHtml(fundStatusText(r))}</td><td>${fundActionButtons('delivery',r)}</td></tr>`;
+  }).join('');
+}
+
 async function loadDeliveryCashSubmissions(){
-  if(!deliveryCashSubmissionTable)return;
+  if(!deliveryCashSubmissionTable&&!deliveryBankSubmissionTable)return;
   try{
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
@@ -350,13 +380,12 @@ async function loadDeliveryCashSubmissions(){
     const json=await fundReadJsonResponse(res,'Không tải được phiếu nộp quỹ');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu nộp quỹ');
     const rows=json.submissions||[];
-    deliveryCashSubmissionTable.innerHTML=rows.length?rows.map(r=>{
-      const diff=Number(r.differenceCashAmount||0);
-      const key=String(r.code||r.id||''); fundRowCache.delivery[key]=r;
-      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.deliveryDate||'')}</td><td>${escapeHtml(((r.deliveryStaffCode||'')+' '+(r.deliveryStaffName||'')).trim())}</td><td class="price">${money(r.reportCashAmount||0)}</td><td class="price">${money(r.submittedCashAmount||0)}</td><td class="price ${diff===0?'cash-in':'cash-out'}">${diff>0?'+':''}${money(diff)}</td><td>${fundStatusLabel(diff)} ${escapeHtml(fundStatusText(r))}</td><td>${fundActionButtons('delivery',r)}</td></tr>`;
-    }).join(''):'<tr><td colspan="8">Chưa có phiếu nộp quỹ giao hàng.</td></tr>';
+    if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:'cash'});
+    if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=renderDeliverySubmissionRows(rows,{fundType:'bank'});
   }catch(err){
-    deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Lỗi tải phiếu nộp quỹ')}</td></tr>`;
+    const message=escapeHtml(err.message||'Lỗi tải phiếu nộp quỹ');
+    if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="8">${message}</td></tr>`;
+    if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=`<tr><td colspan="8">${message}</td></tr>`;
   }
 }
 
@@ -503,6 +532,7 @@ function reloadActiveFundTab(){
   else if(activeFundTab==='bankTransfer')loadFundTransfers();
 }
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
+if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)));
 bindFundVoucherModal('delivery',createDeliveryCashSubmissionButton,closeDeliveryCashSubmissionModalButton);
 bindFundVoucherModal('expense',createExpenseVoucherButton,closeExpenseVoucherModalButton);
 bindFundVoucherModal('transfer',createFundTransferButton,closeFundTransferModalButton);
@@ -522,4 +552,5 @@ if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpense
 if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfer);
 [deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); });
 clearDeliveryCashSubmissionPreview();
+setActiveDeliverySubmissionTab('cash');
 loadFundLedger();

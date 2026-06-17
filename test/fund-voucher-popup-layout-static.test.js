@@ -43,9 +43,9 @@ test('nút tạo và nút sửa mở đúng popup, lưu thành công đóng popu
 
 test('asset quỹ được cache-bust để trình duyệt nhận giao diện popup và bảng tiền cần thu mới', () => {
   const html = read('public/index.html');
-  assert.match(html, /10-operational-overrides\.css\?v=phase59-delivery-cash-preview-v1/);
-  assert.match(html, /00b-debt-return-fund-state\.js\?v=phase59-delivery-cash-preview-v1/);
-  assert.match(html, /07f-fund-ledger\.js\?v=phase59-delivery-cash-preview-v1/);
+  assert.match(html, /10-operational-overrides\.css\?v=phase61-delivery-fund-split-tabs-v1/);
+  assert.match(html, /00b-debt-return-fund-state\.js\?v=phase61-delivery-fund-split-tabs-v1/);
+  assert.match(html, /07f-fund-ledger\.js\?v=phase61-delivery-fund-split-tabs-v1/);
 });
 
 
