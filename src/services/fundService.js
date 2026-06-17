@@ -342,25 +342,76 @@ function lockedError(name) {
   return { error: `${name} đã xác nhận, không được sửa nghiệp vụ`, status: 409 };
 }
 
+function isSameDeliveryCashSubmission(left = {}, right = {}) {
+  const leftId = String(left.id || '').trim();
+  const rightId = String(right.id || '').trim();
+  if (leftId && rightId) return leftId === rightId;
+  const leftCode = String(left.code || '').trim();
+  const rightCode = String(right.code || '').trim();
+  return Boolean(leftCode && rightCode && leftCode === rightCode);
+}
+
 async function updateDeliveryCashSubmission(idOrCode, body = {}) {
   const current = await deliveryCashSubmissionRepository.findByIdOrCode(idOrCode);
   if (!current) return { error: 'Không tìm thấy phiếu nộp quỹ', status: 404 };
   if (isLockedVoucher(current)) return lockedError('Phiếu nộp quỹ');
+
   const submittedCashAmount = money(body.submittedCashAmount ?? current.submittedCashAmount ?? current.reportCashAmount);
   const submittedBankAmount = money(body.submittedBankAmount ?? current.submittedBankAmount ?? current.reportBankAmount);
-  const updated = {
+  const deliveryDate = body.deliveryDate ?? body.date ?? current.deliveryDate;
+  const deliveryStaffCode = String(
+    pickDeliveryStaffCode(body) || body.delivery || current.deliveryStaffCode || ''
+  ).trim();
+
+  // Rebuild the report snapshot from the current delivery orders. Previously an edit
+  // only changed submitted amounts, leaving reportCashAmount/reportBankAmount stale.
+  const rebuilt = await buildDeliverySubmissionDraft({
     ...current,
+    ...body,
+    id: current.id,
+    deliveryDate,
+    deliveryStaffCode,
     submittedCashAmount,
     submittedBankAmount,
-    differenceCashAmount: submittedCashAmount - money(current.reportCashAmount),
-    differenceBankAmount: submittedBankAmount - money(current.reportBankAmount),
-    matchStatus: (submittedCashAmount === money(current.reportCashAmount) && submittedBankAmount === money(current.reportBankAmount)) ? 'matched' : 'mismatch',
     status: 'pending',
     note: String(body.note ?? current.note ?? '').trim(),
+    createdBy: current.createdBy || body.createdBy || ''
+  });
+  if (rebuilt.error) return rebuilt;
+
+  const refreshed = rebuilt.draft;
+  if (String(refreshed.code || '') !== String(current.code || '')) {
+    const collision = await deliveryCashSubmissionRepository.findByIdOrCode(refreshed.code);
+    if (collision && !isSameDeliveryCashSubmission(current, collision)) {
+      return {
+        error: `Đã có phiếu nộp quỹ ${refreshed.code} cho ngày/NVGH này`,
+        status: 409,
+        submission: collision
+      };
+    }
+  }
+
+  const updated = {
+    ...current,
+    ...refreshed,
+    id: current.id || refreshed.id,
+    createdBy: current.createdBy || refreshed.createdBy || '',
+    createdAt: current.createdAt || refreshed.createdAt,
+    status: 'pending',
+    fundPosted: false,
+    postedAt: '',
+    confirmedAt: '',
+    confirmedBy: '',
     updatedAt: dateUtil.nowIso()
   };
-  await deliveryCashSubmissionRepository.upsert(updated);
-  return { submission: updated, message: 'Đã cập nhật phiếu nộp quỹ' };
+
+  const persisted = await deliveryCashSubmissionRepository.patchByIdOrCode(idOrCode, updated);
+  if (!persisted) return { error: 'Phiếu nộp quỹ đã thay đổi hoặc không còn tồn tại', status: 409 };
+  return {
+    submission: persisted,
+    orders: rebuilt.orders,
+    message: 'Đã cập nhật phiếu nộp quỹ và đồng bộ lại số báo cáo theo ngày/NVGH'
+  };
 }
 
 
