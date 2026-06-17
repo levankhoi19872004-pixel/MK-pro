@@ -259,8 +259,15 @@ async function buildDeliverySubmissionDraft(query = {}) {
   const deliveryDate = dateOnly(query.deliveryDate || query.date);
   const deliveryStaffCode = String(pickDeliveryStaffCode(query) || query.delivery || '').trim();
   if (!deliveryStaffCode) return { error: 'Thiếu nhân viên giao hàng để tạo phiếu nộp quỹ', status: 400 };
-  const data = await getMasterOrderDeliveryService().listDeliveryToday({ date: deliveryDate, delivery: deliveryStaffCode, deliveryStaffCode, page: 1, limit: 5000 });
-  const orders = data.orders || [];
+  const deliveryService = getMasterOrderDeliveryService();
+  const listDeliveryOrders = typeof deliveryService.listDeliveryTodayOrdersCompact === 'function'
+    ? deliveryService.listDeliveryTodayOrdersCompact
+    : deliveryService.listDeliveryToday;
+  const data = await listDeliveryOrders({ date: deliveryDate, delivery: deliveryStaffCode, deliveryStaffCode, page: 1, limit: 5000 });
+  const selectedStaffCode = normalizeText(deliveryStaffCode);
+  const orders = (data.orders || data.rows || []).filter((row) => (
+    normalizeText(pickDeliveryStaffCode(row) || row.deliveryStaffCode) === selectedStaffCode
+  ));
   if (!orders.length) return { error: 'Không có đơn giao để tạo phiếu nộp quỹ', status: 404 };
   const deliveryStaffName = orders.find((row) => row.deliveryStaffName)?.deliveryStaffName || deliveryStaffCode;
   const reportCurrentOrderCashAmount = orders.reduce((sum, row) => sum + numberFromRow(row, ['cashAmount', 'cashCollected']), 0);
@@ -300,7 +307,7 @@ async function buildDeliverySubmissionDraft(query = {}) {
       updatedAt: dateUtil.nowIso()
     },
     orders,
-    deliverySummary: data.kpi || {}
+    deliverySummary: data.summary || data.kpi || {}
   };
 }
 

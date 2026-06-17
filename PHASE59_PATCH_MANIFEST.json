@@ -1,0 +1,33 @@
+{
+  "phase": 59,
+  "name": "delivery-cash-preview",
+  "summary": "Shows a live cash/bank collection preview by delivery date and delivery staff inside the delivery fund submission popup, with per-order details, live differences, request race protection, and a compact backend query.",
+  "changedFiles": [
+    "public/index.html",
+    "public/css/10-operational-overrides.css",
+    "public/js/app/state/00b-debt-return-fund-state.js",
+    "public/js/app/debt/07f-fund-ledger.js",
+    "src/services/fundService.js",
+    "test/fund-voucher-popup-layout-static.test.js",
+    "test/fund-delivery-cash-preview-static.test.js",
+    "test/fund-ledger-customer-counterparty-ui.test.js",
+    "test/fund-service-master-order-delivery-lazy-dependency-static.test.js",
+    "PHASE59_DELIVERY_CASH_PREVIEW_REPORT.md",
+    "PHASE59_PATCH_MANIFEST.json",
+    "QUALITY_GATE_RESULTS_PHASE59.txt"
+  ],
+  "databaseMigrationRequired": false,
+  "apiBreakingChange": false,
+  "businessLogicChanged": false,
+  "performance": {
+    "frontend": "350ms debounce, AbortController, stale response guard",
+    "backend": "Prefers listDeliveryTodayOrdersCompact with safe fallback"
+  },
+  "tests": {
+    "javascriptSyntax": "646 files pass",
+    "targetedRegression": "17/17 pass",
+    "classicScriptGlobalScope": "pass",
+    "duplicateHtmlIds": "0 of 516",
+    "fullSuite": "not completed: node_modules are not installed in the patch sandbox"
+  }
+}

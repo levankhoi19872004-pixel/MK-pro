@@ -6,7 +6,7 @@
   <title>KHO Minh Khai Pro V44</title>
   <link rel="stylesheet" href="/css/00-base.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v3" />
-  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase58-fund-voucher-popup-v1" />
+  <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase59-delivery-cash-preview-v1" />
   <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/30-master-orders.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
@@ -1351,10 +1351,39 @@
               </div>
               <div class="fund-voucher-modal-body">
                 <form id="deliveryCashSubmissionForm" class="form fund-form-grid">
-                  <label>Ngày giao<input name="deliveryDate" type="date" /></label>
-                  <label>Mã NV giao hàng<input name="deliveryStaffCode" placeholder="VD: ghth" /></label>
-                  <label>Báo cáo/Thực nộp tiền mặt<input name="submittedCashAmount" type="number" min="0" step="1" placeholder="Để trống = theo báo cáo" /></label>
-                  <label>Đối soát chuyển khoản<input name="submittedBankAmount" type="number" min="0" step="1" placeholder="Để trống = theo báo cáo" /></label>
+                  <label>Ngày giao<input id="deliveryCashSubmissionDate" name="deliveryDate" type="date" /></label>
+                  <label>Mã NV giao hàng<input id="deliveryCashSubmissionStaffCode" name="deliveryStaffCode" placeholder="VD: ghth" autocomplete="off" /></label>
+
+                  <section id="deliveryCashSubmissionPreview" class="delivery-cash-preview full-span" aria-live="polite">
+                    <div id="deliveryCashSubmissionPreviewStatus" class="delivery-cash-preview-empty">
+                      Chọn ngày giao và nhập mã NV giao hàng để xem tiền cần thu.
+                    </div>
+                    <div id="deliveryCashSubmissionPreviewContent" hidden>
+                      <div class="delivery-cash-preview-head">
+                        <div>
+                          <strong id="deliveryCashSubmissionPreviewStaff">NVGH</strong>
+                          <span id="deliveryCashSubmissionPreviewDate" class="muted"></span>
+                        </div>
+                        <span id="deliveryCashSubmissionPreviewOrderCount" class="fund-preview-count">0 đơn</span>
+                      </div>
+                      <div class="delivery-cash-preview-kpis">
+                        <div><span>Tiền mặt cần thu</span><b id="deliveryCashSubmissionReportCash">0</b></div>
+                        <div><span>Tài khoản cần thu</span><b id="deliveryCashSubmissionReportBank">0</b></div>
+                        <div><span>Tổng cần thu</span><b id="deliveryCashSubmissionReportTotal">0</b></div>
+                        <div><span>Chênh thực nhập</span><b id="deliveryCashSubmissionInputDifference">0</b></div>
+                      </div>
+                      <div class="table-scroll delivery-cash-preview-table-scroll">
+                        <table class="delivery-cash-preview-table">
+                          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Tiền mặt</th><th>Tài khoản</th><th>Tổng</th></tr></thead>
+                          <tbody id="deliveryCashSubmissionPreviewTable"><tr><td colspan="5">Chưa có dữ liệu.</td></tr></tbody>
+                          <tfoot><tr><th colspan="2">Tổng theo báo cáo</th><th id="deliveryCashSubmissionPreviewCashTotal">0</th><th id="deliveryCashSubmissionPreviewBankTotal">0</th><th id="deliveryCashSubmissionPreviewGrandTotal">0</th></tr></tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+
+                  <label>Thực nộp tiền mặt<input id="deliveryCashSubmissionCashInput" name="submittedCashAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
+                  <label>Thực nhận tài khoản<input id="deliveryCashSubmissionBankInput" name="submittedBankAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
                   <label class="full-span">Ghi chú<input name="note" placeholder="Ghi chú nộp quỹ" /></label>
                   <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp quỹ</button></div>
                   <p id="deliveryCashSubmissionMessage" class="message full-span"></p>
@@ -2029,7 +2058,7 @@
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
   <script src="/js/app/00-dashboard.js?v=phase55-dashboard-actual-confirmed-sales-v1"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
-  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase58-fund-voucher-popup-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase59-delivery-cash-preview-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/01-utils-print-tabs.js?v=phase42-fund-customer-v1"></script>
   <script src="/js/app/02-products.js?v=staff-auto-users-v5"></script>
@@ -2044,7 +2073,7 @@
   <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07d-master-return-orders.js?v=phase54-master-return-lifecycle-v1"></script>
   <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
-  <script src="/js/app/debt/07f-fund-ledger.js?v=phase58-fund-voucher-popup-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.js?v=phase59-delivery-cash-preview-v1"></script>
   <script src="/js/app/admin/08a-reports.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>

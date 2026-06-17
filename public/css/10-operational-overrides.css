@@ -447,19 +447,40 @@
 .fund-list-toolbar>div{display:grid;gap:3px;}
 .fund-list-toolbar h3{margin:0;}
 .fund-list-toolbar button{white-space:nowrap;}
-.fund-voucher-modal-card{width:min(760px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}
+.fund-voucher-modal-card{width:min(980px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;}
 .fund-voucher-modal-body{padding:16px 20px 20px;overflow:auto;background:#f8fbff;}
 .fund-voucher-modal .fund-form-grid{margin:0;}
 .fund-form-grid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px;}
 .fund-form-grid .full-span{grid-column:1/-1;}
+.delivery-cash-preview{border:1px solid #cbdcf2;border-radius:14px;background:#fff;overflow:hidden;min-height:84px;}
+.delivery-cash-preview-empty{padding:22px;text-align:center;color:#64748b;font-weight:700;background:#f8fafc;}
+.delivery-cash-preview-empty.is-loading{color:#1d4ed8;background:#eff6ff;}
+.delivery-cash-preview-empty.is-error{color:#b91c1c;background:#fef2f2;}
+.delivery-cash-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #e2e8f0;background:#f8fbff;}
+.delivery-cash-preview-head>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.fund-preview-count{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:900;white-space:nowrap;}
+.delivery-cash-preview-kpis{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:8px;padding:10px 12px;background:#fff;}
+.delivery-cash-preview-kpis>div{display:grid;gap:3px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:11px;background:#f8fafc;}
+.delivery-cash-preview-kpis span{font-size:12px;color:#64748b;font-weight:800;}
+.delivery-cash-preview-kpis b{font-size:17px;color:#0f172a;}
+#deliveryCashSubmissionInputDifference.is-positive{color:#dc2626;}
+#deliveryCashSubmissionInputDifference.is-negative{color:#dc2626;}
+#deliveryCashSubmissionInputDifference.is-matched{color:#16a34a;}
+.delivery-cash-preview-table-scroll{max-height:280px;border-top:1px solid #e2e8f0;overflow:auto;}
+.delivery-cash-preview-table{margin:0;min-width:720px;}
+.delivery-cash-preview-table th,.delivery-cash-preview-table td{padding:8px 10px;}
+.delivery-cash-preview-table thead th{position:sticky;top:0;z-index:1;background:#eef4fb;}
+.delivery-cash-preview-table tfoot th{position:sticky;bottom:0;background:#eaf2ff;color:#0f172a;border-top:2px solid #cbd5e1;}
+.delivery-cash-preview-table .price{text-align:right;font-variant-numeric:tabular-nums;}
+.delivery-cash-preview-extra td{background:#fff7ed;}
 .funds-sub-table-scroll{max-height:calc(100vh - 330px);overflow:auto;border:1px solid #e2e8f0;border-radius:12px;}
 .fund-status{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:900;margin-right:4px;}
 .fund-status.ok{background:#dcfce7;color:#15803d;}
 .fund-status.warn{background:#ffedd5;color:#c2410c;}
 .fund-status.bad{background:#fee2e2;color:#dc2626;}
 .compact-toolbar{margin-bottom:8px;}
-@media(max-width:1100px){.fund-two-column{grid-template-columns:1fr}.fund-filter-row{grid-template-columns:repeat(2,minmax(160px,1fr));}.fund-form-grid{grid-template-columns:1fr}}
-@media(max-width:640px){.fund-list-toolbar{align-items:stretch;flex-direction:column}.fund-list-toolbar button{width:100%}.fund-voucher-modal{padding:10px}.fund-voucher-modal-card{width:100%;max-height:96vh}.fund-voucher-modal-body{padding:14px}}
+@media(max-width:1100px){.fund-two-column{grid-template-columns:1fr}.fund-filter-row{grid-template-columns:repeat(2,minmax(160px,1fr));}.fund-form-grid{grid-template-columns:1fr}.delivery-cash-preview-kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}}
+@media(max-width:640px){.fund-list-toolbar{align-items:stretch;flex-direction:column}.fund-list-toolbar button{width:100%}.fund-voucher-modal{padding:10px}.fund-voucher-modal-card{width:100%;max-height:96vh}.fund-voucher-modal-body{padding:14px}.delivery-cash-preview-kpis{grid-template-columns:1fr}.delivery-cash-preview-head{align-items:flex-start;flex-direction:column}.delivery-cash-preview-table-scroll{max-height:240px}}
 .promotion-inner-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.promotion-panel{display:none}.promotion-panel.active{display:block}.compact-form{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}.compact-form .button-row{align-self:end}.inner-tab.active{background:#0f766e;color:#fff;border-color:#0f766e}
 
 /* ===== V45 Sales history for order-entry screen: only sales fields, no delivery/debt noise ===== */

@@ -99,6 +99,7 @@ function fundResetVoucherForm(type){
   if(ui.form.elements[ui.dateField])ui.form.elements[ui.dateField].value=today();
   if(ui.message)showMessage(ui.message,'');
   fundResetEditing(type);
+  if(type==='delivery')clearDeliveryCashSubmissionPreview();
 }
 function openFundVoucherModal(type,{reset=false}={}){
   const ui=fundVoucherUi(type);
@@ -111,6 +112,7 @@ function openFundVoucherModal(type,{reset=false}={}){
   document.body.classList.add('modal-open');
   const firstField=ui.form&&ui.form.querySelector('input, select, textarea');
   if(firstField)window.requestAnimationFrame(()=>firstField.focus());
+  if(type==='delivery')scheduleDeliveryCashSubmissionPreview({syncSubmitted:fundEditing.type!=='delivery',immediate:true});
 }
 function closeFundVoucherModal(type=activeFundVoucherModalType,{reset=true}={}){
   const ui=fundVoucherUi(type);
@@ -127,6 +129,159 @@ function bindFundVoucherModal(type,openButton,closeButton){
   if(openButton)openButton.addEventListener('click',()=>openFundVoucherModal(type,{reset:true}));
   if(closeButton)closeButton.addEventListener('click',()=>closeFundVoucherModal(type));
   if(ui&&ui.modal)ui.modal.addEventListener('click',event=>{if(event.target===ui.modal)closeFundVoucherModal(type);});
+}
+
+let deliveryCashPreviewTimer=null;
+let deliveryCashPreviewRequestSeq=0;
+let deliveryCashPreviewAbortController=null;
+let deliveryCashPreviewDraft=null;
+
+function setDeliveryCashSubmissionPreviewStatus(message,{loading=false,error=false}={}){
+  if(deliveryCashSubmissionPreview)deliveryCashSubmissionPreview.setAttribute('aria-busy',loading?'true':'false');
+  if(deliveryCashSubmissionPreviewStatus){
+    deliveryCashSubmissionPreviewStatus.hidden=false;
+    deliveryCashSubmissionPreviewStatus.textContent=message||'';
+    deliveryCashSubmissionPreviewStatus.classList.toggle('is-loading',loading);
+    deliveryCashSubmissionPreviewStatus.classList.toggle('is-error',error);
+  }
+  if(deliveryCashSubmissionPreviewContent)deliveryCashSubmissionPreviewContent.hidden=true;
+}
+
+function clearDeliveryCashSubmissionPreview(){
+  deliveryCashPreviewRequestSeq+=1;
+  deliveryCashPreviewDraft=null;
+  if(deliveryCashPreviewTimer){clearTimeout(deliveryCashPreviewTimer);deliveryCashPreviewTimer=null;}
+  if(deliveryCashPreviewAbortController){deliveryCashPreviewAbortController.abort();deliveryCashPreviewAbortController=null;}
+  if(fundEditing.type!=='delivery'){
+    if(deliveryCashSubmissionCashInput)deliveryCashSubmissionCashInput.value='';
+    if(deliveryCashSubmissionBankInput)deliveryCashSubmissionBankInput.value='';
+  }
+  setDeliveryCashSubmissionPreviewStatus('Chọn ngày giao và nhập mã NV giao hàng để xem tiền cần thu.');
+  if(deliveryCashSubmissionPreviewTable)deliveryCashSubmissionPreviewTable.innerHTML='<tr><td colspan="5">Chưa có dữ liệu.</td></tr>';
+  [deliveryCashSubmissionReportCash,deliveryCashSubmissionReportBank,deliveryCashSubmissionReportTotal,deliveryCashSubmissionInputDifference,deliveryCashSubmissionPreviewCashTotal,deliveryCashSubmissionPreviewBankTotal,deliveryCashSubmissionPreviewGrandTotal].forEach(el=>{if(el)el.textContent='0';});
+  if(deliveryCashSubmissionInputDifference){
+    deliveryCashSubmissionInputDifference.removeAttribute('title');
+    deliveryCashSubmissionInputDifference.classList.remove('is-positive','is-negative','is-matched');
+  }
+}
+
+function deliveryCashSubmissionSelectedFilters(){
+  return {
+    deliveryDate:String(deliveryCashSubmissionDate&&deliveryCashSubmissionDate.value||'').trim(),
+    deliveryStaffCode:String(deliveryCashSubmissionStaffCode&&deliveryCashSubmissionStaffCode.value||'').trim()
+  };
+}
+
+function deliveryCashSubmissionOrderMoney(order,keyList){
+  for(const key of keyList){
+    const value=Number(order&&order[key]||0);
+    if(Number.isFinite(value)&&value>0)return Math.round(value);
+  }
+  return 0;
+}
+
+function updateDeliveryCashSubmissionDifference(){
+  const draft=deliveryCashPreviewDraft;
+  if(!draft||!deliveryCashSubmissionInputDifference)return;
+  const reportCash=Number(draft.reportCashAmount||0);
+  const reportBank=Number(draft.reportBankAmount||0);
+  const submittedCash=deliveryCashSubmissionCashInput&&deliveryCashSubmissionCashInput.value!==''?Number(deliveryCashSubmissionCashInput.value||0):reportCash;
+  const submittedBank=deliveryCashSubmissionBankInput&&deliveryCashSubmissionBankInput.value!==''?Number(deliveryCashSubmissionBankInput.value||0):reportBank;
+  const cashDifference=Math.round(submittedCash-reportCash);
+  const bankDifference=Math.round(submittedBank-reportBank);
+  const difference=cashDifference+bankDifference;
+  const signed=value=>`${value>0?'+':''}${money(value)}`;
+  deliveryCashSubmissionInputDifference.textContent=`TM ${signed(cashDifference)} · TK ${signed(bankDifference)}`;
+  deliveryCashSubmissionInputDifference.title=`Tổng chênh: ${signed(difference)}`;
+  deliveryCashSubmissionInputDifference.classList.toggle('is-positive',cashDifference>0||bankDifference>0);
+  deliveryCashSubmissionInputDifference.classList.toggle('is-negative',cashDifference<0||bankDifference<0);
+  deliveryCashSubmissionInputDifference.classList.toggle('is-matched',cashDifference===0&&bankDifference===0);
+}
+
+function renderDeliveryCashSubmissionPreview(payload={}){
+  const draft=payload.draft||{};
+  const orders=Array.isArray(payload.orders)?payload.orders:[];
+  deliveryCashPreviewDraft=draft;
+  const reportCash=Math.round(Number(draft.reportCashAmount||0));
+  const reportBank=Math.round(Number(draft.reportBankAmount||0));
+  const reportTotal=reportCash+reportBank;
+  if(deliveryCashSubmissionPreviewStatus)deliveryCashSubmissionPreviewStatus.hidden=true;
+  if(deliveryCashSubmissionPreviewContent)deliveryCashSubmissionPreviewContent.hidden=false;
+  if(deliveryCashSubmissionPreview)deliveryCashSubmissionPreview.setAttribute('aria-busy','false');
+  if(deliveryCashSubmissionPreviewStaff)deliveryCashSubmissionPreviewStaff.textContent=`${draft.deliveryStaffCode||''}${draft.deliveryStaffName&&draft.deliveryStaffName!==draft.deliveryStaffCode?' · '+draft.deliveryStaffName:''}`;
+  if(deliveryCashSubmissionPreviewDate)deliveryCashSubmissionPreviewDate.textContent=draft.deliveryDate?`Ngày giao ${draft.deliveryDate}`:'';
+  if(deliveryCashSubmissionPreviewOrderCount)deliveryCashSubmissionPreviewOrderCount.textContent=`${orders.length} đơn`;
+  if(deliveryCashSubmissionReportCash)deliveryCashSubmissionReportCash.textContent=money(reportCash);
+  if(deliveryCashSubmissionReportBank)deliveryCashSubmissionReportBank.textContent=money(reportBank);
+  if(deliveryCashSubmissionReportTotal)deliveryCashSubmissionReportTotal.textContent=money(reportTotal);
+  if(deliveryCashSubmissionPreviewCashTotal)deliveryCashSubmissionPreviewCashTotal.textContent=money(reportCash);
+  if(deliveryCashSubmissionPreviewBankTotal)deliveryCashSubmissionPreviewBankTotal.textContent=money(reportBank);
+  if(deliveryCashSubmissionPreviewGrandTotal)deliveryCashSubmissionPreviewGrandTotal.textContent=money(reportTotal);
+
+  if(deliveryCashSubmissionPreviewTable){
+    const rows=orders.map(order=>{
+      const cash=deliveryCashSubmissionOrderMoney(order,['cashAmount','cashCollected']);
+      const bank=deliveryCashSubmissionOrderMoney(order,['bankAmount','bankCollected','transferAmount']);
+      const customer=[order.customerCode,order.customerName].filter(Boolean).join(' · ');
+      return `<tr><td><strong>${escapeHtml(order.orderCode||order.code||'')}</strong></td><td>${escapeHtml(customer||'')}</td><td class="price">${money(cash)}</td><td class="price">${money(bank)}</td><td class="price">${money(cash+bank)}</td></tr>`;
+    });
+    const oldDebtCash=Math.round(Number(draft.reportOldDebtCashAmount||0));
+    const oldDebtBank=Math.round(Number(draft.reportOldDebtBankAmount||0));
+    if(oldDebtCash>0||oldDebtBank>0){
+      rows.push(`<tr class="delivery-cash-preview-extra"><td><strong>THU NỢ CŨ</strong></td><td>Khoản thu nợ được ghi nhận trong ngày</td><td class="price">${money(oldDebtCash)}</td><td class="price">${money(oldDebtBank)}</td><td class="price">${money(oldDebtCash+oldDebtBank)}</td></tr>`);
+    }
+    deliveryCashSubmissionPreviewTable.innerHTML=rows.length?rows.join(''):'<tr><td colspan="5">Không có khoản tiền mặt hoặc tài khoản cần thu.</td></tr>';
+  }
+  updateDeliveryCashSubmissionDifference();
+}
+
+async function loadDeliveryCashSubmissionPreview({syncSubmitted=true}={}){
+  const filters=deliveryCashSubmissionSelectedFilters();
+  if(!filters.deliveryDate||!filters.deliveryStaffCode){
+    clearDeliveryCashSubmissionPreview();
+    return;
+  }
+  const requestSeq=++deliveryCashPreviewRequestSeq;
+  deliveryCashPreviewDraft=null;
+  if(syncSubmitted){
+    if(deliveryCashSubmissionCashInput)deliveryCashSubmissionCashInput.value='';
+    if(deliveryCashSubmissionBankInput)deliveryCashSubmissionBankInput.value='';
+  }
+  if(deliveryCashPreviewAbortController)deliveryCashPreviewAbortController.abort();
+  deliveryCashPreviewAbortController=typeof AbortController!=='undefined'?new AbortController():null;
+  setDeliveryCashSubmissionPreviewStatus('Đang tải tiền mặt và tài khoản cần thu theo ngày giao và NVGH...',{loading:true});
+  try{
+    const res=await fetch('/api/funds/delivery-cash-submissions/preview',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(filters),
+      ...(deliveryCashPreviewAbortController?{signal:deliveryCashPreviewAbortController.signal}:{})
+    });
+    const json=await fundReadJsonResponse(res,'Không tải được tiền cần thu của NVGH');
+    if(requestSeq!==deliveryCashPreviewRequestSeq)return;
+    if(!json.ok||!json.draft)throw new Error(json.message||'Không có dữ liệu tiền cần thu');
+    if(syncSubmitted){
+      if(deliveryCashSubmissionCashInput)deliveryCashSubmissionCashInput.value=Math.round(Number(json.draft.reportCashAmount||0));
+      if(deliveryCashSubmissionBankInput)deliveryCashSubmissionBankInput.value=Math.round(Number(json.draft.reportBankAmount||0));
+    }
+    renderDeliveryCashSubmissionPreview(json);
+  }catch(err){
+    if(err&&err.name==='AbortError')return;
+    if(requestSeq!==deliveryCashPreviewRequestSeq)return;
+    deliveryCashPreviewDraft=null;
+    setDeliveryCashSubmissionPreviewStatus(err.message||'Không tải được tiền cần thu',{error:true});
+  }finally{
+    if(requestSeq===deliveryCashPreviewRequestSeq)deliveryCashPreviewAbortController=null;
+  }
+}
+
+function scheduleDeliveryCashSubmissionPreview({syncSubmitted=fundEditing.type!=='delivery',immediate=false}={}){
+  if(deliveryCashPreviewTimer)clearTimeout(deliveryCashPreviewTimer);
+  if(immediate)return loadDeliveryCashSubmissionPreview({syncSubmitted});
+  deliveryCashPreviewTimer=setTimeout(()=>{
+    deliveryCashPreviewTimer=null;
+    loadDeliveryCashSubmissionPreview({syncSubmitted});
+  },350);
 }
 
 function setActiveFundTab(tab){
@@ -355,8 +510,16 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&activeFundV
 if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',()=>{loadFundLedger();loadDeliveryCashSubmissions();loadExpenseVouchers();loadFundTransfers();});
 if(fundSearchInput)fundSearchInput.addEventListener('input',debounce(reloadActiveFundTab,300));
 [fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter].forEach(el=>{if(el)el.addEventListener('change',loadFundLedger)});
+if(deliveryCashSubmissionDate)deliveryCashSubmissionDate.addEventListener('change',()=>scheduleDeliveryCashSubmissionPreview({immediate:true}));
+if(deliveryCashSubmissionStaffCode){
+  deliveryCashSubmissionStaffCode.addEventListener('input',()=>scheduleDeliveryCashSubmissionPreview());
+  deliveryCashSubmissionStaffCode.addEventListener('change',()=>scheduleDeliveryCashSubmissionPreview({immediate:true}));
+  deliveryCashSubmissionStaffCode.addEventListener('blur',()=>scheduleDeliveryCashSubmissionPreview({immediate:true}));
+}
+[deliveryCashSubmissionCashInput,deliveryCashSubmissionBankInput].forEach(el=>{if(el)el.addEventListener('input',updateDeliveryCashSubmissionDifference);});
 if(deliveryCashSubmissionForm)deliveryCashSubmissionForm.addEventListener('submit',submitDeliveryCashSubmission);
 if(expenseVoucherForm)expenseVoucherForm.addEventListener('submit',submitExpenseVoucher);
 if(fundTransferForm)fundTransferForm.addEventListener('submit',submitFundTransfer);
 [deliveryCashSubmissionForm, expenseVoucherForm, fundTransferForm].forEach(form=>{ if(form&&form.elements.date)form.elements.date.value=today(); if(form&&form.elements.deliveryDate)form.elements.deliveryDate.value=today(); });
+clearDeliveryCashSubmissionPreview();
 loadFundLedger();
