@@ -16,6 +16,26 @@ function makeReportCode(sessionId, date = new Date()) {
   return `HTI-${y}${m}${d}-${suffix}`;
 }
 
+
+function inferPackingRate(row = {}) {
+  const explicit = toNumber(
+    row.conversionRate ??
+    row.sourcePackingRate ??
+    row.packingQty ??
+    row.unitsPerCase ??
+    row.qtyPerCase ??
+    row.packSize ??
+    row.Qc ??
+    row.QC
+  );
+  if (explicit > 1) return explicit;
+
+  const text = [row.packing, row.productName, row.name].filter(Boolean).join(' ');
+  const match = text.match(/(?:\/|\b)(\d{1,4})\s*(chai|gói|bộ|cây|túi|hộp|dây|cái|bánh|tuýp|lon|thùng|pcs|pc)\b/i);
+  const inferred = match ? toNumber(match[1]) : 0;
+  return Math.max(1, inferred || explicit || 1);
+}
+
 function normalizeItem(row = {}) {
   const missingQuantity = Math.max(0, toNumber(row.missingQuantity ?? row.shortageQuantity ?? row.missingQty));
   if (!missingQuantity) return null;
@@ -26,7 +46,7 @@ function normalizeItem(row = {}) {
     productCode: clean(row.productCode || row.code || row.productId),
     productName: clean(row.productName || row.name),
     unit: clean(row.unit || row.baseUnit),
-    conversionRate: Math.max(1, toNumber(row.conversionRate || 1)),
+    conversionRate: inferPackingRate(row),
     requestedQuantity: Math.max(0, toNumber(row.requestedQuantity ?? row.orderedQuantity ?? row.orderQuantity ?? row.requiredQuantity ?? row.quantity)),
     availableQuantity: Math.max(0, toNumber(row.availableQuantity ?? row.available)),
     missingQuantity,

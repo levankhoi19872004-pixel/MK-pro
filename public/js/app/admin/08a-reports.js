@@ -17,11 +17,34 @@ function orderSourceLabel(source, row){
 }
 
 
+function resolveImportPackingRate(row = {}){
+  let rate=Number(
+    row.conversionRate ||
+    row.sourcePackingRate ||
+    row.packingQty ||
+    row.unitsPerCase ||
+    row.qtyPerCase ||
+    row.packSize ||
+    row.Qc ||
+    row.QC ||
+    0
+  );
+  // Các báo cáo Phase 66 cũ có thể đã lưu conversionRate=1. Khi đó suy luận
+  // lại từ tên hàng (VD: "750g/15 Chai") để không hiển thị 652 SU thành 652/0.
+  if(!(rate>1) && typeof inferPackingRateFromTextClient === 'function'){
+    const inferred=Number(inferPackingRateFromTextClient(row));
+    if(inferred>1)rate=inferred;
+  }
+  return Number.isFinite(rate)&&rate>0?rate:1;
+}
 function displayImportQtyTL(quantity, row = {}){
-  const rate = Number(row.conversionRate || row.packingQty || row.unitsPerCase || row.qtyPerCase || row.packSize || 1);
+  const rate=resolveImportPackingRate(row);
   if(typeof formatCaseLooseStock === 'function') return formatCaseLooseStock(Number(quantity||0), rate);
   if(window.V45Common && typeof window.V45Common.calculateCartonUnit === 'function') return window.V45Common.calculateCartonUnit(Number(quantity||0), rate).display;
   return String(Number(quantity||0));
+}
+function displayImportAggregateQty(quantity){
+  return `${formatNumber(Number(quantity||0))} SU`;
 }
 
 function deliveryLabel(status){

@@ -463,7 +463,25 @@ function getDateFromRow(row = {}) {
 }
 
 function getPackingFromRow(row = {}, product = null) {
-  return Math.max(1, toNumber(product?.conversionRate ?? product?.packingQty ?? row.packingQty ?? row.conversionRate ?? row['Đóng gói'] ?? row['Dong goi'] ?? row['Quy cách'] ?? row['Quy cach']));
+  // File S3 cung cấp quy cách tại cột Qc. Đây là snapshot quy cách của chính
+  // chứng từ import nên được ưu tiên để hiển thị thùng/lẻ và in lại đơn cũ.
+  // Số lượng trong cột "Số lượng" vẫn là tổng SU, tuyệt đối không nhân thêm Qc.
+  const rowPacking = [
+    row['Qc'],
+    row['QC'],
+    row['Q/c'],
+    row['Q/C'],
+    row.packingQty,
+    row.conversionRate,
+    row['Đóng gói'],
+    row['Dong goi'],
+    row['Quy cách'],
+    row['Quy cach']
+  ].map(toNumber).find((value) => value > 1) || 0;
+  if (rowPacking > 1) return rowPacking;
+
+  const productPacking = toNumber(product?.conversionRate ?? product?.packingQty ?? product?.unitsPerCase);
+  return Math.max(1, productPacking || rowPacking || 1);
 }
 
 const CARTON_QTY_FIELDS = [
@@ -1918,6 +1936,9 @@ async function importSalesOrders(rows = [], options = {}) {
           customerName: getCustomerNameFromRow(first) || customer?.name || '',
           productCode: normalizedProductCode,
           productName: product.name,
+          unit: product.unit || product.baseUnit || '',
+          conversionRate: getPackingFromRow(row, product),
+          sourcePackingRate: toNumber(row['Qc'] ?? row['QC'] ?? row.packingQty ?? row.conversionRate),
           requestedQuantity: originalSaleQuantity + originalPromoQuantity,
           importedQuantity: deliveredQuantity,
           missingQuantity: allocation.missingQuantity,
@@ -3490,6 +3511,9 @@ async function previewMongoNative(type, rows = [], options = {}) {
             rowNo: row.__rowNo || row.rowNo || '',
             productCode: product.code,
             productName: product.name,
+            unit: product.unit || product.baseUnit || '',
+            conversionRate: getPackingFromRow(row, product),
+            sourcePackingRate: toNumber(row['Qc'] ?? row['QC'] ?? row.packingQty ?? row.conversionRate),
             requestedQuantity: deliveredQuantity,
             saleQuantity: quantity,
             promoQuantity,
@@ -3520,6 +3544,9 @@ async function previewMongoNative(type, rows = [], options = {}) {
           rowNo: row.__rowNo || row.rowNo || '',
           productCode,
           productName: product?.name || cleanText(row.productName || row['Tên sản phẩm'] || row['Ten san pham']),
+          unit: product?.unit || product?.baseUnit || '',
+          conversionRate: getPackingFromRow(row, product),
+          sourcePackingRate: toNumber(row['Qc'] ?? row['QC'] ?? row.packingQty ?? row.conversionRate),
           saleQuantity: quantity,
           promoQuantity,
           requestedQuantity: deliveredQuantity,

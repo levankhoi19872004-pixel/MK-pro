@@ -209,7 +209,7 @@ function importRowToText(row){
     const customer=row.customerName||row.supplier||'';
     const total=row.totalAmount!==undefined?money(row.totalAmount):'';
     const status=row.statusText||(row.valid?'Hợp lệ':'Lỗi');
-    const shortage=row.hasShortage?` | Vượt tồn: ${displayImportQtyTL(row.shortageQuantity||0,row)} | Cắt: ${money(row.shortageAmount||0)}`:'';
+    const shortage=row.hasShortage?` | Vượt tồn: ${displayImportAggregateQty(row.shortageQuantity||0)} | Cắt: ${money(row.shortageAmount||0)}`:'';
     const sourceFile=row.sourceFile||row.fileName||'';
     return `Mã đơn: ${row.documentCode||''} | Khách/NCC: ${customer} | Số dòng: ${row.lineCount||0} | Giá trị: ${total} | File: ${sourceFile||'-'} | Trạng thái: ${status}${shortage}`;
   }
@@ -231,7 +231,7 @@ function getImportRowMainFields(row){
       {key:'Giá trị đơn',value:money(row.totalAmount||0)},
       {key:'Trạng thái',value:row.statusText||(row.valid?'Hợp lệ':'Lỗi')},
       ...(row.hasShortage?[
-        {key:'SL vượt tồn',value:displayImportQtyTL(row.shortageQuantity||0,row)},
+        {key:'SL vượt tồn',value:displayImportAggregateQty(row.shortageQuantity||0)},
         {key:'Giá trị bị cắt',value:money(row.shortageAmount||0)}
       ]:[])
     ];
@@ -608,7 +608,7 @@ function renderImportShortageActions(rows=[]){
   box.innerHTML=`
     <div class="import-shortage-actions-text">
       <b>Có ${formatNumber(shortageRows.length)} đơn vượt tồn</b>
-      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${displayImportQtyTL(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
+      <span>Hệ thống sẽ tự cắt theo tồn thực tế khi import. SL bị cắt: ${displayImportAggregateQty(shortageQty)} · Giá trị bị cắt: ${money(shortageAmount)}</span>
     </div>`;
 }
 
@@ -997,7 +997,7 @@ async function commitImportExcel(){
     if(!json.ok)throw new Error(json.error||json.message||'Import thất bại');
 
     const shortageText=(json.shortageReport&&json.shortageReport.length)
-      ? ` · Đã tự cắt ${displayImportQtyTL(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`
+      ? ` · Đã tự cắt ${displayImportAggregateQty(json.shortageSummary?.totalMissingQty||0)} sản phẩm thiếu (${money(json.shortageSummary?.totalCutAmount||0)})`
       : '';
     const durationMs=Number(json.performance&&json.performance.durationMs||0);
     const performanceText=durationMs>0?` · ${Math.max(0.1,durationMs/1000).toFixed(1)} giây`:'';
@@ -1079,7 +1079,7 @@ async function loadImportShortageReports(){
       <td>${escapeHtml((report.fileNames||[]).join(', ')||'')}</td>
       <td class="number">${formatNumber(report.orderCount||0)}</td>
       <td class="number">${formatNumber(report.productCount||0)}</td>
-      <td class="number">${displayImportQtyTL(report.totalMissingQuantity||0)}</td>
+      <td class="number">${displayImportAggregateQty(report.totalMissingQuantity||0)}</td>
       <td class="number">${money(report.totalCutAmount||0)}</td>
       <td><span class="status-badge ${report.status==='resolved'?'success':report.status==='in_review'?'warning':'danger'}">${importShortageStatusLabel(report.status)}</span></td>
       <td><button type="button" class="secondary view-import-shortage-report" data-id="${escapeHtml(report._id||'')}">Chi tiết</button></td>
@@ -1102,7 +1102,7 @@ function renderImportShortageReportDetail(report){
   const body=document.getElementById('importShortageReportDetailTable');
   if(title)title.textContent=`Báo cáo hàng thiếu ${report.code||''}`;
   if(meta)meta.textContent=`Import ${formatImportReportDate(report.importDate||report.createdAt)} · ${(report.fileNames||[]).join(', ')}`;
-  if(summary)summary.innerHTML=`<span>Đơn: <strong>${formatNumber(report.orderCount||0)}</strong></span><span>Sản phẩm: <strong>${formatNumber(report.productCount||0)}</strong></span><span>Số lượng thiếu: <strong>${displayImportQtyTL(report.totalMissingQuantity||0)}</strong></span><span>Giá trị cắt: <strong>${money(report.totalCutAmount||0)}</strong></span>`;
+  if(summary)summary.innerHTML=`<span>Đơn: <strong>${formatNumber(report.orderCount||0)}</strong></span><span>Sản phẩm: <strong>${formatNumber(report.productCount||0)}</strong></span><span>Số lượng thiếu: <strong>${displayImportAggregateQty(report.totalMissingQuantity||0)}</strong></span><span>Giá trị cắt: <strong>${money(report.totalCutAmount||0)}</strong></span>`;
   if(status)status.value=report.status||'open';
   if(note)note.value=report.note||'';
   if(body){
