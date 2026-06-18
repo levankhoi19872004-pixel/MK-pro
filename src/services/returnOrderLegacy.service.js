@@ -1,1495 +1,230 @@
-'use strict';
-
-const dateUtil = require('../utils/date.util');
-const queryGuard = require('../utils/queryGuard.util');
-const { escapeRegex } = require('../utils/query.util');
-const returnOrderRepository = require('../repositories/returnOrderRepository');
-const orderRepository = require('../repositories/orderRepository');
-const customerRepository = require('../repositories/customerRepository');
-const { makeId, normalizeText, toNumber } = require('../utils/common.util');
-const { withMongoTransaction } = require('../utils/transaction.util');
-const InventoryPostingService = require('../domain/posting/InventoryPostingService');
-const postingEngine = require('../engines/posting.engine');
-const financialService = require('./financialService');
-const auditService = require('./auditService');
-const ReturnOrder = require('../models/ReturnOrder');
-const ReturnStateMachine = require('../domain/lifecycle/ReturnStateMachine');
-const { RETURN_STATES } = ReturnStateMachine;
-
-const {
-  pickSalesStaffCode,
-  pickSalesStaffName,
-  pickDeliveryStaffCode,
-  pickDeliveryStaffName
-} = require('../domain/staff/staffIdentity');
-
-const ACTIVE_RETURN_ORDER_STATUSES = [
-  'draft',
-  'pending',
-  'active',
-  'waiting_receive',
-  'pending_warehouse_receive',
-  'merged',
-  'delivered',
-  'completed',
-  'has_return'
-];
-
-
-function buildReturnCode(existingOrders = []) {
-  const max = existingOrders.reduce((result, order) => {
-    const match = String(order.code || '').match(/(\d+)$/);
-    return Math.max(result, match ? Number(match[1]) : 0);
-  }, 0);
-  return `THH${String(max + 1).padStart(5, '0')}`;
-}
-
-function resolveReturnOrderBusinessDate(order = {}) {
-  const candidates = [order.returnDate, order.date, order.documentDate, order.deliveryDate];
-  for (const value of candidates) {
-    const normalized = dateUtil.toDateOnly(value || '');
-    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
-  }
-  return '';
-}
-
-function toClient(order) {
-  const businessDate = resolveReturnOrderBusinessDate(order);
-  return {
-    ...order,
-    id: order.id || order.code,
-    code: order.code || order.id,
-    returnDate: businessDate || order.returnDate || '',
-    items: Array.isArray(order.items) ? order.items : [],
-    totalQuantity: toNumber(order.totalQuantity),
-    totalAmount: toNumber(order.totalAmount)
-  };
-}
-
-function isInactiveStatus(row = {}) {
-  const status = String(row.status || '').toLowerCase();
-  return ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled', 'cleared'].includes(status) || Boolean(row.deletedAt);
-}
-
-function getReturnOrderValue(row = {}) {
-  return toNumber(row.debtReduction ?? row.totalAmount ?? row.amount ?? row.totalValue);
-}
-
-function hasPositiveReturnValue(row = {}) {
-  return getReturnOrderValue(row) > 0;
-}
-
-// ===== SCOPED FIX: RETURN_ORDER_POST_AR_DIRECT_START =====
-// AR-RETURN chỉ được ghi sau khi kế toán xác nhận phiếu trả.
-// Nhận kho chỉ cộng tồn, không tự ghi công nợ.
-async function postReturnOrderArIfNeeded(returnOrder = {}, options = {}) {
-  const amount = getReturnOrderValue(returnOrder);
-  if (!returnOrder || amount <= 0) return { entry: null, returnOrder };
-
-  ReturnStateMachine.assertCanPostAR(returnOrder);
-
-  const entry = await postingEngine.postReturnOrderAR({
-    ...returnOrder,
-    debtReduction: amount,
-    amount,
-    totalReturnAmount: amount,
-    source: 'returnOrders',
-    accountingConfirmed: true,
-    accountingStatus: RETURN_STATES.ACCOUNTING_CONFIRMED
-  }, { ...options, skipIfExists: true });
-
-  if (!entry) return { entry: null, returnOrder };
-
-  const statePatch = ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.POSTED_TO_AR);
-  const patched = {
-    ...returnOrder,
-    ...statePatch,
-    returnState: RETURN_STATES.POSTED_TO_AR,
-    stateChangedAt: dateUtil.nowIso(),
-    arLedgerId: entry.id || entry.code || returnOrder.arLedgerId || ''
-  };
-  await returnOrderRepository.upsert(patched, options);
-  return { entry, returnOrder: patched };
-}
-// ===== SCOPED FIX: RETURN_ORDER_POST_AR_DIRECT_END =====
-
-function uniqueStrings(values = []) {
-  return [...new Set((values || []).map((value) => String(value || '').trim()).filter(Boolean))];
-}
-
-function buildReturnOrderLookupFilter(body = {}) {
-  const id = String(body.id || '').trim();
-  const code = String(body.code || '').trim();
-  const salesOrderId = String(body.salesOrderId || body.orderId || body.sourceOrderId || body.deliveryOrderId || '').trim();
-  const salesOrderCode = String(body.salesOrderCode || body.orderCode || body.sourceOrderCode || body.deliveryOrderCode || '').trim();
-  const or = [];
-  if (id) or.push({ id });
-  if (code) or.push({ code });
-  if (salesOrderId) {
-    or.push({ salesOrderId });
-    or.push({ orderId: salesOrderId });
-    or.push({ sourceOrderId: salesOrderId });
-    or.push({ deliveryOrderId: salesOrderId });
-  }
-  if (salesOrderCode) {
-    or.push({ salesOrderCode });
-    or.push({ orderCode: salesOrderCode });
-    or.push({ sourceOrderCode: salesOrderCode });
-    or.push({ deliveryOrderCode: salesOrderCode });
-  }
-  return or.length ? { $or: or } : null;
-}
-
-
-function canonicalOrderCodeFromSalesOrder(salesOrder = {}, fallback = {}) {
-  return String(
-    salesOrder.code ||
-    salesOrder.orderCode ||
-    salesOrder.salesOrderCode ||
-    fallback.salesOrderCode ||
-    fallback.orderCode ||
-    fallback.code ||
-    ''
-  ).trim();
-}
-
-function canonicalOrderIdFromSalesOrder(salesOrder = {}, fallback = {}) {
-  return String(
-    salesOrder.id ||
-    salesOrder._id ||
-    fallback.salesOrderId ||
-    fallback.orderId ||
-    fallback.id ||
-    ''
-  ).trim();
-}
-
-function buildCanonicalReturnCode(salesOrder = {}, fallback = {}) {
-  const code = canonicalOrderCodeFromSalesOrder(salesOrder, fallback);
-  if (!code) return '';
-  const clean = String(code).replace(/^RO[-_]?/i, '').trim();
-  return clean ? `RO-${clean}` : '';
-}
-
-function buildCanonicalReturnLookup({ salesOrderId = '', salesOrderCode = '', returnCode = '' } = {}) {
-  const or = [];
-  if (returnCode) {
-    or.push({ code: returnCode });
-    or.push({ id: returnCode });
-  }
-  if (salesOrderId) {
-    or.push({ salesOrderId });
-    or.push({ orderId: salesOrderId });
-    or.push({ sourceOrderId: salesOrderId });
-    or.push({ deliveryOrderId: salesOrderId });
-  }
-  if (salesOrderCode) {
-    or.push({ salesOrderCode });
-    or.push({ orderCode: salesOrderCode });
-    or.push({ sourceOrderCode: salesOrderCode });
-    or.push({ deliveryOrderCode: salesOrderCode });
-    or.push({ code: `RO-${String(salesOrderCode).replace(/^RO[-_]?/i, '')}` });
-  }
-  return or.length ? { $or: or, status: { $nin: ['deleted'] } } : null;
-}
-
-function scoreReturnOrderCandidate(row = {}, returnCode = '') {
-  const status = String(row.status || row.returnStatus || '').toLowerCase();
-  let score = 0;
-  if (returnCode && (String(row.code || '') === returnCode || String(row.id || '') === returnCode)) score += 1000;
-  if (String(row.code || '').startsWith('RO-')) score += 200;
-  if (String(row.id || '').startsWith('RO-')) score += 100;
-  if (['waiting_receive', 'pending', 'draft', 'active', 'has_return'].includes(status)) score += 80;
-  if (status === 'cleared') score += 40;
-  if (String(row.id || '').startsWith('RO-DRAFT-')) score += 10;
-  if (String(row.id || '').startsWith('RO-MOBILE-')) score -= 20;
-  if (String(row.code || '').startsWith('THH')) score -= 80;
-  if (['cancelled', 'canceled', 'cleared', 'void', 'deleted', 'removed', 'duplicate_cancelled'].includes(status)) score -= 500;
-  return score;
-}
-
-async function findExistingReturnOrderForSalesOrder({ salesOrderId = '', salesOrderCode = '', returnCode = '' } = {}) {
-  const filter = buildCanonicalReturnLookup({ salesOrderId, salesOrderCode, returnCode });
-  if (!filter) return null;
-  const rows = await returnOrderRepository.findAll(filter, { sort: { createdAt: 1 }, limit: 50 });
-  return (rows || [])
-    .filter((row) => row && !isInactiveStatus(row))
-    .sort((a, b) => scoreReturnOrderCandidate(b, returnCode) - scoreReturnOrderCandidate(a, returnCode))[0] || null;
-}
-
-async function cancelDuplicateReturnOrders({ keepId, keepCode = '', salesOrderId = '', salesOrderCode = '', returnCode = '' } = {}) {
-  const filter = buildCanonicalReturnLookup({ salesOrderId, salesOrderCode, returnCode });
-  if (!filter) return { cancelled: 0 };
-  const candidates = await returnOrderRepository.findAll(filter, { sort: { createdAt: 1 }, limit: 100 });
-  const now = dateUtil.nowIso();
-  let cancelled = 0;
-  for (const row of candidates || []) {
-    if (!row) continue;
-    const sameKeep = (keepId && String(row._id || row.id || '') === String(keepId))
-      || (keepCode && (String(row.code || '') === String(keepCode) || String(row.id || '') === String(keepCode)));
-    if (sameKeep) continue;
-    const status = String(row.status || '').toLowerCase();
-    if (['deleted', 'duplicate_cancelled'].includes(status)) continue;
-    if ((row.returnMergeStatus || 'unmerged') === 'merged' || row.masterReturnOrderId || row.masterReturnOrderCode) continue;
-    if (isPostedReturnStatus(row.status) || String(row.warehouseReceiveStatus || '').toLowerCase() === 'received') continue;
-    await returnOrderRepository.upsert({
-      ...row,
-      status: 'duplicate_cancelled',
-      returnStatus: 'duplicate_cancelled',
-      warehouseReceiveStatus: 'duplicate_cancelled',
-      accountingStatus: 'duplicate_cancelled',
-      items: [],
-      amount: 0,
-      totalAmount: 0,
-      totalQuantity: 0,
-      debtReduction: 0,
-      totalReturnAmount: 0,
-      duplicateReason: 'Trùng phiếu trả cùng salesOrderId/salesOrderCode',
-      updatedAt: now
-    });
-    cancelled += 1;
-  }
-  return { cancelled };
-}
-
-async function findReturnOrdersBySalesOrderRefs(orders = [], options = {}) {
-  const ids = [];
-  const codes = [];
-  for (const order of orders || []) {
-    ids.push(order?.salesOrderId, order?.orderId, order?.sourceOrderId, order?.deliveryOrderId, order?.id, order?._id);
-    codes.push(order?.salesOrderCode, order?.orderCode, order?.sourceOrderCode, order?.deliveryOrderCode, order?.code);
-  }
-  const orderIds = uniqueStrings(ids);
-  const orderCodes = uniqueStrings(codes);
-  const or = [];
-  if (orderIds.length) {
-    or.push({ salesOrderId: { $in: orderIds } });
-    or.push({ orderId: { $in: orderIds } });
-    or.push({ sourceOrderId: { $in: orderIds } });
-    or.push({ deliveryOrderId: { $in: orderIds } });
-  }
-  if (orderCodes.length) {
-    or.push({ salesOrderCode: { $in: orderCodes } });
-    or.push({ orderCode: { $in: orderCodes } });
-    or.push({ sourceOrderCode: { $in: orderCodes } });
-    or.push({ deliveryOrderCode: { $in: orderCodes } });
-  }
-  if (!or.length) return [];
-  return returnOrderRepository.findAll({ $or: or }, {
-    ...options,
-    projection: {
-      id: 1, code: 1, salesOrderId: 1, salesOrderCode: 1, orderId: 1, orderCode: 1,
-      sourceOrderId: 1, sourceOrderCode: 1, deliveryOrderId: 1, deliveryOrderCode: 1,
-      masterOrderId: 1, masterOrderCode: 1, masterReturnOrderId: 1, masterReturnOrderCode: 1,
-      customerId: 1, customerCode: 1, customerName: 1,
-      salesStaffId: 1, salesStaffCode: 1, salesStaffName: 1, salesmanCode: 1, salesmanName: 1,
-      deliveryStaffId: 1, deliveryStaffCode: 1, deliveryStaffName: 1,
-      staffCode: 1, staffName: 1, items: 1, totalQuantity: 1, totalAmount: 1, amount: 1, debtReduction: 1,
-      status: 1, returnStatus: 1, returnMergeStatus: 1, warehouseReceiveStatus: 1,
-      date: 1, documentDate: 1, deliveryDate: 1, routeName: 1, deliveryRoute: 1, createdAt: 1, updatedAt: 1
-    }
-  });
-}
-
-function buildFastReturnCode(body = {}, existing = null, salesOrder = null) {
-  const canonical = buildCanonicalReturnCode(salesOrder || {}, body || {});
-  return String(canonical || existing?.code || body.code || `THH${makeId('')}`).trim();
-}
-
-async function listReturnOrders(query = {}) {
-  // returnOrders là nguồn duy nhất. Service đọc trực tiếp repository để tránh
-  // vòng phụ thuộc returnOrderService -> DeliveryEngine -> ReturnLifecycleService.
-  const filter = {
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] }
-  };
-  const and = [];
-  const from = dateUtil.toDateOnly(query.dateFrom || query.fromDate || query.from || '');
-  const to = dateUtil.toDateOnly(query.dateTo || query.toDate || query.to || query.date || '');
-  const exactDate = dateUtil.toDateOnly(query.date || '');
-  const hasDateFilter = Boolean(from || to || exactDate);
-  if (from && to && from > to) {
-    const err = new Error('Từ ngày không được lớn hơn đến ngày');
-    err.status = 400;
-    err.code = 'INVALID_RETURN_ORDER_DATE_RANGE';
-    throw err;
-  }
-  if (hasDateFilter) {
-    const range = exactDate ? exactDate : {
-      ...(from ? { $gte: from } : {}),
-      ...(to ? { $lte: to } : {})
-    };
-    // Mongo lọc trước để tận dụng index. Sau đó recheck ngày nghiệp vụ chuẩn
-    // theo cùng thứ tự ưu tiên với UI để loại dữ liệu có field ngày lệch nhau.
-    and.push({ $or: [
-      { returnDate: range }, { date: range }, { documentDate: range }, { deliveryDate: range }
-    ] });
-  }
-
-  const directValues = uniqueStrings([
-    query.salesOrderId, query.orderId, query.salesOrderCode, query.orderCode,
-    query.orderKey, query.code, query.id
-  ]);
-  if (directValues.length) {
-    and.push({ $or: [
-      { salesOrderId: { $in: directValues } }, { orderId: { $in: directValues } },
-      { sourceOrderId: { $in: directValues } }, { deliveryOrderId: { $in: directValues } },
-      { salesOrderCode: { $in: directValues } }, { orderCode: { $in: directValues } },
-      { sourceOrderCode: { $in: directValues } }, { deliveryOrderCode: { $in: directValues } },
-      { id: { $in: directValues } }, { code: { $in: directValues } }
-    ] });
-  }
-
-  if (query.masterOrderId) filter.masterOrderId = String(query.masterOrderId).trim();
-  if (query.masterOrderCode) filter.masterOrderCode = String(query.masterOrderCode).trim();
-  if (query.customerCode) filter.customerCode = String(query.customerCode).trim();
-
-  const deliveryKeyword = String(query.deliveryStaffCode || query.deliveryCode || query.nvghCode || query.delivery || '').trim();
-  if (deliveryKeyword) {
-    const rx = new RegExp(escapeRegex(deliveryKeyword), 'i');
-    and.push({ $or: [{ deliveryStaffCode: rx }, { deliveryStaffName: rx }, { deliveryCode: rx }, { deliveryName: rx }, { nvghCode: rx }, { nvghName: rx }] });
-  }
-  const salesKeyword = String(query.salesStaffCode || query.salesmanCode || query.nvbhCode || query.salesman || '').trim();
-  if (salesKeyword) {
-    const rx = new RegExp(escapeRegex(salesKeyword), 'i');
-    and.push({ $or: [{ salesStaffCode: rx }, { salesStaffName: rx }, { salesmanCode: rx }, { salesmanName: rx }, { nvbhCode: rx }, { nvbhName: rx }] });
-  }
-  const keyword = String(query.q || query.keyword || query.search || '').trim();
-  if (keyword) {
-    const rx = new RegExp(escapeRegex(keyword), 'i');
-    and.push({ $or: [
-      { id: rx }, { code: rx }, { salesOrderCode: rx }, { orderCode: rx },
-      { customerCode: rx }, { customerName: rx }, { deliveryStaffCode: rx },
-      { deliveryStaffName: rx }, { salesStaffCode: rx }, { salesStaffName: rx }, { note: rx }
-    ] });
-  }
-  if (and.length) filter.$and = and;
-
-  const page = Math.max(1, Number(query.page || 1));
-  const limit = Math.min(500, Math.max(1, Number(query.limit || 100)));
-  const docs = await returnOrderRepository.findAll(filter, {
-    sort: { createdAt: -1, code: -1 },
-    skip: (page - 1) * limit,
-    limit
-  });
-
-  const includeZeroValue = String(query.includeZeroValue ?? query.showZero ?? '0') === '1';
-  const seen = new Set();
-  return docs
-    .map(toClient)
-    .filter((order) => !hasDateFilter || dateUtil.isDateInRange(resolveReturnOrderBusinessDate(order), {
-      date: exactDate,
-      dateFrom: from,
-      dateTo: to
-    }))
-    .filter((order) => includeZeroValue || hasPositiveReturnValue(order))
-    .filter((order) => {
-      const stableKey = String(order.id || order.code || order._id || '').trim();
-      if (!stableKey) return true;
-      if (seen.has(stableKey)) return false;
-      seen.add(stableKey);
-      return true;
-    });
-}
-
-async function resolveSalesOrder(body = {}) {
-  const key = String(body.salesOrderId || body.salesOrderCode || body.orderId || body.orderCode || '').trim();
-  return key ? orderRepository.findByIdOrCode(key) : null;
-}
-
-async function resolveCustomer(body = {}, salesOrder = null) {
-  const key = String(body.customerId || body.customerCode || body.customerName || salesOrder?.customerId || salesOrder?.customerCode || '').trim();
-  return key ? customerRepository.findByIdOrCode(key) : null;
-}
-
-function normalizeItems(rawItems = [], salesOrder = null) {
-  const salesItems = new Map((salesOrder?.items || []).map((item) => [String(item.productCode || item.code || item.productId || '').trim(), item]));
-  return (Array.isArray(rawItems) ? rawItems : [])
-    .map((raw) => {
-      const productCode = String(raw.productCode || raw.code || raw.productId || '').trim();
-      const original = salesItems.get(productCode) || {};
-      const quantity = toNumber(raw.qtyReturn ?? raw.returnQuantity ?? raw.returnedQty ?? raw.returnQty ?? raw.quantity ?? raw.qty);
-      const price = toNumber(raw.price ?? raw.salePrice ?? raw.unitPrice ?? original.price ?? original.salePrice ?? 0);
-      return {
-        ...original,
-        ...raw,
-        productId: raw.productId || original.productId || productCode,
-        productCode: productCode || original.productCode || original.code || '',
-        productName: raw.productName || raw.name || original.productName || original.name || '',
-        quantity,
-        qty: quantity,
-        price,
-        salePrice: price,
-        amount: toNumber(raw.amount ?? quantity * price)
-      };
-    })
-    .filter((item) => item.quantity > 0 || item.productCode || item.productName);
-}
-
-async function findExistingReturnOrder(body = {}) {
-  const salesOrder = await resolveSalesOrder(body).catch(() => null);
-  const salesOrderId = canonicalOrderIdFromSalesOrder(salesOrder || {}, body || {});
-  const salesOrderCode = canonicalOrderCodeFromSalesOrder(salesOrder || {}, body || {});
-  const returnCode = buildCanonicalReturnCode(salesOrder || {}, { ...body, salesOrderCode });
-  const canonical = await findExistingReturnOrderForSalesOrder({ salesOrderId, salesOrderCode, returnCode });
-  if (canonical) return canonical;
-  const filter = buildReturnOrderLookupFilter(body);
-  if (!filter) return null;
-  const candidates = await returnOrderRepository.findAll(filter, { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 });
-  return candidates.find((row) => !isInactiveStatus(row)) || null;
-}
-
-
-async function clearExistingDeliveryReturnOrders(body = {}) {
-  const filter = buildReturnOrderLookupFilter(body);
-  if (!filter) return { returnOrder: null, cleared: 0, rows: [] };
-
-  const candidates = await returnOrderRepository.findAll(filter, {
-    sort: { updatedAt: -1, createdAt: -1 },
-    limit: 50
-  });
-
-  const now = dateUtil.nowIso();
-  const note = String(body.note || 'NVGH sửa số lượng hàng trả về 0 trên app giao hàng').trim();
-  const clearableRows = (candidates || []).filter((row) => {
-    if (!row || isInactiveStatus(row)) return false;
-    if ((row.returnMergeStatus || 'unmerged') === 'merged' || row.masterReturnOrderId || row.masterReturnOrderCode) return false;
-    if (isPostedReturnStatus(row.status)) return false;
-    return true;
-  });
-
-  let lastCleared = null;
-  for (const row of clearableRows) {
-    const cleared = {
-      ...row,
-      items: [],
-      totalQuantity: 0,
-      totalReturnAmount: 0,
-      totalAmount: 0,
-      amount: 0,
-      debtReduction: 0,
-      status: 'cleared',
-      returnStatus: 'cleared',
-      accountingStatus: 'cleared',
-      warehouseReceiveStatus: 'cleared',
-      refType: row.refType || body.refType || 'mobileDeliveryReturnClear',
-      note,
-      clearedAt: now,
-      postedAt: '',
-      receivedAt: '',
-      updatedAt: now
-    };
-    await returnOrderRepository.upsert(cleared);
-    lastCleared = cleared;
-  }
-
-  return {
-    returnOrder: lastCleared ? toClient(lastCleared) : null,
-    cleared: clearableRows.length,
-    rows: clearableRows
-  };
-}
-
-
-
-function isPostedReturnStatus(status = '') {
-  const state = ReturnStateMachine.normalizeReturnState(status);
-  return [
-    RETURN_STATES.RECEIVED,
-    RETURN_STATES.ACCOUNTING_CONFIRMED,
-    RETURN_STATES.POSTED_TO_AR
-  ].includes(state);
-}
-
-function isPendingReturnStatus(status = '') {
-  const state = ReturnStateMachine.normalizeReturnState(status);
-  return [
-    RETURN_STATES.DRAFT,
-    RETURN_STATES.WAITING_RECEIVE
-  ].includes(state);
-}
-
-function isEditableReturnOrder(row = {}) {
-  try {
-    ReturnStateMachine.assertCanEdit(row);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-function guardReturnOrderEdit(row = {}, messagePrefix = '') {
-  try {
-    ReturnStateMachine.assertCanEdit(row);
-    return null;
-  } catch (err) {
-    return {
-      error: messagePrefix || err.message,
-      message: err.message,
-      code: err.code,
-      status: 400
-    };
-  }
-}
-
-function guardReturnOrderCancel(row = {}) {
-  try {
-    ReturnStateMachine.assertCanCancel(row);
-    return null;
-  } catch (err) {
-    return {
-      error: err.message,
-      code: err.code,
-      status: 400
-    };
-  }
-}
-
-function isReturnOrderLockedForCancel(row = {}) {
-  try {
-    ReturnStateMachine.assertCanCancel(row);
-    return false;
-  } catch (_) {
-    return true;
-  }
-}
-
-function cancelReasonFrom(body = {}, fallback = 'Khách lấy lại hàng') {
-  return String(body.cancelReason || body.reason || body.note || fallback).trim();
-}
-
-async function updateSalesOrderReturnLink(salesOrder = null, patch = {}, options = {}) {
-  if (!salesOrder || (!salesOrder.id && !salesOrder.code)) return null;
-  const updated = {
-    ...salesOrder,
-    ...patch,
-    updatedAt: dateUtil.nowIso()
-  };
-  await orderRepository.upsert(updated, options);
-  return updated;
-}
-
-async function auditReturnOrder(action, before = null, after = null, note = '') {
-  await auditService.log(action, {
-    refType: 'returnOrder',
-    refId: (after || before || {}).id || '',
-    refCode: (after || before || {}).code || '',
-    before,
-    after,
-    note
-  });
-}
-
-async function buildReturnOrderDocument(body = {}) {
-  const salesOrder = await resolveSalesOrder(body);
-  const customer = await resolveCustomer(body, salesOrder);
-  if (!customer && !body.customerName && !salesOrder?.customerName) return { error: 'Không tìm thấy khách hàng', status: 404 };
-  const items = normalizeItems(body.items, salesOrder).filter((item) => toNumber(item.quantity) > 0);
-  if (!items.length) return { error: 'Phiếu trả hàng chưa có dòng hàng', status: 400 };
-  const sourceText = String(body.source || body.refType || '').toLowerCase();
-  const requiresSalesKey = ['mobileDeliveryReturn', 'erpDeliveryReturn'].includes(String(body.refType || ''))
-    || String(body.source || '') === 'returnOrders'
-    || sourceText.includes('mobile_delivery')
-    || sourceText.includes('mobiledelivery');
-  if (requiresSalesKey && !String(body.salesOrderId || '').trim() && !String(body.salesOrderCode || '').trim()) {
-    return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
-  }
-
-  const existing = await findExistingReturnOrder(body);
-  const totalAmount = toNumber(body.totalAmount ?? items.reduce((sum, item) => sum + toNumber(item.amount), 0));
-  const returnDate = resolveReturnDocumentDate(body, salesOrder || {}, existing || {});
-  const returnOrder = {
-    ...(existing || {}),
-    ...body,
-    id: String(buildCanonicalReturnCode(salesOrder || {}, body) || existing?.id || body.id || makeId('RO')).trim(),
-    code: buildFastReturnCode(body, existing, salesOrder),
-    date: returnDate,
-    documentDate: returnDate,
-    deliveryDate: returnDate,
-    salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || existing?.salesOrderId || '',
-    salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || existing?.salesOrderCode || '',
-    orderId: salesOrder?.id || body.orderId || body.salesOrderId || existing?.orderId || existing?.salesOrderId || '',
-    orderCode: salesOrder?.code || body.orderCode || body.salesOrderCode || existing?.orderCode || existing?.salesOrderCode || '',
-    customerId: customer?.id || body.customerId || salesOrder?.customerId || existing?.customerId || '',
-    customerCode: customer?.code || body.customerCode || salesOrder?.customerCode || existing?.customerCode || '',
-    customerName: customer?.name || body.customerName || salesOrder?.customerName || existing?.customerName || '',
-    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_RETURN_SNAPSHOT_STAFF_START =====
-    // ReturnOrder snapshot nhân sự tại thời điểm tạo: NVBH từ salesOrders, NVGH từ salesOrders/master sync/body.
-    salesStaffId: salesOrder?.salesStaffId || body.salesStaffId || existing?.salesStaffId || '',
-    salesStaffCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
-    salesStaffName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
-    salesmanCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
-    salesmanName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
-    deliveryStaffId: salesOrder?.deliveryStaffId || body.deliveryStaffId || existing?.deliveryStaffId || '',
-    deliveryStaffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
-    deliveryStaffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
-    staffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
-    staffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
-    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_RETURN_SNAPSHOT_STAFF_END =====
-    note: String(body.note ?? existing?.note ?? '').trim(),
-    items,
-    totalQuantity: toNumber(body.totalQuantity ?? items.reduce((sum, item) => sum + toNumber(item.quantity), 0)),
-    totalAmount,
-    amount: toNumber(body.amount ?? totalAmount),
-    debtReduction: toNumber(body.debtReduction ?? totalAmount),
-    status: body.status || existing?.status || RETURN_STATES.WAITING_RECEIVE,
-    returnMergeStatus: body.returnMergeStatus || existing?.returnMergeStatus || 'unmerged',
-    warehouseReceiveStatus: body.warehouseReceiveStatus || existing?.warehouseReceiveStatus || (isPostedReturnStatus(body.status) ? RETURN_STATES.RECEIVED : RETURN_STATES.WAITING_RECEIVE),
-    source: body.source || existing?.source || 'returnOrders',
-    accountingStatus: body.accountingStatus || existing?.accountingStatus || '',
-    accountingConfirmed: Boolean(body.accountingConfirmed ?? existing?.accountingConfirmed ?? false),
-    createdAt: existing?.createdAt || body.createdAt || dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
-  };
-  return { returnOrder, existing };
-}
-
-async function createReturnOrder(body = {}) {
-  const built = await buildReturnOrderDocument({
-    ...body,
-    status: body.status || RETURN_STATES.WAITING_RECEIVE,
-    warehouseReceiveStatus: body.warehouseReceiveStatus || RETURN_STATES.WAITING_RECEIVE
-  });
-  if (built.error) return built;
-  const { returnOrder, existing } = built;
-
-  let finalReturnOrder = null;
-  await withMongoTransaction(async (session) => {
-    // Legacy createReturnOrder vẫn giữ hành vi cũ: tạo phiếu, nhập kho và ghi AR ngay.
-    // Nhưng lifecycle nội bộ chạy đúng: received -> accounting_confirmed -> posted_to_ar.
-    if (existing && isPostedReturnStatus(existing.status)) {
-      await InventoryPostingService.reverseMovement(existing, {
-        type: 'RETURN',
-        reverseType: 'RETURN_UPDATE_REVERSAL',
-        direction: 'IN',
-        refType: 'RETURN_ORDER',
-        refId: existing.id || existing.code,
-        refCode: existing.code || existing.id,
-        date: existing.date,
-        note: 'Đảo nhập kho phiếu trả hàng trước khi cập nhật'
-      }, { session });
-      await postingEngine.reverseReturnOrderAR(existing, { session });
-    }
-
-    const receivedReturnOrder = {
-      ...returnOrder,
-      ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.RECEIVED),
-      returnState: RETURN_STATES.RECEIVED
-    };
-
-    const accountingConfirmedReturnOrder = {
-      ...receivedReturnOrder,
-      ...ReturnStateMachine.patchForState(receivedReturnOrder, RETURN_STATES.ACCOUNTING_CONFIRMED),
-      returnState: RETURN_STATES.ACCOUNTING_CONFIRMED,
-      accountingConfirmedBy: body.confirmedBy || body.user || 'system',
-      accountingNote: body.note || returnOrder.accountingNote || ''
-    };
-
-    await returnOrderRepository.upsert(accountingConfirmedReturnOrder, { session });
-    await InventoryPostingService.postReturnIn(receivedReturnOrder, { session });
-
-    const posted = await postReturnOrderArIfNeeded(accountingConfirmedReturnOrder, { session });
-    finalReturnOrder = posted.returnOrder || accountingConfirmedReturnOrder;
-  });
-
-  return { returnOrder: toClient(finalReturnOrder || { ...returnOrder, ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.POSTED_TO_AR) }), updatedExisting: Boolean(existing) };
-}
-
-function normalizeDeliveryReturnItems(rawItems = [], salesOrder = null) {
-  const salesItems = new Map((salesOrder?.items || []).map((item) => [String(item.productCode || item.code || item.productId || '').trim(), item]));
-  return (Array.isArray(rawItems) ? rawItems : [])
-    .map((raw) => {
-      const productCode = String(raw.productCode || raw.code || raw.productId || '').trim();
-      const original = salesItems.get(productCode) || {};
-      const qtyReturn = toNumber(raw.qtyReturn ?? raw.returnQty ?? raw.returnQuantity ?? raw.returnedQty ?? raw.quantity ?? raw.qty ?? 0);
-      const price = toNumber(raw.price ?? raw.salePrice ?? raw.unitPrice ?? original.price ?? original.salePrice ?? original.unitPrice ?? 0);
-      return {
-        ...original,
-        ...raw,
-        productId: raw.productId || original.productId || productCode,
-        productCode: productCode || original.productCode || original.code || '',
-        productName: raw.productName || raw.name || original.productName || original.name || '',
-        quantity: qtyReturn,
-        qty: qtyReturn,
-        qtyReturn,
-        returnQty: qtyReturn,
-        returnQuantity: qtyReturn,
-        returnedQty: qtyReturn,
-        price,
-        salePrice: price,
-        unitPrice: price,
-        amount: Math.round(toNumber(raw.amount ?? qtyReturn * price)),
-        reason: raw.reason || ''
-      };
-    })
-    .filter((item) => item.productCode && toNumber(item.qtyReturn) > 0);
-}
-
-async function upsertDeliveryReturnOrder(body = {}, options = {}) {
-  const salesOrder = await resolveSalesOrder(body);
-  const salesOrderId = canonicalOrderIdFromSalesOrder(salesOrder || {}, body || {});
-  const salesOrderCode = canonicalOrderCodeFromSalesOrder(salesOrder || {}, body || {});
-  if (!salesOrderId && !salesOrderCode) {
-    return { error: 'Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả', status: 400 };
-  }
-
-  const returnCode = buildCanonicalReturnCode(salesOrder || {}, { ...body, salesOrderCode });
-  const customer = await resolveCustomer(body, salesOrder);
-  if (!customer && !body.customerName && !salesOrder?.customerName) {
-    return { error: 'Không tìm thấy khách hàng', status: 404 };
-  }
-
-  const existing = await findExistingReturnOrderForSalesOrder({ salesOrderId, salesOrderCode, returnCode });
-  if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
-    return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
-  }
-  if (existing) {
-    const editGuard = guardReturnOrderEdit(existing, 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng');
-    if (editGuard) return editGuard;
-  }
-
-  const items = normalizeDeliveryReturnItems(body.items, salesOrder);
-  const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.qtyReturn), 0);
-  const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount ?? toNumber(item.qtyReturn) * toNumber(item.price || item.salePrice || item.unitPrice)), 0);
-  const now = dateUtil.nowIso();
-
-  const payload = {
-    ...(existing || {}),
-    ...body,
-    id: returnCode || existing?.id || body.id || makeId('RO'),
-    code: returnCode || existing?.code || body.code || makeId('RO'),
-    date: dateUtil.toDateOnly(body.date || body.documentDate || existing?.date || salesOrder?.deliveryDate || dateUtil.todayVN()),
-    documentDate: dateUtil.toDateOnly(body.documentDate || body.date || existing?.documentDate || salesOrder?.date || dateUtil.todayVN()),
-    deliveryDate: dateUtil.toDateOnly(body.deliveryDate || salesOrder?.deliveryDate || existing?.deliveryDate || body.date || dateUtil.todayVN()),
-    salesOrderId,
-    salesOrderCode,
-    orderId: salesOrderId,
-    orderCode: salesOrderCode,
-    customerId: customer?.id || body.customerId || salesOrder?.customerId || existing?.customerId || '',
-    customerCode: customer?.code || body.customerCode || salesOrder?.customerCode || existing?.customerCode || '',
-    customerName: customer?.name || body.customerName || salesOrder?.customerName || existing?.customerName || '',
-    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_RETURN_SNAPSHOT_STAFF_START =====
-    salesStaffId: salesOrder?.salesStaffId || body.salesStaffId || existing?.salesStaffId || '',
-    salesStaffCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
-    salesStaffName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
-    salesmanCode: pickSalesStaffCode(salesOrder) || pickSalesStaffCode(body) || pickSalesStaffCode(existing),
-    salesmanName: pickSalesStaffName(salesOrder) || pickSalesStaffName(body) || pickSalesStaffName(existing),
-    deliveryStaffId: salesOrder?.deliveryStaffId || body.deliveryStaffId || existing?.deliveryStaffId || '',
-    deliveryStaffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
-    deliveryStaffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
-    staffCode: pickDeliveryStaffCode(salesOrder) || pickDeliveryStaffCode(body) || pickDeliveryStaffCode(existing),
-    staffName: pickDeliveryStaffName(salesOrder) || pickDeliveryStaffName(body) || pickDeliveryStaffName(existing),
-    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_RETURN_SNAPSHOT_STAFF_END =====
-    items: totalQuantity > 0 ? items : [],
-    totalQuantity: totalQuantity > 0 ? totalQuantity : 0,
-    totalAmount: totalQuantity > 0 ? totalAmount : 0,
-    amount: totalQuantity > 0 ? totalAmount : 0,
-    debtReduction: totalQuantity > 0 ? totalAmount : 0,
-    totalReturnAmount: totalQuantity > 0 ? totalAmount : 0,
-    status: totalQuantity > 0 ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
-    returnStatus: totalQuantity > 0 ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
-    returnState: totalQuantity > 0 ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
-    returnMergeStatus: existing?.returnMergeStatus || body.returnMergeStatus || 'unmerged',
-    warehouseReceiveStatus: totalQuantity > 0 ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
-    source: body.source || existing?.source || 'mobile_delivery',
-    accountingStatus: totalQuantity > 0 ? 'pending' : RETURN_STATES.CANCELLED,
-    accountingConfirmed: false,
-    postedAt: '',
-    receivedAt: '',
-    note: String(body.note ?? existing?.note ?? '').trim(),
-    clearedAt: totalQuantity > 0 ? '' : now,
-    updatedAt: now,
-    createdAt: existing?.createdAt || body.createdAt || now
-  };
-
-  await returnOrderRepository.upsert(payload, options);
-  await cancelDuplicateReturnOrders({
-    keepId: existing?._id || payload.id,
-    keepCode: payload.code,
-    salesOrderId,
-    salesOrderCode,
-    returnCode: payload.code
-  });
-
-  const saved = await findExistingReturnOrderForSalesOrder({ salesOrderId, salesOrderCode, returnCode: payload.code }) || payload;
-  return { returnOrder: toClient(saved), updatedExisting: Boolean(existing), canonicalCode: payload.code };
-}
-
-
-async function createPendingReturnOrder(body = {}, options = {}) {
-  const built = await buildReturnOrderDocument({
-    ...body,
-    status: body.status || RETURN_STATES.WAITING_RECEIVE,
-    returnMergeStatus: body.returnMergeStatus || 'unmerged',
-    warehouseReceiveStatus: body.warehouseReceiveStatus || RETURN_STATES.WAITING_RECEIVE
-  });
-  if (built.error) return built;
-  const { returnOrder, existing } = built;
-  const pendingQty = toNumber(returnOrder.totalQuantity ?? 0)
-    || (Array.isArray(returnOrder.items) ? returnOrder.items.reduce((sum, item) => sum + toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty ?? 0), 0) : 0);
-
-  // Nếu nguồn web/ERP gửi danh sách trả = 0 thì không được tạo lại RO-DRAFT waiting_receive.
-  // Chỉ clear phiếu tạm cũ nếu có, rồi trả về.
-  if (pendingQty <= 0) {
-    const clearResult = await clearExistingDeliveryReturnOrders(returnOrder);
-    return {
-      returnOrder: clearResult.returnOrder || toClient({ ...returnOrder, items: [], totalQuantity: 0, totalAmount: 0, amount: 0, debtReduction: 0, status: RETURN_STATES.CANCELLED, returnStatus: RETURN_STATES.CANCELLED, returnState: RETURN_STATES.CANCELLED, warehouseReceiveStatus: RETURN_STATES.CANCELLED, accountingStatus: RETURN_STATES.CANCELLED }),
-      updatedExisting: clearResult.cleared > 0,
-      cleared: clearResult.cleared,
-      skippedCreate: clearResult.cleared <= 0
-    };
-  }
-
-  if (existing && ((existing.returnMergeStatus || 'unmerged') === 'merged' || existing.masterReturnOrderId || existing.masterReturnOrderCode)) {
-    return { error: 'Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng', status: 400 };
-  }
-  if (existing) {
-    const editGuard = guardReturnOrderEdit(existing, 'Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng');
-    if (editGuard) return editGuard;
-  }
-
-  const pendingReturnOrder = {
-    ...returnOrder,
-    ...ReturnStateMachine.patchForState(returnOrder, RETURN_STATES.WAITING_RECEIVE),
-    returnState: RETURN_STATES.WAITING_RECEIVE,
-    returnMergeStatus: 'unmerged',
-    postedAt: '',
-    receivedAt: ''
-  };
-  await returnOrderRepository.upsert(pendingReturnOrder, options);
-
-  // V45 chuẩn: đơn trả từ app giao hàng chỉ là đề nghị/ghi nhận tạm.
-  // Không post AR-RETURN và không sync công nợ tại đây; AR chỉ ghi khi kế toán xác nhận báo cáo giao hàng.
-
-  return { returnOrder: toClient({ ...pendingReturnOrder, status: RETURN_STATES.WAITING_RECEIVE, warehouseReceiveStatus: RETURN_STATES.WAITING_RECEIVE }), updatedExisting: Boolean(existing) };
-}
-
-async function confirmReceiveReturnOrderInSession(idOrCode, options = {}) {
-  const session = options.session;
-  const current = await returnOrderRepository.findByIdOrCode(idOrCode, { session });
-  if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
-
-  const currentState = ReturnStateMachine.getReturnState(current);
-  if (currentState === RETURN_STATES.RECEIVED || currentState === RETURN_STATES.ACCOUNTING_CONFIRMED || currentState === RETURN_STATES.POSTED_TO_AR) {
-    return { returnOrder: toClient(current), alreadyReceived: true };
-  }
-
-  try {
-    ReturnStateMachine.assertTransition(current, RETURN_STATES.RECEIVED, 'confirm_receive');
-  } catch (err) {
-    return { error: err.message, code: err.code, status: 400 };
-  }
-
-  const received = {
-    ...current,
-    ...ReturnStateMachine.patchForState(current, RETURN_STATES.RECEIVED),
-    returnState: RETURN_STATES.RECEIVED,
-    receivedBy: String(options.receivedBy || current.receivedBy || '').trim(),
-    stateChangedAt: dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
-  };
-
-  await returnOrderRepository.upsert(received, { session });
-  await InventoryPostingService.postReturnIn(received, { session });
-  return { returnOrder: toClient(received), alreadyReceived: false };
-}
-
-async function confirmReceiveReturnOrder(idOrCode, options = {}) {
-  if (options.session) {
-    return confirmReceiveReturnOrderInSession(idOrCode, options);
-  }
-  return withMongoTransaction((session) =>
-    confirmReceiveReturnOrderInSession(idOrCode, { ...options, session })
-  );
-}
-
-async function confirmAccountingReturnOrder(idOrCode, body = {}, options = {}) {
-  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
-  if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
-
-  try {
-    ReturnStateMachine.assertCanConfirmAccounting(current);
-  } catch (err) {
-    return { error: err.message, code: err.code, status: 400 };
-  }
-
-  let postedReturnOrder = null;
-
-  await withMongoTransaction(async (session) => {
-    const accountingConfirmed = {
-      ...current,
-      ...ReturnStateMachine.patchForState(current, RETURN_STATES.ACCOUNTING_CONFIRMED),
-      returnState: RETURN_STATES.ACCOUNTING_CONFIRMED,
-      accountingConfirmedBy: body.confirmedBy || body.user || options.user?.code || 'system',
-      accountingNote: body.note || current.accountingNote || '',
-      stateChangedAt: dateUtil.nowIso(),
-      updatedAt: dateUtil.nowIso()
-    };
-
-    ReturnStateMachine.assertTransition(current, RETURN_STATES.ACCOUNTING_CONFIRMED, 'confirm_accounting');
-
-    await returnOrderRepository.upsert(accountingConfirmed, { session });
-
-    const posted = await postReturnOrderArIfNeeded(accountingConfirmed, { session });
-    postedReturnOrder = posted.returnOrder || accountingConfirmed;
-  });
-
-  return { returnOrder: toClient(postedReturnOrder) };
-}
-
-function returnLineKey(item = {}) {
-  return [
-    String(item.productCode || item.code || item.productId || '').trim(),
-    String(item.unit || item.baseUnit || '').trim(),
-    String(toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0))
-  ].join('|');
-}
-
-function orderItemToReturnDraftItem(item = {}, existedItem = {}) {
-  const soldQty = toNumber(item.quantity ?? item.qty ?? item.totalQty ?? item.soldQty ?? 0);
-  const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? existedItem.price ?? existedItem.salePrice ?? 0);
-  const returnQty = toNumber(existedItem.returnQty ?? existedItem.qtyReturn ?? existedItem.returnQuantity ?? existedItem.quantity ?? 0);
-  return {
-    ...existedItem,
-    productId: item.productId || existedItem.productId || item.productCode || item.code || '',
-    productCode: String(item.productCode || item.code || item.productId || existedItem.productCode || '').trim(),
-    productName: String(item.productName || item.name || existedItem.productName || '').trim(),
-    unit: String(item.unit || item.baseUnit || existedItem.unit || '').trim(),
-    soldQty,
-    price,
-    salePrice: price,
-    unitPrice: price,
-    soldAmount: Math.round(soldQty * price),
-    returnQty,
-    qtyReturn: returnQty,
-    returnQuantity: returnQty,
-    returnedQty: returnQty,
-    quantity: returnQty,
-    qty: returnQty,
-    returnAmount: Math.round(returnQty * price),
-    amount: Math.round(returnQty * price),
-    lineKey: returnLineKey({ ...item, price })
-  };
-}
-
-function hasReturnQuantity(row = {}) {
-  return (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? 0) > 0)
-    || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount ?? row.debtReduction ?? 0) > 0;
-}
-
-function summarizeReturnDraftItems(items = []) {
-  const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount ?? toNumber(item.soldQty) * toNumber(item.price)), 0);
-  const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount ?? toNumber(item.returnQty) * toNumber(item.price)), 0);
-  const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity), 0);
-  return {
-    totalSoldAmount: Math.round(totalSoldAmount),
-    totalReturnAmount: Math.round(totalReturnAmount),
-    totalQuantity,
-    totalAmount: Math.round(totalReturnAmount),
-    amount: Math.round(totalReturnAmount),
-    debtReduction: Math.round(totalReturnAmount)
-  };
-}
-
-async function findBySalesOrder(order = {}) {
-  const rows = await findReturnOrdersBySalesOrderRefs([order], { sort: { updatedAt: -1, createdAt: -1 }, limit: 20 });
-  return rows.find((row) => row && !isInactiveStatus(row)) || null;
-}
-
-function resolveReturnDocumentDate(body = {}, salesOrder = {}, existing = {}) {
-  return dateUtil.toDateOnly(
-    body.deliveryDate ||
-    body.date ||
-    body.documentDate ||
-    salesOrder.deliveryDate ||
-    salesOrder.date ||
-    existing.deliveryDate ||
-    existing.date ||
-    existing.documentDate ||
-    dateUtil.todayVN()
-  );
-}
-
-function buildReturnDraftFromSalesOrder(order = {}, existing = null) {
-  const existingItemsByKey = new Map();
-  for (const item of (Array.isArray(existing?.items) ? existing.items : [])) {
-    existingItemsByKey.set(String(item.lineKey || returnLineKey(item)).trim(), item);
-  }
-  const items = (Array.isArray(order.items) ? order.items : [])
-    .map((item) => {
-      const key = returnLineKey(item);
-      return orderItemToReturnDraftItem(item, existingItemsByKey.get(key) || {});
-    })
-    .filter((item) => item.productCode || item.productName);
-  const summary = summarizeReturnDraftItems(items);
-  const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
-  return {
-    ...(existing || {}),
-    id: String(buildCanonicalReturnCode(order, existing) || existing?.id || makeId('RO')).trim(),
-    code: String(buildCanonicalReturnCode(order, existing) || existing?.code || makeId('RO')).trim(),
-    date: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || existing?.date || dateUtil.todayVN()),
-    documentDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || order.orderDate || existing?.documentDate || existing?.date || dateUtil.todayVN()),
-    salesOrderId: order.id || existing?.salesOrderId || '',
-    salesOrderCode: order.code || existing?.salesOrderCode || '',
-    orderId: order.id || existing?.orderId || '',
-    orderCode: order.code || existing?.orderCode || '',
-    customerId: order.customerId || existing?.customerId || '',
-    customerCode: order.customerCode || existing?.customerCode || '',
-    customerName: order.customerName || existing?.customerName || '',
-    salesStaffId: order.salesStaffId || existing?.salesStaffId || '',
-    salesStaffCode: pickSalesStaffCode(order) || pickSalesStaffCode(existing),
-    salesStaffName: pickSalesStaffName(order) || pickSalesStaffName(existing),
-    // legacy display only, not business source: staff* trên returnOrders đại diện NVGH, không đại diện NVBH.
-    staffCode: pickDeliveryStaffCode(order) || pickDeliveryStaffCode(existing),
-    staffName: pickDeliveryStaffName(order) || pickDeliveryStaffName(existing),
-    masterOrderId: order.masterOrderId || existing?.masterOrderId || '',
-    masterOrderCode: order.masterOrderCode || existing?.masterOrderCode || '',
-    deliveryStaffId: order.deliveryStaffId || existing?.deliveryStaffId || '',
-    deliveryStaffCode: pickDeliveryStaffCode(order) || pickDeliveryStaffCode(existing),
-    deliveryStaffName: pickDeliveryStaffName(order) || pickDeliveryStaffName(existing),
-    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || existing?.deliveryDate || order.date || dateUtil.todayVN()),
-    routeName: order.routeName || order.deliveryRoute || existing?.routeName || '',
-    deliveryRoute: order.deliveryRoute || order.routeName || existing?.deliveryRoute || '',
-    items,
-    ...summary,
-    status: existing && isPostedReturnStatus(existing.status) ? existing.status : (hasReturn ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.DRAFT),
-    returnStatus: hasReturn ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.DRAFT,
-    returnState: hasReturn ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.DRAFT,
-    returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
-    warehouseReceiveStatus: hasReturn ? (existing?.warehouseReceiveStatus || RETURN_STATES.WAITING_RECEIVE) : RETURN_STATES.DRAFT,
-    source: existing?.source || 'sales_order_draft',
-    createdFrom: existing?.createdFrom || 'sales_order',
-    accountingStatus: hasReturn ? (existing?.accountingStatus || 'pending') : RETURN_STATES.DRAFT,
-    accountingConfirmed: Boolean(existing?.accountingConfirmed),
-    postedAt: existing?.postedAt || '',
-    cancelledAt: '',
-    deletedAt: '',
-    updatedAt: dateUtil.nowIso(),
-    createdAt: existing?.createdAt || dateUtil.nowIso()
-  };
-}
-
-async function ensureReturnDraftForSalesOrder(order = {}, options = {}) {
-  if (!order || (!order.id && !order.code)) return null;
-  const existing = await findBySalesOrder(order);
-  if (!existing) {
-    // V45 lazy return-order: không tạo RO-DRAFT rỗng khi chỉ tạo/sửa đơn bán.
-    // Trả draft ảo cho UI nếu cần hiển thị form hàng trả, nhưng không ghi Mongo.
-    return { returnOrder: toClient(buildReturnDraftFromSalesOrder(order, null)), virtualDraft: true, skipped: 'no_return_quantity' };
-  }
-  if (isPostedReturnStatus(existing.status)) return { returnOrder: toClient(existing), skipped: 'posted' };
-  const draft = buildReturnDraftFromSalesOrder(order, existing);
-  if (!hasReturnQuantity(draft)) {
-    const cleared = {
-      ...draft,
-      items: [],
-      totalQuantity: 0,
-      totalReturnAmount: 0,
-      totalAmount: 0,
-      amount: 0,
-      debtReduction: 0,
-      status: RETURN_STATES.CANCELLED,
-      returnStatus: RETURN_STATES.CANCELLED,
-      returnState: RETURN_STATES.CANCELLED,
-      warehouseReceiveStatus: RETURN_STATES.CANCELLED,
-      accountingStatus: RETURN_STATES.CANCELLED,
-      cancelReason: '',
-      cancelledAt: '',
-      clearedAt: dateUtil.nowIso(),
-      updatedAt: dateUtil.nowIso(),
-      note: 'Đồng bộ đơn bán: không còn số lượng trả'
-    };
-    if (!options.dryRun) {
-      await returnOrderRepository.upsert(cleared, options);
-      await updateSalesOrderReturnLink(order, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
-      await auditReturnOrder('clear_return_order', existing, cleared, cleared.note);
-    }
-    return { returnOrder: toClient(cleared), cleared: true };
-  }
-  await returnOrderRepository.upsert(draft, options);
-  await updateSalesOrderReturnLink(order, {
-    hasReturn: true,
-    returnOrderId: draft.id || '',
-    returnOrderCode: draft.code || '',
-    returnAmount: toNumber(draft.totalAmount ?? draft.amount ?? 0)
-  }, options);
-  return { returnOrder: toClient(draft), updatedExisting: true };
-}
-
-async function syncReturnDraftWithSalesOrder(order = {}, options = {}) {
-  const existing = await findBySalesOrder(order);
-  if (!existing) return { skipped: 'not_found' };
-  return ensureReturnDraftForSalesOrder(order, options);
-}
-
-async function cancelReturnDraftForSalesOrder(order = {}, options = {}) {
-  const existing = await findBySalesOrder(order);
-  if (!existing) return { skipped: 'not_found' };
-  if (isReturnOrderLockedForCancel(existing)) {
-    return { error: 'Phiếu trả hàng đã nhập kho/ghi sổ. Vui lòng tạo phiếu đảo trước khi hủy đơn.', status: 400 };
-  }
-  const cancelled = {
-    ...existing,
-    ...ReturnStateMachine.patchForState(existing, RETURN_STATES.CANCELLED),
-    returnState: RETURN_STATES.CANCELLED,
-    cancelReason: cancelReasonFrom(options, 'Huỷ theo đơn bán/giao'),
-    cancelledAt: dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
-  };
-  if (options.dryRun) return { returnOrder: toClient(cancelled), dryRun: true };
-  await returnOrderRepository.upsert(cancelled, options);
-  await updateSalesOrderReturnLink(order, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
-  await auditReturnOrder('cancel_return_order', existing, cancelled, cancelled.cancelReason);
-  return { returnOrder: toClient(cancelled) };
-}
-
-async function restoreReturnDraftForSalesOrder(order = {}, options = {}) {
-  const existing = await findBySalesOrder(order);
-  if (!existing) {
-    return { returnOrder: toClient(buildReturnDraftFromSalesOrder(order, null)), virtualDraft: true, skipped: 'no_existing_return_order' };
-  }
-  const draft = buildReturnDraftFromSalesOrder(order, existing);
-  if (!hasReturnQuantity(draft)) return { returnOrder: toClient(draft), virtualDraft: true, skipped: 'no_return_quantity' };
-  draft.status = hasReturnQuantity(draft) ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.DRAFT;
-  draft.returnStatus = draft.status;
-  draft.returnState = draft.status;
-  draft.cancelledAt = '';
-  await returnOrderRepository.upsert(draft, options);
-  await updateSalesOrderReturnLink(order, { hasReturn: true, returnOrderId: draft.id || '', returnOrderCode: draft.code || '', returnAmount: toNumber(draft.totalAmount ?? draft.amount ?? 0) }, options);
-  return { returnOrder: toClient(draft), updatedExisting: Boolean(existing) };
-}
-
-async function attachMasterOrderToReturnDrafts(masterOrder = {}, childOrders = [], options = {}) {
-  const orderIds = uniqueStrings((childOrders || []).flatMap((child) => [child?.id, child?._id, child?.salesOrderId, child?.orderId]));
-  const orderCodes = uniqueStrings((childOrders || []).flatMap((child) => [child?.code, child?.orderCode, child?.salesOrderCode]));
-  const or = [];
-  if (orderIds.length) {
-    or.push({ salesOrderId: { $in: orderIds } });
-    or.push({ orderId: { $in: orderIds } });
-  }
-  if (orderCodes.length) {
-    or.push({ salesOrderCode: { $in: orderCodes } });
-    or.push({ orderCode: { $in: orderCodes } });
-  }
-  if (!or.length) return [];
-  const update = {
-    $set: {
-      masterOrderId: masterOrder.id || '',
-      masterOrderCode: masterOrder.code || '',
-      deliveryStaffId: masterOrder.deliveryStaffId || '',
-      deliveryStaffCode: masterOrder.deliveryStaffCode || '',
-      deliveryStaffName: masterOrder.deliveryStaffName || '',
-      deliveryDate: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || dateUtil.todayVN()),
-      routeName: masterOrder.routeName || '',
-      deliveryRoute: masterOrder.deliveryRoute || masterOrder.routeName || '',
-      date: dateUtil.toDateOnly(masterOrder.deliveryDate || masterOrder.date || dateUtil.todayVN()),
-      updatedAt: dateUtil.nowIso()
-    }
-  };
-  await ReturnOrder.updateMany(
-    { $or: or, status: { $in: ACTIVE_RETURN_ORDER_STATUSES } },
-    update,
-    options.session ? { session: options.session } : {}
-  );
-  return findReturnOrdersBySalesOrderRefs(childOrders);
-}
-
-
-async function detachMasterOrderFromReturnDrafts(childOrders = [], options = {}) {
-  const orderIds = uniqueStrings((childOrders || []).flatMap((child) => [child?.id, child?._id, child?.salesOrderId, child?.orderId]));
-  const orderCodes = uniqueStrings((childOrders || []).flatMap((child) => [child?.code, child?.orderCode, child?.salesOrderCode]));
-  const or = [];
-  if (orderIds.length) {
-    or.push({ salesOrderId: { $in: orderIds } });
-    or.push({ orderId: { $in: orderIds } });
-  }
-  if (orderCodes.length) {
-    or.push({ salesOrderCode: { $in: orderCodes } });
-    or.push({ orderCode: { $in: orderCodes } });
-  }
-  if (!or.length) return [];
-
-  const expectedMasterKeys = uniqueStrings([
-    options.expectedMasterOrderId,
-    options.expectedMasterOrderCode
-  ]);
-  const filter = {
-    $or: or,
-    status: { $in: ACTIVE_RETURN_ORDER_STATUSES }
-  };
-  if (expectedMasterKeys.length) {
-    filter.$and = [{
-      $or: [
-        { masterOrderId: { $in: expectedMasterKeys } },
-        { masterOrderCode: { $in: expectedMasterKeys } },
-        { deliveryMasterId: { $in: expectedMasterKeys } },
-        { deliveryMasterCode: { $in: expectedMasterKeys } }
-      ]
-    }];
-  }
-
-  await ReturnOrder.updateMany(
-    filter,
-    {
-      $set: { updatedAt: dateUtil.nowIso() },
-      $unset: {
-        masterOrderId: '',
-        masterOrderCode: '',
-        deliveryMasterId: '',
-        deliveryMasterCode: '',
-        deliveryStaffId: '',
-        deliveryStaffCode: '',
-        deliveryStaffName: '',
-        deliveryCode: '',
-        deliveryName: '',
-        shipperCode: '',
-        shipperName: '',
-        nvghCode: '',
-        nvghName: '',
-        staffDeliveryCode: '',
-        staffDeliveryName: '',
-        driverId: '',
-        driverCode: '',
-        driverName: '',
-        staffCode: '',
-        staffName: '',
-        deliveryDate: '',
-        routeName: '',
-        deliveryRoute: ''
-      }
-    },
-    options.session ? { session: options.session } : {}
-  );
-  return findReturnOrdersBySalesOrderRefs(childOrders);
-}
-
-
-async function getReturnOrderBySalesOrderKey(salesOrderIdOrCode, query = {}, options = {}) {
-  const key = String(salesOrderIdOrCode || query.salesOrderId || query.salesOrderCode || query.orderId || query.orderCode || '').trim();
-  if (!key) return { error: 'Thiếu salesOrderId/salesOrderCode', status: 400 };
-  const salesOrder = await orderRepository.findByIdOrCode(key);
-  const lookup = {
-    salesOrderId: salesOrder?.id || query.salesOrderId || query.orderId || key,
-    salesOrderCode: salesOrder?.code || query.salesOrderCode || query.orderCode || key
-  };
-  let existing = await findExistingReturnOrder(lookup);
-
-  // Lazy return-order: GET chỉ trả draft ảo để UI hiển thị đủ dòng hàng, không ghi RO-DRAFT rỗng vào Mongo.
-  if (salesOrder && options.ensureDraft !== false && (!existing || !isPostedReturnStatus(existing.status))) {
-    const virtualDraft = buildReturnDraftFromSalesOrder(salesOrder, existing || null);
-    return { returnOrder: toClient(virtualDraft), virtualDraft: !existing };
-  }
-  if (!existing) return { returnOrder: null };
-  return { returnOrder: toClient(existing) };
-}
-
-async function updateReturnDraftItemsBySalesOrder(salesOrderIdOrCode, body = {}, options = {}) {
-  const key = String(salesOrderIdOrCode || body.salesOrderId || body.salesOrderCode || body.orderId || body.orderCode || '').trim();
-  if (!key) return { error: 'Thiếu salesOrderId/salesOrderCode', status: 400 };
-  const salesOrder = await orderRepository.findByIdOrCode(key);
-  const lookup = {
-    ...body,
-    salesOrderId: salesOrder?.id || body.salesOrderId || body.orderId || key,
-    salesOrderCode: salesOrder?.code || body.salesOrderCode || body.orderCode || key
-  };
-  let current = await findExistingReturnOrder(lookup);
-  if (!current && salesOrder) {
-    // Chỉ dựng draft trong bộ nhớ. Nếu tổng returnQty > 0 mới upsert sau khi tính xong.
-    current = buildReturnDraftFromSalesOrder(salesOrder, null);
-  }
-  if (!current) return { error: 'Không tìm thấy đơn gốc để tạo/cập nhật phiếu trả hàng', status: 404 };
-
-  const editGuard = guardReturnOrderEdit(current, 'Phiếu trả hàng đã nhập kho/ghi sổ, không được sửa. Vui lòng tạo phiếu đảo nếu khách lấy lại hàng.');
-  if (editGuard) return editGuard;
-  if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
-    return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả', status: 400 };
-  }
-
-  const inputItems = Array.isArray(body.items) ? body.items : [];
-  const inputByCode = new Map();
-  const inputByKey = new Map();
-  for (const raw of inputItems) {
-    const code = String(raw.productCode || raw.code || raw.productId || '').trim();
-    const lineKey = String(raw.lineKey || returnLineKey(raw)).trim();
-    if (code) inputByCode.set(code, raw);
-    if (lineKey) inputByKey.set(lineKey, raw);
-  }
-
-  // Khi lưu từ app hoặc phần mềm, danh sách chuẩn vẫn phải lấy từ order.items gốc.
-  // current.items có thể chỉ chứa các dòng đã trả của dữ liệu cũ, nên không được dùng làm danh sách chính nếu có salesOrder.
-  const baseItems = Array.isArray(salesOrder?.items) && salesOrder.items.length
-    ? buildReturnDraftFromSalesOrder(salesOrder, current).items
-    : (Array.isArray(current.items) ? current.items : []);
-
-  const items = baseItems.map((item) => {
-    const key = String(item.lineKey || returnLineKey(item)).trim();
-    const code = String(item.productCode || item.code || item.productId || '').trim();
-    const raw = inputByKey.get(key) || inputByCode.get(code) || null;
-    const nextReturnQty = raw ? toNumber(raw.returnQty ?? raw.qtyReturn ?? raw.returnQuantity ?? raw.quantity ?? 0) : toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? 0);
-    const soldQty = toNumber(item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? 0);
-    if (nextReturnQty < 0) throw new Error('Số lượng trả không được âm');
-    if (soldQty > 0 && nextReturnQty > soldQty) throw new Error(`Số lượng trả ${item.productCode || item.productName} không được lớn hơn số lượng giao`);
-    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0);
-    return {
-      ...item,
-      returnQty: nextReturnQty,
-      qtyReturn: nextReturnQty,
-      returnQuantity: nextReturnQty,
-      returnedQty: nextReturnQty,
-      quantity: nextReturnQty,
-      qty: nextReturnQty,
-      returnAmount: Math.round(nextReturnQty * price),
-      amount: Math.round(nextReturnQty * price),
-      lineKey: key
-    };
-  });
-
-  const summary = summarizeReturnDraftItems(items);
-  const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
-  const returnDate = resolveReturnDocumentDate(body, salesOrder || {}, current || {});
-  const baseUpdated = {
-    ...current,
-    ...summary,
-    date: returnDate,
-    deliveryDate: returnDate,
-    documentDate: returnDate,
-    items,
-    source: body.source || current.source || 'returnOrders',
-    updatedFrom: body.source || body.updatedFrom || 'unknown',
-    updatedBy: body.updatedBy || body.user || current.updatedBy || '',
-    updatedAt: dateUtil.nowIso()
-  };
-
-  if (!hasReturn) {
-    const clearResult = await clearExistingDeliveryReturnOrders({ ...lookup, ...body, note: body.note || 'Đã sửa hàng trả về 0 từ phần mềm' });
-    const cleared = {
-      ...baseUpdated,
-      items: [],
-      totalQuantity: 0,
-      totalReturnAmount: 0,
-      totalAmount: 0,
-      amount: 0,
-      debtReduction: 0,
-      status: RETURN_STATES.CANCELLED,
-      returnStatus: RETURN_STATES.CANCELLED,
-      returnState: RETURN_STATES.CANCELLED,
-      warehouseReceiveStatus: RETURN_STATES.CANCELLED,
-      accountingStatus: RETURN_STATES.CANCELLED,
-      cancelReason: '',
-      cancelledAt: '',
-      clearedAt: dateUtil.nowIso(),
-      note: body.note || 'Đã sửa hàng trả về 0 từ phần mềm'
-    };
-    if (salesOrder) await updateSalesOrderReturnLink(salesOrder, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
-    if (clearResult.cleared > 0) await auditReturnOrder('clear_return_order', current, clearResult.returnOrder || cleared, cleared.note);
-    return { returnOrder: clearResult.returnOrder || toClient(cleared), cleared: clearResult.cleared > 0, skippedCreate: clearResult.cleared <= 0 };
-  }
-
-  const updated = {
-    ...baseUpdated,
-    ...ReturnStateMachine.patchForState(baseUpdated, RETURN_STATES.WAITING_RECEIVE),
-    returnState: RETURN_STATES.WAITING_RECEIVE,
-    accountingStatus: 'pending',
-    cancelledAt: '',
-    cancelReason: ''
-  };
-  await returnOrderRepository.upsert(updated, options);
-  if (salesOrder) {
-    await updateSalesOrderReturnLink(salesOrder, {
-      hasReturn: true,
-      returnOrderId: updated.id || '',
-      returnOrderCode: updated.code || '',
-      returnAmount: toNumber(updated.totalAmount ?? updated.amount ?? 0)
-    }, options);
-  }
-  await auditReturnOrder(current && current.status === 'cancelled' ? 'restore_return_order' : 'upsert_return_order', current, updated, 'Cập nhật số lượng hàng trả');
-  return { returnOrder: toClient(updated) };
-}
-
-async function cancelReturnOrderById(idOrCode, body = {}, options = {}) {
-  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
-  if (!current) return { error: 'Không tìm thấy phiếu trả hàng', status: 404 };
-  const cancelGuard = guardReturnOrderCancel(current);
-  if (cancelGuard) return cancelGuard;
-  if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
-    return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, cần hủy gộp trước', status: 400 };
-  }
-  const cancelled = {
-    ...current,
-    ...ReturnStateMachine.patchForState(current, RETURN_STATES.CANCELLED),
-    returnState: RETURN_STATES.CANCELLED,
-    warehouseReceiveStatus: 'cancelled',
-    accountingStatus: 'cancelled',
-    cancelReason: cancelReasonFrom(body, 'Khách lấy lại hàng'),
-    cancelledAt: dateUtil.nowIso(),
-    updatedAt: dateUtil.nowIso()
-  };
-  await returnOrderRepository.upsert(cancelled, options);
-  const salesKey = current.salesOrderId || current.orderId || current.salesOrderCode || current.orderCode || '';
-  const salesOrder = salesKey ? await orderRepository.findByIdOrCode(salesKey) : null;
-  if (salesOrder) await updateSalesOrderReturnLink(salesOrder, { hasReturn: false, returnOrderId: '', returnOrderCode: '', returnAmount: 0 }, options);
-  await auditReturnOrder('cancel_return_order', current, cancelled, cancelled.cancelReason);
-  return { returnOrder: toClient(cancelled) };
-}
-
-async function updateReturnDraftItems(idOrCode, body = {}, options = {}) {
-  const current = await returnOrderRepository.findByIdOrCode(idOrCode);
-  if (!current) return { error: 'Không tìm thấy đơn chờ trả hàng', status: 404 };
-  const editGuard = guardReturnOrderEdit(current, 'Phiếu trả hàng đã ghi sổ/kho, không được sửa');
-  if (editGuard) return editGuard;
-  if ((current.returnMergeStatus || 'unmerged') === 'merged' || current.masterReturnOrderId || current.masterReturnOrderCode) {
-    return { error: 'Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả', status: 400 };
-  }
-  const inputItems = Array.isArray(body.items) ? body.items : [];
-  const inputByKey = new Map();
-  for (const raw of inputItems) {
-    const key = String(raw.lineKey || returnLineKey(raw)).trim();
-    if (key) inputByKey.set(key, raw);
-  }
-  const items = (Array.isArray(current.items) ? current.items : []).map((item) => {
-    const key = String(item.lineKey || returnLineKey(item)).trim();
-    const raw = inputByKey.get(key) || inputItems.find((x) => String(x.productCode || x.code || '').trim() === String(item.productCode || '').trim());
-    const nextReturnQty = raw ? toNumber(raw.returnQty ?? raw.qtyReturn ?? raw.returnQuantity ?? raw.quantity ?? 0) : toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity ?? 0);
-    const soldQty = toNumber(item.soldQty ?? item.quantitySold ?? 0);
-    if (nextReturnQty < 0) throw new Error('Số lượng trả không được âm');
-    if (nextReturnQty > soldQty) throw new Error(`Số lượng trả ${item.productCode || item.productName} không được lớn hơn số lượng bán`);
-    const price = toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? 0);
-    return {
-      ...item,
-      returnQty: nextReturnQty,
-      qtyReturn: nextReturnQty,
-      returnQuantity: nextReturnQty,
-      returnedQty: nextReturnQty,
-      quantity: nextReturnQty,
-      qty: nextReturnQty,
-      returnAmount: Math.round(nextReturnQty * price),
-      amount: Math.round(nextReturnQty * price),
-      lineKey: key
-    };
-  });
-  const summary = summarizeReturnDraftItems(items);
-  const hasReturn = summary.totalReturnAmount > 0 || items.some((item) => toNumber(item.returnQty) > 0);
-  const status = hasReturn ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED;
-  const returnDate = resolveReturnDocumentDate(body, {}, current || {});
-  const updated = {
-    ...current,
-    ...(hasReturn ? summary : { totalQuantity: 0, totalReturnAmount: 0, totalAmount: 0, amount: 0, debtReduction: 0 }),
-    date: returnDate,
-    deliveryDate: returnDate,
-    documentDate: returnDate,
-    items: hasReturn ? items : [],
-    status,
-    returnStatus: status,
-    returnState: status,
-    warehouseReceiveStatus: hasReturn ? RETURN_STATES.WAITING_RECEIVE : RETURN_STATES.CANCELLED,
-    accountingStatus: hasReturn ? 'pending' : RETURN_STATES.CANCELLED,
-    cancelReason: '',
-    cancelledAt: '',
-    clearedAt: hasReturn ? '' : dateUtil.nowIso(),
-    note: hasReturn ? current.note : (body.note || 'Đã sửa hàng trả về 0'),
-    updatedAt: dateUtil.nowIso()
-  };
-  await returnOrderRepository.upsert(updated, options);
-  return { returnOrder: toClient(updated), cleared: !hasReturn };
-}
-
-module.exports = { listReturnOrders, createReturnOrder, createPendingReturnOrder, upsertDeliveryReturnOrder, buildCanonicalReturnCode, findExistingReturnOrderForSalesOrder, cancelDuplicateReturnOrders, confirmReceiveReturnOrder, confirmAccountingReturnOrder, ensureReturnDraftForSalesOrder, syncReturnDraftWithSalesOrder, cancelReturnDraftForSalesOrder, restoreReturnDraftForSalesOrder, attachMasterOrderToReturnDrafts, detachMasterOrderFromReturnDrafts, getReturnOrderBySalesOrderKey, updateReturnDraftItemsBySalesOrder, updateReturnDraftItems, cancelReturnOrderById, toClient };
+/* GENERATED FILE — edit src/services/returnOrderLegacy.service.source/part-01.jsfrag, src/services/returnOrderLegacy.service.source/part-02.jsfrag, src/services/returnOrderLegacy.service.source/part-03.jsfrag, src/services/returnOrderLegacy.service.source/part-04.jsfrag and run npm run build:source-bundles. */
+"use strict"
+;const e=require("../utils/date.util"),t=require("../utils/queryGuard.util"),{escapeRegex:r}=require("../utils/query.util"),n=require("../repositories/returnOrderRepository"),d=require("../repositories/orderRepository"),a=require("../repositories/customerRepository"),{makeId:o,normalizeText:s,toNumber:u}=require("../utils/common.util"),{withMongoTransaction:i}=require("../utils/transaction.util"),c=require("../domain/posting/InventoryPostingService"),l=require("../engines/posting.engine"),m=require("./financialService"),y=require("./auditService"),f=require("../models/ReturnOrder"),C=require("../domain/lifecycle/ReturnStateMachine"),{RETURN_STATES:g}=C,{pickSalesStaffCode:I,pickSalesStaffName:p,pickDeliveryStaffCode:O,pickDeliveryStaffName:h}=require("../domain/staff/staffIdentity"),S=["draft","pending","active","waiting_receive","pending_warehouse_receive","merged","delivered","completed","has_return"]
+;function R(e=[]){const t=e.reduce((e,t)=>{const r=String(t.code||"").match(/(\d+)$/);return Math.max(e,r?Number(r[1]):0)},0);return`THH${String(t+1).padStart(5,"0")}`}
+function A(t={}){const r=[t.returnDate,t.date,t.documentDate,t.deliveryDate];for(const t of r){const r=e.toDateOnly(t||"");if(/^\d{4}-\d{2}-\d{2}$/.test(r))return r}return""}
+function E(e){const t=A(e);return{...e,id:e.id||e.code,code:e.code||e.id,returnDate:t||e.returnDate||"",items:Array.isArray(e.items)?e.items:[],totalQuantity:u(e.totalQuantity),
+totalAmount:u(e.totalAmount)}}function N(e={}){const t=String(e.status||"").toLowerCase()
+;return["cancelled","canceled","void","deleted","removed","duplicate_cancelled","cleared"].includes(t)||Boolean(e.deletedAt)}function v(e={}){
+return u(e.debtReduction??e.totalAmount??e.amount??e.totalValue)}function w(e={}){return v(e)>0}async function D(t={},r={}){const d=v(t);if(!t||d<=0)return{entry:null,returnOrder:t
+};C.assertCanPostAR(t);const a=await l.postReturnOrderAR({...t,debtReduction:d,amount:d,totalReturnAmount:d,source:"returnOrders",accountingConfirmed:!0,
+accountingStatus:g.ACCOUNTING_CONFIRMED},{...r,skipIfExists:!0});if(!a)return{entry:null,returnOrder:t};const o=C.patchForState(t,g.POSTED_TO_AR),s={...t,...o,
+returnState:g.POSTED_TO_AR,stateChangedAt:e.nowIso(),arLedgerId:a.id||a.code||t.arLedgerId||""};return await n.upsert(s,r),{entry:a,returnOrder:s}}function _(e=[]){
+return[...new Set((e||[]).map(e=>String(e||"").trim()).filter(Boolean))]}function T(e={}){
+const t=String(e.id||"").trim(),r=String(e.code||"").trim(),n=String(e.salesOrderId||e.orderId||e.sourceOrderId||e.deliveryOrderId||"").trim(),d=String(e.salesOrderCode||e.orderCode||e.sourceOrderCode||e.deliveryOrderCode||"").trim(),a=[]
+;return t&&a.push({id:t}),r&&a.push({code:r}),n&&(a.push({salesOrderId:n}),a.push({orderId:n}),a.push({sourceOrderId:n}),a.push({deliveryOrderId:n})),d&&(a.push({salesOrderCode:d
+}),a.push({orderCode:d}),a.push({sourceOrderCode:d}),a.push({deliveryOrderCode:d})),a.length?{$or:a}:null}function M(e={},t={}){
+return String(e.code||e.orderCode||e.salesOrderCode||t.salesOrderCode||t.orderCode||t.code||"").trim()}function q(e={},t={}){
+return String(e.id||e._id||t.salesOrderId||t.orderId||t.id||"").trim()}function L(e={},t={}){const r=M(e,t);if(!r)return"";const n=String(r).replace(/^RO[-_]?/i,"").trim()
+;return n?`RO-${n}`:""}function $({salesOrderId:e="",salesOrderCode:t="",returnCode:r=""}={}){const n=[];return r&&(n.push({code:r}),n.push({id:r})),e&&(n.push({salesOrderId:e}),
+n.push({orderId:e}),n.push({sourceOrderId:e}),n.push({deliveryOrderId:e})),t&&(n.push({salesOrderCode:t}),n.push({orderCode:t}),n.push({sourceOrderCode:t}),n.push({
+deliveryOrderCode:t}),n.push({code:`RO-${String(t).replace(/^RO[-_]?/i,"")}`})),n.length?{$or:n,status:{$nin:["deleted"]}}:null}function Q(e={},t=""){
+const r=String(e.status||e.returnStatus||"").toLowerCase();let n=0;return!t||String(e.code||"")!==t&&String(e.id||"")!==t||(n+=1e3),String(e.code||"").startsWith("RO-")&&(n+=200),
+String(e.id||"").startsWith("RO-")&&(n+=100),["waiting_receive","pending","draft","active","has_return"].includes(r)&&(n+=80),"cleared"===r&&(n+=40),
+String(e.id||"").startsWith("RO-DRAFT-")&&(n+=10),String(e.id||"").startsWith("RO-MOBILE-")&&(n-=20),String(e.code||"").startsWith("THH")&&(n-=80),
+["cancelled","canceled","cleared","void","deleted","removed","duplicate_cancelled"].includes(r)&&(n-=500),n}
+async function k({salesOrderId:e="",salesOrderCode:t="",returnCode:r=""}={}){const d=$({salesOrderId:e,salesOrderCode:t,returnCode:r});return d&&(await n.findAll(d,{sort:{
+createdAt:1},limit:50})||[]).filter(e=>e&&!N(e)).sort((e,t)=>Q(t,r)-Q(e,r))[0]||null}
+async function V({keepId:t,keepCode:r="",salesOrderId:d="",salesOrderCode:a="",returnCode:o=""}={}){const s=$({salesOrderId:d,salesOrderCode:a,returnCode:o});if(!s)return{
+cancelled:0};const u=await n.findAll(s,{sort:{createdAt:1},limit:100}),i=e.nowIso();let c=0;for(const e of u||[]){if(!e)continue
+;if(t&&String(e._id||e.id||"")===String(t)||r&&(String(e.code||"")===String(r)||String(e.id||"")===String(r)))continue;const d=String(e.status||"").toLowerCase()
+;["deleted","duplicate_cancelled"].includes(d)||"merged"===(e.returnMergeStatus||"unmerged")||e.masterReturnOrderId||e.masterReturnOrderCode||U(e.status)||"received"===String(e.warehouseReceiveStatus||"").toLowerCase()||(await n.upsert({
+...e,status:"duplicate_cancelled",returnStatus:"duplicate_cancelled",warehouseReceiveStatus:"duplicate_cancelled",accountingStatus:"duplicate_cancelled",items:[],amount:0,
+totalAmount:0,totalQuantity:0,debtReduction:0,totalReturnAmount:0,duplicateReason:"Trùng phiếu trả cùng salesOrderId/salesOrderCode",updatedAt:i}),c+=1)}return{cancelled:c}}
+async function P(e=[],t={}){const r=[],d=[];for(const t of e||[])r.push(t?.salesOrderId,t?.orderId,t?.sourceOrderId,t?.deliveryOrderId,t?.id,t?._id),
+d.push(t?.salesOrderCode,t?.orderCode,t?.sourceOrderCode,t?.deliveryOrderCode,t?.code);const a=_(r),o=_(d),s=[];return a.length&&(s.push({salesOrderId:{$in:a}}),s.push({orderId:{
+$in:a}}),s.push({sourceOrderId:{$in:a}}),s.push({deliveryOrderId:{$in:a}})),o.length&&(s.push({salesOrderCode:{$in:o}}),s.push({orderCode:{$in:o}}),s.push({sourceOrderCode:{$in:o}
+}),s.push({deliveryOrderCode:{$in:o}})),s.length?n.findAll({$or:s},{...t,projection:{id:1,code:1,salesOrderId:1,salesOrderCode:1,orderId:1,orderCode:1,sourceOrderId:1,
+sourceOrderCode:1,deliveryOrderId:1,deliveryOrderCode:1,masterOrderId:1,masterOrderCode:1,masterReturnOrderId:1,masterReturnOrderCode:1,customerId:1,customerCode:1,customerName:1,
+salesStaffId:1,salesStaffCode:1,salesStaffName:1,salesmanCode:1,salesmanName:1,deliveryStaffId:1,deliveryStaffCode:1,deliveryStaffName:1,staffCode:1,staffName:1,items:1,
+totalQuantity:1,totalAmount:1,amount:1,debtReduction:1,status:1,returnStatus:1,returnMergeStatus:1,warehouseReceiveStatus:1,date:1,documentDate:1,deliveryDate:1,routeName:1,
+deliveryRoute:1,createdAt:1,updatedAt:1}}):[]}function F(e={},t=null,r=null){const n=L(r||{},e||{});return String(n||t?.code||e.code||`THH${o("")}`).trim()}async function G(t={}){
+const d={status:{$nin:["cancelled","canceled","void","deleted","removed","duplicate_cancelled"]}
+},a=[],o=e.toDateOnly(t.dateFrom||t.fromDate||t.from||""),s=e.toDateOnly(t.dateTo||t.toDate||t.to||t.date||""),u=e.toDateOnly(t.date||""),i=Boolean(o||s||u);if(o&&s&&o>s){
+const e=new Error("Từ ngày không được lớn hơn đến ngày");throw e.status=400,e.code="INVALID_RETURN_ORDER_DATE_RANGE",e}if(i){const e=u||{...o?{$gte:o}:{},...s?{$lte:s}:{}};a.push({
+$or:[{returnDate:e},{date:e},{documentDate:e},{deliveryDate:e}]})}const c=_([t.salesOrderId,t.orderId,t.salesOrderCode,t.orderCode,t.orderKey,t.code,t.id]);c.length&&a.push({$or:[{
+salesOrderId:{$in:c}},{orderId:{$in:c}},{sourceOrderId:{$in:c}},{deliveryOrderId:{$in:c}},{salesOrderCode:{$in:c}},{orderCode:{$in:c}},{sourceOrderCode:{$in:c}},{
+deliveryOrderCode:{$in:c}},{id:{$in:c}},{code:{$in:c}}]}),t.masterOrderId&&(d.masterOrderId=String(t.masterOrderId).trim()),
+t.masterOrderCode&&(d.masterOrderCode=String(t.masterOrderCode).trim()),t.customerCode&&(d.customerCode=String(t.customerCode).trim())
+;const l=String(t.deliveryStaffCode||t.deliveryCode||t.nvghCode||t.delivery||"").trim();if(l){const e=new RegExp(r(l),"i");a.push({$or:[{deliveryStaffCode:e},{deliveryStaffName:e
+},{deliveryCode:e},{deliveryName:e},{nvghCode:e},{nvghName:e}]})}const m=String(t.salesStaffCode||t.salesmanCode||t.nvbhCode||t.salesman||"").trim();if(m){
+const e=new RegExp(r(m),"i");a.push({$or:[{salesStaffCode:e},{salesStaffName:e},{salesmanCode:e},{salesmanName:e},{nvbhCode:e},{nvbhName:e}]})}
+const y=String(t.q||t.keyword||t.search||"").trim();if(y){const e=new RegExp(r(y),"i");a.push({$or:[{id:e},{code:e},{salesOrderCode:e},{orderCode:e},{customerCode:e},{
+customerName:e},{deliveryStaffCode:e},{deliveryStaffName:e},{salesStaffCode:e},{salesStaffName:e},{note:e}]})}a.length&&(d.$and=a)
+;const f=Math.max(1,Number(t.page||1)),C=Math.min(500,Math.max(1,Number(t.limit||100))),g=await n.findAll(d,{sort:{createdAt:-1,code:-1},skip:(f-1)*C,limit:C
+}),I="1"===String(t.includeZeroValue??t.showZero??"0"),p=new Set;return g.map(E).filter(t=>!i||e.isDateInRange(A(t),{date:u,dateFrom:o,dateTo:s})).filter(e=>I||w(e)).filter(e=>{
+const t=String(e.id||e.code||e._id||"").trim();return!t||!p.has(t)&&(p.add(t),!0)})}async function b(e={}){
+const t=String(e.salesOrderId||e.salesOrderCode||e.orderId||e.orderCode||"").trim();return t?d.findByIdOrCode(t):null}async function B(e={},t=null){
+const r=String(e.customerId||e.customerCode||e.customerName||t?.customerId||t?.customerCode||"").trim();return r?a.findByIdOrCode(r):null}function W(e=[],t=null){
+const r=new Map((t?.items||[]).map(e=>[String(e.productCode||e.code||e.productId||"").trim(),e]));return(Array.isArray(e)?e:[]).map(e=>{
+const t=String(e.productCode||e.code||e.productId||"").trim(),n=r.get(t)||{},d=u(e.qtyReturn??e.returnQuantity??e.returnedQty??e.returnQty??e.quantity??e.qty),a=u(e.price??e.salePrice??e.unitPrice??n.price??n.salePrice??0)
+;return{...n,...e,productId:e.productId||n.productId||t,productCode:t||n.productCode||n.code||"",productName:e.productName||e.name||n.productName||n.name||"",quantity:d,qty:d,
+price:a,salePrice:a,amount:u(e.amount??d*a)}}).filter(e=>e.quantity>0||e.productCode||e.productName)}async function x(e={}){
+const t=await b(e).catch(()=>null),r=q(t||{},e||{}),d=M(t||{},e||{}),a=L(t||{},{...e,salesOrderCode:d}),o=await k({salesOrderId:r,salesOrderCode:d,returnCode:a});if(o)return o
+;const s=T(e);return s&&(await n.findAll(s,{sort:{updatedAt:-1,createdAt:-1},limit:20})).find(e=>!N(e))||null}async function K(t={}){const r=T(t);if(!r)return{returnOrder:null,
+cleared:0,rows:[]};const d=await n.findAll(r,{sort:{updatedAt:-1,createdAt:-1},limit:50
+}),a=e.nowIso(),o=String(t.note||"NVGH sửa số lượng hàng trả về 0 trên app giao hàng").trim(),s=(d||[]).filter(e=>!(!e||N(e)||"merged"===(e.returnMergeStatus||"unmerged")||e.masterReturnOrderId||e.masterReturnOrderCode||U(e.status)))
+;let u=null;for(const e of s){const r={...e,items:[],totalQuantity:0,totalReturnAmount:0,totalAmount:0,amount:0,debtReduction:0,status:"cleared",returnStatus:"cleared",
+accountingStatus:"cleared",warehouseReceiveStatus:"cleared",refType:e.refType||t.refType||"mobileDeliveryReturnClear",note:o,clearedAt:a,postedAt:"",receivedAt:"",updatedAt:a}
+;await n.upsert(r),u=r}return{returnOrder:u?E(u):null,cleared:s.length,rows:s}}function U(e=""){const t=C.normalizeReturnState(e)
+;return[g.RECEIVED,g.ACCOUNTING_CONFIRMED,g.POSTED_TO_AR].includes(t)}function H(e=""){const t=C.normalizeReturnState(e);return[g.DRAFT,g.WAITING_RECEIVE].includes(t)}
+function z(e={}){try{return C.assertCanEdit(e),!0}catch(e){return!1}}function j(e={},t=""){try{return C.assertCanEdit(e),null}catch(e){return{error:t||e.message,message:e.message,
+code:e.code,status:400}}}function Z(e={}){try{return C.assertCanCancel(e),null}catch(e){return{error:e.message,code:e.code,status:400}}}function J(e={}){try{
+return C.assertCanCancel(e),!1}catch(e){return!0}}function X(e={},t="Khách lấy lại hàng"){return String(e.cancelReason||e.reason||e.note||t).trim()}
+async function Y(t=null,r={},n={}){if(!t||!t.id&&!t.code)return null;const a={...t,...r,updatedAt:e.nowIso()};return await d.upsert(a,n),a}async function ee(e,t=null,r=null,n=""){
+await y.log(e,{refType:"returnOrder",refId:(r||t||{}).id||"",refCode:(r||t||{}).code||"",before:t,after:r,note:n})}async function te(t={}){const r=await b(t),n=await B(t,r)
+;if(!n&&!t.customerName&&!r?.customerName)return{error:"Không tìm thấy khách hàng",status:404};const d=W(t.items,r).filter(e=>u(e.quantity)>0);if(!d.length)return{
+error:"Phiếu trả hàng chưa có dòng hàng",status:400};const a=String(t.source||t.refType||"").toLowerCase()
+;if((["mobileDeliveryReturn","erpDeliveryReturn"].includes(String(t.refType||""))||"returnOrders"===String(t.source||"")||a.includes("mobile_delivery")||a.includes("mobiledelivery"))&&!String(t.salesOrderId||"").trim()&&!String(t.salesOrderCode||"").trim())return{
+error:"Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả",status:400};const s=await x(t),i=u(t.totalAmount??d.reduce((e,t)=>e+u(t.amount),0)),c=fe(t,r||{},s||{});return{
+returnOrder:{...s||{},...t,id:String(L(r||{},t)||s?.id||t.id||o("RO")).trim(),code:F(t,s,r),date:c,documentDate:c,deliveryDate:c,
+salesOrderId:r?.id||t.salesOrderId||t.orderId||s?.salesOrderId||"",salesOrderCode:r?.code||t.salesOrderCode||t.orderCode||s?.salesOrderCode||"",
+orderId:r?.id||t.orderId||t.salesOrderId||s?.orderId||s?.salesOrderId||"",orderCode:r?.code||t.orderCode||t.salesOrderCode||s?.orderCode||s?.salesOrderCode||"",
+customerId:n?.id||t.customerId||r?.customerId||s?.customerId||"",customerCode:n?.code||t.customerCode||r?.customerCode||s?.customerCode||"",
+customerName:n?.name||t.customerName||r?.customerName||s?.customerName||"",salesStaffId:r?.salesStaffId||t.salesStaffId||s?.salesStaffId||"",salesStaffCode:I(r)||I(t)||I(s),
+salesStaffName:p(r)||p(t)||p(s),salesmanCode:I(r)||I(t)||I(s),salesmanName:p(r)||p(t)||p(s),deliveryStaffId:r?.deliveryStaffId||t.deliveryStaffId||s?.deliveryStaffId||"",
+deliveryStaffCode:O(r)||O(t)||O(s),deliveryStaffName:h(r)||h(t)||h(s),staffCode:O(r)||O(t)||O(s),staffName:h(r)||h(t)||h(s),note:String(t.note??s?.note??"").trim(),items:d,
+totalQuantity:u(t.totalQuantity??d.reduce((e,t)=>e+u(t.quantity),0)),totalAmount:i,amount:u(t.amount??i),debtReduction:u(t.debtReduction??i),
+status:t.status||s?.status||g.WAITING_RECEIVE,returnMergeStatus:t.returnMergeStatus||s?.returnMergeStatus||"unmerged",
+warehouseReceiveStatus:t.warehouseReceiveStatus||s?.warehouseReceiveStatus||(U(t.status)?g.RECEIVED:g.WAITING_RECEIVE),source:t.source||s?.source||"returnOrders",
+accountingStatus:t.accountingStatus||s?.accountingStatus||"",accountingConfirmed:Boolean(t.accountingConfirmed??s?.accountingConfirmed??!1),
+createdAt:s?.createdAt||t.createdAt||e.nowIso(),updatedAt:e.nowIso()},existing:s}}async function re(e={}){const t=await te({...e,status:e.status||g.WAITING_RECEIVE,
+warehouseReceiveStatus:e.warehouseReceiveStatus||g.WAITING_RECEIVE});if(t.error)return t;const{returnOrder:r,existing:d}=t;let a=null;return await i(async t=>{
+d&&U(d.status)&&(await c.reverseMovement(d,{type:"RETURN",reverseType:"RETURN_UPDATE_REVERSAL",direction:"IN",refType:"RETURN_ORDER",refId:d.id||d.code,refCode:d.code||d.id,
+date:d.date,note:"Đảo nhập kho phiếu trả hàng trước khi cập nhật"},{session:t}),await l.reverseReturnOrderAR(d,{session:t}));const o={...r,...C.patchForState(r,g.RECEIVED),
+returnState:g.RECEIVED},s={...o,...C.patchForState(o,g.ACCOUNTING_CONFIRMED),returnState:g.ACCOUNTING_CONFIRMED,accountingConfirmedBy:e.confirmedBy||e.user||"system",
+accountingNote:e.note||r.accountingNote||""};await n.upsert(s,{session:t}),await c.postReturnIn(o,{session:t});const u=await D(s,{session:t});a=u.returnOrder||s}),{
+returnOrder:E(a||{...r,...C.patchForState(r,g.POSTED_TO_AR)}),updatedExisting:Boolean(d)}}function ne(e=[],t=null){
+const r=new Map((t?.items||[]).map(e=>[String(e.productCode||e.code||e.productId||"").trim(),e]));return(Array.isArray(e)?e:[]).map(e=>{
+const t=String(e.productCode||e.code||e.productId||"").trim(),n=r.get(t)||{},d=u(e.qtyReturn??e.returnQty??e.returnQuantity??e.returnedQty??e.quantity??e.qty??0),a=u(e.price??e.salePrice??e.unitPrice??n.price??n.salePrice??n.unitPrice??0)
+;return{...n,...e,productId:e.productId||n.productId||t,productCode:t||n.productCode||n.code||"",productName:e.productName||e.name||n.productName||n.name||"",quantity:d,qty:d,
+qtyReturn:d,returnQty:d,returnQuantity:d,returnedQty:d,price:a,salePrice:a,unitPrice:a,amount:Math.round(u(e.amount??d*a)),reason:e.reason||""}
+}).filter(e=>e.productCode&&u(e.qtyReturn)>0)}async function de(t={},r={}){const d=await b(t),a=q(d||{},t||{}),s=M(d||{},t||{});if(!a&&!s)return{
+error:"Thiếu salesOrderId/salesOrderCode, không thể lưu phiếu trả",status:400};const i=L(d||{},{...t,salesOrderCode:s}),c=await B(t,d)
+;if(!c&&!t.customerName&&!d?.customerName)return{error:"Không tìm thấy khách hàng",status:404};const l=await k({salesOrderId:a,salesOrderCode:s,returnCode:i})
+;if(l&&("merged"===(l.returnMergeStatus||"unmerged")||l.masterReturnOrderId||l.masterReturnOrderCode))return{
+error:"Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng",status:400};if(l){const e=j(l,"Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng")
+;if(e)return e}const m=ne(t.items,d),y=m.reduce((e,t)=>e+u(t.qtyReturn),0),f=m.reduce((e,t)=>e+u(t.amount??u(t.qtyReturn)*u(t.price||t.salePrice||t.unitPrice)),0),C=e.nowIso(),S={
+...l||{},...t,id:i||l?.id||t.id||o("RO"),code:i||l?.code||t.code||o("RO"),date:e.toDateOnly(t.date||t.documentDate||l?.date||d?.deliveryDate||e.todayVN()),
+documentDate:e.toDateOnly(t.documentDate||t.date||l?.documentDate||d?.date||e.todayVN()),
+deliveryDate:e.toDateOnly(t.deliveryDate||d?.deliveryDate||l?.deliveryDate||t.date||e.todayVN()),salesOrderId:a,salesOrderCode:s,orderId:a,orderCode:s,
+customerId:c?.id||t.customerId||d?.customerId||l?.customerId||"",customerCode:c?.code||t.customerCode||d?.customerCode||l?.customerCode||"",
+customerName:c?.name||t.customerName||d?.customerName||l?.customerName||"",salesStaffId:d?.salesStaffId||t.salesStaffId||l?.salesStaffId||"",salesStaffCode:I(d)||I(t)||I(l),
+salesStaffName:p(d)||p(t)||p(l),salesmanCode:I(d)||I(t)||I(l),salesmanName:p(d)||p(t)||p(l),deliveryStaffId:d?.deliveryStaffId||t.deliveryStaffId||l?.deliveryStaffId||"",
+deliveryStaffCode:O(d)||O(t)||O(l),deliveryStaffName:h(d)||h(t)||h(l),staffCode:O(d)||O(t)||O(l),staffName:h(d)||h(t)||h(l),items:y>0?m:[],totalQuantity:y>0?y:0,
+totalAmount:y>0?f:0,amount:y>0?f:0,debtReduction:y>0?f:0,totalReturnAmount:y>0?f:0,status:y>0?g.WAITING_RECEIVE:g.CANCELLED,returnStatus:y>0?g.WAITING_RECEIVE:g.CANCELLED,
+returnState:y>0?g.WAITING_RECEIVE:g.CANCELLED,returnMergeStatus:l?.returnMergeStatus||t.returnMergeStatus||"unmerged",warehouseReceiveStatus:y>0?g.WAITING_RECEIVE:g.CANCELLED,
+source:t.source||l?.source||"mobile_delivery",accountingStatus:y>0?"pending":g.CANCELLED,accountingConfirmed:!1,postedAt:"",receivedAt:"",note:String(t.note??l?.note??"").trim(),
+clearedAt:y>0?"":C,updatedAt:C,createdAt:l?.createdAt||t.createdAt||C};return await n.upsert(S,r),await V({keepId:l?._id||S.id,keepCode:S.code,salesOrderId:a,salesOrderCode:s,
+returnCode:S.code}),{returnOrder:E(await k({salesOrderId:a,salesOrderCode:s,returnCode:S.code})||S),updatedExisting:Boolean(l),canonicalCode:S.code}}async function ae(e={},t={}){
+const r=await te({...e,status:e.status||g.WAITING_RECEIVE,returnMergeStatus:e.returnMergeStatus||"unmerged",warehouseReceiveStatus:e.warehouseReceiveStatus||g.WAITING_RECEIVE})
+;if(r.error)return r;const{returnOrder:d,existing:a}=r
+;if((u(d.totalQuantity??0)||(Array.isArray(d.items)?d.items.reduce((e,t)=>e+u(t.returnQty??t.qtyReturn??t.returnQuantity??t.quantity??t.qty??0),0):0))<=0){const e=await K(d)
+;return{returnOrder:e.returnOrder||E({...d,items:[],totalQuantity:0,totalAmount:0,amount:0,debtReduction:0,status:g.CANCELLED,returnStatus:g.CANCELLED,returnState:g.CANCELLED,
+warehouseReceiveStatus:g.CANCELLED,accountingStatus:g.CANCELLED}),updatedExisting:e.cleared>0,cleared:e.cleared,skippedCreate:e.cleared<=0}}
+if(a&&("merged"===(a.returnMergeStatus||"unmerged")||a.masterReturnOrderId||a.masterReturnOrderCode))return{error:"Phiếu trả hàng đã gộp đơn tổng, không được sửa từ màn giao hàng",
+status:400};if(a){const e=j(a,"Phiếu trả hàng đã ghi sổ/kho đã nhận, không được sửa từ màn giao hàng");if(e)return e}const o={...d,...C.patchForState(d,g.WAITING_RECEIVE),
+returnState:g.WAITING_RECEIVE,returnMergeStatus:"unmerged",postedAt:"",receivedAt:""};return await n.upsert(o,t),{returnOrder:E({...o,status:g.WAITING_RECEIVE,
+warehouseReceiveStatus:g.WAITING_RECEIVE}),updatedExisting:Boolean(a)}}async function oe(t,r={}){const d=r.session,a=await n.findByIdOrCode(t,{session:d});if(!a)return{
+error:"Không tìm thấy phiếu trả hàng",status:404};const o=C.getReturnState(a);if(o===g.RECEIVED||o===g.ACCOUNTING_CONFIRMED||o===g.POSTED_TO_AR)return{returnOrder:E(a),
+alreadyReceived:!0};try{C.assertTransition(a,g.RECEIVED,"confirm_receive")}catch(e){return{error:e.message,code:e.code,status:400}}const s={...a,...C.patchForState(a,g.RECEIVED),
+returnState:g.RECEIVED,receivedBy:String(r.receivedBy||a.receivedBy||"").trim(),stateChangedAt:e.nowIso(),updatedAt:e.nowIso()};return await n.upsert(s,{session:d}),
+await c.postReturnIn(s,{session:d}),{returnOrder:E(s),alreadyReceived:!1}}async function se(e,t={}){return t.session?oe(e,t):i(r=>oe(e,{...t,session:r}))}
+async function ue(t,r={},d={}){const a=await n.findByIdOrCode(t);if(!a)return{error:"Không tìm thấy phiếu trả hàng",status:404};try{C.assertCanConfirmAccounting(a)}catch(e){return{
+error:e.message,code:e.code,status:400}}let o=null;return await i(async t=>{const s={...a,...C.patchForState(a,g.ACCOUNTING_CONFIRMED),returnState:g.ACCOUNTING_CONFIRMED,
+accountingConfirmedBy:r.confirmedBy||r.user||d.user?.code||"system",accountingNote:r.note||a.accountingNote||"",stateChangedAt:e.nowIso(),updatedAt:e.nowIso()}
+;C.assertTransition(a,g.ACCOUNTING_CONFIRMED,"confirm_accounting"),await n.upsert(s,{session:t});const u=await D(s,{session:t});o=u.returnOrder||s}),{returnOrder:E(o)}}
+function ie(e={}){return[String(e.productCode||e.code||e.productId||"").trim(),String(e.unit||e.baseUnit||"").trim(),String(u(e.price??e.salePrice??e.unitPrice??0))].join("|")}
+function ce(e={},t={}){
+const r=u(e.quantity??e.qty??e.totalQty??e.soldQty??0),n=u(e.price??e.salePrice??e.unitPrice??t.price??t.salePrice??0),d=u(t.returnQty??t.qtyReturn??t.returnQuantity??t.quantity??0)
+;return{...t,productId:e.productId||t.productId||e.productCode||e.code||"",productCode:String(e.productCode||e.code||e.productId||t.productCode||"").trim(),
+productName:String(e.productName||e.name||t.productName||"").trim(),unit:String(e.unit||e.baseUnit||t.unit||"").trim(),soldQty:r,price:n,salePrice:n,unitPrice:n,
+soldAmount:Math.round(r*n),returnQty:d,qtyReturn:d,returnQuantity:d,returnedQty:d,quantity:d,qty:d,returnAmount:Math.round(d*n),amount:Math.round(d*n),lineKey:ie({...e,price:n})}}
+function le(e={}){
+return(Array.isArray(e.items)?e.items:[]).some(e=>u(e.returnQty??e.qtyReturn??e.returnQuantity??e.quantity??0)>0)||u(e.totalReturnAmount??e.totalAmount??e.amount??e.debtReduction??0)>0
+}function me(e=[]){
+const t=e.reduce((e,t)=>e+u(t.soldAmount??u(t.soldQty)*u(t.price)),0),r=e.reduce((e,t)=>e+u(t.returnAmount??u(t.returnQty)*u(t.price)),0),n=e.reduce((e,t)=>e+u(t.returnQty??t.qtyReturn??t.quantity),0)
+;return{totalSoldAmount:Math.round(t),totalReturnAmount:Math.round(r),totalQuantity:n,totalAmount:Math.round(r),amount:Math.round(r),debtReduction:Math.round(r)}}
+async function ye(e={}){return(await P([e],{sort:{updatedAt:-1,createdAt:-1},limit:20})).find(e=>e&&!N(e))||null}function fe(t={},r={},n={}){
+return e.toDateOnly(t.deliveryDate||t.date||t.documentDate||r.deliveryDate||r.date||n.deliveryDate||n.date||n.documentDate||e.todayVN())}function Ce(t={},r=null){const n=new Map
+;for(const e of Array.isArray(r?.items)?r.items:[])n.set(String(e.lineKey||ie(e)).trim(),e);const d=(Array.isArray(t.items)?t.items:[]).map(e=>{const t=ie(e)
+;return ce(e,n.get(t)||{})}).filter(e=>e.productCode||e.productName),a=me(d),s=a.totalReturnAmount>0||d.some(e=>u(e.returnQty)>0);return{...r||{},
+id:String(L(t,r)||r?.id||o("RO")).trim(),code:String(L(t,r)||r?.code||o("RO")).trim(),date:e.toDateOnly(t.deliveryDate||r?.deliveryDate||t.date||r?.date||e.todayVN()),
+documentDate:e.toDateOnly(t.deliveryDate||r?.deliveryDate||t.date||t.orderDate||r?.documentDate||r?.date||e.todayVN()),salesOrderId:t.id||r?.salesOrderId||"",
+salesOrderCode:t.code||r?.salesOrderCode||"",orderId:t.id||r?.orderId||"",orderCode:t.code||r?.orderCode||"",customerId:t.customerId||r?.customerId||"",
+customerCode:t.customerCode||r?.customerCode||"",customerName:t.customerName||r?.customerName||"",salesStaffId:t.salesStaffId||r?.salesStaffId||"",salesStaffCode:I(t)||I(r),
+salesStaffName:p(t)||p(r),staffCode:O(t)||O(r),staffName:h(t)||h(r),masterOrderId:t.masterOrderId||r?.masterOrderId||"",masterOrderCode:t.masterOrderCode||r?.masterOrderCode||"",
+deliveryStaffId:t.deliveryStaffId||r?.deliveryStaffId||"",deliveryStaffCode:O(t)||O(r),deliveryStaffName:h(t)||h(r),
+deliveryDate:e.toDateOnly(t.deliveryDate||r?.deliveryDate||t.date||e.todayVN()),routeName:t.routeName||t.deliveryRoute||r?.routeName||"",
+deliveryRoute:t.deliveryRoute||t.routeName||r?.deliveryRoute||"",items:d,...a,status:r&&U(r.status)?r.status:s?g.WAITING_RECEIVE:g.DRAFT,returnStatus:s?g.WAITING_RECEIVE:g.DRAFT,
+returnState:s?g.WAITING_RECEIVE:g.DRAFT,returnMergeStatus:r?.returnMergeStatus||"unmerged",warehouseReceiveStatus:s?r?.warehouseReceiveStatus||g.WAITING_RECEIVE:g.DRAFT,
+source:r?.source||"sales_order_draft",createdFrom:r?.createdFrom||"sales_order",accountingStatus:s?r?.accountingStatus||"pending":g.DRAFT,
+accountingConfirmed:Boolean(r?.accountingConfirmed),postedAt:r?.postedAt||"",cancelledAt:"",deletedAt:"",updatedAt:e.nowIso(),createdAt:r?.createdAt||e.nowIso()}}
+async function ge(t={},r={}){if(!t||!t.id&&!t.code)return null;const d=await ye(t);if(!d)return{returnOrder:E(Ce(t,null)),virtualDraft:!0,skipped:"no_return_quantity"}
+;if(U(d.status))return{returnOrder:E(d),skipped:"posted"};const a=Ce(t,d);if(!le(a)){const o={...a,items:[],totalQuantity:0,totalReturnAmount:0,totalAmount:0,amount:0,
+debtReduction:0,status:g.CANCELLED,returnStatus:g.CANCELLED,returnState:g.CANCELLED,warehouseReceiveStatus:g.CANCELLED,accountingStatus:g.CANCELLED,cancelReason:"",cancelledAt:"",
+clearedAt:e.nowIso(),updatedAt:e.nowIso(),note:"Đồng bộ đơn bán: không còn số lượng trả"};return r.dryRun||(await n.upsert(o,r),await Y(t,{hasReturn:!1,returnOrderId:"",
+returnOrderCode:"",returnAmount:0},r),await ee("clear_return_order",d,o,o.note)),{returnOrder:E(o),cleared:!0}}return await n.upsert(a,r),await Y(t,{hasReturn:!0,
+returnOrderId:a.id||"",returnOrderCode:a.code||"",returnAmount:u(a.totalAmount??a.amount??0)},r),{returnOrder:E(a),updatedExisting:!0}}async function Ie(e={},t={}){
+return await ye(e)?ge(e,t):{skipped:"not_found"}}async function pe(t={},r={}){const d=await ye(t);if(!d)return{skipped:"not_found"};if(J(d))return{
+error:"Phiếu trả hàng đã nhập kho/ghi sổ. Vui lòng tạo phiếu đảo trước khi hủy đơn.",status:400};const a={...d,...C.patchForState(d,g.CANCELLED),returnState:g.CANCELLED,
+cancelReason:X(r,"Huỷ theo đơn bán/giao"),cancelledAt:e.nowIso(),updatedAt:e.nowIso()};return r.dryRun?{returnOrder:E(a),dryRun:!0}:(await n.upsert(a,r),await Y(t,{hasReturn:!1,
+returnOrderId:"",returnOrderCode:"",returnAmount:0},r),await ee("cancel_return_order",d,a,a.cancelReason),{returnOrder:E(a)})}async function Oe(e={},t={}){const r=await ye(e)
+;if(!r)return{returnOrder:E(Ce(e,null)),virtualDraft:!0,skipped:"no_existing_return_order"};const d=Ce(e,r);return le(d)?(d.status=le(d)?g.WAITING_RECEIVE:g.DRAFT,
+d.returnStatus=d.status,d.returnState=d.status,d.cancelledAt="",await n.upsert(d,t),await Y(e,{hasReturn:!0,returnOrderId:d.id||"",returnOrderCode:d.code||"",
+returnAmount:u(d.totalAmount??d.amount??0)},t),{returnOrder:E(d),updatedExisting:Boolean(r)}):{returnOrder:E(d),virtualDraft:!0,skipped:"no_return_quantity"}}
+async function he(t={},r=[],n={}){const d=_((r||[]).flatMap(e=>[e?.id,e?._id,e?.salesOrderId,e?.orderId])),a=_((r||[]).flatMap(e=>[e?.code,e?.orderCode,e?.salesOrderCode])),o=[]
+;if(d.length&&(o.push({salesOrderId:{$in:d}}),o.push({orderId:{$in:d}})),a.length&&(o.push({salesOrderCode:{$in:a}}),o.push({orderCode:{$in:a}})),!o.length)return[];const s={$set:{
+masterOrderId:t.id||"",masterOrderCode:t.code||"",deliveryStaffId:t.deliveryStaffId||"",deliveryStaffCode:t.deliveryStaffCode||"",deliveryStaffName:t.deliveryStaffName||"",
+deliveryDate:e.toDateOnly(t.deliveryDate||t.date||e.todayVN()),routeName:t.routeName||"",deliveryRoute:t.deliveryRoute||t.routeName||"",
+date:e.toDateOnly(t.deliveryDate||t.date||e.todayVN()),updatedAt:e.nowIso()}};return await f.updateMany({$or:o,status:{$in:S}},s,n.session?{session:n.session}:{}),P(r)}
+async function Se(t=[],r={}){const n=_((t||[]).flatMap(e=>[e?.id,e?._id,e?.salesOrderId,e?.orderId])),d=_((t||[]).flatMap(e=>[e?.code,e?.orderCode,e?.salesOrderCode])),a=[]
+;if(n.length&&(a.push({salesOrderId:{$in:n}}),a.push({orderId:{$in:n}})),d.length&&(a.push({salesOrderCode:{$in:d}}),a.push({orderCode:{$in:d}})),!a.length)return[]
+;const o=_([r.expectedMasterOrderId,r.expectedMasterOrderCode]),s={$or:a,status:{$in:S}};return o.length&&(s.$and=[{$or:[{masterOrderId:{$in:o}},{masterOrderCode:{$in:o}},{
+deliveryMasterId:{$in:o}},{deliveryMasterCode:{$in:o}}]}]),await f.updateMany(s,{$set:{updatedAt:e.nowIso()},$unset:{masterOrderId:"",masterOrderCode:"",deliveryMasterId:"",
+deliveryMasterCode:"",deliveryStaffId:"",deliveryStaffCode:"",deliveryStaffName:"",deliveryCode:"",deliveryName:"",shipperCode:"",shipperName:"",nvghCode:"",nvghName:"",
+staffDeliveryCode:"",staffDeliveryName:"",driverId:"",driverCode:"",driverName:"",staffCode:"",staffName:"",deliveryDate:"",routeName:"",deliveryRoute:""}},r.session?{
+session:r.session}:{}),P(t)}async function Re(e,t={},r={}){const n=String(e||t.salesOrderId||t.salesOrderCode||t.orderId||t.orderCode||"").trim();if(!n)return{
+error:"Thiếu salesOrderId/salesOrderCode",status:400};const a=await d.findByIdOrCode(n),o={salesOrderId:a?.id||t.salesOrderId||t.orderId||n,
+salesOrderCode:a?.code||t.salesOrderCode||t.orderCode||n};let s=await x(o);return!a||!1===r.ensureDraft||s&&U(s.status)?s?{returnOrder:E(s)}:{returnOrder:null}:{
+returnOrder:E(Ce(a,s||null)),virtualDraft:!s}}async function Ae(t,r={},a={}){const o=String(t||r.salesOrderId||r.salesOrderCode||r.orderId||r.orderCode||"").trim();if(!o)return{
+error:"Thiếu salesOrderId/salesOrderCode",status:400};const s=await d.findByIdOrCode(o),i={...r,salesOrderId:s?.id||r.salesOrderId||r.orderId||o,
+salesOrderCode:s?.code||r.salesOrderCode||r.orderCode||o};let c=await x(i);if(!c&&s&&(c=Ce(s,null)),!c)return{error:"Không tìm thấy đơn gốc để tạo/cập nhật phiếu trả hàng",
+status:404};const l=j(c,"Phiếu trả hàng đã nhập kho/ghi sổ, không được sửa. Vui lòng tạo phiếu đảo nếu khách lấy lại hàng.");if(l)return l
+;if("merged"===(c.returnMergeStatus||"unmerged")||c.masterReturnOrderId||c.masterReturnOrderCode)return{
+error:"Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả",status:400};const m=Array.isArray(r.items)?r.items:[],y=new Map,f=new Map;for(const e of m){
+const t=String(e.productCode||e.code||e.productId||"").trim(),r=String(e.lineKey||ie(e)).trim();t&&y.set(t,e),r&&f.set(r,e)}
+const I=(Array.isArray(s?.items)&&s.items.length?Ce(s,c).items:Array.isArray(c.items)?c.items:[]).map(e=>{
+const t=String(e.lineKey||ie(e)).trim(),r=String(e.productCode||e.code||e.productId||"").trim(),n=f.get(t)||y.get(r)||null,d=u(n?n.returnQty??n.qtyReturn??n.returnQuantity??n.quantity??0:e.returnQty??e.qtyReturn??e.returnQuantity??0),a=u(e.soldQty??e.quantitySold??e.orderQty??e.totalQty??e.qtySold??0)
+;if(d<0)throw new Error("Số lượng trả không được âm");if(a>0&&d>a)throw new Error(`Số lượng trả ${e.productCode||e.productName} không được lớn hơn số lượng giao`)
+;const o=u(e.price??e.salePrice??e.unitPrice??0);return{...e,returnQty:d,qtyReturn:d,returnQuantity:d,returnedQty:d,quantity:d,qty:d,returnAmount:Math.round(d*o),
+amount:Math.round(d*o),lineKey:t}}),p=me(I),O=p.totalReturnAmount>0||I.some(e=>u(e.returnQty)>0),h=fe(r,s||{},c||{}),S={...c,...p,date:h,deliveryDate:h,documentDate:h,items:I,
+source:r.source||c.source||"returnOrders",updatedFrom:r.source||r.updatedFrom||"unknown",updatedBy:r.updatedBy||r.user||c.updatedBy||"",updatedAt:e.nowIso()};if(!O){
+const t=await K({...i,...r,note:r.note||"Đã sửa hàng trả về 0 từ phần mềm"}),n={...S,items:[],totalQuantity:0,totalReturnAmount:0,totalAmount:0,amount:0,debtReduction:0,
+status:g.CANCELLED,returnStatus:g.CANCELLED,returnState:g.CANCELLED,warehouseReceiveStatus:g.CANCELLED,accountingStatus:g.CANCELLED,cancelReason:"",cancelledAt:"",
+clearedAt:e.nowIso(),note:r.note||"Đã sửa hàng trả về 0 từ phần mềm"};return s&&await Y(s,{hasReturn:!1,returnOrderId:"",returnOrderCode:"",returnAmount:0},a),
+t.cleared>0&&await ee("clear_return_order",c,t.returnOrder||n,n.note),{returnOrder:t.returnOrder||E(n),cleared:t.cleared>0,skippedCreate:t.cleared<=0}}const R={...S,
+...C.patchForState(S,g.WAITING_RECEIVE),returnState:g.WAITING_RECEIVE,accountingStatus:"pending",cancelledAt:"",cancelReason:""};return await n.upsert(R,a),s&&await Y(s,{
+hasReturn:!0,returnOrderId:R.id||"",returnOrderCode:R.code||"",returnAmount:u(R.totalAmount??R.amount??0)},a),
+await ee(c&&"cancelled"===c.status?"restore_return_order":"upsert_return_order",c,R,"Cập nhật số lượng hàng trả"),{returnOrder:E(R)}}async function Ee(t,r={},a={}){
+const o=await n.findByIdOrCode(t);if(!o)return{error:"Không tìm thấy phiếu trả hàng",status:404};const s=Z(o);if(s)return s
+;if("merged"===(o.returnMergeStatus||"unmerged")||o.masterReturnOrderId||o.masterReturnOrderCode)return{error:"Phiếu trả hàng đã gộp đơn tổng trả hàng, cần hủy gộp trước",
+status:400};const u={...o,...C.patchForState(o,g.CANCELLED),returnState:g.CANCELLED,warehouseReceiveStatus:"cancelled",accountingStatus:"cancelled",
+cancelReason:X(r,"Khách lấy lại hàng"),cancelledAt:e.nowIso(),updatedAt:e.nowIso()};await n.upsert(u,a)
+;const i=o.salesOrderId||o.orderId||o.salesOrderCode||o.orderCode||"",c=i?await d.findByIdOrCode(i):null;return c&&await Y(c,{hasReturn:!1,returnOrderId:"",returnOrderCode:"",
+returnAmount:0},a),await ee("cancel_return_order",o,u,u.cancelReason),{returnOrder:E(u)}}async function Ne(t,r={},d={}){const a=await n.findByIdOrCode(t);if(!a)return{
+error:"Không tìm thấy đơn chờ trả hàng",status:404};const o=j(a,"Phiếu trả hàng đã ghi sổ/kho, không được sửa");if(o)return o
+;if("merged"===(a.returnMergeStatus||"unmerged")||a.masterReturnOrderId||a.masterReturnOrderCode)return{
+error:"Phiếu trả hàng đã gộp đơn tổng trả hàng, không được sửa số lượng trả",status:400};const s=Array.isArray(r.items)?r.items:[],i=new Map;for(const e of s){
+const t=String(e.lineKey||ie(e)).trim();t&&i.set(t,e)}const c=(Array.isArray(a.items)?a.items:[]).map(e=>{
+const t=String(e.lineKey||ie(e)).trim(),r=i.get(t)||s.find(t=>String(t.productCode||t.code||"").trim()===String(e.productCode||"").trim()),n=u(r?r.returnQty??r.qtyReturn??r.returnQuantity??r.quantity??0:e.returnQty??e.qtyReturn??e.quantity??0),d=u(e.soldQty??e.quantitySold??0)
+;if(n<0)throw new Error("Số lượng trả không được âm");if(n>d)throw new Error(`Số lượng trả ${e.productCode||e.productName} không được lớn hơn số lượng bán`)
+;const a=u(e.price??e.salePrice??e.unitPrice??0);return{...e,returnQty:n,qtyReturn:n,returnQuantity:n,returnedQty:n,quantity:n,qty:n,returnAmount:Math.round(n*a),
+amount:Math.round(n*a),lineKey:t}}),l=me(c),m=l.totalReturnAmount>0||c.some(e=>u(e.returnQty)>0),y=m?g.WAITING_RECEIVE:g.CANCELLED,f=fe(r,{},a||{}),C={...a,...m?l:{totalQuantity:0,
+totalReturnAmount:0,totalAmount:0,amount:0,debtReduction:0},date:f,deliveryDate:f,documentDate:f,items:m?c:[],status:y,returnStatus:y,returnState:y,
+warehouseReceiveStatus:m?g.WAITING_RECEIVE:g.CANCELLED,accountingStatus:m?"pending":g.CANCELLED,cancelReason:"",cancelledAt:"",clearedAt:m?"":e.nowIso(),
+note:m?a.note:r.note||"Đã sửa hàng trả về 0",updatedAt:e.nowIso()};return await n.upsert(C,d),{returnOrder:E(C),cleared:!m}}module.exports={listReturnOrders:G,createReturnOrder:re,
+createPendingReturnOrder:ae,upsertDeliveryReturnOrder:de,buildCanonicalReturnCode:L,findExistingReturnOrderForSalesOrder:k,cancelDuplicateReturnOrders:V,
+confirmReceiveReturnOrder:se,confirmAccountingReturnOrder:ue,ensureReturnDraftForSalesOrder:ge,syncReturnDraftWithSalesOrder:Ie,cancelReturnDraftForSalesOrder:pe,
+restoreReturnDraftForSalesOrder:Oe,attachMasterOrderToReturnDrafts:he,detachMasterOrderFromReturnDrafts:Se,getReturnOrderBySalesOrderKey:Re,updateReturnDraftItemsBySalesOrder:Ae,
+updateReturnDraftItems:Ne,cancelReturnOrderById:Ee,toClient:E};

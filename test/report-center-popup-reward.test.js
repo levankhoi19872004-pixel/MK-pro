@@ -8,9 +8,9 @@ const ArLedger = require('../src/models/ArLedger');
 const ReportCenterService = require('../src/services/reports/ReportCenterService');
 
 test('Report directory stays on the main screen and each report opens in a popup', () => {
-  const html = fs.readFileSync('public/index.html', 'utf8');
-  const client = fs.readFileSync('public/js/app/admin/08a-reports.js', 'utf8');
-  const css = fs.readFileSync('public/css/95-report-center-popup.css', 'utf8');
+  const html = require('./helpers/sourceBundle.util').readSource('public/index.html');
+  const client = require('./helpers/sourceBundle.util').readSource('public/js/app/admin/08a-reports.js');
+  const css = require('./helpers/sourceBundle.util').readSource('public/css/95-report-center-popup.css');
 
   assert.match(html, /id="reportCatalog" class="report-directory-list"/);
   assert.match(html, /Nhấn “Xem báo cáo” để mở popup chi tiết/);

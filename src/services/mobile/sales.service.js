@@ -1,1346 +1,176 @@
-'use strict';
-
-const { canonicalizeOperationalStaff } = require('../../utils/canonicalStaffWrite.util');
-
-const dateUtil = require('../../utils/date.util');
-const { withMongoTransaction } = require('../../utils/transaction.util');
-const { createMobileSalesRepository } = require('../../repositories/mobile/sales.repository');
-const SalesOrder = require('../../models/SalesOrder');
-const Customer = require('../../models/Customer');
-const Product = require('../../models/Product');
-const ReturnOrder = require('../../models/ReturnOrder');
-const MobileLog = require('../../models/MobileLog');
-const InventoryPostingService = require('../../domain/posting/InventoryPostingService');
-const SalesOrderDeletionService = require('../../domain/lifecycle/SalesOrderDeletionService');
-const inventoryStockService = require('../inventoryStock.service');
-const internalSaleAllocationService = require('../internalSaleAllocation.service');
-const { createStepTimer, getIdempotencyKey, readIdempotentResult, rememberIdempotentResult } = require('../../utils/mobilePerformance.util');
-const promotionService = require('../promotionService');
-const DebtReadService = require('../DebtReadService');
-const { PROMOTION } = require('../../constants/pricingModes');
-const orderStatusUtil = require('../../utils/orderStatus.util');
-const { normalizeText, toNumber } = require('../../utils/common.util');
-const { buildPersistentKey, findRequest, beginRequest, completeRequest } = require('../requestIdempotency.service');
-const { buildInventoryEditMovements, normalizeProductCode: normalizeEditProductCode } = require('../../utils/orderItemDelta.util');
-
-
-function inventoryRowOpenSaleQty(row = {}) {
-  return inventoryStockService.quantityOf(row);
-}
-
-function canonicalProductCode(product = {}) {
-  return String(product.code || product.productCode || product.sku || '').trim();
-}
-
-
-function uniqueClean(values = []) {
-  return Array.from(new Set((Array.isArray(values) ? values : [values])
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)));
-}
-
-function caseVariants(value = '') {
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-  return uniqueClean([raw, raw.toUpperCase(), raw.toLowerCase()]);
-}
-
-function buildSalesOrderIdentityFilter(value) {
-  const keys = uniqueClean([value]);
-  if (!keys.length) return null;
-  return {
-    $or: [
-      { id: { $in: keys } },
-      { code: { $in: keys } },
-      { orderCode: { $in: keys } },
-      { salesOrderCode: { $in: keys } },
-      { documentCode: { $in: keys } },
-      { invoiceCode: { $in: keys } }
-    ]
-  };
-}
-
-// MOBILE_SALES_OWNER_FILTER_CANONICAL_START
-function mobileUserSalesStaffCode(mobileUser = {}) {
-  return String(
-    mobileUser.salesStaffCode ||
-    mobileUser.salesmanCode ||
-    mobileUser.nvbhCode ||
-    mobileUser.maNVBH ||
-    mobileUser.staffCode ||
-    mobileUser.code ||
-    ''
-  ).trim();
-}
-
-function mobileUserSalesStaffName(mobileUser = {}) {
-  return String(
-    mobileUser.salesStaffName ||
-    mobileUser.salesmanName ||
-    mobileUser.nvbhName ||
-    mobileUser.maNVBHName ||
-    mobileUser.fullName ||
-    mobileUser.name ||
-    ''
-  ).trim();
-}
-
-function mobileSalesOwnerMongoFilter(mobileUser = {}) {
-  const staffCode = mobileUserSalesStaffCode(mobileUser);
-  const codeVariants = caseVariants(staffCode);
-  if (codeVariants.length) {
-    return {
-      $or: [
-        { salesStaffCode: { $in: codeVariants } },
-        { salesPersonCode: { $in: codeVariants } },
-        { salesmanCode: { $in: codeVariants } },
-        { nvbhCode: { $in: codeVariants } },
-        { maNVBH: { $in: codeVariants } },
-        { 'salesStaff.code': { $in: codeVariants } }
-      ]
-    };
-  }
-
-  // Nếu tài khoản cũ chưa có mã NVBH thì chỉ cho fallback theo field tên NVBH canonical.
-  // Không dùng generic staffCode/staffName để tránh app bán hàng nhìn thấy đơn của NVGH/NV khác.
-  const staffName = mobileUserSalesStaffName(mobileUser);
-  const nameVariants = caseVariants(staffName);
-  if (!nameVariants.length) return null;
-  return {
-    $or: [
-      { salesStaffName: { $in: nameVariants } },
-      { salesPersonName: { $in: nameVariants } },
-      { salesmanName: { $in: nameVariants } },
-      { nvbhName: { $in: nameVariants } },
-      { maNVBHName: { $in: nameVariants } },
-      { 'salesStaff.name': { $in: nameVariants } },
-      { 'salesStaff.fullName': { $in: nameVariants } }
-    ]
-  };
-}
-// MOBILE_SALES_OWNER_FILTER_CANONICAL_END
-
-const INACTIVE_MOBILE_ORDER_STATUS_VALUES = ['cancelled', 'canceled', 'void', 'deleted', 'removed'];
-const TRUTHY_MOBILE_DELETE_VALUES = [true, 'true', 1, '1', 'yes', 'YES', 'y', 'Y'];
-
-function activeSalesOrderMongoFilter() {
-  return {
-    $and: [
-      { status: { $nin: INACTIVE_MOBILE_ORDER_STATUS_VALUES } },
-      { lifecycleStatus: { $nin: INACTIVE_MOBILE_ORDER_STATUS_VALUES } },
-      { deliveryStatus: { $nin: INACTIVE_MOBILE_ORDER_STATUS_VALUES } },
-      { deleted: { $nin: TRUTHY_MOBILE_DELETE_VALUES } },
-      { isDeleted: { $nin: TRUTHY_MOBILE_DELETE_VALUES } },
-      { deletedAt: { $in: [null, ''] } }
-    ]
-  };
-}
-
-function customerLookupKeysFromOrderBody(body = {}) {
-  const customerPayload = body.customer || {};
-  return uniqueClean([
-    customerPayload.id,
-    customerPayload._id,
-    customerPayload.customerId,
-    customerPayload.code,
-    customerPayload.customerCode,
-    body.customerId,
-    body.customerCode
-  ]);
-}
-
-async function findCustomerForOrderBody(body = {}) {
-  const keys = uniqueClean(customerLookupKeysFromOrderBody(body).flatMap(caseVariants));
-  if (!keys.length) return null;
-  return Customer.findOne({
-    isActive: { $ne: false },
-    $or: [
-      { id: { $in: keys } },
-      { code: { $in: keys } },
-      { customerCode: { $in: keys } },
-      { phone: { $in: keys } }
-    ]
-  })
-    .select('id code customerCode name customerName phone address area route isActive')
-    .lean();
-}
-
-function productLookupKey(item = {}) {
-  return String(item.productCode || item.code || item.sku || item.productId || '').trim();
-}
-
-function indexProductsByAlias(products = []) {
-  const map = new Map();
-  for (const product of products || []) {
-    for (const key of uniqueClean([product.id, product._id, product.code, product.productCode, product.sku, product.barcode])) {
-      map.set(key, product);
-      map.set(key.toUpperCase(), product);
-      map.set(key.toLowerCase(), product);
-    }
-  }
-  return map;
-}
-
-async function findProductsForOrderItems(items = []) {
-  const keys = uniqueClean((items || []).map(productLookupKey).flatMap(caseVariants));
-  if (!keys.length) return [];
-  return Product.find({
-    isActive: { $ne: false },
-    $or: [
-      { id: { $in: keys } },
-      { code: { $in: keys } },
-      { productCode: { $in: keys } },
-      { sku: { $in: keys } },
-      { barcode: { $in: keys } }
-    ]
-  })
-    .select('id code productCode sku barcode name productName unit baseUnit conversionRate packing brand category groupName productGroup salePrice price isActive')
-    .lean();
-}
-
-function returnOrderIdentityFilterForSalesOrder(order = {}) {
-  const ids = uniqueClean([order.id, order._id, order.salesOrderId, order.orderId]);
-  const codes = uniqueClean([order.code, order.orderCode, order.salesOrderCode]);
-  const or = [];
-  if (ids.length) or.push({ salesOrderId: { $in: ids } }, { orderId: { $in: ids } }, { sourceOrderId: { $in: ids } }, { deliveryOrderId: { $in: ids } });
-  if (codes.length) or.push({ salesOrderCode: { $in: codes } }, { orderCode: { $in: codes } }, { sourceOrderCode: { $in: codes } }, { deliveryOrderCode: { $in: codes } });
-  if (!or.length) return null;
-  return {
-    status: { $nin: ['cancelled', 'canceled', 'void', 'deleted'] },
-    $or: or
-  };
-}
-
-function returnOrderHasValue(row = {}) {
-  const itemHasReturn = (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.quantity ?? item.qty) > 0);
-  return itemHasReturn || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount ?? row.debtReduction) > 0;
-}
-
-function returnOrderIsLocked(row = {}) {
-  const status = String(row.status || row.returnStatus || '').toLowerCase();
-  const mergeStatus = String(row.returnMergeStatus || '').toLowerCase();
-  const warehouseStatus = String(row.warehouseReceiveStatus || '').toLowerCase();
-  return Boolean(row.masterReturnOrderId || row.masterReturnOrderCode)
-    || mergeStatus === 'merged'
-    || ['received', 'posted', 'completed'].includes(status)
-    || ['received', 'posted', 'completed'].includes(warehouseStatus);
-}
-
-
-
-
-function mobileSalesOrderEditLockReason(order = {}) {
-  const status = String(order.status || '').trim().toLowerCase();
-  const lifecycleStatus = String(order.lifecycleStatus || '').trim().toLowerCase();
-  const deliveryStatus = String(order.deliveryStatus || '').trim().toLowerCase();
-  const accountingStatus = String(order.accountingStatus || order.arStatus || '').trim().toLowerCase();
-  const mergeStatus = String(order.mergeStatus || 'unmerged').trim().toLowerCase();
-
-  if (INACTIVE_MOBILE_ORDER_STATUS_VALUES.includes(status)
-    || INACTIVE_MOBILE_ORDER_STATUS_VALUES.includes(lifecycleStatus)
-    || INACTIVE_MOBILE_ORDER_STATUS_VALUES.includes(deliveryStatus)
-    || TRUTHY_MOBILE_DELETE_VALUES.includes(order.deleted)
-    || TRUTHY_MOBILE_DELETE_VALUES.includes(order.isDeleted)
-    || order.deletedAt) {
-    return 'Đơn đã hủy hoặc đã xóa, không thể chỉnh sửa';
-  }
-
-  if (order.masterOrderId || order.masterOrderCode || order.masterOrderNo || mergeStatus === 'merged') {
-    return 'Đơn đã gộp đơn tổng, app bán hàng không được sửa';
-  }
-
-  if (order.accountingConfirmed === true || ['confirmed', 'posted', 'locked', 'accounting_confirmed'].includes(accountingStatus)) {
-    return 'Đơn đã xác nhận kế toán, không thể chỉnh sửa trên app bán hàng';
-  }
-
-  if (['delivered', 'completed', 'accounting_confirmed'].includes(deliveryStatus)
-    || ['delivered', 'completed', 'accounting_confirmed'].includes(lifecycleStatus)) {
-    return 'Đơn đã giao hoặc đã hoàn tất, không thể chỉnh sửa trên app bán hàng';
-  }
-
-  const orderDate = dateUtil.toDateOnly(order.date || order.orderDate || '');
-  if (orderDate && orderDate !== dateUtil.todayVN()) {
-    return 'App bán hàng chỉ cho chỉnh sửa đơn trong ngày hiện tại';
-  }
-
-  return '';
-}
-
-function mobileSalesOrderCanEdit(order = {}) {
-  return !mobileSalesOrderEditLockReason(order);
-}
-
-function quotaMetaByProduct(items = []) {
-  const map = new Map();
-  for (const item of Array.isArray(items) ? items : []) {
-    const productCode = normalizeEditProductCode(item.productCode || item.code || item.sku || item.productId);
-    if (!productCode) continue;
-    if (String(item.saleAllocationType || '').toUpperCase() !== 'INTERNAL_APP_QUOTA'
-      && !String(item.internalSaleAllocationId || '').trim()
-      && toNumber(item.allocationConsumedQty ?? item.quotaConsumedQty) <= 0) continue;
-    map.set(productCode, item);
-  }
-  return map;
-}
-
-function attachQuotaMetadataToEditedItems(nextItems = [], previousItems = [], allocations = new Map(), consumedQtyByCode = new Map()) {
-  const previousMeta = quotaMetaByProduct(previousItems);
-  const remainingConsumed = new Map(Array.from(consumedQtyByCode.entries()).map(([code, qty]) => [code, Math.max(0, toNumber(qty))]));
-
-  return (Array.isArray(nextItems) ? nextItems : []).map((item) => {
-    const productCode = normalizeEditProductCode(item.productCode || item.code || item.sku || item.productId);
-    const allocation = allocations.get(productCode) || null;
-    const old = previousMeta.get(productCode) || {};
-    const lineQty = Math.max(0, toNumber(item.quantity ?? item.qty));
-    const remainingForProduct = Math.max(0, toNumber(remainingConsumed.get(productCode)));
-    const lineConsumedQty = Math.min(lineQty, remainingForProduct);
-    remainingConsumed.set(productCode, Math.max(0, remainingForProduct - lineConsumedQty));
-
-    const cleanItem = { ...item };
-    delete cleanItem.saleAllocationType;
-    delete cleanItem.internalSaleAllocationId;
-    delete cleanItem.allocationSnapshotDate;
-    delete cleanItem.allocationConsumedQty;
-    delete cleanItem.quotaConsumedQty;
-
-    if (lineConsumedQty <= 0) return cleanItem;
-
-    return {
-      ...cleanItem,
-      saleAllocationType: 'INTERNAL_APP_QUOTA',
-      internalSaleAllocationId: String(allocation?.id || allocation?._id || old.internalSaleAllocationId || ''),
-      allocationSnapshotDate: String(allocation?.snapshotDate || old.allocationSnapshotDate || ''),
-      allocationConsumedQty: lineConsumedQty
-    };
-  });
-}
-
-
-function preserveExistingQuotaMetadata(nextItems = [], previousItems = []) {
-  const previousMeta = quotaMetaByProduct(previousItems);
-  const remainingConsumed = new Map();
-  for (const [productCode, item] of previousMeta.entries()) {
-    remainingConsumed.set(productCode, Math.max(0, toNumber(item.allocationConsumedQty ?? item.quotaConsumedQty ?? item.quantity ?? item.qty)));
-  }
-
-  return (Array.isArray(nextItems) ? nextItems : []).map((item) => {
-    const productCode = normalizeEditProductCode(item.productCode || item.code || item.sku || item.productId);
-    const old = previousMeta.get(productCode) || null;
-    const lineQty = Math.max(0, toNumber(item.quantity ?? item.qty));
-    const availableConsumed = Math.max(0, toNumber(remainingConsumed.get(productCode)));
-    const lineConsumedQty = Math.min(lineQty, availableConsumed);
-    remainingConsumed.set(productCode, Math.max(0, availableConsumed - lineConsumedQty));
-
-    const cleanItem = { ...item };
-    delete cleanItem.saleAllocationType;
-    delete cleanItem.internalSaleAllocationId;
-    delete cleanItem.allocationSnapshotDate;
-    delete cleanItem.allocationConsumedQty;
-    delete cleanItem.quotaConsumedQty;
-
-    if (!old || lineConsumedQty <= 0) return cleanItem;
-    return {
-      ...cleanItem,
-      saleAllocationType: 'INTERNAL_APP_QUOTA',
-      internalSaleAllocationId: String(old.internalSaleAllocationId || ''),
-      allocationSnapshotDate: String(old.allocationSnapshotDate || ''),
-      allocationConsumedQty: lineConsumedQty
-    };
-  });
-}
-
-function buildAllocationRefs(items = [], allocations = new Map()) {
-  const quotaItems = (Array.isArray(items) ? items : [])
-    .filter((item) => String(item.saleAllocationType || '').toUpperCase() === 'INTERNAL_APP_QUOTA')
-    .map((item) => ({
-      ...item,
-      quantity: item.allocationConsumedQty ?? item.quotaConsumedQty ?? item.quantity ?? item.qty
-    }));
-  const grouped = internalSaleAllocationService.aggregateItems(quotaItems);
-  return Array.from(grouped.entries()).map(([productCode, quantity]) => {
-    const allocation = allocations.get(productCode) || {};
-    const item = (Array.isArray(items) ? items : []).find((row) => normalizeEditProductCode(row.productCode || row.code || row.sku || row.productId) === productCode) || {};
-    return {
-      allocationId: String(allocation.id || allocation._id || item.internalSaleAllocationId || ''),
-      productCode,
-      snapshotDate: String(allocation.snapshotDate || item.allocationSnapshotDate || ''),
-      quantity: toNumber(quantity)
-    };
-  });
-}
-
-async function getInventoryQtyByProducts(products = []) {
-  const codes = (products || []).map(canonicalProductCode).filter(Boolean);
-  const stockMap = await inventoryStockService.getAvailableStocks(codes);
-  const result = new Map();
-  for (const product of products || []) {
-    const code = canonicalProductCode(product);
-    if (!code) continue;
-    result.set(code, Number(stockMap[inventoryStockService.normalizeProductCode(code)] || stockMap[code] || 0));
-  }
-  return result;
-}
-
-async function getInventoryQtyForProduct(product = {}) {
-  const stock = await inventoryStockService.getAvailableStock(canonicalProductCode(product));
-  return Number(stock.availableQty || 0);
-}
-
-function fail(statusCode, message) {
-  return { statusCode, body: { ok: false, success: false, message } };
-}
-
-// MOBILE_PROMOTION_PRICE_LOCK_START
-function pickFirstPromotionRow(rows = []) {
-  return (Array.isArray(rows) ? rows : []).find((row) => row && typeof row === 'object') || {};
-}
-
-function extractPromotionIdentity(rows = []) {
-  const first = pickFirstPromotionRow(rows);
-  return {
-    promotionId: String(first.promotionId || first.id || first._id || first.programId || first.ruleId || '').trim(),
-    promotionCode: String(first.promotionCode || first.code || first.programCode || first.ruleCode || '').trim(),
-    promotionName: String(first.promotionName || first.name || first.programName || first.ruleName || first.description || '').trim()
-  };
-}
-// MOBILE_PROMOTION_PRICE_LOCK_END
-
-function createMobileSalesService(ctx) {
-  const repo = createMobileSalesRepository(ctx);
-  const {
-    normalizeText,
-    toNumber,
-    formatCaseLooseQty,
-    buildProductLineMeta,
-    makeId,
-    buildSalesCode,
-    buildCashCode,
-    updateSalesOrderWithRepost,
-    writeMobileLog
-  } = ctx;
-
-
-  // MOBILE_SALES_STAFF_CANONICAL_MATCH_START
-  function getMobileSalesStaffCode(mobileUser = {}) {
-    return mobileUserSalesStaffCode(mobileUser);
-  }
-
-  function getMobileSalesStaffName(mobileUser = {}) {
-    return mobileUserSalesStaffName(mobileUser);
-  }
-  // MOBILE_SALES_STAFF_CANONICAL_MATCH_END
-
-  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_START
-  function cleanLookupValue(value) {
-    return String(value || '').trim();
-  }
-
-  function customerLookupKeysFromBody(body = {}) {
-    const customerPayload = body.customer || {};
-    return [
-      customerPayload.id,
-      customerPayload._id,
-      customerPayload.customerId,
-      customerPayload.code,
-      customerPayload.customerCode,
-      body.customerId,
-      body.customerCode
-    ]
-      .map(cleanLookupValue)
-      .filter(Boolean)
-      .filter((value, index, arr) => arr.indexOf(value) === index);
-  }
-
-  function findCustomerFromOrderPayload(data = {}, body = {}) {
-    const keys = customerLookupKeysFromBody(body);
-    for (const key of keys) {
-      const customer = repo.findCustomer(data, key);
-      if (customer) return customer;
-    }
-    return null;
-  }
-  // MOBILE_SALES_CUSTOMER_LOOKUP_CANONICAL_END
-
-  function returnDraftLineKey(item = {}) {
-    return [String(item.productCode || item.code || item.productId || '').trim(), String(item.unit || item.baseUnit || '').trim(), String(toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0))].join('|');
-  }
-
-  function buildReturnDraftForMobileOrder(order = {}, existing = null) {
-    const existingMap = new Map((Array.isArray(existing?.items) ? existing.items : []).map((item) => [String(item.lineKey || returnDraftLineKey(item)), item]));
-    const items = (Array.isArray(order.items) ? order.items : []).map((item) => {
-      const price = toNumber(item.salePrice ?? item.price ?? item.unitPrice ?? 0);
-      const soldQty = toNumber(item.quantity ?? item.qty ?? 0);
-      const key = returnDraftLineKey({ ...item, salePrice: price });
-      const old = existingMap.get(key) || {};
-      const returnQty = toNumber(old.returnQty ?? old.qtyReturn ?? old.quantity ?? 0);
-      return {
-        ...old,
-        productId: item.productId || item.productCode || '',
-        productCode: item.productCode || item.code || item.productId || '',
-        productName: item.productName || item.name || '',
-        unit: item.unit || item.baseUnit || '',
-        soldQty,
-        price,
-        salePrice: price,
-        soldAmount: Math.round(soldQty * price),
-        returnQty,
-        qtyReturn: returnQty,
-        returnQuantity: returnQty,
-        quantity: returnQty,
-        qty: returnQty,
-        returnAmount: Math.round(returnQty * price),
-        amount: Math.round(returnQty * price),
-        lineKey: key
-      };
-    });
-    const totalSoldAmount = items.reduce((sum, item) => sum + toNumber(item.soldAmount), 0);
-    const totalReturnAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount), 0);
-    const status = totalReturnAmount > 0 ? 'waiting_receive' : 'draft';
-    return {
-      ...(existing || {}),
-      id: existing?.id || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
-      code: existing?.code || `RO-${String(order.code || order.id || makeId('RO')).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`,
-      date: order.deliveryDate || order.date || dateUtil.todayVN(),
-      documentDate: order.date || dateUtil.todayVN(),
-      salesOrderId: order.id || '',
-      salesOrderCode: order.code || '',
-      orderId: order.id || '',
-      orderCode: order.code || '',
-      customerId: order.customerId || '',
-      customerCode: order.customerCode || '',
-      customerName: order.customerName || '',
-      salesStaffCode: order.salesStaffCode || order.staffCode || '',
-      salesStaffName: order.salesStaffName || order.staffName || '',
-      staffCode: order.salesStaffCode || order.staffCode || '',
-      staffName: order.salesStaffName || order.staffName || '',
-      masterOrderId: order.masterOrderId || '',
-      masterOrderCode: order.masterOrderCode || '',
-      deliveryStaffId: order.deliveryStaffId || '',
-      deliveryStaffCode: order.deliveryStaffCode || '',
-      deliveryStaffName: order.deliveryStaffName || '',
-      deliveryDate: order.deliveryDate || order.date || dateUtil.todayVN(),
-      items,
-      totalSoldAmount,
-      totalReturnAmount,
-      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.returnQty), 0),
-      totalAmount: totalReturnAmount,
-      amount: totalReturnAmount,
-      debtReduction: totalReturnAmount,
-      status,
-      returnStatus: status,
-      returnState: status,
-      returnMergeStatus: existing?.returnMergeStatus || 'unmerged',
-      warehouseReceiveStatus: status === 'waiting_receive' ? 'waiting_receive' : 'draft',
-      source: existing?.source || 'sales_order_draft',
-      createdFrom: existing?.createdFrom || 'sales_order',
-      accountingStatus: status === 'waiting_receive' ? 'pending' : 'draft',
-      accountingConfirmed: Boolean(existing?.accountingConfirmed),
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-  }
-
-  function syncReturnDraftInSnapshot(data = {}, order = {}) {
-    data.returnOrders = Array.isArray(data.returnOrders) ? data.returnOrders : [];
-    const idx = data.returnOrders.findIndex((row) => String(row.salesOrderId || row.orderId || '').trim() === String(order.id || '').trim() || String(row.salesOrderCode || row.orderCode || '').trim() === String(order.code || '').trim());
-    const existing = idx >= 0 ? data.returnOrders[idx] : null;
-    if (existing && ['posted', 'received', 'warehouse_received', 'completed'].includes(String(existing.status || '').toLowerCase())) return existing;
-    const draft = buildReturnDraftForMobileOrder(order, existing);
-    if (idx >= 0) data.returnOrders[idx] = draft;
-    else data.returnOrders.push(draft);
-    return draft;
-  }
-
-  function cancelReturnDraftInSnapshot(data = {}, order = {}) {
-    const rows = Array.isArray(data.returnOrders) ? data.returnOrders : [];
-    const row = rows.find((item) => String(item.salesOrderId || item.orderId || '').trim() === String(order.id || '').trim() || String(item.salesOrderCode || item.orderCode || '').trim() === String(order.code || '').trim());
-    if (!row) return null;
-    const hasReturn = (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity) > 0) || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount) > 0;
-    if (hasReturn) return { error: 'Đơn chờ trả hàng đã có số lượng trả, không được xóa đơn bán trước khi xử lý phiếu trả' };
-    row.status = 'cancelled';
-    row.returnStatus = 'cancelled';
-    row.cancelledAt = new Date().toISOString();
-    row.updatedAt = new Date().toISOString();
-    return row;
-  }
-
-  // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_START
-  function isOwnedByMobileUser(order, mobileUser) {
-    const userSalesCode = normalizeText(getMobileSalesStaffCode(mobileUser));
-    if (!userSalesCode) return false;
-
-    return [
-      order.salesStaffCode,
-      order.salesPersonCode,
-      order.salesmanCode,
-      order.nvbhCode,
-      order.maNVBH,
-      order.salesStaff && order.salesStaff.code
-    ].some((value) => normalizeText(value) === userSalesCode);
-  }
-  // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
-
-  async function createSalesOrder({ body = {}, mobileUser }) {
-    const customerKeysForIdem = customerLookupKeysFromOrderBody(body);
-    const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || customerKeysForIdem[0] || '', Array.isArray(body.items) ? body.items.length : 0]);
-    const cachedResult = readIdempotentResult(idemKey);
-    if (cachedResult) return cachedResult;
-
-    const actorCode = mobileUser && (mobileUser.staffCode || mobileUser.code || mobileUser.id || 'mobile-sales');
-    const persistentKey = buildPersistentKey('mobile.sales.create', actorCode, idemKey);
-    const persistedResult = await findRequest(persistentKey);
-    if (persistedResult && persistedResult.status === 'completed' && persistedResult.response) {
-      return rememberIdempotentResult(idemKey, persistedResult.response);
-    }
-    if (persistedResult && persistedResult.status === 'processing') {
-      return fail(409, 'Yêu cầu tạo đơn trùng đang được xử lý');
-    }
-
-    const perf = createStepTimer('sales.createOrder');
-    let createdOrder = null;
-
-    let result;
-    try {
-      result = await withMongoTransaction(async (session) => {
-        perf('start');
-        const customer = await findCustomerForOrderBody(body);
-        const rawItems = Array.isArray(body.items) ? body.items : [];
-        const paidAmount = toNumber(body.paidAmount);
-        const date = dateUtil.todayVN();
-
-        if (!customer) return fail(400, 'Không tìm thấy khách hàng');
-        if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
-        perf('load_customer_direct');
-
-        const products = await findProductsForOrderItems(rawItems);
-        const productAliasMap = indexProductsByAlias(products);
-        const preparedRows = [];
-        const productByCode = new Map();
-
-        for (const rawItem of rawItems) {
-          const lookupKey = productLookupKey(rawItem);
-          const product = productAliasMap.get(lookupKey) || productAliasMap.get(String(lookupKey).toUpperCase()) || productAliasMap.get(String(lookupKey).toLowerCase());
-          if (!product) return fail(400, `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}`);
-          const quantity = toNumber(rawItem.quantity || rawItem.qty);
-          const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice || product.price);
-          if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
-          preparedRows.push({ rawItem, product, quantity, salePrice });
-          productByCode.set(String(product.code || product.productCode || product.id || '').trim(), product);
-        }
-        perf('prepare_items_direct', { products: productByCode.size });
-
-        const stockByProduct = await getInventoryQtyByProducts(Array.from(productByCode.values()));
-        perf('batch_stock_check', { products: productByCode.size });
-
-        const baseItems = [];
-        for (const row of preparedRows) {
-          const { product, quantity, salePrice } = row;
-          const stockKey = String(product.code || product.productCode || product.id || '').trim();
-          const availableQty = stockByProduct.get(stockKey) || 0;
-          if (availableQty < quantity) {
-            return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
-          }
-          baseItems.push({
-            productId: product.id || String(product._id || product.code || ''),
-            productCode: product.code || product.productCode || product.sku || '',
-            productName: product.name || product.productName || '',
-            ...buildProductLineMeta(product),
-            quantity,
-            grossPrice: salePrice,
-            catalogSalePrice: salePrice,
-            salePrice,
-            price: salePrice,
-            amount: quantity * salePrice
-          });
-        }
-
-        const promotionResult = await promotionService.calculatePromotions(baseItems);
-        const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
-        const items = baseItems.map((item) => {
-          const line = promotionByCode.get(String(item.productCode || '').trim()) || {};
-          const grossPrice = toNumber(line.catalogSalePrice || item.grossPrice || item.salePrice);
-          const grossAmount = Math.round(item.quantity * grossPrice);
-          const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
-          const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
-          const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
-          const amount = Math.max(0, grossAmount - discountAmount);
-          const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
-          const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
-          const promotionIdentity = extractPromotionIdentity(promotionRows);
-          return {
-            ...item,
-            originalPrice: grossPrice,
-            grossPrice,
-            catalogSalePrice: grossPrice,
-            grossAmount,
-            directDiscountPercent: toNumber(line.directDiscountPercent || 0),
-            groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
-            discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
-            directDiscountAmount,
-            groupDiscountAmount,
-            discountAmount,
-            promotionAmount: discountAmount,
-            totalDiscountAmount: discountAmount,
-            finalPrice,
-            unitPrice: finalPrice,
-            salePrice: finalPrice,
-            price: finalPrice,
-            preTaxPriceAtOrder: Math.round(grossPrice / 1.08),
-            vatAmountAtOrder: Math.round((finalPrice - (finalPrice / 1.08)) * item.quantity),
-            lineAmountAtOrder: amount,
-            amount,
-            netAmount: amount,
-            saleMethod: PROMOTION,
-            saleMode: PROMOTION,
-            pricingMode: PROMOTION,
-            priceLocked: true,
-            lockedPrice: true,
-            lockedPromotion: true,
-            promotionCalculated: true,
-            promotionRows,
-            appliedPromotionRows: promotionRows,
-            productSnapshot: {
-              ...(item.productSnapshot || {}),
-              salePrice: grossPrice,
-              conversionRate: item.conversionRateAtOrder || item.conversionRate || 1,
-              pickingZone: item.pickingZoneAtOrder || item.productSnapshot?.pickingZone || ((item.warehouseCodeAtOrder || item.warehouseCode) === 'KHO_PC' ? 'PC' : 'HC'),
-              warehouseCode: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC',
-              defaultWarehouse: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC'
-            },
-            ...promotionIdentity
-          };
-        });
-
-        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-        const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount), 0);
-        const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0);
-        const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-        const promotionCodes = Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)));
-        if (paidAmount > totalAmount) return fail(400, 'Tiền thu không được lớn hơn tổng đơn');
-
-        const orderId = makeId('SO');
-        const salesOrder = {
-          id: orderId,
-          code: String(body.code || body.orderCode || orderId).trim(),
-          date,
-          customerId: customer.id || String(customer._id || customer.code || ''),
-          customerCode: customer.code || customer.customerCode || '',
-          customerName: customer.name || customer.customerName || '',
-          customerPhone: customer.phone || '',
-          customerAddress: customer.address || '',
-          salesStaffCode: getMobileSalesStaffCode(mobileUser),
-          salesStaffName: getMobileSalesStaffName(mobileUser),
-          salesmanCode: getMobileSalesStaffCode(mobileUser),
-          salesmanName: getMobileSalesStaffName(mobileUser),
-          staffCode: '',
-          staffName: '',
-          source: 'mobile_sales_app',
-          orderSource: 'NVBH',
-          orderSourceName: 'Từ NVBH',
-          vatInvoiceRequired: true,
-          vatInvoiceDecisionSource: 'default',
-          vatInvoiceNote: '',
-          vatInvoiceUpdatedAt: '',
-          vatInvoiceUpdatedBy: '',
-          saleMethod: PROMOTION,
-          saleMode: PROMOTION,
-          pricingMode: PROMOTION,
-          orderPricingMode: PROMOTION,
-          isPromotionSale: true,
-          promotionCalculated: true,
-          isChildOrder: true,
-          masterOrderId: '',
-          mergeStatus: 'unmerged',
-          note: String(body.note || 'Tạo từ mobile app').trim(),
-          items,
-          totalQuantity,
-          grossAmount: totalGrossAmount,
-          totalGrossAmount,
-          grossAmountBeforePromotion: totalGrossAmount,
-          discountAmount: totalDiscountAmount,
-          totalDiscountAmount,
-          promotionAmount: totalDiscountAmount,
-          totalPromotionAmount: totalDiscountAmount,
-          netAmount: totalAmount,
-          goodsAmountAfterPromotion: totalAmount,
-          promotionCodes,
-          priceLocked: true,
-          lockedPrice: true,
-          lockedPromotion: true,
-          totalAmount,
-          paidAmount,
-          debtAmount: totalAmount - paidAmount,
-          salesCollectionPendingAccounting: paidAmount > 0,
-          salesCollectionAmount: paidAmount,
-          salesCollectionMethod: String(body.paymentMethod || body.collectionMethod || 'cash').trim().toLowerCase(),
-          salesCollectionSource: paidAmount > 0 ? 'mobile_sales_pending_accounting' : '',
-          salesCollectionStaffCode: getMobileSalesStaffCode(mobileUser),
-          salesCollectionStaffName: getMobileSalesStaffName(mobileUser),
-          status: 'pending',
-          lifecycleStatus: 'pending',
-          orderDate: date,
-          deliveryStatus: 'pending',
-          accountingStatus: 'pending',
-          stockPosted: true,
-          stockPostedAt: new Date().toISOString(),
-          stockPostedBy: mobileUser.code || mobileUser.name || 'mobile_sales',
-          createdAt: new Date().toISOString()
-        };
-
-        const persistentRequest = await beginRequest({
-          scope: 'mobile.sales.create',
-          actorCode,
-          requestKey: idemKey
-        }, { session });
-        if (persistentRequest.replay) return persistentRequest.response;
-        perf('idempotency_begin');
-
-        const quotaAllocations = await internalSaleAllocationService.consumeForOrder({
-          orderId,
-          orderCode: salesOrder.code,
-          items,
-          actorCode: getMobileSalesStaffCode(mobileUser),
-          actorName: getMobileSalesStaffName(mobileUser)
-        }, { session });
-        salesOrder.items = items.map((item) => {
-          const allocation = quotaAllocations.get(inventoryStockService.normalizeProductCode(item.productCode));
-          if (!allocation) return item;
-          return {
-            ...item,
-            saleAllocationType: 'INTERNAL_APP_QUOTA',
-            internalSaleAllocationId: String(allocation.id || allocation._id || ''),
-            allocationSnapshotDate: String(allocation.snapshotDate || ''),
-            allocationConsumedQty: toNumber(item.quantity)
-          };
-        });
-        salesOrder.usesInternalSaleQuota = quotaAllocations.size > 0;
-        salesOrder.internalSaleAllocationRefs = Array.from(quotaAllocations.values()).map((allocation) => ({
-          allocationId: String(allocation.id || allocation._id || ''),
-          productCode: String(allocation.productCode || ''),
-          snapshotDate: String(allocation.snapshotDate || ''),
-          quantity: toNumber(items
-            .filter((item) => inventoryStockService.normalizeProductCode(item.productCode) === inventoryStockService.normalizeProductCode(allocation.productCode))
-            .reduce((sum, item) => sum + toNumber(item.quantity), 0))
-        }));
-        perf('consume_internal_sale_quota', { products: quotaAllocations.size });
-
-        const canonicalSalesOrder = canonicalizeOperationalStaff(salesOrder);
-        const created = await SalesOrder.create([canonicalSalesOrder], { session });
-        const savedOrder = created[0];
-        const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
-        perf('create_sales_order_direct');
-
-        await InventoryPostingService.postSaleOut(savedOrderObject, { session });
-        perf('post_inventory_sale_out');
-
-        // Không ghi journals/cashbooks trực tiếp tại app bán hàng.
-        // paidAmount chỉ được lưu như khoản thu chờ kế toán trên salesOrders;
-        // AR/Fund ledger sẽ được post tại bước xác nhận kế toán bằng idempotency key ổn định.
-
-        await MobileLog.create([{
-          id: makeId('ML'),
-          action: 'mobile_create_sales_order',
-          actorCode: mobileUser.code || mobileUser.staffCode || '',
-          actorName: mobileUser.fullName || mobileUser.name || '',
-          refType: 'salesOrder',
-          refId: canonicalSalesOrder.id,
-          refCode: canonicalSalesOrder.code,
-          note: `Tạo đơn ${canonicalSalesOrder.code} từ mobile`,
-          createdAt: new Date().toISOString()
-        }], { session });
-        perf('save_operational_documents_direct');
-
-        createdOrder = savedOrderObject;
-        const response = { statusCode: 201, body: { ok: true, source: 'mobile-sales-route-direct', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
-        await completeRequest(persistentRequest.key, response, { session });
-        perf('idempotency_complete');
-        return response;
-      });
-    } catch (err) {
-      if (err && err.code === 'INSUFFICIENT_STOCK') {
-        const stockFail = fail(400, err.message || 'Không đủ tồn kho');
-        return rememberIdempotentResult(idemKey, stockFail);
-      }
-      if (err && err.code === 'DMS_APP_QUOTA_EXCEEDED') {
-        const quotaFail = fail(409, err.message || 'Số lượng bán vượt hạn mức theo tồn DMS mới nhất');
-        quotaFail.body.productCode = err.productCode || '';
-        quotaFail.body.availableQuota = toNumber(err.availableQuota);
-        quotaFail.body.requiredQty = toNumber(err.requiredQty);
-        return rememberIdempotentResult(idemKey, quotaFail);
-      }
-      throw err;
-    }
-
-    const finalResult = result || { statusCode: 201, body: { ok: true, salesOrder: createdOrder } };
-    perf('done');
-    return rememberIdempotentResult(idemKey, finalResult);
-  }
-
-  
-  async function getSalesOrder({ params = {}, mobileUser }) {
-    const identity = buildSalesOrderIdentityFilter(params.id);
-    const owner = mobileSalesOwnerMongoFilter(mobileUser);
-    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
-    const order = await SalesOrder.findOne({ $and: [identity, owner] }).lean();
-    if (!order) return fail(404, 'Không tìm thấy đơn bán');
-
-    let editLockReason = mobileSalesOrderEditLockReason(order);
-    if (!editLockReason) {
-      const returnFilter = returnOrderIdentityFilterForSalesOrder(order);
-      if (returnFilter) {
-        const linkedReturn = await ReturnOrder.findOne(returnFilter).lean();
-        if (linkedReturn && (returnOrderHasValue(linkedReturn) || returnOrderIsLocked(linkedReturn))) {
-          editLockReason = 'Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng';
-        }
-      }
-    }
-
-    return {
-      body: {
-        ok: true,
-        source: 'mobile-sales-route-direct',
-        order: {
-          ...order,
-          canEdit: !editLockReason,
-          editLockReason
-        }
-      }
-    };
-  }
-
-  async function updateSalesOrder({ params = {}, body = {}, mobileUser }) {
-    const idemKey = getIdempotencyKey(body, ['sales-update', mobileUser && (mobileUser.id || mobileUser.code), params.id]);
-    const cachedResult = readIdempotentResult(idemKey);
-    if (cachedResult) return cachedResult;
-
-    const actorCode = String(mobileUser && (mobileUser.staffCode || mobileUser.code || mobileUser.id || 'mobile-sales'));
-    const actorName = getMobileSalesStaffName(mobileUser);
-    const persistentKey = buildPersistentKey('mobile.sales.update', actorCode, idemKey);
-    const persistedResult = await findRequest(persistentKey);
-    if (persistedResult && persistedResult.status === 'completed' && persistedResult.response) {
-      return rememberIdempotentResult(idemKey, persistedResult.response);
-    }
-    if (persistedResult && persistedResult.status === 'processing') {
-      return fail(409, 'Yêu cầu sửa đơn trùng đang được xử lý');
-    }
-
-    const perf = createStepTimer('sales.updateOrder');
-    perf('start');
-
-    const identity = buildSalesOrderIdentityFilter(params.id);
-    const owner = mobileSalesOwnerMongoFilter(mobileUser);
-    if (!identity || !owner) return rememberIdempotentResult(idemKey, fail(404, 'Không tìm thấy đơn bán'));
-
-    const order = await SalesOrder.findOne({ $and: [identity, owner, activeSalesOrderMongoFilter()] }).lean();
-    if (!order) return rememberIdempotentResult(idemKey, fail(404, 'Không tìm thấy đơn bán'));
-
-    const initialLockReason = mobileSalesOrderEditLockReason(order);
-    if (initialLockReason) return rememberIdempotentResult(idemKey, fail(409, initialLockReason));
-
-    const returnFilter = returnOrderIdentityFilterForSalesOrder(order);
-    const linkedReturn = returnFilter ? await ReturnOrder.findOne(returnFilter).lean() : null;
-    if (linkedReturn && (returnOrderHasValue(linkedReturn) || returnOrderIsLocked(linkedReturn))) {
-      return rememberIdempotentResult(idemKey, fail(409, 'Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng'));
-    }
-
-    const customerPayload = body.customer || {};
-    const rawItems = Array.isArray(body.items) ? body.items : null;
-    const now = new Date().toISOString();
-    const patch = {
-      customerId: customerPayload.id || customerPayload.customerId || body.customerId || order.customerId,
-      customerCode: customerPayload.code || customerPayload.customerCode || body.customerCode || order.customerCode,
-      customerName: customerPayload.name || customerPayload.customerName || body.customerName || order.customerName,
-      note: String(body.note ?? order.note ?? '').trim(),
-      salesStaffCode: getMobileSalesStaffCode(mobileUser),
-      salesStaffName: actorName,
-      salesmanCode: getMobileSalesStaffCode(mobileUser),
-      salesmanName: actorName,
-      vatInvoiceRequired: order.vatInvoiceRequired !== false,
-      vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
-      vatInvoiceNote: String(order.vatInvoiceNote || ''),
-      vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
-      vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || ''),
-      updatedAt: now
-    };
-
-    if (rawItems) {
-      const items = rawItems.map((item = {}) => {
-        const quantity = toNumber(item.quantity ?? item.qty ?? 0);
-        const salePrice = toNumber(item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.price ?? 0);
-        const grossPrice = toNumber(item.grossPrice ?? item.originalPrice ?? item.catalogSalePrice ?? salePrice);
-        const grossAmount = Math.round(toNumber(item.grossAmount ?? quantity * grossPrice));
-        const discountAmount = toNumber(item.discountAmount ?? item.promotionAmount ?? item.totalDiscountAmount ?? Math.max(0, grossAmount - toNumber(item.amount ?? quantity * salePrice)));
-        const amount = Math.max(0, Math.round(toNumber(item.amount ?? quantity * salePrice)));
-        return {
-          ...item,
-          quantity,
-          qty: quantity,
-          grossPrice,
-          grossAmount,
-          discountAmount,
-          promotionAmount: toNumber(item.promotionAmount ?? discountAmount),
-          totalDiscountAmount: toNumber(item.totalDiscountAmount ?? discountAmount),
-          salePrice,
-          unitPrice: toNumber(item.unitPrice ?? salePrice),
-          finalPrice: toNumber(item.finalPrice ?? item.unitPrice ?? salePrice),
-          price: toNumber(item.price ?? salePrice),
-          amount,
-          netAmount: toNumber(item.netAmount ?? amount)
-        };
-      });
-
-      const invalidItem = items.find((item) => toNumber(item.quantity) <= 0 || !normalizeEditProductCode(item.productCode || item.code || item.sku || item.productId));
-      if (invalidItem) {
-        return rememberIdempotentResult(idemKey, fail(400, `Sản phẩm hoặc số lượng không hợp lệ: ${invalidItem.productCode || invalidItem.code || invalidItem.productName || ''}`));
-      }
-
-      const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
-      const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount ?? toNumber(item.quantity) * toNumber(item.grossPrice)), 0);
-      const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount ?? item.promotionAmount ?? item.totalDiscountAmount), 0);
-      const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
-      const paidAmount = toNumber(body.paidAmount ?? order.paidAmount ?? 0);
-      if (paidAmount > totalAmount) return rememberIdempotentResult(idemKey, fail(400, 'Tiền thu không được lớn hơn tổng đơn'));
-
-      Object.assign(patch, {
-        items,
-        totalQuantity,
-        grossAmount: totalGrossAmount,
-        totalGrossAmount,
-        grossAmountBeforePromotion: totalGrossAmount,
-        discountAmount: totalDiscountAmount,
-        totalDiscountAmount,
-        promotionAmount: totalDiscountAmount,
-        totalPromotionAmount: totalDiscountAmount,
-        netAmount: totalAmount,
-        goodsAmountAfterPromotion: totalAmount,
-        totalAmount,
-        paidAmount,
-        debtAmount: totalAmount - paidAmount,
-        promotionCodes: Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)))
-      });
-    }
-
-    try {
-      const result = await withMongoTransaction(async (session) => {
-        const current = await SalesOrder.findOne({ $and: [identity, owner, activeSalesOrderMongoFilter()] })
-          .session(session)
-          .lean();
-        if (!current) {
-          const err = new Error('Không tìm thấy đơn bán hoặc đơn đã thay đổi trạng thái');
-          err.status = 404;
-          throw err;
-        }
-
-        const lockReason = mobileSalesOrderEditLockReason(current);
-        if (lockReason) {
-          const err = new Error(lockReason);
-          err.status = 409;
-          throw err;
-        }
-
-        const returnFilterInTx = returnOrderIdentityFilterForSalesOrder(current);
-        const linkedReturnInTx = returnFilterInTx
-          ? await ReturnOrder.findOne(returnFilterInTx).session(session).lean()
-          : null;
-        if (linkedReturnInTx && (returnOrderHasValue(linkedReturnInTx) || returnOrderIsLocked(linkedReturnInTx))) {
-          const err = new Error('Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng');
-          err.status = 409;
-          throw err;
-        }
-
-        const persistentRequest = await beginRequest({
-          scope: 'mobile.sales.update',
-          actorCode,
-          requestKey: idemKey
-        }, { session });
-        if (persistentRequest.replay) return persistentRequest.response;
-
-        const finalPatch = { ...patch };
-        const wasStockPosted = current.stockPosted === true;
-
-        if (rawItems && wasStockPosted) {
-          const quotaEnabled = internalSaleAllocationService.isQuotaEnabled();
-          let adjustedItems = patch.items || [];
-          let quotaAllocations = new Map();
-
-          if (quotaEnabled) {
-            const quotaAdjustment = await internalSaleAllocationService.adjustForOrderEdit({
-              orderId: current.id || current._id || current.code,
-              orderCode: current.code || current.id,
-              previousItems: current.items || [],
-              nextItems: patch.items || [],
-              commandId: idemKey,
-              actorCode,
-              actorName
-            }, { session });
-
-            quotaAllocations = quotaAdjustment.allocations;
-            adjustedItems = attachQuotaMetadataToEditedItems(
-              patch.items || [],
-              current.items || [],
-              quotaAdjustment.allocations,
-              quotaAdjustment.consumedQtyByCode
-            );
-          } else {
-            adjustedItems = preserveExistingQuotaMetadata(patch.items || [], current.items || []);
-          }
-
-          finalPatch.items = adjustedItems;
-          finalPatch.usesInternalSaleQuota = adjustedItems.some((item) => String(item.saleAllocationType || '').toUpperCase() === 'INTERNAL_APP_QUOTA');
-          finalPatch.internalSaleAllocationRefs = finalPatch.usesInternalSaleQuota
-            ? buildAllocationRefs(adjustedItems, quotaAllocations)
-            : [];
-
-          const movements = buildInventoryEditMovements(current.items || [], adjustedItems);
-          if (movements.incoming.length) {
-            await InventoryPostingService.postSaleEditDelta(current, movements.incoming, 'IN', {
-              session,
-              commandId: idemKey
-            });
-          }
-          if (movements.outgoing.length) {
-            await InventoryPostingService.postSaleEditDelta(current, movements.outgoing, 'OUT', {
-              session,
-              commandId: idemKey
-            });
-          }
-          perf('adjust_stock_and_quota', {
-            incomingProducts: movements.incoming.length,
-            outgoingProducts: movements.outgoing.length
-          });
-        }
-
-        const currentVersion = toNumber(current.version);
-        const versionFilter = currentVersion > 0
-          ? { version: currentVersion }
-          : { $or: [{ version: 0 }, { version: { $exists: false } }, { version: null }] };
-        const updateFilter = {
-          $and: [
-            identity,
-            owner,
-            activeSalesOrderMongoFilter(),
-            versionFilter,
-            { $or: [{ masterOrderId: { $exists: false } }, { masterOrderId: null }, { masterOrderId: '' }] },
-            { $or: [{ masterOrderCode: { $exists: false } }, { masterOrderCode: null }, { masterOrderCode: '' }] },
-            { $or: [{ masterOrderNo: { $exists: false } }, { masterOrderNo: null }, { masterOrderNo: '' }] },
-            { mergeStatus: { $ne: 'merged' } }
-          ]
-        };
-
-        const updated = await SalesOrder.findOneAndUpdate(
-          updateFilter,
-          {
-            $set: {
-              ...finalPatch,
-              stockPosted: wasStockPosted,
-              stockPostedAt: current.stockPostedAt || now,
-              stockPostedBy: current.stockPostedBy || actorCode,
-              lastMobileEditRequestKey: idemKey,
-              lastMobileEditedAt: now,
-              lastMobileEditedBy: actorCode
-            },
-            $inc: { version: 1 }
-          },
-          { new: true, lean: true, session }
-        );
-        if (!updated) {
-          const err = new Error('Đơn vừa được thay đổi ở nơi khác. Vui lòng tải lại rồi sửa lại');
-          err.status = 409;
-          err.code = 'ORDER_CONCURRENT_UPDATE';
-          throw err;
-        }
-
-        if (linkedReturnInTx && !returnOrderHasValue(linkedReturnInTx) && !returnOrderIsLocked(linkedReturnInTx)) {
-          const syncedDraft = buildReturnDraftForMobileOrder(updated, linkedReturnInTx);
-          const { _id: ignoredMongoId, __v: ignoredVersion, ...returnDraftPatch } = syncedDraft;
-          await ReturnOrder.updateOne(
-            { _id: linkedReturnInTx._id },
-            { $set: returnDraftPatch },
-            { session }
-          );
-        }
-
-        await MobileLog.create([{
-          id: makeId('ML'),
-          action: 'mobile_edit_sales_order',
-          actorCode,
-          actorName,
-          refType: 'salesOrder',
-          refId: updated.id,
-          refCode: updated.code,
-          note: `Sửa đơn ${updated.code} từ mobile; tồn và hạn mức được điều chỉnh theo chênh lệch`,
-          createdAt: now
-        }], { session });
-
-        const response = {
-          body: {
-            ok: true,
-            source: 'mobile-sales-route-direct',
-            message: `Đã sửa đơn ${updated.code}`,
-            salesOrder: {
-              ...updated,
-              canEdit: true,
-              editLockReason: ''
-            }
-          }
-        };
-        await completeRequest(persistentRequest.key, response, { session });
-        return response;
-      });
-
-      perf('done');
-      return rememberIdempotentResult(idemKey, result);
-    } catch (err) {
-      if (err && err.code === 'INSUFFICIENT_STOCK') {
-        return rememberIdempotentResult(idemKey, fail(409, err.message || 'Không đủ tồn kho để tăng số lượng đơn'));
-      }
-      if (err && err.code === 'DMS_APP_QUOTA_EXCEEDED') {
-        const quotaFail = fail(409, err.message || 'Số lượng sửa tăng vượt hạn mức theo tồn DMS mới nhất');
-        quotaFail.body.productCode = err.productCode || '';
-        quotaFail.body.availableQuota = toNumber(err.availableQuota);
-        quotaFail.body.requiredQty = toNumber(err.requiredQty);
-        return rememberIdempotentResult(idemKey, quotaFail);
-      }
-      return rememberIdempotentResult(idemKey, fail(err.status || 500, err.message || 'Không sửa được đơn mobile'));
-    }
-  }
-
-  async function deleteSalesOrder({ params = {}, mobileUser }) {
-    const owner = mobileSalesOwnerMongoFilter(mobileUser);
-    if (!owner) return fail(403, 'Không xác định được nhân viên bán hàng');
-
-    const result = await SalesOrderDeletionService.deleteSalesOrder(params.id, {
-      source: 'mobile-sales-app',
-      actorCode: mobileUser.code || mobileUser.staffCode || '',
-      actorName: mobileUser.fullName || mobileUser.name || '',
-      ownerFilter: owner
-    });
-
-    if (result.error) {
-      return fail(result.status || 400, result.error);
-    }
-
-    return {
-      body: {
-        ok: true,
-        source: 'mobile-sales-delete-service',
-        message: result.message || `Đã xóa đơn ${result.salesOrder?.code || ''}`,
-        mode: result.mode,
-        hardDeleted: true,
-        salesOrder: result.salesOrder,
-        order: result.salesOrder
-      }
-    };
-  }
-  
-  async function listSalesOrders({ query = {}, mobileUser }) {
-    const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
-    const onlyMine = String(query.mine || '1') !== '0';
-    const q = String(query.q || '').trim();
-
-    const and = [activeSalesOrderMongoFilter()];
-    if (date) and.push({ $or: [{ date }, { orderDate: date }] });
-    if (onlyMine) {
-      const owner = mobileSalesOwnerMongoFilter(mobileUser);
-      if (!owner) return { body: { ok: true, source: 'mobile-sales-route-direct', date, items: [] } };
-      and.push(owner);
-    }
-    if (q) {
-      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      and.push({ $or: [
-        { code: rx },
-        { orderCode: rx },
-        { salesOrderCode: rx },
-        { customerCode: rx },
-        { customerName: rx },
-        { customerPhone: rx },
-        { customerAddress: rx }
-      ] });
-    }
-
-    const rows = await SalesOrder.find(and.length === 1 ? and[0] : { $and: and })
-      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status lifecycleStatus deliveryStatus accountingStatus accountingConfirmed arStatus deleted isDeleted deletedAt deleteMode deleteReason masterOrderId masterOrderCode masterOrderNo mergeStatus stockPosted stockPostedAt items note createdAt updatedAt version')
-      .sort({ createdAt: -1, date: -1 })
-      .limit(100)
-      .lean();
-
-    const items = rows.map((order) => ({
-      id: order.id,
-      code: order.code,
-      date: order.date || order.orderDate,
-      customerName: order.customerName,
-      totalAmount: toNumber(order.totalAmount),
-      paidAmount: toNumber(order.paidAmount),
-      debtAmount: toNumber(order.debtAmount),
-      status: order.status,
-      lifecycleStatus: order.lifecycleStatus || order.status || '',
-      deliveryStatus: order.deliveryStatus || 'pending',
-      deleted: Boolean(order.deleted),
-      isDeleted: Boolean(order.isDeleted),
-      deletedAt: order.deletedAt || '',
-      deleteMode: order.deleteMode || '',
-      deleteReason: order.deleteReason || '',
-      masterOrderId: order.masterOrderId || '',
-      masterOrderCode: order.masterOrderCode || '',
-      mergeStatus: order.mergeStatus || 'unmerged',
-      canEdit: mobileSalesOrderCanEdit(order),
-      editLockReason: mobileSalesOrderEditLockReason(order),
-      stockPosted: order.stockPosted === true,
-      customerId: order.customerId,
-      customerCode: order.customerCode,
-      customerPhone: order.customerPhone,
-      customerAddress: order.customerAddress,
-      salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
-      salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
-      salesPersonCode: order.salesPersonCode || '',
-      salesPersonName: order.salesPersonName || '',
-      salesmanCode: order.salesmanCode || '',
-      salesmanName: order.salesmanName || '',
-      nvbhCode: order.nvbhCode || '',
-      nvbhName: order.nvbhName || '',
-      maNVBH: order.maNVBH || '',
-      maNVBHName: order.maNVBHName || '',
-      items: order.items || [],
-      note: order.note || '',
-      createdAt: order.createdAt
-    })).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
-
-    return { body: { ok: true, source: 'mobile-sales-route-direct', date, items } };
-  }
-
-  
-  async function listDebts({ query = {}, mobileUser } = {}) {
-    const scopedQuery = {
-      ...query,
-      collectorType: 'sales',
-      limit: query.limit || 100,
-      includePaid: query.includePaid || '0',
-      includePendingCollections: query.includePendingCollections ?? '1'
-    };
-
-    if (String(mobileUser?.role || '') === 'sales') {
-      const staffCode = getMobileSalesStaffCode(mobileUser);
-      const staffName = getMobileSalesStaffName(mobileUser);
-      scopedQuery.salesman = staffCode || staffName;
-    }
-
-    const result = await DebtReadService.getCustomerDebts(scopedQuery);
-
-    return {
-      body: result
-    };
-  }
-
-
-
-  return {
-    createSalesOrder,
-    getSalesOrder,
-    updateSalesOrder,
-    deleteSalesOrder,
-    listSalesOrders,
-    listDebts
-  };
-}
-
-module.exports = { createMobileSalesService };
+/* GENERATED FILE — edit src/services/mobile/sales.service.source/part-01.jsfrag, src/services/mobile/sales.service.source/part-02.jsfrag, src/services/mobile/sales.service.source/part-03.jsfrag and run npm run build:source-bundles. */
+"use strict"
+;const{canonicalizeOperationalStaff:e}=require("../../utils/canonicalStaffWrite.util"),t=require("../../utils/date.util"),{withMongoTransaction:o}=require("../../utils/transaction.util"),{createMobileSalesRepository:n}=require("../../repositories/mobile/sales.repository"),r=require("../../models/SalesOrder"),a=require("../../models/Customer"),s=require("../../models/Product"),i=require("../../models/ReturnOrder"),d=require("../../models/MobileLog"),c=require("../../domain/posting/InventoryPostingService"),u=require("../../domain/lifecycle/SalesOrderDeletionService"),l=require("../inventoryStock.service"),m=require("../internalSaleAllocation.service"),{createStepTimer:p,getIdempotencyKey:g,readIdempotentResult:f,rememberIdempotentResult:y}=require("../../utils/mobilePerformance.util"),h=require("../promotionService"),C=require("../DebtReadService"),{PROMOTION:S}=require("../../constants/pricingModes"),A=require("../../utils/orderStatus.util"),{normalizeText:N,toNumber:b}=require("../../utils/common.util"),{buildPersistentKey:v,findRequest:P,beginRequest:O,completeRequest:I}=require("../requestIdempotency.service"),{buildInventoryEditMovements:w,normalizeProductCode:_}=require("../../utils/orderItemDelta.util")
+;function q(e={}){return l.quantityOf(e)}function $(e={}){return String(e.code||e.productCode||e.sku||"").trim()}function D(e=[]){
+return Array.from(new Set((Array.isArray(e)?e:[e]).map(e=>String(e||"").trim()).filter(Boolean)))}function M(e=""){const t=String(e||"").trim()
+;return t?D([t,t.toUpperCase(),t.toLowerCase()]):[]}function k(e){const t=D([e]);return t.length?{$or:[{id:{$in:t}},{code:{$in:t}},{orderCode:{$in:t}},{salesOrderCode:{$in:t}},{
+documentCode:{$in:t}},{invoiceCode:{$in:t}}]}:null}function R(e={}){return String(e.salesStaffCode||e.salesmanCode||e.nvbhCode||e.maNVBH||e.staffCode||e.code||"").trim()}
+function Q(e={}){return String(e.salesStaffName||e.salesmanName||e.nvbhName||e.maNVBHName||e.fullName||e.name||"").trim()}function T(e={}){const t=M(R(e));if(t.length)return{$or:[{
+salesStaffCode:{$in:t}},{salesPersonCode:{$in:t}},{salesmanCode:{$in:t}},{nvbhCode:{$in:t}},{maNVBH:{$in:t}},{"salesStaff.code":{$in:t}}]};const o=M(Q(e));return o.length?{$or:[{
+salesStaffName:{$in:o}},{salesPersonName:{$in:o}},{salesmanName:{$in:o}},{nvbhName:{$in:o}},{maNVBHName:{$in:o}},{"salesStaff.name":{$in:o}},{"salesStaff.fullName":{$in:o}}]}:null}
+const E=["cancelled","canceled","void","deleted","removed"],U=[!0,"true",1,"1","yes","YES","y","Y"];function B(){return{$and:[{status:{$nin:E}},{lifecycleStatus:{$nin:E}},{
+deliveryStatus:{$nin:E}},{deleted:{$nin:U}},{isDeleted:{$nin:U}},{deletedAt:{$in:[null,""]}}]}}function L(e={}){const t=e.customer||{}
+;return D([t.id,t._id,t.customerId,t.code,t.customerCode,e.customerId,e.customerCode])}async function x(e={}){const t=D(L(e).flatMap(M));return t.length?a.findOne({isActive:{$ne:!1
+},$or:[{id:{$in:t}},{code:{$in:t}},{customerCode:{$in:t}},{phone:{$in:t}}]}).select("id code customerCode name customerName phone address area route isActive").lean():null}
+function K(e={}){return String(e.productCode||e.code||e.sku||e.productId||"").trim()}function V(e=[]){const t=new Map
+;for(const o of e||[])for(const e of D([o.id,o._id,o.code,o.productCode,o.sku,o.barcode]))t.set(e,o),t.set(e.toUpperCase(),o),t.set(e.toLowerCase(),o);return t}
+async function H(e=[]){const t=D((e||[]).map(K).flatMap(M));return t.length?s.find({isActive:{$ne:!1},$or:[{id:{$in:t}},{code:{$in:t}},{productCode:{$in:t}},{sku:{$in:t}},{
+barcode:{$in:t}}]
+}).select("id code productCode sku barcode name productName unit baseUnit conversionRate packing brand category groupName productGroup salePrice price isActive").lean():[]}
+function z(e={}){const t=D([e.id,e._id,e.salesOrderId,e.orderId]),o=D([e.code,e.orderCode,e.salesOrderCode]),n=[];return t.length&&n.push({salesOrderId:{$in:t}},{orderId:{$in:t}},{
+sourceOrderId:{$in:t}},{deliveryOrderId:{$in:t}}),o.length&&n.push({salesOrderCode:{$in:o}},{orderCode:{$in:o}},{sourceOrderCode:{$in:o}},{deliveryOrderCode:{$in:o}}),n.length?{
+status:{$nin:["cancelled","canceled","void","deleted"]},$or:n}:null}function F(e={}){
+return(Array.isArray(e.items)?e.items:[]).some(e=>b(e.returnQty??e.qtyReturn??e.returnQuantity??e.quantity??e.qty)>0)||b(e.totalReturnAmount??e.totalAmount??e.amount??e.debtReduction)>0
+}function j(e={}){const t=String(e.status||e.returnStatus||"").toLowerCase(),o=String(e.returnMergeStatus||"").toLowerCase(),n=String(e.warehouseReceiveStatus||"").toLowerCase()
+;return Boolean(e.masterReturnOrderId||e.masterReturnOrderCode)||"merged"===o||["received","posted","completed"].includes(t)||["received","posted","completed"].includes(n)}
+function Z(e={}){
+const o=String(e.status||"").trim().toLowerCase(),n=String(e.lifecycleStatus||"").trim().toLowerCase(),r=String(e.deliveryStatus||"").trim().toLowerCase(),a=String(e.accountingStatus||e.arStatus||"").trim().toLowerCase(),s=String(e.mergeStatus||"unmerged").trim().toLowerCase()
+;if(E.includes(o)||E.includes(n)||E.includes(r)||U.includes(e.deleted)||U.includes(e.isDeleted)||e.deletedAt)return"Đơn đã hủy hoặc đã xóa, không thể chỉnh sửa"
+;if(e.masterOrderId||e.masterOrderCode||e.masterOrderNo||"merged"===s)return"Đơn đã gộp đơn tổng, app bán hàng không được sửa"
+;if(!0===e.accountingConfirmed||["confirmed","posted","locked","accounting_confirmed"].includes(a))return"Đơn đã xác nhận kế toán, không thể chỉnh sửa trên app bán hàng"
+;if(["delivered","completed","accounting_confirmed"].includes(r)||["delivered","completed","accounting_confirmed"].includes(n))return"Đơn đã giao hoặc đã hoàn tất, không thể chỉnh sửa trên app bán hàng"
+;const i=t.toDateOnly(e.date||e.orderDate||"");return i&&i!==t.todayVN()?"App bán hàng chỉ cho chỉnh sửa đơn trong ngày hiện tại":""}function Y(e={}){return!Z(e)}function G(e=[]){
+const t=new Map;for(const o of Array.isArray(e)?e:[]){const e=_(o.productCode||o.code||o.sku||o.productId)
+;e&&("INTERNAL_APP_QUOTA"!==String(o.saleAllocationType||"").toUpperCase()&&!String(o.internalSaleAllocationId||"").trim()&&b(o.allocationConsumedQty??o.quotaConsumedQty)<=0||t.set(e,o))
+}return t}function W(e=[],t=[],o=new Map,n=new Map){const r=G(t),a=new Map(Array.from(n.entries()).map(([e,t])=>[e,Math.max(0,b(t))]));return(Array.isArray(e)?e:[]).map(e=>{
+const t=_(e.productCode||e.code||e.sku||e.productId),n=o.get(t)||null,s=r.get(t)||{},i=Math.max(0,b(e.quantity??e.qty)),d=Math.max(0,b(a.get(t))),c=Math.min(i,d)
+;a.set(t,Math.max(0,d-c));const u={...e};return delete u.saleAllocationType,delete u.internalSaleAllocationId,delete u.allocationSnapshotDate,delete u.allocationConsumedQty,
+delete u.quotaConsumedQty,c<=0?u:{...u,saleAllocationType:"INTERNAL_APP_QUOTA",internalSaleAllocationId:String(n?.id||n?._id||s.internalSaleAllocationId||""),
+allocationSnapshotDate:String(n?.snapshotDate||s.allocationSnapshotDate||""),allocationConsumedQty:c}})}function X(e=[],t=[]){const o=G(t),n=new Map
+;for(const[e,t]of o.entries())n.set(e,Math.max(0,b(t.allocationConsumedQty??t.quotaConsumedQty??t.quantity??t.qty)));return(Array.isArray(e)?e:[]).map(e=>{
+const t=_(e.productCode||e.code||e.sku||e.productId),r=o.get(t)||null,a=Math.max(0,b(e.quantity??e.qty)),s=Math.max(0,b(n.get(t))),i=Math.min(a,s);n.set(t,Math.max(0,s-i))
+;const d={...e};return delete d.saleAllocationType,delete d.internalSaleAllocationId,delete d.allocationSnapshotDate,delete d.allocationConsumedQty,delete d.quotaConsumedQty,
+!r||i<=0?d:{...d,saleAllocationType:"INTERNAL_APP_QUOTA",internalSaleAllocationId:String(r.internalSaleAllocationId||""),
+allocationSnapshotDate:String(r.allocationSnapshotDate||""),allocationConsumedQty:i}})}function J(e=[],t=new Map){
+const o=(Array.isArray(e)?e:[]).filter(e=>"INTERNAL_APP_QUOTA"===String(e.saleAllocationType||"").toUpperCase()).map(e=>({...e,
+quantity:e.allocationConsumedQty??e.quotaConsumedQty??e.quantity??e.qty})),n=m.aggregateItems(o);return Array.from(n.entries()).map(([o,n])=>{
+const r=t.get(o)||{},a=(Array.isArray(e)?e:[]).find(e=>_(e.productCode||e.code||e.sku||e.productId)===o)||{};return{
+allocationId:String(r.id||r._id||a.internalSaleAllocationId||""),productCode:o,snapshotDate:String(r.snapshotDate||a.allocationSnapshotDate||""),quantity:b(n)}})}
+async function ee(e=[]){const t=(e||[]).map($).filter(Boolean),o=await l.getAvailableStocks(t),n=new Map;for(const t of e||[]){const e=$(t)
+;e&&n.set(e,Number(o[l.normalizeProductCode(e)]||o[e]||0))}return n}async function te(e={}){const t=await l.getAvailableStock($(e));return Number(t.availableQty||0)}
+function oe(e,t){return{statusCode:e,body:{ok:!1,success:!1,message:t}}}function ne(e=[]){return(Array.isArray(e)?e:[]).find(e=>e&&"object"==typeof e)||{}}function re(e=[]){
+const t=ne(e);return{promotionId:String(t.promotionId||t.id||t._id||t.programId||t.ruleId||"").trim(),
+promotionCode:String(t.promotionCode||t.code||t.programCode||t.ruleCode||"").trim(),
+promotionName:String(t.promotionName||t.name||t.programName||t.ruleName||t.description||"").trim()}}function ae(a){n(a)
+;const{normalizeText:s,toNumber:N,formatCaseLooseQty:b,buildProductLineMeta:q,makeId:$,buildSalesCode:D,buildCashCode:M,updateSalesOrderWithRepost:E,writeMobileLog:U}=a
+;function G(e={}){return R(e)}function te(e={}){return Q(e)}function ne(e={}){
+return[String(e.productCode||e.code||e.productId||"").trim(),String(e.unit||e.baseUnit||"").trim(),String(N(e.salePrice??e.price??e.unitPrice??0))].join("|")}return{
+createSalesOrder:async function({body:n={},mobileUser:a}){
+const s=L(n),i=g(n,["sales-create",a&&(a.id||a.code),n.customerCode||s[0]||"",Array.isArray(n.items)?n.items.length:0]),u=f(i);if(u)return u
+;const C=a&&(a.staffCode||a.code||a.id||"mobile-sales"),A=v("mobile.sales.create",C,i),w=await P(A);if(w&&"completed"===w.status&&w.response)return y(i,w.response)
+;if(w&&"processing"===w.status)return oe(409,"Yêu cầu tạo đơn trùng đang được xử lý");const _=p("sales.createOrder");let D,M=null;try{D=await o(async o=>{_("start")
+;const s=await x(n),u=Array.isArray(n.items)?n.items:[],p=N(n.paidAmount),g=t.todayVN();if(!s)return oe(400,"Không tìm thấy khách hàng")
+;if(!u.length)return oe(400,"Đơn mobile chưa có sản phẩm");_("load_customer_direct");const f=V(await H(u)),y=[],A=new Map;for(const e of u){
+const t=K(e),o=f.get(t)||f.get(String(t).toUpperCase())||f.get(String(t).toLowerCase());if(!o)return oe(400,`Không tìm thấy sản phẩm: ${e.productCode||e.code||""}`)
+;const n=N(e.quantity||e.qty),r=N(e.salePrice||e.price||o.salePrice||o.price);if(n<=0)return oe(400,`Số lượng phải lớn hơn 0: ${o.code}`);y.push({rawItem:e,product:o,quantity:n,
+salePrice:r}),A.set(String(o.code||o.productCode||o.id||"").trim(),o)}_("prepare_items_direct",{products:A.size});const v=await ee(Array.from(A.values()));_("batch_stock_check",{
+products:A.size});const P=[];for(const e of y){const{product:t,quantity:o,salePrice:n}=e,r=String(t.code||t.productCode||t.id||"").trim(),a=v.get(r)||0
+;if(a<o)return oe(400,`Không đủ tồn mở bán: ${t.code}. Tồn ${b(a,t.conversionRate||1)}, cần ${b(o,t.conversionRate||1)}`);P.push({productId:t.id||String(t._id||t.code||""),
+productCode:t.code||t.productCode||t.sku||"",productName:t.name||t.productName||"",...q(t),quantity:o,grossPrice:n,catalogSalePrice:n,salePrice:n,price:n,amount:o*n})}
+const w=await h.calculatePromotions(P),D=new Map((w.lines||[]).map(e=>[String(e.productCode||"").trim(),e])),k=P.map(e=>{
+const t=D.get(String(e.productCode||"").trim())||{},o=N(t.catalogSalePrice||e.grossPrice||e.salePrice),n=Math.round(e.quantity*o),r=N(t.directDiscountAmount||0),a=N(t.groupDiscountAmount||0),s=Math.min(n,r+a),i=Math.max(0,n-s),d=e.quantity>0?Math.round(i/e.quantity):0,c=Array.isArray(t.promotionRows)?t.promotionRows:[],u=re(c)
+;return{...e,originalPrice:o,grossPrice:o,catalogSalePrice:o,grossAmount:n,directDiscountPercent:N(t.directDiscountPercent||0),groupDiscountPercent:N(t.groupDiscountPercent||0),
+discountPercent:n>0?s/n*100:0,directDiscountAmount:r,groupDiscountAmount:a,discountAmount:s,promotionAmount:s,totalDiscountAmount:s,finalPrice:d,unitPrice:d,salePrice:d,price:d,
+preTaxPriceAtOrder:Math.round(o/1.08),vatAmountAtOrder:Math.round((d-d/1.08)*e.quantity),lineAmountAtOrder:i,amount:i,netAmount:i,saleMethod:S,saleMode:S,pricingMode:S,
+priceLocked:!0,lockedPrice:!0,lockedPromotion:!0,promotionCalculated:!0,promotionRows:c,appliedPromotionRows:c,productSnapshot:{...e.productSnapshot||{},salePrice:o,
+conversionRate:e.conversionRateAtOrder||e.conversionRate||1,
+pickingZone:e.pickingZoneAtOrder||e.productSnapshot?.pickingZone||("KHO_PC"===(e.warehouseCodeAtOrder||e.warehouseCode)?"PC":"HC"),
+warehouseCode:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC",defaultWarehouse:e.warehouseCodeAtOrder||e.warehouseCode||"KHO_HC"},...u}
+}),R=k.reduce((e,t)=>e+t.quantity,0),Q=k.reduce((e,t)=>e+N(t.grossAmount),0),T=k.reduce((e,t)=>e+N(t.discountAmount),0),E=k.reduce((e,t)=>e+t.amount,0),U=Array.from(new Set(k.map(e=>e.promotionCode).filter(Boolean)))
+;if(p>E)return oe(400,"Tiền thu không được lớn hơn tổng đơn");const B=$("SO"),L={id:B,code:String(n.code||n.orderCode||B).trim(),date:g,customerId:s.id||String(s._id||s.code||""),
+customerCode:s.code||s.customerCode||"",customerName:s.name||s.customerName||"",customerPhone:s.phone||"",customerAddress:s.address||"",salesStaffCode:G(a),salesStaffName:te(a),
+salesmanCode:G(a),salesmanName:te(a),staffCode:"",staffName:"",source:"mobile_sales_app",orderSource:"NVBH",orderSourceName:"Từ NVBH",vatInvoiceRequired:!0,
+vatInvoiceDecisionSource:"default",vatInvoiceNote:"",vatInvoiceUpdatedAt:"",vatInvoiceUpdatedBy:"",saleMethod:S,saleMode:S,pricingMode:S,orderPricingMode:S,isPromotionSale:!0,
+promotionCalculated:!0,isChildOrder:!0,masterOrderId:"",mergeStatus:"unmerged",note:String(n.note||"Tạo từ mobile app").trim(),items:k,totalQuantity:R,grossAmount:Q,
+totalGrossAmount:Q,grossAmountBeforePromotion:Q,discountAmount:T,totalDiscountAmount:T,promotionAmount:T,totalPromotionAmount:T,netAmount:E,goodsAmountAfterPromotion:E,
+promotionCodes:U,priceLocked:!0,lockedPrice:!0,lockedPromotion:!0,totalAmount:E,paidAmount:p,debtAmount:E-p,salesCollectionPendingAccounting:p>0,salesCollectionAmount:p,
+salesCollectionMethod:String(n.paymentMethod||n.collectionMethod||"cash").trim().toLowerCase(),salesCollectionSource:p>0?"mobile_sales_pending_accounting":"",
+salesCollectionStaffCode:G(a),salesCollectionStaffName:te(a),status:"pending",lifecycleStatus:"pending",orderDate:g,deliveryStatus:"pending",accountingStatus:"pending",
+stockPosted:!0,stockPostedAt:(new Date).toISOString(),stockPostedBy:a.code||a.name||"mobile_sales",createdAt:(new Date).toISOString()},z=await O({scope:"mobile.sales.create",
+actorCode:C,requestKey:i},{session:o});if(z.replay)return z.response;_("idempotency_begin");const F=await m.consumeForOrder({orderId:B,orderCode:L.code,items:k,actorCode:G(a),
+actorName:te(a)},{session:o});L.items=k.map(e=>{const t=F.get(l.normalizeProductCode(e.productCode));return t?{...e,saleAllocationType:"INTERNAL_APP_QUOTA",
+internalSaleAllocationId:String(t.id||t._id||""),allocationSnapshotDate:String(t.snapshotDate||""),allocationConsumedQty:N(e.quantity)}:e}),L.usesInternalSaleQuota=F.size>0,
+L.internalSaleAllocationRefs=Array.from(F.values()).map(e=>({allocationId:String(e.id||e._id||""),productCode:String(e.productCode||""),snapshotDate:String(e.snapshotDate||""),
+quantity:N(k.filter(t=>l.normalizeProductCode(t.productCode)===l.normalizeProductCode(e.productCode)).reduce((e,t)=>e+N(t.quantity),0))})),_("consume_internal_sale_quota",{
+products:F.size});const j=e(L),Z=(await r.create([j],{session:o}))[0],Y=Z&&"function"==typeof Z.toObject?Z.toObject():Z;_("create_sales_order_direct"),await c.postSaleOut(Y,{
+session:o}),_("post_inventory_sale_out"),await d.create([{id:$("ML"),action:"mobile_create_sales_order",actorCode:a.code||a.staffCode||"",actorName:a.fullName||a.name||"",
+refType:"salesOrder",refId:j.id,refCode:j.code,note:`Tạo đơn ${j.code} từ mobile`,createdAt:(new Date).toISOString()}],{session:o}),_("save_operational_documents_direct"),M=Y
+;const W={statusCode:201,body:{ok:!0,source:"mobile-sales-route-direct",message:"Đã gửi đơn mobile về hệ thống tổng",salesOrder:Y}};return await I(z.key,W,{session:o}),
+_("idempotency_complete"),W})}catch(e){if(e&&"INSUFFICIENT_STOCK"===e.code){const t=oe(400,e.message||"Không đủ tồn kho");return y(i,t)}if(e&&"DMS_APP_QUOTA_EXCEEDED"===e.code){
+const t=oe(409,e.message||"Số lượng bán vượt hạn mức theo tồn DMS mới nhất");return t.body.productCode=e.productCode||"",t.body.availableQuota=N(e.availableQuota),
+t.body.requiredQty=N(e.requiredQty),y(i,t)}throw e}const k=D||{statusCode:201,body:{ok:!0,salesOrder:M}};return _("done"),y(i,k)},
+getSalesOrder:async function({params:e={},mobileUser:t}){const o=k(e.id),n=T(t);if(!o||!n)return oe(404,"Không tìm thấy đơn bán");const a=await r.findOne({$and:[o,n]}).lean()
+;if(!a)return oe(404,"Không tìm thấy đơn bán");let s=Z(a);if(!s){const e=z(a);if(e){const t=await i.findOne(e).lean()
+;t&&(F(t)||j(t))&&(s="Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng")}}return{body:{ok:!0,source:"mobile-sales-route-direct",order:{...a,canEdit:!s,
+editLockReason:s}}}},updateSalesOrder:async function({params:e={},body:n={},mobileUser:a}){const s=g(n,["sales-update",a&&(a.id||a.code),e.id]),u=f(s);if(u)return u
+;const l=String(a&&(a.staffCode||a.code||a.id||"mobile-sales")),h=te(a),C=v("mobile.sales.update",l,s),S=await P(C);if(S&&"completed"===S.status&&S.response)return y(s,S.response)
+;if(S&&"processing"===S.status)return oe(409,"Yêu cầu sửa đơn trùng đang được xử lý");const A=p("sales.updateOrder");A("start");const b=k(e.id),q=T(a)
+;if(!b||!q)return y(s,oe(404,"Không tìm thấy đơn bán"));const D=await r.findOne({$and:[b,q,B()]}).lean();if(!D)return y(s,oe(404,"Không tìm thấy đơn bán"));const M=Z(D)
+;if(M)return y(s,oe(409,M));const R=z(D),Q=R?await i.findOne(R).lean():null
+;if(Q&&(F(Q)||j(Q)))return y(s,oe(409,"Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng"))
+;const E=n.customer||{},U=Array.isArray(n.items)?n.items:null,L=(new Date).toISOString(),x={customerId:E.id||E.customerId||n.customerId||D.customerId,
+customerCode:E.code||E.customerCode||n.customerCode||D.customerCode,customerName:E.name||E.customerName||n.customerName||D.customerName,note:String(n.note??D.note??"").trim(),
+salesStaffCode:G(a),salesStaffName:h,salesmanCode:G(a),salesmanName:h,vatInvoiceRequired:!1!==D.vatInvoiceRequired,vatInvoiceDecisionSource:D.vatInvoiceDecisionSource||"default",
+vatInvoiceNote:String(D.vatInvoiceNote||""),vatInvoiceUpdatedAt:String(D.vatInvoiceUpdatedAt||""),vatInvoiceUpdatedBy:String(D.vatInvoiceUpdatedBy||""),updatedAt:L};if(U){
+const e=U.map((e={})=>{
+const t=N(e.quantity??e.qty??0),o=N(e.salePrice??e.unitPrice??e.finalPrice??e.price??0),n=N(e.grossPrice??e.originalPrice??e.catalogSalePrice??o),r=Math.round(N(e.grossAmount??t*n)),a=N(e.discountAmount??e.promotionAmount??e.totalDiscountAmount??Math.max(0,r-N(e.amount??t*o))),s=Math.max(0,Math.round(N(e.amount??t*o)))
+;return{...e,quantity:t,qty:t,grossPrice:n,grossAmount:r,discountAmount:a,promotionAmount:N(e.promotionAmount??a),totalDiscountAmount:N(e.totalDiscountAmount??a),salePrice:o,
+unitPrice:N(e.unitPrice??o),finalPrice:N(e.finalPrice??e.unitPrice??o),price:N(e.price??o),amount:s,netAmount:N(e.netAmount??s)}
+}),t=e.find(e=>N(e.quantity)<=0||!_(e.productCode||e.code||e.sku||e.productId))
+;if(t)return y(s,oe(400,`Sản phẩm hoặc số lượng không hợp lệ: ${t.productCode||t.code||t.productName||""}`))
+;const o=e.reduce((e,t)=>e+N(t.quantity),0),r=e.reduce((e,t)=>e+N(t.grossAmount??N(t.quantity)*N(t.grossPrice)),0),a=e.reduce((e,t)=>e+N(t.discountAmount??t.promotionAmount??t.totalDiscountAmount),0),i=e.reduce((e,t)=>e+N(t.amount),0),d=N(n.paidAmount??D.paidAmount??0)
+;if(d>i)return y(s,oe(400,"Tiền thu không được lớn hơn tổng đơn"));Object.assign(x,{items:e,totalQuantity:o,grossAmount:r,totalGrossAmount:r,grossAmountBeforePromotion:r,
+discountAmount:a,totalDiscountAmount:a,promotionAmount:a,totalPromotionAmount:a,netAmount:i,goodsAmountAfterPromotion:i,totalAmount:i,paidAmount:d,debtAmount:i-d,
+promotionCodes:Array.from(new Set(e.map(e=>e.promotionCode).filter(Boolean)))})}try{const e=await o(async e=>{const o=await r.findOne({$and:[b,q,B()]}).session(e).lean();if(!o){
+const e=new Error("Không tìm thấy đơn bán hoặc đơn đã thay đổi trạng thái");throw e.status=404,e}const n=Z(o);if(n){const e=new Error(n);throw e.status=409,e}
+const a=z(o),u=a?await i.findOne(a).session(e).lean():null;if(u&&(F(u)||j(u))){const e=new Error("Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng")
+;throw e.status=409,e}const p=await O({scope:"mobile.sales.update",actorCode:l,requestKey:s},{session:e});if(p.replay)return p.response;const g={...x},f=!0===o.stockPosted
+;if(U&&f){const t=m.isQuotaEnabled();let n=x.items||[],r=new Map;if(t){const t=await m.adjustForOrderEdit({orderId:o.id||o._id||o.code,orderCode:o.code||o.id,
+previousItems:o.items||[],nextItems:x.items||[],commandId:s,actorCode:l,actorName:h},{session:e});r=t.allocations,n=W(x.items||[],o.items||[],t.allocations,t.consumedQtyByCode)
+}else n=X(x.items||[],o.items||[]);g.items=n,g.usesInternalSaleQuota=n.some(e=>"INTERNAL_APP_QUOTA"===String(e.saleAllocationType||"").toUpperCase()),
+g.internalSaleAllocationRefs=g.usesInternalSaleQuota?J(n,r):[];const a=w(o.items||[],n);a.incoming.length&&await c.postSaleEditDelta(o,a.incoming,"IN",{session:e,commandId:s}),
+a.outgoing.length&&await c.postSaleEditDelta(o,a.outgoing,"OUT",{session:e,commandId:s}),A("adjust_stock_and_quota",{incomingProducts:a.incoming.length,
+outgoingProducts:a.outgoing.length})}const y=N(o.version),C=y>0?{version:y}:{$or:[{version:0},{version:{$exists:!1}},{version:null}]},S={$and:[b,q,B(),C,{$or:[{masterOrderId:{
+$exists:!1}},{masterOrderId:null},{masterOrderId:""}]},{$or:[{masterOrderCode:{$exists:!1}},{masterOrderCode:null},{masterOrderCode:""}]},{$or:[{masterOrderNo:{$exists:!1}},{
+masterOrderNo:null},{masterOrderNo:""}]},{mergeStatus:{$ne:"merged"}}]},v=await r.findOneAndUpdate(S,{$set:{...g,stockPosted:f,stockPostedAt:o.stockPostedAt||L,
+stockPostedBy:o.stockPostedBy||l,lastMobileEditRequestKey:s,lastMobileEditedAt:L,lastMobileEditedBy:l},$inc:{version:1}},{new:!0,lean:!0,session:e});if(!v){
+const e=new Error("Đơn vừa được thay đổi ở nơi khác. Vui lòng tải lại rồi sửa lại");throw e.status=409,e.code="ORDER_CONCURRENT_UPDATE",e}if(u&&!F(u)&&!j(u)){
+const o=function(e={},o=null){const n=new Map((Array.isArray(o?.items)?o.items:[]).map(e=>[String(e.lineKey||ne(e)),e])),r=(Array.isArray(e.items)?e.items:[]).map(e=>{
+const t=N(e.salePrice??e.price??e.unitPrice??0),o=N(e.quantity??e.qty??0),r=ne({...e,salePrice:t}),a=n.get(r)||{},s=N(a.returnQty??a.qtyReturn??a.quantity??0);return{...a,
+productId:e.productId||e.productCode||"",productCode:e.productCode||e.code||e.productId||"",productName:e.productName||e.name||"",unit:e.unit||e.baseUnit||"",soldQty:o,price:t,
+salePrice:t,soldAmount:Math.round(o*t),returnQty:s,qtyReturn:s,returnQuantity:s,quantity:s,qty:s,returnAmount:Math.round(s*t),amount:Math.round(s*t),lineKey:r}
+}),a=r.reduce((e,t)=>e+N(t.soldAmount),0),s=r.reduce((e,t)=>e+N(t.returnAmount),0),i=s>0?"waiting_receive":"draft";return{...o||{},
+id:o?.id||`RO-${String(e.code||e.id||$("RO")).replace(/^RO[-_]?/i,"").replace(/[^a-zA-Z0-9_-]/g,"")}`,
+code:o?.code||`RO-${String(e.code||e.id||$("RO")).replace(/^RO[-_]?/i,"").replace(/[^a-zA-Z0-9_-]/g,"")}`,date:e.deliveryDate||e.date||t.todayVN(),documentDate:e.date||t.todayVN(),
+salesOrderId:e.id||"",salesOrderCode:e.code||"",orderId:e.id||"",orderCode:e.code||"",customerId:e.customerId||"",customerCode:e.customerCode||"",customerName:e.customerName||"",
+salesStaffCode:e.salesStaffCode||e.staffCode||"",salesStaffName:e.salesStaffName||e.staffName||"",staffCode:e.salesStaffCode||e.staffCode||"",
+staffName:e.salesStaffName||e.staffName||"",masterOrderId:e.masterOrderId||"",masterOrderCode:e.masterOrderCode||"",deliveryStaffId:e.deliveryStaffId||"",
+deliveryStaffCode:e.deliveryStaffCode||"",deliveryStaffName:e.deliveryStaffName||"",deliveryDate:e.deliveryDate||e.date||t.todayVN(),items:r,totalSoldAmount:a,totalReturnAmount:s,
+totalQuantity:r.reduce((e,t)=>e+N(t.returnQty),0),totalAmount:s,amount:s,debtReduction:s,status:i,returnStatus:i,returnState:i,returnMergeStatus:o?.returnMergeStatus||"unmerged",
+warehouseReceiveStatus:"waiting_receive"===i?"waiting_receive":"draft",source:o?.source||"sales_order_draft",createdFrom:o?.createdFrom||"sales_order",
+accountingStatus:"waiting_receive"===i?"pending":"draft",accountingConfirmed:Boolean(o?.accountingConfirmed),createdAt:o?.createdAt||(new Date).toISOString(),
+updatedAt:(new Date).toISOString()}}(v,u),{_id:n,__v:r,...a}=o;await i.updateOne({_id:u._id},{$set:a},{session:e})}await d.create([{id:$("ML"),action:"mobile_edit_sales_order",
+actorCode:l,actorName:h,refType:"salesOrder",refId:v.id,refCode:v.code,note:`Sửa đơn ${v.code} từ mobile; tồn và hạn mức được điều chỉnh theo chênh lệch`,createdAt:L}],{session:e})
+;const P={body:{ok:!0,source:"mobile-sales-route-direct",message:`Đã sửa đơn ${v.code}`,salesOrder:{...v,canEdit:!0,editLockReason:""}}};return await I(p.key,P,{session:e}),P})
+;return A("done"),y(s,e)}catch(e){if(e&&"INSUFFICIENT_STOCK"===e.code)return y(s,oe(409,e.message||"Không đủ tồn kho để tăng số lượng đơn"))
+;if(e&&"DMS_APP_QUOTA_EXCEEDED"===e.code){const t=oe(409,e.message||"Số lượng sửa tăng vượt hạn mức theo tồn DMS mới nhất");return t.body.productCode=e.productCode||"",
+t.body.availableQuota=N(e.availableQuota),t.body.requiredQty=N(e.requiredQty),y(s,t)}return y(s,oe(e.status||500,e.message||"Không sửa được đơn mobile"))}},
+deleteSalesOrder:async function({params:e={},mobileUser:t}){const o=T(t);if(!o)return oe(403,"Không xác định được nhân viên bán hàng");const n=await u.deleteSalesOrder(e.id,{
+source:"mobile-sales-app",actorCode:t.code||t.staffCode||"",actorName:t.fullName||t.name||"",ownerFilter:o});return n.error?oe(n.status||400,n.error):{body:{ok:!0,
+source:"mobile-sales-delete-service",message:n.message||`Đã xóa đơn ${n.salesOrder?.code||""}`,mode:n.mode,hardDeleted:!0,salesOrder:n.salesOrder,order:n.salesOrder}}},
+listSalesOrders:async function({query:e={},mobileUser:o}){const n=t.toDateOnly(e.date||t.todayVN()),a="0"!==String(e.mine||"1"),s=String(e.q||"").trim(),i=[B()];if(n&&i.push({
+$or:[{date:n},{orderDate:n}]}),a){const e=T(o);if(!e)return{body:{ok:!0,source:"mobile-sales-route-direct",date:n,items:[]}};i.push(e)}if(s){
+const e=new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"i");i.push({$or:[{code:e},{orderCode:e},{salesOrderCode:e},{customerCode:e},{customerName:e},{customerPhone:e},{
+customerAddress:e}]})}return{body:{ok:!0,source:"mobile-sales-route-direct",date:n,items:(await r.find(1===i.length?i[0]:{$and:i
+}).select("id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status lifecycleStatus deliveryStatus accountingStatus accountingConfirmed arStatus deleted isDeleted deletedAt deleteMode deleteReason masterOrderId masterOrderCode masterOrderNo mergeStatus stockPosted stockPostedAt items note createdAt updatedAt version").sort({
+createdAt:-1,date:-1}).limit(100).lean()).map(e=>({id:e.id,code:e.code,date:e.date||e.orderDate,customerName:e.customerName,totalAmount:N(e.totalAmount),paidAmount:N(e.paidAmount),
+debtAmount:N(e.debtAmount),status:e.status,lifecycleStatus:e.lifecycleStatus||e.status||"",deliveryStatus:e.deliveryStatus||"pending",deleted:Boolean(e.deleted),
+isDeleted:Boolean(e.isDeleted),deletedAt:e.deletedAt||"",deleteMode:e.deleteMode||"",deleteReason:e.deleteReason||"",masterOrderId:e.masterOrderId||"",
+masterOrderCode:e.masterOrderCode||"",mergeStatus:e.mergeStatus||"unmerged",canEdit:Y(e),editLockReason:Z(e),stockPosted:!0===e.stockPosted,customerId:e.customerId,
+customerCode:e.customerCode,customerPhone:e.customerPhone,customerAddress:e.customerAddress,
+salesStaffCode:e.salesStaffCode||e.salesPersonCode||e.salesmanCode||e.nvbhCode||e.maNVBH||"",
+salesStaffName:e.salesStaffName||e.salesPersonName||e.salesmanName||e.nvbhName||e.maNVBHName||"",salesPersonCode:e.salesPersonCode||"",salesPersonName:e.salesPersonName||"",
+salesmanCode:e.salesmanCode||"",salesmanName:e.salesmanName||"",nvbhCode:e.nvbhCode||"",nvbhName:e.nvbhName||"",maNVBH:e.maNVBH||"",maNVBHName:e.maNVBHName||"",items:e.items||[],
+note:e.note||"",createdAt:e.createdAt})).filter(e=>A.isOrderVisibleInHistory(e))}}},listDebts:async function({query:e={},mobileUser:t}={}){const o={...e,collectorType:"sales",
+limit:e.limit||100,includePaid:e.includePaid||"0",includePendingCollections:e.includePendingCollections??"1"};if("sales"===String(t?.role||"")){const e=G(t),n=te(t);o.salesman=e||n
+}return{body:await C.getCustomerDebts(o)}}}}module.exports={createMobileSalesService:ae};

@@ -15,7 +15,7 @@ const { buildMasterPicking } = require('../src/domain/print/builders/MasterPicki
 const { renderPrintHtml } = require('../services/printService');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 function buildDocument() {
   const master = {

@@ -227,15 +227,15 @@ test('audit does not remove the only index on a key until managed unique replace
 });
 
 test('mongoose automatic index creation is disabled by default', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/config/db.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/config/db.js'));
   assert.match(source, /const autoIndex = process\.env\.MONGOOSE_AUTO_INDEX === 'true'/);
   assert.match(source, /mongoose\.set\('autoIndex', autoIndex\)/);
   assert.match(source, /await mongoose\.connect\(mongoUri, \{\s*autoIndex,/);
 });
 
 test('cleanup command is dry-run first and requires explicit unused mode', () => {
-  const script = fs.readFileSync(path.join(ROOT, 'scripts/audit-mongo-indexes.js'), 'utf8');
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const script = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'scripts/audit-mongo-indexes.js'));
+  const pkg = JSON.parse(require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'package.json')));
   assert.match(script, /write: argv\.includes\('--write'\)/);
   assert.match(script, /dropUnused: argv\.includes\('--drop-unused'\)/);
   assert.match(script, /minObservationHours/);

@@ -30,7 +30,7 @@ test('runtime code must not use inventorySnapshots legacy collection', () => {
     const rel = path.normalize(path.relative(ROOT, file));
     if (ALLOWED.has(rel)) continue;
 
-    const source = fs.readFileSync(file, 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(file);
 
     if (/models\/Inventory['"]/.test(source)) {
       violations.push(`${rel} requires legacy Inventory model`);

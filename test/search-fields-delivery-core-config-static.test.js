@@ -8,10 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 test('search field config includes delivery core staff filters', () => {
-  const source = fs.readFileSync(
-    path.join(ROOT, 'public/js/search/searchFieldsConfig.js'),
-    'utf8'
-  );
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'public/js/search/searchFieldsConfig.js'));
 
   assert.match(source, /key:\s*['"]deliveryCoreDeliveryStaff['"]/);
   assert.match(source, /inputId:\s*['"]deliveryCoreDeliveryStaff['"]/);

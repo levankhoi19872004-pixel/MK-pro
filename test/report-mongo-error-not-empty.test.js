@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('src/services/reportLegacy.service.js', 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
 
 test('report data-source failures are surfaced as 503 instead of empty arrays', () => {
   assert.match(source, /REPORT_DATA_SOURCE_FAILED/);

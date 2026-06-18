@@ -41,7 +41,7 @@ test('inventory reads must go through inventoryStock.service boundary', () => {
     const rel = path.normalize(path.relative(ROOT, file));
     if (ALLOWED.has(rel)) continue;
 
-    const source = fs.readFileSync(file, 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(file);
 
     for (const pattern of FORBIDDEN) {
       if (pattern.test(source)) {

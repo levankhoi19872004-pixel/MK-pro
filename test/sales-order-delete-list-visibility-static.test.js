@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'src/services/orderLegacy.service.js'), 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/orderLegacy.service.js');
 
 test('sales order search/list must exclude soft-deleted orders by deleted flags, not only status', () => {
   assert.match(source, /function applyActiveSalesOrderFilter\(filter = \{\}\)/);

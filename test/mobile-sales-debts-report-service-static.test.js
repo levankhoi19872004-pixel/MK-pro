@@ -10,7 +10,7 @@ const MOBILE_FILE = path.join(ROOT, 'src/services/mobile/sales.service.js');
 const DEBT_READ_FILE = path.join(ROOT, 'src/services/DebtReadService.js');
 
 function readListDebtsBlock() {
-  const source = fs.readFileSync(MOBILE_FILE, 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(MOBILE_FILE);
   const start = source.indexOf('async function listDebts');
   const end = source.indexOf('\n\n  return {', start);
   assert.ok(start >= 0, 'Không tìm thấy listDebts()');
@@ -28,7 +28,7 @@ test('mobile sales debts must use DebtReadService as single debt source', () => 
 });
 
 test('DebtReadService wraps reportService.debtCustomers and includes pending collections', () => {
-  const source = fs.readFileSync(DEBT_READ_FILE, 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(DEBT_READ_FILE);
 
   assert.match(source, /reportService\.debtCustomers\(scopedQuery\)/);
   assert.match(source, /DebtCollection\.find\(buildPendingFilter\(query\)\)/);
@@ -37,7 +37,7 @@ test('DebtReadService wraps reportService.debtCustomers and includes pending col
 });
 
 test('DebtReadService response includes ledgers for frontend', () => {
-  const source = fs.readFileSync(DEBT_READ_FILE, 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(DEBT_READ_FILE);
 
   assert.match(source, /ledgers:\s*orders\.map/);
   assert.match(source, /AR-EXTERNAL-DEBT/);

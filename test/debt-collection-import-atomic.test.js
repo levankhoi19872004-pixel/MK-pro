@@ -6,8 +6,8 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const excel = fs.readFileSync(path.join(root, 'src/services/excelImportService.js'), 'utf8');
-const finance = fs.readFileSync(path.join(root, 'src/services/financialService.js'), 'utf8');
+const excel = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/excelImportService.js'));
+const finance = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/financialService.js'));
 
 test('debt import delegates each row to the canonical receipt use case', () => {
   assert.match(excel, /async function importDebtCollections\(rows = \[\], options = \{\}\)/);

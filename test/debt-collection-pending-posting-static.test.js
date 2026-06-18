@@ -8,7 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 function read(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(ROOT, rel));
 }
 
 test('debt collection submit creates pending collection without posting ledgers', () => {

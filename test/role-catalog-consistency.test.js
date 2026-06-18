@@ -7,7 +7,7 @@ const path = require('path');
 const userService = require('../src/services/userService');
 
 function read(file) {
-  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
 const EXPECTED = ['admin', 'manager', 'accountant', 'warehouse', 'sales', 'delivery'];

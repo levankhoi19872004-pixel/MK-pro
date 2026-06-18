@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('disabled direct import and inventory check still require explicit route policies', () => {
   const importRoutes = read('src/routes/excelImportRoutes.js');

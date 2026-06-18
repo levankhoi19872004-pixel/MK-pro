@@ -8,7 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 test('print output uses canonical NVBH/NVGH fields and does not fallback to generic staff fields', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'services/printDataBuilder.legacy.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource('services/printDataBuilder.legacy.js');
 
   assert.match(source, /document\.salesStaffCode/);
   assert.match(source, /document\.salesStaffName/);

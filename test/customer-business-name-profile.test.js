@@ -7,7 +7,7 @@ const path = require('node:path');
 const { extractCustomerBusinessProfile } = require('../src/utils/customerBusinessProfile.util');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('extractCustomerBusinessProfile reads canonical and legacy aliases', () => {
   assert.deepEqual(extractCustomerBusinessProfile({ businessName: ' HỘ KD MINH ANH ' }), {

@@ -31,7 +31,7 @@ test('sales order handler applies autoCutStock and registry dispatches operation
 });
 
 test('excelImportService commit no longer owns type if/else dispatch chain', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/services/excelImportService.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/services/excelImportService.js'));
   assert.match(source, /importCommitOrchestrator\.commit\(type, commitRows/);
   assert.doesNotMatch(source, /if \(type === 'products'\) result = await upsertProducts/);
   assert.doesNotMatch(source, /else if \(type === 'salesOrders'\) result = await importSalesOrders/);

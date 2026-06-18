@@ -1,0 +1,152 @@
+    if (!order || !window.DeliveryCore) return;
+    var key = accountingKey(order);
+    if (!key) {
+      message('Không xác định được mã đơn để xác nhận kế toán', true);
+      return;
+    }
+    if (!isAccountingSelectable(order)) {
+      message(isDelivered(order) ? 'Đơn này đã xác nhận kế toán' : 'Đơn chưa giao, chưa thể xác nhận kế toán');
+      return;
+    }
+    if (!confirm(isAccountingReopenPending(order) ? 'Xác nhận kế toán lại đơn này?' : 'Xác nhận kế toán đơn này?')) return;
+    try {
+      message('Đang xác nhận kế toán...');
+      var json = await window.DeliveryCore.confirmAccounting([key], filters());
+      delete state.accountingSelectedKeys[key];
+      message(json.message || 'Đã xác nhận kế toán');
+      await load();
+    } catch (err) { message(err.message || 'Không xác nhận kế toán được', true); }
+  }
+
+
+  // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK HANDLER START =====
+  // Mở khóa kế toán chỉ dành cho đơn đã xác nhận kế toán trong mục Đơn giao hôm nay.
+  // Backend hiện có sẵn API /api/master-orders/delivery-today/:id/admin-unlock.
+  async function unlockAccounting(order) {
+    if (!order || !window.DeliveryCore) return;
+    var key = accountingKey(order);
+    if (!key) {
+      message('Không xác định được mã đơn để mở khóa kế toán', true);
+      return;
+    }
+    if (!isDelivered(order) || !isAccountingConfirmed(order) || isAccountingReopenPending(order)) {
+      message('Chỉ mở khóa được đơn đã giao và đã xác nhận kế toán', true);
+      return;
+    }
+    var reason = prompt('Nhập lý do mở khóa kế toán:');
+    if (!reason || !reason.trim()) {
+      message('Cần nhập lý do mở khóa kế toán', true);
+      return;
+    }
+    if (!confirm('Mở khóa kế toán đơn này? Sau khi sửa tiền cần xác nhận kế toán lại.')) return;
+    try {
+      message('Đang mở khóa kế toán...');
+      var json = await window.DeliveryCore.adminUnlockAccounting(key, reason.trim());
+      message(json.message || 'Đã mở khóa kế toán');
+      await load();
+    } catch (err) {
+      message(err.message || 'Không mở khóa kế toán được', true);
+    }
+  }
+  // ===== SCOPED FIX: DELIVERY TODAY ADMIN ACCOUNTING UNLOCK HANDLER END =====
+
+  function toggleSelectAllAccounting() {
+    var rows = getVisibleOrders().filter(isAccountingSelectable);
+    var allSelected = rows.length && rows.every(function (order) { return state.accountingSelectedKeys[accountingKey(order)]; });
+    rows.forEach(function (order) {
+      var key = accountingKey(order);
+      if (allSelected) delete state.accountingSelectedKeys[key];
+      else state.accountingSelectedKeys[key] = true;
+    });
+    renderList();
+  }
+
+  async function confirmSelectedAccounting() {
+    var valid = getVisibleOrders().filter(function (order) {
+      var key = accountingKey(order);
+      return key && state.accountingSelectedKeys[key] && isAccountingSelectable(order);
+    });
+    var ids = valid.map(accountingKey);
+    if (!ids.length) {
+      message('Vui lòng chọn ít nhất 1 đơn hợp lệ để xác nhận kế toán', true);
+      return;
+    }
+    if (!confirm('Xác nhận kế toán ' + ids.length + ' đơn đã chọn?')) return;
+    try {
+      message('Đang xác nhận kế toán ' + ids.length + ' đơn...');
+      var json = await window.DeliveryCore.confirmAccounting(ids, filters());
+      state.accountingSelectedKeys = {};
+      message(json.message || 'Đã xác nhận kế toán các đơn đã chọn');
+      await load();
+    } catch (err) { message(err.message || 'Không xác nhận kế toán được các đơn đã chọn', true); }
+  }
+
+  async function select(key) {
+    state.selectedKey = key;
+    var order = window.DeliveryCore.selectOrder(key);
+    renderList();
+    renderDetail(order);
+    if (order && window.DeliveryCore && typeof window.DeliveryCore.loadReturnsForOrder === "function") {
+      try {
+        await window.DeliveryCore.loadReturnsForOrder(order);
+        refreshAfterReturnRowsLoaded(order);
+      } catch (e) {
+        console.error("loadReturnsForOrder failed", e);
+      }
+    }
+  }
+
+  async function load() {
+    if (!window.DeliveryCore) return;
+    if (!byId('deliveryCoreList')) renderShell();
+    var list = byId('deliveryCoreList');
+    if (list) list.innerHTML = '<div class="empty-state">Đang tải...</div>';
+    try {
+      var f = filters();
+      var hasFilter = (f.q || f.salesStaffCode || f.deliveryStaffCode || f.status);
+      if (!hasFilter) {
+        if (list) list.innerHTML = '<div class="empty-state">Vui lòng nhập mã đơn, khách hàng, NVGH/NVBH hoặc chọn bộ lọc để tải dữ liệu.</div>';
+        return;
+      }
+      await window.DeliveryCore.loadOrders(f);
+      renderSalesBranchFilter();
+      // DELIVERY_ORDERS_FAST_LOAD_START
+      // /api/delivery/orders đã overlay returnOrders để tính KPI/hàng trả/còn nợ.
+      // Không gọi /api/delivery/returns toàn bộ ở lần tải danh sách vì endpoint đó lại gọi listOrders() lần hai.
+      window.DeliveryCore.state.returns = [];
+      window.DeliveryCore.state.returnsLoaded = false;
+      window.DeliveryCore.state.returnsLoadedByOrder = {};
+      // DELIVERY_ORDERS_FAST_LOAD_END
+      var visibleRows = getVisibleOrders();
+      if (!state.selectedKey && visibleRows[0]) state.selectedKey = orderKey(visibleRows[0]);
+      if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
+      keepSelectionVisible();
+      renderList();
+      renderDetail(window.DeliveryCore.state.selectedOrder);
+      message('');
+      // Chỉ tải returnOrders cho đơn đang chọn, không tải cả ngày.
+      if (window.DeliveryCore.state.selectedOrder && typeof window.DeliveryCore.loadReturnsForOrder === 'function') {
+        window.DeliveryCore.loadReturnsForOrder(window.DeliveryCore.state.selectedOrder)
+          .then(function () { refreshAfterReturnRowsLoaded(window.DeliveryCore.state.selectedOrder); })
+          .catch(function (err) { console.error('load selected returnOrders failed', err); });
+      }
+    } catch (err) {
+      if (list) list.innerHTML = '<div class="empty-state danger-text">' + esc(err.message) + '</div>';
+      message(err.message, true);
+    }
+  }
+
+  window.DeliveryWebView = { load: load, select: select, renderShell: renderShell };
+  window.loadDeliveryTodayOrders = function () { return load(); };
+  window.loadDeliveryToday = function () { return load(); };
+  window.submitDeliveryEdit = function (event) { return saveReturn(event); };
+  window.clearDeliveryEditPanel = function () { renderDetail(null); };
+  window.recalcDeliveryEditDebt = function () {};
+  window.renderDeliveryEditPanel = function () { renderDetail(window.DeliveryCore && window.DeliveryCore.state.selectedOrder); };
+  window.selectDeliveryOrder = function (key) { return select(key); };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    renderShell();
+    if (byId('deliveryTodayTab') && byId('deliveryTodayTab').classList.contains('active')) load();
+  });
+}());

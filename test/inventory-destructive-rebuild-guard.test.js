@@ -6,10 +6,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const controller = fs.readFileSync(path.join(root, 'src/controllers/reportController.js'), 'utf8');
-const service = fs.readFileSync(path.join(root, 'src/services/inventoryService.js'), 'utf8');
-const routes = fs.readFileSync(path.join(root, 'src/routes/index.js'), 'utf8');
-const middleware = fs.readFileSync(path.join(root, 'src/middlewares/inventoryMaintenance.middleware.js'), 'utf8');
+const controller = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/controllers/reportController.js'));
+const service = require('./helpers/sourceBundle.util').readSource('src/services/inventoryService.js');
+const routes = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/routes/index.js'));
+const middleware = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/middlewares/inventoryMaintenance.middleware.js'));
 
 test('destructive inventory rebuild is disabled by default and requires explicit confirmation', () => {
   assert.match(controller, /ENABLE_DESTRUCTIVE_INVENTORY_REBUILD/);

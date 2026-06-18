@@ -12,7 +12,7 @@ const files = [];
 
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (SKIP.has(entry.name)) continue;
+    if (SKIP.has(entry.name) || entry.name.endsWith('.source')) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full);
     else if (entry.isFile() && entry.name.endsWith('.js')) files.push(full);
@@ -28,7 +28,7 @@ let failed = 0;
 for (const file of files) {
   try {
     const source = stripShebang(fs.readFileSync(file, 'utf8'));
-    if (/^\s*(?:import|export)\b/m.test(source)) {
+    if (/(?:^|[;\n])\s*(?:import|export)\b/m.test(source)) {
       // Node's parser auto-detects ESM syntax for --check, even inside a CommonJS package.
       const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
       if (result.status !== 0) throw new Error(result.stderr || result.stdout || 'ESM syntax check failed');

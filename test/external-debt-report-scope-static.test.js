@@ -8,7 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 test('debt report treats external debt as original debt row for both staff scopes', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/services/reportLegacy.service.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
   assert.match(source, /type:\s*\{ \$in: \['ar_sale', 'ar_external_debt'\] \}/);
   assert.match(source, /regex:\s*'sale\|external_debt'/);
   assert.match(source, /saleOrderType/);

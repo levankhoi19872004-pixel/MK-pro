@@ -6,8 +6,8 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'src/services/excelImportService.js'), 'utf8');
-const helper = fs.readFileSync(path.join(root, 'src/services/import/importTransaction.service.js'), 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/excelImportService.js'));
+const helper = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/import/importTransaction.service.js'));
 
 test('sales import transaction helper never swallows a successful/failed chunk boundary', () => {
   assert.match(helper, /withMongoTransaction\(\(session\)\s*=>\s*handler\(chunk/);

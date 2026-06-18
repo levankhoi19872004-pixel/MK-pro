@@ -6,8 +6,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const posting = fs.readFileSync(path.join(root, 'src/engines/posting.engine.js'), 'utf8');
-const master = fs.readFileSync(path.join(root, 'src/services/master-order/masterOrderLegacy.service.js'), 'utf8');
+const posting = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/engines/posting.engine.js'));
+const master = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/master-order/masterOrderLegacy.service.js'));
 
 test('AR-RETURN idempotency ignores reversed rows and uses batch suffix on re-accounting', () => {
   assert.match(posting, /status:\s*\{\s*\$nin:\s*\[\s*'void',\s*'reversed',\s*'cancelled'\s*\]/, 'hasExistingReturnOrderAR must not treat reversed AR-RETURN as active');

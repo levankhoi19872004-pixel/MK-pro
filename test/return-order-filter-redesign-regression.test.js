@@ -87,11 +87,11 @@ test('listReturnOrders rejects reversed date range before querying MongoDB', asy
 
 test('return-order filter UI is compact, modular and has no Today mode selector', () => {
   const root = path.resolve(__dirname, '..');
-  const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
-  const dom = fs.readFileSync(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'), 'utf8');
-  const js = fs.readFileSync(path.join(root, 'public/js/app/debt/07b-return-orders.js'), 'utf8');
-  const masterReturnJs = fs.readFileSync(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'), 'utf8');
-  const css = fs.readFileSync(path.join(root, 'public/css/10-operational-overrides.css'), 'utf8');
+  const html = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/index.html'));
+  const dom = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'));
+  const js = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/debt/07b-return-orders.js'));
+  const masterReturnJs = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'));
+  const css = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/css/10-operational-overrides.css'));
 
   assert.match(html, /id="returnOrderFilterForm" class="return-order-filter-form"/);
   assert.match(html, /id="applyReturnOrderFiltersButton"[^>]*>Lọc<\/button>/);

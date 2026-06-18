@@ -4,11 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const service = fs.readFileSync('src/services/reports/ReportCenterService.js', 'utf8');
-const controller = fs.readFileSync('src/controllers/reportController.js', 'utf8');
-const routes = fs.readFileSync('src/routes/reportRoutes.js', 'utf8');
-const html = fs.readFileSync('public/index.html', 'utf8');
-const client = fs.readFileSync('public/js/app/admin/08a-reports.js', 'utf8');
+const service = require('./helpers/sourceBundle.util').readSource('src/services/reports/ReportCenterService.js');
+const controller = require('./helpers/sourceBundle.util').readSource('src/controllers/reportController.js');
+const routes = require('./helpers/sourceBundle.util').readSource('src/routes/reportRoutes.js');
+const html = require('./helpers/sourceBundle.util').readSource('public/index.html');
+const client = require('./helpers/sourceBundle.util').readSource('public/js/app/admin/08a-reports.js');
 
 const expectedReports = [
   'sales-kpi', 'sales-by-day', 'sales-by-staff', 'sales-by-customer', 'sales-by-product', 'sales-detail',

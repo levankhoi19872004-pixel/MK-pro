@@ -11,7 +11,7 @@ const {
 } = require('../src/security/refreshTokenCookie');
 
 function read(file) {
-  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
 test('refresh token cookie parsing and body exposure are secure by default', () => {

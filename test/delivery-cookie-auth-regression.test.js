@@ -18,7 +18,7 @@ function mockResponse() {
 }
 
 test('delivery routes use shared cookie-aware requireAuth instead of Bearer-only legacy middleware', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/deliveryRoutes.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '../src/routes/deliveryRoutes.js'));
 
   assert.match(source, /const \{ requireAuth, requireRole \} = require\('\.\.\/middlewares\/auth\.middleware'\);/);
   assert.match(source, /router\.get\('\/orders', requireAuth, deliveryReadRoles/);

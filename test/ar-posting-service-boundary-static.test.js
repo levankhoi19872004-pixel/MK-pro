@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('master order legacy does not write arLedgers directly in batch accounting flow', () => {
   const source = read('src/services/master-order/masterOrderLegacy.service.js');

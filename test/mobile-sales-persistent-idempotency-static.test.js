@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/mobile/sales.service.js'), 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/mobile/sales.service.js');
 
 test('mobile sales creation persists idempotency in Mongo transaction', () => {
   assert.match(source, /buildPersistentKey\('mobile\.sales\.create'/);

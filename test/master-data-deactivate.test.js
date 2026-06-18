@@ -6,10 +6,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const customerRepo = fs.readFileSync(path.join(root, 'src/repositories/customerRepository.js'), 'utf8');
-const customerService = fs.readFileSync(path.join(root, 'src/services/customerService.js'), 'utf8');
-const userRepo = fs.readFileSync(path.join(root, 'src/repositories/userRepository.js'), 'utf8');
-const userService = fs.readFileSync(path.join(root, 'src/services/userService.js'), 'utf8');
+const customerRepo = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/repositories/customerRepository.js'));
+const customerService = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/customerService.js'));
+const userRepo = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/repositories/userRepository.js'));
+const userService = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/userService.js'));
 
 test('customer delete endpoints deactivate records instead of hard deleting history', () => {
   assert.match(customerRepo, /async function deactivateByIdOrCode/);

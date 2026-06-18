@@ -67,14 +67,14 @@ test('listReturnOrders no longer throws uniqueClean ReferenceError and returns M
 
 test('return-order screen uses a full-width list and readonly detail popup', () => {
   const root = path.resolve(__dirname, '..');
-  const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
+  const html = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/index.html'));
   const js = [
-    fs.readFileSync(path.join(root, 'public/js/app/debt/07b-return-orders.js'), 'utf8'),
-    fs.readFileSync(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'), 'utf8')
+    require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/debt/07b-return-orders.js')),
+    require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'))
   ].join('\n');
-  const dom = fs.readFileSync(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'), 'utf8');
+  const dom = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'));
   const css = readPublicCss(root);
-  const service = fs.readFileSync(path.join(root, 'src/services/returnOrderLegacy.service.js'), 'utf8');
+  const service = require('./helpers/sourceBundle.util').readSource('src/services/returnOrderLegacy.service.js');
 
   assert.match(html, /id="returnOrderDetailModal" class="modal-backdrop return-order-detail-modal"/);
   assert.match(html, /id="returnOrderDetailPanel" class="return-order-detail-panel return-order-modal-body"/);

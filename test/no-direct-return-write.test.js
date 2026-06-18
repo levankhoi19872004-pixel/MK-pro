@@ -46,7 +46,7 @@ test('returnOrders are not written directly outside return lifecycle/service bou
     const relPath = path.normalize(path.relative(ROOT, filePath));
     if (ALLOWED_FILES.has(relPath)) continue;
 
-    const source = fs.readFileSync(filePath, 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(filePath);
     for (const pattern of FORBIDDEN_PATTERNS) {
       pattern.regex.lastIndex = 0;
       let match;
@@ -60,7 +60,7 @@ test('returnOrders are not written directly outside return lifecycle/service bou
 });
 
 test('DeliveryEngine.saveReturn uses ReturnLifecycleService instead of direct ReturnOrder upsert', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/engines/delivery.legacy.engine.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource('src/engines/delivery.legacy.engine.js');
   const saveReturnIndex = source.indexOf('async saveReturn(');
   assert.notEqual(saveReturnIndex, -1, 'DeliveryEngine.saveReturn() must exist');
   const nextMethodIndex = source.indexOf('\n  async ', saveReturnIndex + 'async saveReturn('.length);

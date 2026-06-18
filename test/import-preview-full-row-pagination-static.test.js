@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('session preview vẫn lưu toàn bộ dòng trong collection và có API phân trang', () => {
   const sessionService = read('src/services/importSessionService.js');

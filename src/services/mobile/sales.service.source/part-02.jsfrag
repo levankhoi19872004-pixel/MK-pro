@@ -1,0 +1,430 @@
+      accountingStatus: status === 'waiting_receive' ? 'pending' : 'draft',
+      accountingConfirmed: Boolean(existing?.accountingConfirmed),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function syncReturnDraftInSnapshot(data = {}, order = {}) {
+    data.returnOrders = Array.isArray(data.returnOrders) ? data.returnOrders : [];
+    const idx = data.returnOrders.findIndex((row) => String(row.salesOrderId || row.orderId || '').trim() === String(order.id || '').trim() || String(row.salesOrderCode || row.orderCode || '').trim() === String(order.code || '').trim());
+    const existing = idx >= 0 ? data.returnOrders[idx] : null;
+    if (existing && ['posted', 'received', 'warehouse_received', 'completed'].includes(String(existing.status || '').toLowerCase())) return existing;
+    const draft = buildReturnDraftForMobileOrder(order, existing);
+    if (idx >= 0) data.returnOrders[idx] = draft;
+    else data.returnOrders.push(draft);
+    return draft;
+  }
+
+  function cancelReturnDraftInSnapshot(data = {}, order = {}) {
+    const rows = Array.isArray(data.returnOrders) ? data.returnOrders : [];
+    const row = rows.find((item) => String(item.salesOrderId || item.orderId || '').trim() === String(order.id || '').trim() || String(item.salesOrderCode || item.orderCode || '').trim() === String(order.code || '').trim());
+    if (!row) return null;
+    const hasReturn = (Array.isArray(row.items) ? row.items : []).some((item) => toNumber(item.returnQty ?? item.qtyReturn ?? item.quantity) > 0) || toNumber(row.totalReturnAmount ?? row.totalAmount ?? row.amount) > 0;
+    if (hasReturn) return { error: 'Đơn chờ trả hàng đã có số lượng trả, không được xóa đơn bán trước khi xử lý phiếu trả' };
+    row.status = 'cancelled';
+    row.returnStatus = 'cancelled';
+    row.cancelledAt = new Date().toISOString();
+    row.updatedAt = new Date().toISOString();
+    return row;
+  }
+
+  // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_START
+  function isOwnedByMobileUser(order, mobileUser) {
+    const userSalesCode = normalizeText(getMobileSalesStaffCode(mobileUser));
+    if (!userSalesCode) return false;
+
+    return [
+      order.salesStaffCode,
+      order.salesPersonCode,
+      order.salesmanCode,
+      order.nvbhCode,
+      order.maNVBH,
+      order.salesStaff && order.salesStaff.code
+    ].some((value) => normalizeText(value) === userSalesCode);
+  }
+  // MOBILE_SALES_OWNERSHIP_NO_GENERIC_STAFF_END
+
+  async function createSalesOrder({ body = {}, mobileUser }) {
+    const customerKeysForIdem = customerLookupKeysFromOrderBody(body);
+    const idemKey = getIdempotencyKey(body, ['sales-create', mobileUser && (mobileUser.id || mobileUser.code), body.customerCode || customerKeysForIdem[0] || '', Array.isArray(body.items) ? body.items.length : 0]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+
+    const actorCode = mobileUser && (mobileUser.staffCode || mobileUser.code || mobileUser.id || 'mobile-sales');
+    const persistentKey = buildPersistentKey('mobile.sales.create', actorCode, idemKey);
+    const persistedResult = await findRequest(persistentKey);
+    if (persistedResult && persistedResult.status === 'completed' && persistedResult.response) {
+      return rememberIdempotentResult(idemKey, persistedResult.response);
+    }
+    if (persistedResult && persistedResult.status === 'processing') {
+      return fail(409, 'Yêu cầu tạo đơn trùng đang được xử lý');
+    }
+
+    const perf = createStepTimer('sales.createOrder');
+    let createdOrder = null;
+
+    let result;
+    try {
+      result = await withMongoTransaction(async (session) => {
+        perf('start');
+        const customer = await findCustomerForOrderBody(body);
+        const rawItems = Array.isArray(body.items) ? body.items : [];
+        const paidAmount = toNumber(body.paidAmount);
+        const date = dateUtil.todayVN();
+
+        if (!customer) return fail(400, 'Không tìm thấy khách hàng');
+        if (!rawItems.length) return fail(400, 'Đơn mobile chưa có sản phẩm');
+        perf('load_customer_direct');
+
+        const products = await findProductsForOrderItems(rawItems);
+        const productAliasMap = indexProductsByAlias(products);
+        const preparedRows = [];
+        const productByCode = new Map();
+
+        for (const rawItem of rawItems) {
+          const lookupKey = productLookupKey(rawItem);
+          const product = productAliasMap.get(lookupKey) || productAliasMap.get(String(lookupKey).toUpperCase()) || productAliasMap.get(String(lookupKey).toLowerCase());
+          if (!product) return fail(400, `Không tìm thấy sản phẩm: ${rawItem.productCode || rawItem.code || ''}`);
+          const quantity = toNumber(rawItem.quantity || rawItem.qty);
+          const salePrice = toNumber(rawItem.salePrice || rawItem.price || product.salePrice || product.price);
+          if (quantity <= 0) return fail(400, `Số lượng phải lớn hơn 0: ${product.code}`);
+          preparedRows.push({ rawItem, product, quantity, salePrice });
+          productByCode.set(String(product.code || product.productCode || product.id || '').trim(), product);
+        }
+        perf('prepare_items_direct', { products: productByCode.size });
+
+        const stockByProduct = await getInventoryQtyByProducts(Array.from(productByCode.values()));
+        perf('batch_stock_check', { products: productByCode.size });
+
+        const baseItems = [];
+        for (const row of preparedRows) {
+          const { product, quantity, salePrice } = row;
+          const stockKey = String(product.code || product.productCode || product.id || '').trim();
+          const availableQty = stockByProduct.get(stockKey) || 0;
+          if (availableQty < quantity) {
+            return fail(400, `Không đủ tồn mở bán: ${product.code}. Tồn ${formatCaseLooseQty(availableQty, product.conversionRate || 1)}, cần ${formatCaseLooseQty(quantity, product.conversionRate || 1)}`);
+          }
+          baseItems.push({
+            productId: product.id || String(product._id || product.code || ''),
+            productCode: product.code || product.productCode || product.sku || '',
+            productName: product.name || product.productName || '',
+            ...buildProductLineMeta(product),
+            quantity,
+            grossPrice: salePrice,
+            catalogSalePrice: salePrice,
+            salePrice,
+            price: salePrice,
+            amount: quantity * salePrice
+          });
+        }
+
+        const promotionResult = await promotionService.calculatePromotions(baseItems);
+        const promotionByCode = new Map((promotionResult.lines || []).map((line) => [String(line.productCode || '').trim(), line]));
+        const items = baseItems.map((item) => {
+          const line = promotionByCode.get(String(item.productCode || '').trim()) || {};
+          const grossPrice = toNumber(line.catalogSalePrice || item.grossPrice || item.salePrice);
+          const grossAmount = Math.round(item.quantity * grossPrice);
+          const directDiscountAmount = toNumber(line.directDiscountAmount || 0);
+          const groupDiscountAmount = toNumber(line.groupDiscountAmount || 0);
+          const discountAmount = Math.min(grossAmount, directDiscountAmount + groupDiscountAmount);
+          const amount = Math.max(0, grossAmount - discountAmount);
+          const finalPrice = item.quantity > 0 ? Math.round(amount / item.quantity) : 0;
+          const promotionRows = Array.isArray(line.promotionRows) ? line.promotionRows : [];
+          const promotionIdentity = extractPromotionIdentity(promotionRows);
+          return {
+            ...item,
+            originalPrice: grossPrice,
+            grossPrice,
+            catalogSalePrice: grossPrice,
+            grossAmount,
+            directDiscountPercent: toNumber(line.directDiscountPercent || 0),
+            groupDiscountPercent: toNumber(line.groupDiscountPercent || 0),
+            discountPercent: grossAmount > 0 ? (discountAmount / grossAmount) * 100 : 0,
+            directDiscountAmount,
+            groupDiscountAmount,
+            discountAmount,
+            promotionAmount: discountAmount,
+            totalDiscountAmount: discountAmount,
+            finalPrice,
+            unitPrice: finalPrice,
+            salePrice: finalPrice,
+            price: finalPrice,
+            preTaxPriceAtOrder: Math.round(grossPrice / 1.08),
+            vatAmountAtOrder: Math.round((finalPrice - (finalPrice / 1.08)) * item.quantity),
+            lineAmountAtOrder: amount,
+            amount,
+            netAmount: amount,
+            saleMethod: PROMOTION,
+            saleMode: PROMOTION,
+            pricingMode: PROMOTION,
+            priceLocked: true,
+            lockedPrice: true,
+            lockedPromotion: true,
+            promotionCalculated: true,
+            promotionRows,
+            appliedPromotionRows: promotionRows,
+            productSnapshot: {
+              ...(item.productSnapshot || {}),
+              salePrice: grossPrice,
+              conversionRate: item.conversionRateAtOrder || item.conversionRate || 1,
+              pickingZone: item.pickingZoneAtOrder || item.productSnapshot?.pickingZone || ((item.warehouseCodeAtOrder || item.warehouseCode) === 'KHO_PC' ? 'PC' : 'HC'),
+              warehouseCode: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC',
+              defaultWarehouse: item.warehouseCodeAtOrder || item.warehouseCode || 'KHO_HC'
+            },
+            ...promotionIdentity
+          };
+        });
+
+        const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+        const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount), 0);
+        const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount), 0);
+        const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+        const promotionCodes = Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)));
+        if (paidAmount > totalAmount) return fail(400, 'Tiền thu không được lớn hơn tổng đơn');
+
+        const orderId = makeId('SO');
+        const salesOrder = {
+          id: orderId,
+          code: String(body.code || body.orderCode || orderId).trim(),
+          date,
+          customerId: customer.id || String(customer._id || customer.code || ''),
+          customerCode: customer.code || customer.customerCode || '',
+          customerName: customer.name || customer.customerName || '',
+          customerPhone: customer.phone || '',
+          customerAddress: customer.address || '',
+          salesStaffCode: getMobileSalesStaffCode(mobileUser),
+          salesStaffName: getMobileSalesStaffName(mobileUser),
+          salesmanCode: getMobileSalesStaffCode(mobileUser),
+          salesmanName: getMobileSalesStaffName(mobileUser),
+          staffCode: '',
+          staffName: '',
+          source: 'mobile_sales_app',
+          orderSource: 'NVBH',
+          orderSourceName: 'Từ NVBH',
+          vatInvoiceRequired: true,
+          vatInvoiceDecisionSource: 'default',
+          vatInvoiceNote: '',
+          vatInvoiceUpdatedAt: '',
+          vatInvoiceUpdatedBy: '',
+          saleMethod: PROMOTION,
+          saleMode: PROMOTION,
+          pricingMode: PROMOTION,
+          orderPricingMode: PROMOTION,
+          isPromotionSale: true,
+          promotionCalculated: true,
+          isChildOrder: true,
+          masterOrderId: '',
+          mergeStatus: 'unmerged',
+          note: String(body.note || 'Tạo từ mobile app').trim(),
+          items,
+          totalQuantity,
+          grossAmount: totalGrossAmount,
+          totalGrossAmount,
+          grossAmountBeforePromotion: totalGrossAmount,
+          discountAmount: totalDiscountAmount,
+          totalDiscountAmount,
+          promotionAmount: totalDiscountAmount,
+          totalPromotionAmount: totalDiscountAmount,
+          netAmount: totalAmount,
+          goodsAmountAfterPromotion: totalAmount,
+          promotionCodes,
+          priceLocked: true,
+          lockedPrice: true,
+          lockedPromotion: true,
+          totalAmount,
+          paidAmount,
+          debtAmount: totalAmount - paidAmount,
+          salesCollectionPendingAccounting: paidAmount > 0,
+          salesCollectionAmount: paidAmount,
+          salesCollectionMethod: String(body.paymentMethod || body.collectionMethod || 'cash').trim().toLowerCase(),
+          salesCollectionSource: paidAmount > 0 ? 'mobile_sales_pending_accounting' : '',
+          salesCollectionStaffCode: getMobileSalesStaffCode(mobileUser),
+          salesCollectionStaffName: getMobileSalesStaffName(mobileUser),
+          status: 'pending',
+          lifecycleStatus: 'pending',
+          orderDate: date,
+          deliveryStatus: 'pending',
+          accountingStatus: 'pending',
+          stockPosted: true,
+          stockPostedAt: new Date().toISOString(),
+          stockPostedBy: mobileUser.code || mobileUser.name || 'mobile_sales',
+          createdAt: new Date().toISOString()
+        };
+
+        const persistentRequest = await beginRequest({
+          scope: 'mobile.sales.create',
+          actorCode,
+          requestKey: idemKey
+        }, { session });
+        if (persistentRequest.replay) return persistentRequest.response;
+        perf('idempotency_begin');
+
+        const quotaAllocations = await internalSaleAllocationService.consumeForOrder({
+          orderId,
+          orderCode: salesOrder.code,
+          items,
+          actorCode: getMobileSalesStaffCode(mobileUser),
+          actorName: getMobileSalesStaffName(mobileUser)
+        }, { session });
+        salesOrder.items = items.map((item) => {
+          const allocation = quotaAllocations.get(inventoryStockService.normalizeProductCode(item.productCode));
+          if (!allocation) return item;
+          return {
+            ...item,
+            saleAllocationType: 'INTERNAL_APP_QUOTA',
+            internalSaleAllocationId: String(allocation.id || allocation._id || ''),
+            allocationSnapshotDate: String(allocation.snapshotDate || ''),
+            allocationConsumedQty: toNumber(item.quantity)
+          };
+        });
+        salesOrder.usesInternalSaleQuota = quotaAllocations.size > 0;
+        salesOrder.internalSaleAllocationRefs = Array.from(quotaAllocations.values()).map((allocation) => ({
+          allocationId: String(allocation.id || allocation._id || ''),
+          productCode: String(allocation.productCode || ''),
+          snapshotDate: String(allocation.snapshotDate || ''),
+          quantity: toNumber(items
+            .filter((item) => inventoryStockService.normalizeProductCode(item.productCode) === inventoryStockService.normalizeProductCode(allocation.productCode))
+            .reduce((sum, item) => sum + toNumber(item.quantity), 0))
+        }));
+        perf('consume_internal_sale_quota', { products: quotaAllocations.size });
+
+        const canonicalSalesOrder = canonicalizeOperationalStaff(salesOrder);
+        const created = await SalesOrder.create([canonicalSalesOrder], { session });
+        const savedOrder = created[0];
+        const savedOrderObject = savedOrder && typeof savedOrder.toObject === 'function' ? savedOrder.toObject() : savedOrder;
+        perf('create_sales_order_direct');
+
+        await InventoryPostingService.postSaleOut(savedOrderObject, { session });
+        perf('post_inventory_sale_out');
+
+        // Không ghi journals/cashbooks trực tiếp tại app bán hàng.
+        // paidAmount chỉ được lưu như khoản thu chờ kế toán trên salesOrders;
+        // AR/Fund ledger sẽ được post tại bước xác nhận kế toán bằng idempotency key ổn định.
+
+        await MobileLog.create([{
+          id: makeId('ML'),
+          action: 'mobile_create_sales_order',
+          actorCode: mobileUser.code || mobileUser.staffCode || '',
+          actorName: mobileUser.fullName || mobileUser.name || '',
+          refType: 'salesOrder',
+          refId: canonicalSalesOrder.id,
+          refCode: canonicalSalesOrder.code,
+          note: `Tạo đơn ${canonicalSalesOrder.code} từ mobile`,
+          createdAt: new Date().toISOString()
+        }], { session });
+        perf('save_operational_documents_direct');
+
+        createdOrder = savedOrderObject;
+        const response = { statusCode: 201, body: { ok: true, source: 'mobile-sales-route-direct', message: 'Đã gửi đơn mobile về hệ thống tổng', salesOrder: savedOrderObject } };
+        await completeRequest(persistentRequest.key, response, { session });
+        perf('idempotency_complete');
+        return response;
+      });
+    } catch (err) {
+      if (err && err.code === 'INSUFFICIENT_STOCK') {
+        const stockFail = fail(400, err.message || 'Không đủ tồn kho');
+        return rememberIdempotentResult(idemKey, stockFail);
+      }
+      if (err && err.code === 'DMS_APP_QUOTA_EXCEEDED') {
+        const quotaFail = fail(409, err.message || 'Số lượng bán vượt hạn mức theo tồn DMS mới nhất');
+        quotaFail.body.productCode = err.productCode || '';
+        quotaFail.body.availableQuota = toNumber(err.availableQuota);
+        quotaFail.body.requiredQty = toNumber(err.requiredQty);
+        return rememberIdempotentResult(idemKey, quotaFail);
+      }
+      throw err;
+    }
+
+    const finalResult = result || { statusCode: 201, body: { ok: true, salesOrder: createdOrder } };
+    perf('done');
+    return rememberIdempotentResult(idemKey, finalResult);
+  }
+
+  
+  async function getSalesOrder({ params = {}, mobileUser }) {
+    const identity = buildSalesOrderIdentityFilter(params.id);
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!identity || !owner) return fail(404, 'Không tìm thấy đơn bán');
+    const order = await SalesOrder.findOne({ $and: [identity, owner] }).lean();
+    if (!order) return fail(404, 'Không tìm thấy đơn bán');
+
+    let editLockReason = mobileSalesOrderEditLockReason(order);
+    if (!editLockReason) {
+      const returnFilter = returnOrderIdentityFilterForSalesOrder(order);
+      if (returnFilter) {
+        const linkedReturn = await ReturnOrder.findOne(returnFilter).lean();
+        if (linkedReturn && (returnOrderHasValue(linkedReturn) || returnOrderIsLocked(linkedReturn))) {
+          editLockReason = 'Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng';
+        }
+      }
+    }
+
+    return {
+      body: {
+        ok: true,
+        source: 'mobile-sales-route-direct',
+        order: {
+          ...order,
+          canEdit: !editLockReason,
+          editLockReason
+        }
+      }
+    };
+  }
+
+  async function updateSalesOrder({ params = {}, body = {}, mobileUser }) {
+    const idemKey = getIdempotencyKey(body, ['sales-update', mobileUser && (mobileUser.id || mobileUser.code), params.id]);
+    const cachedResult = readIdempotentResult(idemKey);
+    if (cachedResult) return cachedResult;
+
+    const actorCode = String(mobileUser && (mobileUser.staffCode || mobileUser.code || mobileUser.id || 'mobile-sales'));
+    const actorName = getMobileSalesStaffName(mobileUser);
+    const persistentKey = buildPersistentKey('mobile.sales.update', actorCode, idemKey);
+    const persistedResult = await findRequest(persistentKey);
+    if (persistedResult && persistedResult.status === 'completed' && persistedResult.response) {
+      return rememberIdempotentResult(idemKey, persistedResult.response);
+    }
+    if (persistedResult && persistedResult.status === 'processing') {
+      return fail(409, 'Yêu cầu sửa đơn trùng đang được xử lý');
+    }
+
+    const perf = createStepTimer('sales.updateOrder');
+    perf('start');
+
+    const identity = buildSalesOrderIdentityFilter(params.id);
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!identity || !owner) return rememberIdempotentResult(idemKey, fail(404, 'Không tìm thấy đơn bán'));
+
+    const order = await SalesOrder.findOne({ $and: [identity, owner, activeSalesOrderMongoFilter()] }).lean();
+    if (!order) return rememberIdempotentResult(idemKey, fail(404, 'Không tìm thấy đơn bán'));
+
+    const initialLockReason = mobileSalesOrderEditLockReason(order);
+    if (initialLockReason) return rememberIdempotentResult(idemKey, fail(409, initialLockReason));
+
+    const returnFilter = returnOrderIdentityFilterForSalesOrder(order);
+    const linkedReturn = returnFilter ? await ReturnOrder.findOne(returnFilter).lean() : null;
+    if (linkedReturn && (returnOrderHasValue(linkedReturn) || returnOrderIsLocked(linkedReturn))) {
+      return rememberIdempotentResult(idemKey, fail(409, 'Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng'));
+    }
+
+    const customerPayload = body.customer || {};
+    const rawItems = Array.isArray(body.items) ? body.items : null;
+    const now = new Date().toISOString();
+    const patch = {
+      customerId: customerPayload.id || customerPayload.customerId || body.customerId || order.customerId,
+      customerCode: customerPayload.code || customerPayload.customerCode || body.customerCode || order.customerCode,
+      customerName: customerPayload.name || customerPayload.customerName || body.customerName || order.customerName,
+      note: String(body.note ?? order.note ?? '').trim(),
+      salesStaffCode: getMobileSalesStaffCode(mobileUser),
+      salesStaffName: actorName,
+      salesmanCode: getMobileSalesStaffCode(mobileUser),
+      salesmanName: actorName,
+      vatInvoiceRequired: order.vatInvoiceRequired !== false,
+      vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
+      vatInvoiceNote: String(order.vatInvoiceNote || ''),
+      vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
+      vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || ''),
+      updatedAt: now
+    };
+

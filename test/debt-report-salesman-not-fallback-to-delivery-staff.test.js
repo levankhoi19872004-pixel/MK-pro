@@ -8,8 +8,8 @@ const ArLedger = require('../src/models/ArLedger');
 const Customer = require('../src/models/Customer');
 
 function assertNoSalesmanStaffFallback() {
-  const masterSource = fs.readFileSync('src/services/master-order/masterOrderLegacy.service.js', 'utf8');
-  const reportSource = fs.readFileSync('src/services/reportLegacy.service.js', 'utf8');
+  const masterSource = require('./helpers/sourceBundle.util').readSource('src/services/master-order/masterOrderLegacy.service.js');
+  const reportSource = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
 
   assert.doesNotMatch(
     masterSource,

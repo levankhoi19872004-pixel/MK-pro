@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 function read(file) {
-  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
 function getFunctionBody(source, functionName) {

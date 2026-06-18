@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', relativePath));
 }
 
 test('web operational read routes require management roles', () => {

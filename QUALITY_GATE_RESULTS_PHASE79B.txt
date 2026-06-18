@@ -1,0 +1,3967 @@
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 quality
+> npm run check:syntax && npm run check:source-bundles && npm run check:source-size && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high
+
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:syntax
+> node scripts/check-js-syntax.js
+
+SYNTAX_OK 725 JavaScript files
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:source-bundles
+> node scripts/build-source-bundles.js --check
+
+[source-bundles] OK 18 bundles
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 check:source-size
+> node scripts/check-source-size-budget.js
+
+[source-size-budget] OK
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 docs:check
+> node scripts/generate-openapi.js --check
+
+OpenAPI document is up to date. Scanned operations: 269.
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 pretest
+> npm run cleanup:retired
+
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 cleanup:retired
+> node scripts/cleanup-retired-files.js
+
+
+> kho-minh-khai-pro-v45-delivery-3tabs@1.0.0 test
+> node scripts/run-tests.js
+
+TAP version 13
+# Subtest: access token is attached as HttpOnly cookie and can authenticate without localStorage bearer
+ok 1 - access token is attached as HttpOnly cookie and can authenticate without localStorage bearer
+  ---
+  duration_ms: 11.967773
+  type: 'test'
+  ...
+# Subtest: cookie-authenticated writes require same-origin CSRF evidence while bearer clients remain compatible
+ok 2 - cookie-authenticated writes require same-origin CSRF evidence while bearer clients remain compatible
+  ---
+  duration_ms: 0.724226
+  type: 'test'
+  ...
+# Subtest: browser source no longer persists access or refresh tokens
+ok 3 - browser source no longer persists access or refresh tokens
+  ---
+  duration_ms: 2.699795
+  type: 'test'
+  ...
+# Subtest: confirmDeliveryAccounting hydrates AR-SALE staff from source SalesOrder before posting
+ok 4 - confirmDeliveryAccounting hydrates AR-SALE staff from source SalesOrder before posting
+  ---
+  duration_ms: 0.83014
+  type: 'test'
+  ...
+# Subtest: identity matching recognizes object id, username and staff code aliases
+ok 5 - identity matching recognizes object id, username and staff code aliases
+  ---
+  duration_ms: 0.375211
+  type: 'test'
+  ...
+# Subtest: last admin cannot be demoted while another admin permits continuity
+ok 6 - last admin cannot be demoted while another admin permits continuity
+  ---
+  duration_ms: 0.569963
+  type: 'test'
+  ...
+# Subtest: Swagger UI and OpenAPI JSON are mounted before legacy guard
+ok 7 - Swagger UI and OpenAPI JSON are mounted before legacy guard
+  ---
+  duration_ms: 80.436372
+  type: 'test'
+  ...
+# Subtest: Express app configures trust proxy before rate limiters
+ok 8 - Express app configures trust proxy before rate limiters
+  ---
+  duration_ms: 1.538957
+  type: 'test'
+  ...
+# Subtest: configureTrustProxy is exported for regression checks
+ok 9 - configureTrustProxy is exported for regression checks
+  ---
+  duration_ms: 1.085176
+  type: 'test'
+  ...
+# Subtest: AR guard calculates open debt from active debit/credit ledger rows only
+ok 10 - AR guard calculates open debt from active debit/credit ledger rows only
+  ---
+  duration_ms: 1.495495
+  type: 'test'
+  ...
+# Subtest: AR guard blocks allocation that exceeds remaining order debt
+ok 11 - AR guard blocks allocation that exceeds remaining order debt
+  ---
+  duration_ms: 0.62753
+  type: 'test'
+  ...
+# Subtest: AR guard uses amount fallback for legacy sale and receipt rows
+ok 12 - AR guard uses amount fallback for legacy sale and receipt rows
+  ---
+  duration_ms: 0.258415
+  type: 'test'
+  ...
+# Subtest: master order legacy does not write arLedgers directly in batch accounting flow
+ok 13 - master order legacy does not write arLedgers directly in batch accounting flow
+  ---
+  duration_ms: 4.480923
+  type: 'test'
+  ...
+# Subtest: ArPostingService exposes batch posting wrappers through paymentRepository
+ok 14 - ArPostingService exposes batch posting wrappers through paymentRepository
+  ---
+  duration_ms: 0.684914
+  type: 'test'
+  ...
+# Subtest: AR-RETURN only hydrates and posts for the sales order that owns the returnOrder
+ok 15 - AR-RETURN only hydrates and posts for the sales order that owns the returnOrder
+  ---
+  duration_ms: 26.963641
+  type: 'test'
+  ...
+# Subtest: master fallback is allowed only when the master has exactly one child
+ok 16 - master fallback is allowed only when the master has exactly one child
+  ---
+  duration_ms: 1.442837
+  type: 'test'
+  ...
+# Subtest: postReturnOrderAR rejects empty, anonymous, and duplicate AR-RETURN rows
+ok 17 - postReturnOrderAR rejects empty, anonymous, and duplicate AR-RETURN rows
+  ---
+  duration_ms: 1.396481
+  type: 'test'
+  ...
+# Subtest: AR-RETURN query projection keeps staff lineage fields from returnOrders
+ok 18 - AR-RETURN query projection keeps staff lineage fields from returnOrders
+  ---
+  duration_ms: 0.439052
+  type: 'test'
+  ...
+# Subtest: AR-RETURN accounting hydrates return rows with order lineage before posting
+ok 19 - AR-RETURN accounting hydrates return rows with order lineage before posting
+  ---
+  duration_ms: 0.25721
+  type: 'test'
+  ...
+# Subtest: postReturnOrderAR does not use generic staffName/staffCode as delivery staff fallback
+ok 20 - postReturnOrderAR does not use generic staffName/staffCode as delivery staff fallback
+  ---
+  duration_ms: 0.372286
+  type: 'test'
+  ...
+# Subtest: repairMissingArReturnIfNeeded detects returns through hydrated accounting rows
+ok 21 - repairMissingArReturnIfNeeded detects returns through hydrated accounting rows
+  ---
+  duration_ms: 0.201837
+  type: 'test'
+  ...
+# Subtest: AR-RETURN idempotency ignores reversed rows and uses batch suffix on re-accounting
+ok 22 - AR-RETURN idempotency ignores reversed rows and uses batch suffix on re-accounting
+  ---
+  duration_ms: 0.403146
+  type: 'test'
+  ...
+# Subtest: re-accounting passes forceRepostReturn from confirmDeliveryAccounting to postReturnOrderAR
+ok 23 - re-accounting passes forceRepostReturn from confirmDeliveryAccounting to postReturnOrderAR
+  ---
+  duration_ms: 1.040638
+  type: 'test'
+  ...
+# Subtest: re-accounting keeps hydrated returnOrders on updated order before posting collections
+ok 24 - re-accounting keeps hydrated returnOrders on updated order before posting collections
+  ---
+  duration_ms: 1.100222
+  type: 'test'
+  ...
+# Subtest: postDeliveryCollectionsAfterAccountingConfirmed marks returnOrders confirmed after AR-RETURN is posted
+ok 25 - postDeliveryCollectionsAfterAccountingConfirmed marks returnOrders confirmed after AR-RETURN is posted
+  ---
+  duration_ms: 0.259497
+  type: 'test'
+  ...
+# Subtest: markAccountingReturnOrdersConfirmed sets accountingConfirmed true and accountingStatus confirmed
+ok 26 - markAccountingReturnOrdersConfirmed sets accountingConfirmed true and accountingStatus confirmed
+  ---
+  duration_ms: 0.286231
+  type: 'test'
+  ...
+# Subtest: mobile access and refresh tokens are cryptographically and semantically separated
+ok 27 - mobile access and refresh tokens are cryptographically and semantically separated
+  ---
+  duration_ms: 5.894197
+  type: 'test'
+  ...
+# Subtest: backup is compressed, atomically renamed and checksummed
+ok 28 - backup is compressed, atomically renamed and checksummed
+  ---
+  duration_ms: 0.837947
+  type: 'test'
+  ...
+# Subtest: CORS is deny-by-default for cross-origin requests without allowlist
+ok 29 - CORS is deny-by-default for cross-origin requests without allowlist
+  ---
+  duration_ms: 0.547396
+  type: 'test'
+  ...
+# Subtest: backup covers all canonical operational and financial collections
+ok 30 - backup covers all canonical operational and financial collections
+  ---
+  duration_ms: 0.265208
+  type: 'test'
+  ...
+# Subtest: backup list has one key per physical MongoDB collection
+ok 31 - backup list has one key per physical MongoDB collection
+  ---
+  duration_ms: 0.327819
+  type: 'test'
+  ...
+# Subtest: backup verifier checks gzip, checksum, format, canonical collections and counts
+ok 32 - backup verifier checks gzip, checksum, format, canonical collections and counts
+  ---
+  duration_ms: 41.099372
+  type: 'test'
+  ...
+# Subtest: backup verifier accepts pre-dashboard backups without salesTargets
+ok 33 - backup verifier accepts pre-dashboard backups without salesTargets
+  ---
+  duration_ms: 7.791012
+  type: 'test'
+  ...
+# Subtest: canonical staff writer converts aliases and removes operational legacy fields
+ok 34 - canonical staff writer converts aliases and removes operational legacy fields
+  ---
+  duration_ms: 0.647071
+  type: 'test'
+  ...
+# Subtest: canonical repositories normalize staff before operational writes
+ok 35 - canonical repositories normalize staff before operational writes
+  ---
+  duration_ms: 1.719879
+  type: 'test'
+  ...
+# Subtest: staff identity migration supports dry-run and explicit write mode
+ok 36 - staff identity migration supports dry-run and explicit write mode
+  ---
+  duration_ms: 0.380651
+  type: 'test'
+  ...
+# Subtest: extractCustomerBusinessProfile reads canonical and legacy aliases
+ok 37 - extractCustomerBusinessProfile reads canonical and legacy aliases
+  ---
+  duration_ms: 0.309169
+  type: 'test'
+  ...
+# Subtest: customer form, schema and import template expose businessName
+ok 38 - customer form, schema and import template expose businessName
+  ---
+  duration_ms: 4.055647
+  type: 'test'
+  ...
+# Subtest: safe customer update and VAT export use businessName
+ok 39 - safe customer update and VAT export use businessName
+  ---
+  duration_ms: 5.989378
+  type: 'test'
+  ...
+# Subtest: monthly customer sales accepts ISO and Vietnamese order dates and excludes inactive orders
+ok 40 - monthly customer sales accepts ISO and Vietnamese order dates and excludes inactive orders
+  ---
+  duration_ms: 1.087389
+  type: 'test'
+  ...
+# Subtest: monthly revenue prefers after-promotion total and preserves explicit zero
+ok 41 - monthly revenue prefers after-promotion total and preserves explicit zero
+  ---
+  duration_ms: 0.1893
+  type: 'test'
+  ...
+# Subtest: month matcher uses Vietnam date normalization
+ok 42 - month matcher uses Vietnam date normalization
+  ---
+  duration_ms: 0.263908
+  type: 'test'
+  ...
+# Subtest: monthly query is scoped by customer code and active order flags
+ok 43 - monthly query is scoped by customer code and active order flags
+  ---
+  duration_ms: 0.773044
+  type: 'test'
+  ...
+# Subtest: mobile catalog customer response is enriched with monthly sales fields
+ok 44 - mobile catalog customer response is enriched with monthly sales fields
+  ---
+  duration_ms: 0.541729
+  type: 'test'
+  ...
+# Subtest: customer staffCode/staffName are legacy only and not used as new order sales staff source
+ok 45 - customer staffCode/staffName are legacy only and not used as new order sales staff source
+  ---
+  duration_ms: 1.958682
+  type: 'test'
+  ...
+# Subtest: customer tax profile reads canonical fields
+ok 46 - customer tax profile reads canonical fields
+  ---
+  duration_ms: 0.390883
+  type: 'test'
+  ...
+# Subtest: customer tax profile remains compatible with legacy aliases
+ok 47 - customer tax profile remains compatible with legacy aliases
+  ---
+  duration_ms: 0.173225
+  type: 'test'
+  ...
+# Subtest: tax invoice address does not silently fallback unless requested
+ok 48 - tax invoice address does not silently fallback unless requested
+  ---
+  duration_ms: 0.161628
+  type: 'test'
+  ...
+# Subtest: customer schema, API payload and form include tax profile fields
+ok 49 - customer schema, API payload and form include tax profile fields
+  ---
+  duration_ms: 4.353239
+  type: 'test'
+  ...
+# Subtest: customer import template and parser include tax fields without breaking old templates
+ok 50 - customer import template and parser include tax fields without breaking old templates
+  ---
+  duration_ms: 5.119313
+  type: 'test'
+  ...
+# Subtest: VAT TT78 prioritizes dedicated tax address over delivery address
+ok 51 - VAT TT78 prioritizes dedicated tax address over delivery address
+  ---
+  duration_ms: 1.605766
+  type: 'test'
+  ...
+# Subtest: dashboard reads aggregate summaries and does not call full list reports
+ok 52 - dashboard reads aggregate summaries and does not call full list reports
+  ---
+  duration_ms: 0.393547
+  type: 'test'
+  ...
+# Subtest: dashboard defaults to the current day instead of scanning an unbounded period
+ok 53 - dashboard defaults to the current day instead of scanning an unbounded period
+  ---
+  duration_ms: 0.206261
+  type: 'test'
+  ...
+# Subtest: debt import delegates each row to the canonical receipt use case
+ok 54 - debt import delegates each row to the canonical receipt use case
+  ---
+  duration_ms: 0.392433
+  type: 'test'
+  ...
+# Subtest: receipt, AR, money projection and fund ledger share one optional transaction
+ok 55 - receipt, AR, money projection and fund ledger share one optional transaction
+  ---
+  duration_ms: 0.229528
+  type: 'test'
+  ...
+# Subtest: receipt import retry has a stable idempotency identity
+ok 56 - receipt import retry has a stable idempotency identity
+  ---
+  duration_ms: 0.246671
+  type: 'test'
+  ...
+# Subtest: debt collection submit creates pending collection without posting ledgers
+ok 57 - debt collection submit creates pending collection without posting ledgers
+  ---
+  duration_ms: 0.882243
+  type: 'test'
+  ...
+# Subtest: debt collection confirm is the only flow that posts AR and fund ledgers
+ok 58 - debt collection confirm is the only flow that posts AR and fund ledgers
+  ---
+  duration_ms: 0.580443
+  type: 'test'
+  ...
+# Subtest: mobile debts endpoint uses DebtReadService and mobile debt collection submit route exists
+ok 59 - mobile debts endpoint uses DebtReadService and mobile debt collection submit route exists
+  ---
+  duration_ms: 1.246588
+  type: 'test'
+  ...
+# Subtest: debt collection submit is serialized per order and rechecks debt inside transaction
+ok 60 - debt collection submit is serialized per order and rechecks debt inside transaction
+  ---
+  duration_ms: 0.534698
+  type: 'test'
+  ...
+# Subtest: pending amount is shared across collectors instead of filtered by current collector
+ok 61 - pending amount is shared across collectors instead of filtered by current collector
+  ---
+  duration_ms: 0.422744
+  type: 'test'
+  ...
+# Subtest: confirmed AR receipt keeps assignee and actual collector lineage
+ok 62 - confirmed AR receipt keeps assignee and actual collector lineage
+  ---
+  duration_ms: 1.017483
+  type: 'test'
+  ...
+# Subtest: web UI exposes debt collection pending confirmation tab and actions
+ok 63 - web UI exposes debt collection pending confirmation tab and actions
+  ---
+  duration_ms: 4.679812
+  type: 'test'
+  ...
+# Subtest: mobile apps can submit pending debt collections
+ok 64 - mobile apps can submit pending debt collections
+  ---
+  duration_ms: 3.363812
+  type: 'test'
+  ...
+# Subtest: debtReport keeps NVBH separate from NVGH when staffName contains delivery staff
+ok 65 - debtReport keeps NVBH separate from NVGH when staffName contains delivery staff
+  ---
+  duration_ms: 12.025993
+  type: 'test'
+  ...
+# Subtest: delivery today renders NVBH branch filter as a full-width section below filters
+ok 66 - delivery today renders NVBH branch filter as a full-width section below filters
+  ---
+  duration_ms: 1.814333
+  type: 'test'
+  ...
+# Subtest: delivery today KPI and list are filtered by checked sales staff branches
+ok 67 - delivery today KPI and list are filtered by checked sales staff branches
+  ---
+  duration_ms: 1.453869
+  type: 'test'
+  ...
+# Subtest: delivery branch filter has scoped CSS
+ok 68 - delivery branch filter has scoped CSS
+  ---
+  duration_ms: 16.036071
+  type: 'test'
+  ...
+# Subtest: delivery return rows update the order list and do not zero other orders after scoped load
+ok 69 - delivery return rows update the order list and do not zero other orders after scoped load
+  ---
+  duration_ms: 2.121252
+  type: 'test'
+  ...
+# Subtest: delivery return tab uses compact four-column display inside the right panel
+ok 70 - delivery return tab uses compact four-column display inside the right panel
+  ---
+  duration_ms: 15.378524
+  type: 'test'
+  ...
+# Subtest: delivery cash in transit report service exists and uses AR + fund ledgers
+ok 71 - delivery cash in transit report service exists and uses AR + fund ledgers
+  ---
+  duration_ms: 0.790847
+  type: 'test'
+  ...
+# Subtest: DeliverySettlementService delegates cashInTransitReport to ledger-driven report service
+ok 72 - DeliverySettlementService delegates cashInTransitReport to ledger-driven report service
+  ---
+  duration_ms: 0.434174
+  type: 'test'
+  ...
+# Subtest: fund routes expose delivery cash in transit endpoint
+ok 73 - fund routes expose delivery cash in transit endpoint
+  ---
+  duration_ms: 0.589117
+  type: 'test'
+  ...
+# Subtest: posting engine persists delivery receipt source and cash method metadata
+ok 74 - posting engine persists delivery receipt source and cash method metadata
+  ---
+  duration_ms: 0.445728
+  type: 'test'
+  ...
+# Subtest: delivery routes use shared cookie-aware requireAuth instead of Bearer-only legacy middleware
+ok 75 - delivery routes use shared cookie-aware requireAuth instead of Bearer-only legacy middleware
+  ---
+  duration_ms: 0.623291
+  type: 'test'
+  ...
+# Subtest: every canonical delivery endpoint mounts shared requireAuth as its first route middleware
+ok 76 - every canonical delivery endpoint mounts shared requireAuth as its first route middleware
+  ---
+  duration_ms: 0.648402
+  type: 'test'
+  ...
+# Subtest: shared delivery authentication accepts HttpOnly access-token cookie without Authorization header
+ok 77 - shared delivery authentication accepts HttpOnly access-token cookie without Authorization header
+  ---
+  duration_ms: 2.547334
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine builds canonical order from returnOrders and reconciles money
+ok 78 - DeliveryEngine builds canonical order from returnOrders and reconciles money
+  ---
+  duration_ms: 1.821616
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine reconciliation detects money mismatch
+ok 79 - DeliveryEngine reconciliation detects money mismatch
+  ---
+  duration_ms: 5.1781
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine.listOrders filters NVBH and NVGH after loading canonical orders
+ok 80 - DeliveryEngine.listOrders filters NVBH and NVGH after loading canonical orders
+  ---
+  duration_ms: 3.340985
+  type: 'test'
+  ...
+# Subtest: delivery mobile replaces report tab with independent debt tab
+ok 81 - delivery mobile replaces report tab with independent debt tab
+  ---
+  duration_ms: 1.367179
+  type: 'test'
+  ...
+# Subtest: delivery mobile debt tab uses shared mobile debts API and pending collection submit API
+ok 82 - delivery mobile debt tab uses shared mobile debts API and pending collection submit API
+  ---
+  duration_ms: 1.589145
+  type: 'test'
+  ...
+# Subtest: delivery today uses configured autocomplete instead of custom staff suggest
+ok 83 - delivery today uses configured autocomplete instead of custom staff suggest
+  ---
+  duration_ms: 1.759143
+  type: 'test'
+  ...
+# Subtest: DeliverySettlementService owns delivery settlement posting boundaries
+ok 84 - DeliverySettlementService owns delivery settlement posting boundaries
+  ---
+  duration_ms: 0.774805
+  type: 'test'
+  ...
+# Subtest: mobile delivery submitCash uses DeliverySettlementService instead of 501 stub
+ok 85 - mobile delivery submitCash uses DeliverySettlementService instead of 501 stub
+  ---
+  duration_ms: 0.914099
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine dedupes duplicate salesOrders by business order code before summary
+ok 86 - DeliveryEngine dedupes duplicate salesOrders by business order code before summary
+  ---
+  duration_ms: 0.302246
+  type: 'test'
+  ...
+# Subtest: DeliveryCore dedupes API rows defensively before rendering
+ok 87 - DeliveryCore dedupes API rows defensively before rendering
+  ---
+  duration_ms: 0.153687
+  type: 'test'
+  ...
+# Subtest: delivery confirmation rejects a stale version instead of overwriting another write
+ok 88 - delivery confirmation rejects a stale version instead of overwriting another write
+  ---
+  duration_ms: 1.437662
+  type: 'test'
+  ...
+# Subtest: 25-line sample keeps 24 product lines on first page and repeats the plan for two copies
+ok 89 - 25-line sample keeps 24 product lines on first page and repeats the plan for two copies
+  ---
+  duration_ms: 1.642295
+  type: 'test'
+  ...
+# Subtest: short order keeps summary on the product page and flows promotion rows to following page
+ok 90 - short order keeps summary on the product page and flows promotion rows to following page
+  ---
+  duration_ms: 0.320528
+  type: 'test'
+  ...
+# Subtest: 24 full product rows place summary on a new page instead of clipping
+ok 91 - 24 full product rows place summary on a new page instead of clipping
+  ---
+  duration_ms: 0.180594
+  type: 'test'
+  ...
+# Subtest: structured promotion rows must not be duplicated by legacy inline aggregate fields
+ok 92 - structured promotion rows must not be duplicated by legacy inline aggregate fields
+  ---
+  duration_ms: 2.578615
+  type: 'test'
+  ...
+# Subtest: legacy inline promotion fields remain supported when structured rows are absent
+ok 93 - legacy inline promotion fields remain supported when structured rows are absent
+  ---
+  duration_ms: 0.430154
+  type: 'test'
+  ...
+# Subtest: child sales order uses the Invoice-36 exact print profile
+ok 94 - child sales order uses the Invoice-36 exact print profile
+  ---
+  duration_ms: 1.231988
+  type: 'test'
+  ...
+# Subtest: exact template is isolated from warehouse and legacy DMS templates
+ok 95 - exact template is isolated from warehouse and legacy DMS templates
+  ---
+  duration_ms: 1.677761
+  type: 'test'
+  ...
+# Subtest: exact child invoice uses Letter page and Invoice-36 column widths
+ok 96 - exact child invoice uses Letter page and Invoice-36 column widths
+  ---
+  duration_ms: 1.062228
+  type: 'test'
+  ...
+# Subtest: exact monetary snapshots are preferred for historical reprint
+ok 97 - exact monetary snapshots are preferred for historical reprint
+  ---
+  duration_ms: 0.905437
+  type: 'test'
+  ...
+# Subtest: preview validation accepts a new customer when code and name are present
+ok 98 - preview validation accepts a new customer when code and name are present
+  ---
+  duration_ms: 3.582518
+  type: 'test'
+  ...
+# Subtest: new customer without a store name remains blocked
+ok 99 - new customer without a store name remains blocked
+  ---
+  duration_ms: 0.842855
+  type: 'test'
+  ...
+# Subtest: inactive customer is blocked and is never re-created as a new customer
+ok 100 - inactive customer is blocked and is never re-created as a new customer
+  ---
+  duration_ms: 0.585548
+  type: 'test'
+  ...
+# Subtest: same new customer code with conflicting names is blocked for every order
+ok 101 - same new customer code with conflicting names is blocked for every order
+  ---
+  duration_ms: 0.79324
+  type: 'test'
+  ...
+# Subtest: sales import creates a missing customer inside the same order transaction
+ok 102 - sales import creates a missing customer inside the same order transaction
+  ---
+  duration_ms: 4.097817
+  type: 'test'
+  ...
+# Subtest: sales-order preview marks a missing catalog customer as auto-created instead of generic not-found
+ok 103 - sales-order preview marks a missing catalog customer as auto-created instead of generic not-found
+  ---
+  duration_ms: 3.295469
+  type: 'test'
+  ...
+# Subtest: legacy DMS line restores column 4 from current product.salePrice instead of imported actual price
+ok 104 - legacy DMS line restores column 4 from current product.salePrice instead of imported actual price
+  ---
+  duration_ms: 3.23628
+  type: 'test'
+  ...
+# Subtest: new DMS line keeps product sale-price snapshot even if catalog changes later
+ok 105 - new DMS line keeps product sale-price snapshot even if catalog changes later
+  ---
+  duration_ms: 0.512906
+  type: 'test'
+  ...
+# Subtest: DMS import source captures product.salePrice as catalog snapshot for column 4
+ok 106 - DMS import source captures product.salePrice as catalog snapshot for column 4
+  ---
+  duration_ms: 3.107672
+  type: 'test'
+  ...
+# Subtest: DMS/direct-price orders suppress all promotion detail and legacy fallback
+ok 107 - DMS/direct-price orders suppress all promotion detail and legacy fallback
+  ---
+  duration_ms: 0.613423
+  type: 'test'
+  ...
+# Subtest: DMS exact builder recovers legacy zero pre-tax/VAT snapshots without promotions
+ok 108 - DMS exact builder recovers legacy zero pre-tax/VAT snapshots without promotions
+  ---
+  duration_ms: 6.413121
+  type: 'test'
+  ...
+# Subtest: DMS import stores print price/tax snapshots and explicit no-promotion contract
+ok 109 - DMS import stores print price/tax snapshots and explicit no-promotion contract
+  ---
+  duration_ms: 10.966393
+  type: 'test'
+  ...
+# Subtest: Print domain blocks promotion fallback for imported/direct-price orders
+ok 110 - Print domain blocks promotion fallback for imported/direct-price orders
+  ---
+  duration_ms: 1.531952
+  type: 'test'
+  ...
+# Subtest: S3 Qc is accepted as the line packing snapshot without multiplying raw Số lượng
+ok 111 - S3 Qc is accepted as the line packing snapshot without multiplying raw Số lượng
+  ---
+  duration_ms: 4.581272
+  type: 'test'
+  ...
+# Subtest: preview and commit shortage rows carry conversionRate for correct thùng/lẻ display
+ok 112 - preview and commit shortage rows carry conversionRate for correct thùng/lẻ display
+  ---
+  duration_ms: 4.927792
+  type: 'test'
+  ...
+# Subtest: old shortage reports infer packing from product name and aggregate totals stay in SU
+ok 113 - old shortage reports infer packing from product name and aggregate totals stay in SU
+  ---
+  duration_ms: 1.262698
+  type: 'test'
+  ...
+# Subtest: sales import transaction helper never swallows a successful/failed chunk boundary
+ok 114 - sales import transaction helper never swallows a successful/failed chunk boundary
+  ---
+  duration_ms: 0.300839
+  type: 'test'
+  ...
+# Subtest: sales import inserts, posts stock and marks posted in one shared session
+ok 115 - sales import inserts, posts stock and marks posted in one shared session
+  ---
+  duration_ms: 0.688507
+  type: 'test'
+  ...
+# Subtest: failed sales chunks are reported and not counted as imported
+ok 116 - failed sales chunks are reported and not counted as imported
+  ---
+  duration_ms: 0.592093
+  type: 'test'
+  ...
+# Subtest: DMS import maps NVBH from users only and never trusts Excel staff name
+ok 117 - DMS import maps NVBH from users only and never trusts Excel staff name
+  ---
+  duration_ms: 4.36649
+  type: 'test'
+  ...
+# Subtest: DMS import matches NVBH against users code/staffCode without username/id fallback
+ok 118 - DMS import matches NVBH against users code/staffCode without username/id fallback
+  ---
+  duration_ms: 5.906065
+  type: 'test'
+  ...
+# Subtest: DMS parser normalizes yellow-column headers and SAP workbook wrapper
+ok 119 - DMS parser normalizes yellow-column headers and SAP workbook wrapper
+  ---
+  duration_ms: 0.561175
+  type: 'test'
+  ...
+# Subtest: DMS CS/SU formula uses SU as canonical quantity
+ok 120 - DMS CS/SU formula uses SU as canonical quantity
+  ---
+  duration_ms: 0.36363
+  type: 'test'
+  ...
+# Subtest: latest comparison summary separates DMS excess and actual-stock excess
+ok 121 - latest comparison summary separates DMS excess and actual-stock excess
+  ---
+  duration_ms: 0.274494
+  type: 'test'
+  ...
+# Subtest: quota item aggregation is product-code based and sums duplicate lines
+ok 122 - quota item aggregation is product-code based and sums duplicate lines
+  ---
+  duration_ms: 0.25038
+  type: 'test'
+  ...
+# Subtest: mobile order consumes quota before order creation and actual stock posting in one transaction
+ok 123 - mobile order consumes quota before order creation and actual stock posting in one transaction
+  ---
+  duration_ms: 1.46339
+  type: 'test'
+  ...
+# Subtest: hard delete reverses quota in the same lifecycle transaction before removing order
+ok 124 - hard delete reverses quota in the same lifecycle transaction before removing order
+  ---
+  duration_ms: 0.57191
+  type: 'test'
+  ...
+# Subtest: DMS routes, indexes, and feature flags are registered
+ok 125 - DMS routes, indexes, and feature flags are registered
+  ---
+  duration_ms: 1.556615
+  type: 'test'
+  ...
+# Subtest: morning commit recomputes actual inventory inside the quota replacement transaction
+ok 126 - morning commit recomputes actual inventory inside the quota replacement transaction
+  ---
+  duration_ms: 0.469182
+  type: 'test'
+  ...
+# Subtest: emergency feature rollback restores actual-stock selling limit in mobile catalog
+ok 127 - emergency feature rollback restores actual-stock selling limit in mobile catalog
+  ---
+  duration_ms: 0.472161
+  type: 'test'
+  ...
+# Subtest: admin and mobile UI expose actual stock, DMS difference, and App selling limit
+ok 128 - admin and mobile UI expose actual stock, DMS difference, and App selling limit
+  ---
+  duration_ms: 5.558787
+  type: 'test'
+  ...
+# Subtest: buildComparisonRows reads the current available quantity from inventories
+ok 129 - buildComparisonRows reads the current available quantity from inventories
+  ---
+  duration_ms: 1.265387
+  type: 'test'
+  ...
+# Subtest: DMS source rows are rebuilt without reusing committed internalBaseQty
+ok 130 - DMS source rows are rebuilt without reusing committed internalBaseQty
+  ---
+  duration_ms: 0.35262
+  type: 'test'
+  ...
+# Subtest: filtering is applied after live comparison type is recalculated
+ok 131 - filtering is applied after live comparison type is recalculated
+  ---
+  duration_ms: 0.33528
+  type: 'test'
+  ...
+# Subtest: latest API recomputes against inventories instead of returning stale committed stock
+ok 132 - latest API recomputes against inventories instead of returning stale committed stock
+  ---
+  duration_ms: 0.944354
+  type: 'test'
+  ...
+# Subtest: admin UI labels current inventory source and busts the old frontend cache
+ok 133 - admin UI labels current inventory source and busts the old frontend cache
+  ---
+  duration_ms: 3.624264
+  type: 'test'
+  ...
+# Subtest: API docs auth is required automatically in production
+ok 134 - API docs auth is required automatically in production
+  ---
+  duration_ms: 0.217506
+  type: 'test'
+  ...
+# Subtest: docsAuthGuard blocks unauthenticated access when enabled
+ok 135 - docsAuthGuard blocks unauthenticated access when enabled
+  ---
+  duration_ms: 0.5528
+  type: 'test'
+  ...
+# Subtest: docsAuthGuard allows valid Bearer token when enabled
+ok 136 - docsAuthGuard allows valid Bearer token when enabled
+  ---
+  duration_ms: 2.349857
+  type: 'test'
+  ...
+# Subtest: docs:generate check keeps OpenAPI synchronized with route code
+ok 137 - docs:generate check keeps OpenAPI synchronized with route code
+  ---
+  duration_ms: 159.1897
+  type: 'test'
+  ...
+# Subtest: domain boundary files exist and expose required lifecycle/posting contracts
+ok 138 - domain boundary files exist and expose required lifecycle/posting contracts
+  ---
+  duration_ms: 6.133404
+  type: 'test'
+  ...
+# Subtest: domain boundaries delegate to the intended posting/lifecycle services
+ok 139 - domain boundaries delegate to the intended posting/lifecycle services
+  ---
+  duration_ms: 2.117846
+  type: 'test'
+  ...
+# Subtest: master-order accounting strangler keeps legacy fallback and ENV-gated domain path
+ok 140 - master-order accounting strangler keeps legacy fallback and ENV-gated domain path
+  ---
+  duration_ms: 0.677771
+  type: 'test'
+  ...
+# Subtest: domain boundaries avoid known circular dependency traps
+ok 141 - domain boundaries avoid known circular dependency traps
+  ---
+  duration_ms: 1.596345
+  type: 'test'
+  ...
+# Subtest: duplicate audit covers master data and financial business keys
+ok 142 - duplicate audit covers master data and financial business keys
+  ---
+  duration_ms: 0.569818
+  type: 'test'
+  ...
+# Subtest: master data duplicate migration never renames product customer or staff codes automatically
+ok 143 - master data duplicate migration never renames product customer or staff codes automatically
+  ---
+  duration_ms: 0.173664
+  type: 'test'
+  ...
+# Subtest: critical business keys have unique indexes and optional keys use partial filters
+ok 144 - critical business keys have unique indexes and optional keys use partial filters
+  ---
+  duration_ms: 0.543537
+  type: 'test'
+  ...
+# Subtest: Excel import is two-phase and direct import is disabled
+ok 145 - Excel import is two-phase and direct import is disabled
+  ---
+  duration_ms: 8.771323
+  type: 'test'
+  ...
+# Subtest: Excel upload routes use centralized bounded upload guard
+ok 146 - Excel upload routes use centralized bounded upload guard
+  ---
+  duration_ms: 1.474157
+  type: 'test'
+  ...
+# Subtest: sanitizeExcelValue blocks formula injection without changing normal values
+ok 147 - sanitizeExcelValue blocks formula injection without changing normal values
+  ---
+  duration_ms: 0.326355
+  type: 'test'
+  ...
+# Subtest: sales export maps case/loose quantity and promotion value correctly
+ok 148 - sales export maps case/loose quantity and promotion value correctly
+  ---
+  duration_ms: 1.129012
+  type: 'test'
+  ...
+# Subtest: master order export flattens child orders and products
+ok 149 - master order export flattens child orders and products
+  ---
+  duration_ms: 0.630232
+  type: 'test'
+  ...
+# Subtest: custom writer creates a valid XLSX zip buffer
+ok 150 - custom writer creates a valid XLSX zip buffer
+  ---
+  duration_ms: 3.087106
+  type: 'test'
+  ...
+# Subtest: Excel Interaction routes are mounted and role-protected
+ok 151 - Excel Interaction routes are mounted and role-protected
+  ---
+  duration_ms: 0.847457
+  type: 'test'
+  ...
+# Subtest: Excel exports use whitelist dispatch and formula injection protection
+ok 152 - Excel exports use whitelist dispatch and formula injection protection
+  ---
+  duration_ms: 1.169664
+  type: 'test'
+  ...
+# Subtest: Pasted Excel rows reuse import preview session and normal validation flow
+ok 153 - Pasted Excel rows reuse import preview session and normal validation flow
+  ---
+  duration_ms: 3.586534
+  type: 'test'
+  ...
+# Subtest: Frontend loads spreadsheet grid, context menu and feature bindings
+ok 154 - Frontend loads spreadsheet grid, context menu and feature bindings
+  ---
+  duration_ms: 3.405999
+  type: 'test'
+  ...
+# Subtest: Excel-like line paste is integrated into sales and receipt forms
+ok 155 - Excel-like line paste is integrated into sales and receipt forms
+  ---
+  duration_ms: 2.521579
+  type: 'test'
+  ...
+# Subtest: Report and import preview tables expose exact export context
+ok 156 - Report and import preview tables expose exact export context
+  ---
+  duration_ms: 1.470905
+  type: 'test'
+  ...
+# Subtest: Filtered report export is internal-only and capped
+ok 157 - Filtered report export is internal-only and capped
+  ---
+  duration_ms: 0.653957
+  type: 'test'
+  ...
+# Subtest: runtime import parser must not depend on vulnerable xlsx package
+ok 158 - runtime import parser must not depend on vulnerable xlsx package
+  ---
+  duration_ms: 1.38441
+  type: 'test'
+  ...
+# Subtest: excel parser uses readSheet when available and is compatible with workbook-shaped default export
+ok 159 - excel parser uses readSheet when available and is compatible with workbook-shaped default export
+  ---
+  duration_ms: 0.754742
+  type: 'test'
+  ...
+# Subtest: excel parser tries Import sheet, default sheet, and indexed sheets
+ok 160 - excel parser tries Import sheet, default sheet, and indexed sheets
+  ---
+  duration_ms: 0.463257
+  type: 'test'
+  ...
+# Subtest: excel parser detects header row instead of assuming first row is header
+ok 161 - excel parser detects header row instead of assuming first row is header
+  ---
+  duration_ms: 0.41534
+  type: 'test'
+  ...
+# Subtest: Excel sales paste resolves current inventory instead of treating every product as out of stock
+ok 162 - Excel sales paste resolves current inventory instead of treating every product as out of stock
+  ---
+  duration_ms: 1.232783
+  type: 'test'
+  ...
+# Subtest: Excel product resolver keeps real zero stock as out of stock
+ok 163 - Excel product resolver keeps real zero stock as out of stock
+  ---
+  duration_ms: 0.27994
+  type: 'test'
+  ...
+# Subtest: external debt order stores one order and one AR row with both assignees
+ok 164 - external debt order stores one order and one AR row with both assignees
+  ---
+  duration_ms: 1.29696
+  type: 'test'
+  ...
+# Subtest: external debt creation does not trust staff names from frontend
+ok 165 - external debt creation does not trust staff names from frontend
+  ---
+  duration_ms: 0.467001
+  type: 'test'
+  ...
+# Subtest: external debt web API is accounting guarded
+ok 166 - external debt web API is accounting guarded
+  ---
+  duration_ms: 0.384021
+  type: 'test'
+  ...
+# Subtest: debt report treats external debt as original debt row for both staff scopes
+ok 167 - debt report treats external debt as original debt row for both staff scopes
+  ---
+  duration_ms: 1.610426
+  type: 'test'
+  ...
+# Subtest: debt web UI exposes create and reload buttons plus mandatory assignee fields
+ok 168 - debt web UI exposes create and reload buttons plus mandatory assignee fields
+  ---
+  duration_ms: 3.203625
+  type: 'test'
+  ...
+# Subtest: external debt modal uses unified autocomplete and posts canonical payload
+ok 169 - external debt modal uses unified autocomplete and posts canonical payload
+  ---
+  duration_ms: 1.249971
+  type: 'test'
+  ...
+# Subtest: financial books and debt collection administration require business roles
+ok 170 - financial books and debt collection administration require business roles
+  ---
+  duration_ms: 0.822252
+  type: 'test'
+  ...
+# Subtest: web reports and canonical inventory reads are role-gated
+ok 171 - web reports and canonical inventory reads are role-gated
+  ---
+  duration_ms: 0.695175
+  type: 'test'
+  ...
+# Subtest: financialService manual return posts AR through ArPostingService boundary
+ok 172 - financialService manual return posts AR through ArPostingService boundary
+  ---
+  duration_ms: 1.127494
+  type: 'test'
+  ...
+# Subtest: ArPostingService exposes return allocation posting wrapper
+ok 173 - ArPostingService exposes return allocation posting wrapper
+  ---
+  duration_ms: 0.568224
+  type: 'test'
+  ...
+# Subtest: critical web catalog and order renderers encode database-controlled text
+ok 174 - critical web catalog and order renderers encode database-controlled text
+  ---
+  duration_ms: 3.211751
+  type: 'test'
+  ...
+# Subtest: users promotions debt and import previews encode database-controlled text
+ok 175 - users promotions debt and import previews encode database-controlled text
+  ---
+  duration_ms: 7.616818
+  type: 'test'
+  ...
+# Subtest: import preview queue is bounded by concurrency and queue size
+ok 176 - import preview queue is bounded by concurrency and queue size
+  ---
+  duration_ms: 0.581811
+  type: 'test'
+  ...
+# Subtest: global CSS and bootstrap manifests are small
+ok 177 - global CSS and bootstrap manifests are small
+  ---
+  duration_ms: 0.692898
+  type: 'test'
+  ...
+# Subtest: index loads CSS and JavaScript modules in explicit order
+ok 178 - index loads CSS and JavaScript modules in explicit order
+  ---
+  duration_ms: 3.646897
+  type: 'test'
+  ...
+# Subtest: duplicate sales and master order events are not in bootstrap
+ok 179 - duplicate sales and master order events are not in bootstrap
+  ---
+  duration_ms: 4.01544
+  type: 'test'
+  ...
+# Subtest: popup nộp quỹ có bảng tiền mặt và tài khoản theo ngày/NVGH
+ok 180 - popup nộp quỹ có bảng tiền mặt và tài khoản theo ngày/NVGH
+  ---
+  duration_ms: 4.754135
+  type: 'test'
+  ...
+# Subtest: frontend tự tải preview khi đổi ngày hoặc mã NVGH và render đối chiếu
+ok 181 - frontend tự tải preview khi đổi ngày hoặc mã NVGH và render đối chiếu
+  ---
+  duration_ms: 2.006652
+  type: 'test'
+  ...
+# Subtest: preview dùng API nghiệp vụ hiện hữu và tổng tiền chuẩn từ fundService
+ok 182 - preview dùng API nghiệp vụ hiện hữu và tổng tiền chuẩn từ fundService
+  ---
+  duration_ms: 1.823928
+  type: 'test'
+  ...
+# Subtest: CSS hỗ trợ popup rộng, KPI và bảng cuộn trực quan
+ok 183 - CSS hỗ trợ popup rộng, KPI và bảng cuộn trực quan
+  ---
+  duration_ms: 1.984863
+  type: 'test'
+  ...
+# Subtest: sửa phiếu đồng bộ lại reportCash/reportBank và chênh lệch từ đơn giao hiện tại
+ok 184 - sửa phiếu đồng bộ lại reportCash/reportBank và chênh lệch từ đơn giao hiện tại
+  ---
+  duration_ms: 3.660002
+  type: 'test'
+  ...
+# Subtest: sửa phiếu nộp quỹ phải dựng lại số báo cáo từ ngày giao và NVGH hiện tại
+ok 185 - sửa phiếu nộp quỹ phải dựng lại số báo cáo từ ngày giao và NVGH hiện tại
+  ---
+  duration_ms: 1.315802
+  type: 'test'
+  ...
+# Subtest: cập nhật dùng đúng bản ghi cũ và chặn trùng mã ngày + NVGH
+ok 186 - cập nhật dùng đúng bản ghi cũ và chặn trùng mã ngày + NVGH
+  ---
+  duration_ms: 1.743263
+  type: 'test'
+  ...
+# Subtest: bản cập nhật giữ metadata gốc nhưng thay toàn bộ snapshot báo cáo mới
+ok 187 - bản cập nhật giữ metadata gốc nhưng thay toàn bộ snapshot báo cáo mới
+  ---
+  duration_ms: 1.60513
+  type: 'test'
+  ...
+# Subtest: UI phân loại thiếu và nộp bù được liên kết từ hai tab tiền mặt/chuyển khoản
+ok 188 - UI phân loại thiếu và nộp bù được liên kết từ hai tab tiền mặt/chuyển khoản
+  ---
+  duration_ms: 5.276854
+  type: 'test'
+  ...
+# Subtest: backend có collection riêng, route riêng và không ghi công nợ NVGH vào arLedgers
+ok 189 - backend có collection riêng, route riêng và không ghi công nợ NVGH vào arLedgers
+  ---
+  duration_ms: 10.435431
+  type: 'test'
+  ...
+# Subtest: index plan có unique guard một khoản thiếu trên mỗi phiếu và loại quỹ
+ok 190 - index plan có unique guard một khoản thiếu trên mỗi phiếu và loại quỹ
+  ---
+  duration_ms: 0.861134
+  type: 'test'
+  ...
+# Subtest: phiếu thiếu không được xác nhận khi chưa phân loại trách nhiệm
+ok 191 - phiếu thiếu không được xác nhận khi chưa phân loại trách nhiệm
+  ---
+  duration_ms: 3.027763
+  type: 'test'
+  ...
+# Subtest: xác nhận thiếu do NVGH tạo công nợ thiếu quỹ riêng và chỉ ghi số thực nộp vào fundLedgers
+ok 192 - xác nhận thiếu do NVGH tạo công nợ thiếu quỹ riêng và chỉ ghi số thực nộp vào fundLedgers
+  ---
+  duration_ms: 3.502155
+  type: 'test'
+  ...
+# Subtest: phiếu nộp bù chỉ tăng quỹ khi xác nhận và giảm đúng số còn thiếu
+ok 193 - phiếu nộp bù chỉ tăng quỹ khi xác nhận và giảm đúng số còn thiếu
+  ---
+  duration_ms: 4.426695
+  type: 'test'
+  ...
+# Subtest: danh sách nộp quỹ được tách thành tab tiền mặt và chuyển khoản
+ok 194 - danh sách nộp quỹ được tách thành tab tiền mặt và chuyển khoản
+  ---
+  duration_ms: 4.371138
+  type: 'test'
+  ...
+# Subtest: frontend render chênh lệch độc lập theo tiền mặt và chuyển khoản
+ok 195 - frontend render chênh lệch độc lập theo tiền mặt và chuyển khoản
+  ---
+  duration_ms: 1.915997
+  type: 'test'
+  ...
+# Subtest: hai tab dùng chung một phiếu và cùng thao tác sửa xác nhận
+ok 196 - hai tab dùng chung một phiếu và cùng thao tác sửa xác nhận
+  ---
+  duration_ms: 1.176569
+  type: 'test'
+  ...
+# Subtest: CSS hiển thị sub-tab rõ ràng và responsive
+ok 197 - CSS hiển thị sub-tab rõ ràng và responsive
+  ---
+  duration_ms: 1.882702
+  type: 'test'
+  ...
+# Subtest: Sổ quỹ ưu tiên khách hàng cho nguồn thu công nợ
+ok 198 - Sổ quỹ ưu tiên khách hàng cho nguồn thu công nợ
+  ---
+  duration_ms: 2.549315
+  type: 'test'
+  ...
+# Subtest: Sổ quỹ vẫn hiển thị NVGH cho nguồn nộp quỹ giao hàng
+ok 199 - Sổ quỹ vẫn hiển thị NVGH cho nguồn nộp quỹ giao hàng
+  ---
+  duration_ms: 1.84906
+  type: 'test'
+  ...
+# Subtest: Phiếu thu công nợ cũ thiếu khách hàng vẫn fallback người thu để không mất thông tin
+ok 200 - Phiếu thu công nợ cũ thiếu khách hàng vẫn fallback người thu để không mất thông tin
+  ---
+  duration_ms: 1.692601
+  type: 'test'
+  ...
+# Subtest: Bảng Sổ quỹ sử dụng helper đối tượng theo nguồn
+ok 201 - Bảng Sổ quỹ sử dụng helper đối tượng theo nguồn
+  ---
+  duration_ms: 1.321391
+  type: 'test'
+  ...
+# Subtest: index cache-busts các script Sổ quỹ đã sửa
+ok 202 - index cache-busts các script Sổ quỹ đã sửa
+  ---
+  duration_ms: 3.484334
+  type: 'test'
+  ...
+# Subtest: postFundLedger does not write duplicate rows for the same idempotency key
+ok 203 - postFundLedger does not write duplicate rows for the same idempotency key
+  ---
+  duration_ms: 0.85363
+  type: 'test'
+  ...
+# Subtest: delivery cash collection posted twice with the same source creates one fund ledger only
+ok 204 - delivery cash collection posted twice with the same source creates one fund ledger only
+  ---
+  duration_ms: 1.233729
+  type: 'test'
+  ...
+# Subtest: cash and bank collection for the same source create two separate fund ledger rows
+ok 205 - cash and bank collection for the same source create two separate fund ledger rows
+  ---
+  duration_ms: 1.400775
+  type: 'test'
+  ...
+# Subtest: fund transfer creates exactly two balanced fund ledger rows and is idempotent
+ok 206 - fund transfer creates exactly two balanced fund ledger rows and is idempotent
+  ---
+  duration_ms: 1.083486
+  type: 'test'
+  ...
+# Subtest: expense voucher fund ledger is always positive amount with OUT direction
+ok 207 - expense voucher fund ledger is always positive amount with OUT direction
+  ---
+  duration_ms: 0.488265
+  type: 'test'
+  ...
+# Subtest: finance report derives cash and bank balances from FundLedger
+ok 208 - finance report derives cash and bank balances from FundLedger
+  ---
+  duration_ms: 0.283708
+  type: 'test'
+  ...
+# Subtest: fund ledger list calculates summary over the full filtered result using facet
+ok 209 - fund ledger list calculates summary over the full filtered result using facet
+  ---
+  duration_ms: 0.174709
+  type: 'test'
+  ...
+# Subtest: fundService lazily resolves the delivery-only master order service
+ok 210 - fundService lazily resolves the delivery-only master order service
+  ---
+  duration_ms: 1.817565
+  type: 'test'
+  ...
+# Subtest: masterOrderDelivery service exposes listDeliveryToday through the query boundary
+ok 211 - masterOrderDelivery service exposes listDeliveryToday through the query boundary
+  ---
+  duration_ms: 0.897292
+  type: 'test'
+  ...
+# Subtest: mỗi tab quỹ có nút tạo phiếu riêng và form nằm trong popup tương ứng
+ok 212 - mỗi tab quỹ có nút tạo phiếu riêng và form nằm trong popup tương ứng
+  ---
+  duration_ms: 3.919105
+  type: 'test'
+  ...
+# Subtest: nút tạo và nút sửa mở đúng popup, lưu thành công đóng popup
+ok 213 - nút tạo và nút sửa mở đúng popup, lưu thành công đóng popup
+  ---
+  duration_ms: 1.741139
+  type: 'test'
+  ...
+# Subtest: asset quỹ được cache-bust để trình duyệt nhận giao diện popup và bảng tiền cần thu mới
+ok 214 - asset quỹ được cache-bust để trình duyệt nhận giao diện popup và bảng tiền cần thu mới
+  ---
+  duration_ms: 3.699655
+  type: 'test'
+  ...
+# Subtest: popup nộp quỹ tự tải bảng tiền mặt và tài khoản theo ngày giao + NVGH
+ok 215 - popup nộp quỹ tự tải bảng tiền mặt và tài khoản theo ngày giao + NVGH
+  ---
+  duration_ms: 6.148109
+  type: 'test'
+  ...
+# Subtest: dangerous API routes require authentication by default
+ok 216 - dangerous API routes require authentication by default
+  ---
+  duration_ms: 142.142229
+  type: 'test'
+  ...
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'start',
+  stepMs: 0,
+  totalMs: 0
+} [MOBILE_PERF] delivery.confirm.canonical.start step=0ms total=0ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'idempotency_begin',
+  stepMs: 2,
+  totalMs: 2
+} [MOBILE_PERF] delivery.confirm.canonical.idempotency_begin step=2ms total=2ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'load_order',
+  stepMs: 0,
+  totalMs: 2
+} [MOBILE_PERF] delivery.confirm.canonical.load_order step=0ms total=2ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'confirm_order',
+  stepMs: 1,
+  totalMs: 3
+} [MOBILE_PERF] delivery.confirm.canonical.confirm_order step=1ms total=3ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'write_log',
+  stepMs: 1,
+  totalMs: 4
+} [MOBILE_PERF] delivery.confirm.canonical.write_log step=1ms total=4ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'idempotency_complete',
+  stepMs: 0,
+  totalMs: 4
+} [MOBILE_PERF] delivery.confirm.canonical.idempotency_complete step=0ms total=4ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'done',
+  stepMs: 13,
+  totalMs: 17
+} [MOBILE_PERF] delivery.confirm.canonical.done step=13ms total=17ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'start',
+  stepMs: 0,
+  totalMs: 0
+} [MOBILE_PERF] delivery.confirm.canonical.start step=0ms total=0ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'idempotency_begin',
+  stepMs: 1,
+  totalMs: 1
+} [MOBILE_PERF] delivery.confirm.canonical.idempotency_begin step=1ms total=1ms
+{
+  scope: 'delivery.confirm.canonical',
+  step: 'load_order',
+  stepMs: 1,
+  totalMs: 2
+} [MOBILE_PERF] delivery.confirm.canonical.load_order step=1ms total=2ms
+# Subtest: public status route is still accessible
+ok 217 - public status route is still accessible
+  ---
+  duration_ms: 17.192905
+  type: 'test'
+  ...
+# Subtest: global API security boundary is mounted before API routes
+ok 218 - global API security boundary is mounted before API routes
+  ---
+  duration_ms: 0.871726
+  type: 'test'
+  ...
+# Subtest: api security has narrow public allowlist
+ok 219 - api security has narrow public allowlist
+  ---
+  duration_ms: 0.596375
+  type: 'test'
+  ...
+# Subtest: high-risk routes have explicit RBAC after global auth
+ok 220 - high-risk routes have explicit RBAC after global auth
+  ---
+  duration_ms: 1.570583
+  type: 'test'
+  ...
+# Subtest: server installs graceful shutdown for HTTP, jobs and MongoDB
+ok 221 - server installs graceful shutdown for HTTP, jobs and MongoDB
+  ---
+  duration_ms: 1.058397
+  type: 'test'
+  ...
+# Subtest: dashboard month parser creates an exact Vietnam business period
+ok 222 - dashboard month parser creates an exact Vietnam business period
+  ---
+  duration_ms: 0.57198
+  type: 'test'
+  ...
+# Subtest: dashboard rate and target status handle zero target safely
+ok 223 - dashboard rate and target status handle zero target safely
+  ---
+  duration_ms: 0.303154
+  type: 'test'
+  ...
+# Subtest: dashboard sales merge calculates net sales without mutating business documents
+ok 224 - dashboard sales merge calculates net sales without mutating business documents
+  ---
+  duration_ms: 1.487021
+  type: 'test'
+  ...
+# Subtest: dashboard sales merge rejects delivery identities even when names overlap
+ok 225 - dashboard sales merge rejects delivery identities even when names overlap
+  ---
+  duration_ms: 0.655602
+  type: 'test'
+  ...
+# Subtest: dashboard can map a code-less source only by a unique sales staff name
+ok 226 - dashboard can map a code-less source only by a unique sales staff name
+  ---
+  duration_ms: 0.310012
+  type: 'test'
+  ...
+# Subtest: sales target Excel rows accept Vietnamese headers and reject duplicates
+ok 227 - sales target Excel rows accept Vietnamese headers and reject duplicates
+  ---
+  duration_ms: 1.910711
+  type: 'test'
+  ...
+# Subtest: dashboard delivery status classification is stable
+ok 228 - dashboard delivery status classification is stable
+  ---
+  duration_ms: 0.268977
+  type: 'test'
+  ...
+# Subtest: sales target input validation rejects invalid periods and negative values
+ok 229 - sales target input validation rejects invalid periods and negative values
+  ---
+  duration_ms: 0.357085
+  type: 'test'
+  ...
+# Subtest: dashboard API is isolated and protected by roles
+ok 230 - dashboard API is isolated and protected by roles
+  ---
+  duration_ms: 1.10813
+  type: 'test'
+  ...
+# Subtest: home UI is the initial lazy-loaded tab and legacy product tab remains available
+ok 231 - home UI is the initial lazy-loaded tab and legacy product tab remains available
+  ---
+  duration_ms: 3.586845
+  type: 'test'
+  ...
+# Subtest: dashboard keeps the legacy report endpoint intact
+ok 232 - dashboard keeps the legacy report endpoint intact
+  ---
+  duration_ms: 0.671503
+  type: 'test'
+  ...
+# Subtest: dashboard canonical date filter chooses one business date instead of OR-ing createdAt
+ok 233 - dashboard canonical date filter chooses one business date instead of OR-ing createdAt
+  ---
+  duration_ms: 0.822019
+  type: 'test'
+  ...
+# Subtest: dashboard summary uses Mongo canonical totals while staff table remains sales-only
+ok 234 - dashboard summary uses Mongo canonical totals while staff table remains sales-only
+  ---
+  duration_ms: 0.726284
+  type: 'test'
+  ...
+# Subtest: dashboard reports unmapped Mongo documents instead of silently adding delivery identities to sales table
+ok 235 - dashboard reports unmapped Mongo documents instead of silently adding delivery identities to sales table
+  ---
+  duration_ms: 0.716773
+  type: 'test'
+  ...
+# Subtest: dashboard query contracts use canonical Mongo sources and no snapshot reader
+ok 236 - dashboard query contracts use canonical Mongo sources and no snapshot reader
+  ---
+  duration_ms: 2.651628
+  type: 'test'
+  ...
+# Subtest: dashboard accounting contract excludes lifecycle completed from confirmed sales
+ok 237 - dashboard accounting contract excludes lifecycle completed from confirmed sales
+  ---
+  duration_ms: 0.715468
+  type: 'test'
+  ...
+# Subtest: dashboard active-document filter excludes every legacy cancel/delete marker
+ok 238 - dashboard active-document filter excludes every legacy cancel/delete marker
+  ---
+  duration_ms: 0.731438
+  type: 'test'
+  ...
+# Subtest: dashboard actual-sales pipeline prioritizes locked order value and excludes promo lines
+ok 239 - dashboard actual-sales pipeline prioritizes locked order value and excludes promo lines
+  ---
+  duration_ms: 3.373476
+  type: 'test'
+  ...
+# Subtest: dashboard pending-sales scope is the inverse of accounting-confirmed scope
+ok 240 - dashboard pending-sales scope is the inverse of accounting-confirmed scope
+  ---
+  duration_ms: 1.736963
+  type: 'test'
+  ...
+# Subtest: dashboard return value uses locked return amount and excludes promo return lines
+ok 241 - dashboard return value uses locked return amount and excludes promo return lines
+  ---
+  duration_ms: 1.573105
+  type: 'test'
+  ...
+# Subtest: home dashboard separates confirmed, pending and today operational sales
+ok 242 - home dashboard separates confirmed, pending and today operational sales
+  ---
+  duration_ms: 0.877191
+  type: 'test'
+  ...
+# Subtest: dashboard employee KPI table only shows the six requested business metrics
+ok 243 - dashboard employee KPI table only shows the six requested business metrics
+  ---
+  duration_ms: 4.748433
+  type: 'test'
+  ...
+# Subtest: dashboard cache freshness includes product catalog changes
+ok 244 - dashboard cache freshness includes product catalog changes
+  ---
+  duration_ms: 0.677769
+  type: 'test'
+  ...
+# Subtest: excel import supports carton/unit quantity columns as primary quantity source
+ok 245 - excel import supports carton/unit quantity columns as primary quantity source
+  ---
+  duration_ms: 3.609201
+  type: 'test'
+  ...
+# Subtest: opening stock and import order quantity parsing receives product conversion rate
+ok 246 - opening stock and import order quantity parsing receives product conversion rate
+  ---
+  duration_ms: 2.775299
+  type: 'test'
+  ...
+# Subtest: dms quantity parsing also prioritizes carton unit columns
+ok 247 - dms quantity parsing also prioritizes carton unit columns
+  ---
+  duration_ms: 3.015761
+  type: 'test'
+  ...
+# Subtest: excel import commit marks session failed when commit implementation throws
+ok 248 - excel import commit marks session failed when commit implementation throws
+  ---
+  duration_ms: 4.973078
+  type: 'test'
+  ...
+# Subtest: excel import commit audit log is best effort after markDone
+ok 249 - excel import commit audit log is best effort after markDone
+  ---
+  duration_ms: 3.991694
+  type: 'test'
+  ...
+# Subtest: importExportController must not expose err.stack directly in JSON responses
+ok 250 - importExportController must not expose err.stack directly in JSON responses
+  ---
+  duration_ms: 0.905778
+  type: 'test'
+  ...
+# Subtest: all legacy import and export routes require explicit business roles
+ok 251 - all legacy import and export routes require explicit business roles
+  ---
+  duration_ms: 0.971223
+  type: 'test'
+  ...
+# Subtest: import handler registry contains every supported import type
+ok 252 - import handler registry contains every supported import type
+  ---
+  duration_ms: 0.244295
+  type: 'test'
+  ...
+# Subtest: sales order handler applies autoCutStock and registry dispatches operation
+ok 253 - sales order handler applies autoCutStock and registry dispatches operation
+  ---
+  duration_ms: 0.487291
+  type: 'test'
+  ...
+# Subtest: excelImportService commit no longer owns type if/else dispatch chain
+ok 254 - excelImportService commit no longer owns type if/else dispatch chain
+  ---
+  duration_ms: 3.488844
+  type: 'test'
+  ...
+# Subtest: import stock posting uses bulk insert and bulk inventory update
+ok 255 - import stock posting uses bulk insert and bulk inventory update
+  ---
+  duration_ms: 1.484675
+  type: 'test'
+  ...
+# Subtest: import order post patches status instead of rewriting the whole import document
+ok 256 - import order post patches status instead of rewriting the whole import document
+  ---
+  duration_ms: 0.933885
+  type: 'test'
+  ...
+# Subtest: InventoryPostingService routes IMPORT IN through the bulk posting boundary
+ok 257 - InventoryPostingService routes IMPORT IN through the bulk posting boundary
+  ---
+  duration_ms: 0.647409
+  type: 'test'
+  ...
+# Subtest: importOrders preview skips zero-quantity rows instead of marking them invalid
+ok 258 - importOrders preview skips zero-quantity rows instead of marking them invalid
+  ---
+  duration_ms: 3.680631
+  type: 'test'
+  ...
+# Subtest: importOrders commit skips zero-quantity rows without error and rejects only negative quantity
+ok 259 - importOrders commit skips zero-quantity rows without error and rejects only negative quantity
+  ---
+  duration_ms: 6.286193
+  type: 'test'
+  ...
+# Subtest: import preview supports async worker queue instead of only inline job
+ok 260 - import preview supports async worker queue instead of only inline job
+  ---
+  duration_ms: 4.72999
+  type: 'test'
+  ...
+# Subtest: excel import routes expose session status endpoint
+ok 261 - excel import routes expose session status endpoint
+  ---
+  duration_ms: 1.67631
+  type: 'test'
+  ...
+# Subtest: session preview vẫn lưu toàn bộ dòng trong collection và có API phân trang
+ok 262 - session preview vẫn lưu toàn bộ dòng trong collection và có API phân trang
+  ---
+  duration_ms: 1.001731
+  type: 'test'
+  ...
+# Subtest: frontend tải đủ toàn bộ dòng theo từng trang thay vì dùng sample 100 dòng
+ok 263 - frontend tải đủ toàn bộ dòng theo từng trang thay vì dùng sample 100 dòng
+  ---
+  duration_ms: 1.632169
+  type: 'test'
+  ...
+# Subtest: worker không được làm mất chế độ update khi chạy async
+ok 264 - worker không được làm mất chế độ update khi chạy async
+  ---
+  duration_ms: 0.842642
+  type: 'test'
+  ...
+# Subtest: full import queue marks session failed and removes temp files
+ok 265 - full import queue marks session failed and removes temp files
+  ---
+  duration_ms: 0.558509
+  type: 'test'
+  ...
+# Subtest: import preview UI polls session when backend returns 202 queued
+ok 266 - import preview UI polls session when backend returns 202 queued
+  ---
+  duration_ms: 3.549053
+  type: 'test'
+  ...
+# Subtest: import template download uses authenticated fetch instead of window.location.href
+ok 267 - import template download uses authenticated fetch instead of window.location.href
+  ---
+  duration_ms: 4.740788
+  type: 'test'
+  ...
+# Subtest: sales import commit uses bulk inventory posting and one order status update per chunk
+ok 268 - sales import commit uses bulk inventory posting and one order status update per chunk
+  ---
+  duration_ms: 3.654576
+  type: 'test'
+  ...
+# Subtest: inventory service exposes transactional bulk sales OUT posting
+ok 269 - inventory service exposes transactional bulk sales OUT posting
+  ---
+  duration_ms: 1.334027
+  type: 'test'
+  ...
+# Subtest: import session reports commit progress and frontend polls it
+ok 270 - import session reports commit progress and frontend polls it
+  ---
+  duration_ms: 8.913203
+  type: 'test'
+  ...
+# Subtest: UI có chế độ cập nhật an toàn và gửi importMode qua preview
+ok 271 - UI có chế độ cập nhật an toàn và gửi importMode qua preview
+  ---
+  duration_ms: 4.875007
+  type: 'test'
+  ...
+# Subtest: import session lưu mode và worker truyền mode tới preview
+ok 272 - import session lưu mode và worker truyền mode tới preview
+  ---
+  duration_ms: 1.752436
+  type: 'test'
+  ...
+# Subtest: update sản phẩm, khách hàng và users không upsert bản ghi thiếu
+ok 273 - update sản phẩm, khách hàng và users không upsert bản ghi thiếu
+  ---
+  duration_ms: 10.705802
+  type: 'test'
+  ...
+# Subtest: cập nhật chỉ ghi field khác và giữ ô trống
+ok 274 - cập nhật chỉ ghi field khác và giữ ô trống
+  ---
+  duration_ms: 4.629755
+  type: 'test'
+  ...
+# Subtest: chỉ bật update cho products/customers/users
+ok 275 - chỉ bật update cho products/customers/users
+  ---
+  duration_ms: 0.429817
+  type: 'test'
+  ...
+# Subtest: ô trống hoặc cột thiếu không được coi là giá trị cập nhật
+ok 276 - ô trống hoặc cột thiếu không được coi là giá trị cập nhật
+  ---
+  duration_ms: 0.811113
+  type: 'test'
+  ...
+# Subtest: giá trị 0 vẫn là dữ liệu cập nhật hợp lệ
+ok 277 - giá trị 0 vẫn là dữ liệu cập nhật hợp lệ
+  ---
+  duration_ms: 0.255607
+  type: 'test'
+  ...
+# Subtest: parse trạng thái hoạt động hỗ trợ tiếng Việt và boolean
+ok 278 - parse trạng thái hoạt động hỗ trợ tiếng Việt và boolean
+  ---
+  duration_ms: 0.333269
+  type: 'test'
+  ...
+# Subtest: chỉ giữ field khác dữ liệu cũ và tạo danh sách thay đổi
+ok 279 - chỉ giữ field khác dữ liệu cũ và tạo danh sách thay đổi
+  ---
+  duration_ms: 0.635121
+  type: 'test'
+  ...
+# Subtest: import session mongoose schemas do not use reserved top-level errors path
+ok 280 - import session mongoose schemas do not use reserved top-level errors path
+  ---
+  duration_ms: 1.490827
+  type: 'test'
+  ...
+# Subtest: import session does not embed full import rows in parent document
+ok 281 - import session does not embed full import rows in parent document
+  ---
+  duration_ms: 5.268692
+  type: 'test'
+  ...
+# Subtest: import session service uses Mongo model instead of RAM Map
+ok 282 - import session service uses Mongo model instead of RAM Map
+  ---
+  duration_ms: 0.788221
+  type: 'test'
+  ...
+# Subtest: import hàng thiếu được lưu thành báo cáo bền vững và có API đối soát
+ok 283 - import hàng thiếu được lưu thành báo cáo bền vững và có API đối soát
+  ---
+  duration_ms: 4.179267
+  type: 'test'
+  ...
+# Subtest: giao diện có danh sách báo cáo, chi tiết, lưu đối soát và tải CSV
+ok 284 - giao diện có danh sách báo cáo, chi tiết, lưu đối soát và tải CSV
+  ---
+  duration_ms: 4.776804
+  type: 'test'
+  ...
+# Subtest: import sessions persist temp file metadata and recover stale queued workers
+ok 285 - import sessions persist temp file metadata and recover stale queued workers
+  ---
+  duration_ms: 6.194354
+  type: 'test'
+  ...
+# Subtest: preview exposes initial stock, prior allocations and remaining stock per import line
+ok 286 - preview exposes initial stock, prior allocations and remaining stock per import line
+  ---
+  duration_ms: 0.996533
+  type: 'test'
+  ...
+# Subtest: commit recalculates stock allocation from only selected orders and current inventory
+ok 287 - commit recalculates stock allocation from only selected orders and current inventory
+  ---
+  duration_ms: 0.562313
+  type: 'test'
+  ...
+# Subtest: frontend explains sequential stock allocation instead of showing an isolated shortage only
+ok 288 - frontend explains sequential stock allocation instead of showing an isolated shortage only
+  ---
+  duration_ms: 0.189936
+  type: 'test'
+  ...
+# Subtest: opening stock built-in template uses carton and unit quantity columns
+ok 289 - opening stock built-in template uses carton and unit quantity columns
+  ---
+  duration_ms: 1.131216
+  type: 'test'
+  ...
+# Subtest: import order built-in template uses carton and unit quantity columns
+ok 290 - import order built-in template uses carton and unit quantity columns
+  ---
+  duration_ms: 0.931002
+  type: 'test'
+  ...
+# Subtest: S3 compact sales order template also avoids single quantity column
+ok 291 - S3 compact sales order template also avoids single quantity column
+  ---
+  duration_ms: 0.862576
+  type: 'test'
+  ...
+# Subtest: Excel import upload guard is centralized and bounded
+ok 292 - Excel import upload guard is centralized and bounded
+  ---
+  duration_ms: 0.634379
+  type: 'test'
+  ...
+# Subtest: Excel import routes do not parse uploads on disabled direct endpoint
+ok 293 - Excel import routes do not parse uploads on disabled direct endpoint
+  ---
+  duration_ms: 0.917795
+  type: 'test'
+  ...
+# Subtest: parent process marks timed out import failed and removes temp files
+ok 294 - parent process marks timed out import failed and removes temp files
+  ---
+  duration_ms: 0.162188
+  type: 'test'
+  ...
+# Subtest: bulk sales import posts one transaction per order-product and decrements inventory once per product
+ok 295 - bulk sales import posts one transaction per order-product and decrements inventory once per product
+  ---
+  duration_ms: 3.492694
+  type: 'test'
+  ...
+# Subtest: bulk sales import rejects aggregate quantity above available stock before any stock transaction is inserted
+ok 296 - bulk sales import rejects aggregate quantity above available stock before any stock transaction is inserted
+  ---
+  duration_ms: 1.593279
+  type: 'test'
+  ...
+# Subtest: destructive inventory rebuild is disabled by default and requires explicit confirmation
+ok 297 - destructive inventory rebuild is disabled by default and requires explicit confirmation
+  ---
+  duration_ms: 0.256949
+  type: 'test'
+  ...
+# Subtest: inventory service blocks direct destructive calls without confirmation
+ok 298 - inventory service blocks direct destructive calls without confirmation
+  ---
+  duration_ms: 0.285248
+  type: 'test'
+  ...
+# Subtest: inventory maintenance mode blocks concurrent stock-changing commands
+ok 299 - inventory maintenance mode blocks concurrent stock-changing commands
+  ---
+  duration_ms: 0.183546
+  type: 'test'
+  ...
+# Subtest: product inventory normalization rewrites single MAIN rows and retries atomic OUT
+ok 300 - product inventory normalization rewrites single MAIN rows and retries atomic OUT
+  ---
+  duration_ms: 1.583378
+  type: 'test'
+  ...
+# Subtest: inventory stock summary infers packing rate from product text and stock tab displays availableQty
+ok 301 - inventory stock summary infers packing rate from product text and stock tab displays availableQty
+  ---
+  duration_ms: 2.826576
+  type: 'test'
+  ...
+# Subtest: postStockMovement groups duplicate product lines before posting stock
+ok 302 - postStockMovement groups duplicate product lines before posting stock
+  ---
+  duration_ms: 3.2563
+  type: 'test'
+  ...
+# Subtest: atomic OUT posting requires session unless explicitly allowed for tests/migration
+ok 303 - atomic OUT posting requires session unless explicitly allowed for tests/migration
+  ---
+  duration_ms: 1.07074
+  type: 'test'
+  ...
+# Subtest: postStockMovement normalizes legacy product inventory to MAIN before atomic posting
+ok 304 - postStockMovement normalizes legacy product inventory to MAIN before atomic posting
+  ---
+  duration_ms: 1.344675
+  type: 'test'
+  ...
+# Subtest: atomic OUT posting blocks oversell by conditional inventory update
+ok 305 - atomic OUT posting blocks oversell by conditional inventory update
+  ---
+  duration_ms: 1.833898
+  type: 'test'
+  ...
+# Subtest: same sourceType + sourceId + productCode does not subtract stock twice
+ok 306 - same sourceType + sourceId + productCode does not subtract stock twice
+  ---
+  duration_ms: 2.150434
+  type: 'test'
+  ...
+# Subtest: same order with multiple productCode values creates one movement per product
+ok 307 - same order with multiple productCode values creates one movement per product
+  ---
+  duration_ms: 1.200403
+  type: 'test'
+  ...
+# Subtest: return order adds stock exactly once
+ok 308 - return order adds stock exactly once
+  ---
+  duration_ms: 0.83963
+  type: 'test'
+  ...
+# Subtest: cancel order reverses stock and duplicate cancel does not add stock twice
+ok 309 - cancel order reverses stock and duplicate cancel does not add stock twice
+  ---
+  duration_ms: 1.357671
+  type: 'test'
+  ...
+# Subtest: InventoryPostingService wraps single-document stock posting operations
+ok 310 - InventoryPostingService wraps single-document stock posting operations
+  ---
+  duration_ms: 1.157447
+  type: 'test'
+  ...
+# Subtest: orderService posts sales inventory through InventoryPostingService boundary
+ok 311 - orderService posts sales inventory through InventoryPostingService boundary
+  ---
+  duration_ms: 1.820278
+  type: 'test'
+  ...
+# Subtest: returnOrderService warehouse receive posts return stock through InventoryPostingService boundary
+ok 312 - returnOrderService warehouse receive posts return stock through InventoryPostingService boundary
+  ---
+  duration_ms: 2.093845
+  type: 'test'
+  ...
+# Subtest: inventory reads must go through inventoryStock.service boundary
+ok 313 - inventory reads must go through inventoryStock.service boundary
+  ---
+  duration_ms: 147.207478
+  type: 'test'
+  ...
+# Subtest: inventory rebuild writes to a shadow collection and validates before swap
+ok 314 - inventory rebuild writes to a shadow collection and validates before swap
+  ---
+  duration_ms: 0.407812
+  type: 'test'
+  ...
+# Subtest: atomic swap keeps a backup and restores it when shadow rename fails
+ok 315 - atomic swap keeps a backup and restores it when shadow rename fails
+  ---
+  duration_ms: 0.243605
+  type: 'test'
+  ...
+# Subtest: inventory service no longer deletes inventories before rebuild
+ok 316 - inventory service no longer deletes inventories before rebuild
+  ---
+  duration_ms: 0.373679
+  type: 'test'
+  ...
+# Subtest: stock transaction reset also uses a validated shadow replacement
+ok 317 - stock transaction reset also uses a validated shadow replacement
+  ---
+  duration_ms: 0.225026
+  type: 'test'
+  ...
+# Subtest: inventoryStockService reads inventories, not inventorySnapshots, when calculating stock
+ok 318 - inventoryStockService reads inventories, not inventorySnapshots, when calculating stock
+  ---
+  duration_ms: 0.902934
+  type: 'test'
+  ...
+# Subtest: productService displays stock from inventories through inventoryStockService
+ok 319 - productService displays stock from inventories through inventoryStockService
+  ---
+  duration_ms: 1.045302
+  type: 'test'
+  ...
+# Subtest: mobile catalog displays stock from inventories single source
+ok 320 - mobile catalog displays stock from inventories single source
+  ---
+  duration_ms: 1.192597
+  type: 'test'
+  ...
+# Subtest: inventory summary carries product packing rate for case/loose display
+ok 321 - inventory summary carries product packing rate for case/loose display
+  ---
+  duration_ms: 0.92533
+  type: 'test'
+  ...
+# Subtest: legacy mobile implementation is removed and namespace is permanently retired
+ok 322 - legacy mobile implementation is removed and namespace is permanently retired
+  ---
+  duration_ms: 0.742878
+  type: 'test'
+  ...
+# Subtest: legacy environment flag is removed
+ok 323 - legacy environment flag is removed
+  ---
+  duration_ms: 0.876151
+  type: 'test'
+  ...
+# Subtest: maintenance mode blocks business writes but allows reset and reads
+ok 324 - maintenance mode blocks business writes but allows reset and reads
+  ---
+  duration_ms: 0.725008
+  type: 'test'
+  ...
+# Subtest: system reset replaces collections inside one Mongo transaction
+ok 325 - system reset replaces collections inside one Mongo transaction
+  ---
+  duration_ms: 0.734785
+  type: 'test'
+  ...
+# Subtest: customer delete endpoints deactivate records instead of hard deleting history
+ok 326 - customer delete endpoints deactivate records instead of hard deleting history
+  ---
+  duration_ms: 0.217746
+  type: 'test'
+  ...
+# Subtest: user delete preserves admin continuity and deactivates the account
+ok 327 - user delete preserves admin continuity and deactivates the account
+  ---
+  duration_ms: 0.191552
+  type: 'test'
+  ...
+# Subtest: master order accounting facade uses Strangler env switch with legacy fallback
+ok 328 - master order accounting facade uses Strangler env switch with legacy fallback
+  ---
+  duration_ms: 0.775077
+  type: 'test'
+  ...
+# Subtest: DeliverySettlementService delegates accounting to extracted implementation without facade recursion
+ok 329 - DeliverySettlementService delegates accounting to extracted implementation without facade recursion
+  ---
+  duration_ms: 0.66233
+  type: 'test'
+  ...
+# Subtest: master sales order atomically claims only unmerged active children
+ok 330 - master sales order atomically claims only unmerged active children
+  ---
+  duration_ms: 0.889944
+  type: 'test'
+  ...
+# Subtest: master return order deduplicates input and atomically claims unmerged children
+ok 331 - master return order deduplicates input and atomically claims unmerged children
+  ---
+  duration_ms: 0.34665
+  type: 'test'
+  ...
+# Subtest: nextDeliveryDateVN adds one day from Monday to Friday
+ok 332 - nextDeliveryDateVN adds one day from Monday to Friday
+  ---
+  duration_ms: 0.984222
+  type: 'test'
+  ...
+# Subtest: nextDeliveryDateVN adds two days on Saturday and safely maps Sunday to Monday
+ok 333 - nextDeliveryDateVN adds two days on Saturday and safely maps Sunday to Monday
+  ---
+  duration_ms: 0.526311
+  type: 'test'
+  ...
+# Subtest: master order modal exposes readonly creation date and editable delivery date
+ok 334 - master order modal exposes readonly creation date and editable delivery date
+  ---
+  duration_ms: 4.66717
+  type: 'test'
+  ...
+# Subtest: master order frontend initializes creation and delivery dates independently
+ok 335 - master order frontend initializes creation and delivery dates independently
+  ---
+  duration_ms: 0.981098
+  type: 'test'
+  ...
+# Subtest: master order service stores immutable masterOrderDate and server-side default delivery date
+ok 336 - master order service stores immutable masterOrderDate and server-side default delivery date
+  ---
+  duration_ms: 4.894852
+  type: 'test'
+  ...
+# Subtest: detaching a child order clears the complete master/delivery assignment chain
+ok 337 - detaching a child order clears the complete master/delivery assignment chain
+  ---
+  duration_ms: 0.485342
+  type: 'test'
+  ...
+# Subtest: master order keeps childOrderIds as the only child-reference source
+ok 338 - master order keeps childOrderIds as the only child-reference source
+  ---
+  duration_ms: 0.523806
+  type: 'test'
+  ...
+# Subtest: orders with delivery/accounting activity cannot be detached silently
+ok 339 - orders with delivery/accounting activity cannot be detached silently
+  ---
+  duration_ms: 0.380011
+  type: 'test'
+  ...
+# Subtest: update/cancel/delete master-order flows use the same detach invariant and return draft sync
+ok 340 - update/cancel/delete master-order flows use the same detach invariant and return draft sync
+  ---
+  duration_ms: 9.963282
+  type: 'test'
+  ...
+# Subtest: master-order popup delegates checkbox changes into the correct selection sets
+ok 341 - master-order popup delegates checkbox changes into the correct selection sets
+  ---
+  duration_ms: 0.570958
+  type: 'test'
+  ...
+# Subtest: remove grouped child action reads the state populated by grouped checkbox changes
+ok 342 - remove grouped child action reads the state populated by grouped checkbox changes
+  ---
+  duration_ms: 0.641384
+  type: 'test'
+  ...
+# Subtest: changed master-delivery bundle has a new cache-busting version
+ok 343 - changed master-delivery bundle has a new cache-busting version
+  ---
+  duration_ms: 1.083882
+  type: 'test'
+  ...
+# Subtest: masterOrderService remains a backward-compatible facade
+ok 344 - masterOrderService remains a backward-compatible facade
+  ---
+  duration_ms: 0.814678
+  type: 'test'
+  ...
+# Subtest: master-order domain modules exist
+ok 345 - master-order domain modules exist
+  ---
+  duration_ms: 0.766808
+  type: 'test'
+  ...
+# Subtest: facade export surface is preserved by domain index
+ok 346 - facade export surface is preserved by domain index
+  ---
+  duration_ms: 1.445509
+  type: 'test'
+  ...
+# Subtest: domain modules do not import the public facade, avoiding dependency cycles
+ok 347 - domain modules do not import the public facade, avoiding dependency cycles
+  ---
+  duration_ms: 1.447691
+  type: 'test'
+  ...
+# Subtest: updateMasterOrder removes child assignment from SalesOrder and return draft in one transaction
+ok 348 - updateMasterOrder removes child assignment from SalesOrder and return draft in one transaction
+  ---
+  duration_ms: 5.038531
+  type: 'test'
+  ...
+# Subtest: updateMasterOrder refuses to detach a child after delivery money has been touched
+ok 349 - updateMasterOrder refuses to detach a child after delivery money has been touched
+  ---
+  duration_ms: 1.170228
+  type: 'test'
+  ...
+# Subtest: master-order facade is composed from explicit query/command boundaries
+ok 350 - master-order facade is composed from explicit query/command boundaries
+  ---
+  duration_ms: 0.720658
+  type: 'test'
+  ...
+# Subtest: identity rules are physically extracted from legacy service
+ok 351 - identity rules are physically extracted from legacy service
+  ---
+  duration_ms: 1.735339
+  type: 'test'
+  ...
+# Subtest: accounting boundary keeps feature-flagged rollback path
+ok 352 - accounting boundary keeps feature-flagged rollback path
+  ---
+  duration_ms: 0.59831
+  type: 'test'
+  ...
+# Subtest: unmerged child query forwards current filters and keeps only matching unmerged DMS orders
+ok 353 - unmerged child query forwards current filters and keeps only matching unmerged DMS orders
+  ---
+  duration_ms: 6.051134
+  type: 'test'
+  ...
+# Subtest: master-order popup exposes a dedicated reload button for unmerged children
+ok 354 - master-order popup exposes a dedicated reload button for unmerged children
+  ---
+  duration_ms: 1.089413
+  type: 'test'
+  ...
+# Subtest: all unmerged-order filters reload the server-side list
+ok 355 - all unmerged-order filters reload the server-side list
+  ---
+  duration_ms: 1.322752
+  type: 'test'
+  ...
+# Subtest: unmerged-order reload guards against stale async responses
+ok 356 - unmerged-order reload guards against stale async responses
+  ---
+  duration_ms: 0.258437
+  type: 'test'
+  ...
+# Subtest: unmerged-order API request includes current date, source and sales staff filters
+ok 357 - unmerged-order API request includes current date, source and sales staff filters
+  ---
+  duration_ms: 0.23679
+  type: 'test'
+  ...
+# Subtest: legacy grouped status is normalized to waiting_receive and can be received
+ok 358 - legacy grouped status is normalized to waiting_receive and can be received
+  ---
+  duration_ms: 0.308839
+  type: 'test'
+  ...
+# Subtest: creating a master return keeps lifecycle separate from merge status
+ok 359 - creating a master return keeps lifecycle separate from merge status
+  ---
+  duration_ms: 0.853122
+  type: 'test'
+  ...
+# Subtest: received master returns are not classified as cancelled/deleted
+ok 360 - received master returns are not classified as cancelled/deleted
+  ---
+  duration_ms: 0.791735
+  type: 'test'
+  ...
+# Subtest: received child keeps canonical received lifecycle and separate merged flag
+ok 361 - received child keeps canonical received lifecycle and separate merged flag
+  ---
+  duration_ms: 0.856007
+  type: 'test'
+  ...
+# Subtest: master return UI excludes inactive rows from selection and batch receiving
+ok 362 - master return UI excludes inactive rows from selection and batch receiving
+  ---
+  duration_ms: 0.799196
+  type: 'test'
+  ...
+# Subtest: return-state migration supports dry-run and canonicalizes legacy grouped rows
+ok 363 - return-state migration supports dry-run and canonicalizes legacy grouped rows
+  ---
+  duration_ms: 0.845621
+  type: 'test'
+  ...
+# Subtest: master return list keeps header and rows packed at the top of the scroll area
+ok 364 - master return list keeps header and rows packed at the top of the scroll area
+  ---
+  duration_ms: 5.004972
+  type: 'test'
+  ...
+# Subtest: master-return-order screen uses list-only layout with popup create workspace
+ok 365 - master-return-order screen uses list-only layout with popup create workspace
+  ---
+  duration_ms: 20.319186
+  type: 'test'
+  ...
+# Subtest: return order receive can join a parent transaction
+ok 366 - return order receive can join a parent transaction
+  ---
+  duration_ms: 0.304876
+  type: 'test'
+  ...
+# Subtest: master return receive owns one transaction for every child and stock post
+ok 367 - master return receive owns one transaction for every child and stock post
+  ---
+  duration_ms: 0.286338
+  type: 'test'
+  ...
+# Subtest: missing or failed master return child aborts the parent transaction
+ok 368 - missing or failed master return child aborts the parent transaction
+  ---
+  duration_ms: 0.128919
+  type: 'test'
+  ...
+# Subtest: modular mobile customer catalog loads and attaches monthly sales metrics
+ok 369 - modular mobile customer catalog loads and attaches monthly sales metrics
+  ---
+  duration_ms: 0.830452
+  type: 'test'
+  ...
+# Subtest: sales app renders the monthly metric from customer payload
+ok 370 - sales app renders the monthly metric from customer payload
+  ---
+  duration_ms: 1.499772
+  type: 'test'
+  ...
+# Subtest: sales customer ownership filter uses business staff identity and never returns unscoped filter
+ok 371 - sales customer ownership filter uses business staff identity and never returns unscoped filter
+  ---
+  duration_ms: 0.553683
+  type: 'test'
+  ...
+# Subtest: combined catalog filter preserves search and ownership constraints
+ok 372 - combined catalog filter preserves search and ownership constraints
+  ---
+  duration_ms: 0.356809
+  type: 'test'
+  ...
+# Subtest: mobile catalog blocks delivery customer enumeration and legacy fallback-to-all is removed
+ok 373 - mobile catalog blocks delivery customer enumeration and legacy fallback-to-all is removed
+  ---
+  duration_ms: 1.186207
+  type: 'test'
+  ...
+# Subtest: sales and delivery debt collection checkboxes are compact and scoped
+ok 374 - sales and delivery debt collection checkboxes are compact and scoped
+  ---
+  duration_ms: 3.68654
+  type: 'test'
+  ...
+# Subtest: compact checkbox patch does not introduce a global checkbox override
+ok 375 - compact checkbox patch does not introduce a global checkbox override
+  ---
+  duration_ms: 0.961416
+  type: 'test'
+  ...
+# Subtest: AR amount fallback matches the debt report for legacy rows
+ok 376 - AR amount fallback matches the debt report for legacy rows
+  ---
+  duration_ms: 0.280488
+  type: 'test'
+  ...
+# Subtest: mobile debt collection accepts the exact displayed debt from amount-only AR rows
+ok 377 - mobile debt collection accepts the exact displayed debt from amount-only AR rows
+  ---
+  duration_ms: 1.814318
+  type: 'test'
+  ...
+# Subtest: mobile debt collection still rejects an amount above the canonical available debt
+ok 378 - mobile debt collection still rejects an amount above the canonical available debt
+  ---
+  duration_ms: 0.468729
+  type: 'test'
+  ...
+# Subtest: mobile debt collection rejects duplicate allocations for the same order
+ok 379 - mobile debt collection rejects duplicate allocations for the same order
+  ---
+  duration_ms: 0.234721
+  type: 'test'
+  ...
+# Subtest: sales debt tab separates customer list and collection workflow into two subtabs
+ok 380 - sales debt tab separates customer list and collection workflow into two subtabs
+  ---
+  duration_ms: 3.213969
+  type: 'test'
+  ...
+# Subtest: delivery debt tab uses the same two-subtab interaction and preserves list position
+ok 381 - delivery debt tab uses the same two-subtab interaction and preserves list position
+  ---
+  duration_ms: 2.180376
+  type: 'test'
+  ...
+# Subtest: mobile confirm persists the canonical sales order and never reports snapshot-only success
+ok 382 - mobile confirm persists the canonical sales order and never reports snapshot-only success
+  ---
+  duration_ms: 31.557947
+  type: 'test'
+  ...
+# Subtest: mobile confirm rejects an order assigned to another delivery staff
+ok 383 - mobile confirm rejects an order assigned to another delivery staff
+  ---
+  duration_ms: 3.041097
+  type: 'test'
+  ...
+# Subtest: mobile delivery return flow reads returnAmount from returnOrders and posts one auditable AR-RETURN
+ok 384 - mobile delivery return flow reads returnAmount from returnOrders and posts one auditable AR-RETURN
+  ---
+  duration_ms: 1.478852
+  type: 'test'
+  ...
+# Subtest: mobile delivery list does not load the primary full snapshot
+ok 385 - mobile delivery list does not load the primary full snapshot
+  ---
+  duration_ms: 0.284747
+  type: 'test'
+  ...
+# Subtest: mobile delivery repository scopes Mongo queries by delivery date and staff code
+ok 386 - mobile delivery repository scopes Mongo queries by delivery date and staff code
+  ---
+  duration_ms: 0.196645
+  type: 'test'
+  ...
+# Subtest: mobile delivery response keeps ownership verification after scoped query
+ok 387 - mobile delivery response keeps ownership verification after scoped query
+  ---
+  duration_ms: 0.164916
+  type: 'test'
+  ...
+# Subtest: mobile delivery service defines submitCash before exporting it
+ok 388 - mobile delivery service defines submitCash before exporting it
+  ---
+  duration_ms: 1.021131
+  type: 'test'
+  ...
+# Subtest: mobile modular routes require ctx and do not fallback to legacy under /api/mobile
+ok 389 - mobile modular routes require ctx and do not fallback to legacy under /api/mobile
+  ---
+  duration_ms: 1.065138
+  type: 'test'
+  ...
+# Subtest: mobile child routes do not repeat modular prefixes
+ok 390 - mobile child routes do not repeat modular prefixes
+  ---
+  duration_ms: 0.902856
+  type: 'test'
+  ...
+# Subtest: registerMobileRoutes throws when ctx is missing
+ok 391 - registerMobileRoutes throws when ctx is missing
+  ---
+  duration_ms: 1.474656
+  type: 'test'
+  ...
+# Subtest: registerMobileRoutes mounts modular route tree with ctx
+ok 392 - registerMobileRoutes mounts modular route tree with ctx
+  ---
+  duration_ms: 13.779066
+  type: 'test'
+  ...
+# Subtest: mobile modular mount keeps required modular endpoint contracts reachable
+ok 393 - mobile modular mount keeps required modular endpoint contracts reachable
+  ---
+  duration_ms: 128.79722
+  type: 'test'
+  ...
+# Subtest: mobile sales debts must use DebtReadService as single debt source
+ok 394 - mobile sales debts must use DebtReadService as single debt source
+  ---
+  duration_ms: 1.78587
+  type: 'test'
+  ...
+# Subtest: DebtReadService wraps reportService.debtCustomers and includes pending collections
+ok 395 - DebtReadService wraps reportService.debtCustomers and includes pending collections
+  ---
+  duration_ms: 0.571382
+  type: 'test'
+  ...
+# Subtest: DebtReadService response includes ledgers for frontend
+ok 396 - DebtReadService response includes ledgers for frontend
+  ---
+  duration_ms: 0.965881
+  type: 'test'
+  ...
+# Subtest: mobile sales list must exclude soft-deleted orders by deletion flags
+ok 397 - mobile sales list must exclude soft-deleted orders by deletion flags
+  ---
+  duration_ms: 0.232268
+  type: 'test'
+  ...
+# Subtest: mobile sales projection keeps delete flags and applies final visibility guard
+ok 398 - mobile sales projection keeps delete flags and applies final visibility guard
+  ---
+  duration_ms: 0.391033
+  type: 'test'
+  ...
+# Subtest: mobile delete button is wired to modular DELETE API
+ok 399 - mobile delete button is wired to modular DELETE API
+  ---
+  duration_ms: 1.706032
+  type: 'test'
+  ...
+# Subtest: buildOrderItemQuantityDeltas aggregates duplicate product lines before comparing
+ok 400 - buildOrderItemQuantityDeltas aggregates duplicate product lines before comparing
+  ---
+  duration_ms: 0.733948
+  type: 'test'
+  ...
+# Subtest: buildInventoryEditMovements creates only net stock IN/OUT movements
+ok 401 - buildInventoryEditMovements creates only net stock IN/OUT movements
+  ---
+  duration_ms: 0.477337
+  type: 'test'
+  ...
+# Subtest: quota edit plan consumes only quantity increase and releases only previously consumed quota
+ok 402 - quota edit plan consumes only quantity increase and releases only previously consumed quota
+  ---
+  duration_ms: 0.628646
+  type: 'test'
+  ...
+# Subtest: mobile sales stores collection as pending accounting and never writes journals/cashbooks directly
+ok 403 - mobile sales stores collection as pending accounting and never writes journals/cashbooks directly
+  ---
+  duration_ms: 2.038812
+  type: 'test'
+  ...
+# Subtest: accounting confirmation posts pending mobile sales collection through AR posting boundary
+ok 404 - accounting confirmation posts pending mobile sales collection through AR posting boundary
+  ---
+  duration_ms: 4.131496
+  type: 'test'
+  ...
+# Subtest: mobile sales does not match ownership by generic staffCode/staffName
+ok 405 - mobile sales does not match ownership by generic staffCode/staffName
+  ---
+  duration_ms: 1.893509
+  type: 'test'
+  ...
+# Subtest: legacy mobile sales write implementation is physically removed
+ok 406 - legacy mobile sales write implementation is physically removed
+  ---
+  duration_ms: 0.467615
+  type: 'test'
+  ...
+# Subtest: modular mobile sales create writes order and stock atomically without snapshot stock mutation
+ok 407 - modular mobile sales create writes order and stock atomically without snapshot stock mutation
+  ---
+  duration_ms: 1.344408
+  type: 'test'
+  ...
+# Subtest: modular sales routes are the only exposed mobile sales command path
+ok 408 - modular sales routes are the only exposed mobile sales command path
+  ---
+  duration_ms: 0.38723
+  type: 'test'
+  ...
+# Subtest: mobile sales creation persists idempotency in Mongo transaction
+ok 409 - mobile sales creation persists idempotency in Mongo transaction
+  ---
+  duration_ms: 0.388926
+  type: 'test'
+  ...
+# Subtest: mobile sales update persists idempotency and permits stock-posted unmerged orders through delta repost flow
+ok 410 - mobile sales update persists idempotency and permits stock-posted unmerged orders through delta repost flow
+  ---
+  duration_ms: 0.308503
+  type: 'test'
+  ...
+# Subtest: sales report edit buttons use delegated click handling and explicit button type
+ok 411 - sales report edit buttons use delegated click handling and explicit button type
+  ---
+  duration_ms: 0.169251
+  type: 'test'
+  ...
+# Subtest: mobile sales script cache version is bumped for edit fix
+ok 412 - mobile sales script cache version is bumped for edit fix
+  ---
+  duration_ms: 0.111746
+  type: 'test'
+  ...
+# Subtest: return service no longer depends on delivery engine
+ok 413 - return service no longer depends on delivery engine
+  ---
+  duration_ms: 2.643596
+  type: 'test'
+  ...
+# Subtest: excel import service and worker share a cycle-free runner
+ok 414 - excel import service and worker share a cycle-free runner
+  ---
+  duration_ms: 3.800159
+  type: 'test'
+  ...
+# Subtest: managed index policy is reduced and grouped by physical collection
+ok 415 - managed index policy is reduced and grouped by physical collection
+  ---
+  duration_ms: 1.597507
+  type: 'test'
+  ...
+# Subtest: disabling mongoose autoIndex does not lose active schema TTL or operational indexes
+ok 416 - disabling mongoose autoIndex does not lose active schema TTL or operational indexes
+  ---
+  duration_ms: 2.474667
+  type: 'test'
+  ...
+# Subtest: unused text and low-value alias indexes are no longer recreated
+ok 417 - unused text and low-value alias indexes are no longer recreated
+  ---
+  duration_ms: 0.312712
+  type: 'test'
+  ...
+# Subtest: audit keeps managed/unique indexes and drops safe duplicates or prefixes
+ok 418 - audit keeps managed/unique indexes and drops safe duplicates or prefixes
+  ---
+  duration_ms: 1.357076
+  type: 'test'
+  ...
+# Subtest: empty retired collection may remove every non-primary index safely
+ok 419 - empty retired collection may remove every non-primary index safely
+  ---
+  duration_ms: 0.217422
+  type: 'test'
+  ...
+# Subtest: retired unique index is removable with replacement and protected otherwise
+ok 420 - retired unique index is removable with replacement and protected otherwise
+  ---
+  duration_ms: 0.554788
+  type: 'test'
+  ...
+# Subtest: retired name alone is not dropped until it is proven unused
+ok 421 - retired name alone is not dropped until it is proven unused
+  ---
+  duration_ms: 0.364521
+  type: 'test'
+  ...
+# Subtest: audit does not remove the only index on a key until managed unique replacement exists
+ok 422 - audit does not remove the only index on a key until managed unique replacement exists
+  ---
+  duration_ms: 0.241371
+  type: 'test'
+  ...
+# Subtest: mongoose automatic index creation is disabled by default
+ok 423 - mongoose automatic index creation is disabled by default
+  ---
+  duration_ms: 0.617834
+  type: 'test'
+  ...
+# Subtest: cleanup command is dry-run first and requires explicit unused mode
+ok 424 - cleanup command is dry-run first and requires explicit unused mode
+  ---
+  duration_ms: 0.761681
+  type: 'test'
+  ...
+# Subtest: business key indexes are unique and sparse
+ok 425 - business key indexes are unique and sparse
+  ---
+  duration_ms: 1.129991
+  type: 'test'
+  ...
+# Subtest: old non-unique business key indexes are removed from definitions
+ok 426 - old non-unique business key indexes are removed from definitions
+  ---
+  duration_ms: 0.890144
+  type: 'test'
+  ...
+# Subtest: ensureMongoIndexes detects same key with different options without auto drop
+ok 427 - ensureMongoIndexes detects same key with different options without auto drop
+  ---
+  duration_ms: 0.828344
+  type: 'test'
+  ...
+# Subtest: duplicate key audit and migration scripts exist with dry-run safeguards
+ok 428 - duplicate key audit and migration scripts exist with dry-run safeguards
+  ---
+  duration_ms: 1.35609
+  type: 'test'
+  ...
+# Subtest: fund ledger writes stay inside fund boundary or pinned phase-1 legacy functions
+ok 429 - fund ledger writes stay inside fund boundary or pinned phase-1 legacy functions
+  ---
+  duration_ms: 135.59811
+  type: 'test'
+  ...
+# Subtest: mobile delivery cash submission goes through DeliverySettlementService
+ok 430 - mobile delivery cash submission goes through DeliverySettlementService
+  ---
+  duration_ms: 0.741971
+  type: 'test'
+  ...
+# Subtest: inventory bulk writes are limited to inventory boundary and pinned phase-1 import bulk paths
+ok 431 - inventory bulk writes are limited to inventory boundary and pinned phase-1 import bulk paths
+  ---
+  duration_ms: 118.80172
+  type: 'test'
+  ...
+# Subtest: excel import bulk inventory bypasses remain explicitly pinned for later migration
+ok 432 - excel import bulk inventory bypasses remain explicitly pinned for later migration
+  ---
+  duration_ms: 1.681598
+  type: 'test'
+  ...
+# Subtest: ledger and lifecycle collections are not written directly outside approved boundaries
+ok 433 - ledger and lifecycle collections are not written directly outside approved boundaries
+  ---
+  duration_ms: 138.458925
+  type: 'test'
+  ...
+# Subtest: returnOrders are not written directly outside return lifecycle/service boundaries
+ok 434 - returnOrders are not written directly outside return lifecycle/service boundaries
+  ---
+  duration_ms: 91.931047
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine.saveReturn uses ReturnLifecycleService instead of direct ReturnOrder upsert
+ok 435 - DeliveryEngine.saveReturn uses ReturnLifecycleService instead of direct ReturnOrder upsert
+  ---
+  duration_ms: 1.874571
+  type: 'test'
+  ...
+# Subtest: business staff matching does not fallback between canonical and generic staff fields
+ok 436 - business staff matching does not fallback between canonical and generic staff fields
+  ---
+  duration_ms: 17.892168
+  type: 'test'
+  ...
+# Subtest: runtime code must not use inventorySnapshots legacy collection
+ok 437 - runtime code must not use inventorySnapshots legacy collection
+  ---
+  duration_ms: 140.201639
+  type: 'test'
+  ...
+# Subtest: business staff suggestions must not expose username or _id as staff code
+ok 438 - business staff suggestions must not expose username or _id as staff code
+  ---
+  duration_ms: 0.758846
+  type: 'test'
+  ...
+# Subtest: mobile auth must read users instead of legacy staffs collection
+ok 439 - mobile auth must read users instead of legacy staffs collection
+  ---
+  duration_ms: 0.686285
+  type: 'test'
+  ...
+# Subtest: DeliveryEngine staff lookup accepts users code and staffCode
+ok 440 - DeliveryEngine staff lookup accepts users code and staffCode
+  ---
+  duration_ms: 1.488851
+  type: 'test'
+  ...
+# Subtest: business staff repository lookup does not match username or _id
+ok 441 - business staff repository lookup does not match username or _id
+  ---
+  duration_ms: 4.347807
+  type: 'test'
+  ...
+# Subtest: web and mobile tokens must not use username as staffCode fallback
+ok 442 - web and mobile tokens must not use username as staffCode fallback
+  ---
+  duration_ms: 1.085893
+  type: 'test'
+  ...
+# Subtest: frontend staff code helpers must not use username or id fallback
+ok 443 - frontend staff code helpers must not use username or id fallback
+  ---
+  duration_ms: 5.312262
+  type: 'test'
+  ...
+# Subtest: userService must not synthesize staff code from username or _id
+ok 444 - userService must not synthesize staff code from username or _id
+  ---
+  duration_ms: 0.71062
+  type: 'test'
+  ...
+# Subtest: OpenAPI document is valid JSON and has required sections
+ok 445 - OpenAPI document is valid JSON and has required sections
+  ---
+  duration_ms: 6.264498
+  type: 'test'
+  ...
+# Subtest: every documented operation has at least one success response
+ok 446 - every documented operation has at least one success response
+  ---
+  duration_ms: 6.904517
+  type: 'test'
+  ...
+# Subtest: order data lineage document exists and defines canonical sources
+ok 447 - order data lineage document exists and defines canonical sources
+  ---
+  duration_ms: 0.706173
+  type: 'test'
+  ...
+# Subtest: create/update sales order locks NVBH on salesStaff fields
+ok 448 - create/update sales order locks NVBH on salesStaff fields
+  ---
+  duration_ms: 3.57337
+  type: 'test'
+  ...
+# Subtest: master order only syncs NVGH to child salesOrders and does not overwrite NVBH
+ok 449 - master order only syncs NVGH to child salesOrders and does not overwrite NVBH
+  ---
+  duration_ms: 4.310129
+  type: 'test'
+  ...
+# Subtest: confirmDeliveryAccounting posts AR-SALE staff from salesOrders/masterOrders lineage
+ok 450 - confirmDeliveryAccounting posts AR-SALE staff from salesOrders/masterOrders lineage
+  ---
+  duration_ms: 3.227536
+  type: 'test'
+  ...
+# Subtest: returnOrders snapshot NVBH/NVGH and never treat staffName as NVBH
+ok 451 - returnOrders snapshot NVBH/NVGH and never treat staffName as NVBH
+  ---
+  duration_ms: 3.122977
+  type: 'test'
+  ...
+# Subtest: debt report displays staff from arLedgers AR-SALE row, not customer/user/payment metadata
+ok 452 - debt report displays staff from arLedgers AR-SALE row, not customer/user/payment metadata
+  ---
+  duration_ms: 1.255705
+  type: 'test'
+  ...
+# Subtest: orderService resolves new order sales staff only from salesStaffCode/salesmanCode
+ok 453 - orderService resolves new order sales staff only from salesStaffCode/salesmanCode
+  ---
+  duration_ms: 1.332055
+  type: 'test'
+  ...
+# Subtest: strict sales staff search uses canonical Mongo filter without bounded JS scan
+ok 454 - strict sales staff search uses canonical Mongo filter without bounded JS scan
+  ---
+  duration_ms: 0.471683
+  type: 'test'
+  ...
+# Subtest: list order applies business filters before skip and limit
+ok 455 - list order applies business filters before skip and limit
+  ---
+  duration_ms: 0.383083
+  type: 'test'
+  ...
+# Subtest: list order uses canonical exact NVBH and NVGH fields
+ok 456 - list order uses canonical exact NVBH and NVGH fields
+  ---
+  duration_ms: 0.167287
+  type: 'test'
+  ...
+# Subtest: verifyPassword rejects missing, plaintext and default fallback password
+ok 457 - verifyPassword rejects missing, plaintext and default fallback password
+  ---
+  duration_ms: 1344.236335
+  type: 'test'
+  ...
+# Subtest: verifyPassword accepts valid bcrypt hash only
+ok 458 - verifyPassword accepts valid bcrypt hash only
+  ---
+  duration_ms: 327.984654
+  type: 'test'
+  ...
+# Subtest: hashPasswordSync rejects empty password
+ok 459 - hashPasswordSync rejects empty password
+  ---
+  duration_ms: 0.491358
+  type: 'test'
+  ...
+# Subtest: new passwords must satisfy minimum strength without invalidating existing hashes
+ok 460 - new passwords must satisfy minimum strength without invalidating existing hashes
+  ---
+  duration_ms: 444.491108
+  type: 'test'
+  ...
+[source-size-budget] OK
+[RETIRED_ROUTE_HIT] {
+  route: 'test-mobile-legacy',
+  method: 'GET',
+  path: '/api/mobile-legacy/orders',
+  replacement: '/api/mobile',
+  count: 1
+}
+# Subtest: unknown users still execute a bcrypt comparison through the dummy hash
+ok 461 - unknown users still execute a bcrypt comparison through the dummy hash
+  ---
+  duration_ms: 450.729697
+  type: 'test'
+  ...
+# Subtest: login only accepts bcrypt password hashes and never plaintext/default password
+ok 462 - login only accepts bcrypt password hashes and never plaintext/default password
+  ---
+  duration_ms: 2.17389
+  type: 'test'
+  ...
+# Subtest: password migration is explicit and legacy seed scripts do not use default 123456
+ok 463 - password migration is explicit and legacy seed scripts do not use default 123456
+  ---
+  duration_ms: 1.536824
+  type: 'test'
+  ...
+# Subtest: màn hình Import không còn khu vực tự tạo mẫu import
+ok 464 - màn hình Import không còn khu vực tự tạo mẫu import
+  ---
+  duration_ms: 4.997428
+  type: 'test'
+  ...
+# Subtest: frontend không còn binding và handler của mẫu import tự tạo
+ok 465 - frontend không còn binding và handler của mẫu import tự tạo
+  ---
+  duration_ms: 1.970294
+  type: 'test'
+  ...
+# Subtest: CSS riêng của khu vực đã gỡ được loại bỏ
+ok 466 - CSS riêng của khu vực đã gỡ được loại bỏ
+  ---
+  duration_ms: 4.300889
+  type: 'test'
+  ...
+# Subtest: master-order facade preserves the pre-refactor public contract
+ok 467 - master-order facade preserves the pre-refactor public contract
+  ---
+  duration_ms: 1.983661
+  type: 'test'
+  ...
+# Subtest: excel import facade preserves controller contract
+ok 468 - excel import facade preserves controller contract
+  ---
+  duration_ms: 1.018988
+  type: 'test'
+  ...
+# Subtest: assembled index page is byte-for-byte equivalent to characterization snapshot
+ok 469 - assembled index page is byte-for-byte equivalent to characterization snapshot
+  ---
+  duration_ms: 8.988754
+  type: 'test'
+  ...
+# Subtest: split CSS parts preserve exact legacy cascade order
+ok 470 - split CSS parts preserve exact legacy cascade order
+  ---
+  duration_ms: 9.047884
+  type: 'test'
+  ...
+# Subtest: source size budget blocks new God Files in extracted domains
+ok 471 - source size budget blocks new God Files in extracted domains
+  ---
+  duration_ms: 23.835569
+  type: 'test'
+  ...
+# Subtest: phase79b covers every remaining High source file with a locked canonical source bundle
+ok 472 - phase79b covers every remaining High source file with a locked canonical source bundle
+  ---
+  duration_ms: 61.113909
+  type: 'test'
+  ...
+# Subtest: generated runtime bundles are current and remain below the High-file threshold
+ok 473 - generated runtime bundles are current and remain below the High-file threshold
+  ---
+  duration_ms: 3567.271418
+  type: 'test'
+  ...
+# Subtest: classic browser shards are loaded once and in canonical order
+ok 474 - classic browser shards are loaded once and in canonical order
+  ---
+  duration_ms: 7.48121
+  type: 'test'
+  ...
+# Subtest: CSS manifests import every canonical part in original cascade order
+ok 475 - CSS manifests import every canonical part in original cascade order
+  ---
+  duration_ms: 1.126499
+  type: 'test'
+  ...
+# Subtest: CommonJS compatibility bundles still expose callable public contracts
+ok 476 - CommonJS compatibility bundles still expose callable public contracts
+  ---
+  duration_ms: 2.543576
+  type: 'test'
+  ...
+# Subtest: legacy warehouse labels are normalized to picking zones only
+ok 477 - legacy warehouse labels are normalized to picking zones only
+  ---
+  duration_ms: 0.328957
+  type: 'test'
+  ...
+# Subtest: master order groups HC before PC and sorts product names A to Z inside each group
+ok 478 - master order groups HC before PC and sorts product names A to Z inside each group
+  ---
+  duration_ms: 5.040214
+  type: 'test'
+  ...
+# Subtest: master picking renders exactly one HC page and one PC page in A-Z order
+ok 479 - master picking renders exactly one HC page and one PC page in A-Z order
+  ---
+  duration_ms: 3.817963
+  type: 'test'
+  ...
+# Subtest: picking zone is isolated from physical inventory warehouse MAIN
+ok 480 - picking zone is isolated from physical inventory warehouse MAIN
+  ---
+  duration_ms: 3.468776
+  type: 'test'
+  ...
+# Subtest: new import documents pin the physical warehouse to MAIN while item picking zones remain print metadata
+ok 481 - new import documents pin the physical warehouse to MAIN while item picking zones remain print metadata
+  ---
+  duration_ms: 5.441877
+  type: 'test'
+  ...
+# Subtest: product UI and write service use pickingZone instead of writing a default inventory warehouse
+ok 482 - product UI and write service use pickingZone instead of writing a default inventory warehouse
+  ---
+  duration_ms: 7.25496
+  type: 'test'
+  ...
+# Subtest: picking-zone migration is dry-run by default and requires explicit --write
+ok 483 - picking-zone migration is dry-run by default and requires explicit --write
+  ---
+  duration_ms: 1.021197
+  type: 'test'
+  ...
+# Subtest: print domain has canonical contract, normalizer, merge service and builders
+ok 484 - print domain has canonical contract, normalizer, merge service and builders
+  ---
+  duration_ms: 1.104486
+  type: 'test'
+  ...
+# Subtest: frontend delegates all print aggregation to backend print domain
+ok 485 - frontend delegates all print aggregation to backend print domain
+  ---
+  duration_ms: 5.344217
+  type: 'test'
+  ...
+# Subtest: master-order print facade delegates to canonical PrintReadService
+ok 486 - master-order print facade delegates to canonical PrintReadService
+  ---
+  duration_ms: 0.568963
+  type: 'test'
+  ...
+# Subtest: master return batch printing loads masters and children in bulk
+ok 487 - master return batch printing loads masters and children in bulk
+  ---
+  duration_ms: 0.570668
+  type: 'test'
+  ...
+# Subtest: print routes expose canonical batch endpoints
+ok 488 - print routes expose canonical batch endpoints
+  ---
+  duration_ms: 0.494839
+  type: 'test'
+  ...
+# Subtest: canonical warehouse templates use print tokens and child invoice uses isolated exact CSS
+ok 489 - canonical warehouse templates use print tokens and child invoice uses isolated exact CSS
+  ---
+  duration_ms: 1.580781
+  type: 'test'
+  ...
+# Subtest: print tokens define one canonical A4 spacing system
+ok 490 - print tokens define one canonical A4 spacing system
+  ---
+  duration_ms: 0.908815
+  type: 'test'
+  ...
+# Subtest: DMS exact invoice column widths total the Invoice-36 content width
+ok 491 - DMS exact invoice column widths total the Invoice-36 content width
+  ---
+  duration_ms: 0.999335
+  type: 'test'
+  ...
+# Subtest: warehouse picking column widths use the shared seven-column 100 percent contract
+ok 492 - warehouse picking column widths use the shared seven-column 100 percent contract
+  ---
+  duration_ms: 1.582802
+  type: 'test'
+  ...
+# Subtest: legacy promotion fallback is batch-based and never overwrites order snapshots
+ok 493 - legacy promotion fallback is batch-based and never overwrites order snapshots
+  ---
+  duration_ms: 3.879414
+  type: 'test'
+  ...
+# Subtest: snapshot price, pack and warehouse win over current product fallback
+ok 494 - snapshot price, pack and warehouse win over current product fallback
+  ---
+  duration_ms: 0.314614
+  type: 'test'
+  ...
+# Subtest: merge key keeps warehouse, line type and price separated
+ok 495 - merge key keeps warehouse, line type and price separated
+  ---
+  duration_ms: 0.599729
+  type: 'test'
+  ...
+# Subtest: single and selected-master print use the same builder contract
+ok 496 - single and selected-master print use the same builder contract
+  ---
+  duration_ms: 0.734256
+  type: 'test'
+  ...
+# Subtest: web sales order capture keeps print-critical product snapshot fields
+ok 497 - web sales order capture keeps print-critical product snapshot fields
+  ---
+  duration_ms: 1.717583
+  type: 'test'
+  ...
+# Subtest: mobile sales order capture keeps print-critical product snapshot fields
+ok 498 - mobile sales order capture keeps print-critical product snapshot fields
+  ---
+  duration_ms: 2.685455
+  type: 'test'
+  ...
+# Subtest: Excel DMS import captures historical price, pack and picking-zone snapshots
+ok 499 - Excel DMS import captures historical price, pack and picking-zone snapshots
+  ---
+  duration_ms: 4.71256
+  type: 'test'
+  ...
+# Subtest: SALES_INVOICE renders from canonical builder with snapshot values
+ok 500 - SALES_INVOICE renders from canonical builder with snapshot values
+  ---
+  duration_ms: 4.95136
+  type: 'test'
+  ...
+# Subtest: WAREHOUSE_PICKING renders warehouse and line-type separation consistently
+ok 501 - WAREHOUSE_PICKING renders warehouse and line-type separation consistently
+  ---
+  duration_ms: 3.584005
+  type: 'test'
+  ...
+# Subtest: print output uses canonical NVBH/NVGH fields and does not fallback to generic staff fields
+ok 502 - print output uses canonical NVBH/NVGH fields and does not fallback to generic staff fields
+  ---
+  duration_ms: 1.475973
+  type: 'test'
+  ...
+# Subtest: ProductService.createProduct validates required fields before writing
+ok 503 - ProductService.createProduct validates required fields before writing
+  ---
+  duration_ms: 0.76253
+  type: 'test'
+  ...
+# Subtest: ProductService.createProduct normalizes packing and rejects duplicate code
+ok 504 - ProductService.createProduct normalizes packing and rejects duplicate code
+  ---
+  duration_ms: 0.257711
+  type: 'test'
+  ...
+# Subtest: ProductService.listProducts maps stock display fields for frontend
+ok 505 - ProductService.listProducts maps stock display fields for frontend
+  ---
+  duration_ms: 0.76105
+  type: 'test'
+  ...
+# Subtest: controllers do not expose internal error field unconditionally in production
+ok 506 - controllers do not expose internal error field unconditionally in production
+  ---
+  duration_ms: 9.037809
+  type: 'test'
+  ...
+# Subtest: mobile 5xx responses replace internal messages in production
+ok 507 - mobile 5xx responses replace internal messages in production
+  ---
+  duration_ms: 0.581734
+  type: 'test'
+  ...
+# Subtest: production readiness gate accepts hardened configuration
+ok 508 - production readiness gate accepts hardened configuration
+  ---
+  duration_ms: 0.844482
+  type: 'test'
+  ...
+# Subtest: production readiness gate rejects unsafe secrets, shared token keys and dangerous flags
+ok 509 - production readiness gate rejects unsafe secrets, shared token keys and dangerous flags
+  ---
+  duration_ms: 0.24574
+  type: 'test'
+  ...
+# Subtest: reconciliation is enabled by default, rate-limited and exposes bounded state
+ok 510 - reconciliation is enabled by default, rate-limited and exposes bounded state
+  ---
+  duration_ms: 0.414386
+  type: 'test'
+  ...
+# Subtest: system status exposes reconciliation health without loading report items
+ok 511 - system status exposes reconciliation health without loading report items
+  ---
+  duration_ms: 0.685226
+  type: 'test'
+  ...
+# Subtest: reconciliation model/service/job/script exist
+ok 512 - reconciliation model/service/job/script exist
+  ---
+  duration_ms: 0.482988
+  type: 'test'
+  ...
+# Subtest: ReconciliationService checks stock, AR, and fund ledgers
+ok 513 - ReconciliationService checks stock, AR, and fund ledgers
+  ---
+  duration_ms: 0.565003
+  type: 'test'
+  ...
+# Subtest: reconciliation collection is registered and indexed
+ok 514 - reconciliation collection is registered and indexed
+  ---
+  duration_ms: 1.033681
+  type: 'test'
+  ...
+# Subtest: system routes expose admin reconciliation endpoints
+ok 515 - system routes expose admin reconciliation endpoints
+  ---
+  duration_ms: 0.762505
+  type: 'test'
+  ...
+# Subtest: reconciliation job is env guarded and app startup uses it safely
+ok 516 - reconciliation job is env guarded and app startup uses it safely
+  ---
+  duration_ms: 1.233556
+  type: 'test'
+  ...
+# Subtest: refresh token cookie parsing and body exposure are secure by default
+ok 517 - refresh token cookie parsing and body exposure are secure by default
+  ---
+  duration_ms: 0.817157
+  type: 'test'
+  ...
+# Subtest: browser clients no longer persist refresh tokens in localStorage
+ok 518 - browser clients no longer persist refresh tokens in localStorage
+  ---
+  duration_ms: 1.28447
+  type: 'test'
+  ...
+# Subtest: disabled direct import and inventory check still require explicit route policies
+ok 519 - disabled direct import and inventory check still require explicit route policies
+  ---
+  duration_ms: 0.91578
+  type: 'test'
+  ...
+# Subtest: environment example uses the hardened bcrypt work factor
+ok 520 - environment example uses the hardened bcrypt work factor
+  ---
+  duration_ms: 0.556372
+  type: 'test'
+  ...
+# Subtest: Report directory stays on the main screen and each report opens in a popup
+ok 521 - Report directory stays on the main screen and each report opens in a popup
+  ---
+  duration_ms: 4.539988
+  type: 'test'
+  ...
+# Subtest: reward customer report aggregates only positive AR bonus credits
+ok 522 - reward customer report aggregates only positive AR bonus credits
+  ---
+  duration_ms: 2.097468
+  type: 'test'
+  ...
+# Subtest: reward report is visible only to business roles and sourced from AR bonus ledger
+ok 523 - reward report is visible only to business roles and sourced from AR bonus ledger
+  ---
+  duration_ms: 0.99902
+  type: 'test'
+  ...
+# Subtest: reward report returns only rewarded customers with summary and pagination metadata
+ok 524 - reward report returns only rewarded customers with summary and pagination metadata
+  ---
+  duration_ms: 1.478837
+  type: 'test'
+  ...
+# Subtest: Report Center exposes a governed report catalog with all P0/P1 domains
+ok 525 - Report Center exposes a governed report catalog with all P0/P1 domains
+  ---
+  duration_ms: 1.261008
+  type: 'test'
+  ...
+# Subtest: Report Center routes are additive and preserve legacy report endpoints
+ok 526 - Report Center routes are additive and preserve legacy report endpoints
+  ---
+  duration_ms: 0.197011
+  type: 'test'
+  ...
+# Subtest: Report Center UI renders data instead of resetting KPI values to zero
+ok 527 - Report Center UI renders data instead of resetting KPI values to zero
+  ---
+  duration_ms: 1.13279
+  type: 'test'
+  ...
+# Subtest: Excel compatibility exports remain available after the redesign
+ok 528 - Excel compatibility exports remain available after the redesign
+  ---
+  duration_ms: 0.367704
+  type: 'test'
+  ...
+# Subtest: report catalog is role-scoped and management receives all report definitions
+ok 529 - report catalog is role-scoped and management receives all report definitions
+  ---
+  duration_ms: 0.383811
+  type: 'test'
+  ...
+# Subtest: sales-by-day aggregation preserves gross, actual, return and net values
+ok 530 - sales-by-day aggregation preserves gross, actual, return and net values
+  ---
+  duration_ms: 0.357293
+  type: 'test'
+  ...
+# Subtest: product aggregation uses allocated actual line value and calculates average unit price
+ok 531 - product aggregation uses allocated actual line value and calculates average unit price
+  ---
+  duration_ms: 0.353597
+  type: 'test'
+  ...
+# Subtest: data-quality report prioritizes critical inventory and missing child issues
+ok 532 - data-quality report prioritizes critical inventory and missing child issues
+  ---
+  duration_ms: 0.557948
+  type: 'test'
+  ...
+# Subtest: high-volume reports push date and active status filters into Mongo
+ok 533 - high-volume reports push date and active status filters into Mongo
+  ---
+  duration_ms: 0.364173
+  type: 'test'
+  ...
+# Subtest: stock movement period query does not load transactions after report end date
+ok 534 - stock movement period query does not load transactions after report end date
+  ---
+  duration_ms: 0.095053
+  type: 'test'
+  ...
+# Subtest: report date guard rejects missing, inverted and overlong periods
+ok 535 - report date guard rejects missing, inverted and overlong periods
+  ---
+  duration_ms: 1.569123
+  type: 'test'
+  ...
+# Subtest: report date guard accepts a valid inclusive 31-day period
+ok 536 - report date guard accepts a valid inclusive 31-day period
+  ---
+  duration_ms: 0.478079
+  type: 'test'
+  ...
+# Subtest: debt report reads only arLedgers and does not remap from Customer/User
+ok 537 - debt report reads only arLedgers and does not remap from Customer/User
+  ---
+  duration_ms: 2.001556
+  type: 'test'
+  ...
+# Subtest: inventory movement uses signed quantity before transaction-name heuristics
+ok 538 - inventory movement uses signed quantity before transaction-name heuristics
+  ---
+  duration_ms: 0.385821
+  type: 'test'
+  ...
+# Subtest: inventory snapshot keeps on-hand, reserved and available quantities separate
+ok 539 - inventory snapshot keeps on-hand, reserved and available quantities separate
+  ---
+  duration_ms: 0.126816
+  type: 'test'
+  ...
+# Subtest: sales valuation excludes promotion quantity and reconciles line values to confirmed order total
+ok 540 - sales valuation excludes promotion quantity and reconciles line values to confirmed order total
+  ---
+  duration_ms: 1.828892
+  type: 'test'
+  ...
+# Subtest: sales valuation preserves an explicitly locked zero total
+ok 541 - sales valuation preserves an explicitly locked zero total
+  ---
+  duration_ms: 0.43102
+  type: 'test'
+  ...
+# Subtest: delivery status checks every lifecycle field instead of trusting a stale pending alias
+ok 542 - delivery status checks every lifecycle field instead of trusting a stale pending alias
+  ---
+  duration_ms: 0.221019
+  type: 'test'
+  ...
+# Subtest: fund report separates fund type and account while respecting explicit direction
+ok 543 - fund report separates fund type and account while respecting explicit direction
+  ---
+  duration_ms: 0.320425
+  type: 'test'
+  ...
+# Subtest: report data-source failures are surfaced as 503 instead of empty arrays
+ok 544 - report data-source failures are surfaced as 503 instead of empty arrays
+  ---
+  duration_ms: 0.195387
+  type: 'test'
+  ...
+# Subtest: major operational reports expose paged items, full summary and metadata
+ok 545 - major operational reports expose paged items, full summary and metadata
+  ---
+  duration_ms: 0.455986
+  type: 'test'
+  ...
+# Subtest: sales and delivery calculate rows and totals in a single Mongo facet before returning a page
+ok 546 - sales and delivery calculate rows and totals in a single Mongo facet before returning a page
+  ---
+  duration_ms: 0.426963
+  type: 'test'
+  ...
+# Subtest: stock export explicitly opts into full result despite API pagination
+ok 547 - stock export explicitly opts into full result despite API pagination
+  ---
+  duration_ms: 1.840347
+  type: 'test'
+  ...
+# Subtest: persistent request idempotency replays the committed response
+ok 548 - persistent request idempotency replays the committed response
+  ---
+  duration_ms: 0.837453
+  type: 'test'
+  ...
+# Subtest: persistent request idempotency rejects a duplicate still in progress
+ok 549 - persistent request idempotency rejects a duplicate still in progress
+  ---
+  duration_ms: 0.487435
+  type: 'test'
+  ...
+# Subtest: stale processing idempotency request can be safely reclaimed
+ok 550 - stale processing idempotency request can be safely reclaimed
+  ---
+  duration_ms: 0.639548
+  type: 'test'
+  ...
+# Subtest: retired route returns 410 and counts legacy client hits
+ok 551 - retired route returns 410 and counts legacy client hits
+  ---
+  duration_ms: 0.817899
+  type: 'test'
+  ...
+# Subtest: delivery engine writes returnOrders through ReturnLifecycleService boundary
+ok 552 - delivery engine writes returnOrders through ReturnLifecycleService boundary
+  ---
+  duration_ms: 2.00009
+  type: 'test'
+  ...
+# Subtest: ReturnLifecycleService owns return lifecycle posting boundaries
+ok 553 - ReturnLifecycleService owns return lifecycle posting boundaries
+  ---
+  duration_ms: 0.645164
+  type: 'test'
+  ...
+# Subtest: ReturnOrder schema declares all date paths used by strictQuery filters
+ok 554 - ReturnOrder schema declares all date paths used by strictQuery filters
+  ---
+  duration_ms: 0.201977
+  type: 'test'
+  ...
+# Subtest: listReturnOrders rechecks canonical displayed date and removes rows outside selected range
+ok 555 - listReturnOrders rechecks canonical displayed date and removes rows outside selected range
+  ---
+  duration_ms: 1.554944
+  type: 'test'
+  ...
+# Subtest: listReturnOrders rejects reversed date range before querying MongoDB
+ok 556 - listReturnOrders rejects reversed date range before querying MongoDB
+  ---
+  duration_ms: 0.325666
+  type: 'test'
+  ...
+# Subtest: return-order filter UI is compact, modular and has no Today mode selector
+ok 557 - return-order filter UI is compact, modular and has no Today mode selector
+  ---
+  duration_ms: 9.396315
+  type: 'test'
+  ...
+# Subtest: listReturnOrders no longer throws uniqueClean ReferenceError and returns Mongo rows
+ok 558 - listReturnOrders no longer throws uniqueClean ReferenceError and returns Mongo rows
+  ---
+  duration_ms: 1.064954
+  type: 'test'
+  ...
+# Subtest: return-order screen uses a full-width list and readonly detail popup
+ok 559 - return-order screen uses a full-width list and readonly detail popup
+  ---
+  duration_ms: 21.273623
+  type: 'test'
+  ...
+# Subtest: ReturnStateMachine defines canonical A5 states and transitions
+ok 560 - ReturnStateMachine defines canonical A5 states and transitions
+  ---
+  duration_ms: 0.911493
+  type: 'test'
+  ...
+# Subtest: confirmReceiveReturnOrder only receives stock and does not post AR directly
+ok 561 - confirmReceiveReturnOrder only receives stock and does not post AR directly
+  ---
+  duration_ms: 2.221031
+  type: 'test'
+  ...
+# Subtest: AR return posting is blocked unless return order is accounting_confirmed
+ok 562 - AR return posting is blocked unless return order is accounting_confirmed
+  ---
+  duration_ms: 1.598486
+  type: 'test'
+  ...
+# Subtest: return edit/cancel paths use state machine guards
+ok 563 - return edit/cancel paths use state machine guards
+  ---
+  duration_ms: 1.56814
+  type: 'test'
+  ...
+# Subtest: return accounting API and migration script exist
+ok 564 - return accounting API and migration script exist
+  ---
+  duration_ms: 0.88247
+  type: 'test'
+  ...
+# Subtest: user management recognizes every canonical role
+ok 565 - user management recognizes every canonical role
+  ---
+  duration_ms: 15.61124
+  type: 'test'
+  ...
+# Subtest: manager and warehouse are not silently downgraded to sales
+ok 566 - manager and warehouse are not silently downgraded to sales
+  ---
+  duration_ms: 901.476857
+  type: 'test'
+  ...
+# Subtest: SalesLifecycleService exposes sales lifecycle contract
+ok 567 - SalesLifecycleService exposes sales lifecycle contract
+  ---
+  duration_ms: 0.813594
+  type: 'test'
+  ...
+# Subtest: SalesLifecycleService cancelOrder does not double reverse current orderService behavior
+ok 568 - SalesLifecycleService cancelOrder does not double reverse current orderService behavior
+  ---
+  duration_ms: 0.877372
+  type: 'test'
+  ...
+# Subtest: SalesLifecycleService keeps legacy confirmDelivery compatibility while supporting object patch mode
+ok 569 - SalesLifecycleService keeps legacy confirmDelivery compatibility while supporting object patch mode
+  ---
+  duration_ms: 0.635761
+  type: 'test'
+  ...
+# Subtest: sales order line price accepts decimal DMS values
+ok 570 - sales order line price accepts decimal DMS values
+  ---
+  duration_ms: 2.275495
+  type: 'test'
+  ...
+# Subtest: new sales item price accepts decimal values
+ok 571 - new sales item price accepts decimal values
+  ---
+  duration_ms: 3.881363
+  type: 'test'
+  ...
+# Subtest: sales order script remains cache-busted after later patches
+ok 572 - sales order script remains cache-busted after later patches
+  ---
+  duration_ms: 3.328579
+  type: 'test'
+  ...
+# Subtest: sales order search/list must exclude soft-deleted orders by deleted flags, not only status
+ok 573 - sales order search/list must exclude soft-deleted orders by deleted flags, not only status
+  ---
+  duration_ms: 0.273268
+  type: 'test'
+  ...
+# Subtest: sales order search projection and mapping preserve deletion flags and visibility state
+ok 574 - sales order search projection and mapping preserve deletion flags and visibility state
+  ---
+  duration_ms: 0.358557
+  type: 'test'
+  ...
+# Subtest: draft order can be hard deleted from orders
+ok 575 - draft order can be hard deleted from orders
+  ---
+  duration_ms: 0.451045
+  type: 'test'
+  ...
+# Subtest: stock posted order is reversed then hard deleted without tombstone
+ok 576 - stock posted order is reversed then hard deleted without tombstone
+  ---
+  duration_ms: 0.166108
+  type: 'test'
+  ...
+# Subtest: merged order cannot be deleted directly
+ok 577 - merged order cannot be deleted directly
+  ---
+  duration_ms: 0.193194
+  type: 'test'
+  ...
+# Subtest: return dependency blocks deletion
+ok 578 - return dependency blocks deletion
+  ---
+  duration_ms: 0.138458
+  type: 'test'
+  ...
+# Subtest: accounting order cannot be deleted through normal delete flow
+ok 579 - accounting order cannot be deleted through normal delete flow
+  ---
+  duration_ms: 0.147932
+  type: 'test'
+  ...
+# Subtest: mobile sales service must delegate sales order deletion to SalesOrderDeletionService
+ok 580 - mobile sales service must delegate sales order deletion to SalesOrderDeletionService
+  ---
+  duration_ms: 3.841069
+  type: 'test'
+  ...
+# Subtest: normal sales order deletion flow must not use tombstone or soft-void copy
+ok 581 - normal sales order deletion flow must not use tombstone or soft-void copy
+  ---
+  duration_ms: 2.511972
+  type: 'test'
+  ...
+# Subtest: SalesOrder flow creates pending order and posts stock immediately without posting AR before accounting confirmation
+ok 582 - SalesOrder flow creates pending order and posts stock immediately without posting AR before accounting confirmation
+  ---
+  duration_ms: 4.973004
+  type: 'test'
+  ...
+# Subtest: SalesOrder cancel reverses stock and customer debt impact
+ok 583 - SalesOrder cancel reverses stock and customer debt impact
+  ---
+  duration_ms: 1.868873
+  type: 'test'
+  ...
+# Subtest: sales order inventory posting goes through InventoryPostingService boundary
+ok 584 - sales order inventory posting goes through InventoryPostingService boundary
+  ---
+  duration_ms: 2.069126
+  type: 'test'
+  ...
+# Subtest: sales cancellation lifecycle does not double reverse stock or AR
+ok 585 - sales cancellation lifecycle does not double reverse stock or AR
+  ---
+  duration_ms: 0.667904
+  type: 'test'
+  ...
+# Subtest: sales order modal uses compact option A layout and keeps product list as primary workspace
+ok 586 - sales order modal uses compact option A layout and keeps product list as primary workspace
+  ---
+  duration_ms: 25.781162
+  type: 'test'
+  ...
+# Subtest: VAT note is shown only when non-invoice mode is selected
+ok 587 - VAT note is shown only when non-invoice mode is selected
+  ---
+  duration_ms: 2.742478
+  type: 'test'
+  ...
+# Subtest: cancel pending sales order does not reverse stock or AR that were never posted
+ok 588 - cancel pending sales order does not reverse stock or AR that were never posted
+  ---
+  duration_ms: 1.480336
+  type: 'test'
+  ...
+# Subtest: cancel stock-posted sales order reverses stock only when AR was not posted
+ok 589 - cancel stock-posted sales order reverses stock only when AR was not posted
+  ---
+  duration_ms: 1.319552
+  type: 'test'
+  ...
+# Subtest: cancel AR-posted sales order reverses both stock and AR
+ok 590 - cancel AR-posted sales order reverses both stock and AR
+  ---
+  duration_ms: 1.083034
+  type: 'test'
+  ...
+# Subtest: sales orders UI sends staff name only when staff code is absent
+ok 591 - sales orders UI sends staff name only when staff code is absent
+  ---
+  duration_ms: 10.950321
+  type: 'test'
+  ...
+# Subtest: order search applies exact NVBH aliases in Mongo before skip/limit
+ok 592 - order search applies exact NVBH aliases in Mongo before skip/limit
+  ---
+  duration_ms: 2.607408
+  type: 'test'
+  ...
+# Subtest: sales order schema declares every NVBH query path under strictQuery
+ok 593 - sales order schema declares every NVBH query path under strictQuery
+  ---
+  duration_ms: 0.750521
+  type: 'test'
+  ...
+# Subtest: sales order list projection and client mapping preserve NVBH aliases
+ok 594 - sales order list projection and client mapping preserve NVBH aliases
+  ---
+  duration_ms: 2.218977
+  type: 'test'
+  ...
+# Subtest: browser guard cannot disable pagination after one mismatched page
+ok 595 - browser guard cannot disable pagination after one mismatched page
+  ---
+  duration_ms: 6.787258
+  type: 'test'
+  ...
+# Subtest: sales order inventory posting is separated from AR posting
+ok 596 - sales order inventory posting is separated from AR posting
+  ---
+  duration_ms: 3.472587
+  type: 'test'
+  ...
+# Subtest: DMS sales order import posts order and inventory in atomic chunks
+ok 597 - DMS sales order import posts order and inventory in atomic chunks
+  ---
+  duration_ms: 3.806856
+  type: 'test'
+  ...
+# Subtest: mongoose strictQuery does not strip sales-order staff filters
+ok 598 - mongoose strictQuery does not strip sales-order staff filters
+  ---
+  duration_ms: 2.904759
+  type: 'test'
+  ...
+# Subtest: sales orders default to VAT invoice required across creation sources
+ok 599 - sales orders default to VAT invoice required across creation sources
+  ---
+  duration_ms: 5.265982
+  type: 'test'
+  ...
+# Subtest: VAT setting uses isolated patch endpoint and does not call stock reverse posting
+ok 600 - VAT setting uses isolated patch endpoint and does not call stock reverse posting
+  ---
+  duration_ms: 1.772981
+  type: 'test'
+  ...
+# Subtest: VAT TT78 includes old orders and excludes explicit false orders
+ok 601 - VAT TT78 includes old orders and excludes explicit false orders
+  ---
+  duration_ms: 3.717257
+  type: 'test'
+  ...
+# Subtest: sales UI exposes VAT choice, isolated save and non-invoice export
+ok 602 - sales UI exposes VAT choice, isolated save and non-invoice export
+  ---
+  duration_ms: 5.149228
+  type: 'test'
+  ...
+# Subtest: search field config includes delivery core staff filters
+ok 603 - search field config includes delivery core staff filters
+  ---
+  duration_ms: 0.935591
+  type: 'test'
+  ...
+# Subtest: frontend search API is called only through unifiedSearchEngine
+ok 604 - frontend search API is called only through unifiedSearchEngine
+  ---
+  duration_ms: 2.875092
+  type: 'test'
+  ...
+# Subtest: staff suggestions expose canonical businessStaffCode and businessStaffName
+ok 605 - staff suggestions expose canonical businessStaffCode and businessStaffName
+  ---
+  duration_ms: 0.572669
+  type: 'test'
+  ...
+# Subtest: NoSQL operator and prototype-pollution keys are rejected
+ok 606 - NoSQL operator and prototype-pollution keys are rejected
+  ---
+  duration_ms: 0.45741
+  type: 'test'
+  ...
+# Subtest: securityInputGuard returns 400 before controller execution
+ok 607 - securityInputGuard returns 400 before controller execution
+  ---
+  duration_ms: 0.309977
+  type: 'test'
+  ...
+# Subtest: large service entry points are now small facades
+ok 608 - large service entry points are now small facades
+  ---
+  duration_ms: 1.485909
+  type: 'test'
+  ...
+# Subtest: business boundaries exist for query command posting reporting and export
+ok 609 - business boundaries exist for query command posting reporting and export
+  ---
+  duration_ms: 0.391764
+  type: 'test'
+  ...
+# Subtest: pickSalesStaffCode only reads canonical sales fields
+ok 610 - pickSalesStaffCode only reads canonical sales fields
+  ---
+  duration_ms: 0.302737
+  type: 'test'
+  ...
+# Subtest: pickDeliveryStaffCode only reads canonical delivery fields
+ok 611 - pickDeliveryStaffCode only reads canonical delivery fields
+  ---
+  duration_ms: 0.152601
+  type: 'test'
+  ...
+# Subtest: staff names do not use legacy staffName or username
+ok 612 - staff names do not use legacy staffName or username
+  ---
+  duration_ms: 0.126523
+  type: 'test'
+  ...
+# Subtest: staff identity helpers are null-safe
+ok 613 - staff identity helpers are null-safe
+  ---
+  duration_ms: 0.143251
+  type: 'test'
+  ...
+# Subtest: staff identity contract exists and documents forbidden legacy/account identifiers
+ok 614 - staff identity contract exists and documents forbidden legacy/account identifiers
+  ---
+  duration_ms: 0.767089
+  type: 'test'
+  ...
+# Subtest: staffRules uses staff identity contract for code matching
+ok 615 - staffRules uses staff identity contract for code matching
+  ---
+  duration_ms: 0.680277
+  type: 'test'
+  ...
+# Subtest: posting.engine.js không dùng doc.staffCode/doc.staffName để tạo salesman/delivery AR
+ok 616 - posting.engine.js không dùng doc.staffCode/doc.staffName để tạo salesman/delivery AR
+  ---
+  duration_ms: 0.772854
+  type: 'test'
+  ...
+# Subtest: masterOrderLegacy.service.js không dùng child/master staff* để ghi AR/accounting staff
+ok 617 - masterOrderLegacy.service.js không dùng child/master staff* để ghi AR/accounting staff
+  ---
+  duration_ms: 5.330357
+  type: 'test'
+  ...
+# Subtest: reportService.js không dùng order.staffCode/order.staffName cho salesman/delivery report
+ok 618 - reportService.js không dùng order.staffCode/order.staffName cho salesman/delivery report
+  ---
+  duration_ms: 1.922649
+  type: 'test'
+  ...
+# Subtest: delivery.engine.js tách filter NVBH/NVGH, không dùng staffCode/staffName trong filter riêng
+ok 619 - delivery.engine.js tách filter NVBH/NVGH, không dùng staffCode/staffName trong filter riêng
+  ---
+  duration_ms: 1.362536
+  type: 'test'
+  ...
+# Subtest: returnOrderService.js không lấy salesStaff từ order.staffCode/order.staffName
+ok 620 - returnOrderService.js không lấy salesStaff từ order.staffCode/order.staffName
+  ---
+  duration_ms: 3.029043
+  type: 'test'
+  ...
+# Subtest: reportService.js staff seed filter không dùng staffCode/staffName khi lọc NVBH/NVGH
+ok 621 - reportService.js staff seed filter không dùng staffCode/staffName khi lọc NVBH/NVGH
+  ---
+  duration_ms: 1.99623
+  type: 'test'
+  ...
+# Subtest: reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, không để PAYMENT/RETURN override
+ok 622 - reportService.js công nợ lấy NVBH/NVGH của đơn từ AR-SALE, không để PAYMENT/RETURN override
+  ---
+  duration_ms: 1.953452
+  type: 'test'
+  ...
+# Subtest: UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers
+ok 623 - UI công nợ render NVBH/NVGH bằng code mới từ API debts/arLedgers
+  ---
+  duration_ms: 2.735993
+  type: 'test'
+  ...
+# Subtest: staffRules.js không dùng username/id/_id để match mã nhân viên
+ok 624 - staffRules.js không dùng username/id/_id để match mã nhân viên
+  ---
+  duration_ms: 0.743744
+  type: 'test'
+  ...
+# Subtest: staffRules.js không fallback username làm mã nhân viên chuẩn hóa
+ok 625 - staffRules.js không fallback username làm mã nhân viên chuẩn hóa
+  ---
+  duration_ms: 0.918577
+  type: 'test'
+  ...
+# Subtest: staff search accepts users.code/users.staffCode as business staff codes without username fallback
+ok 626 - staff search accepts users.code/users.staffCode as business staff codes without username fallback
+  ---
+  duration_ms: 1.70023
+  type: 'test'
+  ...
+# Subtest: full database snapshot endpoint is admin-only and disabled by default
+ok 627 - full database snapshot endpoint is admin-only and disabled by default
+  ---
+  duration_ms: 1.297927
+  type: 'test'
+  ...
+# Subtest: database readiness endpoints return 503 when MongoDB is unavailable
+ok 628 - database readiness endpoints return 503 when MongoDB is unavailable
+  ---
+  duration_ms: 1.103385
+  type: 'test'
+  ...
+# Subtest: global table alignment assets are loaded after module styles and application scripts
+ok 629 - global table alignment assets are loaded after module styles and application scripts
+  ---
+  duration_ms: 14.798164
+  type: 'test'
+  ...
+# Subtest: alignment controller applies one semantic class to header and matching body column
+ok 630 - alignment controller applies one semantic class to header and matching body column
+  ---
+  duration_ms: 1.206161
+  type: 'test'
+  ...
+# Subtest: report renderer emits the same alignment type on TH and TD
+ok 631 - report renderer emits the same alignment type on TH and TD
+  ---
+  duration_ms: 0.749332
+  type: 'test'
+  ...
+# Subtest: known structural column defects stay fixed
+ok 632 - known structural column defects stay fixed
+  ---
+  duration_ms: 4.958645
+  type: 'test'
+  ...
+# Subtest: UI displays canonical staff fields and does not fallback to generic staffCode/staffName
+ok 633 - UI displays canonical staff fields and does not fallback to generic staffCode/staffName
+  ---
+  duration_ms: 20.421703
+  type: 'test'
+  ...
+# Subtest: web UI patches fetch to use HttpOnly cookie auth and automatic refresh for API requests
+ok 634 - web UI patches fetch to use HttpOnly cookie auth and automatic refresh for API requests
+  ---
+  duration_ms: 0.605359
+  type: 'test'
+  ...
+# Subtest: index uses cache-busted auth guard with fetch boundary version
+ok 635 - index uses cache-busted auth guard with fetch boundary version
+  ---
+  duration_ms: 2.967743
+  type: 'test'
+  ...
+# Subtest: web login and refresh have dedicated abuse rate limits
+ok 636 - web login and refresh have dedicated abuse rate limits
+  ---
+  duration_ms: 0.218645
+  type: 'test'
+  ...
+# Subtest: web admin classic scripts share one valid global lexical scope
+ok 637 - web admin classic scripts share one valid global lexical scope
+  ---
+  duration_ms: 43.810589
+  type: 'test'
+  ...
+# Subtest: import order and import report modules use separate HTML escape identifiers
+ok 638 - import order and import report modules use separate HTML escape identifiers
+  ---
+  duration_ms: 2.609816
+  type: 'test'
+  ...
+# Subtest: web operational read routes require management roles
+ok 639 - web operational read routes require management roles
+  ---
+  duration_ms: 3.781658
+  type: 'test'
+  ...
+# Subtest: unified search protects staff, order and AR data and blocks generic bypass
+ok 640 - unified search protects staff, order and AR data and blocks generic bypass
+  ---
+  duration_ms: 0.719996
+  type: 'test'
+  ...
+# Subtest: full customer/product/promotion/template catalogs are management-only while mobile has scoped APIs
+ok 641 - full customer/product/promotion/template catalogs are management-only while mobile has scoped APIs
+  ---
+  duration_ms: 1.788746
+  type: 'test'
+  ...
+# Subtest: customer-search and delivery-today aliases cannot bypass management RBAC
+ok 642 - customer-search and delivery-today aliases cannot bypass management RBAC
+  ---
+  duration_ms: 0.919699
+  type: 'test'
+  ...
+1..642
+# tests 642
+# suites 0
+# pass 642
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12744.401213
+found 0 vulnerabilities

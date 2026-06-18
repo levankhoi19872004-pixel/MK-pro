@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('src/services/orderLegacy.service.js', 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/orderLegacy.service.js');
 
 test('strict sales staff search uses canonical Mongo filter without bounded JS scan', () => {
   const search = source.match(/async function searchOrders[\s\S]*?\nasync function listOrders/)?.[0] || '';

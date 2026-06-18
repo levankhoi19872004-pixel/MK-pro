@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('src/services/reportLegacy.service.js', 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
 
 test('major operational reports expose paged items, full summary and metadata', () => {
   for (const [start, end] of [
@@ -34,6 +34,6 @@ test('sales and delivery calculate rows and totals in a single Mongo facet befor
 });
 
 test('stock export explicitly opts into full result despite API pagination', () => {
-  const exportSource = fs.readFileSync('src/services/importExportLegacy.service.js', 'utf8');
+  const exportSource = require('./helpers/sourceBundle.util').readSource('src/services/importExportLegacy.service.js');
   assert.match(exportSource, /stockReport\(\{ \.\.\.query, full: '1', export: '1' \}\)/);
 });

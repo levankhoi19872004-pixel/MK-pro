@@ -1,1200 +1,163 @@
-const { calculateCartonUnit } = require('../src/utils/common.util');
-const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../src/utils/pickingZone.util');
-function toNumber(value) {
-  if (value === null || value === undefined || value === '') return 0;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-
-  const text = String(value).trim();
-  let normalized = text;
-
-  // Hỗ trợ định dạng tiền Việt: 34.028, 1.100.000, 12,11
-  // Đồng thời không phá số thập phân dạng kỹ thuật: 12.11, 2.5
-  if (text.includes(',')) {
-    normalized = text.replace(/\./g, '').replace(',', '.');
-  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(text)) {
-    normalized = text.replace(/\./g, '');
-  }
-
-  const number = Number(normalized);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function formatMoney(value) {
-  return Math.round(toNumber(value)).toLocaleString('vi-VN');
-}
-
-function formatDate(value) {
-  if (!value) return new Date().toLocaleDateString('vi-VN');
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value || '');
-  return date.toLocaleDateString('vi-VN');
-}
-
-function formatDateTime(value) {
-  if (!value) return new Date().toLocaleString('vi-VN');
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value || '');
-  return date.toLocaleString('vi-VN');
-}
-
-const DIGITS = ['Không', 'Một', 'Hai', 'Ba', 'Bốn', 'Năm', 'Sáu', 'Bảy', 'Tám', 'Chín'];
-
-function readTriple(number, full) {
-  const hundred = Math.floor(number / 100);
-  const ten = Math.floor((number % 100) / 10);
-  const unit = number % 10;
-  const parts = [];
-
-  if (hundred > 0 || full) {
-    parts.push(`${DIGITS[hundred]} Trăm`);
-  }
-
-  if (ten > 1) {
-    parts.push(`${DIGITS[ten]} Mươi`);
-    if (unit === 1) parts.push('Mốt');
-    else if (unit === 5) parts.push('Lăm');
-    else if (unit > 0) parts.push(DIGITS[unit]);
-  } else if (ten === 1) {
-    parts.push('Mười');
-    if (unit === 5) parts.push('Lăm');
-    else if (unit > 0) parts.push(DIGITS[unit]);
-  } else if (unit > 0) {
-    if (hundred > 0 || full) parts.push('Lẻ');
-    parts.push(DIGITS[unit]);
-  }
-
-  return parts.join(' ');
-}
-
-function numberToVietnameseWords(value) {
-  let number = Math.round(Math.abs(toNumber(value)));
-  if (number === 0) return 'Không Đồng';
-
-  const units = ['', 'Nghìn', 'Triệu', 'Tỷ', 'Nghìn Tỷ', 'Triệu Tỷ'];
-  const groups = [];
-  while (number > 0) {
-    groups.push(number % 1000);
-    number = Math.floor(number / 1000);
-  }
-
-  const words = [];
-  for (let i = groups.length - 1; i >= 0; i -= 1) {
-    const group = groups[i];
-    if (group === 0) continue;
-    const full = i < groups.length - 1 && group < 100;
-    words.push(`${readTriple(group, full)} ${units[i]}`.trim());
-  }
-
-  return `${words.join(' ').replace(/\s+/g, ' ')} Đồng`;
-}
-
-function normalizeQuantityByPack(quantity, pack) {
-  const result = calculateCartonUnit(quantity, pack);
-  return { cases: result.cartons, units: result.units, display: result.display };
-}
-
-function pick(...values) {
-  return values.find((value) => value !== undefined && value !== null && value !== '') ?? '';
-}
-
-function pickPositive(...values) {
-  for (const value of values) {
-    const number = toNumber(value);
-    if (number > 0) return number;
-  }
-  return 0;
-}
-
-function getItemQuantity(item) {
-  return toNumber(pick(item.qty, item.quantity, item.soLuong, item.totalQty, item.totalQuantity));
-}
-
-function getItemPack(item) {
-  // Quy cách phải lấy từ dữ liệu Mongo/snapshot số học, không parse từ tên sản phẩm hoặc chuỗi packing.
-  return toNumber(pick(
-    item.conversionRateAtOrder,
-    item.packingQtyAtOrder,
-    item.packingQty,
-    item.conversionRate,
-    item.unitsPerCase,
-    item.qtyPerCase,
-    item.packSize,
-    item.product?.conversionRate,
-    item.productSnapshot?.conversionRate,
-    1
-  )) || 1;
-}
-
-
-function normalizeMergeCode(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase();
-}
-
-function normalizePack(pack) {
-  return String(pack || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '');
-}
-
-function normalizeUnit(unit) {
-  return String(unit || '')
-    .trim()
-    .toUpperCase();
-}
-
-function normalizeMergePrice(price) {
-  return Math.round(toNumber(price));
-}
-
-function comparePrintItems(a, b) {
-  const codeCompare = normalizeMergeCode(a.code).localeCompare(normalizeMergeCode(b.code), 'vi', { numeric: true });
-  if (codeCompare !== 0) return codeCompare;
-  const priceCompare = normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
-  if (priceCompare !== 0) return priceCompare;
-  return String(a.name || '').localeCompare(String(b.name || ''), 'vi', { sensitivity: 'base', numeric: true });
-}
-
-function comparePrintItemsByName(a, b) {
-  const nameCompare = String(a.name || a.productName || '').localeCompare(
-    String(b.name || b.productName || ''),
-    'vi',
-    { sensitivity: 'base', numeric: true }
-  );
-  if (nameCompare !== 0) return nameCompare;
-  const codeCompare = normalizeMergeCode(a.code || a.productCode).localeCompare(
-    normalizeMergeCode(b.code || b.productCode),
-    'vi',
-    { numeric: true }
-  );
-  if (codeCompare !== 0) return codeCompare;
-  return normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
-}
-
-function getCatalogSalePrice(item) {
-  // Cột 4 của mẫu DMS/V46: giá bán sau thuế, trước khuyến mại.
-  // Ưu tiên giá bán trong danh mục sản phẩm đã được enrich từ Mongo.
-  return toNumber(pick(
-    item.catalogSalePriceAtOrder,
-    item.priceAfterTaxBeforePromotion,
-    item.catalogSalePrice,
-    item.product?.salePrice,
-    item.productSnapshot?.salePrice,
-    item.salePrice,
-    item.giaBan,
-    item.price,
-    item.unitPrice,
-    0
-  ));
-}
-
-function getItemPrice(item) {
-  return getCatalogSalePrice(item);
-}
-
-function getDiscountPercent(item) {
-  return toNumber(pick(
-    item.discountPercent,
-    item.promotionDiscountPercent,
-    item.ckPercent,
-    item.percent,
-    item.rate,
-    item.promotion?.discountPercent,
-    0
-  ));
-}
-
-function getItemDiscount(item) {
-  return toNumber(pick(item.discount, item.discountAmount, item.ck, item.ckAmount, 0));
-}
-
-
-function normalizePromotionText(value) {
-  if (value === null || value === undefined) return '';
-  if (Array.isArray(value)) return value.map(normalizePromotionText).filter(Boolean).join('; ');
-  if (typeof value === 'object') {
-    return pick(value.description, value.name, value.title, value.content, value.note, value.ruleName, value.programName, value.promotionName, value.dienGiai, value.noiDung);
-  }
-  return String(value || '').trim();
-}
-
-function collectItemPromotionSources(item = {}) {
-  const sources = [];
-  const arrayFields = [
-    item.promotions,
-    item.promotionRows,
-    item.promotionDetails,
-    item.appliedPromotions,
-    item.appliedPromotionRows,
-    item.discountRows,
-    item.discounts,
-    item.productPromotions,
-    item.productSnapshot?.promotions,
-    item.productSnapshot?.promotionRows,
-    item.product?.promotions,
-    item.product?.promotionRows
-  ];
-  for (const value of arrayFields) {
-    if (Array.isArray(value)) sources.push(...value);
-  }
-
-  const singleFields = [
-    item.promotion,
-    item.promotionInfo,
-    item.promotionDetail,
-    item.appliedPromotion,
-    item.discountInfo,
-    item.productSnapshot?.promotion,
-    item.product?.promotion
-  ];
-  for (const value of singleFields) {
-    if (value) sources.push(value);
-  }
-
-  const inlineDescription = pick(
-    item.promotionDescription,
-    item.promotionName,
-    item.promotionText,
-    item.promotionContent,
-    item.promotionNote,
-    item.promoDescription,
-    item.promoName,
-    item.dienGiaiKhuyenMai,
-    item.noiDungKhuyenMai,
-    item.productSnapshot?.promotionDescription,
-    item.productSnapshot?.promotionName,
-    item.productSnapshot?.promotionText,
-    item.product?.promotionDescription,
-    item.product?.promotionName,
-    item.product?.promotionText
-  );
-  const inlineCode = pick(
-    item.promotionCode,
-    item.promoCode,
-    item.ctkmCode,
-    item.maCTKM,
-    item.productSnapshot?.promotionCode,
-    item.product?.promotionCode
-  );
-
-  // Inline promotion fields are a legacy fallback only.
-  // When structured promotion rows already exist, appending the inline aggregate
-  // creates a duplicate row (for example 17% + 2% rows plus an extra 19% row).
-  if (!sources.length && (inlineDescription || inlineCode)) {
-    sources.push({
-      code: inlineCode,
-      promotionCode: inlineCode,
-      description: inlineDescription,
-      name: inlineDescription,
-      discountPercent: item.discountPercent,
-      percent: item.discountPercent,
-      discountBeforeTax: item.discountBeforeTax,
-      beforeTax: item.discountBeforeTax,
-      discountAfterTax: item.discountAfterTax || item.discount || item.discountAmount,
-      afterTax: item.discountAfterTax || item.discount || item.discountAmount
-    });
-  }
-
-  return sources;
-}
-
-function normalizeItemPromotionRows(item = {}, normalizedLine = {}) {
-  const sources = collectItemPromotionSources(item);
-  const lineProductCode = pick(normalizedLine.productCode, normalizedLine.code, item.productCode, item.code, item.sku, item.maHang);
-  const lineProductName = pick(normalizedLine.productName, normalizedLine.name, item.productName, item.name, item.tenHang);
-  const lineType = normalizedLine.isPromo ? 'KM' : 'Bán';
-  const qty = toNumber(pick(normalizedLine.qty, normalizedLine.quantity, item.qty, item.quantity, item.totalQty));
-  const lineAmount = toNumber(pick(normalizedLine.gsvAmount, normalizedLine.lineAmount, normalizedLine.amount, item.gsvAmount, item.amount));
-  // Giá trị hàng hóa mua trong bảng khuyến mại phải là giá trước thuế:
-  // (giá bán sau thuế của sản phẩm / 1.08) x số lượng trên đơn.
-  const qualifiedAmountBeforeTax = Math.round(lineAmount / 1.08);
-  const discountPercent = toNumber(pick(normalizedLine.discountPercent, item.discountPercent, item.percent, item.rate));
-  const discountAfterTax = toNumber(pick(item.discountAfterTax, item.afterTax, item.discountAmount, item.discount, normalizedLine.discount, 0));
-  const discountBeforeTax = toNumber(pick(item.discountBeforeTax, item.beforeTax, discountAfterTax ? Math.round(discountAfterTax / 1.08) : 0));
-
-  if (!sources.length && (discountPercent > 0 || discountAfterTax > 0 || normalizedLine.isPromo)) {
-    sources.push({
-      code: pick(item.promotionCode, item.promoCode, item.ctkmCode, item.maCTKM),
-      description: normalizedLine.isPromo
-        ? `Hàng khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`
-        : `Chiết khấu/khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`,
-      discountPercent,
-      discountBeforeTax,
-      discountAfterTax
-    });
-  }
-
-  const rows = sources.map((source) => {
-    const code = pick(source.promotionCode, source.code, source.ctkmCode, source.maCTKM, source.programCode);
-    const rawDescription = normalizePromotionText(source);
-    const description = rawDescription || (normalizedLine.isPromo
-      ? `Hàng khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`
-      : `Khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`);
-
-    return {
-      productCode: lineProductCode,
-      productName: lineProductName,
-      lineType,
-      quantity: qty,
-      promotionCode: code,
-      code,
-      description,
-      name: description,
-      qualifiedAmount: qualifiedAmountBeforeTax,
-      basisAmount: qualifiedAmountBeforeTax,
-      discountPercent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
-      percent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
-      discountBeforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),
-      beforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),
-      discountAfterTax: toNumber(pick(source.discountAfterTax, source.afterTax, source.amountAfterTax, source.tienCKSauThue, source.discountAmount, discountAfterTax)),
-      afterTax: toNumber(pick(source.discountAfterTax, source.afterTax, source.amountAfterTax, source.tienCKSauThue, source.discountAmount, discountAfterTax))
-    };
-  });
-
-  const seen = new Set();
-  return rows.filter((row) => {
-    const key = [row.productCode, row.lineType, row.promotionCode, row.description, row.discountAfterTax, row.discountPercent].join('|');
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return row.description || row.promotionCode || row.discountAfterTax || row.discountPercent;
-  });
-}
-
-function buildPromotionsFromInvoiceItems(items = []) {
-  const rows = [];
-  for (const item of items) {
-    const itemRows = Array.isArray(item.promotionRows) ? item.promotionRows : [];
-    for (const row of itemRows) {
-      rows.push({
-        productCode: item.productCode || row.productCode,
-        productName: item.productName || row.productName,
-        lineType: item.isPromotionGift || item.isPromo ? 'KM' : (row.lineType || 'Bán'),
-        quantity: item.quantity || row.quantity,
-        promotionCode: row.promotionCode || row.code || item.promotionCode || '',
-        code: row.promotionCode || row.code || item.promotionCode || '',
-        description: row.description || row.name || '',
-        qualifiedAmount: toNumber(row.qualifiedAmount || row.basisAmount),
-        basisAmount: toNumber(row.qualifiedAmount || row.basisAmount),
-        discountPercent: toNumber(row.discountPercent || row.percent),
-        percent: toNumber(row.discountPercent || row.percent),
-        discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-        beforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-        discountAfterTax: toNumber(row.discountAfterTax || row.afterTax),
-        afterTax: toNumber(row.discountAfterTax || row.afterTax)
-      });
-    }
-  }
-  return mergePromotionRows(rows);
-}
-
-function mergePromotionRows(rows = []) {
-  const map = new Map();
-  for (const row of rows) {
-    const key = [row.productCode || '', row.lineType || '', row.promotionCode || row.code || '', row.description || row.name || '', row.discountPercent || 0].join('|');
-    const existing = map.get(key);
-    if (!existing) {
-      map.set(key, { ...row });
-    } else {
-      existing.qualifiedAmount = toNumber(existing.qualifiedAmount) + toNumber(row.qualifiedAmount);
-      existing.basisAmount = existing.qualifiedAmount;
-      existing.discountBeforeTax = toNumber(existing.discountBeforeTax) + toNumber(row.discountBeforeTax);
-      existing.beforeTax = existing.discountBeforeTax;
-      existing.discountAfterTax = toNumber(existing.discountAfterTax) + toNumber(row.discountAfterTax);
-      existing.afterTax = existing.discountAfterTax;
-      existing.quantity = toNumber(existing.quantity) + toNumber(row.quantity);
-    }
-  }
-  return Array.from(map.values());
-}
-
-
-function getItemTax(item) {
-  return toNumber(pick(item.tax, item.vat, item.taxAmount, item.vatAmount, 0));
-}
-
-function normalizeOneItem(item, index, sourceOrder = null) {
-  const pickingZone = normalizePickingZone(pickingZoneFrom(item), PICKING_ZONES.HC);
-  const warehouseCode = legacyPrintGroupCode(pickingZone);
-  const warehouseName = pickingZoneLabel(pickingZone);
-  const qty = getItemQuantity(item);
-  const pack = getItemPack(item);
-
-  // Chuẩn cột mẫu đơn DMS/V46:
-  // Cột 1: CS/SU = cột 2 / quy cách.
-  // Cột 2: số lượng lẻ thực tế.
-  // Cột 3: giá trước thuế = cột 4 / 1.08.
-  // Cột 4: giá bán sau thuế, trước KM = products.salePrice.
-  // Cột 5: giá sau thuế, sau KM/CK = cột 4 - cột 4 * %CK, hoặc giá bán thẳng người tạo đơn nhập.
-  const priceAfterTaxBeforePromotion = getCatalogSalePrice(item);
-  const priceBeforeTax = toNumber(pick(
-    item.preTaxPriceAtOrder,
-    item.priceBeforeTaxBeforePromotion,
-    item.listPriceBeforeVat,
-    item.priceBeforeTax,
-    item.priceBeforeVat,
-    Math.round(priceAfterTaxBeforePromotion / 1.08)
-  ));
-  const discountPercent = getDiscountPercent(item);
-  const directNetPrice = toNumber(pick(
-    item.priceAfterTaxAfterPromotion,
-    item.priceAfterPromotion,
-    item.priceAfterVatAfterDiscount,
-    item.netPrice,
-    item.priceAfterDiscount,
-    item.finalPrice,
-    item.orderPrice,
-    item.manualPrice,
-    0
-  ));
-  const priceAfterPromotion = discountPercent > 0
-    ? Math.floor(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
-    : (directNetPrice || priceAfterTaxBeforePromotion);
-
-  const discount = getItemDiscount(item);
-  const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
-  const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true;
-  const normalizedLineType = isPromo
-    ? 'PROMO'
-    : lineType === 'RETURN'
-      ? 'RETURN'
-      : lineType === 'IMPORT'
-        ? 'IMPORT'
-        : 'SALE';
-  const lineTypeName = normalizedLineType === 'PROMO'
-    ? 'Xuất khuyến mại'
-    : normalizedLineType === 'RETURN'
-      ? 'Hàng trả nhập kho'
-      : normalizedLineType === 'IMPORT'
-        ? 'Hàng nhập kho'
-        : 'Hàng bán';
-  const calculatedTax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
-  const tax = isPromo ? 0 : toNumber(pick(item.vatAmountAtOrder, item.vatAmount, item.taxAmount, item.tax, calculatedTax));
-  const calculatedAmount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
-  const amount = isPromo ? 0 : toNumber(pick(item.lineAmountAtOrder, item.lineAmount, item.amount, calculatedAmount));
-  const caseInfo = normalizeQuantityByPack(qty, pack);
-  const promotionRows = normalizeItemPromotionRows(item, {
-    code: pick(item.code, item.productCode, item.sku, item.maHang),
-    productCode: pick(item.productCode, item.code, item.sku, item.maHang),
-    name: pick(item.name, item.productName, item.tenHang, item.productSnapshot?.name, item.product?.name),
-    productName: pick(item.productName, item.name, item.tenHang, item.productSnapshot?.name, item.product?.name),
-    qty,
-    quantity: qty,
-    gsvAmount: Math.round(qty * priceAfterTaxBeforePromotion),
-    amount,
-    discount,
-    discountPercent,
-    isPromo
-  });
-
-  return {
-    stt: index + 1,
-    code: pick(item.code, item.productCode, item.sku, item.maHang),
-    productCode: pick(item.productCode, item.code, item.sku, item.maHang),
-    name: pick(item.name, item.productName, item.tenHang, item.productSnapshot?.name, item.product?.name),
-    productName: pick(item.productName, item.name, item.tenHang, item.productSnapshot?.name, item.product?.name),
-    unit: pick(item.unit, item.dvt, item.uom, item.productSnapshot?.unit, item.product?.unit, 'Cái'),
-    pack,
-    conversionRate: pack,
-    qty,
-    quantity: qty,
-    cartonQty: caseInfo.cases,
-    caseQty: caseInfo.cases,
-    unitQty: caseInfo.units,
-    caseDisplay: `${caseInfo.cases}/${caseInfo.units}`,
-    price: priceAfterTaxBeforePromotion,
-    salePrice: priceAfterTaxBeforePromotion,
-    priceBeforeTax,
-    priceBeforeVat: priceBeforeTax,
-    listPriceBeforeVat: priceBeforeTax,
-    priceAfterTaxBeforePromotion,
-    priceAfterVatBeforeDiscount: priceAfterTaxBeforePromotion,
-    listPriceAfterVat: priceAfterTaxBeforePromotion,
-    discountPercent,
-    priceAfterPromotion,
-    priceAfterDiscount: priceAfterPromotion,
-    priceAfterVatAfterDiscount: priceAfterPromotion,
-    gsvAmount: Math.round(qty * priceAfterTaxBeforePromotion),
-    nivAmount: amount,
-    discount,
-    tax,
-    vatAmount: tax,
-    amount,
-    lineAmount: amount,
-    lineType: normalizedLineType,
-    isPromo,
-    lineTypeName,
-    note: item.note || '',
-    sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',
-    pickingZone,
-    warehouseCode,
-    warehouseName,
-    sourceOrderCodes: Array.isArray(item.sourceOrderCodes) ? item.sourceOrderCodes : [],
-    promotionCode: pick(item.promotionCode, item.promoCode, item.ctkmCode, item.maCTKM, promotionRows[0]?.promotionCode),
-    promotionDescription: pick(item.promotionDescription, item.promotionName, item.promotionText, promotionRows[0]?.description),
-    promotionRows
-  };
-}
-
-function normalizeItems(document) {
-  const directItems = Array.isArray(document.items) ? document.items : [];
-  const orderLines = Array.isArray(document.lines) ? document.lines : [];
-  const rows = directItems.length ? directItems : orderLines;
-
-  if (rows.length) {
-    return rows.map((item, index) => normalizeOneItem(item, index));
-  }
-
-  const children = Array.isArray(document.children) ? document.children : [];
-  const childItems = [];
-  children.forEach((child) => {
-    const items = Array.isArray(child.items) ? child.items : [];
-    items.forEach((item) => childItems.push({ item, child }));
-  });
-
-  return childItems.map((entry, index) => normalizeOneItem(entry.item, index, entry.child));
-}
-
-function normalizePromotions(document) {
-  const promotions = Array.isArray(document.promotions) ? document.promotions
-    : Array.isArray(document.promotionRows) ? document.promotionRows
-      : Array.isArray(document.discounts) ? document.discounts
-        : [];
-
-  return promotions.map((promo, index) => {
-    const code = pick(promo.code, promo.promotionCode, promo.ctkmCode, promo.maCTKM);
-    const description = pick(promo.description, promo.name, promo.title, promo.promotionName, promo.tenCTKM);
-    const qualifiedAmount = toNumber(pick(promo.qualifiedAmount, promo.basisAmount, promo.baseAmount, promo.giaTriHangHoa, promo.amount));
-    const discountPercent = toNumber(pick(promo.discountPercent, promo.percent, promo.tyLe, promo.rate));
-    const discountBeforeTax = toNumber(pick(promo.discountBeforeTax, promo.beforeTax, promo.amountBeforeTax, promo.tienCKTruocThue));
-    const discountAfterTax = toNumber(pick(promo.discountAfterTax, promo.afterTax, promo.amountAfterTax, promo.tienCKSauThue, promo.discountAmount));
-    return {
-      stt: index + 1,
-      code,
-      promotionCode: code,
-      name: description,
-      description,
-      basisAmount: qualifiedAmount,
-      qualifiedAmount,
-      percent: discountPercent,
-      discountPercent,
-      beforeTax: discountBeforeTax,
-      discountBeforeTax,
-      afterTax: discountAfterTax,
-      discountAfterTax,
-      type: pick(promo.type, promo.kind, promo.loai)
-    };
-  });
-}
-
-
-function normalizeDisplayRewards(document) {
-  const rows = Array.isArray(document.offsets) ? document.offsets
-    : Array.isArray(document.displayRewards) ? document.displayRewards
-    : Array.isArray(document.rewardRows) ? document.rewardRows
-      : Array.isArray(document.displayRewardRows) ? document.displayRewardRows
-        : Array.isArray(document.deductions) ? document.deductions
-          : Array.isArray(document.offsetRows) ? document.offsetRows
-            : [];
-
-  return rows.map((row, index) => {
-    const code = pick(row.programCode, row.code, row.rewardCode, row.displayCode, row.cttbCode, row.maCTTrungBay, row.maCT);
-    const description = pick(row.description, row.name, row.title, row.programName, row.noiDung, row.content);
-    const month = pick(row.month, row.displayMonth, row.thangTrungBay);
-    const offsetAmount = toNumber(pick(row.offsetAmount, row.cashAmount, row.debtOffsetAmount, row.canTruNo, row.amount));
-    return {
-      stt: index + 1,
-      code,
-      programCode: code,
-      name: description,
-      description,
-      month,
-      goodsAmount: toNumber(pick(row.goodsAmount, row.goodsRewardAmount, row.hangHoa, row.chiTraHangHoa)),
-      quantityText: pick(row.quantityText, row.caseUnitText, row.cartonUnitText, row.soLuongThungLe),
-      offsetAmount
-    };
-  });
-}
-
-
-function buildWarehouseGroups(items = [], options = {}) {
-  const map = new Map();
-  const itemMaps = new Map();
-
-  for (const item of items) {
-    const code = String(item.warehouseCode || 'KHO_HC').trim() || 'KHO_HC';
-    const name = String(item.warehouseName || (code === 'KHO_PC' ? 'KHO PC' : 'KHO HC')).trim();
-    if (!map.has(code)) {
-      map.set(code, {
-        code,
-        name,
-        items: [],
-        saleItems: [],
-        promoItems: [],
-        returnItems: [],
-        importItems: [],
-        totalQty: 0,
-        saleQty: 0,
-        promoQty: 0,
-        totalAmount: 0
-      });
-      itemMaps.set(code, new Map());
-    }
-
-    const group = map.get(code);
-    const groupItemMap = itemMaps.get(code);
-    const lineType = item.isPromo || item.lineType === 'PROMO' ? 'PROMO' : 'SALE';
-    const normalizedCode = normalizeMergeCode(pick(item.code, item.productCode));
-    const normalizedPack = normalizePack(item.pack);
-    const normalizedUnit = normalizeUnit(item.unit);
-    const normalizedPrice = lineType === 'PROMO' ? 0 : normalizeMergePrice(item.price);
-
-    // Debug khi cần kiểm tra dữ liệu nguồn bị tách dòng: bật PRINT_DEBUG_MERGE=1.
-    // Không bật mặc định để tránh spam log production.
-    if (process.env.PRINT_DEBUG_MERGE === '1') {
-      console.log('[printDataBuilder.buildWarehouseGroups] source item', {
-        code: item.code,
-        name: item.name,
-        unit: item.unit,
-        pack: item.pack,
-        price: item.price,
-        normalizedCode,
-        normalizedUnit,
-        normalizedPack,
-        normalizedPrice
-      });
-    }
-
-    // Đơn tổng phải gộp theo kho + loại dòng + mã sản phẩm + giá bán.
-    // Không dùng tên hàng/ĐVT/quy cách trong khóa vì các trường này dễ lệch chữ hoa, khoảng trắng, snapshot.
-    const mergeKey = [
-      code,
-      lineType,
-      normalizedCode,
-      normalizedPrice
-    ].join('|');
-
-    let merged = groupItemMap.get(mergeKey);
-    if (!merged) {
-      merged = {
-        ...item,
-        code: normalizedCode || item.code,
-        productCode: normalizedCode || item.productCode || item.code,
-        unit: item.unit || normalizedUnit,
-        pack: toNumber(item.pack) || toNumber(normalizedPack) || 1,
-        price: normalizedPrice,
-        salePrice: normalizedPrice,
-        __mergeKey: mergeKey,
-        qty: 0,
-        amount: 0,
-        sourceOrderCodes: []
-      };
-      groupItemMap.set(mergeKey, merged);
-      group.items.push(merged);
-      if (lineType === 'PROMO') group.promoItems.push(merged);
-      else if (lineType === 'RETURN') group.returnItems.push(merged);
-      else if (lineType === 'IMPORT') group.importItems.push(merged);
-      else group.saleItems.push(merged);
-    }
-
-    merged.qty += toNumber(item.qty);
-    merged.quantity = merged.qty;
-    merged.amount += toNumber(item.amount);
-    merged.lineAmount = merged.amount;
-
-    const caseInfo = normalizeQuantityByPack(merged.qty, merged.pack);
-    merged.caseQty = caseInfo.cases;
-    merged.cartonQty = caseInfo.cases;
-    merged.unitQty = caseInfo.units;
-    merged.caseDisplay = caseInfo.display;
-
-    if (item.sourceOrderCode && !merged.sourceOrderCodes.includes(item.sourceOrderCode)) merged.sourceOrderCodes.push(item.sourceOrderCode);
-    for (const sourceCode of item.sourceOrderCodes || []) {
-      if (sourceCode && !merged.sourceOrderCodes.includes(sourceCode)) merged.sourceOrderCodes.push(sourceCode);
-    }
-
-    group.totalQty += toNumber(item.qty);
-    if (lineType === 'PROMO') group.promoQty += toNumber(item.qty);
-    else group.saleQty += toNumber(item.qty);
-    group.totalAmount += toNumber(item.amount);
-  }
-
-  const itemComparator = options.sortByProductName ? comparePrintItemsByName : comparePrintItems;
-  for (const group of map.values()) {
-    group.saleItems.sort(itemComparator);
-    group.promoItems.sort(itemComparator);
-    group.returnItems.sort(itemComparator);
-    group.importItems.sort(itemComparator);
-    group.items = [...group.saleItems, ...group.promoItems, ...group.returnItems, ...group.importItems];
-    group.items.forEach((item, index) => {
-      item.stt = index + 1;
-      delete item.__mergeKey;
-    });
-  }
-
-  const preferred = ['KHO_HC', 'KHO_PC'];
-  return Array.from(map.values()).sort((a, b) => {
-    const ai = preferred.indexOf(a.code);
-    const bi = preferred.indexOf(b.code);
-    if (ai !== -1 || bi !== -1) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-    return a.name.localeCompare(b.name, 'vi');
-  });
-}
-
-
-function parseCsSu(csSu) {
-  const [cartonQty, unitQty] = String(csSu || '0/0').split('/');
-  return {
-    cartonQty: toNumber(cartonQty),
-    csSuUnitQty: toNumber(unitQty)
-  };
-}
-
-function normalizeInvoiceItem(item, index) {
-  const csSu = parseCsSu(item.csSu || item.quantityCsSu || item.caseDisplay);
-  const quantity = toNumber(pick(item.quantity, item.qty, item.totalQty, item.csSuUnitQty, item.unitQty));
-  const priceAfterTaxBeforePromotion = pickPositive(
-    item.priceAfterTaxBeforePromotion,
-    item.priceAfterVatBeforeDiscount,
-    item.listPriceAfterVat,
-    item.catalogSalePriceAtOrder,
-    item.salePrice,
-    item.price,
-    item.unitPrice
-  );
-  // Snapshot 0 ở dữ liệu DMS cũ không được chặn fallback từ giá sau thuế.
-  const priceBeforeTaxBeforePromotion = pickPositive(
-    item.preTaxPriceAtOrder,
-    item.priceBeforeTaxBeforePromotion,
-    item.priceBeforeTax,
-    item.priceBeforeVat,
-    item.listPriceBeforeVat,
-    Math.round(priceAfterTaxBeforePromotion / 1.08)
-  );
-  const discountPercent = toNumber(item.discountPercent);
-  const priceAfterTaxAfterPromotion = pickPositive(
-    item.priceAfterTaxAfterPromotion,
-    item.finalPriceAtOrder,
-    item.finalPrice,
-    item.priceAfterPromotion,
-    item.priceAfterVatAfterDiscount,
-    item.priceAfterDiscount,
-    discountPercent > 0
-      ? Math.round(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
-      : priceAfterTaxBeforePromotion
-  );
-  const lineAmount = pickPositive(
-    item.lineAmountAtOrder,
-    item.lineAmount,
-    item.amount,
-    Math.round(quantity * priceAfterTaxAfterPromotion)
-  );
-  const vatAmount = Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO')
-    ? 0
-    : pickPositive(
-        item.vatAmountAtOrder,
-        item.vatAmount,
-        item.tax,
-        item.taxAmount,
-        lineAmount > 0 ? Math.round(lineAmount - (lineAmount / 1.08)) : 0,
-        Math.round((priceAfterTaxAfterPromotion - priceAfterTaxAfterPromotion / 1.08) * quantity)
-      );
-
-  return {
-    lineNo: item.lineNo || item.stt || index + 1,
-    productCode: String(pick(item.productCode, item.code, item.sku, item.maHang)).trim(),
-    productName: String(pick(item.productName, item.name, item.tenHang)).trim(),
-    quantityCsSu: item.csSu || item.quantityCsSu || item.caseDisplay || `${csSu.cartonQty}/${csSu.csSuUnitQty}`,
-    cartonQty: toNumber(pick(item.cartonQty, item.caseQty, csSu.cartonQty)),
-    unitQtyFromCsSu: toNumber(pick(item.unitQtyFromCsSu, item.unitQty, csSu.csSuUnitQty)),
-    unitQty: toNumber(pick(item.unitQty, csSu.csSuUnitQty)),
-    csSuUnitQty: toNumber(pick(item.csSuUnitQty, item.unitQty, csSu.csSuUnitQty)),
-    quantity,
-    priceBeforeTaxBeforePromotion,
-    priceBeforeTax: priceBeforeTaxBeforePromotion,
-    priceAfterTaxBeforePromotion,
-    priceAfterTaxAfterPromotion,
-    priceAfterPromotion: priceAfterTaxAfterPromotion,
-    discountPercent,
-    vatAmount,
-    lineAmount,
-    isPromotionGift: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO'),
-    promotionCode: item.promotionCode || '',
-    promotionRows: Array.isArray(item.promotionRows)
-      ? item.promotionRows
-      : normalizeItemPromotionRows(item, {
-          productCode: String(pick(item.productCode, item.code, item.sku, item.maHang)).trim(),
-          productName: String(pick(item.productName, item.name, item.tenHang)).trim(),
-          quantity,
-          qty: quantity,
-          gsvAmount: quantity * priceAfterTaxBeforePromotion,
-          lineAmount,
-          discountPercent,
-          isPromo: Boolean(item.isPromotionGift || item.isPromo || item.lineType === 'PROMO')
-        })
-  };
-}
-
-function normalizeInvoicePromotion(row = {}) {
-  return {
-    productCode: String(row.productCode || row.maHang || '').trim(),
-    productName: String(row.productName || row.tenHang || '').trim(),
-    lineType: row.lineType || row.type || '',
-    quantity: toNumber(row.quantity || row.qty),
-    promotionCode: String(row.promotionCode || row.code || '').trim(),
-    code: String(row.promotionCode || row.code || '').trim(),
-    description: String(row.description || row.name || '').trim(),
-    qualifiedAmount: toNumber(row.qualifiedAmount || row.basisAmount),
-    basisAmount: toNumber(row.qualifiedAmount || row.basisAmount),
-    discountPercent: toNumber(row.discountPercent || row.percent),
-    percent: toNumber(row.discountPercent || row.percent),
-    discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-    beforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
-    discountAfterTax: toNumber(row.discountAfterTax || row.afterTax),
-    afterTax: toNumber(row.discountAfterTax || row.afterTax)
-  };
-}
-
-function normalizeInvoiceOffset(row = {}) {
-  return {
-    programCode: String(row.programCode || row.code || '').trim(),
-    description: String(row.description || row.name || '').trim(),
-    displayMonth: row.displayMonth || row.month || '',
-    month: row.month || row.displayMonth || '',
-    goodsAmount: toNumber(row.goodsAmount),
-    quantityText: row.quantityText || row.quantity || '',
-    offsetAmount: toNumber(row.offsetAmount)
-  };
-}
-
-function calculateDeliveryInvoiceSummary(payload = {}) {
-  const items = Array.isArray(payload.items) ? payload.items : [];
-  const promotions = Array.isArray(payload.promotions) ? payload.promotions : [];
-  const offsets = Array.isArray(payload.offsets) ? payload.offsets : [];
-
-  const totalQty = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
-  const goodsAmountAfterPromotion = items.reduce((sum, item) => sum + toNumber(item.lineAmount), 0);
-  const grossAmountBeforePromotion = items.reduce(
-    (sum, item) => sum + toNumber(item.quantity) * toNumber(item.priceAfterTaxBeforePromotion),
-    0
-  );
-  const totalVatAmount = items.reduce((sum, item) => sum + toNumber(item.vatAmount), 0);
-  const totalPromotionAmount = payload.totalPromotionAmount !== undefined
-    ? toNumber(payload.totalPromotionAmount)
-    : promotions.reduce((sum, item) => sum + toNumber(item.discountAfterTax), 0);
-  const totalOffsetAmount = payload.totalOffsetAmount !== undefined
-    ? toNumber(payload.totalOffsetAmount)
-    : offsets.reduce((sum, item) => sum + toNumber(item.offsetAmount), 0);
-  const nppDiscountAmount = toNumber(payload.nppDiscountAmount || payload.summary?.nppDiscountAmount);
-  const payableAmount = payload.payableAmount !== undefined
-    ? toNumber(payload.payableAmount)
-    : goodsAmountAfterPromotion - totalOffsetAmount - nppDiscountAmount;
-  const promotionRate = grossAmountBeforePromotion > 0
-    ? Number((((totalPromotionAmount + nppDiscountAmount) / grossAmountBeforePromotion) * 100).toFixed(2))
-    : 0;
-
-  return {
-    totalQty,
-    totalVatAmount,
-    goodsAmountAfterPromotion,
-    grossAmountBeforePromotion,
-    totalPromotionAmount,
-    promotionAmount: totalPromotionAmount,
-    totalOffsetAmount,
-    displayRewardOffset: totalOffsetAmount,
-    nppDiscountAmount,
-    payableAmount,
-    promotionRate
-  };
-}
-
-function paginateDeliveryInvoice(payload = {}) {
-  const items = Array.isArray(payload.items) ? payload.items : [];
-  const promotions = Array.isArray(payload.promotions) ? payload.promotions : [];
-  const offsets = Array.isArray(payload.offsets) ? payload.offsets : [];
-  const detailRows = promotions.length + offsets.length;
-
-  // Theo mẫu Invoice-36: trang hàng hóa tối đa khoảng 24 dòng.
-  // Nếu còn chi tiết khuyến mãi/cấn trừ dài thì tách thêm trang diễn giải riêng.
-  const itemPageSize = 24;
-  const itemPageCount = Math.max(1, Math.ceil(items.length / itemPageSize));
-  const detailNeedsOwnPage = detailRows > 4 || items.length > 18 || offsets.length > 0;
-  const detailPageCount = detailRows > 0 && detailNeedsOwnPage ? 1 : 0;
-  const pagesPerCopy = itemPageCount + detailPageCount;
-
-  return {
-    pagesPerCopy,
-    copies: ['Liên 1', 'Liên 2'],
-    showPromotionHeaderOnFirstPage: detailPageCount > 0,
-    itemPageSize,
-    itemPageCount,
-    detailRows,
-    firstPageItems: items.slice(0, itemPageSize),
-    detailPagePromotions: promotions,
-    detailPageOffsets: offsets
-  };
-}
-
-function validateAgainstDmsSample(payload = {}) {
-  const errors = [];
-  const required = [
-    ['header.invoiceCode', payload.header?.invoiceCode],
-    ['header.orderCode', payload.header?.orderCode],
-    ['customer.customerCode', payload.customer?.customerCode],
-    ['customer.customerName', payload.customer?.customerName],
-    ['salesStaff.staffCode', payload.salesStaff?.staffCode],
-    ['items', Array.isArray(payload.items) && payload.items.length]
-  ];
-  for (const [field, value] of required) {
-    if (!value) errors.push(`Thiếu ${field}`);
-  }
-  const recalculated = calculateDeliveryInvoiceSummary(payload);
-  const summary = payload.summary || {};
-  const checks = [
-    ['totalQty', summary.totalQty, recalculated.totalQty],
-    ['goodsAmountAfterPromotion', summary.goodsAmountAfterPromotion, recalculated.goodsAmountAfterPromotion],
-    ['grossAmountBeforePromotion', summary.grossAmountBeforePromotion, recalculated.grossAmountBeforePromotion],
-    ['payableAmount', summary.payableAmount, recalculated.payableAmount]
-  ];
-  for (const [field, actual, expected] of checks) {
-    if (Math.abs(toNumber(actual) - toNumber(expected)) > 1) {
-      errors.push(`${field} lệch: ${actual} != ${expected}`);
-    }
-  }
-  return { ok: errors.length === 0, errors };
-}
-
-function buildDeliveryInvoicePayload(raw = {}) {
-  const items = Array.isArray(raw.items) ? raw.items.map(normalizeInvoiceItem) : [];
-  const explicitPromotions = Array.isArray(raw.promotions) ? raw.promotions.map(normalizeInvoicePromotion) : [];
-  const itemPromotions = buildPromotionsFromInvoiceItems(items);
-  // Quy tắc in đơn con: phần diễn giải khuyến mãi ưu tiên sinh từ từng dòng sản phẩm bán/KM.
-  // Nếu đơn cũ chưa lưu khuyến mãi ở dòng hàng thì mới dùng danh sách promotions tổng hợp.
-  const promotions = itemPromotions.length ? itemPromotions : explicitPromotions;
-  const offsets = Array.isArray(raw.offsets) ? raw.offsets.map(normalizeInvoiceOffset) : [];
-
-  const payload = {
-    documentType: 'DELIVERY_PAYMENT_INVOICE',
-    title: 'PHIẾU GIAO NHẬN VÀ THANH TOÁN',
-    header: {
-      invoiceCode: raw.invoiceCode || raw.header?.invoiceCode || '',
-      orderCode: raw.orderCode || raw.header?.orderCode || '',
-      orderDateTime: raw.orderDateTime || raw.header?.orderDateTime || '',
-      invoiceType: raw.invoiceType || raw.header?.invoiceType || 'Từ NVTT',
-      paymentTerm: raw.paymentTerm || raw.header?.paymentTerm || 'đáo hạn trong 7 ngày',
-      truckNo: raw.truckNo || raw.header?.truckNo || '',
-      taxCode: raw.taxCode || raw.header?.taxCode || ''
-    },
-    distributor: {
-      code: raw.distributorCode || raw.distributor?.code || '',
-      name: raw.distributorName || raw.distributor?.name || '',
-      phone: raw.distributorPhone || raw.distributor?.phone || '',
-      address: raw.distributorAddress || raw.distributor?.address || ''
-    },
-    customer: {
-      customerCode: raw.customerCode || raw.customer?.customerCode || raw.customer?.code || '',
-      customerName: raw.customerName || raw.customer?.customerName || raw.customer?.name || '',
-      phone: raw.customerPhone || raw.customer?.phone || '',
-      deliveryAddress: raw.deliveryAddress || raw.customer?.deliveryAddress || raw.customer?.address || ''
-    },
-    salesStaff: {
-      staffCode: raw.salesStaffCode || raw.salesStaff?.staffCode || raw.salesStaff?.code || '',
-      staffName: raw.salesStaffName || raw.salesStaff?.staffName || raw.salesStaff?.name || '',
-      phone: raw.salesStaffPhone || raw.salesStaff?.phone || ''
-    },
-    items,
-    promotions,
-    offsets,
-    summary: {
-      amountInWords: raw.amountInWords || raw.summary?.amountInWords || '',
-      nppDiscountAmount: toNumber(raw.nppDiscountAmount || raw.summary?.nppDiscountAmount)
-    }
-  };
-  payload.summary = {
-    ...payload.summary,
-    ...calculateDeliveryInvoiceSummary({
-      ...payload,
-      totalPromotionAmount: raw.totalPromotionAmount,
-      totalOffsetAmount: raw.totalOffsetAmount,
-      nppDiscountAmount: raw.nppDiscountAmount,
-      payableAmount: raw.payableAmount
-    })
-  };
-  payload.pagination = paginateDeliveryInvoice(payload);
-  payload.validation = validateAgainstDmsSample(payload);
-  return payload;
-}
-
-function buildPrintData(document = {}, options = {}) {
-  const items = normalizeItems(document);
-  const promotions = normalizePromotions(document);
-  const displayRewards = normalizeDisplayRewards(document);
-  const warehouseGroups = buildWarehouseGroups(items, {
-    sortByProductName: document.itemSort === 'PRODUCT_NAME_ASC' || String(document.printMode || '').startsWith('MASTER_')
-  });
-
-  const totalQty = toNumber(pick(document.totalQuantity, document.totalQty, document.summary?.totalQty, items.reduce((sum, item) => sum + item.qty, 0)));
-  // PRINT_PROMOTION_TOTALS_START
-  const grossAmountBeforePromotion = toNumber(pick(
-    document.grossAmountBeforePromotion,
-    document.totalGrossAmount,
-    document.grossAmount,
-    document.summary?.grossAmountBeforePromotion,
-    document.goodsAmount,
-    document.subTotal,
-    document.subtotal,
-    items.reduce((sum, item) => sum + item.gsvAmount, 0)
-  ));
-  const goodsAmountAfterPromotion = toNumber(pick(
-    document.goodsAmountAfterPromotion,
-    document.netAmount,
-    document.summary?.goodsAmountAfterPromotion,
-    document.totalAmount,
-    document.grandTotal,
-    items.reduce((sum, item) => sum + item.amount, 0)
-  ));
-  const promotionValue = toNumber(pick(document.promotionValue, document.totalPromotionValue, document.totalPromotionAmount, document.totalDiscountAmount, document.promotionAmount, document.discountAmount, document.summary?.promotionAmount, promotions.reduce((sum, item) => sum + (item.afterTax || item.beforeTax || 0), 0)));
-  // PRINT_PROMOTION_TOTALS_END
-  const displayRewardTotal = toNumber(pick(document.displayRewardTotal, document.totalDisplayReward, document.rewardAmount, document.offsetAmount, document.summary?.displayRewardOffset, displayRewards.reduce((sum, item) => sum + item.offsetAmount, 0)));
-  const nppDiscountAmount = toNumber(pick(document.nppDiscountAmount, document.summary?.nppDiscountAmount, 0));
-  const discount = toNumber(pick(document.discount, document.discountAmount, document.totalDiscount, promotionValue));
-  const tax = toNumber(pick(document.tax, document.vat, document.taxAmount, items.reduce((sum, item) => sum + item.tax, 0)));
-  const totalAmount = goodsAmountAfterPromotion;
-  const goodsAmount = grossAmountBeforePromotion;
-  const paid = toNumber(pick(document.paidAmount, document.paid, document.collectedAmount, document.cashReceived));
-  const payable = toNumber(pick(document.payableAmount, document.mustPay, document.summary?.payableAmount, totalAmount - displayRewardTotal));
-  const debt = toNumber(pick(document.debtAmount, document.debt, Math.max(payable - paid, 0)));
-  const promotionRate = toNumber(pick(document.promotionRate, document.summary?.promotionRate, goodsAmount ? ((promotionValue + nppDiscountAmount) / goodsAmount) * 100 : 0));
-  const structuredInvoicePayload = buildDeliveryInvoicePayload({
-    ...document,
-    invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
-    orderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
-    orderDateTime: formatDateTime(pick(document.orderDateTime, document.orderDate, document.documentDate, document.date, document.createdAt)),
-    invoiceType: pick(document.invoiceType, document.invoiceTypeName, document.orderSourceName, 'Từ NVTT'),
-    paymentTerm: pick(document.terms, document.paymentTerms, document.paymentTerm, 'đáo hạn trong 7 ngày'),
-    truckNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
-    taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst),
-    distributor: {
-      code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
-      name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
-      address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
-      phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, '')
-    },
-    customer: {
-      customerCode: pick(document.customerCode, document.customer?.code, document.customerId),
-      customerName: pick(document.customerName, document.customer?.name, document.supplier, document.supplierName),
-      deliveryAddress: pick(document.customerAddress, document.customer?.address, document.address),
-      phone: pick(document.customerPhone, document.customer?.phone, document.phone),
-      taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst)
-    },
-    salesStaff: {
-      staffCode: pick(document.salesStaffCode, document.salesPersonCode, document.salesmanCode, document.nvbhCode, document.maNVBH, document.salesCode, document.salesStaffId),
-      staffName: pick(document.salesStaffName, document.salesPersonName, document.salesmanName, document.nvbhName, document.maNVBHName, document.salesName, document.createdBy),
-      phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
-    },
-    items,
-    promotions,
-    offsets: displayRewards,
-    totalPromotionAmount: promotionValue,
-    totalOffsetAmount: displayRewardTotal,
-    nppDiscountAmount,
-    payableAmount: payable,
-    amountInWords: pick(document.amountInWords, document.summary?.amountInWords, document.totalAmountText) || numberToVietnameseWords(payable || totalAmount)
-  });
-
-  return {
-    company: {
-      code: pick(document.distributor?.code, options.companyCode, process.env.PRINT_COMPANY_CODE, '3293'),
-      name: pick(document.distributor?.name, options.companyName, process.env.PRINT_COMPANY_NAME, 'Công Ty TNHH MTV Minh Khai'),
-      address: pick(document.distributor?.address, options.companyAddress, process.env.PRINT_COMPANY_ADDRESS, 'Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình'),
-      phone: pick(document.distributor?.phone, options.companyPhone, process.env.PRINT_COMPANY_PHONE, ''),
-      taxCode: options.taxCode || process.env.PRINT_COMPANY_TAX || ''
-    },
-    document: {
-      id: document.id || document._id || '',
-      code: pick(document.code, document.orderCode, document.refCode, document.id, document._id),
-      invoiceCode: pick(document.invoiceCode, document.invoiceNo, document.soHoaDon, document.documentCode, document.code),
-      customerOrderCode: pick(document.customerOrderCode, document.soDonHang, document.orderCode, document.documentCode, document.code),
-      date: formatDate(pick(document.orderDate, document.deliveryDate, document.importDate, document.returnDate, document.documentDate, document.date, document.createdAt)),
-      dateTime: formatDateTime(pick(document.orderDateTime, document.orderDate, document.deliveryDate, document.importDate, document.returnDate, document.documentDate, document.date, document.createdAt)),
-      rawDate: pick(document.orderDate, document.deliveryDate, document.importDate, document.returnDate, document.documentDate, document.date, document.createdAt),
-      type: pick(document.invoiceType, document.type, document.orderType, document.orderSourceName, 'NVTT'),
-      note: document.note || '',
-      terms: pick(document.terms, document.paymentTerms, 'đáo hạn trong 7 ngày'),
-      page: options.page || '1 / 1',
-      vehicleNo: pick(document.vehicleNo, document.truckNo, document.soXeTai),
-      printMode: document.printMode || '',
-      title: document.printContract?.document?.title || document.printTitle || '',
-      sourceCodes: Array.isArray(document.sourceCodes) ? document.sourceCodes : (document.printContract?.document?.sourceCodes || []),
-      masterOrderCodes: Array.isArray(document.masterOrderCodes) ? document.masterOrderCodes : [],
-      selectedMasterOrderCount: document.selectedMasterOrderCount || 0
-    },
-    customer: {
-      code: pick(document.customerCode, document.customer?.code, document.customerId),
-      name: pick(document.customerName, document.customer?.name, document.supplier, document.supplierName),
-      address: pick(document.customerAddress, document.customer?.address, document.address),
-      phone: pick(document.customerPhone, document.customer?.phone, document.phone),
-      taxCode: pick(document.customerTaxCode, document.customer?.taxCode, document.mst)
-    },
-    staff: {
-      code: pick(document.salesStaffCode, document.salesPersonCode, document.salesmanCode, document.nvbhCode, document.maNVBH, document.salesCode, document.salesStaffId),
-      name: pick(document.salesStaffName, document.salesPersonName, document.salesmanName, document.nvbhName, document.maNVBHName, document.salesName, document.createdBy),
-      phone: pick(document.staffPhone, document.salesStaffPhone, document.salesPhone)
-    },
-    delivery: {
-      code: pick(document.deliveryStaffCode, document.deliveryCode),
-      name: pick(document.deliveryStaffName, document.deliveryName),
-      phone: pick(document.deliveryPhone, document.deliveryStaffPhone),
-      route: pick(document.route, document.routeName, document.tuyen)
-    },
-    items,
-    promotions,
-    displayRewards,
-    warehouseGroups,
-    masterKpis: Array.isArray(document.masterKpis) ? document.masterKpis : [],
-    masterKpiTotals: document.masterKpiTotals || {},
-    totals: {
-      totalQty,
-      goodsAmount,
-      totalAmount,
-      goodsAmountAfterPromotion,
-      grossAmountBeforePromotion,
-      promotionAmount: promotionValue,
-      displayRewardOffset: displayRewardTotal,
-      nppDiscountAmount,
-      promotionRate,
-      discount,
-      tax,
-      paid,
-      payable,
-      debt,
-      orderCount: toNumber(pick(document.orderCount, document.totalOrders, Array.isArray(document.children) ? document.children.length : 0)),
-      promotionValue,
-      displayRewardTotal,
-      totalAmountText: pick(document.amountInWords, document.summary?.amountInWords, document.totalAmountText) || numberToVietnameseWords(payable || totalAmount)
-    },
-    meta: {
-      printedAt: new Date().toLocaleString('vi-VN'),
-      printedBy: options.printedBy || '',
-      copyLabel: options.copyLabel || 'Liên 1'
-    },
-    erpInvoiceV46: structuredInvoicePayload,
-    printContract: document.printContract || null,
-    printProfile: document.printProfile || document.printContract?.profile || '',
-
-    formatMoney
-  };
-}
-
-module.exports = {
-  buildPrintData,
-  buildDeliveryInvoicePayload,
-  calculateDeliveryInvoiceSummary,
-  paginateDeliveryInvoice,
-  validateAgainstDmsSample,
-  formatMoney,
-  formatDate,
-  formatDateTime,
-  numberToVietnameseWords
-};
+/* GENERATED FILE — edit services/printDataBuilder.legacy.source/part-01.jsfrag, services/printDataBuilder.legacy.source/part-02.jsfrag, services/printDataBuilder.legacy.source/part-03.jsfrag and run npm run build:source-bundles. */
+const{calculateCartonUnit:o}=require("../src/utils/common.util"),{normalizePickingZone:t,pickingZoneFrom:e,legacyPrintGroupCode:r,pickingZoneLabel:n,PICKING_ZONES:a}=require("../src/utils/pickingZone.util")
+;function i(o){if(null==o||""===o)return 0;if("number"==typeof o)return Number.isFinite(o)?o:0;const t=String(o).trim();let e=t
+;t.includes(",")?e=t.replace(/\./g,"").replace(",","."):/^-?\d{1,3}(\.\d{3})+$/.test(t)&&(e=t.replace(/\./g,""));const r=Number(e);return Number.isFinite(r)?r:0}function s(o){
+return Math.round(i(o)).toLocaleString("vi-VN")}function u(o){if(!o)return(new Date).toLocaleDateString("vi-VN");const t=new Date(o)
+;return Number.isNaN(t.getTime())?String(o||""):t.toLocaleDateString("vi-VN")}function m(o){if(!o)return(new Date).toLocaleString("vi-VN");const t=new Date(o)
+;return Number.isNaN(t.getTime())?String(o||""):t.toLocaleString("vi-VN")}const c=["Không","Một","Hai","Ba","Bốn","Năm","Sáu","Bảy","Tám","Chín"];function d(o,t){
+const e=Math.floor(o/100),r=Math.floor(o%100/10),n=o%10,a=[];return(e>0||t)&&a.push(`${c[e]} Trăm`),r>1?(a.push(`${c[r]} Mươi`),
+1===n?a.push("Mốt"):5===n?a.push("Lăm"):n>0&&a.push(c[n])):1===r?(a.push("Mười"),5===n?a.push("Lăm"):n>0&&a.push(c[n])):n>0&&((e>0||t)&&a.push("Lẻ"),a.push(c[n])),a.join(" ")}
+function p(o){let t=Math.round(Math.abs(i(o)));if(0===t)return"Không Đồng";const e=["","Nghìn","Triệu","Tỷ","Nghìn Tỷ","Triệu Tỷ"],r=[];for(;t>0;)r.push(t%1e3),t=Math.floor(t/1e3)
+;const n=[];for(let o=r.length-1;o>=0;o-=1){const t=r[o];if(0===t)continue;const a=o<r.length-1&&t<100;n.push(`${d(t,a)} ${e[o]}`.trim())}
+return`${n.join(" ").replace(/\s+/g," ")} Đồng`}function f(t,e){const r=o(t,e);return{cases:r.cartons,units:r.units,display:r.display}}function l(...o){
+return o.find(o=>null!=o&&""!==o)??""}function A(...o){for(const t of o){const o=i(t);if(o>0)return o}return 0}function y(o){
+return i(l(o.qty,o.quantity,o.soLuong,o.totalQty,o.totalQuantity))}function C(o){
+return i(l(o.conversionRateAtOrder,o.packingQtyAtOrder,o.packingQty,o.conversionRate,o.unitsPerCase,o.qtyPerCase,o.packSize,o.product?.conversionRate,o.productSnapshot?.conversionRate,1))||1
+}function T(o){return String(o||"").trim().toUpperCase()}function h(o){return String(o||"").trim().toUpperCase().replace(/\s+/g,"")}function P(o){
+return String(o||"").trim().toUpperCase()}function g(o){return Math.round(i(o))}function N(o,t){const e=T(o.code).localeCompare(T(t.code),"vi",{numeric:!0});if(0!==e)return e
+;const r=g(o.price)-g(t.price);return 0!==r?r:String(o.name||"").localeCompare(String(t.name||""),"vi",{sensitivity:"base",numeric:!0})}function x(o,t){
+const e=String(o.name||o.productName||"").localeCompare(String(t.name||t.productName||""),"vi",{sensitivity:"base",numeric:!0});if(0!==e)return e
+;const r=T(o.code||o.productCode).localeCompare(T(t.code||t.productCode),"vi",{numeric:!0});return 0!==r?r:g(o.price)-g(t.price)}function S(o){
+return i(l(o.catalogSalePriceAtOrder,o.priceAfterTaxBeforePromotion,o.catalogSalePrice,o.product?.salePrice,o.productSnapshot?.salePrice,o.salePrice,o.giaBan,o.price,o.unitPrice,0))
+}function O(o){return S(o)}function v(o){return i(l(o.discountPercent,o.promotionDiscountPercent,o.ckPercent,o.percent,o.rate,o.promotion?.discountPercent,0))}function D(o){
+return i(l(o.discount,o.discountAmount,o.ck,o.ckAmount,0))}function M(o){
+return null==o?"":Array.isArray(o)?o.map(M).filter(Boolean).join("; "):"object"==typeof o?l(o.description,o.name,o.title,o.content,o.note,o.ruleName,o.programName,o.promotionName,o.dienGiai,o.noiDung):String(o||"").trim()
+}function b(o={}){
+const t=[],e=[o.promotions,o.promotionRows,o.promotionDetails,o.appliedPromotions,o.appliedPromotionRows,o.discountRows,o.discounts,o.productPromotions,o.productSnapshot?.promotions,o.productSnapshot?.promotionRows,o.product?.promotions,o.product?.promotionRows]
+;for(const o of e)Array.isArray(o)&&t.push(...o)
+;const r=[o.promotion,o.promotionInfo,o.promotionDetail,o.appliedPromotion,o.discountInfo,o.productSnapshot?.promotion,o.product?.promotion];for(const o of r)o&&t.push(o)
+;const n=l(o.promotionDescription,o.promotionName,o.promotionText,o.promotionContent,o.promotionNote,o.promoDescription,o.promoName,o.dienGiaiKhuyenMai,o.noiDungKhuyenMai,o.productSnapshot?.promotionDescription,o.productSnapshot?.promotionName,o.productSnapshot?.promotionText,o.product?.promotionDescription,o.product?.promotionName,o.product?.promotionText),a=l(o.promotionCode,o.promoCode,o.ctkmCode,o.maCTKM,o.productSnapshot?.promotionCode,o.product?.promotionCode)
+;return t.length||!n&&!a||t.push({code:a,promotionCode:a,description:n,name:n,discountPercent:o.discountPercent,percent:o.discountPercent,discountBeforeTax:o.discountBeforeTax,
+beforeTax:o.discountBeforeTax,discountAfterTax:o.discountAfterTax||o.discount||o.discountAmount,afterTax:o.discountAfterTax||o.discount||o.discountAmount}),t}function R(o={},t={}){
+const e=b(o),r=l(t.productCode,t.code,o.productCode,o.code,o.sku,o.maHang),n=l(t.productName,t.name,o.productName,o.name,o.tenHang),a=t.isPromo?"KM":"Bán",s=i(l(t.qty,t.quantity,o.qty,o.quantity,o.totalQty)),u=i(l(t.gsvAmount,t.lineAmount,t.amount,o.gsvAmount,o.amount)),m=Math.round(u/1.08),c=i(l(t.discountPercent,o.discountPercent,o.percent,o.rate)),d=i(l(o.discountAfterTax,o.afterTax,o.discountAmount,o.discount,t.discount,0)),p=i(l(o.discountBeforeTax,o.beforeTax,d?Math.round(d/1.08):0))
+;!e.length&&(c>0||d>0||t.isPromo)&&e.push({code:l(o.promotionCode,o.promoCode,o.ctkmCode,o.maCTKM),
+description:t.isPromo?`Hàng khuyến mại theo dòng ${r} - ${n}`:`Chiết khấu/khuyến mại theo dòng ${r} - ${n}`,discountPercent:c,discountBeforeTax:p,discountAfterTax:d})
+;const f=e.map(o=>{
+const e=l(o.promotionCode,o.code,o.ctkmCode,o.maCTKM,o.programCode),u=M(o)||(t.isPromo?`Hàng khuyến mại theo dòng ${r} - ${n}`:`Khuyến mại theo dòng ${r} - ${n}`);return{
+productCode:r,productName:n,lineType:a,quantity:s,promotionCode:e,code:e,description:u,name:u,qualifiedAmount:m,basisAmount:m,
+discountPercent:i(l(o.discountPercent,o.percent,o.tyLe,o.rate,c)),percent:i(l(o.discountPercent,o.percent,o.tyLe,o.rate,c)),
+discountBeforeTax:i(l(o.discountBeforeTax,o.beforeTax,o.amountBeforeTax,o.tienCKTruocThue,p)),beforeTax:i(l(o.discountBeforeTax,o.beforeTax,o.amountBeforeTax,o.tienCKTruocThue,p)),
+discountAfterTax:i(l(o.discountAfterTax,o.afterTax,o.amountAfterTax,o.tienCKSauThue,o.discountAmount,d)),
+afterTax:i(l(o.discountAfterTax,o.afterTax,o.amountAfterTax,o.tienCKSauThue,o.discountAmount,d))}}),A=new Set;return f.filter(o=>{
+const t=[o.productCode,o.lineType,o.promotionCode,o.description,o.discountAfterTax,o.discountPercent].join("|");return!A.has(t)&&(A.add(t),
+o.description||o.promotionCode||o.discountAfterTax||o.discountPercent)})}function B(o=[]){const t=[];for(const e of o){const o=Array.isArray(e.promotionRows)?e.promotionRows:[]
+;for(const r of o)t.push({productCode:e.productCode||r.productCode,productName:e.productName||r.productName,lineType:e.isPromotionGift||e.isPromo?"KM":r.lineType||"Bán",
+quantity:e.quantity||r.quantity,promotionCode:r.promotionCode||r.code||e.promotionCode||"",code:r.promotionCode||r.code||e.promotionCode||"",description:r.description||r.name||"",
+qualifiedAmount:i(r.qualifiedAmount||r.basisAmount),basisAmount:i(r.qualifiedAmount||r.basisAmount),discountPercent:i(r.discountPercent||r.percent),
+percent:i(r.discountPercent||r.percent),discountBeforeTax:i(r.discountBeforeTax||r.beforeTax),beforeTax:i(r.discountBeforeTax||r.beforeTax),
+discountAfterTax:i(r.discountAfterTax||r.afterTax),afterTax:i(r.discountAfterTax||r.afterTax)})}return q(t)}function q(o=[]){const t=new Map;for(const e of o){
+const o=[e.productCode||"",e.lineType||"",e.promotionCode||e.code||"",e.description||e.name||"",e.discountPercent||0].join("|"),r=t.get(o)
+;r?(r.qualifiedAmount=i(r.qualifiedAmount)+i(e.qualifiedAmount),r.basisAmount=r.qualifiedAmount,r.discountBeforeTax=i(r.discountBeforeTax)+i(e.discountBeforeTax),
+r.beforeTax=r.discountBeforeTax,r.discountAfterTax=i(r.discountAfterTax)+i(e.discountAfterTax),r.afterTax=r.discountAfterTax,r.quantity=i(r.quantity)+i(e.quantity)):t.set(o,{...e})
+}return Array.from(t.values())}function H(o){return i(l(o.tax,o.vat,o.taxAmount,o.vatAmount,0))}function I(o,s,u=null){
+const m=t(e(o),a.HC),c=r(m),d=n(m),p=y(o),A=C(o),T=S(o),h=i(l(o.preTaxPriceAtOrder,o.priceBeforeTaxBeforePromotion,o.listPriceBeforeVat,o.priceBeforeTax,o.priceBeforeVat,Math.round(T/1.08))),P=v(o),g=i(l(o.priceAfterTaxAfterPromotion,o.priceAfterPromotion,o.priceAfterVatAfterDiscount,o.netPrice,o.priceAfterDiscount,o.finalPrice,o.orderPrice,o.manualPrice,0)),N=P>0?Math.floor(T*(1-P/100)):g||T,x=D(o),O=String(l(o.lineType,o.type,o.kind,o.itemType,o.isPromo?"PROMO":"SALE")||"SALE").toUpperCase(),M="PROMO"===O||"PROMOTION"===O||"KM"===O||!0===o.isPromo,b=M?"PROMO":"RETURN"===O?"RETURN":"IMPORT"===O?"IMPORT":"SALE",B="PROMO"===b?"Xuất khuyến mại":"RETURN"===b?"Hàng trả nhập kho":"IMPORT"===b?"Hàng nhập kho":"Hàng bán",q=M?0:Math.round((N-N/1.08)*p),H=M?0:i(l(o.vatAmountAtOrder,o.vatAmount,o.taxAmount,o.tax,q)),I=M?0:Math.round(N*p),w=M?0:i(l(o.lineAmountAtOrder,o.lineAmount,o.amount,I)),Q=f(p,A),k=R(o,{
+code:l(o.code,o.productCode,o.sku,o.maHang),productCode:l(o.productCode,o.code,o.sku,o.maHang),name:l(o.name,o.productName,o.tenHang,o.productSnapshot?.name,o.product?.name),
+productName:l(o.productName,o.name,o.tenHang,o.productSnapshot?.name,o.product?.name),qty:p,quantity:p,gsvAmount:Math.round(p*T),amount:w,discount:x,discountPercent:P,isPromo:M})
+;return{stt:s+1,code:l(o.code,o.productCode,o.sku,o.maHang),productCode:l(o.productCode,o.code,o.sku,o.maHang),
+name:l(o.name,o.productName,o.tenHang,o.productSnapshot?.name,o.product?.name),productName:l(o.productName,o.name,o.tenHang,o.productSnapshot?.name,o.product?.name),
+unit:l(o.unit,o.dvt,o.uom,o.productSnapshot?.unit,o.product?.unit,"Cái"),pack:A,conversionRate:A,qty:p,quantity:p,cartonQty:Q.cases,caseQty:Q.cases,unitQty:Q.units,
+caseDisplay:`${Q.cases}/${Q.units}`,price:T,salePrice:T,priceBeforeTax:h,priceBeforeVat:h,listPriceBeforeVat:h,priceAfterTaxBeforePromotion:T,priceAfterVatBeforeDiscount:T,
+listPriceAfterVat:T,discountPercent:P,priceAfterPromotion:N,priceAfterDiscount:N,priceAfterVatAfterDiscount:N,gsvAmount:Math.round(p*T),nivAmount:w,discount:x,tax:H,vatAmount:H,
+amount:w,lineAmount:w,lineType:b,isPromo:M,lineTypeName:B,note:o.note||"",sourceOrderCode:u?l(u.code,u.orderCode,u.id):"",pickingZone:m,warehouseCode:c,warehouseName:d,
+sourceOrderCodes:Array.isArray(o.sourceOrderCodes)?o.sourceOrderCodes:[],promotionCode:l(o.promotionCode,o.promoCode,o.ctkmCode,o.maCTKM,k[0]?.promotionCode),
+promotionDescription:l(o.promotionDescription,o.promotionName,o.promotionText,k[0]?.description),promotionRows:k}}function w(o){
+const t=Array.isArray(o.items)?o.items:[],e=Array.isArray(o.lines)?o.lines:[],r=t.length?t:e;if(r.length)return r.map((o,t)=>I(o,t))
+;const n=Array.isArray(o.children)?o.children:[],a=[];return n.forEach(o=>{(Array.isArray(o.items)?o.items:[]).forEach(t=>a.push({item:t,child:o}))}),
+a.map((o,t)=>I(o.item,t,o.child))}function Q(o){
+return(Array.isArray(o.promotions)?o.promotions:Array.isArray(o.promotionRows)?o.promotionRows:Array.isArray(o.discounts)?o.discounts:[]).map((o,t)=>{
+const e=l(o.code,o.promotionCode,o.ctkmCode,o.maCTKM),r=l(o.description,o.name,o.title,o.promotionName,o.tenCTKM),n=i(l(o.qualifiedAmount,o.basisAmount,o.baseAmount,o.giaTriHangHoa,o.amount)),a=i(l(o.discountPercent,o.percent,o.tyLe,o.rate)),s=i(l(o.discountBeforeTax,o.beforeTax,o.amountBeforeTax,o.tienCKTruocThue)),u=i(l(o.discountAfterTax,o.afterTax,o.amountAfterTax,o.tienCKSauThue,o.discountAmount))
+;return{stt:t+1,code:e,promotionCode:e,name:r,description:r,basisAmount:n,qualifiedAmount:n,percent:a,discountPercent:a,beforeTax:s,discountBeforeTax:s,afterTax:u,
+discountAfterTax:u,type:l(o.type,o.kind,o.loai)}})}function k(o){
+return(Array.isArray(o.offsets)?o.offsets:Array.isArray(o.displayRewards)?o.displayRewards:Array.isArray(o.rewardRows)?o.rewardRows:Array.isArray(o.displayRewardRows)?o.displayRewardRows:Array.isArray(o.deductions)?o.deductions:Array.isArray(o.offsetRows)?o.offsetRows:[]).map((o,t)=>{
+const e=l(o.programCode,o.code,o.rewardCode,o.displayCode,o.cttbCode,o.maCTTrungBay,o.maCT),r=l(o.description,o.name,o.title,o.programName,o.noiDung,o.content),n=l(o.month,o.displayMonth,o.thangTrungBay),a=i(l(o.offsetAmount,o.cashAmount,o.debtOffsetAmount,o.canTruNo,o.amount))
+;return{stt:t+1,code:e,programCode:e,name:r,description:r,month:n,goodsAmount:i(l(o.goodsAmount,o.goodsRewardAmount,o.hangHoa,o.chiTraHangHoa)),
+quantityText:l(o.quantityText,o.caseUnitText,o.cartonUnitText,o.soLuongThungLe),offsetAmount:a}})}function K(o=[],t={}){const e=new Map,r=new Map;for(const t of o){
+const o=String(t.warehouseCode||"KHO_HC").trim()||"KHO_HC",n=String(t.warehouseName||("KHO_PC"===o?"KHO PC":"KHO HC")).trim();e.has(o)||(e.set(o,{code:o,name:n,items:[],
+saleItems:[],promoItems:[],returnItems:[],importItems:[],totalQty:0,saleQty:0,promoQty:0,totalAmount:0}),r.set(o,new Map))
+;const a=e.get(o),s=r.get(o),u=t.isPromo||"PROMO"===t.lineType?"PROMO":"SALE",m=T(l(t.code,t.productCode)),c=h(t.pack),d=P(t.unit),p="PROMO"===u?0:g(t.price)
+;"1"===process.env.PRINT_DEBUG_MERGE&&console.log("[printDataBuilder.buildWarehouseGroups] source item",{code:t.code,name:t.name,unit:t.unit,pack:t.pack,price:t.price,
+normalizedCode:m,normalizedUnit:d,normalizedPack:c,normalizedPrice:p});const A=[o,u,m,p].join("|");let y=s.get(A);y||(y={...t,code:m||t.code,productCode:m||t.productCode||t.code,
+unit:t.unit||d,pack:i(t.pack)||i(c)||1,price:p,salePrice:p,__mergeKey:A,qty:0,amount:0,sourceOrderCodes:[]},s.set(A,y),a.items.push(y),
+"PROMO"===u?a.promoItems.push(y):"RETURN"===u?a.returnItems.push(y):"IMPORT"===u?a.importItems.push(y):a.saleItems.push(y)),y.qty+=i(t.qty),y.quantity=y.qty,y.amount+=i(t.amount),
+y.lineAmount=y.amount;const C=f(y.qty,y.pack);y.caseQty=C.cases,y.cartonQty=C.cases,y.unitQty=C.units,y.caseDisplay=C.display,
+t.sourceOrderCode&&!y.sourceOrderCodes.includes(t.sourceOrderCode)&&y.sourceOrderCodes.push(t.sourceOrderCode)
+;for(const o of t.sourceOrderCodes||[])o&&!y.sourceOrderCodes.includes(o)&&y.sourceOrderCodes.push(o);a.totalQty+=i(t.qty),"PROMO"===u?a.promoQty+=i(t.qty):a.saleQty+=i(t.qty),
+a.totalAmount+=i(t.amount)}const n=t.sortByProductName?x:N;for(const o of e.values())o.saleItems.sort(n),o.promoItems.sort(n),o.returnItems.sort(n),o.importItems.sort(n),
+o.items=[...o.saleItems,...o.promoItems,...o.returnItems,...o.importItems],o.items.forEach((o,t)=>{o.stt=t+1,delete o.__mergeKey});const a=["KHO_HC","KHO_PC"]
+;return Array.from(e.values()).sort((o,t)=>{const e=a.indexOf(o.code),r=a.indexOf(t.code);return-1!==e||-1!==r?(-1===e?99:e)-(-1===r?99:r):o.name.localeCompare(t.name,"vi")})}
+function V(o){const[t,e]=String(o||"0/0").split("/");return{cartonQty:i(t),csSuUnitQty:i(e)}}function _(o,t){
+const e=V(o.csSu||o.quantityCsSu||o.caseDisplay),r=i(l(o.quantity,o.qty,o.totalQty,o.csSuUnitQty,o.unitQty)),n=A(o.priceAfterTaxBeforePromotion,o.priceAfterVatBeforeDiscount,o.listPriceAfterVat,o.catalogSalePriceAtOrder,o.salePrice,o.price,o.unitPrice),a=A(o.preTaxPriceAtOrder,o.priceBeforeTaxBeforePromotion,o.priceBeforeTax,o.priceBeforeVat,o.listPriceBeforeVat,Math.round(n/1.08)),s=i(o.discountPercent),u=A(o.priceAfterTaxAfterPromotion,o.finalPriceAtOrder,o.finalPrice,o.priceAfterPromotion,o.priceAfterVatAfterDiscount,o.priceAfterDiscount,s>0?Math.round(n*(1-s/100)):n),m=A(o.lineAmountAtOrder,o.lineAmount,o.amount,Math.round(r*u)),c=Boolean(o.isPromotionGift||o.isPromo||"PROMO"===o.lineType)?0:A(o.vatAmountAtOrder,o.vatAmount,o.tax,o.taxAmount,m>0?Math.round(m-m/1.08):0,Math.round((u-u/1.08)*r))
+;return{lineNo:o.lineNo||o.stt||t+1,productCode:String(l(o.productCode,o.code,o.sku,o.maHang)).trim(),productName:String(l(o.productName,o.name,o.tenHang)).trim(),
+quantityCsSu:o.csSu||o.quantityCsSu||o.caseDisplay||`${e.cartonQty}/${e.csSuUnitQty}`,cartonQty:i(l(o.cartonQty,o.caseQty,e.cartonQty)),
+unitQtyFromCsSu:i(l(o.unitQtyFromCsSu,o.unitQty,e.csSuUnitQty)),unitQty:i(l(o.unitQty,e.csSuUnitQty)),csSuUnitQty:i(l(o.csSuUnitQty,o.unitQty,e.csSuUnitQty)),quantity:r,
+priceBeforeTaxBeforePromotion:a,priceBeforeTax:a,priceAfterTaxBeforePromotion:n,priceAfterTaxAfterPromotion:u,priceAfterPromotion:u,discountPercent:s,vatAmount:c,lineAmount:m,
+isPromotionGift:Boolean(o.isPromotionGift||o.isPromo||"PROMO"===o.lineType),promotionCode:o.promotionCode||"",promotionRows:Array.isArray(o.promotionRows)?o.promotionRows:R(o,{
+productCode:String(l(o.productCode,o.code,o.sku,o.maHang)).trim(),productName:String(l(o.productName,o.name,o.tenHang)).trim(),quantity:r,qty:r,gsvAmount:r*n,lineAmount:m,
+discountPercent:s,isPromo:Boolean(o.isPromotionGift||o.isPromo||"PROMO"===o.lineType)})}}function E(o={}){return{productCode:String(o.productCode||o.maHang||"").trim(),
+productName:String(o.productName||o.tenHang||"").trim(),lineType:o.lineType||o.type||"",quantity:i(o.quantity||o.qty),promotionCode:String(o.promotionCode||o.code||"").trim(),
+code:String(o.promotionCode||o.code||"").trim(),description:String(o.description||o.name||"").trim(),qualifiedAmount:i(o.qualifiedAmount||o.basisAmount),
+basisAmount:i(o.qualifiedAmount||o.basisAmount),discountPercent:i(o.discountPercent||o.percent),percent:i(o.discountPercent||o.percent),
+discountBeforeTax:i(o.discountBeforeTax||o.beforeTax),beforeTax:i(o.discountBeforeTax||o.beforeTax),discountAfterTax:i(o.discountAfterTax||o.afterTax),
+afterTax:i(o.discountAfterTax||o.afterTax)}}function L(o={}){return{programCode:String(o.programCode||o.code||"").trim(),description:String(o.description||o.name||"").trim(),
+displayMonth:o.displayMonth||o.month||"",month:o.month||o.displayMonth||"",goodsAmount:i(o.goodsAmount),quantityText:o.quantityText||o.quantity||"",offsetAmount:i(o.offsetAmount)}}
+function U(o={}){
+const t=Array.isArray(o.items)?o.items:[],e=Array.isArray(o.promotions)?o.promotions:[],r=Array.isArray(o.offsets)?o.offsets:[],n=t.reduce((o,t)=>o+i(t.quantity),0),a=t.reduce((o,t)=>o+i(t.lineAmount),0),s=t.reduce((o,t)=>o+i(t.quantity)*i(t.priceAfterTaxBeforePromotion),0),u=t.reduce((o,t)=>o+i(t.vatAmount),0),m=void 0!==o.totalPromotionAmount?i(o.totalPromotionAmount):e.reduce((o,t)=>o+i(t.discountAfterTax),0),c=void 0!==o.totalOffsetAmount?i(o.totalOffsetAmount):r.reduce((o,t)=>o+i(t.offsetAmount),0),d=i(o.nppDiscountAmount||o.summary?.nppDiscountAmount)
+;return{totalQty:n,totalVatAmount:u,goodsAmountAfterPromotion:a,grossAmountBeforePromotion:s,totalPromotionAmount:m,promotionAmount:m,totalOffsetAmount:c,displayRewardOffset:c,
+nppDiscountAmount:d,payableAmount:void 0!==o.payableAmount?i(o.payableAmount):a-c-d,promotionRate:s>0?Number(((m+d)/s*100).toFixed(2)):0}}function $(o={}){
+const t=Array.isArray(o.items)?o.items:[],e=Array.isArray(o.promotions)?o.promotions:[],r=Array.isArray(o.offsets)?o.offsets:[],n=e.length+r.length,a=Math.max(1,Math.ceil(t.length/24)),i=n>4||t.length>18||r.length>0,s=n>0&&i?1:0
+;return{pagesPerCopy:a+s,copies:["Liên 1","Liên 2"],showPromotionHeaderOnFirstPage:s>0,itemPageSize:24,itemPageCount:a,detailRows:n,firstPageItems:t.slice(0,24),
+detailPagePromotions:e,detailPageOffsets:r}}function G(o={}){
+const t=[],e=[["header.invoiceCode",o.header?.invoiceCode],["header.orderCode",o.header?.orderCode],["customer.customerCode",o.customer?.customerCode],["customer.customerName",o.customer?.customerName],["salesStaff.staffCode",o.salesStaff?.staffCode],["items",Array.isArray(o.items)&&o.items.length]]
+;for(const[o,r]of e)r||t.push(`Thiếu ${o}`)
+;const r=U(o),n=o.summary||{},a=[["totalQty",n.totalQty,r.totalQty],["goodsAmountAfterPromotion",n.goodsAmountAfterPromotion,r.goodsAmountAfterPromotion],["grossAmountBeforePromotion",n.grossAmountBeforePromotion,r.grossAmountBeforePromotion],["payableAmount",n.payableAmount,r.payableAmount]]
+;for(const[o,e,r]of a)Math.abs(i(e)-i(r))>1&&t.push(`${o} lệch: ${e} != ${r}`);return{ok:0===t.length,errors:t}}function W(o={}){
+const t=Array.isArray(o.items)?o.items.map(_):[],e=Array.isArray(o.promotions)?o.promotions.map(E):[],r=B(t),n=r.length?r:e,a=Array.isArray(o.offsets)?o.offsets.map(L):[],s={
+documentType:"DELIVERY_PAYMENT_INVOICE",title:"PHIẾU GIAO NHẬN VÀ THANH TOÁN",header:{invoiceCode:o.invoiceCode||o.header?.invoiceCode||"",
+orderCode:o.orderCode||o.header?.orderCode||"",orderDateTime:o.orderDateTime||o.header?.orderDateTime||"",invoiceType:o.invoiceType||o.header?.invoiceType||"Từ NVTT",
+paymentTerm:o.paymentTerm||o.header?.paymentTerm||"đáo hạn trong 7 ngày",truckNo:o.truckNo||o.header?.truckNo||"",taxCode:o.taxCode||o.header?.taxCode||""},distributor:{
+code:o.distributorCode||o.distributor?.code||"",name:o.distributorName||o.distributor?.name||"",phone:o.distributorPhone||o.distributor?.phone||"",
+address:o.distributorAddress||o.distributor?.address||""},customer:{customerCode:o.customerCode||o.customer?.customerCode||o.customer?.code||"",
+customerName:o.customerName||o.customer?.customerName||o.customer?.name||"",phone:o.customerPhone||o.customer?.phone||"",
+deliveryAddress:o.deliveryAddress||o.customer?.deliveryAddress||o.customer?.address||""},salesStaff:{staffCode:o.salesStaffCode||o.salesStaff?.staffCode||o.salesStaff?.code||"",
+staffName:o.salesStaffName||o.salesStaff?.staffName||o.salesStaff?.name||"",phone:o.salesStaffPhone||o.salesStaff?.phone||""},items:t,promotions:n,offsets:a,summary:{
+amountInWords:o.amountInWords||o.summary?.amountInWords||"",nppDiscountAmount:i(o.nppDiscountAmount||o.summary?.nppDiscountAmount)}};return s.summary={...s.summary,...U({...s,
+totalPromotionAmount:o.totalPromotionAmount,totalOffsetAmount:o.totalOffsetAmount,nppDiscountAmount:o.nppDiscountAmount,payableAmount:o.payableAmount})},s.pagination=$(s),
+s.validation=G(s),s}function Y(o={},t={}){const e=w(o),r=Q(o),n=k(o),a=K(e,{sortByProductName:"PRODUCT_NAME_ASC"===o.itemSort||String(o.printMode||"").startsWith("MASTER_")
+}),c=i(l(o.totalQuantity,o.totalQty,o.summary?.totalQty,e.reduce((o,t)=>o+t.qty,0))),d=i(l(o.grossAmountBeforePromotion,o.totalGrossAmount,o.grossAmount,o.summary?.grossAmountBeforePromotion,o.goodsAmount,o.subTotal,o.subtotal,e.reduce((o,t)=>o+t.gsvAmount,0))),f=i(l(o.goodsAmountAfterPromotion,o.netAmount,o.summary?.goodsAmountAfterPromotion,o.totalAmount,o.grandTotal,e.reduce((o,t)=>o+t.amount,0))),A=i(l(o.promotionValue,o.totalPromotionValue,o.totalPromotionAmount,o.totalDiscountAmount,o.promotionAmount,o.discountAmount,o.summary?.promotionAmount,r.reduce((o,t)=>o+(t.afterTax||t.beforeTax||0),0))),y=i(l(o.displayRewardTotal,o.totalDisplayReward,o.rewardAmount,o.offsetAmount,o.summary?.displayRewardOffset,n.reduce((o,t)=>o+t.offsetAmount,0))),C=i(l(o.nppDiscountAmount,o.summary?.nppDiscountAmount,0)),T=i(l(o.discount,o.discountAmount,o.totalDiscount,A)),h=i(l(o.tax,o.vat,o.taxAmount,e.reduce((o,t)=>o+t.tax,0))),P=f,g=d,N=i(l(o.paidAmount,o.paid,o.collectedAmount,o.cashReceived)),x=i(l(o.payableAmount,o.mustPay,o.summary?.payableAmount,P-y)),S=i(l(o.debtAmount,o.debt,Math.max(x-N,0))),O=i(l(o.promotionRate,o.summary?.promotionRate,g?(A+C)/g*100:0)),v=W({
+...o,invoiceCode:l(o.invoiceCode,o.invoiceNo,o.soHoaDon,o.documentCode,o.code),orderCode:l(o.customerOrderCode,o.soDonHang,o.orderCode,o.documentCode,o.code),
+orderDateTime:m(l(o.orderDateTime,o.orderDate,o.documentDate,o.date,o.createdAt)),invoiceType:l(o.invoiceType,o.invoiceTypeName,o.orderSourceName,"Từ NVTT"),
+paymentTerm:l(o.terms,o.paymentTerms,o.paymentTerm,"đáo hạn trong 7 ngày"),truckNo:l(o.vehicleNo,o.truckNo,o.soXeTai),taxCode:l(o.customerTaxCode,o.customer?.taxCode,o.mst),
+distributor:{code:l(o.distributor?.code,t.companyCode,process.env.PRINT_COMPANY_CODE,"3293"),
+name:l(o.distributor?.name,t.companyName,process.env.PRINT_COMPANY_NAME,"Công Ty TNHH MTV Minh Khai"),
+address:l(o.distributor?.address,t.companyAddress,process.env.PRINT_COMPANY_ADDRESS,"Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình"),
+phone:l(o.distributor?.phone,t.companyPhone,process.env.PRINT_COMPANY_PHONE,"")},customer:{customerCode:l(o.customerCode,o.customer?.code,o.customerId),
+customerName:l(o.customerName,o.customer?.name,o.supplier,o.supplierName),deliveryAddress:l(o.customerAddress,o.customer?.address,o.address),
+phone:l(o.customerPhone,o.customer?.phone,o.phone),taxCode:l(o.customerTaxCode,o.customer?.taxCode,o.mst)},salesStaff:{
+staffCode:l(o.salesStaffCode,o.salesPersonCode,o.salesmanCode,o.nvbhCode,o.maNVBH,o.salesCode,o.salesStaffId),
+staffName:l(o.salesStaffName,o.salesPersonName,o.salesmanName,o.nvbhName,o.maNVBHName,o.salesName,o.createdBy),phone:l(o.staffPhone,o.salesStaffPhone,o.salesPhone)},items:e,
+promotions:r,offsets:n,totalPromotionAmount:A,totalOffsetAmount:y,nppDiscountAmount:C,payableAmount:x,
+amountInWords:l(o.amountInWords,o.summary?.amountInWords,o.totalAmountText)||p(x||P)});return{company:{
+code:l(o.distributor?.code,t.companyCode,process.env.PRINT_COMPANY_CODE,"3293"),
+name:l(o.distributor?.name,t.companyName,process.env.PRINT_COMPANY_NAME,"Công Ty TNHH MTV Minh Khai"),
+address:l(o.distributor?.address,t.companyAddress,process.env.PRINT_COMPANY_ADDRESS,"Cầu Cánh Sẻ, Quang Bình, Kiến Xương, Thái Bình"),
+phone:l(o.distributor?.phone,t.companyPhone,process.env.PRINT_COMPANY_PHONE,""),taxCode:t.taxCode||process.env.PRINT_COMPANY_TAX||""},document:{id:o.id||o._id||"",
+code:l(o.code,o.orderCode,o.refCode,o.id,o._id),invoiceCode:l(o.invoiceCode,o.invoiceNo,o.soHoaDon,o.documentCode,o.code),
+customerOrderCode:l(o.customerOrderCode,o.soDonHang,o.orderCode,o.documentCode,o.code),
+date:u(l(o.orderDate,o.deliveryDate,o.importDate,o.returnDate,o.documentDate,o.date,o.createdAt)),
+dateTime:m(l(o.orderDateTime,o.orderDate,o.deliveryDate,o.importDate,o.returnDate,o.documentDate,o.date,o.createdAt)),
+rawDate:l(o.orderDate,o.deliveryDate,o.importDate,o.returnDate,o.documentDate,o.date,o.createdAt),type:l(o.invoiceType,o.type,o.orderType,o.orderSourceName,"NVTT"),note:o.note||"",
+terms:l(o.terms,o.paymentTerms,"đáo hạn trong 7 ngày"),page:t.page||"1 / 1",vehicleNo:l(o.vehicleNo,o.truckNo,o.soXeTai),printMode:o.printMode||"",
+title:o.printContract?.document?.title||o.printTitle||"",sourceCodes:Array.isArray(o.sourceCodes)?o.sourceCodes:o.printContract?.document?.sourceCodes||[],
+masterOrderCodes:Array.isArray(o.masterOrderCodes)?o.masterOrderCodes:[],selectedMasterOrderCount:o.selectedMasterOrderCount||0},customer:{
+code:l(o.customerCode,o.customer?.code,o.customerId),name:l(o.customerName,o.customer?.name,o.supplier,o.supplierName),address:l(o.customerAddress,o.customer?.address,o.address),
+phone:l(o.customerPhone,o.customer?.phone,o.phone),taxCode:l(o.customerTaxCode,o.customer?.taxCode,o.mst)},staff:{
+code:l(o.salesStaffCode,o.salesPersonCode,o.salesmanCode,o.nvbhCode,o.maNVBH,o.salesCode,o.salesStaffId),
+name:l(o.salesStaffName,o.salesPersonName,o.salesmanName,o.nvbhName,o.maNVBHName,o.salesName,o.createdBy),phone:l(o.staffPhone,o.salesStaffPhone,o.salesPhone)},delivery:{
+code:l(o.deliveryStaffCode,o.deliveryCode),name:l(o.deliveryStaffName,o.deliveryName),phone:l(o.deliveryPhone,o.deliveryStaffPhone),route:l(o.route,o.routeName,o.tuyen)},items:e,
+promotions:r,displayRewards:n,warehouseGroups:a,masterKpis:Array.isArray(o.masterKpis)?o.masterKpis:[],masterKpiTotals:o.masterKpiTotals||{},totals:{totalQty:c,goodsAmount:g,
+totalAmount:P,goodsAmountAfterPromotion:f,grossAmountBeforePromotion:d,promotionAmount:A,displayRewardOffset:y,nppDiscountAmount:C,promotionRate:O,discount:T,tax:h,paid:N,
+payable:x,debt:S,orderCount:i(l(o.orderCount,o.totalOrders,Array.isArray(o.children)?o.children.length:0)),promotionValue:A,displayRewardTotal:y,
+totalAmountText:l(o.amountInWords,o.summary?.amountInWords,o.totalAmountText)||p(x||P)},meta:{printedAt:(new Date).toLocaleString("vi-VN"),printedBy:t.printedBy||"",
+copyLabel:t.copyLabel||"Liên 1"},erpInvoiceV46:v,printContract:o.printContract||null,printProfile:o.printProfile||o.printContract?.profile||"",formatMoney:s}}module.exports={
+buildPrintData:Y,buildDeliveryInvoicePayload:W,calculateDeliveryInvoiceSummary:U,paginateDeliveryInvoice:$,validateAgainstDmsSample:G,formatMoney:s,formatDate:u,formatDateTime:m,
+numberToVietnameseWords:p};

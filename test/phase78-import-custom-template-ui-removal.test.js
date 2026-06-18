@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
+const read = relativePath => require('./helpers/sourceBundle.util').readSource(path.join(root, relativePath));
 
 test('màn hình Import không còn khu vực tự tạo mẫu import', () => {
   const html = read('public/index.html');

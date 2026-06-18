@@ -7,7 +7,7 @@ const test = require('node:test');
 
 const ROOT = path.join(__dirname, '..');
 function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(ROOT, file));
 }
 
 test('DMS import matches NVBH against users code/staffCode without username/id fallback', () => {

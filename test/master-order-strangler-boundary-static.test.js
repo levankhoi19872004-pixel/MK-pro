@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 function readPhysical(file) {
   const fd = fs.openSync(path.join(ROOT, file), 'r');
   try { return fs.readFileSync(fd, 'utf8'); } finally { fs.closeSync(fd); }

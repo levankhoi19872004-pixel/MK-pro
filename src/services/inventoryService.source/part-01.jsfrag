@@ -1,0 +1,645 @@
+'use strict';
+
+const dateUtil = require('../utils/date.util');
+const InventoryLegacy = require('../models/InventoryLegacy');
+const Product = require('../models/Product');
+const StockTransaction = require('../models/StockTransaction');
+const ImportOrder = require('../models/ImportOrder');
+const SalesOrder = require('../models/SalesOrder');
+const ReturnOrder = require('../models/ReturnOrder');
+const { makeId, toNumber, normalizeText } = require('../utils/common.util');
+const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
+const inventoryStockService = require('./inventoryStock.service');
+const { assertDestructiveInventoryOperation } = require('../utils/inventoryMaintenance.util');
+const InventoryRebuildService = require('../domain/reconciliation/InventoryRebuildService');
+
+function dateOnly(value) { return dateUtil.toDateOnly(value || dateUtil.todayVN()); }
+function isActive(row = {}) { return !['void', 'cancelled', 'canceled', 'deleted'].includes(String(row.status || '').toLowerCase()); }
+function stockWarehouseCode() { return STOCK_WAREHOUSE_CODE || 'MAIN'; }
+function stockWarehouseName() { return STOCK_WAREHOUSE_NAME || 'Kho chính'; }
+
+function normalizeMovementDirection(value) {
+  return String(value || '').trim().toUpperCase() === 'IN' ? 'IN' : 'OUT';
+}
+
+function normalizeStockSourceType(movement = {}) {
+  return String(movement.sourceType || movement.refType || movement.type || '').trim().toUpperCase() || 'STOCK_MOVEMENT';
+}
+
+function buildStockMovementIdempotencyKey({ sourceType, sourceId, sourceCode, productCode, productId, warehouseCode, warehouseId, direction, type } = {}) {
+  const sourceKey = String(sourceId || sourceCode || '').trim();
+  const productKey = String(productCode || productId || '').trim();
+  const warehouseKey = String(warehouseCode || warehouseId || stockWarehouseCode()).trim();
+  const movementType = String(type || direction || '').trim().toUpperCase();
+  return [
+    String(sourceType || '').trim().toUpperCase(),
+    sourceKey,
+    productKey,
+    warehouseKey,
+    movementType
+  ].join('|');
+}
+
+function isDuplicateKeyError(err) {
+  return err && (err.code === 11000 || String(err.message || '').includes('E11000'));
+}
+
+function withOptionalSession(query, session) {
+  return query && typeof query.session === 'function' ? query.session(session || null) : query;
+}
+
+async function findStockTransactionByIdempotencyKey(idempotencyKey, session = null) {
+  if (!idempotencyKey) return null;
+  const query = StockTransaction.findOne({ idempotencyKey });
+  const withSession = withOptionalSession(query, session);
+  return typeof withSession?.lean === 'function' ? withSession.lean() : withSession;
+}
+
+function getProductKey(item = {}) {
+  return String(item.productCode || item.code || item.productId || item.id || '').trim();
+}
+
+function getQty(item = {}) {
+  return toNumber(item.stockQuantity ?? item.deliveredQuantity ?? item.quantity ?? item.qty ?? item.totalQty ?? item.returnQuantity ?? item.returnQty);
+}
+
+function normalizeStockProductCode(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+function numericCodeVariant(value = '') {
+  const raw = String(value || '').trim();
+  return /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+function snapshotQuantityOf(row = {}) {
+  return toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
+}
+
+function groupStockItems(items = []) {
+  const grouped = new Map();
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const productCode = normalizeStockProductCode(
+      item.productCode || item.code || item.sku || item.productId || item.id
+    );
+
+    if (!productCode) continue;
+
+    const qty = Math.abs(toNumber(
+      item.stockQuantity ??
+      item.deliveredQuantity ??
+      item.quantity ??
+      item.qty ??
+      item.totalQty ??
+      item.returnQuantity ??
+      item.returnQty
+    ));
+
+    if (qty <= 0) continue;
+
+    if (!grouped.has(productCode)) {
+      grouped.set(productCode, {
+        ...item,
+        productCode,
+        productId: String(item.productId || item.id || productCode).trim(),
+        productName: String(item.productName || item.name || '').trim(),
+        quantity: 0
+      });
+    }
+
+    const acc = grouped.get(productCode);
+    acc.quantity += qty;
+    acc.qty = acc.quantity;
+  }
+
+  return Array.from(grouped.values());
+}
+
+async function findProduct(item = {}) {
+  const key = getProductKey(item);
+  if (!key) return null;
+  return Product.findOne({
+    $or: [
+      { code: key },
+      { id: key },
+      { _id: /^[a-f0-9]{24}$/i.test(key) ? key : undefined }
+    ].filter((x) => Object.values(x)[0] !== undefined)
+  });
+}
+
+async function getSnapshot(productLike = {}) {
+  const productCode = String(productLike.productCode || productLike.code || productLike.productId || '').trim();
+  const productId = String(productLike.productId || productLike.id || productCode || '').trim();
+  if (!productCode && !productId) return null;
+  const warehouseCode = stockWarehouseCode();
+  return InventoryLegacy.findOne({
+    $or: [
+      productCode ? { productCode, warehouseCode } : null,
+      productId ? { productId, warehouseCode } : null
+    ].filter(Boolean)
+  });
+}
+
+async function normalizeProductInventoryToMain({ productCode, productId, session = null } = {}) {
+  const code = normalizeStockProductCode(productCode || '');
+  const id = String(productId || '').trim();
+  const numericCode = numericCodeVariant(code);
+  const numericId = numericCodeVariant(id);
+
+  const filters = [
+    code ? { productCode: code } : null,
+    numericCode !== null ? { productCode: numericCode } : null,
+    id ? { productId: id } : null,
+    numericId !== null ? { productId: numericId } : null,
+    code ? { code } : null,
+    numericCode !== null ? { code: numericCode } : null,
+    id ? { sku: id } : null,
+    numericId !== null ? { sku: numericId } : null
+  ].filter(Boolean);
+
+  if (!filters.length) return null;
+
+  const query = InventoryLegacy.find({ $or: filters });
+  const rows = await withOptionalSession(query, session).lean();
+  if (!rows.length) return null;
+
+  const whCode = stockWarehouseCode();
+  const groupedQty = rows.reduce((sum, row) => sum + snapshotQuantityOf(row), 0);
+  const reservedQty = rows.reduce((sum, row) => sum + toNumber(row.reservedQty ?? row.reserved ?? 0), 0);
+  const baseRow = rows.find((row) => String(row.warehouseCode || '').trim() === whCode) || rows[0] || {};
+  const now = dateUtil.nowIso();
+
+  const patch = {
+    id: baseRow.id || makeId('IV'),
+    productId: String(baseRow.productId || id || code).trim(),
+    productCode: normalizeStockProductCode(baseRow.productCode || code || id),
+    productName: String(baseRow.productName || baseRow.name || '').trim(),
+    warehouseId: whCode,
+    warehouseCode: whCode,
+    warehouseName: stockWarehouseName(),
+    qty: groupedQty,
+    quantity: groupedQty,
+    onHand: groupedQty,
+    reservedQty,
+    availableQty: groupedQty - reservedQty,
+    updatedAt: now,
+    lastTransactionAt: baseRow.lastTransactionAt || now
+  };
+
+  // Nếu dữ liệu đã là một dòng MAIN, vẫn phải rewrite lại số liệu numeric.
+  // Lỗi thực tế: row MAIN có quantity/onHand còn lớn nhưng availableQty = 0 hoặc kiểu dữ liệu cũ,
+  // làm atomic filter availableQty >= qty trả null và báo thiếu tồn.
+  const isSingleMainRow = rows.length === 1 && String(baseRow.warehouseCode || '').trim() === whCode;
+  if (isSingleMainRow) {
+    const filter = baseRow._id
+      ? { _id: baseRow._id }
+      : { productCode: patch.productCode, warehouseCode: whCode };
+
+    await withOptionalSession(InventoryLegacy.updateOne(filter, { $set: patch }), session);
+    return { ...baseRow, ...patch };
+  }
+
+  await withOptionalSession(InventoryLegacy.deleteMany({ $or: filters }), session);
+  const doc = {
+    ...baseRow,
+    _id: undefined,
+    ...patch
+  };
+  const created = await InventoryLegacy.create([doc], { session });
+  return Array.isArray(created) ? created[0] : doc;
+}
+
+async function assertStockAvailableBeforeOut({ productCode, productId, productName, requiredQty = 0, session = null } = {}) {
+  const code = String(productCode || productId || '').trim();
+  const whCode = stockWarehouseCode();
+  const required = Math.abs(toNumber(requiredQty));
+  if (!code || required <= 0) return { ok: true, availableQty: 0, requiredQty: required };
+
+  const stock = await inventoryStockService.getAvailableStock(productCode || productId);
+  const available = toNumber(stock.availableQty);
+
+  if (available < required) {
+    const err = new Error(`Không đủ tồn kho: mã SP ${code}${productName ? ` - ${productName}` : ''}, tồn hiện tại ${available}, cần xuất ${required}`);
+    err.code = 'INSUFFICIENT_STOCK';
+    err.productCode = code;
+    err.warehouseCode = whCode;
+    err.availableQty = available;
+    err.requiredQty = required;
+    throw err;
+  }
+  return { ok: true, availableQty: available, requiredQty: required };
+}
+
+async function applyAtomicInventoryDelta({
+  productId,
+  productCode,
+  productName,
+  direction,
+  absQty,
+  movementQty,
+  warehouseId,
+  warehouseCode,
+  warehouseName,
+  postedAt,
+  session
+} = {}) {
+  const filter = {
+    productCode,
+    warehouseCode
+  };
+
+  if (direction === 'OUT') {
+    filter.availableQty = { $gte: absQty };
+  }
+
+  const update = {
+    $inc: {
+      qty: movementQty,
+      quantity: movementQty,
+      onHand: movementQty,
+      availableQty: movementQty
+    },
+    $set: {
+      productId,
+      productCode,
+      productName,
+      warehouseId,
+      warehouseCode,
+      warehouseName,
+      lastTransactionAt: postedAt,
+      updatedAt: postedAt
+    },
+    $setOnInsert: {
+      id: makeId('IV'),
+      reservedQty: 0
+    }
+  };
+
+  const options = {
+    new: true,
+    upsert: direction === 'IN',
+    session
+  };
+
+  let updated = await InventoryLegacy.findOneAndUpdate(filter, update, options);
+
+  if (!updated && direction === 'OUT') {
+    await normalizeProductInventoryToMain({ productCode, productId, session });
+    updated = await InventoryLegacy.findOneAndUpdate(filter, update, options);
+  }
+
+  if (!updated) {
+    const err = new Error(`Không đủ tồn kho mã ${productCode}`);
+    err.code = 'INSUFFICIENT_STOCK';
+    err.productCode = productCode;
+    err.warehouseCode = warehouseCode;
+    err.requiredQty = absQty;
+    throw err;
+  }
+
+  return updated;
+}
+
+async function postStockMovement(document = {}, movement = {}, options = {}) {
+  const session = options.session;
+  const rawItems = Array.isArray(document.items) ? document.items : [];
+  const items = groupStockItems(rawItems);
+  // Tồn kho chỉ có 1 kho chính. HC/PC chỉ là nhóm in/gộp đơn, không ảnh hưởng tồn.
+  const warehouseCode = stockWarehouseCode();
+  const warehouseId = stockWarehouseCode();
+  const warehouseName = stockWarehouseName();
+  const direction = normalizeMovementDirection(movement.direction);
+  const sign = direction === 'IN' ? 1 : -1;
+  const type = String(movement.type || (direction === 'IN' ? 'IMPORT' : 'SALE')).trim().toUpperCase();
+  const refType = normalizeStockSourceType({ ...movement, type });
+  const refId = String(movement.refId || movement.sourceId || document.id || document._id || document.code || '').trim();
+  const refCode = String(movement.refCode || movement.sourceCode || document.code || document.orderCode || document.id || '').trim();
+  const txDate = dateOnly(movement.date || document.date || document.orderDate || document.documentDate || document.createdAt);
+  const postedAt = dateUtil.nowIso();
+  const transactions = [];
+
+  if (direction === 'OUT' && !session && options.allowUnsafeNoSession !== true) {
+    const err = new Error('Atomic inventory OUT posting cần Mongo session để rollback StockTransaction + Inventory cùng nhau');
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+
+  for (const item of items) {
+    const rawQty = getQty(item);
+    if (!rawQty) continue;
+    const product = await findProduct(item);
+    const productCode = normalizeStockProductCode(item.productCode || item.code || product?.code || item.productId);
+    const productId = String(item.productId || product?.id || product?._id || productCode).trim();
+    if (!productCode && !productId) continue;
+    const productName = String(item.productName || item.name || product?.name || '').trim();
+    const absQty = Math.abs(rawQty);
+    const movementQty = absQty * sign;
+    const idempotencyKey = buildStockMovementIdempotencyKey({
+      sourceType: refType,
+      sourceId: refId,
+      sourceCode: refCode,
+      productCode,
+      productId,
+      warehouseCode,
+      warehouseId,
+      direction,
+      type
+    });
+
+    const existingTx = await findStockTransactionByIdempotencyKey(idempotencyKey, session);
+    if (existingTx) {
+      transactions.push({
+        ...existingTx,
+        skipped: true,
+        reason: 'DUPLICATE_STOCK_MOVEMENT'
+      });
+      continue;
+    }
+
+    // Tồn kho nghiệp vụ chỉ có 1 kho MAIN.
+    // Nếu dữ liệu cũ còn nằm ở KHO_HC/KHO_PC/rỗng thì gom về MAIN trước khi trừ tồn atomic.
+    await normalizeProductInventoryToMain({
+      productCode,
+      productId,
+      session
+    });
+
+    let tx;
+    try {
+      const created = await StockTransaction.create([{
+        id: makeId('ST'),
+        idempotencyKey,
+        sourceType: refType,
+        sourceId: refId,
+        sourceCode: refCode,
+        date: txDate,
+        productId,
+        productCode,
+        productName,
+        warehouseId,
+        warehouseCode,
+        warehouseName,
+        type,
+        direction,
+        quantity: movementQty,
+        qty: movementQty,
+        inQty: direction === 'IN' ? absQty : 0,
+        outQty: direction === 'OUT' ? absQty : 0,
+        balanceQty: 0,
+        refType,
+        refId,
+        refCode,
+        reversedFrom: movement.reversedFrom || movement.originalMovementId || '',
+        note: movement.note || document.note || '',
+        createdAt: postedAt,
+        updatedAt: postedAt
+      }], { session });
+      tx = created[0];
+    } catch (err) {
+      if (!isDuplicateKeyError(err)) throw err;
+      const duplicate = await findStockTransactionByIdempotencyKey(idempotencyKey, session);
+      transactions.push({
+        ...(duplicate || { idempotencyKey }),
+        skipped: true,
+        reason: 'DUPLICATE_STOCK_MOVEMENT'
+      });
+      continue;
+    }
+
+    const updatedSnapshot = await applyAtomicInventoryDelta({
+      productId,
+      productCode,
+      productName,
+      direction,
+      absQty,
+      movementQty,
+      warehouseId,
+      warehouseCode,
+      warehouseName,
+      postedAt,
+      session
+    });
+
+    const balanceQty = toNumber(
+      updatedSnapshot.quantity ??
+      updatedSnapshot.qty ??
+      updatedSnapshot.onHand ??
+      updatedSnapshot.availableQty
+    );
+
+    if (tx && typeof tx.save === 'function') {
+      tx.balanceQty = balanceQty;
+      tx.updatedAt = postedAt;
+      await tx.save({ session });
+    } else if (tx) {
+      tx.balanceQty = balanceQty;
+    }
+
+    // Phase 3.4: không ghi tồn ngược về products.
+    // Products chỉ là danh mục; tồn hiện tại nằm ở inventories.
+    transactions.push(tx);
+  }
+  if (transactions.length && inventoryStockService.invalidateInventorySummaryCache) {
+    inventoryStockService.invalidateInventorySummaryCache();
+  }
+  return transactions;
+}
+
+
+
+function buildBulkSalesOutMovements(orders = []) {
+  const movements = [];
+
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const sourceId = String(order.id || order._id || order.code || '').trim();
+    const sourceCode = String(order.code || order.id || order._id || '').trim();
+    const txDate = dateOnly(order.date || order.orderDate || order.createdAt);
+    const groupedItems = groupStockItems(Array.isArray(order.items) ? order.items : []);
+
+    for (const item of groupedItems) {
+      const absQty = Math.abs(getQty(item));
+      const productCode = normalizeStockProductCode(
+        item.productCode || item.code || item.sku || item.productId || item.id
+      );
+      const productId = String(item.productId || item.id || productCode).trim();
+      if (!productCode || absQty <= 0) continue;
+
+      const productName = String(item.productName || item.name || '').trim();
+      const idempotencyKey = buildStockMovementIdempotencyKey({
+        sourceType: 'SALES_ORDER',
+        sourceId,
+        sourceCode,
+        productCode,
+        productId,
+        warehouseCode: stockWarehouseCode(),
+        warehouseId: stockWarehouseCode(),
+        direction: 'OUT',
+        type: 'SALE'
+      });
+
+      movements.push({
+        order,
+        sourceId,
+        sourceCode,
+        txDate,
+        productId,
+        productCode,
+        productName,
+        absQty,
+        idempotencyKey
+      });
+    }
+  }
+
+  return movements;
+}
+
+function addBulkInventoryAlias(aliasMap, value, canonicalCode) {
+  const alias = normalizeStockProductCode(value);
+  if (alias && canonicalCode && !aliasMap.has(alias)) aliasMap.set(alias, canonicalCode);
+}
+
+function numericVariants(values = []) {
+  return Array.from(new Set(
+    values
+      .map((value) => String(value || '').trim())
+      .filter((value) => /^\d+$/.test(value))
+      .map(Number)
+  ));
+}
+
+async function normalizeBulkSalesInventoryToMain(movements = [], session = null) {
+  const productMeta = new Map();
+  const aliasToCanonical = new Map();
+
+  for (const movement of movements) {
+    const code = normalizeStockProductCode(movement.productCode);
+    if (!code) continue;
+    if (!productMeta.has(code)) {
+      productMeta.set(code, {
+        productCode: code,
+        productId: String(movement.productId || code).trim(),
+        productName: String(movement.productName || '').trim()
+      });
+    }
+    addBulkInventoryAlias(aliasToCanonical, code, code);
+    addBulkInventoryAlias(aliasToCanonical, movement.productId, code);
+    if (/^\d+$/.test(code)) addBulkInventoryAlias(aliasToCanonical, String(Number(code)), code);
+    if (/^\d+$/.test(String(movement.productId || '').trim())) {
+      addBulkInventoryAlias(aliasToCanonical, String(Number(movement.productId)), code);
+    }
+  }
+
+  const textAliases = Array.from(aliasToCanonical.keys());
+  if (!textAliases.length) return { normalized: 0, productCodes: [] };
+  const numberAliases = numericVariants(textAliases);
+  const aliasValues = [...textAliases, ...numberAliases];
+
+  const query = InventoryLegacy.find({
+    $or: [
+      { productCode: { $in: aliasValues } },
+      { productId: { $in: aliasValues } },
+      { code: { $in: aliasValues } },
+      { sku: { $in: aliasValues } }
+    ]
+  });
+  const inventoryRows = await withOptionalSession(query, session).lean();
+  const groupedRows = new Map();
+
+  for (const row of inventoryRows || []) {
+    const aliases = [row.productCode, row.productId, row.code, row.sku]
+      .map(normalizeStockProductCode)
+      .filter(Boolean);
+    const canonicalCode = aliases.map((alias) => aliasToCanonical.get(alias)).find(Boolean);
+    if (!canonicalCode) continue;
+    if (!groupedRows.has(canonicalCode)) groupedRows.set(canonicalCode, []);
+    groupedRows.get(canonicalCode).push(row);
+  }
+
+  const now = dateUtil.nowIso();
+  const mainCode = stockWarehouseCode();
+  const mainName = stockWarehouseName();
+  const operations = [];
+
+  for (const [canonicalCode, meta] of productMeta.entries()) {
+    const rows = groupedRows.get(canonicalCode) || [];
+    if (!rows.length) continue;
+
+    const groupedQty = rows.reduce((sum, row) => sum + snapshotQuantityOf(row), 0);
+    const reservedQty = rows.reduce(
+      (sum, row) => sum + toNumber(row.reservedQty ?? row.reserved ?? 0),
+      0
+    );
+    const mainRow = rows.find((row) => String(row.warehouseCode || '').trim() === mainCode);
+    const baseRow = mainRow || rows[0] || {};
+    const patch = {
+      id: baseRow.id || makeId('IV'),
+      productId: String(meta.productId || baseRow.productId || canonicalCode).trim(),
+      productCode: canonicalCode,
+      productName: String(meta.productName || baseRow.productName || baseRow.name || '').trim(),
+      warehouseId: mainCode,
+      warehouseCode: mainCode,
+      warehouseName: mainName,
+      qty: groupedQty,
+      quantity: groupedQty,
+      onHand: groupedQty,
+      reservedQty,
+      availableQty: groupedQty - reservedQty,
+      updatedAt: now,
+      lastTransactionAt: baseRow.lastTransactionAt || now
+    };
+
+    const isCanonicalSingleMain = rows.length === 1
+      && mainRow
+      && normalizeStockProductCode(mainRow.productCode) === canonicalCode;
+
+    if (isCanonicalSingleMain) {
+      operations.push({
+        updateOne: {
+          filter: { _id: mainRow._id },
+          update: { $set: patch }
+        }
+      });
+      continue;
+    }
+
+    operations.push({
+      deleteMany: {
+        filter: { _id: { $in: rows.map((row) => row._id) } }
+      }
+    });
+    operations.push({
+      updateOne: {
+        filter: { productCode: canonicalCode, warehouseCode: mainCode },
+        update: {
+          $set: patch
+        },
+        upsert: true
+      }
+    });
+  }
+
+  if (operations.length) {
+    await InventoryLegacy.bulkWrite(operations, { ordered: true, session });
+  }
+
+  return {
+    normalized: productMeta.size,
+    productCodes: Array.from(productMeta.keys())
+  };
+}
+
+async function postStockMovementBulkSalesOut(orders = [], options = {}) {
+  const session = options.session;
+  if (!session && options.allowUnsafeNoSession !== true) {
+    const err = new Error('Bulk sales inventory OUT cần Mongo session để đảm bảo atomic');
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+
+  const movements = buildBulkSalesOutMovements(orders);
+  if (!movements.length) return [];
+
+  const idempotencyKeys = movements.map((row) => row.idempotencyKey).filter(Boolean);
+  const existingQuery = StockTransaction.find({ idempotencyKey: { $in: idempotencyKeys } })

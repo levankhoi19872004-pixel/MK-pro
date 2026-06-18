@@ -12,7 +12,7 @@ const {
 } = require('../src/utils/masterOrderAssignment.util');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 
 test('detaching a child order clears the complete master/delivery assignment chain', () => {
   const update = buildDetachedSalesOrderMongoUpdate('2026-06-13T00:00:00.000Z');

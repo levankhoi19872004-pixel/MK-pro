@@ -6,8 +6,8 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const sales = fs.readFileSync(path.join(root, 'src/services/master-order/masterOrderLegacy.service.js'), 'utf8');
-const returns = fs.readFileSync(path.join(root, 'src/services/masterReturnOrderService.js'), 'utf8');
+const sales = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/master-order/masterOrderLegacy.service.js'));
+const returns = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/masterReturnOrderService.js'));
 
 test('master sales order atomically claims only unmerged active children', () => {
   assert.match(sales, /function buildUnclaimedChildOrderFilter/);

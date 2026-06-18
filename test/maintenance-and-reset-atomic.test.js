@@ -34,7 +34,7 @@ test('maintenance mode blocks business writes but allows reset and reads', () =>
 });
 
 test('system reset replaces collections inside one Mongo transaction', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src/services/systemService.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', 'src/services/systemService.js'));
   assert.match(source, /withMongoTransaction\(async \(session\)/);
   assert.match(source, /repository\.replaceAll\(nextData, \{ session \}\)/);
 });

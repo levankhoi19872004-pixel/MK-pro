@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 function read(file) {
-  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
 test('web UI patches fetch to use HttpOnly cookie auth and automatic refresh for API requests', () => {

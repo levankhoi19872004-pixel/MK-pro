@@ -8,7 +8,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
 function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(ROOT, file));
 }
 
 const BUSINESS_FILES = [

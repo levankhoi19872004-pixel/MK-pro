@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', relativePath));
 }
 
 test('sales import commit uses bulk inventory posting and one order status update per chunk', () => {
@@ -44,5 +44,7 @@ test('import session reports commit progress and frontend polls it', () => {
   assert.match(sessionService, /percent:\s*100,[\s\S]*step:\s*'done'/);
   assert.match(ui, /startImportCommitProgressPolling/);
   assert.match(ui, /refreshAfterImport/);
-  assert.match(html, /phase47-import-performance-v1/);
+  assert.match(html, /08d-import-excel\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /08d-import-excel\.part02\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /08d-import-excel\.part03\.js\?v=phase79b-source-shards-v1/);
 });

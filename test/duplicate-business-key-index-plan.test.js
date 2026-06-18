@@ -7,8 +7,8 @@ const test = require('node:test');
 const { INDEX_DEFINITIONS } = require('../src/services/mongoIndexService');
 
 const root = path.resolve(__dirname, '..');
-const audit = fs.readFileSync(path.join(root, 'scripts/audit-duplicate-business-keys.js'), 'utf8');
-const migrate = fs.readFileSync(path.join(root, 'scripts/migrate-duplicate-business-keys.js'), 'utf8');
+const audit = require('./helpers/sourceBundle.util').readSource(path.join(root, 'scripts/audit-duplicate-business-keys.js'));
+const migrate = require('./helpers/sourceBundle.util').readSource(path.join(root, 'scripts/migrate-duplicate-business-keys.js'));
 
 function findIndex(collection, name) {
   return (INDEX_DEFINITIONS[collection] || []).find(([, options]) => options.name === name);

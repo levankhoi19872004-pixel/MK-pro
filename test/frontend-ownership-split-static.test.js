@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT,file),'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(path.join(ROOT,file));
 
 test('global CSS and bootstrap manifests are small', () => {
   assert.ok(read('public/style.css').split(/\r?\n/).length < 10);

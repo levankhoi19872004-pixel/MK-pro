@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const serviceSource = fs.readFileSync('src/services/mobile/delivery.service.js', 'utf8');
-const repositorySource = fs.readFileSync('src/repositories/mobile/delivery.repository.js', 'utf8');
+const serviceSource = require('./helpers/sourceBundle.util').readSource('src/services/mobile/delivery.service.js');
+const repositorySource = require('./helpers/sourceBundle.util').readSource('src/repositories/mobile/delivery.repository.js');
 
 test('mobile delivery list does not load the primary full snapshot', () => {
   const block = serviceSource.match(/async function listDeliveryOrders[\s\S]*?\n  function mobileDeliveryActorPayload/)?.[0] || '';

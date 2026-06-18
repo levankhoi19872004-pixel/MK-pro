@@ -6,9 +6,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'public/js/app/06-master-delivery.js'), 'utf8');
-const state = fs.readFileSync(path.join(root, 'public/js/app/state/00a-catalog-orders-state.js'), 'utf8');
-const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/06-master-delivery.js'));
+const state = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/state/00a-catalog-orders-state.js'));
+const html = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/index.html'));
 
 test('master-order popup exposes a dedicated reload button for unmerged children', () => {
   assert.match(html, /id="reloadUnmergedOrdersButton"[^>]*>Tải lại<\/button>/);

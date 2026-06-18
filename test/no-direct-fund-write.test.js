@@ -64,7 +64,7 @@ test('fund ledger writes stay inside fund boundary or pinned phase-1 legacy func
     const relPath = path.normalize(path.relative(ROOT, filePath));
     if (ALLOWED_FILES.has(relPath)) continue;
 
-    const source = fs.readFileSync(filePath, 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(filePath);
     for (const pattern of FORBIDDEN_PATTERNS) {
       pattern.regex.lastIndex = 0;
       let match;
@@ -89,7 +89,7 @@ test('fund ledger writes stay inside fund boundary or pinned phase-1 legacy func
 });
 
 test('mobile delivery cash submission goes through DeliverySettlementService', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/services/mobile/delivery.service.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/services/mobile/delivery.service.js'));
   const submitCashIndex = source.indexOf('async function submitCash(');
   assert.notEqual(submitCashIndex, -1, 'submitCash() must exist');
   const nextFunctionIndex = source.indexOf('\nasync function ', submitCashIndex + 'async function submitCash('.length);

@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(ROOT, 'src/services/mobile/sales.service.js'), 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/mobile/sales.service.js');
 
 test('mobile sales list must exclude soft-deleted orders by deletion flags', () => {
   assert.match(source, /function activeSalesOrderMongoFilter\(\) \{/);
@@ -29,9 +29,9 @@ test('mobile sales projection keeps delete flags and applies final visibility gu
 });
 
 test('mobile delete button is wired to modular DELETE API', () => {
-  const frontSource = fs.readFileSync(path.join(ROOT, 'public/mobile/js/sales.js'), 'utf8');
-  const apiSource = fs.readFileSync(path.join(ROOT, 'public/mobile/js/api.js'), 'utf8');
-  const routeSource = fs.readFileSync(path.join(ROOT, 'src/routes/mobile/sales.routes.js'), 'utf8');
+  const frontSource = require('./helpers/sourceBundle.util').readSource('public/mobile/js/sales.js');
+  const apiSource = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'public/mobile/js/api.js'));
+  const routeSource = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/routes/mobile/sales.routes.js'));
   const serviceSource = source;
 
   assert.match(frontSource, /data-delete-order/);

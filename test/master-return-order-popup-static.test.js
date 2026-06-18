@@ -8,9 +8,9 @@ const readPublicCss = require('./helpers/readPublicCss');
 
 test('master-return-order screen uses list-only layout with popup create workspace', () => {
   const root = path.resolve(__dirname, '..');
-  const html = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
-  const js = fs.readFileSync(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'), 'utf8');
-  const dom = fs.readFileSync(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'), 'utf8');
+  const html = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/index.html'));
+  const js = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/debt/07d-master-return-orders.js'));
+  const dom = require('./helpers/sourceBundle.util').readSource(path.join(root, 'public/js/app/state/00b-debt-return-fund-state.js'));
   const css = readPublicCss(root);
 
   assert.match(html, /id="openMasterReturnOrderModalButton"/);

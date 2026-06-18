@@ -76,9 +76,9 @@ test('browser source no longer persists access or refresh tokens', () => {
     'public/js/delivery/delivery-core.js'
   ];
   for (const file of files) {
-    const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
     assert.doesNotMatch(source, /localStorage\.setItem\([^\n]*(mk_web_token|v43_mobile_token|refreshToken|STORAGE_KEYS\.token)/, file);
   }
-  const app = fs.readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
+  const app = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '../src/app.js'));
   assert.match(app, /app\.use\(apiSecurity\(requireAuth\)\);\s*app\.use\(csrfProtection\);/);
 });

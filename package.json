@@ -32,7 +32,7 @@
     "migrate:return-state": "node scripts/migrate-return-state-machine.js --write",
     "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
     "check:syntax": "node scripts/check-js-syntax.js",
-    "quality": "npm run check:syntax && npm run check:source-size && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
+    "quality": "npm run check:lock-registry && npm run check:syntax && npm run check:source-bundles && npm run check:source-size && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
     "check:production": "node scripts/production-readiness-check.js",
     "cleanup:retired": "node scripts/cleanup-retired-files.js",
     "pretest": "npm run cleanup:retired",
@@ -44,7 +44,11 @@
     "mongo:index-audit": "node scripts/audit-mongo-indexes.js",
     "mongo:index-cleanup": "node scripts/audit-mongo-indexes.js --write",
     "mongo:index-cleanup:unused": "node scripts/audit-mongo-indexes.js --write --drop-unused --min-observation-hours=168",
-    "check:source-size": "node scripts/check-source-size-budget.js"
+    "check:source-size": "node scripts/check-source-size-budget.js",
+    "build:source-bundles": "node scripts/build-source-bundles.js",
+    "check:source-bundles": "node scripts/build-source-bundles.js --check",
+    "source-bundles:refresh": "node scripts/build-source-bundles.js --refresh-hashes",
+    "check:lock-registry": "node scripts/check-package-lock-registry.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -62,7 +66,10 @@
     "read-excel-file": "^9.2.0"
   },
   "engines": {
-    "node": ">=22 <23",
+    "node": ">=20.20 <23",
     "npm": ">=10"
+  },
+  "devDependencies": {
+    "terser": "^5.48.0"
   }
 }

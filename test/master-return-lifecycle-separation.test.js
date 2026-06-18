@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const read = (file) => require('./helpers/sourceBundle.util').readSource(file);
 const ReturnStateMachine = require('../src/domain/lifecycle/ReturnStateMachine');
 
 test('legacy grouped status is normalized to waiting_receive and can be received', () => {

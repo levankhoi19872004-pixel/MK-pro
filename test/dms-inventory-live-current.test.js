@@ -10,7 +10,7 @@ const inventoryStockService = require('../src/services/inventoryStock.service');
 const Product = require('../src/models/Product');
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', relativePath));
 }
 
 test('buildComparisonRows reads the current available quantity from inventories', async () => {

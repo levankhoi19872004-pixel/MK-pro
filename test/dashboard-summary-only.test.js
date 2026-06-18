@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const source = fs.readFileSync('src/services/reportLegacy.service.js', 'utf8');
-const controller = fs.readFileSync('src/controllers/reportController.js', 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
+const controller = require('./helpers/sourceBundle.util').readSource('src/controllers/reportController.js');
 
 test('dashboard reads aggregate summaries and does not call full list reports', () => {
   const block = source.match(/async function dashboardReport[\s\S]*?\n\nmodule\.exports/)?.[0] || '';

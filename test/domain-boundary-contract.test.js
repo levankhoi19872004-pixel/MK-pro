@@ -8,7 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 function read(relPath) {
-  return fs.readFileSync(path.join(ROOT, relPath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(ROOT, relPath));
 }
 
 function assertExports(source, names) {

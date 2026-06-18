@@ -1,0 +1,432 @@
+  const isAggregate = data.document.printMode === 'MASTER_AGGREGATE_SELECTED';
+  const title = isAggregate ? 'ĐƠN TỔNG GỘP' : 'PHIẾU NHẶT HÀNG ĐƠN TỔNG';
+
+  if (isAggregate) {
+    const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
+      ? data.warehouseGroups
+      : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], saleItems: data.items || [], promoItems: [] }];
+    const pages = groups.map((group) => {
+      const pageTotals = {
+        qty: (group.items || []).reduce((sum, item) => sum + Number(item.qty || item.quantity || 0), 0),
+        amount: (group.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
+      };
+      return `
+        <div class="print-page">
+          ${renderMasterOrderHeaderBlock(data, title, group.name || group.code)}
+          ${renderMasterKpiTable(data)}
+          <div class="master-warehouse-block">
+            <div class="section-title master-warehouse-title">${text(group.name || group.code)}</div>
+            ${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng bán`, Array.isArray(group.saleItems) ? group.saleItems : [])}
+            ${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Xuất khuyến mại`, Array.isArray(group.promoItems) ? group.promoItems : [], { isPromo: true })}
+          </div>
+          <div class="total-box">
+            <div><span>Tổng số lượng liên ${text(group.name || group.code)}:</span><b>${money(data, pageTotals.qty)}</b></div>
+            <div><span>Giá trị liên ${text(group.name || group.code)}:</span><b>${money(data, pageTotals.amount)}</b></div>
+            <div><span>Số đơn con:</span><b>${money(data, data.totals.orderCount)}</b></div>
+          </div>
+          ${renderSignature(['Người lập phiếu', 'Người giao hàng', group.name || group.code])}
+          <div class="print-footer">In lúc: ${text(data.meta.printedAt)}</div>
+        </div>`;
+    }).join('');
+    return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${text(title)} - ${text(data.document.code)}</title>
+  <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
+</head>
+<body>
+  ${printPreviewActionsScript()}
+  ${pages}
+</body>
+</html>`;
+  }
+
+  const body = `
+    ${renderMasterOrderHeaderBlock(data, title)}
+    ${renderMasterKpiTable(data)}
+    ${renderMasterWarehouseTables(data)}
+    <div class="total-box">
+      <div><span>Tổng số lượng:</span><b>${money(data, data.totals.totalQty)}</b></div>
+      <div><span>Giá trị đơn tổng:</span><b>${money(data, data.totals.totalAmount)}</b></div>
+      <div><span>Số đơn con:</span><b>${money(data, data.totals.orderCount)}</b></div>
+    </div>
+    ${renderSignature(['Người lập phiếu', 'Người giao hàng', 'Kho HC', 'Kho PC'])}`;
+  return baseLayout(title, data, body);
+}
+
+
+function warehousePickingMode(data) {
+  const mode = String(data.document?.printMode || '').toUpperCase();
+  if (mode.includes('RETURN')) return 'RETURN';
+  if (mode.includes('IMPORT')) return 'IMPORT';
+  return 'MASTER';
+}
+
+function warehousePickingTitle(data) {
+  if (data.document?.title) return data.document.title;
+  const mode = warehousePickingMode(data);
+  if (mode === 'RETURN') return 'ĐƠN TỔNG TRẢ HÀNG';
+  if (mode === 'IMPORT') return data.document?.printMode === 'IMPORT_AGGREGATE_SELECTED' ? 'ĐƠN TỔNG NHẬP KHO' : 'PHIẾU NHẬP KHO';
+  return data.document?.printMode === 'MASTER_AGGREGATE_SELECTED' ? 'ĐƠN TỔNG GỘP' : 'PHIẾU NHẶT HÀNG ĐƠN TỔNG';
+}
+
+function renderWarehousePickingInfo(data, mode) {
+  const sourceCodes = Array.isArray(data.document?.sourceCodes) && data.document.sourceCodes.length
+    ? data.document.sourceCodes
+    : Array.isArray(data.document?.masterOrderCodes) ? data.document.masterOrderCodes : [];
+  const sourceLabel = mode === 'RETURN' ? 'Phiếu trả hàng' : mode === 'IMPORT' ? 'Phiếu nhập' : 'Đơn tổng';
+  return `
+    <div class="info-grid print-info-compact">
+      <div><b>Ngày chứng từ:</b> ${text(data.document.date)}</div>
+      ${mode === 'IMPORT' ? `<div><b>Nhà cung cấp:</b> ${text(data.customer.name)}</div>` : ''}
+      ${mode !== 'IMPORT' ? `<div><b>NV giao hàng:</b> ${text(data.delivery.code)}${data.delivery.name ? ` - ${text(data.delivery.name)}` : ''}</div>` : ''}
+      ${data.delivery.route ? `<div><b>Tuyến:</b> ${text(data.delivery.route)}</div>` : ''}
+      <div><b>Số chứng từ con:</b> ${money(data, data.totals.orderCount)}</div>
+      ${sourceCodes.length ? `<div class="full"><b>${sourceLabel}:</b> ${text(sourceCodes.join(', '))}</div>` : ''}
+      ${data.document.note ? `<div class="full"><b>Ghi chú:</b> ${text(data.document.note)}</div>` : ''}
+    </div>`;
+}
+
+function warehousePickingTemplate(data) {
+  const mode = warehousePickingMode(data);
+  const title = warehousePickingTitle(data);
+  const groups = Array.isArray(data.warehouseGroups) && data.warehouseGroups.length
+    ? data.warehouseGroups
+    : [{ code: 'KHO_HC', name: 'KHO HC', items: data.items || [], saleItems: data.items || [], promoItems: [], importItems: [], returnItems: [] }];
+
+  const pages = groups.map((group, pageIndex) => {
+    const saleItems = Array.isArray(group.saleItems) ? group.saleItems : [];
+    const promoItems = Array.isArray(group.promoItems) ? group.promoItems : [];
+    const importItems = Array.isArray(group.importItems) && group.importItems.length ? group.importItems : (mode === 'IMPORT' ? group.items || [] : []);
+    const returnItems = Array.isArray(group.returnItems) && group.returnItems.length ? group.returnItems : (mode === 'RETURN' ? group.items || [] : []);
+    const pageItems = mode === 'IMPORT' ? importItems : mode === 'RETURN' ? returnItems : [...saleItems, ...promoItems];
+    const pageQty = pageItems.reduce((sum, item) => sum + Number(item.qty || item.quantity || 0), 0);
+    const pageAmount = pageItems.reduce((sum, item) => sum + getMasterPrintLineAmount(item), 0);
+    const signatures = mode === 'IMPORT'
+      ? ['Người lập phiếu', 'Người giao hàng', 'Thủ kho']
+      : mode === 'RETURN'
+        ? ['Người lập phiếu', 'Nhân viên giao hàng', 'Thủ kho']
+        : ['Người lập phiếu', 'Người giao hàng', group.name || group.code];
+
+    const detail = mode === 'IMPORT'
+      ? renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng nhập kho`, importItems, { priceLabel: 'Giá nhập' })
+      : mode === 'RETURN'
+        ? renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng trả nhập kho`, returnItems, { priceLabel: 'Giá trả' })
+        : `${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Hàng bán`, saleItems, { priceLabel: 'Giá bán' })}${renderMasterWarehouseLineSection(data, `${group.name || group.code} - Xuất khuyến mại`, promoItems, { isPromo: true, priceLabel: 'Giá tham chiếu' })}`;
+
+    return `
+      <section class="print-page warehouse-picking-page${pageIndex > 0 ? ' page-break-before' : ''}">
+        <div class="simple-print-header">
+          <div><h2>${text(data.company.name)}</h2><p>${text(data.company.address)}</p></div>
+          <div class="print-code"><b>Mã chứng từ</b><span>${text(data.document.code)}</span></div>
+        </div>
+        <h1 class="print-title">${text(title)} - ${text(group.name || group.code)}</h1>
+        ${renderWarehousePickingInfo(data, mode)}
+        ${pageIndex === 0 ? renderMasterKpiTable(data) : ''}
+        ${detail}
+        <div class="total-box print-total-compact">
+          <div><span>Tổng số lượng:</span><b>${money(data, pageQty)}</b></div>
+          <div><span>Tổng giá trị:</span><b>${money(data, pageAmount)}</b></div>
+          <div><span>Số chứng từ con:</span><b>${money(data, data.totals.orderCount)}</b></div>
+        </div>
+        ${renderSignature(signatures)}
+        <div class="print-footer">In lúc: ${text(data.meta.printedAt)}</div>
+      </section>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${text(title)} - ${text(data.document.code)}</title>
+  <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
+</head>
+<body class="warehouse-picking-body">
+  ${printPreviewActionsScript()}
+  ${pages}
+</body>
+</html>`;
+}
+
+function importOrderTemplate(data) {
+  const body = `
+    <div class="simple-print-header">
+      <div>
+        <h2>${text(data.company.name)}</h2>
+        <p>${text(data.company.address)}</p>
+      </div>
+      <div class="print-code"><b>Mã phiếu</b><span>${text(data.document.code)}</span></div>
+    </div>
+    <h1 class="print-title">PHIẾU NHẬP KHO</h1>
+    <div class="info-grid">
+      <div><b>Ngày nhập:</b> ${text(data.document.date)}</div>
+      <div><b>Nhà cung cấp:</b> ${text(data.customer.name)}</div>
+      <div class="full"><b>Ghi chú:</b> ${text(data.document.note)}</div>
+    </div>
+    ${renderGenericItemsTable(data)}
+    <div class="total-box">
+      <div><span>Tổng số lượng nhập:</span><b>${money(data, data.totals.totalQty)}</b></div>
+      <div><span>Tổng giá trị:</span><b>${money(data, data.totals.totalAmount)}</b></div>
+    </div>
+    ${renderSignature(['Người lập phiếu', 'Người giao hàng', 'Thủ kho'])}`;
+  return baseLayout('PHIẾU NHẬP KHO', data, body);
+}
+
+function paymentReceiptTemplate(data) {
+  const body = `
+    <div class="simple-print-header">
+      <div>
+        <h2>${text(data.company.name)}</h2>
+        <p>${text(data.company.address)}</p>
+      </div>
+      <div class="print-code"><b>Mã phiếu</b><span>${text(data.document.code)}</span></div>
+    </div>
+    <h1 class="print-title">PHIẾU THU TIỀN</h1>
+    <div class="info-grid">
+      <div><b>Ngày thu:</b> ${text(data.document.date)}</div>
+      <div><b>Người thu:</b> ${text(data.staff.name)}</div>
+      <div><b>Mã KH:</b> ${text(data.customer.code)}</div>
+      <div><b>Khách hàng:</b> ${text(data.customer.name)}</div>
+      <div class="full"><b>Địa chỉ:</b> ${text(data.customer.address)}</div>
+    </div>
+    <div class="receipt-money"><span>Số tiền thu:</span><b>${money(data, data.totals.paid || data.totals.totalAmount)} đ</b></div>
+    <p class="note"><b>Nội dung:</b> ${text(data.document.note || 'Thu tiền bán hàng')}</p>
+    ${renderSignature(['Người lập phiếu', 'Người nộp tiền', 'Thủ quỹ'])}`;
+  return baseLayout('PHIẾU THU TIỀN', data, body);
+}
+
+function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
+  const items = Array.isArray(itemsOverride) ? itemsOverride : getDmsItems(data);
+  const summary = getDmsSummary(data);
+  const showTotal = options.showTotal !== false;
+  const rows = items.length
+    ? items.map((item) => `
+      <tr>
+        <td class="center">${text(item.lineNo)}</td>
+        <td class="mono">${text(item.productCode)}</td>
+        <td class="dms-product-name">${text(item.productName)}</td>
+        <td class="center">${text(item.quantityCsSu)}</td>
+        <td class="right">${money(data, item.quantity)}</td>
+        <td class="right">${money(data, item.priceBeforeTaxBeforePromotion)}</td>
+        <td class="right">${money(data, item.priceAfterTaxBeforePromotion)}</td>
+        <td class="right">${money(data, item.priceAfterTaxAfterPromotion)}</td>
+        <td class="right">${money(data, item.vatAmount)}</td>
+        <td class="right">${money(data, item.lineAmount)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="10" class="center">Chưa có dòng hàng</td></tr>';
+
+  return `
+    <table class="dms-invoice-table">
+      <thead>
+        <tr>
+          <th style="width:4%">STT</th>
+          <th style="width:9%">Mã hàng</th>
+          <th style="width:31%">Tên sản phẩm</th>
+          <th style="width:7%">Số lượng<br/>(CS/SU)</th>
+          <th style="width:6%">Số<br/>lượng<br/>(lẻ)</th>
+          <th style="width:9%">Đơn Giá<br/>(Trước Thuế/KM)</th>
+          <th style="width:9%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
+          <th style="width:7%">Thuế<br/>GTGT</th>
+          <th style="width:9%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
+        </tr>
+        <tr class="dms-formula-row">
+          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        ${showTotal ? `<tr class="dms-total-row">
+          <td colspan="4" class="center">Tổng cộng (A)</td>
+          <td class="right">${dmsMoney(data, summary.totalQty)}</td>
+          <td></td><td></td><td></td>
+          <td></td>
+          <td class="right">${dmsMoney(data, summary.goodsAmountAfterPromotion)}</td>
+        </tr>` : ''}
+      </tbody>
+    </table>`;
+}
+
+function renderDmsPromotionTable(data) {
+  const promotions = groupDmsPromotionsByCode(getDmsPromotions(data));
+  const summary = getDmsSummary(data);
+  const rows = promotions.length
+    ? promotions.map((promo) => `
+      <tr>
+        <td class="mono">${text(promo.code)}</td>
+        <td>${text(promo.description)}</td>
+        <td class="right">${dmsMoney(data, promo.qualifiedAmount)}</td>
+        <td class="right">${promo.hasGroupDiscount ? text(promo.discountPercent) : ''}</td>
+        <td class="right">${dmsMoney(data, promo.discountBeforeTax)}</td>
+        <td class="right">${dmsMoney(data, promo.discountAfterTax)}</td>
+      </tr>`).join('')
+    : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
+
+  const totalPromotionAmount = promotions.length
+    ? promotions.reduce((sum, promo) => sum + Number(promo.discountAfterTax || 0), 0)
+    : Number(summary.totalPromotionAmount ?? summary.promotionAmount ?? data.totals?.promotionValue ?? 0) || 0;
+
+  return `
+    <div class="dms-section-title">CHI TIẾT KHUYẾN MÃI: (B+C)</div>
+    <table class="dms-detail-table dms-promotion-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CTKM Tiền</th>
+          <th>Khuyến mãi bằng tiền</th>
+          <th style="width:25mm">Giá trị hàng hóa mua</th>
+          <th style="width:18mm">% chiết khấu</th>
+          <th style="width:24mm">Tiền CK trước thuế</th>
+          <th style="width:24mm">Tiền CK sau thuế</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị khuyến mãi tiền (C)</td><td class="right">${dmsMoney(data, totalPromotionAmount)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function renderDmsRewardTable(data) {
+  const offsets = getDmsOffsets(data);
+  const summary = getDmsSummary(data);
+  const totalOffset = Number(summary.totalOffsetAmount ?? summary.displayRewardOffset ?? data.totals?.displayRewardTotal ?? 0) || 0;
+  if (!offsets.length && !totalOffset) return '';
+  const rows = offsets.length
+    ? offsets.map((row) => `
+      <tr>
+        <td class="mono">${text(row.programCode)}</td>
+        <td>${text(row.description)}</td>
+        <td class="center">${text(row.displayMonth || row.month)}</td>
+        <td class="right">${row.goodsAmount ? dmsMoney(data, row.goodsAmount) : ''}</td>
+        <td class="center">${text(row.quantityText)}</td>
+        <td class="right">${dmsMoney(data, row.offsetAmount)}</td>
+      </tr>`).join('')
+    : '<tr class="dms-empty-row"><td colspan="6">&nbsp;</td></tr>';
+  return `
+    <div class="dms-section-title">CHI TIẾT CẤN TRỪ NỢ:(D+E)</div>
+    <table class="dms-detail-table dms-reward-table">
+      <thead>
+        <tr>
+          <th style="width:28mm">Mã CT Trưng bày</th>
+          <th>Nội dung Chương trình trưng bày</th>
+          <th style="width:20mm">Tháng trưng bày</th>
+          <th style="width:24mm">Chi trả trưng bày (hàng hóa)</th>
+          <th style="width:20mm">Số lượng (Thùng/lẻ)</th>
+          <th style="width:25mm">Chi trả trưng bày (cấn trừ nợ)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="dms-total-row"><td colspan="5" class="right">Tổng giá trị nhận được từ CT trưng bày (D)</td><td class="right">${dmsMoney(data, totalOffset)}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+function renderDmsHeader(data, copyLabel, pageNo, pageCount) {
+  const header = getDmsHeader(data);
+  const distributor = getDmsDistributor(data);
+  const customer = getDmsCustomer(data);
+  const staff = getDmsSalesStaff(data);
+  const normalizedCopy = normalizeCopyLabel(copyLabel);
+  const pageText = formatDmsPage(pageNo, pageCount);
+  const staffText = `${text(staff.staffCode)}${staff.staffName ? ` - ${text(staff.staffName)}` : ''}${staff.phone ? ` - ${text(staff.phone)}` : ''}`;
+  const customerText = `${text(customer.customerCode)}${customer.customerName ? ` - ${text(customer.customerName)}` : ''}${customer.phone ? ` - ${text(customer.phone)}` : ''}`;
+  const distributorText = `${text(distributor.code)}${distributor.name ? ` - ${text(distributor.name)}` : ''}`;
+
+  return `
+    <div class="dms-header-lines dms-invoice-header-left dms-invoice-header-right">
+      <div class="dms-title-header">
+        <div></div>
+        <div class="dms-title-line">PHIẾU GIAO NHẬN VÀ THANH TOÁN</div>
+        <div class="dms-truck-cell"><span>Số xe tải:</span> ${text(header.truckNo)}</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số hóa đơn:</span> ${text(header.invoiceCode)}</div>
+        <div class="dms-line-right dms-line-right-split">
+          <span><span>Loại hóa đơn:</span> ${text(header.invoiceType)}</span>
+          <span class="dms-copy-page-cell"><span>${text(normalizedCopy)}</span><span>Trang: ${pageText}</span></span>
+        </div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Số đơn hàng:</span> ${text(header.orderCode)}</div>
+        <div class="dms-line-right"><span>Thời gian đặt hàng:</span> ${text(header.orderDateTime)}</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>NVBH:</span> ${staffText}</div>
+        <div class="dms-line-right"><span>Nhà phân phối:</span> ${distributorText}</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Khách hàng - Điện thoại:</span> ${customerText}</div>
+        <div class="dms-line-right"><span>Địa chỉ:</span> ${text(distributor.address)}</div>
+      </div>
+
+      <div class="dms-header-line">
+        <div class="dms-line-left"><span>Địa chỉ giao hàng:</span> ${text(customer.deliveryAddress)}</div>
+        <div class="dms-line-right"><span>Điện thoại:</span> ${text(distributor.phone)}</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>Điều khoản thanh toán:</span> ${text(header.paymentTerm)}</div>
+      </div>
+
+      <div class="dms-header-line dms-single-line">
+        <div class="dms-line-left"><span>MST:</span> ${text(header.taxCode || customer.taxCode)}</div>
+      </div>
+    </div>`;
+}
+
+function chunkDmsItems(items = [], size = 24) {
+  const safeSize = Math.max(1, Number(size || 24));
+  const chunks = [];
+  for (let i = 0; i < items.length; i += safeSize) {
+    chunks.push(items.slice(i, i + safeSize));
+  }
+  return chunks.length ? chunks : [[]];
+}
+
+function hasDmsDetailRows(data) {
+  return getDmsPromotions(data).length > 0 || getDmsOffsets(data).length > 0;
+}
+
+function dmsDeliveryInvoiceTemplate(data) {
+  const pagination = getDmsPagination(data);
+  const summary = getDmsSummary(data);
+  const renderSummaryAndSignature = () => `
+      <table class="dms-summary-split-table">
+        <tbody>
+          <tr class="dms-payable-row">
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Số tiền phải thanh toán (A7-D-E-H)</td>
+            <td class="dms-summary-value-cell">${dmsMoney(data, summary.payableAmount ?? data.totals?.payable ?? data.totals?.totalAmount)}</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tổng tiền sau thuế chưa trừ KM (G) = (2)*(4):</td>
+            <td class="dms-summary-value-cell">${dmsMoney(data, summary.grossAmountBeforePromotion ?? data.totals?.goodsAmount)}</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell dms-amount-words-cell"><b>Số tiền viết bằng chữ :</b> <span class="dms-amount-words-text">${text(summary.amountInWords || data.totals.totalAmountText)}</span></td>
+            <td class="dms-summary-label-cell">Tổng trị giá khuyến mãi bằng hàng và tiền (B+C):</td>
+            <td class="dms-summary-value-cell">${dmsMoney(data, summary.totalPromotionAmount ?? data.totals?.promotionValue)}</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Cấn trừ tiền (D+E+H):</td>
+            <td class="dms-summary-value-cell">${dmsMoney(data, summary.totalOffsetAmount ?? data.totals?.displayRewardTotal)}</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>
+            <td class="dms-summary-label-cell">Tổng tiền CK của NPP (F)=(G-C)* 0,00% :</td>
+            <td class="dms-summary-value-cell">${dmsMoney(data, summary.nppDiscountAmount)}</td>
+          </tr>
+          <tr>
+            <td class="dms-summary-left-cell"></td>

@@ -8,7 +8,7 @@ const test = require('node:test');
 const openApiPath = path.join(__dirname, '..', 'docs', 'openapi.json');
 
 test('OpenAPI document is valid JSON and has required sections', () => {
-  const doc = JSON.parse(fs.readFileSync(openApiPath, 'utf8'));
+  const doc = JSON.parse(require('./helpers/sourceBundle.util').readSource(openApiPath));
 
   assert.equal(doc.openapi, '3.0.3');
   assert.equal(doc.info.title, 'KHO Minh Khai Pro V45 API');
@@ -23,7 +23,7 @@ test('OpenAPI document is valid JSON and has required sections', () => {
 });
 
 test('every documented operation has at least one success response', () => {
-  const doc = JSON.parse(fs.readFileSync(openApiPath, 'utf8'));
+  const doc = JSON.parse(require('./helpers/sourceBundle.util').readSource(openApiPath));
   const methods = new Set(['get', 'post', 'put', 'patch', 'delete']);
 
   for (const [route, pathItem] of Object.entries(doc.paths)) {

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const source = fs.readFileSync(path.join(__dirname, '..', 'src/routes/authRoutes.js'), 'utf8');
+const source = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', 'src/routes/authRoutes.js'));
 
 test('web login and refresh have dedicated abuse rate limits', () => {
   assert.match(source, /const authLimiter = rateLimit/);

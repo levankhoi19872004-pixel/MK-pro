@@ -10,7 +10,7 @@ const viewPath = path.join(ROOT, 'public/js/delivery/delivery-web-view.js');
 const readPublicCss = require('./helpers/readPublicCss');
 
 function read(file) {
-  return fs.readFileSync(file, 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(file);
 }
 
 test('delivery today renders NVBH branch filter as a full-width section below filters', () => {

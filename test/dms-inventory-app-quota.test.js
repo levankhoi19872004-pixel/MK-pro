@@ -9,7 +9,7 @@ const dmsService = require('../src/services/dmsInventoryReconciliation.service')
 const quotaService = require('../src/services/internalSaleAllocation.service');
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', relativePath));
 }
 
 test('DMS parser normalizes yellow-column headers and SAP workbook wrapper', () => {

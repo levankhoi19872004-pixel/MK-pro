@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 function read(file) {
-  return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', file));
 }
 
 test('all legacy import and export routes require explicit business roles', () => {

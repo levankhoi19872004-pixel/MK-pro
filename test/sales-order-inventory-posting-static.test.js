@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
-const read = (relPath) => fs.readFileSync(path.join(ROOT, relPath), 'utf8');
+const read = (relPath) => require('./helpers/sourceBundle.util').readSource(path.join(ROOT, relPath));
 
 test('sales order inventory posting goes through InventoryPostingService boundary', () => {
   const orderService = read('src/services/orderLegacy.service.js');

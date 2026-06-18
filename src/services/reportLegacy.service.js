@@ -1,1579 +1,217 @@
-'use strict';
-
-const dateUtil = require('../utils/date.util');
-const Product = require('../models/Product');
-const StockTransaction = require('../models/StockTransaction');
-const SalesOrder = require('../models/SalesOrder');
-// Công nợ không đọc Customer/User.
-// Source of Truth duy nhất: arLedgers.
-const MasterOrder = require('../models/MasterOrder');
-const Receipt = require('../models/Receipt');
-const ArLedger = require('../models/ArLedger');
-const FundLedger = require('../models/FundLedger');
-const Cashbook = require('../models/Cashbook');
-const Bankbook = require('../models/Bankbook');
-const ReturnOrder = require('../models/ReturnOrder');
-const ImportOrder = require('../models/ImportOrder');
-const { normalizeText, toNumber } = require('../utils/common.util');
-const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
-const inventoryStockService = require('./inventoryStock.service');
-const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
-
-
-
-function daysBetween(from, to) {
-  const a = new Date(dateUtil.toDateOnly(from));
-  const b = new Date(dateUtil.toDateOnly(to));
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
-  return Math.floor((a.getTime() - b.getTime()) / 86400000);
-}
-
-function isActive(row = {}) {
-  return !['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'].includes(String(row.status || '').toLowerCase());
-}
-
-function matchDate(row, query = {}) {
-  const value = dateUtil.toDateOnly(row.date || row.documentDate || row.orderDate || row.deliveryDate || row.createdAt);
-  if (query.dateFrom && value < query.dateFrom) return false;
-  if (query.dateTo && value > query.dateTo) return false;
-  if (query.date && value !== query.date) return false;
-  return true;
-}
-
-function totalOf(row = {}) {
-  return toNumber(row.totalAmount ?? row.amount ?? row.grandTotal ?? row.total ?? row.value);
-}
-
-function sum(rows = [], picker = totalOf) {
-  return rows.reduce((total, row) => total + toNumber(picker(row)), 0);
-}
-
-const REPORT_INACTIVE_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'];
-
-function reportDataSourceError(error, reportName, query = {}) {
-  if (process.env.NODE_ENV !== 'test') {
-    console.error('[REPORT_DATA_SOURCE_FAILED]', {
-      report: reportName,
-      query,
-      error: error?.message || String(error || '')
-    });
-  }
-  const wrapped = new Error(`Không thể tải dữ liệu báo cáo ${reportName}`);
-  wrapped.code = 'REPORT_DATA_SOURCE_FAILED';
-  wrapped.status = 503;
-  wrapped.cause = error;
-  return wrapped;
-}
-
-async function runReportSource(reportName, query, operation) {
-  try {
-    return await operation();
-  } catch (error) {
-    throw reportDataSourceError(error, reportName, query);
-  }
-}
-
-function reportPagination(query = {}, defaultLimit = 50, maxLimit = 200) {
-  const page = getPage(query.page);
-  const limit = getSafeLimit(query.limit, defaultLimit, maxLimit);
-  return { page, limit, skip: (page - 1) * limit };
-}
-
-function reportMeta(page, limit, total) {
-  const safeTotal = Math.max(0, toNumber(total));
-  return {
-    page,
-    limit,
-    total: safeTotal,
-    totalPages: safeTotal > 0 ? Math.ceil(safeTotal / limit) : 0,
-    hasMore: page * limit < safeTotal
-  };
-}
-
-function withReportTextFilter(filter = {}, query = {}, fields = []) {
-  const text = String(query.q || query.keyword || query.search || '').trim();
-  if (!text) return filter;
-  const rx = new RegExp(escapeRegExp(text), 'i');
-  return {
-    $and: [
-      filter,
-      { $or: fields.map((field) => ({ [field]: rx })) }
-    ]
-  };
-}
-
-function firstValueExpression(fields = [], fallback = 0) {
-  return fields.reduceRight((next, field) => ({ $ifNull: [`$${field}`, next] }), fallback);
-}
-
-function numberExpression(fields = [], fallback = 0) {
-  return {
-    $convert: {
-      input: firstValueExpression(fields, fallback),
-      to: 'double',
-      onError: 0,
-      onNull: 0
-    }
-  };
-}
-
-function filterByQuery(rows = [], query = {}, fields = []) {
-  const q = normalizeText(query.q || query.keyword || query.search);
-  if (!q) return rows;
-  return rows.filter((row) => fields.some((field) => normalizeText(row[field]).includes(q)));
-}
-
-function buildDateMongoFilter(query = {}, fields = ['date', 'createdAt']) {
-  const exact = dateUtil.toDateOnly(query.date || '');
-  const from = dateUtil.toDateOnly(query.dateFrom || exact || '');
-  const to = dateUtil.toDateOnly(query.dateTo || exact || '');
-  if (!from && !to) return {};
-
-  const stringRange = exact ? exact : {
-    ...(from ? { $gte: from } : {}),
-    ...(to ? { $lte: to } : {})
-  };
-  const clauses = fields
-    .filter((field) => field !== 'createdAt')
-    .map((field) => ({ [field]: stringRange }));
-
-  if (fields.includes('createdAt')) {
-    const dateRange = {};
-    if (from) dateRange.$gte = new Date(`${from}T00:00:00+07:00`);
-    if (to) {
-      const nextDay = new Date(`${to}T00:00:00+07:00`);
-      nextDay.setDate(nextDay.getDate() + 1);
-      dateRange.$lt = nextDay;
-    }
-    clauses.push({ createdAt: dateRange });
-  }
-
-  return clauses.length === 1 ? clauses[0] : { $or: clauses };
-}
-
-function buildActiveDateMongoFilter(query = {}, fields = ['date', 'createdAt']) {
-  return {
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
-    ...buildDateMongoFilter(query, fields)
-  };
-}
-
-function buildStockTxFilter(query = {}) {
-  const filter = {};
-  if (query.productCode) filter.productCode = String(query.productCode).trim();
-  // Tồn kho chỉ có 1 kho MAIN; bỏ lọc HC/PC ở thẻ kho.
-  if (query.date || query.dateFrom || query.dateTo) {
-    filter.date = {};
-    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
-    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
-    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
-  }
-  return filter;
-}
-
-function isInType(row = {}) {
-  const direction = String(row.direction || '').toUpperCase();
-  if (direction) return direction === 'IN';
-  return toNumber(row.quantity ?? row.qty) >= 0;
-}
-
-function stockQty(row = {}) {
-  return toNumber(row.quantity ?? row.qty ?? 0);
-}
-
-
-async function stockReport(query = {}) {
-  const q = normalizeText(query.q);
-  const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
-  const fullResult = ['1', 'true', 'yes'].includes(String(query.full || query.export || '').toLowerCase());
-  const { page, limit, skip } = reportPagination(query, 50, 200);
-
-  if (hasPeriod) {
-    const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
-    const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
-    const [transactions, products] = await runReportSource('tồn kho theo kỳ', query, () => Promise.all([
-      StockTransaction.find(buildDateMongoFilter({ dateTo }, ['date', 'createdAt'])).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
-      Product.find({}).lean()
-    ]));
-    const productMap = new Map(products.map((product) => [String(product.code || product.id || product._id), product]));
-    const byKey = new Map();
-
-    transactions.forEach((transaction) => {
-      const transactionDate = dateUtil.toDateOnly(transaction.date || transaction.createdAt);
-      if (transactionDate > dateTo) return;
-      const productCode = String(transaction.productCode || transaction.productId || '').trim();
-      const product = productMap.get(productCode) || {};
-      if (!byKey.has(productCode)) {
-        byKey.set(productCode, {
-          productId: transaction.productId || product.id || String(product._id || ''),
-          productCode,
-          productName: transaction.productName || product.name || '',
-          warehouseCode: STOCK_WAREHOUSE_CODE,
-          warehouseName: STOCK_WAREHOUSE_NAME,
-          unit: product.unit || transaction.unit || '',
-          openingQty: 0,
-          importQty: 0,
-          exportQty: 0,
-          returnQty: 0,
-          adjustmentQty: 0,
-          endingQty: 0
-        });
-      }
-      const row = byKey.get(productCode);
-      const quantity = stockQty(transaction);
-      if (transactionDate < dateFrom) {
-        row.openingQty += quantity;
-      } else {
-        const type = String(transaction.type || '').toUpperCase();
-        if (type.includes('RETURN')) row.returnQty += Math.abs(quantity);
-        else if (type.includes('IMPORT') || isInType(transaction)) row.importQty += Math.abs(quantity);
-        else if (type.includes('SALE') || !isInType(transaction)) row.exportQty += Math.abs(quantity);
-        else row.adjustmentQty += quantity;
-      }
-      row.endingQty += quantity;
-    });
-
-    let allStock = Array.from(byKey.values()).map((row) => ({
-      ...row,
-      inQty: row.importQty + row.returnQty + Math.max(0, row.adjustmentQty),
-      outQty: row.exportQty + Math.abs(Math.min(0, row.adjustmentQty)),
-      quantity: row.endingQty,
-      qty: row.endingQty,
-      availableQty: row.endingQty
-    }));
-    if (q) allStock = allStock.filter((row) => [row.productCode, row.productName].some((value) => normalizeText(value).includes(q)));
-    const negativeStockRows = allStock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
-    const summary = allStock.reduce((accumulator, row) => {
-      accumulator.totalRows += 1;
-      accumulator.openingQty += toNumber(row.openingQty);
-      accumulator.importQty += toNumber(row.importQty);
-      accumulator.exportQty += toNumber(row.exportQty);
-      accumulator.returnQty += toNumber(row.returnQty);
-      accumulator.endingQty += toNumber(row.endingQty);
-      return accumulator;
-    }, { totalRows: 0, openingQty: 0, importQty: 0, exportQty: 0, returnQty: 0, endingQty: 0 });
-    summary.negativeStockCount = negativeStockRows.length;
-    const stock = fullResult ? allStock : allStock.slice(skip, skip + limit);
-    return {
-      source: 'mongo_stock_transactions',
-      dateFrom,
-      dateTo,
-      stock,
-      items: stock,
-      meta: fullResult ? reportMeta(1, Math.max(allStock.length, 1), allStock.length) : reportMeta(page, limit, allStock.length),
-      summary,
-      negativeStockCount: negativeStockRows.length,
-      negativeStockRows
-    };
-  }
-
-  const currentStock = await runReportSource('tồn kho hiện tại', query, () => inventoryStockService.getInventorySummary(query));
-  const allStock = currentStock.stock || [];
-  const stock = fullResult ? allStock : allStock.slice(skip, skip + limit);
-  return {
-    ...currentStock,
-    source: 'mongo_inventories_canonical',
-    inventorySource: 'inventories',
-    stock,
-    items: stock,
-    meta: fullResult ? reportMeta(1, Math.max(allStock.length, 1), allStock.length) : reportMeta(page, limit, allStock.length),
-    summary: currentStock.summary,
-    negativeStockCount: currentStock.negativeStockCount,
-    negativeStockRows: currentStock.negativeStockRows
-  };
-}
-
-
-async function stockCardReport(query = {}) {
-  const { page, limit, skip } = reportPagination(query, 50, 200);
-  const filter = withReportTextFilter(
-    buildStockTxFilter(query),
-    query,
-    ['productCode', 'productName', 'warehouseCode', 'refCode', 'refType', 'type']
-  );
-  const qtyExpr = numberExpression(['quantity', 'qty'], 0);
-
-  const result = await runReportSource('thẻ kho', query, () =>
-    StockTransaction.aggregate([
-      { $match: filter },
-      { $sort: { productCode: 1, date: 1, createdAt: 1, _id: 1 } },
-      {
-        $setWindowFields: {
-          partitionBy: { $ifNull: ['$productCode', '$productId'] },
-          sortBy: { date: 1, createdAt: 1, _id: 1 },
-          output: {
-            runningBalance: {
-              $sum: qtyExpr,
-              window: { documents: ['unbounded', 'current'] }
-            }
-          }
-        }
-      },
-      {
-        $facet: {
-          rows: [{ $skip: skip }, { $limit: limit }],
-          totals: [{
-            $group: {
-              _id: null,
-              transactionCount: { $sum: 1 },
-              inQty: { $sum: { $cond: [{ $gt: [qtyExpr, 0] }, qtyExpr, 0] } },
-              outQty: { $sum: { $cond: [{ $lt: [qtyExpr, 0] }, { $abs: qtyExpr }, 0] } }
-            }
-          }]
-        }
-      }
-    ]).allowDiskUse(true).exec()
-  );
-
-  const facet = result?.[0] || {};
-  const transactions = (facet.rows || []).map((tx) => {
-    const quantity = stockQty(tx);
-    return {
-      id: tx.id || String(tx._id || ''),
-      date: dateUtil.toDateOnly(tx.date || tx.createdAt),
-      productCode: tx.productCode || '',
-      productName: tx.productName || '',
-      warehouseCode: STOCK_WAREHOUSE_CODE,
-      type: tx.type || '',
-      refType: tx.refType || '',
-      refCode: tx.refCode || '',
-      inQty: toNumber(tx.inQty || (quantity > 0 ? quantity : 0)),
-      outQty: toNumber(tx.outQty || (quantity < 0 ? Math.abs(quantity) : 0)),
-      quantity,
-      balanceQty: toNumber(tx.balanceQty ?? tx.runningBalance),
-      note: tx.note || ''
-    };
-  });
-  const totals = facet.totals?.[0] || {};
-  const meta = reportMeta(page, limit, totals.transactionCount || 0);
-  const summary = {
-    transactionCount: toNumber(totals.transactionCount),
-    inQty: toNumber(totals.inQty),
-    outQty: toNumber(totals.outQty)
-  };
-  return { source: 'mongo_stock_transactions', transactions, items: transactions, meta, summary };
-}
-
-
-function moneyDocKey(row = {}) {
-  return String(row.id || row._id || row.code || row.refId || row.refCode || '').trim();
-}
-
-function activeLedgerRows(rows = []) {
-  return rows.filter(isActive).filter((row) => {
-    const type = String(row.type || '').toLowerCase();
-    const account = String(row.account || '').toUpperCase();
-    return account === 'AR' || type.includes('ar') || type.includes('debt') || type.includes('receipt') || type.includes('return') || toNumber(row.debit) || toNumber(row.credit);
-  });
-}
-
-function orderIdentity(order = {}) {
-  return {
-    id: String(order.id || order._id || order.code || '').trim(),
-    code: String(order.code || order.orderCode || '').trim()
-  };
-}
-
-function isLedgerForOrder(row = {}, order = {}) {
-  const { id, code } = orderIdentity(order);
-  const keys = [row.orderId, row.salesOrderId, row.refId, row.orderCode, row.salesOrderCode, row.refCode].map((v) => String(v || '').trim()).filter(Boolean);
-  return keys.includes(id) || keys.includes(code);
-}
-
-function getLedgerOrderKey(row = {}) {
-  return String(row.orderId || row.salesOrderId || row.refId || row.orderCode || row.salesOrderCode || row.refCode || '').trim();
-}
-
-function getLedgerCustomerKey(row = {}) {
-  return String(row.customerId || row.customerCode || row.customerName || '').trim();
-}
-
-function isDeliveredForAR(order = {}) {
-  // Công nợ AR chỉ phát sinh sau 2 điều kiện:
-  // 1) NVGH đã giao xong; 2) kế toán đã xác nhận báo cáo giao hàng.
-  // Không backfill ảo cho đơn mới giao nhưng còn chờ kế toán, vì sẽ làm báo cáo công nợ nhảy sớm.
-  const delivered = ['delivered', 'success', 'completed', 'done'].includes(String(order.deliveryStatus || '').toLowerCase());
-  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
-  const accountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
-  return delivered && accountingConfirmed;
-}
-
-function findOrderForMoneyDoc(row = {}, orderByKey = new Map()) {
-  const keys = [row.orderId, row.salesOrderId, row.sourceOrderId, row.refId, row.orderCode, row.salesOrderCode, row.sourceOrderCode, row.refCode]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
-  for (const key of keys) {
-    const order = orderByKey.get(key);
-    if (order) return order;
-  }
-  return null;
-}
-
-function isMobileDeliveryMoneyDoc(row = {}) {
-  const text = [row.source, row.refType, row.type, row.note]
-    .map((value) => String(value || '').toLowerCase())
-    .join(' ');
-  return text.includes('mobile_delivery')
-    || text.includes('mobiledelivery')
-    || text.includes('mobile delivery')
-    || text.includes('mobile_delivery_return')
-    || text.includes('app giao hàng');
-}
-
-function isMoneyDocAllowedForAR(row = {}, orderByKey = new Map()) {
-  // Phiếu thu/hàng trả phát sinh từ app giao hàng chỉ là dữ liệu chờ đối chiếu.
-  // Không đưa vào AR Ledger ảo cho tới khi đơn liên quan đã được kế toán xác nhận.
-  if (!isMobileDeliveryMoneyDoc(row)) return true;
-  const order = findOrderForMoneyDoc(row, orderByKey);
-  return order ? isDeliveredForAR(order) : false;
-}
-
-function isAccountingConfirmedDoc(row = {}) {
-  const accountingStatus = String(row.accountingStatus || row.financeStatus || '').toLowerCase();
-  return Boolean(row.accountingConfirmed || row.financeConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
-}
-
-function isReturnDocAllowedForAR(row = {}, orderByKey = new Map()) {
-  // V45: hàng trả dù kho đã nhận vẫn chỉ là dữ liệu chờ kế toán.
-  // Chỉ đưa hàng trả vào AR khi chính phiếu/đơn đã được kế toán xác nhận,
-  // hoặc đơn giao liên quan đã được kế toán xác nhận.
-  if (isAccountingConfirmedDoc(row)) return true;
-  const order = findOrderForMoneyDoc(row, orderByKey);
-  return order ? isDeliveredForAR(order) : false;
-}
-
-function isLedgerReturnOrMobileMoneyBlocked(entry = {}, orderByKey = new Map()) {
-  const type = String(entry.type || '').toLowerCase();
-  const refType = String(entry.refType || '').toLowerCase();
-  const isReturnLedger = type.includes('return') || refType.includes('return');
-  if (!isReturnLedger && !isMobileDeliveryMoneyDoc(entry)) return false;
-  if (isAccountingConfirmedDoc(entry)) return false;
-  const order = findOrderForMoneyDoc(entry, orderByKey);
-  return order ? !isDeliveredForAR(order) : isMobileDeliveryMoneyDoc(entry);
-}
-
-function makeVirtualSaleLedger(order = {}) {
-  // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
-  // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
-  if (!isDeliveredForAR(order)) return null;
-  // Bút toán phát sinh công nợ phải lấy tổng phải thu ban đầu của đơn đã giao.
-  // Không dùng debtAmount còn lại, vì receipt/return sẽ được ghi thành bút toán giảm nợ riêng trong AR Ledger.
-  const debit = toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.payableAmount ?? order.debtAmount ?? order.debt ?? 0);
-  if (debit <= 0) return null;
-  return {
-    id: `VIRTUAL-AR-SALE-${order.id || order.code}`,
-    code: `VIRTUAL-AR-SALE-${order.code || order.id}`,
-    date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
-    type: 'ar_sale_virtual_backfill',
-    account: 'AR',
-    refType: 'SALES_ORDER',
-    refId: order.id || order._id || order.code,
-    refCode: order.code || order.id,
-    orderId: order.id || order._id || order.code,
-    orderCode: order.code || order.id,
-    customerId: order.customerId || '',
-    customerCode: order.customerCode || '',
-    customerName: order.customerName || '',
-    salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
-    salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || '',
-    deliveryStaffCode: order.deliveryStaffCode || '',
-    deliveryStaffName: order.deliveryStaffName || '',
-    debit,
-    credit: 0,
-    amount: debit,
-    status: 'posted',
-    source: 'virtual_backfill_from_orders'
-  };
-}
-
-function makeVirtualReturnLedger(row = {}) {
-  const credit = totalOf(row) || toNumber(row.returnAmount || row.debtReduction || row.totalAmount);
-  if (credit <= 0) return null;
-  return {
-    id: `VIRTUAL-AR-RETURN-${row.id || row.code}`,
-    code: `VIRTUAL-AR-RETURN-${row.code || row.id}`,
-    date: dateUtil.toDateOnly(row.date || row.createdAt),
-    type: 'ar_return_virtual_backfill',
-    account: 'AR',
-    refType: 'RETURN_ORDER',
-    refId: row.id || row._id || row.code,
-    refCode: row.code || row.id,
-    orderId: row.salesOrderId || row.orderId || row.sourceOrderId || '',
-    orderCode: row.salesOrderCode || row.orderCode || '',
-    customerId: row.customerId || '',
-    customerCode: row.customerCode || '',
-    customerName: row.customerName || '',
-    debit: 0,
-    credit,
-    amount: credit,
-    status: 'posted',
-    source: 'virtual_backfill_from_returns'
-  };
-}
-
-function makeVirtualReceiptLedger(row = {}) {
-  const credit = totalOf(row);
-  if (credit <= 0) return null;
-  return {
-    id: `VIRTUAL-AR-RECEIPT-${row.id || row.code}`,
-    code: `VIRTUAL-AR-RECEIPT-${row.code || row.id}`,
-    date: dateUtil.toDateOnly(row.date || row.createdAt),
-    type: 'ar_receipt_virtual_backfill',
-    account: 'AR',
-    refType: 'RECEIPT',
-    refId: row.id || row._id || row.code,
-    refCode: row.code || row.id,
-    orderId: row.orderId || row.salesOrderId || '',
-    orderCode: row.orderCode || row.salesOrderCode || row.refCode || '',
-    customerId: row.customerId || '',
-    customerCode: row.customerCode || '',
-    customerName: row.customerName || '',
-    debit: 0,
-    credit,
-    amount: credit,
-    status: 'posted',
-    source: 'virtual_backfill_from_receipts'
-  };
-}
-
-
-function normalizeArLedgerEntry(row = {}) {
-  const type = String(row.type || '').toLowerCase();
-  const debit = toNumber(row.debit || (type.includes('sale') ? row.amount : 0));
-  const credit = toNumber(row.credit || (!type.includes('sale') ? row.amount : 0));
-  return {
-    id: row.id || String(row._id || ''),
-    code: row.code || '',
-    date: dateUtil.toDateOnly(row.date || row.createdAt),
-    type: row.type || '',
-    account: row.account || 'AR',
-    refType: row.refType || '',
-    refId: row.refId || row.id || '',
-    refCode: row.refCode || row.code || '',
-    orderId: row.orderId || row.salesOrderId || '',
-    orderCode: row.orderCode || row.salesOrderCode || '',
-    customerId: row.customerId || '',
-    customerCode: row.customerCode || '',
-    customerName: row.customerName || '',
-    debit,
-    credit,
-    balanceEffect: debit - credit,
-    status: row.status || 'posted',
-    source: row.source || '',
-    note: row.note || row.voidReason || ''
-  };
-}
-
-function buildArLedgerDiagnostics(receipts = [], ledger = []) {
-  const rows = ledger.map(normalizeArLedgerEntry);
-  const diagnostics = [];
-  receipts.forEach((receipt) => {
-    const receiptId = String(receipt.id || receipt._id || '').trim();
-    const receiptCode = String(receipt.code || '').trim();
-    const related = rows.filter((entry) => {
-      const keys = [entry.refId, entry.refCode, entry.code, entry.id].map((v) => String(v || '').trim());
-      return (receiptId && keys.includes(receiptId)) || (receiptCode && keys.includes(receiptCode));
-    });
-    const hasReceiptCredit = related.some((entry) => String(entry.type || '').toLowerCase().includes('receipt') && !String(entry.type || '').toLowerCase().includes('void') && toNumber(entry.credit) > 0);
-    const hasVoidReverse = related.some((entry) => String(entry.type || '').toLowerCase().includes('void') && toNumber(entry.debit) > 0);
-    const amount = totalOf(receipt);
-    if (String(receipt.status || '').toLowerCase() === 'void' && !hasVoidReverse) {
-      diagnostics.push({
-        level: 'danger',
-        code: receipt.code || receipt.id || '',
-        date: dateUtil.toDateOnly(receipt.date || receipt.createdAt),
-        customerCode: receipt.customerCode || '',
-        customerName: receipt.customerName || '',
-        amount,
-        message: 'Phiếu thu đã Void nhưng chưa có bút toán đảo AR debit.'
-      });
-    } else if (String(receipt.status || '').toLowerCase() !== 'void' && !hasReceiptCredit && amount > 0) {
-      diagnostics.push({
-        level: 'warning',
-        code: receipt.code || receipt.id || '',
-        date: dateUtil.toDateOnly(receipt.date || receipt.createdAt),
-        customerCode: receipt.customerCode || '',
-        customerName: receipt.customerName || '',
-        amount,
-        message: 'Phiếu thu đang hiệu lực nhưng chưa thấy bút toán AR credit.'
-      });
-    }
-  });
-  return diagnostics;
-}
-
-
-function escapeRegExp(value = '') {
-  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function getSafeLimit(value, defaultLimit = 50, maxLimit = 100) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return defaultLimit;
-  return Math.min(Math.max(1, Math.floor(n)), maxLimit);
-}
-
-function getPage(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return 1;
-  return Math.max(1, Math.floor(n));
-}
-
-function pushDebtLedgerAnd(match, condition) {
-  if (!condition) return;
-  if (!Array.isArray(match.$and)) match.$and = [];
-  match.$and.push(condition);
-}
-
-// REPORT_DEBT_ARLEDGER_ONLY_MATCH_START
-function buildDebtLedgerMatch(query = {}) {
-  const match = {
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled', 'reversed'] },
-    reversed: { $ne: true },
-    refType: { $ne: 'AR_LEDGER_REVERSAL' },
-    type: { $nin: ['ar_reversal', 'reversal', 'ar_void'] }
-  };
-
-  if (query.dateFrom || query.dateTo || query.date) {
-    match.date = {};
-    if (query.dateFrom) match.date.$gte = dateUtil.toDateOnly(query.dateFrom);
-    if (query.dateTo) match.date.$lte = dateUtil.toDateOnly(query.dateTo);
-    if (query.date) match.date = dateUtil.toDateOnly(query.date);
-  }
-
-  if (query.customerCode) {
-    const rx = new RegExp(`^${escapeRegExp(query.customerCode)}$`, 'i');
-    pushDebtLedgerAnd(match, { $or: [{ customerCode: rx }, { customerId: rx }] });
-  }
-
-  if (query.customerId) {
-    const rx = new RegExp(`^${escapeRegExp(query.customerId)}$`, 'i');
-    pushDebtLedgerAnd(match, { $or: [{ customerId: rx }, { customerCode: rx }] });
-  }
-
-  // V46 AR staff-filter rule:
-  // Do NOT filter NVBH/NVGH directly on every arLedger row here.
-  // Receipt/return/bonus rows can legitimately miss staff metadata, so direct row-level
-  // filtering would drop AR-RECEIPT/AR-RETURN and make debt appear higher than reality.
-  // Staff scope is resolved by first finding matching AR-SALE order keys, then loading
-  // ALL AR rows for those order keys.
-
-  return match;
-}
-// REPORT_DEBT_ARLEDGER_ONLY_MATCH_END
-
-function buildLedgerStaffSeedCondition(query = {}) {
-  const parts = [];
-  if (query.delivery) {
-    const rx = new RegExp(escapeRegExp(query.delivery), 'i');
-    parts.push({
-      $or: [
-        // STAFF DATA RULE: NVGH filter only reads delivery identity fields.
-        // Do not use staffCode/staffName here; those fields are audit/legacy-display only.
-        { deliveryStaffCode: rx },
-        { deliveryStaffName: rx },
-        { deliveryCode: rx },
-        { deliveryName: rx },
-        { nvghCode: rx },
-        { nvghName: rx }
-      ]
-    });
-  }
-  if (query.salesman) {
-    const rx = new RegExp(escapeRegExp(query.salesman), 'i');
-    parts.push({
-      $or: [
-        // STAFF DATA RULE: NVBH filter only reads sales identity fields.
-        // Do not use staffCode/staffName here; those fields are audit/legacy-display only.
-        { salesmanCode: rx },
-        { salesmanName: rx },
-        { salesStaffCode: rx },
-        { salesStaffName: rx },
-        { nvbhCode: rx },
-        { nvbhName: rx }
-      ]
-    });
-  }
-  if (!parts.length) return null;
-  return parts.length === 1 ? parts[0] : { $and: parts };
-}
-
-function normalizeLedgerOrderKey(value) {
-  return String(value || '').trim();
-}
-
-async function buildDebtLedgerMatchWithStaffScope(query = {}) {
-  const match = buildDebtLedgerMatch(query);
-  const staffCondition = buildLedgerStaffSeedCondition(query);
-  if (!staffCondition) return match;
-
-  const seedMatch = {
-    ...buildDebtLedgerMatch({}),
-    type: { $in: ['ar_sale', 'ar_external_debt'] },
-    ...staffCondition
-  };
-  if (query.dateFrom || query.dateTo || query.date) {
-    seedMatch.date = {};
-    if (query.dateFrom) seedMatch.date.$gte = dateUtil.toDateOnly(query.dateFrom);
-    if (query.dateTo) seedMatch.date.$lte = dateUtil.toDateOnly(query.dateTo);
-    if (query.date) seedMatch.date = dateUtil.toDateOnly(query.date);
-  }
-
-  const saleRows = await runReportSource('phạm vi nhân viên công nợ', query, () =>
-    ArLedger.find(seedMatch)
-      .select('orderId orderCode salesOrderId salesOrderCode refId refCode')
-      .limit(5000)
-      .lean()
-  );
-
-  const orderIds = Array.from(new Set(saleRows
-    .flatMap((row) => [row.orderId, row.salesOrderId, row.refId])
-    .map(normalizeLedgerOrderKey)
-    .filter(Boolean)));
-  const orderCodes = Array.from(new Set(saleRows
-    .flatMap((row) => [row.orderCode, row.salesOrderCode, row.refCode])
-    .map(normalizeLedgerOrderKey)
-    .filter(Boolean)));
-
-  if (!orderIds.length && !orderCodes.length) {
-    pushDebtLedgerAnd(match, { _id: '__NO_AR_SALE_MATCHING_STAFF_SCOPE__' });
-    return match;
-  }
-
-  pushDebtLedgerAnd(match, {
-    $or: [
-      ...(orderIds.length ? [
-        { orderId: { $in: orderIds } },
-        { salesOrderId: { $in: orderIds } },
-        { refId: { $in: orderIds } }
-      ] : []),
-      ...(orderCodes.length ? [
-        { orderCode: { $in: orderCodes } },
-        { salesOrderCode: { $in: orderCodes } },
-        { refCode: { $in: orderCodes } }
-      ] : [])
-    ]
-  });
-  return match;
-}
-
-function applyDebtStatusFilter(rows = [], query = {}) {
-  const status = String(query.status || '').trim();
-  const includePaid = String(query.includePaid || '').trim() === '1' || status === 'paid';
-  if (includePaid) return rows;
-  if (!status || status === 'all' || status === 'unpaid' || status === 'open') {
-    return rows.filter((row) => hasOpenDebt(row.debt) || isOverpaid(row.debt));
-  }
-  if (status === 'overdue') return rows.filter((row) => row.status === 'overdue');
-  return rows.filter((row) => row.status === status);
-}
-
-async function debtReport(query = {}) {
-  // V45 FAST PATH: /api/debts không được load toàn bộ orders/arLedgers/receipts/returns/customers.
-  // API này chỉ đọc AR Ledger theo bộ lọc, phân trang thật, và chỉ lấy customer meta liên quan.
-  const page = getPage(query.page);
-  const limit = getSafeLimit(query.limit, 50, 100);
-  const skip = (page - 1) * limit;
-  const hasSearchCriteria = Boolean(query.q || query.keyword || query.search || query.salesman || query.delivery || query.customerCode || query.customerId || query.dateFrom || query.dateTo || query.date);
-
-  const match = await buildDebtLedgerMatchWithStaffScope(query);
-  const textSearch = String(query.q || query.keyword || query.search || '').trim();
-  if (textSearch) {
-    const rx = new RegExp(escapeRegExp(textSearch), 'i');
-    pushDebtLedgerAnd(match, {
-      $or: [
-        { customerCode: rx },
-        { customerName: rx },
-        { customerId: rx },
-        { orderCode: rx },
-        { salesOrderCode: rx },
-        { refCode: rx }
-      ]
-    });
-  }
-
-  // Nếu không có tiêu chí, chỉ đọc trang nhỏ gần nhất thay vì tính toàn bộ hệ thống.
-  if (!hasSearchCriteria) {
-    match.date = match.date || { $gte: dateUtil.toDateOnly(dateUtil.todayVN()) };
-  }
-
-  const grouped = await runReportSource('tổng hợp công nợ', query, () => ArLedger.aggregate([
-    { $match: match },
-    { $project: {
-      date: { $ifNull: ['$date', '$createdAt'] },
-      code: 1,
-      type: 1,
-      orderType: 1,
-      refType: 1,
-      refId: 1,
-      refCode: 1,
-      orderId: { $ifNull: ['$orderId', '$salesOrderId'] },
-      orderCode: { $ifNull: ['$orderCode', '$salesOrderCode'] },
-      customerId: 1,
-      customerCode: 1,
-      customerName: 1,
-      phone: { $ifNull: ['$phone', '$customerPhone'] },
-      address: { $ifNull: ['$address', '$customerAddress'] },
-      salesmanCode: 1,
-      salesmanName: 1,
-      salesStaffCode: 1,
-      salesStaffName: 1,
-      staffCode: 1,
-      staffName: 1,
-      nvbhCode: 1,
-      nvbhName: 1,
-      deliveryStaffCode: 1,
-      deliveryStaffName: 1,
-      deliveryCode: 1,
-      deliveryName: 1,
-      deliveryStaff: 1,
-      nvghCode: 1,
-      nvghName: 1,
-      debit: { $ifNull: ['$debit', 0] },
-      credit: { $ifNull: ['$credit', 0] },
-      amount: { $ifNull: ['$amount', 0] },
-      status: 1,
-      source: 1,
-      note: 1,
-      createdAt: 1
-    } },
-    { $group: {
-      _id: {
-        customerCode: '$customerCode',
-        customerId: '$customerId',
-        customerName: '$customerName',
-        orderCode: '$orderCode',
-        orderId: '$orderId'
-      },
-      firstDate: { $min: '$date' },
-      lastDate: { $max: '$date' },
-      phone: { $max: '$phone' },
-      address: { $max: '$address' },
-      debit: { $sum: { $cond: [{ $gt: ['$debit', 0] }, '$debit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } }, '$amount', 0] }] } },
-      credit: { $sum: { $cond: [{ $gt: ['$credit', 0] }, '$credit', { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } }, 0, '$amount'] }] } },
-      receiptAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'receipt|payment|collection|debt' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      returnAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'return' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      bonusAmount: { $sum: { $cond: [{ $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'bonus|discount|allowance' } }, { $ifNull: ['$credit', '$amount'] }, 0] } },
-      // ===== SCOPED FIX: DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_START =====
-      // Một đơn có nhiều dòng AR: SALE, PAYMENT, RETURN, BONUS...
-      // PAYMENT/RETURN có thể mang staff audit/legacy và làm $max chọn sai NVBH/NVGH khi trùng mã.
-      // Vì vậy nhân sự hiển thị theo đơn nợ phải lấy từ dòng AR-SALE gốc của chính đơn đó.
-      saleSalesmanCode: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
-        { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] },
-        ''
-      ] } },
-      saleSalesmanName: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
-        { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] },
-        ''
-      ] } },
-      saleDeliveryStaffCode: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
-        { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] },
-        ''
-      ] } },
-      saleDeliveryStaffName: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
-        { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] },
-        ''
-      ] } },
-      saleOrderType: { $max: { $cond: [
-        { $regexMatch: { input: { $toLower: { $ifNull: ['$type', ''] } }, regex: 'sale|external_debt' } },
-        { $ifNull: ['$orderType', { $cond: [{ $eq: ['$type', 'ar_external_debt'] }, 'external_debt', 'sales_order'] }] },
-        ''
-      ] } },
-      salesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
-      salesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
-      deliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] } },
-      deliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } },
-      fallbackSalesmanCode: { $max: { $ifNull: ['$salesmanCode', { $ifNull: ['$salesStaffCode', '$nvbhCode'] }] } },
-      fallbackSalesmanName: { $max: { $ifNull: ['$salesmanName', { $ifNull: ['$salesStaffName', '$nvbhName'] }] } },
-      fallbackDeliveryStaffCode: { $max: { $ifNull: ['$deliveryStaffCode', { $ifNull: ['$deliveryCode', '$nvghCode'] }] } },
-      fallbackDeliveryStaffName: { $max: { $ifNull: ['$deliveryStaffName', { $ifNull: ['$deliveryName', '$nvghName'] }] } }
-      // ===== SCOPED FIX: DEBT_REPORT_ORDER_STAFF_FROM_AR_SALE_ONLY_END =====
-    } },
-    { $addFields: { debt: { $subtract: ['$debit', '$credit'] } } },
-    { $sort: { debt: -1, lastDate: -1 } },
-    { $limit: Math.max(skip + limit + 1, limit + 1) }
-  ]).allowDiskUse(true).exec());
-
-  const now = dateUtil.todayVN();
-  let debts = grouped.map((row) => {
-    const id = row._id || {};
-    if (!row.fallbackSalesmanCode && row.salesmanCode) row.fallbackSalesmanCode = row.salesmanCode;
-    if (!row.fallbackSalesmanName && row.salesmanName) row.fallbackSalesmanName = row.salesmanName;
-    if (!row.fallbackDeliveryStaffCode && row.deliveryStaffCode) row.fallbackDeliveryStaffCode = row.deliveryStaffCode;
-    if (!row.fallbackDeliveryStaffName && row.deliveryStaffName) row.fallbackDeliveryStaffName = row.deliveryStaffName;
-    const debt = normalizeDebtAmount(toNumber(row.debit) - toNumber(row.credit));
-    const documentDate = dateUtil.toDateOnly(row.firstDate || row.lastDate || new Date());
-    const overdueDays = hasOpenDebt(debt) ? Math.max(0, daysBetween(now, documentDate)) : 0;
-    const status = isOverpaid(debt) ? 'overpaid' : (hasOpenDebt(debt) ? (overdueDays > 0 ? 'overdue' : 'open') : 'paid');
-    return {
-      orderId: id.orderId || id.orderCode || '',
-      orderCode: id.orderCode || id.orderId || '',
-      customerId: id.customerId || '',
-      customerCode: id.customerCode || '',
-      customerName: id.customerName || 'Chưa rõ khách',
-      phone: row.phone || '',
-      address: row.address || '',
-      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_START =====
-      // Công nợ hiển thị nhân sự theo dòng AR-SALE của đơn.
-      // Không lấy từ PAYMENT/RETURN/BONUS vì các dòng đó có thể là audit/user thao tác hoặc legacy display.
-      salesmanCode: row.saleSalesmanCode || row.fallbackSalesmanCode || '',
-      salesmanName: row.saleSalesmanName || row.fallbackSalesmanName || '',
-      deliveryStaffCode: row.saleDeliveryStaffCode || row.fallbackDeliveryStaffCode || '',
-      deliveryStaffName: row.saleDeliveryStaffName || row.fallbackDeliveryStaffName || '',
-      orderType: row.saleOrderType || (/^NDNBLH/i.test(String(id.orderCode || '')) ? 'external_debt' : 'sales_order'),
-      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_REPORT_AR_SALE_STAFF_ONLY_END =====
-      documentDate,
-      dueDate: documentDate,
-      debit: toNumber(row.debit),
-      credit: toNumber(row.credit),
-      receiptAmount: Math.max(0, toNumber(row.receiptAmount)),
-      returnAmount: Math.max(0, toNumber(row.returnAmount)),
-      bonusAmount: Math.max(0, toNumber(row.bonusAmount)),
-      debt,
-      rawDebt: debt,
-      overpaidAmount: Math.max(0, -debt),
-      debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-      overdueDays,
-      agingDays: documentDate ? Math.max(0, daysBetween(now, documentDate)) : 0,
-      status
-    };
-  });
-
-  debts = applyDebtStatusFilter(debts, query);
-  if (skip) debts = debts.slice(skip);
-  const hasMore = debts.length > limit;
-  debts = debts.slice(0, limit);
-
-  const customerMap = new Map();
-  debts.forEach((row) => {
-    const key = String(row.customerCode || row.customerId || row.customerName || '').trim();
-    if (!key) return;
-    if (!customerMap.has(key)) {
-      customerMap.set(key, {
-        customerId: row.customerId,
-        customerCode: row.customerCode,
-        customerName: row.customerName || 'Chưa rõ khách',
-        phone: row.phone,
-        address: row.address,
-        salesmanCode: row.salesmanCode || '',
-        salesmanName: row.salesmanName || '',
-        deliveryStaffCode: row.deliveryStaffCode || '',
-        deliveryStaffName: row.deliveryStaffName || '',
-        debit: 0,
-        credit: 0,
-        receiptAmount: 0,
-        returnAmount: 0,
-        bonusAmount: 0,
-        debt: 0,
-        orderCount: 0,
-        overdueCount: 0,
-        overdueDays: 0,
-        agingDays: 0,
-        orders: []
-      });
-    }
-    const target = customerMap.get(key);
-    target.debit += toNumber(row.debit);
-    target.credit += toNumber(row.credit);
-    target.receiptAmount += toNumber(row.receiptAmount);
-    target.returnAmount += toNumber(row.returnAmount);
-    target.bonusAmount += toNumber(row.bonusAmount);
-    target.debt += normalizeDebtAmount(row.debt);
-    target.orderCount += 1;
-    target.orders.push({
-      orderId: row.orderId,
-      orderCode: row.orderCode,
-      documentDate: row.documentDate,
-      dueDate: row.dueDate,
-      debit: toNumber(row.debit),
-      credit: toNumber(row.credit),
-      receiptAmount: toNumber(row.receiptAmount),
-      returnAmount: toNumber(row.returnAmount),
-      bonusAmount: toNumber(row.bonusAmount),
-      debt: normalizeDebtAmount(row.debt),
-      overdueDays: toNumber(row.overdueDays),
-      agingDays: toNumber(row.agingDays),
-      status: row.status,
-      salesmanCode: row.salesmanCode,
-      salesmanName: row.salesmanName,
-      deliveryStaffCode: row.deliveryStaffCode,
-      deliveryStaffName: row.deliveryStaffName,
-      orderType: row.orderType || 'sales_order'
-    });
-    target.overdueDays = Math.max(toNumber(target.overdueDays), toNumber(row.overdueDays));
-    target.agingDays = Math.max(toNumber(target.agingDays), toNumber(row.agingDays));
-    if (row.status === 'overdue') target.overdueCount += 1;
-  });
-
-  const customerSummary = Array.from(customerMap.values())
-    .map((row) => ({
-      ...row,
-      debt: normalizeDebtAmount(row.debt),
-      overpaidAmount: Math.max(0, -normalizeDebtAmount(row.debt)),
-      status: isOverpaid(row.debt) ? 'overpaid' : (hasOpenDebt(row.debt) ? (toNumber(row.overdueDays) > 0 ? 'overdue' : 'open') : 'paid'),
-      debtZeroTolerance: DEBT_ZERO_TOLERANCE
-    }))
-    .sort((a, b) => Math.abs(b.debt) - Math.abs(a.debt) || b.overdueDays - a.overdueDays || String(a.customerName).localeCompare(String(b.customerName)));
-
-  const arLedgerRows = await runReportSource('chi tiết công nợ', query, () =>
-    ArLedger.find(match)
-      .sort({ date: -1, createdAt: -1 })
-      .limit(200)
-      .lean()
-  );
-  let arLedger = arLedgerRows.map(normalizeArLedgerEntry);
-  arLedger = filterByQuery(arLedger, query, ['code', 'refCode', 'orderCode', 'customerCode', 'customerName', 'type', 'note']);
-
-  const bySalesman = buildDebtPersonSummary(debts, { codeKey: 'salesmanCode', nameKey: 'salesmanName', role: 'salesman' });
-  const byDelivery = buildDebtPersonSummary(debts, { codeKey: 'deliveryStaffCode', nameKey: 'deliveryStaffName', role: 'delivery' });
-  const summary = {
-    page,
-    limit,
-    hasMore,
-    orderCount: debts.length,
-    customerCount: customerSummary.length,
-    overdueCount: debts.filter((row) => row.status === 'overdue').length,
-    totalDebit: sum(debts, (row) => row.debit),
-    totalCredit: sum(debts, (row) => row.credit),
-    totalDebt: sum(debts, (row) => normalizeDebtAmount(row.debt)),
-    totalPositiveDebt: sum(debts.filter((row) => hasOpenDebt(row.debt)), (row) => normalizeDebtAmount(row.debt)),
-    totalOverpaid: sum(debts.filter((row) => isOverpaid(row.debt)), (row) => Math.abs(normalizeDebtAmount(row.debt))),
-    debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-    journalCount: grouped.length,
-    arLedgerCount: arLedger.length,
-    arWarningCount: 0,
-    optimized: true
-  };
-
-  return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts, customerSummary, bySalesman, byDelivery, arLedger, arDiagnostics: [], summary };
-}
-
-async function debtInit(query = {}) {
-  return {
-    source: 'mongo_ar_ledger_fast',
-    summary: {
-      totalDebt: 0,
-      customerDebt: 0,
-      orderDebt: 0,
-      overdueDebt: 0,
-      note: 'Màn công nợ chỉ tải danh sách khi người dùng nhập khách/NVBH/NVGH để tránh quét toàn bộ AR Ledger.'
-    },
-    filters: {
-      maxListLimit: 100,
-      maxAutocompleteLimit: 20
-    }
-  };
-}
-
-async function debtCustomers(query = {}) {
-  return debtReport({ ...query, limit: getSafeLimit(query.limit, 50, 100) });
-}
-
-async function debtCustomerDetail(query = {}) {
-  const customerCode = query.customerCode || query.code || query.customerId || query.id || query.q;
-  return debtReport({ ...query, customerCode, q: query.q || customerCode, includePaid: query.includePaid || '1', limit: getSafeLimit(query.limit, 100, 100) });
-}
-
-async function debtArLedger(query = {}) {
-  const page = getPage(query.page);
-  const limit = getSafeLimit(query.limit, 100, 200);
-  const skip = (page - 1) * limit;
-  const match = await buildDebtLedgerMatchWithStaffScope(query);
-  if (query.q || query.keyword || query.search) {
-    const rx = new RegExp(escapeRegExp(query.q || query.keyword || query.search), 'i');
-    pushDebtLedgerAnd(match, { $or: [{ code: rx }, { refCode: rx }, { orderCode: rx }, { salesOrderCode: rx }, { customerCode: rx }, { customerName: rx }, { customerId: rx }, { type: rx }, { note: rx }] });
-  }
-  const rows = await runReportSource('sổ công nợ', query, () =>
-    ArLedger.find(match).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit + 1).lean()
-  );
-  const hasMore = rows.length > limit;
-  const data = hasMore ? rows.slice(0, limit) : rows;
-  const arLedger = data.map(normalizeArLedgerEntry);
-  const summary = {
-    page,
-    limit,
-    hasMore,
-    arLedgerCount: arLedger.length,
-    totalDebit: sum(arLedger, (row) => row.debit),
-    totalCredit: sum(arLedger, (row) => row.credit),
-    totalDebt: sum(arLedger, (row) => row.balanceEffect),
-    arWarningCount: 0,
-    optimized: true
-  };
-  return { source: 'mongo_ar_ledger_fast', ledgerCollection: 'arLedgers', debts: [], customerSummary: [], bySalesman: [], byDelivery: [], arLedger, arDiagnostics: [], summary };
-}
-
-function buildDebtPersonSummary(rows = [], options = {}) {
-  const codeKey = options.codeKey || 'salesmanCode';
-  const nameKey = options.nameKey || 'salesmanName';
-  const role = options.role || 'person';
-  const map = new Map();
-
-  rows.forEach((row) => {
-    const code = String(row[codeKey] || '').trim();
-    const name = String(row[nameKey] || '').trim();
-    const key = code || name || 'UNASSIGNED';
-    if (!map.has(key)) {
-      map.set(key, {
-        role,
-        code,
-        name: name || (code ? '' : 'Chưa gán'),
-        label: code && name ? `${code} - ${name}` : (name || code || 'Chưa gán'),
-        customerKeys: new Set(),
-        customers: 0,
-        orders: 0,
-        paidOrders: 0,
-        overdueOrders: 0,
-        openOrders: 0,
-        debit: 0,
-        credit: 0,
-        receiptAmount: 0,
-        returnAmount: 0,
-        bonusAmount: 0,
-        debt: 0,
-        maxOverdueDays: 0,
-        maxAgingDays: 0
-      });
-    }
-
-    const target = map.get(key);
-    const customerKey = row.customerId || row.customerCode || row.customerName;
-    if (customerKey) target.customerKeys.add(String(customerKey));
-    target.orders += 1;
-    if (row.status === 'paid') target.paidOrders += 1;
-    if (row.status === 'overdue') target.overdueOrders += 1;
-    if (row.status === 'open') target.openOrders += 1;
-    target.debit += toNumber(row.debit);
-    target.credit += toNumber(row.credit);
-    target.receiptAmount += toNumber(row.receiptAmount);
-    target.returnAmount += toNumber(row.returnAmount);
-    target.bonusAmount += toNumber(row.bonusAmount);
-    target.debt += normalizeDebtAmount(row.debt);
-    target.maxOverdueDays = Math.max(target.maxOverdueDays, toNumber(row.overdueDays));
-    target.maxAgingDays = Math.max(target.maxAgingDays, toNumber(row.agingDays));
-  });
-
-  return Array.from(map.values())
-    .map((row) => {
-      const { customerKeys, ...plain } = row;
-      return {
-        ...plain,
-        customers: customerKeys.size,
-        collectionRate: plain.debit > 0 ? Math.round((plain.credit / plain.debit) * 10000) / 100 : 0,
-        debt: Math.max(0, normalizeDebtAmount(plain.debt)),
-        debtZeroTolerance: DEBT_ZERO_TOLERANCE,
-        status: hasOpenDebt(plain.debt) ? (plain.overdueOrders > 0 ? 'overdue' : 'open') : 'paid'
-      };
-    })
-    .sort((a, b) => b.debt - a.debt || b.overdueOrders - a.overdueOrders || String(a.label).localeCompare(String(b.label)));
-}
-
-async function debtBySalesmanReport(query = {}) {
-  const report = await debtReport(query);
-  return {
-    source: report.source,
-    ledgerCollection: report.ledgerCollection,
-    bySalesman: report.bySalesman,
-    summary: report.summary
-  };
-}
-
-async function debtByDeliveryReport(query = {}) {
-  const report = await debtReport(query);
-  return {
-    source: report.source,
-    ledgerCollection: report.ledgerCollection,
-    byDelivery: report.byDelivery,
-    summary: report.summary
-  };
-}
-
-async function salesReport(query = {}) {
-  const { page, limit, skip } = reportPagination(query, 50, 200);
-  const filter = withReportTextFilter(
-    buildActiveDateMongoFilter(query, ['date', 'orderDate', 'documentDate', 'createdAt']),
-    query,
-    ['code', 'orderCode', 'customerCode', 'customerName', 'salesStaffCode', 'salesStaffName']
-  );
-  const totalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
-  const paidExpr = numberExpression(['paidAmount', 'paymentAmount'], 0);
-  const debtExpr = {
-    $let: {
-      vars: { remaining: { $subtract: [totalExpr, paidExpr] } },
-      in: { $cond: [{ $gt: ['$$remaining', 0] }, '$$remaining', 0] }
-    }
-  };
-  const staffCodeExpr = firstValueExpression(['salesStaffCode', 'salesmanCode', 'nvbhCode'], '');
-  const staffNameExpr = firstValueExpression(['salesStaffName', 'salesmanName', 'nvbhName'], '');
-
-  const result = await runReportSource('bán hàng', query, () =>
-    SalesOrder.aggregate([
-      { $match: filter },
-      {
-        $facet: {
-          rows: [
-            { $sort: { date: -1, orderDate: -1, createdAt: -1, _id: -1 } },
-            { $skip: skip },
-            { $limit: limit }
-          ],
-          totals: [{
-            $group: {
-              _id: null,
-              orderCount: { $sum: 1 },
-              totalAmount: { $sum: totalExpr },
-              paidAmount: { $sum: paidExpr },
-              debtAmount: { $sum: debtExpr }
-            }
-          }],
-          bySalesman: [
-            {
-              $group: {
-                _id: { code: staffCodeExpr, name: staffNameExpr },
-                orderCount: { $sum: 1 },
-                totalAmount: { $sum: totalExpr }
-              }
-            },
-            { $sort: { totalAmount: -1, '_id.name': 1 } }
-          ]
-        }
-      }
-    ]).allowDiskUse(true).exec()
-  );
-
-  const facet = result?.[0] || {};
-  const rows = (facet.rows || []).map((order) => ({
-    id: order.id || String(order._id || ''),
-    code: order.code || order.orderCode || '',
-    date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
-    customerCode: order.customerCode || '',
-    customerName: order.customerName || '',
-    salesmanCode: order.salesStaffCode || order.salesmanCode || order.nvbhCode || '',
-    salesmanName: order.salesStaffName || order.salesmanName || order.nvbhName || '',
-    totalAmount: totalOf(order),
-    paidAmount: toNumber(order.paidAmount || order.paymentAmount),
-    debtAmount: Math.max(0, totalOf(order) - toNumber(order.paidAmount || order.paymentAmount)),
-    status: order.status || ''
-  }));
-  const totals = facet.totals?.[0] || {};
-  const meta = reportMeta(page, limit, totals.orderCount || 0);
-  const bySalesman = (facet.bySalesman || []).map((row) => ({
-    salesmanCode: row?._id?.code || '',
-    salesmanName: row?._id?.name || '',
-    orderCount: toNumber(row.orderCount),
-    totalAmount: toNumber(row.totalAmount)
-  }));
-
-  return {
-    source: 'mongo_aggregate',
-    sales: rows,
-    items: rows,
-    meta,
-    bySalesman,
-    summary: {
-      orderCount: toNumber(totals.orderCount),
-      totalAmount: toNumber(totals.totalAmount),
-      paidAmount: toNumber(totals.paidAmount),
-      debtAmount: toNumber(totals.debtAmount)
-    }
-  };
-}
-
-
-async function financeReport(query = {}) {
-  const { page, limit, skip } = reportPagination(query, 50, 200);
-  const activeFundFilter = buildActiveDateMongoFilter(query, ['date', 'createdAt']);
-  const receiptFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt']);
-  const moneyFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'createdAt']);
-  const returnFilter = buildActiveDateMongoFilter(query, ['date', 'returnDate', 'documentDate', 'deliveryDate', 'createdAt']);
-
-  const [receipts, cashbooks, bankbooks, returns, receiptTotals, returnTotals, fundTotals, counts] = await runReportSource(
-    'tài chính',
-    query,
-    () => Promise.all([
-      Receipt.find(receiptFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Cashbook.find(moneyFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Bankbook.find(moneyFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
-      ReturnOrder.find(returnFilter).sort({ date: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Receipt.aggregate([{ $match: receiptFilter }, { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: numberExpression(['amount', 'totalAmount', 'grandTotal', 'total', 'value'], 0) } } }]),
-      ReturnOrder.aggregate([{ $match: returnFilter }, { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: numberExpression(['returnAmount', 'totalAmount', 'amount', 'debtReduction'], 0) } } }]),
-      FundLedger.aggregate([
-        { $match: activeFundFilter },
-        { $group: { _id: { fundType: '$fundType', direction: '$direction' }, amount: { $sum: numberExpression(['amount'], 0) }, count: { $sum: 1 } } }
-      ]),
-      Promise.all([
-        Receipt.countDocuments(receiptFilter),
-        Cashbook.countDocuments(moneyFilter),
-        Bankbook.countDocuments(moneyFilter),
-        ReturnOrder.countDocuments(returnFilter)
-      ])
-    ])
-  );
-
-  const totalFor = (fundType, direction) => {
-    const row = (fundTotals || []).find((item) =>
-      String(item?._id?.fundType || '').toLowerCase() === fundType
-      && String(item?._id?.direction || '').toLowerCase() === direction
-    );
-    return toNumber(row?.amount);
-  };
-  const cashIn = totalFor('cash', 'in');
-  const cashOut = totalFor('cash', 'out');
-  const bankIn = totalFor('bank', 'in');
-  const bankOut = totalFor('bank', 'out');
-  const receiptSummary = receiptTotals?.[0] || {};
-  const returnSummary = returnTotals?.[0] || {};
-  const categoryCounts = {
-    receipts: toNumber(counts?.[0]),
-    cashbook: toNumber(counts?.[1]),
-    bankbook: toNumber(counts?.[2]),
-    returns: toNumber(counts?.[3])
-  };
-  const maxTotal = Math.max(...Object.values(categoryCounts), 0);
-
-  return {
-    source: 'mongo_paged',
-    fundSource: 'fundLedgers',
-    meta: { ...reportMeta(page, limit, maxTotal), categoryCounts },
-    summary: {
-      receiptCount: toNumber(receiptSummary.count),
-      totalReceipts: toNumber(receiptSummary.amount),
-      cashIn,
-      cashOut,
-      cashBalance: cashIn - cashOut,
-      bankIn,
-      bankOut,
-      bankBalance: bankIn - bankOut,
-      totalFundIn: cashIn + bankIn,
-      totalFundOut: cashOut + bankOut,
-      totalFundBalance: cashIn + bankIn - cashOut - bankOut,
-      returnCount: toNumber(returnSummary.count),
-      totalReturns: toNumber(returnSummary.amount)
-    },
-    receipts,
-    cashbook: cashbooks,
-    bankbook: bankbooks,
-    returns
-  };
-}
-
-
-async function deliveryReport(query = {}) {
-  const { page, limit, skip } = reportPagination(query, 50, 200);
-  const filter = withReportTextFilter(
-    buildActiveDateMongoFilter(query, ['deliveryDate', 'date', 'createdAt']),
-    query,
-    ['code', 'masterOrderCode', 'deliveryStaffCode', 'deliveryStaffName', 'status']
-  );
-  const totalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
-  const collectedExpr = numberExpression(['collectedAmount', 'paidAmount'], 0);
-  const orderCountExpr = {
-    $convert: {
-      input: {
-        $ifNull: [
-          '$orderCount',
-          {
-            $ifNull: [
-              '$childOrderCount',
-              {
-                $cond: [
-                  { $isArray: '$childOrderIds' },
-                  { $size: '$childOrderIds' },
-                  { $cond: [{ $isArray: '$orderIds' }, { $size: '$orderIds' }, 0] }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      to: 'double',
-      onError: 0,
-      onNull: 0
-    }
-  };
-  const staffCodeExpr = firstValueExpression(['deliveryStaffCode', 'deliveryCode', 'nvghCode'], '');
-  const staffNameExpr = firstValueExpression(['deliveryStaffName', 'deliveryName', 'nvghName'], '');
-
-  const result = await runReportSource('giao hàng', query, () =>
-    MasterOrder.aggregate([
-      { $match: filter },
-      {
-        $facet: {
-          rows: [
-            { $sort: { deliveryDate: -1, createdAt: -1, _id: -1 } },
-            { $skip: skip },
-            { $limit: limit }
-          ],
-          totals: [{
-            $group: {
-              _id: null,
-              tripCount: { $sum: 1 },
-              orderCount: { $sum: orderCountExpr },
-              totalAmount: { $sum: totalExpr },
-              collectedAmount: { $sum: collectedExpr }
-            }
-          }],
-          byStaff: [
-            {
-              $group: {
-                _id: { code: staffCodeExpr, name: staffNameExpr },
-                tripCount: { $sum: 1 },
-                orderCount: { $sum: orderCountExpr },
-                totalAmount: { $sum: totalExpr },
-                collectedAmount: { $sum: collectedExpr }
-              }
-            },
-            { $sort: { totalAmount: -1, '_id.name': 1 } }
-          ]
-        }
-      }
-    ]).allowDiskUse(true).exec()
-  );
-
-  const facet = result?.[0] || {};
-  const rows = (facet.rows || []).map((order) => ({
-    id: order.id || String(order._id || ''),
-    code: order.code || order.masterOrderCode || '',
-    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || order.date || order.createdAt),
-    deliveryStaffCode: order.deliveryStaffCode || order.deliveryCode || order.nvghCode || '',
-    deliveryStaffName: order.deliveryStaffName || order.deliveryName || order.nvghName || '',
-    orderCount: toNumber(order.orderCount || order.childOrderCount || (Array.isArray(order.childOrderIds) ? order.childOrderIds.length : (Array.isArray(order.orderIds) ? order.orderIds.length : 0))),
-    totalAmount: totalOf(order),
-    collectedAmount: toNumber(order.collectedAmount || order.paidAmount),
-    status: order.status || ''
-  }));
-  const totals = facet.totals?.[0] || {};
-  const meta = reportMeta(page, limit, totals.tripCount || 0);
-  const byStaff = (facet.byStaff || []).map((row) => ({
-    deliveryStaffCode: row?._id?.code || '',
-    deliveryStaffName: row?._id?.name || '',
-    tripCount: toNumber(row.tripCount),
-    orderCount: toNumber(row.orderCount),
-    totalAmount: toNumber(row.totalAmount),
-    collectedAmount: toNumber(row.collectedAmount)
-  }));
-
-  return {
-    source: 'mongo_aggregate',
-    delivery: rows,
-    items: rows,
-    meta,
-    byStaff,
-    summary: {
-      tripCount: toNumber(totals.tripCount),
-      orderCount: toNumber(totals.orderCount),
-      totalAmount: toNumber(totals.totalAmount),
-      collectedAmount: toNumber(totals.collectedAmount)
-    }
-  };
-}
-
-
-async function dashboardReport(query = {}) {
-  const salesTotalExpr = numberExpression(['totalAmount', 'amount', 'grandTotal', 'total', 'value'], 0);
-  const salesPaidExpr = numberExpression(['paidAmount', 'paymentAmount'], 0);
-  const salesFilter = buildActiveDateMongoFilter(query, ['date', 'orderDate', 'documentDate', 'createdAt']);
-  const deliveryFilter = buildActiveDateMongoFilter(query, ['deliveryDate', 'date', 'createdAt']);
-  const fundFilter = buildActiveDateMongoFilter(query, ['date', 'createdAt']);
-  const importFilter = buildActiveDateMongoFilter(query, ['date', 'documentDate', 'importDate', 'createdAt']);
-  const activeArFilter = { status: { $nin: REPORT_INACTIVE_STATUSES } };
-
-  const [salesRows, debtRows, stockData, fundRows, deliveryRows, importRows] = await runReportSource(
-    'dashboard',
-    query,
-    () => Promise.all([
-      SalesOrder.aggregate([
-        { $match: salesFilter },
-        { $group: { _id: null, orderCount: { $sum: 1 }, totalAmount: { $sum: salesTotalExpr }, paidAmount: { $sum: salesPaidExpr } } }
-      ]),
-      ArLedger.aggregate([
-        { $match: activeArFilter },
-        { $group: { _id: null, debit: { $sum: numberExpression(['debit', 'arDebit'], 0) }, credit: { $sum: numberExpression(['credit', 'arCredit'], 0) } } }
-      ]),
-      inventoryStockService.getInventorySummary({}),
-      FundLedger.aggregate([
-        { $match: fundFilter },
-        { $group: { _id: { fundType: '$fundType', direction: '$direction' }, amount: { $sum: numberExpression(['amount'], 0) } } }
-      ]),
-      MasterOrder.aggregate([
-        { $match: deliveryFilter },
-        { $group: { _id: null, tripCount: { $sum: 1 }, totalAmount: { $sum: numberExpression(['totalAmount', 'amount'], 0) }, collectedAmount: { $sum: numberExpression(['collectedAmount', 'paidAmount'], 0) } } }
-      ]),
-      ImportOrder.aggregate([
-        { $match: importFilter },
-        { $group: { _id: null, importCount: { $sum: 1 }, totalImportAmount: { $sum: numberExpression(['totalAmount', 'amount'], 0) } } }
-      ])
-    ])
-  );
-
-  const sales = salesRows?.[0] || {};
-  const debt = debtRows?.[0] || {};
-  const delivery = deliveryRows?.[0] || {};
-  const imports = importRows?.[0] || {};
-  const fundAmount = (fundType, direction) => toNumber((fundRows || []).find((row) =>
-    String(row?._id?.fundType || '').toLowerCase() === fundType
-    && String(row?._id?.direction || '').toLowerCase() === direction
-  )?.amount);
-  const cashIn = fundAmount('cash', 'in');
-  const cashOut = fundAmount('cash', 'out');
-  const bankIn = fundAmount('bank', 'in');
-  const bankOut = fundAmount('bank', 'out');
-  const totalDebt = normalizeDebtAmount(toNumber(debt.debit) - toNumber(debt.credit));
-
-  return {
-    source: 'mongo_summary_only',
-    dashboard: {
-      sales: {
-        orderCount: toNumber(sales.orderCount),
-        totalAmount: toNumber(sales.totalAmount),
-        paidAmount: toNumber(sales.paidAmount),
-        debtAmount: Math.max(0, toNumber(sales.totalAmount) - toNumber(sales.paidAmount))
-      },
-      debts: {
-        totalDebit: toNumber(debt.debit),
-        totalCredit: toNumber(debt.credit),
-        totalDebt,
-        debtZeroTolerance: DEBT_ZERO_TOLERANCE
-      },
-      stock: stockData?.summary || {},
-      finance: {
-        cashIn,
-        cashOut,
-        cashBalance: cashIn - cashOut,
-        bankIn,
-        bankOut,
-        bankBalance: bankIn - bankOut,
-        totalFundBalance: cashIn + bankIn - cashOut - bankOut
-      },
-      delivery: {
-        tripCount: toNumber(delivery.tripCount),
-        totalAmount: toNumber(delivery.totalAmount),
-        collectedAmount: toNumber(delivery.collectedAmount)
-      },
-      imports: {
-        importCount: toNumber(imports.importCount),
-        totalImportAmount: toNumber(imports.totalImportAmount)
-      }
-    }
-  };
-}
-
-
-module.exports = {
-  stockReport,
-  stockCardReport,
-  debtReport,
-  debtInit,
-  debtCustomers,
-  debtCustomerDetail,
-  debtArLedger,
-  debtBySalesmanReport,
-  debtByDeliveryReport,
-  dashboardReport,
-  salesReport,
-  financeReport,
-  deliveryReport
-};
+/* GENERATED FILE — edit src/services/reportLegacy.service.source/part-01.jsfrag, src/services/reportLegacy.service.source/part-02.jsfrag, src/services/reportLegacy.service.source/part-03.jsfrag and run npm run build:source-bundles. */
+"use strict"
+;const e=require("../utils/date.util"),t=require("../models/Product"),o=require("../models/StockTransaction"),r=require("../models/SalesOrder"),a=require("../models/MasterOrder"),n=require("../models/Receipt"),d=require("../models/ArLedger"),s=require("../models/FundLedger"),i=require("../models/Cashbook"),u=require("../models/Bankbook"),l=require("../models/ReturnOrder"),c=require("../models/ImportOrder"),{normalizeText:m,toNumber:f}=require("../utils/common.util"),{STOCK_WAREHOUSE_CODE:y,STOCK_WAREHOUSE_NAME:$}=require("../constants/business.constants"),g=require("./inventoryStock.service"),{DEBT_ZERO_TOLERANCE:p,normalizeDebtAmount:C,hasOpenDebt:b,isOverpaid:h}=require("../constants/finance.constants")
+;function v(t,o){const r=new Date(e.toDateOnly(t)),a=new Date(e.toDateOnly(o))
+;return Number.isNaN(r.getTime())||Number.isNaN(a.getTime())?0:Math.floor((r.getTime()-a.getTime())/864e5)}function A(e={}){
+return!["void","cancelled","canceled","deleted","duplicate_cancelled"].includes(String(e.status||"").toLowerCase())}function N(t,o={}){
+const r=e.toDateOnly(t.date||t.documentDate||t.orderDate||t.deliveryDate||t.createdAt);return!(o.dateFrom&&r<o.dateFrom||o.dateTo&&r>o.dateTo||o.date&&r!==o.date)}function S(e={}){
+return f(e.totalAmount??e.amount??e.grandTotal??e.total??e.value)}function D(e=[],t=S){return e.reduce((e,o)=>e+f(t(o)),0)}
+const _=["void","cancelled","canceled","deleted","duplicate_cancelled"];function I(e,t,o={}){"test"!==process.env.NODE_ENV&&console.error("[REPORT_DATA_SOURCE_FAILED]",{report:t,
+query:o,error:e?.message||String(e||"")});const r=new Error(`Không thể tải dữ liệu báo cáo ${t}`);return r.code="REPORT_DATA_SOURCE_FAILED",r.status=503,r.cause=e,r}
+async function O(e,t,o){try{return await o()}catch(o){throw I(o,e,t)}}function w(e={},t=50,o=200){const r=ie(e.page),a=se(e.limit,t,o);return{page:r,limit:a,skip:(r-1)*a}}
+function x(e,t,o){const r=Math.max(0,f(o));return{page:e,limit:t,total:r,totalPages:r>0?Math.ceil(r/t):0,hasMore:e*t<r}}function k(e={},t={},o=[]){
+const r=String(t.q||t.keyword||t.search||"").trim();if(!r)return e;const a=new RegExp(de(r),"i");return{$and:[e,{$or:o.map(e=>({[e]:a}))}]}}function T(e=[],t=0){
+return e.reduceRight((e,t)=>({$ifNull:[`$${t}`,e]}),t)}function R(e=[],t=0){return{$convert:{input:T(e,t),to:"double",onError:0,onNull:0}}}function M(e=[],t={},o=[]){
+const r=m(t.q||t.keyword||t.search);return r?e.filter(e=>o.some(t=>m(e[t]).includes(r))):e}function L(t={},o=["date","createdAt"]){
+const r=e.toDateOnly(t.date||""),a=e.toDateOnly(t.dateFrom||r||""),n=e.toDateOnly(t.dateTo||r||"");if(!a&&!n)return{};const d=r||{...a?{$gte:a}:{},...n?{$lte:n}:{}
+},s=o.filter(e=>"createdAt"!==e).map(e=>({[e]:d}));if(o.includes("createdAt")){const e={};if(a&&(e.$gte=new Date(`${a}T00:00:00+07:00`)),n){const t=new Date(`${n}T00:00:00+07:00`)
+;t.setDate(t.getDate()+1),e.$lt=t}s.push({createdAt:e})}return 1===s.length?s[0]:{$or:s}}function E(e={},t=["date","createdAt"]){return{status:{
+$nin:["void","cancelled","canceled","deleted","duplicate_cancelled"]},...L(e,t)}}function Q(t={}){const o={};return t.productCode&&(o.productCode=String(t.productCode).trim()),
+(t.date||t.dateFrom||t.dateTo)&&(o.date={},t.dateFrom&&(o.date.$gte=e.toDateOnly(t.dateFrom)),t.dateTo&&(o.date.$lte=e.toDateOnly(t.dateTo)),t.date&&(o.date=e.toDateOnly(t.date))),
+o}function q(e={}){const t=String(e.direction||"").toUpperCase();return t?"IN"===t:f(e.quantity??e.qty)>=0}function F(e={}){return f(e.quantity??e.qty??0)}async function B(r={}){
+const a=m(r.q),n=Boolean(r.dateFrom||r.dateTo||r.asOfDate||"movement"===r.mode),d=["1","true","yes"].includes(String(r.full||r.export||"").toLowerCase()),{page:s,limit:i,skip:u}=w(r,50,200)
+;if(n){const n=e.toDateOnly(r.dateFrom||"0000-01-01"),l=e.toDateOnly(r.dateTo||r.asOfDate||e.todayVN()),[c,g]=await O("tồn kho theo kỳ",r,()=>Promise.all([o.find(L({dateTo:l
+},["date","createdAt"])).sort({date:1,createdAt:1,productCode:1}).lean(),t.find({}).lean()])),p=new Map(g.map(e=>[String(e.code||e.id||e._id),e])),C=new Map;c.forEach(t=>{
+const o=e.toDateOnly(t.date||t.createdAt);if(o>l)return;const r=String(t.productCode||t.productId||"").trim(),a=p.get(r)||{};C.has(r)||C.set(r,{
+productId:t.productId||a.id||String(a._id||""),productCode:r,productName:t.productName||a.name||"",warehouseCode:y,warehouseName:$,unit:a.unit||t.unit||"",openingQty:0,importQty:0,
+exportQty:0,returnQty:0,adjustmentQty:0,endingQty:0});const d=C.get(r),s=F(t);if(o<n)d.openingQty+=s;else{const e=String(t.type||"").toUpperCase()
+;e.includes("RETURN")?d.returnQty+=Math.abs(s):e.includes("IMPORT")||q(t)?d.importQty+=Math.abs(s):e.includes("SALE")||!q(t)?d.exportQty+=Math.abs(s):d.adjustmentQty+=s}
+d.endingQty+=s});let b=Array.from(C.values()).map(e=>({...e,inQty:e.importQty+e.returnQty+Math.max(0,e.adjustmentQty),outQty:e.exportQty+Math.abs(Math.min(0,e.adjustmentQty)),
+quantity:e.endingQty,qty:e.endingQty,availableQty:e.endingQty}));a&&(b=b.filter(e=>[e.productCode,e.productName].some(e=>m(e).includes(a))))
+;const h=b.filter(e=>f(e.quantity??e.qty??e.availableQty)<0),v=b.reduce((e,t)=>(e.totalRows+=1,e.openingQty+=f(t.openingQty),e.importQty+=f(t.importQty),
+e.exportQty+=f(t.exportQty),e.returnQty+=f(t.returnQty),e.endingQty+=f(t.endingQty),e),{totalRows:0,openingQty:0,importQty:0,exportQty:0,returnQty:0,endingQty:0})
+;v.negativeStockCount=h.length;const A=d?b:b.slice(u,u+i);return{source:"mongo_stock_transactions",dateFrom:n,dateTo:l,stock:A,items:A,
+meta:d?x(1,Math.max(b.length,1),b.length):x(s,i,b.length),summary:v,negativeStockCount:h.length,negativeStockRows:h}}
+const l=await O("tồn kho hiện tại",r,()=>g.getInventorySummary(r)),c=l.stock||[],p=d?c:c.slice(u,u+i);return{...l,source:"mongo_inventories_canonical",
+inventorySource:"inventories",stock:p,items:p,meta:d?x(1,Math.max(c.length,1),c.length):x(s,i,c.length),summary:l.summary,negativeStockCount:l.negativeStockCount,
+negativeStockRows:l.negativeStockRows}}async function U(t={}){
+const{page:r,limit:a,skip:n}=w(t,50,200),d=k(Q(t),t,["productCode","productName","warehouseCode","refCode","refType","type"]),s=R(["quantity","qty"],0),i=await O("thẻ kho",t,()=>o.aggregate([{
+$match:d},{$sort:{productCode:1,date:1,createdAt:1,_id:1}},{$setWindowFields:{partitionBy:{$ifNull:["$productCode","$productId"]},sortBy:{date:1,createdAt:1,_id:1},output:{
+runningBalance:{$sum:s,window:{documents:["unbounded","current"]}}}}},{$facet:{rows:[{$skip:n},{$limit:a}],totals:[{$group:{_id:null,transactionCount:{$sum:1},inQty:{$sum:{$cond:[{
+$gt:[s,0]},s,0]}},outQty:{$sum:{$cond:[{$lt:[s,0]},{$abs:s},0]}}}}]}}]).allowDiskUse(!0).exec()),u=i?.[0]||{},l=(u.rows||[]).map(t=>{const o=F(t);return{id:t.id||String(t._id||""),
+date:e.toDateOnly(t.date||t.createdAt),productCode:t.productCode||"",productName:t.productName||"",warehouseCode:y,type:t.type||"",refType:t.refType||"",refCode:t.refCode||"",
+inQty:f(t.inQty||(o>0?o:0)),outQty:f(t.outQty||(o<0?Math.abs(o):0)),quantity:o,balanceQty:f(t.balanceQty??t.runningBalance),note:t.note||""}}),c=u.totals?.[0]||{};return{
+source:"mongo_stock_transactions",transactions:l,items:l,meta:x(r,a,c.transactionCount||0),summary:{transactionCount:f(c.transactionCount),inQty:f(c.inQty),outQty:f(c.outQty)}}}
+function P(e={}){return String(e.id||e._id||e.code||e.refId||e.refCode||"").trim()}function V(e=[]){return e.filter(A).filter(e=>{const t=String(e.type||"").toLowerCase()
+;return"AR"===String(e.account||"").toUpperCase()||t.includes("ar")||t.includes("debt")||t.includes("receipt")||t.includes("return")||f(e.debit)||f(e.credit)})}function K(e={}){
+return{id:String(e.id||e._id||e.code||"").trim(),code:String(e.code||e.orderCode||"").trim()}}function j(e={},t={}){
+const{id:o,code:r}=K(t),a=[e.orderId,e.salesOrderId,e.refId,e.orderCode,e.salesOrderCode,e.refCode].map(e=>String(e||"").trim()).filter(Boolean);return a.includes(o)||a.includes(r)
+}function z(e={}){return String(e.orderId||e.salesOrderId||e.refId||e.orderCode||e.salesOrderCode||e.refCode||"").trim()}function H(e={}){
+return String(e.customerId||e.customerCode||e.customerName||"").trim()}function Z(e={}){
+const t=["delivered","success","completed","done"].includes(String(e.deliveryStatus||"").toLowerCase()),o=String(e.accountingStatus||"").toLowerCase(),r=Boolean(e.accountingConfirmed)||["confirmed","locked","posted"].includes(o)
+;return t&&r}function W(e={},t=new Map){
+const o=[e.orderId,e.salesOrderId,e.sourceOrderId,e.refId,e.orderCode,e.salesOrderCode,e.sourceOrderCode,e.refCode].map(e=>String(e||"").trim()).filter(Boolean);for(const e of o){
+const o=t.get(e);if(o)return o}return null}function G(e={}){const t=[e.source,e.refType,e.type,e.note].map(e=>String(e||"").toLowerCase()).join(" ")
+;return t.includes("mobile_delivery")||t.includes("mobiledelivery")||t.includes("mobile delivery")||t.includes("mobile_delivery_return")||t.includes("app giao hàng")}
+function J(e={},t=new Map){if(!G(e))return!0;const o=W(e,t);return!!o&&Z(o)}function X(e={}){const t=String(e.accountingStatus||e.financeStatus||"").toLowerCase()
+;return Boolean(e.accountingConfirmed||e.financeConfirmed)||["confirmed","locked","posted"].includes(t)}function Y(e={},t=new Map){if(X(e))return!0;const o=W(e,t);return!!o&&Z(o)}
+function ee(e={},t=new Map){const o=String(e.type||"").toLowerCase(),r=String(e.refType||"").toLowerCase();if(!o.includes("return")&&!r.includes("return")&&!G(e))return!1
+;if(X(e))return!1;const a=W(e,t);return a?!Z(a):G(e)}function te(t={}){if(!Z(t))return null
+;const o=f(t.debtBeforeCollection??t.totalAmount??t.amount??t.grandTotal??t.payableAmount??t.debtAmount??t.debt??0);return o<=0?null:{id:`VIRTUAL-AR-SALE-${t.id||t.code}`,
+code:`VIRTUAL-AR-SALE-${t.code||t.id}`,date:e.toDateOnly(t.date||t.orderDate||t.createdAt),type:"ar_sale_virtual_backfill",account:"AR",refType:"SALES_ORDER",
+refId:t.id||t._id||t.code,refCode:t.code||t.id,orderId:t.id||t._id||t.code,orderCode:t.code||t.id,customerId:t.customerId||"",customerCode:t.customerCode||"",
+customerName:t.customerName||"",salesmanCode:t.salesmanCode||t.salesStaffCode||t.nvbhCode||"",salesmanName:t.salesmanName||t.salesStaffName||t.nvbhName||"",
+deliveryStaffCode:t.deliveryStaffCode||"",deliveryStaffName:t.deliveryStaffName||"",debit:o,credit:0,amount:o,status:"posted",source:"virtual_backfill_from_orders"}}
+function oe(t={}){const o=S(t)||f(t.returnAmount||t.debtReduction||t.totalAmount);return o<=0?null:{id:`VIRTUAL-AR-RETURN-${t.id||t.code}`,code:`VIRTUAL-AR-RETURN-${t.code||t.id}`,
+date:e.toDateOnly(t.date||t.createdAt),type:"ar_return_virtual_backfill",account:"AR",refType:"RETURN_ORDER",refId:t.id||t._id||t.code,refCode:t.code||t.id,
+orderId:t.salesOrderId||t.orderId||t.sourceOrderId||"",orderCode:t.salesOrderCode||t.orderCode||"",customerId:t.customerId||"",customerCode:t.customerCode||"",
+customerName:t.customerName||"",debit:0,credit:o,amount:o,status:"posted",source:"virtual_backfill_from_returns"}}function re(t={}){const o=S(t);return o<=0?null:{
+id:`VIRTUAL-AR-RECEIPT-${t.id||t.code}`,code:`VIRTUAL-AR-RECEIPT-${t.code||t.id}`,date:e.toDateOnly(t.date||t.createdAt),type:"ar_receipt_virtual_backfill",account:"AR",
+refType:"RECEIPT",refId:t.id||t._id||t.code,refCode:t.code||t.id,orderId:t.orderId||t.salesOrderId||"",orderCode:t.orderCode||t.salesOrderCode||t.refCode||"",
+customerId:t.customerId||"",customerCode:t.customerCode||"",customerName:t.customerName||"",debit:0,credit:o,amount:o,status:"posted",source:"virtual_backfill_from_receipts"}}
+function ae(t={}){const o=String(t.type||"").toLowerCase(),r=f(t.debit||(o.includes("sale")?t.amount:0)),a=f(t.credit||(o.includes("sale")?0:t.amount));return{
+id:t.id||String(t._id||""),code:t.code||"",date:e.toDateOnly(t.date||t.createdAt),type:t.type||"",account:t.account||"AR",refType:t.refType||"",refId:t.refId||t.id||"",
+refCode:t.refCode||t.code||"",orderId:t.orderId||t.salesOrderId||"",orderCode:t.orderCode||t.salesOrderCode||"",customerId:t.customerId||"",customerCode:t.customerCode||"",
+customerName:t.customerName||"",debit:r,credit:a,balanceEffect:r-a,status:t.status||"posted",source:t.source||"",note:t.note||t.voidReason||""}}function ne(t=[],o=[]){
+const r=o.map(ae),a=[];return t.forEach(t=>{const o=String(t.id||t._id||"").trim(),n=String(t.code||"").trim(),d=r.filter(e=>{
+const t=[e.refId,e.refCode,e.code,e.id].map(e=>String(e||"").trim());return o&&t.includes(o)||n&&t.includes(n)
+}),s=d.some(e=>String(e.type||"").toLowerCase().includes("receipt")&&!String(e.type||"").toLowerCase().includes("void")&&f(e.credit)>0),i=d.some(e=>String(e.type||"").toLowerCase().includes("void")&&f(e.debit)>0),u=S(t)
+;"void"!==String(t.status||"").toLowerCase()||i?"void"!==String(t.status||"").toLowerCase()&&!s&&u>0&&a.push({level:"warning",code:t.code||t.id||"",
+date:e.toDateOnly(t.date||t.createdAt),customerCode:t.customerCode||"",customerName:t.customerName||"",amount:u,
+message:"Phiếu thu đang hiệu lực nhưng chưa thấy bút toán AR credit."}):a.push({level:"danger",code:t.code||t.id||"",date:e.toDateOnly(t.date||t.createdAt),
+customerCode:t.customerCode||"",customerName:t.customerName||"",amount:u,message:"Phiếu thu đã Void nhưng chưa có bút toán đảo AR debit."})}),a}function de(e=""){
+return String(e||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function se(e,t=50,o=100){const r=Number(e);return!Number.isFinite(r)||r<=0?t:Math.min(Math.max(1,Math.floor(r)),o)}
+function ie(e){const t=Number(e);return!Number.isFinite(t)||t<=0?1:Math.max(1,Math.floor(t))}function ue(e,t){t&&(Array.isArray(e.$and)||(e.$and=[]),e.$and.push(t))}
+function le(t={}){const o={status:{$nin:["void","cancelled","canceled","deleted","duplicate_cancelled","reversed"]},reversed:{$ne:!0},refType:{$ne:"AR_LEDGER_REVERSAL"},type:{
+$nin:["ar_reversal","reversal","ar_void"]}};if((t.dateFrom||t.dateTo||t.date)&&(o.date={},t.dateFrom&&(o.date.$gte=e.toDateOnly(t.dateFrom)),
+t.dateTo&&(o.date.$lte=e.toDateOnly(t.dateTo)),t.date&&(o.date=e.toDateOnly(t.date))),t.customerCode){const e=new RegExp(`^${de(t.customerCode)}$`,"i");ue(o,{$or:[{customerCode:e
+},{customerId:e}]})}if(t.customerId){const e=new RegExp(`^${de(t.customerId)}$`,"i");ue(o,{$or:[{customerId:e},{customerCode:e}]})}return o}function ce(e={}){const t=[]
+;if(e.delivery){const o=new RegExp(de(e.delivery),"i");t.push({$or:[{deliveryStaffCode:o},{deliveryStaffName:o},{deliveryCode:o},{deliveryName:o},{nvghCode:o},{nvghName:o}]})}
+if(e.salesman){const o=new RegExp(de(e.salesman),"i");t.push({$or:[{salesmanCode:o},{salesmanName:o},{salesStaffCode:o},{salesStaffName:o},{nvbhCode:o},{nvbhName:o}]})}
+return t.length?1===t.length?t[0]:{$and:t}:null}function me(e){return String(e||"").trim()}async function fe(t={}){const o=le(t),r=ce(t);if(!r)return o;const a={...le({}),type:{
+$in:["ar_sale","ar_external_debt"]},...r};(t.dateFrom||t.dateTo||t.date)&&(a.date={},t.dateFrom&&(a.date.$gte=e.toDateOnly(t.dateFrom)),
+t.dateTo&&(a.date.$lte=e.toDateOnly(t.dateTo)),t.date&&(a.date=e.toDateOnly(t.date)))
+;const n=await O("phạm vi nhân viên công nợ",t,()=>d.find(a).select("orderId orderCode salesOrderId salesOrderCode refId refCode").limit(5e3).lean()),s=Array.from(new Set(n.flatMap(e=>[e.orderId,e.salesOrderId,e.refId]).map(me).filter(Boolean))),i=Array.from(new Set(n.flatMap(e=>[e.orderCode,e.salesOrderCode,e.refCode]).map(me).filter(Boolean)))
+;return s.length||i.length?(ue(o,{$or:[...s.length?[{orderId:{$in:s}},{salesOrderId:{$in:s}},{refId:{$in:s}}]:[],...i.length?[{orderCode:{$in:i}},{salesOrderCode:{$in:i}},{
+refCode:{$in:i}}]:[]]}),o):(ue(o,{_id:"__NO_AR_SALE_MATCHING_STAFF_SCOPE__"}),o)}function ye(e=[],t={}){const o=String(t.status||"").trim()
+;return"1"===String(t.includePaid||"").trim()||"paid"===o?e:o&&"all"!==o&&"unpaid"!==o&&"open"!==o?"overdue"===o?e.filter(e=>"overdue"===e.status):e.filter(e=>e.status===o):e.filter(e=>b(e.debt)||h(e.debt))
+}async function $e(t={}){
+const o=ie(t.page),r=se(t.limit,50,100),a=(o-1)*r,n=Boolean(t.q||t.keyword||t.search||t.salesman||t.delivery||t.customerCode||t.customerId||t.dateFrom||t.dateTo||t.date),s=await fe(t),i=String(t.q||t.keyword||t.search||"").trim()
+;if(i){const e=new RegExp(de(i),"i");ue(s,{$or:[{customerCode:e},{customerName:e},{customerId:e},{orderCode:e},{salesOrderCode:e},{refCode:e}]})}n||(s.date=s.date||{
+$gte:e.toDateOnly(e.todayVN())});const u=await O("tổng hợp công nợ",t,()=>d.aggregate([{$match:s},{$project:{date:{$ifNull:["$date","$createdAt"]},code:1,type:1,orderType:1,
+refType:1,refId:1,refCode:1,orderId:{$ifNull:["$orderId","$salesOrderId"]},orderCode:{$ifNull:["$orderCode","$salesOrderCode"]},customerId:1,customerCode:1,customerName:1,phone:{
+$ifNull:["$phone","$customerPhone"]},address:{$ifNull:["$address","$customerAddress"]},salesmanCode:1,salesmanName:1,salesStaffCode:1,salesStaffName:1,staffCode:1,staffName:1,
+nvbhCode:1,nvbhName:1,deliveryStaffCode:1,deliveryStaffName:1,deliveryCode:1,deliveryName:1,deliveryStaff:1,nvghCode:1,nvghName:1,debit:{$ifNull:["$debit",0]},credit:{
+$ifNull:["$credit",0]},amount:{$ifNull:["$amount",0]},status:1,source:1,note:1,createdAt:1}},{$group:{_id:{customerCode:"$customerCode",customerId:"$customerId",
+customerName:"$customerName",orderCode:"$orderCode",orderId:"$orderId"},firstDate:{$min:"$date"},lastDate:{$max:"$date"},phone:{$max:"$phone"},address:{$max:"$address"},debit:{
+$sum:{$cond:[{$gt:["$debit",0]},"$debit",{$cond:[{$regexMatch:{input:{$toLower:{$ifNull:["$type",""]}},regex:"sale|external_debt"}},"$amount",0]}]}},credit:{$sum:{$cond:[{
+$gt:["$credit",0]},"$credit",{$cond:[{$regexMatch:{input:{$toLower:{$ifNull:["$type",""]}},regex:"sale|external_debt"}},0,"$amount"]}]}},receiptAmount:{$sum:{$cond:[{$regexMatch:{
+input:{$toLower:{$ifNull:["$type",""]}},regex:"receipt|payment|collection|debt"}},{$ifNull:["$credit","$amount"]},0]}},returnAmount:{$sum:{$cond:[{$regexMatch:{input:{$toLower:{
+$ifNull:["$type",""]}},regex:"return"}},{$ifNull:["$credit","$amount"]},0]}},bonusAmount:{$sum:{$cond:[{$regexMatch:{input:{$toLower:{$ifNull:["$type",""]}},
+regex:"bonus|discount|allowance"}},{$ifNull:["$credit","$amount"]},0]}},saleSalesmanCode:{$max:{$cond:[{$regexMatch:{input:{$toLower:{$ifNull:["$type",""]}},
+regex:"sale|external_debt"}},{$ifNull:["$salesmanCode",{$ifNull:["$salesStaffCode","$nvbhCode"]}]},""]}},saleSalesmanName:{$max:{$cond:[{$regexMatch:{input:{$toLower:{
+$ifNull:["$type",""]}},regex:"sale|external_debt"}},{$ifNull:["$salesmanName",{$ifNull:["$salesStaffName","$nvbhName"]}]},""]}},saleDeliveryStaffCode:{$max:{$cond:[{$regexMatch:{
+input:{$toLower:{$ifNull:["$type",""]}},regex:"sale|external_debt"}},{$ifNull:["$deliveryStaffCode",{$ifNull:["$deliveryCode","$nvghCode"]}]},""]}},saleDeliveryStaffName:{$max:{
+$cond:[{$regexMatch:{input:{$toLower:{$ifNull:["$type",""]}},regex:"sale|external_debt"}},{$ifNull:["$deliveryStaffName",{$ifNull:["$deliveryName","$nvghName"]}]},""]}},
+saleOrderType:{$max:{$cond:[{$regexMatch:{input:{$toLower:{$ifNull:["$type",""]}},regex:"sale|external_debt"}},{$ifNull:["$orderType",{$cond:[{$eq:["$type","ar_external_debt"]
+},"external_debt","sales_order"]}]},""]}},salesmanCode:{$max:{$ifNull:["$salesmanCode",{$ifNull:["$salesStaffCode","$nvbhCode"]}]}},salesmanName:{$max:{$ifNull:["$salesmanName",{
+$ifNull:["$salesStaffName","$nvbhName"]}]}},deliveryStaffCode:{$max:{$ifNull:["$deliveryStaffCode",{$ifNull:["$deliveryCode","$nvghCode"]}]}},deliveryStaffName:{$max:{
+$ifNull:["$deliveryStaffName",{$ifNull:["$deliveryName","$nvghName"]}]}},fallbackSalesmanCode:{$max:{$ifNull:["$salesmanCode",{$ifNull:["$salesStaffCode","$nvbhCode"]}]}},
+fallbackSalesmanName:{$max:{$ifNull:["$salesmanName",{$ifNull:["$salesStaffName","$nvbhName"]}]}},fallbackDeliveryStaffCode:{$max:{$ifNull:["$deliveryStaffCode",{
+$ifNull:["$deliveryCode","$nvghCode"]}]}},fallbackDeliveryStaffName:{$max:{$ifNull:["$deliveryStaffName",{$ifNull:["$deliveryName","$nvghName"]}]}}}},{$addFields:{debt:{
+$subtract:["$debit","$credit"]}}},{$sort:{debt:-1,lastDate:-1}},{$limit:Math.max(a+r+1,r+1)}]).allowDiskUse(!0).exec()),l=e.todayVN();let c=u.map(t=>{const o=t._id||{}
+;!t.fallbackSalesmanCode&&t.salesmanCode&&(t.fallbackSalesmanCode=t.salesmanCode),!t.fallbackSalesmanName&&t.salesmanName&&(t.fallbackSalesmanName=t.salesmanName),
+!t.fallbackDeliveryStaffCode&&t.deliveryStaffCode&&(t.fallbackDeliveryStaffCode=t.deliveryStaffCode),
+!t.fallbackDeliveryStaffName&&t.deliveryStaffName&&(t.fallbackDeliveryStaffName=t.deliveryStaffName)
+;const r=C(f(t.debit)-f(t.credit)),a=e.toDateOnly(t.firstDate||t.lastDate||new Date),n=b(r)?Math.max(0,v(l,a)):0,d=h(r)?"overpaid":b(r)?n>0?"overdue":"open":"paid";return{
+orderId:o.orderId||o.orderCode||"",orderCode:o.orderCode||o.orderId||"",customerId:o.customerId||"",customerCode:o.customerCode||"",customerName:o.customerName||"Chưa rõ khách",
+phone:t.phone||"",address:t.address||"",salesmanCode:t.saleSalesmanCode||t.fallbackSalesmanCode||"",salesmanName:t.saleSalesmanName||t.fallbackSalesmanName||"",
+deliveryStaffCode:t.saleDeliveryStaffCode||t.fallbackDeliveryStaffCode||"",deliveryStaffName:t.saleDeliveryStaffName||t.fallbackDeliveryStaffName||"",
+orderType:t.saleOrderType||(/^NDNBLH/i.test(String(o.orderCode||""))?"external_debt":"sales_order"),documentDate:a,dueDate:a,debit:f(t.debit),credit:f(t.credit),
+receiptAmount:Math.max(0,f(t.receiptAmount)),returnAmount:Math.max(0,f(t.returnAmount)),bonusAmount:Math.max(0,f(t.bonusAmount)),debt:r,rawDebt:r,overpaidAmount:Math.max(0,-r),
+debtZeroTolerance:p,overdueDays:n,agingDays:a?Math.max(0,v(l,a)):0,status:d}});c=ye(c,t),a&&(c=c.slice(a));const m=c.length>r;c=c.slice(0,r);const y=new Map;c.forEach(e=>{
+const t=String(e.customerCode||e.customerId||e.customerName||"").trim();if(!t)return;y.has(t)||y.set(t,{customerId:e.customerId,customerCode:e.customerCode,
+customerName:e.customerName||"Chưa rõ khách",phone:e.phone,address:e.address,salesmanCode:e.salesmanCode||"",salesmanName:e.salesmanName||"",
+deliveryStaffCode:e.deliveryStaffCode||"",deliveryStaffName:e.deliveryStaffName||"",debit:0,credit:0,receiptAmount:0,returnAmount:0,bonusAmount:0,debt:0,orderCount:0,
+overdueCount:0,overdueDays:0,agingDays:0,orders:[]});const o=y.get(t);o.debit+=f(e.debit),o.credit+=f(e.credit),o.receiptAmount+=f(e.receiptAmount),
+o.returnAmount+=f(e.returnAmount),o.bonusAmount+=f(e.bonusAmount),o.debt+=C(e.debt),o.orderCount+=1,o.orders.push({orderId:e.orderId,orderCode:e.orderCode,
+documentDate:e.documentDate,dueDate:e.dueDate,debit:f(e.debit),credit:f(e.credit),receiptAmount:f(e.receiptAmount),returnAmount:f(e.returnAmount),bonusAmount:f(e.bonusAmount),
+debt:C(e.debt),overdueDays:f(e.overdueDays),agingDays:f(e.agingDays),status:e.status,salesmanCode:e.salesmanCode,salesmanName:e.salesmanName,deliveryStaffCode:e.deliveryStaffCode,
+deliveryStaffName:e.deliveryStaffName,orderType:e.orderType||"sales_order"}),o.overdueDays=Math.max(f(o.overdueDays),f(e.overdueDays)),
+o.agingDays=Math.max(f(o.agingDays),f(e.agingDays)),"overdue"===e.status&&(o.overdueCount+=1)});const $=Array.from(y.values()).map(e=>({...e,debt:C(e.debt),
+overpaidAmount:Math.max(0,-C(e.debt)),status:h(e.debt)?"overpaid":b(e.debt)?f(e.overdueDays)>0?"overdue":"open":"paid",debtZeroTolerance:p
+})).sort((e,t)=>Math.abs(t.debt)-Math.abs(e.debt)||t.overdueDays-e.overdueDays||String(e.customerName).localeCompare(String(t.customerName)))
+;let g=(await O("chi tiết công nợ",t,()=>d.find(s).sort({date:-1,createdAt:-1}).limit(200).lean())).map(ae)
+;g=M(g,t,["code","refCode","orderCode","customerCode","customerName","type","note"]);const A=he(c,{codeKey:"salesmanCode",nameKey:"salesmanName",role:"salesman"}),N=he(c,{
+codeKey:"deliveryStaffCode",nameKey:"deliveryStaffName",role:"delivery"}),S={page:o,limit:r,hasMore:m,orderCount:c.length,customerCount:$.length,
+overdueCount:c.filter(e=>"overdue"===e.status).length,totalDebit:D(c,e=>e.debit),totalCredit:D(c,e=>e.credit),totalDebt:D(c,e=>C(e.debt)),
+totalPositiveDebt:D(c.filter(e=>b(e.debt)),e=>C(e.debt)),totalOverpaid:D(c.filter(e=>h(e.debt)),e=>Math.abs(C(e.debt))),debtZeroTolerance:p,journalCount:u.length,
+arLedgerCount:g.length,arWarningCount:0,optimized:!0};return{source:"mongo_ar_ledger_fast",ledgerCollection:"arLedgers",debts:c,customerSummary:$,bySalesman:A,byDelivery:N,
+arLedger:g,arDiagnostics:[],summary:S}}async function ge(e={}){return{source:"mongo_ar_ledger_fast",summary:{totalDebt:0,customerDebt:0,orderDebt:0,overdueDebt:0,
+note:"Màn công nợ chỉ tải danh sách khi người dùng nhập khách/NVBH/NVGH để tránh quét toàn bộ AR Ledger."},filters:{maxListLimit:100,maxAutocompleteLimit:20}}}
+async function pe(e={}){return $e({...e,limit:se(e.limit,50,100)})}async function Ce(e={}){const t=e.customerCode||e.code||e.customerId||e.id||e.q;return $e({...e,customerCode:t,
+q:e.q||t,includePaid:e.includePaid||"1",limit:se(e.limit,100,100)})}async function be(e={}){const t=ie(e.page),o=se(e.limit,100,200),r=(t-1)*o,a=await fe(e)
+;if(e.q||e.keyword||e.search){const t=new RegExp(de(e.q||e.keyword||e.search),"i");ue(a,{$or:[{code:t},{refCode:t},{orderCode:t},{salesOrderCode:t},{customerCode:t},{customerName:t
+},{customerId:t},{type:t},{note:t}]})}const n=await O("sổ công nợ",e,()=>d.find(a).sort({date:-1,createdAt:-1}).skip(r).limit(o+1).lean()),s=n.length>o,i=(s?n.slice(0,o):n).map(ae)
+;return{source:"mongo_ar_ledger_fast",ledgerCollection:"arLedgers",debts:[],customerSummary:[],bySalesman:[],byDelivery:[],arLedger:i,arDiagnostics:[],summary:{page:t,limit:o,
+hasMore:s,arLedgerCount:i.length,totalDebit:D(i,e=>e.debit),totalCredit:D(i,e=>e.credit),totalDebt:D(i,e=>e.balanceEffect),arWarningCount:0,optimized:!0}}}function he(e=[],t={}){
+const o=t.codeKey||"salesmanCode",r=t.nameKey||"salesmanName",a=t.role||"person",n=new Map;return e.forEach(e=>{
+const t=String(e[o]||"").trim(),d=String(e[r]||"").trim(),s=t||d||"UNASSIGNED";n.has(s)||n.set(s,{role:a,code:t,name:d||(t?"":"Chưa gán"),label:t&&d?`${t} - ${d}`:d||t||"Chưa gán",
+customerKeys:new Set,customers:0,orders:0,paidOrders:0,overdueOrders:0,openOrders:0,debit:0,credit:0,receiptAmount:0,returnAmount:0,bonusAmount:0,debt:0,maxOverdueDays:0,
+maxAgingDays:0});const i=n.get(s),u=e.customerId||e.customerCode||e.customerName;u&&i.customerKeys.add(String(u)),i.orders+=1,"paid"===e.status&&(i.paidOrders+=1),
+"overdue"===e.status&&(i.overdueOrders+=1),"open"===e.status&&(i.openOrders+=1),i.debit+=f(e.debit),i.credit+=f(e.credit),i.receiptAmount+=f(e.receiptAmount),
+i.returnAmount+=f(e.returnAmount),i.bonusAmount+=f(e.bonusAmount),i.debt+=C(e.debt),i.maxOverdueDays=Math.max(i.maxOverdueDays,f(e.overdueDays)),
+i.maxAgingDays=Math.max(i.maxAgingDays,f(e.agingDays))}),Array.from(n.values()).map(e=>{const{customerKeys:t,...o}=e;return{...o,customers:t.size,
+collectionRate:o.debit>0?Math.round(o.credit/o.debit*1e4)/100:0,debt:Math.max(0,C(o.debt)),debtZeroTolerance:p,status:b(o.debt)?o.overdueOrders>0?"overdue":"open":"paid"}
+}).sort((e,t)=>t.debt-e.debt||t.overdueOrders-e.overdueOrders||String(e.label).localeCompare(String(t.label)))}async function ve(e={}){const t=await $e(e);return{source:t.source,
+ledgerCollection:t.ledgerCollection,bySalesman:t.bySalesman,summary:t.summary}}async function Ae(e={}){const t=await $e(e);return{source:t.source,
+ledgerCollection:t.ledgerCollection,byDelivery:t.byDelivery,summary:t.summary}}async function Ne(t={}){
+const{page:o,limit:a,skip:n}=w(t,50,200),d=k(E(t,["date","orderDate","documentDate","createdAt"]),t,["code","orderCode","customerCode","customerName","salesStaffCode","salesStaffName"]),s=R(["totalAmount","amount","grandTotal","total","value"],0),i=R(["paidAmount","paymentAmount"],0),u={
+$let:{vars:{remaining:{$subtract:[s,i]}},in:{$cond:[{$gt:["$$remaining",0]},"$$remaining",0]}}
+},l=T(["salesStaffCode","salesmanCode","nvbhCode"],""),c=T(["salesStaffName","salesmanName","nvbhName"],""),m=await O("bán hàng",t,()=>r.aggregate([{$match:d},{$facet:{rows:[{
+$sort:{date:-1,orderDate:-1,createdAt:-1,_id:-1}},{$skip:n},{$limit:a}],totals:[{$group:{_id:null,orderCount:{$sum:1},totalAmount:{$sum:s},paidAmount:{$sum:i},debtAmount:{$sum:u}}
+}],bySalesman:[{$group:{_id:{code:l,name:c},orderCount:{$sum:1},totalAmount:{$sum:s}}},{$sort:{totalAmount:-1,"_id.name":1}}]}
+}]).allowDiskUse(!0).exec()),y=m?.[0]||{},$=(y.rows||[]).map(t=>({id:t.id||String(t._id||""),code:t.code||t.orderCode||"",date:e.toDateOnly(t.date||t.orderDate||t.createdAt),
+customerCode:t.customerCode||"",customerName:t.customerName||"",salesmanCode:t.salesStaffCode||t.salesmanCode||t.nvbhCode||"",
+salesmanName:t.salesStaffName||t.salesmanName||t.nvbhName||"",totalAmount:S(t),paidAmount:f(t.paidAmount||t.paymentAmount),
+debtAmount:Math.max(0,S(t)-f(t.paidAmount||t.paymentAmount)),status:t.status||""})),g=y.totals?.[0]||{};return{source:"mongo_aggregate",sales:$,items:$,meta:x(o,a,g.orderCount||0),
+bySalesman:(y.bySalesman||[]).map(e=>({salesmanCode:e?._id?.code||"",salesmanName:e?._id?.name||"",orderCount:f(e.orderCount),totalAmount:f(e.totalAmount)})),summary:{
+orderCount:f(g.orderCount),totalAmount:f(g.totalAmount),paidAmount:f(g.paidAmount),debtAmount:f(g.debtAmount)}}}async function Se(e={}){
+const{page:t,limit:o,skip:r}=w(e,50,200),a=E(e,["date","createdAt"]),d=E(e,["date","documentDate","createdAt"]),c=E(e,["date","documentDate","createdAt"]),m=E(e,["date","returnDate","documentDate","deliveryDate","createdAt"]),[y,$,g,p,C,b,h,v]=await O("tài chính",e,()=>Promise.all([n.find(d).sort({
+date:-1,createdAt:-1}).skip(r).limit(o).lean(),i.find(c).sort({date:-1,createdAt:-1}).skip(r).limit(o).lean(),u.find(c).sort({date:-1,createdAt:-1
+}).skip(r).limit(o).lean(),l.find(m).sort({date:-1,createdAt:-1}).skip(r).limit(o).lean(),n.aggregate([{$match:d},{$group:{_id:null,count:{$sum:1},amount:{
+$sum:R(["amount","totalAmount","grandTotal","total","value"],0)}}}]),l.aggregate([{$match:m},{$group:{_id:null,count:{$sum:1},amount:{
+$sum:R(["returnAmount","totalAmount","amount","debtReduction"],0)}}}]),s.aggregate([{$match:a},{$group:{_id:{fundType:"$fundType",direction:"$direction"},amount:{
+$sum:R(["amount"],0)},count:{$sum:1}}}]),Promise.all([n.countDocuments(d),i.countDocuments(c),u.countDocuments(c),l.countDocuments(m)])])),A=(e,t)=>{
+const o=(h||[]).find(o=>String(o?._id?.fundType||"").toLowerCase()===e&&String(o?._id?.direction||"").toLowerCase()===t);return f(o?.amount)
+},N=A("cash","in"),S=A("cash","out"),D=A("bank","in"),_=A("bank","out"),I=C?.[0]||{},k=b?.[0]||{},T={receipts:f(v?.[0]),cashbook:f(v?.[1]),bankbook:f(v?.[2]),returns:f(v?.[3])
+},M=Math.max(...Object.values(T),0);return{source:"mongo_paged",fundSource:"fundLedgers",meta:{...x(t,o,M),categoryCounts:T},summary:{receiptCount:f(I.count),
+totalReceipts:f(I.amount),cashIn:N,cashOut:S,cashBalance:N-S,bankIn:D,bankOut:_,bankBalance:D-_,totalFundIn:N+D,totalFundOut:S+_,totalFundBalance:N+D-S-_,returnCount:f(k.count),
+totalReturns:f(k.amount)},receipts:y,cashbook:$,bankbook:g,returns:p}}async function De(t={}){
+const{page:o,limit:r,skip:n}=w(t,50,200),d=k(E(t,["deliveryDate","date","createdAt"]),t,["code","masterOrderCode","deliveryStaffCode","deliveryStaffName","status"]),s=R(["totalAmount","amount","grandTotal","total","value"],0),i=R(["collectedAmount","paidAmount"],0),u={
+$convert:{input:{$ifNull:["$orderCount",{$ifNull:["$childOrderCount",{$cond:[{$isArray:"$childOrderIds"},{$size:"$childOrderIds"},{$cond:[{$isArray:"$orderIds"},{$size:"$orderIds"
+},0]}]}]}]},to:"double",onError:0,onNull:0}
+},l=T(["deliveryStaffCode","deliveryCode","nvghCode"],""),c=T(["deliveryStaffName","deliveryName","nvghName"],""),m=await O("giao hàng",t,()=>a.aggregate([{$match:d},{$facet:{
+rows:[{$sort:{deliveryDate:-1,createdAt:-1,_id:-1}},{$skip:n},{$limit:r}],totals:[{$group:{_id:null,tripCount:{$sum:1},orderCount:{$sum:u},totalAmount:{$sum:s},collectedAmount:{
+$sum:i}}}],byStaff:[{$group:{_id:{code:l,name:c},tripCount:{$sum:1},orderCount:{$sum:u},totalAmount:{$sum:s},collectedAmount:{$sum:i}}},{$sort:{totalAmount:-1,"_id.name":1}}]}
+}]).allowDiskUse(!0).exec()),y=m?.[0]||{},$=(y.rows||[]).map(t=>({id:t.id||String(t._id||""),code:t.code||t.masterOrderCode||"",
+deliveryDate:e.toDateOnly(t.deliveryDate||t.date||t.createdAt),deliveryStaffCode:t.deliveryStaffCode||t.deliveryCode||t.nvghCode||"",
+deliveryStaffName:t.deliveryStaffName||t.deliveryName||t.nvghName||"",
+orderCount:f(t.orderCount||t.childOrderCount||(Array.isArray(t.childOrderIds)?t.childOrderIds.length:Array.isArray(t.orderIds)?t.orderIds.length:0)),totalAmount:S(t),
+collectedAmount:f(t.collectedAmount||t.paidAmount),status:t.status||""})),g=y.totals?.[0]||{};return{source:"mongo_aggregate",delivery:$,items:$,meta:x(o,r,g.tripCount||0),
+byStaff:(y.byStaff||[]).map(e=>({deliveryStaffCode:e?._id?.code||"",deliveryStaffName:e?._id?.name||"",tripCount:f(e.tripCount),orderCount:f(e.orderCount),
+totalAmount:f(e.totalAmount),collectedAmount:f(e.collectedAmount)})),summary:{tripCount:f(g.tripCount),orderCount:f(g.orderCount),totalAmount:f(g.totalAmount),
+collectedAmount:f(g.collectedAmount)}}}async function _e(e={}){
+const t=R(["totalAmount","amount","grandTotal","total","value"],0),o=R(["paidAmount","paymentAmount"],0),n=E(e,["date","orderDate","documentDate","createdAt"]),i=E(e,["deliveryDate","date","createdAt"]),u=E(e,["date","createdAt"]),l=E(e,["date","documentDate","importDate","createdAt"]),m={
+status:{$nin:_}},[y,$,b,h,v,A]=await O("dashboard",e,()=>Promise.all([r.aggregate([{$match:n},{$group:{_id:null,orderCount:{$sum:1},totalAmount:{$sum:t},paidAmount:{$sum:o}}
+}]),d.aggregate([{$match:m},{$group:{_id:null,debit:{$sum:R(["debit","arDebit"],0)},credit:{$sum:R(["credit","arCredit"],0)}}}]),g.getInventorySummary({}),s.aggregate([{$match:u},{
+$group:{_id:{fundType:"$fundType",direction:"$direction"},amount:{$sum:R(["amount"],0)}}}]),a.aggregate([{$match:i},{$group:{_id:null,tripCount:{$sum:1},totalAmount:{
+$sum:R(["totalAmount","amount"],0)},collectedAmount:{$sum:R(["collectedAmount","paidAmount"],0)}}}]),c.aggregate([{$match:l},{$group:{_id:null,importCount:{$sum:1},
+totalImportAmount:{$sum:R(["totalAmount","amount"],0)}}
+}])])),N=y?.[0]||{},S=$?.[0]||{},D=v?.[0]||{},I=A?.[0]||{},w=(e,t)=>f((h||[]).find(o=>String(o?._id?.fundType||"").toLowerCase()===e&&String(o?._id?.direction||"").toLowerCase()===t)?.amount),x=w("cash","in"),k=w("cash","out"),T=w("bank","in"),M=w("bank","out"),L=C(f(S.debit)-f(S.credit))
+;return{source:"mongo_summary_only",dashboard:{sales:{orderCount:f(N.orderCount),totalAmount:f(N.totalAmount),paidAmount:f(N.paidAmount),
+debtAmount:Math.max(0,f(N.totalAmount)-f(N.paidAmount))},debts:{totalDebit:f(S.debit),totalCredit:f(S.credit),totalDebt:L,debtZeroTolerance:p},stock:b?.summary||{},finance:{
+cashIn:x,cashOut:k,cashBalance:x-k,bankIn:T,bankOut:M,bankBalance:T-M,totalFundBalance:x+T-k-M},delivery:{tripCount:f(D.tripCount),totalAmount:f(D.totalAmount),
+collectedAmount:f(D.collectedAmount)},imports:{importCount:f(I.importCount),totalImportAmount:f(I.totalImportAmount)}}}}module.exports={stockReport:B,stockCardReport:U,
+debtReport:$e,debtInit:ge,debtCustomers:pe,debtCustomerDetail:Ce,debtArLedger:be,debtBySalesmanReport:ve,debtByDeliveryReport:Ae,dashboardReport:_e,salesReport:Ne,financeReport:Se,
+deliveryReport:De};

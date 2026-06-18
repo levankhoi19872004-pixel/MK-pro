@@ -1,0 +1,545 @@
+'use strict';
+
+const { toNumber, makeId } = require('../utils/common.util');
+const deliveryFinance = require('../utils/deliveryFinance.util');
+const dateUtil = require('../utils/date.util');
+const { normalizeDebtAmount } = require('../constants/finance.constants');
+const {
+  SALES_STAFF_CODE_FIELDS,
+  SALES_STAFF_NAME_FIELDS,
+  DELIVERY_STAFF_CODE_FIELDS,
+  DELIVERY_STAFF_NAME_FIELDS,
+  USER_ACCOUNT_SALES_STAFF_CODE_FIELDS,
+  USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS,
+  pickSalesStaffCode,
+  pickSalesStaffName,
+  pickDeliveryStaffCode,
+  pickDeliveryStaffName,
+  pickUserAccountSalesStaffCode,
+  pickUserAccountDeliveryStaffCode
+} = require('../domain/staff/staffIdentity');
+
+function text(value) { return String(value == null ? '' : value).trim(); }
+function lower(value) { return text(value).toLowerCase(); }
+function unique(values = []) { return [...new Set(values.map(text).filter(Boolean))]; }
+function today() { return dateUtil.todayVN ? dateUtil.todayVN() : new Date().toISOString().slice(0, 10); }
+function num(value) { const n = Number(value || 0); return Number.isFinite(n) ? n : 0; }
+function norm(value) { return lower(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/\s+/g, ' ').trim(); }
+function compact(value) { return norm(value).replace(/[^a-z0-9]/g, ''); }
+function truthy(value) { return ['1', 'true', 'yes', 'y'].includes(lower(value)); }
+function isAccountingReopenPendingForPayment(order = {}) {
+  const st = order && typeof order.status === 'object' ? order.status : {};
+  const accountingStatus = lower(order.accountingStatus || st.accountingStatus);
+  return Boolean(order.accountingNeedsReconfirm || order.needReAccounting || order.reAccountingRequired || order.adminAdjustmentOpen)
+    || ['reopened', 'needs_reconfirm', 'needs_repost'].includes(accountingStatus);
+}
+
+function isAccountingConfirmedForPayment(order = {}) {
+  if (!order || isAccountingReopenPendingForPayment(order)) return false;
+  const st = order && typeof order.status === 'object' ? order.status : {};
+  const accountingStatus = lower(order.accountingStatus || st.accountingStatus);
+  return Boolean(order.accountingConfirmed || order.accountingLocked || order.editLocked)
+    || ['confirmed', 'locked', 'posted', 'done'].includes(accountingStatus);
+}
+
+
+function escapeRegex(value) { return text(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function cleanOrderCode(value) { return text(value).replace(/^RO[-_]?/i, ''); }
+function prefixedReturnCode(value) { const clean = cleanOrderCode(value); return clean ? `RO-${clean}` : ''; }
+function keyVariants(value) {
+  const raw = text(value);
+  const clean = cleanOrderCode(raw);
+  return unique([raw, clean, prefixedReturnCode(raw)]);
+}
+function keyCompareVariants(value) {
+  return unique(keyVariants(value).flatMap((item) => [item, compact(item), cleanOrderCode(item), compact(cleanOrderCode(item))]));
+}
+function returnOrderAmountFromItems(items = []) {
+  return Math.round((Array.isArray(items) ? items : []).reduce((sum, item) => {
+    const qty = returnQtyOf(item) || qtyOf(item);
+    const price = priceOf(item);
+    const computed = qty > 0 && price > 0 ? qty * price : toNumber(item.returnAmount ?? item.amount ?? 0);
+    return sum + computed;
+  }, 0));
+}
+function returnOrderQtyFromItems(items = []) {
+  return (Array.isArray(items) ? items : []).reduce((sum, item) => sum + (returnQtyOf(item) || qtyOf(item)), 0);
+}
+function hasPositiveReturnDocument(row = {}) {
+  const items = Array.isArray(row.items) ? row.items : [];
+  return returnOrderAmountFromItems(items) > 0 || toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.amount ?? row.debtReduction) > 0;
+}
+function canonicalizeReturnDocument(row = {}) {
+  const items = (Array.isArray(row.items) ? row.items : []).map((item) => {
+    const qty = returnQtyOf(item) || qtyOf(item);
+    const price = priceOf(item);
+    const amount = Math.round(qty > 0 && price > 0 ? qty * price : toNumber(item.returnAmount ?? item.amount ?? 0));
+    return {
+      ...item,
+      productCode: productCodeOf(item),
+      code: productCodeOf(item),
+      productName: productNameOf(item),
+      name: productNameOf(item),
+      returnQty: qty,
+      qtyReturn: qty,
+      returnQuantity: qty,
+      returnedQty: qty,
+      quantity: qty,
+      qty,
+      price,
+      salePrice: price,
+      unitPrice: price,
+      returnAmount: amount,
+      amount
+    };
+  }).filter((item) => item.productCode || item.productName || toNumber(item.returnQty) > 0);
+  const itemAmount = returnOrderAmountFromItems(items);
+  const totalAmount = itemAmount || Math.round(toNumber(row.totalAmount ?? row.totalReturnAmount ?? row.amount ?? row.debtReduction));
+  const totalQuantity = returnOrderQtyFromItems(items) || toNumber(row.totalQuantity ?? row.quantity ?? row.qty);
+  const id = text(row.id || row.code || row._id);
+  const code = text(row.code || row.id || id);
+  return {
+    ...row,
+    id,
+    code,
+    salesOrderId: text(row.salesOrderId || row.orderId || row.sourceOrderId || row.deliveryOrderId),
+    salesOrderCode: text(row.salesOrderCode || row.orderCode || row.sourceOrderCode || row.deliveryOrderCode || cleanOrderCode(code)),
+    orderId: text(row.orderId || row.salesOrderId || row.sourceOrderId || row.deliveryOrderId),
+    orderCode: text(row.orderCode || row.salesOrderCode || row.sourceOrderCode || row.deliveryOrderCode || cleanOrderCode(code)),
+    items,
+    returnItems: items,
+    totalQuantity,
+    totalAmount,
+    totalReturnAmount: totalAmount,
+    amount: totalAmount,
+    debtReduction: totalAmount
+  };
+}
+function summarizeReturnRows(rows = []) {
+  return rows.reduce((a, r) => {
+    a.returnQty += toNumber(r.returnQty ?? r.totalQuantity);
+    a.amount += toNumber(r.amount ?? r.totalAmount ?? r.debtReduction);
+    return a;
+  }, { returnQty: 0, amount: 0 });
+}
+
+function queryKeyword(query = {}, keys = []) {
+  for (const key of keys) {
+    const value = text(query[key]);
+    if (value && !['all', 'tat ca', 'tất cả', '*'].includes(norm(value))) return value;
+  }
+  return '';
+}
+
+function staffValues(row = {}, fields = []) {
+  return fields
+    .flatMap((field) => {
+      const value = row[field];
+      if (Array.isArray(value)) return value;
+      return [value];
+    })
+    .map(text)
+    .filter(Boolean);
+}
+
+function matchesStaff(row = {}, keyword = '', fields = []) {
+  const q = compact(keyword);
+  const qText = norm(keyword);
+  if (!q && !qText) return true;
+  const values = staffValues(row, fields);
+  return values.some((value) => {
+    const valueCompact = compact(value);
+    const valueText = norm(value);
+    return (q && valueCompact.includes(q)) || (qText && valueText.includes(qText));
+  });
+}
+
+const DELIVERY_STAFF_FIELDS = [
+  'deliveryStaffCode',
+  'deliveryStaffName',
+  'deliveryCode',
+  'deliveryName',
+  'shipperCode',
+  'shipperName',
+  'nvghCode',
+  'nvghName',
+  'staffDeliveryCode',
+  'staffDeliveryName'
+];
+
+const SALES_STAFF_FIELDS = [
+  'salesStaffCode',
+  'salesStaffName',
+  'salesmanCode',
+  'salesmanName',
+  'staffCode',
+  'staffName',
+  'saleCode',
+  'saleName',
+  'nvbhCode',
+  'nvbhName'
+];
+
+function applyStaffFilters(rows = [], query = {}) {
+  const deliveryKeyword = queryKeyword(query, [
+    'deliveryStaffCode',
+    'deliveryStaffName',
+    'deliveryStaff',
+    'deliveryStaffKeyword',
+    'deliveryCode',
+    'deliveryName',
+    'nvgh',
+    'nvghCode',
+    'nvghName'
+  ]);
+  const salesKeyword = queryKeyword(query, [
+    'salesStaffCode',
+    'salesStaffName',
+    'salesStaff',
+    'salesStaffKeyword',
+    'salesCode',
+    'salesName',
+    'nvbh',
+    'nvbhCode',
+    'nvbhName'
+  ]);
+
+  return rows.filter((row) => {
+    if (deliveryKeyword && !matchesStaff(row, deliveryKeyword, DELIVERY_STAFF_FIELDS)) return false;
+    if (salesKeyword && !matchesStaff(row, salesKeyword, SALES_STAFF_FIELDS)) return false;
+    return true;
+  });
+}
+
+// DELIVERY_ORDERS_PERF_FILTER_START
+function staffCodeVariantsForMongo(value) {
+  const raw = text(value);
+  if (!raw) return [];
+  return unique([raw, raw.toLowerCase(), raw.toUpperCase()]);
+}
+
+function looksLikeStaffCode(value) {
+  const raw = text(value);
+  const c = compact(raw);
+  return Boolean(c) && c.length <= 16 && !/\s/.test(raw);
+}
+
+function buildStaffMongoFilter(query = {}, type = '') {
+  const keyword = type === 'delivery'
+    ? queryKeyword(query, ['deliveryStaffCode', 'deliveryCode', 'nvghCode', 'staffDeliveryCode'])
+    : queryKeyword(query, ['salesStaffCode', 'salesmanCode', 'salesCode', 'nvbhCode']);
+  const nameKeyword = type === 'delivery'
+    ? queryKeyword(query, ['deliveryStaffName', 'deliveryStaff', 'deliveryStaffKeyword', 'deliveryName', 'nvgh', 'nvghName'])
+    : queryKeyword(query, ['salesStaffName', 'salesStaff', 'salesStaffKeyword', 'salesName', 'nvbh', 'nvbhName']);
+
+  const codeValue = keyword || (looksLikeStaffCode(nameKeyword) ? nameKeyword : '');
+  if (codeValue) {
+    const values = staffCodeVariantsForMongo(codeValue);
+    const fields = type === 'delivery'
+      ? ['deliveryStaffCode', 'deliveryCode', 'shipperCode', 'nvghCode', 'staffDeliveryCode']
+      : ['salesStaffCode', 'salesmanCode', 'saleCode', 'nvbhCode'];
+    return { $or: fields.map((field) => ({ [field]: { $in: values } })) };
+  }
+
+  if (nameKeyword) {
+    const rx = new RegExp(escapeRegex(nameKeyword), 'i');
+    const fields = type === 'delivery'
+      ? ['deliveryStaffName', 'deliveryName', 'shipperName', 'nvghName', 'staffDeliveryName']
+      : ['salesStaffName', 'salesmanName', 'saleName', 'nvbhName'];
+    return { $or: fields.map((field) => ({ [field]: rx })) };
+  }
+
+  return null;
+}
+
+function pushStaffMongoFilters(and = [], query = {}) {
+  const deliveryFilter = buildStaffMongoFilter(query, 'delivery');
+  const salesFilter = buildStaffMongoFilter(query, 'sales');
+  if (deliveryFilter) and.push(deliveryFilter);
+  if (salesFilter) and.push(salesFilter);
+}
+// DELIVERY_ORDERS_PERF_FILTER_END
+
+const DELIVERY_ORDER_SELECT = [
+  'id', 'code', 'orderCode', 'salesOrderId', 'salesOrderCode',
+  'date', 'orderDate', 'deliveryDate', 'createdAt', 'updatedAt',
+  'customerId', 'customerCode', 'customerName', 'customerPhone', 'customerAddress', 'phone', 'address', 'routeName',
+  'salesStaffCode', 'salesStaffName', 'salesmanCode', 'salesmanName', 'nvbhCode', 'nvbhName',
+  'deliveryStaffCode', 'deliveryStaffName', 'deliveryCode', 'deliveryName', 'shipperCode', 'shipperName', 'nvghCode', 'nvghName',
+  'status', 'deliveryStatus', 'accountingStatus', 'accountingConfirmed',
+  'totalAmount', 'paidAmount', 'debtAmount', 'cashCollected', 'cashAmount', 'bankCollected', 'bankAmount', 'rewardAmount', 'returnAmount', 'returnedAmount',
+  'items', 'note', 'masterOrderId', 'masterOrderCode', 'mergeStatus'
+].join(' ');
+
+function directDeliveryCodeFromQuery(query = {}) {
+  return queryKeyword(query, ['deliveryStaffCode', 'deliveryCode', 'nvghCode', 'staffDeliveryCode']);
+}
+
+function shouldTryFastDeliveryCodeQuery(query = {}) {
+  return Boolean(directDeliveryCodeFromQuery(query)) && !query.salesStaffCode && !query.salesmanCode && !query.salesCode && !query.nvbhCode && !query.salesman;
+}
+
+// DELIVERY_MASTER_LINK_GUARD_START
+// Đơn giao hàng phải còn liên kết với một đơn tổng. Không được chỉ dựa vào
+// deliveryDate/deliveryStaffCode vì các snapshot cũ có thể còn sót sau detach.
+function masterAssignmentMongoClause() {
+  return {
+    $or: [
+      { masterOrderId: { $exists: true, $nin: [null, ''] } },
+      { masterOrderCode: { $exists: true, $nin: [null, ''] } },
+      { masterOrderNo: { $exists: true, $nin: [null, ''] } },
+      { deliveryMasterId: { $exists: true, $nin: [null, ''] } },
+      { deliveryMasterCode: { $exists: true, $nin: [null, ''] } }
+    ]
+  };
+}
+// DELIVERY_MASTER_LINK_GUARD_END
+
+
+function orderIdOf(order = {}) { return text(order.id || order.orderId || order.salesOrderId || order._id); }
+function orderCodeOf(order = {}) { return text(order.code || order.orderCode || order.salesOrderCode || order.displayOrderCode || order.id || order._id); }
+
+// DELIVERY_DEDUP_SALES_ORDER_START
+function canonicalDeliveryOrderKey(order = {}) {
+  const businessCode = cleanOrderCode(order.salesOrderCode || order.orderCode || order.code || order.displayOrderCode);
+  if (businessCode) return `code:${compact(businessCode)}`;
+  const businessId = text(order.salesOrderId || order.orderId || order.id || order._id);
+  return businessId ? `id:${businessId}` : '';
+}
+
+function statusScore(value) {
+  const s = lower(value);
+  if (['deleted', 'removed', 'void', 'cancelled', 'canceled'].includes(s)) return -1000;
+  if (['delivered', 'completed', 'done'].includes(s)) return 80;
+  if (['assigned', 'shipping', 'pending_delivery'].includes(s)) return 40;
+  return 0;
+}
+
+function deliveryOrderCandidateScore(order = {}) {
+  const st = order && typeof order.status === 'object' ? order.status : {};
+  const updatedMs = Date.parse(order.updatedAt || order.modifiedAt || order.createdAt || '') || 0;
+  const itemCount = Array.isArray(order.items) ? order.items.length : 0;
+  return statusScore(order.deletedAt ? 'deleted' : '')
+    + statusScore(order.deliveryStatus || st.deliveryStatus || order.status)
+    + (order.accountingConfirmed ? 20 : 0)
+    + (order.stockPosted ? 10 : 0)
+    + Math.min(itemCount, 50)
+    + Math.min(Math.max(toNumber(order.totalAmount || order.amount || order.debtAmount), 0), 1000000000) / 1000000000
+    + updatedMs / 100000000000000;
+}
+
+function dedupeDeliveryOrders(rows = []) {
+  const byKey = new Map();
+  const passthrough = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row) continue;
+    const key = canonicalDeliveryOrderKey(row);
+    if (!key) {
+      passthrough.push(row);
+      continue;
+    }
+    const prev = byKey.get(key);
+    if (!prev || deliveryOrderCandidateScore(row) >= deliveryOrderCandidateScore(prev)) {
+      byKey.set(key, row);
+    }
+  }
+  return passthrough.concat(Array.from(byKey.values()));
+}
+// DELIVERY_DEDUP_SALES_ORDER_END
+function productCodeOf(item = {}) { return text(item.productCode || item.code || item.productId || item.sku || item.id || item._id); }
+function productNameOf(item = {}) { return text(item.productName || item.name || item.product || ''); }
+function qtyOf(item = {}) { return toNumber(item.deliveredQty ?? item.soldQty ?? item.quantitySold ?? item.orderQty ?? item.totalQty ?? item.qtySold ?? item.quantity ?? item.qty ?? 0); }
+function returnQtyOf(item = {}) { return toNumber(item.returnQty ?? item.qtyReturn ?? item.returnQuantity ?? item.returnedQty ?? item.quantityReturn ?? 0); }
+function priceOf(item = {}) { return toNumber(item.price ?? item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.giaBan ?? 0); }
+
+function orderItemIndex(order = {}) {
+  const map = new Map();
+  for (const item of Array.isArray(order.items) ? order.items : []) {
+    const code = productCodeOf(item);
+    if (code && !map.has(code)) map.set(code, item);
+  }
+  return map;
+}
+
+function resolveReturnItemWithOrderLine(item = {}, orderLine = {}) {
+  const productCode = productCodeOf(item) || productCodeOf(orderLine);
+  const returnQty = returnQtyOf(item);
+  const price = priceOf(item) || priceOf(orderLine);
+  const productName = productNameOf(item) || productNameOf(orderLine);
+  const returnAmount = Math.max(0, Math.round(returnQty * price));
+  return {
+    ...orderLine,
+    ...item,
+    productId: text(item.productId || orderLine.productId || productCode),
+    productCode,
+    code: productCode,
+    productName,
+    name: productName,
+    returnQty,
+    qtyReturn: returnQty,
+    returnQuantity: returnQty,
+    returnedQty: returnQty,
+    price,
+    salePrice: price,
+    unitPrice: price,
+    returnAmount,
+    amount: returnAmount
+  };
+}
+
+function activeReturnFilter() { return { status: { $nin: ['cancelled', 'canceled', 'void', 'deleted', 'removed', 'duplicate_cancelled'] } }; }
+function getReturnLifecycleService() {
+  // Lazy require để tránh vòng phụ thuộc với returnOrderService.
+  return require('../domain/lifecycle/ReturnLifecycleService');
+}
+
+
+function applyQuerySession(query, session) {
+  if (session && query && typeof query.session === 'function') return query.session(session);
+  return query;
+}
+
+function deliveryActorCodeOf(body = {}) {
+  return text(body.actorDeliveryStaffCode || body.actorStaffCode || body.authenticatedStaffCode || '');
+}
+
+function assertDeliveryOwnership(order = {}, body = {}) {
+  if (!body.enforceDeliveryOwnership) return;
+  const actorCode = deliveryActorCodeOf(body);
+  const assignedCode = text(order.deliveryStaffCode || order.shipperCode || order.driverCode || order.staffDeliveryCode);
+
+  if (!actorCode) {
+    const err = new Error('Không xác định được mã nhân viên giao hàng đang đăng nhập');
+    err.status = 403;
+    err.code = 'DELIVERY_ACTOR_REQUIRED';
+    throw err;
+  }
+
+  if (!assignedCode || compact(assignedCode) !== compact(actorCode)) {
+    const err = new Error('Đơn giao hàng không thuộc nhân viên đang đăng nhập');
+    err.status = 403;
+    err.code = 'DELIVERY_ORDER_FORBIDDEN';
+    throw err;
+  }
+}
+
+function buildOrderLookup(value) {
+  const key = text(value);
+  if (!key) return null;
+  const or = [{ id: key }, { code: key }, { orderCode: key }, { salesOrderId: key }, { salesOrderCode: key }];
+  if (/^[a-f\d]{24}$/i.test(key)) or.push({ _id: key });
+  return { $or: or };
+}
+
+
+function versionedOrderFilter(key, current = {}) {
+  const lookup = buildOrderLookup(key);
+  const hasVersion = current.version !== undefined && current.version !== null && current.version !== '';
+  const expectedVersion = hasVersion ? Number(current.version) : 0;
+  const versionClause = hasVersion
+    ? { version: expectedVersion }
+    : { $or: [{ version: { $exists: false } }, { version: 0 }, { version: null }] };
+  return { $and: [lookup, versionClause] };
+}
+
+function assertVersionedUpdate(updated) {
+  if (updated) return updated;
+  const err = new Error('Dữ liệu đơn đã thay đổi bởi thao tác khác. Vui lòng tải lại trước khi lưu.');
+  err.status = 409;
+  err.code = 'ORDER_VERSION_CONFLICT';
+  throw err;
+}
+
+function returnMatchesOrder(ret = {}, order = {}) {
+  const orderValues = unique([
+    orderIdOf(order), order.salesOrderId, order.orderId, order.sourceOrderId, order.deliveryOrderId,
+    orderCodeOf(order), order.salesOrderCode, order.orderCode, order.sourceOrderCode, order.deliveryOrderCode,
+    order.id, order.code
+  ]).flatMap(keyCompareVariants);
+  const retValues = unique([
+    ret.salesOrderId, ret.orderId, ret.sourceOrderId, ret.deliveryOrderId,
+    ret.salesOrderCode, ret.orderCode, ret.sourceOrderCode, ret.deliveryOrderCode,
+    ret.id, ret.code
+  ]).flatMap(keyCompareVariants);
+  const retSet = new Set(retValues);
+  return orderValues.some((value) => retSet.has(value));
+}
+
+function normalizeReturnItemsFromOrders(returnOrders = []) {
+  const byCode = new Map();
+  for (const ret of returnOrders || []) {
+    const status = lower(ret.status);
+    if (['cancelled', 'canceled', 'void', 'deleted'].includes(status)) continue;
+    for (const raw of Array.isArray(ret.items) ? ret.items : []) {
+      const productCode = productCodeOf(raw);
+      if (!productCode) continue;
+      const prev = byCode.get(productCode) || {
+        productCode,
+        code: productCode,
+        productName: productNameOf(raw),
+        name: productNameOf(raw),
+        returnQty: 0,
+        qtyReturn: 0,
+        returnQuantity: 0,
+        returnedQty: 0,
+        price: priceOf(raw),
+        salePrice: priceOf(raw),
+        unitPrice: priceOf(raw),
+        returnAmount: 0,
+        amount: 0
+      };
+      const qty = returnQtyOf(raw) || qtyOf(raw);
+      const price = priceOf(raw) || prev.price || 0;
+      prev.productName = prev.productName || productNameOf(raw);
+      prev.name = prev.productName;
+      prev.returnQty += qty;
+      prev.qtyReturn = prev.returnQty;
+      prev.returnQuantity = prev.returnQty;
+      prev.returnedQty = prev.returnQty;
+      prev.price = price;
+      prev.salePrice = price;
+      prev.unitPrice = price;
+      prev.returnAmount = Math.round(prev.returnQty * price);
+      prev.amount = prev.returnAmount;
+      byCode.set(productCode, prev);
+    }
+  }
+  return Array.from(byCode.values());
+}
+
+
+function flattenReturnOrderRows(ro = {}, order = {}) {
+  const status = text(ro.status || ro.returnStatus || 'active');
+  const base = {
+    returnOrderId: text(ro.id || ro._id),
+    returnOrderCode: text(ro.code || ro.id),
+    salesOrderId: text(ro.salesOrderId || ro.orderId || order.salesOrderId || order.orderId),
+    salesOrderCode: text(ro.salesOrderCode || ro.orderCode || order.salesOrderCode || order.orderCode),
+    orderId: text(ro.orderId || ro.salesOrderId || order.orderId || order.salesOrderId),
+    orderCode: text(ro.orderCode || ro.salesOrderCode || order.orderCode || order.salesOrderCode),
+    customerCode: text(ro.customerCode || order.customerCode),
+    customerName: text(ro.customerName || order.customerName),
+    deliveryDate: text(ro.deliveryDate || ro.date || order.deliveryDate),
+    status
+  };
+  const items = Array.isArray(ro.items) ? ro.items : [];
+  if (!items.length) {
+    return [{ ...base, productCode: '', productName: '', returnQty: 0, price: 0, amount: toNumber(ro.totalAmount || ro.amount || ro.totalReturnAmount || ro.debtReduction) }];
+  }
+  return items.map((item) => {
+    const returnQty = returnQtyOf(item) || qtyOf(item);
+    const price = priceOf(item);
+    return {
+      ...base,
+      productCode: productCodeOf(item),
+      productName: productNameOf(item),
+      returnQty,
+      price,
+      amount: Math.round(returnQty > 0 && price > 0 ? returnQty * price : toNumber(item.returnAmount ?? item.amount ?? 0))
+    };
+  });
+}
+
+function buildCanonicalOrder(order = {}, relatedReturnOrders = []) {
+  const returnItems = normalizeReturnItemsFromOrders(relatedReturnOrders);
+  const returnAmount = returnItems.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);

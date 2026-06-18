@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 function loadCounterpartyHelpers() {
   const file = path.join(ROOT, 'public/js/app/01-utils-print-tabs.js');
-  const source = fs.readFileSync(file, 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(file);
   const marker = '// UI_CANONICAL_STAFF_FIELDS_END';
   const end = source.indexOf(marker);
   assert.ok(end > 0, 'Không tìm thấy vùng helper canonical UI');
@@ -61,7 +61,7 @@ test('Phiếu thu công nợ cũ thiếu khách hàng vẫn fallback người th
 
 test('Bảng Sổ quỹ sử dụng helper đối tượng theo nguồn', () => {
   const file = path.join(ROOT, 'public/js/app/debt/07f-fund-ledger.js');
-  const source = fs.readFileSync(file, 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(file);
   assert.match(source, /canonicalFundCounterpartyLabel\(e\)/);
   assert.doesNotMatch(source, /const staffLabel=canonicalFundStaffLabel\(e\)/);
 });
@@ -69,7 +69,9 @@ test('Bảng Sổ quỹ sử dụng helper đối tượng theo nguồn', () => 
 
 test('index cache-busts các script Sổ quỹ đã sửa', () => {
   const file = path.join(ROOT, 'public/index.html');
-  const source = fs.readFileSync(file, 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(file);
   assert.match(source, /01-utils-print-tabs\.js\?v=phase62-picking-zone-v1/);
-  assert.match(source, /07f-fund-ledger\.js\?v=phase61-delivery-fund-split-tabs-v1/);
+  assert.match(source, /07f-fund-ledger\.js\?v=phase79b-source-shards-v1/);
+  assert.match(source, /07f-fund-ledger\.part02\.js\?v=phase79b-source-shards-v1/);
+  assert.match(source, /07f-fund-ledger\.part03\.js\?v=phase79b-source-shards-v1/);
 });

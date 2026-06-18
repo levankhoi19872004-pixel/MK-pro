@@ -8,10 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 test('staff suggestions expose canonical businessStaffCode and businessStaffName', () => {
-  const source = fs.readFileSync(
-    path.join(ROOT, 'src/services/searchService.js'),
-    'utf8'
-  );
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/services/searchService.js'));
 
   assert.match(source, /businessStaffCode/);
   assert.match(source, /businessStaffName/);

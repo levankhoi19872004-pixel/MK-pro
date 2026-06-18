@@ -1,0 +1,538 @@
+
+// MOBILE_SALES_CART_PROMOTION_RECALC_END
+
+function toMobileProduct(product = {}) {
+  const availableQty = Number(
+    product._availableQty ??
+    product.availableQty ??
+    product.availableStock ??
+    product.stockQuantity ??
+    product.stock ??
+    0
+  );
+
+  const code = product.code || product.productCode || product.sku || '';
+  const name = product.name || product.productName || '';
+  // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_START: chuẩn hóa Nhóm hàng từ danh mục sản phẩm.
+  const groupName = String(
+    product.groupName ||
+    product.productGroupName ||
+    product.productGroup ||
+    product.group ||
+    product.categoryName ||
+    product.category ||
+    ''
+  ).trim();
+  // MOBILE_PRODUCT_GROUP_FILTER_NORMALIZE_END
+
+  const internalSaleQuota = product.internalSaleQuota && typeof product.internalSaleQuota === 'object'
+    ? product.internalSaleQuota
+    : {};
+  const maxOrderQty = Math.max(0, Number(
+    product.maxOrderQty ??
+    internalSaleQuota.currentlyAllowedQty ??
+    internalSaleQuota.remainingQty ??
+    0
+  ));
+
+  return {
+    ...product,
+    id: product.id || product._id || code,
+    code,
+    name,
+    groupName,
+    category: product.category || groupName,
+    salePrice: Number(product.salePrice || product.price || 0),
+    availableQty,
+    stockQuantity: availableQty,
+    conversionRate: normalizePackingRate(product),
+    packingQty: normalizePackingRate(product),
+    unitsPerCase: normalizePackingRate(product),
+    stockDisplay: formatStockTL(availableQty, normalizePackingRate(product)),
+    maxOrderQty,
+    internalSaleQuota: {
+      ...internalSaleQuota,
+      remainingQty: Math.max(0, Number(internalSaleQuota.remainingQty || 0)),
+      currentlyAllowedQty: maxOrderQty
+    }
+  };
+}
+
+
+// MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_START: tải danh sách Nhóm hàng để lọc sản phẩm trước khi tìm kiếm.
+function normalizeProductGroupName(value = '') {
+  return String(value || '').trim();
+}
+
+function escapeProductGroupHtml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function currentProductGroupFilter() {
+  return normalizeProductGroupName(productGroupFilter?.value || '');
+}
+
+function renderProductGroupOptions(groups = []) {
+  if (!productGroupFilter) return;
+  const current = currentProductGroupFilter();
+  const uniqueGroups = [...new Set((groups || []).map(normalizeProductGroupName).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
+  productGroupFilter.innerHTML = [
+    '<option value="">Tất cả nhóm hàng</option>',
+    ...uniqueGroups.map((name) => `<option value="${escapeProductGroupHtml(name)}">${escapeProductGroupHtml(name)}</option>`)
+  ].join('');
+  if (current && uniqueGroups.includes(current)) productGroupFilter.value = current;
+}
+
+async function loadProductGroupOptions(force = false) {
+  if (!productGroupFilter) return;
+  if (productGroupOptionsLoaded && !force) return;
+  productGroupOptionsLoaded = true;
+  try {
+    const data = await mobileApi.getProducts('', { all: true, limit: 5000, inStockOnly: 0 });
+    const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
+    renderProductGroupOptions(rows.map((row) => row.groupName || row.category));
+  } catch (err) {
+    console.warn('[mobile-sales] không tải được nhóm hàng sản phẩm:', err.message || err);
+  }
+}
+// MOBILE_PRODUCT_GROUP_FILTER_OPTIONS_END
+
+function resetSelectedProduct() {
+  selectedProduct = null;
+  if (productSearch) {
+    productSearch.dataset.id = '';
+    productSearch.dataset.code = '';
+    productSearch.dataset.name = '';
+    productSearch.dataset.type = '';
+  }
+  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
+  selectedProductBox.classList.add('muted');
+}
+
+function pickProduct(product) {
+  const p = toMobileProduct(product);
+  selectedProduct = p;
+
+  // V45 Unified Search V2: input chỉ là phần hiển thị, dữ liệu chọn thật phải lưu ở dataset.
+  // Nếu chỉ set productSearch.value thì khi thêm hàng app không biết chắc sản phẩm đã chọn từ gợi ý nào.
+  productSearch.dataset.id = p.id || '';
+  productSearch.dataset.code = p.code || '';
+  productSearch.dataset.name = p.name || '';
+  productSearch.dataset.type = 'product';
+  productSearch.value = p.label || [p.code, p.name].filter(Boolean).join(' - ');
+
+  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_START: card SP rõ tồn/giá, phù hợp thao tác nhập hàng trên mobile.
+  const selectedProductPrice = Number(p.finalPrice || p.unitPrice || p.salePrice || p.price || 0);
+  const selectedProductOriginalPrice = Number(p.originalPrice || p.grossPrice || p.catalogSalePrice || p.salePrice || p.price || 0);
+  const selectedProductPriceLabel = selectedProductOriginalPrice > selectedProductPrice
+    ? `Giá KM<strong>${money(selectedProductPrice)}</strong>`
+    : `Giá bán<strong>${money(selectedProductPrice)}</strong>`;
+  const selectedProductOriginalLabel = selectedProductOriginalPrice > selectedProductPrice
+    ? `<span>Giá gốc<strong>${money(selectedProductOriginalPrice)}</strong></span>`
+    : '';
+  selectedProductBox.innerHTML = `
+    <div class="mobile-selected-product-name">${escapeHtml(p.code || '')} - ${escapeHtml(p.name || '')}</div>
+    <div class="mobile-selected-product-meta">
+      <span>Tồn thực tế<strong>${escapeHtml(p.stockDisplay || formatStockTL(p.availableQty, p.conversionRate))}</strong></span>
+      <span class="mobile-app-quota-meta">Được bán App<strong>${escapeHtml(formatStockTL(p.maxOrderQty, p.conversionRate))}</strong></span>
+      <span>${selectedProductPriceLabel}</span>
+      ${selectedProductOriginalLabel}
+    </div>
+    <div class="mobile-selected-product-quota-note">Hạn mức theo file DMS: ${escapeHtml(p.internalSaleQuota?.snapshotDate || 'chưa cập nhật')}</div>
+  `;
+  // MOBILE_SELECTED_PRODUCT_CARD_RENDER_END
+  selectedProductBox.classList.remove('muted');
+  productSuggestions.innerHTML = '';
+  productSuggestions.classList.remove('has-many');
+  productSuggestions.hidden = true;
+  productSuggestions.style.display = 'none';
+  looseQtyInput.focus();
+}
+
+async function preloadUnifiedProducts(force = false) {
+  if (!window.UnifiedProductSearch) throw new Error('Thiếu UnifiedProductSearch. Kiểm tra sales.html đã nhúng productSearchBox.js chưa.');
+  if (force && window.CatalogCache) window.CatalogCache.invalidate('products');
+  return [];
+}
+
+function normalizeProductSearchResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+  const rows = data.items || data.products || data.rows || data.data || data.result || [];
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function searchMobileProducts(keyword = '') {
+  const q = String(keyword || '').trim();
+  if (q.length < 2) return [];
+
+  // Ưu tiên API mobile vì có kèm Authorization token.
+  // Sau lần chuẩn hóa Unified Search V2, một số màn đang đọc nhầm data.products/data.rows
+  // trong khi API mới trả data.items, làm có request 200 nhưng không render gợi ý.
+  try {
+    // MOBILE_PRODUCT_GROUP_FILTER_SEARCH_START: tìm sản phẩm trong nhóm hàng đang chọn.
+    const data = await mobileApi.getProducts(q, { limit: 50, group: currentProductGroupFilter() });
+    // MOBILE_PRODUCT_GROUP_FILTER_SEARCH_END
+    const rows = normalizeProductSearchResponse(data).map(toMobileProduct);
+    if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.sync === 'function') {
+      window.UnifiedProductSearch.sync(rows);
+    }
+    return rows;
+  } catch (err) {
+    console.warn('[mobile-sales] mobile product search fallback:', err.message || err);
+  }
+
+  if (window.UnifiedSearchEngine && typeof window.UnifiedSearchEngine.searchProduct === 'function') {
+    const rows = await window.UnifiedSearchEngine.searchProduct(q, { limit: 50, mode: 'sales', includeStock: 1, group: currentProductGroupFilter() });
+    return normalizeProductSearchResponse(rows).map(toMobileProduct);
+  }
+
+  if (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.search === 'function') {
+    const rows = await window.UnifiedProductSearch.search(q, { limit: 50, mode: 'sales', group: currentProductGroupFilter() });
+    return normalizeProductSearchResponse(rows).map(toMobileProduct);
+  }
+
+  return [];
+}
+
+function initProductAutocomplete() {
+  if (!productSearch || !productSuggestions) return;
+
+  if (!window.SearchAutocomplete || !window.UnifiedProductSearch) {
+    productSuggestions.innerHTML = '<div class="suggestion-empty">Thiếu engine gợi ý sản phẩm dùng chung.</div>';
+    return;
+  }
+
+  window.SearchAutocomplete.wire({
+    input: productSearch,
+    box: productSuggestions,
+    getItems: () => searchMobileProducts(productSearch.value.trim()),
+    label: (product) => (window.UnifiedProductSearch && typeof window.UnifiedProductSearch.label === 'function')
+      ? window.UnifiedProductSearch.label(product, 'sales')
+      : (product.label || [product.code, product.name].filter(Boolean).join(' - ')),
+    select: pickProduct,
+    emptyText: 'Không tìm thấy sản phẩm phù hợp'
+  });
+
+  productSearch.addEventListener('input', resetSelectedProduct);
+  // MOBILE_PRODUCT_GROUP_FILTER_CHANGE_START: đổi nhóm hàng thì xóa SP đang chọn để tránh thêm nhầm.
+  productGroupFilter?.addEventListener('change', () => {
+    resetSelectedProduct();
+    if (productSearch) productSearch.value = '';
+    if (productSuggestions) {
+      productSuggestions.innerHTML = '';
+      productSuggestions.classList.remove('has-many');
+      productSuggestions.hidden = true;
+      productSuggestions.style.display = 'none';
+    }
+  });
+  loadProductGroupOptions();
+  // MOBILE_PRODUCT_GROUP_FILTER_CHANGE_END
+  productSearch.addEventListener('focus', () => {
+    productSearch.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  productSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      productSuggestions.innerHTML = '';
+      productSuggestions.classList.remove('has-many');
+    }
+  });
+
+}
+
+
+document.getElementById('addItemBtn').addEventListener('click', async () => {
+  // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_START
+  setMessage(message, '');
+  if (!selectedCustomer) return setMessage(message, 'Chưa chọn khách hàng ở tab 1', 'error');
+  if (!selectedProduct) return setMessage(message, 'Chưa chọn sản phẩm', 'error');
+
+  const caseQty = Number(caseQtyInput?.value || 0);
+  const looseQty = Number(looseQtyInput?.value || 0);
+  const packingRate = normalizePackingRate(selectedProduct);
+  const qty = (caseQty > 0 && packingRate > 0 ? caseQty * packingRate : 0) + looseQty;
+  if (qty <= 0) return setMessage(message, 'Số lượng phải lớn hơn 0', 'error');
+
+  // V45 fix: tồn hiển thị trên autocomplete có thể bị cache/stale.
+  // Không chặn cứng ở frontend khi availableQty = 0/không có; backend sẽ kiểm tra lại tồn Mongo thật khi ghi đơn.
+  const availableQty = Number(selectedProduct.availableQty || 0);
+  const maxOrderQty = Math.max(0, Number(selectedProduct.maxOrderQty || 0));
+  if (availableQty > 0 && qty > availableQty) return setMessage(message, 'Số lượng vượt tồn thực tế', 'error');
+  if (qty > maxOrderQty) return setMessage(message, maxOrderQty > 0
+    ? `Sản phẩm chỉ còn được bán qua App ${formatStockTL(maxOrderQty, packingRate)}`
+    : 'Sản phẩm chưa có hạn mức bán qua App. Vui lòng cập nhật file tồn DMS buổi sáng.', 'error');
+
+  const grossPrice = Number(selectedProduct.salePrice || selectedProduct.price || 0);
+  const existed = cart.find((item) => item.productCode === selectedProduct.code);
+  if (existed) {
+    const nextQty = Number(existed.quantity || 0) + qty;
+    if (availableQty > 0 && nextQty > availableQty) return setMessage(message, 'Tổng số lượng vượt tồn thực tế', 'error');
+    if (nextQty > maxOrderQty) return setMessage(message, `Tổng số lượng vượt hạn mức bán App. Còn tối đa ${formatStockTL(maxOrderQty, packingRate)}`, 'error');
+    existed.quantity = nextQty;
+    existed.originalPrice = Number(existed.originalPrice || existed.grossPrice || existed.catalogSalePrice || grossPrice);
+    existed.grossPrice = existed.originalPrice;
+    existed.catalogSalePrice = existed.originalPrice;
+    attachPackingRate(existed, {
+      conversionRate: existed.conversionRate || selectedProduct.conversionRate,
+      unitsPerCase: existed.unitsPerCase || selectedProduct.unitsPerCase,
+      packingQty: existed.packingQty || selectedProduct.packingQty,
+      packQty: selectedProduct.packQty,
+      pack: selectedProduct.pack,
+      packageQty: selectedProduct.packageQty
+    });
+  } else {
+    cart.push(attachPackingRate({
+      productId: selectedProduct.id,
+      productCode: selectedProduct.code,
+      productName: selectedProduct.name,
+      unit: selectedProduct.unit,
+      quantity: qty,
+      originalPrice: grossPrice,
+      grossPrice,
+      catalogSalePrice: grossPrice,
+      grossAmount: Math.round(qty * grossPrice),
+      unitPrice: grossPrice,
+      salePrice: grossPrice,
+      price: grossPrice,
+      finalPrice: grossPrice,
+      discountAmount: 0,
+      promotionAmount: 0,
+      totalDiscountAmount: 0,
+      amount: Math.round(qty * grossPrice),
+      saleMethod: 'promotion',
+      saleMode: 'promotion',
+      pricingMode: 'promotion',
+      priceLocked: true,
+      maxOrderQty,
+      internalSaleQuota: selectedProduct.internalSaleQuota || {}
+    }, selectedProduct));
+  }
+
+  selectedProduct = null;
+  productSearch.value = '';
+  caseQtyInput.value = '';
+  looseQtyInput.value = '';
+  selectedProductBox.textContent = 'Chưa chọn sản phẩm';
+  selectedProductBox.classList.add('muted');
+  await recalculateCartPromotions();
+  renderCart();
+  setMessage(message, 'Đã thêm vào giỏ hàng và áp giá sau khuyến mại', 'success');
+  // MOBILE_SALES_CART_PROMOTION_RECALC_ADD_END
+});
+
+function renderCart() {
+  const total = cart.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  cartCount.textContent = `${cart.length} dòng`;
+  if (cartTabBadge) cartTabBadge.textContent = String(cart.length);
+  cartTotal.textContent = money(total);
+
+  if (!cart.length) {
+    cartList.className = 'cart-list empty';
+    cartList.textContent = 'Chưa có sản phẩm';
+    return;
+  }
+
+  cartList.className = 'cart-list';
+  // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_START
+  cartList.innerHTML = cart.map((item, index) => {
+    const originalPrice = Number(item.originalPrice || item.grossPrice || item.catalogSalePrice || item.salePrice || item.price || 0);
+    const unitPrice = Number(item.unitPrice || item.salePrice || item.price || 0);
+    const discountAmount = Number(item.discountAmount || item.promotionAmount || Math.max(0, (originalPrice - unitPrice) * Number(item.quantity || 0)));
+    const priceInfo = discountAmount > 0
+      ? `Giá gốc: ${money(originalPrice)} · KM: -${money(discountAmount)} · Giá bán: ${money(unitPrice)}`
+      : `Giá bán: ${money(unitPrice)}`;
+    return `
+    <div class="cart-item">
+      <strong>${escapeHtml(item.productCode)} - ${escapeHtml(item.productName)}</strong>
+      <span>SL: ${quantityDisplayTL(item)} · ${priceInfo} · Thành tiền: ${money(item.amount)}</span>
+      <button class="danger-btn small-btn" data-remove="${index}">Xóa</button>
+    </div>`;
+  }).join('');
+  // MOBILE_SALES_CART_PROMOTION_PRICE_DISPLAY_END
+
+  cartList.querySelectorAll('[data-remove]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      // MOBILE_SALES_CART_PROMOTION_RECALC_REMOVE_START
+      cart.splice(Number(btn.dataset.remove), 1);
+      await recalculateCartPromotions({ silent: true });
+      renderCart();
+      // MOBILE_SALES_CART_PROMOTION_RECALC_REMOVE_END
+    });
+  });
+}
+
+
+function debtCustomerKey(item = {}) {
+  return String(
+    item.customerId ||
+    item.customerCode ||
+    item.code ||
+    item.id ||
+    item._id ||
+    item.customerName ||
+    ''
+  ).trim();
+}
+
+function selectedDebtCustomer() {
+  if (!selectedDebtCustomerKey) return null;
+  return debtCache.find((item) => debtCustomerKey(item) === selectedDebtCustomerKey) || null;
+}
+
+function setDebtSubtab(nextSubtab, options = {}) {
+  const next = nextSubtab === 'collect' ? 'collect' : 'customers';
+  debtSubtab = next;
+
+  debtCustomersSubtab?.classList.toggle('active', next === 'customers');
+  debtCollectSubtab?.classList.toggle('active', next === 'collect');
+  debtCustomersSubtab?.setAttribute('aria-selected', String(next === 'customers'));
+  debtCollectSubtab?.setAttribute('aria-selected', String(next === 'collect'));
+  debtCustomersPanel?.classList.toggle('active', next === 'customers');
+  debtCollectPanel?.classList.toggle('active', next === 'collect');
+
+  if (next === 'collect') {
+    if (options.scroll !== false) {
+      document.getElementById('debtTab')?.scrollIntoView({ block: 'start', behavior: options.behavior || 'smooth' });
+    }
+    return;
+  }
+
+  if (options.restoreScroll !== false) {
+    window.requestAnimationFrame(() => window.scrollTo({ top: debtListScrollTop, behavior: 'auto' }));
+  }
+}
+
+function bindChooseDebtCustomerButton() {
+  document.getElementById('chooseDebtCustomerBtn')?.addEventListener('click', () => setDebtSubtab('customers'));
+}
+
+function openDebtCollection(item = {}) {
+  const nextKey = debtCustomerKey(item);
+  if (!nextKey || customerAvailableDebtValue(item) <= 0) return;
+
+  if (selectedDebtCustomerKey === nextKey) {
+    setDebtSubtab('collect');
+    return;
+  }
+
+  if (
+    debtFormDirty &&
+    selectedDebtCustomerKey &&
+    selectedDebtCustomerKey !== nextKey &&
+    !window.confirm('Bạn đang có phiếu thu chưa gửi. Dữ liệu hiện tại sẽ bị xóa khi chuyển khách hàng.')
+  ) {
+    return;
+  }
+
+  debtListScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+  selectedDebtCustomerKey = nextKey;
+  debtFormDirty = false;
+  renderDebtLedger(item);
+  setDebtSubtab('collect');
+}
+
+function filteredAndSortedDebts(items = debtCache) {
+  const keyword = String(debtCustomerSearch?.value || '').trim().toLowerCase();
+  const sortMode = String(debtCustomerSort?.value || 'debt_desc');
+  const rows = (Array.isArray(items) ? items : [])
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => {
+      if (!keyword) return true;
+      return [item.customerCode, item.customerName, item.phone, item.customerPhone]
+        .some((value) => String(value || '').toLowerCase().includes(keyword));
+    });
+
+  rows.sort((left, right) => {
+    const a = left.item;
+    const b = right.item;
+    if (sortMode === 'available_desc') {
+      return customerAvailableDebtValue(b) - customerAvailableDebtValue(a);
+    }
+    if (sortMode === 'oldest_asc') {
+      const aDate = formatShortDate(a.oldestDebtDate || '9999-12-31');
+      const bDate = formatShortDate(b.oldestDebtDate || '9999-12-31');
+      return aDate.localeCompare(bDate);
+    }
+    return customerDebtValue(b) - customerDebtValue(a);
+  });
+
+  return rows;
+}
+
+async function loadDebts(options = {}) {
+  const silent = !!options.silent;
+  const force = !!options.force;
+  const isDebtTabActive = document.getElementById('debtTab')?.classList.contains('active');
+
+  if (debtLoading) return;
+  if (debtLoaded && !force && debtCache.length && !silent) {
+    renderDebts(debtCache, {
+      totalDebt: debtCache.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0),
+      pendingCollected: debtCache.reduce((sum, item) => sum + customerPendingCollectedValue(item), 0),
+      customerCount: debtCache.length
+    });
+    return;
+  }
+
+  const requestSeq = ++debtRequestSeq;
+  debtLoading = true;
+
+  try {
+    if (debtList && (!silent || isDebtTabActive)) {
+      debtList.className = 'order-list empty';
+      debtList.textContent = 'Đang tải công nợ...';
+    }
+
+    const data = await mobileApi.getSalesDebts({ limit: 100, includePaid: '0', includePendingCollections: '1', collectorType: 'sales' });
+
+    if (requestSeq !== debtRequestSeq) return;
+
+    debtCache = Array.isArray(data.items) ? data.items : [];
+    debtLoaded = true;
+
+    renderDebts(debtCache, data.summary || {});
+    if (Array.isArray(lastCustomers) && lastCustomers.length) renderCustomerList(lastCustomers);
+  } catch (err) {
+    if (requestSeq !== debtRequestSeq) return;
+    debtLoaded = false;
+
+    if (debtList && (!silent || isDebtTabActive)) {
+      debtList.className = 'order-list empty error-text';
+      debtList.textContent = err.message || 'Không tải được công nợ';
+    }
+    if (debtTotalAmount && (!silent || isDebtTabActive)) debtTotalAmount.textContent = '0';
+    if (debtCustomerCount && (!silent || isDebtTabActive)) debtCustomerCount.textContent = '0';
+    if (debtPendingAmount && (!silent || isDebtTabActive)) debtPendingAmount.textContent = '0';
+  } finally {
+    if (requestSeq === debtRequestSeq) debtLoading = false;
+  }
+}
+
+function renderDebts(items = debtCache, summary = {}) {
+  const total = Number(summary.totalDebt ?? items.reduce((sum, item) => sum + Number(item.debtAmount || 0), 0));
+  const pending = Number(summary.pendingCollected ?? items.reduce((sum, item) => sum + customerPendingCollectedValue(item), 0));
+  if (debtTotalAmount) debtTotalAmount.textContent = money(total);
+  if (debtCustomerCount) debtCustomerCount.textContent = String(summary.customerCount ?? items.length);
+  if (debtPendingAmount) debtPendingAmount.textContent = money(pending);
+
+  renderDebtCustomerList(items);
+
+  if (selectedDebtCustomerKey) {
+    const selected = selectedDebtCustomer();
+    if (selected) {
+      if (!debtFormDirty) renderDebtLedger(selected);
+    } else {
+      selectedDebtCustomerKey = '';
+      debtFormDirty = false;
+      renderDebtLedger();
+    }
+  } else {
+    renderDebtLedger();
+  }
+}

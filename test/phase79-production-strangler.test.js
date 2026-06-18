@@ -37,7 +37,7 @@ test('excel import facade preserves controller contract', () => {
 
 test('assembled index page is byte-for-byte equivalent to characterization snapshot', () => {
   const html = readPublicIndex(ROOT);
-  const expectedHash = fs.readFileSync(path.join(ROOT, 'test/fixtures/index-page/phase79-assembled.sha256'), 'utf8').trim();
+  const expectedHash = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'test/fixtures/index-page/phase79-assembled.sha256')).trim();
   assert.equal(sha256(html), expectedHash);
   assert.match(html, /id="salesTab"/);
   assert.match(html, /\/js\/bootstrap\/03-tab-loader\.js/);

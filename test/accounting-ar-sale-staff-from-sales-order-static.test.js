@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const test = require('node:test');
 
-const src = fs.readFileSync('src/services/master-order/masterOrderLegacy.service.js', 'utf8');
+const src = require('./helpers/sourceBundle.util').readSource('src/services/master-order/masterOrderLegacy.service.js');
 
 test('confirmDeliveryAccounting hydrates AR-SALE staff from source SalesOrder before posting', () => {
   assert.ok(

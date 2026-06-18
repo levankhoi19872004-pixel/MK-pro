@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+const read = (f) => require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', f));
 
 test('import sessions persist temp file metadata and recover stale queued workers', () => {
   const session = read('src/services/importSessionService.js');

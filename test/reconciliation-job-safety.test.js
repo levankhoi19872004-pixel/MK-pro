@@ -30,7 +30,7 @@ test('reconciliation is enabled by default, rate-limited and exposes bounded sta
 });
 
 test('system status exposes reconciliation health without loading report items', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/services/systemService.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '../src/services/systemService.js'));
   assert.match(source, /reconciliation: getReconciliationJobState\(\)/);
   assert.doesNotMatch(source, /listReports\(/);
 });

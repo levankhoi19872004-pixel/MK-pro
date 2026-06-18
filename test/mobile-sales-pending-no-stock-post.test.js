@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const root = path.resolve(__dirname, '..');
-const read = (relPath) => fs.readFileSync(path.join(root, relPath), 'utf8');
+const read = (relPath) => require('./helpers/sourceBundle.util').readSource(path.join(root, relPath));
 
 test('legacy mobile sales write implementation is physically removed', () => {
   assert.equal(fs.existsSync(path.join(root, 'src/routes/mobileRoutes.js')), false);

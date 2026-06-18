@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const service = fs.readFileSync('src/domain/reconciliation/InventoryRebuildService.js', 'utf8');
-const inventory = fs.readFileSync('src/services/inventoryService.js', 'utf8');
+const service = require('./helpers/sourceBundle.util').readSource('src/domain/reconciliation/InventoryRebuildService.js');
+const inventory = require('./helpers/sourceBundle.util').readSource('src/services/inventoryService.js');
 
 test('inventory rebuild writes to a shadow collection and validates before swap', () => {
   assert.match(service, /\$out:\s*shadowName/);

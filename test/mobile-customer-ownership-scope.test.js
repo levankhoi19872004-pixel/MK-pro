@@ -33,8 +33,8 @@ test('combined catalog filter preserves search and ownership constraints', () =>
 });
 
 test('mobile catalog blocks delivery customer enumeration and legacy fallback-to-all is removed', () => {
-  const modularRoutes = fs.readFileSync(path.join(__dirname, '../src/routes/mobile/catalog.routes.js'), 'utf8');
-  const service = fs.readFileSync(path.join(__dirname, '../src/services/mobile/catalog.service.js'), 'utf8');
+  const modularRoutes = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '../src/routes/mobile/catalog.routes.js'));
+  const service = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '../src/services/mobile/catalog.service.js'));
 
   assert.match(modularRoutes, /allowCustomerRead.*\['admin', 'manager', 'accountant', 'sales'\]/);
   assert.doesNotMatch(modularRoutes, /allowCustomerRead.*delivery/);

@@ -39,13 +39,13 @@ test('canonical repositories normalize staff before operational writes', () => {
     'src/repositories/receiptRepository.js'
   ];
   for (const file of files) {
-    const source = fs.readFileSync(file, 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(file);
     assert.match(source, /canonicalizeOperationalStaff/);
   }
 });
 
 test('staff identity migration supports dry-run and explicit write mode', () => {
-  const source = fs.readFileSync('scripts/migrate-canonical-staff-identity.js', 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource('scripts/migrate-canonical-staff-identity.js');
   assert.match(source, /process\.argv\.includes\('--write'\)/);
   assert.match(source, /externalDebtOrders/);
   assert.match(source, /debtCollections/);

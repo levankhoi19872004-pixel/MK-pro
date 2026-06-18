@@ -15,13 +15,13 @@ function files(dir) {
 test('controllers do not expose internal error field unconditionally in production', () => {
   const controllerDir = path.join(__dirname, '..', 'src', 'controllers');
   for (const file of files(controllerDir).filter((name) => name.endsWith('.js'))) {
-    const source = fs.readFileSync(file, 'utf8');
+    const source = require('./helpers/sourceBundle.util').readSource(file);
     assert.doesNotMatch(source, /error:\s*err(?:\?|)\.message(?!\s*:)/, file);
   }
 });
 
 test('mobile 5xx responses replace internal messages in production', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src/controllers/mobile/_mobileResponse.js'), 'utf8');
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', 'src/controllers/mobile/_mobileResponse.js'));
   assert.match(source, /NODE_ENV === 'production'.*Number\(status\) >= 500/s);
   assert.match(source, /\? fallbackMessage/);
 });

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+const read = (f) => require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', f));
 
 test('return service no longer depends on delivery engine', () => {
   const source = read('src/services/returnOrderLegacy.service.js');

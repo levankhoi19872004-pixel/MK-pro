@@ -8,7 +8,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(root, relativePath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(root, relativePath));
 }
 
 test('sales order line price accepts decimal DMS values', () => {
@@ -33,5 +33,8 @@ test('new sales item price accepts decimal values', () => {
 
 test('sales order script remains cache-busted after later patches', () => {
   const html = read('public/index.html');
-  assert.match(html, /05-sales-orders\.js\?v=phase49-sales-order-global-search-v1/);
+  assert.match(html, /05-sales-orders\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /05-sales-orders\.part02\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /05-sales-orders\.part03\.js\?v=phase79b-source-shards-v1/);
+  assert.match(html, /05-sales-orders\.part04\.js\?v=phase79b-source-shards-v1/);
 });

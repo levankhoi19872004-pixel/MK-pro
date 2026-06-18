@@ -8,10 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 test('delivery today uses configured autocomplete instead of custom staff suggest', () => {
-  const source = fs.readFileSync(
-    path.join(ROOT, 'public/js/delivery/delivery-web-view.js'),
-    'utf8'
-  );
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'public/js/delivery/delivery-web-view.js'));
 
   assert.match(source, /bindDeliveryCoreAutocomplete/);
   assert.match(source, /bindConfiguredAutocomplete/);

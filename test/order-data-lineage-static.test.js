@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const test = require('node:test');
 
 function read(path) {
-  return fs.readFileSync(path, 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path);
 }
 
 test('order data lineage document exists and defines canonical sources', () => {

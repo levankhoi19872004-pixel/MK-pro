@@ -6,8 +6,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const service = fs.readFileSync(path.join(root, 'src/services/excelImportService.js'), 'utf8');
-const frontend = fs.readFileSync(path.join(root, 'public/js/app/admin/08d-import-excel.js'), 'utf8');
+const service = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/excelImportService.js'));
+const frontend = require('./helpers/sourceBundle.util').readSource('public/js/app/admin/08d-import-excel.js');
 
 test('preview exposes initial stock, prior allocations and remaining stock per import line', () => {
   assert.match(service, /initialAvailableQuantity\s*=\s*toNumber\(stockMap\.get\(stockLookupCode\)\)/);

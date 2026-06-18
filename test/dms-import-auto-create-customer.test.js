@@ -12,7 +12,7 @@ const SalesOrder = require('../src/models/SalesOrder');
 const importRules = require('../src/rules/importRules');
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(__dirname, '..', relativePath));
 }
 
 function query(rows) {

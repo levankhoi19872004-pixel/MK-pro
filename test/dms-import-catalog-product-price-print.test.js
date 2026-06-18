@@ -71,10 +71,7 @@ test('new DMS line keeps product sale-price snapshot even if catalog changes lat
 });
 
 test('DMS import source captures product.salePrice as catalog snapshot for column 4', () => {
-  const source = fs.readFileSync(
-    path.join(ROOT, 'src/services/excelImportService.js'),
-    'utf8'
-  );
+  const source = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'src/services/excelImportService.js'));
 
   assert.match(source, /const productCatalogSalePrice = toNumber/);
   assert.match(source, /product\?\.salePrice/);

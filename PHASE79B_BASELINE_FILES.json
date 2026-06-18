@@ -1,0 +1,146 @@
+[
+  {
+    "target": "src/services/returnOrderLegacy.service.js",
+    "mode": "commonjs",
+    "bytes": 70138,
+    "lines": 1496,
+    "parts": 3,
+    "sha256": "2a25de697831ce1aa19070d7a0cd16a0dc88978534e76cf0adb2d33ca7b3e5f7"
+  },
+  {
+    "target": "src/services/importExportLegacy.service.js",
+    "mode": "commonjs",
+    "bytes": 63766,
+    "lines": 1441,
+    "parts": 3,
+    "sha256": "8d5aaf9fd263d8124ee5c2466035b337a136047cbe96c8541675a78b639d0da1"
+  },
+  {
+    "target": "src/services/reportLegacy.service.js",
+    "mode": "commonjs",
+    "bytes": 63616,
+    "lines": 1580,
+    "parts": 3,
+    "sha256": "8943fa53508df7df94f44dd1f1249a6567100fa22774b7299daf0759bafb6062"
+  },
+  {
+    "target": "src/services/orderLegacy.service.js",
+    "mode": "commonjs",
+    "bytes": 60200,
+    "lines": 1450,
+    "parts": 3,
+    "sha256": "1fe2a1dc814c4f11230b6ffc6463a8ec1e6cd3d43ce2bf6768a4fb944327047c"
+  },
+  {
+    "target": "src/services/mobile/sales.service.js",
+    "mode": "commonjs",
+    "bytes": 59919,
+    "lines": 1347,
+    "parts": 3,
+    "sha256": "04304bf8c58f3f5f734762d4aca919a4b74ad69f3a28d5f75bd6c7a0e26b6608"
+  },
+  {
+    "target": "src/engines/delivery.legacy.engine.js",
+    "mode": "commonjs",
+    "bytes": 57827,
+    "lines": 1332,
+    "parts": 4,
+    "sha256": "d38fdbacfd12113828d6d418d5d789fdd34808ea24895cb282cfa48d7099cd39"
+  },
+  {
+    "target": "services/printDataBuilder.legacy.js",
+    "mode": "commonjs",
+    "bytes": 51556,
+    "lines": 1201,
+    "parts": 3,
+    "sha256": "081055ee89fcd5a54baef6796b943c8fe6d097c80cac3c71c9362b4f0fab5fef"
+  },
+  {
+    "target": "src/services/fundService.js",
+    "mode": "commonjs",
+    "bytes": 49544,
+    "lines": 1064,
+    "parts": 2,
+    "sha256": "41eba15e79de6556698fd80a84a99e8a4689342e38f20306878138faed35981f"
+  },
+  {
+    "target": "src/services/inventoryService.js",
+    "mode": "commonjs",
+    "bytes": 45964,
+    "lines": 1340,
+    "parts": 2,
+    "sha256": "0e5e4a892598409697304d307fed355e334df4234443c45d296591ff9ee6bf87"
+  },
+  {
+    "target": "templates/printTemplates.js",
+    "mode": "commonjs",
+    "bytes": 46870,
+    "lines": 1096,
+    "parts": 2,
+    "sha256": "b3af39634785e97f14953ec3e49bd00821be6987715cb576760f20836a32a293"
+  },
+  {
+    "target": "public/js/app/05-sales-orders.js",
+    "mode": "classic-chunks",
+    "bytes": 70124,
+    "lines": 1354,
+    "parts": 4,
+    "sha256": "2bea77db718f43ec3513623f260a6fbb4b064df6b0690984a2c818a14025be0f"
+  },
+  {
+    "target": "public/mobile/js/sales.js",
+    "mode": "module",
+    "bytes": 62973,
+    "lines": 1461,
+    "parts": 3,
+    "sha256": "318ed071c81dc8d34a7e009f9c388f91f872d7b7c12fb9638d883979f0b18a01"
+  },
+  {
+    "target": "public/js/app/admin/08d-import-excel.js",
+    "mode": "classic-chunks",
+    "bytes": 55528,
+    "lines": 1084,
+    "parts": 3,
+    "sha256": "07e51c9b470b0c5f58cf9be9696b96060d1e508a3f21d4a0dbab4bd917d0fd27"
+  },
+  {
+    "target": "public/js/delivery/delivery-web-view.js",
+    "mode": "classic-single",
+    "bytes": 51169,
+    "lines": 987,
+    "parts": 1,
+    "sha256": "03491e59429536a49b63030bb70c51a0b4614d149a9a3594c8aca846b78aa316"
+  },
+  {
+    "target": "public/js/app/debt/07f-fund-ledger.js",
+    "mode": "classic-chunks",
+    "bytes": 49136,
+    "lines": 793,
+    "parts": 3,
+    "sha256": "b890d7df8c4324eb15242e4e9f659cd6a6ba90e43a554c43417c98915df6af88"
+  },
+  {
+    "target": "public/mobile/js/delivery-mobile-view.js",
+    "mode": "classic-single",
+    "bytes": 41682,
+    "lines": 885,
+    "parts": 1,
+    "sha256": "2a4b20ad06bccf882a7f3e53a86d4eec9c965c1fba1c5f19e493c84003d9fbe4"
+  },
+  {
+    "target": "public/mobile/mobile.css",
+    "mode": "css-imports",
+    "bytes": 47599,
+    "lines": 1664,
+    "parts": 3,
+    "sha256": "967fd88c704479119e47990de35a8477de6041e6d8540016b6455da37318ea1f"
+  },
+  {
+    "target": "public/print.css",
+    "mode": "css-imports",
+    "bytes": 22983,
+    "lines": 1268,
+    "parts": 2,
+    "sha256": "11f300f958ba992af222bc6960e43a5a9c1fc1d94becc6ef4e70c5292847a0a4"
+  }
+]

@@ -8,7 +8,7 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '..');
 
 function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8');
+  return require('./helpers/sourceBundle.util').readSource(path.join(ROOT, file));
 }
 
 test('import preview UI polls session when backend returns 202 queued', () => {

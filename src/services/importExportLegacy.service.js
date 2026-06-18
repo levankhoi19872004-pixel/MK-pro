@@ -1,1440 +1,223 @@
-'use strict';
-
-const dateUtil = require('../utils/date.util');
-const { createWorkbook, appendAoaSheet: appendAoaSheetToWorkbook, writeWorkbook } = require('../utils/excelWriter.util');
-const excelImportService = require('./excelImportService');
-const importTemplateService = require('./importTemplateService');
-const exportRepository = require('../repositories/exportRepository');
-const SalesOrder = require('../models/SalesOrder');
-const ReturnOrder = require('../models/ReturnOrder');
-const Customer = require('../models/Customer');
-const Product = require('../models/Product');
-const models = require('../models');
-const reportService = require('./reportService');
-const {
-  pickSalesStaffCode,
-  pickSalesStaffName,
-  pickDeliveryStaffCode,
-  pickDeliveryStaffName
-} = require('../domain/staff/staffIdentity');
-const { normalizePickingZone, pickingZoneFrom, pickingZoneLabel, PICKING_ZONES } = require('../utils/pickingZone.util');
-
-function stripMongoFields(row = {}) {
-  const plain = { ...row };
-  delete plain._id;
-  delete plain.__v;
-  return plain;
-}
-
-function flattenValue(value) {
-  if (value === null || value === undefined) return '';
-  if (Array.isArray(value) || typeof value === 'object') return JSON.stringify(value);
-  return value;
-}
-
-function rowsToSheetRows(rows = []) {
-  const plainRows = rows.map(stripMongoFields);
-  const headerSet = new Set();
-  plainRows.forEach((row) => Object.keys(row).forEach((key) => headerSet.add(key)));
-  const headers = Array.from(headerSet);
-  const body = plainRows.map((row) => headers.map((header) => flattenValue(row[header])));
-  return { headers, body };
-}
-
-async function buildWorkbook({ type, rows }) {
-  const { headers, body } = rowsToSheetRows(rows);
-  const workbook = createWorkbook();
-  appendAoaSheetToWorkbook(workbook, 'Export', [headers, ...body]);
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
-    ['Loại dữ liệu', type],
-    ['Số dòng', rows.length],
-    ['Thời gian xuất', new Date().toISOString()]
-  ]);
-  return writeWorkbook(workbook);
-}
-
-
-const TT78_VAT_RATE = 0.08;
-const { extractCustomerTaxProfile } = require('../utils/customerTaxProfile.util');
-const { extractCustomerBusinessProfile } = require('../utils/customerBusinessProfile.util');
-const TT78_HEADERS = [
-  'STT', 'NgayHoaDon', 'MaKhachHang', 'TenKhachHang', 'TenNguoiMua', 'MaSoThue',
-  'DiaChiKhachHang', 'DienThoaiKhachHang', 'SoTaiKhoan', 'NganHang', 'HinhThucTT',
-  'MaSanPham', 'SanPham', 'DonViTinh', 'Extra1SP', 'Extra2SP', 'SoLuong', 'DonGia',
-  'TyLeChietKhauHienThi', 'SoTienChietKhau', 'ThanhTien', 'TienBan', 'ThueSuat',
-  'TienThueSanPham', 'TienThue', 'TongCong', 'TinhChatHangHoa', 'DonViTienTe',
-  'TyGia', 'Fkey', 'Extra1', 'Extra2', 'EmailKhachHang', 'VungDuLieu', 'Extra3',
-  'Extra4', 'Extra5', 'Extra6', 'Extra7', 'Extra8', 'Extra9', 'Extra10', 'Extra11',
-  'Extra12', 'LOONo', 'HDSe', 'xVTNXHan', 'NVChuan', 'PTChuyenKhoan', 'HDKTTu', 'CCCDan'
-];
-
-function cleanText(value) {
-  return String(value ?? '').trim();
-}
-
-function toNumber(value, fallback = 0) {
-  const n = Number(String(value ?? '').replace(/,/g, ''));
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function roundMoney(value, digits = 2) {
-  const factor = 10 ** digits;
-  return Math.round(toNumber(value) * factor) / factor;
-}
-
-function normalizeDateOnly(value) {
-  return dateUtil.toDateOnly(value || '') || cleanText(value).slice(0, 10);
-}
-
-function dateInRange(value, query = {}) {
-  const date = normalizeDateOnly(value);
-  const from = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '');
-  const to = normalizeDateOnly(query.dateTo || query.to || query.toDate || '');
-  if (from && date < from) return false;
-  if (to && date > to) return false;
-  return true;
-}
-
-function isActiveDoc(row = {}) {
-  const status = cleanText(row.status || row.deliveryStatus || row.lifecycleStatus).toLowerCase();
-  return !['void', 'cancelled', 'canceled', 'deleted', 'removed'].includes(status);
-}
-
-function orderIdValues(order = {}) {
-  return [
-    order.id, order._id, order.code, order.orderCode, order.documentCode, order.salesOrderId,
-    order.salesOrderCode, order.externalOrderCode, order.invoiceCode, order.refCode
-  ].map(cleanText).filter(Boolean);
-}
-
-function orderCode(order = {}) {
-  return cleanText(order.code || order.orderCode || order.salesOrderCode || order.documentCode || order.id || order._id);
-}
-
-function productCodeOf(item = {}) {
-  return cleanText(item.productCode || item.code || item.sku || item.barcode || item.productId || item.id);
-}
-
-function productNameOf(item = {}) {
-  return cleanText(item.productName || item.name || item.itemName || item.productTitle || '');
-}
-
-function unitOf(item = {}, product = {}) {
-  return cleanText(item.unit || item.baseUnit || item.dvt || item.uom || product.unit || product.baseUnit || '');
-}
-
-function qtyOf(item = {}) {
-  return toNumber(item.quantity ?? item.qty ?? item.totalQty ?? item.qtySale ?? item.saleQty ?? 0);
-}
-
-function returnQtyOf(item = {}) {
-  return toNumber(
-    item.returnQty
-    ?? item.qtyReturn
-    ?? item.returnQuantity
-    ?? item.returnedQty
-    ?? 0
-  );
-}
-
-function lineKeyOf(item = {}) {
-  return cleanText(
-    item.lineKey
-    || item.orderLineId
-    || item.salesOrderItemId
-    || item.itemId
-    || item._id
-    || ''
-  );
-}
-
-function priceInclVatOf(item = {}) {
-  return toNumber(
-    item.finalPrice ?? item.priceAfterPromotion ?? item.promoPrice ?? item.price ?? item.salePrice ?? item.unitPrice ?? item.sellPrice ?? 0
-  );
-}
-
-function amountInclVatOf(item = {}) {
-  const explicit = toNumber(item.amount ?? item.totalAmount ?? item.lineAmount ?? item.money ?? 0);
-  return explicit || qtyOf(item) * priceInclVatOf(item);
-}
-
-function makeKey(orderKey, productKey) {
-  return `${cleanText(orderKey)}@@${cleanText(productKey)}`;
-}
-
-function priceKeyOf(item = {}) {
-  const price = priceInclVatOf(item);
-  return price ? String(roundMoney(price, 6)) : '';
-}
-
-function makeReturnKey(orderKey, productKey, lineKey = '', price = '') {
-  return [
-    cleanText(orderKey),
-    cleanText(productKey),
-    cleanText(lineKey),
-    cleanText(price)
-  ].join('@@');
-}
-
-function returnOrderCodeOf(ro = {}) {
-  return cleanText(ro.code || ro.id || ro.returnOrderCode || ro.documentCode || ro._id);
-}
-
-function returnOrderIdOf(ro = {}) {
-  return cleanText(ro.id || ro._id || ro.code || ro.returnOrderCode || ro.documentCode);
-}
-
-function updatedTimeOf(row = {}) {
-  const raw = row.updatedAt || row.modifiedAt || row.createdAt || row.date || row.documentDate || '';
-  const t = raw ? new Date(raw).getTime() : 0;
-  return Number.isFinite(t) ? t : 0;
-}
-
-function activeReturnOrderFilter() {
-  return {
-    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] },
-    returnStatus: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'removed'] }
-  };
-}
-
-function addReturnQty(map, key, qty, source = {}) {
-  if (!key || !qty) return;
-  map.set(key, toNumber(map.get(key)) + qty);
-
-  if (!map.__sourceMap) map.__sourceMap = new Map();
-  const existed = map.__sourceMap.get(key) || { codes: new Set(), ids: new Set(), sourceRows: [] };
-  if (source.code) existed.codes.add(source.code);
-  if (source.id) existed.ids.add(source.id);
-  if (source.sourceRow) existed.sourceRows.push(source.sourceRow);
-  map.__sourceMap.set(key, existed);
-}
-
-function sourceInfoForKey(map, key) {
-  const sourceMap = map && map.__sourceMap;
-  if (!sourceMap) return { ReturnOrderCode: '', ReturnOrderId: '', ReturnQtySource: '' };
-  const src = sourceMap.get(key);
-  if (!src) return { ReturnOrderCode: '', ReturnOrderId: '', ReturnQtySource: '' };
-  const codes = Array.from(src.codes || []).filter(Boolean);
-  const ids = Array.from(src.ids || []).filter(Boolean);
-  const sourceRows = Array.from(src.sourceRows || []).filter(Boolean);
-  return {
-    ReturnOrderCode: codes.join(', '),
-    ReturnOrderId: ids.join(', '),
-    ReturnQtySource: sourceRows.join(' | ')
-  };
-}
-
-function buildReturnQtyMap(returnOrders = []) {
-  const map = new Map();
-  const latestLineByReturnOrder = new Map();
-
-  for (const ro of returnOrders || []) {
-    if (!isActiveDoc(ro)) continue;
-    const roCode = returnOrderCodeOf(ro);
-    const roId = returnOrderIdOf(ro);
-    const updatedMs = updatedTimeOf(ro);
-    const roKeys = Array.from(new Set([
-      ro.salesOrderId, ro.orderId, ro.sourceOrderId, ro.deliveryOrderId,
-      ro.salesOrderCode, ro.orderCode, ro.sourceOrderCode, ro.deliveryOrderCode, ro.originalOrderCode
-    ].map(cleanText).filter(Boolean)));
-    if (!roKeys.length) continue;
-
-    const primaryOrderKey = cleanText(ro.salesOrderCode || ro.orderCode || ro.salesOrderId || ro.orderId || roKeys[0]);
-
-    for (const item of Array.isArray(ro.items) ? ro.items : []) {
-      const pcode = productCodeOf(item);
-      if (!pcode) continue;
-
-      const qty = returnQtyOf(item);
-      if (!qty) continue;
-
-      const lineKey = lineKeyOf(item);
-      const priceKey = priceKeyOf(item);
-      const sourceRow = `${roCode || roId || 'RETURN_ORDER'}:${primaryOrderKey}:${pcode}:${qty}`;
-
-      // Nếu cùng một phiếu trả bị lưu trùng nhiều lần, chỉ lấy bản mới nhất theo updatedAt.
-      // Key cố ý KHÔNG dùng Mongo _id riêng lẻ, vì bản ghi trùng thường khác _id nhưng cùng code/order/product/price.
-      const duplicateKey = [
-        roCode || roId,
-        primaryOrderKey,
-        pcode,
-        lineKey || '',
-        priceKey || ''
-      ].map(cleanText).join('@@');
-
-      const record = { roKeys, pcode, qty, lineKey, priceKey, roCode, roId, updatedMs, sourceRow };
-      const existed = latestLineByReturnOrder.get(duplicateKey);
-      if (!existed || updatedMs >= existed.updatedMs) {
-        latestLineByReturnOrder.set(duplicateKey, record);
-      }
-    }
-  }
-
-  for (const record of latestLineByReturnOrder.values()) {
-    const { roKeys, pcode, qty, lineKey, priceKey, roCode, roId, sourceRow } = record;
-    const source = { code: roCode, id: roId, sourceRow };
-    for (const key of roKeys) {
-      if (lineKey && priceKey) {
-        addReturnQty(map, makeReturnKey(key, pcode, lineKey, priceKey), qty, source);
-        continue;
-      }
-
-      if (lineKey) {
-        addReturnQty(map, makeReturnKey(key, pcode, lineKey, ''), qty, source);
-        continue;
-      }
-
-      if (priceKey) {
-        addReturnQty(map, makeReturnKey(key, pcode, '', priceKey), qty, source);
-        continue;
-      }
-
-      addReturnQty(map, makeKey(key, pcode), qty, source);
-    }
-  }
-
-  return map;
-}
-
-function getReturnInfoForOrderLine(returnQtyMap, order = {}, item = {}) {
-  const pcode = productCodeOf(item);
-  if (!pcode) return { qty: 0, ReturnOrderCode: '', ReturnOrderId: '', ReturnQtySource: '' };
-
-  const lineKey = lineKeyOf(item);
-  const priceKey = priceKeyOf(item);
-  let best = { qty: 0, key: '' };
-
-  for (const key of orderIdValues(order)) {
-    const candidateKeys = [
-      lineKey && priceKey ? makeReturnKey(key, pcode, lineKey, priceKey) : '',
-      lineKey ? makeReturnKey(key, pcode, lineKey, '') : '',
-      priceKey ? makeReturnKey(key, pcode, '', priceKey) : '',
-      makeKey(key, pcode)
-    ].filter(Boolean);
-
-    for (const candidateKey of candidateKeys) {
-      const qty = toNumber(returnQtyMap.get(candidateKey));
-      if (qty > best.qty) best = { qty, key: candidateKey };
-      if (qty) break;
-    }
-  }
-
-  return { qty: best.qty, ...sourceInfoForKey(returnQtyMap, best.key) };
-}
-
-function getReturnQtyForOrderLine(returnQtyMap, order = {}, item = {}) {
-  return getReturnInfoForOrderLine(returnQtyMap, order, item).qty;
-}
-
-function customerKey(order = {}) {
-  return cleanText(order.customerCode || order.customerId || order.customerName || order.customerPhone || '');
-}
-
-function buildCustomerMap(customers = []) {
-  const map = new Map();
-  for (const c of customers || []) {
-    [c.code, c.customerCode, c.id, c._id, c.name, c.customerName, c.phone, c.mobile]
-      .map(cleanText).filter(Boolean).forEach((key) => map.set(key, c));
-  }
-  return map;
-}
-
-function buildProductMap(products = []) {
-  const map = new Map();
-  for (const p of products || []) {
-    [p.code, p.productCode, p.sku, p.barcode, p.id, p._id]
-      .map(cleanText).filter(Boolean).forEach((key) => map.set(key, p));
-  }
-  return map;
-}
-
-function customerInfo(order = {}, customerMap = new Map()) {
-  const customer = customerMap.get(cleanText(order.customerCode))
-    || customerMap.get(cleanText(order.customerId))
-    || customerMap.get(cleanText(order.customerName))
-    || {};
-  const orderTax = extractCustomerTaxProfile(order);
-  const customerTax = extractCustomerTaxProfile(customer);
-  const orderBusiness = extractCustomerBusinessProfile(order);
-  const customerBusiness = extractCustomerBusinessProfile(customer);
-  const customerDisplayName = cleanText(order.customerName || customer.name || customer.customerName);
-  const businessName = cleanText(orderBusiness.businessName || customerBusiness.businessName);
-  return {
-    code: cleanText(order.customerCode || customer.code || customer.customerCode || order.customerId || customer.id),
-    // Tên hộ kinh doanh là tên pháp lý trên hóa đơn; nếu chưa khai báo thì dùng tên khách hàng hiện tại.
-    name: businessName || customerDisplayName,
-    buyer: cleanText(order.buyerName || order.contactName || customer.buyerName || customer.representative || customer.contactName || customerDisplayName),
-    // Chỉ ưu tiên snapshot thuế riêng trên đơn; không lấy địa chỉ giao hàng thay cho địa chỉ thuế khi hồ sơ KH đã có.
-    taxCode: cleanText(orderTax.taxCode || customerTax.taxCode),
-    address: cleanText(orderTax.taxInvoiceAddress || customerTax.taxInvoiceAddress || order.customerAddress || order.address || customer.address || customer.deliveryAddress),
-    phone: cleanText(order.customerPhone || order.phone || customer.phone || customer.mobile),
-    bankAccount: cleanText(customer.bankAccount || customer.accountNumber || order.bankAccount),
-    bankName: cleanText(customer.bankName || order.bankName),
-    email: cleanText(customer.email || order.customerEmail || order.email)
-  };
-}
-
-function paymentMethod(order = {}) {
-  const raw = cleanText(order.paymentMethod || order.paymentType || order.method || order.hinhThucTT || '');
-  if (raw) return raw;
-  const cash = toNumber(order.cashAmount || order.collectedCashAmount);
-  const bank = toNumber(order.bankAmount || order.transferAmount || order.collectedBankAmount);
-  if (cash && bank) return 'TM/CK';
-  if (bank) return 'CK';
-  return 'TM/CK';
-}
-
-function buildVatInvoiceRows({ orders, returnOrders, customers, products, query = {} }) {
-  const returnQtyMap = buildReturnQtyMap(returnOrders);
-  const customerMap = buildCustomerMap(customers);
-  const productMap = buildProductMap(products);
-  const resultRows = [];
-  const auditRows = [];
-  let invoiceNo = 0;
-
-  const filteredOrders = (orders || [])
-    .filter(isActiveDoc)
-    .filter((order) => order.vatInvoiceRequired !== false)
-    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query))
-    .filter((order) => {
-      if (!query.customerCode && !query.customerId) return true;
-      const target = cleanText(query.customerCode || query.customerId);
-      return [order.customerCode, order.customerId, order.customerName].map(cleanText).includes(target);
-    })
-    .filter((order) => {
-      if (!query.salesStaffCode && !query.salesmanCode) return true;
-      const target = cleanText(query.salesStaffCode || query.salesmanCode);
-      return [order.salesStaffCode, order.salesmanCode, order.nvbhCode].map(cleanText).includes(target);
-    })
-    .sort((a, b) => cleanText(a.orderDate || a.date || a.documentDate || a.createdAt).localeCompare(cleanText(b.orderDate || b.date || b.documentDate || b.createdAt)) || orderCode(a).localeCompare(orderCode(b)));
-
-  for (const order of filteredOrders) {
-    const detailLines = [];
-    const ci = customerInfo(order, customerMap);
-    const currentOrderCode = orderCode(order);
-    const orderDate = normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt || dateUtil.todayVN());
-
-    for (const item of Array.isArray(order.items) ? order.items : []) {
-      const pcode = productCodeOf(item);
-      const product = productMap.get(pcode) || {};
-      const productName = productNameOf(item) || cleanText(product.name || product.productName);
-      const soldQty = qtyOf(item);
-      const returnInfo = getReturnInfoForOrderLine(returnQtyMap, order, item);
-      const returnQty = returnInfo.qty;
-      const safeReturnQty = Math.min(soldQty, returnQty);
-      const invoiceQty = Math.max(0, soldQty - safeReturnQty);
-      const priceInclVat = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
-
-      if (!pcode || invoiceQty <= 0) {
-        auditRows.push({
-          MaDon: currentOrderCode,
-          MaKhachHang: ci.code,
-          TenKhachHang: ci.name,
-          MaSanPham: pcode,
-          SanPham: productName,
-          SoLuongBan: soldQty,
-          SoLuongTra: returnQty,
-          SoLuongTraAnToan: safeReturnQty,
-          SoLuongXuatHoaDon: invoiceQty,
-          GiaSauKhuyenMaiCoVAT: priceInclVat,
-          DonGiaTruocVAT: '',
-          ThanhTienTruocVAT: '',
-          ReturnOrderCode: returnInfo.ReturnOrderCode,
-          ReturnOrderId: returnInfo.ReturnOrderId,
-          ReturnQtySource: returnInfo.ReturnQtySource,
-          LyDoBoDong: !pcode ? 'MISSING_PRODUCT_CODE' : 'INVOICE_QTY_ZERO'
-        });
-        continue;
-      }
-
-      const unitPriceBeforeVat = roundMoney(priceInclVat / (1 + TT78_VAT_RATE), 6);
-      const lineAmountBeforeVat = roundMoney(invoiceQty * unitPriceBeforeVat, 2);
-      detailLines.push({
-        productCode: pcode,
-        productName,
-        unit: unitOf(item, product),
-        soldQty,
-        returnQty,
-        safeReturnQty,
-        invoiceQty,
-        priceInclVat,
-        unitPriceBeforeVat,
-        lineAmountBeforeVat,
-        returnOrderCode: returnInfo.ReturnOrderCode,
-        returnOrderId: returnInfo.ReturnOrderId,
-        returnQtySource: returnInfo.ReturnQtySource
-      });
-    }
-    if (!detailLines.length) continue;
-
-    invoiceNo += 1;
-    const invoiceAmountBeforeVat = roundMoney(detailLines.reduce((sum, line) => sum + line.lineAmountBeforeVat, 0), 2);
-    const invoiceVat = roundMoney(invoiceAmountBeforeVat * TT78_VAT_RATE, 2);
-    const invoiceTotal = Math.round(invoiceAmountBeforeVat + invoiceVat);
-
-    detailLines.forEach((line, index) => {
-      const isFirst = index === 0;
-      resultRows.push({
-        STT: isFirst ? invoiceNo : '',
-        NgayHoaDon: isFirst ? orderDate : '',
-        MaKhachHang: isFirst ? ci.code : '',
-        TenKhachHang: isFirst ? ci.name : '',
-        TenNguoiMua: isFirst ? ci.buyer : '',
-        MaSoThue: isFirst ? ci.taxCode : '',
-        DiaChiKhachHang: isFirst ? ci.address : '',
-        DienThoaiKhachHang: isFirst ? ci.phone : '',
-        SoTaiKhoan: isFirst ? ci.bankAccount : '',
-        NganHang: isFirst ? ci.bankName : '',
-        HinhThucTT: isFirst ? paymentMethod(order) : '',
-        MaSanPham: line.productCode,
-        SanPham: line.productName,
-        DonViTinh: line.unit,
-        Extra1SP: '',
-        Extra2SP: '',
-        SoLuong: line.invoiceQty,
-        DonGia: line.unitPriceBeforeVat,
-        TyLeChietKhauHienThi: '',
-        SoTienChietKhau: '',
-        ThanhTien: line.lineAmountBeforeVat,
-        TienBan: isFirst ? invoiceAmountBeforeVat : '',
-        ThueSuat: isFirst ? 8 : '',
-        TienThueSanPham: '',
-        TienThue: isFirst ? invoiceVat : '',
-        TongCong: isFirst ? invoiceTotal : '',
-        TinhChatHangHoa: isFirst ? 0 : 0,
-        DonViTienTe: isFirst ? 'VND' : '',
-        TyGia: '',
-        Fkey: isFirst ? orderCode(order) : '',
-        Extra1: '', Extra2: '', EmailKhachHang: isFirst ? ci.email : '', VungDuLieu: '', Extra3: '', Extra4: '', Extra5: '', Extra6: '', Extra7: '', Extra8: '', Extra9: '', Extra10: '', Extra11: '', Extra12: '', LOONo: '', HDSe: '', xVTNXHan: '', NVChuan: '', PTChuyenKhoan: '', HDKTTu: '', CCCDan: ''
-      });
-      auditRows.push({
-        MaDon: orderCode(order),
-        MaKhachHang: ci.code,
-        TenKhachHang: ci.name,
-        MaSoThue: ci.taxCode,
-        DiaChiHoaDon: ci.address,
-        MaSanPham: line.productCode,
-        SanPham: line.productName,
-        SoLuongBan: line.soldQty,
-        SoLuongTra: line.returnQty,
-        SoLuongTraAnToan: line.safeReturnQty,
-        SoLuongXuatHoaDon: line.invoiceQty,
-        GiaSauKhuyenMaiCoVAT: line.priceInclVat,
-        DonGiaTruocVAT: line.unitPriceBeforeVat,
-        ThanhTienTruocVAT: line.lineAmountBeforeVat,
-        ReturnOrderCode: line.returnOrderCode,
-        ReturnOrderId: line.returnOrderId,
-        ReturnQtySource: line.returnQtySource,
-        LyDoBoDong: ''
-      });
-    });
-  }
-
-  return { rows: resultRows, auditRows };
-}
-
-async function buildVatInvoiceTT78Workbook(query = {}) {
-  const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
-  const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
-  const orderFilter = { vatInvoiceRequired: { $ne: false } };
-  if (dateFrom || dateTo) {
-    orderFilter.$or = [
-      { orderDate: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { date: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { documentDate: { ...(dateFrom ? { $gte: dateFrom } : {}), ...(dateTo ? { $lte: dateTo } : {}) } },
-      { createdAt: { ...(dateFrom ? { $gte: `${dateFrom}T00:00:00.000Z` } : {}), ...(dateTo ? { $lte: `${dateTo}T23:59:59.999Z` } : {}) } }
-    ];
-  }
-  const [orders, returnOrders, customers, products] = await Promise.all([
-    SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
-    ReturnOrder.find(activeReturnOrderFilter()).lean(),
-    Customer.find({}).lean(),
-    Product.find({}).lean()
-  ]);
-  const { rows, auditRows } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
-  const workbook = createWorkbook();
-  const sheetRows = [TT78_HEADERS, ...rows.map((row) => TT78_HEADERS.map((header) => row[header] ?? ''))];
-  appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
-
-  const auditHeaders = [
-    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSoThue', 'DiaChiHoaDon', 'MaSanPham', 'SanPham',
-    'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
-    'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
-  ];
-  appendAoaSheetToWorkbook(workbook, 'DoiChieu', [auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
-
-  const summary = rows.reduce((acc, row) => {
-    if (row.TienBan !== '') {
-      acc.invoiceCount += 1;
-      acc.amountBeforeVat += toNumber(row.TienBan);
-      acc.vatAmount += toNumber(row.TienThue);
-      acc.totalAmount += toNumber(row.TongCong);
-    }
-    acc.lineCount += row.MaSanPham ? 1 : 0;
-    return acc;
-  }, { invoiceCount: 0, lineCount: 0, amountBeforeVat: 0, vatAmount: 0, totalAmount: 0 });
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
-    ['Mẫu', 'TT78 - Sheet1'],
-    ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
-    ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
-    ['Số hóa đơn', summary.invoiceCount],
-    ['Số dòng sản phẩm', summary.lineCount],
-    ['Tiền bán trước thuế', roundMoney(summary.amountBeforeVat, 2)],
-    ['Tiền thuế 8%', roundMoney(summary.vatAmount, 2)],
-    ['Tổng cộng', Math.round(summary.totalAmount)],
-    ['Quy tắc', 'Số lượng xuất HĐ = số lượng bán - số lượng trả; Đơn giá = giá sau khuyến mại trên đơn / 1.08']
-  ]);
-
-  const buffer = writeWorkbook(workbook);
-  const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
-  const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
-  return { buffer, rows: rows.length, fileName: `HoaDonVAT_TT78_${fromName}_${toName}.xlsx` };
-}
-
-
-function salesStaffDisplay(order = {}) {
-  const code = cleanText(order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH);
-  const name = cleanText(order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName);
-  return [code, name].filter(Boolean).join(' - ');
-}
-
-function orderSourceDisplay(order = {}) {
-  return cleanText(order.orderSourceName || order.orderSource || order.source || order.sourceType || order.importSource || '');
-}
-
-async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
-  const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
-  const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
-  const range = {
-    ...(dateFrom !== '0000-01-01' ? { $gte: dateFrom } : {}),
-    ...(dateTo !== '9999-12-31' ? { $lte: dateTo } : {})
-  };
-  const orderFilter = {
-    vatInvoiceRequired: false,
-    ...(Object.keys(range).length ? {
-      $or: [
-        { orderDate: range },
-        { date: range },
-        { documentDate: range },
-        { createdAt: {
-          ...(dateFrom !== '0000-01-01' ? { $gte: `${dateFrom}T00:00:00.000Z` } : {}),
-          ...(dateTo !== '9999-12-31' ? { $lte: `${dateTo}T23:59:59.999Z` } : {})
-        } }
-      ]
-    } : {})
-  };
-
-  const [orders, returnOrders, customers, products] = await Promise.all([
-    SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
-    ReturnOrder.find(activeReturnOrderFilter()).lean(),
-    Customer.find({}).lean(),
-    Product.find({}).lean()
-  ]);
-
-  const activeOrders = (orders || [])
-    .filter(isActiveDoc)
-    .filter((order) => order.vatInvoiceRequired === false)
-    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query));
-  const returnQtyMap = buildReturnQtyMap(returnOrders);
-  const customerMap = buildCustomerMap(customers);
-  const productMap = buildProductMap(products);
-  const orderRows = [];
-  const detailRows = [];
-  let totalOrderAmount = 0;
-  let totalReturnAmount = 0;
-  let totalRemainingAmount = 0;
-
-  activeOrders.forEach((order, index) => {
-    const ci = customerInfo(order, customerMap);
-    const code = orderCode(order);
-    let orderReturnAmount = 0;
-    let orderRemainingAmount = 0;
-
-    for (const item of Array.isArray(order.items) ? order.items : []) {
-      const pcode = productCodeOf(item);
-      const product = productMap.get(pcode) || {};
-      const soldQty = qtyOf(item);
-      const returnQty = Math.min(soldQty, getReturnQtyForOrderLine(returnQtyMap, order, item));
-      const remainingQty = Math.max(0, soldQty - returnQty);
-      const unitPrice = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
-      const lineAmount = roundMoney(remainingQty * unitPrice, 2);
-      orderReturnAmount += roundMoney(returnQty * unitPrice, 2);
-      orderRemainingAmount += lineAmount;
-      detailRows.push({
-        'Mã đơn': code,
-        'Mã sản phẩm': pcode,
-        'Tên sản phẩm': productNameOf(item) || cleanText(product.name || product.productName),
-        'Số lượng bán': soldQty,
-        'Số lượng trả': returnQty,
-        'Số lượng còn lại': remainingQty,
-        'Đơn giá': unitPrice,
-        'Thành tiền': lineAmount
-      });
-    }
-
-    const orderAmount = toNumber(order.totalAmount || order.grandTotal || 0);
-    const paidAmount = toNumber(order.paidAmount || order.paymentAmount || 0);
-    const debtAmount = toNumber(order.debtAmount ?? Math.max(0, orderAmount - paidAmount));
-    totalOrderAmount += orderAmount;
-    totalReturnAmount += orderReturnAmount;
-    totalRemainingAmount += orderRemainingAmount;
-    orderRows.push({
-      'STT': index + 1,
-      'Ngày bán': normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt),
-      'Mã đơn': code,
-      'Mã khách hàng': ci.code,
-      'Tên khách hàng': ci.name,
-      'NVBH': salesStaffDisplay(order),
-      'Nguồn đơn': orderSourceDisplay(order),
-      'Giá trị đơn': orderAmount,
-      'Tiền đã thu': paidAmount,
-      'Công nợ': debtAmount,
-      'Lý do không xuất': cleanText(order.vatInvoiceNote),
-      'Người thay đổi': cleanText(order.vatInvoiceUpdatedBy),
-      'Thời gian thay đổi': cleanText(order.vatInvoiceUpdatedAt)
-    });
-  });
-
-  const workbook = createWorkbook();
-  const orderHeaders = ['STT', 'Ngày bán', 'Mã đơn', 'Mã khách hàng', 'Tên khách hàng', 'NVBH', 'Nguồn đơn', 'Giá trị đơn', 'Tiền đã thu', 'Công nợ', 'Lý do không xuất', 'Người thay đổi', 'Thời gian thay đổi'];
-  const detailHeaders = ['Mã đơn', 'Mã sản phẩm', 'Tên sản phẩm', 'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Đơn giá', 'Thành tiền'];
-  appendAoaSheet(workbook, 'DanhSachDon', orderHeaders, orderRows);
-  appendAoaSheet(workbook, 'ChiTietHang', detailHeaders, detailRows);
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
-    ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
-    ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
-    ['Số đơn không xuất hóa đơn', orderRows.length],
-    ['Tổng giá trị đơn', roundMoney(totalOrderAmount, 2)],
-    ['Tổng hàng trả', roundMoney(totalReturnAmount, 2)],
-    ['Giá trị còn lại', roundMoney(totalRemainingAmount, 2)]
-  ]);
-
-  const buffer = writeWorkbook(workbook);
-  const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
-  const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
-  const rangeName = fromName === toName ? fromName : `${fromName}_${toName}`;
-  return { buffer, rows: orderRows.length, fileName: `DanhSach_Don_Khong_Xuat_HoaDon_${rangeName}.xlsx` };
-}
-
-
-const BUSINESS_REPORT_TYPES = [
-  'sales-report', 'delivery-report', 'return-report', 'debt-report', 'ar-ledger-detail',
-  'stock-report', 'inventory-movement-report', 'stock-card-report', 'fund-report', 'salesman-report', 'deliveryman-report',
-  'customer-sales-report', 'product-sales-report',
-  'product-info-report', 'customer-info-report', 'user-info-report'
-];
-
-function reportDateRange(query = {}) {
-  return {
-    from: normalizeDateOnly(query.dateFrom || query.from || query.fromDate || ''),
-    to: normalizeDateOnly(query.dateTo || query.to || query.toDate || '')
-  };
-}
-
-function buildReportFilter(query = {}, fields = ['date', 'createdAt']) {
-  const { from, to } = reportDateRange(query);
-  if (!from && !to) return {};
-  const clauses = fields.map((field) => ({
-    [field]: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: field === 'createdAt' ? `${to}T23:59:59.999Z` : to } : {}) }
-  }));
-  return { $or: clauses };
-}
-
-function safeLimit(query = {}) {
-  return Math.min(Math.max(Number(query.limit || 100000), 1), 200000);
-}
-
-function appendAoaSheet(workbook, name, headers, rows) {
-  const sheetRows = rows.map((row) => headers.map((h) => row[h] ?? ''));
-  appendAoaSheetToWorkbook(workbook, String(name || 'BaoCao').slice(0, 31), [headers, ...sheetRows]);
-}
-
-function reportBusinessRule(type = '') {
-  const rules = {
-    'stock-report': 'Tồn hiện tại đọc inventories; Tồn vật lý = onHand, Tồn khả dụng = onHand - reservedQty.',
-    'inventory-movement-report': 'Tồn đầu + Tổng nhập - Tổng xuất = Tồn cuối; chiều nhập/xuất theo dấu quantity; tồn cuối được backcast từ inventories khi có thể.',
-    'stock-card-report': 'Số dư chạy bắt đầu từ tồn đầu kỳ, không bắt đầu từ 0.',
-    'sales-report': 'Chỉ đơn đã xác nhận kế toán; loại hàng khuyến mại; giá trị thực tế lấy snapshot/tổng tiền của đơn.',
-    'return-report': 'Chỉ phiếu trả đã xác nhận kế toán; ưu tiên giá trị AR-RETURN đã post.',
-    'debt-report': 'Dư đầu kỳ + Phát sinh Nợ - Tổng phát sinh Có = Dư cuối kỳ; nguồn arLedgers.',
-    'ar-ledger-detail': 'Số dư từng dòng bắt đầu từ dư trước kỳ của khách hàng.',
-    'fund-report': 'Tồn đầu kỳ + Thu - Chi = Tồn cuối kỳ, tách theo fundType và account; nguồn fundLedgers.',
-    'delivery-report': 'Tổng đơn giao tính lại từ đơn con còn hiệu lực; tiền thu lấy fundLedgers, không lấy snapshot đơn tổng.',
-    'product-info-report': 'Thông tin sản phẩm ghép tồn kho hiện tại từ inventories và tách Tồn vật lý, Đã giữ chỗ, Tồn khả dụng.',
-    'customer-info-report': 'Công nợ lấy arLedgers; doanh số tháng chỉ gồm đơn đã xác nhận kế toán và giá trị thực tế tại thời điểm bán.'
-  };
-  return rules[type] || 'Báo cáo sử dụng nguồn dữ liệu nghiệp vụ chuẩn của hệ thống.';
-}
-
-async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
-  const workbook = createWorkbook();
-  appendAoaSheet(workbook, sheetName, headers, rows);
-  const { from, to } = reportDateRange(query);
-  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
-    ['Mẫu báo cáo', sheetName], ['Từ ngày', from], ['Đến ngày', to], ['Số dòng', rows.length], ['Thời gian xuất', new Date().toISOString()],
-    ['Quy tắc nghiệp vụ', reportBusinessRule(type)]
-  ]);
-  const safeType = String(type || 'report').replace(/[^a-zA-Z0-9_-]/g, '-');
-  const suffix = `${from || 'all'}_${to || dateUtil.todayVN()}`;
-  return { buffer: writeWorkbook(workbook), rows: rows.length, fileName: `${safeType}_${suffix}.xlsx` };
-}
-
-
-function orderItems(order = {}) { return Array.isArray(order.items) ? order.items : []; }
-function orderQty(order = {}) { return orderItems(order).reduce((s, i) => s + qtyOf(i), 0) || toNumber(order.totalQuantity || order.quantity || 0); }
-function basePriceOf(item = {}, product = {}) { return toNumber(item.originalPrice ?? item.basePrice ?? item.listPrice ?? product.salePrice ?? item.salePrice ?? item.price ?? item.unitPrice ?? 0); }
-function lineBeforePromo(item = {}, product = {}) { return qtyOf(item) * basePriceOf(item, product); }
-function lineAfterPromo(item = {}) { return toNumber(item.finalAmount ?? item.amount ?? item.totalAmount ?? item.lineAmount ?? 0) || qtyOf(item) * priceInclVatOf(item); }
-function orderBeforePromo(order = {}, productMap = new Map()) { return orderItems(order).reduce((s, item) => s + lineBeforePromo(item, productMap.get(productCodeOf(item)) || {}), 0) || toNumber(order.beforePromoAmount || order.grossAmount || order.totalBeforeDiscount || order.totalAmount || 0); }
-function orderAfterPromo(order = {}) { return toNumber(order.afterPromoAmount || order.totalAfterPromotion || order.totalAmount || order.amount || 0); }
-function staffName(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffName(order)) : cleanText(pickSalesStaffName(order)); }
-function staffCode(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffCode(order)) : cleanText(pickSalesStaffCode(order)); }
-
-async function loadProductMap() {
-  const products = await Product.find({}).select('code name salePrice baseUnit unit brand category').lean();
-  return new Map(products.map((p) => [cleanText(p.code), p]));
-}
-
-async function buildSalesReportWorkbook(query = {}) {
-  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
-  const rows = (result.sales || []).map((row, idx) => ({
-    STT: idx + 1,
-    Ngay: row.date,
-    MaDon: row.code,
-    Nguon: row.source,
-    MaKhachHang: row.customerCode,
-    KhachHang: row.customerName,
-    MaNVBH: row.salesStaffCode,
-    NVBH: row.salesStaffName,
-    MaNVGH: row.deliveryStaffCode,
-    NVGH: row.deliveryStaffName,
-    SoLuongBan: row.saleQuantity,
-    SoLuongKhuyenMai: row.promoQuantity,
-    DoanhSoTruocKM: Math.round(toNumber(row.beforePromoAmount)),
-    DoanhSoThucTe: Math.round(toNumber(row.actualAmount)),
-    ChietKhauKM: Math.round(toNumber(row.promotionDiscountAmount)),
-    GiaTriHangKM: Math.round(toNumber(row.promotionValue)),
-    DaThuTheoAR: Math.round(toNumber(row.receiptAmount)),
-    TraHangTheoAR: Math.round(toNumber(row.returnAmount)),
-    DieuChinhCongNo: Math.round(toNumber(row.adjustmentAmount)),
-    ConNoTheoAR: Math.round(toNumber(row.debtAmount)),
-    TrangThaiGiaoHang: row.deliveryStatus,
-    TrangThaiKeToan: row.accountingStatus
-  }));
-  return reportWorkbook('sales-report', 'BaoCaoBanHang', Object.keys(rows[0] || {
-    STT:'', Ngay:'', MaDon:'', Nguon:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'',
-    SoLuongBan:'', SoLuongKhuyenMai:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', ChietKhauKM:'', GiaTriHangKM:'',
-    DaThuTheoAR:'', TraHangTheoAR:'', DieuChinhCongNo:'', ConNoTheoAR:'', TrangThaiGiaoHang:'', TrangThaiKeToan:''
-  }), rows, query);
-}
-
-async function buildDeliveryReportWorkbook(query = {}) {
-  const result = await reportService.deliveryReport({ ...query, full: '1', export: '1' });
-  const rows = (result.delivery || []).map((row, idx) => ({
-    STT: idx + 1,
-    NgayGiao: row.deliveryDate,
-    MaDonTong: row.code,
-    MaNVGH: row.deliveryStaffCode,
-    NVGH: row.deliveryStaffName,
-    SoDonDangGan: row.assignedOrderCount,
-    SoDonDaGiao: row.orderCount,
-    TongTienDonCon: Math.round(toNumber(row.totalAmount)),
-    DoanhSoDaXacNhan: Math.round(toNumber(row.accountingConfirmedAmount)),
-    TienThuTheoQuy: Math.round(toNumber(row.collectedAmount)),
-    TrangThai: row.status,
-    LechSoDonSnapshot: toNumber(row.dataQuality?.snapshotOrderCountDifference),
-    LechTienSnapshot: Math.round(toNumber(row.dataQuality?.snapshotAmountDifference))
-  }));
-  return reportWorkbook('delivery-report', 'BaoCaoGiaoHang', Object.keys(rows[0] || {
-    STT:'', NgayGiao:'', MaDonTong:'', MaNVGH:'', NVGH:'', SoDonDangGan:'', SoDonDaGiao:'', TongTienDonCon:'',
-    DoanhSoDaXacNhan:'', TienThuTheoQuy:'', TrangThai:'', LechSoDonSnapshot:'', LechTienSnapshot:''
-  }), rows, query);
-}
-
-async function buildReturnReportWorkbook(query = {}) {
-  const result = await reportService.returnReport({ ...query, full: '1', export: '1' });
-  const rows = (result.returns || []).map((row, idx) => ({
-    STT: idx + 1,
-    Ngay: row.date,
-    MaTraHang: row.code,
-    MaDon: row.salesOrderCode,
-    MaKhachHang: row.customerCode,
-    KhachHang: row.customerName,
-    MaNVBH: row.salesStaffCode,
-    NVBH: row.salesStaffName,
-    MaNVGH: row.deliveryStaffCode,
-    NVGH: row.deliveryStaffName,
-    GiaTriTra: Math.round(toNumber(row.amount)),
-    GiaTriChungTu: Math.round(toNumber(row.documentAmount)),
-    GiaTriARReturn: Math.round(toNumber(row.arAmount)),
-    TrangThaiNhapKho: row.warehouseReceiveStatus,
-    TrangThaiTraHang: row.returnState,
-    TrangThaiKeToan: row.accountingStatus
-  }));
-  return reportWorkbook('return-report', 'BaoCaoTraHang', Object.keys(rows[0] || {
-    STT:'', Ngay:'', MaTraHang:'', MaDon:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'',
-    GiaTriTra:'', GiaTriChungTu:'', GiaTriARReturn:'', TrangThaiNhapKho:'', TrangThaiTraHang:'', TrangThaiKeToan:''
-  }), rows, query);
-}
-
-async function buildDebtReportWorkbook(query = {}) {
-  const result = await reportService.periodDebtReport({ ...query, full: '1', export: '1', includePaid: '1' });
-  const rows = (result.debts || []).map((row, idx) => ({
-    STT: idx + 1,
-    MaKhachHang: row.customerCode,
-    KhachHang: row.customerName,
-    MaNVBH: row.salesStaffCode,
-    NVBH: row.salesStaffName,
-    MaNVGH: row.deliveryStaffCode,
-    NVGH: row.deliveryStaffName,
-    DuDauKy: Math.round(toNumber(row.openingBalance)),
-    PhatSinhNo: Math.round(toNumber(row.debitInPeriod)),
-    DaThu: Math.round(toNumber(row.receiptInPeriod)),
-    TraHang: Math.round(toNumber(row.returnInPeriod)),
-    ChietKhauDieuChinh: Math.round(toNumber(row.adjustmentInPeriod) + toNumber(row.otherCreditInPeriod)),
-    TongPhatSinhCo: Math.round(toNumber(row.totalCreditInPeriod)),
-    DuCuoiKy: Math.round(toNumber(row.closingBalance))
-  }));
-  return reportWorkbook('debt-report', 'BaoCaoCongNo', Object.keys(rows[0] || {
-    STT:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'', DuDauKy:'', PhatSinhNo:'',
-    DaThu:'', TraHang:'', ChietKhauDieuChinh:'', TongPhatSinhCo:'', DuCuoiKy:''
-  }), rows, query);
-}
-
-async function buildArLedgerDetailWorkbook(query = {}) {
-  const result = await reportService.arLedgerDetailReport({ ...query, full: '1', export: '1' });
-  const rows = (result.ledger || []).map((row, idx) => ({
-    STT: idx + 1,
-    Ngay: row.date,
-    MaKhachHang: row.customerCode,
-    KhachHang: row.customerName,
-    ChungTu: row.documentCode,
-    Loai: row.type,
-    DienGiai: row.description,
-    DuTruocGiaoDich: Math.round(toNumber(row.openingBalance)),
-    No: Math.round(toNumber(row.debit)),
-    Co: Math.round(toNumber(row.credit)),
-    PhanLoaiCo: row.creditCategory,
-    DuSauGiaoDich: Math.round(toNumber(row.closingBalance))
-  }));
-  return reportWorkbook('ar-ledger-detail', 'SoCongNoChiTiet', Object.keys(rows[0] || {
-    STT:'', Ngay:'', MaKhachHang:'', KhachHang:'', ChungTu:'', Loai:'', DienGiai:'', DuTruocGiaoDich:'', No:'', Co:'', PhanLoaiCo:'', DuSauGiaoDich:''
-  }), rows, query);
-}
-
-async function buildStockReportWorkbook(query = {}) {
-  // Tồn kho hiện tại không nhận dateFrom/dateTo; nguồn duy nhất là inventories.
-  const result = await reportService.stockReport({ ...query, full: '1', export: '1' });
-  const rows = (result.stock || []).map((row, idx) => ({
-    STT: idx + 1,
-    MaSP: cleanText(row.productCode || row.code || row.productId),
-    SanPham: cleanText(row.productName || row.name),
-    DonViTinh: cleanText(row.unit || row.baseUnit),
-    TonVatLy: toNumber(row.onHand ?? row.quantity ?? row.qty),
-    DaGiuCho: toNumber(row.reservedQty),
-    TonKhaDung: toNumber(row.availableQty)
-  }));
-  return reportWorkbook('stock-report', 'TonKhoHienTai', Object.keys(rows[0] || {
-    STT:'', MaSP:'', SanPham:'', DonViTinh:'', TonVatLy:'', DaGiuCho:'', TonKhaDung:''
-  }), rows, {});
-}
-
-async function buildInventoryMovementReportWorkbook(query = {}) {
-  const result = await reportService.inventoryMovementReport({ ...query, full: '1', export: '1', mode: 'movement' });
-  const rows = (result.stock || []).map((row, idx) => ({
-    STT: idx + 1,
-    MaSP: row.productCode,
-    SanPham: row.productName,
-    DonViTinh: row.unit,
-    TonDauKy: toNumber(row.openingQty),
-    NhapMua: toNumber(row.importQty),
-    HangTraNhapKho: toNumber(row.returnQty),
-    NhapKhac: toNumber(row.otherInQty),
-    TongNhap: toNumber(row.inQty),
-    XuatBan: toNumber(row.saleQty),
-    XuatDaoChungTu: toNumber(row.reversalOutQty),
-    XuatKhac: toNumber(row.otherOutQty),
-    TongXuat: toNumber(row.outQty),
-    DieuChinhRong: toNumber(row.adjustmentQty),
-    TonCuoiKy: toNumber(row.endingQty),
-    NguonTonCuoi: row.endingSource,
-    TonCuoiTheoLedger: toNumber(row.ledgerEndingQty),
-    ChenhLechDoiSoat: toNumber(row.reconciliationDifference)
-  }));
-  return reportWorkbook('inventory-movement-report', 'NhapXuatTon', Object.keys(rows[0] || {
-    STT:'', MaSP:'', SanPham:'', DonViTinh:'', TonDauKy:'', NhapMua:'', HangTraNhapKho:'', NhapKhac:'', TongNhap:'',
-    XuatBan:'', XuatDaoChungTu:'', XuatKhac:'', TongXuat:'', DieuChinhRong:'', TonCuoiKy:'', NguonTonCuoi:'', TonCuoiTheoLedger:'', ChenhLechDoiSoat:''
-  }), rows, query);
-}
-
-async function buildStockCardReportWorkbook(query = {}) {
-  const result = await reportService.stockCardReport({ ...query, full: '1', export: '1' });
-  const rows = (result.transactions || []).map((row, idx) => ({
-    STT: idx + 1,
-    Ngay: row.date,
-    MaSP: row.productCode,
-    SanPham: row.productName,
-    ChungTu: row.refCode,
-    Loai: row.type,
-    PhanLoai: row.category,
-    TonTruocGiaoDich: toNumber(row.openingQty),
-    Nhap: toNumber(row.inQty),
-    Xuat: toNumber(row.outQty),
-    TonSauGiaoDich: toNumber(row.balanceQty),
-    GhiChu: row.note
-  }));
-  return reportWorkbook('stock-card-report', 'TheKho', Object.keys(rows[0] || {
-    STT:'', Ngay:'', MaSP:'', SanPham:'', ChungTu:'', Loai:'', PhanLoai:'', TonTruocGiaoDich:'', Nhap:'', Xuat:'', TonSauGiaoDich:'', GhiChu:''
-  }), rows, query);
-}
-
-async function buildFundReportWorkbook(query = {}) {
-  const result = await reportService.financeReport({ ...query, full: '1', export: '1' });
-  const rows = (result.fundLedger || []).map((row, idx) => ({
-    STT: idx + 1,
-    Ngay: row.date,
-    ChungTu: row.code,
-    Loai: row.type,
-    LoaiQuy: row.fundType,
-    TaiKhoanQuy: row.account,
-    NguoiLienQuan: row.counterparty,
-    TonDauDong: Math.round(toNumber(row.openingBalance)),
-    Thu: Math.round(toNumber(row.inAmount)),
-    Chi: Math.round(toNumber(row.outAmount)),
-    TonCuoiDong: Math.round(toNumber(row.endingBalance)),
-    GhiChu: row.note
-  }));
-  return reportWorkbook('fund-report', 'BaoCaoQuyTien', Object.keys(rows[0] || {
-    STT:'', Ngay:'', ChungTu:'', Loai:'', LoaiQuy:'', TaiKhoanQuy:'', NguoiLienQuan:'', TonDauDong:'', Thu:'', Chi:'', TonCuoiDong:'', GhiChu:''
-  }), rows, query);
-}
-
-async function buildSalesmanReportWorkbook(query = {}) {
-  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
-  const rows = (result.bySalesman || []).map((row, idx) => ({
-    STT: idx + 1,
-    MaNVBH: row.salesmanCode,
-    NVBH: row.salesmanName,
-    SoDon: row.orderCount,
-    SoKhachHang: row.customerCount,
-    DoanhSoTruocKM: Math.round(toNumber(row.beforePromoAmount)),
-    DoanhSoThucTe: Math.round(toNumber(row.actualAmount)),
-    GiaTriHangKM: Math.round(toNumber(row.promotionValue)),
-    DaThuTheoAR: Math.round(toNumber(row.receiptAmount)),
-    TraHangTheoAR: Math.round(toNumber(row.returnAmount)),
-    ConNoTheoAR: Math.round(toNumber(row.debtAmount))
-  }));
-  return reportWorkbook('salesman-report', 'BaoCaoNVBH', Object.keys(rows[0] || {
-    STT:'', MaNVBH:'', NVBH:'', SoDon:'', SoKhachHang:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', GiaTriHangKM:'', DaThuTheoAR:'', TraHangTheoAR:'', ConNoTheoAR:''
-  }), rows, query);
-}
-
-async function buildDeliverymanReportWorkbook(query = {}) {
-  const result = await reportService.deliveryReport({ ...query, full: '1', export: '1' });
-  const rows = (result.byStaff || []).map((row, idx) => ({
-    STT: idx + 1,
-    MaNVGH: row.deliveryStaffCode,
-    NVGH: row.deliveryStaffName,
-    SoChuyen: row.tripCount,
-    SoDonDaGiao: row.orderCount,
-    TongTienDonCon: Math.round(toNumber(row.totalAmount)),
-    DoanhSoDaXacNhan: Math.round(toNumber(row.accountingConfirmedAmount)),
-    ThuTienTheoQuy: Math.round(toNumber(row.collectedAmount))
-  }));
-  return reportWorkbook('deliveryman-report', 'BaoCaoNVGH', Object.keys(rows[0] || {
-    STT:'', MaNVGH:'', NVGH:'', SoChuyen:'', SoDonDaGiao:'', TongTienDonCon:'', DoanhSoDaXacNhan:'', ThuTienTheoQuy:''
-  }), rows, query);
-}
-
-async function buildCustomerSalesReportWorkbook(query = {}) {
-  const sales = await reportService.salesReport({ ...query, full: '1', export: '1' });
-  const debt = await reportService.periodDebtReport({ ...query, full: '1', export: '1', includePaid: '1' });
-  const debtMap = new Map((debt.debts || []).map((row) => [cleanText(row.customerCode || row.customerName), row]));
-  const map = new Map();
-  (sales.sales || []).forEach((order) => {
-    const key = cleanText(order.customerCode || order.customerName);
-    const row = map.get(key) || {
-      MaKhachHang: order.customerCode,
-      KhachHang: order.customerName,
-      MaNVBH: order.salesStaffCode,
-      NVBH: order.salesStaffName,
-      SoDon: 0,
-      DoanhSoTruocKM: 0,
-      DoanhSoThucTe: 0,
-      GiaTriHangKM: 0,
-      DaThuTheoAR: 0,
-      TraHangTheoAR: 0
-    };
-    row.SoDon += 1;
-    row.DoanhSoTruocKM += toNumber(order.beforePromoAmount);
-    row.DoanhSoThucTe += toNumber(order.actualAmount);
-    row.GiaTriHangKM += toNumber(order.promotionValue);
-    row.DaThuTheoAR += toNumber(order.receiptAmount);
-    row.TraHangTheoAR += toNumber(order.returnAmount);
-    map.set(key, row);
-  });
-  const rows = Array.from(map.entries()).map(([key, row], idx) => {
-    const ar = debtMap.get(key) || {};
-    return {
-      STT: idx + 1,
-      ...row,
-      DoanhSoTruocKM: Math.round(row.DoanhSoTruocKM),
-      DoanhSoThucTe: Math.round(row.DoanhSoThucTe),
-      GiaTriHangKM: Math.round(row.GiaTriHangKM),
-      DaThuTheoAR: Math.round(row.DaThuTheoAR),
-      TraHangTheoAR: Math.round(row.TraHangTheoAR),
-      DuDauKy: Math.round(toNumber(ar.openingBalance)),
-      DuCuoiKy: Math.round(toNumber(ar.closingBalance))
-    };
-  });
-  return reportWorkbook('customer-sales-report', 'DoanhSoKhachHang', Object.keys(rows[0] || {
-    STT:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', SoDon:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', GiaTriHangKM:'',
-    DaThuTheoAR:'', TraHangTheoAR:'', DuDauKy:'', DuCuoiKy:''
-  }), rows, query);
-}
-
-async function buildProductSalesReportWorkbook(query = {}) {
-  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
-  const map = new Map();
-  (result.sales || []).forEach((order) => (order.items || []).forEach((item) => {
-    const key = cleanText(item.productCode || item.productName);
-    const row = map.get(key) || {
-      MaSP: item.productCode,
-      SanPham: item.productName,
-      NhanHang: item.brand,
-      SoLuongBan: 0,
-      DoanhSoTruocKM: 0,
-      DoanhSoThucTe: 0
-    };
-    row.SoLuongBan += toNumber(item.quantity);
-    row.DoanhSoTruocKM += toNumber(item.catalogAmount);
-    row.DoanhSoThucTe += toNumber(item.actualAmount);
-    map.set(key, row);
-  }));
-  const totalActual = Array.from(map.values()).reduce((sum, row) => sum + row.DoanhSoThucTe, 0) || 1;
-  const rows = Array.from(map.values()).map((row, idx) => ({
-    STT: idx + 1,
-    ...row,
-    SoLuongBan: row.SoLuongBan,
-    DoanhSoTruocKM: Math.round(row.DoanhSoTruocKM),
-    DoanhSoThucTe: Math.round(row.DoanhSoThucTe),
-    ChietKhauKM: Math.round(row.DoanhSoTruocKM - row.DoanhSoThucTe),
-    TyTrong: `${roundMoney((row.DoanhSoThucTe / totalActual) * 100, 2)}%`
-  }));
-  return reportWorkbook('product-sales-report', 'DoanhSoSanPham', Object.keys(rows[0] || {
-    STT:'', MaSP:'', SanPham:'', NhanHang:'', SoLuongBan:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', ChietKhauKM:'', TyTrong:''
-  }), rows, query);
-}
-
-
-const SENSITIVE_USER_FIELDS = new Set([
-  'password', 'passwordHash', 'hash', 'salt', 'token', 'tokens', 'accessToken', 'refreshToken',
-  'secret', 'apiKey', 'session', 'sessions', 'resetPasswordToken', 'verificationToken'
-]);
-
-function firstText(row = {}, fields = []) {
-  for (const field of fields) {
-    const value = cleanText(row[field]);
-    if (value) return value;
-  }
-  return '';
-}
-
-function boolStatus(value) {
-  if (value === true) return 'Hoạt động';
-  if (value === false) return 'Ngưng hoạt động';
-  return cleanText(value);
-}
-
-function safeExtraJson(row = {}, usedFields = [], blockedFields = []) {
-  const used = new Set([...usedFields, ...blockedFields, '_id', '__v', 'searchText']);
-  const extra = {};
-  Object.keys(row || {}).forEach((key) => {
-    if (used.has(key)) return;
-    const value = row[key];
-    if (value === undefined || value === null || value === '') return;
-    extra[key] = value;
-  });
-  return Object.keys(extra).length ? JSON.stringify(extra) : '';
-}
-
-function productInfoRow(product = {}, idx = 0, stockMap = new Map()) {
-  const productCode = firstText(product, ['code', 'productCode', 'sku', 'id']);
-  const stock = stockMap.get(cleanText(productCode).toUpperCase()) || {};
-  const used = [
-    'code', 'productCode', 'sku', 'name', 'productName', 'barcode', 'brand', 'category',
-    'unit', 'baseUnit', 'conversionRate', 'packing', 'salePrice', 'costPrice',
-    'pickingZone', 'warehouseCode', 'warehouseName', 'defaultWarehouse', 'isActive', 'status', 'createdAt', 'updatedAt'
-  ];
-  return {
-    STT: idx + 1,
-    MaSP: productCode,
-    TenSP: firstText(product, ['name', 'productName', 'title']),
-    Barcode: firstText(product, ['barcode', 'barCode']),
-    NhanHang: firstText(product, ['brand', 'brandName']),
-    NganhHang: firstText(product, ['category', 'categoryName', 'groupName']),
-    DonVi: firstText(product, ['unit', 'baseUnit', 'uom']),
-    DonViCoSo: firstText(product, ['baseUnit', 'unit']),
-    QuyDoi: toNumber(product.conversionRate || product.ratio || 1),
-    QuyCach: firstText(product, ['packing', 'packaging']),
-    GiaBan: Math.round(toNumber(product.salePrice || product.price || product.sellPrice)),
-    GiaVon: Math.round(toNumber(product.costPrice || product.cost || product.purchasePrice)),
-    TonVatLy: toNumber(stock.onHand ?? stock.quantity ?? stock.qty),
-    DaGiuCho: toNumber(stock.reservedQty),
-    TonKhaDung: toNumber(stock.availableQty),
-    KhuBocHang: pickingZoneLabel(normalizePickingZone(pickingZoneFrom(product), PICKING_ZONES.HC)),
-    TrangThai: boolStatus(product.isActive ?? product.status),
-    NgayTao: normalizeDateOnly(product.createdAt),
-    NgayCapNhat: normalizeDateOnly(product.updatedAt),
-    ThongTinKhac: safeExtraJson(product, used)
-  };
-}
-
-async function buildProductInfoReportWorkbook(query = {}) {
-  const [docs, stockReport] = await Promise.all([
-    Product.find({}).sort({ code: 1, name: 1 }).limit(safeLimit(query)).lean(),
-    reportService.stockReport({ full: '1', export: '1' })
-  ]);
-  const stockMap = new Map((stockReport.stock || stockReport.items || []).map((row) => [
-    cleanText(row.productCode || row.code).toUpperCase(),
-    row
-  ]));
-  const rows = docs.map((product, idx) => productInfoRow(product, idx, stockMap));
-  const headers = Object.keys(rows[0] || productInfoRow({}, -1, stockMap));
-  return reportWorkbook('product-info-report', 'ThongTinSanPham', headers, rows, query);
-}
-
-function arDebtKeyValues(row = {}) {
-  return [row.customerCode, row.customerId, row.customerName].map(cleanText).filter(Boolean);
-}
-
-async function loadCurrentDebtByCustomer() {
-  const result = await reportService.periodDebtReport({
-    dateFrom: '0000-01-01',
-    dateTo: dateUtil.todayVN(),
-    full: '1',
-    export: '1',
-    includePaid: '1'
-  });
-  const map = new Map();
-  (result.debts || result.items || []).forEach((row) => {
-    const balance = toNumber(row.closingBalance);
-    arDebtKeyValues(row).forEach((key) => map.set(key, balance));
-  });
-  return map;
-}
-
-async function loadMonthSalesByCustomer(query = {}) {
-  const today = dateUtil.todayVN();
-  const monthStart = cleanText(query.monthStart || query.monthFrom || `${today.slice(0, 7)}-01`);
-  const monthEnd = cleanText(query.monthEnd || query.monthTo || today);
-  const result = await reportService.salesReport({
-    dateFrom: monthStart,
-    dateTo: monthEnd,
-    full: '1',
-    export: '1'
-  });
-  const map = new Map();
-  (result.sales || result.items || []).forEach((order) => {
-    const amount = toNumber(order.actualAmount);
-    [order.customerCode, order.customerId, order.customerName].map(cleanText).filter(Boolean).forEach((key) => {
-      map.set(key, toNumber(map.get(key)) + amount);
-    });
-  });
-  return map;
-}
-
-function valueByKeys(map, keys = []) {
-  for (const key of keys.map(cleanText).filter(Boolean)) {
-    if (map.has(key)) return toNumber(map.get(key));
-  }
-  return 0;
-}
-
-function customerInfoRow(customer = {}, idx = 0, debtMap = new Map(), monthSalesMap = new Map()) {
-  const taxProfile = extractCustomerTaxProfile(customer);
-  const businessProfile = extractCustomerBusinessProfile(customer);
-  const used = [
-    'code', 'customerCode', 'name', 'customerName', 'businessName', 'customerBusinessName', 'householdBusinessName', 'taxBusinessName', 'invoiceBusinessName', 'tenHoKinhDoanh', 'phone', 'mobile', 'customerPhone',
-    'address', 'customerAddress', 'taxCode', 'customerTaxCode', 'taxNumber', 'vatNumber', 'vatCode', 'mst',
-    'taxInvoiceAddress', 'customerTaxInvoiceAddress', 'invoiceAddress', 'vatInvoiceAddress', 'billingAddress',
-    'route', 'area', 'region', 'staffCode', 'staffName',
-    'salesStaffCode', 'salesStaffName', 'deliveryStaffCode', 'deliveryStaffName',
-    'isActive', 'status', 'createdAt', 'updatedAt'
-  ];
-  const keys = [customer.code, customer.customerCode, customer.id, customer._id, customer.name, customer.customerName];
-  return {
-    STT: idx + 1,
-    MaKH: firstText(customer, ['code', 'customerCode', 'id']),
-    TenKH: firstText(customer, ['name', 'customerName']),
-    TenHoKinhDoanh: businessProfile.businessName,
-    SDT: firstText(customer, ['phone', 'mobile', 'customerPhone', 'tel']),
-    DiaChi: firstText(customer, ['address', 'customerAddress', 'fullAddress']),
-    MaSoThue: taxProfile.taxCode,
-    DiaChiHoaDonThue: taxProfile.taxInvoiceAddress,
-    Tuyen: firstText(customer, ['route', 'routeName', 'line']),
-    KhuVuc: firstText(customer, ['area', 'areaName', 'region', 'province']),
-    MaNVBH: firstText(customer, ['staffCode', 'salesStaffCode', 'salesmanCode']),
-    NVBHPhuTrach: firstText(customer, ['staffName', 'salesStaffName', 'salesmanName']),
-    MaNVGH: firstText(customer, ['deliveryStaffCode', 'shipperCode']),
-    NVGHPhuTrach: firstText(customer, ['deliveryStaffName', 'shipperName']),
-    CongNoHienTai: Math.round(valueByKeys(debtMap, keys)),
-    DoanhSoThang: Math.round(valueByKeys(monthSalesMap, keys)),
-    TrangThai: boolStatus(customer.isActive ?? customer.status),
-    NgayTao: normalizeDateOnly(customer.createdAt),
-    NgayCapNhat: normalizeDateOnly(customer.updatedAt),
-    ThongTinKhac: safeExtraJson(customer, used)
-  };
-}
-
-async function buildCustomerInfoReportWorkbook(query = {}) {
-  const [customers, debtMap, monthSalesMap] = await Promise.all([
-    Customer.find({}).sort({ code: 1, name: 1 }).limit(safeLimit(query)).lean(),
-    loadCurrentDebtByCustomer(),
-    loadMonthSalesByCustomer(query)
-  ]);
-  const rows = customers.map((c, idx) => customerInfoRow(c, idx, debtMap, monthSalesMap))
-    .sort((a, b) => toNumber(b.CongNoHienTai) - toNumber(a.CongNoHienTai) || cleanText(a.MaKH).localeCompare(cleanText(b.MaKH)));
-  rows.forEach((row, idx) => { row.STT = idx + 1; });
-  const headers = Object.keys(rows[0] || customerInfoRow({}, -1));
-  return reportWorkbook('customer-info-report', 'ThongTinKhachHang', headers, rows, query);
-}
-
-function sanitizeUserExtra(row = {}) {
-  const extra = {};
-  Object.keys(row || {}).forEach((key) => {
-    if (SENSITIVE_USER_FIELDS.has(key) || key.startsWith('_') || ['__v', 'searchText'].includes(key)) return;
-    if ([
-      'username', 'fullName', 'name', 'code', 'staffCode', 'role', 'roles', 'phone', 'email',
-      'isActive', 'status', 'permissions', 'area', 'route', 'lastLoginAt', 'lastLogin', 'createdAt', 'updatedAt'
-    ].includes(key)) return;
-    const value = row[key];
-    if (value === undefined || value === null || value === '') return;
-    extra[key] = value;
-  });
-  return Object.keys(extra).length ? JSON.stringify(extra) : '';
-}
-
-function userInfoRow(user = {}, idx = 0) {
-  return {
-    STT: idx + 1,
-    TenDangNhap: firstText(user, ['username', 'loginName']),
-    HoTen: firstText(user, ['fullName', 'name', 'displayName']),
-    MaNhanVien: firstText(user, ['staffCode', 'code', 'employeeCode']),
-    VaiTro: Array.isArray(user.roles) ? user.roles.join(', ') : firstText(user, ['role', 'roles']),
-    SDT: firstText(user, ['phone', 'mobile']),
-    Email: firstText(user, ['email']),
-    TrangThai: boolStatus(user.isActive ?? user.status),
-    QuyenTruyCap: Array.isArray(user.permissions) ? user.permissions.join(', ') : cleanText(user.permissions || user.permission || ''),
-    KhuVucTuyen: firstText(user, ['area', 'route', 'region']),
-    NgayTao: normalizeDateOnly(user.createdAt),
-    NgayCapNhat: normalizeDateOnly(user.updatedAt),
-    LanDangNhapGanNhat: normalizeDateOnly(user.lastLoginAt || user.lastLogin || user.lastSeenAt),
-    ThongTinKhac: sanitizeUserExtra(user)
-  };
-}
-
-async function buildUserInfoReportWorkbook(query = {}) {
-  const User = models.users;
-  const docs = await User.find({}).select('-password -passwordHash -hash -salt -token -tokens -accessToken -refreshToken -secret -apiKey -session -sessions -resetPasswordToken -verificationToken').sort({ role: 1, code: 1, username: 1 }).limit(safeLimit(query)).lean();
-  const rows = docs.map(userInfoRow);
-  const headers = Object.keys(rows[0] || userInfoRow({}, -1));
-  return reportWorkbook('user-info-report', 'ThongTinTaiKhoan', headers, rows, query);
-}
-
-const BUSINESS_REPORT_BUILDERS = {
-  'sales-report': buildSalesReportWorkbook,
-  'delivery-report': buildDeliveryReportWorkbook,
-  'return-report': buildReturnReportWorkbook,
-  'debt-report': buildDebtReportWorkbook,
-  'ar-ledger-detail': buildArLedgerDetailWorkbook,
-  'stock-report': buildStockReportWorkbook,
-  'inventory-movement-report': buildInventoryMovementReportWorkbook,
-  'stock-card-report': buildStockCardReportWorkbook,
-  'fund-report': buildFundReportWorkbook,
-  'salesman-report': buildSalesmanReportWorkbook,
-  'deliveryman-report': buildDeliverymanReportWorkbook,
-  'customer-sales-report': buildCustomerSalesReportWorkbook,
-  'product-sales-report': buildProductSalesReportWorkbook,
-  'product-info-report': buildProductInfoReportWorkbook,
-  'customer-info-report': buildCustomerInfoReportWorkbook,
-  'user-info-report': buildUserInfoReportWorkbook
-};
-
-async function previewImport(params) {
-  return excelImportService.preview(params);
-}
-
-async function commitImport(params) {
-  return excelImportService.commit(params);
-}
-
-async function getImportLogs() {
-  return excelImportService.logs();
-}
-
-function getBuiltInTemplates() {
-  return importTemplateService.getBuiltInTemplates();
-}
-
-async function buildBuiltInTemplateFile(type) {
-  return importTemplateService.buildBuiltInTemplateFile(type);
-}
-
-function getFields(type) {
-  return importTemplateService.getFields(type);
-}
-
-async function listCustomTemplates() {
-  return importTemplateService.listCustomTemplates();
-}
-
-async function saveCustomTemplate(payload) {
-  return importTemplateService.saveCustomTemplate(payload);
-}
-
-async function deleteCustomTemplate(id) {
-  return importTemplateService.deleteCustomTemplate(id);
-}
-
-async function buildCustomTemplateFile(id) {
-  return importTemplateService.buildCustomTemplateFile(id);
-}
-
-function getExportTypes() {
-  return [...new Set([...exportRepository.getExportTypes(), 'vatInvoiceTT78', 'vat-non-invoice-orders', ...BUSINESS_REPORT_TYPES])].sort();
-}
-
-async function exportToExcel(type, query = {}) {
-  const normalizedType = String(type || '').trim();
-  if (['vatInvoiceTT78', 'vat-invoice-tt78', 'hoa-don-vat-tt78'].includes(normalizedType)) {
-    return buildVatInvoiceTT78Workbook(query);
-  }
-  if (['vat-non-invoice-orders', 'vatNonInvoiceOrders'].includes(normalizedType)) {
-    return buildVatNonInvoiceOrdersWorkbook(query);
-  }
-  if (BUSINESS_REPORT_BUILDERS[normalizedType]) {
-    return BUSINESS_REPORT_BUILDERS[normalizedType](query);
-  }
-  const rows = await exportRepository.findForExport(type, query);
-  if (!rows) return { error: 'Loại dữ liệu export không hợp lệ', status: 400 };
-  const buffer = await buildWorkbook({ type, rows });
-  const safeType = String(type || 'data').replace(/[^a-zA-Z0-9_-]/g, '-');
-  return { buffer, rows: rows.length, fileName: `${safeType}-export-${dateUtil.todayVN()}.xlsx` };
-}
-
-module.exports = {
-  previewImport,
-  commitImport,
-  getImportLogs,
-  getBuiltInTemplates,
-  buildBuiltInTemplateFile,
-  getFields,
-  listCustomTemplates,
-  saveCustomTemplate,
-  deleteCustomTemplate,
-  buildCustomTemplateFile,
-  getExportTypes,
-  exportToExcel
-};
+/* GENERATED FILE — edit src/services/importExportLegacy.service.source/part-01.jsfrag, src/services/importExportLegacy.service.source/part-02.jsfrag, src/services/importExportLegacy.service.source/part-03.jsfrag and run npm run build:source-bundles. */
+"use strict"
+;const e=require("../utils/date.util"),{createWorkbook:n,appendAoaSheet:o,writeWorkbook:t}=require("../utils/excelWriter.util"),a=require("./excelImportService"),r=require("./importTemplateService"),u=require("../repositories/exportRepository"),i=require("../models/SalesOrder"),c=require("../models/ReturnOrder"),s=require("../models/Customer"),d=require("../models/Product"),h=require("../models"),T=require("./reportService"),{pickSalesStaffCode:m,pickSalesStaffName:l,pickDeliveryStaffCode:g,pickDeliveryStaffName:f}=require("../domain/staff/staffIdentity"),{normalizePickingZone:p,pickingZoneFrom:y,pickingZoneLabel:S,PICKING_ZONES:C}=require("../utils/pickingZone.util")
+;function N(e={}){const n={...e};return delete n._id,delete n.__v,n}function D(e){return null==e?"":Array.isArray(e)||"object"==typeof e?JSON.stringify(e):e}function M(e=[]){
+const n=e.map(N),o=new Set;n.forEach(e=>Object.keys(e).forEach(e=>o.add(e)));const t=Array.from(o),a=n.map(e=>t.map(n=>D(e[n])));return{headers:t,body:a}}
+async function A({type:e,rows:a}){const{headers:r,body:u}=M(a),i=n();return o(i,"Export",[r,...u]),
+o(i,"ThongTin",[["Loại dữ liệu",e],["Số dòng",a.length],["Thời gian xuất",(new Date).toISOString()]]),t(i)}
+const H=.08,{extractCustomerTaxProfile:K}=require("../utils/customerTaxProfile.util"),{extractCustomerBusinessProfile:v}=require("../utils/customerBusinessProfile.util"),b=["STT","NgayHoaDon","MaKhachHang","TenKhachHang","TenNguoiMua","MaSoThue","DiaChiKhachHang","DienThoaiKhachHang","SoTaiKhoan","NganHang","HinhThucTT","MaSanPham","SanPham","DonViTinh","Extra1SP","Extra2SP","SoLuong","DonGia","TyLeChietKhauHienThi","SoTienChietKhau","ThanhTien","TienBan","ThueSuat","TienThueSanPham","TienThue","TongCong","TinhChatHangHoa","DonViTienTe","TyGia","Fkey","Extra1","Extra2","EmailKhachHang","VungDuLieu","Extra3","Extra4","Extra5","Extra6","Extra7","Extra8","Extra9","Extra10","Extra11","Extra12","LOONo","HDSe","xVTNXHan","NVChuan","PTChuyenKhoan","HDKTTu","CCCDan"]
+;function k(e){return String(e??"").trim()}function V(e,n=0){const o=Number(String(e??"").replace(/,/g,""));return Number.isFinite(o)?o:n}function P(e,n=2){const o=10**n
+;return Math.round(V(e)*o)/o}function x(n){return e.toDateOnly(n||"")||k(n).slice(0,10)}function B(e,n={}){
+const o=x(e),t=x(n.dateFrom||n.from||n.fromDate||""),a=x(n.dateTo||n.to||n.toDate||"");return!(t&&o<t||a&&o>a)}function R(e={}){
+const n=k(e.status||e.deliveryStatus||e.lifecycleStatus).toLowerCase();return!["void","cancelled","canceled","deleted","removed"].includes(n)}function O(e={}){
+return[e.id,e._id,e.code,e.orderCode,e.documentCode,e.salesOrderId,e.salesOrderCode,e.externalOrderCode,e.invoiceCode,e.refCode].map(k).filter(Boolean)}function G(e={}){
+return k(e.code||e.orderCode||e.salesOrderCode||e.documentCode||e.id||e._id)}function w(e={}){return k(e.productCode||e.code||e.sku||e.barcode||e.productId||e.id)}function I(e={}){
+return k(e.productName||e.name||e.itemName||e.productTitle||"")}function L(e={},n={}){return k(e.unit||e.baseUnit||e.dvt||e.uom||n.unit||n.baseUnit||"")}function Q(e={}){
+return V(e.quantity??e.qty??e.totalQty??e.qtySale??e.saleQty??0)}function E(e={}){return V(e.returnQty??e.qtyReturn??e.returnQuantity??e.returnedQty??0)}function _(e={}){
+return k(e.lineKey||e.orderLineId||e.salesOrderItemId||e.itemId||e._id||"")}function $(e={}){
+return V(e.finalPrice??e.priceAfterPromotion??e.promoPrice??e.price??e.salePrice??e.unitPrice??e.sellPrice??0)}function q(e={}){
+return V(e.amount??e.totalAmount??e.lineAmount??e.money??0)||Q(e)*$(e)}function j(e,n){return`${k(e)}@@${k(n)}`}function X(e={}){const n=$(e);return n?String(P(n,6)):""}
+function F(e,n,o="",t=""){return[k(e),k(n),k(o),k(t)].join("@@")}function U(e={}){return k(e.code||e.id||e.returnOrderCode||e.documentCode||e._id)}function Z(e={}){
+return k(e.id||e._id||e.code||e.returnOrderCode||e.documentCode)}function W(e={}){
+const n=e.updatedAt||e.modifiedAt||e.createdAt||e.date||e.documentDate||"",o=n?new Date(n).getTime():0;return Number.isFinite(o)?o:0}function z(){return{status:{
+$nin:["void","cancelled","canceled","deleted","removed"]},returnStatus:{$nin:["void","cancelled","canceled","deleted","removed"]}}}function J(e,n,o,t={}){if(!n||!o)return
+;e.set(n,V(e.get(n))+o),e.__sourceMap||(e.__sourceMap=new Map);const a=e.__sourceMap.get(n)||{codes:new Set,ids:new Set,sourceRows:[]};t.code&&a.codes.add(t.code),
+t.id&&a.ids.add(t.id),t.sourceRow&&a.sourceRows.push(t.sourceRow),e.__sourceMap.set(n,a)}function Y(e,n){const o=e&&e.__sourceMap;if(!o)return{ReturnOrderCode:"",ReturnOrderId:"",
+ReturnQtySource:""};const t=o.get(n);if(!t)return{ReturnOrderCode:"",ReturnOrderId:"",ReturnQtySource:""}
+;const a=Array.from(t.codes||[]).filter(Boolean),r=Array.from(t.ids||[]).filter(Boolean),u=Array.from(t.sourceRows||[]).filter(Boolean);return{ReturnOrderCode:a.join(", "),
+ReturnOrderId:r.join(", "),ReturnQtySource:u.join(" | ")}}function ee(e=[]){const n=new Map,o=new Map;for(const n of e||[]){if(!R(n))continue
+;const e=U(n),t=Z(n),a=W(n),r=Array.from(new Set([n.salesOrderId,n.orderId,n.sourceOrderId,n.deliveryOrderId,n.salesOrderCode,n.orderCode,n.sourceOrderCode,n.deliveryOrderCode,n.originalOrderCode].map(k).filter(Boolean)))
+;if(!r.length)continue;const u=k(n.salesOrderCode||n.orderCode||n.salesOrderId||n.orderId||r[0]);for(const i of Array.isArray(n.items)?n.items:[]){const n=w(i);if(!n)continue
+;const c=E(i);if(!c)continue;const s=_(i),d=X(i),h=`${e||t||"RETURN_ORDER"}:${u}:${n}:${c}`,T=[e||t,u,n,s||"",d||""].map(k).join("@@"),m={roKeys:r,pcode:n,qty:c,lineKey:s,
+priceKey:d,roCode:e,roId:t,updatedMs:a,sourceRow:h},l=o.get(T);(!l||a>=l.updatedMs)&&o.set(T,m)}}for(const e of o.values()){
+const{roKeys:o,pcode:t,qty:a,lineKey:r,priceKey:u,roCode:i,roId:c,sourceRow:s}=e,d={code:i,id:c,sourceRow:s}
+;for(const e of o)J(n,r&&u?F(e,t,r,u):r?F(e,t,r,""):u?F(e,t,"",u):j(e,t),a,d)}return n}function ne(e,n={},o={}){const t=w(o);if(!t)return{qty:0,ReturnOrderCode:"",ReturnOrderId:"",
+ReturnQtySource:""};const a=_(o),r=X(o);let u={qty:0,key:""};for(const o of O(n)){const n=[a&&r?F(o,t,a,r):"",a?F(o,t,a,""):"",r?F(o,t,"",r):"",j(o,t)].filter(Boolean)
+;for(const o of n){const n=V(e.get(o));if(n>u.qty&&(u={qty:n,key:o}),n)break}}return{qty:u.qty,...Y(e,u.key)}}function oe(e,n={},o={}){return ne(e,n,o).qty}function te(e={}){
+return k(e.customerCode||e.customerId||e.customerName||e.customerPhone||"")}function ae(e=[]){const n=new Map
+;for(const o of e||[])[o.code,o.customerCode,o.id,o._id,o.name,o.customerName,o.phone,o.mobile].map(k).filter(Boolean).forEach(e=>n.set(e,o));return n}function re(e=[]){
+const n=new Map;for(const o of e||[])[o.code,o.productCode,o.sku,o.barcode,o.id,o._id].map(k).filter(Boolean).forEach(e=>n.set(e,o));return n}function ue(e={},n=new Map){
+const o=n.get(k(e.customerCode))||n.get(k(e.customerId))||n.get(k(e.customerName))||{},t=K(e),a=K(o),r=v(e),u=v(o),i=k(e.customerName||o.name||o.customerName),c=k(r.businessName||u.businessName)
+;return{code:k(e.customerCode||o.code||o.customerCode||e.customerId||o.id),name:c||i,buyer:k(e.buyerName||e.contactName||o.buyerName||o.representative||o.contactName||i),
+taxCode:k(t.taxCode||a.taxCode),address:k(t.taxInvoiceAddress||a.taxInvoiceAddress||e.customerAddress||e.address||o.address||o.deliveryAddress),
+phone:k(e.customerPhone||e.phone||o.phone||o.mobile),bankAccount:k(o.bankAccount||o.accountNumber||e.bankAccount),bankName:k(o.bankName||e.bankName),
+email:k(o.email||e.customerEmail||e.email)}}function ie(e={}){const n=k(e.paymentMethod||e.paymentType||e.method||e.hinhThucTT||"");if(n)return n
+;const o=V(e.cashAmount||e.collectedCashAmount),t=V(e.bankAmount||e.transferAmount||e.collectedBankAmount);return o&&t?"TM/CK":t?"CK":"TM/CK"}
+function ce({orders:n,returnOrders:o,customers:t,products:a,query:r={}}){const u=ee(o),i=ae(t),c=re(a),s=[],d=[];let h=0
+;const T=(n||[]).filter(R).filter(e=>!1!==e.vatInvoiceRequired).filter(e=>B(e.orderDate||e.date||e.documentDate||e.createdAt,r)).filter(e=>{
+if(!r.customerCode&&!r.customerId)return!0;const n=k(r.customerCode||r.customerId);return[e.customerCode,e.customerId,e.customerName].map(k).includes(n)}).filter(e=>{
+if(!r.salesStaffCode&&!r.salesmanCode)return!0;const n=k(r.salesStaffCode||r.salesmanCode);return[e.salesStaffCode,e.salesmanCode,e.nvbhCode].map(k).includes(n)
+}).sort((e,n)=>k(e.orderDate||e.date||e.documentDate||e.createdAt).localeCompare(k(n.orderDate||n.date||n.documentDate||n.createdAt))||G(e).localeCompare(G(n)));for(const n of T){
+const o=[],t=ue(n,i),a=G(n),r=x(n.orderDate||n.date||n.documentDate||n.createdAt||e.todayVN());for(const e of Array.isArray(n.items)?n.items:[]){
+const r=w(e),i=c.get(r)||{},s=I(e)||k(i.name||i.productName),h=Q(e),T=ne(u,n,e),m=T.qty,l=Math.min(h,m),g=Math.max(0,h-l),f=$(e)||(h?q(e)/h:0);if(!r||g<=0){d.push({MaDon:a,
+MaKhachHang:t.code,TenKhachHang:t.name,MaSanPham:r,SanPham:s,SoLuongBan:h,SoLuongTra:m,SoLuongTraAnToan:l,SoLuongXuatHoaDon:g,GiaSauKhuyenMaiCoVAT:f,DonGiaTruocVAT:"",
+ThanhTienTruocVAT:"",ReturnOrderCode:T.ReturnOrderCode,ReturnOrderId:T.ReturnOrderId,ReturnQtySource:T.ReturnQtySource,LyDoBoDong:r?"INVOICE_QTY_ZERO":"MISSING_PRODUCT_CODE"})
+;continue}const p=P(f/1.08,6),y=P(g*p,2);o.push({productCode:r,productName:s,unit:L(e,i),soldQty:h,returnQty:m,safeReturnQty:l,invoiceQty:g,priceInclVat:f,unitPriceBeforeVat:p,
+lineAmountBeforeVat:y,returnOrderCode:T.ReturnOrderCode,returnOrderId:T.ReturnOrderId,returnQtySource:T.ReturnQtySource})}if(!o.length)continue;h+=1
+;const T=P(o.reduce((e,n)=>e+n.lineAmountBeforeVat,0),2),m=P(T*H,2),l=Math.round(T+m);o.forEach((e,o)=>{const a=0===o;s.push({STT:a?h:"",NgayHoaDon:a?r:"",MaKhachHang:a?t.code:"",
+TenKhachHang:a?t.name:"",TenNguoiMua:a?t.buyer:"",MaSoThue:a?t.taxCode:"",DiaChiKhachHang:a?t.address:"",DienThoaiKhachHang:a?t.phone:"",SoTaiKhoan:a?t.bankAccount:"",
+NganHang:a?t.bankName:"",HinhThucTT:a?ie(n):"",MaSanPham:e.productCode,SanPham:e.productName,DonViTinh:e.unit,Extra1SP:"",Extra2SP:"",SoLuong:e.invoiceQty,
+DonGia:e.unitPriceBeforeVat,TyLeChietKhauHienThi:"",SoTienChietKhau:"",ThanhTien:e.lineAmountBeforeVat,TienBan:a?T:"",ThueSuat:a?8:"",TienThueSanPham:"",TienThue:a?m:"",
+TongCong:a?l:"",TinhChatHangHoa:0,DonViTienTe:a?"VND":"",TyGia:"",Fkey:a?G(n):"",Extra1:"",Extra2:"",EmailKhachHang:a?t.email:"",VungDuLieu:"",Extra3:"",Extra4:"",Extra5:"",
+Extra6:"",Extra7:"",Extra8:"",Extra9:"",Extra10:"",Extra11:"",Extra12:"",LOONo:"",HDSe:"",xVTNXHan:"",NVChuan:"",PTChuyenKhoan:"",HDKTTu:"",CCCDan:""}),d.push({MaDon:G(n),
+MaKhachHang:t.code,TenKhachHang:t.name,MaSoThue:t.taxCode,DiaChiHoaDon:t.address,MaSanPham:e.productCode,SanPham:e.productName,SoLuongBan:e.soldQty,SoLuongTra:e.returnQty,
+SoLuongTraAnToan:e.safeReturnQty,SoLuongXuatHoaDon:e.invoiceQty,GiaSauKhuyenMaiCoVAT:e.priceInclVat,DonGiaTruocVAT:e.unitPriceBeforeVat,ThanhTienTruocVAT:e.lineAmountBeforeVat,
+ReturnOrderCode:e.returnOrderCode,ReturnOrderId:e.returnOrderId,ReturnQtySource:e.returnQtySource,LyDoBoDong:""})})}return{rows:s,auditRows:d}}async function se(a={}){
+const r=x(a.dateFrom||a.from||a.fromDate||"")||"0000-01-01",u=x(a.dateTo||a.to||a.toDate||"")||"9999-12-31",h={vatInvoiceRequired:{$ne:!1}};(r||u)&&(h.$or=[{orderDate:{...r?{$gte:r
+}:{},...u?{$lte:u}:{}}},{date:{...r?{$gte:r}:{},...u?{$lte:u}:{}}},{documentDate:{...r?{$gte:r}:{},...u?{$lte:u}:{}}},{createdAt:{...r?{$gte:`${r}T00:00:00.000Z`}:{},...u?{
+$lte:`${u}T23:59:59.999Z`}:{}}}]);const[T,m,l,g]=await Promise.all([i.find(h).sort({orderDate:1,date:1,code:1
+}).limit(Math.min(Math.max(Number(a.limit||2e4),1),1e5)).lean(),c.find(z()).lean(),s.find({}).lean(),d.find({}).lean()]),{rows:f,auditRows:p}=ce({orders:T,returnOrders:m,
+customers:l,products:g,query:a}),y=n(),S=[b,...f.map(e=>b.map(n=>e[n]??""))];o(y,"Sheet1",S,{autoFilter:!0})
+;const C=["MaDon","MaKhachHang","TenKhachHang","MaSoThue","DiaChiHoaDon","MaSanPham","SanPham","SoLuongBan","SoLuongTra","SoLuongTraAnToan","SoLuongXuatHoaDon","GiaSauKhuyenMaiCoVAT","DonGiaTruocVAT","ThanhTienTruocVAT","ReturnOrderCode","ReturnOrderId","ReturnQtySource","LyDoBoDong"]
+;o(y,"DoiChieu",[C,...p.map(e=>C.map(n=>e[n]??""))]);const N=f.reduce((e,n)=>(""!==n.TienBan&&(e.invoiceCount+=1,e.amountBeforeVat+=V(n.TienBan),e.vatAmount+=V(n.TienThue),
+e.totalAmount+=V(n.TongCong)),e.lineCount+=n.MaSanPham?1:0,e),{invoiceCount:0,lineCount:0,amountBeforeVat:0,vatAmount:0,totalAmount:0})
+;o(y,"ThongTin",[["Mẫu","TT78 - Sheet1"],["Từ ngày","0000-01-01"===r?"":r],["Đến ngày","9999-12-31"===u?"":u],["Số hóa đơn",N.invoiceCount],["Số dòng sản phẩm",N.lineCount],["Tiền bán trước thuế",P(N.amountBeforeVat,2)],["Tiền thuế 8%",P(N.vatAmount,2)],["Tổng cộng",Math.round(N.totalAmount)],["Quy tắc","Số lượng xuất HĐ = số lượng bán - số lượng trả; Đơn giá = giá sau khuyến mại trên đơn / 1.08"]])
+;const D=t(y),M="0000-01-01"===r?"all":r,A="9999-12-31"===u?e.todayVN():u;return{buffer:D,rows:f.length,fileName:`HoaDonVAT_TT78_${M}_${A}.xlsx`}}function de(e={}){
+return[k(e.salesStaffCode||e.salesPersonCode||e.salesmanCode||e.nvbhCode||e.maNVBH),k(e.salesStaffName||e.salesPersonName||e.salesmanName||e.nvbhName||e.maNVBHName)].filter(Boolean).join(" - ")
+}function he(e={}){return k(e.orderSourceName||e.orderSource||e.source||e.sourceType||e.importSource||"")}async function Te(a={}){
+const r=x(a.dateFrom||a.from||a.fromDate||"")||"0000-01-01",u=x(a.dateTo||a.to||a.toDate||"")||"9999-12-31",h={..."0000-01-01"!==r?{$gte:r}:{},..."9999-12-31"!==u?{$lte:u}:{}},T={
+vatInvoiceRequired:!1,...Object.keys(h).length?{$or:[{orderDate:h},{date:h},{documentDate:h},{createdAt:{..."0000-01-01"!==r?{$gte:`${r}T00:00:00.000Z`}:{},..."9999-12-31"!==u?{
+$lte:`${u}T23:59:59.999Z`}:{}}}]}:{}},[m,l,g,f]=await Promise.all([i.find(T).sort({orderDate:1,date:1,code:1
+}).limit(Math.min(Math.max(Number(a.limit||2e4),1),1e5)).lean(),c.find(z()).lean(),s.find({}).lean(),d.find({}).lean()]),p=(m||[]).filter(R).filter(e=>!1===e.vatInvoiceRequired).filter(e=>B(e.orderDate||e.date||e.documentDate||e.createdAt,a)),y=ee(l),S=ae(g),C=re(f),N=[],D=[]
+;let M=0,A=0,H=0;p.forEach((e,n)=>{const o=ue(e,S),t=G(e);let a=0,r=0;for(const n of Array.isArray(e.items)?e.items:[]){
+const o=w(n),u=C.get(o)||{},i=Q(n),c=Math.min(i,oe(y,e,n)),s=Math.max(0,i-c),d=$(n)||(i?q(n)/i:0),h=P(s*d,2);a+=P(c*d,2),r+=h,D.push({"Mã đơn":t,"Mã sản phẩm":o,
+"Tên sản phẩm":I(n)||k(u.name||u.productName),"Số lượng bán":i,"Số lượng trả":c,"Số lượng còn lại":s,"Đơn giá":d,"Thành tiền":h})}
+const u=V(e.totalAmount||e.grandTotal||0),i=V(e.paidAmount||e.paymentAmount||0),c=V(e.debtAmount??Math.max(0,u-i));M+=u,A+=a,H+=r,N.push({STT:n+1,
+"Ngày bán":x(e.orderDate||e.date||e.documentDate||e.createdAt),"Mã đơn":t,"Mã khách hàng":o.code,"Tên khách hàng":o.name,NVBH:de(e),"Nguồn đơn":he(e),"Giá trị đơn":u,
+"Tiền đã thu":i,"Công nợ":c,"Lý do không xuất":k(e.vatInvoiceNote),"Người thay đổi":k(e.vatInvoiceUpdatedBy),"Thời gian thay đổi":k(e.vatInvoiceUpdatedAt)})});const K=n()
+;pe(K,"DanhSachDon",["STT","Ngày bán","Mã đơn","Mã khách hàng","Tên khách hàng","NVBH","Nguồn đơn","Giá trị đơn","Tiền đã thu","Công nợ","Lý do không xuất","Người thay đổi","Thời gian thay đổi"],N),
+pe(K,"ChiTietHang",["Mã đơn","Mã sản phẩm","Tên sản phẩm","Số lượng bán","Số lượng trả","Số lượng còn lại","Đơn giá","Thành tiền"],D),
+o(K,"ThongTin",[["Từ ngày","0000-01-01"===r?"":r],["Đến ngày","9999-12-31"===u?"":u],["Số đơn không xuất hóa đơn",N.length],["Tổng giá trị đơn",P(M,2)],["Tổng hàng trả",P(A,2)],["Giá trị còn lại",P(H,2)]])
+;const v=t(K),b="0000-01-01"===r?"all":r,O="9999-12-31"===u?e.todayVN():u,L=b===O?b:`${b}_${O}`;return{buffer:v,rows:N.length,fileName:`DanhSach_Don_Khong_Xuat_HoaDon_${L}.xlsx`}}
+const me=["sales-report","delivery-report","return-report","debt-report","ar-ledger-detail","stock-report","inventory-movement-report","stock-card-report","fund-report","salesman-report","deliveryman-report","customer-sales-report","product-sales-report","product-info-report","customer-info-report","user-info-report"]
+;function le(e={}){return{from:x(e.dateFrom||e.from||e.fromDate||""),to:x(e.dateTo||e.to||e.toDate||"")}}function ge(e={},n=["date","createdAt"]){const{from:o,to:t}=le(e)
+;return o||t?{$or:n.map(e=>({[e]:{...o?{$gte:o}:{},...t?{$lte:"createdAt"===e?`${t}T23:59:59.999Z`:t}:{}}}))}:{}}function fe(e={}){
+return Math.min(Math.max(Number(e.limit||1e5),1),2e5)}function pe(e,n,t,a){const r=a.map(e=>t.map(n=>e[n]??""));o(e,String(n||"BaoCao").slice(0,31),[t,...r])}function ye(e=""){
+return{"stock-report":"Tồn hiện tại đọc inventories; Tồn vật lý = onHand, Tồn khả dụng = onHand - reservedQty.",
+"inventory-movement-report":"Tồn đầu + Tổng nhập - Tổng xuất = Tồn cuối; chiều nhập/xuất theo dấu quantity; tồn cuối được backcast từ inventories khi có thể.",
+"stock-card-report":"Số dư chạy bắt đầu từ tồn đầu kỳ, không bắt đầu từ 0.",
+"sales-report":"Chỉ đơn đã xác nhận kế toán; loại hàng khuyến mại; giá trị thực tế lấy snapshot/tổng tiền của đơn.",
+"return-report":"Chỉ phiếu trả đã xác nhận kế toán; ưu tiên giá trị AR-RETURN đã post.","debt-report":"Dư đầu kỳ + Phát sinh Nợ - Tổng phát sinh Có = Dư cuối kỳ; nguồn arLedgers.",
+"ar-ledger-detail":"Số dư từng dòng bắt đầu từ dư trước kỳ của khách hàng.","fund-report":"Tồn đầu kỳ + Thu - Chi = Tồn cuối kỳ, tách theo fundType và account; nguồn fundLedgers.",
+"delivery-report":"Tổng đơn giao tính lại từ đơn con còn hiệu lực; tiền thu lấy fundLedgers, không lấy snapshot đơn tổng.",
+"product-info-report":"Thông tin sản phẩm ghép tồn kho hiện tại từ inventories và tách Tồn vật lý, Đã giữ chỗ, Tồn khả dụng.",
+"customer-info-report":"Công nợ lấy arLedgers; doanh số tháng chỉ gồm đơn đã xác nhận kế toán và giá trị thực tế tại thời điểm bán."
+}[e]||"Báo cáo sử dụng nguồn dữ liệu nghiệp vụ chuẩn của hệ thống."}async function Se(a,r,u,i,c={}){const s=n();pe(s,r,u,i);const{from:d,to:h}=le(c)
+;o(s,"ThongTin",[["Mẫu báo cáo",r],["Từ ngày",d],["Đến ngày",h],["Số dòng",i.length],["Thời gian xuất",(new Date).toISOString()],["Quy tắc nghiệp vụ",ye(a)]])
+;const T=String(a||"report").replace(/[^a-zA-Z0-9_-]/g,"-"),m=`${d||"all"}_${h||e.todayVN()}`;return{buffer:t(s),rows:i.length,fileName:`${T}_${m}.xlsx`}}function Ce(e={}){
+return Array.isArray(e.items)?e.items:[]}function Ne(e={}){return Ce(e).reduce((e,n)=>e+Q(n),0)||V(e.totalQuantity||e.quantity||0)}function De(e={},n={}){
+return V(e.originalPrice??e.basePrice??e.listPrice??n.salePrice??e.salePrice??e.price??e.unitPrice??0)}function Me(e={},n={}){return Q(e)*De(e,n)}function Ae(e={}){
+return V(e.finalAmount??e.amount??e.totalAmount??e.lineAmount??0)||Q(e)*$(e)}function He(e={},n=new Map){
+return Ce(e).reduce((e,o)=>e+Me(o,n.get(w(o))||{}),0)||V(e.beforePromoAmount||e.grossAmount||e.totalBeforeDiscount||e.totalAmount||0)}function Ke(e={}){
+return V(e.afterPromoAmount||e.totalAfterPromotion||e.totalAmount||e.amount||0)}function ve(e={},n="sales"){return k("delivery"===n?f(e):l(e))}function be(e={},n="sales"){
+return k("delivery"===n?g(e):m(e))}async function ke(){const e=await d.find({}).select("code name salePrice baseUnit unit brand category").lean()
+;return new Map(e.map(e=>[k(e.code),e]))}async function Ve(e={}){const n=((await T.salesReport({...e,full:"1",export:"1"})).sales||[]).map((e,n)=>({STT:n+1,Ngay:e.date,
+MaDon:e.code,Nguon:e.source,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,
+SoLuongBan:e.saleQuantity,SoLuongKhuyenMai:e.promoQuantity,DoanhSoTruocKM:Math.round(V(e.beforePromoAmount)),DoanhSoThucTe:Math.round(V(e.actualAmount)),
+ChietKhauKM:Math.round(V(e.promotionDiscountAmount)),GiaTriHangKM:Math.round(V(e.promotionValue)),DaThuTheoAR:Math.round(V(e.receiptAmount)),
+TraHangTheoAR:Math.round(V(e.returnAmount)),DieuChinhCongNo:Math.round(V(e.adjustmentAmount)),ConNoTheoAR:Math.round(V(e.debtAmount)),TrangThaiGiaoHang:e.deliveryStatus,
+TrangThaiKeToan:e.accountingStatus}));return Se("sales-report","BaoCaoBanHang",Object.keys(n[0]||{STT:"",Ngay:"",MaDon:"",Nguon:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",
+MaNVGH:"",NVGH:"",SoLuongBan:"",SoLuongKhuyenMai:"",DoanhSoTruocKM:"",DoanhSoThucTe:"",ChietKhauKM:"",GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",DieuChinhCongNo:"",
+ConNoTheoAR:"",TrangThaiGiaoHang:"",TrangThaiKeToan:""}),n,e)}async function Pe(e={}){const n=((await T.deliveryReport({...e,full:"1",export:"1"})).delivery||[]).map((e,n)=>({
+STT:n+1,NgayGiao:e.deliveryDate,MaDonTong:e.code,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,SoDonDangGan:e.assignedOrderCount,SoDonDaGiao:e.orderCount,
+TongTienDonCon:Math.round(V(e.totalAmount)),DoanhSoDaXacNhan:Math.round(V(e.accountingConfirmedAmount)),TienThuTheoQuy:Math.round(V(e.collectedAmount)),TrangThai:e.status,
+LechSoDonSnapshot:V(e.dataQuality?.snapshotOrderCountDifference),LechTienSnapshot:Math.round(V(e.dataQuality?.snapshotAmountDifference))}))
+;return Se("delivery-report","BaoCaoGiaoHang",Object.keys(n[0]||{STT:"",NgayGiao:"",MaDonTong:"",MaNVGH:"",NVGH:"",SoDonDangGan:"",SoDonDaGiao:"",TongTienDonCon:"",
+DoanhSoDaXacNhan:"",TienThuTheoQuy:"",TrangThai:"",LechSoDonSnapshot:"",LechTienSnapshot:""}),n,e)}async function xe(e={}){const n=((await T.returnReport({...e,full:"1",export:"1"
+})).returns||[]).map((e,n)=>({STT:n+1,Ngay:e.date,MaTraHang:e.code,MaDon:e.salesOrderCode,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,
+NVBH:e.salesStaffName,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,GiaTriTra:Math.round(V(e.amount)),GiaTriChungTu:Math.round(V(e.documentAmount)),
+GiaTriARReturn:Math.round(V(e.arAmount)),TrangThaiNhapKho:e.warehouseReceiveStatus,TrangThaiTraHang:e.returnState,TrangThaiKeToan:e.accountingStatus}))
+;return Se("return-report","BaoCaoTraHang",Object.keys(n[0]||{STT:"",Ngay:"",MaTraHang:"",MaDon:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",MaNVGH:"",NVGH:"",GiaTriTra:"",
+GiaTriChungTu:"",GiaTriARReturn:"",TrangThaiNhapKho:"",TrangThaiTraHang:"",TrangThaiKeToan:""}),n,e)}async function Be(e={}){const n=((await T.periodDebtReport({...e,full:"1",
+export:"1",includePaid:"1"})).debts||[]).map((e,n)=>({STT:n+1,MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,
+MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,DuDauKy:Math.round(V(e.openingBalance)),PhatSinhNo:Math.round(V(e.debitInPeriod)),DaThu:Math.round(V(e.receiptInPeriod)),
+TraHang:Math.round(V(e.returnInPeriod)),ChietKhauDieuChinh:Math.round(V(e.adjustmentInPeriod)+V(e.otherCreditInPeriod)),TongPhatSinhCo:Math.round(V(e.totalCreditInPeriod)),
+DuCuoiKy:Math.round(V(e.closingBalance))}));return Se("debt-report","BaoCaoCongNo",Object.keys(n[0]||{STT:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",MaNVGH:"",NVGH:"",
+DuDauKy:"",PhatSinhNo:"",DaThu:"",TraHang:"",ChietKhauDieuChinh:"",TongPhatSinhCo:"",DuCuoiKy:""}),n,e)}async function Re(e={}){const n=((await T.arLedgerDetailReport({...e,
+full:"1",export:"1"})).ledger||[]).map((e,n)=>({STT:n+1,Ngay:e.date,MaKhachHang:e.customerCode,KhachHang:e.customerName,ChungTu:e.documentCode,Loai:e.type,DienGiai:e.description,
+DuTruocGiaoDich:Math.round(V(e.openingBalance)),No:Math.round(V(e.debit)),Co:Math.round(V(e.credit)),PhanLoaiCo:e.creditCategory,DuSauGiaoDich:Math.round(V(e.closingBalance))}))
+;return Se("ar-ledger-detail","SoCongNoChiTiet",Object.keys(n[0]||{STT:"",Ngay:"",MaKhachHang:"",KhachHang:"",ChungTu:"",Loai:"",DienGiai:"",DuTruocGiaoDich:"",No:"",Co:"",
+PhanLoaiCo:"",DuSauGiaoDich:""}),n,e)}async function Oe(e={}){const n=((await T.stockReport({...e,full:"1",export:"1"})).stock||[]).map((e,n)=>({STT:n+1,
+MaSP:k(e.productCode||e.code||e.productId),SanPham:k(e.productName||e.name),DonViTinh:k(e.unit||e.baseUnit),TonVatLy:V(e.onHand??e.quantity??e.qty),DaGiuCho:V(e.reservedQty),
+TonKhaDung:V(e.availableQty)}));return Se("stock-report","TonKhoHienTai",Object.keys(n[0]||{STT:"",MaSP:"",SanPham:"",DonViTinh:"",TonVatLy:"",DaGiuCho:"",TonKhaDung:""}),n,{})}
+async function Ge(e={}){const n=((await T.inventoryMovementReport({...e,full:"1",export:"1",mode:"movement"})).stock||[]).map((e,n)=>({STT:n+1,MaSP:e.productCode,
+SanPham:e.productName,DonViTinh:e.unit,TonDauKy:V(e.openingQty),NhapMua:V(e.importQty),HangTraNhapKho:V(e.returnQty),NhapKhac:V(e.otherInQty),TongNhap:V(e.inQty),
+XuatBan:V(e.saleQty),XuatDaoChungTu:V(e.reversalOutQty),XuatKhac:V(e.otherOutQty),TongXuat:V(e.outQty),DieuChinhRong:V(e.adjustmentQty),TonCuoiKy:V(e.endingQty),
+NguonTonCuoi:e.endingSource,TonCuoiTheoLedger:V(e.ledgerEndingQty),ChenhLechDoiSoat:V(e.reconciliationDifference)}))
+;return Se("inventory-movement-report","NhapXuatTon",Object.keys(n[0]||{STT:"",MaSP:"",SanPham:"",DonViTinh:"",TonDauKy:"",NhapMua:"",HangTraNhapKho:"",NhapKhac:"",TongNhap:"",
+XuatBan:"",XuatDaoChungTu:"",XuatKhac:"",TongXuat:"",DieuChinhRong:"",TonCuoiKy:"",NguonTonCuoi:"",TonCuoiTheoLedger:"",ChenhLechDoiSoat:""}),n,e)}async function we(e={}){
+const n=((await T.stockCardReport({...e,full:"1",export:"1"})).transactions||[]).map((e,n)=>({STT:n+1,Ngay:e.date,MaSP:e.productCode,SanPham:e.productName,ChungTu:e.refCode,
+Loai:e.type,PhanLoai:e.category,TonTruocGiaoDich:V(e.openingQty),Nhap:V(e.inQty),Xuat:V(e.outQty),TonSauGiaoDich:V(e.balanceQty),GhiChu:e.note}))
+;return Se("stock-card-report","TheKho",Object.keys(n[0]||{STT:"",Ngay:"",MaSP:"",SanPham:"",ChungTu:"",Loai:"",PhanLoai:"",TonTruocGiaoDich:"",Nhap:"",Xuat:"",TonSauGiaoDich:"",
+GhiChu:""}),n,e)}async function Ie(e={}){const n=((await T.financeReport({...e,full:"1",export:"1"})).fundLedger||[]).map((e,n)=>({STT:n+1,Ngay:e.date,ChungTu:e.code,Loai:e.type,
+LoaiQuy:e.fundType,TaiKhoanQuy:e.account,NguoiLienQuan:e.counterparty,TonDauDong:Math.round(V(e.openingBalance)),Thu:Math.round(V(e.inAmount)),Chi:Math.round(V(e.outAmount)),
+TonCuoiDong:Math.round(V(e.endingBalance)),GhiChu:e.note}));return Se("fund-report","BaoCaoQuyTien",Object.keys(n[0]||{STT:"",Ngay:"",ChungTu:"",Loai:"",LoaiQuy:"",TaiKhoanQuy:"",
+NguoiLienQuan:"",TonDauDong:"",Thu:"",Chi:"",TonCuoiDong:"",GhiChu:""}),n,e)}async function Le(e={}){const n=((await T.salesReport({...e,full:"1",export:"1"
+})).bySalesman||[]).map((e,n)=>({STT:n+1,MaNVBH:e.salesmanCode,NVBH:e.salesmanName,SoDon:e.orderCount,SoKhachHang:e.customerCount,DoanhSoTruocKM:Math.round(V(e.beforePromoAmount)),
+DoanhSoThucTe:Math.round(V(e.actualAmount)),GiaTriHangKM:Math.round(V(e.promotionValue)),DaThuTheoAR:Math.round(V(e.receiptAmount)),TraHangTheoAR:Math.round(V(e.returnAmount)),
+ConNoTheoAR:Math.round(V(e.debtAmount))}));return Se("salesman-report","BaoCaoNVBH",Object.keys(n[0]||{STT:"",MaNVBH:"",NVBH:"",SoDon:"",SoKhachHang:"",DoanhSoTruocKM:"",
+DoanhSoThucTe:"",GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",ConNoTheoAR:""}),n,e)}async function Qe(e={}){const n=((await T.deliveryReport({...e,full:"1",export:"1"
+})).byStaff||[]).map((e,n)=>({STT:n+1,MaNVGH:e.deliveryStaffCode,NVGH:e.deliveryStaffName,SoChuyen:e.tripCount,SoDonDaGiao:e.orderCount,TongTienDonCon:Math.round(V(e.totalAmount)),
+DoanhSoDaXacNhan:Math.round(V(e.accountingConfirmedAmount)),ThuTienTheoQuy:Math.round(V(e.collectedAmount))}));return Se("deliveryman-report","BaoCaoNVGH",Object.keys(n[0]||{
+STT:"",MaNVGH:"",NVGH:"",SoChuyen:"",SoDonDaGiao:"",TongTienDonCon:"",DoanhSoDaXacNhan:"",ThuTienTheoQuy:""}),n,e)}async function Ee(e={}){const n=await T.salesReport({...e,
+full:"1",export:"1"}),o=await T.periodDebtReport({...e,full:"1",export:"1",includePaid:"1"}),t=new Map((o.debts||[]).map(e=>[k(e.customerCode||e.customerName),e])),a=new Map
+;(n.sales||[]).forEach(e=>{const n=k(e.customerCode||e.customerName),o=a.get(n)||{MaKhachHang:e.customerCode,KhachHang:e.customerName,MaNVBH:e.salesStaffCode,NVBH:e.salesStaffName,
+SoDon:0,DoanhSoTruocKM:0,DoanhSoThucTe:0,GiaTriHangKM:0,DaThuTheoAR:0,TraHangTheoAR:0};o.SoDon+=1,o.DoanhSoTruocKM+=V(e.beforePromoAmount),o.DoanhSoThucTe+=V(e.actualAmount),
+o.GiaTriHangKM+=V(e.promotionValue),o.DaThuTheoAR+=V(e.receiptAmount),o.TraHangTheoAR+=V(e.returnAmount),a.set(n,o)});const r=Array.from(a.entries()).map(([e,n],o)=>{
+const a=t.get(e)||{};return{STT:o+1,...n,DoanhSoTruocKM:Math.round(n.DoanhSoTruocKM),DoanhSoThucTe:Math.round(n.DoanhSoThucTe),GiaTriHangKM:Math.round(n.GiaTriHangKM),
+DaThuTheoAR:Math.round(n.DaThuTheoAR),TraHangTheoAR:Math.round(n.TraHangTheoAR),DuDauKy:Math.round(V(a.openingBalance)),DuCuoiKy:Math.round(V(a.closingBalance))}})
+;return Se("customer-sales-report","DoanhSoKhachHang",Object.keys(r[0]||{STT:"",MaKhachHang:"",KhachHang:"",MaNVBH:"",NVBH:"",SoDon:"",DoanhSoTruocKM:"",DoanhSoThucTe:"",
+GiaTriHangKM:"",DaThuTheoAR:"",TraHangTheoAR:"",DuDauKy:"",DuCuoiKy:""}),r,e)}async function _e(e={}){const n=await T.salesReport({...e,full:"1",export:"1"}),o=new Map
+;(n.sales||[]).forEach(e=>(e.items||[]).forEach(e=>{const n=k(e.productCode||e.productName),t=o.get(n)||{MaSP:e.productCode,SanPham:e.productName,NhanHang:e.brand,SoLuongBan:0,
+DoanhSoTruocKM:0,DoanhSoThucTe:0};t.SoLuongBan+=V(e.quantity),t.DoanhSoTruocKM+=V(e.catalogAmount),t.DoanhSoThucTe+=V(e.actualAmount),o.set(n,t)}))
+;const t=Array.from(o.values()).reduce((e,n)=>e+n.DoanhSoThucTe,0)||1,a=Array.from(o.values()).map((e,n)=>({STT:n+1,...e,SoLuongBan:e.SoLuongBan,
+DoanhSoTruocKM:Math.round(e.DoanhSoTruocKM),DoanhSoThucTe:Math.round(e.DoanhSoThucTe),ChietKhauKM:Math.round(e.DoanhSoTruocKM-e.DoanhSoThucTe),
+TyTrong:`${P(e.DoanhSoThucTe/t*100,2)}%`}));return Se("product-sales-report","DoanhSoSanPham",Object.keys(a[0]||{STT:"",MaSP:"",SanPham:"",NhanHang:"",SoLuongBan:"",
+DoanhSoTruocKM:"",DoanhSoThucTe:"",ChietKhauKM:"",TyTrong:""}),a,e)}
+const $e=new Set(["password","passwordHash","hash","salt","token","tokens","accessToken","refreshToken","secret","apiKey","session","sessions","resetPasswordToken","verificationToken"])
+;function qe(e={},n=[]){for(const o of n){const n=k(e[o]);if(n)return n}return""}function je(e){return!0===e?"Hoạt động":!1===e?"Ngưng hoạt động":k(e)}function Xe(e={},n=[],o=[]){
+const t=new Set([...n,...o,"_id","__v","searchText"]),a={};return Object.keys(e||{}).forEach(n=>{if(t.has(n))return;const o=e[n];null!=o&&""!==o&&(a[n]=o)}),
+Object.keys(a).length?JSON.stringify(a):""}function Fe(e={},n=0,o=new Map){const t=qe(e,["code","productCode","sku","id"]),a=o.get(k(t).toUpperCase())||{};return{STT:n+1,MaSP:t,
+TenSP:qe(e,["name","productName","title"]),Barcode:qe(e,["barcode","barCode"]),NhanHang:qe(e,["brand","brandName"]),NganhHang:qe(e,["category","categoryName","groupName"]),
+DonVi:qe(e,["unit","baseUnit","uom"]),DonViCoSo:qe(e,["baseUnit","unit"]),QuyDoi:V(e.conversionRate||e.ratio||1),QuyCach:qe(e,["packing","packaging"]),
+GiaBan:Math.round(V(e.salePrice||e.price||e.sellPrice)),GiaVon:Math.round(V(e.costPrice||e.cost||e.purchasePrice)),TonVatLy:V(a.onHand??a.quantity??a.qty),
+DaGiuCho:V(a.reservedQty),TonKhaDung:V(a.availableQty),KhuBocHang:S(p(y(e),C.HC)),TrangThai:je(e.isActive??e.status),NgayTao:x(e.createdAt),NgayCapNhat:x(e.updatedAt),
+ThongTinKhac:Xe(e,["code","productCode","sku","name","productName","barcode","brand","category","unit","baseUnit","conversionRate","packing","salePrice","costPrice","pickingZone","warehouseCode","warehouseName","defaultWarehouse","isActive","status","createdAt","updatedAt"])
+}}async function Ue(e={}){const[n,o]=await Promise.all([d.find({}).sort({code:1,name:1}).limit(fe(e)).lean(),T.stockReport({full:"1",export:"1"
+})]),t=new Map((o.stock||o.items||[]).map(e=>[k(e.productCode||e.code).toUpperCase(),e])),a=n.map((e,n)=>Fe(e,n,t))
+;return Se("product-info-report","ThongTinSanPham",Object.keys(a[0]||Fe({},-1,t)),a,e)}function Ze(e={}){return[e.customerCode,e.customerId,e.customerName].map(k).filter(Boolean)}
+async function We(){const n=await T.periodDebtReport({dateFrom:"0000-01-01",dateTo:e.todayVN(),full:"1",export:"1",includePaid:"1"}),o=new Map
+;return(n.debts||n.items||[]).forEach(e=>{const n=V(e.closingBalance);Ze(e).forEach(e=>o.set(e,n))}),o}async function ze(n={}){
+const o=e.todayVN(),t=k(n.monthStart||n.monthFrom||`${o.slice(0,7)}-01`),a=k(n.monthEnd||n.monthTo||o),r=await T.salesReport({dateFrom:t,dateTo:a,full:"1",export:"1"}),u=new Map
+;return(r.sales||r.items||[]).forEach(e=>{const n=V(e.actualAmount);[e.customerCode,e.customerId,e.customerName].map(k).filter(Boolean).forEach(e=>{u.set(e,V(u.get(e))+n)})}),u}
+function Je(e,n=[]){for(const o of n.map(k).filter(Boolean))if(e.has(o))return V(e.get(o));return 0}function Ye(e={},n=0,o=new Map,t=new Map){
+const a=K(e),r=v(e),u=[e.code,e.customerCode,e.id,e._id,e.name,e.customerName];return{STT:n+1,MaKH:qe(e,["code","customerCode","id"]),TenKH:qe(e,["name","customerName"]),
+TenHoKinhDoanh:r.businessName,SDT:qe(e,["phone","mobile","customerPhone","tel"]),DiaChi:qe(e,["address","customerAddress","fullAddress"]),MaSoThue:a.taxCode,
+DiaChiHoaDonThue:a.taxInvoiceAddress,Tuyen:qe(e,["route","routeName","line"]),KhuVuc:qe(e,["area","areaName","region","province"]),
+MaNVBH:qe(e,["staffCode","salesStaffCode","salesmanCode"]),NVBHPhuTrach:qe(e,["staffName","salesStaffName","salesmanName"]),MaNVGH:qe(e,["deliveryStaffCode","shipperCode"]),
+NVGHPhuTrach:qe(e,["deliveryStaffName","shipperName"]),CongNoHienTai:Math.round(Je(o,u)),DoanhSoThang:Math.round(Je(t,u)),TrangThai:je(e.isActive??e.status),NgayTao:x(e.createdAt),
+NgayCapNhat:x(e.updatedAt),
+ThongTinKhac:Xe(e,["code","customerCode","name","customerName","businessName","customerBusinessName","householdBusinessName","taxBusinessName","invoiceBusinessName","tenHoKinhDoanh","phone","mobile","customerPhone","address","customerAddress","taxCode","customerTaxCode","taxNumber","vatNumber","vatCode","mst","taxInvoiceAddress","customerTaxInvoiceAddress","invoiceAddress","vatInvoiceAddress","billingAddress","route","area","region","staffCode","staffName","salesStaffCode","salesStaffName","deliveryStaffCode","deliveryStaffName","isActive","status","createdAt","updatedAt"])
+}}async function en(e={}){const[n,o,t]=await Promise.all([s.find({}).sort({code:1,name:1
+}).limit(fe(e)).lean(),We(),ze(e)]),a=n.map((e,n)=>Ye(e,n,o,t)).sort((e,n)=>V(n.CongNoHienTai)-V(e.CongNoHienTai)||k(e.MaKH).localeCompare(k(n.MaKH)));return a.forEach((e,n)=>{
+e.STT=n+1}),Se("customer-info-report","ThongTinKhachHang",Object.keys(a[0]||Ye({},-1)),a,e)}function nn(e={}){const n={};return Object.keys(e||{}).forEach(o=>{
+if($e.has(o)||o.startsWith("_")||["__v","searchText"].includes(o))return
+;if(["username","fullName","name","code","staffCode","role","roles","phone","email","isActive","status","permissions","area","route","lastLoginAt","lastLogin","createdAt","updatedAt"].includes(o))return
+;const t=e[o];null!=t&&""!==t&&(n[o]=t)}),Object.keys(n).length?JSON.stringify(n):""}function on(e={},n=0){return{STT:n+1,TenDangNhap:qe(e,["username","loginName"]),
+HoTen:qe(e,["fullName","name","displayName"]),MaNhanVien:qe(e,["staffCode","code","employeeCode"]),VaiTro:Array.isArray(e.roles)?e.roles.join(", "):qe(e,["role","roles"]),
+SDT:qe(e,["phone","mobile"]),Email:qe(e,["email"]),TrangThai:je(e.isActive??e.status),
+QuyenTruyCap:Array.isArray(e.permissions)?e.permissions.join(", "):k(e.permissions||e.permission||""),KhuVucTuyen:qe(e,["area","route","region"]),NgayTao:x(e.createdAt),
+NgayCapNhat:x(e.updatedAt),LanDangNhapGanNhat:x(e.lastLoginAt||e.lastLogin||e.lastSeenAt),ThongTinKhac:nn(e)}}async function tn(e={}){
+const n=h.users,o=(await n.find({}).select("-password -passwordHash -hash -salt -token -tokens -accessToken -refreshToken -secret -apiKey -session -sessions -resetPasswordToken -verificationToken").sort({
+role:1,code:1,username:1}).limit(fe(e)).lean()).map(on);return Se("user-info-report","ThongTinTaiKhoan",Object.keys(o[0]||on({},-1)),o,e)}const an={"sales-report":Ve,
+"delivery-report":Pe,"return-report":xe,"debt-report":Be,"ar-ledger-detail":Re,"stock-report":Oe,"inventory-movement-report":Ge,"stock-card-report":we,"fund-report":Ie,
+"salesman-report":Le,"deliveryman-report":Qe,"customer-sales-report":Ee,"product-sales-report":_e,"product-info-report":Ue,"customer-info-report":en,"user-info-report":tn}
+;async function rn(e){return a.preview(e)}async function un(e){return a.commit(e)}async function cn(){return a.logs()}function sn(){return r.getBuiltInTemplates()}
+async function dn(e){return r.buildBuiltInTemplateFile(e)}function hn(e){return r.getFields(e)}async function Tn(){return r.listCustomTemplates()}async function mn(e){
+return r.saveCustomTemplate(e)}async function ln(e){return r.deleteCustomTemplate(e)}async function gn(e){return r.buildCustomTemplateFile(e)}function fn(){
+return[...new Set([...u.getExportTypes(),"vatInvoiceTT78","vat-non-invoice-orders",...me])].sort()}async function pn(n,o={}){const t=String(n||"").trim()
+;if(["vatInvoiceTT78","vat-invoice-tt78","hoa-don-vat-tt78"].includes(t))return se(o);if(["vat-non-invoice-orders","vatNonInvoiceOrders"].includes(t))return Te(o)
+;if(an[t])return an[t](o);const a=await u.findForExport(n,o);if(!a)return{error:"Loại dữ liệu export không hợp lệ",status:400};const r=await A({type:n,rows:a
+}),i=String(n||"data").replace(/[^a-zA-Z0-9_-]/g,"-");return{buffer:r,rows:a.length,fileName:`${i}-export-${e.todayVN()}.xlsx`}}module.exports={previewImport:rn,commitImport:un,
+getImportLogs:cn,getBuiltInTemplates:sn,buildBuiltInTemplateFile:dn,getFields:hn,listCustomTemplates:Tn,saveCustomTemplate:mn,deleteCustomTemplate:ln,buildCustomTemplateFile:gn,
+getExportTypes:fn,exportToExcel:pn};

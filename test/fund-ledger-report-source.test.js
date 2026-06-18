@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const reportSource = fs.readFileSync('src/services/reportLegacy.service.js', 'utf8');
-const fundSource = fs.readFileSync('src/services/fundService.js', 'utf8');
+const reportSource = require('./helpers/sourceBundle.util').readSource('src/services/reportLegacy.service.js');
+const fundSource = require('./helpers/sourceBundle.util').readSource('src/services/fundService.js');
 
 test('finance report derives cash and bank balances from FundLedger', () => {
   const block = reportSource.match(/async function financeReport[\s\S]*?\nasync function deliveryReport/)?.[0] || '';

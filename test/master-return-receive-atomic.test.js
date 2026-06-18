@@ -6,9 +6,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const master = fs.readFileSync(path.join(root, 'src/services/masterReturnOrderService.js'), 'utf8');
-const child = fs.readFileSync(path.join(root, 'src/services/returnOrderLegacy.service.js'), 'utf8');
-const repo = fs.readFileSync(path.join(root, 'src/repositories/returnOrderRepository.js'), 'utf8');
+const master = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/masterReturnOrderService.js'));
+const child = require('./helpers/sourceBundle.util').readSource('src/services/returnOrderLegacy.service.js');
+const repo = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/repositories/returnOrderRepository.js'));
 
 test('return order receive can join a parent transaction', () => {
   assert.match(child, /async function confirmReceiveReturnOrderInSession/);

@@ -6,8 +6,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
-const masterOrderService = fs.readFileSync(path.join(root, 'src/services/master-order/masterOrderLegacy.service.js'), 'utf8');
-const postingEngine = fs.readFileSync(path.join(root, 'src/engines/posting.engine.js'), 'utf8');
+const masterOrderService = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/services/master-order/masterOrderLegacy.service.js'));
+const postingEngine = require('./helpers/sourceBundle.util').readSource(path.join(root, 'src/engines/posting.engine.js'));
 
 test('AR-RETURN query projection keeps staff lineage fields from returnOrders', () => {
   const projectionStart = masterOrderService.indexOf('const projection = {');
