@@ -348,6 +348,89 @@ const INDEX_DEFINITIONS = {
   ]
 };
 
+Object.assign(INDEX_DEFINITIONS, {
+  outboxEvents: [
+    [{ id: 1 }, { name: 'uniq_outbox_events_id', unique: true }],
+    [{ status: 1, availableAt: 1, createdAt: 1 }, { name: 'idx_outbox_status_available_created' }],
+    [{ tenantId: 1, aggregateType: 1, aggregateId: 1 }, { name: 'idx_outbox_tenant_aggregate' }]
+  ],
+  purchaseOrders: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_purchase_orders_tenant_id', unique: true }],
+    [{ tenantId: 1, code: 1 }, { name: 'uniq_purchase_orders_tenant_code', unique: true }],
+    [{ tenantId: 1, supplierCode: 1, status: 1, orderDate: -1 }, { name: 'idx_purchase_orders_supplier_status_date' }]
+  ],
+  goodsReceipts: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_goods_receipts_tenant_id', unique: true }],
+    [{ tenantId: 1, code: 1 }, { name: 'uniq_goods_receipts_tenant_code', unique: true }],
+    [{ tenantId: 1, purchaseOrderId: 1, receiptDate: -1 }, { name: 'idx_goods_receipts_po_date' }]
+  ],
+  supplierPayableLedgers: [
+    [{ idempotencyKey: 1 }, { name: 'uniq_supplier_payable_idempotency', unique: true }],
+    [{ tenantId: 1, supplierCode: 1, date: -1 }, { name: 'idx_supplier_payable_supplier_date' }],
+    [{ tenantId: 1, refType: 1, refId: 1 }, { name: 'idx_supplier_payable_ref' }]
+  ],
+  supplierPayableAccounts: [
+    [{ tenantId: 1, supplierCode: 1 }, { name: 'uniq_supplier_payable_account', unique: true }],
+    [{ tenantId: 1, balanceAmount: -1 }, { name: 'idx_supplier_payable_account_balance' }]
+  ],
+  supplierPayments: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_supplier_payments_tenant_id', unique: true }],
+    [{ tenantId: 1, code: 1 }, { name: 'uniq_supplier_payments_tenant_code', unique: true }],
+    [{ tenantId: 1, supplierCode: 1, paymentDate: -1 }, { name: 'idx_supplier_payments_supplier_date' }]
+  ],
+  purchaseReturns: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_purchase_returns_tenant_id', unique: true }],
+    [{ tenantId: 1, code: 1 }, { name: 'uniq_purchase_returns_tenant_code', unique: true }],
+    [{ tenantId: 1, supplierCode: 1, returnDate: -1 }, { name: 'idx_purchase_returns_supplier_date' }],
+    [{ tenantId: 1, goodsReceiptId: 1, status: 1 }, { name: 'idx_purchase_returns_receipt_status' }]
+  ],
+  inventoryReservations: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_inventory_reservations_tenant_id', unique: true }],
+    [{ tenantId: 1, referenceType: 1, referenceId: 1 }, { name: 'uniq_inventory_reservations_reference', unique: true }],
+    [{ status: 1, expiresAt: 1 }, { name: 'idx_inventory_reservations_status_expiry' }]
+  ],
+  stockCounts: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_stock_counts_tenant_id', unique: true }],
+    [{ tenantId: 1, code: 1 }, { name: 'uniq_stock_counts_tenant_code', unique: true }],
+    [{ tenantId: 1, warehouseCode: 1, countDate: -1 }, { name: 'idx_stock_counts_warehouse_date' }]
+  ],
+  reportingSnapshots: [
+    [{ tenantId: 1, projectionType: 1, date: 1, dimensionKey: 1 }, { name: 'uniq_reporting_snapshot_dimension', unique: true }],
+    [{ tenantId: 1, projectionType: 1, date: -1 }, { name: 'idx_reporting_snapshot_type_date' }]
+  ],
+  mobileSyncOperations: [
+    [{ tenantId: 1, deviceId: 1, operationId: 1 }, { name: 'uniq_mobile_sync_operation', unique: true }],
+    [{ tenantId: 1, actorCode: 1, createdAt: -1 }, { name: 'idx_mobile_sync_actor_created' }],
+    [{ status: 1, updatedAt: -1 }, { name: 'idx_mobile_sync_status_updated' }]
+  ],
+  visitPlans: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_visit_plans_tenant_id', unique: true }],
+    [{ tenantId: 1, salesStaffCode: 1, planDate: -1 }, { name: 'idx_visit_plans_staff_date' }]
+  ],
+  visitExecutions: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_visit_executions_tenant_id', unique: true }],
+    [{ tenantId: 1, visitPlanId: 1, stopId: 1 }, { name: 'uniq_visit_execution_plan_stop', unique: true }],
+    [{ tenantId: 1, salesStaffCode: 1, checkInAt: -1 }, { name: 'idx_visit_execution_staff_checkin' }]
+  ],
+  deliveryRoutePlans: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_delivery_route_plans_tenant_id', unique: true }],
+    [{ tenantId: 1, deliveryStaffCode: 1, deliveryDate: -1 }, { name: 'idx_delivery_route_staff_date' }]
+  ],
+  integrationJobs: [
+    [{ tenantId: 1, id: 1 }, { name: 'uniq_integration_jobs_tenant_id', unique: true }],
+    [{ status: 1, nextRetryAt: 1, createdAt: 1 }, { name: 'idx_integration_jobs_status_retry' }],
+    [{ tenantId: 1, provider: 1, createdAt: -1 }, { name: 'idx_integration_jobs_provider_created' }]
+  ],
+  tenants: [
+    [{ id: 1 }, { name: 'uniq_tenants_id', unique: true }],
+    [{ code: 1 }, { name: 'uniq_tenants_code', unique: true }]
+  ],
+  tenantSubscriptions: [
+    [{ tenantId: 1 }, { name: 'uniq_tenant_subscriptions_tenant', unique: true }],
+    [{ status: 1, expiresAt: 1 }, { name: 'idx_tenant_subscriptions_status_expiry' }]
+  ]
+});
+
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue);
   if (!value || typeof value !== 'object') return value;

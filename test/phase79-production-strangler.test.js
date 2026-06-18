@@ -35,7 +35,7 @@ test('excel import facade preserves controller contract', () => {
   assert.ok(fs.statSync(path.join(ROOT, 'src/services/excelImportService.js')).size < 4096);
 });
 
-test('assembled index page is byte-for-byte equivalent to characterization snapshot', () => {
+test('assembled index page matches the approved Phase80 characterization snapshot', () => {
   const html = readPublicIndex(ROOT);
   const expectedHash = require('./helpers/sourceBundle.util').readSource(path.join(ROOT, 'test/fixtures/index-page/phase79-assembled.sha256')).trim();
   assert.equal(sha256(html), expectedHash);

@@ -2,6 +2,7 @@ const flexModel = require('./_flexModel');
 
 const FundLedger = flexModel('FundLedger', 'fundLedgers', {
   id: String,
+  tenantId: String,
   code: String,
   date: String,
   fundType: String, // cash | bank

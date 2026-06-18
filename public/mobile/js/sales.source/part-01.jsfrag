@@ -3,6 +3,7 @@ const v45Common = window.V45Common || {};
 const todayValue = v45Common.todayValue;
 const calculateCartonUnit = v45Common.calculateCartonUnit;
 import { mobileApi, getUser } from './api.js';
+import { queueOperation, isNetworkError } from './offline-sync.js';
 import { bindLogout, debounce, escapeHtml, money, requireLogin, requireRole, setMessage } from './ui.js';
 
 requireLogin();

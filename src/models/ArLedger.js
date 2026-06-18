@@ -2,6 +2,7 @@ const flexModel = require('./_flexModel');
 
 module.exports = flexModel('ArLedger', 'arLedgers', {
   id: String,
+  tenantId: String,
   code: String,
   type: String,
   date: String,

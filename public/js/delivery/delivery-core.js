@@ -444,7 +444,17 @@
 
     async saveReturn(order, items) {
       order = normalizeOrder(order || this.state.selectedOrder);
-      var json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(this.buildReturnPayload(order, items)) });
+      var payload = this.buildReturnPayload(order, items);
+      var json;
+      try {
+        json = await this.api('/api/delivery/return', { method: 'POST', body: JSON.stringify(payload) });
+      } catch (err) {
+        if (window.MobileOfflineSync && window.MobileOfflineSync.isNetworkError(err)) {
+          await window.MobileOfflineSync.queueOperation('delivery_return_save', payload);
+          return { ok: true, offlineQueued: true, message: 'Đã lưu hàng trả offline, sẽ tự đồng bộ khi có mạng', order: order };
+        }
+        throw err;
+      }
       if (json.order) this.patchOrder(json.order);
 
       // After saving Tab 2, Tab 3 must show the official returnOrder immediately.
@@ -467,7 +477,17 @@
     },
 
     async savePayment(order, payment) {
-      var json = await this.api('/api/delivery/payment', { method: 'POST', body: JSON.stringify(this.buildPaymentPayload(order, payment)) });
+      var payload = this.buildPaymentPayload(order, payment);
+      var json;
+      try {
+        json = await this.api('/api/delivery/payment', { method: 'POST', body: JSON.stringify(payload) });
+      } catch (err) {
+        if (window.MobileOfflineSync && window.MobileOfflineSync.isNetworkError(err)) {
+          await window.MobileOfflineSync.queueOperation('delivery_payment_save', payload);
+          return { ok: true, offlineQueued: true, message: 'Đã lưu tiền thu offline, sẽ tự đồng bộ khi có mạng', order: normalizeOrder(order) };
+        }
+        throw err;
+      }
       if (json.order) this.patchOrder(json.order);
       return json;
     },

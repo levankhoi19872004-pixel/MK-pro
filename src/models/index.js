@@ -50,5 +50,22 @@ module.exports = {
   dmsInventoryImports: require('./DmsInventoryImport'),
   dmsInventorySnapshots: require('./DmsInventorySnapshot'),
   internalSaleAllocations: require('./InternalSaleAllocation'),
-  internalSaleAllocationLedgers: require('./InternalSaleAllocationLedger')
+  internalSaleAllocationLedgers: require('./InternalSaleAllocationLedger'),
+  outboxEvents: require('./OutboxEvent'),
+  purchaseOrders: require('./PurchaseOrder'),
+  goodsReceipts: require('./GoodsReceipt'),
+  supplierPayableLedgers: require('./SupplierPayableLedger'),
+  supplierPayableAccounts: require('./SupplierPayableAccount'),
+  supplierPayments: require('./SupplierPayment'),
+  purchaseReturns: require('./PurchaseReturn'),
+  inventoryReservations: require('./InventoryReservation'),
+  stockCounts: require('./StockCount'),
+  reportingSnapshots: require('./ReportingSnapshot'),
+  mobileSyncOperations: require('./MobileSyncOperation'),
+  visitPlans: require('./VisitPlan'),
+  visitExecutions: require('./VisitExecution'),
+  deliveryRoutePlans: require('./DeliveryRoutePlan'),
+  integrationJobs: require('./IntegrationJob'),
+  tenants: require('./Tenant'),
+  tenantSubscriptions: require('./TenantSubscription')
 };

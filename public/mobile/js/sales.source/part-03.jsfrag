@@ -179,16 +179,17 @@ async function submitMobileDebtCollection(event, item = {}) {
   if (totalAllocated !== amount) return setMessage(msg, 'Tổng tiền phân bổ phải bằng số tiền thu', 'error');
   const button = form.querySelector('button[type="submit"]');
   setButtonBusy(button, true, 'Đang gửi...');
+  const offlineDebtPayload = {
+    customerId: item.customerId || '',
+    customerCode: item.customerCode || '',
+    customerName: item.customerName || '',
+    amount,
+    paymentMethod: form.elements.paymentMethod?.value || 'cash',
+    note: form.elements.note?.value || '',
+    allocations
+  };
   try {
-    const data = await mobileApi.submitDebtCollection({
-      customerId: item.customerId || '',
-      customerCode: item.customerCode || '',
-      customerName: item.customerName || '',
-      amount,
-      paymentMethod: form.elements.paymentMethod?.value || 'cash',
-      note: form.elements.note?.value || '',
-      allocations
-    });
+    const data = await mobileApi.submitDebtCollection(offlineDebtPayload);
     const successText = data.message || 'Đã ghi nhận thu nợ, chờ kế toán xác nhận';
     setMessage(msg, successText, 'success');
     setMessage(debtTabMessage, successText, 'success');
@@ -198,7 +199,13 @@ async function submitMobileDebtCollection(event, item = {}) {
     await loadDebts({ force: true });
     setDebtSubtab('customers', { restoreScroll: true });
   } catch (err) {
-    setMessage(msg, err.message || 'Không gửi được phiếu thu nợ', 'error');
+    if (isNetworkError(err)) {
+      await queueOperation('debt_collection_submit', offlineDebtPayload);
+      setMessage(msg, 'Đã lưu phiếu thu offline, hệ thống sẽ tự đồng bộ khi có mạng', 'success');
+      debtFormDirty = false;
+    } else {
+      setMessage(msg, err.message || 'Không gửi được phiếu thu nợ', 'error');
+    }
   } finally {
     setButtonBusy(button, false);
   }
@@ -215,6 +222,7 @@ submitOrderBtn.addEventListener('click', async () => {
   if (!cart.length) return setMessage(message, 'Chưa có sản phẩm', 'error');
   setButtonBusy(submitOrderBtn, true);
 
+  let offlineOrderPayload = null;
   try {
     const paidAmount = Number(paidAmountInput.value || 0);
     // MOBILE_SALES_CART_PROMOTION_RECALC_SUBMIT_START
@@ -242,6 +250,7 @@ submitOrderBtn.addEventListener('click', async () => {
       note: editingOrderId ? 'Sửa từ app bán hàng mobile' : 'Tạo từ app bán hàng mobile'
     };
     // MOBILE_SALES_CART_PROMOTION_RECALC_SUBMIT_END
+    offlineOrderPayload = payload;
     const data = editingOrderId
       ? await mobileApi.updateSalesOrder(editingOrderId, payload)
       : await mobileApi.createSalesOrder(payload);
@@ -254,7 +263,13 @@ submitOrderBtn.addEventListener('click', async () => {
     await loadDebts();
     switchTab('reportTab');
   } catch (err) {
-    setMessage(message, err.message, 'error');
+    if (!editingOrderId && offlineOrderPayload && isNetworkError(err)) {
+      await queueOperation('sales_order_create', offlineOrderPayload);
+      clearOrderForm(false);
+      setMessage(message, 'Đã lưu đơn offline, hệ thống sẽ tự đồng bộ khi có mạng', 'success');
+    } else {
+      setMessage(message, err.message, 'error');
+    }
   } finally {
     setButtonBusy(submitOrderBtn, false);
   }

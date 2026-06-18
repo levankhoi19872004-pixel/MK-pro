@@ -4,6 +4,7 @@ const flexModel = require('./_flexModel');
 // Nguồn ledger gốc của biến động tồn kho là `stockTransactions`.
 // Các luồng hiển thị/check tồn phải đọc qua inventoryStock.service từ collection này.
 module.exports = flexModel('InventoryLegacy', 'inventories', {
+  tenantId: String,
   productId: String,
   productCode: String,
   productName: String,

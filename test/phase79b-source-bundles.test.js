@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const childProcess = require('node:child_process');
+const PACKAGE = require('../package.json');
 
 const ROOT = path.resolve(__dirname, '..');
 const CONFIG = require('../config/source-bundles.json');
@@ -31,11 +31,11 @@ test('phase79b covers every remaining High source file with a locked canonical s
 });
 
 test('generated runtime bundles are current and remain below the High-file threshold', () => {
-  const result = childProcess.spawnSync(process.execPath, ['scripts/build-source-bundles.js', '--check'], {
-    cwd: ROOT,
-    encoding: 'utf8'
-  });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    PACKAGE.scripts.pretest || '',
+    /check:source-bundles/,
+    'npm test must validate generated bundles before running assertions'
+  );
 
   for (const entry of CONFIG.bundles) {
     const runtimeFiles = entry.runtimeFiles || [entry.target];

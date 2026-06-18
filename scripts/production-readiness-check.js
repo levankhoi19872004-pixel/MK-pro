@@ -50,6 +50,37 @@ function evaluateProductionReadiness(env = process.env) {
   if (!text(env.TRUST_PROXY)) warnings.push('Nên khai báo TRUST_PROXY phù hợp với Render/nginx');
   if (!text(env.BACKUP_DIR)) warnings.push('Nên khai báo BACKUP_DIR trên volume bền vững hoặc dùng Atlas PITR');
 
+  const enterpriseModules = [
+    'ENABLE_PURCHASING',
+    'ENABLE_WAREHOUSE_ADVANCED',
+    'ENABLE_ANALYTICS_PROJECTIONS',
+    'ENABLE_MOBILE_OFFLINE_SYNC',
+    'ENABLE_FIELD_OPERATIONS',
+    'ENABLE_DELIVERY_PLANNING',
+    'ENABLE_INTEGRATIONS'
+  ];
+  const enabledEnterpriseModules = enterpriseModules.filter((key) => enabled(env[key]));
+  if (enabledEnterpriseModules.length && !enabled(env.ENABLE_ENTERPRISE_CORE)) {
+    errors.push('ENABLE_ENTERPRISE_CORE phải bật trước các module Phase80');
+  }
+  if (enabledEnterpriseModules.length && !enabled(env.ENABLE_OUTBOX_WORKER)) {
+    warnings.push('Nên bật ENABLE_OUTBOX_WORKER sau khi smoke test để xử lý sự kiện nền');
+  }
+  if (enabled(env.ENABLE_INTEGRATIONS) && !text(env.INTEGRATION_ALLOWED_HOSTS)) {
+    errors.push('INTEGRATION_ALLOWED_HOSTS phải có allowlist khi bật tích hợp ngoài');
+  }
+  if (enabled(env.ENABLE_INTEGRATION_WORKER) && !enabled(env.ENABLE_INTEGRATIONS)) {
+    errors.push('Không bật ENABLE_INTEGRATION_WORKER khi ENABLE_INTEGRATIONS=false');
+  }
+  if (text(env.TENANT_MODE).toLowerCase() === 'multi') {
+    if (!enabled(env.TENANT_MIGRATION_CONFIRMED)) {
+      errors.push('TENANT_MODE=multi yêu cầu TENANT_MIGRATION_CONFIRMED=true sau backup, backfill và audit index');
+    }
+    if (enabled(env.ALLOW_ADMIN_TENANT_OVERRIDE)) {
+      warnings.push('ALLOW_ADMIN_TENANT_OVERRIDE chỉ nên bật trong cửa sổ migration có kiểm soát');
+    }
+  }
+
   return {
     ok: errors.length === 0,
     errors,

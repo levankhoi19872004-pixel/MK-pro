@@ -18,7 +18,26 @@ const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR || path.join(__dirname, '..', '..', 'backups'));
 // Cho phép kiểm tra backup tạo trước khi collection chỉ tiêu Dashboard tồn tại.
-const LEGACY_OPTIONAL_BACKUP_KEYS = new Set(['salesTargets']);
+const LEGACY_OPTIONAL_BACKUP_KEYS = new Set([
+  'salesTargets',
+  'outboxEvents',
+  'purchaseOrders',
+  'goodsReceipts',
+  'supplierPayableLedgers',
+  'supplierPayableAccounts',
+  'supplierPayments',
+  'purchaseReturns',
+  'inventoryReservations',
+  'stockCounts',
+  'reportingSnapshots',
+  'mobileSyncOperations',
+  'visitPlans',
+  'visitExecutions',
+  'deliveryRoutePlans',
+  'integrationJobs',
+  'tenants',
+  'tenantSubscriptions'
+]);
 
 function mongoState() {
   const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
@@ -270,7 +289,22 @@ const RESET_SCOPES = {
     'mobileLogs',
     'auditLogs',
     'reconciliationReports',
-    'idempotencyRequests'
+    'idempotencyRequests',
+    'outboxEvents',
+    'purchaseOrders',
+    'goodsReceipts',
+    'supplierPayableLedgers',
+    'supplierPayableAccounts',
+    'supplierPayments',
+    'purchaseReturns',
+    'inventoryReservations',
+    'stockCounts',
+    'reportingSnapshots',
+    'mobileSyncOperations',
+    'visitPlans',
+    'visitExecutions',
+    'deliveryRoutePlans',
+    'integrationJobs'
   ],
   catalog: [
     'products',

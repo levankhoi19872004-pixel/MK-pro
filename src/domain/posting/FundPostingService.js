@@ -24,7 +24,26 @@ async function postCashIn(input = {}, options = {}) {
   return result && result.ledger ? result.ledger : result;
 }
 
+
+async function postCashOut(input = {}, options = {}) {
+  const fundType = fundTypeFromPaymentMethod(input.paymentMethod || input.method);
+  const result = await fundService.postFundLedger({
+    ...input,
+    fundType,
+    direction: 'out',
+    sourceType: input.sourceType || 'supplierPayment',
+    refType: input.refType || input.sourceType || 'supplierPayment',
+    referenceType: input.referenceType || input.refType || input.sourceType || 'supplierPayment',
+    staffCode: input.staffCode || input.paidByCode || '',
+    staffName: input.staffName || input.paidByName || '',
+    idempotencyKey: input.idempotencyKey || ''
+  }, options);
+
+  return result && result.ledger ? result.ledger : result;
+}
+
 module.exports = {
   postCashIn,
+  postCashOut,
   fundTypeFromPaymentMethod
 };

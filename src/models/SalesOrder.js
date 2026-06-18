@@ -7,6 +7,7 @@ const Mixed = mongoose.Schema.Types.Mixed;
 
 const SalesOrder = flexModel('SalesOrder', 'orders', {
   id: String,
+  tenantId: String,
   code: String,
   documentCode: String,
   invoiceCode: String,

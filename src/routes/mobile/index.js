@@ -6,6 +6,7 @@ const { createMobileCatalogRouter } = require('./catalog.routes');
 const { createMobileSalesRouter } = require('./sales.routes');
 const { createMobileDeliveryRouter } = require('./delivery.routes');
 const { createMobileDebtRouter, createMobileDebtCollectionRouter } = require('./debts.routes');
+const { createMobileSyncRouter } = require('./sync.routes');
 
 function forwardTo(router, targetPath) {
   return (req, res, next) => {
@@ -48,6 +49,7 @@ function createMobileRouter(ctx) {
   router.use('/debt-collections', createMobileDebtCollectionRouter(ctx));
   router.use('/sales', createMobileSalesRouter(ctx));
   router.use('/delivery', createMobileDeliveryRouter(ctx));
+  router.use('/sync', createMobileSyncRouter(ctx));
 
   return router;
 }

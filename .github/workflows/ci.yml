@@ -20,12 +20,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci --registry=https://registry.npmjs.org/
-      - run: npm run check:lock-registry
-      - run: npm run check:syntax
-      - run: npm run check:source-size
-      - run: npm run docs:check
-      - run: npm test
+      - run: npm run quality
         env:
           NODE_ENV: test
           ALLOW_LEGACY_UNTYPED_TOKENS: 'false'
-      - run: npm audit --omit=dev --audit-level=high

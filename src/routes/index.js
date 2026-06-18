@@ -34,6 +34,15 @@ const excelInteractionRoutes = require('./excelInteractionRoutes');
 const { requireRole } = require('../middlewares/auth.middleware');
 const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
 const { inventoryMaintenanceGuard } = require('../middlewares/inventoryMaintenance.middleware');
+const purchaseRoutes = require('./purchaseRoutes');
+const warehouseAdvancedRoutes = require('./warehouseAdvancedRoutes');
+const analyticsRoutes = require('./analyticsRoutes');
+const fieldOperationRoutes = require('./fieldOperationRoutes');
+const deliveryPlanningRoutes = require('./deliveryPlanningRoutes');
+const integrationRoutes = require('./integrationRoutes');
+const platformRoutes = require('./platformRoutes');
+const enterpriseRoutes = require('./enterpriseRoutes');
+
 
 function registerApiRoutes(app) {
   // Khi chạy rebuild/normalize tồn kho, chặn mọi command có thể ghi tồn song song.
@@ -111,6 +120,17 @@ function registerApiRoutes(app) {
   // Dashboard tổng quan là module đọc độc lập; route cũ /api/dashboard vẫn được giữ nguyên.
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api', reportRoutes);
+
+  // Phase 80 enterprise expansion modules. Every module is feature-flagged and
+  // uses tenant-scoped command/transaction boundaries.
+  app.use('/api/purchase', purchaseRoutes);
+  app.use('/api/warehouse-advanced', warehouseAdvancedRoutes);
+  app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/field-operations', fieldOperationRoutes);
+  app.use('/api/delivery-planning', deliveryPlanningRoutes);
+  app.use('/api/integrations', integrationRoutes);
+  app.use('/api/platform', platformRoutes);
+  app.use('/api/enterprise', enterpriseRoutes);
 }
 
 module.exports = { registerApiRoutes };

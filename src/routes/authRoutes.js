@@ -50,6 +50,7 @@ function safeUser(user = {}) {
   const code = String(salesStaffCode || user.staffCode || user.code || '').trim();
   const name = String(salesStaffName || user.fullName || user.name || user.username || code || '').trim();
   return {
+    tenantId: String(user.tenantId || process.env.DEFAULT_TENANT_ID || 'minh-khai').trim(),
     id: String(user._id || user.id || code || '').trim(),
     code,
     staffCode: code,
@@ -94,7 +95,11 @@ router.post('/login', authLimiter, async (req, res) => {
     const password = String(req.body?.password || '').trim();
     if (!username || !password) return res.status(400).json({ ok: false, success: false, message: 'Thiếu tài khoản hoặc mật khẩu' });
 
+    const tenantFilter = String(process.env.TENANT_MODE || 'single').toLowerCase() === 'multi'
+      ? { tenantId: req.tenantId }
+      : {};
     const user = await User.findOne({
+      ...tenantFilter,
       isActive: { $ne: false },
       $or: [
         { username },

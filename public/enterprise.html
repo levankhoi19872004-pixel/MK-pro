@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MK-Pro · Trung tâm mở rộng</title>
+  <link rel="stylesheet" href="/css/enterprise.css?v=phase80-enterprise-v1" />
+  <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
+</head>
+<body>
+  <header class="enterprise-header header">
+    <div>
+      <p class="eyebrow">MK-PRO ENTERPRISE</p>
+      <h1>Trung tâm mở rộng & vận hành</h1>
+      <p class="subtitle">Theo dõi readiness, feature flag, outbox, integration và các module nghiệp vụ mới.</p>
+    </div>
+    <nav class="header-actions" aria-label="Điều hướng">
+      <a href="/" class="button secondary">Về phần mềm</a>
+      <button type="button" id="refreshEnterpriseButton" class="button">Tải lại</button>
+    </nav>
+  </header>
+
+  <main class="enterprise-main">
+    <section class="summary-grid" aria-label="Tổng quan">
+      <article class="summary-card"><span>Database</span><strong id="databaseState">Đang kiểm tra</strong></article>
+      <article class="summary-card"><span>Readiness</span><strong id="readinessState">Đang kiểm tra</strong></article>
+      <article class="summary-card"><span>Outbox chờ</span><strong id="outboxPending">0</strong></article>
+      <article class="summary-card"><span>Integration lỗi</span><strong id="integrationFailed">0</strong></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>Feature flags</h2><p>Bật theo từng giai đoạn; module tắt sẽ không nhận request nghiệp vụ.</p></div>
+      </div>
+      <div id="featureGrid" class="feature-grid" aria-live="polite"></div>
+    </section>
+
+    <section class="panel-grid">
+      <article class="panel">
+        <div class="panel-heading">
+          <div><h2>Outbox</h2><p>Sự kiện giao dịch chờ xử lý nền.</p></div>
+          <button type="button" id="drainOutboxButton" class="button small">Xử lý ngay</button>
+        </div>
+        <dl id="outboxStats" class="stats-list"></dl>
+      </article>
+
+      <article class="panel">
+        <div class="panel-heading">
+          <div><h2>Integration queue</h2><p>Webhook/API bên ngoài có retry và allowlist.</p></div>
+          <button type="button" id="drainIntegrationButton" class="button small">Xử lý ngay</button>
+        </div>
+        <dl id="integrationStats" class="stats-list"></dl>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>Module nghiệp vụ</h2><p>Dữ liệu hiển thị tối đa 20 dòng gần nhất để kiểm tra nhanh.</p></div>
+        <button type="button" id="rebuildAnalyticsButton" class="button secondary small">Rebuild báo cáo</button>
+      </div>
+      <div class="module-tabs" role="tablist">
+        <button type="button" class="tab active" data-module="purchase">Mua hàng</button>
+        <button type="button" class="tab" data-module="warehouse">Kho nâng cao</button>
+        <button type="button" class="tab" data-module="analytics">Projection</button>
+        <button type="button" class="tab" data-module="field">Tuyến bán</button>
+        <button type="button" class="tab" data-module="delivery">Điều hành giao</button>
+        <button type="button" class="tab" data-module="integrations">Tích hợp</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="moduleTableHead"></tr></thead>
+          <tbody id="moduleTableBody"><tr><td>Đang tải...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading"><div><h2>Kiểm tra readiness</h2><p>Các điều kiện bắt buộc trước khi nhận traffic.</p></div></div>
+      <div id="readinessChecks" class="check-grid"></div>
+    </section>
+
+    <p id="enterpriseMessage" class="message" role="status"></p>
+  </main>
+
+  <script type="module" src="/js/enterprise-app.js?v=phase80-enterprise-v1"></script>
+</body>
+</html>

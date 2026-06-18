@@ -32,6 +32,11 @@ const { requireAuth } = require('./middlewares/auth.middleware');
 const { securityInputGuard } = require('./middlewares/securityInput.middleware');
 const { maintenanceWriteGuard } = require('./middlewares/maintenance.middleware');
 const { csrfProtection } = require('./middlewares/csrf.middleware');
+const { tenantContext } = require('./middlewares/tenant.middleware');
+const { startOutboxJob, stopOutboxJob } = require('./jobs/outboxJob');
+const { startIntegrationJob, stopIntegrationJob } = require('./jobs/integrationJob');
+const { registerDefaultOutboxHandlers } = require('./services/outbox/registerDefaultHandlers');
+const { startReportingProjectionJob, stopReportingProjectionJob } = require('./jobs/reportingProjectionJob');
 
 const PORT = process.env.PORT || 3000;
 
@@ -154,6 +159,7 @@ function createApp() {
   // GLOBAL_API_SECURITY_BOUNDARY_APPLY_START
   app.use(apiSecurity(requireAuth));
   app.use(csrfProtection);
+  app.use('/api', tenantContext);
   // GLOBAL_API_SECURITY_BOUNDARY_APPLY_END
 
   registerApiRoutes(app);
@@ -221,6 +227,9 @@ function installGracefulShutdown(server, options = {}) {
     shuttingDown = true;
     logger.info({ signal }, 'Graceful shutdown started');
     stopReconciliationJob();
+    stopOutboxJob();
+    stopIntegrationJob();
+    stopReportingProjectionJob();
 
     const forceTimer = setTimeout(() => {
       logger.error({ signal, timeoutMs }, 'Graceful shutdown timed out');
@@ -250,6 +259,7 @@ function installGracefulShutdown(server, options = {}) {
 }
 
 async function startServer() {
+  registerDefaultOutboxHandlers();
   await connectDB();
 
   if (process.env.AUTO_ENSURE_MONGO_INDEXES !== 'false') {
@@ -270,6 +280,13 @@ async function startServer() {
       console.warn(`⚠️ Đã đánh dấu thất bại ${recoveredImports.recovered} import bị gián đoạn`);
     }
   }
+
+  const outboxJob = startOutboxJob();
+  if (outboxJob.started) console.log(`✅ Outbox worker enabled: intervalMs=${outboxJob.intervalMs}`);
+  const integrationJob = startIntegrationJob();
+  if (integrationJob.started) console.log(`✅ Integration worker enabled: intervalMs=${integrationJob.intervalMs}`);
+  const reportingProjectionJob = startReportingProjectionJob();
+  if (reportingProjectionJob.started) console.log(`✅ Reporting projection job enabled: intervalMs=${reportingProjectionJob.intervalMs}`);
 
   const reconciliationJob = startReconciliationJob();
   if (reconciliationJob.started) {

@@ -172,6 +172,7 @@ function buildJwtPayload(user = {}) {
   const name = salesStaffName || deliveryStaffName || String(user.fullName || user.name || '').trim();
 
   return {
+    tenantId: String(user.tenantId || process.env.DEFAULT_TENANT_ID || 'minh-khai').trim(),
     id: String(user.id || user._id || code || '').trim(),
     code,
     staffCode: code,

@@ -45,3 +45,16 @@ test('production readiness gate rejects unsafe secrets, shared token keys and da
   assert.equal(result.ok, false);
   assert.ok(result.errors.length >= 5);
 });
+
+test('production readiness gate requires integration allowlist and confirmed tenant migration', () => {
+  const result = evaluateProductionReadiness(validEnv({
+    ENABLE_ENTERPRISE_CORE: 'true',
+    ENABLE_INTEGRATIONS: 'true',
+    INTEGRATION_ALLOWED_HOSTS: '',
+    TENANT_MODE: 'multi',
+    TENANT_MIGRATION_CONFIRMED: 'false'
+  }));
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join('; '), /INTEGRATION_ALLOWED_HOSTS/);
+  assert.match(result.errors.join('; '), /TENANT_MIGRATION_CONFIRMED/);
+});

@@ -1,6 +1,7 @@
 const flexModel = require('./_flexModel');
 module.exports = flexModel('ReturnOrder', 'returnOrders', {
   id: String,
+  tenantId: String,
   code: String,
   customerId: String,
   customerCode: String,

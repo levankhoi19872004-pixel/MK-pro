@@ -2,6 +2,7 @@ const flexModel = require('./_flexModel');
 
 module.exports = flexModel('StockTransaction', 'stockTransactions', {
   id: String,
+  tenantId: String,
   idempotencyKey: String,
   sourceType: String,
   sourceId: String,

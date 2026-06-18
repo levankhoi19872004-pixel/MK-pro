@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
+  tenantId: { type: String, default: 'minh-khai', trim: true },
   username: { type: String, required: true, unique: true, trim: true },
   password: { type: String, required: true },
   fullName: { type: String, default: '', trim: true },

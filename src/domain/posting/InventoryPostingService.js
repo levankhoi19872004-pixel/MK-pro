@@ -100,6 +100,55 @@ async function postReturnIn(returnOrder = {}, options = {}) {
   }, options);
 }
 
+
+function requireSession(options = {}, operation = 'inventory posting') {
+  if (!options.session && options.allowUnsafeNoSession !== true) {
+    const err = new Error(`${operation} cần chạy trong Mongo session để đảm bảo atomic inventory posting`);
+    err.code = 'INVENTORY_SESSION_REQUIRED';
+    throw err;
+  }
+}
+
+async function postPurchaseIn(receipt = {}, options = {}) {
+  requireSession(options, 'postPurchaseIn');
+  return inventoryService.postStockMovement(receipt, {
+    type: 'PURCHASE',
+    direction: 'IN',
+    refType: 'GOODS_RECEIPT',
+    refId: receipt.id || receipt.code,
+    refCode: receipt.code || receipt.id,
+    date: receipt.receiptDate || receipt.date || receipt.createdAt,
+    note: `Nhập kho mua hàng ${receipt.code || ''}`.trim()
+  }, options);
+}
+
+async function postPurchaseReturnOut(purchaseReturn = {}, options = {}) {
+  requireSession(options, 'postPurchaseReturnOut');
+  return inventoryService.postStockMovement(purchaseReturn, {
+    type: 'PURCHASE_RETURN',
+    direction: 'OUT',
+    refType: 'PURCHASE_RETURN',
+    refId: purchaseReturn.id || purchaseReturn.code,
+    refCode: purchaseReturn.code || purchaseReturn.id,
+    date: purchaseReturn.returnDate || purchaseReturn.date || purchaseReturn.createdAt,
+    note: `Xuất trả nhà cung cấp ${purchaseReturn.code || ''}`.trim()
+  }, options);
+}
+
+async function postAdjustment(document = {}, direction = 'IN', options = {}) {
+  requireSession(options, 'postAdjustment');
+  const normalizedDirection = String(direction || '').toUpperCase() === 'OUT' ? 'OUT' : 'IN';
+  return inventoryService.postStockMovement(document, {
+    type: normalizedDirection === 'IN' ? 'STOCK_ADJUSTMENT_IN' : 'STOCK_ADJUSTMENT_OUT',
+    direction: normalizedDirection,
+    refType: 'STOCK_COUNT',
+    refId: document.id || document.code,
+    refCode: document.code || document.id,
+    date: document.countDate || document.date || document.createdAt,
+    note: document.note || 'Điều chỉnh theo kiểm kê'
+  }, options);
+}
+
 async function reverseMovement(document = {}, movement = {}, options = {}) {
   return inventoryService.reverseStockMovement(document, movement, options);
 }
@@ -114,6 +163,9 @@ module.exports = {
   postSalesOrdersBulkOut,
   postSaleEditDelta,
   postReturnIn,
+  postPurchaseIn,
+  postPurchaseReturnOut,
+  postAdjustment,
   reverseMovement,
   reconcileInventory
 };
