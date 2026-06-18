@@ -361,6 +361,11 @@ function statusLabel(value){
   };
   return labels[normalized]||raw||'—';
 }
+function reportColumnAlignment(column={}){
+  if(['money','number','percent'].includes(column.type))return 'number';
+  if(['date','status','severity'].includes(column.type))return 'center';
+  return 'text';
+}
 function renderReportCell(value,column){
   if(value===null||value===undefined||value==='')return '<span class="report-empty-value">—</span>';
   if(column.type==='money')return `<span class="report-number-cell">${reportFormatMoney(value)}</span>`;
@@ -376,10 +381,10 @@ function renderReportTable(payload){
   const definition=payload.definition||reportCenterState.activeDefinition;
   const columns=definition?.columns||[];
   const rows=payload.rows||[];
-  if(reportTableHead)reportTableHead.innerHTML=`<tr>${columns.map(column=>`<th>${reportEscape(column.label)}</th>`).join('')}</tr>`;
+  if(reportTableHead)reportTableHead.innerHTML=`<tr>${columns.map(column=>`<th class="report-col--${reportColumnAlignment(column)}">${reportEscape(column.label)}</th>`).join('')}</tr>`;
   if(reportTableBody){
     reportTableBody.innerHTML=rows.length
-      ? rows.map((row,rowIndex)=>`<tr data-report-row-index="${rowIndex}">${columns.map(column=>`<td>${renderReportCell(row[column.key],column)}</td>`).join('')}</tr>`).join('')
+      ? rows.map((row,rowIndex)=>`<tr data-report-row-index="${rowIndex}">${columns.map(column=>`<td class="report-col--${reportColumnAlignment(column)}">${renderReportCell(row[column.key],column)}</td>`).join('')}</tr>`).join('')
       : `<tr><td colspan="${Math.max(columns.length,1)}" class="empty-cell">Không có dữ liệu phù hợp trong kỳ đã chọn.</td></tr>`;
   }
   const meta=payload.meta||{};
