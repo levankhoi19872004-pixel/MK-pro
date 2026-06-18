@@ -93,7 +93,8 @@ async function loadTabDataOnce(tabName, options = {}){
         if(typeof loadDebtCollections === 'function') await loadDebtCollections();
         break;
       case 'reportsTab':
-        if(typeof loadReports === 'function') await loadReports();
+        // Phase 76: chỉ tải danh mục ở cửa sổ chính; popup chỉ mở khi bấm Xem báo cáo.
+        if(typeof loadReports === 'function') await loadReports({ openModal: false });
         break;
       case 'usersTab':
       case 'promotionsTab':

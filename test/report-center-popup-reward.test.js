@@ -7,17 +7,21 @@ const RewardReportService = require('../src/services/reports/RewardReportService
 const ArLedger = require('../src/models/ArLedger');
 const ReportCenterService = require('../src/services/reports/ReportCenterService');
 
-test('Report Center is rendered as an isolated popup with a compact launcher', () => {
+test('Report directory stays on the main screen and each report opens in a popup', () => {
   const html = fs.readFileSync('public/index.html', 'utf8');
   const client = fs.readFileSync('public/js/app/admin/08a-reports.js', 'utf8');
   const css = fs.readFileSync('public/css/95-report-center-popup.css', 'utf8');
 
-  assert.match(html, /id="openReportCenterButton"/);
+  assert.match(html, /id="reportCatalog" class="report-directory-list"/);
+  assert.match(html, /Nhấn “Xem báo cáo” để mở popup chi tiết/);
+  assert.doesNotMatch(html, /id="openReportCenterButton"/);
   assert.match(html, /id="reportCenterModal"[^>]*class="modal-backdrop report-center-modal"/);
   assert.match(html, /id="closeReportCenterButton"/);
-  assert.match(client, /function openReportCenterModal/);
-  assert.match(client, /function closeReportCenterModal/);
+  assert.match(client, /data-report-code/);
+  assert.match(client, /openReport\(button\.dataset\.reportCode,button\)/);
+  assert.match(client, /if\(!reportModalIsOpen\(\)&&options\.openModal!==true\)return reportCenterState\.catalog/);
   assert.match(client, /event\.key==='Escape'/);
+  assert.match(css, /#reportsTab \.report-directory-grid/);
   assert.match(css, /#reportCenterModal \.report-center-dialog/);
 });
 

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/css/00-base.css?v=phase35-css-split-v1&patch=phase68-import-stock-allocation-trace-v1" />
   <link rel="stylesheet" href="/css/05-home-dashboard.css?v=home-dashboard-v3" />
   <link rel="stylesheet" href="/css/10-operational-overrides.css?v=phase61-delivery-fund-split-tabs-v1&patch=phase72-report-center-v2" />
-  <link rel="stylesheet" href="/css/95-report-center-popup.css?v=phase75-report-popup-reward-v1" />
+  <link rel="stylesheet" href="/css/95-report-center-popup.css?v=phase76-report-directory-popup-v1" />
   <link rel="stylesheet" href="/css/20-catalog-modals.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/30-master-orders.css?v=phase64-master-order-dates-v1" />
   <link rel="stylesheet" href="/css/40-import-sales.css?v=phase35-css-split-v1" />
@@ -1561,162 +1561,153 @@
     </section>
 
     <section id="reportsTab" class="tab-content">
-      <main class="report-launcher-shell">
-        <section class="card report-launcher-card">
+      <main class="report-directory-shell">
+        <section class="card report-directory-hero">
           <div>
             <span class="report-eyebrow">REPORT CENTER V2</span>
-            <h2>Báo cáo quản trị</h2>
-            <p class="muted">Báo cáo được mở trong cửa sổ riêng để màn hình chính gọn và dễ thao tác hơn.</p>
+            <h2>Danh sách báo cáo quản trị</h2>
+            <p class="muted">Chọn đúng báo cáo cần xem. Mỗi báo cáo mở trong một cửa sổ riêng để màn hình chính luôn gọn và dễ tìm.</p>
           </div>
-          <div class="report-launcher-actions">
-            <button id="openReportCenterButton" type="button">Mở trung tâm báo cáo</button>
-            <small>Hỗ trợ lọc, truy vết và xuất Excel theo dữ liệu chuẩn.</small>
+          <div class="report-directory-status-wrap">
+            <span id="reportDirectoryState" class="report-directory-state">Chưa tải danh mục</span>
+            <button id="reloadReportCatalogButton" class="secondary" type="button">Tải lại danh mục</button>
           </div>
         </section>
+
+        <section class="card report-directory-card">
+          <div class="report-directory-head">
+            <div>
+              <h3>Danh mục báo cáo</h3>
+              <p class="muted">Báo cáo được nhóm theo nghiệp vụ. Nhấn “Xem báo cáo” để mở popup chi tiết.</p>
+            </div>
+            <input id="reportCatalogSearch" placeholder="Tìm tên hoặc nội dung báo cáo..." />
+          </div>
+          <div id="reportCatalog" class="report-directory-list">
+            <div class="report-catalog-loading">Đang tải danh mục...</div>
+          </div>
+        </section>
+
+        <details class="card report-export-card report-directory-export-card">
+          <summary>
+            <span><strong>Kho mẫu Excel và dữ liệu xuất</strong><small>Giữ đầy đủ các mẫu xuất cũ để đối soát và gửi ngoài hệ thống.</small></span>
+          </summary>
+          <div class="report-export-body">
+            <div class="note-box">
+              <strong>Quy tắc nguồn dữ liệu:</strong>
+              Tồn kho hiện tại đọc inventories. Nhập - xuất - tồn và thẻ kho đọc stockTransactions. Công nợ đọc arLedgers. Quỹ đọc fundLedgers. Doanh số chỉ tính đơn đã xác nhận kế toán và không cộng dòng hàng khuyến mại.
+            </div>
+            <div class="report-export-buttons">
+              <button type="button" class="secondary report-export-btn" data-report-type="sales-report">Báo cáo bán hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="delivery-report">Báo cáo giao hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="return-report">Báo cáo trả hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="debt-report">Báo cáo công nợ</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="ar-ledger-detail">Sổ công nợ chi tiết</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="stock-report">Tồn kho hiện tại</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="inventory-movement-report">Nhập - xuất - tồn</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="stock-card-report">Thẻ kho</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="fund-report">Quỹ tiền</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="salesman-report">Báo cáo NVBH</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="deliveryman-report">Báo cáo NVGH</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="customer-sales-report">Doanh số khách hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="product-sales-report">Doanh số sản phẩm</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="product-info-report">Thông tin sản phẩm</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="customer-info-report">Thông tin khách hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="user-info-report">Thông tin tài khoản</button>
+              <button id="exportVatInvoiceTT78Button" type="button" class="secondary">Hóa đơn VAT TT78</button>
+              <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary report-export-btn" data-report-type="vat-non-invoice-orders">Đơn không xuất hóa đơn</button>
+            </div>
+            <p id="vatInvoiceExportSummary" class="muted">VAT TT78: Sheet1 sau khi đã đối trừ hàng trả từ returnOrders.</p>
+          </div>
+        </details>
       </main>
 
       <div id="reportCenterModal" class="modal-backdrop report-center-modal" hidden aria-hidden="true">
-              <main class="report-center-shell report-center-dialog" role="dialog" aria-modal="true" aria-labelledby="reportCenterModalTitle">
-            <section class="card report-center-hero">
-              <div class="report-center-heading">
-                <div>
-                  <span class="report-eyebrow">REPORT CENTER V2</span>
-                  <h2 id="reportCenterModalTitle">Trung tâm báo cáo quản trị</h2>
-                  <p class="muted">Theo dõi KPI, phân tích trực tiếp, truy vết số liệu và xuất Excel từ cùng một nguồn dữ liệu chuẩn.</p>
-                </div>
-                <div class="report-center-heading-actions">
-                  <div id="reportLoadState" class="report-load-state">Sẵn sàng tải báo cáo</div>
-                  <button id="closeReportCenterButton" class="secondary report-center-close" type="button">Đóng</button>
-                </div>
+        <main class="report-center-shell report-center-dialog" role="dialog" aria-modal="true" aria-labelledby="reportCenterModalTitle">
+          <section class="card report-popup-header">
+            <div class="report-center-heading">
+              <div>
+                <span class="report-eyebrow">CHI TIẾT BÁO CÁO</span>
+                <h2 id="reportCenterModalTitle">Xem báo cáo</h2>
+                <p class="muted">Lọc, phân tích và xuất Excel cho báo cáo đang chọn.</p>
               </div>
+              <div class="report-center-heading-actions">
+                <div id="reportLoadState" class="report-load-state">Sẵn sàng tải báo cáo</div>
+                <button id="closeReportCenterButton" class="secondary report-center-close" type="button">Đóng</button>
+              </div>
+            </div>
 
-              <div class="report-filter-panel">
-                <label>Kỳ báo cáo
-                  <select id="reportPeriodPreset">
-                    <option value="currentDay">Hôm nay</option>
-                    <option value="7days">7 ngày gần nhất</option>
-                    <option value="month" selected>Tháng này</option>
-                    <option value="previousMonth">Tháng trước</option>
-                    <option value="custom">Tùy chọn</option>
+            <div class="report-filter-panel">
+              <label>Kỳ báo cáo
+                <select id="reportPeriodPreset">
+                  <option value="currentDay">Hôm nay</option>
+                  <option value="7days">7 ngày gần nhất</option>
+                  <option value="month" selected>Tháng này</option>
+                  <option value="previousMonth">Tháng trước</option>
+                  <option value="custom">Tùy chọn</option>
+                </select>
+              </label>
+              <label>Từ ngày<input id="reportFromDate" type="date" /></label>
+              <label>Đến ngày<input id="reportToDate" type="date" /></label>
+              <label>Tìm trong báo cáo<input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." /></label>
+              <button id="reloadReportsButton" type="button">Cập nhật báo cáo</button>
+            </div>
+          </section>
+
+          <section class="card report-viewer-panel report-popup-viewer">
+            <div class="report-viewer-head">
+              <div>
+                <span id="reportActiveCategory" class="report-category-badge">Báo cáo</span>
+                <h3 id="reportActiveTitle">Chưa chọn báo cáo</h3>
+                <p id="reportSalesSummary" class="muted">Nhấn “Xem báo cáo” tại danh sách bên ngoài.</p>
+              </div>
+              <div class="report-viewer-actions">
+                <label>Số dòng
+                  <select id="reportPageSize">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
                   </select>
                 </label>
-                <label>Từ ngày<input id="reportFromDate" type="date" /></label>
-                <label>Đến ngày<input id="reportToDate" type="date" /></label>
-                <label>Tìm trong báo cáo<input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." /></label>
-                <button id="reloadReportsButton" type="button">Cập nhật báo cáo</button>
+                <button id="reportExportCurrentButton" class="secondary" type="button">Xuất Excel</button>
               </div>
-
-              <div id="reportOverviewCards" class="report-overview-grid">
-                <button class="report-overview-card" type="button" data-report-open="sales-detail"><span>Doanh số xác nhận</span><strong id="reportRevenue">0 ₫</strong><small id="reportOrderCount">0 đơn</small></button>
-                <button class="report-overview-card" type="button" data-report-open="sales-by-day"><span>Doanh số ròng</span><strong id="reportNetSales">0 ₫</strong><small>Sau hàng trả</small></button>
-                <button class="report-overview-card" type="button" data-report-open="finance-ledger"><span>Đã thu</span><strong id="reportCollected">0 ₫</strong><small>Đối chiếu bút toán thu</small></button>
-                <button class="report-overview-card" type="button" data-report-open="debt-period"><span>Công nợ hiện tại</span><strong id="reportDebt">0 ₫</strong><small>Nguồn arLedgers</small></button>
-                <button class="report-overview-card" type="button" data-report-open="finance-accounts"><span>Tồn quỹ tiền mặt</span><strong id="reportCashBalance">0 ₫</strong><small>Nguồn fundLedgers</small></button>
-                <button class="report-overview-card" type="button" data-report-open="inventory-current"><span>Mặt hàng có tồn</span><strong id="reportStockProducts">0</strong><small>Kho MAIN</small></button>
-                <button class="report-overview-card" type="button" data-report-open="delivery-trips"><span>Đơn đã giao</span><strong id="reportDeliveredOrders">0</strong><small>Trong kỳ</small></button>
-                <button class="report-overview-card" type="button" data-report-open="returns-detail"><span>Hàng trả</span><strong id="reportReturnAmount">0 ₫</strong><small>Đã xác nhận</small></button>
-              </div>
-
-              <div id="reportAlertStrip" class="report-alert-strip" aria-live="polite">
-                <span class="report-alert is-ok">Chưa phát hiện cảnh báo nghiêm trọng</span>
-              </div>
-            </section>
-
-            <section class="report-center-layout">
-              <aside class="card report-catalog-panel">
-                <div class="report-catalog-head">
-                  <div><h3>Danh mục báo cáo</h3><p class="muted">Chọn báo cáo cần phân tích.</p></div>
-                  <input id="reportCatalogSearch" placeholder="Tìm mẫu báo cáo..." />
-                </div>
-                <div id="reportCatalog" class="report-catalog-list">
-                  <div class="report-catalog-loading">Đang tải danh mục...</div>
-                </div>
-              </aside>
-
-              <section class="card report-viewer-panel">
-                <div class="report-viewer-head">
-                  <div>
-                    <span id="reportActiveCategory" class="report-category-badge">Bán hàng</span>
-                    <h3 id="reportActiveTitle">Doanh số theo ngày</h3>
-                    <p id="reportSalesSummary" class="muted">Chọn một báo cáo ở danh mục bên trái.</p>
-                  </div>
-                  <div class="report-viewer-actions">
-                    <label>Số dòng
-                      <select id="reportPageSize">
-                        <option value="25">25</option>
-                        <option value="50" selected>50</option>
-                        <option value="100">100</option>
-                        <option value="200">200</option>
-                      </select>
-                    </label>
-                    <button id="reportExportCurrentButton" class="secondary" type="button">Xuất Excel</button>
-                  </div>
-                </div>
-
-                <div id="reportSummaryMetrics" class="report-summary-metrics"></div>
-                <div id="reportChartPanel" class="report-chart-panel" hidden>
-                  <div class="report-chart-head"><strong>Top dữ liệu</strong><span id="reportChartCaption" class="muted"></span></div>
-                  <div id="reportChart" class="report-bar-chart"></div>
-                </div>
-
-                <div class="report-table-toolbar">
-                  <span id="reportTableStatus" class="muted">Chưa tải dữ liệu</span>
-                  <button id="reportClearSearchButton" class="text-button" type="button">Xóa tìm kiếm</button>
-                </div>
-                <div class="table-wrap report-table-wrap">
-                  <table class="report-data-table">
-                    <thead id="reportTableHead"><tr><th>Chưa chọn báo cáo</th></tr></thead>
-                    <tbody id="reportTableBody"><tr><td class="empty-cell">Chọn báo cáo để xem dữ liệu.</td></tr></tbody>
-                  </table>
-                </div>
-                <div class="report-pagination">
-                  <button id="reportPreviousPageButton" class="secondary" type="button">Trang trước</button>
-                  <span id="reportPageInfo">Trang 0/0</span>
-                  <button id="reportNextPageButton" class="secondary" type="button">Trang sau</button>
-                </div>
-              </section>
-            </section>
-
-            <details class="card report-export-card">
-              <summary>
-                <span><strong>Kho mẫu Excel và dữ liệu xuất</strong><small>Giữ đầy đủ các mẫu xuất cũ để đối soát và gửi ngoài hệ thống.</small></span>
-              </summary>
-              <div class="report-export-body">
-                <div class="note-box">
-                  <strong>Quy tắc nguồn dữ liệu:</strong>
-                  Tồn kho hiện tại đọc inventories. Nhập - xuất - tồn và thẻ kho đọc stockTransactions. Công nợ đọc arLedgers. Quỹ đọc fundLedgers. Doanh số chỉ tính đơn đã xác nhận kế toán và không cộng dòng hàng khuyến mại.
-                </div>
-                <div class="report-export-buttons">
-                  <button type="button" class="secondary report-export-btn" data-report-type="sales-report">Báo cáo bán hàng</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="delivery-report">Báo cáo giao hàng</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="return-report">Báo cáo trả hàng</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="debt-report">Báo cáo công nợ</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="ar-ledger-detail">Sổ công nợ chi tiết</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="stock-report">Tồn kho hiện tại</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="inventory-movement-report">Nhập - xuất - tồn</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="stock-card-report">Thẻ kho</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="fund-report">Quỹ tiền</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="salesman-report">Báo cáo NVBH</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="deliveryman-report">Báo cáo NVGH</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="customer-sales-report">Doanh số khách hàng</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="product-sales-report">Doanh số sản phẩm</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="product-info-report">Thông tin sản phẩm</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="customer-info-report">Thông tin khách hàng</button>
-                  <button type="button" class="secondary report-export-btn" data-report-type="user-info-report">Thông tin tài khoản</button>
-                  <button id="exportVatInvoiceTT78Button" type="button" class="secondary">Hóa đơn VAT TT78</button>
-                  <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary report-export-btn" data-report-type="vat-non-invoice-orders">Đơn không xuất hóa đơn</button>
-                </div>
-                <p id="vatInvoiceExportSummary" class="muted">VAT TT78: Sheet1 sau khi đã đối trừ hàng trả từ returnOrders.</p>
-              </div>
-            </details>
-
-            <div hidden aria-hidden="true">
-              <span id="reportStockSummary"></span><table><tbody id="reportStockTable"></tbody></table>
-              <span id="reportDebtSummary"></span><table><tbody id="reportDebtTable"></tbody></table>
-              <span id="reportCashSummary"></span><table><tbody id="reportCashTable"></tbody></table>
-              <table><tbody id="reportSalesTable"></tbody></table>
             </div>
-          </main>
+
+            <div id="reportSummaryMetrics" class="report-summary-metrics"></div>
+            <div id="reportChartPanel" class="report-chart-panel" hidden>
+              <div class="report-chart-head"><strong>Top dữ liệu</strong><span id="reportChartCaption" class="muted"></span></div>
+              <div id="reportChart" class="report-bar-chart"></div>
+            </div>
+
+            <div class="report-table-toolbar">
+              <span id="reportTableStatus" class="muted">Chưa tải dữ liệu</span>
+              <button id="reportClearSearchButton" class="text-button" type="button">Xóa tìm kiếm</button>
+            </div>
+            <div class="table-wrap report-table-wrap">
+              <table class="report-data-table">
+                <thead id="reportTableHead"><tr><th>Chưa chọn báo cáo</th></tr></thead>
+                <tbody id="reportTableBody"><tr><td class="empty-cell">Nhấn “Xem báo cáo” để tải dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="report-pagination">
+              <button id="reportPreviousPageButton" class="secondary" type="button">Trang trước</button>
+              <span id="reportPageInfo">Trang 0/0</span>
+              <button id="reportNextPageButton" class="secondary" type="button">Trang sau</button>
+            </div>
+          </section>
+
+          <div class="report-compat-hidden" hidden aria-hidden="true">
+            <div id="reportOverviewCards"></div>
+            <div id="reportAlertStrip"></div>
+            <span id="reportRevenue"></span><span id="reportOrderCount"></span><span id="reportNetSales"></span>
+            <span id="reportCollected"></span><span id="reportDebt"></span><span id="reportCashBalance"></span>
+            <span id="reportStockProducts"></span><span id="reportDeliveredOrders"></span><span id="reportReturnAmount"></span>
+            <span id="reportStockSummary"></span><table><tbody id="reportStockTable"></tbody></table>
+            <span id="reportDebtSummary"></span><table><tbody id="reportDebtTable"></tbody></table>
+            <span id="reportCashSummary"></span><table><tbody id="reportCashTable"></tbody></table>
+            <table><tbody id="reportSalesTable"></tbody></table>
+          </div>
+        </main>
       </div>
     </section>
 
@@ -2405,7 +2396,7 @@
   <script src="/js/app/debt/07d-master-return-orders.js?v=phase54-master-return-lifecycle-v1"></script>
   <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07f-fund-ledger.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
-  <script src="/js/app/admin/08a-reports.js?v=phase75-report-popup-reward-v1"></script>
+  <script src="/js/app/admin/08a-reports.js?v=phase76-report-directory-popup-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08d-import-excel.js?v=phase73-excel-interaction-v1"></script>

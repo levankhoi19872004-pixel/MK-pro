@@ -13,7 +13,8 @@ const reportCenterState={
   page:1,
   requestSeq:0,
   loading:false,
-  searchTimer:null
+  searchTimer:null,
+  lastTriggerCode:''
 };
 window.__reportCenterState=reportCenterState;
 
@@ -47,7 +48,11 @@ function closeReportCenterModal(options={}){
   modal.hidden=true;
   modal.setAttribute('aria-hidden','true');
   if(!document.querySelector('.modal-backdrop.show'))document.body.classList.remove('modal-open');
-  if(options.restoreFocus!==false)document.getElementById('openReportCenterButton')?.focus();
+  if(options.restoreFocus!==false){
+    const code=reportCenterState.lastTriggerCode;
+    const trigger=code?document.querySelector(`[data-report-code="${code}"]`):null;
+    trigger?.focus();
+  }
 }
 
 window.openReportCenterModal=openReportCenterModal;
@@ -212,6 +217,20 @@ function reportDefinition(code){
   return (reportCenterState.catalog?.reports||[]).find(report=>report.code===code)||null;
 }
 
+function reportDirectoryState(message,kind=''){
+  const element=document.getElementById('reportDirectoryState');
+  if(!element)return;
+  element.textContent=message;
+  element.classList.toggle('is-loading',kind==='loading');
+  element.classList.toggle('is-error',kind==='error');
+}
+
+function markActiveReportCard(){
+  document.querySelectorAll('[data-report-card]').forEach(card=>{
+    card.classList.toggle('is-active',card.dataset.reportCard===reportCenterState.lastTriggerCode);
+  });
+}
+
 function renderReportCatalog(){
   if(!reportCatalog)return;
   const search=String(reportCatalogSearch?.value||'').trim().toLowerCase();
@@ -223,24 +242,47 @@ function renderReportCatalog(){
       return [report.title,report.description,category.title].some(value=>String(value||'').toLowerCase().includes(search));
     });
     if(!children.length)return '';
-    return `<section class="report-catalog-group">
-      <div class="report-catalog-group-title"><strong>${reportEscape(category.title)}</strong><small>${reportEscape(category.description||'')}</small></div>
-      ${children.map(report=>`<button type="button" class="report-catalog-item ${report.code===reportCenterState.activeCode?'is-active':''}" data-report-code="${reportEscape(report.code)}">
-        <span>${reportEscape(report.title)}</span><small>${reportEscape(report.description||'')}</small>
-      </button>`).join('')}
+    return `<section class="report-directory-group">
+      <div class="report-directory-group-title">
+        <div><strong>${reportEscape(category.title)}</strong><small>${reportEscape(category.description||'')}</small></div>
+        <span>${reportFormatNumber(children.length)} báo cáo</span>
+      </div>
+      <div class="report-directory-grid">
+        ${children.map(report=>`<article class="report-directory-item ${report.code===reportCenterState.lastTriggerCode?'is-active':''}" data-report-card="${reportEscape(report.code)}">
+          <div class="report-directory-item-copy">
+            <span class="report-category-badge">${reportEscape(category.title)}</span>
+            <h4>${reportEscape(report.title)}</h4>
+            <p>${reportEscape(report.description||'')}</p>
+          </div>
+          <button type="button" data-report-code="${reportEscape(report.code)}">Xem báo cáo</button>
+        </article>`).join('')}
+      </div>
     </section>`;
   }).join('');
   reportCatalog.innerHTML=html||'<div class="report-catalog-loading">Không tìm thấy mẫu báo cáo phù hợp.</div>';
-  reportCatalog.querySelectorAll('[data-report-code]').forEach(button=>button.addEventListener('click',()=>openReport(button.dataset.reportCode)));
+  reportCatalog.querySelectorAll('[data-report-code]').forEach(button=>button.addEventListener('click',()=>openReport(button.dataset.reportCode,button)));
 }
 
-async function loadReportCatalog(){
-  if(reportCenterState.catalog)return reportCenterState.catalog;
-  const payload=await fetchJson('/api/reports/catalog');
-  reportCenterState.catalog={categories:payload.categories||[],reports:payload.reports||[]};
-  if(!reportDefinition(reportCenterState.activeCode))reportCenterState.activeCode=payload.reports?.[0]?.code||'';
-  renderReportCatalog();
-  return reportCenterState.catalog;
+async function loadReportCatalog(options={}){
+  const force=options===true||options?.force===true;
+  if(reportCenterState.catalog&&!force){
+    renderReportCatalog();
+    reportDirectoryState(`Đã tải ${reportFormatNumber(reportCenterState.catalog.reports?.length||0)} báo cáo`);
+    return reportCenterState.catalog;
+  }
+  reportDirectoryState('Đang tải danh mục...','loading');
+  try{
+    const payload=await fetchJson('/api/reports/catalog');
+    reportCenterState.catalog={categories:payload.categories||[],reports:payload.reports||[]};
+    if(!reportDefinition(reportCenterState.activeCode))reportCenterState.activeCode=payload.reports?.[0]?.code||'';
+    renderReportCatalog();
+    reportDirectoryState(`Đã tải ${reportFormatNumber(reportCenterState.catalog.reports.length)} báo cáo`);
+    return reportCenterState.catalog;
+  }catch(error){
+    reportDirectoryState(error.message||'Không tải được danh mục','error');
+    if(reportCatalog)reportCatalog.innerHTML=`<div class="report-catalog-loading">${reportEscape(error.message||'Không tải được danh mục báo cáo.')}</div>`;
+    throw error;
+  }
 }
 
 function setReportLoading(loading,message=''){
@@ -383,7 +425,7 @@ function renderActiveReport(payload){
   renderReportSummary(payload.summary||{});
   renderReportTable(payload);
   renderReportChart(payload);
-  renderReportCatalog();
+  markActiveReportCard();
 }
 
 async function loadOverview(){
@@ -410,36 +452,47 @@ async function loadActiveReport(){
 
 async function loadReports(options={}){
   if(reportCenterState.loading)return null;
-  if(options.openModal!==false)openReportCenterModal({load:false});
   setReportDefaults();
-  const requestSeq=++reportCenterState.requestSeq;
-  setReportLoading(true,'Đang tổng hợp dữ liệu báo cáo...');
   try{
-    await loadReportCatalog();
-    const tasks=[loadOverview(),loadActiveReport()];
-    const results=await Promise.allSettled(tasks);
-    if(requestSeq!==reportCenterState.requestSeq)return;
-    const failures=results.filter(result=>result.status==='rejected');
-    if(failures.length===results.length)throw failures[0].reason;
-    if(failures.length){
-      console.warn('[REPORT_CENTER_PARTIAL_FAILURE]',failures.map(result=>result.reason));
-      setReportLoading(false,'Một phần báo cáo chưa tải được');
-    }else{
-      setReportLoading(false,`Đã cập nhật lúc ${new Date().toLocaleTimeString('vi-VN')}`);
-    }
+    await loadReportCatalog(options.forceCatalog===true?{force:true}:{});
+  }catch(error){
+    if(reportModalIsOpen())setReportLoading(false,error.message||'Không tải được danh mục');
+    return null;
+  }
+
+  // Khi người dùng chỉ mở tab Báo cáo, chỉ tải danh mục ngoài màn hình chính.
+  if(!reportModalIsOpen()&&options.openModal!==true)return reportCenterState.catalog;
+  if(options.openModal===true)openReportCenterModal({load:false});
+
+  const requestSeq=++reportCenterState.requestSeq;
+  setReportLoading(true,'Đang tổng hợp báo cáo đã chọn...');
+  try{
+    const payload=await loadActiveReport();
+    if(requestSeq!==reportCenterState.requestSeq)return null;
+    setReportLoading(false,`Đã cập nhật lúc ${new Date().toLocaleTimeString('vi-VN')}`);
+    return payload;
   }catch(error){
     console.error('[REPORT_CENTER_LOAD_ERROR]',error);
     setReportLoading(false,error.message||'Không tải được báo cáo');
     if(reportTableBody)reportTableBody.innerHTML=`<tr><td class="empty-cell">${reportEscape(error.message||'Không tải được báo cáo')}</td></tr>`;
+    return null;
   }
 }
 
-async function openReport(code){
-  if(!reportDefinition(code))return;
-  openReportCenterModal({load:false});
+async function openReport(code,trigger=null){
+  if(!reportCenterState.catalog)await loadReportCatalog();
+  const definition=reportDefinition(code);
+  if(!definition)return;
+  reportCenterState.lastTriggerCode=code;
   reportCenterState.activeCode=code;
+  reportCenterState.activeDefinition=definition;
+  reportCenterState.activePayload=null;
   reportCenterState.page=1;
-  renderReportCatalog();
+  markActiveReportCard();
+  if(reportActiveTitle)reportActiveTitle.textContent=definition.title||'Báo cáo';
+  if(reportActiveCategory)reportActiveCategory.textContent=reportCategoryMap().get(definition.category)?.title||definition.category||'Báo cáo';
+  if(reportSalesSummary)reportSalesSummary.textContent=definition.description||'';
+  openReportCenterModal({load:false});
   setReportLoading(true,'Đang tải báo cáo đã chọn...');
   try{
     await loadActiveReport();
@@ -458,15 +511,11 @@ function initReportExportButtons(){
 }
 
 function bindReportCenterEvents(){
-  const openButton=document.getElementById('openReportCenterButton');
   const closeButton=document.getElementById('closeReportCenterButton');
+  const reloadCatalogButton=document.getElementById('reloadReportCatalogButton');
   const modal=reportModalElement();
   const reportTabButton=document.querySelector('.tab-button[data-tab="reportsTab"]');
 
-  if(openButton&&!openButton.dataset.boundReportCenter){
-    openButton.dataset.boundReportCenter='1';
-    openButton.addEventListener('click',()=>openReportCenterModal({load:true}));
-  }
   if(closeButton&&!closeButton.dataset.boundReportCenter){
     closeButton.dataset.boundReportCenter='1';
     closeButton.addEventListener('click',()=>closeReportCenterModal());
@@ -475,9 +524,13 @@ function bindReportCenterEvents(){
     modal.dataset.boundReportCenter='1';
     modal.addEventListener('click',event=>{if(event.target===modal)closeReportCenterModal();});
   }
-  if(reportTabButton&&!reportTabButton.dataset.boundReportPopup){
-    reportTabButton.dataset.boundReportPopup='1';
-    reportTabButton.addEventListener('click',()=>openReportCenterModal({load:true}));
+  if(reportTabButton&&!reportTabButton.dataset.boundReportDirectory){
+    reportTabButton.dataset.boundReportDirectory='1';
+    reportTabButton.addEventListener('click',()=>loadReportCatalog().catch(error=>console.warn('[REPORT_CATALOG_LOAD_ERROR]',error)));
+  }
+  if(reloadCatalogButton&&!reloadCatalogButton.dataset.boundReportDirectory){
+    reloadCatalogButton.dataset.boundReportDirectory='1';
+    reloadCatalogButton.addEventListener('click',()=>loadReportCatalog({force:true}).catch(error=>console.warn('[REPORT_CATALOG_RELOAD_ERROR]',error)));
   }
   document.querySelectorAll('.tab-button:not([data-tab="reportsTab"])').forEach(button=>{
     if(button.dataset.boundReportPopupClose)return;
