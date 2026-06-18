@@ -8,6 +8,7 @@ const router = express.Router();
 const adminOnly = requireRole(['admin']);
 const viewBusinessReports = requireRole(['admin', 'manager', 'accountant']);
 const viewStockReports = requireRole(['admin', 'manager', 'accountant', 'warehouse', 'sales']);
+const reportCenterAccess = requireRole(['admin', 'manager', 'accountant', 'warehouse', 'sales']);
 
 // Backward-compatible report endpoints used by old UI.
 router.get('/stock', viewStockReports, reportController.stock);
@@ -23,6 +24,11 @@ router.get('/debts', viewBusinessReports, reportController.debts);
 router.get('/debts/by-salesman', viewBusinessReports, reportController.debtsBySalesman);
 router.get('/debts/by-delivery', viewBusinessReports, reportController.debtsByDelivery);
 router.get('/dashboard', viewBusinessReports, reportController.dashboard);
+
+// Report Center v2: catalog được lọc theo vai trò; từng mẫu tiếp tục kiểm tra quyền trong service.
+router.get('/reports/catalog', reportCenterAccess, reportController.reportCatalog);
+router.get('/reports/overview', reportCenterAccess, reportController.reportOverview);
+router.get('/reports/run/:code', reportCenterAccess, reportController.runReport);
 
 // Clean report namespace for new UI/API.
 router.get('/reports/stock', viewStockReports, reportController.stock);

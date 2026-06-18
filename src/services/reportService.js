@@ -6,5 +6,6 @@ module.exports = {
   ...require('./reports/SalesReportService'),
   ...require('./reports/DeliveryReportService'),
   ...require('./reports/FinanceReportService'),
-  ...require('./reports/DashboardReportService')
+  ...require('./reports/DashboardReportService'),
+  ...require('./reports/ReportCenterService')
 };

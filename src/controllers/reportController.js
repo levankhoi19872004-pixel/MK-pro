@@ -139,6 +139,25 @@ const returns = asyncHandler(async (req, res) => {
 });
 
 
+
+const reportCatalog = asyncHandler(async (req, res) => {
+  const result = reportService.catalog(req.user || {});
+  res.json({ ok: true, ...result });
+});
+
+const reportOverview = asyncHandler(async (req, res) => {
+  if (!requireReportDateRange(req, res, { maxDays: 366 })) return;
+  const result = await reportService.overview(req.query || {}, req.user || {});
+  res.json({ ok: true, ...result });
+});
+
+const runReport = asyncHandler(async (req, res) => {
+  const definition = reportService.assertAccess(req.params.code, req.user || {});
+  if (definition.dateMode === 'range' && !requireReportDateRange(req, res, { maxDays: 366 })) return;
+  const result = await reportService.run(definition.code, req.query || {}, req.user || {});
+  res.json({ ok: true, ...result });
+});
+
 function assertDestructiveInventoryRequest(req, operation) {
   if (process.env.ENABLE_DESTRUCTIVE_INVENTORY_REBUILD !== 'true') {
     const error = new Error(`${operation} đang bị khóa trên môi trường này`);
@@ -202,6 +221,9 @@ module.exports = {
   finance,
   delivery,
   returns,
+  reportCatalog,
+  reportOverview,
+  runReport,
   rebuildInventory,
   normalizeOneWarehouse
 };

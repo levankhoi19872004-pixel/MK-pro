@@ -10,9 +10,6 @@ if(deliveryStatusFilter)deliveryStatusFilter.addEventListener('change',loadDeliv
 if(deliveryEditForm)deliveryEditForm.addEventListener('submit',submitDeliveryEdit);
 if(deliveryEditResetButton)deliveryEditResetButton.addEventListener('click',clearDeliveryEditPanel);
 [deliveryEditDebtBefore,deliveryEditCash,deliveryEditBank,deliveryEditReturn].filter(Boolean).forEach(input=>input.addEventListener('input',recalcDeliveryEditDebt));
-if(reloadReportsButton)reloadReportsButton.addEventListener('click',loadReports);
-if(reportFromDate)reportFromDate.addEventListener('change',loadReports);
-if(reportToDate)reportToDate.addEventListener('change',loadReports);
 if(userForm)userForm.addEventListener('submit',submitUser);
 if(resetUserButton)resetUserButton.addEventListener('click',resetUserForm);
 if(userSearchInput)userSearchInput.addEventListener('input',loadUsers);

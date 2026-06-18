@@ -9875,6 +9875,46 @@
         ]
       }
     },
+    "/api/reports/catalog": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/reports/catalog",
+        "operationId": "getReportsCatalog",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/reports/dashboard": {
       "get": {
         "tags": [
@@ -10440,6 +10480,46 @@
         ]
       }
     },
+    "/api/reports/overview": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/reports/overview",
+        "operationId": "getReportsOverview",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/reports/returns": {
       "get": {
         "tags": [
@@ -10447,6 +10527,46 @@
         ],
         "summary": "GET /api/reports/returns",
         "operationId": "getReportsReturns",
+        "responses": {
+          "200": {
+            "description": "Success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports/run/{code}": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/reports/run/{code}",
+        "operationId": "getReportsRunCode",
         "responses": {
           "200": {
             "description": "Success response",
