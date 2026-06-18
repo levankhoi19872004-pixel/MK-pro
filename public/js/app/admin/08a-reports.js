@@ -17,6 +17,42 @@ const reportCenterState={
 };
 window.__reportCenterState=reportCenterState;
 
+function reportModalElement(){
+  return document.getElementById('reportCenterModal');
+}
+
+function reportModalIsOpen(){
+  const modal=reportModalElement();
+  return Boolean(modal&&!modal.hidden&&modal.classList.contains('show'));
+}
+
+function openReportCenterModal(options={}){
+  const modal=reportModalElement();
+  if(!modal)return;
+  modal.hidden=false;
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  const closeButton=document.getElementById('closeReportCenterButton');
+  setTimeout(()=>closeButton?.focus(),0);
+  if(options.load===true&&!reportCenterState.activePayload&&!reportCenterState.loading){
+    loadReports({openModal:false}).catch(error=>setReportLoading(false,error.message||'Không tải được báo cáo'));
+  }
+}
+
+function closeReportCenterModal(options={}){
+  const modal=reportModalElement();
+  if(!modal)return;
+  modal.classList.remove('show');
+  modal.hidden=true;
+  modal.setAttribute('aria-hidden','true');
+  if(!document.querySelector('.modal-backdrop.show'))document.body.classList.remove('modal-open');
+  if(options.restoreFocus!==false)document.getElementById('openReportCenterButton')?.focus();
+}
+
+window.openReportCenterModal=openReportCenterModal;
+window.closeReportCenterModal=closeReportCenterModal;
+
 function reportDateInRange(dateText, fromDate, toDate){
   return isDateInRange(dateText, fromDate, toDate);
 }
@@ -248,8 +284,8 @@ function renderReportOverview(payload){
 
 const REPORT_SUMMARY_LABELS={
   rowCount:'Số dòng',orderCount:'Số đơn',customerCount:'Khách hàng',productCount:'Sản phẩm',transactionCount:'Giao dịch',
-  tripCount:'Số chuyến',returnCount:'Phiếu trả',issueCount:'Ngoại lệ',criticalCount:'Critical',majorCount:'Major',warningCount:'Cảnh báo',
-  targetAmount:'Chỉ tiêu',actualAmount:'Doanh số thực',beforePromoAmount:'Trước khuyến mại',netSalesAmount:'Doanh số ròng',
+  tripCount:'Số chuyến',returnCount:'Phiếu trả',rewardTransactionCount:'Lần trả thưởng',issueCount:'Ngoại lệ',criticalCount:'Critical',majorCount:'Major',warningCount:'Cảnh báo',
+  targetAmount:'Chỉ tiêu',actualAmount:'Doanh số thực',beforePromoAmount:'Trước khuyến mại',netSalesAmount:'Doanh số ròng',totalRewardAmount:'Tổng trả thưởng',averageRewardPerCustomer:'Bình quân/khách',averageRewardPerTransaction:'Bình quân/lần',
   promotionValue:'Giá trị KM',promotionDiscountAmount:'Chiết khấu',receiptAmount:'Đã thu',returnAmount:'Hàng trả',
   totalReturnAmount:'Tổng hàng trả',debtAmount:'Công nợ',openingBalance:'Đầu kỳ',closingBalance:'Cuối kỳ',
   debitInPeriod:'Phát sinh nợ',receiptInPeriod:'Thu trong kỳ',returnInPeriod:'Trả trong kỳ',endingBalance:'Cuối kỳ',
@@ -372,7 +408,9 @@ async function loadActiveReport(){
   return payload;
 }
 
-async function loadReports(){
+async function loadReports(options={}){
+  if(reportCenterState.loading)return null;
+  if(options.openModal!==false)openReportCenterModal({load:false});
   setReportDefaults();
   const requestSeq=++reportCenterState.requestSeq;
   setReportLoading(true,'Đang tổng hợp dữ liệu báo cáo...');
@@ -398,6 +436,7 @@ async function loadReports(){
 
 async function openReport(code){
   if(!reportDefinition(code))return;
+  openReportCenterModal({load:false});
   reportCenterState.activeCode=code;
   reportCenterState.page=1;
   renderReportCatalog();
@@ -419,6 +458,39 @@ function initReportExportButtons(){
 }
 
 function bindReportCenterEvents(){
+  const openButton=document.getElementById('openReportCenterButton');
+  const closeButton=document.getElementById('closeReportCenterButton');
+  const modal=reportModalElement();
+  const reportTabButton=document.querySelector('.tab-button[data-tab="reportsTab"]');
+
+  if(openButton&&!openButton.dataset.boundReportCenter){
+    openButton.dataset.boundReportCenter='1';
+    openButton.addEventListener('click',()=>openReportCenterModal({load:true}));
+  }
+  if(closeButton&&!closeButton.dataset.boundReportCenter){
+    closeButton.dataset.boundReportCenter='1';
+    closeButton.addEventListener('click',()=>closeReportCenterModal());
+  }
+  if(modal&&!modal.dataset.boundReportCenter){
+    modal.dataset.boundReportCenter='1';
+    modal.addEventListener('click',event=>{if(event.target===modal)closeReportCenterModal();});
+  }
+  if(reportTabButton&&!reportTabButton.dataset.boundReportPopup){
+    reportTabButton.dataset.boundReportPopup='1';
+    reportTabButton.addEventListener('click',()=>openReportCenterModal({load:true}));
+  }
+  document.querySelectorAll('.tab-button:not([data-tab="reportsTab"])').forEach(button=>{
+    if(button.dataset.boundReportPopupClose)return;
+    button.dataset.boundReportPopupClose='1';
+    button.addEventListener('click',()=>{if(reportModalIsOpen())closeReportCenterModal({restoreFocus:false});});
+  });
+  if(!document.documentElement.dataset.boundReportPopupEscape){
+    document.documentElement.dataset.boundReportPopupEscape='1';
+    document.addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&reportModalIsOpen())closeReportCenterModal();
+    });
+  }
+
   if(reloadReportsButton&&!reloadReportsButton.dataset.boundReportCenter){
     reloadReportsButton.dataset.boundReportCenter='1';
     reloadReportsButton.addEventListener('click',()=>{reportCenterState.page=1;loadReports();});

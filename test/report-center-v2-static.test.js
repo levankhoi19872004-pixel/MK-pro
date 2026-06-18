@@ -12,7 +12,7 @@ const client = fs.readFileSync('public/js/app/admin/08a-reports.js', 'utf8');
 
 const expectedReports = [
   'sales-kpi', 'sales-by-day', 'sales-by-staff', 'sales-by-customer', 'sales-by-product', 'sales-detail',
-  'inventory-current', 'inventory-movement', 'stock-card', 'debt-period', 'debt-ledger',
+  'inventory-current', 'inventory-movement', 'stock-card', 'debt-period', 'debt-ledger', 'rewards-by-customer',
   'delivery-by-staff', 'delivery-trips', 'finance-ledger', 'finance-accounts', 'returns-detail', 'data-quality'
 ];
 

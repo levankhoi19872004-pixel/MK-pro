@@ -1,0 +1,125 @@
+/* PHASE75 - Report Center launcher + isolated popup workspace */
+#reportsTab .report-launcher-shell{
+  display:grid;
+  place-items:start stretch;
+}
+
+#reportsTab .report-launcher-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+  min-height:150px;
+  padding:24px 28px;
+}
+
+#reportsTab .report-launcher-card h2{
+  margin:4px 0 8px;
+}
+
+#reportsTab .report-launcher-actions{
+  display:grid;
+  justify-items:end;
+  gap:8px;
+  min-width:230px;
+}
+
+#reportsTab .report-launcher-actions button{
+  min-width:220px;
+}
+
+#reportsTab .report-launcher-actions small{
+  max-width:320px;
+  color:#64748b;
+  text-align:right;
+}
+
+#reportCenterModal.report-center-modal{
+  z-index:10040;
+  padding:12px;
+  align-items:stretch;
+  justify-content:center;
+  overflow:hidden;
+}
+
+#reportCenterModal.report-center-modal.show{
+  display:flex;
+}
+
+#reportCenterModal .report-center-dialog{
+  width:min(1600px,calc(100vw - 24px));
+  height:calc(100vh - 24px);
+  max-height:calc(100vh - 24px);
+  margin:0;
+  padding:14px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  border:1px solid #dbe5f3;
+  border-radius:18px;
+  background:#f3f6fb;
+  box-shadow:0 28px 90px rgba(15,23,42,.32);
+}
+
+#reportCenterModal .report-center-heading-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+#reportCenterModal .report-center-close{
+  min-width:78px;
+}
+
+#reportCenterModal .report-center-hero{
+  position:relative;
+}
+
+#reportCenterModal .report-catalog-panel{
+  top:0;
+  max-height:calc(100vh - 48px);
+}
+
+#reportCenterModal .report-table-wrap{
+  max-height:46vh;
+}
+
+@media(max-width:900px){
+  #reportsTab .report-launcher-card{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  #reportsTab .report-launcher-actions{
+    justify-items:stretch;
+    min-width:0;
+  }
+
+  #reportsTab .report-launcher-actions button{
+    width:100%;
+    min-width:0;
+  }
+
+  #reportsTab .report-launcher-actions small{
+    max-width:none;
+    text-align:left;
+  }
+
+  #reportCenterModal.report-center-modal{
+    padding:6px;
+  }
+
+  #reportCenterModal .report-center-dialog{
+    width:calc(100vw - 12px);
+    height:calc(100vh - 12px);
+    max-height:calc(100vh - 12px);
+    padding:8px;
+    border-radius:12px;
+  }
+
+  #reportCenterModal .report-center-heading-actions{
+    align-items:stretch;
+    flex-direction:column;
+  }
+}

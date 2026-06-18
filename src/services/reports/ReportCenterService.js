@@ -6,6 +6,7 @@ const DebtReportService = require('./DebtReportService');
 const FinanceReportService = require('./FinanceReportService');
 const DeliveryReportService = require('./DeliveryReportService');
 const ReturnReportService = require('./ReturnReportService');
+const RewardReportService = require('./RewardReportService');
 const DashboardReportService = require('./DashboardReportService');
 const HomeDashboardService = require('../dashboard/HomeDashboardService');
 const { paginate, text, toNumber } = require('./ReportDomainUtils');
@@ -157,6 +158,20 @@ const REPORT_DEFINITIONS = Object.freeze([
       ['documentCode', 'Chứng từ'], ['type', 'Loại'], ['description', 'Diễn giải'],
       ['openingBalance', 'Đầu', 'money'], ['debit', 'Nợ', 'money'], ['credit', 'Có', 'money'], ['closingBalance', 'Cuối', 'money']
     ]
+  },
+  {
+    code: 'rewards-by-customer', category: 'debt', title: 'Khách hàng đã trả thưởng',
+    description: 'Lọc các nhà đã được trả thưởng/cấn trừ công nợ trong kỳ từ bút toán AR-BONUS.',
+    roles: BUSINESS_ROLES, dateMode: 'range', exportType: '',
+    columns: [
+      ['customerCode', 'Mã KH'], ['customerName', 'Khách hàng'],
+      ['salesStaffName', 'NVBH'], ['deliveryStaffName', 'NVGH'],
+      ['rewardCount', 'Lần trả thưởng', 'number'], ['orderCount', 'Số đơn', 'number'],
+      ['totalRewardAmount', 'Tổng trả thưởng', 'money'], ['averageRewardAmount', 'Bình quân/lần', 'money'],
+      ['firstRewardDate', 'Trả lần đầu', 'date'], ['lastRewardDate', 'Trả gần nhất', 'date'],
+      ['latestOrderCode', 'Đơn gần nhất']
+    ],
+    chart: { labelKey: 'customerName', valueKey: 'totalRewardAmount', valueType: 'money' }
   },
   {
     code: 'delivery-by-staff', category: 'delivery', title: 'Hiệu suất nhân viên giao hàng',
@@ -563,6 +578,10 @@ async function run(code, query = {}, user = {}) {
     case 'debt-ledger': {
       const debt = await DebtReportService.arLedgerDetailReport({ ...baseQuery, full: '1', export: '1' });
       return reportResult(definition, debt.ledger || [], debt.summary || {}, query, { dateFrom: debt.dateFrom, dateTo: debt.dateTo, source: debt.source });
+    }
+    case 'rewards-by-customer': {
+      const rewards = await RewardReportService.rewardByCustomerReport({ ...baseQuery, full: '1', export: '1' });
+      return reportResult(definition, rewards.rewards || [], rewards.summary || {}, query, { dateFrom: rewards.dateFrom, dateTo: rewards.dateTo, source: rewards.source });
     }
     case 'delivery-by-staff':
     case 'delivery-trips': {
