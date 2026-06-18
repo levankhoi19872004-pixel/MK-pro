@@ -221,6 +221,7 @@ function mergeSalesRows({
         salesAmount: 0,
         pendingOrderCount: 0,
         pendingSalesAmount: 0,
+        totalSalesAmount: 0,
         promotionValue: 0,
         returnCount: 0,
         returnAmount: 0,
@@ -275,6 +276,7 @@ function mergeSalesRows({
   });
 
   return Array.from(rows.values()).map((row) => {
+    row.totalSalesAmount = row.salesAmount + row.pendingSalesAmount;
     row.netSalesAmount = row.salesAmount - row.returnAmount;
     row.achievementRate = calculateRate(row.netSalesAmount, row.targetAmount);
     row.status = resolveTargetStatus(row.achievementRate, row.targetAmount);
@@ -398,6 +400,7 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
     result.salesAmount += normalizeMoney(row.salesAmount);
     result.pendingOrderCount += normalizeMoney(row.pendingOrderCount);
     result.pendingSalesAmount += normalizeMoney(row.pendingSalesAmount);
+    result.totalSalesAmount += normalizeMoney(row.totalSalesAmount);
     result.promotionValue += normalizeMoney(row.promotionValue);
     result.returnAmount += normalizeMoney(row.returnAmount);
     result.netSalesAmount += normalizeMoney(row.netSalesAmount);
@@ -411,6 +414,7 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
     salesAmount: 0,
     pendingOrderCount: 0,
     pendingSalesAmount: 0,
+    totalSalesAmount: 0,
     promotionValue: 0,
     returnAmount: 0,
     netSalesAmount: 0,
@@ -432,6 +436,7 @@ function buildSummary(salesByStaff = [], canonicalTotals = {}) {
     todayOrderCount: canonicalTotals.todaySales?.orderCount ?? staffTotals.todayOrderCount,
     todaySalesAmount: canonicalTotals.todaySales?.salesAmount ?? staffTotals.todaySalesAmount
   };
+  summary.totalSalesAmount = summary.salesAmount + summary.pendingSalesAmount;
   summary.netSalesAmount = summary.salesAmount - summary.returnAmount;
   summary.achievementRate = calculateRate(summary.netSalesAmount, summary.targetAmount);
   return summary;

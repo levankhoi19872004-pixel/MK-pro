@@ -81,12 +81,12 @@
 
         <section class="card dashboard-report-card">
           <div class="dashboard-card-head">
-            <div><h3>Báo cáo nhân viên bán hàng theo tháng</h3><p>Thực đạt chỉ tính đơn đã xác nhận kế toán theo giá trị thực tế khóa trên đơn; hàng khuyến mại bị loại khỏi doanh số và hiển thị riêng.</p></div>
+            <div><h3>Chỉ tiêu nhân viên bán hàng theo tháng</h3><p>Tổng bán ra gồm đơn đã xác nhận và đơn chờ xác nhận; thực đạt chỉ tính doanh số đã xác nhận sau khi trừ hàng trả đã xác nhận.</p></div>
           </div>
           <div class="dashboard-table-wrap">
             <table class="dashboard-table">
-              <thead><tr><th>Nhân viên</th><th>Mã NVBH</th><th>Chỉ tiêu</th><th>Thực đạt</th><th>Chờ xác nhận</th><th>Tỷ lệ</th><th>Hàng trả</th><th>Doanh số ròng</th><th>Khuyến mại</th><th>Công nợ</th><th>Hôm nay</th><th>Trạng thái</th></tr></thead>
-              <tbody id="dashboardSalesTable"><tr><td colspan="12" class="empty-cell">Đang tải...</td></tr></tbody>
+              <thead><tr><th>Nhân viên</th><th>Mã NVBH</th><th>Chỉ tiêu tổng</th><th title="Doanh số đã xác nhận + doanh số chờ xác nhận">Tổng bán ra</th><th title="Giá trị phiếu trả đã xác nhận">Tổng trả về</th><th title="Doanh số đã xác nhận - hàng trả đã xác nhận">Thực đạt</th><th title="Số dư công nợ hiện tại từ arLedgers">Công nợ</th><th title="Doanh số phát sinh trong ngày, gồm cả đơn chờ xác nhận">Doanh số hôm nay</th></tr></thead>
+              <tbody id="dashboardSalesTable"><tr><td colspan="8" class="empty-cell">Đang tải...</td></tr></tbody>
             </table>
           </div>
         </section>
@@ -2229,7 +2229,7 @@
 <script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
 <script src="/js/search/productSearchBox.js?v=phase50-dms-quota-v1"></script>
   <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
-  <script src="/js/app/00-dashboard.js?v=phase55-dashboard-actual-confirmed-sales-v1"></script>
+  <script src="/js/app/00-dashboard.js?v=phase70-dashboard-sales-staff-kpi-v1"></script>
   <script src="/js/app/state/00a-catalog-orders-state.js?v=phase35-state-split-v1"></script>
   <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
   <script src="/js/app/state/00c-admin-system-state.js?v=phase35-state-split-v1"></script>

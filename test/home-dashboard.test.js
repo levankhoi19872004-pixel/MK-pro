@@ -38,6 +38,7 @@ test('dashboard sales merge calculates net sales without mutating business docum
 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].netSalesAmount, 800000);
+  assert.equal(rows[0].totalSalesAmount, 1150000);
   assert.equal(rows[0].achievementRate, 80);
   assert.equal(rows[0].status, 'near_target');
   assert.equal(rows[0].todaySalesAmount, 300000);
@@ -175,6 +176,7 @@ test('dashboard summary uses Mongo canonical totals while staff table remains sa
   assert.equal(summary.returnAmount, 70000);
   assert.equal(summary.pendingOrderCount, 3);
   assert.equal(summary.pendingSalesAmount, 250000);
+  assert.equal(summary.totalSalesAmount, 1150000);
   assert.equal(summary.promotionValue, 70000);
   assert.equal(summary.netSalesAmount, 830000);
   assert.equal(summary.debtAmount, 150000);
@@ -296,18 +298,26 @@ test('home dashboard separates confirmed, pending and today operational sales', 
   assert.match(homeQuery, /promotionValue/);
 });
 
-test('dashboard UI explains actual confirmed revenue, pending sales and promotion value', () => {
+test('dashboard employee KPI table only shows the six requested business metrics', () => {
   const html = read('public/index.html');
   const client = read('public/js/app/00-dashboard.js');
+  const salesTableHeader = html.match(/<thead><tr>([\s\S]*?)<\/tr><\/thead>\s*<tbody id="dashboardSalesTable"/)?.[1] || '';
 
-  assert.match(html, /đã xác nhận kế toán/);
-  assert.match(html, /Chờ xác nhận/);
-  assert.match(html, /Giá trị khuyến mại/);
-  assert.match(html, /không cộng vào thực đạt/);
-  assert.match(html, /phase55-dashboard-actual-confirmed-sales-v1/);
-  assert.match(client, /pendingSalesAmount/);
-  assert.match(client, /promotionValue/);
-  assert.match(client, /gồm cả chờ xác nhận/);
+  assert.match(salesTableHeader, /Chỉ tiêu tổng/);
+  assert.match(salesTableHeader, /Tổng bán ra/);
+  assert.match(salesTableHeader, /Tổng trả về/);
+  assert.match(salesTableHeader, /Thực đạt/);
+  assert.match(salesTableHeader, /Công nợ/);
+  assert.match(salesTableHeader, /Doanh số hôm nay/);
+  assert.match(html, /colspan="8"/);
+  assert.match(html, /phase70-dashboard-sales-staff-kpi-v1/);
+  assert.doesNotMatch(salesTableHeader, /Chờ xác nhận/);
+  assert.doesNotMatch(salesTableHeader, /Tỷ lệ/);
+  assert.doesNotMatch(salesTableHeader, /Khuyến mại/);
+  assert.doesNotMatch(salesTableHeader, /Trạng thái/);
+  assert.match(client, /row\.totalSalesAmount/);
+  assert.match(client, /row\.salesAmount\|\|0\)\+Number\(row\.pendingSalesAmount/);
+  assert.doesNotMatch(client, /statusLabel\(row\.status/);
 });
 
 test('dashboard cache freshness includes product catalog changes', () => {

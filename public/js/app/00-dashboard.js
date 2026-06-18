@@ -94,16 +94,6 @@
     elements.targetMessage.classList.toggle('error',Boolean(isError));
   }
 
-  function statusLabel(status){
-    const labels={
-      achieved:'Đạt chỉ tiêu',
-      near_target:'Sắp đạt',
-      below_target:'Chưa đạt',
-      no_target:'Chưa giao chỉ tiêu'
-    };
-    return labels[status]||'Chưa đạt';
-  }
-
   function progressHtml(rate){
     const safeRate=Math.max(0,Math.min(100,Number(rate||0)));
     return `<div class="dashboard-progress"><span>${escapeHtml(formatPercent(rate))}</span><span class="dashboard-progress-track"><span class="dashboard-progress-bar" style="width:${safeRate}%"></span></span></div>`;
@@ -126,24 +116,23 @@
 
   function renderSalesRows(rows=[]){
     if(!rows.length){
-      elements.salesTable.innerHTML='<tr><td colspan="12" class="empty-cell">Chưa có dữ liệu nhân viên bán hàng trong tháng.</td></tr>';
+      elements.salesTable.innerHTML='<tr><td colspan="8" class="empty-cell">Chưa có dữ liệu nhân viên bán hàng trong tháng.</td></tr>';
       return;
     }
     elements.salesTable.innerHTML=rows.map(row=>{
       const displayName=row.salesStaffName||row.salesStaffCode||'Chưa xác định';
+      const totalSalesAmount=Number.isFinite(Number(row.totalSalesAmount))
+        ? Number(row.totalSalesAmount)
+        : Number(row.salesAmount||0)+Number(row.pendingSalesAmount||0);
       return `<tr>
-        <td><span class="dashboard-staff-name"><strong>${escapeHtml(displayName)}</strong><small>${Number(row.orderCount||0)} đơn xác nhận · ${Number(row.pendingOrderCount||0)} đơn chờ · ${Number(row.todayOrderCount||0)} đơn hôm nay</small></span></td>
+        <td><span class="dashboard-staff-name"><strong>${escapeHtml(displayName)}</strong></span></td>
         <td>${escapeHtml(row.salesStaffCode||'—')}</td>
         <td>${escapeHtml(formatMoney(row.targetAmount))}</td>
-        <td>${escapeHtml(formatMoney(row.salesAmount))}</td>
-        <td>${escapeHtml(formatMoney(row.pendingSalesAmount))}</td>
-        <td>${progressHtml(row.achievementRate)}</td>
+        <td>${escapeHtml(formatMoney(totalSalesAmount))}</td>
         <td>${escapeHtml(formatMoney(row.returnAmount))}</td>
         <td><strong>${escapeHtml(formatMoney(row.netSalesAmount))}</strong></td>
-        <td>${escapeHtml(formatMoney(row.promotionValue))}</td>
         <td>${escapeHtml(formatMoney(row.debtAmount))}</td>
         <td>${escapeHtml(formatMoney(row.todaySalesAmount))}</td>
-        <td><span class="dashboard-status-badge ${escapeHtml(row.status||'no_target')}">${escapeHtml(statusLabel(row.status))}</span></td>
       </tr>`;
     }).join('');
   }
@@ -227,7 +216,7 @@
     }catch(error){
       if(error?.name==='AbortError') return;
       setState(error?.message||'Không tải được Dashboard tổng quan',true);
-      elements.salesTable.innerHTML='<tr><td colspan="12" class="empty-cell">Không tải được dữ liệu.</td></tr>';
+      elements.salesTable.innerHTML='<tr><td colspan="8" class="empty-cell">Không tải được dữ liệu.</td></tr>';
       elements.deliveryMonthTable.innerHTML='<tr><td colspan="10" class="empty-cell">Không tải được dữ liệu.</td></tr>';
       elements.deliveryTodayTable.innerHTML='<tr><td colspan="10" class="empty-cell">Không tải được dữ liệu.</td></tr>';
     }finally{
