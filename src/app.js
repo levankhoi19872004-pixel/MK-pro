@@ -166,6 +166,10 @@ function createApp() {
     next();
   });
 
+  // Register application HTML before express.static so / and /index.html
+  // are assembled from maintainable fragments instead of a monolithic file.
+  registerStaticRoutes(app);
+
   app.use(express.static(path.join(__dirname, '..', 'public'), {
     etag: false,
     lastModified: false,
@@ -178,7 +182,6 @@ function createApp() {
     }
   }));
 
-  registerStaticRoutes(app);
   registerHealthRoutes(app);
 
   app.use('/api', (req, res) => {

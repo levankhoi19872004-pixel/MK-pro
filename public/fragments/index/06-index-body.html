@@ -1,0 +1,340 @@
+            <label>Tên đăng nhập *<input name="username" placeholder="VD: banhang01" required /></label>
+            <label>Mật khẩu<input name="password" placeholder="Tạo mới bắt buộc nhập mật khẩu" /></label>
+            <label>Họ tên *<input name="name" placeholder="Tên nhân viên" required /></label>
+            <label>SĐT<input name="phone" placeholder="Số điện thoại" /></label>
+            <label>Phân quyền
+              <select name="role">
+                <option value="sales">Bán hàng</option>
+                <option value="delivery">Giao hàng</option>
+                <option value="warehouse">Kho</option>
+                <option value="accountant">Kế toán</option>
+                <option value="manager">Quản lý</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang hoạt động</label>
+            <div class="button-row">
+              <button type="submit">Lưu tài khoản</button>
+              <button type="button" id="resetUserButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="userMessage" class="message"></p>
+        </section>
+        <section class="card">
+          <div class="toolbar"><div><h2>Danh sách tài khoản</h2><p id="userCount" class="muted">Đang tải...</p></div><input id="userSearchInput" placeholder="Tìm mã, tên, tài khoản, quyền..." /></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tài khoản</th><th>Họ tên</th><th>SĐT</th><th>Quyền</th><th>Trạng thái</th><th></th></tr></thead><tbody id="userTable"><tr><td colspan="7">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </main>
+    </section>
+
+    <section id="promotionsTab" class="tab-content">
+      <section class="card">
+        <div class="toolbar">
+          <div>
+            <h2>Quản lý khuyến mại</h2>
+            <p class="muted">Giữ nguyên 3 loại khuyến mại theo file import Excel. Trong từng tab, phần mềm gom các dòng cùng mã CTKM thành 1 chương trình để dễ sửa, hủy và quản lý thời hạn.</p>
+          </div>
+          <input id="promotionSearchAllInput" placeholder="Tìm mã CTKM, nội dung, mã SP..." />
+        </div>
+        <p id="promotion3Message" class="message"></p>
+      </section>
+
+      <!-- PROMOTION_MAIN_TAB_WITH_SEPARATE_POPUPS_START: giữ tab ngoài màn chính, mỗi tab chỉ mở popup riêng khi tạo/sửa -->
+      <section class="card promotion-type-tabs-card" aria-label="Tab nghiệp vụ khuyến mại">
+        <div class="promotion-type-tabs">
+          <button type="button" class="active" data-promotion-program-tab="productRules">CK sản phẩm</button>
+          <button type="button" data-promotion-program-tab="groupItems">Nhóm SP KM</button>
+          <button type="button" data-promotion-program-tab="groupRules">Điều kiện KM / Ontop</button>
+        </div>
+      </section>
+      <!-- PROMOTION_MAIN_TAB_WITH_SEPARATE_POPUPS_END -->
+
+      <!-- PROMOTION_SEPARATE_POPUPS_START: 3 popup riêng, mỗi popup chỉ chứa đúng nghiệp vụ của nó -->
+      <div id="promotionProductPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="productRules" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionProductPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionProductPopupTitle">CK sản phẩm</h2>
+              <p id="promotionProductPopupSubtitle" class="muted">Popup riêng cho chiết khấu sản phẩm.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="productRules">Đóng</button>
+          </header>
+          <div id="promotionProductPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn chương trình CK sản phẩm.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý CK sản phẩm trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="productRules">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="promotionGroupPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="groupItems" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionGroupPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionGroupPopupTitle">Nhóm sản phẩm KM</h2>
+              <p id="promotionGroupPopupSubtitle" class="muted">Popup riêng cho danh sách sản phẩm trong nhóm.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="groupItems">Đóng</button>
+          </header>
+          <div id="promotionGroupPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn nhóm sản phẩm.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý nhóm sản phẩm KM trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="groupItems">Đóng</button>
+          </footer>
+        </section>
+      </div>
+
+      <div id="promotionConditionPopup" class="promotion-workspace-overlay promotion-type-popup" data-promotion-popup="groupRules" hidden>
+        <section class="promotion-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="promotionConditionPopupTitle">
+          <header class="promotion-workspace-header">
+            <div>
+              <h2 id="promotionConditionPopupTitle">Điều kiện KM / Ontop</h2>
+              <p id="promotionConditionPopupSubtitle" class="muted">Popup riêng cho điều kiện nhóm và Ontop.</p>
+            </div>
+            <button type="button" class="secondary promotion-workspace-close" data-promotion-popup-close="groupRules">Đóng</button>
+          </header>
+          <div id="promotionConditionPopupBody" class="promotion-workspace-body"><p class="muted">Chưa chọn điều kiện khuyến mại.</p></div>
+          <footer class="promotion-workspace-footer">
+            <span class="muted">Chỉ xử lý điều kiện KM / Ontop trong popup này.</span>
+            <button type="button" class="secondary" data-promotion-popup-close="groupRules">Đóng</button>
+          </footer>
+        </section>
+      </div>
+      <!-- PROMOTION_SEPARATE_POPUPS_END -->
+
+      <main id="promotionProductProgramTab" class="promotion-management-layout promotion-program-panel active" data-promotion-program-panel="productRules">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách chương trình CK sản phẩm</h2><p id="promotionProductProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionProductProgramButton">+ Tạo chương trình</button><button type="button" id="reloadPromotionProductProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionProductProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết CK sản phẩm</h2><p class="muted">Chọn Sửa bên trái để xem danh sách sản phẩm và chiết khấu trực tiếp.</p></div></div>
+          <form id="promotionProductProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
+            <label>Nội dung chương trình<input name="programName" placeholder="Nội dung chương trình" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionProductProgramButton" class="danger">Huỷ chương trình</button></div>
+          </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm sản phẩm vào KM</h3>
+            <form id="promotionProductLineForm" class="form compact-form promotion-line-form">
+              <label>Sản phẩm<input name="productCode" placeholder="Nhập mã sản phẩm" /></label>
+              <label>Mức CK %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 5" /></label>
+              <button type="submit">Thêm</button>
+            </form>
+          </section>
+          <h3>Danh sách sản phẩm và chiết khấu đi kèm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionProductProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionGroupItemProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupItems">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách nhóm sản phẩm KM</h2><p id="promotionGroupItemProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionGroupItemProgramButton">+ Tạo nhóm</button><button type="button" id="reloadPromotionGroupItemProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupItemProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết nhóm sản phẩm KM</h2><p class="muted">Tab này chỉ dùng để gom sản phẩm thành nhóm, phục vụ điều kiện khuyến mại ở Tab 3.</p></div></div>
+          <form id="promotionGroupItemProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã nhóm<input name="programCode" readonly placeholder="Chọn nhóm bên trái" /></label>
+            <label>Nội dung nhóm<input name="programName" placeholder="Nội dung nhóm" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu nhóm</button><button type="button" id="cancelPromotionGroupItemProgramButton" class="danger">Huỷ nhóm</button></div>
+          </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm sản phẩm vào nhóm</h3>
+            <form id="promotionGroupProductLineForm" class="form compact-form promotion-line-form">
+              <label>Sản phẩm<input name="productCode" placeholder="Nhập mã sản phẩm" /></label>
+              <button type="submit">Thêm</button>
+            </form>
+          </section>
+          <h3>Danh sách sản phẩm trong nhóm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Mã SP</th><th>Tên sản phẩm</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupItemProgramDetailTable"><tr><td colspan="5">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+
+      <main id="promotionGroupRuleProgramTab" class="promotion-management-layout promotion-program-panel" data-promotion-program-panel="groupRules">
+        <section class="card promotion-program-list">
+          <div class="toolbar">
+            <div><h2>Danh sách điều kiện nhóm KM / Ontop</h2><p id="promotionGroupRuleProgramCount" class="muted">Đang tải...</p></div>
+            <div class="promotion-program-actions"><button type="button" id="createPromotionGroupRuleProgramButton">+ Tạo điều kiện</button><button type="button" id="reloadPromotionGroupRuleProgramsButton" class="secondary">Tải lại</button></div>
+          </div>
+          <div class="table-wrap promotion-program-table-wrap">
+            <table><thead><tr><th>☑</th><th>Mã CTKM</th><th>Nội dung</th><th>Thời hạn</th><th>Trạng thái</th><th>Xem</th><th>Sửa</th><th>Huỷ</th></tr></thead><tbody id="promotionGroupRuleProgramTable"><tr><td colspan="8">Đang tải...</td></tr></tbody></table>
+          </div>
+        </section>
+        <section class="card promotion-program-detail">
+          <div class="toolbar"><div><h2>Chi tiết điều kiện nhóm KM / Ontop</h2><p class="muted">Các mức doanh số điều kiện và chiết khấu của nhóm.</p></div></div>
+          <form id="promotionGroupRuleProgramForm" class="form compact-form promotion-program-form">
+            <label>Mã chương trình<input name="programCode" readonly placeholder="Chọn chương trình bên trái" /></label>
+            <label>Nội dung chương trình<input name="programName" placeholder="Nội dung chương trình" /></label>
+            <label>Từ ngày<input name="startDate" type="date" /></label>
+            <label>Đến ngày<input name="endDate" type="date" /></label>
+            <label>Tình trạng<select name="isActive"><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
+            <div class="button-row"><button type="submit">Lưu chương trình</button><button type="button" id="cancelPromotionGroupRuleProgramButton" class="danger">Huỷ chương trình</button></div>
+          </form>
+          <section class="promotion-inline-editor">
+            <h3>Thêm điều kiện khuyến mại</h3>
+            <form id="promotionTierLineForm" class="form compact-form promotion-line-form">
+              <label>Nhóm sản phẩm áp dụng<select name="groupCode" id="promotionTierGroupSelect"><option value="">Chọn nhóm sản phẩm</option></select></label>
+              <label>Doanh số từ<input name="minAmount" type="number" min="0" step="1000" placeholder="VD: 1000000" /></label>
+              <label>Chiết khấu %<input name="discountPercent" type="number" min="0" step="0.01" placeholder="VD: 2" /></label>
+              <button type="submit">Thêm điều kiện</button>
+            </form>
+          </section>
+          <h3>Danh sách điều kiện và chiết khấu đi kèm</h3>
+          <div class="table-wrap promotion-detail-table-wrap"><table><thead><tr><th>STT</th><th>Nhóm áp dụng</th><th>Từ doanh số</th><th>CK%</th><th>Sửa</th><th>Xóa</th></tr></thead><tbody id="promotionGroupRuleProgramDetailTable"><tr><td colspan="6">Chưa chọn chương trình.</td></tr></tbody></table></div>
+        </section>
+      </main>
+    </section>
+
+    <section id="importDataTab" class="tab-content">
+      <section class="card import-data-card">
+        <div class="toolbar">
+          <div>
+            <h2>Import dữ liệu Excel</h2>
+            <p class="muted">Chọn file rồi bấm Import ngay. Hệ thống tự kiểm tra, tự cắt hàng vượt tồn và báo cáo kết quả sau import.</p>
+          </div>
+        </div>
+
+        <div class="import-panel">
+          <label>Loại import
+            <select id="importDataType">
+              <option value="products">Sản phẩm</option>
+              <option value="customers">Khách hàng</option>
+              <option value="users">Thông tin tài khoản</option>
+              <option value="openingStock">Tồn kho ban đầu</option>
+              <option value="importOrders">Phiếu nhập kho</option>
+              <option value="salesOrders">Đơn con DMS / đơn bán DMS</option>
+              <option value="salesOrdersS3">Đơn S3 rút gọn</option>
+              <option value="openingDebt">Công nợ ban đầu</option>
+              <option value="debtCollections">Phiếu thu công nợ</option>
+              <option value="cashbook">Quỹ tiền</option>
+              <option value="promotionProductRules">Import CK sản phẩm</option>
+              <option value="promotionGroupItems">Import nhóm sản phẩm KM</option>
+              <option value="promotionGroupRules">Import điều kiện nhóm KM</option>
+            </select>
+          </label>
+          <label id="importModeLabel">Chế độ import
+            <select id="importDataMode">
+              <option value="create">Import thông thường</option>
+              <option value="update">Cập nhật an toàn dữ liệu hiện có</option>
+            </select>
+          </label>
+          <label>File Excel
+            <input id="importExcelFile" type="file" accept=".xlsx,.xls" multiple />
+          </label>
+          <div class="button-row import-actions">
+            <button type="button" id="downloadImportTemplateButton" class="secondary">Tải mẫu Excel</button>
+            <button type="button" id="openExcelPasteImportButton" class="secondary">Dán trực tiếp từ Excel</button>
+            <button type="button" id="previewImportButton" class="secondary" style="display:none">Xem trước</button>
+            <button type="button" id="commitImportButton" class="success" disabled>Xem trước đơn import</button>
+          </div>
+        </div>
+
+        <div class="note-box import-guide">
+          <strong>Mẫu Excel chuẩn:</strong>
+          <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file và bấm <b>Import ngay</b>.</p>
+          <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
+          <p id="importModeHelp"><b>Cập nhật an toàn</b> chỉ áp dụng cho Sản phẩm, Khách hàng và Tài khoản: ô trống/cột thiếu giữ nguyên dữ liệu cũ; chỉ field có giá trị mới và khác dữ liệu Mongo mới được cập nhật.</p>
+        </div>
+
+        <p id="importDataMessage" class="message"></p>
+        <div id="importPreviewSummary" class="summary-box import-preview-summary">
+          <span>Tổng dòng: <strong>0</strong></span>
+          <span>Hợp lệ: <strong>0</strong></span>
+          <span>Lỗi: <strong>0</strong></span>
+        </div>
+        <div class="table-wrap import-preview-wrap">
+          <table>
+            <thead id="importPreviewHead"><tr><th>Trạng thái</th><th>Dữ liệu</th><th>Lỗi</th></tr></thead>
+            <tbody id="importPreviewTable"><tr><td colspan="3">Chọn file rồi bấm Import ngay.</td></tr></tbody>
+          </table>
+        </div>
+
+
+        <section class="import-shortage-report-section">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>Báo cáo hàng thiếu khi import</h3>
+              <p class="muted">Báo cáo được lưu lâu dài theo từng lần import để kiểm tra và đối soát.</p>
+            </div>
+            <div class="button-row">
+              <select id="importShortageReportStatusFilter" aria-label="Lọc trạng thái báo cáo hàng thiếu">
+                <option value="">Tất cả trạng thái</option>
+                <option value="open">Chưa đối soát</option>
+                <option value="in_review">Đang đối soát</option>
+                <option value="resolved">Đã xử lý</option>
+              </select>
+              <input id="importShortageReportSearch" placeholder="Mã báo cáo / đơn / SP / khách" />
+              <button type="button" id="reloadImportShortageReportsButton" class="secondary">Tải lại</button>
+            </div>
+          </div>
+          <div class="table-wrap import-shortage-report-wrap">
+            <table>
+              <thead><tr><th>Mã báo cáo</th><th>Ngày import</th><th>File</th><th>Đơn</th><th>Sản phẩm</th><th>SL thiếu</th><th>Giá trị cắt</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+              <tbody id="importShortageReportTable"><tr><td colspan="9">Đang tải báo cáo...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <div id="importShortageReportModal" class="app-modal" hidden>
+          <div class="app-modal__backdrop" data-close-import-shortage-report></div>
+          <section class="app-modal__dialog import-shortage-report-dialog" role="dialog" aria-modal="true" aria-labelledby="importShortageReportModalTitle">
+            <header class="app-modal__header">
+              <div>
+                <h2 id="importShortageReportModalTitle">Chi tiết báo cáo hàng thiếu</h2>
+                <p id="importShortageReportModalMeta" class="muted"></p>
+              </div>
+              <button type="button" class="secondary" data-close-import-shortage-report>Đóng</button>
+            </header>
+            <div class="app-modal__body">
+              <div id="importShortageReportModalSummary" class="summary-box"></div>
+              <div class="button-row import-shortage-report-actions">
+                <label>Trạng thái
+                  <select id="importShortageReportEditStatus">
+                    <option value="open">Chưa đối soát</option>
+                    <option value="in_review">Đang đối soát</option>
+                    <option value="resolved">Đã xử lý</option>
+                  </select>
+                </label>
+                <label class="import-shortage-note-label">Ghi chú chung
+                  <input id="importShortageReportEditNote" placeholder="Nội dung đối soát" />
+                </label>
+                <button type="button" id="saveImportShortageReportButton">Lưu đối soát</button>
+                <button type="button" id="downloadImportShortageReportButton" class="secondary">Tải CSV</button>
+              </div>
+              <div class="table-wrap import-shortage-detail-wrap">
+                <table>
+                  <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Mã SP</th><th>Tên SP</th><th>SL yêu cầu</th><th>Tồn lúc import</th><th>SL thiếu</th><th>Giá trị cắt</th><th>Đối soát</th><th>Ghi chú</th></tr></thead>
+                  <tbody id="importShortageReportDetailTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <section id="systemTab" class="tab-content">
+      <section class="card system-card">
+        <div class="toolbar">
+          <div>
+            <h2>Hệ thống</h2>
+            <p class="muted">Backup, kiểm tra dữ liệu và reset phần mềm khi cần làm sạch dữ liệu.</p>
+          </div>
+          <button type="button" id="reloadSystemStatusButton" class="secondary">Tải trạng thái</button>

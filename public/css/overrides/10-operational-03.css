@@ -1,0 +1,850 @@
+
+
+
+/* V46 delivery list payment-chip layout: scoped only to delivery list UI. */
+.delivery-v46-list-head.delivery-v46-list-head-payment{
+  grid-template-columns:minmax(230px,1.05fr) minmax(160px,.7fr) minmax(420px,1.75fr);
+  padding-left:46px;
+}
+.delivery-v46-row.delivery-v46-order-card{
+  grid-template-columns:24px minmax(230px,1.05fr) minmax(160px,.7fr) minmax(420px,1.75fr);
+  min-height:72px;
+  align-items:center;
+}
+.delivery-v46-payment-cell{
+  min-width:0;
+  width:100%;
+}
+.delivery-v46-payment-chips{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(62px,1fr));
+  gap:6px;
+  align-items:center;
+}
+.delivery-v46-pay-chip{
+  min-width:0;
+  min-height:32px;
+  border-radius:10px;
+  border:1px solid #dbe4f0;
+  background:#f8fafc;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:5px;
+  padding:0 7px;
+  box-sizing:border-box;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.delivery-v46-pay-chip em{
+  font-style:normal;
+  font-size:10px;
+  font-weight:900;
+  color:#64748b;
+  flex:0 0 auto;
+}
+.delivery-v46-pay-chip b{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-size:11px;
+  font-weight:900;
+  color:#0f172a;
+}
+.delivery-v46-pay-chip.chip-pt.is-active{background:#eff6ff;border-color:#bfdbfe}
+.delivery-v46-pay-chip.chip-tm.is-active{background:#eff6ff;border-color:#93c5fd}
+.delivery-v46-pay-chip.chip-ck.is-active{background:#ecfdf5;border-color:#86efac}
+.delivery-v46-pay-chip.chip-th.is-active{background:#fff7ed;border-color:#fdba74}
+.delivery-v46-pay-chip.chip-ht.is-active{background:#faf5ff;border-color:#d8b4fe}
+.delivery-v46-pay-chip.chip-cn.is-active{background:#fef2f2;border-color:#fca5a5}
+.delivery-v46-pay-chip.chip-cn.is-active b{color:#dc2626}
+.delivery-v46-pay-chip.chip-cn.is-zero{background:#ecfdf5;border-color:#bbf7d0}
+.delivery-v46-pay-chip.chip-cn.is-zero b{color:#047857}
+.delivery-v46-pay-chip.chip-ht.is-active b{color:#7e22ce}
+.delivery-v46-pay-chip.chip-th.is-active b{color:#ea580c}
+.delivery-v46-pay-chip.chip-ck.is-active b{color:#047857}
+.delivery-v46-pay-chip.chip-tm.is-active b{color:#1d4ed8}
+@media(max-width:1280px){
+  .delivery-v46-list-head.delivery-v46-list-head-payment{
+    grid-template-columns:minmax(210px,1fr) minmax(130px,.65fr) minmax(360px,1.7fr);
+  }
+  .delivery-v46-row.delivery-v46-order-card{
+    grid-template-columns:24px minmax(210px,1fr) minmax(130px,.65fr) minmax(360px,1.7fr);
+  }
+  .delivery-v46-payment-chips{
+    grid-template-columns:repeat(3,minmax(74px,1fr));
+  }
+  .delivery-v46-row.delivery-v46-order-card{
+    min-height:88px;
+  }
+}
+@media(max-width:980px){
+  .delivery-v46-list-head.delivery-v46-list-head-payment{
+    display:none;
+  }
+  .delivery-v46-row.delivery-v46-order-card{
+    grid-template-columns:24px 1fr;
+    min-height:0;
+  }
+  .delivery-v46-staff-cell,
+  .delivery-v46-payment-cell{
+    grid-column:2;
+  }
+  .delivery-v46-payment-chips{
+    grid-template-columns:repeat(2,minmax(90px,1fr));
+  }
+}
+
+
+/* V46 final isolated fix: delivery list without staff column + full payment chips. */
+#deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment{
+  display:grid !important;
+  grid-template-columns:minmax(240px,1fr) minmax(520px,1.9fr) !important;
+  gap:12px !important;
+  align-items:center !important;
+  padding:0 14px 8px 50px !important;
+  margin:0 8px 8px 0 !important;
+}
+#deliveryTodayTab .delivery-v46-row.delivery-v46-order-card{
+  display:grid !important;
+  grid-template-columns:24px minmax(250px,1fr) minmax(520px,1.9fr) !important;
+  grid-template-areas:none !important;
+  gap:12px !important;
+  min-height:74px !important;
+  height:auto !important;
+  align-items:center !important;
+  overflow:visible !important;
+}
+#deliveryTodayTab .delivery-v46-order-card .delivery-v46-check{
+  grid-column:auto !important;
+  grid-area:auto !important;
+}
+#deliveryTodayTab .delivery-v46-order-card .delivery-v46-order-main{
+  grid-column:auto !important;
+  grid-area:auto !important;
+}
+#deliveryTodayTab .delivery-v46-payment-cell{
+  grid-column:auto !important;
+  grid-area:auto !important;
+  min-width:0 !important;
+  width:100% !important;
+}
+#deliveryTodayTab .delivery-v46-payment-chips{
+  display:grid !important;
+  grid-template-columns:repeat(6,minmax(72px,1fr)) !important;
+  gap:6px !important;
+  align-items:center !important;
+  min-width:0 !important;
+}
+#deliveryTodayTab .delivery-v46-pay-chip{
+  min-width:0 !important;
+  min-height:34px !important;
+}
+#deliveryTodayTab .delivery-v46-pay-chip b{
+  font-size:11px !important;
+}
+@media(max-width:1280px){
+  #deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment{
+    grid-template-columns:minmax(220px,.9fr) minmax(420px,1.8fr) !important;
+  }
+  #deliveryTodayTab .delivery-v46-row.delivery-v46-order-card{
+    grid-template-columns:24px minmax(220px,.9fr) minmax(420px,1.8fr) !important;
+    min-height:90px !important;
+  }
+  #deliveryTodayTab .delivery-v46-payment-chips{
+    grid-template-columns:repeat(3,minmax(92px,1fr)) !important;
+  }
+}
+@media(max-width:980px){
+  #deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment{display:none !important;}
+  #deliveryTodayTab .delivery-v46-row.delivery-v46-order-card{
+    grid-template-columns:24px 1fr !important;
+    min-height:0 !important;
+  }
+  #deliveryTodayTab .delivery-v46-payment-cell{grid-column:2 !important;}
+  #deliveryTodayTab .delivery-v46-payment-chips{
+    grid-template-columns:repeat(2,minmax(96px,1fr)) !important;
+  }
+}
+
+/* V46 delivery staff system check + staff autocomplete (scoped) */
+.delivery-v46-filter-suggest{position:relative;}
+.delivery-v46-suggest-box{display:none;position:absolute;left:0;right:0;top:100%;z-index:50;margin-top:6px;background:#fff;border:1px solid #d8e3f3;border-radius:12px;box-shadow:0 14px 28px rgba(15,35,75,.16);padding:6px;max-height:260px;overflow:auto;}
+.delivery-v46-suggest-box.show{display:block;}
+.delivery-v46-suggest-box button{width:100%;border:0;background:#fff;border-radius:9px;padding:8px 10px;text-align:left;display:flex;flex-direction:column;gap:2px;cursor:pointer;color:#14213d;}
+.delivery-v46-suggest-box button:hover{background:#edf4ff;}
+.delivery-v46-suggest-box button b{font-size:12px;color:#0b4dbb;}
+.delivery-v46-suggest-box button span{font-size:11px;color:#53657f;}
+.delivery-v46-suggest-empty{color:#7a8799!important;font-style:italic;}
+.delivery-v46-staff-check{display:inline-flex;align-items:center;width:max-content;margin-top:4px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:800;line-height:1.4;}
+.delivery-v46-staff-check.ok{background:#ecfdf3;color:#057a43;border:1px solid #a8f0c6;}
+.delivery-v46-staff-check.warn{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;}
+.delivery-v46-staff-check-box{margin:8px 0 12px;padding:10px;border:1px solid #d8e3f3;border-radius:14px;background:#f8fbff;}
+.delivery-v46-staff-check-box h4{margin:0 0 8px;font-size:12px;color:#354562;}
+.delivery-v46-staff-check-line{display:grid;grid-template-columns:54px 1fr 1fr;gap:6px;align-items:center;padding:6px 0;border-top:1px dashed #dbe5f2;font-size:11px;}
+.delivery-v46-staff-check-line:first-of-type{border-top:0;}
+.delivery-v46-staff-check-line b{font-weight:900;}
+.delivery-v46-staff-check-line span{color:#42526d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.delivery-v46-staff-check-line em{grid-column:2/4;font-style:normal;font-weight:800;}
+.delivery-v46-staff-check-line.ok em{color:#07834a;}
+.delivery-v46-staff-check-line.warn em{color:#c2410c;}
+
+/* V46 Delivery Today: returnOrders compact list */
+/* DELIVERY_RETURN_LIST_DISPLAY_FIX_START */
+#deliveryTodayTab .delivery-v46-return-list-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px 0;padding:8px 10px;border:1px solid #dbe4f0;border-radius:10px;background:#f8fafc;color:#0f172a}
+#deliveryTodayTab .delivery-v46-return-list-title span{font-weight:900;color:#2563eb}
+#deliveryTodayTab .delivery-v46-return-table{border:1px solid #dbe4f0;border-radius:12px;overflow:auto;background:#fff;max-height:420px}
+#deliveryTodayTab .delivery-v46-return-head,#deliveryTodayTab .delivery-v46-return-row{display:grid;grid-template-columns:minmax(92px,.85fr) minmax(180px,1.55fr) 74px minmax(96px,.85fr);gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid #eef2f7;font-size:12px}
+#deliveryTodayTab .delivery-v46-return-head{position:sticky;top:0;background:#eff6ff;font-weight:900;color:#1e3a8a;z-index:1}
+#deliveryTodayTab .delivery-v46-return-row:last-child{border-bottom:0}
+#deliveryTodayTab .delivery-v46-return-row b,#deliveryTodayTab .delivery-v46-return-row small{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#deliveryTodayTab .delivery-v46-return-row small{color:#64748b;line-height:1.25}
+#deliveryTodayTab .delivery-v46-return-product small{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#deliveryTodayTab .delivery-v46-return-qty input{width:64px;min-width:64px;text-align:right}
+#deliveryTodayTab .delivery-v46-return-amount{text-align:right}
+#deliveryTodayTab .delivery-v46-return-amount b{color:#047857}
+#deliveryTodayTab .delivery-v46-return-table-compact{overflow-x:hidden}
+@media(max-width:900px){#deliveryTodayTab .delivery-v46-return-head,#deliveryTodayTab .delivery-v46-return-row{grid-template-columns:1fr 70px}.delivery-v46-return-head span:nth-child(2),.delivery-v46-return-head span:nth-child(4),#deliveryTodayTab .delivery-v46-return-order,#deliveryTodayTab .delivery-v46-return-amount{display:none}}
+/* DELIVERY_RETURN_LIST_DISPLAY_FIX_END */
+
+/* V46: Gộp Thu tiền + Tổng kết; Hàng trả trong tab này lấy từ returnOrders */
+.delivery-v46-payment-summary-tab{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(260px,1.1fr);gap:14px;align-items:start}
+.delivery-v46-payment-summary-tab h4{margin:0 0 8px;color:#0f172a}
+.delivery-v46-summary-box{border:1px solid #dbe4f0;border-radius:14px;background:#fff;padding:12px}
+.delivery-v46-reconcile{border-radius:10px;padding:9px 10px;margin-bottom:10px;background:#f8fafc;border:1px solid #dbe4f0;text-align:center}
+.delivery-v46-summary-grid .returnorders-source{background:#f8fafc;border-color:#bfdbfe}
+.delivery-v46-summary-grid small{display:block;margin-top:4px;color:#2563eb;font-weight:800;font-size:11px}
+@media(max-width:900px){.delivery-v46-payment-summary-tab{grid-template-columns:1fr}}
+
+/* V46 final professional delivery order list: one shared 7-KPI grid for header and rows. */
+#deliveryTodayTab .delivery-v46-order-grid{
+  display:grid !important;
+  grid-template-columns:24px minmax(230px,42fr) minmax(72px,9fr) minmax(72px,9fr) minmax(72px,9fr) minmax(72px,9fr) minmax(72px,9fr) minmax(90px,13fr) !important;
+  gap:0 !important;
+  align-items:stretch !important;
+  box-sizing:border-box !important;
+  width:100% !important;
+}
+#deliveryTodayTab .delivery-v46-list-head.delivery-v46-list-head-payment.delivery-v46-order-grid{
+  padding:0 10px 0 10px !important;
+  margin:0 8px 8px 0 !important;
+  min-height:34px !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:12px !important;
+  background:#f8fafc !important;
+  color:#475569 !important;
+  font-size:11px !important;
+  font-weight:900 !important;
+  text-transform:uppercase !important;
+  letter-spacing:.03em !important;
+  overflow:hidden !important;
+}
+#deliveryTodayTab .delivery-v46-row.delivery-v46-order-card.delivery-v46-order-grid{
+  padding:0 10px !important;
+  min-height:64px !important;
+  height:auto !important;
+  border-radius:14px !important;
+  overflow:hidden !important;
+  background:linear-gradient(180deg,#fff,#fbfdff) !important;
+}
+#deliveryTodayTab .delivery-v46-order-grid > *{
+  min-width:0 !important;
+  border-left:1px solid rgba(15,23,42,.08) !important;
+  padding:8px 9px !important;
+  display:flex !important;
+  align-items:center !important;
+  box-sizing:border-box !important;
+  overflow:hidden !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#deliveryTodayTab .delivery-v46-order-grid > *:first-child{
+  border-left:none !important;
+  justify-content:center !important;
+  padding-left:0 !important;
+  padding-right:4px !important;
+}
+#deliveryTodayTab .delivery-v46-list-head.delivery-v46-order-grid > *{
+  justify-content:flex-end !important;
+  min-height:34px !important;
+  color:#64748b !important;
+}
+#deliveryTodayTab .delivery-v46-list-head.delivery-v46-order-grid > *:nth-child(2){
+  justify-content:flex-start !important;
+}
+#deliveryTodayTab .delivery-v46-list-head.delivery-v46-order-grid .delivery-v46-grid-check-head{
+  color:transparent !important;
+}
+#deliveryTodayTab .delivery-v46-order-card .delivery-v46-check{
+  grid-column:auto !important;
+  grid-area:auto !important;
+  width:20px !important;
+  height:20px !important;
+  padding:0 !important;
+  align-self:center !important;
+  justify-self:center !important;
+  flex:none !important;
+}
+#deliveryTodayTab .delivery-v46-order-card .delivery-v46-order-main{
+  grid-column:auto !important;
+  grid-area:auto !important;
+  display:block !important;
+  line-height:1.25 !important;
+  padding-top:8px !important;
+  padding-bottom:8px !important;
+}
+#deliveryTodayTab .delivery-v46-money-cell{
+  justify-content:flex-end !important;
+  text-align:right !important;
+  font-variant-numeric:tabular-nums !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  color:#0f172a !important;
+}
+#deliveryTodayTab .delivery-v46-money-cell.cell-cn.debt-open{
+  color:#dc2626 !important;
+  font-weight:900 !important;
+}
+#deliveryTodayTab .delivery-v46-money-cell.cell-cn.debt-done{
+  color:#047857 !important;
+}
+#deliveryTodayTab .delivery-v46-payment-grid,
+#deliveryTodayTab .delivery-v46-payment-chips,
+#deliveryTodayTab .delivery-v46-pay-chip,
+#deliveryTodayTab .delivery-v46-payment-grid-inner{
+  display:none !important;
+}
+@media(max-width:1280px){
+  #deliveryTodayTab .delivery-v46-order-grid{
+    grid-template-columns:24px minmax(210px,42fr) minmax(66px,9fr) minmax(66px,9fr) minmax(66px,9fr) minmax(66px,9fr) minmax(66px,9fr) minmax(82px,13fr) !important;
+  }
+  #deliveryTodayTab .delivery-v46-order-grid > *{padding-left:7px !important;padding-right:7px !important;}
+}
+@media(max-width:980px){
+  #deliveryTodayTab .delivery-v46-list-head.delivery-v46-order-grid{display:none !important;}
+  #deliveryTodayTab .delivery-v46-row.delivery-v46-order-card.delivery-v46-order-grid{
+    grid-template-columns:24px minmax(0,1fr) minmax(78px,.34fr) !important;
+    grid-template-areas:"check main cn" "check pt cn" !important;
+    min-height:0 !important;
+  }
+  #deliveryTodayTab .delivery-v46-order-card .delivery-v46-check{grid-area:check !important;}
+  #deliveryTodayTab .delivery-v46-order-card .delivery-v46-order-main{grid-area:main !important;}
+  #deliveryTodayTab .delivery-v46-money-cell{display:none !important;}
+  #deliveryTodayTab .delivery-v46-money-cell.cell-pt,
+  #deliveryTodayTab .delivery-v46-money-cell.cell-cn{display:flex !important;}
+  #deliveryTodayTab .delivery-v46-money-cell.cell-pt{grid-area:pt !important;justify-content:flex-start !important;text-align:left !important;}
+  #deliveryTodayTab .delivery-v46-money-cell.cell-pt::before{content:'PT ';font-size:10px;font-weight:900;color:#64748b;margin-right:4px;}
+  #deliveryTodayTab .delivery-v46-money-cell.cell-cn{grid-area:cn !important;}
+}
+
+
+/* V46 FIX: Delivery Today order list uses one single horizontal grid.
+   This block intentionally uses a new class to avoid old .delivery-v46-list-head-payment
+   and .delivery-v46-payment-* rules forcing the header into 2 columns. */
+#deliveryTodayTab .delivery-fixed-grid{
+  display:grid !important;
+  grid-template-columns:28px minmax(250px,42fr) minmax(78px,9fr) minmax(78px,9fr) minmax(78px,9fr) minmax(78px,9fr) minmax(78px,9fr) minmax(96px,13fr) !important;
+  grid-auto-flow:row !important;
+  grid-auto-rows:auto !important;
+  gap:0 !important;
+  align-items:stretch !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+#deliveryTodayTab .delivery-fixed-head{
+  margin:0 8px 8px 0 !important;
+  padding:0 10px !important;
+  min-height:38px !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:12px !important;
+  background:#f8fafc !important;
+  color:#475569 !important;
+  font-size:11px !important;
+  font-weight:900 !important;
+  text-transform:uppercase !important;
+  letter-spacing:.03em !important;
+  overflow:hidden !important;
+}
+#deliveryTodayTab .delivery-v46-row.delivery-v46-order-card.delivery-fixed-grid{
+  padding:0 10px !important;
+  min-height:64px !important;
+  height:auto !important;
+  border:1px solid #dbe4f0 !important;
+  border-radius:14px !important;
+  background:linear-gradient(180deg,#fff,#fbfdff) !important;
+  overflow:hidden !important;
+}
+#deliveryTodayTab .delivery-fixed-grid > *{
+  min-width:0 !important;
+  border-left:1px solid rgba(15,23,42,.08) !important;
+  padding:8px 9px !important;
+  display:flex !important;
+  align-items:center !important;
+  box-sizing:border-box !important;
+  overflow:hidden !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#deliveryTodayTab .delivery-fixed-grid > *:first-child{
+  border-left:none !important;
+  justify-content:center !important;
+  padding-left:0 !important;
+  padding-right:4px !important;
+}
+#deliveryTodayTab .delivery-fixed-head > *{
+  justify-content:flex-end !important;
+  min-height:38px !important;
+  color:#64748b !important;
+}
+#deliveryTodayTab .delivery-fixed-head > *:nth-child(2){
+  justify-content:flex-start !important;
+}
+#deliveryTodayTab .delivery-fixed-head .delivery-v46-grid-check-head{
+  color:transparent !important;
+}
+#deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-check{
+  grid-column:auto !important;
+  grid-area:auto !important;
+  width:20px !important;
+  height:20px !important;
+  padding:0 !important;
+  align-self:center !important;
+  justify-self:center !important;
+  flex:none !important;
+}
+#deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-order-main{
+  grid-column:auto !important;
+  grid-area:auto !important;
+  display:block !important;
+  line-height:1.25 !important;
+  padding-top:8px !important;
+  padding-bottom:8px !important;
+}
+#deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-order-main strong,
+#deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-order-main span,
+#deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-order-main em{
+  display:block !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+}
+#deliveryTodayTab .delivery-v46-money-cell{
+  justify-content:flex-end !important;
+  text-align:right !important;
+  font-variant-numeric:tabular-nums !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  color:#0f172a !important;
+}
+#deliveryTodayTab .delivery-v46-money-cell.cell-cn.debt-open{color:#dc2626 !important;font-weight:900 !important;}
+#deliveryTodayTab .delivery-v46-money-cell.cell-cn.debt-done{color:#047857 !important;}
+@media(max-width:1280px){
+  #deliveryTodayTab .delivery-fixed-grid{
+    grid-template-columns:28px minmax(220px,42fr) minmax(70px,9fr) minmax(70px,9fr) minmax(70px,9fr) minmax(70px,9fr) minmax(70px,9fr) minmax(88px,13fr) !important;
+  }
+  #deliveryTodayTab .delivery-fixed-grid > *{padding-left:7px !important;padding-right:7px !important;}
+}
+@media(max-width:980px){
+  #deliveryTodayTab .delivery-fixed-head{display:none !important;}
+  #deliveryTodayTab .delivery-v46-row.delivery-v46-order-card.delivery-fixed-grid{
+    grid-template-columns:28px minmax(0,1fr) minmax(86px,.35fr) !important;
+    grid-template-areas:"check main cn" "check pt cn" !important;
+    min-height:0 !important;
+  }
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-check{grid-area:check !important;}
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-order-main{grid-area:main !important;}
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-money-cell{display:none !important;}
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-money-cell.cell-pt,
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-money-cell.cell-cn{display:flex !important;}
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-money-cell.cell-pt{grid-area:pt !important;justify-content:flex-start !important;text-align:left !important;}
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-money-cell.cell-pt::before{content:'PT ';font-size:10px;font-weight:900;color:#64748b;margin-right:4px;}
+  #deliveryTodayTab .delivery-v46-order-card.delivery-fixed-grid .delivery-v46-money-cell.cell-cn{grid-area:cn !important;}
+}
+
+/* MK Delivery Today KPI grid - final isolated layout.
+   Header and every order row use the exact same unique grid class, so KPI columns cannot drift. */
+#deliveryTodayTab .mk-delivery-list-grid{
+  display:grid !important;
+  grid-template-columns:40px minmax(250px,1fr) 85px 85px 85px 85px 85px 85px !important;
+  gap:0 !important;
+  align-items:stretch !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+}
+#deliveryTodayTab .mk-delivery-list-head{
+  margin:0 8px 8px 0 !important;
+  min-height:38px !important;
+  border:1px solid #e2e8f0 !important;
+  border-radius:12px !important;
+  background:#f8fafc !important;
+  overflow:hidden !important;
+  color:#475569 !important;
+  font-size:11px !important;
+  font-weight:900 !important;
+  text-transform:uppercase !important;
+  letter-spacing:.03em !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span,
+#deliveryTodayTab .mk-delivery-order-row > span{
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  border-left:1px solid rgba(15,23,42,.08) !important;
+  padding:8px 10px !important;
+  display:flex !important;
+  align-items:center !important;
+  overflow:hidden !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span:first-child,
+#deliveryTodayTab .mk-delivery-order-row > span:first-child{
+  border-left:none !important;
+  justify-content:center !important;
+  padding-left:0 !important;
+  padding-right:0 !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span:nth-child(n+3),
+#deliveryTodayTab .mk-delivery-money{
+  justify-content:flex-end !important;
+  text-align:right !important;
+  font-variant-numeric:tabular-nums !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span:nth-child(2){
+  justify-content:flex-start !important;
+}
+#deliveryTodayTab .mk-delivery-order-row{
+  appearance:none !important;
+  -webkit-appearance:none !important;
+  margin:0 !important;
+  min-height:62px !important;
+  height:auto !important;
+  border:1px solid #dbe4f0 !important;
+  border-radius:14px !important;
+  background:linear-gradient(180deg,#fff,#fbfdff) !important;
+  color:#0f172a !important;
+  cursor:pointer !important;
+  text-align:left !important;
+  line-height:1.25 !important;
+  box-shadow:none !important;
+  overflow:hidden !important;
+}
+#deliveryTodayTab .mk-delivery-order-row:hover,
+#deliveryTodayTab .mk-delivery-order-row.selected{
+  border-color:#2563eb !important;
+  box-shadow:inset 3px 0 0 #2563eb,0 6px 18px rgba(37,99,235,.12) !important;
+}
+#deliveryTodayTab .mk-delivery-check{
+  width:20px !important;
+  height:20px !important;
+  border-radius:7px !important;
+  border:1px solid #cbd5e1 !important;
+  background:#fff !important;
+  color:#2563eb !important;
+  font-weight:900 !important;
+  margin:auto !important;
+  padding:0 !important;
+}
+#deliveryTodayTab .mk-delivery-order-main{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  gap:2px !important;
+  line-height:1.25 !important;
+}
+#deliveryTodayTab .mk-delivery-order-main strong,
+#deliveryTodayTab .mk-delivery-order-main span,
+#deliveryTodayTab .mk-delivery-order-main em{
+  display:block !important;
+  max-width:100% !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+}
+#deliveryTodayTab .mk-delivery-order-main strong{
+  font-size:13px !important;
+  font-weight:900 !important;
+  color:#0f172a !important;
+}
+#deliveryTodayTab .mk-delivery-order-main span{
+  font-size:12px !important;
+  font-weight:700 !important;
+  color:#334155 !important;
+}
+#deliveryTodayTab .mk-delivery-order-main em{
+  margin-top:1px !important;
+  padding:2px 7px !important;
+  border-radius:999px !important;
+  background:#f1f5f9 !important;
+  color:#475569 !important;
+  font-style:normal !important;
+  font-size:10px !important;
+  font-weight:900 !important;
+}
+#deliveryTodayTab .mk-delivery-money{
+  color:#0f172a !important;
+  font-size:12px !important;
+  font-weight:850 !important;
+}
+#deliveryTodayTab .mk-delivery-money.cell-cn.debt-open{
+  color:#dc2626 !important;
+  font-weight:900 !important;
+}
+#deliveryTodayTab .mk-delivery-money.cell-cn.debt-done{
+  color:#047857 !important;
+  font-weight:900 !important;
+}
+@media(max-width:1280px){
+  #deliveryTodayTab .mk-delivery-list-grid{
+    grid-template-columns:36px minmax(220px,2.6fr) minmax(68px,.8fr) minmax(68px,.8fr) minmax(68px,.8fr) minmax(68px,.8fr) minmax(68px,.8fr) minmax(82px,1fr) !important;
+  }
+  #deliveryTodayTab .mk-delivery-list-head > span,
+  #deliveryTodayTab .mk-delivery-order-row > span{padding-left:7px !important;padding-right:7px !important;}
+}
+@media(max-width:980px){
+  #deliveryTodayTab .mk-delivery-list-head{display:none !important;}
+  #deliveryTodayTab .mk-delivery-list-grid{
+    grid-template-columns:34px minmax(0,1fr) minmax(92px,.42fr) !important;
+    grid-template-areas:"check main cn" "check pt cn" !important;
+  }
+  #deliveryTodayTab .mk-delivery-order-row{min-height:76px !important;}
+  #deliveryTodayTab .mk-delivery-check{grid-area:check !important;}
+  #deliveryTodayTab .mk-delivery-order-main{grid-area:main !important;}
+  #deliveryTodayTab .mk-delivery-money{display:none !important;}
+  #deliveryTodayTab .mk-delivery-money.cell-pt,
+  #deliveryTodayTab .mk-delivery-money.cell-cn{display:flex !important;}
+  #deliveryTodayTab .mk-delivery-money.cell-pt{grid-area:pt !important;justify-content:flex-start !important;text-align:left !important;}
+  #deliveryTodayTab .mk-delivery-money.cell-pt::before{content:'PT ';font-size:10px;font-weight:900;color:#64748b;margin-right:4px;}
+  #deliveryTodayTab .mk-delivery-money.cell-cn{grid-area:cn !important;}
+}
+
+/* MK FINAL FIX: Delivery Today KPI list fixed Excel-like columns.
+   Header and every store row use the exact same pixel columns; no %, no fr.
+   Target: checkbox | customer | PT | TM | CK | TH | HT | CN = 40 | 230 | 100 | 100 | 100 | 100 | 100 | 120. */
+#deliveryTodayTab .delivery-v46-list{
+  overflow-x:auto !important;
+  overflow-y:auto !important;
+  padding-right:6px !important;
+}
+#deliveryTodayTab .mk-delivery-list-grid{
+  display:grid !important;
+  grid-template-columns:40px 250px 85px 85px 85px 85px 85px 85px !important;
+  gap:0 !important;
+  align-items:stretch !important;
+  width:890px !important;
+  min-width:890px !important;
+  max-width:none !important;
+  box-sizing:border-box !important;
+}
+#deliveryTodayTab .mk-delivery-list-head{
+  margin:0 0 8px 0 !important;
+  min-height:38px !important;
+  padding:0 !important;
+}
+#deliveryTodayTab .mk-delivery-order-row{
+  margin:0 !important;
+  min-height:62px !important;
+  padding:0 !important;
+  text-align:left !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span,
+#deliveryTodayTab .mk-delivery-order-row > span{
+  height:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  border-left:1px solid rgba(15,23,42,.08) !important;
+  padding:8px 10px !important;
+  display:flex !important;
+  align-items:center !important;
+  overflow:hidden !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span:first-child,
+#deliveryTodayTab .mk-delivery-order-row > span:first-child{
+  border-left:none !important;
+  padding-left:0 !important;
+  padding-right:0 !important;
+  justify-content:center !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span:nth-child(2){
+  justify-content:flex-start !important;
+  text-align:left !important;
+}
+#deliveryTodayTab .mk-delivery-order-main{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  text-align:left !important;
+  gap:2px !important;
+  line-height:1.22 !important;
+}
+#deliveryTodayTab .mk-delivery-order-main strong,
+#deliveryTodayTab .mk-delivery-order-main span,
+#deliveryTodayTab .mk-delivery-order-main em{
+  width:100% !important;
+  max-width:100% !important;
+  display:block !important;
+  text-align:left !important;
+  overflow:hidden !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span:nth-child(n+3),
+#deliveryTodayTab .mk-delivery-money{
+  justify-content:flex-end !important;
+  text-align:right !important;
+  font-variant-numeric:tabular-nums !important;
+  font-feature-settings:"tnum" 1,"lnum" 1 !important;
+}
+#deliveryTodayTab .mk-delivery-money{
+  font-size:12px !important;
+  font-weight:850 !important;
+  color:#0f172a !important;
+}
+#deliveryTodayTab .mk-delivery-money.cell-cn.debt-open{
+  color:#dc2626 !important;
+  font-weight:900 !important;
+}
+#deliveryTodayTab .mk-delivery-money.cell-cn.debt-done{
+  color:#047857 !important;
+  font-weight:900 !important;
+}
+
+/* MK FIX 2026-06-06: Delivery Today list no horizontal scrollbar.
+   Use responsive grid: checkbox fixed, customer flexes, money columns fixed but smaller.
+   Header and every order row share the exact same template. */
+#deliveryTodayTab .delivery-v46-list-panel{
+  overflow:hidden !important;
+}
+#deliveryTodayTab .delivery-v46-list{
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  padding-right:0 !important;
+}
+#deliveryTodayTab .mk-delivery-list-grid{
+  display:grid !important;
+  grid-template-columns:40px minmax(220px,1fr) 80px 80px 80px 80px 80px 90px !important;
+  gap:0 !important;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+  align-items:stretch !important;
+}
+#deliveryTodayTab .mk-delivery-list-head{
+  width:100% !important;
+  max-width:100% !important;
+  margin-right:0 !important;
+  box-sizing:border-box !important;
+}
+#deliveryTodayTab .mk-delivery-order-row{
+  width:100% !important;
+  max-width:100% !important;
+  box-sizing:border-box !important;
+}
+#deliveryTodayTab .mk-delivery-list-head > span,
+#deliveryTodayTab .mk-delivery-order-row > span{
+  min-width:0 !important;
+  box-sizing:border-box !important;
+  overflow:hidden !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#deliveryTodayTab .mk-delivery-money{
+  justify-content:flex-end !important;
+  text-align:right !important;
+  font-variant-numeric:tabular-nums !important;
+  font-feature-settings:"tnum" 1,"lnum" 1 !important;
+  padding-left:6px !important;
+  padding-right:8px !important;
+}
+#deliveryTodayTab .mk-delivery-order-main{
+  padding-left:10px !important;
+  padding-right:10px !important;
+}
+
+#deliveryTodayTab .mk-delivery-list-head > span:nth-child(n+3){justify-content:center !important;text-align:center !important;}
+
+/* MK FIX: Delivery Today accounting actions restored */
+#deliveryTodayTab .delivery-v46-panel-title-with-actions{
+  gap:10px !important;
+}
+#deliveryTodayTab .delivery-v46-list-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  gap:8px !important;
+  flex-wrap:wrap !important;
+}
+#deliveryTodayTab .delivery-v46-list-actions button{
+  white-space:nowrap !important;
+  min-height:30px !important;
+  padding:6px 10px !important;
+  font-size:12px !important;
+}
+#deliveryTodayTab .delivery-v46-detail-actions{
+  display:flex !important;
+  gap:8px !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  flex-wrap:wrap !important;
+}
+#deliveryTodayTab .delivery-v46-detail-actions button{
+  white-space:nowrap !important;
+}
+#deliveryTodayTab .delivery-v46-detail-actions .muted-locked{
+  opacity:.7 !important;
+  cursor:not-allowed !important;
+}
+#deliveryTodayTab .mk-delivery-accounting-check{
+  cursor:pointer !important;
+}
+#deliveryTodayTab .mk-delivery-accounting-check:hover{
+  border-color:#2563eb !important;
+  background:#eff6ff !important;
+}
+
+/* Accounting confirmation status badges */
+.delivery-accounting-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.delivery-accounting-status.warn {
+  background: rgba(245, 158, 11, .12);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, .25);
+}
+
+
+/* Sales create form actions */
+.sale-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+}
+.sale-actions #btnCancelSale{
+  width:140px;
+  flex:0 0 140px;
+}
+.sale-actions #btnCreateSale{
+  flex:1 1 auto;
+}
+@media(max-width:640px){
+  .sale-actions{flex-direction:column;}
+  .sale-actions #btnCancelSale,
+  .sale-actions #btnCreateSale{width:100%;flex:1 1 auto;}
+}
+
+/* Import order history date filter */
+.import-history-filter{border:1px solid #dbe5f4;border-radius:14px;background:#f8fbff;padding:12px;margin:12px 0 16px;display:flex;flex-direction:column;gap:10px}
+.import-history-filter-top{display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-wrap:wrap}
+.import-date-filter-row,.import-date-preset-row{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+.import-date-filter-row label{font-weight:700;font-size:12px;color:#1f2d4a;display:flex;flex-direction:column;gap:4px}

@@ -52,14 +52,14 @@ const FORBIDDEN_PATTERNS = [
 // This keeps the guard useful now: any new bypass outside these exact legacy
 // functions fails the test immediately. Remove entries as each flow is migrated.
 const PHASE1_KNOWN_LEGACY_EXCEPTIONS = new Map([
-  [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'applyInventoryMovementsBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'bulkWriteInBatches(InventoryLegacy)', 'applyInventoryMovementsBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'bulkWriteInBatches(InventoryLegacy)', 'setOpeningStockInventoriesBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'importOpeningStock'), 1],
+  [legacyKey('src/services/import/core/importPersistence.util.js', 'insertManyInBatches(StockTransaction)', 'applyInventoryMovementsBulk'), 1],
+  [legacyKey('src/services/import/core/importPersistence.util.js', 'bulkWriteInBatches(InventoryLegacy)', 'applyInventoryMovementsBulk'), 1],
+  [legacyKey('src/services/import/core/importPersistence.util.js', 'bulkWriteInBatches(InventoryLegacy)', 'setOpeningStockInventoriesBulk'), 1],
+  [legacyKey('src/services/import/operations/salesImport.impl.js', 'insertManyInBatches(StockTransaction)', 'importOpeningStock'), 1],
   [legacyKey('src/services/financialService.js', 'fundLedgerRepository.upsert', 'postReceiptFundLedger'), 1],
   [legacyKey('src/services/financialService.js', 'fundLedgerRepository.upsert', 'voidReceipt'), 1],
-  [legacyKey('src/services/master-order/masterOrderLegacy.service.js', 'paymentRepository.upsert', 'reverseActiveArLedgersForOrder'), 2],
-  [legacyKey('src/services/master-order/masterOrderLegacy.service.js', 'paymentRepository.upsert', 'postDeliveryArLedgerRowsAfterReAccounting'), 1]
+  [legacyKey('src/services/master-order/deliveryAccountingCore.impl.js', 'paymentRepository.upsert', 'reverseActiveArLedgersForOrder'), 2],
+  [legacyKey('src/services/master-order/deliveryAccountingCore.impl.js', 'paymentRepository.upsert', 'postDeliveryArLedgerRowsAfterReAccounting'), 1]
 ]);
 
 function legacyKey(relPath, patternName, functionName) {
@@ -76,6 +76,15 @@ function walk(dir) {
     }
     return entry.isFile() && entry.name.endsWith('.js') ? [fullPath] : [];
   });
+}
+
+function readPhysical(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    return fs.readFileSync(fd, 'utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function lineNumberAt(source, index) {
@@ -97,7 +106,7 @@ test('ledger and lifecycle collections are not written directly outside approved
     const relPath = path.normalize(path.relative(ROOT, filePath));
     if (ALLOWED_FILES.has(relPath)) continue;
 
-    const source = fs.readFileSync(filePath, 'utf8');
+    const source = readPhysical(filePath);
     for (const pattern of FORBIDDEN_PATTERNS) {
       pattern.regex.lastIndex = 0;
       let match;

@@ -1,11 +1,19 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+
+function walk(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const absolute = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(absolute) : [absolute];
+  });
+}
+
 module.exports = function readPublicCss(root) {
   const dir = path.join(root, 'public/css');
-  return fs.readdirSync(dir)
-    .filter((name) => name.endsWith('.css'))
+  return walk(dir)
+    .filter((file) => file.endsWith('.css'))
     .sort()
-    .map((name) => fs.readFileSync(path.join(dir, name), 'utf8'))
+    .map((file) => fs.readFileSync(file, 'utf8'))
     .join('\n');
 };

@@ -1,0 +1,340 @@
+
+    <div id="importOrderModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card import-order-workspace" role="dialog" aria-modal="true" aria-labelledby="importOrderModalTitle">
+        <div class="import-order-workspace-head">
+          <div>
+            <h3 id="importOrderModalTitle">Tạo phiếu nhập kho</h3>
+            <p class="muted">Nhập thông tin phiếu, thêm dòng hàng rồi lưu nháp.</p>
+          </div>
+          <button type="button" id="closeImportOrderModalButton" class="secondary small">Đóng</button>
+        </div>
+        <div class="import-order-workspace-body">
+          <!-- IMPORT_LAYOUT_VERTICAL_V2_START: bố cục dọc gọn, chỉ thay đổi trình bày popup nhập kho -->
+          <form id="importForm" class="form import-order-workspace-form import-vertical-layout">
+            <section class="import-vertical-section import-info-compact">
+              <div class="import-section-title">
+                <h4>1. Thông tin phiếu nhập</h4>
+              </div>
+              <div class="import-info-row">
+                <label>Ngày nhập<input name="date" type="date" /></label>
+                <label>Nhà cung cấp<input name="supplier" placeholder="VD: Unilever" /></label>
+                <label class="import-note-field">Ghi chú<input name="note" placeholder="VD: nhập hàng đầu ngày" /></label>
+              </div>
+            </section>
+
+            <section class="import-vertical-section import-line-compact">
+              <div class="import-section-title">
+                <h4>2. Thêm dòng hàng</h4>
+              </div>
+              <div class="import-line-row">
+                <label class="import-product-field">Sản phẩm
+                  <div class="autocomplete">
+                    <input id="importProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                    <input id="importProductSelect" type="hidden" />
+                    <div id="importProductSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
+                <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" readonly /></label>
+                <button type="button" id="addImportItemButton" class="secondary import-add-line-button">Thêm vào phiếu</button>
+                <button type="button" id="openImportItemPasteButton" class="secondary import-add-line-button">Dán từ Excel</button>
+              </div>
+            </section>
+
+            <section class="import-vertical-section import-items-section">
+              <div class="import-section-title">
+                <h4>3. Danh sách hàng đã thêm</h4>
+              </div>
+              <div class="table-wrap compact import-items-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Tên</th><th>SL</th><th>Giá</th><th>Tiền</th><th></th></tr></thead>
+                  <tbody id="importItemsTable"><tr><td colspan="6">Chưa có dòng hàng</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <div class="import-sticky-footer">
+              <div class="summary-box import-footer-summary">
+                <span>Tổng SL: <strong id="importTotalQuantity">0</strong></span>
+                <span>Tổng tiền: <strong id="importTotalAmount">0</strong></span>
+              </div>
+              <div class="form-actions import-form-actions">
+                <button type="submit">Lưu phiếu nhập nháp</button>
+                <button type="button" id="skipImportDraftButton" class="secondary">Bỏ qua</button>
+              </div>
+            </div>
+          </form>
+          <p id="importMessage" class="message"></p>
+          <!-- IMPORT_LAYOUT_VERTICAL_V2_END -->
+        </div>
+      </section>
+    </div>
+    <!-- IMPORT_ORDER_POPUP_PATCH_END -->
+
+    <section id="salesTab" class="tab-content">
+      <main class="sales-page-main">
+        <section class="card sales-history-card">
+          <div class="toolbar sales-history-toolbar">
+            <div>
+              <h2>Lịch sử đơn bán</h2>
+              <p id="salesOrderCount" class="muted">Đang tải...</p>
+            </div>
+            <button id="openCreateSalesOrderButton" class="primary compact-action" type="button">+ Tạo đơn mới</button>
+            <div class="sales-history-filters sales-filter-two-rows">
+              <div class="sales-filter-row sales-filter-row-main">
+                <!-- SALES_HISTORY_COMPACT_TOOLBAR_PATCH_START: search thêm ghi chú -->
+                <input id="salesOrderSearchInput" class="sales-filter-search" placeholder="Tìm mã đơn, khách hàng, ghi chú..." />
+                <!-- SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END -->
+                <span class="autocomplete sales-filter-staff-wrap"><input id="salesOrderStaffFilter" class="sales-filter-staff" placeholder="Tìm NV bán hàng..." /><div id="salesOrderStaffFilterSuggestions" class="suggestions" hidden></div></span>
+              </div>
+              <div class="sales-filter-row sales-filter-row-sub sales-create-order-filters">
+                <label class="sales-date-filter">Từ ngày<input id="salesOrderDateFrom" class="sales-filter-date" type="date" title="Từ ngày bán" /></label>
+                <label class="sales-date-filter">Đến ngày<input id="salesOrderDateTo" class="sales-filter-date" type="date" title="Đến ngày bán" /></label>
+                <select id="salesOrderSourceFilter" class="sales-filter-source" title="Nguồn đơn">
+                  <option value="">Tất cả nguồn</option>
+                  <option value="sales_app">APP/NVBH</option>
+                  <option value="dms">DMS</option>
+                  <option value="s3">S3</option>
+                  <option value="manual">Thủ công</option>
+                </select>
+                <button id="reloadSalesOrdersButton" class="secondary compact-action" type="button">Tải lại</button>
+                <button id="selectAllSalesOrdersButton" class="secondary compact-action" type="button">Chọn tất cả</button>
+                <button id="printSelectedSalesOrdersButton" class="secondary compact-action" type="button">In đơn</button>
+                <button id="exportSelectedSalesOrdersButton" class="secondary compact-action" type="button">Xuất Excel</button>
+              </div>
+            </div>
+          </div>
+          <div class="sales-order-list-head" aria-hidden="true">
+            <span></span>
+            <span>Mã đơn</span>
+            <span>Khách hàng</span>
+            <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_START -->
+            <span>NV bán hàng</span>
+            <!-- SALES_HISTORY_NVBH_COLUMN_PATCH_END -->
+            <span>Ngày bán</span>
+            <span>Giá trị</span>
+            <span>Nguồn</span>
+            <span>HĐ VAT</span>
+            <span>Thao tác</span>
+          </div>
+          <div id="salesOrderList" class="order-list">Đang tải lịch sử...</div>
+          <div class="load-more-wrap"><button id="loadMoreSalesOrdersButton" class="secondary compact-action" type="button" style="display:none">Tải thêm đơn</button></div>
+        </section>
+      </main>
+    </section>
+
+    <div id="salesOrderModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card sales-order-modal-card sales-order-workspace" role="dialog" aria-modal="true" aria-labelledby="salesOrderModalTitle">
+        <div class="modal-head sales-order-workspace-head">
+          <div class="sales-order-head-copy">
+            <h3 id="salesOrderModalTitle">Tạo đơn bán hàng</h3>
+            <p class="muted sales-order-head-meta">Thông tin đơn gọn · danh sách sản phẩm là khu vực thao tác chính</p>
+          </div>
+          <button type="button" class="secondary small" id="closeSalesOrderModalButton">Đóng</button>
+        </div>
+        <div class="sales-order-modal-body sales-order-workspace-body">
+          <form id="salesForm" class="form sales-order-workspace-form">
+            <section class="sales-order-info-panel" aria-label="Thông tin đơn bán">
+              <div class="sales-order-info-grid">
+                <label>Khách hàng
+                  <div class="autocomplete">
+                    <input id="salesCustomerSearch" type="text" placeholder="Gõ mã/tên/sđt/tuyến khách hàng..." autocomplete="off" />
+                    <input name="customerId" id="salesCustomerSelect" type="hidden" />
+                    <div id="salesCustomerSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Nhân viên bán hàng
+                  <div class="autocomplete">
+                    <input id="salesStaffSearch" type="text" placeholder="Gõ mã/tên/tài khoản NV bán hàng..." autocomplete="off" />
+                    <input name="salesStaffCode" id="salesStaffSelect" type="hidden" />
+                    <input name="salesStaffName" id="salesStaffName" type="hidden" />
+                    <div id="salesStaffSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Ngày bán<input name="date" type="date" /></label>
+                <div class="sales-mode-box sales-mode-inline" aria-label="Phương thức bán">
+                  <div class="sales-mode-title">Phương thức</div>
+                  <div class="sales-compact-options">
+                    <label class="sales-mode-option" title="Bán thẳng theo giá mặc định"><input type="radio" name="saleMode" value="direct" /> Giá mặc định</label>
+                    <label class="sales-mode-option" title="Bán theo chương trình khuyến mại"><input type="radio" name="saleMode" value="promotion" checked /> Theo KM</label>
+                  </div>
+                </div>
+                <div class="sales-vat-option" aria-label="Yêu cầu hóa đơn VAT">
+                  <div class="sales-mode-title">Hóa đơn VAT</div>
+                  <div class="sales-compact-options">
+                    <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="true" checked /> Xuất HĐ</label>
+                    <label class="sales-mode-option"><input type="radio" name="vatInvoiceRequired" value="false" /> Không xuất</label>
+                  </div>
+                  <button type="button" id="saveSalesVatSettingButton" class="secondary small sales-vat-save-button" hidden>Lưu VAT</button>
+                </div>
+                <label class="sales-note-field">Ghi chú đơn<input name="note" placeholder="VD: giao trong ngày" /></label>
+                <label class="sales-vat-note" hidden>Lý do không xuất HĐ<input name="vatInvoiceNote" placeholder="VD: Khách hàng không lấy hóa đơn" /></label>
+              </div>
+            </section>
+
+            <section class="import-line-box sales-product-toolbar" aria-label="Thêm dòng bán">
+              <div class="sales-product-toolbar-title">
+                <h3>Thêm sản phẩm</h3>
+                <span class="muted">Nhập thùng/lẻ</span>
+              </div>
+              <div class="sales-product-toolbar-grid">
+                <label class="sales-product-field">Sản phẩm
+                  <div class="autocomplete">
+                    <input id="salesProductSearch" type="text" placeholder="Gõ mã/tên/barcode sản phẩm..." autocomplete="off" />
+                    <input id="salesProductSelect" type="hidden" />
+                    <div id="salesProductSuggestions" class="suggestions" hidden></div>
+                  </div>
+                </label>
+                <label>Thùng<input id="salesQuantityCase" type="number" min="0" value="0" /></label>
+                <label>Lẻ<input id="salesQuantityLoose" type="number" min="0" value="1" /></label>
+                <label>Giá bán<input id="salesPrice" type="number" min="0" step="any" value="0" /></label>
+                <button type="button" id="addSalesItemButton" class="secondary sales-add-line-button">Thêm vào đơn</button>
+                <button type="button" id="openSalesItemPasteButton" class="secondary sales-add-line-button">Dán từ Excel</button>
+              </div>
+            </section>
+
+            <section class="sales-items-panel" aria-label="Danh sách sản phẩm trong đơn">
+              <div id="salesItemsTableWrap" class="table-wrap compact sales-items-table-wrap">
+                <table class="sales-items-table">
+                  <colgroup>
+                    <col class="sales-col-code" />
+                    <col class="sales-col-name" />
+                    <col class="sales-col-case" />
+                    <col class="sales-col-loose" />
+                    <col class="sales-col-price" />
+                    <col class="sales-col-amount" />
+                    <col class="sales-col-action" />
+                  </colgroup>
+                  <thead>
+                    <tr><th>Mã</th><th>Tên</th><th>Thùng</th><th>Lẻ</th><th>Giá</th><th>Tiền</th><th></th></tr>
+                  </thead>
+                  <tbody id="salesItemsTable"><tr><td colspan="7">Chưa có dòng hàng</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section id="salesOrderFooter" class="sales-order-footer" aria-label="Tổng kết đơn bán">
+              <div class="sales-order-footer-summary">
+                <span>Tổng SL (quy đổi): <strong id="salesTotalQuantity">0</strong></span>
+                <span>Tổng tiền: <strong id="salesTotalAmount">0</strong></span>
+                <label class="sales-paid-field">Tiền đã thu<input name="paidAmount" type="number" min="0" value="0" /></label>
+              </div>
+              <div class="sale-actions">
+                <button type="button" class="secondary" id="btnCancelSale">Bỏ qua</button>
+                <button type="submit" id="btnCreateSale">Tạo đơn bán & trừ tồn</button>
+              </div>
+            </section>
+          </form>
+          <p id="salesMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
+
+    <section id="stockTab" class="tab-content">
+      <div class="stock-subtabs" role="tablist" aria-label="Quản lý tồn kho">
+        <button id="stockCurrentSubtab" type="button" class="stock-subtab active" data-stock-panel="stockCurrentPanel">Tồn kho hiện tại</button>
+        <button id="stockDmsSubtab" type="button" class="stock-subtab" data-stock-panel="dmsInventoryPanel">Đối chiếu tồn DMS</button>
+      </div>
+
+      <section id="stockCurrentPanel" class="stock-subpanel active">
+        <section class="card">
+          <div class="toolbar"><div><h2>Tồn kho hiện tại</h2><p id="stockCount" class="muted">Đang tải...</p></div><input id="stockSearchInput" placeholder="Tìm mã / tên sản phẩm..." /></div>
+          <div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên sản phẩm</th><th>ĐVT</th><th>Quy cách</th><th>Tồn kho</th><th>Cập nhật</th></tr></thead><tbody id="stockTable"><tr><td colspan="6">Đang tải tồn kho...</td></tr></tbody></table></div>
+        </section>
+      </section>
+
+      <section id="dmsInventoryPanel" class="stock-subpanel" hidden>
+        <section class="card dms-inventory-shell">
+          <div class="dms-inventory-head">
+            <div>
+              <h2>Đối chiếu tồn DMS Unilever</h2>
+              <p id="dmsInventoryLatestInfo" class="muted">Chưa có dữ liệu đối chiếu.</p>
+            </div>
+            <div class="dms-inventory-actions">
+              <button id="dmsInventoryHistoryButton" type="button" class="secondary">Lịch sử</button>
+              <button id="dmsInventoryReloadButton" type="button" class="secondary">Tải lại</button>
+              <button id="dmsInventoryUploadButton" type="button">+ Tải file DMS buổi sáng</button>
+            </div>
+          </div>
+
+          <div class="dms-kpi-grid">
+            <article class="dms-kpi-card danger"><span>DMS nhiều hơn thực tế</span><strong id="dmsGreaterSkuCount">0 SKU</strong><small id="dmsGreaterQty">0 đơn vị lẻ</small></article>
+            <article class="dms-kpi-card primary"><span>Thực tế nhiều hơn DMS</span><strong id="internalGreaterSkuCount">0 SKU</strong><small id="internalGreaterQty">0 đơn vị lẻ</small></article>
+            <article class="dms-kpi-card success"><span>Khớp hoàn toàn</span><strong id="dmsMatchedSkuCount">0 SKU</strong><small>Không có chênh lệch</small></article>
+            <article class="dms-kpi-card warning"><span>Cần kiểm tra mã/quy cách</span><strong id="dmsWarningSkuCount">0 SKU</strong><small>Chưa ghép mã hoặc sai quy cách</small></article>
+          </div>
+
+          <div class="dms-inventory-toolbar">
+            <input id="dmsInventorySearch" type="search" placeholder="Tìm toàn bộ theo mã hoặc tên sản phẩm..." />
+            <select id="dmsInventoryTypeFilter">
+              <option value="internal_greater">Thực tế nhiều hơn DMS</option>
+              <option value="dms_greater">DMS nhiều hơn thực tế</option>
+              <option value="matched">Khớp hoàn toàn</option>
+              <option value="unmapped">Chưa ghép mã</option>
+              <option value="conversion_mismatch">Sai quy cách</option>
+              <option value="all">Tất cả</option>
+            </select>
+          </div>
+
+          <p id="dmsInventoryMessage" class="message"></p>
+          <div class="table-wrap dms-inventory-table-wrap">
+            <table class="dms-inventory-table">
+              <thead><tr><th>Mã SP</th><th>Tên sản phẩm</th><th>Quy cách</th><th>Tồn DMS</th><th>Tồn thực tế hiện tại</th><th>Chênh lệch</th><th>Hạn mức mở</th><th>Đã bán App</th><th>Còn bán App</th><th>Trạng thái</th></tr></thead>
+              <tbody id="dmsInventoryTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="dms-pagination">
+            <span id="dmsInventoryCount" class="muted">0 dòng</span>
+            <div><button id="dmsInventoryPrevButton" type="button" class="secondary small">Trang trước</button><button id="dmsInventoryNextButton" type="button" class="secondary small">Trang sau</button></div>
+          </div>
+        </section>
+      </section>
+
+      <div id="dmsInventoryUploadModal" class="modal-backdrop" aria-hidden="true" hidden>
+        <section class="modal-card dms-upload-modal" role="dialog" aria-modal="true" aria-labelledby="dmsInventoryUploadTitle">
+          <div class="modal-header"><div><h2 id="dmsInventoryUploadTitle">Tải file tồn DMS buổi sáng</h2><p class="muted">Hệ thống dùng cột U, V, W, AX, AY và không ghi đè tồn kho thực tế.</p></div><button id="dmsInventoryUploadCloseButton" type="button" class="secondary">Đóng</button></div>
+          <div class="dms-upload-form">
+            <label>File Excel DMS<input id="dmsInventoryFileInput" type="file" accept=".xlsx" /></label>
+            <label>Ngày dữ liệu<input id="dmsInventorySnapshotDate" type="date" /></label>
+            <label class="dms-upload-note">Ghi chú<input id="dmsInventoryNote" type="text" placeholder="Ví dụ: File tồn đầu ngày sau khi DMS cập nhật" /></label>
+            <button id="dmsInventoryPreviewButton" type="button">Đọc và kiểm tra file</button>
+          </div>
+          <p id="dmsInventoryUploadMessage" class="message"></p>
+          <div id="dmsInventoryPreviewSummary" class="dms-preview-summary" hidden></div>
+          <div class="table-wrap dms-preview-table-wrap"><table><thead><tr><th>Mã SP</th><th>Tên</th><th>DMS</th><th>Thực tế</th><th>Loại</th></tr></thead><tbody id="dmsInventoryPreviewTable"><tr><td colspan="5">Chưa đọc file.</td></tr></tbody></table></div>
+          <div class="modal-actions"><button id="dmsInventoryCommitButton" type="button" disabled>Xác nhận cập nhật hạn mức bán App</button></div>
+        </section>
+      </div>
+
+      <div id="dmsInventoryHistoryModal" class="modal-backdrop" aria-hidden="true" hidden>
+        <section class="modal-card dms-history-modal" role="dialog" aria-modal="true" aria-labelledby="dmsInventoryHistoryTitle">
+          <div class="modal-header"><div><h2 id="dmsInventoryHistoryTitle">Lịch sử tải file tồn DMS</h2><p class="muted">Mỗi lần cập nhật mới thay thế hạn mức đang hoạt động của lần trước.</p></div><button id="dmsInventoryHistoryCloseButton" type="button" class="secondary">Đóng</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>File</th><th>DMS &gt; thực tế</th><th>Thực tế &gt; DMS</th><th>Người tải</th></tr></thead><tbody id="dmsInventoryHistoryTable"><tr><td colspan="5">Đang tải...</td></tr></tbody></table></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="masterOrdersTab" class="tab-content">
+      <!-- MASTER_ORDER_POPUP_PATCH_START: màn chính chỉ giữ danh sách đơn tổng, tạo đơn tổng đưa vào popup 3 layer -->
+      <main class="grid master-order-grid master-order-list-only-grid">
+        <section class="card master-list-card master-list-only-card">
+          <!-- MASTER_ORDER_TOOLBAR_GROUPED_START: tách tiêu đề, search/date và cụm nút để toolbar cân đối hơn -->
+          <div class="master-order-toolbar-grouped">
+            <div class="master-order-title-row">
+              <div>
+                <h2>Danh sách đơn tổng</h2>
+                <p id="masterOrderCount" class="muted">Đang tải...</p>
+              </div>
+            </div>
+            <div class="master-order-toolbar-row">
+              <div class="master-order-search-box">
+                <input id="masterOrderSearch" placeholder="Tìm mã đơn tổng, NV giao, NV bán, ghi chú..." />
+              </div>
+              <div class="master-order-date-box">
+                <input id="masterOrderDateFrom" type="date" title="Từ ngày" />
+                <input id="masterOrderDateTo" type="date" title="Đến ngày" />
+              </div>
+              <div class="master-order-action-box">
+                <button id="openMasterOrderModalButton" class="primary" type="button">+ Tạo đơn tổng</button>
+                <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
+                <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>

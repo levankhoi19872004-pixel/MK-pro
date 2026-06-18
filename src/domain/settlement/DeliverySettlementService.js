@@ -19,10 +19,10 @@ function pickDeliveryStaffName(body = {}) {
   return String(body.deliveryStaffName || body.staffName || body.deliveryName || '').trim();
 }
 
-function getMasterOrderLegacyService() {
-  // Lazy require trực tiếp legacy implementation để tránh vòng lặp:
-  // masterOrderAccounting.service -> DeliverySettlementService -> masterOrderService -> masterOrderAccounting.service.
-  return require('../../services/master-order/masterOrderLegacy.service');
+function getLegacyAccountingImplementation() {
+  // Lazy-load the extracted accounting command implementation. This preserves
+  // rollback behavior without re-entering the public master-order facade.
+  return require('../../services/master-order/deliveryAccountingCommand.impl');
 }
 
 async function recordCollectedMoney(order = {}, options = {}) {
@@ -61,17 +61,17 @@ async function confirmAccounting(masterOrderIdOrBody = {}, body = {}, options = 
   // Hỗ trợ cả contract hiện tại confirmDeliveryAccounting(body) và contract mở rộng
   // confirmAccounting(masterOrderId, body, options) cho phase sau.
   if (masterOrderIdOrBody && typeof masterOrderIdOrBody === 'object') {
-    return getMasterOrderLegacyService().confirmDeliveryAccounting(masterOrderIdOrBody, body || options || {});
+    return getLegacyAccountingImplementation().confirmDeliveryAccounting(masterOrderIdOrBody, body || options || {});
   }
 
-  return getMasterOrderLegacyService().confirmDeliveryAccounting({
+  return getLegacyAccountingImplementation().confirmDeliveryAccounting({
     ...(body || {}),
     masterOrderId: masterOrderIdOrBody || body.masterOrderId || body.id || ''
   }, options);
 }
 
 async function unlockAccounting(idOrCode, body = {}, options = {}) {
-  return getMasterOrderLegacyService().adminUnlockDeliveryAccounting(idOrCode, body, options);
+  return getLegacyAccountingImplementation().adminUnlockDeliveryAccounting(idOrCode, body, options);
 }
 
 async function submitCashToFund(idOrCode, body = {}) {

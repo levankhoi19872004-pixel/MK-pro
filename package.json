@@ -32,7 +32,7 @@
     "migrate:return-state": "node scripts/migrate-return-state-machine.js --write",
     "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
     "check:syntax": "node scripts/check-js-syntax.js",
-    "quality": "npm run check:syntax && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
+    "quality": "npm run check:syntax && npm run check:source-size && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
     "check:production": "node scripts/production-readiness-check.js",
     "cleanup:retired": "node scripts/cleanup-retired-files.js",
     "pretest": "npm run cleanup:retired",
@@ -43,7 +43,8 @@
     "migrate:return-state:dry": "node scripts/migrate-return-state-machine.js",
     "mongo:index-audit": "node scripts/audit-mongo-indexes.js",
     "mongo:index-cleanup": "node scripts/audit-mongo-indexes.js --write",
-    "mongo:index-cleanup:unused": "node scripts/audit-mongo-indexes.js --write --drop-unused --min-observation-hours=168"
+    "mongo:index-cleanup:unused": "node scripts/audit-mongo-indexes.js --write --drop-unused --min-observation-hours=168",
+    "check:source-size": "node scripts/check-source-size-budget.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -61,7 +62,7 @@
     "read-excel-file": "^9.2.0"
   },
   "engines": {
-    "node": ">=20 <23",
+    "node": ">=22 <23",
     "npm": ">=10"
   }
 }

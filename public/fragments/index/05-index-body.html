@@ -1,0 +1,340 @@
+                  <label>Mã NV giao hàng<input id="deliveryCashSubmissionStaffCode" name="deliveryStaffCode" placeholder="VD: ghth" autocomplete="off" /></label>
+
+                  <section id="deliveryCashSubmissionPreview" class="delivery-cash-preview full-span" aria-live="polite">
+                    <div id="deliveryCashSubmissionPreviewStatus" class="delivery-cash-preview-empty">
+                      Chọn ngày giao và nhập mã NV giao hàng để xem tiền cần thu.
+                    </div>
+                    <div id="deliveryCashSubmissionPreviewContent" hidden>
+                      <div class="delivery-cash-preview-head">
+                        <div>
+                          <strong id="deliveryCashSubmissionPreviewStaff">NVGH</strong>
+                          <span id="deliveryCashSubmissionPreviewDate" class="muted"></span>
+                        </div>
+                        <span id="deliveryCashSubmissionPreviewOrderCount" class="fund-preview-count">0 đơn</span>
+                      </div>
+                      <div class="delivery-cash-preview-kpis">
+                        <div><span>Tiền mặt cần thu</span><b id="deliveryCashSubmissionReportCash">0</b></div>
+                        <div><span>Tài khoản cần thu</span><b id="deliveryCashSubmissionReportBank">0</b></div>
+                        <div><span>Tổng cần thu</span><b id="deliveryCashSubmissionReportTotal">0</b></div>
+                        <div><span>Chênh thực nhập</span><b id="deliveryCashSubmissionInputDifference">0</b></div>
+                      </div>
+                      <div class="table-scroll delivery-cash-preview-table-scroll">
+                        <table class="delivery-cash-preview-table">
+                          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Tiền mặt</th><th>Tài khoản</th><th>Tổng</th></tr></thead>
+                          <tbody id="deliveryCashSubmissionPreviewTable"><tr><td colspan="5">Chưa có dữ liệu.</td></tr></tbody>
+                          <tfoot><tr><th colspan="2">Tổng theo báo cáo</th><th id="deliveryCashSubmissionPreviewCashTotal">0</th><th id="deliveryCashSubmissionPreviewBankTotal">0</th><th id="deliveryCashSubmissionPreviewGrandTotal">0</th></tr></tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+
+                  <label>Thực nộp tiền mặt<input id="deliveryCashSubmissionCashInput" name="submittedCashAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
+                  <label>Thực nhận tài khoản<input id="deliveryCashSubmissionBankInput" name="submittedBankAmount" type="number" min="0" step="1" placeholder="Tự điền theo báo cáo" /></label>
+                  <label class="full-span">Ghi chú<input name="note" placeholder="Ghi chú nộp quỹ" /></label>
+                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp quỹ</button></div>
+                  <p id="deliveryCashSubmissionMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryShortageResolutionModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card fund-shortage-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryShortageResolutionTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryShortageResolutionTitle">Phân loại khoản thiếu trước khi xác nhận</h3>
+                  <p class="muted">Phiếu gốc được khóa sau xác nhận. Chỉ khoản NVGH đã thu nhưng chưa nộp mới tạo công nợ NVGH.</p>
+                </div>
+                <button id="closeDeliveryShortageResolutionModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="deliveryShortageResolutionForm" class="form fund-form-grid">
+                  <input id="deliveryShortageResolutionSubmissionCode" name="submissionCode" type="hidden" />
+                  <input id="deliveryShortageResolutionMode" name="mode" type="hidden" />
+                  <div id="deliveryShortageResolutionSummary" class="fund-shortage-summary full-span"></div>
+
+                  <section id="deliveryCashShortageResolutionSection" class="fund-shortage-resolution-section full-span" hidden>
+                    <div class="fund-shortage-section-head"><strong>Thiếu tiền mặt</strong><b id="deliveryCashShortageResolutionAmount">0</b></div>
+                    <div class="fund-shortage-resolution-grid">
+                      <label>Cách xử lý
+                        <select id="deliveryCashShortageReason" name="cashReasonType">
+                          <option value="">-- Chọn nguyên nhân --</option>
+                          <option value="collected_not_remitted">NVGH đã thu nhưng chưa nộp đủ</option>
+                          <option value="customer_not_paid">Khách hàng chưa thanh toán</option>
+                          <option value="approved_expense">Khoản chi/điều chỉnh đã được duyệt</option>
+                          <option value="pending_review">Chờ kiểm tra, chưa xác định trách nhiệm</option>
+                        </select>
+                      </label>
+                      <label>Ghi chú giải trình<input id="deliveryCashShortageNote" name="cashNote" placeholder="Nhập khi cần giải trình" /></label>
+                    </div>
+                  </section>
+
+                  <section id="deliveryBankShortageResolutionSection" class="fund-shortage-resolution-section full-span" hidden>
+                    <div class="fund-shortage-section-head"><strong>Thiếu chuyển khoản</strong><b id="deliveryBankShortageResolutionAmount">0</b></div>
+                    <div class="fund-shortage-resolution-grid">
+                      <label>Cách xử lý
+                        <select id="deliveryBankShortageReason" name="bankReasonType">
+                          <option value="">-- Chọn nguyên nhân --</option>
+                          <option value="pending_bank_reconciliation">Chờ đối soát ngân hàng</option>
+                          <option value="delivery_staff_liability">NVGH chịu trách nhiệm nộp bù</option>
+                          <option value="customer_not_paid">Khách hàng chưa chuyển khoản</option>
+                          <option value="approved_adjustment">Điều chỉnh đã được duyệt</option>
+                        </select>
+                      </label>
+                      <label>Ghi chú giải trình<input id="deliveryBankShortageNote" name="bankNote" placeholder="Thông tin giao dịch hoặc lý do" /></label>
+                    </div>
+                  </section>
+
+                  <div class="form-actions full-span">
+                    <button id="submitDeliveryShortageResolutionButton" type="submit">Xác nhận phiếu và ghi quỹ</button>
+                  </div>
+                  <p id="deliveryShortageResolutionMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryShortageRepaymentModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card fund-shortage-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryShortageRepaymentTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryShortageRepaymentTitle">Nộp bù thiếu quỹ NVGH</h3>
+                  <p class="muted">Phiếu nộp bù tạo ở trạng thái chờ xác nhận. Chỉ khi xác nhận mới tăng fundLedgers và giảm số còn thiếu.</p>
+                </div>
+                <button id="closeDeliveryShortageRepaymentModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <div id="deliveryShortageRepaymentSummary" class="delivery-shortage-kpis"></div>
+                <form id="deliveryShortageRepaymentForm" class="form fund-form-grid">
+                  <input id="deliveryShortageRepaymentShortageId" name="shortageId" type="hidden" />
+                  <label>Ngày nộp bù<input id="deliveryShortageRepaymentDate" name="repaymentDate" type="date" /></label>
+                  <label>Hình thức nhận
+                    <select id="deliveryShortageRepaymentFundType" name="fundType">
+                      <option value="cash">Tiền mặt</option>
+                      <option value="bank">Chuyển khoản</option>
+                    </select>
+                  </label>
+                  <label>Số tiền nộp bù<input id="deliveryShortageRepaymentAmount" name="amount" type="number" min="1" step="1" /></label>
+                  <label>Ghi chú<input id="deliveryShortageRepaymentNote" name="note" placeholder="Nộp bù lần..." /></label>
+                  <div class="form-actions full-span"><button type="submit">Tạo phiếu nộp bù</button></div>
+                  <p id="deliveryShortageRepaymentMessage" class="message full-span"></p>
+                </form>
+                <div class="table-scroll delivery-shortage-history-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu bù</th><th>Ngày</th><th>Hình thức</th><th>Số tiền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryShortageRepaymentTable"><tr><td colspan="6">Chưa tải lịch sử nộp bù.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="expenseVoucherModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="expenseVoucherModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="expenseVoucherModalTitle">Tạo phiếu chi</h3>
+                  <p class="muted">Phiếu tạo ở trạng thái pending; xác nhận mới ghi direction = out vào fundLedgers.</p>
+                </div>
+                <button id="closeExpenseVoucherModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="expenseVoucherForm" class="form fund-form-grid">
+                  <label>Ngày chi<input name="date" type="date" /></label>
+                  <label>Quỹ chi<select name="fundType"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
+                  <label>Loại chi<input name="expenseType" placeholder="xang_xe / boc_vac / khac" /></label>
+                  <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+                  <label>Người nhận<input name="receiverName" /></label>
+                  <label>Ghi chú<input name="note" /></label>
+                  <div class="form-actions full-span"><button type="submit">Ghi phiếu chi</button></div>
+                  <p id="expenseVoucherMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+
+          <div id="fundTransferModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="fundTransferModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="fundTransferModalTitle">Tạo phiếu nộp ngân hàng</h3>
+                  <p class="muted">Xác nhận phiếu mới ghi 2 dòng: tiền mặt chi và ngân hàng thu.</p>
+                </div>
+                <button id="closeFundTransferModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="fundTransferForm" class="form fund-form-grid">
+                  <label>Ngày<input name="date" type="date" /></label>
+                  <label>Từ quỹ<select name="fromFund"><option value="cash">Tiền mặt</option><option value="bank">Ngân hàng</option></select></label>
+                  <label>Đến quỹ<select name="toFund"><option value="bank">Ngân hàng</option><option value="cash">Tiền mặt</option></select></label>
+                  <label>Số tiền<input name="amount" type="number" min="0" step="1" /></label>
+                  <label>Ngân hàng<input name="bankName" placeholder="VCB / BIDV..." /></label>
+                  <label>Ghi chú<input name="note" /></label>
+                  <div class="form-actions full-span"><button type="submit">Ghi chuyển quỹ</button></div>
+                  <p id="fundTransferMessage" class="message full-span"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section id="reportsTab" class="tab-content">
+      <main class="report-directory-shell">
+        <section class="card report-directory-hero">
+          <div>
+            <span class="report-eyebrow">REPORT CENTER V2</span>
+            <h2>Danh sách báo cáo quản trị</h2>
+            <p class="muted">Chọn đúng báo cáo cần xem. Mỗi báo cáo mở trong một cửa sổ riêng để màn hình chính luôn gọn và dễ tìm.</p>
+          </div>
+          <div class="report-directory-status-wrap">
+            <span id="reportDirectoryState" class="report-directory-state">Chưa tải danh mục</span>
+            <button id="reloadReportCatalogButton" class="secondary" type="button">Tải lại danh mục</button>
+          </div>
+        </section>
+
+        <section class="card report-directory-card">
+          <div class="report-directory-head">
+            <div>
+              <h3>Danh mục báo cáo</h3>
+              <p class="muted">Báo cáo được nhóm theo nghiệp vụ. Nhấn “Xem báo cáo” để mở popup chi tiết.</p>
+            </div>
+            <input id="reportCatalogSearch" placeholder="Tìm tên hoặc nội dung báo cáo..." />
+          </div>
+          <div id="reportCatalog" class="report-directory-list">
+            <div class="report-catalog-loading">Đang tải danh mục...</div>
+          </div>
+        </section>
+
+        <details class="card report-export-card report-directory-export-card">
+          <summary>
+            <span><strong>Kho mẫu Excel và dữ liệu xuất</strong><small>Giữ đầy đủ các mẫu xuất cũ để đối soát và gửi ngoài hệ thống.</small></span>
+          </summary>
+          <div class="report-export-body">
+            <div class="note-box">
+              <strong>Quy tắc nguồn dữ liệu:</strong>
+              Tồn kho hiện tại đọc inventories. Nhập - xuất - tồn và thẻ kho đọc stockTransactions. Công nợ đọc arLedgers. Quỹ đọc fundLedgers. Doanh số chỉ tính đơn đã xác nhận kế toán và không cộng dòng hàng khuyến mại.
+            </div>
+            <div class="report-export-buttons">
+              <button type="button" class="secondary report-export-btn" data-report-type="sales-report">Báo cáo bán hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="delivery-report">Báo cáo giao hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="return-report">Báo cáo trả hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="debt-report">Báo cáo công nợ</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="ar-ledger-detail">Sổ công nợ chi tiết</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="stock-report">Tồn kho hiện tại</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="inventory-movement-report">Nhập - xuất - tồn</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="stock-card-report">Thẻ kho</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="fund-report">Quỹ tiền</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="salesman-report">Báo cáo NVBH</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="deliveryman-report">Báo cáo NVGH</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="customer-sales-report">Doanh số khách hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="product-sales-report">Doanh số sản phẩm</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="product-info-report">Thông tin sản phẩm</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="customer-info-report">Thông tin khách hàng</button>
+              <button type="button" class="secondary report-export-btn" data-report-type="user-info-report">Thông tin tài khoản</button>
+              <button id="exportVatInvoiceTT78Button" type="button" class="secondary">Hóa đơn VAT TT78</button>
+              <button id="exportVatNonInvoiceOrdersButton" type="button" class="secondary report-export-btn" data-report-type="vat-non-invoice-orders">Đơn không xuất hóa đơn</button>
+            </div>
+            <p id="vatInvoiceExportSummary" class="muted">VAT TT78: Sheet1 sau khi đã đối trừ hàng trả từ returnOrders.</p>
+          </div>
+        </details>
+      </main>
+
+      <div id="reportCenterModal" class="modal-backdrop report-center-modal" hidden aria-hidden="true">
+        <main class="report-center-shell report-center-dialog" role="dialog" aria-modal="true" aria-labelledby="reportCenterModalTitle">
+          <section class="card report-popup-header">
+            <div class="report-center-heading">
+              <div>
+                <span class="report-eyebrow">CHI TIẾT BÁO CÁO</span>
+                <h2 id="reportCenterModalTitle">Xem báo cáo</h2>
+                <p class="muted">Lọc, phân tích và xuất Excel cho báo cáo đang chọn.</p>
+              </div>
+              <div class="report-center-heading-actions">
+                <div id="reportLoadState" class="report-load-state">Sẵn sàng tải báo cáo</div>
+                <button id="closeReportCenterButton" class="secondary report-center-close" type="button">Đóng</button>
+              </div>
+            </div>
+
+            <div class="report-filter-panel">
+              <label>Kỳ báo cáo
+                <select id="reportPeriodPreset">
+                  <option value="currentDay">Hôm nay</option>
+                  <option value="7days">7 ngày gần nhất</option>
+                  <option value="month" selected>Tháng này</option>
+                  <option value="previousMonth">Tháng trước</option>
+                  <option value="custom">Tùy chọn</option>
+                </select>
+              </label>
+              <label>Từ ngày<input id="reportFromDate" type="date" /></label>
+              <label>Đến ngày<input id="reportToDate" type="date" /></label>
+              <label>Tìm trong báo cáo<input id="reportSearchInput" placeholder="Mã, tên, chứng từ..." /></label>
+              <button id="reloadReportsButton" type="button">Cập nhật báo cáo</button>
+            </div>
+          </section>
+
+          <section class="card report-viewer-panel report-popup-viewer">
+            <div class="report-viewer-head">
+              <div>
+                <span id="reportActiveCategory" class="report-category-badge">Báo cáo</span>
+                <h3 id="reportActiveTitle">Chưa chọn báo cáo</h3>
+                <p id="reportSalesSummary" class="muted">Nhấn “Xem báo cáo” tại danh sách bên ngoài.</p>
+              </div>
+              <div class="report-viewer-actions">
+                <label>Số dòng
+                  <select id="reportPageSize">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                  </select>
+                </label>
+                <button id="reportExportCurrentButton" class="secondary" type="button">Xuất Excel</button>
+              </div>
+            </div>
+
+            <div id="reportSummaryMetrics" class="report-summary-metrics"></div>
+            <div id="reportChartPanel" class="report-chart-panel" hidden>
+              <div class="report-chart-head"><strong>Top dữ liệu</strong><span id="reportChartCaption" class="muted"></span></div>
+              <div id="reportChart" class="report-bar-chart"></div>
+            </div>
+
+            <div class="report-table-toolbar">
+              <span id="reportTableStatus" class="muted">Chưa tải dữ liệu</span>
+              <button id="reportClearSearchButton" class="text-button" type="button">Xóa tìm kiếm</button>
+            </div>
+            <div class="table-wrap report-table-wrap">
+              <table class="report-data-table">
+                <thead id="reportTableHead"><tr><th>Chưa chọn báo cáo</th></tr></thead>
+                <tbody id="reportTableBody"><tr><td class="empty-cell">Nhấn “Xem báo cáo” để tải dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+            <div class="report-pagination">
+              <button id="reportPreviousPageButton" class="secondary" type="button">Trang trước</button>
+              <span id="reportPageInfo">Trang 0/0</span>
+              <button id="reportNextPageButton" class="secondary" type="button">Trang sau</button>
+            </div>
+          </section>
+
+          <div class="report-compat-hidden" hidden aria-hidden="true">
+            <div id="reportOverviewCards"></div>
+            <div id="reportAlertStrip"></div>
+            <span id="reportRevenue"></span><span id="reportOrderCount"></span><span id="reportNetSales"></span>
+            <span id="reportCollected"></span><span id="reportDebt"></span><span id="reportCashBalance"></span>
+            <span id="reportStockProducts"></span><span id="reportDeliveredOrders"></span><span id="reportReturnAmount"></span>
+            <span id="reportStockSummary"></span><table><tbody id="reportStockTable"></tbody></table>
+            <span id="reportDebtSummary"></span><table><tbody id="reportDebtTable"></tbody></table>
+            <span id="reportCashSummary"></span><table><tbody id="reportCashTable"></tbody></table>
+            <table><tbody id="reportSalesTable"></tbody></table>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    <section id="usersTab" class="tab-content">
+      <main class="grid">
+        <section class="card">
+          <h2>Thêm / sửa tài khoản</h2>
+          <form id="userForm" class="form">
+            <input type="hidden" name="id" />
+            <label>Mã NV / mã tài khoản<input name="code" placeholder="VD: BH01" /></label>

@@ -1,0 +1,340 @@
+
+  <div class="app">
+    <header class="header">
+      <div>
+        <h1>KHO Minh Khai Pro V44</h1>
+        <p>Step 6: Sản phẩm + khách hàng + nhập kho + bán hàng + công nợ + quỹ tiền</p>
+      </div>
+      <span id="serverStatus" class="status">Đang kiểm tra server...</span>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-button active" data-tab="dashboardTab">Tổng quan</button>
+      <button class="tab-button" data-tab="productsTab">Sản phẩm</button>
+      <button class="tab-button" data-tab="customersTab">Khách hàng</button>
+      <button class="tab-button" data-tab="importTab">Nhập kho</button>
+      <button class="tab-button" data-tab="salesTab">Bán hàng</button>
+      <button class="tab-button" data-tab="stockTab">Tồn kho</button>
+      <button class="tab-button" data-tab="masterOrdersTab">Đơn tổng</button>
+      <button class="tab-button" data-tab="returnOrdersTab">Đơn trả hàng</button>
+      <button class="tab-button" data-tab="masterReturnOrdersTab">Đơn tổng trả hàng</button>
+      <button class="tab-button" data-tab="deliveryTodayTab">Đơn giao hôm nay</button>
+      <button class="tab-button" data-tab="debtTab">Công nợ</button>
+      <button class="tab-button" data-tab="debtCollectionsTab">Thu nợ chờ xác nhận</button>
+      <button class="tab-button" data-tab="fundsTab">Quỹ tiền</button>
+      <button class="tab-button" data-tab="reportsTab">Báo cáo</button>
+      <button class="tab-button" data-tab="usersTab">Tài khoản</button>
+      <button class="tab-button" data-tab="promotionsTab">Khuyến mại</button>
+      <button class="tab-button" data-tab="importDataTab">Import dữ liệu</button>
+      <button class="tab-button" data-tab="systemTab">Hệ thống</button>
+    </nav>
+
+    <section id="dashboardTab" class="tab-content active">
+      <main class="dashboard-shell">
+        <section class="dashboard-hero">
+          <div>
+            <h2>Tổng quan kinh doanh</h2>
+            <p>Báo cáo bán hàng, công nợ và tiến độ giao hàng theo tháng.</p>
+          </div>
+          <div class="dashboard-toolbar">
+            <label>Tháng báo cáo
+              <input id="dashboardMonth" type="month" />
+            </label>
+            <button id="dashboardTargetButton" type="button" class="secondary" hidden>Cập nhật chỉ tiêu</button>
+            <button id="dashboardTargetTemplateButton" type="button" class="secondary" hidden>Tải mẫu chỉ tiêu</button>
+            <button id="dashboardTargetUploadButton" type="button" class="secondary" hidden>Upload chỉ tiêu</button>
+            <input id="dashboardTargetUploadInput" type="file" accept=".xlsx" hidden />
+            <button id="dashboardRefreshButton" type="button">Tải lại</button>
+          </div>
+        </section>
+
+        <p id="dashboardLoadState" class="dashboard-state">Đang chuẩn bị dữ liệu tổng quan...</p>
+
+        <section class="dashboard-summary-grid" aria-label="Chỉ số tổng quan">
+          <article class="dashboard-summary-card is-primary"><span>Chỉ tiêu tháng</span><strong id="dashboardTargetTotal">0 ₫</strong><small id="dashboardAchievementText">Đạt 0%</small></article>
+          <article class="dashboard-summary-card"><span>Thực đạt tháng</span><strong id="dashboardSalesTotal">0 ₫</strong><small id="dashboardOrderCount">0 đơn đã xác nhận kế toán · giá trị thực tế trên đơn</small></article>
+          <article class="dashboard-summary-card is-warning"><span>Chờ xác nhận</span><strong id="dashboardPendingSalesTotal">0 ₫</strong><small id="dashboardPendingOrderCount">0 đơn chưa xác nhận kế toán</small></article>
+          <article class="dashboard-summary-card is-danger"><span>Hàng trả tháng</span><strong id="dashboardReturnTotal">0 ₫</strong><small>Phiếu trả đã xác nhận · giá trị thực tế</small></article>
+          <article class="dashboard-summary-card is-primary"><span>Doanh số ròng</span><strong id="dashboardNetSalesTotal">0 ₫</strong><small>Thực đạt đã xác nhận trừ hàng trả đã xác nhận</small></article>
+          <article class="dashboard-summary-card"><span>Giá trị khuyến mại</span><strong id="dashboardPromotionValueTotal">0 ₫</strong><small>Chiết khấu + hàng KM; không cộng vào thực đạt</small></article>
+          <article class="dashboard-summary-card is-warning"><span>Tổng công nợ</span><strong id="dashboardDebtTotal">0 ₫</strong><small>Nguồn chuẩn arLedgers</small></article>
+          <article class="dashboard-summary-card"><span>Phát sinh hôm nay</span><strong id="dashboardTodaySalesTotal">0 ₫</strong><small id="dashboardTodayOrderCount">0 đơn hôm nay, gồm cả chờ xác nhận</small></article>
+        </section>
+
+        <section class="card dashboard-report-card">
+          <div class="dashboard-card-head">
+            <div><h3>Chỉ tiêu nhân viên bán hàng theo tháng</h3><p>Tổng bán ra gồm đơn đã xác nhận và đơn chờ xác nhận; thực đạt chỉ tính doanh số đã xác nhận sau khi trừ hàng trả đã xác nhận.</p></div>
+          </div>
+          <div class="dashboard-table-wrap">
+            <table class="dashboard-table">
+              <thead><tr><th>Nhân viên</th><th>Mã NVBH</th><th>Chỉ tiêu tổng</th><th title="Doanh số đã xác nhận + doanh số chờ xác nhận">Tổng bán ra</th><th title="Giá trị phiếu trả đã xác nhận">Tổng trả về</th><th title="Doanh số đã xác nhận - hàng trả đã xác nhận">Thực đạt</th><th title="Số dư công nợ hiện tại từ arLedgers">Công nợ</th><th title="Doanh số phát sinh trong ngày, gồm cả đơn chờ xác nhận">Doanh số hôm nay</th></tr></thead>
+              <tbody id="dashboardSalesTable"><tr><td colspan="8" class="empty-cell">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="dashboard-delivery-grid">
+          <article class="card dashboard-report-card">
+            <div class="dashboard-card-head"><div><h3>Báo cáo giao hàng trong tháng</h3><p>Tổng hợp theo từng nhân viên giao hàng.</p></div></div>
+            <div class="dashboard-table-wrap">
+              <table class="dashboard-table">
+                <thead><tr><th>Nhân viên</th><th>Mã NVGH</th><th>Tổng đơn</th><th>Đã giao</th><th>Đang giao</th><th>Chưa giao</th><th>Giao lỗi</th><th>Giá trị giao</th><th>Hàng trả</th><th>Hoàn thành</th></tr></thead>
+                <tbody id="dashboardDeliveryMonthTable"><tr><td colspan="10" class="empty-cell">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="card dashboard-report-card">
+            <div class="dashboard-card-head"><div><h3>Báo cáo giao hàng hôm nay</h3><p>Tiến độ thực hiện trong ngày theo từng nhân viên giao hàng.</p></div></div>
+            <div class="dashboard-table-wrap">
+              <table class="dashboard-table">
+                <thead><tr><th>Nhân viên</th><th>Mã NVGH</th><th>NVBH thuộc nhánh</th><th>Tổng đơn</th><th>Đã giao</th><th>Đang giao</th><th>Chưa giao</th><th>Giao lỗi</th><th>Hàng trả</th><th>Tiến độ</th></tr></thead>
+                <tbody id="dashboardDeliveryTodayTable"><tr><td colspan="10" class="empty-cell">Đang tải...</td></tr></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </section>
+
+    <div id="dashboardTargetModal" class="dashboard-modal" hidden aria-hidden="true">
+      <section class="dashboard-modal-card" role="dialog" aria-modal="true" aria-labelledby="dashboardTargetTitle">
+        <div class="dashboard-modal-head">
+          <div><h3 id="dashboardTargetTitle">Cập nhật chỉ tiêu tháng</h3><p id="dashboardTargetPeriod" class="muted"></p></div>
+          <button id="dashboardTargetCloseButton" type="button" class="secondary small">Đóng</button>
+        </div>
+        <div class="dashboard-modal-body">
+          <table class="dashboard-target-table">
+            <thead><tr><th>Mã NVBH</th><th>Nhân viên bán hàng</th><th>Chỉ tiêu tháng</th></tr></thead>
+            <tbody id="dashboardTargetTable"><tr><td colspan="3">Đang tải...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="dashboard-modal-foot">
+          <p id="dashboardTargetMessage" class="dashboard-target-message"></p>
+          <button id="dashboardTargetSaveButton" type="button">Lưu chỉ tiêu</button>
+        </div>
+      </section>
+    </div>
+
+    <section id="productsTab" class="tab-content">
+      <main class="grid product-workspace-grid">
+        <section class="card product-card">
+          <div class="toolbar product-list-toolbar">
+            <div><h2>Danh sách sản phẩm</h2><p id="productCount" class="muted">Đang tải...</p></div>
+            <div class="product-toolbar-actions">
+              <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." />
+              <button type="button" id="openProductModalButton" class="primary-action">+ Thêm sản phẩm</button>
+            </div>
+          </div>
+          <div id="productBulkActions" class="bulk-actions" hidden>
+            <div class="bulk-info">
+              <strong id="productSelectedCount">0</strong>
+              <span>sản phẩm được chọn</span>
+            </div>
+            <div class="bulk-buttons">
+              <button type="button" id="bulkEditProductButton" class="small">Sửa</button>
+              <button type="button" id="bulkOpenProductButton" class="small success">Mở bán</button>
+              <button type="button" id="bulkStopProductButton" class="small danger">Ngừng bán</button>
+            </div>
+          </div>
+          <div class="table-wrap product-list-wrap">
+            <table class="product-table">
+              <thead class="sr-only-product-head">
+                <tr>
+                  <th class="col-select"><input type="checkbox" id="productCheckAll" aria-label="Chọn tất cả sản phẩm" /></th>
+                  <th class="col-product">Sản phẩm</th>
+                  <th class="col-status">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="productTable"><tr><td colspan="3" class="empty-cell">Đang tải dữ liệu...</td></tr></tbody>
+            </table>
+          </div>
+          <div id="productPagination" class="table-pagination">
+            <span id="productPageInfo">Hiển thị 0-0 / 0 sản phẩm</span>
+            <div class="pagination-controls">
+              <label>Số dòng
+                <select id="productPageSize">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button type="button" id="productPrevPage" class="ghost">Trước</button>
+              <button type="button" id="productNextPage">Sau</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <div id="productModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card product-modal-card product-workspace" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+        <div class="modal-head product-workspace-head">
+          <h3 id="formTitle">Thêm sản phẩm</h3>
+          <button type="button" id="closeProductModalButton" class="ghost">Đóng</button>
+        </div>
+        <div class="product-modal-body product-workspace-body">
+          <form id="productForm" class="form product-workspace-form">
+            <input type="hidden" name="id" />
+            <label>Mã sản phẩm *<input name="code" placeholder="VD: SP003" required /></label>
+            <label>Tên sản phẩm *<input name="name" placeholder="VD: OMO 800g" required /></label>
+            <div class="two-cols">
+              <label>Đơn vị bán chính<input name="unit" placeholder="Thùng, Lốc, Chai" /></label>
+              <label>Nhóm hàng<input name="category" placeholder="Bột giặt" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Đơn vị gốc nhỏ nhất<input name="baseUnit" placeholder="Gói, Chai, Cái" /></label>
+              <label>Quy đổi / 1 ĐVT bán<input name="conversionRate" type="number" min="1" step="1" placeholder="VD: 12" /></label>
+            </div>
+            <label>Quy cách đóng gói<input name="packing" placeholder="VD: 1 thùng = 12 chai" /></label>
+            <label>Khu bốc hàng khi in đơn tổng
+              <select name="pickingZone" required>
+                <option value="HC">HC</option>
+                <option value="PC">PC</option>
+              </select>
+              <small class="muted">Chỉ dùng để tách phiếu bốc hàng HC/PC; không ảnh hưởng tồn kho MAIN.</small>
+            </label>
+            <label>Barcode / mã vạch<input name="barcode" placeholder="Có thể để trống" /></label>
+            <div class="two-cols">
+              <label>Giá nhập<input name="costPrice" type="number" min="0" placeholder="0" /></label>
+              <label>Giá bán<input name="salePrice" type="number" min="0" placeholder="0" /></label>
+            </div>
+            <div class="two-cols">
+              <label>Tồn tối thiểu<input name="minStock" type="number" min="0" placeholder="0" /></label>
+              <label>Tồn tối đa<input name="maxStock" type="number" min="0" placeholder="0" /></label>
+            </div>
+            <label class="check-row"><input name="isActive" type="checkbox" checked />Đang mở bán</label>
+            <div class="button-row">
+              <button type="submit">Lưu sản phẩm</button>
+              <button type="button" id="resetButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="formMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
+
+    <section id="customersTab" class="tab-content">
+      <main class="grid customer-workspace-grid">
+        <section class="card customer-card">
+          <div class="toolbar customer-list-toolbar">
+            <div><h2>Danh sách khách hàng</h2><p id="customerCount" class="muted">Đang tải...</p></div>
+            <div class="customer-toolbar-actions">
+              <input id="customerSearchInput" placeholder="Tìm mã, tên, SĐT, MST, địa chỉ..." />
+              <button type="button" id="openCustomerModalButton" class="primary-action">+ Thêm khách hàng</button>
+            </div>
+          </div>
+          <div id="customerBulkActions" class="bulk-actions" hidden>
+            <label><input id="customerCheckAll" type="checkbox" /> Chọn tất cả</label>
+            <span id="customerSelectedCount">0 khách đã chọn</span>
+            <button id="bulkDeleteCustomerButton" class="small danger" type="button">Xóa nhiều</button>
+          </div>
+          <div class="table-wrap customer-table-wrap">
+            <table class="customer-data-table">
+              <thead><tr><th></th><th>Mã</th><th>Tên khách</th><th>SĐT</th><th>Địa chỉ</th><th>Khu vực</th><th>NV phụ trách</th><th>Thao tác</th></tr></thead>
+              <tbody id="customerTable"><tr><td colspan="8">Đang tải...</td></tr></tbody>
+            </table>
+          </div>
+          <div id="customerPagination" class="table-pagination">
+            <span id="customerPageInfo">Hiển thị 0-0 / 0 khách hàng</span>
+            <div class="pagination-controls">
+              <label>Số dòng
+                <select id="customerPageSize">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <button id="customerPrevPage" type="button" class="small">Trước</button>
+              <button id="customerNextPage" type="button" class="small">Sau</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <div id="customerModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card customer-modal-card customer-workspace" role="dialog" aria-modal="true" aria-labelledby="customerFormTitle">
+        <div class="modal-head customer-workspace-head">
+          <h3 id="customerFormTitle">Thêm khách hàng</h3>
+          <button type="button" id="closeCustomerModalButton" class="ghost">Đóng</button>
+        </div>
+        <div class="customer-modal-body customer-workspace-body">
+          <form id="customerForm" class="form customer-workspace-form">
+            <label>Mã khách hàng *<input name="code" placeholder="VD: KH001" required /></label>
+            <label>Tên khách hàng *<input name="name" placeholder="VD: Cửa hàng Minh Anh" required /></label>
+            <label>Tên hộ kinh doanh<input name="businessName" maxlength="250" placeholder="Tên đăng ký trên giấy phép/hóa đơn VAT" /></label>
+            <div class="two-cols">
+              <label>Số điện thoại<input name="phone" placeholder="098..." /></label>
+              <label>Khu vực<input name="area" placeholder="VD: Hải Phòng" /></label>
+            </div>
+            <label>Địa chỉ<input name="address" placeholder="Địa chỉ giao hàng" /></label>
+            <div class="two-cols">
+              <label>Mã số thuế<input name="taxCode" maxlength="30" placeholder="VD: 1001234567 hoặc 1001234567-001" /></label>
+              <label>Địa chỉ hóa đơn thuế<input name="taxInvoiceAddress" maxlength="500" placeholder="Địa chỉ đăng ký với cơ quan thuế" /></label>
+            </div>
+            <label>Nhân viên phụ trách
+              <input id="customerStaffSearch" placeholder="Gõ mã/tên NVBH..." autocomplete="off" />
+              <input name="legacyStaffCode" id="customerStaffCode" type="hidden" />
+              <input name="legacyStaffName" id="customerStaffName" type="hidden" />
+              <div id="customerStaffSuggestions" class="suggestions" hidden></div>
+            </label>
+            <div class="button-row">
+              <button type="submit">Lưu khách hàng</button>
+              <button type="button" id="resetCustomerButton" class="secondary">Nhập mới</button>
+            </div>
+          </form>
+          <p id="customerMessage" class="message"></p>
+        </div>
+      </section>
+    </div>
+
+    <section id="importTab" class="tab-content">
+      <!-- IMPORT_ORDER_POPUP_PATCH_START: màn chính chỉ giữ lịch sử, form tạo/sửa phiếu nhập chuyển vào popup -->
+      <main class="grid import-grid import-order-history-grid">
+        <section class="card import-history-card">
+          <!-- IMPORT_HISTORY_LAYOUT_GROUPED_START: khoanh vùng UI lịch sử phiếu nhập, chỉ gom nút/lọc/thống kê, không đổi API -->
+          <div class="toolbar import-history-toolbar import-history-toolbar-v2">
+            <div class="import-history-title-block">
+              <h2>Lịch sử phiếu nhập</h2>
+              <p id="importOrderCount" class="muted">Đang tải...</p>
+            </div>
+            <div class="import-history-actions import-history-actions-v2">
+              <button id="openImportOrderModalButton" class="primary-action" type="button">+ Tạo phiếu nhập</button>
+              <button type="button" class="secondary" id="printSelectedImportOrdersButton">In phiếu</button>
+              <button type="button" class="secondary" id="exportSelectedImportOrdersButton">Xuất Excel</button>
+              <button id="reloadImportOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
+          </div>
+          <div class="import-history-filter import-history-filter-v2">
+            <div class="import-date-filter-row import-date-filter-row-v2">
+              <label>Từ ngày
+                <input type="date" id="importDateFromFilter" />
+              </label>
+              <label>Đến ngày
+                <input type="date" id="importDateToFilter" />
+              </label>
+              <button type="button" class="primary small" id="applyImportDateFilterButton">Lọc</button>
+              <button type="button" class="secondary small" id="clearImportDateFilterButton">Xóa lọc</button>
+            </div>
+            <p id="importDateFilterInfo" class="muted">Đang tải khoảng thời gian...</p>
+          </div>
+          <div class="import-summary-cards" aria-label="Thống kê nhanh phiếu nhập">
+            <div class="import-summary-card">
+              <span>Tổng phiếu</span>
+              <strong id="importSummaryCount">0</strong>
+            </div>
+            <div class="import-summary-card">
+              <span>Tổng SL</span>
+              <strong id="importSummaryQty">0</strong>
+            </div>
+            <div class="import-summary-card">
+              <span>Tổng giá trị</span>
+              <strong id="importSummaryAmount">0</strong>
+            </div>
+          </div>
+          <div id="importOrderList" class="order-list import-order-one-line-list">Đang tải lịch sử...</div>
+          <!-- IMPORT_HISTORY_LAYOUT_GROUPED_END -->
+        </section>
+      </main>
+    </section>

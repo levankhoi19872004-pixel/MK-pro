@@ -1,7 +1,7 @@
 'use strict';
-const legacy = require('./masterOrderLegacy.service');
+const implementation = require('./masterOrderQuery.impl');
 module.exports = {
-  getMasterOrder: (...args) => legacy.getMasterOrder(...args),
-  listMasterOrders: (...args) => legacy.listMasterOrders(...args),
-  listUnmergedChildOrders: (...args) => legacy.listUnmergedChildOrders(...args)
+  getMasterOrder: implementation.getMasterOrder,
+  listMasterOrders: implementation.listMasterOrders,
+  listUnmergedChildOrders: implementation.listUnmergedChildOrders
 };

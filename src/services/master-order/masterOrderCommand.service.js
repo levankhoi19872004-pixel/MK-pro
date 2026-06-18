@@ -1,8 +1,8 @@
 'use strict';
-const legacy = require('./masterOrderLegacy.service');
+const implementation = require('./masterOrderCommand.impl');
 module.exports = {
-  createMasterOrder: (...args) => legacy.createMasterOrder(...args),
-  updateMasterOrder: (...args) => legacy.updateMasterOrder(...args),
-  cancelMasterOrder: (...args) => legacy.cancelMasterOrder(...args),
-  deleteMasterOrder: (...args) => legacy.deleteMasterOrder(...args)
+  createMasterOrder: implementation.createMasterOrder,
+  updateMasterOrder: implementation.updateMasterOrder,
+  cancelMasterOrder: implementation.cancelMasterOrder,
+  deleteMasterOrder: implementation.deleteMasterOrder
 };

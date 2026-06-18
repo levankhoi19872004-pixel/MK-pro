@@ -25,10 +25,10 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 const PHASE1_KNOWN_LEGACY_EXCEPTIONS = new Map([
-  [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'applyInventoryMovementsBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'bulkWriteInBatches(InventoryLegacy)', 'applyInventoryMovementsBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'bulkWriteInBatches(InventoryLegacy)', 'setOpeningStockInventoriesBulk'), 1],
-  [legacyKey('src/services/excelImportService.js', 'insertManyInBatches(StockTransaction)', 'importOpeningStock'), 1]
+  [legacyKey('src/services/import/core/importPersistence.util.js', 'insertManyInBatches(StockTransaction)', 'applyInventoryMovementsBulk'), 1],
+  [legacyKey('src/services/import/core/importPersistence.util.js', 'bulkWriteInBatches(InventoryLegacy)', 'applyInventoryMovementsBulk'), 1],
+  [legacyKey('src/services/import/core/importPersistence.util.js', 'bulkWriteInBatches(InventoryLegacy)', 'setOpeningStockInventoriesBulk'), 1],
+  [legacyKey('src/services/import/operations/salesImport.impl.js', 'insertManyInBatches(StockTransaction)', 'importOpeningStock'), 1]
 ]);
 
 function legacyKey(relPath, patternName, functionName) {
@@ -45,6 +45,15 @@ function walk(dir) {
     }
     return entry.isFile() && entry.name.endsWith('.js') ? [fullPath] : [];
   });
+}
+
+function readPhysical(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    return fs.readFileSync(fd, 'utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function lineNumberAt(source, index) {
@@ -66,7 +75,7 @@ test('inventory bulk writes are limited to inventory boundary and pinned phase-1
     const relPath = path.normalize(path.relative(ROOT, filePath));
     if (ALLOWED_FILES.has(relPath)) continue;
 
-    const source = fs.readFileSync(filePath, 'utf8');
+    const source = readPhysical(filePath);
     for (const pattern of FORBIDDEN_PATTERNS) {
       pattern.regex.lastIndex = 0;
       let match;
@@ -91,10 +100,14 @@ test('inventory bulk writes are limited to inventory boundary and pinned phase-1
 });
 
 test('excel import bulk inventory bypasses remain explicitly pinned for later migration', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'src/services/excelImportService.js'), 'utf8');
-  const stockBulkCount = (source.match(/insertManyInBatches\s*\(\s*StockTransaction/g) || []).length;
-  const inventoryBulkCount = (source.match(/bulkWriteInBatches\s*\(\s*InventoryLegacy/g) || []).length;
+  const persistence = readPhysical(path.join(ROOT, 'src/services/import/core/importPersistence.util.js'));
+  const salesImport = readPhysical(path.join(ROOT, 'src/services/import/operations/salesImport.impl.js'));
+  const facade = readPhysical(path.join(ROOT, 'src/services/excelImportService.js'));
+  const stockBulkCount = (persistence.match(/insertManyInBatches\s*\(\s*StockTransaction/g) || []).length
+    + (salesImport.match(/insertManyInBatches\s*\(\s*StockTransaction/g) || []).length;
+  const inventoryBulkCount = (persistence.match(/bulkWriteInBatches\s*\(\s*InventoryLegacy/g) || []).length;
 
   assert.equal(stockBulkCount, 2, 'Phase-1 import StockTransaction bulk paths changed unexpectedly');
   assert.equal(inventoryBulkCount, 2, 'Phase-1 InventoryLegacy bulk paths changed unexpectedly');
+  assert.doesNotMatch(facade, /StockTransaction|InventoryLegacy/, 'compatibility facade must not regain persistence logic');
 });

@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const { renderIndexPage } = require('../services/web/indexPageRenderer');
 
 function registerStaticRoutes(app) {
   app.get('/mobile', (req, res) => {
@@ -11,9 +12,18 @@ function registerStaticRoutes(app) {
     res.sendFile(path.join(__dirname, '..', '..', 'public', 'mobile', 'delivery.html'));
   });
 
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', '..', 'public', 'index.html'));
-  });
+  const renderApplication = async (req, res, next) => {
+    try {
+      const html = await renderIndexPage();
+      res.set('Cache-Control', 'no-cache');
+      res.type('html').send(html);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  app.get('/', renderApplication);
+  app.get('/index.html', renderApplication);
 }
 
 module.exports = { registerStaticRoutes };

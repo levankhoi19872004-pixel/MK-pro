@@ -1,0 +1,37 @@
+{
+  "files": {
+    "src/services/master-order/masterOrderLegacy.service.js": 8192,
+    "src/services/excelImportService.js": 4096,
+    "public/index.html": 4096,
+    "public/index.shell.html": 8192,
+    "public/css/00-base.css": 2048,
+    "public/css/10-operational-overrides.css": 2048
+  },
+  "groups": [
+    {
+      "root": "src/services/master-order",
+      "suffixes": [".impl.js"],
+      "maxBytes": 40960
+    },
+    {
+      "root": "src/services/import",
+      "suffixes": [".impl.js", ".util.js"],
+      "maxBytes": 40960
+    },
+    {
+      "root": "public/css/base",
+      "suffixes": [".css"],
+      "maxBytes": 40960
+    },
+    {
+      "root": "public/css/overrides",
+      "suffixes": [".css"],
+      "maxBytes": 40960
+    },
+    {
+      "root": "public/fragments/index",
+      "suffixes": [".html"],
+      "maxBytes": 40960
+    }
+  ]
+}

@@ -27,28 +27,21 @@ test('master-order domain modules exist', () => {
 
 test('facade export surface is preserved by domain index', () => {
   const snapshot = JSON.parse(read('test/fixtures/master-order/before-refactor.json'));
-  const publicSurface = [
-    read('src/services/master-order/index.js'),
-    read('src/services/master-order/masterOrderDelivery.service.js'),
-    read('src/services/master-order/masterOrderAccounting.service.js'),
-    read('src/services/master-order/masterOrderPrint.service.js'),
-    read('src/services/master-order/masterOrderQuery.service.js'),
-    read('src/services/master-order/masterOrderCommand.service.js'),
-    read('src/services/master-order/deliveryTodayQuery.service.js'),
-    read('src/services/master-order/deliveryOrderCommand.service.js'),
-    read('src/services/master-order/deliveryAccounting.service.js')
-  ].join('\n');
+  const service = require('../src/services/master-order');
+  const publicNames = new Set(Object.keys(service));
+  const internalNames = new Set(Object.keys(service._internal || {}));
+
   for (const name of [
     ...snapshot.deliveryExports,
     ...snapshot.accountingExports,
     ...snapshot.printExports
   ]) {
-    const rx = new RegExp(`\\b${name}\\b`);
-    assert.match(publicSurface, rx, `${name} is not exposed through facade modules`);
+    assert.equal(publicNames.has(name), true, `${name} is not exposed through facade modules`);
+    assert.equal(typeof service[name], 'function', `${name} must remain callable`);
   }
   for (const name of snapshot.returnInternalExports) {
-    const rx = new RegExp(`\\b${name}\\b`);
-    assert.match(publicSurface + read('src/services/master-order/masterOrderReturn.service.js'), rx, `${name} is not exposed through _internal`);
+    assert.equal(internalNames.has(name), true, `${name} is not exposed through _internal`);
+    assert.equal(typeof service._internal[name], 'function', `${name} must remain callable`);
   }
 });
 

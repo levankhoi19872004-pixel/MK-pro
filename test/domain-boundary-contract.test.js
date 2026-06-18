@@ -65,19 +65,20 @@ test('domain boundaries delegate to the intended posting/lifecycle services', ()
 test('master-order accounting strangler keeps legacy fallback and ENV-gated domain path', () => {
   const source = read('src/services/master-order/deliveryAccounting.service.js');
 
-  assert.match(source, /const legacy = require\('\.\/masterOrderLegacy\.service'\)/);
+  assert.match(source, /const legacyImplementation = require\('\.\/deliveryAccountingCommand\.impl'\)/);
   assert.match(source, /DeliverySettlementService/);
   assert.match(source, /process\.env\.USE_NEW_DELIVERY_SETTLEMENT/);
   assert.match(source, /DeliverySettlementService\.confirmAccounting\(\.\.\.args\)/);
-  assert.match(source, /legacy\.confirmDeliveryAccounting\(\.\.\.args\)/);
+  assert.match(source, /legacyImplementation\.confirmDeliveryAccounting\(\.\.\.args\)/);
   assert.match(source, /DeliverySettlementService\.unlockAccounting\(\.\.\.args\)/);
-  assert.match(source, /legacy\.adminUnlockDeliveryAccounting\(\.\.\.args\)/);
+  assert.match(source, /legacyImplementation\.adminUnlockDeliveryAccounting\(\.\.\.args\)/);
 });
 
 test('domain boundaries avoid known circular dependency traps', () => {
   const settlement = read('src/domain/settlement/DeliverySettlementService.js');
-  assert.match(settlement, /require\('\.\.\/\.\.\/services\/master-order\/masterOrderLegacy\.service'\)/);
+  assert.match(settlement, /require\('\.\.\/\.\.\/services\/master-order\/deliveryAccountingCommand\.impl'\)/);
   assert.doesNotMatch(settlement, /require\('\.\.\/\.\.\/services\/masterOrderService'\)/);
+  assert.doesNotMatch(settlement, /masterOrderLegacy\.service/);
 
   const returns = read('src/domain/lifecycle/ReturnLifecycleService.js');
   assert.match(returns, /function getReturnOrderService\(\)/);

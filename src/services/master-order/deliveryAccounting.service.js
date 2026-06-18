@@ -1,6 +1,6 @@
 'use strict';
 
-const legacy = require('./masterOrderLegacy.service');
+const legacyImplementation = require('./deliveryAccountingCommand.impl');
 const DeliverySettlementService = require('../../domain/settlement/DeliverySettlementService');
 
 function useNewDeliverySettlement() {
@@ -10,13 +10,13 @@ function useNewDeliverySettlement() {
 async function confirmDeliveryAccounting(...args) {
   return useNewDeliverySettlement()
     ? DeliverySettlementService.confirmAccounting(...args)
-    : legacy.confirmDeliveryAccounting(...args);
+    : legacyImplementation.confirmDeliveryAccounting(...args);
 }
 
 async function adminUnlockDeliveryAccounting(...args) {
   return useNewDeliverySettlement()
     ? DeliverySettlementService.unlockAccounting(...args)
-    : legacy.adminUnlockDeliveryAccounting(...args);
+    : legacyImplementation.adminUnlockDeliveryAccounting(...args);
 }
 
 module.exports = { confirmDeliveryAccounting, adminUnlockDeliveryAccounting, useNewDeliverySettlement };

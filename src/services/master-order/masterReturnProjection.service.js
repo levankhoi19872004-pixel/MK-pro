@@ -1,11 +1,10 @@
 'use strict';
-const legacy = require('./masterOrderLegacy.service');
-const internal = legacy._internal;
+const implementation = require('./masterOrderReturn.impl');
 module.exports = {
-  returnOrdersForSalesOrder: internal.returnOrdersForSalesOrder,
-  returnAmountForSalesOrder: internal.returnAmountForSalesOrder,
-  hydrateReturnOrdersForAccounting: internal.hydrateReturnOrdersForAccounting,
-  directReturnOrdersForSalesOrder: internal.directReturnOrdersForSalesOrder,
-  returnOrderTotalAmount: internal.returnOrderTotalAmount,
-  masterChildCountForReturnFallback: internal.masterChildCountForReturnFallback
+  returnOrdersForSalesOrder: implementation.returnOrdersForSalesOrder,
+  returnAmountForSalesOrder: implementation.returnAmountForSalesOrder,
+  hydrateReturnOrdersForAccounting: implementation.hydrateReturnOrdersForAccounting,
+  directReturnOrdersForSalesOrder: implementation.directReturnOrdersForSalesOrder,
+  returnOrderTotalAmount: implementation.returnOrderTotalAmount,
+  masterChildCountForReturnFallback: implementation.masterChildCountForReturnFallback
 };

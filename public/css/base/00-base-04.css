@@ -1,0 +1,839 @@
+
+
+/* Debt UI V45: manager report dashboard */
+.debt-report-head{align-items:flex-start;gap:12px;margin-bottom:10px}
+.debt-report-tabs{margin:0 0 14px;position:sticky;top:0;z-index:4;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);padding:6px;border-radius:18px;border:1px solid #e5edf6}
+.section-subhead{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin:4px 0 12px}
+.section-subhead h3{margin:0;font-size:16px;color:#0f172a}
+.section-subhead p{margin:0;max-width:640px;text-align:right}
+.debt-workspace .debt-panel:not(.active){display:none}
+.debt-workspace .debt-panel.active{display:block}
+@media(max-width:900px){.section-subhead{display:block}.section-subhead p{text-align:left;margin-top:4px}}
+
+/* V45 debt screen simplification: manager-first, less visual noise */
+#debtTab .operation-compact-layout{
+  grid-template-columns:minmax(300px,35%) minmax(0,65%)!important;
+  gap:12px!important;
+}
+#debtTab .debt-report-tabs{
+  border-radius:14px!important;
+  padding:4px!important;
+  gap:4px!important;
+}
+#debtTab .debt-inner-tab{
+  font-size:11px!important;
+  min-height:27px!important;
+  padding:4px 8px!important;
+}
+#debtTab .debt-filter-grid{
+  grid-template-columns:minmax(190px,1.8fr) minmax(90px,.8fr) minmax(90px,.8fr) minmax(110px,.8fr) 110px 110px!important;
+  gap:5px!important;
+}
+#debtTab .debt-filter-grid input,
+#debtTab .debt-filter-grid select{
+  min-height:28px!important;
+  font-size:11.5px!important;
+  border-radius:9px!important;
+}
+#debtTab .compact-debt-card-list{
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:8px;
+}
+#debtTab .debt-card-slim{
+  padding:10px!important;
+  min-height:138px;
+  border-radius:14px!important;
+  background:#fff!important;
+  border-color:#e2e8f0!important;
+  box-shadow:0 3px 10px rgba(15,23,42,.035)!important;
+}
+#debtTab .debt-card-slim.finance-red{border-left:4px solid #ef4444!important}
+#debtTab .debt-card-slim.finance-orange{border-left:4px solid #f97316!important}
+#debtTab .debt-card-slim.finance-green{border-left:4px solid #22c55e!important}
+.debt-slim-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+.debt-slim-name{min-width:0;display:grid;gap:1px}.debt-slim-name small{font-size:10.5px;color:#64748b;font-weight:800}.debt-slim-name b{font-size:14px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.debt-slim-money{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;margin:4px 0 7px}.debt-slim-money span{font-size:11px;color:#64748b;font-weight:800}.debt-slim-money strong{font-size:22px;line-height:1;font-weight:950}
+.debt-slim-meta,.debt-slim-staff{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}.debt-slim-meta span,.debt-slim-staff span{font-size:10.5px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:3px 7px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.debt-slim-meta b,.debt-slim-staff b{color:#0f172a;font-weight:900}
+.debt-detail-btn{margin-top:8px;min-height:26px!important;padding:4px 9px!important;border-radius:999px!important;background:#f8fafc!important;color:#334155!important;border:1px solid #e2e8f0!important;box-shadow:none!important;font-size:11px!important;font-weight:850!important}
+#debtTab .erp-debt-money,
+#debtTab .debt-staff-line,
+#debtTab .debt-date-line,
+#debtTab .debt-mini-timeline{display:none!important}
+/* Ẩn bảng fallback ở tab Tổng công nợ vì tab này dùng card compact.
+   Các tab Theo NVBH/NVGH/Biến động/AR Ledger vẫn cần bảng để hiển thị báo cáo. */
+#debtTab .debt-panel[data-debt-panel-id="debtOverviewPanel"] .debt-fallback-table{display:none!important}
+#debtTab .debt-panel:not([data-debt-panel-id="debtOverviewPanel"]) .debt-fallback-table{display:block!important}
+#debtTab .section-subhead{margin:2px 0 10px!important;align-items:center!important}
+#debtTab .section-subhead h3{font-size:15px!important}
+#debtTab .section-subhead p{font-size:11.5px!important;max-width:520px!important}
+@media(max-width:1180px){#debtTab .debt-filter-grid{grid-template-columns:1fr 1fr 1fr!important}}
+@media(max-width:980px){#debtTab .operation-compact-layout{grid-template-columns:1fr!important}}
+@media(max-width:640px){#debtTab .debt-filter-grid{grid-template-columns:1fr!important}.debt-slim-money strong{font-size:19px}}
+
+/* V45 delivery operation split layout: left list/report, right edit form */
+.delivery-split-layout{display:grid;grid-template-columns:minmax(520px,58%) minmax(360px,42%);gap:14px;align-items:start}
+.delivery-left-panel,.delivery-edit-panel{padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.delivery-left-panel{max-height:calc(100vh - 135px);overflow:hidden}
+.delivery-edit-panel{position:sticky;top:12px;max-height:calc(100vh - 135px);overflow:auto}
+.delivery-filter-bar{grid-template-columns:150px 180px 1fr 150px 150px 150px}
+.compact-delivery-kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.compact-delivery-kpis .delivery-kpi-card{min-height:54px;padding:8px 10px;border-radius:12px}
+.compact-delivery-kpis .delivery-kpi-card strong{font-size:20px;margin:2px 0 0}
+.compact-delivery-kpis .delivery-kpi-card small{display:none}
+.delivery-compact-list{display:flex;flex-direction:column;gap:8px;overflow:auto;padding-right:4px;max-height:calc(100vh - 390px)}
+.delivery-compact-card{cursor:pointer;padding:10px;border-radius:14px;gap:7px;transition:.15s ease}
+.delivery-compact-card:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(15,23,42,.08)}
+.delivery-compact-card.selected{outline:2px solid #2563eb;background:#eff6ff}
+.delivery-compact-card .delivery-card-top b{font-size:15px}
+.delivery-compact-meta,.delivery-compact-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.delivery-compact-meta span,.delivery-compact-money span{background:var(--panel-soft);border:1px solid var(--line-soft);border-radius:10px;padding:6px 8px;font-size:12px;color:var(--muted);min-width:0}
+.delivery-compact-meta b,.delivery-compact-money b{display:block;color:var(--text);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.delivery-edit-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.delivery-edit-head h2{margin:0;font-size:18px}
+.delivery-edit-form{gap:10px}
+.selected-delivery-box{border:1px dashed #bfdbfe;background:#eff6ff;border-radius:14px;padding:10px;line-height:1.45;color:#172554}
+.delivery-edit-form .form-grid.two-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.delivery-edit-form label{font-size:12px;color:var(--muted);font-weight:600}
+.delivery-edit-form input,.delivery-edit-form select,.delivery-edit-form textarea{width:100%;margin-top:4px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;color:var(--text);font-size:13px}
+.delivery-edit-form input[readonly]{background:#f8fafc;color:#475569}
+.delivery-edit-actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+@media(max-width:1100px){
+  .delivery-split-layout{grid-template-columns:1fr}
+  .delivery-left-panel,.delivery-edit-panel{max-height:none;overflow:visible;position:static}
+  .delivery-compact-list{max-height:none}
+  .delivery-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+  .compact-delivery-kpis,.delivery-compact-meta,.delivery-compact-money,.delivery-edit-form .form-grid.two-cols{grid-template-columns:1fr}
+  .delivery-filter-bar{grid-template-columns:1fr}
+}
+
+/* Delivery edit panel: remove duplicated readonly info, emphasize returnable order items */
+.delivery-return-card{
+  margin-top:10px;
+  padding:14px;
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(15,23,42,.04);
+}
+.delivery-return-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:10px;
+}
+.delivery-return-head h3{margin:0 0 4px;font-size:16px;color:#0f172a}
+.delivery-return-head strong{
+  min-width:96px;
+  text-align:right;
+  color:#dc2626;
+  font-size:16px;
+}
+.delivery-return-table{
+  max-height:360px;
+  overflow:auto;
+  display:grid;
+  gap:6px;
+  padding-right:2px;
+}
+.delivery-return-line{
+  display:grid;
+  grid-template-columns:1fr 90px;
+  gap:10px;
+  align-items:center;
+  padding:8px 10px;
+  border:1px solid #edf2f7;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:none;
+}
+.delivery-return-product{display:grid;gap:2px;min-width:0}
+.delivery-return-product strong{font-size:13px;color:#0f172a}
+.delivery-return-product span{font-size:13px;color:#334155;white-space:normal;line-height:1.25}
+.delivery-return-product small{font-size:12px;color:#64748b}
+.delivery-return-line input{
+  width:100%;
+  min-height:34px;
+  border:1px solid #dbe4ef;
+  border-radius:8px;
+  padding:6px 8px;
+  font-weight:700;
+  text-align:center;
+  background:#fff;
+}
+.delivery-money-grid{margin-top:12px}
+.delivery-edit-total-box{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  padding:12px;
+  border:1px solid #bfdbfe;
+  border-radius:16px;
+  background:#eff6ff;
+}
+.delivery-edit-total-box div{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px;
+  border-radius:12px;
+  background:#fff;
+  font-size:13px;
+}
+.delivery-edit-total-box span{color:#64748b;font-weight:700}
+.delivery-edit-total-box b{color:#0f172a}
+.delivery-edit-total-box .total-debt{grid-column:1/-1;background:#fff7ed}
+.delivery-edit-total-box .total-debt b{color:#dc2626;font-size:16px}
+@media(max-width:760px){
+  .delivery-edit-total-box{grid-template-columns:1fr}
+  .delivery-return-line{grid-template-columns:1fr 78px}
+}
+
+/* V45 delivery list cleanup: bộ lọc gọn theo ngày giao + NVGH + NVBH + trạng thái đơn */
+#deliveryTodayTab .delivery-simple-filter,
+#deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{
+  grid-template-columns:minmax(150px,.75fr) minmax(210px,1fr) minmax(210px,1fr) minmax(170px,.85fr)!important;
+  max-width:980px;
+  align-items:end;
+}
+#deliveryTodayTab .delivery-filter-field{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  font-size:12px;
+  font-weight:800;
+  color:#64748b;
+  margin:0;
+}
+#deliveryTodayTab .delivery-filter-field input{
+  margin:0;
+  height:38px;
+}
+#deliveryTodayTab #deliveryStaffFilterSuggestions,
+#deliveryTodayTab #deliverySalesmanFilterSuggestions{
+  top:100%;
+  left:0;
+  right:0;
+}
+.delivery-customer-card{gap:10px!important;}
+.delivery-customer-head{display:grid;gap:4px;min-width:0;}
+.delivery-customer-head b{font-size:16px;color:#0f172a;line-height:1.2;}
+.delivery-customer-head small{font-size:12px;color:#64748b;line-height:1.35;}
+.delivery-customer-money{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;
+}
+.delivery-customer-money span{
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  padding:7px 8px;
+  font-size:11.5px;
+  color:#64748b;
+  min-width:0;
+}
+.delivery-customer-money b{
+  display:block;
+  margin-top:2px;
+  color:#0f172a;
+  font-size:13px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media(max-width:680px){
+  #deliveryTodayTab .delivery-simple-filter,
+  #deliveryTodayTab .delivery-filter-bar.delivery-simple-filter,
+  .delivery-customer-money{grid-template-columns:1fr!important;max-width:none;}
+}
+#deliveryTodayTab #deliveryRouteSummary{display:none!important;}
+
+/* V45 delivery list final compact: thêm tìm khách hàng, tối giản card để xem được nhiều đơn/ngày */
+#deliveryTodayTab .delivery-simple-filter,
+#deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{
+  grid-template-columns:180px minmax(220px, 1fr) minmax(240px, 1.2fr)!important;
+  max-width:none!important;
+}
+#deliveryTodayTab .delivery-compact-list{
+  gap:5px!important;
+  max-height:calc(100vh - 345px)!important;
+}
+#deliveryTodayTab .delivery-list-row{
+  display:grid!important;
+  grid-template-columns:minmax(150px, 1.05fr) minmax(360px, 2.4fr)!important;
+  gap:8px!important;
+  align-items:center!important;
+  padding:7px 9px!important;
+  border-radius:12px!important;
+  min-height:0!important;
+}
+#deliveryTodayTab .delivery-customer-main{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+#deliveryTodayTab .delivery-customer-main b{
+  font-size:14px!important;
+  line-height:1.15;
+  color:#0f172a;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#deliveryTodayTab .delivery-customer-main small{
+  font-size:11.5px!important;
+  line-height:1.15;
+  color:#64748b;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#deliveryTodayTab .delivery-customer-money{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:4px!important;
+}
+#deliveryTodayTab .delivery-customer-money span{
+  padding:4px 6px!important;
+  border-radius:8px!important;
+  min-height:38px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+#deliveryTodayTab .delivery-customer-money em{
+  display:block;
+  font-style:normal;
+  font-size:10.5px;
+  line-height:1.1;
+  color:#64748b;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#deliveryTodayTab .delivery-customer-money b{
+  margin-top:1px!important;
+  font-size:12.5px!important;
+  line-height:1.15;
+}
+@media(max-width:1280px){
+  #deliveryTodayTab .delivery-list-row{grid-template-columns:1fr!important;}
+  #deliveryTodayTab .delivery-customer-money{grid-template-columns:repeat(3,minmax(0,1fr))!important;}
+}
+@media(max-width:680px){
+  #deliveryTodayTab .delivery-simple-filter,
+  #deliveryTodayTab .delivery-filter-bar.delivery-simple-filter,
+  #deliveryTodayTab .delivery-customer-money{grid-template-columns:1fr!important;}
+}
+
+/* Delivery return list: fixed-height scroll frame */
+#deliveryReturnItems{
+  height:260px !important;
+  max-height:260px !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  padding-right:6px;
+  border:1px dashed #cbd5e1;
+  border-radius:16px;
+  background:#f8fafc;
+}
+#deliveryReturnItems .delivery-return-table{
+  height:auto !important;
+  max-height:none !important;
+  overflow:visible !important;
+  padding:8px;
+}
+#deliveryReturnItems .empty-state{
+  min-height:220px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.delivery-return-card{
+  flex:0 0 auto;
+}
+.delivery-return-line{
+  background:#fff;
+}
+@media(max-width:900px){
+  #deliveryReturnItems{
+    height:220px !important;
+    max-height:220px !important;
+  }
+}
+.delivery-money-report-grid{grid-template-columns:repeat(6,minmax(0,1fr));}
+.delivery-money-report-grid .delivery-kpi-card strong{font-size:18px;white-space:nowrap;}
+@media(max-width:1200px){.delivery-money-report-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:720px){.delivery-money-report-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+/* V45 - Master Return Orders: compact ERP/DMS layout */
+#masterReturnOrdersTab .master-return-top{
+  display:grid;
+  grid-template-columns:260px minmax(0,1fr);
+  gap:12px;
+  align-items:stretch;
+  margin-bottom:12px;
+}
+#masterReturnOrdersTab .master-return-title-block,
+#masterReturnOrdersTab .master-return-kpis{
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:18px;
+  padding:14px;
+  box-shadow:var(--erp-shadow-soft,0 8px 24px rgba(15,23,42,.06));
+}
+#masterReturnOrdersTab .master-return-title-block h2{margin:0 0 6px;font-size:20px;}
+#masterReturnOrdersTab .master-return-kpis{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+}
+#masterReturnOrdersTab .master-return-kpis div{
+  border:1px solid #dbeafe;
+  background:#f8fbff;
+  border-radius:14px;
+  padding:10px 12px;
+  min-height:64px;
+}
+#masterReturnOrdersTab .master-return-kpis span{display:block;color:#64748b;font-size:12px;font-weight:700;}
+#masterReturnOrdersTab .master-return-kpis strong{display:block;color:#0f172a;font-size:20px;line-height:1.15;margin-top:4px;}
+#masterReturnOrdersTab .master-return-layout{
+  grid-template-columns:minmax(300px,28%) minmax(0,72%);
+  align-items:start;
+  gap:12px;
+}
+#masterReturnOrdersTab .master-return-create-card{position:sticky;top:10px;}
+#masterReturnOrdersTab .master-return-create-card h3,
+#masterReturnOrdersTab .master-return-layout h3{margin:0 0 4px;font-size:18px;}
+#masterReturnOrdersTab .master-return-create-card .toolbar{gap:10px;align-items:flex-start;}
+#masterReturnOrdersTab .master-return-create-card .toolbar button{white-space:normal;min-width:86px;}
+#masterReturnOrdersTab .master-return-create-card .form{gap:8px;}
+#masterReturnOrdersTab .master-return-create-card input{min-height:34px;padding:7px 10px;}
+#masterReturnOrdersTab .master-return-unmerged-scroll{max-height:250px;overflow:auto;}
+#masterReturnOrdersTab .compact-table table th,
+#masterReturnOrdersTab .compact-table table td{padding:7px 8px;font-size:12px;}
+#masterReturnOrdersTab .master-return-flow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  border:1px dashed #bfdbfe;
+  background:#eff6ff;
+  color:#1e3a8a;
+  border-radius:14px;
+  padding:9px 12px;
+  margin:8px 0;
+  font-size:13px;
+  font-weight:800;
+}
+#masterReturnOrdersTab .master-return-flow span{background:#fff;border:1px solid #dbeafe;border-radius:999px;padding:4px 10px;}
+#masterReturnOrdersTab .master-return-actions{display:flex;gap:5px;flex-wrap:wrap;min-width:210px;}
+#masterReturnOrdersTab .master-return-actions .small{padding:5px 8px;font-size:11px;}
+#masterReturnOrdersTab .master-return-actions .danger{border-color:#fecaca;background:#fff1f2;color:#b91c1c;}
+@media(max-width:1100px){
+  #masterReturnOrdersTab .master-return-top,
+  #masterReturnOrdersTab .master-return-layout{grid-template-columns:1fr;}
+  #masterReturnOrdersTab .master-return-create-card{position:static;}
+  #masterReturnOrdersTab .master-return-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@media(max-width:700px){
+  #masterReturnOrdersTab .master-return-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  #masterReturnOrdersTab .sales-history-filters{grid-template-columns:1fr;}
+}
+
+/* V45 AR theo từng đơn giao hàng */
+.order-allocation-box{margin:10px 0 12px;padding:10px;border:1px solid #dbe7f7;border-radius:14px;background:#f8fbff;max-height:260px;overflow:auto}
+.allocation-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:8px;color:#0f172a}
+.allocation-head small{color:#64748b;font-weight:600;text-align:right}
+.allocation-list{display:flex;flex-direction:column;gap:7px}
+.allocation-row{display:grid;grid-template-columns:22px 1fr 110px;gap:8px;align-items:center;padding:8px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.allocation-row span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.allocation-row small{color:#64748b;font-size:11px;white-space:normal}
+.allocation-row input[type="number"]{height:34px;text-align:right;font-weight:700}
+.allocation-row input[type="number"]:disabled{opacity:.45;background:#f1f5f9}
+
+/* AR order-level debt detail: keep customer card and child orders in one visible place */
+.debt-card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.debt-card-actions .secondary{background:#f8fafc;color:#0f3a75;border:1px solid #dbe7f7;box-shadow:none}
+.debt-customer-orders{margin-top:10px;border:1px solid #dbe7f7;border-radius:12px;background:#f8fbff;padding:10px;overflow:auto}
+.debt-order-detail-title{font-weight:800;color:#0f3a75;margin-bottom:8px;font-size:12px}
+.mini-debt-order-table{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}
+.mini-debt-order-table th,.mini-debt-order-table td{border-bottom:1px solid #e5edf7;padding:7px 8px;text-align:left;white-space:nowrap}
+.mini-debt-order-table th{background:#eef5ff;color:#14345f;font-weight:800}
+.mini-debt-order-table tr:last-child td{border-bottom:0}
+
+
+.delivery-edit-total .total-overpay,
+#deliveryEditTotalBox .total-overpay{
+  background:#fff7ed!important;
+  border-color:#fed7aa!important;
+  color:#c2410c!important;
+  grid-column:1/-1;
+}
+.delivery-edit-total .total-overpay b,
+#deliveryEditTotalBox .total-overpay b{color:#ea580c!important;}
+
+/* V45 accounting confirmation lock for delivery today */
+.delivery-accounting-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+.delivery-accounting-status{margin:10px 0 12px;padding:10px 12px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:600;font-size:13px;}
+.delivery-accounting-status.confirmed{background:#ecfdf5;border-color:#bbf7d0;color:#166534;}
+.delivery-locked-note{display:inline-block;margin-top:4px;color:#166534;font-weight:700;}
+.delivery-open-note{display:inline-block;margin-top:4px;color:#9a3412;font-weight:600;}
+#deliveryEditSaveButton:disabled{opacity:.55;cursor:not-allowed;}
+
+/* V45 delivery accounting selectable rows */
+.delivery-accounting-select{display:flex;align-items:center;justify-content:center;min-width:28px;}
+.delivery-accounting-checkbox{width:18px;height:18px;accent-color:#2563eb;cursor:pointer;}
+.delivery-card.delivery-selectable-row{grid-template-columns:32px minmax(150px,1fr) 1.9fr;align-items:center;}
+.delivery-card.delivery-selectable-row.accounting-selected{outline:2px solid #2563eb;background:#eff6ff;}
+.delivery-card.delivery-selectable-row.accounting-locked{opacity:.72;}
+.delivery-accounting-actions .secondary.compact-action{background:#eef2f7;}
+@media(max-width:900px){.delivery-card.delivery-selectable-row{grid-template-columns:28px 1fr;}.delivery-card.delivery-selectable-row .delivery-customer-money{grid-column:1 / -1;}}
+
+
+/* V45 FIX 2026-05-31: restore delivery today layout after print CSS changes
+   - Keep accounting confirmation button on top
+   - Keep each delivery row in 3 clear zones: checkbox | customer | money summary
+   - Prevent money chips from collapsing to P... / TM... / CK...
+*/
+#deliveryTodayTab .delivery-head{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+  flex-wrap:wrap!important;
+}
+#deliveryTodayTab .delivery-accounting-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  flex-wrap:wrap!important;
+}
+#deliveryTodayTab #confirmDeliveryAccountingButton{
+  background:#2563eb!important;
+  color:#fff!important;
+  border-color:#2563eb!important;
+  min-width:170px!important;
+  height:38px!important;
+  border-radius:10px!important;
+  font-weight:800!important;
+  box-shadow:0 8px 18px rgba(37,99,235,.18)!important;
+}
+#deliveryTodayTab .delivery-left-panel{
+  overflow:visible!important;
+}
+#deliveryTodayTab .delivery-compact-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:8px!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding-right:0!important;
+}
+#deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+  display:grid!important;
+  grid-template-columns:44px minmax(190px,1.05fr) minmax(430px,2fr)!important;
+  align-items:center!important;
+  gap:14px!important;
+  width:100%!important;
+  padding:12px 14px!important;
+  min-height:86px!important;
+  border-radius:16px!important;
+  background:#fffdfa!important;
+}
+#deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row.accounting-selected{
+  background:#eff6ff!important;
+}
+#deliveryTodayTab .delivery-accounting-select{
+  width:44px!important;
+  min-width:44px!important;
+  height:100%!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  margin:0!important;
+  border-right:1px solid #edf2f7!important;
+}
+#deliveryTodayTab .delivery-accounting-checkbox{
+  width:18px!important;
+  height:18px!important;
+  flex:0 0 auto!important;
+}
+#deliveryTodayTab .delivery-customer-main{
+  min-width:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  gap:3px!important;
+  text-align:left!important;
+}
+#deliveryTodayTab .delivery-customer-main b{
+  display:block!important;
+  width:100%!important;
+  font-size:16px!important;
+  line-height:1.2!important;
+  color:#0f172a!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#deliveryTodayTab .delivery-customer-main small{
+  display:block!important;
+  width:100%!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+  color:#475569!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#deliveryTodayTab .delivery-customer-main .delivery-open-note{
+  color:#1e3a8a!important;
+  font-weight:700!important;
+}
+#deliveryTodayTab .delivery-customer-main .delivery-locked-note{
+  color:#166534!important;
+  font-weight:800!important;
+}
+#deliveryTodayTab .delivery-customer-money{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(74px,1fr))!important;
+  gap:8px!important;
+  min-width:0!important;
+  width:100%!important;
+  align-items:stretch!important;
+}
+#deliveryTodayTab .delivery-customer-money span{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  justify-content:center!important;
+  min-width:0!important;
+  min-height:52px!important;
+  padding:8px 9px!important;
+  border-radius:10px!important;
+  background:#f8fafc!important;
+  border:1px solid #dbeafe!important;
+}
+#deliveryTodayTab .delivery-customer-money em{
+  display:block!important;
+  width:100%!important;
+  font-style:normal!important;
+  font-size:11px!important;
+  line-height:1.15!important;
+  color:#64748b!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+#deliveryTodayTab .delivery-customer-money b{
+  display:block!important;
+  width:100%!important;
+  margin-top:4px!important;
+  font-size:14px!important;
+  line-height:1.1!important;
+  font-weight:900!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  color:#0f172a!important;
+}
+#deliveryTodayTab .delivery-customer-money .cash-in{color:#059669!important;}
+#deliveryTodayTab .delivery-customer-money .debt-positive{color:#dc2626!important;}
+#deliveryTodayTab .delivery-customer-money .debt-zero{color:#16a34a!important;}
+#deliveryTodayTab .delivery-money-report-grid{
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(110px,1fr))!important;
+  gap:8px!important;
+}
+#deliveryTodayTab .delivery-money-report-grid .delivery-kpi-card{
+  min-height:62px!important;
+  padding:9px 11px!important;
+}
+#deliveryTodayTab .delivery-money-report-grid .delivery-kpi-card strong{
+  font-size:20px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+@media(max-width:1180px){
+  #deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+    grid-template-columns:40px minmax(170px,.9fr) minmax(360px,1.7fr)!important;
+    gap:10px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money{
+    grid-template-columns:repeat(3,minmax(96px,1fr))!important;
+  }
+  #deliveryTodayTab .delivery-money-report-grid{
+    grid-template-columns:repeat(3,minmax(120px,1fr))!important;
+  }
+}
+@media(max-width:760px){
+  #deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+    grid-template-columns:36px minmax(0,1fr)!important;
+    gap:8px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money{
+    grid-column:1 / -1!important;
+    grid-template-columns:repeat(2,minmax(120px,1fr))!important;
+  }
+  #deliveryTodayTab .delivery-money-report-grid,
+  #deliveryTodayTab .delivery-simple-filter,
+  #deliveryTodayTab .delivery-filter-bar.delivery-simple-filter{
+    grid-template-columns:1fr!important;
+  }
+}
+
+/* V45 compact delivery list: show more customers on one screen, keep all debt components visible */
+#deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+  grid-template-columns:34px minmax(170px,0.95fr) minmax(380px,2.2fr)!important;
+  gap:9px!important;
+  padding:7px 10px!important;
+  min-height:58px!important;
+  border-radius:13px!important;
+  border-left-width:5px!important;
+}
+#deliveryTodayTab .delivery-accounting-select{
+  width:34px!important;
+  min-width:34px!important;
+  border-right:1px solid #edf2f7!important;
+}
+#deliveryTodayTab .delivery-accounting-checkbox{
+  width:15px!important;
+  height:15px!important;
+}
+#deliveryTodayTab .delivery-customer-main{
+  gap:1px!important;
+  justify-content:center!important;
+}
+#deliveryTodayTab .delivery-customer-main b{
+  font-size:14px!important;
+  line-height:1.12!important;
+  font-weight:800!important;
+}
+#deliveryTodayTab .delivery-customer-main small{
+  font-size:10.5px!important;
+  line-height:1.15!important;
+}
+#deliveryTodayTab .delivery-customer-main .delivery-open-note,
+#deliveryTodayTab .delivery-customer-main .delivery-locked-note{
+  font-size:10.5px!important;
+  margin-top:1px!important;
+}
+#deliveryTodayTab .delivery-customer-money{
+  grid-template-columns:1.12fr .82fr .82fr .9fr .95fr 1fr!important;
+  gap:5px!important;
+}
+#deliveryTodayTab .delivery-customer-money span{
+  min-height:38px!important;
+  padding:5px 7px!important;
+  border-radius:8px!important;
+}
+#deliveryTodayTab .delivery-customer-money em{
+  font-size:9.5px!important;
+  line-height:1!important;
+}
+#deliveryTodayTab .delivery-customer-money b{
+  font-size:12.5px!important;
+  line-height:1.05!important;
+  margin-top:3px!important;
+}
+#deliveryTodayTab .delivery-customer-money .money-pt b,
+#deliveryTodayTab .delivery-customer-money .money-debt b{
+  font-size:13px!important;
+}
+@media(max-width:1180px){
+  #deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+    grid-template-columns:30px minmax(145px,.9fr) minmax(300px,2fr)!important;
+    gap:7px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money{
+    grid-template-columns:repeat(6,minmax(50px,1fr))!important;
+    gap:4px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money span{
+    padding:4px 5px!important;
+  }
+  #deliveryTodayTab .delivery-customer-money b{
+    font-size:11.5px!important;
+  }
+}
+@media(max-width:760px){
+  #deliveryTodayTab .delivery-card.delivery-list-row.delivery-selectable-row{
+    grid-template-columns:28px minmax(0,1fr)!important;
+    min-height:auto!important;
+  }
+  #deliveryTodayTab .delivery-customer-money{
+    grid-column:1 / -1!important;
+    grid-template-columns:repeat(3,minmax(70px,1fr))!important;
+  }
+}
+
+/* V45 FIX: đưa danh sách đơn đi giao vào khung riêng có con lăn
+   Mục tiêu: phần KPI + bộ lọc đứng yên, chỉ cuộn danh sách đơn bên dưới. */
+#deliveryTodayTab #deliveryTodayList.delivery-card-list.delivery-compact-list{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  max-height:calc(100vh - 380px)!important;
+  min-height:220px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  padding:8px 10px 8px 8px!important;
+  border:1px solid #dbe4f0!important;
+  border-radius:16px!important;
+  background:#f8fafc!important;
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.04)!important;
+  overscroll-behavior:contain!important;
+  scrollbar-gutter:stable!important;
+}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list::-webkit-scrollbar{width:8px;}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list::-webkit-scrollbar-track{
+  background:#eef2f7;
+  border-radius:999px;
+}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list::-webkit-scrollbar-thumb{
+  background:#cbd5e1;
+  border-radius:999px;
+}
+#deliveryTodayTab #deliveryTodayList.delivery-compact-list .empty-state{
+  min-height:180px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+@media(max-width:1180px){
+  #deliveryTodayTab #deliveryTodayList.delivery-card-list.delivery-compact-list{
+    max-height:calc(100vh - 420px)!important;
+  }
+}
+@media(max-width:760px){
+  #deliveryTodayTab #deliveryTodayList.delivery-card-list.delivery-compact-list{
+    max-height:55vh!important;
+    min-height:200px!important;
+  }
+}
+
+/* Công nợ V2 - bố cục mới 2 cột */
+.debt-v2-layout{display:grid;grid-template-columns:minmax(360px,38%) 1fr;gap:14px;align-items:start}
+.debt-v2-left,.debt-v2-right{min-height:calc(100vh - 150px)}
+.debt-v2-head,.debt-v2-detail-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.debt-v2-head h2,.debt-v2-detail-head h2{margin:0 0 4px}
+.debt-v2-total{padding:8px 10px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;white-space:nowrap}
+.debt-v2-filter-grid{display:grid;gap:10px;margin-bottom:12px}
+.debt-v2-filter-grid label{font-weight:700;color:#64748b;font-size:13px}
+.debt-v2-filter-grid input,.debt-v2-filter-grid select,.debt-v2-payment-form input,.debt-v2-payment-form select{width:100%;border:1px solid #dbe5f3;border-radius:12px;padding:10px 12px;background:#fff;color:#0f172a}
+.debt-v2-mini-filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.debt-v2-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 12px}
+.debt-v2-kpis>div{border:1px solid #dbeafe;background:#f8fbff;border-radius:14px;padding:10px}
+.debt-v2-kpis span{display:block;font-size:12px;color:#64748b}.debt-v2-kpis b{font-size:18px;color:#0f172a}
+.debt-v2-customer-list{display:grid;gap:8px;max-height:calc(100vh - 390px);overflow:auto;padding-right:4px}
+.debt-v2-customer-card{border:1px solid #dbe5f3;border-radius:16px;padding:12px;background:#fff;cursor:pointer;transition:.15s ease;box-shadow:0 4px 14px rgba(15,23,42,.04)}
+.debt-v2-customer-card:hover,.debt-v2-customer-card.active{border-color:#2563eb;background:#eff6ff;transform:translateY(-1px)}
+.debt-v2-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
