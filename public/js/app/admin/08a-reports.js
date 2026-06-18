@@ -15,6 +15,7 @@ const reportCenterState={
   loading:false,
   searchTimer:null
 };
+window.__reportCenterState=reportCenterState;
 
 function reportDateInRange(dateText, fromDate, toDate){
   return isDateInRange(dateText, fromDate, toDate);
@@ -151,6 +152,23 @@ function exportReportExcel(type){
   window.location.href=`/api/export/${encodeURIComponent(cleanType)}.xlsx?${params.toString()}`;
 }
 
+async function exportActiveReportExcel(){
+  const definition=reportCenterState.activeDefinition||reportDefinition(reportCenterState.activeCode);
+  if(!definition?.code)return;
+  const filters={};
+  const search=String(reportSearchInput?.value||'').trim();
+  if(search)filters.q=search;
+  if(definition.dateMode==='month')filters.month=String(reportFromDate?.value||reportToday()).slice(0,7);
+  else if(definition.dateMode!=='none'){
+    if(reportFromDate?.value)filters.dateFrom=reportFromDate.value;
+    if(reportToDate?.value)filters.dateTo=reportToDate.value;
+  }
+  try{
+    if(!window.ExcelInteraction||typeof window.ExcelInteraction.downloadWorkbook!=='function')throw new Error('Chức năng Excel chưa sẵn sàng');
+    await window.ExcelInteraction.downloadWorkbook({type:'REPORT',scope:'FILTERED',reportCode:definition.code,filters});
+  }catch(error){alert(error.message||'Không xuất được báo cáo Excel');}
+}
+
 function reportCategoryMap(){
   return new Map((reportCenterState.catalog?.categories||[]).map(category=>[category.code,category]));
 }
@@ -283,7 +301,7 @@ function renderReportTable(payload){
   if(reportTableHead)reportTableHead.innerHTML=`<tr>${columns.map(column=>`<th>${reportEscape(column.label)}</th>`).join('')}</tr>`;
   if(reportTableBody){
     reportTableBody.innerHTML=rows.length
-      ? rows.map(row=>`<tr>${columns.map(column=>`<td>${renderReportCell(row[column.key],column)}</td>`).join('')}</tr>`).join('')
+      ? rows.map((row,rowIndex)=>`<tr data-report-row-index="${rowIndex}">${columns.map(column=>`<td>${renderReportCell(row[column.key],column)}</td>`).join('')}</tr>`).join('')
       : `<tr><td colspan="${Math.max(columns.length,1)}" class="empty-cell">Không có dữ liệu phù hợp trong kỳ đã chọn.</td></tr>`;
   }
   const meta=payload.meta||{};
@@ -323,8 +341,8 @@ function renderActiveReport(payload){
   if(reportActiveCategory)reportActiveCategory.textContent=categories.get(definition?.category)?.title||definition?.category||'Báo cáo';
   if(reportSalesSummary)reportSalesSummary.textContent=`${definition?.description||''}${payload.dateFrom&&payload.dateTo?` · Kỳ ${reportFormatDate(payload.dateFrom)} - ${reportFormatDate(payload.dateTo)}`:''}`;
   if(reportExportCurrentButton){
-    reportExportCurrentButton.disabled=!definition?.exportType;
-    reportExportCurrentButton.title=definition?.exportType?'Xuất mẫu Excel tương ứng':'Báo cáo kiểm soát chỉ xem trực tiếp';
+    reportExportCurrentButton.disabled=!definition?.code;
+    reportExportCurrentButton.title=definition?.code?'Xuất toàn bộ báo cáo theo bộ lọc hiện tại':'Chưa chọn báo cáo';
   }
   renderReportSummary(payload.summary||{});
   renderReportTable(payload);
@@ -450,7 +468,7 @@ function bindReportCenterEvents(){
   }
   if(reportExportCurrentButton&&!reportExportCurrentButton.dataset.boundReportCenter){
     reportExportCurrentButton.dataset.boundReportCenter='1';
-    reportExportCurrentButton.addEventListener('click',()=>exportReportExcel(reportCenterState.activeDefinition?.exportType));
+    reportExportCurrentButton.addEventListener('click',exportActiveReportExcel);
   }
   document.querySelectorAll('[data-report-open]').forEach(button=>{
     if(button.dataset.boundReportCenter)return;

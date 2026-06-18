@@ -351,6 +351,50 @@ async function addSalesItem(){
   await recalculateSalesPromotionPrices();
   if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value='';if(salesQuantityLoose)salesQuantityLoose.value='';salesProductSelect.value='';window.__selectedSalesProduct=null;if(salesProductSearch){salesProductSearch.value='';salesProductSearch.dataset.selectedId='';}showMessage(salesMessage,'');renderSalesItems();
 }
+
+window.applyPastedSalesItems=async function applyPastedSalesItems(rows=[],products=[]){
+  const productMap=new Map();
+  const addKey=(key,product)=>{const normalized=String(key||'').trim().toLowerCase();if(normalized&&!productMap.has(normalized))productMap.set(normalized,product);};
+  (products||[]).forEach(product=>[product.code,product.productCode,product.sku,product.barcode,product.id].forEach(key=>addKey(key,product)));
+  const errors=[];
+  let added=0;
+  const lineMode=getSalesMode();
+  (Array.isArray(rows)?rows:[]).forEach((row,index)=>{
+    const rowNo=Number(row.__rowNo||index+1);
+    const code=String(row.productCode||'').trim();
+    const product=productMap.get(code.toLowerCase());
+    if(!product){errors.push({rowNo,key:'productCode',message:`Không tìm thấy mã sản phẩm ${code||'(trống)'}`});return;}
+    const rate=Math.max(1,Number(product.conversionRate||product.unitsPerCase||1));
+    const caseQty=Number(row.cartonQty||0);
+    const looseQty=Number(row.unitQty||0);
+    if(!Number.isFinite(caseQty)||!Number.isFinite(looseQty)||caseQty<0||looseQty<0){errors.push({rowNo,key:'cartonQty',message:'Số lượng thùng/lẻ phải là số không âm'});return;}
+    const quantity=caseQty*rate+looseQty;
+    if(!(quantity>0)){errors.push({rowNo,key:'unitQty',message:'Số lượng bán phải lớn hơn 0'});return;}
+    const availableQty=productAvailableQty(product);
+    if(availableQty>0&&quantity>availableQty){errors.push({rowNo,key:'unitQty',message:`Vượt tồn mở bán ${displayQtyTL(availableQty,product)}`});return;}
+    if(availableQty<=0){errors.push({rowNo,key:'productCode',message:'Sản phẩm hiện hết tồn mở bán'});return;}
+    const rawPrice=String(row.salePrice??'').trim();
+    const salePrice=rawPrice===''?Number(product.salePrice||0):Number(rawPrice);
+    if(!Number.isFinite(salePrice)||salePrice<0){errors.push({rowNo,key:'salePrice',message:'Giá bán không hợp lệ'});return;}
+    const productCode=product.code||product.productCode||product.sku||code;
+    const meta=productLineMeta(product);
+    const existed=salesItems.find(item=>item.productCode===productCode&&Number(item.salePrice||0)===salePrice&&normalizePricingModeClient(item.saleMode)===lineMode);
+    if(existed){
+      existed.quantity=Number(existed.quantity||0)+quantity;
+      const split=splitCaseLoose(existed.quantity,normalizePackingRate(existed));
+      existed.caseQty=split.caseQty;existed.looseQty=split.looseQty;existed.amount=existed.quantity*salePrice;
+    }else{
+      const split=splitCaseLoose(quantity,meta.conversionRate);
+      salesItems.push({productId:getProductKey(product),productCode,productName:product.name||product.productName||'',...meta,quantity,caseQty:split.caseQty,looseQty:split.looseQty,grossPrice:salePrice,salePrice,price:salePrice,finalPrice:salePrice,discountPercent:0,discountAmount:0,amount:quantity*salePrice,saleMethod:lineMode,saleMode:lineMode,pricingMode:lineMode,priceLocked:true});
+    }
+    added+=1;
+  });
+  if(added)await recalculateSalesPromotionPrices();
+  renderSalesItems();
+  if(added)showMessage(salesMessage,`Đã thêm ${added} dòng từ Excel${errors.length?`, ${errors.length} dòng lỗi`:''}`,false);
+  return {added,errors};
+};
+
 function getCurrentWebRole(){
   try{
     const user=JSON.parse(localStorage.getItem('mk_web_user')||'{}');
@@ -1279,10 +1323,14 @@ function selectedSalesOrders(){
   const checks=[...document.querySelectorAll('.sales-order-check:checked')];
   return checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
 }
-function exportSelectedSalesOrders(){
+async function exportSelectedSalesOrders(){
   const orders=selectedSalesOrders();
   if(!orders.length){alert('Chưa chọn đơn bán để xuất Excel');return}
-  exportErpRows('don-ban-hang.csv', ['Mã chứng từ','Khách hàng/NV','Ngày','Giá trị','Trạng thái'], orders.map(o=>[o.code||o.id||'', o.customerName||o.customerCode||'', typeof formatDateVN==='function'?formatDateVN(o.date||o.orderDate||''):(o.date||o.orderDate||''), Number(o.totalAmount||0), getOrderSourceText(o)]));
+  const selectedIds=orders.map(order=>String(order.id||order.code||order.orderCode||order.documentCode||'').trim()).filter(Boolean);
+  try{
+    if(!window.ExcelInteraction||typeof window.ExcelInteraction.downloadWorkbook!=='function')throw new Error('Chức năng Excel chưa sẵn sàng');
+    await window.ExcelInteraction.downloadWorkbook({type:'SALES_ORDERS',scope:'SELECTED',selectedIds,includeDetails:true});
+  }catch(error){alert(error.message||'Không xuất được đơn bán ra Excel');}
 }
 window.exportSelectedSalesOrders=exportSelectedSalesOrders;
 const openCreateSalesOrderButton=document.getElementById('openCreateSalesOrderButton');

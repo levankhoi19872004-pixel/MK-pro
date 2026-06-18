@@ -22,6 +22,8 @@ function resetImportPreviewForModeChange(){
   importPreviewRows=[];
   importPreviewSessionId='';
   importSelectedRowKeySet=new Set();
+  window.__importPreviewRows=importPreviewRows;
+  window.__importPreviewSessionId=importPreviewSessionId;
   if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="5">Chọn file rồi bấm xem trước.</td></tr>';
   if(commitImportButton){
     commitImportButton.disabled=!(importExcelFile&&importExcelFile.files&&importExcelFile.files.length);
@@ -635,6 +637,8 @@ function renderImportPreview(result){
   importShortageActionMode='';
   importPreviewSessionId=result.sessionId||result.importSessionId||'';
   importPreviewRows=result.rows||[];
+  window.__importPreviewSessionId=importPreviewSessionId;
+  window.__importPreviewRows=importPreviewRows;
   // Bảo hiểm dữ liệu: nếu backend trả shortageReport cấp tổng nhưng từng đơn chưa gắn hasShortage,
   // gom shortage theo mã đơn rồi đánh dấu lại để UI và commit nhận biết đúng.
   if(Array.isArray(result.shortageReport)&&result.shortageReport.length){
@@ -655,6 +659,7 @@ function renderImportPreview(result){
     });
   }
   importPreviewRows=normalizeImportPreviewSalesStaffFromAccounts(importPreviewRows);
+  window.__importPreviewRows=importPreviewRows;
   initImportSelectedRows(importPreviewRows);
   const total=Math.max(importPreviewRows.length,Number(result.total||result.totalRows||0));
   const valid=importPreviewRows.length===total
@@ -688,13 +693,13 @@ function renderImportPreview(result){
     const hiddenNote=hiddenCount>0?`<tr><td colspan="${orderMode?2:5}" class="muted">Đang tối ưu tốc độ: chỉ hiển thị ${formatNumber(visibleRows.length)} dòng đầu, còn ${formatNumber(hiddenCount)} dòng vẫn đã được chọn/import theo session.</td></tr>`:'';
     if(orderMode){
       importPreviewTable.innerHTML=visibleRows.map(({row,index})=>`
-        <tr class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
+        <tr data-import-row-number="${Number(row.rowNo||row.__rowNo||index+1)}" class="${row.valid?'import-valid':'import-invalid'} ${row.hasShortage?'import-shortage-row':''}">
           <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
           <td>${renderImportOrderPreviewSummary(row,index,{inline:true})}</td>
         </tr>`).join('')+hiddenNote;
     }else{
       importPreviewTable.innerHTML=visibleRows.map(({row,index})=>`
-        <tr class="${row.valid?'import-valid':'import-invalid'}">
+        <tr data-import-row-number="${Number(row.rowNo||row.__rowNo||index+1)}" class="${row.valid?'import-valid':'import-invalid'}">
           <td>${row.valid&&row.canImport!==false?`<input class="import-row-check" data-index="${index}" type="checkbox" />`:''}</td>
           <td>${row.rowNo||''}</td>
           <td><span class="badge ${row.valid?(row.hasShortage?'warn':'active'):'inactive'}">${escapeImportHtml(row.statusText||(row.valid?'Hợp lệ':'Lỗi'))}</span></td>
@@ -708,6 +713,7 @@ function renderImportPreview(result){
   renderImportShortageActions(importPreviewRows);
   if(commitImportButton){commitImportButton.disabled=selectable<=0;commitImportButton.textContent=getSelectedImportMode()==='update'?'Cập nhật các dòng đã chọn':'Import các dòng đã chọn';}
 }
+window.renderImportPreviewFromExcel=renderImportPreview;
 function sleepImportPreview(ms){
   return new Promise(resolve=>setTimeout(resolve,ms));
 }

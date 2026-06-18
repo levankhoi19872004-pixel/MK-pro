@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/60-finance-external-debt.css?v=phase35-css-split-v1" />
   <link rel="stylesheet" href="/css/70-master-return-orders.css?v=phase37-master-return-list-v1" />
   <link rel="stylesheet" href="/css/80-dms-inventory.css?v=phase71-dms-live-inventory-v1" />
+  <link rel="stylesheet" href="/css/90-excel-interaction.css?v=phase73-excel-interaction-v1" />
   <script src="/js/auth-guard.js?v=auth-fetch-boundary-v1"></script>
 </head>
 <body>
@@ -320,6 +321,7 @@
             <div class="import-history-actions import-history-actions-v2">
               <button id="openImportOrderModalButton" class="primary-action" type="button">+ Tạo phiếu nhập</button>
               <button type="button" class="secondary" id="printSelectedImportOrdersButton">In phiếu</button>
+              <button type="button" class="secondary" id="exportSelectedImportOrdersButton">Xuất Excel</button>
               <button id="reloadImportOrdersButton" class="secondary" type="button">Tải lại</button>
             </div>
           </div>
@@ -394,6 +396,7 @@
                 <label>Số lượng<input id="importQuantity" type="number" min="1" value="1" /></label>
                 <label>Giá nhập<input id="importCostPrice" type="number" min="0" value="0" readonly /></label>
                 <button type="button" id="addImportItemButton" class="secondary import-add-line-button">Thêm vào phiếu</button>
+                <button type="button" id="openImportItemPasteButton" class="secondary import-add-line-button">Dán từ Excel</button>
               </div>
             </section>
 
@@ -545,6 +548,7 @@
                 <label>Lẻ<input id="salesQuantityLoose" type="number" min="0" value="1" /></label>
                 <label>Giá bán<input id="salesPrice" type="number" min="0" step="any" value="0" /></label>
                 <button type="button" id="addSalesItemButton" class="secondary sales-add-line-button">Thêm vào đơn</button>
+                <button type="button" id="openSalesItemPasteButton" class="secondary sales-add-line-button">Dán từ Excel</button>
               </div>
             </section>
 
@@ -693,6 +697,7 @@
                 <button id="openMasterOrderModalButton" class="primary" type="button">+ Tạo đơn tổng</button>
                 <button id="selectAllMasterOrdersButton" class="secondary" type="button">Chọn tất cả</button>
                 <button id="printSelectedMasterOrdersButton" class="secondary" type="button">In đơn tổng</button>
+                <button id="exportSelectedMasterOrdersButton" class="secondary" type="button">Xuất Excel</button>
                 <button id="reloadMasterOrdersButton" class="secondary" type="button">Tải lại</button>
               </div>
             </div>
@@ -1945,6 +1950,7 @@
           </label>
           <div class="button-row import-actions">
             <button type="button" id="downloadImportTemplateButton" class="secondary">Tải mẫu Excel</button>
+            <button type="button" id="openExcelPasteImportButton" class="secondary">Dán trực tiếp từ Excel</button>
             <button type="button" id="previewImportButton" class="secondary" style="display:none">Xem trước</button>
             <button type="button" id="commitImportButton" class="success" disabled>Xem trước đơn import</button>
           </div>
@@ -2300,10 +2306,61 @@
       </section>
     </section>
 
+
+  </div>
+
+  <div id="excelPasteImportModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal-card excel-paste-modal" role="dialog" aria-modal="true" aria-labelledby="excelPasteImportTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="excelPasteImportTitle">Dán dữ liệu trực tiếp từ Excel</h2>
+          <p class="muted">Chọn ô đầu tiên rồi Ctrl+V. Hệ thống tự chia theo cột Tab và dòng xuống hàng.</p>
+        </div>
+        <button id="closeExcelPasteImportButton" class="secondary" type="button">Đóng</button>
+      </div>
+      <div class="excel-paste-help"><strong>Loại dữ liệu:</strong> <span id="excelPasteImportTypeLabel">-</span>. Dòng trống sẽ tự bỏ qua; mã có số 0 đầu được giữ nguyên.</div>
+      <div class="excel-paste-toolbar">
+        <button id="clearExcelPasteImportButton" class="secondary small" type="button">Xóa bảng</button>
+        <button id="addExcelPasteRowsButton" class="secondary small" type="button">+ 20 dòng</button>
+        <span class="excel-paste-spacer"></span>
+        <strong id="excelPasteImportRowCount">0 dòng có dữ liệu</strong>
+      </div>
+      <div id="excelPasteImportGrid"></div>
+      <p id="excelPasteImportStatus" class="excel-paste-status"></p>
+      <div class="modal-actions">
+        <button id="validateExcelPasteImportButton" type="button">Kiểm tra và tạo bản xem trước</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="lineItemPasteModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal-card excel-paste-modal" role="dialog" aria-modal="true" aria-labelledby="lineItemPasteTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="lineItemPasteTitle">Dán danh sách hàng từ Excel</h2>
+          <p id="lineItemPasteDescription" class="muted">Dán mã sản phẩm và số lượng vào bảng.</p>
+        </div>
+        <button id="closeLineItemPasteButton" class="secondary" type="button">Đóng</button>
+      </div>
+      <div class="excel-paste-help">Các mã sản phẩm được đối chiếu theo lô. Dòng sai mã hoặc số lượng không hợp lệ sẽ không được thêm.</div>
+      <div class="excel-paste-toolbar">
+        <button id="clearLineItemPasteButton" class="secondary small" type="button">Xóa bảng</button>
+        <button id="addLineItemPasteRowsButton" class="secondary small" type="button">+ 20 dòng</button>
+        <span class="excel-paste-spacer"></span>
+        <strong id="lineItemPasteRowCount">0 dòng có dữ liệu</strong>
+      </div>
+      <div id="lineItemPasteGrid"></div>
+      <p id="lineItemPasteStatus" class="excel-paste-status"></p>
+      <div class="modal-actions">
+        <button id="applyLineItemPasteButton" type="button">Đối chiếu và thêm vào chứng từ</button>
+      </div>
+    </section>
   </div>
 
     <script src="/js/utils/v45-speed-monitor.js?v=speed-monitor-v1"></script>
 <script src="/js/utils/v45-common-utils.js?v=v45-common-utils"></script>
+  <script src="/js/components/excel-interaction/ContextExport.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/components/excel-interaction/SpreadsheetGrid.js?v=phase73-excel-interaction-v1"></script>
   <script src="/js/search/autocompleteEngine.js?v=unified-search-v1"></script>
   <script src="/js/search/searchFieldsConfig.js?v=external-debt-v1"></script>
   <script src="/js/search/catalogCacheService.js?v=unified-search-v1"></script>
@@ -2318,25 +2375,26 @@
   <script src="/js/app/01-utils-print-tabs.js?v=phase62-picking-zone-v1"></script>
   <script src="/js/app/02-products.js?v=phase62-picking-zone-v1"></script>
   <script src="/js/app/03-customers-autocomplete.js?v=phase46-customer-business-name-v1"></script>
-  <script src="/js/app/04-import-orders.js?v=phase62-picking-zone-v1"></script>
-  <script src="/js/app/05-sales-orders.js?v=phase49-sales-order-global-search-v1"></script>
+  <script src="/js/app/04-import-orders.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=phase73-excel-interaction-v1"></script>
   <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
   <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
-  <script src="/js/app/06-master-delivery.js?v=phase69-unmerged-refresh-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=phase73-excel-interaction-v1"></script>
   <script src="/js/app/debt/07a-debt-core.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07b-return-orders.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07d-master-return-orders.js?v=phase54-master-return-lifecycle-v1"></script>
   <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
   <script src="/js/app/debt/07f-fund-ledger.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
-  <script src="/js/app/admin/08a-reports.js?v=phase72-report-center-v2"></script>
+  <script src="/js/app/admin/08a-reports.js?v=phase73-excel-interaction-v1"></script>
   <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
-  <script src="/js/app/admin/08d-import-excel.js?v=phase47-import-performance-v1&patch=phase68-import-stock-allocation-trace-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.js?v=phase73-excel-interaction-v1"></script>
   <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/admin/08f-vat-export.js?v=phase35-admin-split-v1"></script>
   <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
   <script src="/js/app/10-dms-inventory.js?v=phase71-dms-live-inventory-v1"></script>
+  <script src="/js/components/excel-interaction/ExcelFeatureBindings.js?v=phase73-excel-interaction-v1"></script>
   <script src="/js/bootstrap/01-catalog-orders.js?v=phase35-bootstrap-split-v1"></script>
   <script src="/js/bootstrap/02-delivery-system.js?v=phase35-bootstrap-split-v1"></script>
   <script src="/js/bootstrap/03-tab-loader.js?v=phase35-bootstrap-split-v1"></script>

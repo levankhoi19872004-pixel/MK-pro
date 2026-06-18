@@ -3800,6 +3800,93 @@ async function buildPreviewFromRows({ type, rows = [], userName = '', importMode
   return { ...result, importMode: normalizedImportMode };
 }
 
+
+async function previewPastedRows({ type, rows = [], userName = '', importMode = '' } = {}) {
+  if (!type) return { error: 'Thiếu loại import', status: 400 };
+  if (type === 'salesOrdersS3') type = 'salesOrders';
+  if (!Array.isArray(rows) || !rows.length) return { error: 'Chưa có dữ liệu được dán từ Excel', status: 400 };
+  if (rows.length > 5000) return { error: 'Mỗi lần chỉ được dán tối đa 5.000 dòng', status: 413 };
+
+  const normalizedImportMode = normalizeImportMode(importMode, type);
+  const safeRows = rows.map((row, index) => {
+    const source = row && typeof row === 'object' && !Array.isArray(row) ? row : {};
+    const entries = Object.entries(source).slice(0, 100);
+    const normalized = Object.fromEntries(entries.map(([key, value]) => [
+      String(key || '').slice(0, 200),
+      typeof value === 'string' ? value.slice(0, 10000) : value
+    ]));
+    return {
+      ...normalized,
+      __rowNo: Number(normalized.__rowNo || normalized.rowNo || index + 1),
+      __sourceFile: 'Dán trực tiếp từ Excel'
+    };
+  });
+
+  const session = await importSessionService.createUploadedSession({
+    type,
+    fileName: 'clipboard-paste.xlsx',
+    fileNames: ['clipboard-paste.xlsx'],
+    createdBy: userName,
+    importMode: normalizedImportMode
+  });
+
+  try {
+    await importSessionService.markParsing(session.id);
+    const result = await buildPreviewFromRows({
+      type,
+      rows: safeRows,
+      userName,
+      importMode: normalizedImportMode
+    });
+
+    if (result && result.error) {
+      await importSessionService.markFailed(session.id, result.error);
+      return {
+        ...result,
+        sessionId: session.id,
+        importSessionId: session.id
+      };
+    }
+
+    await importSessionService.savePreviewResult(session.id, {
+      rows: result.rows || [],
+      previewRows: result.rows || [],
+      fileNames: ['clipboard-paste.xlsx']
+    });
+
+    await auditService.log('IMPORT_PASTE_PREVIEW', {
+      refType: 'importSession',
+      refId: session.id,
+      refCode: session.id,
+      userName,
+      summary: {
+        type,
+        importMode: normalizedImportMode,
+        totalRows: result.total || result.rows?.length || 0,
+        validRows: result.valid || 0,
+        invalidRows: result.invalid || 0
+      }
+    }).catch(() => {});
+
+    return {
+      ...result,
+      sessionId: session.id,
+      importSessionId: session.id,
+      importMode: normalizedImportMode,
+      status: 'preview_ready',
+      source: 'clipboard-paste'
+    };
+  } catch (err) {
+    await importSessionService.markFailed(session.id, err.message || 'Không kiểm tra được dữ liệu đã dán').catch(() => {});
+    return {
+      error: err.message || 'Không kiểm tra được dữ liệu đã dán',
+      status: Number(err.status || err.statusCode || 400),
+      sessionId: session.id,
+      importSessionId: session.id
+    };
+  }
+}
+
 async function preview({ type, files = [], buffer = null, fileName = '', userName = '', importMode = '' }) {
   if (!type) return { error: 'Thiếu loại import', status: 400 };
   if (type === 'salesOrdersS3') type = 'salesOrders';
@@ -4231,4 +4318,4 @@ async function logs() {
   return logs;
 }
 
-module.exports = { buildPreviewFromRows, preview, getSessionStatus, getSessionRows, commit, importDirect, logs };
+module.exports = { buildPreviewFromRows, previewPastedRows, preview, getSessionStatus, getSessionRows, commit, importDirect, logs };

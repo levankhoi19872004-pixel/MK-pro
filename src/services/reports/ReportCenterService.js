@@ -303,6 +303,28 @@ function sumRows(rows = [], fields = []) {
 }
 
 function reportResult(definition, rows, summary, query, extra = {}) {
+  // Chỉ service nội bộ được truyền boolean true. Query string "true" từ HTTP
+  // không thể kích hoạt nhánh này, tránh trả hàng chục nghìn dòng ra trình duyệt.
+  if (query && query.__exportAll === true) {
+    const maxRows = Math.min(Math.max(Number(query.__exportMaxRows || 50000), 1), 50000);
+    const allRows = (Array.isArray(rows) ? rows : []).slice(0, maxRows);
+    return {
+      definition: publicDefinition(definition),
+      rows: allRows,
+      items: allRows,
+      meta: {
+        page: 1,
+        limit: allRows.length,
+        total: Array.isArray(rows) ? rows.length : 0,
+        totalPages: 1,
+        hasMore: Array.isArray(rows) && rows.length > allRows.length,
+        exportAll: true
+      },
+      summary: summary || {},
+      ...extra
+    };
+  }
+
   const paged = pageResult(rows, query, { defaultLimit: 50, maxLimit: 200 });
   return {
     definition: publicDefinition(definition),

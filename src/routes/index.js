@@ -30,6 +30,7 @@ const fundRoutes = require('./fundRoutes');
 const deliveryRoutes = require('./deliveryRoutes');
 const inventoryRoutes = require('./inventoryRoutes');
 const dmsInventoryRoutes = require('./dmsInventoryRoutes');
+const excelInteractionRoutes = require('./excelInteractionRoutes');
 const { requireRole } = require('../middlewares/auth.middleware');
 const { retiredRoute } = require('../middlewares/retiredRoute.middleware');
 const { inventoryMaintenanceGuard } = require('../middlewares/inventoryMaintenance.middleware');
@@ -58,6 +59,8 @@ function registerApiRoutes(app) {
   // Canonical inventory contract: all stock reads/checks go through inventoryStock.service.
   app.use('/api/inventory', inventoryRoutes);
   app.use('/api/dms-inventory', dmsInventoryRoutes);
+  // Excel Interaction Platform: paste grid + context export dùng chung.
+  app.use('/api/excel', excelInteractionRoutes);
 
   // MOBILE_MODULAR_ROUTE_MOUNT_START
   const mobileCtx = createMobileContext();

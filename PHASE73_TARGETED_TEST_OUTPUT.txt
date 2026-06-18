@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: sanitizeExcelValue blocks formula injection without changing normal values
+ok 1 - sanitizeExcelValue blocks formula injection without changing normal values
+  ---
+  duration_ms: 1.661215
+  type: 'test'
+  ...
+# Subtest: sales export maps case/loose quantity and promotion value correctly
+ok 2 - sales export maps case/loose quantity and promotion value correctly
+  ---
+  duration_ms: 0.950972
+  type: 'test'
+  ...
+# Subtest: master order export flattens child orders and products
+ok 3 - master order export flattens child orders and products
+  ---
+  duration_ms: 0.751952
+  type: 'test'
+  ...
+# Subtest: custom writer creates a valid XLSX zip buffer
+ok 4 - custom writer creates a valid XLSX zip buffer
+  ---
+  duration_ms: 5.596147
+  type: 'test'
+  ...
+# Subtest: Excel Interaction routes are mounted and role-protected
+ok 5 - Excel Interaction routes are mounted and role-protected
+  ---
+  duration_ms: 2.363138
+  type: 'test'
+  ...
+# Subtest: Excel exports use whitelist dispatch and formula injection protection
+ok 6 - Excel exports use whitelist dispatch and formula injection protection
+  ---
+  duration_ms: 0.955547
+  type: 'test'
+  ...
+# Subtest: Pasted Excel rows reuse import preview session and normal validation flow
+ok 7 - Pasted Excel rows reuse import preview session and normal validation flow
+  ---
+  duration_ms: 4.106002
+  type: 'test'
+  ...
+# Subtest: Frontend loads spreadsheet grid, context menu and feature bindings
+ok 8 - Frontend loads spreadsheet grid, context menu and feature bindings
+  ---
+  duration_ms: 3.850129
+  type: 'test'
+  ...
+# Subtest: Excel-like line paste is integrated into sales and receipt forms
+ok 9 - Excel-like line paste is integrated into sales and receipt forms
+  ---
+  duration_ms: 6.060036
+  type: 'test'
+  ...
+# Subtest: Report and import preview tables expose exact export context
+ok 10 - Report and import preview tables expose exact export context
+  ---
+  duration_ms: 1.706781
+  type: 'test'
+  ...
+# Subtest: Filtered report export is internal-only and capped
+ok 11 - Filtered report export is internal-only and capped
+  ---
+  duration_ms: 1.261039
+  type: 'test'
+  ...
+# Subtest: large service entry points are now small facades
+ok 12 - large service entry points are now small facades
+  ---
+  duration_ms: 4.906708
+  type: 'test'
+  ...
+# Subtest: business boundaries exist for query command posting reporting and export
+ok 13 - business boundaries exist for query command posting reporting and export
+  ---
+  duration_ms: 2.888015
+  type: 'test'
+  ...
+# Subtest: web admin classic scripts share one valid global lexical scope
+ok 14 - web admin classic scripts share one valid global lexical scope
+  ---
+  duration_ms: 172.871657
+  type: 'test'
+  ...
+# Subtest: import order and import report modules use separate HTML escape identifiers
+ok 15 - import order and import report modules use separate HTML escape identifiers
+  ---
+  duration_ms: 2.027183
+  type: 'test'
+  ...
+# Subtest: web operational read routes require management roles
+ok 16 - web operational read routes require management roles
+  ---
+  duration_ms: 8.02958
+  type: 'test'
+  ...
+# Subtest: unified search protects staff, order and AR data and blocks generic bypass
+ok 17 - unified search protects staff, order and AR data and blocks generic bypass
+  ---
+  duration_ms: 1.407046
+  type: 'test'
+  ...
+# Subtest: full customer/product/promotion/template catalogs are management-only while mobile has scoped APIs
+ok 18 - full customer/product/promotion/template catalogs are management-only while mobile has scoped APIs
+  ---
+  duration_ms: 1.606258
+  type: 'test'
+  ...
+# Subtest: customer-search and delivery-today aliases cannot bypass management RBAC
+ok 19 - customer-search and delivery-today aliases cannot bypass management RBAC
+  ---
+  duration_ms: 1.584027
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2075.715687
