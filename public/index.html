@@ -1970,41 +1970,8 @@
         <div class="note-box import-guide">
           <strong>Mẫu Excel chuẩn:</strong>
           <p>Bấm <b>Tải mẫu Excel</b> theo đúng loại import đang chọn. Sau đó chọn file và bấm <b>Import ngay</b>.</p>
-          <p>Nếu file Excel có tên cột riêng, dùng khu vực <b>Tự tạo mẫu import</b> để map cột Excel về trường dữ liệu.</p>
           <p>Sản phẩm/khách hàng nên import trước, sau đó mới import tồn kho, phiếu nhập, đơn bán, công nợ và quỹ tiền.</p>
           <p id="importModeHelp"><b>Cập nhật an toàn</b> chỉ áp dụng cho Sản phẩm, Khách hàng và Tài khoản: ô trống/cột thiếu giữ nguyên dữ liệu cũ; chỉ field có giá trị mới và khác dữ liệu Mongo mới được cập nhật.</p>
-        </div>
-
-        <div class="custom-import-designer">
-          <div class="toolbar compact-toolbar">
-            <div>
-              <h3>Tự tạo mẫu import</h3>
-              <p class="muted">Tự đặt tên cột Excel, chọn trường database tương ứng rồi lưu thành mẫu dùng lại.</p>
-            </div>
-            <div class="button-row">
-              <button type="button" id="addImportMappingButton" class="secondary">+ Thêm dòng map</button>
-              <button type="button" id="saveCustomImportTemplateButton">Lưu mẫu</button>
-            </div>
-          </div>
-          <div class="import-panel custom-template-panel">
-            <label>Tên mẫu
-              <input id="customImportTemplateName" placeholder="VD: Mẫu đơn bán theo file Unilever" />
-            </label>
-            <label>Mẫu đã lưu
-              <select id="customImportTemplateSelect"><option value="">Không dùng mẫu tự tạo</option></select>
-            </label>
-            <div class="button-row import-actions">
-              <button type="button" id="loadCustomImportTemplateButton" class="secondary">Nạp mẫu</button>
-              <button type="button" id="downloadCustomImportTemplateButton" class="secondary">Tải file theo mẫu tự tạo</button>
-              <button type="button" id="deleteCustomImportTemplateButton" class="danger">Xóa mẫu</button>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Cột Excel của bạn</th><th>Trường dữ liệu trong phần mềm</th><th>Bắt buộc</th><th>Giá trị mặc định</th><th></th></tr></thead>
-              <tbody id="customImportMappingTable"><tr><td colspan="5">Đang tải trường dữ liệu...</td></tr></tbody>
-            </table>
-          </div>
         </div>
 
         <p id="importDataMessage" class="message"></p>

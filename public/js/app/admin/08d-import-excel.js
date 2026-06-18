@@ -37,138 +37,6 @@ function formatSelectiveUpdateChanges(row){
   return changes.map(change=>`${change.label||change.field}: ${change.oldValue??''} → ${change.newValue??''}`).join(' | ');
 }
 
-function getCurrentImportFields(){
-  return customImportFields || [];
-}
-function createMappingRow(field={}){
-  const options=getCurrentImportFields().map(item=>`<option value="${escapeHtml(item.field)}" ${item.field===(field.dbField||'')?'selected':''}>${escapeHtml(item.label)} (${escapeHtml(item.field)})</option>`).join('');
-  return `<tr>
-    <td><input class="custom-excel-header" placeholder="VD: Mã KH" value="${escapeHtml(field.excelHeader||'')}" /></td>
-    <td><select class="custom-db-field"><option value="">Chọn trường...</option>${options}</select></td>
-    <td class="center"><input class="custom-required" type="checkbox" ${field.required?'checked':''} /></td>
-    <td><input class="custom-default" placeholder="Có thể bỏ trống" value="${escapeHtml(field.defaultValue||'')}" /></td>
-    <td><button type="button" class="secondary remove-custom-map">Xóa</button></td>
-  </tr>`;
-}
-function renderCustomImportMapping(fields){
-  if(!customImportMappingTable)return;
-  const rows=(fields&&fields.length)?fields:[{excelHeader:'',dbField:'',required:false,defaultValue:''}];
-  customImportMappingTable.innerHTML=rows.map(createMappingRow).join('');
-}
-function readCustomImportMapping(){
-  if(!customImportMappingTable)return[];
-  return Array.from(customImportMappingTable.querySelectorAll('tr')).map(row=>({
-    excelHeader:(row.querySelector('.custom-excel-header')?.value||'').trim(),
-    dbField:(row.querySelector('.custom-db-field')?.value||'').trim(),
-    required:!!row.querySelector('.custom-required')?.checked,
-    defaultValue:(row.querySelector('.custom-default')?.value||'').trim()
-  })).filter(field=>field.excelHeader&&field.dbField);
-}
-async function loadImportFieldOptions(){
-  if(!importDataType||!customImportMappingTable)return;
-  try{
-    const res=await fetch(`/api/import/fields/${encodeURIComponent(importDataType.value)}`);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được trường import');
-    customImportFields=json.fields||[];
-    renderCustomImportMapping(readCustomImportMapping());
-  }catch(err){customImportMappingTable.innerHTML=`<tr><td colspan="5">${escapeHtml(err.message)}</td></tr>`}
-}
-async function loadCustomImportTemplates(){
-  if(!customImportTemplateSelect)return;
-  try{
-    const res=await fetch('/api/import/custom-templates');
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không tải được mẫu tự tạo');
-    customImportTemplates=json.templates||[];
-    const type=importDataType?importDataType.value:'';
-    const options=customImportTemplates.filter(t=>!type||t.type===type).map(t=>`<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)} - ${escapeHtml(t.code||'')}</option>`).join('');
-    customImportTemplateSelect.innerHTML=`<option value="">Không dùng mẫu tự tạo</option>${options}`;
-  }catch(err){
-    if(commitImportButton){
-      commitImportButton.disabled=false;
-      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
-    }
-    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
-    showMessage(importDataMessage,err.message,true);
-  }
-}
-function getSelectedCustomTemplate(){
-  const id=customImportTemplateSelect?customImportTemplateSelect.value:'';
-  return customImportTemplates.find(t=>t.id===id)||null;
-}
-function loadSelectedCustomTemplateToEditor(){
-  const template=getSelectedCustomTemplate();
-  if(!template){showMessage(importDataMessage,'Bạn chưa chọn mẫu tự tạo',true);return;}
-  if(customImportTemplateName)customImportTemplateName.value=template.name||'';
-  if(importDataType)importDataType.value=template.type||importDataType.value;
-  syncImportModeAvailability();
-  resetImportPreviewForModeChange();
-  loadImportFieldOptions().then(()=>renderCustomImportMapping(template.fields||[]));
-}
-async function saveCustomImportTemplate(){
-  if(!importDataType)return;
-  const fields=readCustomImportMapping();
-  if(!fields.length){showMessage(importDataMessage,'Bạn chưa map cột Excel nào',true);return;}
-  const selected=getSelectedCustomTemplate();
-  const body={
-    id:selected?selected.id:'',
-    code:selected?selected.code:'',
-    name:(customImportTemplateName&&customImportTemplateName.value.trim())||'Mẫu import tự tạo',
-    type:importDataType.value,
-    sheetName:'Import',
-    startRow:2,
-    fields
-  };
-  try{
-    const res=await fetch('/api/import/custom-templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không lưu được mẫu');
-    showMessage(importDataMessage,json.message||'Đã lưu mẫu import');
-    await loadCustomImportTemplates();
-    if(json.template&&customImportTemplateSelect)customImportTemplateSelect.value=json.template.id;
-  }catch(err){
-    if(commitImportButton){
-      commitImportButton.disabled=false;
-      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
-    }
-    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
-    showMessage(importDataMessage,err.message,true);
-  }
-}
-async function downloadCustomImportTemplate(){
-  const template=getSelectedCustomTemplate();
-  if(!template){showMessage(importDataMessage,'Bạn chưa chọn mẫu tự tạo',true);return;}
-  try{
-    await downloadImportBlob(
-      `/api/import/custom-template/${encodeURIComponent(template.id)}/download`,
-      `${template.name || 'custom-import-template'}.xlsx`
-    );
-  }catch(err){
-    showMessage(importDataMessage,err.message||'Không tải được mẫu Excel',true);
-  }
-}
-async function deleteCustomImportTemplate(){
-  const template=getSelectedCustomTemplate();
-  if(!template){showMessage(importDataMessage,'Bạn chưa chọn mẫu tự tạo',true);return;}
-  if(!confirm('Xóa mẫu import tự tạo này?'))return;
-  try{
-    const res=await fetch(`/api/import/custom-templates/${encodeURIComponent(template.id)}`,{method:'DELETE'});
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.message||'Không xóa được mẫu');
-    showMessage(importDataMessage,json.message||'Đã xóa mẫu');
-    if(customImportTemplateName)customImportTemplateName.value='';
-    await loadCustomImportTemplates();
-    renderCustomImportMapping([]);
-  }catch(err){
-    if(commitImportButton){
-      commitImportButton.disabled=false;
-      if(commitImportButton.dataset.originalText) commitImportButton.textContent=commitImportButton.dataset.originalText;
-    }
-    document.querySelectorAll('#stopShortageImportButton,#continueShortageImportButton').forEach(btn=>{btn.disabled=false;});
-    showMessage(importDataMessage,err.message,true);
-  }
-}
 function resetImportPreviewMessage(){
   if(importDataMessage)showMessage(importDataMessage,'');
 }
@@ -865,10 +733,6 @@ async function previewImportExcelSilent(){
   formData.append('type',importDataType.value);
   formData.append('importMode',getSelectedImportMode());
 
-  if(customImportTemplateSelect&&customImportTemplateSelect.value){
-    formData.append('templateId',customImportTemplateSelect.value);
-  }
-
   files.forEach(file=>formData.append('files',file));
 
   const res=await fetch('/api/import/preview',{
@@ -1199,13 +1063,7 @@ if(downloadImportTemplateButton)downloadImportTemplateButton.addEventListener('c
 if(previewImportButton)previewImportButton.addEventListener('click',previewImportExcel);
 if(commitImportButton)commitImportButton.addEventListener('click',typeof handleImportExcelAction==='function'?handleImportExcelAction:previewImportExcel);
 if(importExcelFile)importExcelFile.addEventListener('change',()=>{importPreviewRows=[];if(commitImportButton){commitImportButton.disabled=!importExcelFile.files.length;commitImportButton.textContent='Xem trước đơn import';}if(importPreviewTable)importPreviewTable.innerHTML='<tr><td colspan="3">Chọn file rồi bấm Xem trước đơn import.</td></tr>';resetImportPreviewMessage();});
-if(addImportMappingButton)addImportMappingButton.addEventListener('click',()=>{if(customImportMappingTable)customImportMappingTable.insertAdjacentHTML('beforeend',createMappingRow({}));});
-if(customImportMappingTable)customImportMappingTable.addEventListener('click',event=>{const btn=event.target.closest('.remove-custom-map');if(!btn)return;btn.closest('tr')?.remove();if(!customImportMappingTable.children.length)renderCustomImportMapping([]);});
-if(saveCustomImportTemplateButton)saveCustomImportTemplateButton.addEventListener('click',saveCustomImportTemplate);
-if(loadCustomImportTemplateButton)loadCustomImportTemplateButton.addEventListener('click',loadSelectedCustomTemplateToEditor);
-if(downloadCustomImportTemplateButton)downloadCustomImportTemplateButton.addEventListener('click',downloadCustomImportTemplate);
-if(deleteCustomImportTemplateButton)deleteCustomImportTemplateButton.addEventListener('click',deleteCustomImportTemplate);
-if(importDataType)importDataType.addEventListener('change',async()=>{syncImportModeAvailability();resetImportPreviewForModeChange();await loadImportFieldOptions();await loadCustomImportTemplates();});
+if(importDataType)importDataType.addEventListener('change',()=>{syncImportModeAvailability();resetImportPreviewForModeChange();});
 if(importDataMode)importDataMode.addEventListener('change',resetImportPreviewForModeChange);
 const importShortageReportTable=document.getElementById('importShortageReportTable');
 if(importShortageReportTable)importShortageReportTable.addEventListener('click',event=>{const button=event.target.closest('.view-import-shortage-report');if(button)openImportShortageReport(button.dataset.id);});

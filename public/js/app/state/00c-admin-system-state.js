@@ -1,15 +1,6 @@
 'use strict';
 
 const importPreviewTable=document.getElementById('importPreviewTable');
-const customImportTemplateName=document.getElementById('customImportTemplateName');
-const customImportTemplateSelect=document.getElementById('customImportTemplateSelect');
-const customImportMappingTable=document.getElementById('customImportMappingTable');
-const addImportMappingButton=document.getElementById('addImportMappingButton');
-const saveCustomImportTemplateButton=document.getElementById('saveCustomImportTemplateButton');
-const loadCustomImportTemplateButton=document.getElementById('loadCustomImportTemplateButton');
-const downloadCustomImportTemplateButton=document.getElementById('downloadCustomImportTemplateButton');
-const deleteCustomImportTemplateButton=document.getElementById('deleteCustomImportTemplateButton');
-
 const reportFromDate=document.getElementById('reportFromDate');
 const reportToDate=document.getElementById('reportToDate');
 const reloadReportsButton=document.getElementById('reloadReportsButton');
@@ -87,8 +78,6 @@ let selectedChildOrderIds=selectedUnmergedChildOrderIds;
 // MASTER_ORDER_POPUP_PATCH_END
 let masterOrdersCache=[];
 let importPreviewRows=[];
-let customImportFields=[];
-let customImportTemplates=[];
 
 const reloadSystemStatusButton=document.getElementById('reloadSystemStatusButton');
 const reloadSystemDataSourceButton=document.getElementById('reloadSystemDataSourceButton');

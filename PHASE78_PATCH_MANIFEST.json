@@ -1,0 +1,17 @@
+{
+  "phase": 78,
+  "title": "Remove custom import template UI",
+  "scope": "frontend-only",
+  "changedFiles": [
+    "public/index.html",
+    "public/js/app/state/00c-admin-system-state.js",
+    "public/js/app/admin/08d-import-excel.js",
+    "public/css/00-base.css",
+    "test/phase78-import-custom-template-ui-removal.test.js",
+    "PHASE78_REMOVE_CUSTOM_IMPORT_TEMPLATE_UI_REPORT.md",
+    "PHASE78_PATCH_MANIFEST.json"
+  ],
+  "databaseChanged": false,
+  "apiChanged": false,
+  "businessLogicChanged": false
+}

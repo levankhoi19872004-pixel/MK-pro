@@ -1393,14 +1393,7 @@ td.price{
 .inline-check input{width:18px;height:18px;accent-color:#2563eb}
 
 
-/* Custom Import Template Designer */
-.custom-import-designer{margin:14px 0;padding:14px;border:1px solid #d8dee8;border-radius:14px;background:#f8fafc}
 .compact-toolbar{margin-bottom:10px;gap:10px}
-.custom-template-panel{grid-template-columns:1fr 1fr auto;align-items:end;margin-bottom:10px}
-.custom-import-designer table input,.custom-import-designer table select{width:100%;min-width:140px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
-.custom-import-designer .center{text-align:center}
-.custom-import-designer .danger{background:#fee2e2;color:#991b1b;border-color:#fecaca}
-@media(max-width:900px){.custom-template-panel{grid-template-columns:1fr}.custom-import-designer .table-wrap{overflow-x:auto}}
 
 /* =========================================================
    V43 ERP UI/UX STANDARDIZATION - compact density + scan speed
