@@ -1,0 +1,38 @@
+{
+  "phase": 71,
+  "name": "dms-live-inventory-comparison-fix",
+  "scope": "Tồn kho - đối chiếu DMS với tồn inventories hiện tại",
+  "rootCause": "GET /api/dms-inventory/latest đọc internalBaseQty đã chụp trong dmsInventorySnapshots tại thời điểm commit thay vì đọc lại tồn hiện tại từ inventories",
+  "solution": {
+    "dmsQuantity": "Giữ cố định theo file DMS gần nhất đã commit",
+    "internalQuantity": "Tính lại từ inventoryStockService/inventories khi đọc danh sách",
+    "filtering": "Áp dụng sau khi tính lại comparisonType",
+    "forcedRefresh": "Mở tab và nút Tải lại gửi refresh=1 để bỏ qua cache ngắn",
+    "appQuota": "Giữ nguyên theo allocation được tạo lúc commit DMS"
+  },
+  "changedFiles": [
+    "src/services/dmsInventoryReconciliation.service.js",
+    "src/services/inventoryStock.service.js",
+    "src/controllers/dmsInventoryController.js",
+    "src/models/DmsInventorySnapshot.js",
+    "public/js/app/10-dms-inventory.js",
+    "public/css/80-dms-inventory.css",
+    "public/index.html",
+    "test/dms-inventory-live-current.test.js",
+    "PHASE71_DMS_LIVE_INVENTORY_COMPARISON_FIX_REPORT.md",
+    "PHASE71_PATCH_MANIFEST.json"
+  ],
+  "dataMigration": "not_required",
+  "databaseWritesChanged": false,
+  "compatibility": [
+    "Không xóa field API cũ",
+    "Bổ sung snapshotSummary và metadata nguồn dữ liệu",
+    "Không thay đổi công thức hạn mức App",
+    "Không thay đổi collection inventories"
+  ],
+  "tests": {
+    "changedFileSyntax": "passed",
+    "targetedRegression": "26/26 passed",
+    "fullProjectSyntax": "timed out after 120 seconds; changed files passed"
+  }
+}

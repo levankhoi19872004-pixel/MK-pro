@@ -107,7 +107,7 @@
     el.dmsSubtab?.classList.toggle('active',showDms);
     if(el.currentPanel){el.currentPanel.hidden=showDms;el.currentPanel.classList.toggle('active',!showDms);}
     if(el.dmsPanel){el.dmsPanel.hidden=!showDms;el.dmsPanel.classList.toggle('active',showDms);}
-    if(showDms) loadDmsInventory({resetPage:true});
+    if(showDms) loadDmsInventory({resetPage:true,forceRefresh:true});
     else if(typeof window.loadStock==='function') window.loadStock().catch(()=>{});
   }
 
@@ -142,12 +142,13 @@
       const diffClass=difference>0?'dms-diff-positive':difference<0?'dms-diff-negative':'';
       const diffText=difference>0?`+${formatNumber(difference)}`:formatNumber(difference);
       const warning=row.warning?` title="${escapeHtml(row.warning)}"`:'';
+      const internalUpdated=row.internalUpdatedAt?` title="Tồn hiện tại từ inventories · cập nhật ${escapeHtml(formatDateTime(row.internalUpdatedAt))}"`:' title="Tồn hiện tại từ inventories"';
       return `<tr${warning}>
         <td><strong>${escapeHtml(row.productCode||'')}</strong></td>
         <td>${escapeHtml(row.productName||row.dmsProductName||'')}</td>
         <td>${formatNumber(rate)}</td>
         <td>${escapeHtml(row.dmsCaseLoose||stockDisplay(row.dmsBaseQty,row.dmsConversionRate))}<small>${formatNumber(row.dmsBaseQty)} lẻ</small></td>
-        <td>${escapeHtml(stockDisplay(row.internalBaseQty,rate))}<small>${formatNumber(row.internalBaseQty)} lẻ</small></td>
+        <td${internalUpdated}>${escapeHtml(stockDisplay(row.internalBaseQty,rate))}<small>${formatNumber(row.internalBaseQty)} lẻ</small></td>
         <td class="${diffClass}">${diffText}</td>
         <td>${formatNumber(allocation.openingQty||0)}</td>
         <td>${formatNumber(allocation.consumedQty||0)}</td>
@@ -161,13 +162,15 @@
     if(state.loading) return;
     if(options.resetPage) state.page=1;
     state.loading=true;
-    setMessage(el.message,'Đang tải dữ liệu đối chiếu...');
+    if(el.reload) el.reload.disabled=true;
+    setMessage(el.message,'Đang đối chiếu file DMS với tồn kho hiện tại...');
     const params=new URLSearchParams({
       type:el.type?.value||'internal_greater',
       search:el.search?.value?.trim()||'',
       page:String(state.page),
       limit:String(state.limit)
     });
+    if(options.forceRefresh) params.set('refresh','1');
     try{
       const response=await fetch(`/api/dms-inventory/latest?${params.toString()}`);
       const payload=await response.json().catch(()=>({}));
@@ -180,7 +183,8 @@
       el.next.disabled=!state.hasMore;
       el.count.textContent=`${formatNumber(data.total)} dòng · Trang ${state.page}`;
       if(data.import){
-        el.latestInfo.textContent=`Cập nhật gần nhất: ${formatDateTime(data.import.committedAt||data.import.snapshotAt)} · File ${data.import.originalFilename||''} · Hạn mức App lấy theo chênh lệch lần này`;
+        const comparedAt=formatDateTime(data.comparisonGeneratedAt);
+        el.latestInfo.textContent=`DMS chốt: ${formatDateTime(data.import.committedAt||data.import.snapshotAt)} · File ${data.import.originalFilename||''} · Tồn thực tế đọc trực tiếp từ inventories lúc ${comparedAt} · Hạn mức App giữ theo lần chốt`;
         setMessage(el.message,'');
       }else{
         el.latestInfo.textContent='Chưa có file tồn DMS. App bán hàng sẽ chưa có hạn mức bán.';
@@ -189,7 +193,7 @@
     }catch(error){
       el.table.innerHTML=`<tr><td colspan="10">${escapeHtml(error.message||'Không tải được dữ liệu')}</td></tr>`;
       setMessage(el.message,error.message||'Không tải được dữ liệu',true);
-    }finally{state.loading=false;}
+    }finally{state.loading=false;if(el.reload)el.reload.disabled=false;}
   }
 
   function resetUpload(){
@@ -264,7 +268,7 @@
       setTimeout(()=>{
         setModal(el.uploadModal,false);
         resetUpload();
-        loadDmsInventory({resetPage:true});
+        loadDmsInventory({resetPage:true,forceRefresh:true});
       },500);
     }catch(error){
       setMessage(el.uploadMessage,error.message||'Không lưu được file DMS',true);
@@ -296,7 +300,7 @@
   let searchTimer=null;
   el.currentSubtab?.addEventListener('click',()=>switchPanel('stockCurrentPanel'));
   el.dmsSubtab?.addEventListener('click',()=>switchPanel('dmsInventoryPanel'));
-  el.reload?.addEventListener('click',()=>loadDmsInventory({resetPage:true}));
+  el.reload?.addEventListener('click',()=>loadDmsInventory({resetPage:true,forceRefresh:true}));
   el.type?.addEventListener('change',()=>loadDmsInventory({resetPage:true}));
   el.search?.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadDmsInventory({resetPage:true}),280);});
   el.prev?.addEventListener('click',()=>{if(state.page>1){state.page-=1;loadDmsInventory();}});

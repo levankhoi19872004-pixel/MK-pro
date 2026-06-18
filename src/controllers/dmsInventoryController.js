@@ -48,7 +48,8 @@ async function latest(req, res) {
       type: req.query.type,
       search: req.query.search || req.query.q,
       page: req.query.page,
-      limit: req.query.limit
+      limit: req.query.limit,
+      forceRefresh: ['1', 'true', 'yes'].includes(String(req.query.refresh || '').toLowerCase())
     });
     return res.json({ ok: true, success: true, data: result, ...result });
   } catch (err) {

@@ -17,6 +17,7 @@ module.exports = flexModel('DmsInventorySnapshot', 'dmsInventorySnapshots', {
   dmsCaseLoose: String,
   dmsBaseQty: Number,
   internalBaseQty: Number,
+  internalUpdatedAt: String,
   differenceQty: Number,
   dmsExcessQty: Number,
   internalExcessQty: Number,

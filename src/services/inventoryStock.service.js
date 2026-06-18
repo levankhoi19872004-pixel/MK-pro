@@ -145,9 +145,10 @@ async function getAvailableStock(productCode) {
 async function getInventorySummary(query = {}, options = {}) {
   const q = normalizeProductCode(query.q || query.search || query.keyword || '');
   const session = options.session || null;
+  const forceRefresh = options.forceRefresh === true;
   const cacheKey = JSON.stringify({ q });
   const nowMs = Date.now();
-  if (!session && INVENTORY_SUMMARY_CACHE_TTL_MS > 0 && inventorySummaryCache.key === cacheKey && inventorySummaryCache.value && inventorySummaryCache.expiresAt > nowMs) {
+  if (!session && !forceRefresh && INVENTORY_SUMMARY_CACHE_TTL_MS > 0 && inventorySummaryCache.key === cacheKey && inventorySummaryCache.value && inventorySummaryCache.expiresAt > nowMs) {
     return inventorySummaryCache.value;
   }
 

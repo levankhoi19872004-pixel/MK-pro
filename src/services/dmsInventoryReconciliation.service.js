@@ -215,7 +215,10 @@ async function buildComparisonRows(dmsItems = [], options = {}) {
     .select('id code productCode sku name productName conversionRate packingQty unitsPerCase costPrice isActive');
   if (session) productQuery = productQuery.session(session);
   const [inventoryResult, products] = await Promise.all([
-    inventoryStockService.getInventorySummary({}, { session }),
+    inventoryStockService.getInventorySummary({}, {
+      session,
+      forceRefresh: options.forceInventoryRefresh === true
+    }),
     productQuery.lean()
   ]);
 
@@ -268,6 +271,7 @@ async function buildComparisonRows(dmsItems = [], options = {}) {
       dmsCaseLoose: dms ? cleanText(dms.dmsCaseLoose || formatCaseLooseQty(dmsBaseQty, dmsConversionRate)) : '0/0',
       dmsBaseQty,
       internalBaseQty,
+      internalUpdatedAt: cleanText(stock.updatedAt || ''),
       differenceQty,
       dmsExcessQty,
       internalExcessQty,
@@ -323,7 +327,7 @@ async function previewImport({ buffer, fileName = '', fileSize = 0, snapshotDate
   }
 
   const parsed = await parseDmsInventoryFile(buffer);
-  const rows = await buildComparisonRows(parsed.items);
+  const rows = await buildComparisonRows(parsed.items, { forceInventoryRefresh: true });
   const summary = buildSummary(rows);
   const actor = importActor(user);
   const now = dateUtil.nowIso();
@@ -554,65 +558,141 @@ function comparisonFilter(type = '') {
   return supported.includes(normalized) ? { comparisonType: normalized } : {};
 }
 
-async function getLatest({ type = '', search = '', page = 1, limit = 100 } = {}) {
+function summaryFromImport(importDoc = {}) {
+  return {
+    totalRows: toNumber(importDoc.totalRows),
+    matchedRows: toNumber(importDoc.matchedRows),
+    dmsGreaterRows: toNumber(importDoc.dmsGreaterRows),
+    internalGreaterRows: toNumber(importDoc.internalGreaterRows),
+    unmappedRows: toNumber(importDoc.unmappedRows),
+    conversionMismatchRows: toNumber(importDoc.conversionMismatchRows),
+    totalDmsQty: toNumber(importDoc.totalDmsQty),
+    totalInternalQty: toNumber(importDoc.totalInternalQty),
+    totalDmsExcessQty: toNumber(importDoc.totalDmsExcessQty),
+    totalInternalExcessQty: toNumber(importDoc.totalInternalExcessQty)
+  };
+}
+
+function snapshotHasDmsSource(row = {}) {
+  if (row.sourcePresentInDms === true) return true;
+  if (row.sourcePresentInDms === false) return false;
+  return Boolean(
+    cleanText(row.dmsProductName)
+    || toNumber(row.dmsBaseQty) > 0
+    || (cleanText(row.dmsCaseLoose) && cleanText(row.dmsCaseLoose) !== '0/0')
+  );
+}
+
+function dmsItemsFromSnapshotRows(rows = []) {
+  return (rows || [])
+    .filter(snapshotHasDmsSource)
+    .map((row) => ({
+      productCode: normalizeProductCode(row.productCode),
+      productName: cleanText(row.dmsProductName || row.productName),
+      dmsConversionRate: Math.max(1, toNumber(row.dmsConversionRate || 1)),
+      dmsCaseLoose: cleanText(row.dmsCaseLoose || ''),
+      dmsBaseQty: Math.max(0, toNumber(row.dmsBaseQty)),
+      formulaValid: row.formulaValid !== false,
+      warning: cleanText(row.warning || '')
+    }))
+    .filter((row) => row.productCode);
+}
+
+function filterAndSortComparisonRows(rows = [], { type = '', search = '' } = {}) {
+  const requestedType = comparisonFilter(type).comparisonType || '';
+  const keyword = normalizeHeader(search);
+  const filtered = (rows || []).filter((row) => {
+    if (requestedType && cleanText(row.comparisonType).toLowerCase() !== requestedType) return false;
+    if (!keyword) return true;
+    return [row.productCode, row.productName, row.dmsProductName]
+      .some((value) => normalizeHeader(value).includes(keyword));
+  });
+
+  return filtered.sort((left, right) => (
+    toNumber(right.internalExcessQty) - toNumber(left.internalExcessQty)
+    || toNumber(right.dmsExcessQty) - toNumber(left.dmsExcessQty)
+    || normalizeProductCode(left.productCode).localeCompare(
+      normalizeProductCode(right.productCode),
+      'vi',
+      { numeric: true, sensitivity: 'base' }
+    )
+  ));
+}
+
+async function getLatest({ type = '', search = '', page = 1, limit = 100, forceRefresh = false } = {}) {
   const latest = await DmsInventoryImport.findOne({ status: 'completed' })
     .sort({ committedAt: -1, createdAt: -1 })
     .lean();
-  if (!latest) return { import: null, summary: buildSummary([]), rows: [], total: 0, page: 1, limit };
+  if (!latest) return {
+    import: null,
+    summary: buildSummary([]),
+    snapshotSummary: buildSummary([]),
+    rows: [],
+    total: 0,
+    page: 1,
+    limit,
+    inventorySource: 'inventories',
+    comparisonMode: 'live_inventory_vs_dms_snapshot',
+    comparisonGeneratedAt: dateUtil.nowIso()
+  };
 
   const safePage = Math.max(1, Math.trunc(toNumber(page) || 1));
   const safeLimit = Math.min(500, Math.max(1, Math.trunc(toNumber(limit) || 100)));
-  const filter = {
-    importId: String(latest.id || latest._id || ''),
-    ...comparisonFilter(type)
-  };
-  const keyword = cleanText(search);
-  if (keyword) {
-    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.$or = [
-      { productCode: { $regex: escaped, $options: 'i' } },
-      { productName: { $regex: escaped, $options: 'i' } },
-      { dmsProductName: { $regex: escaped, $options: 'i' } }
-    ];
+  const importId = String(latest.id || latest._id || '');
+
+  // Số DMS giữ nguyên theo file buổi sáng đã commit. Tồn thực tế được dựng lại
+  // ở mỗi lần tải từ collection inventories chuẩn để không hiển thị số tồn cũ
+  // đã chụp tại thời điểm commit file DMS.
+  const snapshotRows = await DmsInventorySnapshot.find({ importId })
+    .sort({ productCode: 1 })
+    .lean();
+
+  if (!snapshotRows.length) {
+    return {
+      import: latest,
+      summary: buildSummary([]),
+      snapshotSummary: summaryFromImport(latest),
+      rows: [],
+      total: 0,
+      page: safePage,
+      limit: safeLimit,
+      hasMore: false,
+      inventorySource: 'inventories',
+      comparisonMode: 'live_inventory_vs_dms_snapshot',
+      comparisonGeneratedAt: dateUtil.nowIso(),
+      integrityWarning: 'Không tìm thấy chi tiết snapshot của lần tải DMS gần nhất'
+    };
   }
 
-  const [rows, total] = await Promise.all([
-    DmsInventorySnapshot.find(filter)
-      .sort({ internalExcessQty: -1, dmsExcessQty: -1, productCode: 1 })
-      .skip((safePage - 1) * safeLimit)
-      .limit(safeLimit)
-      .lean(),
-    DmsInventorySnapshot.countDocuments(filter)
-  ]);
+  const dmsItems = dmsItemsFromSnapshotRows(snapshotRows);
+  const liveRows = await buildComparisonRows(dmsItems, { forceInventoryRefresh: forceRefresh === true });
+  const liveSummary = buildSummary(liveRows);
+  const filteredRows = filterAndSortComparisonRows(liveRows, { type, search });
+  const total = filteredRows.length;
+  const pageRows = filteredRows.slice((safePage - 1) * safeLimit, safePage * safeLimit);
 
   const allocations = await InternalSaleAllocation.find({
     status: 'active',
-    productCode: { $in: rows.map((row) => normalizeProductCode(row.productCode)) }
+    productCode: { $in: pageRows.map((row) => normalizeProductCode(row.productCode)) }
   }).lean();
   const allocationMap = new Map(allocations.map((row) => [normalizeProductCode(row.productCode), row]));
 
   return {
     import: latest,
-    summary: {
-      totalRows: toNumber(latest.totalRows),
-      matchedRows: toNumber(latest.matchedRows),
-      dmsGreaterRows: toNumber(latest.dmsGreaterRows),
-      internalGreaterRows: toNumber(latest.internalGreaterRows),
-      unmappedRows: toNumber(latest.unmappedRows),
-      conversionMismatchRows: toNumber(latest.conversionMismatchRows),
-      totalDmsQty: toNumber(latest.totalDmsQty),
-      totalInternalQty: toNumber(latest.totalInternalQty),
-      totalDmsExcessQty: toNumber(latest.totalDmsExcessQty),
-      totalInternalExcessQty: toNumber(latest.totalInternalExcessQty)
-    },
-    rows: rows.map((row) => ({
+    summary: liveSummary,
+    snapshotSummary: summaryFromImport(latest),
+    rows: pageRows.map((row) => ({
       ...row,
       allocation: allocationMap.get(normalizeProductCode(row.productCode)) || null
     })),
     total,
     page: safePage,
     limit: safeLimit,
-    hasMore: safePage * safeLimit < total
+    hasMore: safePage * safeLimit < total,
+    inventorySource: 'inventories',
+    comparisonMode: 'live_inventory_vs_dms_snapshot',
+    comparisonGeneratedAt: dateUtil.nowIso(),
+    forceRefreshed: forceRefresh === true
   };
 }
 
@@ -638,6 +718,9 @@ module.exports = {
   parseDmsInventoryFile,
   buildComparisonRows,
   buildSummary,
+  summaryFromImport,
+  dmsItemsFromSnapshotRows,
+  filterAndSortComparisonRows,
   previewImport,
   commitImport,
   getLatest,
