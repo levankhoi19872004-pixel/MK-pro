@@ -11,6 +11,7 @@ const importOrderRepository = require('../../repositories/importOrderRepository'
 const productRepository = require('../../repositories/productRepository');
 const importSessionService = require('../importSessionService');
 const auditService = require('../auditService');
+const inventoryStockService = require('../inventoryStock.service');
 
 const DEFAULT_MAX_EXPORT_ROWS = 50000;
 const MAX_SELECTED_IDS = 2000;
@@ -564,27 +565,68 @@ async function exportReport(params = {}, user = {}) {
 async function resolveProducts(codes = []) {
   const values = uniqueStrings(codes, MAX_RESOLVE_CODES);
   const rows = await productRepository.findByCodes(values);
+  const canonicalCodes = (rows || [])
+    .map((row) => cleanText(row.code || row.productCode || row.sku || row.id || row._id))
+    .filter(Boolean);
+  const stockMap = await inventoryStockService.getAvailableStocks(canonicalCodes);
   const foundKeys = new Set();
+
   const products = (rows || []).map((row) => {
-    [row.code, row.sku, row.productCode, row.barcode].map(cleanText).filter(Boolean).forEach((key) => foundKeys.add(key));
+    const code = cleanText(row.code || row.productCode || row.sku);
+    const productCode = cleanText(row.productCode || row.code || row.sku);
+    const sku = cleanText(row.sku || code);
+    const barcode = cleanText(row.barcode);
+    const normalizedCode = inventoryStockService.normalizeProductCode(code || productCode || sku);
+    const availableQty = toNumber(stockMap[normalizedCode] ?? stockMap[code] ?? stockMap[productCode] ?? 0);
+    const conversionRate = Math.max(1, toNumber(row.conversionRate) || 1);
+    const displayQty = Math.max(0, availableQty);
+    const stockCase = Math.floor(displayQty / conversionRate);
+    const stockLoose = displayQty % conversionRate;
+
+    [row.code, row.sku, row.productCode, row.barcode, row.id, row._id]
+      .map((key) => inventoryStockService.normalizeProductCode(key))
+      .filter(Boolean)
+      .forEach((key) => foundKeys.add(key));
+
     return {
-      id: cleanText(row.id || row._id || row.code),
-      code: cleanText(row.code || row.productCode || row.sku),
-      productCode: cleanText(row.productCode || row.code || row.sku),
+      id: cleanText(row.id || row._id || code),
+      code,
+      productCode,
+      sku,
+      barcode,
       name: cleanText(row.name || row.productName),
+      productName: cleanText(row.productName || row.name),
       unit: cleanText(row.unit || row.baseUnit),
       baseUnit: cleanText(row.baseUnit || row.unit),
-      conversionRate: Math.max(1, toNumber(row.conversionRate) || 1),
+      conversionRate,
+      packingQty: conversionRate,
+      unitsPerCase: conversionRate,
       packing: cleanText(row.packing),
       salePrice: toNumber(row.salePrice),
       costPrice: toNumber(row.costPrice),
       pickingZone: cleanText(row.pickingZone || row.warehouseCode),
-      isActive: row.isActive !== false
+      isActive: row.isActive !== false,
+
+      // Cùng contract tồn mở bán với tìm kiếm sản phẩm thông thường.
+      // Không đọc tồn từ products vì products chỉ là danh mục.
+      availableQty,
+      availableStock: availableQty,
+      stockQuantity: availableQty,
+      openSaleQty: availableQty,
+      stock: availableQty,
+      quantity: availableQty,
+      qty: availableQty,
+      stockCase,
+      stockLoose,
+      stockDisplay: `${stockCase}/${stockLoose}`,
+      isOutOfStock: availableQty <= 0,
+      inventorySource: 'inventories'
     };
   });
+
   return {
     products,
-    missingCodes: values.filter((code) => !foundKeys.has(code))
+    missingCodes: values.filter((code) => !foundKeys.has(inventoryStockService.normalizeProductCode(code)))
   };
 }
 
