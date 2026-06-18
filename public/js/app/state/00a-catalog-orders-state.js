@@ -190,6 +190,7 @@ const removeFromGroupedOrdersButton=document.getElementById('removeFromGroupedOr
 const selectedMasterChildOrderList=document.getElementById('selectedMasterChildOrderList');
 const masterOrderForm=document.getElementById('masterOrderForm');
 const unmergedOrderList=document.getElementById('unmergedOrderList');
+const reloadUnmergedOrdersButton=document.getElementById('reloadUnmergedOrdersButton');
 const unmergedOrderCount=document.getElementById('unmergedOrderCount');
 const unmergedOrderSearch=document.getElementById('unmergedOrderSearch');
 const unmergedSourceFilter=document.getElementById('unmergedSourceFilter');

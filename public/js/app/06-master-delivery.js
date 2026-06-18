@@ -13,6 +13,14 @@ let masterOrderEditMode = false;
 let editingMasterOrderId = '';
 // MASTER_ORDER_EDIT_MODAL_PATCH_END
 
+// MASTER_ORDER_UNMERGED_REFRESH_FIX_START:
+// Tách trạng thái tải danh sách đơn con để chặn response cũ ghi đè response mới
+// khi người dùng đổi nhanh ngày, nguồn hoặc NVBH.
+let unmergedOrderRequestSeq = 0;
+let unmergedOrderReloadTimer = null;
+const UNMERGED_ORDER_RELOAD_DEBOUNCE_MS = 350;
+// MASTER_ORDER_UNMERGED_REFRESH_FIX_END
+
 function masterOrderIdentity(row = {}) {
   return String(row.id || row._id || row.code || row.orderCode || row.documentCode || '').trim();
 }
@@ -210,25 +218,44 @@ function renderMasterOrderGroupingLayers() {
 window.renderMasterOrderGroupingLayers = renderMasterOrderGroupingLayers;
 // MASTER_ORDER_POPUP_PATCH_END
 
+function setUnmergedOrdersLoading(isLoading) {
+  if (!reloadUnmergedOrdersButton) return;
+  reloadUnmergedOrdersButton.disabled = !!isLoading;
+  reloadUnmergedOrdersButton.textContent = isLoading ? 'Đang tải...' : 'Tải lại';
+}
+
+function buildUnmergedChildOrderParams() {
+  const params = new URLSearchParams();
+  const q = unmergedOrderSearch ? unmergedOrderSearch.value.trim() : '';
+  const source = unmergedSourceFilter ? unmergedSourceFilter.value.trim() : '';
+  const dateFrom = unmergedDateFrom ? unmergedDateFrom.value : '';
+  const dateTo = unmergedDateTo ? unmergedDateTo.value : '';
+  const salesStaff = unmergedSalesStaffFilter ? unmergedSalesStaffFilter.value.trim() : '';
+  if (q) params.set('q', q);
+  if (source) params.set('source', source);
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  if (dateTo) params.set('dateTo', dateTo);
+  if (salesStaff) params.set('salesStaff', salesStaff);
+  params.set('limit', '5000');
+  return params;
+}
+
 async function loadUnmergedChildOrders() {
   if (!unmergedOrderList) return;
+  if (unmergedOrderReloadTimer) {
+    clearTimeout(unmergedOrderReloadTimer);
+    unmergedOrderReloadTimer = null;
+  }
+  const requestSeq = ++unmergedOrderRequestSeq;
+  setUnmergedOrdersLoading(true);
   try {
     unmergedOrderList.innerHTML = '<div class="empty-cell">Đang tải đơn con chưa gộp...</div>';
-    const params = new URLSearchParams();
-    const q = unmergedOrderSearch ? unmergedOrderSearch.value.trim() : '';
-    const source = unmergedSourceFilter ? unmergedSourceFilter.value.trim() : '';
-    const dateFrom = unmergedDateFrom ? unmergedDateFrom.value : '';
-    const dateTo = unmergedDateTo ? unmergedDateTo.value : '';
-    const salesStaff = unmergedSalesStaffFilter ? unmergedSalesStaffFilter.value.trim() : '';
-    if (q) params.set('q', q);
-    if (source) params.set('source', source);
-    if (dateFrom) params.set('dateFrom', dateFrom);
-    if (dateTo) params.set('dateTo', dateTo);
-    if (salesStaff) params.set('salesStaff', salesStaff);
-    params.set('limit', '5000');
+    if (unmergedOrderCount) unmergedOrderCount.textContent = 'Đang tải đơn con chưa gộp...';
+    const params = buildUnmergedChildOrderParams();
     const res = await (window.fetchWithTimeout || fetch)(`/api/master-orders/unmerged-child-orders?${params.toString()}`, {}, 15000);
     const json = await res.json();
     if (!res.ok || json.ok === false) throw new Error(json.message || 'Không tải được đơn con chưa gộp');
+    if (requestSeq !== unmergedOrderRequestSeq) return;
     const rows = json.orders || json.rows || json.data || [];
     unmergedOrdersCache = Array.isArray(rows) ? rows : [];
     selectedUnmergedChildOrderIds = new Set([...selectedUnmergedChildOrderIds].filter((id) => unmergedOrdersCache.some((row) => salesOrderIdentity(row) === id) && !selectedGroupedChildOrderIds.has(id)));
@@ -238,11 +265,33 @@ async function loadUnmergedChildOrders() {
     window.selectedChildOrderIds = selectedChildOrderIds;
     renderMasterOrderGroupingLayers();
   } catch (err) {
+    if (requestSeq !== unmergedOrderRequestSeq) return;
     if (unmergedOrderCount) unmergedOrderCount.textContent = 'Lỗi tải đơn con';
-    if (unmergedOrderList) unmergedOrderList.innerHTML = `<div class="empty-cell error">${err.message || 'Không tải được đơn con chưa gộp'}</div>`;
+    if (unmergedOrderList) unmergedOrderList.innerHTML = `<div class="empty-cell error">${masterOrderEscapeHtml(err.message || 'Không tải được đơn con chưa gộp')}</div>`;
+  } finally {
+    if (requestSeq === unmergedOrderRequestSeq) setUnmergedOrdersLoading(false);
   }
 }
+
+function reloadUnmergedChildOrdersNow() {
+  if (unmergedOrderReloadTimer) {
+    clearTimeout(unmergedOrderReloadTimer);
+    unmergedOrderReloadTimer = null;
+  }
+  return loadUnmergedChildOrders();
+}
+
+function scheduleUnmergedChildOrdersReload() {
+  if (unmergedOrderReloadTimer) clearTimeout(unmergedOrderReloadTimer);
+  unmergedOrderReloadTimer = setTimeout(() => {
+    unmergedOrderReloadTimer = null;
+    loadUnmergedChildOrders();
+  }, UNMERGED_ORDER_RELOAD_DEBOUNCE_MS);
+}
+
 window.loadUnmergedChildOrders = loadUnmergedChildOrders;
+window.reloadUnmergedChildOrdersNow = reloadUnmergedChildOrdersNow;
+window.scheduleUnmergedChildOrdersReload = scheduleUnmergedChildOrdersReload;
 
 // MASTER_ORDER_POPUP_PATCH_START: chọn tất cả chỉ tác động layer 2 đang nhìn thấy
 function toggleSelectAllUnmergedOrders() {
@@ -613,6 +662,12 @@ if (typeof moveToGroupedOrdersButton !== 'undefined' && moveToGroupedOrdersButto
 if (typeof removeFromGroupedOrdersButton !== 'undefined' && removeFromGroupedOrdersButton) removeFromGroupedOrdersButton.addEventListener('click', removeSelectedGroupedChildOrders);
 if (typeof unmergedOrderList !== 'undefined' && unmergedOrderList) unmergedOrderList.addEventListener('change', handleUnmergedChildSelectionChange);
 if (typeof selectedMasterChildOrderList !== 'undefined' && selectedMasterChildOrderList) selectedMasterChildOrderList.addEventListener('change', handleGroupedChildSelectionChange);
+if (typeof reloadUnmergedOrdersButton !== 'undefined' && reloadUnmergedOrdersButton) reloadUnmergedOrdersButton.addEventListener('click', reloadUnmergedChildOrdersNow);
+if (typeof unmergedSourceFilter !== 'undefined' && unmergedSourceFilter) unmergedSourceFilter.addEventListener('change', reloadUnmergedChildOrdersNow);
+if (typeof unmergedDateFrom !== 'undefined' && unmergedDateFrom) unmergedDateFrom.addEventListener('change', reloadUnmergedChildOrdersNow);
+if (typeof unmergedDateTo !== 'undefined' && unmergedDateTo) unmergedDateTo.addEventListener('change', reloadUnmergedChildOrdersNow);
+if (typeof unmergedOrderSearch !== 'undefined' && unmergedOrderSearch) unmergedOrderSearch.addEventListener('input', scheduleUnmergedChildOrdersReload);
+if (typeof unmergedSalesStaffFilter !== 'undefined' && unmergedSalesStaffFilter) unmergedSalesStaffFilter.addEventListener('input', scheduleUnmergedChildOrdersReload);
 if (typeof selectAllUnmergedOrdersButton !== 'undefined' && selectAllUnmergedOrdersButton) selectAllUnmergedOrdersButton.addEventListener('click', toggleSelectAllUnmergedOrders);
 if (typeof selectAllMasterOrdersButton !== 'undefined' && selectAllMasterOrdersButton) selectAllMasterOrdersButton.addEventListener('click', toggleSelectAllMasterOrders);
 if (typeof printSelectedMasterOrdersButton !== 'undefined' && printSelectedMasterOrdersButton) printSelectedMasterOrdersButton.addEventListener('click', printSelectedMasterOrders);
