@@ -184,7 +184,7 @@ async function select(key){state.selectedKey=key;var order=window.DeliveryCore.s
 order&&window.DeliveryCore&&"function"==typeof window.DeliveryCore.loadReturnsForOrder)try{await window.DeliveryCore.loadReturnsForOrder(order),refreshAfterReturnRowsLoaded(order)
 }catch(e){console.error("loadReturnsForOrder failed",e)}}async function load(){if(window.DeliveryCore){byId("deliveryCoreList")||renderShell();var list=byId("deliveryCoreList")
 ;list&&(list.innerHTML='<div class="empty-state">Đang tải...</div>');try{var f=filters()
-;if(!(f.q||f.salesStaffCode||f.deliveryStaffCode||f.status))return void(list&&(list.innerHTML='<div class="empty-state">Vui lòng nhập mã đơn, khách hàng, NVGH/NVBH hoặc chọn bộ lọc để tải dữ liệu.</div>'))
+;if(!(f.date||f.q||f.salesStaffCode||f.deliveryStaffCode||f.statusFilter&&"all"!==f.statusFilter))return void(list&&(list.innerHTML='<div class="empty-state">Vui lòng nhập mã đơn, khách hàng, NVGH/NVBH hoặc chọn bộ lọc để tải dữ liệu.</div>'))
 ;await window.DeliveryCore.loadOrders(f),renderSalesBranchFilter(),window.DeliveryCore.state.returns=[],window.DeliveryCore.state.returnsLoaded=!1,
 window.DeliveryCore.state.returnsLoadedByOrder={};var visibleRows=getVisibleOrders();!state.selectedKey&&visibleRows[0]&&(state.selectedKey=orderKey(visibleRows[0])),
 state.selectedKey&&window.DeliveryCore.selectOrder(state.selectedKey),keepSelectionVisible(),renderList(),renderDetail(window.DeliveryCore.state.selectedOrder),message(""),

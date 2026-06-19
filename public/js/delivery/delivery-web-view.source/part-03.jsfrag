@@ -103,7 +103,7 @@
     if (list) list.innerHTML = '<div class="empty-state">Đang tải...</div>';
     try {
       var f = filters();
-      var hasFilter = (f.q || f.salesStaffCode || f.deliveryStaffCode || f.status);
+      var hasFilter = (f.date || f.q || f.salesStaffCode || f.deliveryStaffCode || (f.statusFilter && f.statusFilter !== 'all'));
       if (!hasFilter) {
         if (list) list.innerHTML = '<div class="empty-state">Vui lòng nhập mã đơn, khách hàng, NVGH/NVBH hoặc chọn bộ lọc để tải dữ liệu.</div>';
         return;

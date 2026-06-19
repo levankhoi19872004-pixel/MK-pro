@@ -114,6 +114,23 @@
     max-content;
 }
 
+/* Delivery adopter: dynamic shell follows the same page/filter/action contract. */
+#deliveryTodayTab .delivery-v46-header.ui-list-toolbar{display:grid;}
+#deliveryTodayTab .delivery-v46-filters.ui-search-filter-bar{
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-md))
+    minmax(200px,var(--filter-width-md))
+    minmax(200px,var(--filter-width-md))
+    minmax(150px,var(--filter-width-sm))
+    minmax(140px,var(--filter-width-sm))
+    max-content;
+  margin:0;
+}
+#deliveryTodayTab .delivery-v46-actions-danger-separated{
+  justify-content:space-between;
+}
+#deliveryTodayTab .delivery-v46-actions-danger-separated .danger{margin-right:auto;}
+
 @media(max-width:1199px) and (min-width:768px){
   .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   .ui-field-search{grid-column:span 3;}
@@ -122,6 +139,12 @@
   #masterOrdersTab .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   #masterOrdersTab .ui-field-search{grid-column:span 4;}
   #masterOrdersTab .ui-toolbar-actions{grid-column:span 6;justify-content:flex-end;}
+  #deliveryTodayTab .delivery-v46-filters.ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
+  #deliveryTodayTab .ui-field-search,
+  #deliveryTodayTab .delivery-v46-field-staff{grid-column:span 2;}
+  #deliveryTodayTab .delivery-v46-field-date,
+  #deliveryTodayTab .delivery-v46-field-status{grid-column:span 1;}
+  #deliveryTodayTab .ui-toolbar-actions{grid-column:span 4;justify-content:flex-end;}
 }
 
 @media(max-width:767px){
@@ -133,6 +156,9 @@
   .ui-toolbar-actions button{width:100%;}
   .ui-toolbar-actions .ui-action-primary{grid-column:1/-1;grid-row:1;}
   #masterOrdersTab .ui-search-filter-bar{grid-template-columns:1fr;}
+  #deliveryTodayTab .delivery-v46-filters.ui-search-filter-bar{grid-template-columns:1fr;}
+  #deliveryTodayTab .ui-toolbar-field,
+  #deliveryTodayTab .ui-toolbar-actions{grid-column:1/-1;}
   .ui-list-toolbar :is(input,select,button){
     min-height:var(--toolbar-control-height-comfortable)!important;
     height:var(--toolbar-control-height-comfortable)!important;
