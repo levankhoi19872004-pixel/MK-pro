@@ -1,7 +1,7 @@
 'use strict';
 
 const IdempotencyRequest = require('../models/IdempotencyRequest');
-const AuditService = require('../services/AuditService');
+const AuditService = require('../services/auditService');
 const OutboxService = require('../services/outbox/OutboxService');
 const { withOptionalMongoTransaction } = require('../utils/transaction.util');
 const { tenantIdOf } = require('../utils/tenant.util');

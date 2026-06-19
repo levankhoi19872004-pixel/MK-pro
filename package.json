@@ -32,7 +32,7 @@
     "migrate:return-state": "node scripts/migrate-return-state-machine.js --write",
     "repair:detached-delivery": "node scripts/repair-detached-delivery-assignments.js",
     "check:syntax": "node scripts/check-js-syntax.js",
-    "quality": "npm run check:lock-registry && npm run check:syntax && npm run check:source-bundles && npm run check:source-size && npm run check:enterprise && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
+    "quality": "npm run check:lock-registry && npm run check:path-portability && npm run check:syntax && npm run check:source-bundles && npm run check:source-size && npm run check:enterprise && npm run docs:check && npm test && npm audit --omit=dev --audit-level=high",
     "check:production": "node scripts/production-readiness-check.js",
     "cleanup:retired": "node scripts/cleanup-retired-files.js",
     "pretest": "npm run cleanup:retired && npm run check:source-bundles",
@@ -56,7 +56,8 @@
     "outbox:drain": "node scripts/outbox-drain.js",
     "analytics:rebuild": "node scripts/rebuild-reporting-projections.js",
     "supplier-ap:rebuild:dry": "node scripts/rebuild-supplier-payable-accounts.js",
-    "supplier-ap:rebuild": "node scripts/rebuild-supplier-payable-accounts.js --write"
+    "supplier-ap:rebuild": "node scripts/rebuild-supplier-payable-accounts.js --write",
+    "check:path-portability": "node scripts/check-path-portability.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
