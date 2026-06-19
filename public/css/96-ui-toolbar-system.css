@@ -224,6 +224,14 @@
 }
 #fundsTab .fund-row-actions button[aria-busy="true"]{cursor:wait;opacity:.72;}
 
+/* Product module adopter: page actions, explicit search and bulk actions share the common contract. */
+#productsTab .product-toolbar-grid{
+  grid-template-columns:minmax(var(--search-width-sm),var(--search-width-lg)) max-content;
+}
+#productsTab .product-toolbar-actions button[aria-busy="true"],
+#productsTab .product-bulk-actions button[aria-busy="true"],
+#productModal button[aria-busy="true"]{cursor:wait;opacity:.72;}
+
 /* Inventory module adopter: current stock and DMS comparison share one toolbar contract. */
 #stockTab .stock-current-shell{display:grid;gap:12px;}
 #stockTab .stock-module-toolbar{margin:0;}
@@ -278,6 +286,9 @@
   #fundsTab .fund-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
   #fundsTab .fund-toolbar-grid.fund-toolbar-compact .ui-field-search{grid-column:span 8;}
   #fundsTab .fund-toolbar-grid.fund-toolbar-compact .fund-toolbar-actions{grid-column:span 4;}
+  #productsTab .product-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
+  #productsTab .product-toolbar-grid .ui-field-search{grid-column:span 7;}
+  #productsTab .product-toolbar-actions{grid-column:span 5;justify-content:flex-end;}
   #stockTab .stock-current-toolbar-grid,
   #stockTab .dms-inventory-toolbar-grid{grid-template-columns:repeat(12,minmax(0,1fr));}
   #stockTab .stock-current-toolbar-grid .ui-field-search{grid-column:span 7;}
@@ -347,6 +358,9 @@
   #fundsTab .fund-toolbar-grid .ui-toolbar-field,
   #fundsTab .fund-toolbar-actions{grid-column:1/-1;}
   #fundsTab .fund-row-actions{white-space:normal;}
+  #productsTab .product-toolbar-grid{grid-template-columns:1fr;}
+  #productsTab .product-toolbar-grid .ui-toolbar-field,
+  #productsTab .product-toolbar-actions{grid-column:1/-1;}
   #stockTab .stock-current-toolbar-grid,
   #stockTab .dms-inventory-toolbar-grid{grid-template-columns:1fr;}
   #stockTab .stock-current-toolbar-grid .ui-toolbar-field,

@@ -119,14 +119,28 @@
     <section id="productsTab" class="tab-content">
       <main class="grid product-workspace-grid">
         <section class="card product-card">
-          <div class="toolbar product-list-toolbar">
-            <div><h2>Danh sách sản phẩm</h2><p id="productCount" class="muted">Đang tải...</p></div>
-            <div class="product-toolbar-actions">
-              <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." />
-              <button type="button" id="openProductModalButton" class="primary-action">+ Thêm sản phẩm</button>
+          <div class="ui-page-header product-page-header">
+            <div class="ui-page-title">
+              <h2>Danh sách sản phẩm</h2>
+              <p id="productCount" class="muted ui-page-meta">Đang tải...</p>
+            </div>
+            <div class="ui-page-actions">
+              <button type="button" id="openProductModalButton" class="primary-action">Tạo sản phẩm</button>
             </div>
           </div>
-          <div id="productBulkActions" class="bulk-actions" hidden>
+          <div class="ui-list-toolbar product-module-toolbar">
+            <div class="ui-search-filter-bar product-toolbar-grid">
+              <label class="ui-toolbar-field ui-field-search">Tìm sản phẩm
+                <input id="searchInput" placeholder="Tìm mã, tên, barcode, nhóm hàng..." autocomplete="off" />
+              </label>
+              <div class="ui-toolbar-actions product-toolbar-actions">
+                <button type="button" id="applyProductFiltersButton" class="ui-action-primary">Tìm kiếm</button>
+                <button type="button" id="clearProductFiltersButton" class="ui-button-ghost">Xóa lọc</button>
+                <button type="button" id="reloadProductsButton" class="ui-button-ghost">Tải lại</button>
+              </div>
+            </div>
+          </div>
+          <div id="productBulkActions" class="bulk-actions product-bulk-actions" hidden>
             <div class="bulk-info">
               <strong id="productSelectedCount">0</strong>
               <span>sản phẩm được chọn</span>

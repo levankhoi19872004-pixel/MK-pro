@@ -1,6 +1,44 @@
 // Products
 const escapeProductHtml = (window.V45Common && window.V45Common.escapeHtml) || ((value='')=>String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])));
 let productListRequestSeq = 0;
+let productListLoadPromise = null;
+let productListQueuedOptions = null;
+let productListLoading = false;
+let productBulkActionPromise = null;
+let productSavePromise = null;
+
+function setProductListLoading(loading){
+  productListLoading=Boolean(loading);
+  [searchInput,applyProductFiltersButton,clearProductFiltersButton,reloadProductsButton,productPageSizeSelect].forEach(control=>{
+    if(control)control.disabled=productListLoading;
+  });
+  [applyProductFiltersButton,clearProductFiltersButton,reloadProductsButton].forEach(button=>{
+    if(!button)return;
+    if(productListLoading)button.setAttribute('aria-busy','true');
+    else button.removeAttribute('aria-busy');
+  });
+  renderProductPagination();
+}
+function setProductBulkActionLoading(loading){
+  [bulkEditProductButton,bulkOpenProductButton,bulkStopProductButton,productCheckAll].forEach(control=>{
+    if(control)control.disabled=Boolean(loading);
+  });
+  [bulkOpenProductButton,bulkStopProductButton].forEach(button=>{
+    if(!button)return;
+    if(loading)button.setAttribute('aria-busy','true');
+    else button.removeAttribute('aria-busy');
+  });
+}
+function setProductFormLoading(loading){
+  const submitButton=productForm&&productForm.querySelector('button[type="submit"]');
+  [submitButton,resetButton,closeProductModalButton].forEach(control=>{
+    if(control)control.disabled=Boolean(loading);
+  });
+  if(submitButton){
+    if(loading)submitButton.setAttribute('aria-busy','true');
+    else submitButton.removeAttribute('aria-busy');
+  }
+}
 
 function openProductModal(){
   if(!productModal)return;
@@ -44,49 +82,75 @@ function fillForm(p){
 }
 
 async function loadProducts(options = {}){
+  if(productListLoadPromise){
+    productListQueuedOptions={...options};
+    return productListLoadPromise;
+  }
   const requestSeq = ++productListRequestSeq;
   const q=searchInput?searchInput.value.trim():'';
   const resetPage=options.resetPage===true;
   const allowEmpty = options.allowEmpty === true;
+  if(resetPage) productPage=1;
+  if(productPage<1) productPage=1;
   if(!allowEmpty && q.length < 2){
     productsCache=[];
     productTotal=0;
     productTotalPages=1;
+    selectedProductIds.clear();
     if(productCount)productCount.textContent='Nhập ít nhất 2 ký tự để tìm sản phẩm';
     if(productTable)productTable.innerHTML='<tr><td colspan="3" class="empty-cell">Nhập ít nhất 2 ký tự để tải danh sách sản phẩm.</td></tr>';
+    updateProductBulkUI();
     renderProductPagination();
-    return;
+    return null;
   }
-  if(resetPage) productPage=1;
-  if(productPage<1) productPage=1;
   const limit=Number(productPageSize||50);
-  try{
-    if(productTable) productTable.innerHTML='<tr><td colspan="3" class="empty-cell">Đang tải sản phẩm...</td></tr>';
-    // Phase 3.6 clean separation:
-    // Bảng danh sách sản phẩm PHẢI gọi thẳng API /api/products để lấy Mongo + phân trang thật.
-    // Không đi qua CatalogCache vì CatalogCache chỉ dùng cho autocomplete/lazy search.
-    const allowAllParam = allowEmpty && !q ? '&allowAll=1' : '';
-    const result = await (window.fetchWithTimeout||fetch)(`/api/products?page=${productPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}${allowAllParam}&_t=${Date.now()}`, {}, 10000)
-      .then(async res=>{
-        const json=await res.json();
-        if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');
-        return {rows:json.products||json.rows||json.items||json.data||[],meta:json.meta||null};
-      });
-    if(requestSeq !== productListRequestSeq) return;
-    const rawRows = Array.isArray(result.rows) ? result.rows : [];
-    // Bảng sản phẩm giống bảng khách hàng: backend Mongo là nguồn lọc duy nhất.
-    // Frontend chỉ render dữ liệu server trả về, không tự filter/rank lại.
-    productsCache = rawRows;
-    if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
-    productTotal = Number(result.meta?.total ?? productsCache.length);
-    productTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(productTotal/limit) ?? 1));
-    if(productPage>productTotalPages && productTotalPages>0){
-      productPage=productTotalPages;
-      return loadProducts();
+  setProductListLoading(true);
+  const runPromise=(async()=>{
+    try{
+      if(productTable) productTable.innerHTML='<tr><td colspan="3" class="empty-cell">Đang tải sản phẩm...</td></tr>';
+      // Bảng danh sách sản phẩm gọi thẳng API /api/products để lấy Mongo + phân trang thật.
+      // CatalogCache chỉ phục vụ autocomplete/lazy search.
+      const allowAllParam = allowEmpty && !q ? '&allowAll=1' : '';
+      const result = await (window.fetchWithTimeout||fetch)(`/api/products?page=${productPage}&limit=${limit}${q?`&q=${encodeURIComponent(q)}`:''}${allowAllParam}&_t=${Date.now()}`, {}, 10000)
+        .then(async res=>{
+          const json=await res.json();
+          if(!json.ok)throw new Error(json.message||'Không tải được sản phẩm');
+          return {rows:json.products||json.rows||json.items||json.data||[],meta:json.meta||null};
+        });
+      if(requestSeq !== productListRequestSeq) return null;
+      const rawRows = Array.isArray(result.rows) ? result.rows : [];
+      productsCache = rawRows;
+      if(window.UnifiedProductSearch) window.UnifiedProductSearch.sync(productsCache);
+      productTotal = Number(result.meta?.total ?? productsCache.length);
+      productTotalPages = Math.max(1, Number(result.meta?.totalPages ?? Math.ceil(productTotal/limit) ?? 1));
+      if(productPage>productTotalPages && productTotalPages>0){
+        productPage=productTotalPages;
+        if(!productListQueuedOptions)productListQueuedOptions={allowEmpty};
+        return null;
+      }
+      if(productCount)productCount.textContent=`${productTotal} sản phẩm`;
+      renderProductTable();
+      renderProductPagination();
+      renderImportProductSelect();
+      renderSalesProductSelect();
+      return result;
+    }catch(err){
+      if(requestSeq !== productListRequestSeq)return null;
+      if(productCount)productCount.textContent='Lỗi tải dữ liệu';
+      if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${escapeProductHtml(err.message)}</td></tr>`;
+      return null;
     }
-    if(productCount)productCount.textContent=`${productTotal} sản phẩm`;
-    renderProductTable();renderProductPagination();renderImportProductSelect();renderSalesProductSelect();
-  }catch(err){if(productCount)productCount.textContent='Lỗi tải dữ liệu';if(productTable)productTable.innerHTML=`<tr><td colspan="3" class="empty-cell">${escapeProductHtml(err.message)}</td></tr>`}
+  })();
+  productListLoadPromise=runPromise;
+  try{
+    return await runPromise;
+  }finally{
+    productListLoadPromise=null;
+    const queuedOptions=productListQueuedOptions;
+    productListQueuedOptions=null;
+    if(queuedOptions)await loadProducts(queuedOptions);
+    else setProductListLoading(false);
+  }
 }
 function getProductPageRows(){
   return productsCache || [];
@@ -98,8 +162,8 @@ function renderProductPagination(){
   const start=total && productsCache.length ? ((productPage-1)*productPageSize+1) : 0;
   const end=Math.min(total,(productPage-1)*productPageSize+(productsCache?productsCache.length:0));
   if(productPageInfo)productPageInfo.textContent=`Hiển thị ${start}-${end} / ${total} sản phẩm · Trang ${productPage}/${totalPages}`;
-  if(productPrevPage)productPrevPage.disabled=productPage<=1;
-  if(productNextPage)productNextPage.disabled=productPage>=totalPages;
+  if(productPrevPage)productPrevPage.disabled=productListLoading||productPage<=1;
+  if(productNextPage)productNextPage.disabled=productListLoading||productPage>=totalPages;
   if(productPageSizeSelect&&Number(productPageSizeSelect.value)!==productPageSize)productPageSizeSelect.value=String(productPageSize);
 }
 function updateProductBulkUI(){
@@ -174,23 +238,35 @@ window.toggleProductStatus=async(id,nextStatus)=>{
   try{
     const res=await fetch(`/api/products/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:nextStatus})});
     const json=await res.json();if(!json.ok)throw new Error(json.message||'Không đổi được trạng thái');
-    showMessage(formMessage,json.message);if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
+    showMessage(formMessage,json.message);if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts({allowEmpty:!(searchInput&&searchInput.value.trim())});await loadStock();
   }catch(err){showMessage(formMessage,err.message,true)}
 };
 async function bulkToggleProductStatus(nextStatus){
+  if(productBulkActionPromise)return productBulkActionPromise;
   const ids=getSelectedProductIds();
   if(!ids.length)return showMessage(formMessage,'Chưa chọn sản phẩm',true);
   const actionText=nextStatus?'mở bán':'ngừng bán';
-  if(!confirm(`Xác nhận ${actionText} ${ids.length} sản phẩm đã chọn?`))return;
-  try{
-    for(const id of ids){
-      const res=await fetch(`/api/products/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:nextStatus})});
-      const json=await res.json();if(!json.ok)throw new Error(json.message||`Không ${actionText} được sản phẩm`);
-    }
-    selectedProductIds.clear();
-    showMessage(formMessage,`Đã ${actionText} ${ids.length} sản phẩm`);
-    if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
-  }catch(err){showMessage(formMessage,err.message,true)}
+  if(!confirm(`Xác nhận ${actionText} ${ids.length} sản phẩm đã chọn?`))return null;
+  setProductBulkActionLoading(true);
+  productBulkActionPromise=(async()=>{
+    try{
+      for(const id of ids){
+        const res=await fetch(`/api/products/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:nextStatus})});
+        const json=await res.json();if(!json.ok)throw new Error(json.message||`Không ${actionText} được sản phẩm`);
+      }
+      selectedProductIds.clear();
+      showMessage(formMessage,`Đã ${actionText} ${ids.length} sản phẩm`);
+      if(window.CatalogCache)window.CatalogCache.invalidate('products');
+      await loadProducts({allowEmpty:!(searchInput&&searchInput.value.trim())});
+      await loadStock();
+    }catch(err){showMessage(formMessage,err.message,true)}
+  })();
+  try{return await productBulkActionPromise;}
+  finally{
+    productBulkActionPromise=null;
+    setProductBulkActionLoading(false);
+    updateProductBulkUI();
+  }
 }
 if(productTable){
   productTable.addEventListener('change',event=>{
@@ -231,12 +307,26 @@ if(bulkOpenProductButton)bulkOpenProductButton.addEventListener('click',()=>bulk
 if(bulkStopProductButton)bulkStopProductButton.addEventListener('click',()=>bulkToggleProductStatus(false));
 productForm.addEventListener('submit',async event=>{
   event.preventDefault();
+  if(productSavePromise)return productSavePromise;
   const payload=getFormPayload();const id=productForm.elements.id.value;const url=id?`/api/products/${id}`:'/api/products';const method=id?'PUT':'POST';
-  try{
-    const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được sản phẩm');
-    resetForm();showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');closeProductModal();if(window.CatalogCache)window.CatalogCache.invalidate('products');await loadProducts();await loadStock();
-  }catch(err){showMessage(formMessage,err.message,true)}
+  setProductFormLoading(true);
+  productSavePromise=(async()=>{
+    try{
+      const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được sản phẩm');
+      resetForm();
+      showMessage(formMessage,json.message||'Đã lưu sản phẩm thành công');
+      closeProductModal();
+      if(window.CatalogCache)window.CatalogCache.invalidate('products');
+      await loadProducts({allowEmpty:!(searchInput&&searchInput.value.trim())});
+      await loadStock();
+    }catch(err){showMessage(formMessage,err.message,true)}
+  })();
+  try{return await productSavePromise;}
+  finally{
+    productSavePromise=null;
+    setProductFormLoading(false);
+  }
 });
 
 // Customers
