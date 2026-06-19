@@ -1,0 +1,570 @@
+const { calculateCartonUnit } = require('../src/utils/common.util');
+const { normalizePickingZone, pickingZoneFrom, legacyPrintGroupCode, pickingZoneLabel, PICKING_ZONES } = require('../src/utils/pickingZone.util');
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+  const text = String(value).trim();
+  let normalized = text;
+
+  // Hỗ trợ định dạng tiền Việt: 34.028, 1.100.000, 12,11
+  // Đồng thời không phá số thập phân dạng kỹ thuật: 12.11, 2.5
+  if (text.includes(',')) {
+    normalized = text.replace(/\./g, '').replace(',', '.');
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(text)) {
+    normalized = text.replace(/\./g, '');
+  }
+
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatMoney(value) {
+  return Math.round(toNumber(value)).toLocaleString('vi-VN');
+}
+
+function formatDate(value) {
+  if (!value) return new Date().toLocaleDateString('vi-VN');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toLocaleDateString('vi-VN');
+}
+
+function formatDateTime(value) {
+  if (!value) return new Date().toLocaleString('vi-VN');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toLocaleString('vi-VN');
+}
+
+const DIGITS = ['Không', 'Một', 'Hai', 'Ba', 'Bốn', 'Năm', 'Sáu', 'Bảy', 'Tám', 'Chín'];
+
+function readTriple(number, full) {
+  const hundred = Math.floor(number / 100);
+  const ten = Math.floor((number % 100) / 10);
+  const unit = number % 10;
+  const parts = [];
+
+  if (hundred > 0 || full) {
+    parts.push(`${DIGITS[hundred]} Trăm`);
+  }
+
+  if (ten > 1) {
+    parts.push(`${DIGITS[ten]} Mươi`);
+    if (unit === 1) parts.push('Mốt');
+    else if (unit === 5) parts.push('Lăm');
+    else if (unit > 0) parts.push(DIGITS[unit]);
+  } else if (ten === 1) {
+    parts.push('Mười');
+    if (unit === 5) parts.push('Lăm');
+    else if (unit > 0) parts.push(DIGITS[unit]);
+  } else if (unit > 0) {
+    if (hundred > 0 || full) parts.push('Lẻ');
+    parts.push(DIGITS[unit]);
+  }
+
+  return parts.join(' ');
+}
+
+function numberToVietnameseWords(value) {
+  let number = Math.round(Math.abs(toNumber(value)));
+  if (number === 0) return 'Không Đồng';
+
+  const units = ['', 'Nghìn', 'Triệu', 'Tỷ', 'Nghìn Tỷ', 'Triệu Tỷ'];
+  const groups = [];
+  while (number > 0) {
+    groups.push(number % 1000);
+    number = Math.floor(number / 1000);
+  }
+
+  const words = [];
+  for (let i = groups.length - 1; i >= 0; i -= 1) {
+    const group = groups[i];
+    if (group === 0) continue;
+    const full = i < groups.length - 1 && group < 100;
+    words.push(`${readTriple(group, full)} ${units[i]}`.trim());
+  }
+
+  return `${words.join(' ').replace(/\s+/g, ' ')} Đồng`;
+}
+
+function normalizeQuantityByPack(quantity, pack) {
+  const result = calculateCartonUnit(quantity, pack);
+  return { cases: result.cartons, units: result.units, display: result.display };
+}
+
+function pick(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '') ?? '';
+}
+
+function pickPositive(...values) {
+  for (const value of values) {
+    const number = toNumber(value);
+    if (number > 0) return number;
+  }
+  return 0;
+}
+
+function getItemQuantity(item) {
+  return toNumber(pick(item.qty, item.quantity, item.soLuong, item.totalQty, item.totalQuantity));
+}
+
+function getItemPack(item) {
+  // Quy cách phải lấy từ dữ liệu Mongo/snapshot số học, không parse từ tên sản phẩm hoặc chuỗi packing.
+  return toNumber(pick(
+    item.conversionRateAtOrder,
+    item.packingQtyAtOrder,
+    item.packingQty,
+    item.conversionRate,
+    item.unitsPerCase,
+    item.qtyPerCase,
+    item.packSize,
+    item.product?.conversionRate,
+    item.productSnapshot?.conversionRate,
+    1
+  )) || 1;
+}
+
+
+function normalizeMergeCode(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase();
+}
+
+function normalizePack(pack) {
+  return String(pack || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '');
+}
+
+function normalizeUnit(unit) {
+  return String(unit || '')
+    .trim()
+    .toUpperCase();
+}
+
+function normalizeMergePrice(price) {
+  return Math.round(toNumber(price));
+}
+
+function comparePrintItems(a, b) {
+  const codeCompare = normalizeMergeCode(a.code).localeCompare(normalizeMergeCode(b.code), 'vi', { numeric: true });
+  if (codeCompare !== 0) return codeCompare;
+  const priceCompare = normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
+  if (priceCompare !== 0) return priceCompare;
+  return String(a.name || '').localeCompare(String(b.name || ''), 'vi', { sensitivity: 'base', numeric: true });
+}
+
+function comparePrintItemsByName(a, b) {
+  const nameCompare = String(a.name || a.productName || '').localeCompare(
+    String(b.name || b.productName || ''),
+    'vi',
+    { sensitivity: 'base', numeric: true }
+  );
+  if (nameCompare !== 0) return nameCompare;
+  const codeCompare = normalizeMergeCode(a.code || a.productCode).localeCompare(
+    normalizeMergeCode(b.code || b.productCode),
+    'vi',
+    { numeric: true }
+  );
+  if (codeCompare !== 0) return codeCompare;
+  return normalizeMergePrice(a.price) - normalizeMergePrice(b.price);
+}
+
+function getCatalogSalePrice(item) {
+  // Cột 4 của mẫu DMS/V46: giá bán sau thuế, trước khuyến mại.
+  // Ưu tiên giá bán trong danh mục sản phẩm đã được enrich từ Mongo.
+  return toNumber(pick(
+    item.catalogSalePriceAtOrder,
+    item.priceAfterTaxBeforePromotion,
+    item.catalogSalePrice,
+    item.product?.salePrice,
+    item.productSnapshot?.salePrice,
+    item.salePrice,
+    item.giaBan,
+    item.price,
+    item.unitPrice,
+    0
+  ));
+}
+
+function getItemPrice(item) {
+  return getCatalogSalePrice(item);
+}
+
+function getDiscountPercent(item) {
+  return toNumber(pick(
+    item.discountPercent,
+    item.promotionDiscountPercent,
+    item.ckPercent,
+    item.percent,
+    item.rate,
+    item.promotion?.discountPercent,
+    0
+  ));
+}
+
+function getItemDiscount(item) {
+  return toNumber(pick(item.discount, item.discountAmount, item.ck, item.ckAmount, 0));
+}
+
+
+function normalizePromotionText(value) {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) return value.map(normalizePromotionText).filter(Boolean).join('; ');
+  if (typeof value === 'object') {
+    return pick(value.description, value.name, value.title, value.content, value.note, value.ruleName, value.programName, value.promotionName, value.dienGiai, value.noiDung);
+  }
+  return String(value || '').trim();
+}
+
+function collectItemPromotionSources(item = {}) {
+  const sources = [];
+  const arrayFields = [
+    item.promotions,
+    item.promotionRows,
+    item.promotionDetails,
+    item.appliedPromotions,
+    item.appliedPromotionRows,
+    item.discountRows,
+    item.discounts,
+    item.productPromotions,
+    item.productSnapshot?.promotions,
+    item.productSnapshot?.promotionRows,
+    item.product?.promotions,
+    item.product?.promotionRows
+  ];
+  for (const value of arrayFields) {
+    if (Array.isArray(value)) sources.push(...value);
+  }
+
+  const singleFields = [
+    item.promotion,
+    item.promotionInfo,
+    item.promotionDetail,
+    item.appliedPromotion,
+    item.discountInfo,
+    item.productSnapshot?.promotion,
+    item.product?.promotion
+  ];
+  for (const value of singleFields) {
+    if (value) sources.push(value);
+  }
+
+  const inlineDescription = pick(
+    item.promotionDescription,
+    item.promotionName,
+    item.promotionText,
+    item.promotionContent,
+    item.promotionNote,
+    item.promoDescription,
+    item.promoName,
+    item.dienGiaiKhuyenMai,
+    item.noiDungKhuyenMai,
+    item.productSnapshot?.promotionDescription,
+    item.productSnapshot?.promotionName,
+    item.productSnapshot?.promotionText,
+    item.product?.promotionDescription,
+    item.product?.promotionName,
+    item.product?.promotionText
+  );
+  const inlineCode = pick(
+    item.promotionCode,
+    item.promoCode,
+    item.ctkmCode,
+    item.maCTKM,
+    item.productSnapshot?.promotionCode,
+    item.product?.promotionCode
+  );
+
+  // Inline promotion fields are a legacy fallback only.
+  // When structured promotion rows already exist, appending the inline aggregate
+  // creates a duplicate row (for example 17% + 2% rows plus an extra 19% row).
+  if (!sources.length && (inlineDescription || inlineCode)) {
+    sources.push({
+      code: inlineCode,
+      promotionCode: inlineCode,
+      description: inlineDescription,
+      name: inlineDescription,
+      discountPercent: item.discountPercent,
+      percent: item.discountPercent,
+      discountBeforeTax: item.discountBeforeTax,
+      beforeTax: item.discountBeforeTax,
+      discountAfterTax: item.discountAfterTax || item.discount || item.discountAmount,
+      afterTax: item.discountAfterTax || item.discount || item.discountAmount
+    });
+  }
+
+  return sources;
+}
+
+function normalizeItemPromotionRows(item = {}, normalizedLine = {}) {
+  const sources = collectItemPromotionSources(item);
+  const lineProductCode = pick(normalizedLine.productCode, normalizedLine.code, item.productCode, item.code, item.sku, item.maHang);
+  const lineProductName = pick(normalizedLine.productName, normalizedLine.name, item.productName, item.name, item.tenHang);
+  const lineType = normalizedLine.isPromo ? 'KM' : 'Bán';
+  const qty = toNumber(pick(normalizedLine.qty, normalizedLine.quantity, item.qty, item.quantity, item.totalQty));
+  const lineAmount = toNumber(pick(normalizedLine.gsvAmount, normalizedLine.lineAmount, normalizedLine.amount, item.gsvAmount, item.amount));
+  // Giá trị hàng hóa mua trong bảng khuyến mại phải là giá trước thuế:
+  // (giá bán sau thuế của sản phẩm / 1.08) x số lượng trên đơn.
+  const qualifiedAmountBeforeTax = Math.round(lineAmount / 1.08);
+  const discountPercent = toNumber(pick(normalizedLine.discountPercent, item.discountPercent, item.percent, item.rate));
+  const discountAfterTax = toNumber(pick(item.discountAfterTax, item.afterTax, item.discountAmount, item.discount, normalizedLine.discount, 0));
+  const discountBeforeTax = toNumber(pick(item.discountBeforeTax, item.beforeTax, discountAfterTax ? Math.round(discountAfterTax / 1.08) : 0));
+
+  if (!sources.length && (discountPercent > 0 || discountAfterTax > 0 || normalizedLine.isPromo)) {
+    sources.push({
+      code: pick(item.promotionCode, item.promoCode, item.ctkmCode, item.maCTKM),
+      description: normalizedLine.isPromo
+        ? `Hàng khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`
+        : `Chiết khấu/khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`,
+      discountPercent,
+      discountBeforeTax,
+      discountAfterTax
+    });
+  }
+
+  const rows = sources.map((source) => {
+    const code = pick(source.promotionCode, source.code, source.ctkmCode, source.maCTKM, source.programCode);
+    const rawDescription = normalizePromotionText(source);
+    const description = rawDescription || (normalizedLine.isPromo
+      ? `Hàng khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`
+      : `Khuyến mại theo dòng ${lineProductCode} - ${lineProductName}`);
+
+    return {
+      productCode: lineProductCode,
+      productName: lineProductName,
+      lineType,
+      quantity: qty,
+      promotionCode: code,
+      code,
+      description,
+      name: description,
+      qualifiedAmount: qualifiedAmountBeforeTax,
+      basisAmount: qualifiedAmountBeforeTax,
+      discountPercent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
+      percent: toNumber(pick(source.discountPercent, source.percent, source.tyLe, source.rate, discountPercent)),
+      discountBeforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),
+      beforeTax: toNumber(pick(source.discountBeforeTax, source.beforeTax, source.amountBeforeTax, source.tienCKTruocThue, discountBeforeTax)),
+      discountAfterTax: toNumber(pick(source.discountAfterTax, source.afterTax, source.amountAfterTax, source.tienCKSauThue, source.discountAmount, discountAfterTax)),
+      afterTax: toNumber(pick(source.discountAfterTax, source.afterTax, source.amountAfterTax, source.tienCKSauThue, source.discountAmount, discountAfterTax))
+    };
+  });
+
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = [row.productCode, row.lineType, row.promotionCode, row.description, row.discountAfterTax, row.discountPercent].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return row.description || row.promotionCode || row.discountAfterTax || row.discountPercent;
+  });
+}
+
+function buildPromotionsFromInvoiceItems(items = []) {
+  const rows = [];
+  for (const item of items) {
+    const itemRows = Array.isArray(item.promotionRows) ? item.promotionRows : [];
+    for (const row of itemRows) {
+      rows.push({
+        productCode: item.productCode || row.productCode,
+        productName: item.productName || row.productName,
+        lineType: item.isPromotionGift || item.isPromo ? 'KM' : (row.lineType || 'Bán'),
+        quantity: item.quantity || row.quantity,
+        promotionCode: row.promotionCode || row.code || item.promotionCode || '',
+        code: row.promotionCode || row.code || item.promotionCode || '',
+        description: row.description || row.name || '',
+        qualifiedAmount: toNumber(row.qualifiedAmount || row.basisAmount),
+        basisAmount: toNumber(row.qualifiedAmount || row.basisAmount),
+        discountPercent: toNumber(row.discountPercent || row.percent),
+        percent: toNumber(row.discountPercent || row.percent),
+        discountBeforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
+        beforeTax: toNumber(row.discountBeforeTax || row.beforeTax),
+        discountAfterTax: toNumber(row.discountAfterTax || row.afterTax),
+        afterTax: toNumber(row.discountAfterTax || row.afterTax)
+      });
+    }
+  }
+  return mergePromotionRows(rows);
+}
+
+function mergePromotionRows(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = [row.productCode || '', row.lineType || '', row.promotionCode || row.code || '', row.description || row.name || '', row.discountPercent || 0].join('|');
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row });
+    } else {
+      existing.qualifiedAmount = toNumber(existing.qualifiedAmount) + toNumber(row.qualifiedAmount);
+      existing.basisAmount = existing.qualifiedAmount;
+      existing.discountBeforeTax = toNumber(existing.discountBeforeTax) + toNumber(row.discountBeforeTax);
+      existing.beforeTax = existing.discountBeforeTax;
+      existing.discountAfterTax = toNumber(existing.discountAfterTax) + toNumber(row.discountAfterTax);
+      existing.afterTax = existing.discountAfterTax;
+      existing.quantity = toNumber(existing.quantity) + toNumber(row.quantity);
+    }
+  }
+  return Array.from(map.values());
+}
+
+
+function getItemTax(item) {
+  return toNumber(pick(item.tax, item.vat, item.taxAmount, item.vatAmount, 0));
+}
+
+function normalizeOneItem(item, index, sourceOrder = null) {
+  const pickingZone = normalizePickingZone(pickingZoneFrom(item), PICKING_ZONES.HC);
+  const warehouseCode = legacyPrintGroupCode(pickingZone);
+  const warehouseName = pickingZoneLabel(pickingZone);
+  const qty = getItemQuantity(item);
+  const pack = getItemPack(item);
+
+  // Chuẩn cột mẫu đơn DMS/V46:
+  // Cột 1: CS/SU = cột 2 / quy cách.
+  // Cột 2: số lượng lẻ thực tế.
+  // Cột 3: giá trước thuế = cột 4 / 1.08.
+  // Cột 4: giá bán sau thuế, trước KM = products.salePrice.
+  // Cột 5: giá sau thuế, sau KM/CK = cột 4 - cột 4 * %CK, hoặc giá bán thẳng người tạo đơn nhập.
+  const priceAfterTaxBeforePromotion = getCatalogSalePrice(item);
+  const priceBeforeTax = toNumber(pick(
+    item.preTaxPriceAtOrder,
+    item.priceBeforeTaxBeforePromotion,
+    item.listPriceBeforeVat,
+    item.priceBeforeTax,
+    item.priceBeforeVat,
+    Math.round(priceAfterTaxBeforePromotion / 1.08)
+  ));
+  const discountPercent = getDiscountPercent(item);
+  const directNetPrice = toNumber(pick(
+    item.priceAfterTaxAfterPromotion,
+    item.priceAfterPromotion,
+    item.priceAfterVatAfterDiscount,
+    item.netPrice,
+    item.priceAfterDiscount,
+    item.finalPrice,
+    item.orderPrice,
+    item.manualPrice,
+    0
+  ));
+  const priceAfterPromotion = discountPercent > 0
+    ? Math.floor(priceAfterTaxBeforePromotion * (1 - discountPercent / 100))
+    : (directNetPrice || priceAfterTaxBeforePromotion);
+
+  const discount = getItemDiscount(item);
+  const lineType = String(pick(item.lineType, item.type, item.kind, item.itemType, item.isPromo ? 'PROMO' : 'SALE') || 'SALE').toUpperCase();
+  const isPromo = lineType === 'PROMO' || lineType === 'PROMOTION' || lineType === 'KM' || item.isPromo === true;
+  const normalizedLineType = isPromo
+    ? 'PROMO'
+    : lineType === 'RETURN'
+      ? 'RETURN'
+      : lineType === 'IMPORT'
+        ? 'IMPORT'
+        : 'SALE';
+  const lineTypeName = normalizedLineType === 'PROMO'
+    ? 'Xuất khuyến mại'
+    : normalizedLineType === 'RETURN'
+      ? 'Hàng trả nhập kho'
+      : normalizedLineType === 'IMPORT'
+        ? 'Hàng nhập kho'
+        : 'Hàng bán';
+  const calculatedTax = isPromo ? 0 : Math.round((priceAfterPromotion - (priceAfterPromotion / 1.08)) * qty);
+  const tax = isPromo ? 0 : toNumber(pick(item.vatAmountAtOrder, item.vatAmount, item.taxAmount, item.tax, calculatedTax));
+  const calculatedAmount = isPromo ? 0 : Math.round(priceAfterPromotion * qty);
+  const amount = isPromo ? 0 : toNumber(pick(item.lineAmountAtOrder, item.lineAmount, item.amount, calculatedAmount));
+  const caseInfo = normalizeQuantityByPack(qty, pack);
+  const promotionRows = normalizeItemPromotionRows(item, {
+    code: pick(item.code, item.productCode, item.sku, item.maHang),
+    productCode: pick(item.productCode, item.code, item.sku, item.maHang),
+    name: pick(item.name, item.productName, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    productName: pick(item.productName, item.name, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    qty,
+    quantity: qty,
+    gsvAmount: Math.round(qty * priceAfterTaxBeforePromotion),
+    amount,
+    discount,
+    discountPercent,
+    isPromo
+  });
+
+  return {
+    stt: index + 1,
+    code: pick(item.code, item.productCode, item.sku, item.maHang),
+    productCode: pick(item.productCode, item.code, item.sku, item.maHang),
+    name: pick(item.name, item.productName, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    productName: pick(item.productName, item.name, item.tenHang, item.productSnapshot?.name, item.product?.name),
+    unit: pick(item.unit, item.dvt, item.uom, item.productSnapshot?.unit, item.product?.unit, 'Cái'),
+    pack,
+    conversionRate: pack,
+    qty,
+    quantity: qty,
+    cartonQty: caseInfo.cases,
+    caseQty: caseInfo.cases,
+    unitQty: caseInfo.units,
+    caseDisplay: `${caseInfo.cases}/${caseInfo.units}`,
+    price: priceAfterTaxBeforePromotion,
+    salePrice: priceAfterTaxBeforePromotion,
+    catalogSalePrice: priceAfterTaxBeforePromotion,
+    priceBeforeTax,
+    priceBeforeVat: priceBeforeTax,
+    listPriceBeforeVat: priceBeforeTax,
+    priceAfterTaxBeforePromotion,
+    priceAfterVatBeforeDiscount: priceAfterTaxBeforePromotion,
+    listPriceAfterVat: priceAfterTaxBeforePromotion,
+    discountPercent,
+    priceAfterPromotion,
+    priceAfterDiscount: priceAfterPromotion,
+    priceAfterVatAfterDiscount: priceAfterPromotion,
+    gsvAmount: Math.round(qty * priceAfterTaxBeforePromotion),
+    nivAmount: amount,
+    discount,
+    tax,
+    vatAmount: tax,
+    amount,
+    lineAmount: amount,
+    lineType: normalizedLineType,
+    isPromo,
+    lineTypeName,
+    note: item.note || '',
+    sourceOrderCode: sourceOrder ? pick(sourceOrder.code, sourceOrder.orderCode, sourceOrder.id) : '',
+    pickingZone,
+    warehouseCode,
+    warehouseName,
+    sourceOrderCodes: Array.isArray(item.sourceOrderCodes) ? item.sourceOrderCodes : [],
+    promotionCode: pick(item.promotionCode, item.promoCode, item.ctkmCode, item.maCTKM, promotionRows[0]?.promotionCode),
+    promotionDescription: pick(item.promotionDescription, item.promotionName, item.promotionText, promotionRows[0]?.description),
+    promotionRows
+  };
+}
+
+function normalizeItems(document) {
+  const directItems = Array.isArray(document.items) ? document.items : [];
+  const orderLines = Array.isArray(document.lines) ? document.lines : [];
+  const rows = directItems.length ? directItems : orderLines;
+
+  if (rows.length) {
+    return rows.map((item, index) => normalizeOneItem(item, index));
+  }
+
+  const children = Array.isArray(document.children) ? document.children : [];
+  const childItems = [];
+  children.forEach((child) => {
+    const items = Array.isArray(child.items) ? child.items : [];
+    items.forEach((item) => childItems.push({ item, child }));
+  });
+
+  return childItems.map((entry, index) => normalizeOneItem(entry.item, index, entry.child));
+}
+
+function normalizePromotions(document) {
+  const promotions = Array.isArray(document.promotions) ? document.promotions
+    : Array.isArray(document.promotionRows) ? document.promotionRows
+      : Array.isArray(document.discounts) ? document.discounts
+        : [];
+
+  return promotions.map((promo, index) => {
+    const code = pick(promo.code, promo.promotionCode, promo.ctkmCode, promo.maCTKM);
+    const description = pick(promo.description, promo.name, promo.title, promo.promotionName, promo.tenCTKM);
+    const qualifiedAmount = toNumber(pick(promo.qualifiedAmount, promo.basisAmount, promo.baseAmount, promo.giaTriHangHoa, promo.amount));
+    const discountPercent = toNumber(pick(promo.discountPercent, promo.percent, promo.tyLe, promo.rate));

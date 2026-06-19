@@ -1,0 +1,381 @@
+      </main>
+    </section>
+
+
+    <div id="externalDebtModal" class="modal-backdrop" aria-hidden="true">
+      <section class="modal-card external-debt-modal-card" role="dialog" aria-modal="true" aria-labelledby="externalDebtModalTitle">
+        <div class="modal-head">
+          <div>
+            <h3 id="externalDebtModalTitle">Tạo công nợ ngoài luồng bán hàng</h3>
+            <p class="muted">Tạo một khoản nợ duy nhất và gán đồng thời NVBH + NVGH. Khoản nợ chỉ được thu qua phiếu chờ kế toán xác nhận.</p>
+          </div>
+          <button id="closeExternalDebtModalButton" class="secondary" type="button">Đóng</button>
+        </div>
+        <form id="externalDebtForm" class="form external-debt-form">
+          <input id="externalDebtCustomerId" name="customerId" type="hidden" />
+          <input id="externalDebtCustomerCode" name="customerCode" type="hidden" />
+          <input id="externalDebtCustomerName" name="customerName" type="hidden" />
+          <input id="externalDebtSalesStaffCode" name="salesStaffCode" type="hidden" />
+          <input id="externalDebtSalesStaffName" name="salesStaffName" type="hidden" />
+          <input id="externalDebtDeliveryStaffCode" name="deliveryStaffCode" type="hidden" />
+          <input id="externalDebtDeliveryStaffName" name="deliveryStaffName" type="hidden" />
+
+          <div class="external-debt-grid">
+            <label class="external-debt-span-2">Khách hàng <span class="required">*</span>
+              <div class="autocomplete">
+                <input id="externalDebtCustomerSearch" autocomplete="off" placeholder="Gõ mã, tên hoặc SĐT khách hàng" required />
+                <div id="externalDebtCustomerSuggestions" class="suggestions" hidden></div>
+              </div>
+            </label>
+
+            <label>NVBH phụ trách <span class="required">*</span>
+              <div class="autocomplete">
+                <input id="externalDebtSalesStaffSearch" autocomplete="off" placeholder="Chọn nhân viên bán hàng" required />
+                <div id="externalDebtSalesStaffSuggestions" class="suggestions" hidden></div>
+              </div>
+            </label>
+
+            <label>NVGH phụ trách <span class="required">*</span>
+              <div class="autocomplete">
+                <input id="externalDebtDeliveryStaffSearch" autocomplete="off" placeholder="Chọn nhân viên giao hàng" required />
+                <div id="externalDebtDeliveryStaffSuggestions" class="suggestions" hidden></div>
+              </div>
+            </label>
+
+            <label>Số tiền <span class="required">*</span>
+              <input id="externalDebtAmount" name="amount" type="text" inputmode="numeric" placeholder="VD: 10.000.000" required />
+            </label>
+
+            <label>Ngày ghi nhận <span class="required">*</span>
+              <input id="externalDebtDocumentDate" name="documentDate" type="date" required />
+            </label>
+
+            <label>Hạn thanh toán
+              <input id="externalDebtDueDate" name="dueDate" type="date" />
+            </label>
+
+            <label>Chứng từ tham chiếu
+              <input id="externalDebtReferenceCode" name="referenceCode" placeholder="VD: BBĐC-001" />
+            </label>
+
+            <label class="external-debt-span-2">Lý do <span class="required">*</span>
+              <textarea id="externalDebtReason" name="reason" rows="3" placeholder="VD: Công nợ đầu kỳ chuyển từ hệ thống cũ" required></textarea>
+            </label>
+          </div>
+
+          <div class="external-debt-assignment-note">
+            <b>Quy tắc:</b> chỉ tạo một đơn <code>NDNBLH...</code>. Cả NVBH và NVGH được phân công cùng nhìn thấy khoản nợ, nhưng tiền đang chờ kế toán được khóa chung để không thu trùng.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-action">Tạo công nợ</button>
+            <button id="resetExternalDebtFormButton" type="button" class="secondary">Làm mới</button>
+          </div>
+          <p id="externalDebtMessage" class="message"></p>
+        </form>
+      </section>
+    </div>
+
+
+    <section id="debtCollectionsTab" class="tab-content">
+      <section class="card">
+        <div class="ui-list-toolbar debt-collection-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Thu nợ chờ kế toán xác nhận</h2>
+              <p id="debtCollectionCount" class="muted ui-page-meta">Danh sách phiếu thu nợ do app bán hàng/app giao hàng gửi lên. Chỉ khi kế toán xác nhận mới trừ công nợ và ghi quỹ.</p>
+            </div>
+          </div>
+          <div class="ui-search-filter-bar debt-collection-toolbar-grid" role="search" aria-label="Tìm và lọc phiếu thu nợ">
+            <label class="ui-toolbar-field ui-field-search">Tìm kiếm
+              <input id="debtCollectionSearchInput" placeholder="Mã phiếu / khách hàng / nhân viên" />
+            </label>
+            <label class="ui-toolbar-field ui-field-status">Trạng thái
+              <select id="debtCollectionStatusFilter" title="Trạng thái phiếu thu nợ">
+                <option value="submitted">Chờ xác nhận</option>
+                <option value="accounting_confirmed">Đã xác nhận</option>
+                <option value="rejected">Đã từ chối</option>
+                <option value="all">Tất cả</option>
+              </select>
+            </label>
+            <label class="ui-toolbar-field debt-collection-source-field">Nguồn thu
+              <select id="debtCollectionCollectorTypeFilter" title="Nguồn thu">
+                <option value="">Tất cả nguồn</option>
+                <option value="sales">App bán hàng</option>
+                <option value="delivery">App giao hàng</option>
+              </select>
+            </label>
+            <label class="ui-toolbar-field ui-field-date">Từ ngày
+              <input id="debtCollectionDateFrom" type="date" title="Từ ngày" />
+            </label>
+            <label class="ui-toolbar-field ui-field-date">Đến ngày
+              <input id="debtCollectionDateTo" type="date" title="Đến ngày" />
+            </label>
+            <div class="ui-toolbar-actions debt-collection-toolbar-actions">
+              <button id="applyDebtCollectionFiltersButton" class="primary-action ui-action-primary" type="button">Tìm kiếm</button>
+              <button id="clearDebtCollectionFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadDebtCollectionsButton" class="secondary" type="button">Tải lại</button>
+            </div>
+          </div>
+        </div>
+        <div class="debt-v2-kpis debt-v2-kpis-4">
+          <div><span>Tổng tiền</span><b id="debtCollectionTotalKpi">0</b></div>
+          <div><span>Chờ xác nhận</span><b id="debtCollectionSubmittedKpi">0</b></div>
+          <div><span>Đã xác nhận</span><b id="debtCollectionConfirmedKpi">0</b></div>
+          <div><span>Từ chối</span><b id="debtCollectionRejectedKpi">0</b></div>
+        </div>
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã phiếu</th>
+                <th>Khách hàng</th>
+                <th>Người thu</th>
+                <th>Số tiền</th>
+                <th>Hình thức</th>
+                <th>Trạng thái</th>
+                <th>Phân bổ</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="debtCollectionTable"><tr><td colspan="8">Bấm Tìm kiếm hoặc Tải lại để xem danh sách thu nợ chờ xác nhận.</td></tr></tbody>
+          </table>
+        </div>
+        <p id="debtCollectionMessage" class="message"></p>
+      </section>
+    </section>
+
+
+    <section id="returnOrdersTab" class="tab-content">
+      <section class="card">
+        <div class="ui-list-toolbar">
+          <div class="ui-page-header">
+            <div class="ui-page-title">
+              <h2>Đơn trả hàng</h2>
+              <p id="returnOrderCount" class="muted ui-page-meta">Quản lý riêng phiếu trả hàng từ app giao hàng và phần mềm. Nguồn dữ liệu một mối: <strong>/api/return-orders</strong>.</p>
+            </div>
+          </div>
+          <form id="returnOrderFilterForm" class="return-order-filter-form" autocomplete="off">
+            <div class="ui-search-filter-bar return-order-filter-grid">
+            <label class="return-order-search-field ui-toolbar-field ui-field-search" for="returnOrderSearchInput">
+              <span>Tìm kiếm</span>
+              <input id="returnOrderSearchInput" placeholder="Mã trả hàng, khách hàng, đơn bán, nhân viên giao" />
+            </label>
+            <label class="ui-toolbar-field return-order-field-date" for="returnOrderDateFrom">
+              <span>Từ ngày</span>
+              <input id="returnOrderDateFrom" type="date" />
+            </label>
+            <label class="ui-toolbar-field return-order-field-date" for="returnOrderDateTo">
+              <span>Đến ngày</span>
+              <input id="returnOrderDateTo" type="date" />
+            </label>
+            <div class="return-order-filter-actions ui-toolbar-actions">
+              <button id="applyReturnOrderFiltersButton" class="primary ui-action-primary" type="submit">Tìm kiếm</button>
+              <button id="clearReturnOrderFiltersButton" class="ui-button-ghost" type="button">Xóa lọc</button>
+              <button id="reloadReturnOrdersButton" class="secondary" type="button">Tải lại</button>
+            </div>
+            </div>
+          </form>
+        </div>
+        <div class="return-order-list-card return-order-list-full">
+          <div class="return-order-section-title">
+            <span>Danh sách phiếu trả</span>
+            <small>Nhấn vào một dòng hoặc nút Xem chi tiết để mở popup.</small>
+          </div>
+          <div class="table-wrap compact-table return-order-one-line-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã trả hàng</th>
+                  <th>Ngày</th>
+                  <th>Khách</th>
+                  <th>SL</th>
+                  <th>Giá trị</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody id="returnOrderTable"><tr><td colspan="7">Đang tải đơn trả hàng...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="returnOrderDetailModal" class="modal-backdrop return-order-detail-modal" aria-hidden="true">
+          <section class="modal-card return-order-detail-modal-card" role="dialog" aria-modal="true" aria-labelledby="returnOrderDetailModalTitle">
+            <div class="modal-head return-order-modal-head">
+              <div>
+                <h3 id="returnOrderDetailModalTitle">Chi tiết phiếu trả hàng</h3>
+                <p class="muted">Chỉ xem dữ liệu từ returnOrders; không chỉnh sửa trực tiếp trong popup.</p>
+              </div>
+              <button id="closeReturnOrderDetailModal" class="secondary" type="button" aria-label="Đóng popup chi tiết">Đóng</button>
+            </div>
+            <div id="returnOrderDetailPanel" class="return-order-detail-panel return-order-modal-body">
+              <div class="return-detail-empty">
+                <strong>Chưa chọn phiếu trả hàng</strong>
+                <p>Đóng popup và chọn một phiếu trong danh sách.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <section id="fundsTab" class="tab-content">
+      <main class="funds-tabs-layout">
+        <section class="card full-width funds-v2-shell">
+          <div class="ui-page-header funds-v2-header">
+            <div class="ui-page-title">
+              <h2>Quỹ tiền</h2>
+              <p id="fundSummary" class="muted ui-page-meta">Nguồn chuẩn: fundLedgers. Tách rõ tiền mặt, ngân hàng, thu giao hàng, phiếu chi và chuyển quỹ.</p>
+            </div>
+          </div>
+
+          <div class="fund-tab-nav" role="tablist" aria-label="Quỹ tiền">
+            <button type="button" class="fund-tab-button active" data-fund-tab="fundLedger" role="tab" aria-selected="true">Sổ quỹ</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="deliverySubmission" role="tab" aria-selected="false">Nộp quỹ giao hàng</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="expenseVoucher" role="tab" aria-selected="false">Phiếu chi</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer" role="tab" aria-selected="false">Nộp ngân hàng</button>
+          </div>
+
+          <div class="ui-list-toolbar fund-module-toolbar">
+            <div class="ui-search-filter-bar fund-toolbar-grid" role="search" aria-label="Tìm và lọc dữ liệu quỹ tiền">
+              <label class="ui-toolbar-field ui-field-search">
+                <span>Tìm kiếm</span>
+                <input id="fundSearchInput" type="search" placeholder="Mã phiếu, NVGH, khách hàng, ghi chú" autocomplete="off" />
+              </label>
+              <label class="ui-toolbar-field fund-ledger-only-field fund-type-field">
+                <span>Loại quỹ</span>
+                <select id="fundTypeFilter">
+                  <option value="all">Tất cả</option>
+                  <option value="cash">Tiền mặt</option>
+                  <option value="bank">Ngân hàng</option>
+                </select>
+              </label>
+              <label class="ui-toolbar-field fund-ledger-only-field fund-direction-field">
+                <span>Thu/Chi</span>
+                <select id="fundDirectionFilter">
+                  <option value="all">Tất cả</option>
+                  <option value="in">Thu</option>
+                  <option value="out">Chi</option>
+                </select>
+              </label>
+              <label class="ui-toolbar-field ui-field-date fund-ledger-only-field">
+                <span>Từ ngày</span>
+                <input id="fundDateFrom" type="date" />
+              </label>
+              <label class="ui-toolbar-field ui-field-date fund-ledger-only-field">
+                <span>Đến ngày</span>
+                <input id="fundDateTo" type="date" />
+              </label>
+              <div class="ui-toolbar-actions fund-toolbar-actions">
+                <button id="applyFundFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                <button id="clearFundFiltersButton" class="secondary" type="button">Xóa lọc</button>
+                <button id="reloadFundLedgerButton" class="secondary ui-button-ghost" type="button">Tải lại</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel active" data-fund-panel="fundLedger">
+            <div class="kpi-row debt-v2-kpis debt-v2-kpis-4 funds-kpi-row">
+              <div><span>Tồn tiền mặt</span><b id="fundCashBalanceKpi">0</b></div>
+              <div><span>Tồn ngân hàng</span><b id="fundBankBalanceKpi">0</b></div>
+              <div><span>Tổng thu</span><b id="fundTotalInKpi">0</b></div>
+              <div><span>Tổng chi</span><b id="fundTotalOutKpi">0</b></div>
+            </div>
+            <div class="table-scroll funds-main-table-scroll">
+              <table>
+                <thead><tr><th>Ngày</th><th>Mã phiếu</th><th>Quỹ</th><th>Thu</th><th>Chi</th><th>Tồn sau GD</th><th>Nguồn</th><th>Đối tượng</th><th>Ghi chú</th></tr></thead>
+                <tbody id="fundLedgerTable"><tr><td colspan="9">Đang tải sổ quỹ...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="deliverySubmission">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
+                  <h3>Danh sách phiếu nộp quỹ</h3>
+                  <span class="muted ui-page-meta">Đối soát riêng tiền mặt và chuyển khoản; xác nhận phiếu mới ghi fundLedgers</span>
+                </div>
+                <div class="ui-page-actions">
+                  <button id="createDeliveryCashSubmissionButton" class="ui-action-primary" type="button">Tạo phiếu nộp quỹ</button>
+                </div>
+              </div>
+
+              <div class="delivery-subtab-nav" role="tablist" aria-label="Đối soát phiếu nộp quỹ giao hàng">
+                <button type="button" class="delivery-subtab-button active" data-delivery-subtab="cash" role="tab" aria-selected="true">Tiền mặt</button>
+                <button type="button" class="delivery-subtab-button" data-delivery-subtab="bank" role="tab" aria-selected="false">Chuyển khoản</button>
+              </div>
+
+              <div class="delivery-subtab-panel active" data-delivery-subpanel="cash" role="tabpanel">
+                <div class="table-scroll funds-sub-table-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TM</th><th>Thực nộp TM</th><th>Chênh TM</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryCashSubmissionTable"><tr><td colspan="9">Chưa tải danh sách tiền mặt.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="delivery-subtab-panel" data-delivery-subpanel="bank" role="tabpanel" hidden>
+                <div class="table-scroll funds-sub-table-scroll">
+                  <table>
+                    <thead><tr><th>Mã phiếu</th><th>Ngày</th><th>NVGH</th><th>Báo cáo TK</th><th>Thực nhận TK</th><th>Chênh TK</th><th>Còn thiếu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody id="deliveryBankSubmissionTable"><tr><td colspan="9">Chưa tải danh sách chuyển khoản.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="expenseVoucher">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
+                  <h3>Danh sách phiếu chi</h3>
+                  <span class="muted ui-page-meta">Nguồn EXPENSE_VOUCHER</span>
+                </div>
+                <div class="ui-page-actions">
+                  <button id="createExpenseVoucherButton" class="ui-action-primary" type="button">Tạo phiếu chi</button>
+                </div>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Ngày</th><th>Quỹ</th><th>Loại chi</th><th>Người nhận</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                  <tbody id="expenseVoucherTable"><tr><td colspan="8">Chưa tải phiếu chi.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="fund-tab-panel" data-fund-panel="bankTransfer">
+            <section class="fund-list-card fund-list-card-full">
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
+                  <h3>Danh sách nộp ngân hàng</h3>
+                  <span class="muted ui-page-meta">Nguồn FUND_TRANSFER</span>
+                </div>
+                <div class="ui-page-actions">
+                  <button id="createFundTransferButton" class="ui-action-primary" type="button">Tạo phiếu nộp ngân hàng</button>
+                </div>
+              </div>
+              <div class="table-scroll funds-sub-table-scroll">
+                <table>
+                  <thead><tr><th>Mã</th><th>Ngày</th><th>Từ quỹ</th><th>Đến quỹ</th><th>Ngân hàng</th><th>Số tiền</th><th>TT</th><th>Thao tác</th></tr></thead>
+                  <tbody id="fundTransferTable"><tr><td colspan="8">Chưa tải phiếu chuyển quỹ.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="deliveryCashSubmissionModal" class="modal-backdrop fund-voucher-modal" aria-hidden="true">
+            <section class="modal-card fund-voucher-modal-card" role="dialog" aria-modal="true" aria-labelledby="deliveryCashSubmissionModalTitle">
+              <div class="modal-head">
+                <div>
+                  <h3 id="deliveryCashSubmissionModalTitle">Tạo phiếu nộp quỹ giao hàng</h3>
+                  <p class="muted">Tạo phiếu theo ngày giao + NVGH. Xác nhận phiếu mới ghi fundLedgers.</p>
+                </div>
+                <button id="closeDeliveryCashSubmissionModalButton" class="secondary" type="button">Đóng</button>
+              </div>
+              <div class="fund-voucher-modal-body">
+                <form id="deliveryCashSubmissionForm" class="form fund-form-grid">
+                  <label>Ngày giao<input id="deliveryCashSubmissionDate" name="deliveryDate" type="date" /></label>

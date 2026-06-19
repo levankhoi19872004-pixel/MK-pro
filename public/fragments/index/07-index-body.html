@@ -1,0 +1,328 @@
+          <button type="button" id="reloadSystemDataSourceButton" class="secondary">Tải số lượng dữ liệu</button>
+        </div>
+
+        <div class="summary-box system-summary" id="systemStatusBox">
+          <span>Mongo: <strong id="systemMongoState">Đang kiểm tra</strong></span>
+          <span>Reset: <strong id="systemResetState">Đang kiểm tra</strong></span>
+          <span>Nguồn dữ liệu: <strong id="systemDataSource">MongoDB</strong></span>
+        </div>
+
+        <div class="system-grid">
+          <div class="system-panel">
+            <h3>1. Backup dữ liệu</h3>
+            <p class="muted">Nên backup trước khi reset. File backup sẽ lưu trong thư mục <strong>backups</strong> trên server.</p>
+            <button type="button" id="createSystemBackupButton">Tạo backup</button>
+          </div>
+
+          <div class="system-panel system-danger-panel">
+            <h3>2. Reset dữ liệu phần mềm</h3>
+            <p class="muted">Reset sẽ tự tạo backup trước, sau đó xóa dữ liệu theo phạm vi bên dưới.</p>
+            <label>Phạm vi reset
+              <select id="systemResetScope">
+                <option value="operational">Chỉ dữ liệu phát sinh: đơn, nhập, giao, công nợ, quỹ, trả hàng</option>
+                <option value="catalog">Danh mục: sản phẩm, khách hàng, nhân viên, khuyến mại</option>
+                <option value="all">Toàn bộ dữ liệu Mongo trong phần mềm</option>
+              </select>
+            </label>
+            <label>Mã xác nhận
+              <input id="systemResetConfirm" placeholder="Nhập RESET_MONGO_DATA" autocomplete="off" />
+            </label>
+            <button type="button" id="resetSystemDataButton" class="danger">Reset dữ liệu</button>
+            <p class="danger-text small-note">Chức năng này chỉ chạy khi server bật ALLOW_SYSTEM_RESET=true.</p>
+          </div>
+        </div>
+
+        <div class="system-panel">
+          <h3>Số lượng dữ liệu hiện tại</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Collection</th><th>Số dòng</th></tr></thead>
+              <tbody id="systemCountsTable"><tr><td colspan="2">Bấm “Tải số lượng dữ liệu” để xem số dòng từng collection.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+
+        <div class="system-panel api-monitor-panel">
+          <div class="toolbar compact-toolbar">
+            <div>
+              <h3>API Monitor toàn phần mềm</h3>
+              <p class="muted">Theo dõi toàn bộ API đang chạy: Total, Mongo Time, JS Time, số query DB, số dòng trả về.</p>
+            </div>
+            <div class="toolbar-actions">
+              <label class="inline-filter">
+                Lọc
+                <select id="apiMonitorFilter">
+                  <option value="all">Tất cả API</option>
+                  <option value="slow">Chỉ API chậm</option>
+                </select>
+              </label>
+              <button type="button" id="reloadApiMonitorButton" class="secondary">Tải API Monitor</button>
+              <button type="button" id="resetApiMonitorButton" class="secondary danger-light">Xóa thống kê</button>
+            </div>
+          </div>
+
+          <div class="summary-box api-monitor-summary" id="apiMonitorSummary">
+            <span>Tổng API: <strong id="apiMonitorTotalRoutes">0</strong></span>
+            <span>Lượt gọi: <strong id="apiMonitorTotalCalls">0</strong></span>
+            <span>API chậm: <strong id="apiMonitorSlowRoutes">0</strong></span>
+            <span>Lượt chậm: <strong id="apiMonitorSlowCalls">0</strong></span>
+            <span>Lỗi: <strong id="apiMonitorErrorCalls">0</strong></span>
+            <span>Mongo: <strong id="apiMonitorTotalMongoMs">0ms</strong></span>
+            <span>JS: <strong id="apiMonitorTotalJsMs">0ms</strong></span>
+            <span>DB Queries: <strong id="apiMonitorTotalDbQueries">0</strong></span>
+          </div>
+
+          <div class="api-monitor-tabs" id="apiMonitorTabs">
+            <button type="button" class="api-monitor-tab active" data-api-monitor-tab="all">Tab 1. Tất cả API</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="slowest">Tab 2. Top API chậm nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-called">Tab 3. Top API gọi nhiều nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="most-rows">Tab 4. API nhiều rows nhất</button>
+            <button type="button" class="api-monitor-tab" data-api-monitor-tab="query-trace">Tab 5. Query Trace</button>
+          </div>
+
+          <div class="api-monitor-tab-panel active" data-api-monitor-panel="all">
+            <h4>Tab 1. Tất cả API</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>TB Query</th>
+                    <th>Max Total</th>
+                    <th>Max Mongo</th>
+                    <th>Query chậm nhất</th>
+                    <th>Rows cuối</th>
+                    <th>Chậm</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiMonitorTable"><tr><td colspan="13">Bấm Tải API Monitor để xem.</td></tr></tbody>
+              </table>
+            </div>
+
+            <h4>Báo cáo API chạy chậm gần nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Thời gian</th>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Total</th>
+                    <th>Mongo</th>
+                    <th>JS</th>
+                    <th>DB Queries</th>
+                    <th>Query chậm nhất</th>
+                    <th>Rows</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiSlowTable"><tr><td colspan="10">Chưa có dữ liệu API chậm.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="slowest">
+            <h4>Tab 2. Top API chậm nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Max Total</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>Query chậm nhất</th>
+                    <th>Gọi</th>
+                    <th>Chậm</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopSlowTable"><tr><td colspan="10">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="most-called">
+            <h4>Tab 3. Top API gọi nhiều nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>TB JS</th>
+                    <th>TB Query</th>
+                    <th>Max Total</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopCalledTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="most-rows">
+            <h4>Tab 4. API có nhiều rows nhất</h4>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Max Rows</th>
+                    <th>TB Rows</th>
+                    <th>Rows cuối</th>
+                    <th>Lần gọi</th>
+                    <th>TB Total</th>
+                    <th>TB Mongo</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopRowsTable"><tr><td colspan="9">Chưa có dữ liệu.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-monitor-tab-panel" data-api-monitor-panel="query-trace">
+            <h4>Tab 5. Query Trace - query Mongo chậm nhất theo API</h4>
+            <p class="muted">Dùng tab này để biết trong một API, query Mongo nào đang kéo chậm: MasterOrder.find, SalesOrder.find, ReturnOrder.find, ArLedger.find...</p>
+            <div class="table-wrap api-monitor-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>API</th>
+                    <th>Query chậm nhất</th>
+                    <th>Input Keys</th>
+                    <th>MS</th>
+                    <th>Rows</th>
+                    <th>Max Mongo</th>
+                    <th>Max Total</th>
+                    <th>DB Query cuối</th>
+                    <th>Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody id="apiTopQueryTraceTable"><tr><td colspan="10">Chưa có dữ liệu Query Trace.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <p id="systemMessage" class="message"></p>
+      </section>
+    </section>
+
+
+  </div>
+
+  <div id="excelPasteImportModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal-card excel-paste-modal" role="dialog" aria-modal="true" aria-labelledby="excelPasteImportTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="excelPasteImportTitle">Dán dữ liệu trực tiếp từ Excel</h2>
+          <p class="muted">Chọn ô đầu tiên rồi Ctrl+V. Hệ thống tự chia theo cột Tab và dòng xuống hàng.</p>
+        </div>
+        <button id="closeExcelPasteImportButton" class="secondary" type="button">Đóng</button>
+      </div>
+      <div class="excel-paste-help"><strong>Loại dữ liệu:</strong> <span id="excelPasteImportTypeLabel">-</span>. Dòng trống sẽ tự bỏ qua; mã có số 0 đầu được giữ nguyên.</div>
+      <div class="excel-paste-toolbar">
+        <button id="clearExcelPasteImportButton" class="secondary small" type="button">Xóa bảng</button>
+        <button id="addExcelPasteRowsButton" class="secondary small" type="button">+ 20 dòng</button>
+        <span class="excel-paste-spacer"></span>
+        <strong id="excelPasteImportRowCount">0 dòng có dữ liệu</strong>
+      </div>
+      <div id="excelPasteImportGrid"></div>
+      <p id="excelPasteImportStatus" class="excel-paste-status"></p>
+      <div class="modal-actions">
+        <button id="validateExcelPasteImportButton" type="button">Kiểm tra và tạo bản xem trước</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="lineItemPasteModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal-card excel-paste-modal" role="dialog" aria-modal="true" aria-labelledby="lineItemPasteTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="lineItemPasteTitle">Dán danh sách hàng từ Excel</h2>
+          <p id="lineItemPasteDescription" class="muted">Dán mã sản phẩm và số lượng vào bảng.</p>
+        </div>
+        <button id="closeLineItemPasteButton" class="secondary" type="button">Đóng</button>
+      </div>
+      <div class="excel-paste-help">Các mã sản phẩm được đối chiếu theo lô. Dòng sai mã hoặc số lượng không hợp lệ sẽ không được thêm.</div>
+      <div class="excel-paste-toolbar">
+        <button id="clearLineItemPasteButton" class="secondary small" type="button">Xóa bảng</button>
+        <button id="addLineItemPasteRowsButton" class="secondary small" type="button">+ 20 dòng</button>
+        <span class="excel-paste-spacer"></span>
+        <strong id="lineItemPasteRowCount">0 dòng có dữ liệu</strong>
+      </div>
+      <div id="lineItemPasteGrid"></div>
+      <p id="lineItemPasteStatus" class="excel-paste-status"></p>
+      <div class="modal-actions">
+        <button id="applyLineItemPasteButton" type="button">Đối chiếu và thêm vào chứng từ</button>
+      </div>
+    </section>
+  </div>
+
+    <script src="/js/utils/v45-speed-monitor.js?v=speed-monitor-v1"></script>
+<script src="/js/utils/v45-common-utils.js?v=v45-common-utils"></script>
+  <script src="/js/components/excel-interaction/ContextExport.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/components/excel-interaction/SpreadsheetGrid.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/search/autocompleteEngine.js?v=unified-search-v1"></script>
+  <script src="/js/search/searchFieldsConfig.js?v=external-debt-v1"></script>
+  <script src="/js/search/catalogCacheService.js?v=unified-search-v1"></script>
+  <script src="/js/search/unifiedSearchEngine.js?v=unified-search-v1"></script>
+<script src="/js/search/configuredAutocomplete.js?v=external-debt-v1"></script>
+<script src="/js/search/productSearchBox.js?v=phase50-dms-quota-v1"></script>
+  <script src="/js/shared/orderStatus.js?v=order-lifecycle-v1"></script>
+  <script src="/js/app/00-dashboard.js?v=phase70-dashboard-sales-staff-kpi-v1"></script>
+  <script src="/js/app/state/00a-catalog-orders-state.js?v=ui-toolbar-customer-v1"></script>
+  <script src="/js/app/state/00b-debt-return-fund-state.js?v=phase61-delivery-fund-split-tabs-v1&patch=phase63-delivery-shortage-repayment-v1"></script>
+  <script src="/js/app/state/00c-admin-system-state.js?v=phase72-report-center-v2"></script>
+  <script src="/js/app/01-utils-print-tabs.js?v=phase62-picking-zone-v1"></script>
+  <script src="/js/app/02-products.js?v=ui-toolbar-product-v1"></script>
+  <script src="/js/app/03-customers-autocomplete.js?v=ui-toolbar-customer-v1"></script>
+  <script src="/js/app/04-import-orders.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/app/05-sales-orders.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/05-sales-orders.part02.js?v=ui-toolbar-inventory-v1"></script>
+  <script src="/js/app/05-sales-orders.part03.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/05-sales-orders.part04.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/ui/sales-toolbar-pilot.js?v=ui-toolbar-pilot-v1"></script>
+  <script src="/js/delivery/delivery-core.js?v=returnorders-app-save-tab3-v2"></script>
+  <script src="/js/delivery/delivery-web-view.js?v=returnorders-app-save-tab3-v2"></script>
+  <script src="/js/ui/delivery-toolbar.js?v=ui-toolbar-delivery-v1"></script>
+  <script src="/js/app/06-master-delivery.js?v=phase69-unmerged-refresh-v1&patch=phase73-excel-interaction-v1"></script>
+  <script src="/js/ui/master-orders-toolbar.js?v=ui-toolbar-master-orders-v1"></script>
+  <script src="/js/app/debt/07a-debt-core.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07b-return-orders.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07c-ar-cashbook.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07d-master-return-orders.js?v=phase54-master-return-lifecycle-v1"></script>
+  <script src="/js/app/debt/07e-debt-collections.js?v=phase35-debt-split-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.part02.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/debt/07f-fund-ledger.part03.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/admin/08a-reports.js?v=phase76-report-directory-popup-v1"></script>
+  <script src="/js/app/admin/08b-users.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08c-promotions-legacy.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.part02.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/admin/08d-import-excel.part03.js?v=phase79b-source-shards-v1"></script>
+  <script src="/js/app/admin/08e-promotion-programs.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/admin/08f-vat-export.js?v=phase35-admin-split-v1"></script>
+  <script src="/js/app/09-system.js?v=staff-auto-users-v5"></script>
+  <script src="/js/app/10-dms-inventory.js?v=ui-toolbar-inventory-v1"></script>
+  <script src="/js/components/excel-interaction/ExcelFeatureBindings.js?v=phase73-excel-interaction-v1"></script>
+  <script src="/js/bootstrap/01-catalog-orders.js?v=ui-toolbar-customer-v1"></script>
+  <script src="/js/bootstrap/02-delivery-system.js?v=phase35-bootstrap-split-v1"></script>
+  <script src="/js/bootstrap/03-tab-loader.js?v=phase35-bootstrap-split-v1"></script>
+  <script src="/js/ui/table-alignment.js?v=phase77-global-column-alignment-v1"></script>

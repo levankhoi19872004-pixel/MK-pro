@@ -1,0 +1,136 @@
+
+
+async function loadSalesOrders({page=1, append=false} = {}){
+  const requestSeq=++salesOrderRequestSeq;
+
+  if(salesOrderAbortController){
+    try{salesOrderAbortController.abort();}catch(_err){}
+  }
+  salesOrderAbortController=new AbortController();
+
+  try{
+    if(!append){
+      salesOrderList.innerHTML='<div class="empty-state">Đang tải danh sách đơn...</div>';
+      salesOrderDetailCache.clear();
+    }
+
+    const params=buildSalesOrderSearchParams(page);
+    const requestUrl=`/api/sales-orders/search?${params.toString()}`;
+    const selectedStaff=getSalesOrderStaffSelection();
+    const clientStartedAt=performance.now();
+    const res=await fetch(requestUrl,{signal:salesOrderAbortController.signal,cache:'no-store'});
+    const json=await res.json();
+
+    if(requestSeq!==salesOrderRequestSeq){
+      console.warn('[SALES_ORDER_SEARCH_STALE_IGNORED]',{requestSeq,latestSeq:salesOrderRequestSeq,requestUrl});
+      return;
+    }
+
+    const clientMs=Math.round(performance.now()-clientStartedAt);
+    const serverMs=Number(json.serverMs||json.ms||res.headers.get('X-Response-Time-Ms')||0);
+    if(!json.ok)throw new Error(json.message||'Không tải được lịch sử bán');
+
+    const rawOrders=json.salesOrders||json.rows||[];
+    const orders=filterSalesOrderRowsByCurrentStaff(rawOrders);
+    const removedByClientGuard=rawOrders.length-orders.length;
+
+    if(removedByClientGuard>0){
+      console.warn('[SALES_ORDER_SEARCH_CLIENT_GUARD_REMOVED]',{
+        selectedStaffCode:selectedStaff.code,
+        removedByClientGuard,
+        requestUrl,
+        removed:rawOrders.filter(o=>!orders.includes(o)).map(o=>({code:o.code||o.id,salesStaffCode:getOrderVisibleSalesStaffCode(o),salesStaffName:o.salesStaffName||o.salesPersonName||o.salesmanName||o.nvbhName||o.maNVBHName||''})).slice(0,10)
+      });
+    }
+
+    salesOrderCurrentPage=Number(json.page||page||1);
+    salesOrderTotalRows=Number(json.total||orders.length||0);
+    // Không khóa pagination chỉ vì client guard loại một số dòng. Backend mới lọc
+    // NVBH trước skip/limit; nhánh này vẫn cho phép tải trang kế tiếp khi server cũ
+    // hoặc dữ liệu legacy còn trả về dòng lệch mã.
+    salesOrderHasMore=Boolean(json.hasMore);
+
+    const loadedBefore=append?(window.__salesOrdersCache||[]).length:0;
+    const totalAmountPage=orders.reduce((sum,o)=>sum+Number(o.totalAmount||o.amount||o.total||0),0);
+    const perfText=`API ${serverMs||json.ms||0}ms · Trình duyệt ${clientMs}ms${json.queryMs?` · Query ${json.queryMs}ms`:''}${json.countMs?` · Count ${json.countMs}ms`:''}`;
+    const staffText=selectedStaff.code?` · NVBH ${selectedStaff.code}`:'';
+    const guardText=removedByClientGuard?` · Chặn sai NVBH ${removedByClientGuard}`:'';
+    salesOrderCount.innerHTML=`<span><strong>${loadedBefore+orders.length}</strong>/<strong>${salesOrderTotalRows}</strong> đơn</span><span>Trang này <strong>${money(totalAmountPage)}</strong></span><span>${perfText}${staffText}${guardText}</span>`;
+
+    console.log('[SALES_ORDER_SEARCH_REBUILT]',{
+      requestUrl,
+      selectedStaffCode:selectedStaff.code,
+      rawReturned:rawOrders.length,
+      rendered:orders.length,
+      removedByClientGuard,
+      total:json.total,
+      clientMs,
+      serverMs
+    });
+
+    renderSalesOrderRows(orders,{append});
+    updateSalesOrderLoadMoreButton();
+  }catch(err){
+    if(err && err.name==='AbortError')return;
+    if(requestSeq!==salesOrderRequestSeq)return;
+    salesOrderCount.textContent='Lỗi tải lịch sử';
+    salesOrderList.textContent=err.message;
+    salesOrderHasMore=false;
+    updateSalesOrderLoadMoreButton();
+  }
+}
+
+
+
+// Bảo vệ riêng cho ô gợi ý sản phẩm bán hàng: catalog luôn được tải độc lập với bộ lọc tồn kho/danh sách sản phẩm.
+if(typeof salesProductSearch !== 'undefined' && salesProductSearch){
+  salesProductSearch.addEventListener('focus', async()=>{
+    if(!getSalesProductCatalog().length) await loadSalesProductCatalog();
+  });
+}
+
+
+
+if(salesForm){
+  salesForm.querySelectorAll('input[name="vatInvoiceRequired"]').forEach(input=>input.addEventListener('change',syncVatConditionalUi));
+  syncVatConditionalUi();
+  salesForm.querySelectorAll('input[name="saleMode"]').forEach(input=>input.addEventListener('change',async()=>{
+    syncSalesModeUi();
+    await recalculateSalesPromotionPrices();
+    renderSalesItems();
+  }));
+  syncSalesModeUi();
+}
+
+function selectedSalesOrders(){
+  const checks=[...document.querySelectorAll('.sales-order-check:checked')];
+  return checks.map(ch=>window.__salesOrdersCache?.[Number(ch.dataset.idx)]).filter(Boolean);
+}
+async function exportSelectedSalesOrders(){
+  const orders=selectedSalesOrders();
+  if(!orders.length){alert('Chưa chọn đơn bán để xuất Excel');return}
+  const selectedIds=orders.map(order=>String(order.id||order.code||order.orderCode||order.documentCode||'').trim()).filter(Boolean);
+  try{
+    if(!window.ExcelInteraction||typeof window.ExcelInteraction.downloadWorkbook!=='function')throw new Error('Chức năng Excel chưa sẵn sàng');
+    await window.ExcelInteraction.downloadWorkbook({type:'SALES_ORDERS',scope:'SELECTED',selectedIds,includeDetails:true});
+  }catch(error){alert(error.message||'Không xuất được đơn bán ra Excel');}
+}
+window.exportSelectedSalesOrders=exportSelectedSalesOrders;
+const openCreateSalesOrderButton=document.getElementById('openCreateSalesOrderButton');
+const closeSalesOrderModalButton=document.getElementById('closeSalesOrderModalButton');
+if(openCreateSalesOrderButton)openCreateSalesOrderButton.addEventListener('click',()=>openSalesOrderModal('create'));
+if(closeSalesOrderModalButton)closeSalesOrderModalButton.addEventListener('click',()=>closeSalesOrderModal(false));
+const saveSalesVatSettingButton=document.getElementById('saveSalesVatSettingButton');
+if(saveSalesVatSettingButton)saveSalesVatSettingButton.addEventListener('click',saveSalesVatSettingFromModal);
+const salesOrderModalEl=document.getElementById('salesOrderModal');
+if(salesOrderModalEl)salesOrderModalEl.addEventListener('click',(event)=>{if(event.target===salesOrderModalEl)closeSalesOrderModal(false);});
+document.addEventListener('keydown',(event)=>{if(event.key==='Escape'&&document.getElementById('salesOrderModal')?.classList.contains('show'))closeSalesOrderModal(false);});
+if(typeof btnCancelSale!=='undefined' && btnCancelSale)btnCancelSale.addEventListener('click',cancelSalesDraft);
+if(selectAllSalesOrdersButton)selectAllSalesOrdersButton.addEventListener('click',toggleSelectAllSalesOrders);
+if(printSelectedSalesOrdersButton)printSelectedSalesOrdersButton.addEventListener('click',printSelectedSalesOrders);
+if(exportSelectedSalesOrdersButton)exportSelectedSalesOrdersButton.addEventListener('click',exportSelectedSalesOrders);
+if(reloadSalesOrdersButton)reloadSalesOrdersButton.addEventListener('click',()=>loadSalesOrders({page:1,append:false}));
+if(loadMoreSalesOrdersButton)loadMoreSalesOrdersButton.addEventListener('click',()=>loadSalesOrders({page:salesOrderCurrentPage+1,append:true}));
+[salesOrderSearchInput,salesOrderStaffFilter].forEach(input=>{if(input)input.addEventListener('input',debounceLoadSalesOrders)});
+[salesOrderDateFrom,salesOrderDateTo,salesOrderSourceFilter].forEach(input=>{if(input)input.addEventListener('change',()=>loadSalesOrders({page:1,append:false}))});
+// Các lọc ngày giao/trạng thái giao hàng/công nợ đã bỏ khỏi màn lên đơn.

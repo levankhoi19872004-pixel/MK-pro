@@ -1,0 +1,553 @@
+'use strict';
+
+const dateUtil = require('../utils/date.util');
+const Product = require('../models/Product');
+const StockTransaction = require('../models/StockTransaction');
+const SalesOrder = require('../models/SalesOrder');
+// Công nợ không đọc Customer/User.
+// Source of Truth duy nhất: arLedgers.
+const MasterOrder = require('../models/MasterOrder');
+const Receipt = require('../models/Receipt');
+const ArLedger = require('../models/ArLedger');
+const FundLedger = require('../models/FundLedger');
+const Cashbook = require('../models/Cashbook');
+const Bankbook = require('../models/Bankbook');
+const ReturnOrder = require('../models/ReturnOrder');
+const ImportOrder = require('../models/ImportOrder');
+const { normalizeText, toNumber } = require('../utils/common.util');
+const { STOCK_WAREHOUSE_CODE, STOCK_WAREHOUSE_NAME } = require('../constants/business.constants');
+const inventoryStockService = require('./inventoryStock.service');
+const { DEBT_ZERO_TOLERANCE, normalizeDebtAmount, hasOpenDebt, isOverpaid } = require('../constants/finance.constants');
+
+
+
+function daysBetween(from, to) {
+  const a = new Date(dateUtil.toDateOnly(from));
+  const b = new Date(dateUtil.toDateOnly(to));
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
+  return Math.floor((a.getTime() - b.getTime()) / 86400000);
+}
+
+function isActive(row = {}) {
+  return !['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'].includes(String(row.status || '').toLowerCase());
+}
+
+function matchDate(row, query = {}) {
+  const value = dateUtil.toDateOnly(row.date || row.documentDate || row.orderDate || row.deliveryDate || row.createdAt);
+  if (query.dateFrom && value < query.dateFrom) return false;
+  if (query.dateTo && value > query.dateTo) return false;
+  if (query.date && value !== query.date) return false;
+  return true;
+}
+
+function totalOf(row = {}) {
+  return toNumber(row.totalAmount ?? row.amount ?? row.grandTotal ?? row.total ?? row.value);
+}
+
+function sum(rows = [], picker = totalOf) {
+  return rows.reduce((total, row) => total + toNumber(picker(row)), 0);
+}
+
+const REPORT_INACTIVE_STATUSES = ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'];
+
+function reportDataSourceError(error, reportName, query = {}) {
+  if (process.env.NODE_ENV !== 'test') {
+    console.error('[REPORT_DATA_SOURCE_FAILED]', {
+      report: reportName,
+      query,
+      error: error?.message || String(error || '')
+    });
+  }
+  const wrapped = new Error(`Không thể tải dữ liệu báo cáo ${reportName}`);
+  wrapped.code = 'REPORT_DATA_SOURCE_FAILED';
+  wrapped.status = 503;
+  wrapped.cause = error;
+  return wrapped;
+}
+
+async function runReportSource(reportName, query, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    throw reportDataSourceError(error, reportName, query);
+  }
+}
+
+function reportPagination(query = {}, defaultLimit = 50, maxLimit = 200) {
+  const page = getPage(query.page);
+  const limit = getSafeLimit(query.limit, defaultLimit, maxLimit);
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+function reportMeta(page, limit, total) {
+  const safeTotal = Math.max(0, toNumber(total));
+  return {
+    page,
+    limit,
+    total: safeTotal,
+    totalPages: safeTotal > 0 ? Math.ceil(safeTotal / limit) : 0,
+    hasMore: page * limit < safeTotal
+  };
+}
+
+function withReportTextFilter(filter = {}, query = {}, fields = []) {
+  const text = String(query.q || query.keyword || query.search || '').trim();
+  if (!text) return filter;
+  const rx = new RegExp(escapeRegExp(text), 'i');
+  return {
+    $and: [
+      filter,
+      { $or: fields.map((field) => ({ [field]: rx })) }
+    ]
+  };
+}
+
+function firstValueExpression(fields = [], fallback = 0) {
+  return fields.reduceRight((next, field) => ({ $ifNull: [`$${field}`, next] }), fallback);
+}
+
+function numberExpression(fields = [], fallback = 0) {
+  return {
+    $convert: {
+      input: firstValueExpression(fields, fallback),
+      to: 'double',
+      onError: 0,
+      onNull: 0
+    }
+  };
+}
+
+function filterByQuery(rows = [], query = {}, fields = []) {
+  const q = normalizeText(query.q || query.keyword || query.search);
+  if (!q) return rows;
+  return rows.filter((row) => fields.some((field) => normalizeText(row[field]).includes(q)));
+}
+
+function buildDateMongoFilter(query = {}, fields = ['date', 'createdAt']) {
+  const exact = dateUtil.toDateOnly(query.date || '');
+  const from = dateUtil.toDateOnly(query.dateFrom || exact || '');
+  const to = dateUtil.toDateOnly(query.dateTo || exact || '');
+  if (!from && !to) return {};
+
+  const stringRange = exact ? exact : {
+    ...(from ? { $gte: from } : {}),
+    ...(to ? { $lte: to } : {})
+  };
+  const clauses = fields
+    .filter((field) => field !== 'createdAt')
+    .map((field) => ({ [field]: stringRange }));
+
+  if (fields.includes('createdAt')) {
+    const dateRange = {};
+    if (from) dateRange.$gte = new Date(`${from}T00:00:00+07:00`);
+    if (to) {
+      const nextDay = new Date(`${to}T00:00:00+07:00`);
+      nextDay.setDate(nextDay.getDate() + 1);
+      dateRange.$lt = nextDay;
+    }
+    clauses.push({ createdAt: dateRange });
+  }
+
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
+}
+
+function buildActiveDateMongoFilter(query = {}, fields = ['date', 'createdAt']) {
+  return {
+    status: { $nin: ['void', 'cancelled', 'canceled', 'deleted', 'duplicate_cancelled'] },
+    ...buildDateMongoFilter(query, fields)
+  };
+}
+
+function buildStockTxFilter(query = {}) {
+  const filter = {};
+  if (query.productCode) filter.productCode = String(query.productCode).trim();
+  // Tồn kho chỉ có 1 kho MAIN; bỏ lọc HC/PC ở thẻ kho.
+  if (query.date || query.dateFrom || query.dateTo) {
+    filter.date = {};
+    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
+  }
+  return filter;
+}
+
+function isInType(row = {}) {
+  const direction = String(row.direction || '').toUpperCase();
+  if (direction) return direction === 'IN';
+  return toNumber(row.quantity ?? row.qty) >= 0;
+}
+
+function stockQty(row = {}) {
+  return toNumber(row.quantity ?? row.qty ?? 0);
+}
+
+
+async function stockReport(query = {}) {
+  const q = normalizeText(query.q);
+  const hasPeriod = Boolean(query.dateFrom || query.dateTo || query.asOfDate || query.mode === 'movement');
+  const fullResult = ['1', 'true', 'yes'].includes(String(query.full || query.export || '').toLowerCase());
+  const { page, limit, skip } = reportPagination(query, 50, 200);
+
+  if (hasPeriod) {
+    const dateFrom = dateUtil.toDateOnly(query.dateFrom || '0000-01-01');
+    const dateTo = dateUtil.toDateOnly(query.dateTo || query.asOfDate || dateUtil.todayVN());
+    const [transactions, products] = await runReportSource('tồn kho theo kỳ', query, () => Promise.all([
+      StockTransaction.find(buildDateMongoFilter({ dateTo }, ['date', 'createdAt'])).sort({ date: 1, createdAt: 1, productCode: 1 }).lean(),
+      Product.find({}).lean()
+    ]));
+    const productMap = new Map(products.map((product) => [String(product.code || product.id || product._id), product]));
+    const byKey = new Map();
+
+    transactions.forEach((transaction) => {
+      const transactionDate = dateUtil.toDateOnly(transaction.date || transaction.createdAt);
+      if (transactionDate > dateTo) return;
+      const productCode = String(transaction.productCode || transaction.productId || '').trim();
+      const product = productMap.get(productCode) || {};
+      if (!byKey.has(productCode)) {
+        byKey.set(productCode, {
+          productId: transaction.productId || product.id || String(product._id || ''),
+          productCode,
+          productName: transaction.productName || product.name || '',
+          warehouseCode: STOCK_WAREHOUSE_CODE,
+          warehouseName: STOCK_WAREHOUSE_NAME,
+          unit: product.unit || transaction.unit || '',
+          openingQty: 0,
+          importQty: 0,
+          exportQty: 0,
+          returnQty: 0,
+          adjustmentQty: 0,
+          endingQty: 0
+        });
+      }
+      const row = byKey.get(productCode);
+      const quantity = stockQty(transaction);
+      if (transactionDate < dateFrom) {
+        row.openingQty += quantity;
+      } else {
+        const type = String(transaction.type || '').toUpperCase();
+        if (type.includes('RETURN')) row.returnQty += Math.abs(quantity);
+        else if (type.includes('IMPORT') || isInType(transaction)) row.importQty += Math.abs(quantity);
+        else if (type.includes('SALE') || !isInType(transaction)) row.exportQty += Math.abs(quantity);
+        else row.adjustmentQty += quantity;
+      }
+      row.endingQty += quantity;
+    });
+
+    let allStock = Array.from(byKey.values()).map((row) => ({
+      ...row,
+      inQty: row.importQty + row.returnQty + Math.max(0, row.adjustmentQty),
+      outQty: row.exportQty + Math.abs(Math.min(0, row.adjustmentQty)),
+      quantity: row.endingQty,
+      qty: row.endingQty,
+      availableQty: row.endingQty
+    }));
+    if (q) allStock = allStock.filter((row) => [row.productCode, row.productName].some((value) => normalizeText(value).includes(q)));
+    const negativeStockRows = allStock.filter((row) => toNumber(row.quantity ?? row.qty ?? row.availableQty) < 0);
+    const summary = allStock.reduce((accumulator, row) => {
+      accumulator.totalRows += 1;
+      accumulator.openingQty += toNumber(row.openingQty);
+      accumulator.importQty += toNumber(row.importQty);
+      accumulator.exportQty += toNumber(row.exportQty);
+      accumulator.returnQty += toNumber(row.returnQty);
+      accumulator.endingQty += toNumber(row.endingQty);
+      return accumulator;
+    }, { totalRows: 0, openingQty: 0, importQty: 0, exportQty: 0, returnQty: 0, endingQty: 0 });
+    summary.negativeStockCount = negativeStockRows.length;
+    const stock = fullResult ? allStock : allStock.slice(skip, skip + limit);
+    return {
+      source: 'mongo_stock_transactions',
+      dateFrom,
+      dateTo,
+      stock,
+      items: stock,
+      meta: fullResult ? reportMeta(1, Math.max(allStock.length, 1), allStock.length) : reportMeta(page, limit, allStock.length),
+      summary,
+      negativeStockCount: negativeStockRows.length,
+      negativeStockRows
+    };
+  }
+
+  const currentStock = await runReportSource('tồn kho hiện tại', query, () => inventoryStockService.getInventorySummary(query));
+  const allStock = currentStock.stock || [];
+  const stock = fullResult ? allStock : allStock.slice(skip, skip + limit);
+  return {
+    ...currentStock,
+    source: 'mongo_inventories_canonical',
+    inventorySource: 'inventories',
+    stock,
+    items: stock,
+    meta: fullResult ? reportMeta(1, Math.max(allStock.length, 1), allStock.length) : reportMeta(page, limit, allStock.length),
+    summary: currentStock.summary,
+    negativeStockCount: currentStock.negativeStockCount,
+    negativeStockRows: currentStock.negativeStockRows
+  };
+}
+
+
+async function stockCardReport(query = {}) {
+  const { page, limit, skip } = reportPagination(query, 50, 200);
+  const filter = withReportTextFilter(
+    buildStockTxFilter(query),
+    query,
+    ['productCode', 'productName', 'warehouseCode', 'refCode', 'refType', 'type']
+  );
+  const qtyExpr = numberExpression(['quantity', 'qty'], 0);
+
+  const result = await runReportSource('thẻ kho', query, () =>
+    StockTransaction.aggregate([
+      { $match: filter },
+      { $sort: { productCode: 1, date: 1, createdAt: 1, _id: 1 } },
+      {
+        $setWindowFields: {
+          partitionBy: { $ifNull: ['$productCode', '$productId'] },
+          sortBy: { date: 1, createdAt: 1, _id: 1 },
+          output: {
+            runningBalance: {
+              $sum: qtyExpr,
+              window: { documents: ['unbounded', 'current'] }
+            }
+          }
+        }
+      },
+      {
+        $facet: {
+          rows: [{ $skip: skip }, { $limit: limit }],
+          totals: [{
+            $group: {
+              _id: null,
+              transactionCount: { $sum: 1 },
+              inQty: { $sum: { $cond: [{ $gt: [qtyExpr, 0] }, qtyExpr, 0] } },
+              outQty: { $sum: { $cond: [{ $lt: [qtyExpr, 0] }, { $abs: qtyExpr }, 0] } }
+            }
+          }]
+        }
+      }
+    ]).allowDiskUse(true).exec()
+  );
+
+  const facet = result?.[0] || {};
+  const transactions = (facet.rows || []).map((tx) => {
+    const quantity = stockQty(tx);
+    return {
+      id: tx.id || String(tx._id || ''),
+      date: dateUtil.toDateOnly(tx.date || tx.createdAt),
+      productCode: tx.productCode || '',
+      productName: tx.productName || '',
+      warehouseCode: STOCK_WAREHOUSE_CODE,
+      type: tx.type || '',
+      refType: tx.refType || '',
+      refCode: tx.refCode || '',
+      inQty: toNumber(tx.inQty || (quantity > 0 ? quantity : 0)),
+      outQty: toNumber(tx.outQty || (quantity < 0 ? Math.abs(quantity) : 0)),
+      quantity,
+      balanceQty: toNumber(tx.balanceQty ?? tx.runningBalance),
+      note: tx.note || ''
+    };
+  });
+  const totals = facet.totals?.[0] || {};
+  const meta = reportMeta(page, limit, totals.transactionCount || 0);
+  const summary = {
+    transactionCount: toNumber(totals.transactionCount),
+    inQty: toNumber(totals.inQty),
+    outQty: toNumber(totals.outQty)
+  };
+  return { source: 'mongo_stock_transactions', transactions, items: transactions, meta, summary };
+}
+
+
+function moneyDocKey(row = {}) {
+  return String(row.id || row._id || row.code || row.refId || row.refCode || '').trim();
+}
+
+function activeLedgerRows(rows = []) {
+  return rows.filter(isActive).filter((row) => {
+    const type = String(row.type || '').toLowerCase();
+    const account = String(row.account || '').toUpperCase();
+    return account === 'AR' || type.includes('ar') || type.includes('debt') || type.includes('receipt') || type.includes('return') || toNumber(row.debit) || toNumber(row.credit);
+  });
+}
+
+function orderIdentity(order = {}) {
+  return {
+    id: String(order.id || order._id || order.code || '').trim(),
+    code: String(order.code || order.orderCode || '').trim()
+  };
+}
+
+function isLedgerForOrder(row = {}, order = {}) {
+  const { id, code } = orderIdentity(order);
+  const keys = [row.orderId, row.salesOrderId, row.refId, row.orderCode, row.salesOrderCode, row.refCode].map((v) => String(v || '').trim()).filter(Boolean);
+  return keys.includes(id) || keys.includes(code);
+}
+
+function getLedgerOrderKey(row = {}) {
+  return String(row.orderId || row.salesOrderId || row.refId || row.orderCode || row.salesOrderCode || row.refCode || '').trim();
+}
+
+function getLedgerCustomerKey(row = {}) {
+  return String(row.customerId || row.customerCode || row.customerName || '').trim();
+}
+
+function isDeliveredForAR(order = {}) {
+  // Công nợ AR chỉ phát sinh sau 2 điều kiện:
+  // 1) NVGH đã giao xong; 2) kế toán đã xác nhận báo cáo giao hàng.
+  // Không backfill ảo cho đơn mới giao nhưng còn chờ kế toán, vì sẽ làm báo cáo công nợ nhảy sớm.
+  const delivered = ['delivered', 'success', 'completed', 'done'].includes(String(order.deliveryStatus || '').toLowerCase());
+  const accountingStatus = String(order.accountingStatus || '').toLowerCase();
+  const accountingConfirmed = Boolean(order.accountingConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+  return delivered && accountingConfirmed;
+}
+
+function findOrderForMoneyDoc(row = {}, orderByKey = new Map()) {
+  const keys = [row.orderId, row.salesOrderId, row.sourceOrderId, row.refId, row.orderCode, row.salesOrderCode, row.sourceOrderCode, row.refCode]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  for (const key of keys) {
+    const order = orderByKey.get(key);
+    if (order) return order;
+  }
+  return null;
+}
+
+function isMobileDeliveryMoneyDoc(row = {}) {
+  const text = [row.source, row.refType, row.type, row.note]
+    .map((value) => String(value || '').toLowerCase())
+    .join(' ');
+  return text.includes('mobile_delivery')
+    || text.includes('mobiledelivery')
+    || text.includes('mobile delivery')
+    || text.includes('mobile_delivery_return')
+    || text.includes('app giao hàng');
+}
+
+function isMoneyDocAllowedForAR(row = {}, orderByKey = new Map()) {
+  // Phiếu thu/hàng trả phát sinh từ app giao hàng chỉ là dữ liệu chờ đối chiếu.
+  // Không đưa vào AR Ledger ảo cho tới khi đơn liên quan đã được kế toán xác nhận.
+  if (!isMobileDeliveryMoneyDoc(row)) return true;
+  const order = findOrderForMoneyDoc(row, orderByKey);
+  return order ? isDeliveredForAR(order) : false;
+}
+
+function isAccountingConfirmedDoc(row = {}) {
+  const accountingStatus = String(row.accountingStatus || row.financeStatus || '').toLowerCase();
+  return Boolean(row.accountingConfirmed || row.financeConfirmed) || ['confirmed', 'locked', 'posted'].includes(accountingStatus);
+}
+
+function isReturnDocAllowedForAR(row = {}, orderByKey = new Map()) {
+  // V45: hàng trả dù kho đã nhận vẫn chỉ là dữ liệu chờ kế toán.
+  // Chỉ đưa hàng trả vào AR khi chính phiếu/đơn đã được kế toán xác nhận,
+  // hoặc đơn giao liên quan đã được kế toán xác nhận.
+  if (isAccountingConfirmedDoc(row)) return true;
+  const order = findOrderForMoneyDoc(row, orderByKey);
+  return order ? isDeliveredForAR(order) : false;
+}
+
+function isLedgerReturnOrMobileMoneyBlocked(entry = {}, orderByKey = new Map()) {
+  const type = String(entry.type || '').toLowerCase();
+  const refType = String(entry.refType || '').toLowerCase();
+  const isReturnLedger = type.includes('return') || refType.includes('return');
+  if (!isReturnLedger && !isMobileDeliveryMoneyDoc(entry)) return false;
+  if (isAccountingConfirmedDoc(entry)) return false;
+  const order = findOrderForMoneyDoc(entry, orderByKey);
+  return order ? !isDeliveredForAR(order) : isMobileDeliveryMoneyDoc(entry);
+}
+
+function makeVirtualSaleLedger(order = {}) {
+  // V45 chuẩn: chỉ đơn đã chốt giao mới được đưa sang công nợ.
+  // Không backfill công nợ ảo cho đơn mới tạo / đã gộp nhưng chưa giao xong.
+  if (!isDeliveredForAR(order)) return null;
+  // Bút toán phát sinh công nợ phải lấy tổng phải thu ban đầu của đơn đã giao.
+  // Không dùng debtAmount còn lại, vì receipt/return sẽ được ghi thành bút toán giảm nợ riêng trong AR Ledger.
+  const debit = toNumber(order.debtBeforeCollection ?? order.totalAmount ?? order.amount ?? order.grandTotal ?? order.payableAmount ?? order.debtAmount ?? order.debt ?? 0);
+  if (debit <= 0) return null;
+  return {
+    id: `VIRTUAL-AR-SALE-${order.id || order.code}`,
+    code: `VIRTUAL-AR-SALE-${order.code || order.id}`,
+    date: dateUtil.toDateOnly(order.date || order.orderDate || order.createdAt),
+    type: 'ar_sale_virtual_backfill',
+    account: 'AR',
+    refType: 'SALES_ORDER',
+    refId: order.id || order._id || order.code,
+    refCode: order.code || order.id,
+    orderId: order.id || order._id || order.code,
+    orderCode: order.code || order.id,
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    salesmanCode: order.salesmanCode || order.salesStaffCode || order.nvbhCode || '',
+    salesmanName: order.salesmanName || order.salesStaffName || order.nvbhName || '',
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    debit,
+    credit: 0,
+    amount: debit,
+    status: 'posted',
+    source: 'virtual_backfill_from_orders'
+  };
+}
+
+function makeVirtualReturnLedger(row = {}) {
+  const credit = totalOf(row) || toNumber(row.returnAmount || row.debtReduction || row.totalAmount);
+  if (credit <= 0) return null;
+  return {
+    id: `VIRTUAL-AR-RETURN-${row.id || row.code}`,
+    code: `VIRTUAL-AR-RETURN-${row.code || row.id}`,
+    date: dateUtil.toDateOnly(row.date || row.createdAt),
+    type: 'ar_return_virtual_backfill',
+    account: 'AR',
+    refType: 'RETURN_ORDER',
+    refId: row.id || row._id || row.code,
+    refCode: row.code || row.id,
+    orderId: row.salesOrderId || row.orderId || row.sourceOrderId || '',
+    orderCode: row.salesOrderCode || row.orderCode || '',
+    customerId: row.customerId || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || '',
+    debit: 0,
+    credit,
+    amount: credit,
+    status: 'posted',
+    source: 'virtual_backfill_from_returns'
+  };
+}
+
+function makeVirtualReceiptLedger(row = {}) {
+  const credit = totalOf(row);
+  if (credit <= 0) return null;
+  return {
+    id: `VIRTUAL-AR-RECEIPT-${row.id || row.code}`,
+    code: `VIRTUAL-AR-RECEIPT-${row.code || row.id}`,
+    date: dateUtil.toDateOnly(row.date || row.createdAt),
+    type: 'ar_receipt_virtual_backfill',
+    account: 'AR',
+    refType: 'RECEIPT',
+    refId: row.id || row._id || row.code,
+    refCode: row.code || row.id,
+    orderId: row.orderId || row.salesOrderId || '',
+    orderCode: row.orderCode || row.salesOrderCode || row.refCode || '',
+    customerId: row.customerId || '',
+    customerCode: row.customerCode || '',
+    customerName: row.customerName || '',
+    debit: 0,
+    credit,
+    amount: credit,
+    status: 'posted',
+    source: 'virtual_backfill_from_receipts'
+  };
+}
+
+
+function normalizeArLedgerEntry(row = {}) {
+  const type = String(row.type || '').toLowerCase();
+  const debit = toNumber(row.debit || (type.includes('sale') ? row.amount : 0));
+  const credit = toNumber(row.credit || (!type.includes('sale') ? row.amount : 0));
+  return {
+    id: row.id || String(row._id || ''),
+    code: row.code || '',
+    date: dateUtil.toDateOnly(row.date || row.createdAt),
+    type: row.type || '',
+    account: row.account || 'AR',
+    refType: row.refType || '',
+    refId: row.refId || row.id || '',
+    refCode: row.refCode || row.code || '',
+    orderId: row.orderId || row.salesOrderId || '',

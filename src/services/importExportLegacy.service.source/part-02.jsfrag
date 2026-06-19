@@ -1,0 +1,435 @@
+    ReturnOrder.find(activeReturnOrderFilter()).lean(),
+    Customer.find({}).lean(),
+    Product.find({}).lean()
+  ]);
+  const { rows, auditRows } = buildVatInvoiceRows({ orders, returnOrders, customers, products, query });
+  const workbook = createWorkbook();
+  const sheetRows = [TT78_HEADERS, ...rows.map((row) => TT78_HEADERS.map((header) => row[header] ?? ''))];
+  appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
+
+  const auditHeaders = [
+    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSoThue', 'DiaChiHoaDon', 'MaSanPham', 'SanPham', 'Quy cách', 'Giá bán',
+    'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
+    'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
+  ];
+  appendAoaSheetToWorkbook(workbook, 'DoiChieu', [auditHeaders, ...auditRows.map((row) => auditHeaders.map((header) => row[header] ?? ''))]);
+
+  const summary = rows.reduce((acc, row) => {
+    if (row.TienBan !== '') {
+      acc.invoiceCount += 1;
+      acc.amountBeforeVat += toNumber(row.TienBan);
+      acc.vatAmount += toNumber(row.TienThue);
+      acc.totalAmount += toNumber(row.TongCong);
+    }
+    acc.lineCount += row.MaSanPham ? 1 : 0;
+    return acc;
+  }, { invoiceCount: 0, lineCount: 0, amountBeforeVat: 0, vatAmount: 0, totalAmount: 0 });
+  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+    ['Mẫu', 'TT78 - Sheet1'],
+    ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
+    ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
+    ['Số hóa đơn', summary.invoiceCount],
+    ['Số dòng sản phẩm', summary.lineCount],
+    ['Tiền bán trước thuế', roundMoney(summary.amountBeforeVat, 2)],
+    ['Tiền thuế 8%', roundMoney(summary.vatAmount, 2)],
+    ['Tổng cộng', Math.round(summary.totalAmount)],
+    ['Quy tắc', 'Số lượng xuất HĐ = số lượng bán - số lượng trả; Đơn giá = giá sau khuyến mại trên đơn / 1.08']
+  ]);
+
+  const buffer = writeWorkbook(workbook);
+  const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
+  const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
+  return { buffer, rows: rows.length, fileName: `HoaDonVAT_TT78_${fromName}_${toName}.xlsx` };
+}
+
+
+function salesStaffDisplay(order = {}) {
+  const code = cleanText(order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH);
+  const name = cleanText(order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName);
+  return [code, name].filter(Boolean).join(' - ');
+}
+
+function orderSourceDisplay(order = {}) {
+  return cleanText(order.orderSourceName || order.orderSource || order.source || order.sourceType || order.importSource || '');
+}
+
+async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
+  const dateFrom = normalizeDateOnly(query.dateFrom || query.from || query.fromDate || '') || '0000-01-01';
+  const dateTo = normalizeDateOnly(query.dateTo || query.to || query.toDate || '') || '9999-12-31';
+  const range = {
+    ...(dateFrom !== '0000-01-01' ? { $gte: dateFrom } : {}),
+    ...(dateTo !== '9999-12-31' ? { $lte: dateTo } : {})
+  };
+  const orderFilter = {
+    vatInvoiceRequired: false,
+    ...(Object.keys(range).length ? {
+      $or: [
+        { orderDate: range },
+        { date: range },
+        { documentDate: range },
+        { createdAt: {
+          ...(dateFrom !== '0000-01-01' ? { $gte: `${dateFrom}T00:00:00.000Z` } : {}),
+          ...(dateTo !== '9999-12-31' ? { $lte: `${dateTo}T23:59:59.999Z` } : {})
+        } }
+      ]
+    } : {})
+  };
+
+  const [orders, returnOrders, customers, products] = await Promise.all([
+    SalesOrder.find(orderFilter).sort({ orderDate: 1, date: 1, code: 1 }).limit(Math.min(Math.max(Number(query.limit || 20000), 1), 100000)).lean(),
+    ReturnOrder.find(activeReturnOrderFilter()).lean(),
+    Customer.find({}).lean(),
+    Product.find({}).lean()
+  ]);
+
+  const activeOrders = (orders || [])
+    .filter(isActiveDoc)
+    .filter((order) => order.vatInvoiceRequired === false)
+    .filter((order) => dateInRange(order.orderDate || order.date || order.documentDate || order.createdAt, query));
+  const returnQtyMap = buildReturnQtyMap(returnOrders);
+  const customerMap = buildCustomerMap(customers);
+  const productMap = buildProductMap(products);
+  const orderRows = [];
+  const detailRows = [];
+  let totalOrderAmount = 0;
+  let totalReturnAmount = 0;
+  let totalRemainingAmount = 0;
+
+  activeOrders.forEach((order, index) => {
+    const ci = customerInfo(order, customerMap);
+    const code = orderCode(order);
+    let orderReturnAmount = 0;
+    let orderRemainingAmount = 0;
+
+    for (const item of Array.isArray(order.items) ? order.items : []) {
+      const pcode = productCodeOf(item);
+      const product = productMap.get(pcode) || {};
+      const soldQty = qtyOf(item);
+      const returnQty = Math.min(soldQty, getReturnQtyForOrderLine(returnQtyMap, order, item));
+      const remainingQty = Math.max(0, soldQty - returnQty);
+      const unitPrice = priceInclVatOf(item) || (soldQty ? amountInclVatOf(item) / soldQty : 0);
+      const lineAmount = roundMoney(remainingQty * unitPrice, 2);
+      orderReturnAmount += roundMoney(returnQty * unitPrice, 2);
+      orderRemainingAmount += lineAmount;
+      detailRows.push({
+        'Mã đơn': code,
+        'Mã sản phẩm': pcode,
+        'Tên sản phẩm': productNameOf(item) || cleanText(product.name || product.productName),
+        'Quy cách': ProductExcelEnrichmentService.catalogPackingQty(product),
+        'Giá bán': ProductExcelEnrichmentService.catalogSalePrice(product),
+        'Số lượng bán': soldQty,
+        'Số lượng trả': returnQty,
+        'Số lượng còn lại': remainingQty,
+        'Đơn giá': unitPrice,
+        'Thành tiền': lineAmount
+      });
+    }
+
+    const orderAmount = toNumber(order.totalAmount || order.grandTotal || 0);
+    const paidAmount = toNumber(order.paidAmount || order.paymentAmount || 0);
+    const debtAmount = toNumber(order.debtAmount ?? Math.max(0, orderAmount - paidAmount));
+    totalOrderAmount += orderAmount;
+    totalReturnAmount += orderReturnAmount;
+    totalRemainingAmount += orderRemainingAmount;
+    orderRows.push({
+      'STT': index + 1,
+      'Ngày bán': normalizeDateOnly(order.orderDate || order.date || order.documentDate || order.createdAt),
+      'Mã đơn': code,
+      'Mã khách hàng': ci.code,
+      'Tên khách hàng': ci.name,
+      'NVBH': salesStaffDisplay(order),
+      'Nguồn đơn': orderSourceDisplay(order),
+      'Giá trị đơn': orderAmount,
+      'Tiền đã thu': paidAmount,
+      'Công nợ': debtAmount,
+      'Lý do không xuất': cleanText(order.vatInvoiceNote),
+      'Người thay đổi': cleanText(order.vatInvoiceUpdatedBy),
+      'Thời gian thay đổi': cleanText(order.vatInvoiceUpdatedAt)
+    });
+  });
+
+  const workbook = createWorkbook();
+  const orderHeaders = ['STT', 'Ngày bán', 'Mã đơn', 'Mã khách hàng', 'Tên khách hàng', 'NVBH', 'Nguồn đơn', 'Giá trị đơn', 'Tiền đã thu', 'Công nợ', 'Lý do không xuất', 'Người thay đổi', 'Thời gian thay đổi'];
+  const detailHeaders = ['Mã đơn', 'Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'Giá bán', 'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Đơn giá', 'Thành tiền'];
+  appendAoaSheet(workbook, 'DanhSachDon', orderHeaders, orderRows);
+  appendAoaSheet(workbook, 'ChiTietHang', detailHeaders, detailRows);
+  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+    ['Từ ngày', dateFrom === '0000-01-01' ? '' : dateFrom],
+    ['Đến ngày', dateTo === '9999-12-31' ? '' : dateTo],
+    ['Số đơn không xuất hóa đơn', orderRows.length],
+    ['Tổng giá trị đơn', roundMoney(totalOrderAmount, 2)],
+    ['Tổng hàng trả', roundMoney(totalReturnAmount, 2)],
+    ['Giá trị còn lại', roundMoney(totalRemainingAmount, 2)]
+  ]);
+
+  const buffer = writeWorkbook(workbook);
+  const fromName = dateFrom === '0000-01-01' ? 'all' : dateFrom;
+  const toName = dateTo === '9999-12-31' ? dateUtil.todayVN() : dateTo;
+  const rangeName = fromName === toName ? fromName : `${fromName}_${toName}`;
+  return { buffer, rows: orderRows.length, fileName: `DanhSach_Don_Khong_Xuat_HoaDon_${rangeName}.xlsx` };
+}
+
+
+const BUSINESS_REPORT_TYPES = [
+  'sales-report', 'delivery-report', 'return-report', 'debt-report', 'ar-ledger-detail',
+  'stock-report', 'inventory-movement-report', 'stock-card-report', 'fund-report', 'salesman-report', 'deliveryman-report',
+  'customer-sales-report', 'product-sales-report',
+  'product-info-report', 'customer-info-report', 'user-info-report'
+];
+
+function reportDateRange(query = {}) {
+  return {
+    from: normalizeDateOnly(query.dateFrom || query.from || query.fromDate || ''),
+    to: normalizeDateOnly(query.dateTo || query.to || query.toDate || '')
+  };
+}
+
+function buildReportFilter(query = {}, fields = ['date', 'createdAt']) {
+  const { from, to } = reportDateRange(query);
+  if (!from && !to) return {};
+  const clauses = fields.map((field) => ({
+    [field]: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: field === 'createdAt' ? `${to}T23:59:59.999Z` : to } : {}) }
+  }));
+  return { $or: clauses };
+}
+
+function safeLimit(query = {}) {
+  return Math.min(Math.max(Number(query.limit || 100000), 1), 200000);
+}
+
+function appendAoaSheet(workbook, name, headers, rows) {
+  const sheetRows = rows.map((row) => headers.map((h) => row[h] ?? ''));
+  appendAoaSheetToWorkbook(workbook, String(name || 'BaoCao').slice(0, 31), [headers, ...sheetRows]);
+}
+
+function reportBusinessRule(type = '') {
+  const rules = {
+    'stock-report': 'Tồn hiện tại đọc inventories; Tồn vật lý = onHand, Tồn khả dụng = onHand - reservedQty.',
+    'inventory-movement-report': 'Tồn đầu + Tổng nhập - Tổng xuất = Tồn cuối; chiều nhập/xuất theo dấu quantity; tồn cuối được backcast từ inventories khi có thể.',
+    'stock-card-report': 'Số dư chạy bắt đầu từ tồn đầu kỳ, không bắt đầu từ 0.',
+    'sales-report': 'Chỉ đơn đã xác nhận kế toán; loại hàng khuyến mại; giá trị thực tế lấy snapshot/tổng tiền của đơn.',
+    'return-report': 'Chỉ phiếu trả đã xác nhận kế toán; ưu tiên giá trị AR-RETURN đã post.',
+    'debt-report': 'Dư đầu kỳ + Phát sinh Nợ - Tổng phát sinh Có = Dư cuối kỳ; nguồn arLedgers.',
+    'ar-ledger-detail': 'Số dư từng dòng bắt đầu từ dư trước kỳ của khách hàng.',
+    'fund-report': 'Tồn đầu kỳ + Thu - Chi = Tồn cuối kỳ, tách theo fundType và account; nguồn fundLedgers.',
+    'delivery-report': 'Tổng đơn giao tính lại từ đơn con còn hiệu lực; tiền thu lấy fundLedgers, không lấy snapshot đơn tổng.',
+    'product-info-report': 'Thông tin sản phẩm ghép tồn kho hiện tại từ inventories và tách Tồn vật lý, Đã giữ chỗ, Tồn khả dụng.',
+    'customer-info-report': 'Công nợ lấy arLedgers; doanh số tháng chỉ gồm đơn đã xác nhận kế toán và giá trị thực tế tại thời điểm bán.'
+  };
+  return rules[type] || 'Báo cáo sử dụng nguồn dữ liệu nghiệp vụ chuẩn của hệ thống.';
+}
+
+async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
+  const enriched = await ProductExcelEnrichmentService.enrichRows(rows, {
+    packingKey: 'Quy cách',
+    salePriceKey: 'Giá bán'
+  });
+  const exportHeaders = [...headers];
+  if (enriched.hasProducts) {
+    if (!exportHeaders.includes('Quy cách')) exportHeaders.push('Quy cách');
+    if (!exportHeaders.includes('Giá bán')) exportHeaders.push('Giá bán');
+  }
+  const workbook = createWorkbook();
+  appendAoaSheet(workbook, sheetName, exportHeaders, enriched.rows);
+  const { from, to } = reportDateRange(query);
+  appendAoaSheetToWorkbook(workbook, 'ThongTin', [
+    ['Mẫu báo cáo', sheetName], ['Từ ngày', from], ['Đến ngày', to], ['Số dòng', enriched.rows.length], ['Thời gian xuất', new Date().toISOString()],
+    ['Quy tắc nghiệp vụ', reportBusinessRule(type)]
+  ]);
+  const safeType = String(type || 'report').replace(/[^a-zA-Z0-9_-]/g, '-');
+  const suffix = `${from || 'all'}_${to || dateUtil.todayVN()}`;
+  return { buffer: writeWorkbook(workbook), rows: enriched.rows.length, fileName: `${safeType}_${suffix}.xlsx` };
+}
+
+
+function orderItems(order = {}) { return Array.isArray(order.items) ? order.items : []; }
+function orderQty(order = {}) { return orderItems(order).reduce((s, i) => s + qtyOf(i), 0) || toNumber(order.totalQuantity || order.quantity || 0); }
+function basePriceOf(item = {}, product = {}) { return toNumber(item.originalPrice ?? item.basePrice ?? item.listPrice ?? product.salePrice ?? item.salePrice ?? item.price ?? item.unitPrice ?? 0); }
+function lineBeforePromo(item = {}, product = {}) { return qtyOf(item) * basePriceOf(item, product); }
+function lineAfterPromo(item = {}) { return toNumber(item.finalAmount ?? item.amount ?? item.totalAmount ?? item.lineAmount ?? 0) || qtyOf(item) * priceInclVatOf(item); }
+function orderBeforePromo(order = {}, productMap = new Map()) { return orderItems(order).reduce((s, item) => s + lineBeforePromo(item, productMap.get(productCodeOf(item)) || {}), 0) || toNumber(order.beforePromoAmount || order.grossAmount || order.totalBeforeDiscount || order.totalAmount || 0); }
+function orderAfterPromo(order = {}) { return toNumber(order.afterPromoAmount || order.totalAfterPromotion || order.totalAmount || order.amount || 0); }
+function staffName(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffName(order)) : cleanText(pickSalesStaffName(order)); }
+function staffCode(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffCode(order)) : cleanText(pickSalesStaffCode(order)); }
+
+async function loadProductMap() {
+  const products = await Product.find({}).select('code name salePrice conversionRate baseUnit unit brand category').lean();
+  return new Map(products.map((p) => [cleanText(p.code), p]));
+}
+
+async function buildSalesReportWorkbook(query = {}) {
+  const result = await reportService.salesReport({ ...query, full: '1', export: '1' });
+  const rows = (result.sales || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaDon: row.code,
+    Nguon: row.source,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    MaNVBH: row.salesStaffCode,
+    NVBH: row.salesStaffName,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    SoLuongBan: row.saleQuantity,
+    SoLuongKhuyenMai: row.promoQuantity,
+    DoanhSoTruocKM: Math.round(toNumber(row.beforePromoAmount)),
+    DoanhSoThucTe: Math.round(toNumber(row.actualAmount)),
+    ChietKhauKM: Math.round(toNumber(row.promotionDiscountAmount)),
+    GiaTriHangKM: Math.round(toNumber(row.promotionValue)),
+    DaThuTheoAR: Math.round(toNumber(row.receiptAmount)),
+    TraHangTheoAR: Math.round(toNumber(row.returnAmount)),
+    DieuChinhCongNo: Math.round(toNumber(row.adjustmentAmount)),
+    ConNoTheoAR: Math.round(toNumber(row.debtAmount)),
+    TrangThaiGiaoHang: row.deliveryStatus,
+    TrangThaiKeToan: row.accountingStatus
+  }));
+  return reportWorkbook('sales-report', 'BaoCaoBanHang', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaDon:'', Nguon:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'',
+    SoLuongBan:'', SoLuongKhuyenMai:'', DoanhSoTruocKM:'', DoanhSoThucTe:'', ChietKhauKM:'', GiaTriHangKM:'',
+    DaThuTheoAR:'', TraHangTheoAR:'', DieuChinhCongNo:'', ConNoTheoAR:'', TrangThaiGiaoHang:'', TrangThaiKeToan:''
+  }), rows, query);
+}
+
+async function buildDeliveryReportWorkbook(query = {}) {
+  const result = await reportService.deliveryReport({ ...query, full: '1', export: '1' });
+  const rows = (result.delivery || []).map((row, idx) => ({
+    STT: idx + 1,
+    NgayGiao: row.deliveryDate,
+    MaDonTong: row.code,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    SoDonDangGan: row.assignedOrderCount,
+    SoDonDaGiao: row.orderCount,
+    TongTienDonCon: Math.round(toNumber(row.totalAmount)),
+    DoanhSoDaXacNhan: Math.round(toNumber(row.accountingConfirmedAmount)),
+    TienThuTheoQuy: Math.round(toNumber(row.collectedAmount)),
+    TrangThai: row.status,
+    LechSoDonSnapshot: toNumber(row.dataQuality?.snapshotOrderCountDifference),
+    LechTienSnapshot: Math.round(toNumber(row.dataQuality?.snapshotAmountDifference))
+  }));
+  return reportWorkbook('delivery-report', 'BaoCaoGiaoHang', Object.keys(rows[0] || {
+    STT:'', NgayGiao:'', MaDonTong:'', MaNVGH:'', NVGH:'', SoDonDangGan:'', SoDonDaGiao:'', TongTienDonCon:'',
+    DoanhSoDaXacNhan:'', TienThuTheoQuy:'', TrangThai:'', LechSoDonSnapshot:'', LechTienSnapshot:''
+  }), rows, query);
+}
+
+async function buildReturnReportWorkbook(query = {}) {
+  const result = await reportService.returnReport({ ...query, full: '1', export: '1' });
+  const rows = (result.returns || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaTraHang: row.code,
+    MaDon: row.salesOrderCode,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    MaNVBH: row.salesStaffCode,
+    NVBH: row.salesStaffName,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    GiaTriTra: Math.round(toNumber(row.amount)),
+    GiaTriChungTu: Math.round(toNumber(row.documentAmount)),
+    GiaTriARReturn: Math.round(toNumber(row.arAmount)),
+    TrangThaiNhapKho: row.warehouseReceiveStatus,
+    TrangThaiTraHang: row.returnState,
+    TrangThaiKeToan: row.accountingStatus
+  }));
+  return reportWorkbook('return-report', 'BaoCaoTraHang', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaTraHang:'', MaDon:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'',
+    GiaTriTra:'', GiaTriChungTu:'', GiaTriARReturn:'', TrangThaiNhapKho:'', TrangThaiTraHang:'', TrangThaiKeToan:''
+  }), rows, query);
+}
+
+async function buildDebtReportWorkbook(query = {}) {
+  const result = await reportService.periodDebtReport({ ...query, full: '1', export: '1', includePaid: '1' });
+  const rows = (result.debts || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    MaNVBH: row.salesStaffCode,
+    NVBH: row.salesStaffName,
+    MaNVGH: row.deliveryStaffCode,
+    NVGH: row.deliveryStaffName,
+    DuDauKy: Math.round(toNumber(row.openingBalance)),
+    PhatSinhNo: Math.round(toNumber(row.debitInPeriod)),
+    DaThu: Math.round(toNumber(row.receiptInPeriod)),
+    TraHang: Math.round(toNumber(row.returnInPeriod)),
+    ChietKhauDieuChinh: Math.round(toNumber(row.adjustmentInPeriod) + toNumber(row.otherCreditInPeriod)),
+    TongPhatSinhCo: Math.round(toNumber(row.totalCreditInPeriod)),
+    DuCuoiKy: Math.round(toNumber(row.closingBalance))
+  }));
+  return reportWorkbook('debt-report', 'BaoCaoCongNo', Object.keys(rows[0] || {
+    STT:'', MaKhachHang:'', KhachHang:'', MaNVBH:'', NVBH:'', MaNVGH:'', NVGH:'', DuDauKy:'', PhatSinhNo:'',
+    DaThu:'', TraHang:'', ChietKhauDieuChinh:'', TongPhatSinhCo:'', DuCuoiKy:''
+  }), rows, query);
+}
+
+async function buildArLedgerDetailWorkbook(query = {}) {
+  const result = await reportService.arLedgerDetailReport({ ...query, full: '1', export: '1' });
+  const rows = (result.ledger || []).map((row, idx) => ({
+    STT: idx + 1,
+    Ngay: row.date,
+    MaKhachHang: row.customerCode,
+    KhachHang: row.customerName,
+    ChungTu: row.documentCode,
+    Loai: row.type,
+    DienGiai: row.description,
+    DuTruocGiaoDich: Math.round(toNumber(row.openingBalance)),
+    No: Math.round(toNumber(row.debit)),
+    Co: Math.round(toNumber(row.credit)),
+    PhanLoaiCo: row.creditCategory,
+    DuSauGiaoDich: Math.round(toNumber(row.closingBalance))
+  }));
+  return reportWorkbook('ar-ledger-detail', 'SoCongNoChiTiet', Object.keys(rows[0] || {
+    STT:'', Ngay:'', MaKhachHang:'', KhachHang:'', ChungTu:'', Loai:'', DienGiai:'', DuTruocGiaoDich:'', No:'', Co:'', PhanLoaiCo:'', DuSauGiaoDich:''
+  }), rows, query);
+}
+
+async function buildStockReportWorkbook(query = {}) {
+  // Tồn kho hiện tại không nhận dateFrom/dateTo; nguồn duy nhất là inventories.
+  const result = await reportService.stockReport({ ...query, full: '1', export: '1' });
+  const rows = (result.stock || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaSP: cleanText(row.productCode || row.code || row.productId),
+    SanPham: cleanText(row.productName || row.name),
+    DonViTinh: cleanText(row.unit || row.baseUnit),
+    TonVatLy: toNumber(row.onHand ?? row.quantity ?? row.qty),
+    DaGiuCho: toNumber(row.reservedQty),
+    TonKhaDung: toNumber(row.availableQty)
+  }));
+  return reportWorkbook('stock-report', 'TonKhoHienTai', Object.keys(rows[0] || {
+    STT:'', MaSP:'', SanPham:'', DonViTinh:'', TonVatLy:'', DaGiuCho:'', TonKhaDung:''
+  }), rows, {});
+}
+
+async function buildInventoryMovementReportWorkbook(query = {}) {
+  const result = await reportService.inventoryMovementReport({ ...query, full: '1', export: '1', mode: 'movement' });
+  const rows = (result.stock || []).map((row, idx) => ({
+    STT: idx + 1,
+    MaSP: row.productCode,
+    SanPham: row.productName,
+    DonViTinh: row.unit,
+    TonDauKy: toNumber(row.openingQty),
+    NhapMua: toNumber(row.importQty),
+    HangTraNhapKho: toNumber(row.returnQty),
+    NhapKhac: toNumber(row.otherInQty),
+    TongNhap: toNumber(row.inQty),
+    XuatBan: toNumber(row.saleQty),
+    XuatDaoChungTu: toNumber(row.reversalOutQty),
+    XuatKhac: toNumber(row.otherOutQty),
+    TongXuat: toNumber(row.outQty),
+    DieuChinhRong: toNumber(row.adjustmentQty),
+    TonCuoiKy: toNumber(row.endingQty),
+    NguonTonCuoi: row.endingSource,
+    TonCuoiTheoLedger: toNumber(row.ledgerEndingQty),
+    ChenhLechDoiSoat: toNumber(row.reconciliationDifference)
+  }));
+  return reportWorkbook('inventory-movement-report', 'NhapXuatTon', Object.keys(rows[0] || {
+    STT:'', MaSP:'', SanPham:'', DonViTinh:'', TonDauKy:'', NhapMua:'', HangTraNhapKho:'', NhapKhac:'', TongNhap:'',
+    XuatBan:'', XuatDaoChungTu:'', XuatKhac:'', TongXuat:'', DieuChinhRong:'', TonCuoiKy:'', NguonTonCuoi:'', TonCuoiTheoLedger:'', ChenhLechDoiSoat:''
+  }), rows, query);
+}
+
+async function buildStockCardReportWorkbook(query = {}) {
+  const result = await reportService.stockCardReport({ ...query, full: '1', export: '1' });
+  const rows = (result.transactions || []).map((row, idx) => ({
+    STT: idx + 1,

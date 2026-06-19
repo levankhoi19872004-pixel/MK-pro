@@ -1,0 +1,847 @@
+
+
+@media (max-width:1360px){
+  #importTab .import-grid,
+  #salesTab .import-grid,
+  #debtCollectionTab .import-grid,
+  #cashbookTab .import-grid{
+    grid-template-columns:1fr!important;
+  }
+}
+
+/* ===== COMPACT SALES HISTORY UI - 150/170PX CARD TARGET ===== */
+.sales-history-card{
+  overflow:visible;
+}
+.sales-history-card .sales-history-toolbar{
+  position:sticky;
+  top:10px;
+  z-index:20;
+  align-items:flex-start;
+  gap:10px;
+  padding:8px 0 10px;
+  margin:-2px 0 8px;
+  background:linear-gradient(180deg,#fff 0%,rgba(255,255,255,.96) 82%,rgba(255,255,255,.88) 100%);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(226,232,240,.75);
+}
+.sales-filter-two-rows{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:7px;
+  width:min(640px,100%);
+}
+.sales-filter-two-rows .sales-filter-row{
+  display:grid;
+  gap:8px;
+  align-items:center;
+}
+.sales-filter-row-main{
+  grid-template-columns:minmax(220px,1.4fr) minmax(170px,.9fr);
+}
+.sales-filter-row-sub{
+  grid-template-columns:120px 120px 128px auto auto;
+}
+.sales-filter-two-rows input,
+.sales-filter-two-rows select,
+.sales-filter-two-rows button{
+  min-height:36px !important;
+  height:36px;
+  border-radius:11px !important;
+  font-size:13px;
+}
+.sales-filter-two-rows input{
+  min-width:0 !important;
+  max-width:none !important;
+  padding:0 10px !important;
+}
+.sales-filter-source{
+  width:128px;
+  min-width:128px;
+  padding:0 10px !important;
+}
+.compact-action{
+  padding:0 12px !important;
+  white-space:nowrap;
+}
+.sales-order-card{
+  padding:10px !important;
+  border-radius:16px !important;
+  box-shadow:0 8px 18px rgba(15,23,42,.045) !important;
+}
+.order-list:has(.sales-order-card){
+  gap:8px;
+}
+.sales-order-top{
+  gap:8px !important;
+  padding-bottom:7px;
+  border-bottom:1px solid var(--line-soft);
+}
+.sales-order-code{
+  gap:7px !important;
+}
+.sales-order-code strong{
+  font-size:16px !important;
+}
+.sales-order-code span{
+  font-size:12px !important;
+}
+.sales-order-badges{
+  gap:5px !important;
+}
+.sales-order-badges .badge,
+.badge.source-nvbh,
+.badge.source-dms,
+.badge.unmerged,
+.badge.merged{
+  padding:3px 8px !important;
+  border-radius:999px !important;
+  font-size:11px !important;
+  font-weight:800;
+}
+.badge.source-nvbh{background:#eff6ff;color:#2563eb;border-color:#dbeafe}
+.badge.source-dms{background:#f5f3ff;color:#7c3aed;border-color:#ede9fe}
+.badge.unmerged{background:#fff7ed;color:#ea580c;border-color:#ffedd5}
+.badge.merged{background:#f0fdf4;color:#16a34a;border-color:#dcfce7}
+.sales-order-main{
+  grid-template-columns:minmax(0,1.65fr) minmax(260px,.95fr) !important;
+  gap:8px !important;
+  margin-top:8px !important;
+}
+.sales-order-customer,
+.sales-order-money,
+.sales-order-lines{
+  padding:7px 8px !important;
+  border-radius:12px !important;
+}
+.sales-order-customer span,
+.sales-order-money span{
+  font-size:10.5px !important;
+  margin-bottom:2px !important;
+  letter-spacing:.02em;
+}
+.sales-order-customer strong{
+  font-size:14px !important;
+  line-height:1.25 !important;
+}
+.sales-order-customer small{
+  margin-top:2px !important;
+  font-size:12px !important;
+  line-height:1.25 !important;
+}
+.sales-order-money{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px !important;
+  background:transparent !important;
+  border:0 !important;
+  padding:0 !important;
+}
+.sales-order-money div{
+  padding:7px 8px;
+  border:1px solid var(--line-soft);
+  border-radius:12px;
+  background:#f8fafc;
+  min-height:48px;
+}
+.sales-order-money strong{
+  font-size:13px !important;
+  line-height:1.2;
+}
+.sales-order-lines{
+  margin-top:7px !important;
+  display:block !important;
+  gap:4px !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+}
+.sales-order-lines summary{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:24px;
+  padding:3px 7px;
+  border-radius:9px;
+  color:#1d4ed8;
+  font-weight:800;
+  font-size:12.5px;
+  cursor:pointer;
+  list-style:none;
+}
+.sales-order-lines summary::-webkit-details-marker{display:none}
+.sales-order-lines summary::before{content:'▶';font-size:10px;transition:transform .15s ease}
+.sales-order-lines[open] summary::before{transform:rotate(90deg)}
+.sales-order-lines[open]{
+  margin-top:6px !important;
+  padding:6px 8px !important;
+  border:1px solid var(--line-soft) !important;
+  background:#f8fafc !important;
+}
+.sales-order-item{
+  font-size:12px !important;
+  gap:8px !important;
+  padding:2px 0;
+}
+.sales-order-more{font-size:11px !important}
+.sales-order-footer{
+  margin-top:6px !important;
+  padding-top:6px !important;
+  gap:7px !important;
+  font-size:12px !important;
+}
+.sales-order-note{
+  color:#64748b;
+  font-size:12px;
+  font-weight:500;
+}
+.sales-order-footer .small{
+  min-height:30px;
+  padding:0 10px;
+  border-radius:9px;
+  font-size:12px;
+}
+
+@media(max-width:1180px){
+  .sales-history-card .sales-history-toolbar{position:static}
+  .sales-filter-two-rows{width:100%}
+  .sales-filter-row-main{grid-template-columns:1fr}
+  .sales-filter-row-sub{grid-template-columns:1fr 1fr}
+  .sales-filter-source{width:100%;min-width:0}
+}
+@media(max-width:980px){
+  .sales-order-main{grid-template-columns:1fr !important}
+  .sales-order-money{grid-template-columns:repeat(3,minmax(0,1fr)) !important}
+}
+@media(max-width:640px){
+  .sales-filter-row-sub{grid-template-columns:1fr}
+  .sales-order-money{grid-template-columns:1fr !important}
+}
+
+/* ===== FIX SALES FILTER BUTTON OVERLAP ===== */
+#salesTab .sales-history-card{
+  overflow: visible !important;
+}
+#salesTab .sales-history-toolbar{
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  width: 100% !important;
+  position: sticky !important;
+  top: 8px !important;
+  z-index: 30 !important;
+  background: rgba(255,255,255,.96) !important;
+  backdrop-filter: blur(8px) !important;
+  padding: 6px 0 10px !important;
+  margin: 0 0 8px !important;
+}
+#salesTab .sales-history-toolbar > div:first-child{
+  width: 100% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+#salesTab .sales-history-toolbar h2{
+  margin: 0 !important;
+  white-space: nowrap !important;
+}
+#salesTab #salesOrderCount{
+  flex: 0 0 auto !important;
+  max-width: 220px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+#salesTab .sales-filter-two-rows{
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 7px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+#salesTab .sales-filter-two-rows .sales-filter-row{
+  display: grid !important;
+  gap: 8px !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+#salesTab .sales-filter-row-main{
+  grid-template-columns: minmax(260px, 1.25fr) minmax(190px, .85fr) !important;
+}
+#salesTab .sales-filter-row-sub{
+  grid-template-columns: 136px 136px 132px 92px 82px !important;
+  justify-content: start !important;
+}
+#salesTab .sales-filter-two-rows input,
+#salesTab .sales-filter-two-rows select,
+#salesTab .sales-filter-two-rows button{
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 10px !important;
+  border-radius: 11px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+#salesTab .sales-filter-source{
+  width: 132px !important;
+  min-width: 0 !important;
+}
+#salesTab .compact-action{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+@media (max-width: 1100px){
+  #salesTab .sales-filter-row-main,
+  #salesTab .sales-filter-row-sub{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  #salesTab .sales-filter-source{width:100% !important;}
+}
+@media (max-width: 720px){
+  #salesTab .sales-filter-row-main,
+  #salesTab .sales-filter-row-sub{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ===== Product module: Compact ERP Card List ===== */
+.product-card .toolbar{
+  align-items:flex-start;
+  gap:12px;
+}
+.product-card .toolbar input#searchInput{
+  max-width:520px;
+  height:38px;
+}
+.product-list-wrap{
+  max-height:calc(100vh - 230px)!important;
+  overflow:auto!important;
+  border:0!important;
+  background:transparent!important;
+  border-radius:16px!important;
+}
+.product-table{
+  min-width:0!important;
+  width:100%!important;
+  border-collapse:separate!important;
+  border-spacing:0 6px!important;
+  table-layout:fixed!important;
+}
+.product-table thead,
+.product-table thead.sr-only-product-head{
+  display:none!important;
+}
+.product-table tbody{
+  display:table-row-group!important;
+}
+.product-compact-row{
+  height:60px;
+  background:#fff;
+  border-radius:14px;
+  box-shadow:0 0 0 1px var(--line-soft, #e2e8f0);
+  transition:background .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.product-compact-row:hover{
+  background:#f8fbff;
+  box-shadow:0 0 0 1px #bfdbfe, 0 6px 16px rgba(15,23,42,.06);
+}
+.product-compact-row.selected{
+  background:#eef6ff;
+  box-shadow:0 0 0 1px #93c5fd, inset 4px 0 0 #2563eb;
+}
+.product-compact-row td{
+  border:0!important;
+  padding:6px 10px!important;
+  vertical-align:middle!important;
+}
+.product-compact-row .product-select-cell{
+  width:42px!important;
+  text-align:center!important;
+  border-radius:14px 0 0 14px;
+}
+.product-compact-cell{
+  border-radius:0 14px 14px 0;
+  min-width:0;
+}
+.product-row-check,
+#productCheckAll{
+  width:16px!important;
+  height:16px!important;
+}
+.product-compact-main{
+  display:flex;
+  align-items:center;
+  min-width:0;
+  line-height:1.15;
+}
+.product-title-wrap{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  width:100%;
+}
+.product-code-chip{
+  display:inline-flex!important;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  min-width:78px!important;
+  max-width:112px!important;
+  padding:3px 8px!important;
+  border-radius:999px!important;
+  background:#eaf2ff!important;
+  color:#1d4ed8!important;
+  font-size:12.5px!important;
+  font-weight:900!important;
+  line-height:1.2!important;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.product-name-line{
+  flex:1 1 auto;
+  min-width:0;
+  display:block!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  color:#0f172a!important;
+  font-size:13.5px!important;
+  font-weight:800!important;
+  line-height:1.25!important;
+}
+.product-status-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  flex:0 0 auto;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:11.5px;
+  font-weight:800;
+  line-height:1.4;
+  border:1px solid transparent;
+}
+.product-status-badge::before{
+  content:'';
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  display:inline-block;
+  background:currentColor;
+}
+.product-status-badge.active{
+  color:#15803d;
+  background:#ecfdf5;
+  border-color:#bbf7d0;
+}
+.product-status-badge.inactive{
+  color:#b91c1c;
+  background:#fef2f2;
+  border-color:#fecaca;
+}
+.product-compact-meta{
+  display:flex;
+  align-items:center;
+  gap:4px 14px;
+  min-width:0;
+  margin-top:3px;
+  color:#64748b;
+  font-size:12px;
+  line-height:1.15;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.product-compact-meta span{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+.product-compact-meta b{
+  color:#334155;
+  font-weight:750;
+}
+.product-status-cell,
+.product-row-main,
+.product-row-sub,
+.product-meta-two-row{
+  all:unset;
+}
+@media(max-width:760px){
+  .product-card .toolbar{align-items:stretch}
+  .product-card .toolbar input#searchInput{max-width:none;width:100%}
+  .product-table{border-spacing:0 8px!important}
+  .product-compact-row{height:auto;min-height:72px;display:table-row!important}
+  .product-compact-row .product-select-cell{width:38px!important}
+  .product-title-wrap{align-items:flex-start;flex-wrap:wrap;gap:6px}
+  .product-name-line{white-space:normal!important;display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .product-status-badge{margin-left:auto}
+  .product-compact-meta{white-space:normal;overflow:visible;flex-wrap:wrap;font-size:11.8px;gap:4px 10px}
+}
+
+
+/* ERP compact sales history card */
+.sales-order-card-compact{
+  padding:10px 12px !important;
+  border-radius:14px !important;
+  box-shadow:0 6px 16px rgba(15,23,42,.045) !important;
+  background:#fff !important;
+}
+.sales-order-row-main{
+  display:grid;
+  grid-template-columns:22px minmax(280px,1fr) auto auto auto;
+  align-items:center;
+  gap:10px;
+}
+.sales-order-select{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.sales-order-identity{
+  min-width:0;
+}
+.sales-order-titleline{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  white-space:nowrap;
+}
+.sales-order-code-text{
+  font-size:15px;
+  font-weight:800;
+  color:#0f172a;
+  flex:0 0 auto;
+}
+.sales-order-date{
+  color:#64748b;
+  font-size:12px;
+  font-weight:700;
+  flex:0 0 auto;
+}
+.sales-order-customer-inline{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  font-weight:700;
+  color:#111827;
+}
+.sales-order-subline{
+  display:flex;
+  gap:12px;
+  margin-top:3px;
+  min-width:0;
+  color:#64748b;
+  font-size:12px;
+  line-height:1.25;
+  white-space:nowrap;
+}
+.sales-order-subline span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sales-order-inline-total{
+  border:1px solid var(--line-soft);
+  background:#f8fafc;
+  border-radius:12px;
+  padding:6px 10px;
+  min-width:92px;
+  text-align:right;
+}
+.sales-order-inline-total span{
+  display:block;
+  color:#64748b;
+  font-size:10px;
+  line-height:1;
+  text-transform:uppercase;
+  font-weight:800;
+  letter-spacing:.04em;
+}
+.sales-order-inline-total strong{
+  display:block;
+  margin-top:3px;
+  font-size:14px;
+  color:#0f172a;
+}
+.sales-order-card-compact .sales-order-badges{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:6px;
+}
+.sales-order-card-compact .badge{
+  white-space:nowrap;
+  padding:5px 9px;
+  font-size:12px;
+}
+.sales-order-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:6px;
+}
+.sales-order-actions .small{
+  min-height:30px;
+  padding:6px 10px;
+  border-radius:10px;
+  font-size:12px;
+}
+.sales-order-actions .ghost{
+  background:#eef2f7;
+  color:#1e3a8a;
+  box-shadow:none;
+}
+.sales-order-lines-compact{
+  margin-top:8px;
+  padding:8px 10px !important;
+  border-radius:12px !important;
+  background:#f8fafc !important;
+}
+.sales-order-lines-compact summary{
+  cursor:pointer;
+  color:#1e3a8a;
+  font-size:13px;
+  font-weight:800;
+}
+.sales-order-lines-compact[open]{
+  border-color:#cbd5e1;
+}
+.sales-order-lines-compact .sales-order-item{
+  padding:6px 0;
+  border-top:1px solid #e2e8f0;
+  font-size:12.5px;
+}
+@media (max-width: 980px){
+  .sales-order-row-main{
+    grid-template-columns:22px minmax(0,1fr);
+  }
+  .sales-order-inline-total,
+  .sales-order-card-compact .sales-order-badges,
+  .sales-order-actions{
+    grid-column:2;
+  }
+  .sales-order-actions{
+    justify-content:flex-start;
+  }
+  .sales-order-subline{
+    flex-direction:column;
+    gap:2px;
+    white-space:normal;
+  }
+}
+
+.sales-order-detail-finance{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin:8px 0 4px;
+  padding:7px 9px;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+  background:#fff;
+  color:#475569;
+  font-size:12px;
+}
+.sales-order-detail-finance strong{font-weight:800;color:#0f172a}
+
+/* ERP/DMS debt workspace */
+.operation-compact-layout{grid-template-columns:minmax(320px,40%) minmax(0,60%);align-items:start;gap:16px}.sticky-form-card{position:sticky;top:12px}.wide-history-card{min-width:0}.sticky-filter-bar{position:sticky;top:0;background:#fff;z-index:5;padding:8px 0;border-bottom:1px solid #e5edf7}.sub-toolbar{margin-top:14px;padding-top:12px;border-top:1px solid #edf2f7}.compact-form input,.compact-form select{min-height:34px;padding:7px 10px}.compact-summary{padding:6px 8px}.compact-table table th,.compact-table table td{padding:7px 8px}.debt-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 12px}.debt-kpis .kpi-card{padding:10px}.is-void{opacity:.58;text-decoration:line-through}
+@media(max-width:980px){.operation-compact-layout{grid-template-columns:1fr}.sticky-form-card{position:static}.debt-kpis{grid-template-columns:1fr}}
+
+
+/* ERP/DMS merged debt module tabs */
+.debt-inner-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0 12px}
+.debt-inner-tab{min-height:32px;padding:7px 9px;border:1px solid #dbe6f3;border-radius:999px;background:#f8fafc;color:#334155;font-size:12px;font-weight:800;box-shadow:none}
+.debt-inner-tab.active{background:#e0f2fe;border-color:#7dd3fc;color:#075985}
+.debt-panel{display:none}.debt-panel.active{display:block}
+.debt-workspace .debt-panel.active{animation:fadeInDebt .12s ease-out}
+@keyframes fadeInDebt{from{opacity:.6;transform:translateY(2px)}to{opacity:1;transform:none}}
+button.danger,.button-row .danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;box-shadow:none}
+button.danger:hover{background:#fecaca}
+@media(max-width:980px){.debt-inner-tabs{grid-template-columns:1fr 1fr}}
+
+/* ERP/DMS compact financial debt module - V43 polish */
+#debtTab .operation-compact-layout{grid-template-columns:minmax(300px,34%) minmax(0,66%);gap:10px;align-items:start}
+#debtTab .card{padding:12px;border-radius:16px}
+#debtTab .sticky-form-card{top:8px}
+.debt-module-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.debt-module-head h2{margin:0;font-size:18px;line-height:1.15}
+.debt-module-head small{font-size:11px;color:#64748b;font-weight:800;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:3px 8px}
+#debtTab .mini-finance-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:6px 0 8px}
+#debtTab .mini-finance-stats .kpi-card{min-height:58px;padding:7px 8px;border-radius:12px;box-shadow:none}
+#debtTab .mini-finance-stats .kpi-card span{font-size:10.5px;line-height:1.1;text-transform:uppercase;letter-spacing:.02em}
+#debtTab .mini-finance-stats .kpi-card strong{font-size:16px;line-height:1.15;margin:2px 0}
+#debtTab .mini-finance-stats .kpi-card small{font-size:10px}
+.finance-green{--finance:#16a34a;--finance-bg:#f0fdf4;--finance-border:#bbf7d0;--finance-soft:#dcfce7}
+.finance-red{--finance:#dc2626;--finance-bg:#fef2f2;--finance-border:#fecaca;--finance-soft:#fee2e2}
+.finance-orange{--finance:#ea580c;--finance-bg:#fff7ed;--finance-border:#fed7aa;--finance-soft:#ffedd5}
+.finance-gray{--finance:#64748b;--finance-bg:#f8fafc;--finance-border:#e2e8f0;--finance-soft:#f1f5f9}
+#debtTab .finance-green,#debtTab .finance-red,#debtTab .finance-orange,#debtTab .finance-gray{background:var(--finance-bg);border-color:var(--finance-border)}
+#debtTab .finance-green strong,#debtTab .finance-red strong,#debtTab .finance-orange strong,#debtTab .finance-gray strong{color:var(--finance)}
+#debtTab .debt-inner-tabs{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0 9px;padding:4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px}
+#debtTab .debt-inner-tab{flex:1 1 auto;min-height:28px;padding:5px 8px;border:0;border-radius:999px;background:transparent;color:#475569;font-size:11.5px;font-weight:850;box-shadow:none;white-space:nowrap}
+#debtTab .debt-inner-tab.active{background:#fff;color:#075985;box-shadow:0 1px 5px rgba(15,23,42,.08)}
+#debtTab .compact-form{gap:7px}
+#debtTab .compact-form h3{font-size:15px;margin:0 0 4px}
+#debtTab .compact-form label{gap:3px;font-size:11.5px}
+#debtTab .compact-form input,#debtTab .compact-form select,#debtTab .compact-form textarea{min-height:30px;padding:5px 8px;border-radius:9px;font-size:12.5px}
+#debtTab .compact-form .two-cols{gap:7px}
+.inline-current-debt{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0;padding:7px 9px;border:1px solid #fecaca;border-radius:11px;background:#fef2f2;color:#991b1b;font-size:12px;font-weight:800}
+.inline-current-debt strong{font-size:16px;color:#dc2626}
+#debtTab button[type="submit"]{min-height:32px;padding:7px 10px;border-radius:10px;font-size:12.5px}
+#debtTab .message{margin:6px 0 0;font-size:12px}
+#debtTab .compact-note{margin-top:7px;padding:8px 9px;border-radius:12px;font-size:11.5px;line-height:1.35}
+#debtTab .sticky-filter-bar{top:0;margin:-4px -4px 8px;padding:7px 8px;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border:1px solid #e2e8f0;border-radius:13px;box-shadow:0 6px 18px rgba(15,23,42,.05)}
+#debtTab .sticky-filter-bar h2{font-size:16px;margin:0}
+#debtTab .sticky-filter-bar .muted{font-size:11.5px;margin:1px 0 0}
+#debtTab .sticky-filter-bar input{max-width:260px;min-height:30px;padding:5px 9px;border-radius:999px;font-size:12.5px}
+.compact-debt-card-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.erp-debt-card{padding:9px;border:1px solid var(--finance-border,#e2e8f0);border-radius:14px;background:var(--finance-bg,#fff);box-shadow:0 5px 14px rgba(15,23,42,.04)}
+.erp-debt-main{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:7px}
+.erp-debt-main div{min-width:0;display:grid;gap:1px}.erp-debt-main strong{font-size:11px;color:#64748b}.erp-debt-main b{font-size:13px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.erp-debt-main small{font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.debt-status-pill{flex:0 0 auto;border-radius:999px;background:var(--finance-soft,#f1f5f9);color:var(--finance,#475569);padding:3px 7px;font-size:10.5px;font-weight:900}
+.erp-debt-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.erp-debt-money span{padding:5px 6px;border-radius:10px;background:rgba(255,255,255,.74);border:1px solid rgba(148,163,184,.16);font-size:10.5px;color:#64748b}.erp-debt-money b{display:block;margin-top:1px;font-size:12.5px;color:#0f172a}
+.debt-fallback-table{display:none}.empty-state{padding:14px;border:1px dashed #cbd5e1;border-radius:14px;background:#f8fafc;color:#64748b;text-align:center;font-size:12.5px}.danger-text{color:#b91c1c;background:#fef2f2;border-color:#fecaca}
+.receipt-timeline{position:relative;display:grid;gap:8px;padding-left:8px}.receipt-timeline:before{content:"";position:absolute;left:13px;top:6px;bottom:6px;width:2px;background:#e2e8f0;border-radius:2px}.timeline-item{position:relative;display:grid;grid-template-columns:16px 1fr;gap:8px}.timeline-dot{width:10px;height:10px;border-radius:50%;margin-top:12px;background:var(--finance,#64748b);box-shadow:0 0 0 4px var(--finance-soft,#f1f5f9);z-index:1}.timeline-body{padding:8px 9px;border:1px solid var(--finance-border,#e2e8f0);border-radius:13px;background:var(--finance-bg,#fff);box-shadow:0 4px 12px rgba(15,23,42,.04)}.timeline-head,.timeline-money,.timeline-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}.timeline-head strong{font-size:12px;color:#0f172a}.timeline-head span,.timeline-meta,.timeline-money span,.timeline-actions small{font-size:11px;color:#64748b}.timeline-meta{margin:3px 0}.timeline-meta b{color:var(--finance,#334155)}.timeline-money strong{font-size:14px;color:var(--finance,#0f172a)}.timeline-actions{margin-top:5px}.timeline-actions .small{min-height:24px;padding:3px 7px;font-size:11px}.void-badge{background:#f1f5f9!important;color:#64748b!important;border:1px solid #e2e8f0!important}.is-void{opacity:.72;text-decoration:none}.is-void .timeline-body{filter:grayscale(.25)}
+#debtTab .compact-table table th,#debtTab .compact-table table td{padding:6px 7px;font-size:12px}.cash-in{color:#16a34a!important}.cash-out,.debt-positive{color:#dc2626!important}.debt-zero{color:#16a34a!important}
+@media(max-width:980px){#debtTab .operation-compact-layout{grid-template-columns:1fr}#debtTab .sticky-form-card{position:static}#debtTab .mini-finance-stats{grid-template-columns:repeat(3,minmax(0,1fr))}#debtTab .sticky-filter-bar{position:sticky}#debtTab .sticky-filter-bar input{max-width:100%}.compact-debt-card-list{grid-template-columns:1fr}}
+@media(max-width:640px){#debtTab .mini-finance-stats{grid-template-columns:1fr 1fr}#debtTab .debt-inner-tabs{border-radius:14px}.erp-debt-money{grid-template-columns:1fr}.timeline-head,.timeline-money,.timeline-actions{align-items:flex-start;flex-direction:column;gap:3px}}
+
+/* ERP/DMS debt by customer + salesman + delivery staff */
+#debtTab .debt-sticky-filter{align-items:flex-start;gap:8px}
+#debtTab .debt-filter-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr .9fr .8fr .8fr;gap:6px;align-items:center;min-width:0;flex:1}
+#debtTab .debt-filter-grid input,#debtTab .debt-filter-grid select{width:100%;max-width:none;min-height:30px;padding:5px 8px;border-radius:10px;font-size:12px}
+.debt-staff-line,.debt-date-line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:0 0 6px}
+.debt-date-line{grid-template-columns:repeat(3,minmax(0,1fr))}
+.debt-staff-line span,.debt-date-line span,.debt-mini-timeline{padding:5px 6px;border:1px solid rgba(148,163,184,.16);border-radius:10px;background:rgba(255,255,255,.62);font-size:10.5px;color:#64748b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.debt-staff-line b,.debt-date-line b{color:#0f172a;font-weight:900}
+.debt-mini-timeline{margin-top:6px;color:#475569;background:rgba(255,255,255,.76)}
+#debtTab .badge.out{background:#ffedd5;color:#c2410c;border:1px solid #fed7aa}
+@media(max-width:1180px){#debtTab .debt-filter-grid{grid-template-columns:1fr 1fr 1fr}.debt-date-line{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){#debtTab .debt-filter-grid{grid-template-columns:1fr}.debt-staff-line,.debt-date-line{grid-template-columns:1fr}}
+
+/* Debt compact ERP/DMS payment UI fix */
+.debt-kpis.mini-finance-stats{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin:8px 0 10px!important}
+.debt-kpis.mini-finance-stats .kpi-card{min-height:72px!important;padding:8px 10px!important;border-radius:12px!important}
+.debt-kpis.mini-finance-stats .kpi-card span{font-size:10px!important;letter-spacing:.03em;text-transform:uppercase}
+.debt-kpis.mini-finance-stats .kpi-card strong{font-size:20px!important;line-height:1.1;margin:5px 0!important}
+.debt-kpis.mini-finance-stats .kpi-card small{font-size:10px!important}
+.debt-entry-form{gap:8px!important;padding-top:8px!important}
+.compact-form-title{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin:0 0 2px}
+.compact-form-title h3{margin:0!important;font-size:15px!important}
+.compact-form-title small{color:#64748b;font-size:11px;white-space:nowrap}
+.debt-date-customer-row{grid-template-columns:minmax(130px,.8fr) minmax(0,1.4fr)!important;gap:8px!important}
+.payment-three-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:4px 0 2px}
+.payment-three-fields .pay-box{border:1px solid #dbe7f5;border-radius:14px;background:#fff;padding:8px;display:grid;gap:5px;min-width:0}
+.payment-three-fields .pay-box span{font-size:11px;font-weight:900;color:#475569}
+.payment-three-fields .pay-box input{height:34px!important;min-height:34px!important;border-radius:10px!important;font-size:15px!important;font-weight:900!important;text-align:right!important;padding:6px 9px!important}
+.payment-three-fields .cash-box{background:#ecfdf5;border-color:#a7f3d0}
+.payment-three-fields .bank-box{background:#eff6ff;border-color:#bfdbfe}
+.payment-three-fields .return-box{background:#fff7ed;border-color:#fed7aa}
+.payment-three-fields .cash-box span{color:#059669}.payment-three-fields .bank-box span{color:#2563eb}.payment-three-fields .return-box span{color:#ea580c}
+.inline-current-debt.compact-summary{min-height:36px!important;padding:7px 10px!important;border-radius:12px!important}
+.inline-current-debt.compact-summary strong{font-size:18px!important}
+@media(max-width:760px){.debt-kpis.mini-finance-stats{grid-template-columns:repeat(3,minmax(0,1fr))!important}.payment-three-fields{grid-template-columns:1fr}.compact-form-title{align-items:flex-start;flex-direction:column}.compact-form-title small{white-space:normal}.debt-date-customer-row{grid-template-columns:1fr!important}}
+
+
+/* Delivery Today Dashboard - ERP/DMS compact */
+.delivery-dashboard-card{padding:14px;display:flex;flex-direction:column;gap:12px}
+.delivery-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.delivery-head h2{margin:0;font-size:18px}
+.delivery-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.delivery-kpi-card{border:1px solid var(--line);border-radius:14px;background:var(--panel-soft);padding:10px 12px;min-height:74px}
+.delivery-kpi-card span{display:block;color:var(--muted);font-size:12px}
+.delivery-kpi-card strong{display:block;font-size:22px;line-height:1.1;margin:4px 0;color:var(--text)}
+.delivery-kpi-card small{font-size:11px;color:var(--muted)}
+.delivery-kpi-card.status-delivering{background:#eff6ff;border-color:#bfdbfe}
+.delivery-kpi-card.status-done{background:#ecfdf5;border-color:#bbf7d0}
+.delivery-kpi-card.status-collect{background:#fff7ed;border-color:#fed7aa}
+.delivery-kpi-card.status-late{background:#fef2f2;border-color:#fecaca}
+.delivery-filter-bar{display:grid;grid-template-columns:140px 1.2fr repeat(4,minmax(120px,1fr));gap:8px;align-items:center;padding:8px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:14px}
+.delivery-filter-bar input,.delivery-filter-bar select{height:34px;border-radius:10px;border:1px solid var(--line);padding:0 10px;font-size:13px;background:#fff}
+.delivery-route-summary{display:flex;gap:8px;overflow:auto;padding-bottom:2px}
+.route-pill{min-width:180px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.route-pill strong{font-size:13px}
+.route-pill span{font-size:12px;color:var(--primary)}
+.route-pill small{font-size:11px;color:var(--muted)}
+.delivery-card-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.delivery-card{border:1px solid var(--line);border-left:5px solid #94a3b8;border-radius:16px;background:#fff;padding:12px;box-shadow:0 8px 20px rgba(15,23,42,.05);display:flex;flex-direction:column;gap:9px}
+.delivery-card.delivery-running{border-left-color:#2563eb;background:#f8fbff}
+.delivery-card.delivery-done{border-left-color:#16a34a;background:#f8fffb}
+.delivery-card.delivery-unpaid{border-left-color:#f97316;background:#fffaf5}
+.delivery-card.delivery-late{border-left-color:#dc2626;background:#fff7f7}
+.delivery-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.delivery-card-top strong{display:block;font-size:13px;color:var(--primary)}
+.delivery-card-top b{display:block;font-size:16px;margin-top:2px}
+.delivery-card-top small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.delivery-badge{border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700;background:#eef2ff;color:#1e3a8a;white-space:nowrap}
+.delivery-info-grid,.delivery-money-grid,.delivery-collection-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.delivery-info-grid span,.delivery-money-grid span,.delivery-collection-row span{background:var(--panel-soft);border:1px solid var(--line-soft);border-radius:10px;padding:7px;font-size:12px;color:var(--muted)}
+.delivery-info-grid b,.delivery-money-grid b,.delivery-collection-row b{display:block;color:var(--text);font-size:13px;margin-top:2px}
+.delivery-collection-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+.delivery-timeline{display:flex;gap:6px;align-items:center;overflow:auto}
+.delivery-timeline span{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:4px 8px;background:#f8fafc;color:var(--muted);white-space:nowrap}
+.delivery-timeline span.done{background:#ecfdf5;color:#15803d;border-color:#bbf7d0}
+@media (max-width:1100px){
+  .delivery-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .delivery-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .delivery-card-list{grid-template-columns:1fr}
+  .delivery-info-grid,.delivery-money-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:640px){
+  .delivery-kpi-grid,.delivery-filter-bar,.delivery-info-grid,.delivery-money-grid,.delivery-collection-row{grid-template-columns:1fr}
+  .delivery-head{align-items:flex-start;flex-direction:column}
+}
+
+.formula-pill{border-style:dashed;background:#f8fafc;color:#334155;}
+.formula-pill span{font-size:12px;}
+
+
+/* V45 sales product suggestion: hiển thị cả sản phẩm hết tồn, cho kéo tìm thủ công */
+#salesProductSuggestions,
+#salesProductSuggestions.suggestions{
+  max-height:360px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+#salesProductSuggestions .suggestion-item{
+  white-space:normal!important;
+  line-height:1.35!important;
+  min-height:38px;
+}
+
+/* V45 unified product autocomplete: dùng chung cho Nhập kho + Bán hàng */
+#importProductSuggestions.suggestions,
+#salesProductSuggestions.suggestions{
+  max-height:360px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+#importProductSuggestions .suggestion-item,
+#salesProductSuggestions .suggestion-item{
+  white-space:normal!important;
+  line-height:1.35!important;
+  min-height:38px;
+}
+/* AR Ledger focus: make void/reversal warnings visible in debt workspace */
+.timeline-item.is-warning .timeline-body{border-color:#fecaca;background:#fff7f7}
+.success-text{color:#15803d}
+.debt-fallback-table tr.is-void td{background:#fff1f2;color:#7f1d1d}
+.debt-fallback-table td small{color:var(--muted);font-size:11px}

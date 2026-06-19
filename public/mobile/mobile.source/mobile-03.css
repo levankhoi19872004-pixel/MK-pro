@@ -1,0 +1,429 @@
+.m-action-row .secondary{background:#f8fafc;color:#0f172a;border:1px solid #cbd5e1}.m-payment-form{display:grid;gap:10px;background:#fff;border:1px solid #dbe4f0;border-radius:16px;padding:12px}.m-payment-form label{font-weight:900;color:#64748b}.m-payment-form input{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:10px;margin-top:5px}.m-confirm{width:100%;margin-top:10px;background:#16a34a}.m-report-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.m-report-grid div{background:#fff;border:1px solid #dbe4f0;border-radius:16px;padding:14px;text-align:center}.m-report-grid span{display:block;color:#64748b;font-weight:900}.m-report-grid b{font-size:24px}.m-empty{background:#fff;border:1px solid #dbe4f0;border-radius:16px;padding:20px;text-align:center;color:#64748b}.m-empty.danger,.m-delivery-msg.danger{color:#dc2626}.m-delivery-msg{min-height:20px;font-weight:800;color:#047857;text-align:center}
+
+/* Mobile sales V46 - 5 tab workflow: customers / order / cart / debts / reports */
+.mobile-tabs.sales-tabs-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.mobile-tabs.sales-tabs-5 .tab-btn {
+  padding: 9px 4px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.tab-badge {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 900;
+}
+.tab-btn.active .tab-badge {
+  background: rgba(255,255,255,0.95);
+  color: var(--primary);
+}
+.debt-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px;
+  background: #fbfcff;
+  cursor: pointer;
+}
+.debt-card strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text);
+}
+.debt-card span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 420px) {
+  .mobile-tabs.sales-tabs-5 { grid-template-columns: repeat(5, minmax(54px, 1fr)); overflow-x: auto; }
+  .mobile-tabs.sales-tabs-5 .tab-btn { white-space: nowrap; }
+}
+
+/* MOBILE_PRODUCT_ORDER_LAYOUT_START: tối ưu vùng chọn sản phẩm cho NVBH thao tác ngoài thị trường */
+/* MOBILE_PRODUCT_ENTRY_COMPACT_BALANCE_START: giảm cỡ chữ và chiều cao control để cân đối màn hình mobile */
+/* MOBILE_PRODUCT_GROUP_FILTER_UI_START */
+#orderTab #productGroupFilter.mobile-product-group-filter {
+  width: 100%;
+  min-height: 42px;
+  height: 42px;
+  margin-bottom: 6px;
+  padding: 0 12px;
+  border: 1px solid #d5e1f2;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+/* MOBILE_PRODUCT_GROUP_FILTER_UI_END */
+
+/* MOBILE_PRODUCT_SEARCH_UI_START */
+#orderTab #productSearch.mobile-product-search-input {
+  width: 100%;
+  min-height: 46px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+/* MOBILE_PRODUCT_SEARCH_UI_END */
+
+/* MOBILE_SELECTED_PRODUCT_CARD_START */
+#orderTab #selectedProduct.mobile-selected-product-card {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border-style: solid;
+  background: #f8fbff;
+  font-size: 13px;
+  line-height: 1.35;
+}
+#orderTab #selectedProduct.mobile-selected-product-card.muted {
+  border-style: dashed;
+  color: var(--muted);
+  background: #fbfdff;
+}
+#orderTab #selectedProduct .mobile-selected-product-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+  margin-bottom: 6px;
+}
+#orderTab #selectedProduct .mobile-selected-product-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+#orderTab #selectedProduct .mobile-selected-product-meta span {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid #dbe4f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+}
+#orderTab #selectedProduct .mobile-selected-product-meta strong {
+  display: block;
+  color: #0f172a;
+  font-size: 13px;
+  margin-top: 1px;
+}
+/* MOBILE_SELECTED_PRODUCT_CARD_END */
+
+/* MOBILE_CASE_QTY_UI_START / MOBILE_LOOSE_QTY_UI_START */
+#orderTab .qty-row.three-cols.mobile-product-qty-row {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+#orderTab .mobile-qty-input {
+  min-height: 48px;
+  height: 48px;
+  border-radius: 13px;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  box-sizing: border-box;
+}
+#orderTab #caseQtyInput.mobile-case-qty-input {
+  min-height: 48px;
+}
+#orderTab #looseQtyInput.mobile-loose-qty-input {
+  min-height: 48px;
+}
+/* MOBILE_CASE_QTY_UI_END / MOBILE_LOOSE_QTY_UI_END */
+
+/* MOBILE_ADD_TO_CART_UI_START */
+#orderTab #addItemBtn.mobile-add-to-cart-btn {
+  width: 100%;
+  min-height: 48px;
+  height: 48px;
+  margin-top: 8px;
+  border-radius: 13px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .1px;
+}
+/* MOBILE_ADD_TO_CART_UI_END */
+
+@media (max-width: 380px) {
+  #orderTab #selectedProduct .mobile-selected-product-meta {
+    grid-template-columns: 1fr;
+  }
+  #orderTab .qty-row.three-cols.mobile-product-qty-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+/* MOBILE_PRODUCT_ENTRY_COMPACT_BALANCE_END */
+/* MOBILE_PRODUCT_ORDER_LAYOUT_END */
+
+
+/* Delivery mobile debt tab */
+.m-debt-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px}.m-debt-summary div{background:#fff;border:1px solid #dbe4f0;border-radius:14px;padding:10px}.m-debt-summary span{display:block;font-size:11px;font-weight:900;color:#64748b}.m-debt-summary b{font-size:16px}.m-debt-list,.m-debt-detail{display:flex;flex-direction:column;gap:8px}.m-debt-order-row{display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:start;border-bottom:1px solid #eef2f7;padding:9px 0}.m-debt-order-row:last-child{border-bottom:0}.m-debt-order-row input{margin-top:2px}.m-debt-order-row b,.m-debt-order-row small,.m-debt-order-row em{display:block}.m-debt-order-row small{font-size:11px;color:#64748b}.m-debt-order-row em{font-style:normal;font-size:11px;color:#475569}.m-help-text{margin:0;color:#64748b;font-size:12px;font-weight:800;line-height:1.4}.m-payment-form select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:12px;padding:10px;margin-top:5px;background:#fff}@media (min-width:760px){.m-debt-summary{grid-template-columns:repeat(4,1fr)}}
+
+
+/* MOBILE_DEBT_SUBTABS_V2_START: tách danh sách khách nợ và biểu mẫu thu nợ */
+.debt-workspace {
+  overflow: visible;
+}
+.debt-subtabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
+  background: #eef2f7;
+}
+.debt-subtab {
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #475569;
+  font-weight: 900;
+  cursor: pointer;
+}
+.debt-subtab.active {
+  background: #ffffff;
+  color: #1d4ed8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10);
+}
+.debt-subpanel {
+  display: none;
+}
+.debt-subpanel.active {
+  display: block;
+}
+.debt-panel-title {
+  margin-bottom: 8px;
+}
+.debt-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.42fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.debt-list-toolbar input,
+.debt-list-toolbar select {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 9px 10px;
+  color: #0f172a;
+}
+.debt-customer-list,
+.m-debt-list {
+  display: grid;
+  gap: 8px;
+}
+.debt-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.debt-card.selected,
+.m-debt-customer-card.selected {
+  border-color: #2563eb;
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.14);
+}
+.debt-card-content {
+  min-width: 0;
+}
+.debt-collect-action,
+.m-debt-collect-action {
+  min-width: 92px;
+  border: 0;
+  border-radius: 11px;
+  padding: 10px 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+}
+.debt-collect-action[disabled],
+.m-debt-collect-action.disabled {
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+}
+.debt-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px 10px;
+  text-align: center;
+}
+.debt-empty-state span {
+  color: #64748b;
+  font-size: 12px;
+}
+.debt-selected-customer {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #eff6ff;
+  padding: 12px;
+}
+.debt-selected-customer span {
+  color: #475569;
+  font-size: 12px;
+}
+.mobile-debt-collection-form {
+  overflow: visible;
+}
+.debt-order-selection-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.debt-submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  margin: 4px -4px -4px;
+  padding: 8px 4px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid #dbe4f0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+}
+.debt-submit-bar button {
+  width: 100%;
+}
+.debt-ledger-details {
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+}
+.debt-ledger-details summary {
+  cursor: pointer;
+  color: #334155;
+  font-weight: 900;
+}
+.debt-no-available {
+  border-color: #fde68a;
+  background: #fffdf4;
+}
+.m-debt-reload-row {
+  grid-template-columns: 1fr;
+  margin-bottom: 8px;
+}
+.m-debt-subtabs {
+  margin-bottom: 8px;
+}
+.m-debt-customer-card {
+  display: grid;
+  gap: 9px;
+}
+.m-debt-customer-card .m-debt-collect-action {
+  width: 100%;
+}
+.m-debt-empty-action {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px 14px;
+  color: #1d4ed8;
+  font-weight: 900;
+}
+@media (max-width: 520px) {
+  .debt-list-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .debt-card {
+    grid-template-columns: 1fr;
+  }
+  .debt-collect-action {
+    width: 100%;
+  }
+}
+/* MOBILE_DEBT_SUBTABS_V2_END */
+
+/* MOBILE_DEBT_COMPACT_CHECKBOX_V3_START
+ * Checkbox thu nợ chỉ hiển thị 18x18px; toàn bộ dòng label vẫn là vùng chạm.
+ * Override scoped để không ảnh hưởng checkbox ở các nghiệp vụ khác.
+ */
+.debt-order-check-row {
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 9px;
+  row-gap: 2px;
+  align-items: start;
+  cursor: pointer;
+}
+.debt-order-check-row > input[type="checkbox"] {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.debt-order-check-row > strong,
+.debt-order-check-row > span {
+  grid-column: 2;
+  min-width: 0;
+}
+.m-debt-order-row {
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 9px;
+  cursor: pointer;
+}
+.debt-order-check-row > input[type="checkbox"],
+.m-debt-order-row > input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  max-width: 18px;
+  max-height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  border-radius: 4px;
+  box-sizing: border-box;
+  justify-self: start;
+  align-self: start;
+  accent-color: #2563eb;
+  flex: 0 0 18px;
+}
+@media (max-width: 380px) {
+  .debt-order-check-row,
+  .m-debt-order-row {
+    grid-template-columns: 18px minmax(0, 1fr);
+    column-gap: 8px;
+  }
+  .debt-order-check-row > input[type="checkbox"],
+  .m-debt-order-row > input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    min-width: 17px;
+    min-height: 17px;
+    max-width: 17px;
+    max-height: 17px;
+    flex-basis: 17px;
+  }
+}
+/* MOBILE_DEBT_COMPACT_CHECKBOX_V3_END */
+
+/* Phase 50 - tồn thực tế và hạn mức bán App theo chênh lệch DMS */
+.mobile-selected-product-quota-note{margin-top:8px;font-size:.78rem;color:#64748b}.mobile-app-quota-meta{color:#1d4ed8}.mobile-app-quota-meta strong{color:#1d4ed8}.app-quota-badge{background:#dbeafe!important;color:#1d4ed8!important}

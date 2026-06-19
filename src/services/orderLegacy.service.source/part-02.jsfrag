@@ -1,0 +1,582 @@
+  return String(path || '').split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+}
+
+function buildExactCodeFieldClauses(field, code) {
+  const normalized = normalizeSalesOrderStaffCode(code);
+  if (!normalized) return [];
+  const values = [normalized];
+  const numeric = Number(normalized);
+  if (Number.isFinite(numeric)) values.push(numeric);
+  return [
+    { [field]: { $in: values } },
+    { [field]: { $regex: `^\\s*${escapeRegex(normalized)}\\s*$`, $options: 'i' } }
+  ];
+}
+
+function buildStrictSalesStaffCodeClause(code, options = {}) {
+  const normalized = normalizeSalesOrderStaffCode(code);
+  if (!normalized) return null;
+
+  // Fast path production: canonical field uses the compound Mongo index.
+  if (!options.includeAliases) return { salesStaffCode: normalized };
+
+  // Compatibility path: old DMS/import rows may still store NVBH in an alias.
+  // All clauses are pushed into Mongo BEFORE skip/limit, so search is global
+  // across the full date range instead of filtering only the first 50 rows.
+  const clauses = SALES_ORDER_SEARCH_STAFF_CODE_FIELDS.flatMap((field) =>
+    buildExactCodeFieldClauses(field, normalized)
+  );
+  return { $or: clauses };
+}
+
+function readSalesStaffCodeCandidates(order = {}) {
+  return SALES_ORDER_SEARCH_STAFF_CODE_FIELDS
+    .map((field) => getPathValue(order, field))
+    .map(normalizeSalesOrderStaffCode)
+    .filter(Boolean);
+}
+
+function orderMatchesStrictSalesStaffCode(order = {}, code = '') {
+  const expected = normalizeSalesOrderStaffCode(code);
+  if (!expected) return true;
+  return readSalesStaffCodeCandidates(order).some((candidate) => candidate === expected);
+}
+
+function toVisibleSalesStaffCode(order = {}) {
+  return order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || getPathValue(order, 'salesStaff.code') || '';
+}
+
+function toVisibleSalesStaffName(order = {}) {
+  return order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || getPathValue(order, 'salesStaff.name') || getPathValue(order, 'salesStaff.fullName') || '';
+}
+
+function buildOrderSearchFilter(query = {}) {
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
+  const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
+  const filter = {};
+  const and = [];
+
+  if (dateFrom || dateTo) {
+    const range = rangeFilter(dateFrom, dateTo);
+    if (dateType === 'deliveryDate') {
+      filter.deliveryDate = range;
+    } else if (dateType === 'all') {
+      pushAnd(and, { $or: [
+        { orderDate: range },
+        { date: range },
+        { createdDate: range },
+        { deliveryDate: range },
+        { createdAt: range }
+      ] });
+    } else if (dateType === 'date') {
+      filter.date = range;
+    } else {
+      filter.orderDate = range;
+    }
+  }
+
+  if (!includeCancelled) applyActiveSalesOrderFilter(filter);
+
+  const exactCustomerCode = String(guardedQuery.customerCode || guardedQuery.maKhachHang || guardedQuery.maKH || '').trim();
+  if (exactCustomerCode) filter.customerCode = exactCustomerCode;
+
+  const exactMasterOrderCode = String(guardedQuery.masterOrderCode || guardedQuery.masterCode || '').trim();
+  if (exactMasterOrderCode) filter.masterOrderCode = exactMasterOrderCode;
+
+  const strictSalesStaffCode = normalizeSalesOrderStaffCode(
+    guardedQuery.salesStaffCode ||
+    guardedQuery.salesmanCode ||
+    guardedQuery.nvbhCode ||
+    guardedQuery.maNVBH
+  );
+
+  if (strictSalesStaffCode) {
+    // Mã NVBH là điều kiện AND bắt buộc. Alias chỉ được bật có chủ đích để đọc
+    // đơn lịch sử; không OR với tên, username, id hoặc _id.
+    const includeStaffAliases = ['1', 'true', 'yes'].includes(
+      String(guardedQuery.includeStaffAliases || '').trim().toLowerCase()
+    );
+    pushAnd(and, buildStrictSalesStaffCodeClause(strictSalesStaffCode, {
+      includeAliases: includeStaffAliases
+    }));
+  } else {
+    const staffTextFilter = String(
+      guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || ''
+    ).trim();
+    if (staffTextFilter) {
+      const staffRx = queryGuard.buildRegex(staffTextFilter);
+      pushAnd(and, { $or: [
+        { salesStaffCode: staffRx },
+        { salesStaffName: staffRx },
+        { salesPersonCode: staffRx },
+        { salesPersonName: staffRx },
+        { salesmanCode: staffRx },
+        { salesmanName: staffRx },
+        { nvbhCode: staffRx },
+        { nvbhName: staffRx },
+        { maNVBH: staffRx },
+        { maNVBHName: staffRx },
+        { 'salesStaff.code': staffRx },
+        { 'salesStaff.name': staffRx },
+        { 'salesStaff.fullName': staffRx }
+      ] });
+    }
+  }
+
+  const deliveryStaffCodeFilter = normalizeSalesOrderStaffCode(guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode);
+  if (deliveryStaffCodeFilter) {
+    pushAnd(and, { $or: [
+      { deliveryStaffCode: deliveryStaffCodeFilter },
+      { deliveryCode: deliveryStaffCodeFilter },
+      { 'deliveryStaff.code': deliveryStaffCodeFilter }
+    ] });
+  }
+
+  const exactSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
+  const sourceKey = orderStatusUtil.normalizeOrderSource(exactSource);
+  if (sourceKey && sourceKey !== 'manual') {
+    const sourceVariants = Array.from(new Set([
+      sourceKey,
+      sourceKey.toUpperCase(),
+      sourceKey.toLowerCase(),
+      exactSource,
+      exactSource.toUpperCase(),
+      exactSource.toLowerCase()
+    ].filter(Boolean)));
+    pushAnd(and, {
+      $or: [
+        { source: { $in: sourceVariants } },
+        { orderSource: { $in: sourceVariants } }
+      ]
+    });
+  }
+
+  const deliveryStatusFilter = String(guardedQuery.deliveryStatus || '').trim();
+  if (deliveryStatusFilter) filter.deliveryStatus = deliveryStatusFilter;
+
+  const accountingStatusFilter = String(guardedQuery.accountingStatus || '').trim();
+  if (accountingStatusFilter) filter.accountingStatus = accountingStatusFilter;
+
+  const rawStatus = String(guardedQuery.status || guardedQuery.lifecycleStatus || '').trim();
+  if (rawStatus && rawStatus !== 'cancelled') filter.status = rawStatus;
+
+  if (q) {
+    const rx = queryGuard.buildRegex(q);
+    const isLikelyOrderCode = /^[A-Z0-9_-]{5,}$/i.test(q);
+    const qOr = isLikelyOrderCode
+      ? [
+          { code: q },
+          { id: q },
+          { orderCode: q },
+          { salesOrderCode: q },
+          { invoiceCode: q },
+          { documentCode: q },
+          { customerCode: rx },
+          { customerName: rx },
+          { customerId: rx },
+          { note: rx },
+          { remark: rx },
+          { description: rx }
+        ]
+      : [
+          { customerCode: rx },
+          { customerName: rx },
+          { customerId: rx },
+          { customerPhone: rx },
+          { masterOrderCode: rx },
+          { note: rx },
+          { remark: rx },
+          { description: rx }
+        ];
+    pushAnd(and, { $or: qOr });
+  }
+
+  if (and.length) filter.$and = and;
+  return { filter, guardedQuery, strictSalesStaffCode };
+}
+
+function toListClient(order = {}) {
+  const normalizedOrderSource = normalizeOrderSourceValue(order);
+  const mergeStatus = orderStatusUtil.normalizeMergeStatus(order);
+  return {
+    id: order.id || order.code,
+    code: order.code || order.orderCode || order.salesOrderCode || order.id,
+    orderCode: order.orderCode || order.code || order.id,
+    salesOrderCode: order.salesOrderCode || order.code || order.id,
+    date: dateUtil.toDateOnly(order.orderDate || order.date || order.documentDate || order.importDate || order.displayDate || ''),
+    orderDate: dateUtil.toDateOnly(order.orderDate || order.date || order.documentDate || order.importDate || order.displayDate || ''),
+    documentDate: dateUtil.toDateOnly(order.documentDate || order.orderDate || order.date || ''),
+    deliveryDate: dateUtil.toDateOnly(order.deliveryDate || ''),
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    deleted: Boolean(order.deleted),
+    isDeleted: Boolean(order.isDeleted),
+    deletedAt: order.deletedAt || '',
+    deleteMode: order.deleteMode || '',
+    deleteReason: order.deleteReason || '',
+    customerId: order.customerId || '',
+    customerCode: order.customerCode || '',
+    customerName: order.customerName || '',
+    customerPhone: order.customerPhone || '',
+    staffCode: toVisibleSalesStaffCode(order),
+    staffName: toVisibleSalesStaffName(order),
+    salesStaffCode: toVisibleSalesStaffCode(order),
+    salesStaffName: toVisibleSalesStaffName(order),
+    deliveryStaffCode: order.deliveryStaffCode || '',
+    deliveryStaffName: order.deliveryStaffName || '',
+    masterOrderId: order.masterOrderId || '',
+    masterOrderCode: order.masterOrderCode || '',
+    status: order.status || order.lifecycleStatus || 'pending',
+    lifecycleStatus: order.lifecycleStatus || order.status || 'pending',
+    deliveryStatus: order.deliveryStatus || '',
+    mergeStatus,
+    isMerged: mergeStatus === 'merged',
+    accountingStatus: order.accountingStatus || '',
+    accountingConfirmed: Boolean(order.accountingConfirmed),
+    vatInvoiceRequired: order.vatInvoiceRequired !== false,
+    vatInvoiceDecisionSource: order.vatInvoiceDecisionSource || 'default',
+    vatInvoiceNote: String(order.vatInvoiceNote || ''),
+    vatInvoiceUpdatedAt: String(order.vatInvoiceUpdatedAt || ''),
+    vatInvoiceUpdatedBy: String(order.vatInvoiceUpdatedBy || ''),
+    source: normalizedOrderSource,
+    orderSource: normalizedOrderSource,
+    orderSourceName: normalizedOrderSource === 'DMS' ? 'Từ DMS' : 'Từ NVBH',
+    totalAmount: toNumber(order.totalAmount ?? order.amount ?? order.total),
+    paidAmount: toNumber(order.paidAmount),
+    debtAmount: toNumber(order.debtAmount),
+    visibleInHistory: orderStatusUtil.isOrderVisibleInHistory(order)
+  };
+}
+
+
+const ORDER_LIST_PROJECTION = {
+  _id: 0,
+  id: 1,
+  code: 1,
+  documentCode: 1,
+  invoiceCode: 1,
+  orderCode: 1,
+  salesOrderCode: 1,
+  date: 1,
+  orderDate: 1,
+  deliveryDate: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  deleted: 1,
+  isDeleted: 1,
+  deletedAt: 1,
+  deleteMode: 1,
+  deleteReason: 1,
+  customerId: 1,
+  customerCode: 1,
+  customerName: 1,
+  customerPhone: 1,
+  staffCode: 1,
+  staffName: 1,
+  salesStaffCode: 1,
+  salesStaffName: 1,
+  salesPersonCode: 1,
+  salesPersonName: 1,
+  salesmanCode: 1,
+  salesmanName: 1,
+  nvbhCode: 1,
+  nvbhName: 1,
+  maNVBH: 1,
+  maNVBHName: 1,
+  'salesStaff.code': 1,
+  'salesStaff.name': 1,
+  'salesStaff.fullName': 1,
+  deliveryStaffCode: 1,
+  deliveryStaffName: 1,
+  masterOrderId: 1,
+  masterOrderCode: 1,
+  status: 1,
+  lifecycleStatus: 1,
+  deliveryStatus: 1,
+  mergeStatus: 1,
+  accountingStatus: 1,
+  accountingConfirmed: 1,
+  vatInvoiceRequired: 1,
+  vatInvoiceDecisionSource: 1,
+  vatInvoiceNote: 1,
+  vatInvoiceUpdatedAt: 1,
+  vatInvoiceUpdatedBy: 1,
+  source: 1,
+  orderSource: 1,
+  totalAmount: 1,
+  paidAmount: 1,
+  debtAmount: 1,
+  amount: 1,
+  total: 1
+};
+
+async function searchOrders(query = {}) {
+  const startedAt = Date.now();
+  const { filter, guardedQuery, strictSalesStaffCode } = buildOrderSearchFilter(query);
+  const page = queryGuard.getPagination(guardedQuery, { defaultLimit: 50, maxLimit: 100 });
+  const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1' || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
+  const sort = guardedQuery.dateType === 'deliveryDate'
+    ? { deliveryDate: -1, createdAt: -1, code: -1 }
+    : { orderDate: -1, date: -1, createdAt: -1, code: -1 };
+
+  // salesStaffCode đã nằm trong Mongo filter nên không scan/lọc lại bằng JavaScript.
+
+  const queryStartedAt = Date.now();
+  const rowsPromise = orderRepository.findAll(filter, {
+    projection: ORDER_LIST_PROJECTION,
+    sort,
+    skip: page.skip,
+    limit: page.limit
+  }).then((orders) => ({
+    orders,
+    queryMs: Date.now() - queryStartedAt
+  }));
+
+  const countStartedAt = Date.now();
+  const totalPromise = orderRepository.count(filter).then((total) => ({
+    total,
+    countMs: Date.now() - countStartedAt
+  }));
+
+  const [{ orders, queryMs }, { total, countMs }] = await Promise.all([rowsPromise, totalPromise]);
+
+  const mapStartedAt = Date.now();
+  const rows = orders.map(toListClient);
+  const mapMs = Date.now() - mapStartedAt;
+  const ms = Date.now() - startedAt;
+
+  debugLog('DEBUG_ORDER_FLOW', '[SALES_ORDER_SEARCH_REBUILT]', {
+    ms,
+    queryMs,
+    countMs,
+    mapMs,
+    page: page.page,
+    limit: page.limit,
+    total,
+    returned: rows.length,
+    filter
+  });
+
+  return {
+    rows,
+    salesOrders: rows,
+    orders: rows,
+    total,
+    page: page.page,
+    limit: page.limit,
+    returned: rows.length,
+    hasMore: page.skip + rows.length < total,
+    ms,
+    queryMs,
+    countMs,
+    mapMs
+  };
+}
+
+
+function ensureAnd(filter = {}) {
+  if (!Array.isArray(filter.$and)) filter.$and = [];
+  return filter.$and;
+}
+
+function normalizedSourceClause(sourceKey = '', rawSource = '') {
+  if (!sourceKey || sourceKey === 'manual') return null;
+  const exact = [...new Set([
+    sourceKey,
+    rawSource,
+    sourceKey.toUpperCase(),
+    sourceKey.toLowerCase(),
+    String(rawSource || '').toUpperCase(),
+    String(rawSource || '').toLowerCase()
+  ].filter(Boolean))];
+  const patterns = {
+    dms: /dms/i,
+    s3: /s3/i,
+    sales_app: /(mobile|app|nvbh|sales)/i
+  };
+  const clauses = [{ source: { $in: exact } }, { orderSource: { $in: exact } }];
+  if (patterns[sourceKey]) clauses.push({ source: patterns[sourceKey] }, { orderSource: patterns[sourceKey] });
+  return { $or: clauses };
+}
+
+function normalizedOrderStatusClause(value = '') {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return null;
+  if (status === 'cancelled') {
+    return { $or: [
+      { status: { $in: INACTIVE_ORDER_STATUS_VALUES } },
+      { lifecycleStatus: { $in: INACTIVE_ORDER_STATUS_VALUES } },
+      { deliveryStatus: { $in: INACTIVE_ORDER_STATUS_VALUES } },
+      { deleted: { $in: TRUTHY_DELETE_VALUES } },
+      { isDeleted: { $in: TRUTHY_DELETE_VALUES } },
+      { deletedAt: { $nin: [null, ''] } }
+    ] };
+  }
+  if (status === 'delivered') {
+    const values = ['delivered', 'success', 'completed', 'done'];
+    return { $or: [
+      { status: { $in: values } },
+      { lifecycleStatus: { $in: values } },
+      { deliveryStatus: { $in: values } }
+    ] };
+  }
+  if (status === 'assigned') {
+    return { $or: [
+      { status: { $in: ['assigned', 'assigned_delivery', 'waiting'] } },
+      { lifecycleStatus: { $in: ['assigned', 'assigned_delivery', 'waiting'] } },
+      { mergeStatus: { $in: ['merged', 'mastered', 'grouped'] } },
+      { masterOrderId: { $nin: [null, ''] } },
+      { masterOrderCode: { $nin: [null, ''] } }
+    ] };
+  }
+  return { $or: [{ status }, { lifecycleStatus: status }] };
+}
+
+function normalizedMergeStatusClause(value = '') {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return null;
+  if (status === 'merged') {
+    return { $or: [
+      { mergeStatus: { $in: ['merged', 'mastered', 'grouped'] } },
+      { masterOrderId: { $nin: [null, ''] } },
+      { masterOrderCode: { $nin: [null, ''] } }
+    ] };
+  }
+  if (status === 'unmerged') {
+    return { $and: [
+      { mergeStatus: { $nin: ['merged', 'mastered', 'grouped'] } },
+      { masterOrderId: { $in: [null, ''] } },
+      { masterOrderCode: { $in: [null, ''] } }
+    ] };
+  }
+  return { mergeStatus: status };
+}
+
+function normalizedDeliveryStatusClause(value = '') {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return null;
+  if (status === 'delivered') return { deliveryStatus: { $in: ['delivered', 'success', 'completed', 'done'] } };
+  if (status === 'failed') return { deliveryStatus: { $in: ['failed', 'fail', 'not_delivered', 'undelivered'] } };
+  if (status === 'cancelled') return { deliveryStatus: { $in: INACTIVE_ORDER_STATUS_VALUES } };
+  if (status === 'pending') {
+    return { deliveryStatus: { $nin: [...INACTIVE_ORDER_STATUS_VALUES, 'delivered', 'success', 'completed', 'done', 'failed', 'fail', 'not_delivered', 'undelivered'] } };
+  }
+  return { deliveryStatus: status };
+}
+
+function normalizedAccountingStatusClause(value = '') {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return null;
+  if (status === 'confirmed') {
+    return { $or: [
+      { accountingConfirmed: true },
+      { accountingStatus: { $in: ['confirmed', 'locked', 'posted'] } },
+      { arStatus: { $in: ['confirmed', 'locked', 'posted'] } }
+    ] };
+  }
+  if (status === 'pending') {
+    return { $and: [
+      { accountingConfirmed: { $ne: true } },
+      { accountingStatus: { $nin: ['confirmed', 'locked', 'posted'] } },
+      { arStatus: { $nin: ['confirmed', 'locked', 'posted'] } }
+    ] };
+  }
+  return { accountingStatus: status };
+}
+
+async function listOrders(query = {}) {
+  const guardedQuery = queryGuard.normalizeQueryDateRange(query, { defaultToday: true });
+  const internalMaxLimit = Math.max(Number(guardedQuery.__internalMaxLimit || 0), 0);
+  const page = queryGuard.getPagination(
+    guardedQuery,
+    internalMaxLimit
+      ? { maxLimit: internalMaxLimit, defaultLimit: Math.min(internalMaxLimit, 500) }
+      : {}
+  );
+  const q = String(guardedQuery.q || guardedQuery.keyword || guardedQuery.search || '').trim();
+  const dateFrom = dateUtil.toDateOnly(guardedQuery.dateFrom || guardedQuery.fromDate || guardedQuery.from);
+  const dateTo = dateUtil.toDateOnly(guardedQuery.dateTo || guardedQuery.toDate || guardedQuery.to);
+  const dateType = String(guardedQuery.dateType || guardedQuery.filterDateType || 'orderDate').trim();
+  const includeCancelled = String(guardedQuery.includeCancelled || '0') === '1'
+    || String(guardedQuery.status || '').toLowerCase() === 'cancelled';
+  const rawSource = String(guardedQuery.source || guardedQuery.orderSource || '').trim();
+  const sourceKey = orderStatusUtil.normalizeOrderSource(rawSource);
+
+  const filter = {};
+  if (dateFrom || dateTo) {
+    const range = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    const orderDateFields = [{ orderDate: range }, { date: range }, { createdDate: range }];
+    const deliveryDateFields = [{ deliveryDate: range }];
+    if (dateType === 'deliveryDate') filter.$or = deliveryDateFields;
+    else if (dateType === 'all') filter.$or = [...orderDateFields, ...deliveryDateFields, { createdAt: range }];
+    else filter.$or = orderDateFields;
+  }
+  if (!includeCancelled) applyActiveSalesOrderFilter(filter);
+
+  if (q) {
+    const rx = queryGuard.buildRegex(q);
+    ensureAnd(filter).push({ $or: [
+      { code: rx }, { id: rx }, { orderCode: rx }, { salesOrderCode: rx },
+      { customerCode: rx }, { customerName: rx }, { customerPhone: rx },
+      { salesStaffCode: rx }, { salesStaffName: rx },
+      { deliveryStaffCode: rx }, { deliveryStaffName: rx },
+      { masterOrderCode: rx }, { masterOrderId: rx }
+    ] });
+  }
+
+  const staffCodeFilter = extractStaffCodeParam(
+    guardedQuery.salesStaffCode || guardedQuery.salesmanCode || guardedQuery.nvbhCode || guardedQuery.maNVBH
+  );
+  const staffTextFilter = String(
+    guardedQuery.salesStaffText || guardedQuery.salesStaffName || guardedQuery.salesmanName || ''
+  ).trim();
+  if (staffCodeFilter) {
+    filter.salesStaffCode = staffCodeFilter;
+  } else if (staffTextFilter) {
+    const staffRx = queryGuard.buildRegex(staffTextFilter);
+    ensureAnd(filter).push({ $or: [{ salesStaffCode: staffRx }, { salesStaffName: staffRx }] });
+  }
+
+  const deliveryStaffCodeFilter = extractStaffCodeParam(
+    guardedQuery.deliveryStaffCode || guardedQuery.nvghCode || guardedQuery.deliveryCode
+  );
+  if (deliveryStaffCodeFilter) filter.deliveryStaffCode = deliveryStaffCodeFilter;
+
+  const clauses = [
+    normalizedSourceClause(sourceKey, rawSource),
+    normalizedOrderStatusClause(guardedQuery.status || guardedQuery.lifecycleStatus),
+    normalizedMergeStatusClause(guardedQuery.mergeStatus),
+    normalizedDeliveryStatusClause(guardedQuery.deliveryStatus),
+    normalizedAccountingStatusClause(guardedQuery.accountingStatus)
+  ].filter(Boolean);
+  if (clauses.length) ensureAnd(filter).push(...clauses);
+
+  const orders = await orderRepository.findAll(filter, {
+    projection: ORDER_LIST_PROJECTION,
+    sort: { createdAt: -1, code: -1 },
+    skip: page.skip,
+    limit: page.limit
+  });
+  return orders.map(toClient);
+}
+
+async function createOrder(body = {}, actor = {}) {
+  const startedAt = Date.now();
+  const customer = await resolveCustomer(body);
+  const staff = await resolveStaff(body);
+  const saleMode = hasExplicitSaleMode(body)
+    ? normalizeSaleMode(getRawSaleMode(body))
+    : (isImportOrDmsSource(body) ? DIRECT_PRICE : PROMOTION);
+  const items = await hydrateItemNames(await applyPromotionPricing(body.items, saleMode, body), saleMode);
+  if (!items.length) return { error: 'Đơn bán chưa có sản phẩm', status: 400 };
+  const totalAmount = toNumber(body.totalAmount || items.reduce((sum, item) => sum + toNumber(item.amount), 0));
+  const paidAmount = toNumber(body.paidAmount || body.paid || 0);
+  const generatedOrderCode = String(body.code || body.orderCode || body.salesOrderCode || body.documentCode || buildOrderCode()).trim();
+  const generatedOrderId = String(body.id || generatedOrderCode).trim();
+  const normalizedOrderDate = dateUtil.toDateOnly(body.orderDate || body.date || dateUtil.todayVN());

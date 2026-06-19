@@ -1,0 +1,666 @@
+/* IMPORT_ORDER_POPUP_PATCH_START: isolated import order modal layout */
+#importTab .import-order-history-grid{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+#importTab .import-history-card{
+  width:100%;
+}
+.import-history-toolbar{
+  align-items:flex-start!important;
+}
+.import-history-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+}
+#importOrderModal .import-order-workspace{
+  width:min(75vw,1180px);
+  max-width:96vw;
+  height:min(90vh,860px);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+#importOrderModal .import-order-workspace-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  border-bottom:1px solid #e2e8f0;
+  background:#f8fafc;
+}
+#importOrderModal .import-order-workspace-head h3{
+  margin:0;
+  font-size:18px;
+  font-weight:900;
+  color:#0f172a;
+}
+#importOrderModal .import-order-workspace-head p{
+  margin:4px 0 0;
+}
+#importOrderModal .import-order-workspace-body{
+  padding:18px;
+  overflow:auto;
+}
+#importOrderModal .import-order-workspace-form{
+  max-width:100%;
+}
+#importOrderModal .import-form-actions{
+  position:sticky;
+  bottom:0;
+  background:#fff;
+  padding-top:12px;
+  border-top:1px solid #e2e8f0;
+}
+@media(max-width:900px){
+  #importOrderModal .import-order-workspace{width:98vw;height:94vh;}
+  .import-history-toolbar{align-items:stretch!important;flex-direction:column;}
+  .import-history-actions{justify-content:stretch;}
+  .import-history-actions .primary-action,.import-history-actions .secondary{width:100%;}
+}
+/* IMPORT_ORDER_POPUP_PATCH_END */
+
+/* IMPORT_LAYOUT_VERTICAL_V2_START: cô lập layout dọc cho popup nhập kho và danh sách phiếu nhập 1 dòng */
+#importTab .import-order-one-line-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+#importTab .import-order-one-line-row{
+  display:grid;
+  grid-template-columns:34px minmax(120px,1.1fr) minmax(98px,.8fr) minmax(150px,1.1fr) minmax(92px,.8fr) minmax(120px,.9fr) minmax(96px,.8fr) minmax(190px,auto);
+  align-items:center;
+  gap:10px;
+  min-height:52px;
+  padding:10px 12px;
+  border:1px solid #dbe7f5;
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(15,23,42,.03);
+}
+#importTab .import-order-one-line-row:hover{
+  border-color:#bcd3f7;
+  background:#f8fbff;
+}
+#importTab .import-order-cell-code{
+  font-weight:900;
+  color:#1d4ed8;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#importTab .import-order-cell{
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:#334155;
+  font-size:13px;
+}
+#importTab .import-order-money{
+  color:#047857;
+  font-weight:900;
+  text-align:right;
+}
+#importTab .import-order-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:6px;
+  flex-wrap:wrap;
+}
+#importOrderModal .import-order-workspace-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:hidden;
+  padding:12px 18px 14px;
+}
+#importOrderModal .import-vertical-layout{
+  height:100%;
+  max-height:100%;
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  gap:10px;
+  min-height:0;
+}
+#importOrderModal .import-vertical-section{
+  border:1px solid #dbe7f5;
+  border-radius:12px;
+  background:#fff;
+  padding:10px 12px;
+  min-width:0;
+}
+#importOrderModal .import-section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+}
+#importOrderModal .import-section-title h4{
+  margin:0;
+  font-size:14px;
+  font-weight:900;
+  color:#0f172a;
+}
+#importOrderModal .import-info-row{
+  display:grid;
+  grid-template-columns:minmax(150px,.75fr) minmax(220px,1fr) minmax(320px,1.6fr);
+  gap:10px;
+  align-items:end;
+}
+#importOrderModal .import-line-row{
+  display:grid;
+  grid-template-columns:minmax(360px,1fr) minmax(120px,.32fr) minmax(150px,.38fr) auto;
+  gap:10px;
+  align-items:end;
+}
+#importOrderModal .import-info-row label,
+#importOrderModal .import-line-row label{
+  margin:0;
+}
+#importOrderModal .import-info-row input,
+#importOrderModal .import-line-row input{
+  height:36px;
+}
+#importOrderModal .import-add-line-button{
+  height:36px;
+  white-space:nowrap;
+}
+#importOrderModal .import-items-section{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  padding-bottom:8px;
+}
+#importOrderModal .import-items-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  border:1px solid #e2e8f0;
+  border-radius:10px;
+}
+#importOrderModal .import-items-scroll table{
+  margin:0;
+}
+#importOrderModal .import-items-scroll thead th{
+  position:sticky;
+  top:0;
+  z-index:1;
+  background:#f1f5f9;
+}
+#importOrderModal .import-sticky-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0 0;
+  border-top:1px solid #e2e8f0;
+  background:#fff;
+}
+#importOrderModal .import-footer-summary{
+  flex:1 1 auto;
+  margin:0;
+  min-height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+#importOrderModal .import-form-actions{
+  position:static;
+  padding:0;
+  border:0;
+  background:transparent;
+  margin:0;
+  flex:0 0 auto;
+}
+@media(max-width:1100px){
+  #importTab .import-order-one-line-row{
+    grid-template-columns:28px minmax(120px,1fr) minmax(90px,.8fr) minmax(140px,1fr) minmax(85px,.7fr) minmax(110px,.9fr) minmax(92px,.8fr) minmax(160px,auto);
+    overflow:auto;
+  }
+  #importOrderModal .import-info-row,
+  #importOrderModal .import-line-row{
+    grid-template-columns:1fr 1fr;
+  }
+  #importOrderModal .import-product-field,
+  #importOrderModal .import-note-field{
+    grid-column:1 / -1;
+  }
+}
+@media(max-width:760px){
+  #importOrderModal .import-order-workspace-body{overflow:auto;}
+  #importOrderModal .import-vertical-layout{height:auto;min-height:100%;}
+  #importOrderModal .import-info-row,
+  #importOrderModal .import-line-row{
+    grid-template-columns:1fr;
+  }
+  #importOrderModal .import-sticky-footer{
+    position:sticky;
+    bottom:0;
+    flex-direction:column;
+    align-items:stretch;
+  }
+  #importOrderModal .import-form-actions,
+  #importOrderModal .import-form-actions button{
+    width:100%;
+  }
+}
+/* IMPORT_LAYOUT_VERTICAL_V2_END */
+
+/* IMPORT_HISTORY_LAYOUT_GROUPED_START: khoanh vùng riêng tab Nhập kho - gom nút, bộ lọc, thống kê, header danh sách; không ảnh hưởng module khác */
+#importTab .import-history-toolbar-v2{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:12px!important;
+  align-items:end!important;
+  margin-bottom:8px!important;
+}
+#importTab .import-history-title-block h2{
+  margin-bottom:4px!important;
+}
+#importTab .import-history-actions-v2{
+  display:flex!important;
+  gap:8px!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  flex-wrap:wrap!important;
+}
+#importTab .import-history-filter-v2{
+  margin:8px 0 10px!important;
+  padding:10px 12px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:14px!important;
+  background:#f8fbff!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:8px!important;
+}
+#importTab .import-date-filter-row-v2{
+  display:flex!important;
+  align-items:end!important;
+  gap:10px!important;
+  flex-wrap:wrap!important;
+}
+#importTab .import-date-filter-row-v2 label{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:5px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  color:#334155!important;
+}
+#importTab .import-date-filter-row-v2 input[type="date"]{
+  min-width:145px!important;
+}
+#importTab .import-summary-cards{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(160px,1fr))!important;
+  gap:10px!important;
+  margin:10px 0 12px!important;
+}
+#importTab .import-summary-card{
+  border:1px solid #dbe7f5!important;
+  border-radius:12px!important;
+  background:#f8fbff!important;
+  padding:10px 12px!important;
+  box-shadow:0 1px 2px rgba(15,23,42,.03)!important;
+}
+#importTab .import-summary-card span{
+  display:block!important;
+  font-size:12px!important;
+  color:#64748b!important;
+  font-weight:800!important;
+}
+#importTab .import-summary-card strong{
+  display:block!important;
+  margin-top:4px!important;
+  font-size:16px!important;
+  color:#0f172a!important;
+  font-weight:900!important;
+}
+#importTab .import-order-one-line-list{
+  --import-order-columns:
+    34px
+    minmax(120px,1.05fr)
+    minmax(96px,.8fr)
+    minmax(150px,1.1fr)
+    minmax(160px,1.2fr)
+    minmax(90px,.75fr)
+    minmax(125px,.95fr)
+    minmax(96px,.8fr)
+    minmax(210px,1.35fr);
+  overflow-x:auto;
+  overscroll-behavior-inline:contain;
+}
+#importTab .import-order-list-head,
+#importTab .import-order-one-line-row{
+  display:grid!important;
+  grid-template-columns:var(--import-order-columns)!important;
+  gap:10px!important;
+  align-items:center!important;
+  width:100%!important;
+  min-width:1200px!important;
+}
+#importTab .import-order-list-head > div,
+#importTab .import-order-one-line-row > div{
+  min-width:0;
+}
+#importTab .import-order-list-head > :is(:nth-child(1),:nth-child(3),:nth-child(8),:nth-child(9)),
+#importTab .import-order-one-line-row > :is(:nth-child(1),:nth-child(3),:nth-child(8),:nth-child(9)){
+  display:flex;
+  align-items:center;
+  justify-content:center!important;
+  text-align:center!important;
+}
+#importTab .import-order-list-head > :is(:nth-child(6),:nth-child(7)),
+#importTab .import-order-one-line-row > :is(:nth-child(6),:nth-child(7)){
+  display:flex;
+  align-items:center;
+  justify-content:flex-end!important;
+  text-align:right!important;
+  font-variant-numeric:tabular-nums;
+}
+#importTab .import-order-note{
+  display:block!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  color:#475569!important;
+}
+#importTab .import-order-list-head{
+  padding:9px 12px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:10px!important;
+  background:#eff6ff!important;
+  color:#1e3a8a!important;
+  font-size:13px!important;
+  font-weight:900!important;
+}
+#importTab .import-order-one-line-row{
+  min-height:52px!important;
+  padding:10px 12px!important;
+  border:1px solid #dbe7f5!important;
+  border-radius:12px!important;
+  background:#fff!important;
+}
+#importTab .import-order-empty{
+  border:1px dashed #cbd5e1!important;
+  border-radius:12px!important;
+  background:#f8fafc!important;
+  color:#64748b!important;
+  padding:16px!important;
+  text-align:center!important;
+  font-weight:700!important;
+}
+@media(max-width:900px){
+  #importTab .import-order-one-line-list{
+    overflow-x:visible;
+  }
+  #importTab .import-history-toolbar-v2{
+    grid-template-columns:1fr!important;
+    align-items:stretch!important;
+  }
+  #importTab .import-history-actions-v2,
+  #importTab .import-date-filter-row-v2{
+    justify-content:stretch!important;
+  }
+  #importTab .import-history-actions-v2 button,
+  #importTab .import-date-filter-row-v2 button,
+  #importTab .import-date-filter-row-v2 label{
+    width:100%!important;
+  }
+  #importTab .import-summary-cards{
+    grid-template-columns:1fr!important;
+  }
+  #importTab .import-order-list-head{
+    display:none!important;
+  }
+  #importTab .import-order-one-line-row{
+    grid-template-columns:28px minmax(0,1fr)!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  #importTab .import-order-one-line-row > div:nth-child(n+3){
+    grid-column:2!important;
+  }
+  #importTab .import-order-actions{
+    justify-content:flex-start!important;
+  }
+}
+/* IMPORT_HISTORY_LAYOUT_GROUPED_END */
+
+
+/* MASTER_ORDER_TOOLBAR_GROUPED_START: khoanh vùng riêng tab Đơn tổng, không ảnh hưởng các module khác */
+#masterOrdersTab .master-order-toolbar-grouped{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:10px!important;
+  margin:0 0 12px!important;
+}
+#masterOrdersTab .master-order-title-row{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+}
+#masterOrdersTab .master-order-title-row h2{
+  font-size:16px!important;
+  line-height:1.25!important;
+  margin:0!important;
+}
+#masterOrdersTab .master-order-title-row .muted{
+  font-size:12px!important;
+  line-height:1.25!important;
+  margin:2px 0 0!important;
+}
+#masterOrdersTab .master-order-toolbar-row{
+  display:grid!important;
+  grid-template-columns:minmax(280px,45%) minmax(230px,20%) minmax(380px,35%)!important;
+  gap:10px!important;
+  align-items:center!important;
+  padding:10px!important;
+  border:1px solid #dbeafe!important;
+  border-radius:12px!important;
+  background:#f8fbff!important;
+}
+#masterOrdersTab .master-order-search-box,
+#masterOrdersTab .master-order-date-box,
+#masterOrdersTab .master-order-action-box{
+  min-width:0!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+}
+#masterOrdersTab .master-order-search-box input{
+  width:100%!important;
+  min-width:0!important;
+  height:34px!important;
+  padding:6px 10px!important;
+  border-radius:10px!important;
+}
+#masterOrdersTab .master-order-date-box input{
+  width:50%!important;
+  min-width:0!important;
+  height:34px!important;
+  padding:6px 8px!important;
+  border-radius:10px!important;
+}
+#masterOrdersTab .master-order-action-box{
+  justify-content:flex-end!important;
+  flex-wrap:nowrap!important;
+}
+#masterOrdersTab .master-order-action-box button{
+  width:auto!important;
+  min-width:max-content!important;
+  height:34px!important;
+  padding:6px 10px!important;
+  font-size:12px!important;
+  white-space:nowrap!important;
+}
+#masterOrdersTab .master-order-list-head,
+#masterOrdersTab .master-order-row{
+  grid-template-columns:34px minmax(150px,20%) minmax(130px,18%) minmax(210px,28%) minmax(90px,12%) minmax(100px,12%) minmax(96px,10%)!important;
+}
+@media(max-width:1180px){
+  #masterOrdersTab .master-order-toolbar-row{
+    grid-template-columns:1fr!important;
+  }
+  #masterOrdersTab .master-order-date-box,
+  #masterOrdersTab .master-order-action-box{
+    justify-content:flex-start!important;
+    flex-wrap:wrap!important;
+  }
+  #masterOrdersTab .master-order-action-box button{
+    flex:1 1 140px!important;
+  }
+}
+/* MASTER_ORDER_TOOLBAR_GROUPED_END */
+
+/* SALES_HISTORY_COMPACT_TOOLBAR_PATCH_START
+   Scope: chỉ màn Lịch sử đơn bán (#salesTab).
+   Mục tiêu: thu gọn toolbar/filter/nút bấm, gom KPI, giữ nút Tạo đơn mới cùng hàng tiêu đề. */
+#salesTab .sales-history-toolbar{
+  display:grid!important;
+  grid-template-columns:1fr auto!important;
+  align-items:start!important;
+  gap:8px 12px!important;
+  position:sticky!important;
+  top:8px!important;
+  z-index:30!important;
+  padding:10px 12px!important;
+  margin-bottom:8px!important;
+}
+#salesTab .sales-history-toolbar > div:first-child{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:10px!important;
+  min-width:0!important;
+}
+#salesTab .sales-history-toolbar h2{
+  margin:0!important;
+  line-height:1.1!important;
+  white-space:nowrap!important;
+}
+#salesTab #salesOrderCount{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:center!important;
+  gap:6px!important;
+  max-width:none!important;
+  margin:0!important;
+  font-size:12px!important;
+  color:#475569!important;
+  white-space:normal!important;
+}
+#salesTab #salesOrderCount span{
+  display:inline-flex!important;
+  align-items:center!important;
+  min-height:24px!important;
+  padding:3px 8px!important;
+  border:1px solid #e2e8f0!important;
+  border-radius:999px!important;
+  background:#f8fafc!important;
+}
+#salesTab #openCreateSalesOrderButton{
+  grid-column:2!important;
+  grid-row:1!important;
+  justify-self:end!important;
+  align-self:start!important;
+  white-space:nowrap!important;
+}
+#salesTab .sales-history-filters{
+  grid-column:1 / -1!important;
+  display:grid!important;
+  gap:7px!important;
+}
+#salesTab .sales-filter-row-main{
+  display:grid!important;
+  grid-template-columns:7fr 3fr!important;
+  gap:8px!important;
+  align-items:center!important;
+}
+#salesTab .sales-filter-row-sub.sales-create-order-filters{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  align-items:end!important;
+  justify-content:flex-start!important;
+  gap:8px!important;
+}
+#salesTab .sales-filter-row-sub.sales-create-order-filters .sales-date-filter{
+  width:128px!important;
+  flex:0 0 128px!important;
+}
+#salesTab .sales-filter-source{
+  width:132px!important;
+  flex:0 0 132px!important;
+}
+#salesTab .sales-filter-row-sub.sales-create-order-filters .compact-action{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  padding-left:12px!important;
+  padding-right:12px!important;
+}
+/* SALES_HISTORY_BUTTON_WIDTH_FIX_START
+   Lỗi sau bản compact: rule cũ .sales-filter-two-rows button{width:100%!important}
+   làm 4 nút Tải lại/Chọn tất cả/In đơn/Xuất Excel kéo dài full dòng.
+   Khoanh vùng chỉ trong salesTab + hàng filter đơn bán, ép nút trở lại kích thước nội dung. */
+#salesTab .sales-filter-two-rows .sales-create-order-filters button.compact-action{
+  width:auto!important;
+  min-width:76px!important;
+  max-width:max-content!important;
+  flex-grow:0!important;
+  flex-shrink:0!important;
+  align-self:end!important;
+}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #reloadSalesOrdersButton{min-width:78px!important;}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #selectAllSalesOrdersButton{min-width:104px!important;}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #printSelectedSalesOrdersButton{min-width:82px!important;}
+#salesTab .sales-filter-two-rows .sales-create-order-filters #exportSelectedSalesOrdersButton{min-width:96px!important;}
+/* SALES_HISTORY_BUTTON_WIDTH_FIX_END */
+/* SALES_HISTORY_COMPACT_TOOLBAR_PATCH_END */
+
+/* SALES_HISTORY_NVBH_COLUMN_PATCH_START
+   Scope: chỉ danh sách đơn bán. Thêm cột NV bán hàng và cân lại 8 cột. */
+#salesTab .sales-order-list-head,
+#salesTab .sales-order-row{
+  display:grid!important;
+  grid-template-columns:26px minmax(120px,150px) minmax(150px,1.3fr) minmax(130px,180px) 90px minmax(95px,110px) 70px 82px 100px!important;
+  align-items:center!important;
+}
+#salesTab .sales-order-staff-inline{
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  font-size:12.5px!important;
+  font-weight:750!important;
+  color:#334155!important;
+}
+#salesTab .sales-order-list-head{
+  top:72px!important;
+}
+#salesTab #salesOrderList.order-list{
+  max-height:calc(100vh - 220px)!important;
+}
+@media(max-width:1280px){
+  #salesTab .sales-order-list-head{display:none!important;}
+  #salesTab .sales-order-row{
+    grid-template-columns:26px minmax(95px,1fr) minmax(120px,1.1fr) minmax(115px,1fr) minmax(80px,.8fr)!important;
+    grid-auto-rows:auto!important;
+  }
+}
+@media(max-width:720px){
+  #salesTab .sales-history-toolbar{grid-template-columns:1fr!important;}
+  #salesTab #openCreateSalesOrderButton{grid-column:1!important;grid-row:auto!important;justify-self:start!important;}
+  #salesTab .sales-filter-row-main,
+  #salesTab .sales-filter-row-sub.sales-create-order-filters{grid-template-columns:1fr!important;}
+  #salesTab .sales-order-row{grid-template-columns:26px 1fr!important;}
+}
+/* SALES_HISTORY_NVBH_COLUMN_PATCH_END */
+

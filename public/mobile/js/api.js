@@ -1,0 +1,189 @@
+import { API_URL, STORAGE_KEYS, MOBILE_ROUTES } from './config.js';
+
+export function getToken() {
+  return '';
+}
+
+export function setToken() {
+  localStorage.removeItem(STORAGE_KEYS.token);
+  localStorage.removeItem(STORAGE_KEYS.refreshToken);
+}
+
+export function getRefreshToken() {
+  return '';
+}
+
+export function clearToken() {
+  localStorage.removeItem(STORAGE_KEYS.token);
+  localStorage.removeItem(STORAGE_KEYS.refreshToken);
+  localStorage.removeItem(STORAGE_KEYS.user);
+}
+
+export function setUser(user) {
+  localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user || {}));
+}
+
+export function getUser() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.user) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+
+function makeClientRequestId(prefix = 'mobile') {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${prefix}:${Date.now()}:${random}`;
+}
+
+function withClientRequestId(payload = {}, prefix = 'mobile') {
+  if (!payload || typeof payload !== 'object') return { idempotencyKey: makeClientRequestId(prefix) };
+  return { ...payload, idempotencyKey: payload.idempotencyKey || payload.requestId || payload.clientRequestId || makeClientRequestId(prefix) };
+}
+
+export async function apiRequest(path, options = {}) {
+  const requestOptions = { ...options };
+  const authRetried = Boolean(requestOptions.__authRetried);
+  delete requestOptions.__authRetried;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(requestOptions.headers || {})
+  };
+
+
+  const clientStartedAt = performance.now();
+  const res = await fetch(`${API_URL}${path}`, {
+    ...requestOptions,
+    credentials: requestOptions.credentials || 'include',
+    headers
+  });
+  const clientMs = Math.round(performance.now() - clientStartedAt);
+
+  let data = await res.json().catch(() => ({}));
+  const serverMs = Number(data.serverMs || data.ms || res.headers.get('X-Response-Time-Ms') || 0);
+  data.__clientPerf = { path, clientMs, serverMs, perf: data.perf || null };
+  if (/\/api\/mobile\/(sales\/orders|delivery\/orders|delivery-orders)/.test(path)) {
+    console.log('[MOBILE_API_PERF]', data.__clientPerf);
+  }
+  if (res.status === 401 && path !== MOBILE_ROUTES.login && path !== MOBILE_ROUTES.refresh && !authRetried) {
+    const refreshed = await refreshSession().catch(() => null);
+    if (refreshed?.token) {
+      return apiRequest(path, { ...options, __authRetried: true });
+    }
+  }
+  if (res.status === 401) {
+    clearToken();
+    window.location.href = './login.html';
+    throw new Error('Phiên đăng nhập đã hết hạn');
+  }
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.message || 'Có lỗi xảy ra');
+  }
+  return data;
+}
+
+export async function refreshSession() {
+  const res = await fetch(`${API_URL}${MOBILE_ROUTES.refresh}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    clearToken();
+    return null;
+  }
+  setToken(data.token);
+  if (data.user) setUser(data.user);
+  return data;
+}
+
+export const mobileApi = {
+  login(payload) {
+    return apiRequest(MOBILE_ROUTES.login, { method: 'POST', body: JSON.stringify(payload) });
+  },
+  me() {
+    return apiRequest(MOBILE_ROUTES.me);
+  },
+  getCustomers(q = '', options = {}) {
+    const query = new URLSearchParams();
+    if (q) query.set('q', q);
+    if (options.limit) query.set('limit', String(options.limit));
+    if (options.all) query.set('all', '1');
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.customers}${suffix}`);
+  },
+  getProducts(q = '', options = {}) {
+    const query = new URLSearchParams();
+    if (q) query.set('q', q);
+    if (options.limit) query.set('limit', String(options.limit));
+    if (options.all) query.set('all', '1');
+    // MOBILE_PRODUCT_GROUP_FILTER_API_START: truyền Nhóm hàng xuống API để thu hẹp gợi ý sản phẩm trên app bán hàng.
+    const groupValue = options.group || options.groupName || options.category || options.categoryName || options.productGroup || options.productGroupName || '';
+    if (groupValue) query.set('group', String(groupValue));
+    if (options.inStockOnly !== undefined) query.set('inStockOnly', String(options.inStockOnly));
+    // MOBILE_PRODUCT_GROUP_FILTER_API_END
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.products}${suffix}`);
+  },
+  // MOBILE_SALES_CART_PROMOTION_RECALC_API_START
+  calculatePromotions(payload = {}) {
+    return apiRequest('/api/promotions/calculate', { method: 'POST', body: JSON.stringify(payload) });
+  },
+  // MOBILE_SALES_CART_PROMOTION_RECALC_API_END
+  getStock(q = '') {
+    return apiRequest(`${MOBILE_ROUTES.stock}?q=${encodeURIComponent(q)}`);
+  },
+  createSalesOrder(payload) {
+    return apiRequest(MOBILE_ROUTES.salesOrders, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'sales-create')) });
+  },
+  getSalesOrder(id) {
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`);
+  },
+  updateSalesOrder(id, payload) {
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(withClientRequestId(payload, 'sales-update')) });
+  },
+  deleteSalesOrder(id) {
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  getMySalesOrders() {
+    return apiRequest(`${MOBILE_ROUTES.salesOrders}?mine=1`);
+  },
+  getSalesDebts(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.salesDebts}${suffix}`);
+  },
+  submitDebtCollection(payload = {}) {
+    return apiRequest(MOBILE_ROUTES.debtCollections || '/api/mobile/debt-collections', { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'debt-collection')) });
+  },
+  getDeliveryOrders(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.deliveryOrders}${suffix}`);
+  },
+  confirmDelivery(payload) {
+    return apiRequest(MOBILE_ROUTES.deliveryConfirm, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-confirm')) });
+  },
+  getDeliveryReturns(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.deliveryReturns || '/api/delivery/returns'}${suffix}`);
+  },
+  createDeliveryReturn(payload) {
+    return apiRequest(MOBILE_ROUTES.deliveryReturn, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-return')) });
+  },
+  submitDeliveryPayment(payload) {
+    return apiRequest(MOBILE_ROUTES.deliveryPayment || MOBILE_ROUTES.deliveryConfirm, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'delivery-payment')) });
+  },
+  getDeliveryCustomerDebts(params = {}) {
+    const query = new URLSearchParams(params);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest(`${MOBILE_ROUTES.deliveryCustomerDebts}${suffix}`);
+  },
+  submitCash(payload) {
+    return apiRequest(MOBILE_ROUTES.cashSubmit, { method: 'POST', body: JSON.stringify(withClientRequestId(payload, 'cash-submit')) });
+  }
+};

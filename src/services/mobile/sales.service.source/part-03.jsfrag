@@ -1,0 +1,381 @@
+    if (rawItems) {
+      const items = rawItems.map((item = {}) => {
+        const quantity = toNumber(item.quantity ?? item.qty ?? 0);
+        const salePrice = toNumber(item.salePrice ?? item.unitPrice ?? item.finalPrice ?? item.price ?? 0);
+        const grossPrice = toNumber(item.grossPrice ?? item.originalPrice ?? item.catalogSalePrice ?? salePrice);
+        const grossAmount = Math.round(toNumber(item.grossAmount ?? quantity * grossPrice));
+        const discountAmount = toNumber(item.discountAmount ?? item.promotionAmount ?? item.totalDiscountAmount ?? Math.max(0, grossAmount - toNumber(item.amount ?? quantity * salePrice)));
+        const amount = Math.max(0, Math.round(toNumber(item.amount ?? quantity * salePrice)));
+        return {
+          ...item,
+          quantity,
+          qty: quantity,
+          grossPrice,
+          grossAmount,
+          discountAmount,
+          promotionAmount: toNumber(item.promotionAmount ?? discountAmount),
+          totalDiscountAmount: toNumber(item.totalDiscountAmount ?? discountAmount),
+          salePrice,
+          unitPrice: toNumber(item.unitPrice ?? salePrice),
+          finalPrice: toNumber(item.finalPrice ?? item.unitPrice ?? salePrice),
+          price: toNumber(item.price ?? salePrice),
+          amount,
+          netAmount: toNumber(item.netAmount ?? amount)
+        };
+      });
+
+      const invalidItem = items.find((item) => toNumber(item.quantity) <= 0 || !normalizeEditProductCode(item.productCode || item.code || item.sku || item.productId));
+      if (invalidItem) {
+        return rememberIdempotentResult(idemKey, fail(400, `Sản phẩm hoặc số lượng không hợp lệ: ${invalidItem.productCode || invalidItem.code || invalidItem.productName || ''}`));
+      }
+
+      const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
+      const totalGrossAmount = items.reduce((sum, item) => sum + toNumber(item.grossAmount ?? toNumber(item.quantity) * toNumber(item.grossPrice)), 0);
+      const totalDiscountAmount = items.reduce((sum, item) => sum + toNumber(item.discountAmount ?? item.promotionAmount ?? item.totalDiscountAmount), 0);
+      const totalAmount = items.reduce((sum, item) => sum + toNumber(item.amount), 0);
+      const paidAmount = toNumber(body.paidAmount ?? order.paidAmount ?? 0);
+      if (paidAmount > totalAmount) return rememberIdempotentResult(idemKey, fail(400, 'Tiền thu không được lớn hơn tổng đơn'));
+
+      Object.assign(patch, {
+        items,
+        totalQuantity,
+        grossAmount: totalGrossAmount,
+        totalGrossAmount,
+        grossAmountBeforePromotion: totalGrossAmount,
+        discountAmount: totalDiscountAmount,
+        totalDiscountAmount,
+        promotionAmount: totalDiscountAmount,
+        totalPromotionAmount: totalDiscountAmount,
+        netAmount: totalAmount,
+        goodsAmountAfterPromotion: totalAmount,
+        totalAmount,
+        paidAmount,
+        debtAmount: totalAmount - paidAmount,
+        promotionCodes: Array.from(new Set(items.map((item) => item.promotionCode).filter(Boolean)))
+      });
+    }
+
+    try {
+      const result = await withMongoTransaction(async (session) => {
+        const current = await SalesOrder.findOne({ $and: [identity, owner, activeSalesOrderMongoFilter()] })
+          .session(session)
+          .lean();
+        if (!current) {
+          const err = new Error('Không tìm thấy đơn bán hoặc đơn đã thay đổi trạng thái');
+          err.status = 404;
+          throw err;
+        }
+
+        const lockReason = mobileSalesOrderEditLockReason(current);
+        if (lockReason) {
+          const err = new Error(lockReason);
+          err.status = 409;
+          throw err;
+        }
+
+        const returnFilterInTx = returnOrderIdentityFilterForSalesOrder(current);
+        const linkedReturnInTx = returnFilterInTx
+          ? await ReturnOrder.findOne(returnFilterInTx).session(session).lean()
+          : null;
+        if (linkedReturnInTx && (returnOrderHasValue(linkedReturnInTx) || returnOrderIsLocked(linkedReturnInTx))) {
+          const err = new Error('Đơn đã phát sinh nghiệp vụ trả hàng, không thể chỉnh sửa trên app bán hàng');
+          err.status = 409;
+          throw err;
+        }
+
+        const persistentRequest = await beginRequest({
+          scope: 'mobile.sales.update',
+          actorCode,
+          requestKey: idemKey
+        }, { session });
+        if (persistentRequest.replay) return persistentRequest.response;
+
+        const finalPatch = { ...patch };
+        const wasStockPosted = current.stockPosted === true;
+
+        if (rawItems && wasStockPosted) {
+          const quotaEnabled = internalSaleAllocationService.isQuotaEnabled();
+          let adjustedItems = patch.items || [];
+          let quotaAllocations = new Map();
+
+          if (quotaEnabled) {
+            const quotaAdjustment = await internalSaleAllocationService.adjustForOrderEdit({
+              orderId: current.id || current._id || current.code,
+              orderCode: current.code || current.id,
+              previousItems: current.items || [],
+              nextItems: patch.items || [],
+              commandId: idemKey,
+              actorCode,
+              actorName
+            }, { session });
+
+            quotaAllocations = quotaAdjustment.allocations;
+            adjustedItems = attachQuotaMetadataToEditedItems(
+              patch.items || [],
+              current.items || [],
+              quotaAdjustment.allocations,
+              quotaAdjustment.consumedQtyByCode
+            );
+          } else {
+            adjustedItems = preserveExistingQuotaMetadata(patch.items || [], current.items || []);
+          }
+
+          finalPatch.items = adjustedItems;
+          finalPatch.usesInternalSaleQuota = adjustedItems.some((item) => String(item.saleAllocationType || '').toUpperCase() === 'INTERNAL_APP_QUOTA');
+          finalPatch.internalSaleAllocationRefs = finalPatch.usesInternalSaleQuota
+            ? buildAllocationRefs(adjustedItems, quotaAllocations)
+            : [];
+
+          const movements = buildInventoryEditMovements(current.items || [], adjustedItems);
+          if (movements.incoming.length) {
+            await InventoryPostingService.postSaleEditDelta(current, movements.incoming, 'IN', {
+              session,
+              commandId: idemKey
+            });
+          }
+          if (movements.outgoing.length) {
+            await InventoryPostingService.postSaleEditDelta(current, movements.outgoing, 'OUT', {
+              session,
+              commandId: idemKey
+            });
+          }
+          perf('adjust_stock_and_quota', {
+            incomingProducts: movements.incoming.length,
+            outgoingProducts: movements.outgoing.length
+          });
+        }
+
+        const currentVersion = toNumber(current.version);
+        const versionFilter = currentVersion > 0
+          ? { version: currentVersion }
+          : { $or: [{ version: 0 }, { version: { $exists: false } }, { version: null }] };
+        const updateFilter = {
+          $and: [
+            identity,
+            owner,
+            activeSalesOrderMongoFilter(),
+            versionFilter,
+            { $or: [{ masterOrderId: { $exists: false } }, { masterOrderId: null }, { masterOrderId: '' }] },
+            { $or: [{ masterOrderCode: { $exists: false } }, { masterOrderCode: null }, { masterOrderCode: '' }] },
+            { $or: [{ masterOrderNo: { $exists: false } }, { masterOrderNo: null }, { masterOrderNo: '' }] },
+            { mergeStatus: { $ne: 'merged' } }
+          ]
+        };
+
+        const updated = await SalesOrder.findOneAndUpdate(
+          updateFilter,
+          {
+            $set: {
+              ...finalPatch,
+              stockPosted: wasStockPosted,
+              stockPostedAt: current.stockPostedAt || now,
+              stockPostedBy: current.stockPostedBy || actorCode,
+              lastMobileEditRequestKey: idemKey,
+              lastMobileEditedAt: now,
+              lastMobileEditedBy: actorCode
+            },
+            $inc: { version: 1 }
+          },
+          { new: true, lean: true, session }
+        );
+        if (!updated) {
+          const err = new Error('Đơn vừa được thay đổi ở nơi khác. Vui lòng tải lại rồi sửa lại');
+          err.status = 409;
+          err.code = 'ORDER_CONCURRENT_UPDATE';
+          throw err;
+        }
+
+        if (linkedReturnInTx && !returnOrderHasValue(linkedReturnInTx) && !returnOrderIsLocked(linkedReturnInTx)) {
+          const syncedDraft = buildReturnDraftForMobileOrder(updated, linkedReturnInTx);
+          const { _id: ignoredMongoId, __v: ignoredVersion, ...returnDraftPatch } = syncedDraft;
+          await ReturnOrder.updateOne(
+            { _id: linkedReturnInTx._id },
+            { $set: returnDraftPatch },
+            { session }
+          );
+        }
+
+        await MobileLog.create([{
+          id: makeId('ML'),
+          action: 'mobile_edit_sales_order',
+          actorCode,
+          actorName,
+          refType: 'salesOrder',
+          refId: updated.id,
+          refCode: updated.code,
+          note: `Sửa đơn ${updated.code} từ mobile; tồn và hạn mức được điều chỉnh theo chênh lệch`,
+          createdAt: now
+        }], { session });
+
+        const response = {
+          body: {
+            ok: true,
+            source: 'mobile-sales-route-direct',
+            message: `Đã sửa đơn ${updated.code}`,
+            salesOrder: {
+              ...updated,
+              canEdit: true,
+              editLockReason: ''
+            }
+          }
+        };
+        await completeRequest(persistentRequest.key, response, { session });
+        return response;
+      });
+
+      perf('done');
+      return rememberIdempotentResult(idemKey, result);
+    } catch (err) {
+      if (err && err.code === 'INSUFFICIENT_STOCK') {
+        return rememberIdempotentResult(idemKey, fail(409, err.message || 'Không đủ tồn kho để tăng số lượng đơn'));
+      }
+      if (err && err.code === 'DMS_APP_QUOTA_EXCEEDED') {
+        const quotaFail = fail(409, err.message || 'Số lượng sửa tăng vượt hạn mức theo tồn DMS mới nhất');
+        quotaFail.body.productCode = err.productCode || '';
+        quotaFail.body.availableQuota = toNumber(err.availableQuota);
+        quotaFail.body.requiredQty = toNumber(err.requiredQty);
+        return rememberIdempotentResult(idemKey, quotaFail);
+      }
+      return rememberIdempotentResult(idemKey, fail(err.status || 500, err.message || 'Không sửa được đơn mobile'));
+    }
+  }
+
+  async function deleteSalesOrder({ params = {}, mobileUser }) {
+    const owner = mobileSalesOwnerMongoFilter(mobileUser);
+    if (!owner) return fail(403, 'Không xác định được nhân viên bán hàng');
+
+    const result = await SalesOrderDeletionService.deleteSalesOrder(params.id, {
+      source: 'mobile-sales-app',
+      actorCode: mobileUser.code || mobileUser.staffCode || '',
+      actorName: mobileUser.fullName || mobileUser.name || '',
+      ownerFilter: owner
+    });
+
+    if (result.error) {
+      return fail(result.status || 400, result.error);
+    }
+
+    return {
+      body: {
+        ok: true,
+        source: 'mobile-sales-delete-service',
+        message: result.message || `Đã xóa đơn ${result.salesOrder?.code || ''}`,
+        mode: result.mode,
+        hardDeleted: true,
+        salesOrder: result.salesOrder,
+        order: result.salesOrder
+      }
+    };
+  }
+  
+  async function listSalesOrders({ query = {}, mobileUser }) {
+    const date = dateUtil.toDateOnly(query.date || dateUtil.todayVN());
+    const onlyMine = String(query.mine || '1') !== '0';
+    const q = String(query.q || '').trim();
+
+    const and = [activeSalesOrderMongoFilter()];
+    if (date) and.push({ $or: [{ date }, { orderDate: date }] });
+    if (onlyMine) {
+      const owner = mobileSalesOwnerMongoFilter(mobileUser);
+      if (!owner) return { body: { ok: true, source: 'mobile-sales-route-direct', date, items: [] } };
+      and.push(owner);
+    }
+    if (q) {
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      and.push({ $or: [
+        { code: rx },
+        { orderCode: rx },
+        { salesOrderCode: rx },
+        { customerCode: rx },
+        { customerName: rx },
+        { customerPhone: rx },
+        { customerAddress: rx }
+      ] });
+    }
+
+    const rows = await SalesOrder.find(and.length === 1 ? and[0] : { $and: and })
+      .select('id code date orderDate customerId customerCode customerName customerPhone customerAddress salesStaffCode salesStaffName salesPersonCode salesPersonName salesmanCode salesmanName nvbhCode nvbhName maNVBH maNVBHName totalAmount paidAmount debtAmount status lifecycleStatus deliveryStatus accountingStatus accountingConfirmed arStatus deleted isDeleted deletedAt deleteMode deleteReason masterOrderId masterOrderCode masterOrderNo mergeStatus stockPosted stockPostedAt items note createdAt updatedAt version')
+      .sort({ createdAt: -1, date: -1 })
+      .limit(100)
+      .lean();
+
+    const items = rows.map((order) => ({
+      id: order.id,
+      code: order.code,
+      date: order.date || order.orderDate,
+      customerName: order.customerName,
+      totalAmount: toNumber(order.totalAmount),
+      paidAmount: toNumber(order.paidAmount),
+      debtAmount: toNumber(order.debtAmount),
+      status: order.status,
+      lifecycleStatus: order.lifecycleStatus || order.status || '',
+      deliveryStatus: order.deliveryStatus || 'pending',
+      deleted: Boolean(order.deleted),
+      isDeleted: Boolean(order.isDeleted),
+      deletedAt: order.deletedAt || '',
+      deleteMode: order.deleteMode || '',
+      deleteReason: order.deleteReason || '',
+      masterOrderId: order.masterOrderId || '',
+      masterOrderCode: order.masterOrderCode || '',
+      mergeStatus: order.mergeStatus || 'unmerged',
+      canEdit: mobileSalesOrderCanEdit(order),
+      editLockReason: mobileSalesOrderEditLockReason(order),
+      stockPosted: order.stockPosted === true,
+      customerId: order.customerId,
+      customerCode: order.customerCode,
+      customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      salesStaffCode: order.salesStaffCode || order.salesPersonCode || order.salesmanCode || order.nvbhCode || order.maNVBH || '',
+      salesStaffName: order.salesStaffName || order.salesPersonName || order.salesmanName || order.nvbhName || order.maNVBHName || '',
+      salesPersonCode: order.salesPersonCode || '',
+      salesPersonName: order.salesPersonName || '',
+      salesmanCode: order.salesmanCode || '',
+      salesmanName: order.salesmanName || '',
+      nvbhCode: order.nvbhCode || '',
+      nvbhName: order.nvbhName || '',
+      maNVBH: order.maNVBH || '',
+      maNVBHName: order.maNVBHName || '',
+      items: order.items || [],
+      note: order.note || '',
+      createdAt: order.createdAt
+    })).filter((order) => orderStatusUtil.isOrderVisibleInHistory(order));
+
+    return { body: { ok: true, source: 'mobile-sales-route-direct', date, items } };
+  }
+
+  
+  async function listDebts({ query = {}, mobileUser } = {}) {
+    const scopedQuery = {
+      ...query,
+      collectorType: 'sales',
+      limit: query.limit || 100,
+      includePaid: query.includePaid || '0',
+      includePendingCollections: query.includePendingCollections ?? '1'
+    };
+
+    if (String(mobileUser?.role || '') === 'sales') {
+      const staffCode = getMobileSalesStaffCode(mobileUser);
+      const staffName = getMobileSalesStaffName(mobileUser);
+      scopedQuery.salesman = staffCode || staffName;
+    }
+
+    const result = await DebtReadService.getCustomerDebts(scopedQuery);
+
+    return {
+      body: result
+    };
+  }
+
+
+
+  return {
+    createSalesOrder,
+    getSalesOrder,
+    updateSalesOrder,
+    deleteSalesOrder,
+    listSalesOrders,
+    listDebts
+  };
+}
+
+module.exports = { createMobileSalesService };

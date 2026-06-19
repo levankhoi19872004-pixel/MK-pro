@@ -1,0 +1,32 @@
+{
+  "deliveryExports": [
+    "listUnmergedChildOrders",
+    "listMasterOrders",
+    "listDeliveryToday",
+    "listDeliveryTodaySummary",
+    "listDeliveryTodaySummaryFast",
+    "listDeliveryTodaySalesSummary",
+    "listDeliveryTodayOrdersCompact",
+    "updateDeliveryTodayOrder",
+    "getMasterOrder",
+    "createMasterOrder",
+    "updateMasterOrder",
+    "cancelMasterOrder",
+    "deleteMasterOrder"
+  ],
+  "accountingExports": [
+    "confirmDeliveryAccounting",
+    "adminUnlockDeliveryAccounting"
+  ],
+  "printExports": [
+    "buildAggregateMasterPrintDocument"
+  ],
+  "returnInternalExports": [
+    "returnOrdersForSalesOrder",
+    "returnAmountForSalesOrder",
+    "hydrateReturnOrdersForAccounting",
+    "directReturnOrdersForSalesOrder",
+    "returnOrderTotalAmount",
+    "masterChildCountForReturnFallback"
+  ]
+}

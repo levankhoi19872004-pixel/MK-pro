@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "bundles": [
+    {
+      "target": "src/services/returnOrderLegacy.service.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/returnOrderLegacy.service.source/part-01.jsfrag",
+        "src/services/returnOrderLegacy.service.source/part-02.jsfrag",
+        "src/services/returnOrderLegacy.service.source/part-03.jsfrag",
+        "src/services/returnOrderLegacy.service.source/part-04.jsfrag"
+      ],
+      "sourceSha256": "2a25de697831ce1aa19070d7a0cd16a0dc88978534e76cf0adb2d33ca7b3e5f7"
+    },
+    {
+      "target": "src/services/importExportLegacy.service.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/importExportLegacy.service.source/part-01.jsfrag",
+        "src/services/importExportLegacy.service.source/part-02.jsfrag",
+        "src/services/importExportLegacy.service.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "a2cae88b964a16983647bc827c4ce2b0c32f154286b79b5799fab77945d3d24b"
+    },
+    {
+      "target": "src/services/reportLegacy.service.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/reportLegacy.service.source/part-01.jsfrag",
+        "src/services/reportLegacy.service.source/part-02.jsfrag",
+        "src/services/reportLegacy.service.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "8943fa53508df7df94f44dd1f1249a6567100fa22774b7299daf0759bafb6062"
+    },
+    {
+      "target": "src/services/orderLegacy.service.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/orderLegacy.service.source/part-01.jsfrag",
+        "src/services/orderLegacy.service.source/part-02.jsfrag",
+        "src/services/orderLegacy.service.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "1fe2a1dc814c4f11230b6ffc6463a8ec1e6cd3d43ce2bf6768a4fb944327047c"
+    },
+    {
+      "target": "src/services/mobile/sales.service.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/mobile/sales.service.source/part-01.jsfrag",
+        "src/services/mobile/sales.service.source/part-02.jsfrag",
+        "src/services/mobile/sales.service.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "04304bf8c58f3f5f734762d4aca919a4b74ad69f3a28d5f75bd6c7a0e26b6608"
+    },
+    {
+      "target": "src/engines/delivery.legacy.engine.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/engines/delivery.legacy.engine.source/part-01.jsfrag",
+        "src/engines/delivery.legacy.engine.source/part-02.jsfrag",
+        "src/engines/delivery.legacy.engine.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "d38fdbacfd12113828d6d418d5d789fdd34808ea24895cb282cfa48d7099cd39"
+    },
+    {
+      "target": "services/printDataBuilder.legacy.js",
+      "mode": "commonjs",
+      "parts": [
+        "services/printDataBuilder.legacy.source/part-01.jsfrag",
+        "services/printDataBuilder.legacy.source/part-02.jsfrag",
+        "services/printDataBuilder.legacy.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "73cf3caf2dda4bfa6d0361d6b91dbda88b395e2e36976ce32a69219646791d74"
+    },
+    {
+      "target": "src/services/fundService.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/fundService.source/part-01.jsfrag",
+        "src/services/fundService.source/part-02.jsfrag",
+        "src/services/fundService.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "41eba15e79de6556698fd80a84a99e8a4689342e38f20306878138faed35981f"
+    },
+    {
+      "target": "src/services/inventoryService.js",
+      "mode": "commonjs",
+      "parts": [
+        "src/services/inventoryService.source/part-01.jsfrag",
+        "src/services/inventoryService.source/part-02.jsfrag",
+        "src/services/inventoryService.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "0e5e4a892598409697304d307fed355e334df4234443c45d296591ff9ee6bf87"
+    },
+    {
+      "target": "templates/printTemplates.js",
+      "mode": "commonjs",
+      "parts": [
+        "templates/printTemplates.source/part-01.jsfrag",
+        "templates/printTemplates.source/part-02.jsfrag",
+        "templates/printTemplates.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "664b2821c44dde89ded8c2327ed9ece1175d62ca89a17d83ce2871829b038741"
+    },
+    {
+      "target": "public/js/app/05-sales-orders.js",
+      "mode": "classic-chunks",
+      "parts": [
+        "public/js/app/05-sales-orders.source/part-01.jsfrag",
+        "public/js/app/05-sales-orders.source/part-02.jsfrag",
+        "public/js/app/05-sales-orders.source/part-03.jsfrag",
+        "public/js/app/05-sales-orders.source/part-04.jsfrag"
+      ],
+      "sourceSha256": "c30b94f24e66a3677589a724411c28c5b93a3d45fa872b7df38e4ce5b6f743c1",
+      "runtimeFiles": [
+        "public/js/app/05-sales-orders.js",
+        "public/js/app/05-sales-orders.part02.js",
+        "public/js/app/05-sales-orders.part03.js",
+        "public/js/app/05-sales-orders.part04.js"
+      ]
+    },
+    {
+      "target": "public/mobile/js/sales.js",
+      "mode": "module",
+      "parts": [
+        "public/mobile/js/sales.source/part-01.jsfrag",
+        "public/mobile/js/sales.source/part-02.jsfrag",
+        "public/mobile/js/sales.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "a59531097a99b8348a70eaca67c43267c88ff93e13e125e9ff67efee8695bc0b"
+    },
+    {
+      "target": "public/js/app/admin/08d-import-excel.js",
+      "mode": "classic-chunks",
+      "parts": [
+        "public/js/app/admin/08d-import-excel.source/part-01.jsfrag",
+        "public/js/app/admin/08d-import-excel.source/part-02.jsfrag",
+        "public/js/app/admin/08d-import-excel.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "71784708d4fc4c49e46638d60d37f6e7a4bfdfedb2e1352590f6a8beaf3b3d89",
+      "runtimeFiles": [
+        "public/js/app/admin/08d-import-excel.js",
+        "public/js/app/admin/08d-import-excel.part02.js",
+        "public/js/app/admin/08d-import-excel.part03.js"
+      ]
+    },
+    {
+      "target": "public/js/delivery/delivery-web-view.js",
+      "mode": "classic-single",
+      "parts": [
+        "public/js/delivery/delivery-web-view.source/part-01.jsfrag",
+        "public/js/delivery/delivery-web-view.source/part-02.jsfrag",
+        "public/js/delivery/delivery-web-view.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "162feee178478b1ce576cf5fbfa30780247adeb386c48656c6c127ffe8f13ad9"
+    },
+    {
+      "target": "public/js/app/debt/07f-fund-ledger.js",
+      "mode": "classic-chunks",
+      "parts": [
+        "public/js/app/debt/07f-fund-ledger.source/part-01.jsfrag",
+        "public/js/app/debt/07f-fund-ledger.source/part-02.jsfrag",
+        "public/js/app/debt/07f-fund-ledger.source/part-03.jsfrag"
+      ],
+      "sourceSha256": "ceb7a4e4fc9c2dae0b9c8d7773291133a0ab175bb55af4e1bdcd27c848b106f6",
+      "runtimeFiles": [
+        "public/js/app/debt/07f-fund-ledger.js",
+        "public/js/app/debt/07f-fund-ledger.part02.js",
+        "public/js/app/debt/07f-fund-ledger.part03.js"
+      ]
+    },
+    {
+      "target": "public/mobile/js/delivery-mobile-view.js",
+      "mode": "classic-single",
+      "parts": [
+        "public/mobile/js/delivery-mobile-view.source/part-01.jsfrag",
+        "public/mobile/js/delivery-mobile-view.source/part-02.jsfrag"
+      ],
+      "sourceSha256": "2a4b20ad06bccf882a7f3e53a86d4eec9c965c1fba1c5f19e493c84003d9fbe4"
+    },
+    {
+      "target": "public/mobile/mobile.css",
+      "mode": "css-imports",
+      "parts": [
+        "public/mobile/mobile.source/mobile-01.css",
+        "public/mobile/mobile.source/mobile-02.css",
+        "public/mobile/mobile.source/mobile-03.css"
+      ],
+      "sourceSha256": "967fd88c704479119e47990de35a8477de6041e6d8540016b6455da37318ea1f"
+    },
+    {
+      "target": "public/print.css",
+      "mode": "css-imports",
+      "parts": [
+        "public/print.source/print-01.css",
+        "public/print.source/print-02.css"
+      ],
+      "sourceSha256": "2d5e76addfd25dfc5838cc486caf4aa7ff890e021bc939078749f68edfdf4e8d"
+    }
+  ]
+}

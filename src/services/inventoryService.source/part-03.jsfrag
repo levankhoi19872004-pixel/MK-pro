@@ -1,0 +1,70 @@
+    createdTransactions = transactions.length;
+  }
+
+  const stock = await rebuildCurrentInventoryFromTransactions(options);
+
+  // Phase 3.4: sau khi đã chuyển tồn legacy thành OPENING transaction,
+  // xóa tồn khỏi products để products chỉ còn là danh mục.
+  await Product.updateMany({}, {
+    $unset: {
+      openingStock: 1,
+      availableStock: 1,
+      stockQuantity: 1,
+      availableQty: 1,
+      stock: 1,
+      quantity: 1,
+      qty: 1,
+      tonKho: 1,
+      tonDau: 1
+    }
+  });
+
+  return {
+    resetTransactions,
+    transactionCount: await StockTransaction.countDocuments({}),
+    createdTransactions,
+    transactionRebuild,
+    inventoryRebuild: stock.rebuildMeta || null,
+    inventoryRows: stock.length,
+    totalAvailableQty: stock.reduce((sum, row) => sum + toNumber(row.availableQty ?? row.quantity ?? row.qty), 0)
+  };
+}
+
+async function normalizeOneWarehouse(options = {}) {
+  assertDestructiveInventoryOperation(options, 'Chuẩn hóa tồn về một kho');
+  const now = dateUtil.nowIso();
+  const transactionResult = await StockTransaction.updateMany({}, {
+    $set: {
+      warehouseId: stockWarehouseCode(),
+      warehouseCode: stockWarehouseCode(),
+      warehouseName: stockWarehouseName(),
+      updatedAt: now
+    }
+  });
+  const stock = await rebuildCurrentInventoryFromTransactions(options);
+  return {
+    normalized: true,
+    inventoryRows: stock.length,
+    transactionRows: await StockTransaction.countDocuments({}),
+    modifiedTransactions: transactionResult.modifiedCount ?? transactionResult.nModified ?? 0,
+    inventoryRebuild: stock.rebuildMeta || null
+  };
+}
+
+
+module.exports = {
+  postStockMovement,
+  postStockMovementBulkImportIn,
+  postStockMovementBulkSalesOut,
+  assertStockAvailableBeforeOut,
+  reverseStockMovement,
+  getCurrentStock,
+  getStockTransactions,
+  rebuildCurrentInventoryFromTransactions,
+  rebuildSnapshotsFromTransactions: rebuildCurrentInventoryFromTransactions,
+  rebuildStockLedgerFromDocuments,
+  normalizeOneWarehouse,
+  normalizeProductInventoryToMain,
+  buildStockMovementIdempotencyKey,
+  isActive
+};

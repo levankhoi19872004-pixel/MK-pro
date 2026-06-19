@@ -1,0 +1,624 @@
+    .select('id idempotencyKey productCode productId quantity qty inQty outQty refType refId refCode sourceType sourceId sourceCode type direction date balanceQty createdAt updatedAt')
+    .lean();
+  const existingTransactions = await withOptionalSession(existingQuery, session);
+  const existingKeys = new Set(
+    (existingTransactions || []).map((row) => row.idempotencyKey).filter(Boolean)
+  );
+  const pendingMovements = movements.filter((row) => !existingKeys.has(row.idempotencyKey));
+
+  if (!pendingMovements.length) {
+    return (existingTransactions || []).map((row) => ({
+      ...row,
+      skipped: true,
+      reason: 'DUPLICATE_STOCK_MOVEMENT'
+    }));
+  }
+
+  await normalizeBulkSalesInventoryToMain(pendingMovements, session);
+
+  const productCodes = Array.from(new Set(pendingMovements.map((row) => row.productCode)));
+  const stockQuery = InventoryLegacy.find({
+    productCode: { $in: productCodes },
+    warehouseCode: stockWarehouseCode()
+  }).lean();
+  const stockRows = await withOptionalSession(stockQuery, session);
+  const stockByCode = new Map(
+    (stockRows || []).map((row) => [normalizeStockProductCode(row.productCode), row])
+  );
+
+  const requiredByCode = new Map();
+  const metaByCode = new Map();
+  for (const movement of pendingMovements) {
+    requiredByCode.set(
+      movement.productCode,
+      toNumber(requiredByCode.get(movement.productCode)) + movement.absQty
+    );
+    if (!metaByCode.has(movement.productCode)) metaByCode.set(movement.productCode, movement);
+  }
+
+  for (const [productCode, requiredQty] of requiredByCode.entries()) {
+    const stockRow = stockByCode.get(productCode);
+    const availableQty = toNumber(stockRow?.availableQty ?? stockRow?.quantity ?? stockRow?.qty ?? stockRow?.onHand);
+    if (!stockRow || availableQty < requiredQty) {
+      const meta = metaByCode.get(productCode) || {};
+      const err = new Error(
+        `Không đủ tồn kho: mã SP ${productCode}${meta.productName ? ` - ${meta.productName}` : ''}, tồn hiện tại ${availableQty}, cần xuất ${requiredQty}`
+      );
+      err.code = 'INSUFFICIENT_STOCK';
+      err.productCode = productCode;
+      err.warehouseCode = stockWarehouseCode();
+      err.availableQty = availableQty;
+      err.requiredQty = requiredQty;
+      throw err;
+    }
+  }
+
+  const runningBalance = new Map();
+  for (const productCode of productCodes) {
+    const row = stockByCode.get(productCode) || {};
+    runningBalance.set(
+      productCode,
+      toNumber(row.quantity ?? row.qty ?? row.onHand ?? row.availableQty)
+    );
+  }
+
+  const postedAt = dateUtil.nowIso();
+  const txDocs = pendingMovements.map((movement) => {
+    const nextBalance = toNumber(runningBalance.get(movement.productCode)) - movement.absQty;
+    runningBalance.set(movement.productCode, nextBalance);
+    return {
+      id: makeId('ST'),
+      idempotencyKey: movement.idempotencyKey,
+      sourceType: 'SALES_ORDER',
+      sourceId: movement.sourceId,
+      sourceCode: movement.sourceCode,
+      date: movement.txDate,
+      productId: movement.productId,
+      productCode: movement.productCode,
+      productName: movement.productName,
+      warehouseId: stockWarehouseCode(),
+      warehouseCode: stockWarehouseCode(),
+      warehouseName: stockWarehouseName(),
+      type: 'SALE',
+      direction: 'OUT',
+      quantity: -movement.absQty,
+      qty: -movement.absQty,
+      inQty: 0,
+      outQty: movement.absQty,
+      balanceQty: nextBalance,
+      refType: 'SALES_ORDER',
+      refId: movement.sourceId,
+      refCode: movement.sourceCode,
+      reversedFrom: '',
+      note: 'Xuất kho theo đơn bán',
+      createdAt: postedAt,
+      updatedAt: postedAt
+    };
+  });
+
+  const createdTransactions = await StockTransaction.insertMany(txDocs, {
+    ordered: true,
+    session
+  });
+
+  const inventoryOps = Array.from(requiredByCode.entries()).map(([productCode, requiredQty]) => {
+    const meta = metaByCode.get(productCode) || {};
+    return {
+      updateOne: {
+        filter: {
+          productCode,
+          warehouseCode: stockWarehouseCode(),
+          availableQty: { $gte: requiredQty }
+        },
+        update: {
+          $inc: {
+            qty: -requiredQty,
+            quantity: -requiredQty,
+            onHand: -requiredQty,
+            availableQty: -requiredQty
+          },
+          $set: {
+            productId: String(meta.productId || productCode).trim(),
+            productCode,
+            productName: String(meta.productName || '').trim(),
+            warehouseId: stockWarehouseCode(),
+            warehouseCode: stockWarehouseCode(),
+            warehouseName: stockWarehouseName(),
+            lastTransactionAt: postedAt,
+            updatedAt: postedAt
+          }
+        }
+      }
+    };
+  });
+
+  if (inventoryOps.length) {
+    const inventoryResult = await InventoryLegacy.bulkWrite(inventoryOps, {
+      ordered: true,
+      session
+    });
+    const matchedCount = Number(
+      inventoryResult?.matchedCount ??
+      inventoryResult?.nMatched ??
+      inventoryResult?.result?.nMatched ??
+      0
+    );
+    if (matchedCount !== inventoryOps.length) {
+      const err = new Error('Tồn kho thay đổi trong lúc import. Hệ thống đã rollback chunk để tránh âm kho.');
+      err.code = 'INVENTORY_CONCURRENT_UPDATE';
+      throw err;
+    }
+  }
+
+  if (inventoryStockService.invalidateInventorySummaryCache) {
+    inventoryStockService.invalidateInventorySummaryCache();
+  }
+
+  return [
+    ...(existingTransactions || []).map((row) => ({
+      ...row,
+      skipped: true,
+      reason: 'DUPLICATE_STOCK_MOVEMENT'
+    })),
+    ...createdTransactions
+  ];
+}
+
+async function reverseStockMovement(document = {}, movement = {}, options = {}) {
+  const direction = movement.direction === 'IN' ? 'OUT' : 'IN';
+  return postStockMovement(document, {
+    ...movement,
+    direction,
+    type: movement.reverseType || `${movement.type || 'ADJUST'}_REVERSAL`,
+    note: movement.note || `Đảo bút toán ${movement.type || ''}`.trim()
+  }, options);
+}
+
+async function getCurrentStock(query = {}) {
+  const filter = {};
+  if (query.productCode) filter.productCode = query.productCode;
+  const rows = await InventoryLegacy.find(filter).sort({ productCode: 1 }).lean();
+  const grouped = new Map();
+  for (const row of rows) {
+    const key = String(row.productCode || row.productId || '').trim();
+    if (!key) continue;
+    const qty = toNumber(row.onHand ?? row.quantity ?? row.qty ?? row.availableQty);
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        ...row,
+        warehouseId: stockWarehouseCode(),
+        warehouseCode: stockWarehouseCode(),
+        warehouseName: stockWarehouseName(),
+        qty: 0,
+        quantity: 0,
+        onHand: 0,
+        availableQty: 0
+      });
+    }
+    const acc = grouped.get(key);
+    acc.qty += qty;
+    acc.quantity += qty;
+    acc.onHand += qty;
+    acc.availableQty += qty;
+    if ((row.updatedAt || row.createdAt || '') > (acc.updatedAt || acc.createdAt || '')) {
+      acc.updatedAt = row.updatedAt || row.createdAt || acc.updatedAt;
+    }
+  }
+  return Array.from(grouped.values());
+}
+
+async function getStockTransactions(query = {}) {
+  const filter = {};
+  if (query.productCode) filter.productCode = query.productCode;
+  // Không lọc theo HC/PC vì tồn kho là 1 kho chung MAIN.
+  if (query.dateFrom || query.dateTo || query.date) {
+    filter.date = {};
+    if (query.dateFrom) filter.date.$gte = dateUtil.toDateOnly(query.dateFrom);
+    if (query.dateTo) filter.date.$lte = dateUtil.toDateOnly(query.dateTo);
+    if (query.date) filter.date = dateUtil.toDateOnly(query.date);
+  }
+  const q = normalizeText(query.q || query.search || query.keyword);
+  let rows = await StockTransaction.find(filter).sort({ date: 1, createdAt: 1, productCode: 1 }).lean();
+  if (q) rows = rows.filter((row) => [row.productCode, row.productName, row.refCode, row.refType, row.type].some((value) => normalizeText(value).includes(q)));
+  return rows;
+}
+
+
+function productIdentityFromItem(item = {}, product = null) {
+  const productCode = String(item.productCode || item.code || item.sku || product?.code || item.productId || '').trim();
+  const productId = String(item.productId || product?.id || product?._id || productCode).trim();
+  const productName = String(item.productName || item.name || product?.name || '').trim();
+  return { productId, productCode, productName };
+}
+
+async function resolveProductForItem(item = {}) {
+  const key = getProductKey(item);
+  if (!key) return null;
+  return Product.findOne({
+    $or: [
+      { code: key },
+      { sku: key },
+      { productCode: key },
+      { id: key },
+      ...(key.match(/^[a-f0-9]{24}$/i) ? [{ _id: key }] : [])
+    ]
+  }).lean();
+}
+
+function makeStockTx({ date, productId, productCode, productName, quantity, type, direction, refType, refId, refCode, note = '' }) {
+  const qty = toNumber(quantity);
+  const normalizedDirection = normalizeMovementDirection(direction || (qty >= 0 ? 'IN' : 'OUT'));
+  const normalizedType = String(type || normalizedDirection).trim().toUpperCase();
+  const normalizedRefType = normalizeStockSourceType({ refType, type: normalizedType });
+  const idempotencyKey = buildStockMovementIdempotencyKey({
+    sourceType: normalizedRefType,
+    sourceId: refId,
+    sourceCode: refCode,
+    productCode,
+    productId,
+    warehouseCode: stockWarehouseCode(),
+    warehouseId: stockWarehouseCode(),
+    direction: normalizedDirection,
+    type: normalizedType
+  });
+  return {
+    id: makeId('ST'),
+    idempotencyKey,
+    sourceType: normalizedRefType,
+    sourceId: String(refId || '').trim(),
+    sourceCode: String(refCode || refId || '').trim(),
+    date: dateOnly(date),
+    productId: String(productId || productCode || '').trim(),
+    productCode: String(productCode || productId || '').trim(),
+    productName: String(productName || '').trim(),
+    warehouseId: stockWarehouseCode(),
+    warehouseCode: stockWarehouseCode(),
+    warehouseName: stockWarehouseName(),
+    type: normalizedType,
+    direction: normalizedDirection,
+    quantity: qty,
+    qty,
+    inQty: normalizedDirection === 'IN' ? Math.abs(qty) : 0,
+    outQty: normalizedDirection === 'OUT' ? Math.abs(qty) : 0,
+    balanceQty: 0,
+    refType: normalizedRefType,
+    refId: String(refId || '').trim(),
+    refCode: String(refCode || refId || '').trim(),
+    note,
+    createdAt: dateUtil.nowIso(),
+    updatedAt: dateUtil.nowIso()
+  };
+}
+
+
+function lookupKeysFromStockItem(item = {}) {
+  return [
+    item.productCode,
+    item.code,
+    item.sku,
+    item.productId,
+    item.id,
+    item.barcode
+  ].map((value) => String(value || '').trim()).filter(Boolean);
+}
+
+function addProductAlias(productMap, key, product) {
+  const normalized = String(key || '').trim().toLowerCase();
+  if (normalized && !productMap.has(normalized)) productMap.set(normalized, product);
+}
+
+async function buildProductMapForStockItems(items = [], session = null) {
+  const keys = Array.from(new Set(
+    (Array.isArray(items) ? items : [])
+      .flatMap(lookupKeysFromStockItem)
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  ));
+
+  const productMap = new Map();
+  if (!keys.length) return productMap;
+
+  const query = Product.find({
+    $or: [
+      { code: { $in: keys } },
+      { sku: { $in: keys } },
+      { productCode: { $in: keys } },
+      { barcode: { $in: keys } },
+      { id: { $in: keys } }
+    ]
+  }).select('id code sku productCode barcode name productName unit baseUnit conversionRate packing costPrice warehouseCode warehouseName printGroup printGroupName');
+
+  const products = await withOptionalSession(query, session).lean();
+
+  for (const product of products || []) {
+    [
+      product.code,
+      product.sku,
+      product.productCode,
+      product.barcode,
+      product.id,
+      product._id,
+      product._id ? String(product._id) : ''
+    ].forEach((key) => addProductAlias(productMap, key, product));
+  }
+
+  return productMap;
+}
+
+function findProductInMap(item = {}, productMap = new Map()) {
+  for (const key of lookupKeysFromStockItem(item)) {
+    const product = productMap.get(String(key || '').trim().toLowerCase());
+    if (product) return product;
+  }
+  return null;
+}
+
+async function postStockMovementBulkImportIn(document = {}, movement = {}, options = {}) {
+  const session = options.session;
+  const rawItems = Array.isArray(document.items) ? document.items : [];
+  const items = groupStockItems(rawItems);
+  if (!items.length) return [];
+
+  const warehouseCode = stockWarehouseCode();
+  const warehouseId = stockWarehouseCode();
+  const warehouseName = stockWarehouseName();
+  const direction = 'IN';
+  const type = String(movement.type || 'IMPORT').trim().toUpperCase();
+  const refType = normalizeStockSourceType({ ...movement, type });
+  const refId = String(movement.refId || movement.sourceId || document.id || document._id || document.code || '').trim();
+  const refCode = String(movement.refCode || movement.sourceCode || document.code || document.orderCode || document.id || '').trim();
+  const txDate = dateOnly(movement.date || document.date || document.orderDate || document.documentDate || document.createdAt);
+  const postedAt = dateUtil.nowIso();
+  const productMap = await buildProductMapForStockItems(items, session);
+  const txDocs = [];
+
+  for (const item of items) {
+    const rawQty = getQty(item);
+    if (!rawQty) continue;
+
+    const product = findProductInMap(item, productMap);
+    const productCode = normalizeStockProductCode(item.productCode || item.code || item.sku || product?.code || product?.productCode || item.productId);
+    const productId = String(item.productId || product?.id || product?._id || productCode).trim();
+
+    if (!productCode && !productId) continue;
+
+    const productName = String(item.productName || item.name || product?.name || product?.productName || '').trim();
+    const absQty = Math.abs(rawQty);
+    if (absQty <= 0) continue;
+
+    const idempotencyKey = buildStockMovementIdempotencyKey({
+      sourceType: refType,
+      sourceId: refId,
+      sourceCode: refCode,
+      productCode,
+      productId,
+      warehouseCode,
+      warehouseId,
+      direction,
+      type
+    });
+
+    txDocs.push({
+      id: makeId('ST'),
+      idempotencyKey,
+      sourceType: refType,
+      sourceId: refId,
+      sourceCode: refCode,
+      date: txDate,
+      productId,
+      productCode,
+      productName,
+      warehouseId,
+      warehouseCode,
+      warehouseName,
+      type,
+      direction,
+      quantity: absQty,
+      qty: absQty,
+      inQty: absQty,
+      outQty: 0,
+      balanceQty: 0,
+      refType,
+      refId,
+      refCode,
+      reversedFrom: movement.reversedFrom || movement.originalMovementId || '',
+      note: movement.note || document.note || 'Nhập kho',
+      createdAt: postedAt,
+      updatedAt: postedAt
+    });
+  }
+
+  if (!txDocs.length) return [];
+
+  const idempotencyKeys = txDocs.map((doc) => doc.idempotencyKey).filter(Boolean);
+  const existingQuery = StockTransaction.find({ idempotencyKey: { $in: idempotencyKeys } })
+    .select('id idempotencyKey productCode productId quantity qty inQty outQty refType refId refCode sourceType sourceId sourceCode type direction date createdAt updatedAt')
+    .lean();
+  const existingTx = await withOptionalSession(existingQuery, session);
+  const existingKeys = new Set((existingTx || []).map((row) => row.idempotencyKey).filter(Boolean));
+  const insertDocs = txDocs.filter((doc) => !existingKeys.has(doc.idempotencyKey));
+
+  let createdDocs = [];
+  if (insertDocs.length) {
+    createdDocs = await StockTransaction.insertMany(insertDocs, {
+      ordered: false,
+      session
+    });
+
+    const inventoryOps = insertDocs.map((doc) => ({
+      updateOne: {
+        filter: {
+          productCode: doc.productCode,
+          warehouseCode: doc.warehouseCode
+        },
+        update: {
+          $inc: {
+            qty: doc.inQty,
+            quantity: doc.inQty,
+            onHand: doc.inQty,
+            availableQty: doc.inQty
+          },
+          $set: {
+            productId: doc.productId,
+            productCode: doc.productCode,
+            productName: doc.productName,
+            warehouseId: doc.warehouseId,
+            warehouseCode: doc.warehouseCode,
+            warehouseName: doc.warehouseName,
+            lastTransactionAt: postedAt,
+            updatedAt: postedAt
+          },
+          $setOnInsert: {
+            id: makeId('IV'),
+            reservedQty: 0
+          }
+        },
+        upsert: true
+      }
+    }));
+
+    if (inventoryOps.length) {
+      await InventoryLegacy.bulkWrite(inventoryOps, {
+        ordered: false,
+        session
+      });
+    }
+
+    if (inventoryStockService.invalidateInventorySummaryCache) {
+      inventoryStockService.invalidateInventorySummaryCache();
+    }
+  }
+
+  return [
+    ...(existingTx || []).map((tx) => ({
+      ...tx,
+      skipped: true,
+      reason: 'DUPLICATE_STOCK_MOVEMENT'
+    })),
+    ...createdDocs
+  ];
+}
+
+async function rebuildCurrentInventoryFromTransactions(options = {}) {
+  assertDestructiveInventoryOperation(options, 'Rebuild inventories từ stockTransactions');
+  const result = await InventoryRebuildService.rebuildInventoryFromTransactions(options);
+  if (inventoryStockService.invalidateInventorySummaryCache) inventoryStockService.invalidateInventorySummaryCache();
+  const stock = await getCurrentStock();
+  Object.defineProperty(stock, 'rebuildMeta', { value: result, enumerable: false });
+  return stock;
+}
+
+async function buildTransactionsFromDocuments() {
+  const transactions = [];
+  const products = await Product.find({ isActive: { $ne: false } }).lean();
+
+  for (const product of products) {
+    // Chỉ dùng các field tồn legacy để tạo bút toán OPENING khi migrate/rebuild.
+    // Sau rebuild, các field này sẽ bị unset khỏi products.
+    const openingQty = toNumber(product.openingStock ?? product.availableStock ?? product.stockQuantity ?? product.availableQty ?? product.stock ?? product.quantity ?? product.qty ?? product.tonKho ?? product.tonDau);
+    if (openingQty <= 0) continue;
+    const productCode = String(product.code || product.sku || product.productCode || product.id || product._id || '').trim();
+    if (!productCode) continue;
+    transactions.push(makeStockTx({
+      date: product.createdAt || '2000-01-01',
+      productId: product.id || product._id || productCode,
+      productCode,
+      productName: product.name || product.productName || '',
+      quantity: openingQty,
+      type: 'OPENING',
+      direction: 'IN',
+      refType: 'PRODUCT_OPENING_STOCK',
+      refId: product.id || product._id || productCode,
+      refCode: productCode,
+      note: 'Migrate tồn legacy từ products sang stockTransactions'
+    }));
+  }
+
+  const imports = await ImportOrder.find({}).lean();
+  for (const doc of imports.filter(isActive)) {
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    for (const item of items) {
+      const qty = Math.abs(getQty(item));
+      if (qty <= 0) continue;
+      const product = await resolveProductForItem(item);
+      const { productId, productCode, productName } = productIdentityFromItem(item, product);
+      if (!productCode) continue;
+      transactions.push(makeStockTx({
+        date: doc.date || doc.importDate || doc.createdAt,
+        productId,
+        productCode,
+        productName,
+        quantity: qty,
+        type: 'IMPORT',
+        direction: 'IN',
+        refType: 'IMPORT_ORDER',
+        refId: doc.id || doc._id || doc.code,
+        refCode: doc.code || doc.id,
+        note: 'Rebuild từ phiếu nhập'
+      }));
+    }
+  }
+
+  const sales = await SalesOrder.find({}).lean();
+  for (const doc of sales.filter(isActive)) {
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    for (const item of items) {
+      const qty = Math.abs(getQty(item));
+      if (qty <= 0) continue;
+      const product = await resolveProductForItem(item);
+      const { productId, productCode, productName } = productIdentityFromItem(item, product);
+      if (!productCode) continue;
+      transactions.push(makeStockTx({
+        date: doc.date || doc.orderDate || doc.createdAt,
+        productId,
+        productCode,
+        productName,
+        quantity: -qty,
+        type: 'SALE',
+        direction: 'OUT',
+        refType: doc.source === 'mobile_sales_app' ? 'MOBILE_SALES_ORDER' : 'SALES_ORDER',
+        refId: doc.id || doc._id || doc.code,
+        refCode: doc.code || doc.id,
+        note: 'Rebuild từ đơn bán'
+      }));
+    }
+  }
+
+  const returns = await ReturnOrder.find({}).lean();
+  for (const doc of returns.filter(isActive)) {
+    const items = Array.isArray(doc.items) ? doc.items : [];
+    for (const item of items) {
+      const qty = Math.abs(getQty(item));
+      if (qty <= 0) continue;
+      const product = await resolveProductForItem(item);
+      const { productId, productCode, productName } = productIdentityFromItem(item, product);
+      if (!productCode) continue;
+      transactions.push(makeStockTx({
+        date: doc.date || doc.returnDate || doc.createdAt,
+        productId,
+        productCode,
+        productName,
+        quantity: qty,
+        type: 'RETURN',
+        direction: 'IN',
+        refType: 'RETURN_ORDER',
+        refId: doc.id || doc._id || doc.code,
+        refCode: doc.code || doc.id,
+        note: 'Rebuild từ phiếu trả hàng'
+      }));
+    }
+  }
+
+  return transactions;
+}
+
+async function rebuildStockLedgerFromDocuments(options = {}) {
+  assertDestructiveInventoryOperation(options, 'Rebuild stock ledger');
+  const resetTransactions = options.resetTransactions === true;
+  const beforeTxCount = await StockTransaction.countDocuments({});
+  let createdTransactions = 0;
+  let transactionRebuild = null;
+
+  if (resetTransactions || beforeTxCount === 0) {
+    const transactions = await buildTransactionsFromDocuments();
+    transactionRebuild = await InventoryRebuildService.replaceStockTransactions(transactions, options);

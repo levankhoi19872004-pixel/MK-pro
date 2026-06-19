@@ -1,0 +1,68 @@
+            <td class="dms-summary-label-cell">Tỉ lệ KM & CK của đơn hàng [(B+C+F)/G]*100%:</td>
+            <td class="dms-summary-value-cell">${formatPercent(summary.promotionRate ?? data.totals?.promotionRate)}%</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="dms-signature">
+        <div><b>Người lập biểu</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người bán hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Nhân viên giao hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+        <div><b>Người nhận hàng</b><span>(Ký, ghi rõ họ tên)</span></div>
+      </div>`;
+
+  const renderCopy = (copyLabel) => {
+    const items = getDmsItems(data);
+    const itemPageSize = Number(pagination.itemPageSize || 24);
+    const itemChunks = chunkDmsItems(items, itemPageSize);
+    const detailRowsExist = hasDmsDetailRows(data);
+    const detailNeedsOwnPage = detailRowsExist && (items.length > 18 || pagination.detailRows > 4 || pagination.pagesPerCopy > itemChunks.length);
+    const pageCount = itemChunks.length + (detailNeedsOwnPage ? 1 : 0);
+
+    const itemPages = itemChunks.map((chunk, index) => {
+      const isLastItemPage = index === itemChunks.length - 1;
+      return `
+        <section class="print-page dms-print-page">
+          ${renderDmsHeader(data, copyLabel, index + 1, pageCount)}
+          ${renderDmsInvoiceItemsTable(data, chunk, { showTotal: isLastItemPage })}
+          ${isLastItemPage ? renderSummaryAndSignature() : ''}
+          ${isLastItemPage && !detailNeedsOwnPage ? renderDmsPromotionTable(data) + renderDmsRewardTable(data) : ''}
+          ${isLastItemPage && detailNeedsOwnPage ? renderDmsPromotionHeaderOnly() : ''}
+        </section>`;
+    }).join('');
+
+    const detailPage = detailNeedsOwnPage ? `
+      <section class="print-page dms-print-page">
+        ${renderDmsHeader(data, copyLabel, itemChunks.length + 1, pageCount)}
+        ${renderDmsPromotionTable(data)}
+        ${renderDmsRewardTable(data)}
+      </section>` : '';
+
+    return itemPages + detailPage;
+  };
+
+  return `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phiếu giao nhận DMS - ${text(data.document.code)}</title>
+  <link rel="stylesheet" href="/print.css" />
+  <link rel="stylesheet" href="/print-tokens.css?v=print-domain-v1" />
+</head>
+<body class="dms-print-body">
+  ${printPreviewActionsScript()}
+  ${pagination.copies.map(renderCopy).join('')}
+</body>
+</html>`;
+}
+
+module.exports = {
+  ORDER_SINGLE: dmsExactSalesInvoiceTemplate,
+  DMS_DELIVERY_INVOICE: dmsExactSalesInvoiceTemplate,
+  SALES_INVOICE: dmsExactSalesInvoiceTemplate,
+  SALES_INVOICE_DMS_EXACT_V1: dmsExactSalesInvoiceTemplate,
+  ORDER_TOTAL: warehousePickingTemplate,
+  WAREHOUSE_PICKING: warehousePickingTemplate,
+  IMPORT_ORDER: warehousePickingTemplate,
+  PAYMENT_RECEIPT: paymentReceiptTemplate
+};

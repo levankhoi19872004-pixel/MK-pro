@@ -1,0 +1,5 @@
+/* Compatibility manifest. Production index links parts directly. */
+@import url("/public/css/overrides/10-operational-01.css");
+@import url("/public/css/overrides/10-operational-02.css");
+@import url("/public/css/overrides/10-operational-03.css");
+@import url("/public/css/overrides/10-operational-04.css");

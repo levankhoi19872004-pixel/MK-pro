@@ -1,0 +1,424 @@
+
+function syncVatConditionalUi(){
+  if(!salesForm)return;
+  const required=getVatInvoiceRequired();
+  const note=salesForm.querySelector('.sales-vat-note');
+  const grid=salesForm.querySelector('.sales-order-info-grid');
+  if(note)note.hidden=required;
+  if(grid)grid.classList.toggle('vat-note-visible',!required);
+}
+function setVatInvoiceRequired(required){
+  if(!salesForm)return;
+  const value=required===false?'false':'true';
+  const radio=salesForm.querySelector(`input[name="vatInvoiceRequired"][value="${value}"]`);
+  if(radio)radio.checked=true;
+  syncVatConditionalUi();
+}
+function getVatInvoiceRequired(){
+  const selected=salesForm?.querySelector('input[name="vatInvoiceRequired"]:checked');
+  return String(selected?.value||'true')!=='false';
+}
+function syncVatSettingButton(){
+  const button=document.getElementById('saveSalesVatSettingButton');
+  if(button)button.hidden=!editingSalesOrderId||!canManageVatInvoiceSetting();
+}
+
+function resetSalesFormAfterSave(){
+  editingSalesOrderId='';
+  salesItems=[];
+  salesForm.reset();
+  salesForm.elements.date.value=today();
+  // Đơn tạo tay/App mặc định bán theo khuyến mại; radio vẫn mở để kế toán/admin đổi linh động.
+  setSalesMode(PRICING_PROMOTION);
+  setVatInvoiceRequired(true);
+  if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.value='';
+  salesForm.elements.paidAmount.value=0;
+  if(salesCustomerSearch)salesCustomerSearch.value='';
+  salesCustomerSelect.value='';
+  if(salesStaffSearch)salesStaffSearch.value='';
+  if(salesStaffSelect)salesStaffSelect.value='';
+  if(salesStaffName)salesStaffName.value='';
+  const submitBtn=salesForm.querySelector('[type="submit"]');
+  if(submitBtn)submitBtn.textContent='Tạo đơn bán & trừ tồn';
+  syncVatSettingButton();
+  syncSalesModeUi();
+  renderSalesItems();
+}
+
+function hasSalesDraftData(){
+  if(!salesForm)return false;
+  const note=String(salesForm.elements.note?.value||'').trim();
+  const paidAmount=Number(salesForm.elements.paidAmount?.value||0);
+  return Boolean(
+    editingSalesOrderId ||
+    salesItems.length ||
+    String(salesCustomerSelect?.value||'').trim() ||
+    String(salesCustomerSearch?.value||'').trim() ||
+    String(salesStaffSelect?.value||'').trim() ||
+    String(salesStaffSearch?.value||'').trim() ||
+    String(salesProductSelect?.value||'').trim() ||
+    String(salesProductSearch?.value||'').trim() ||
+    note ||
+    paidAmount>0
+  );
+}
+
+function cancelSalesDraft(){
+  if(!salesForm)return;
+  if(hasSalesDraftData() && !confirm('Bạn có chắc muốn huỷ đơn đang nhập?'))return;
+
+  // Chỉ xóa dữ liệu nháp trên form, tuyệt đối không gọi API tạo đơn/trừ tồn/ghi sổ.
+  resetSalesFormAfterSave();
+  if(salesProductSelect)salesProductSelect.value='';
+  if(salesProductSearch){
+    salesProductSearch.value='';
+    salesProductSearch.dataset.selectedId='';
+  }
+  if(salesQuantityCase)salesQuantityCase.value='0';
+  if(salesQuantityLoose)salesQuantityLoose.value='1';
+  if(salesPrice)salesPrice.value='0';
+  window.__selectedSalesProduct=null;
+  showMessage(salesMessage,'Đã huỷ tạo đơn');
+  closeSalesOrderModal(true);
+}
+window.cancelSalesDraft=cancelSalesDraft;
+
+function getSalesOrderModal(){return document.getElementById('salesOrderModal');}
+function setSalesOrderModalTitle(mode='create'){
+  const title=document.getElementById('salesOrderModalTitle');
+  if(title)title.textContent=mode==='edit'?'Sửa đơn bán hàng':'Tạo đơn bán hàng';
+}
+function openSalesOrderModal(mode='create'){
+  const modal=getSalesOrderModal();
+  if(!modal)return;
+  if(mode==='create'){
+    resetSalesFormAfterSave();
+    editingSalesOrderId='';
+  }
+  setSalesOrderModalTitle(mode);
+  syncVatSettingButton();
+  syncVatPermissionUi();
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  syncSalesModeUi();
+  renderSalesItems();
+  setTimeout(()=>{
+    const first=mode==='edit'?salesProductSearch:salesCustomerSearch;
+    if(first && typeof first.focus==='function')first.focus();
+  },0);
+}
+function closeSalesOrderModal(force=false){
+  const modal=getSalesOrderModal();
+  if(!modal)return;
+  if(!force && hasSalesDraftData() && !confirm('Bạn có chắc muốn đóng cửa sổ? Dữ liệu đang nhập sẽ bị bỏ qua.'))return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+window.openSalesOrderModal=openSalesOrderModal;
+window.closeSalesOrderModal=closeSalesOrderModal;
+async function submitSalesOrder(event){
+  event.preventDefault();
+  if(!salesItems.length){showMessage(salesMessage,'Đơn bán chưa có dòng hàng',true);return}
+  if(!salesCustomerSelect.value){showMessage(salesMessage,'Bạn chưa chọn khách hàng. Hãy gõ mã/tên khách rồi nhấn Enter hoặc chọn gợi ý.',true);return}
+  const payload=Object.fromEntries(new FormData(salesForm).entries());
+  payload.date=toDateOnly(payload.date||today());
+  payload.orderDate=payload.date;
+  payload.documentDate=payload.date;
+  if(salesStaffSelect)payload.salesStaffCode=salesStaffSelect.value||'';
+  if(salesStaffName)payload.salesStaffName=salesStaffName.value||'';
+  const saleMode=getSalesMode();
+  payload.saleMethod=saleMode;
+  payload.saleMode=saleMode;
+  payload.pricingMode=saleMode;
+  payload.orderPricingMode=saleMode;
+  payload.items=salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity,conversionRate:normalizePackingRate(i),packingQty:normalizePackingRate(i),unitsPerCase:normalizePackingRate(i),grossPrice:i.grossPrice||i.salePrice,salePrice:i.salePrice,price:i.salePrice,finalPrice:i.finalPrice||i.salePrice,discountPercent:i.discountPercent||0,discountAmount:i.discountAmount||0,saleMethod:saleMode,saleMode:saleMode,pricingMode:saleMode,priceLocked:saleMode!==PRICING_DIRECT_PRICE}));
+  payload.paidAmount=Number(payload.paidAmount||0);
+  payload.vatInvoiceRequired=String(payload.vatInvoiceRequired||'true')!=='false';
+  if(editingSalesOrderId){
+    payload.actorRole='admin';
+    delete payload.vatInvoiceRequired;
+    delete payload.vatInvoiceNote;
+  }
+  try{
+    const url=editingSalesOrderId?`/api/sales-orders/${encodeURIComponent(editingSalesOrderId)}`:'/api/sales-orders';
+    const method=editingSalesOrderId?'PUT':'POST';
+    const res=await fetch(url,{method,headers:{'Content-Type':'application/json','X-User-Role':'admin'},body:JSON.stringify(payload)});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không lưu được đơn bán');
+    resetSalesFormAfterSave();
+    showMessage(salesMessage,json.message||'Đã lưu đơn bán');
+    closeSalesOrderModal(true);
+    await loadStock();await loadSalesOrders();await loadDebts();await loadReceipts();await loadCashbook();
+  }catch(err){showMessage(salesMessage,err.message,true)}
+}
+
+// Stock / histories / debt
+let stockLoadPromise=null;
+let stockReloadQueued=false;
+function setStockToolbarLoading(isLoading){
+  [stockApplyFiltersButton,stockClearFiltersButton,stockReloadButton].forEach(button=>{
+    if(!button)return;
+    button.disabled=Boolean(isLoading);
+    button.setAttribute('aria-busy',isLoading?'true':'false');
+  });
+}
+async function loadStock(){
+  if(stockLoadPromise){
+    // Không chạy song song; giữ lại tối đa một lần refresh để không bỏ mất cập nhật tồn từ nghiệp vụ khác.
+    stockReloadQueued=true;
+    return stockLoadPromise;
+  }
+  setStockToolbarLoading(true);
+  stockLoadPromise=(async()=>{
+    const q=stockSearchInput?stockSearchInput.value.trim():'';
+    const params=new URLSearchParams();
+    if(q)params.set('q',q);
+    // Màn Tồn kho hiện tại phải đọc nguồn inventories hiện tại, không lọc mặc định theo ngày bán hôm nay.
+    // Báo cáo phát sinh/thẻ kho mới dùng dateFrom/dateTo riêng.
+    const url=`/api/stock${params.toString()?`?${params.toString()}`:''}`;
+    try{
+      const res=await fetch(url);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được tồn kho');
+      const stock=json.stock||[];stockCount.textContent=`${stock.length} dòng tồn kho`;
+      if(!stock.length){stockTable.innerHTML='<tr><td colspan="6">Chưa có tồn kho. Hãy tạo phiếu nhập trước.</td></tr>';return}
+      stockTable.innerHTML=stock.map(r=>`<tr><td><strong>${escapeSalesHtml(r.productCode||'')}</strong></td><td>${escapeSalesHtml(r.productName||'')}</td><td>${escapeSalesHtml(r.unit||'')}</td><td>${escapeSalesHtml(productPackingText(r))}</td><td class="stock-qty">${displayQtyTL(r.availableQty ?? r.quantity,r)}</td><td>${r.updatedAt?new Date(r.updatedAt).toLocaleString('vi-VN'):''}</td></tr>`).join('');
+    }catch(err){stockCount.textContent='Lỗi tải tồn kho';stockTable.innerHTML=`<tr><td colspan="6">${escapeSalesHtml(err.message)}</td></tr>`}
+  })();
+  try{
+    return await stockLoadPromise;
+  }finally{
+    stockLoadPromise=null;
+    setStockToolbarLoading(false);
+    if(stockReloadQueued){
+      stockReloadQueued=false;
+      queueMicrotask(()=>loadStock());
+    }
+  }
+}
+async function openImportOrderDetail(idx){
+  const order=window.__importOrdersCache?.[idx];if(!order)return;
+  const lines=(order.items||[]).map(i=>`<li>${escapeSalesHtml(i.productCode||'')} - ${escapeSalesHtml(i.productName||'')}: ${escapeSalesHtml(displayQtyTL(i.quantity,i))} × ${money(i.costPrice)} = ${money(i.amount)}</li>`).join('');
+  const card=document.querySelector(`[data-import-detail="${idx}"]`);
+  if(card)card.innerHTML=card.innerHTML?'' : `<ul class="order-items">${lines}</ul>`;
+}
+window.openImportOrderDetail=openImportOrderDetail;
+
+function buildPrintPreviewHtml(title, bodyClass, bodyHtml){
+  return `<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>${title||'Bản in'}</title><link rel="stylesheet" href="/print.css"></head><body class="${bodyClass||''}">
+    <div class="print-preview-actions"><button type="button" onclick="window.close()">Bỏ qua</button><button type="button" onclick="window.print()">In đơn</button><button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button></div>
+    ${bodyHtml||''}
+    <script>
+      function exportCurrentPrintToExcel(){
+        var pages=Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page'));
+        var html=pages.length?pages.map(function(page){return page.outerHTML;}).join(''):document.body.innerHTML;
+        var fullHtml='<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}.excel-only-column{display:table-cell!important}</style></head><body>'+html+'</body></html>';
+        var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8;'});
+        var a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        var safe=(document.title||'ban-in').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')||'ban-in';
+        a.download=safe+'.xls';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+      }
+    <\/script>
+  </body></html>`;
+}
+
+window.buildPrintPreviewHtml=buildPrintPreviewHtml;
+async function printSelectedImportOrders(){
+  try{
+    const checks=[...document.querySelectorAll('.import-order-check:checked')];
+    const orders=checks.map(ch=>window.__importOrdersCache?.[Number(ch.dataset.idx)]).filter(isActiveDocument);
+    const ids=orders.map(order=>order.id||order.code).filter(Boolean);
+    if(!ids.length){alert('Chưa chọn phiếu nhập để in gộp');return}
+    const res=await fetch('/api/print/import-orders/aggregate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({importOrderIds:ids})
+    });
+    const html=await res.text();
+    if(!res.ok)throw new Error(html||'Không in được các phiếu nhập đã chọn');
+    const w=window.open('','_blank');
+    if(!w)throw new Error('Trình duyệt đang chặn cửa sổ in. Hãy cho phép popup.');
+    w.document.open();w.document.write(html);w.document.close();
+  }catch(err){alert(err.message||'Không in được phiếu nhập')}
+}
+window.printSelectedImportOrders=printSelectedImportOrders;
+function isActiveDocument(row){
+  const status=String(row?.status||'').toLowerCase();
+  return !['cancelled','canceled','void','deleted','removed'].includes(status) && !row?.deletedAt;
+}
+
+
+async function postImportOrder(idx){
+  const order=window.__importOrdersCache?.[idx];if(!order)return;
+  if(!confirm(`Nhập kho phiếu ${order.code||order.id}? Sau khi nhập kho phiếu sẽ bị khóa sửa trực tiếp.`))return;
+  try{
+    const res=await fetch(`/api/import-orders/${encodeURIComponent(order.id||order.code)}/post`,{method:'POST',headers:{'Content-Type':'application/json','X-User-Role':'admin'}});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không nhập kho được phiếu');
+    const perf=json.posting&&json.posting.elapsedMs?` (${money(json.posting.createdTransactionCount||0)} dòng, ${money(json.posting.elapsedMs)}ms)`:''; 
+    alert((json.message||'Đã nhập kho thành công')+perf);
+    await loadImportOrders();
+    setTimeout(()=>{try{if(typeof loadStock==='function')loadStock().catch(()=>{});}catch(_err){}},0);
+  }catch(err){alert(err.message)}
+}
+window.postImportOrder=postImportOrder;
+
+async function cancelImportOrder(idx){
+  const order=window.__importOrdersCache?.[idx];if(!order)return;
+  if(String(order.status||'draft').toLowerCase()==='posted'){alert('Phiếu đã nhập kho, không được huỷ');return}
+  if(!confirm(`Huỷ phiếu nhập ${order.code||order.id}? Phiếu nháp sẽ không được cộng tồn kho.`))return;
+  try{
+    const res=await fetch(`/api/import-orders/${encodeURIComponent(order.id||order.code)}/cancel`,{method:'POST',headers:{'Content-Type':'application/json','X-User-Role':'admin'}});
+    const json=await res.json();if(!json.ok)throw new Error(json.message||'Không huỷ được phiếu nhập');
+    alert(json.message||'Đã huỷ phiếu nhập');
+    await loadImportOrders();
+  }catch(err){alert(err.message)}
+}
+window.cancelImportOrder=cancelImportOrder;
+
+let importDateFilter={fromDate:'',toDate:'',all:false};
+function importDateValue(date){
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,'0');
+  const d=String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function firstDayOfCurrentMonth(){const d=new Date();return importDateValue(new Date(d.getFullYear(),d.getMonth(),1));}
+function startOfCurrentWeek(){const d=new Date();const day=d.getDay()||7;d.setDate(d.getDate()-day+1);return importDateValue(d);}
+function firstDayOfCurrentQuarter(){const d=new Date();const q=Math.floor(d.getMonth()/3)*3;return importDateValue(new Date(d.getFullYear(),q,1));}
+function formatImportDateLabel(value){
+  if(!value)return '';
+  const parts=String(value).slice(0,10).split('-');
+  return parts.length===3?`${parts[2]}/${parts[1]}/${parts[0]}`:value;
+}
+function syncImportDateFilterFromInputs(){
+  importDateFilter.fromDate=importDateFromFilter?.value||'';
+  importDateFilter.toDate=importDateToFilter?.value||'';
+  importDateFilter.all=false;
+}
+function setImportDateFilter(fromDate,toDate,all=false){
+  if(importDateFromFilter)importDateFromFilter.value=fromDate||'';
+  if(importDateToFilter)importDateToFilter.value=toDate||'';
+  importDateFilter={fromDate:fromDate||'',toDate:toDate||'',all:!!all};
+}
+function updateImportDateFilterInfo(count){
+  if(!importDateFilterInfo)return;
+  if(importDateFilter.all){importDateFilterInfo.textContent=`Hiển thị: Tất cả (${count} phiếu nhập)`;return}
+  const from=formatImportDateLabel(importDateFilter.fromDate)||'...';
+  const to=formatImportDateLabel(importDateFilter.toDate)||'...';
+  importDateFilterInfo.textContent=`Hiển thị: ${from} → ${to} (${count} phiếu nhập)`;
+}
+// IMPORT_HISTORY_LAYOUT_GROUPED_START: chỉ cập nhật 3 ô thống kê nhanh của tab Nhập kho
+function updateImportOrderSummaryCards(orders){
+  const list=Array.isArray(orders)?orders:[];
+  const totalQty=list.reduce((sum,o)=>sum+Number(o?.totalQuantity||0),0);
+  const totalAmount=list.reduce((sum,o)=>sum+Number(o?.totalAmount||0),0);
+  const countEl=document.getElementById('importSummaryCount');
+  const qtyEl=document.getElementById('importSummaryQty');
+  const amountEl=document.getElementById('importSummaryAmount');
+  if(countEl)countEl.textContent=money(list.length);
+  if(qtyEl)qtyEl.textContent=money(totalQty);
+  if(amountEl)amountEl.textContent=money(totalAmount);
+}
+// IMPORT_HISTORY_LAYOUT_GROUPED_END
+function buildImportOrderQuery(){
+  const params=new URLSearchParams({excludeInactive:'1',limit:'100'});
+  if(importDateFilter.fromDate)params.set('fromDate',importDateFilter.fromDate);
+  if(importDateFilter.toDate)params.set('toDate',importDateFilter.toDate);
+  return params.toString();
+}
+async function applyImportDateFilter(){syncImportDateFilterFromInputs();await loadImportOrders()}
+async function clearImportDateFilter(){const t=importDateValue(new Date());setImportDateFilter(t,t,false);await loadImportOrders()}
+
+function initImportDateFilterControls(){
+  if(importDateFromFilter||importDateToFilter){
+    if(!importDateFromFilter?.value&&!importDateToFilter?.value){const t=importDateValue(new Date());setImportDateFilter(t,t,false);}
+    else syncImportDateFilterFromInputs();
+  }
+  if(applyImportDateFilterButton)applyImportDateFilterButton.addEventListener('click',applyImportDateFilter);
+  if(clearImportDateFilterButton)clearImportDateFilterButton.addEventListener('click',clearImportDateFilter);
+  if(printSelectedImportOrdersButton)printSelectedImportOrdersButton.addEventListener('click',printSelectedImportOrders);
+  if(reloadImportOrdersButton)reloadImportOrdersButton.addEventListener('click',()=>loadImportOrders());
+}
+async function loadImportOrders(){
+  try{
+    const res=await fetch(`/api/import-orders?${buildImportOrderQuery()}`);const json=await res.json();if(!json.ok)throw new Error(json.message||'Không tải được lịch sử nhập');
+    const orders=(json.importOrders||[]).filter(isActiveDocument);
+    importOrderCount.textContent=`${orders.length} phiếu nhập`;
+    updateImportDateFilterInfo(orders.length);
+    window.__importOrdersCache=orders;
+    updateImportOrderSummaryCards(orders);
+    if(!orders.length){
+      importOrderList.classList.add('import-order-one-line-list');
+      importOrderList.innerHTML='<div class="import-order-empty">Không có phiếu nhập trong khoảng thời gian đã chọn.</div>';
+      return;
+    }
+    // IMPORT_HISTORY_LAYOUT_GROUPED_START: chỉ đổi HTML render danh sách phiếu nhập sang header + dòng, không đổi API/logic
+    importOrderList.classList.add('import-order-one-line-list');
+    importOrderList.innerHTML=`
+      <div class="import-order-list-head">
+        <div><input type="checkbox" id="checkAllImportOrders" title="Chọn tất cả phiếu nhập"></div>
+        <div>Mã phiếu</div>
+        <div>Ngày nhập</div>
+        <div>Nhà cung cấp</div>
+        <div>Ghi chú</div>
+        <div>Số lượng</div>
+        <div>Giá trị</div>
+        <div>Trạng thái</div>
+        <div>Thao tác</div>
+      </div>
+      ${orders.map((o,idx)=>{
+        const posted=String(o.status||'draft').toLowerCase()==='posted';
+        const displayDate=o.displayDate||o.date||o.documentDate||o.importDate||'';
+        const supplier=escapeSalesHtml(o.supplier||'Chưa khai báo');
+        const code=escapeSalesHtml(o.code||o.id||'');
+        const note=escapeSalesHtml(importOrderNoteText(o));
+        const safeDisplayDate=escapeSalesHtml(displayDate);
+        const statusHtml=`<span class="status-badge ${posted?'ok':'pending'}">${posted?'Đã nhập kho':'Bản nháp'}</span>`;
+        const actionHtml=posted
+          ? `<button class="small secondary" onclick="editImportOrder(${idx})">Xem</button>`
+          : `<button class="small success" onclick="editImportOrder(${idx})">Sửa</button> <button class="small primary" onclick="postImportOrder(${idx})">Nhập kho</button> <button class="small danger" onclick="cancelImportOrder(${idx})">Huỷ</button>`;
+        return `<div class="import-order-one-line-row" title="${code} - ${supplier}${note?' - '+note:''}">
+          <div><input type="checkbox" class="import-order-check" data-idx="${idx}"></div>
+          <div class="import-order-cell-code">${code}</div>
+          <div class="import-order-cell">${safeDisplayDate}</div>
+          <div class="import-order-cell">${supplier}</div>
+          <div class="import-order-cell import-order-note" title="${note}">${note||'-'}</div>
+          <div class="import-order-cell">${money(o.totalQuantity)}</div>
+          <div class="import-order-cell import-order-money">${money(o.totalAmount)}</div>
+          <div class="import-order-cell">${statusHtml}</div>
+          <div class="import-order-actions">${actionHtml}</div>
+          <div data-import-detail="${idx}" hidden></div>
+        </div>`;
+      }).join('')}`;
+    const checkAll=document.getElementById('checkAllImportOrders');
+    if(checkAll){
+      checkAll.addEventListener('change',()=>{
+        document.querySelectorAll('#importOrderList .import-order-check').forEach(cb=>{cb.checked=checkAll.checked;});
+      });
+    }
+    // IMPORT_HISTORY_LAYOUT_GROUPED_END
+  }catch(err){importOrderCount.textContent='Lỗi tải lịch sử';updateImportOrderSummaryCards([]);if(importDateFilterInfo)importDateFilterInfo.textContent='Không tải được khoảng thời gian';importOrderList.textContent=err.message}
+}
+initImportDateFilterControls();
+function normalizeOrderSourceClient(order){
+  const raw=[order?.orderSource,order?.source,order?.sourceType,order?.orderSourceName,order?.importSource,order?.importType,order?.origin,order?.note].filter(Boolean).join(' ').toUpperCase();
+  if(/(^|[^A-Z0-9])DMS([^A-Z0-9]|$)|DMS_IMPORT|IMPORT EXCEL DMS|EXCEL DMS|FILE DMS|UNILEVER DMS/.test(raw))return 'DMS';
+  if(/(^|[^A-Z0-9])S3([^A-Z0-9]|$)|S3_IMPORT|IMPORT EXCEL S3|FILE S3/.test(raw))return 'S3';
+  if(/MANUAL|THU CONG|THỦ CÔNG/.test(raw))return 'MANUAL';
+  if(/SALES_APP|APP_SALES|MOBILE_SALES|NVBH|SALE APP|APP BÁN|APP BAN/.test(raw))return 'APP';
+  return 'APP';
+}
+function getOrderSourceText(order){
+  const src=normalizeOrderSourceClient(order);
+  if(src==='DMS')return 'DMS';
+  if(src==='S3')return 'S3';
+  if(src==='MANUAL')return 'Thủ công';
+  return 'APP';
+}
+function getOrderSourceClass(order){
+  const src=normalizeOrderSourceClient(order);
+  if(src==='DMS')return 'source-dms';
+  if(src==='S3')return 'source-s3';
+  if(src==='MANUAL')return 'source-manual';
+  return 'source-nvbh';
+}

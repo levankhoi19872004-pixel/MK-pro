@@ -1,0 +1,391 @@
+    list.innerHTML = renderDebtCustomers(visibleDeliveryDebtCustomers());
+    bindDeliveryDebtCustomerActions(list);
+  }
+
+  function renderDebtCustomers(entries) {
+    if (!(state.debts || []).length) {
+      return '<div class="m-empty">Không có khách hàng còn nợ.</div>';
+    }
+    if (!entries.length) {
+      return '<div class="m-empty">Không tìm thấy khách hàng phù hợp.</div>';
+    }
+
+    return entries.map(function (entry) {
+      var customer = entry.customer;
+      var index = entry.originalIndex;
+      var selected = deliveryDebtCustomerKey(customer) === state.selectedDebtKey ? ' selected' : '';
+      var available = debtAvailableValue(customer);
+      var disabled = available <= 0;
+
+      return '<article class="m-order-card m-debt-customer-card' + selected + '">' +
+        '<div class="m-order-top">' +
+          '<b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b>' +
+        '</div>' +
+        '<div class="m-order-metrics">' +
+          '<span>Nợ ' + money(debtMoneyValue(customer)) + '</span>' +
+          '<span>Chờ KT ' + money(debtPendingValue(customer)) + '</span>' +
+          '<span>Có thể thu ' + money(available) + '</span>' +
+          '<span>' + esc(customer.orderCount || 0) + ' đơn</span>' +
+        '</div>' +
+        '<button type="button" class="m-debt-collect-action' + (disabled ? ' disabled' : '') + '" data-debt-index="' + index + '"' + (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
+          (disabled ? 'Đang chờ KT' : 'Thu nợ') +
+        '</button>' +
+      '</article>';
+    }).join('');
+  }
+
+  function renderDebtCustomerDetail(customer) {
+    if (!customer) {
+      return '<div class="m-empty debt-empty-state">' +
+        '<b>Chưa chọn khách hàng để thu nợ</b>' +
+        '<span>Chọn một khách hàng trong tab Khách nợ để mở biểu mẫu.</span>' +
+        '<button id="mChooseDebtCustomer" type="button" class="m-debt-empty-action">Chọn khách hàng</button>' +
+      '</div>';
+    }
+
+    var orders = debtOrderRows(customer);
+
+    if (!orders.length) {
+      return '<div class="m-selected-order"><b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b></div>' +
+        '<div class="m-empty">Khách hàng này không còn số tiền có thể thu hoặc đang chờ kế toán xác nhận.</div>';
+    }
+
+    var rowsHtml = orders.map(function (order, index) {
+      var available = order.availableDebt;
+      if (available == null) available = order.debt;
+      available = num(available || 0);
+
+      return '<label class="m-debt-order-row">' +
+        '<input type="checkbox" class="m-debt-order-check" data-index="' + index + '" checked>' +
+        '<div>' +
+          '<b>' + esc(order.salesOrderCode || order.orderCode || '') + '</b>' +
+          '<small>Ngày: ' + esc(order.orderDate || order.documentDate || '') + '</small>' +
+          '<em>Nợ: ' + money(order.debt || 0) +
+            ' · Chờ KT: ' + money(order.pendingCollectedAmount || 0) +
+            ' · Có thể thu: ' + money(available) +
+          '</em>' +
+        '</div>' +
+      '</label>';
+    }).join('');
+
+    return '<div class="m-selected-order">' +
+        '<b>' + esc(customer.customerCode || '') + ' - ' + esc(customer.customerName || '') + '</b>' +
+        '<span>Nợ: ' + money(debtMoneyValue(customer)) +
+          ' · Chờ KT: ' + money(debtPendingValue(customer)) +
+          ' · Có thể thu: ' + money(debtAvailableValue(customer)) +
+        '</span>' +
+      '</div>' +
+      '<form id="mDeliveryDebtCollectionForm" class="m-payment-form">' +
+        '<h3>Gửi phiếu thu nợ chờ kế toán</h3>' +
+        '<p class="m-help-text">Công nợ chỉ giảm sau khi kế toán xác nhận trên web.</p>' +
+        '<div class="m-return-scroll debt-order-selection-list">' + rowsHtml + '</div>' +
+        '<label>Số tiền đã thu<input id="mDeliveryDebtAmount" name="amount" type="number" min="0" value="' + esc(debtAvailableValue(customer)) + '"></label>' +
+        '<label>Hình thức<select name="paymentMethod"><option value="cash">Tiền mặt</option><option value="bank_transfer">Chuyển khoản</option><option value="other">Khác</option></select></label>' +
+        '<label>Ghi chú<input name="note" placeholder="VD: Khách trả một phần"></label>' +
+        '<div class="debt-submit-bar"><button type="submit">Gửi phiếu thu chờ KT</button></div>' +
+      '</form>';
+  }
+
+  function updateDeliveryDebtAmount(customer) {
+    var orders = debtOrderRows(customer);
+    var total = 0;
+
+    document.querySelectorAll('.m-debt-order-check:checked').forEach(function (input) {
+      var index = Number(input.getAttribute('data-index'));
+      var order = orders[index];
+      if (!order) return;
+      var available = order.availableDebt;
+      if (available == null) available = order.debt;
+      total += num(available || 0);
+    });
+
+    var amountInput = el('mDeliveryDebtAmount');
+    if (amountInput) amountInput.value = Math.max(0, Math.round(total));
+  }
+
+  async function submitDeliveryDebtCollectionFromDebtTab(event, customer) {
+    if (event && event.preventDefault) event.preventDefault();
+
+    var formElement = event.target;
+    var form = new FormData(formElement);
+    var amountValue = num(form.get('amount'));
+
+    if (amountValue <= 0) {
+      msg('Số tiền thu phải lớn hơn 0', true);
+      return;
+    }
+
+    var orders = debtOrderRows(customer);
+    var allocations = [];
+
+    document.querySelectorAll('.m-debt-order-check:checked').forEach(function (input) {
+      var index = Number(input.getAttribute('data-index'));
+      var order = orders[index];
+      if (!order) return;
+
+      var available = order.availableDebt;
+      if (available == null) available = order.debt;
+      available = num(available || 0);
+      if (available <= 0) return;
+
+      allocations.push({
+        salesOrderId: order.salesOrderId || order.orderId || '',
+        salesOrderCode: order.salesOrderCode || order.orderCode || '',
+        allocatedAmount: available
+      });
+    });
+
+    if (!allocations.length) {
+      msg('Cần chọn ít nhất một đơn nợ', true);
+      return;
+    }
+
+    var totalSelected = allocations.reduce(function (sum, row) {
+      return sum + num(row.allocatedAmount);
+    }, 0);
+
+    if (amountValue > totalSelected) {
+      msg('Số tiền thu vượt tổng công nợ đã chọn', true);
+      return;
+    }
+
+    var remain = amountValue;
+    allocations = allocations.map(function (row) {
+      var allocated = Math.min(num(row.allocatedAmount), remain);
+      remain -= allocated;
+      return Object.assign({}, row, { allocatedAmount: allocated });
+    }).filter(function (row) {
+      return num(row.allocatedAmount) > 0;
+    });
+
+    var submitButton = formElement.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Đang gửi...';
+    }
+
+    try {
+      msg('Đang gửi phiếu thu nợ chờ kế toán...');
+
+      await window.DeliveryCore.api('/api/mobile/debt-collections', {
+        method: 'POST',
+        body: JSON.stringify({
+          collectorType: 'delivery',
+          customerId: customer.customerId || '',
+          customerCode: customer.customerCode || '',
+          customerName: customer.customerName || '',
+          amount: amountValue,
+          paymentMethod: form.get('paymentMethod') || 'cash',
+          note: form.get('note') || '',
+          allocations: allocations,
+          idempotencyKey: 'delivery-debt-' + (customer.customerCode || Date.now()) + '-' + Date.now()
+        })
+      });
+
+      state.debtFormDirty = false;
+      state.selectedDebtIndex = -1;
+      state.selectedDebtKey = '';
+      state.debtSubtab = 'customers';
+      state.debtLoaded = false;
+      await loadDeliveryDebts(true);
+      msg('Đã ghi nhận thu nợ, chờ kế toán xác nhận');
+      window.requestAnimationFrame(function () {
+        window.scrollTo({ top: state.debtListScrollTop || 0, behavior: 'auto' });
+      });
+    } catch (err) {
+      msg(err.message || 'Không gửi được phiếu thu nợ', true);
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Gửi phiếu thu chờ KT';
+      }
+    }
+  }
+
+  function renderProducts(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
+    var items = Array.isArray(order.items) ? order.items : [];
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
+      '<form id="mReturnForm"><div class="m-return-scroll">' +
+      items.map(function (it, idx) {
+        var code = it.productCode || it.code || it.productId || '';
+        var name = it.productName || it.name || '';
+        // DELIVERY_LOCKED_PRICE_READ_START
+        // App giao hàng ưu tiên unitPrice đã khóa từ backend, không tự tính lại khuyến mại.
+        var price = num(it.unitPrice || it.price || it.salePrice || it.finalPrice);
+        // DELIVERY_LOCKED_PRICE_READ_END
+        var qty = num(it.quantity || it.deliveredQty || it.qty || it.orderQty || it.soldQty);
+        var rqty = num(it.returnQty || it.qtyReturn || it.returnQuantity || it.returnedQty);
+        return '<div class="m-product-row"><div><b>' + esc(code) + '</b><small>' + esc(name) + '</small><em>SL giao ' + money(qty) + ' · Giá cố định ' + money(price) + '</em>' + hidden(idx, 'productCode', code) + hidden(idx, 'productName', name) + hidden(idx, 'price', price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(rqty) + '"></div>';
+      }).join('') + '</div><div class="m-action-row"><button type="submit">Lưu hàng trả</button><button id="mClearReturn" type="button" class="secondary">Bỏ qua hàng trả</button></div></form>';
+    el('mReturnForm').addEventListener('submit', saveReturn);
+    el('mClearReturn').addEventListener('click', function () { saveReturn({ preventDefault: function () {}, forceZero: true }); });
+  }
+
+  function hidden(idx, field, value) { return '<input type="hidden" data-m-return-field="' + esc(field) + '" data-idx="' + idx + '" value="' + esc(value) + '">'; }
+
+  function cleanReturnCode(value) {
+    return String(value == null ? '' : value).trim().replace(/^RO[-_]?/i, '');
+  }
+
+  function returnsForOrder(order) {
+    order = order || {};
+    var ids = [order.orderId, order.salesOrderId, order.id, order._id].map(String).filter(function (v) { return v && v !== 'undefined' && v !== 'null'; });
+    var codes = [order.orderCode, order.salesOrderCode, order.code, order.displayOrderCode].map(cleanReturnCode).filter(Boolean);
+    return (window.DeliveryCore.state.returns || []).filter(function (row) {
+      var rowIds = [row.salesOrderId, row.orderId, row.sourceOrderId, row.deliveryOrderId].map(String);
+      var rowCodes = [row.salesOrderCode, row.orderCode, row.sourceOrderCode, row.deliveryOrderCode, row.returnOrderCode].map(cleanReturnCode);
+      return ids.some(function (id) { return rowIds.indexOf(id) >= 0; }) || codes.some(function (code) { return rowCodes.indexOf(code) >= 0; });
+    });
+  }
+
+  function renderReturns(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
+    var rows = returnsForOrder(order);
+    // Safety fallback: /api/delivery/orders already overlays returnItems from returnOrders.
+    // If the direct return list is late or mismatched by legacy key, still show the selected order's official returnItems.
+    if (!rows.length && Array.isArray(order.returnItems) && order.returnItems.length) {
+      rows = order.returnItems.map(function (item) {
+        return Object.assign({}, item, {
+          salesOrderId: order.salesOrderId,
+          salesOrderCode: order.salesOrderCode,
+          orderId: order.orderId,
+          orderCode: order.orderCode,
+          customerCode: order.customerCode,
+          customerName: order.customerName
+        });
+      });
+    }
+    if (!rows.length && amount(order, 'returnAmount') > 0) {
+      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Đơn có tiền hàng trả ' + money(amount(order, 'returnAmount')) + ' nhưng app chưa lấy được dòng sản phẩm. Bấm Tải lại hàng trả để gọi trực tiếp returnOrders.</div><div class="m-action-row"><button id="mReloadReturns" type="button">Tải lại hàng trả</button></div>';
+      el('mReloadReturns').addEventListener('click', loadSelectedReturnsDirect);
+      return;
+    }
+    if (!rows.length) {
+      body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div><div class="m-empty">Chưa có hàng trả trong returnOrders. Nhập SL trả ở tab Sản phẩm giao rồi bấm Lưu hàng trả hoặc bấm Bỏ qua hàng trả để sang Thu tiền.</div><div class="m-action-row"><button id="mGoProducts" type="button">Quay lại sản phẩm</button><button id="mSkipReturns" type="button" class="secondary">Bỏ qua hàng trả</button></div>';
+      el('mGoProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
+      el('mSkipReturns').addEventListener('click', function () { state.tab = 'payment'; render(); });
+      return;
+    }
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
+      '<form id="mReturnSaveForm"><div class="m-return-scroll">' +
+      rows.map(function (it, idx) {
+        var amount = num(it.returnQty) * num(it.price);
+        return '<div class="m-product-row"><div><b>' + esc(it.productCode) + '</b><small>' + esc(it.productName) + '</small><em>Giá cố định ' + money(it.price) + ' · Thành tiền ' + money(amount) + '</em>' + hidden(idx, 'productCode', it.productCode) + hidden(idx, 'productName', it.productName) + hidden(idx, 'price', it.price) + '</div><input data-m-return-field="returnQty" data-idx="' + idx + '" type="number" min="0" step="1" value="' + esc(it.returnQty) + '"></div>';
+      }).join('') + '</div><div class="m-action-row"><button type="submit">Cập nhật hàng trả</button><button id="mBackProducts" type="button" class="secondary">Sửa từ sản phẩm giao</button></div></form>';
+    el('mReturnSaveForm').addEventListener('submit', saveReturn);
+    el('mBackProducts').addEventListener('click', function () { state.tab = 'products'; render(); });
+  }
+
+  function renderPayment(body) {
+    var order = currentOrder();
+    if (!order) { body.innerHTML = '<div class="m-empty">Chọn đơn ở tab Đơn giao trước.</div>'; return; }
+    body.innerHTML = '<div class="m-selected-order"><b>' + esc(order.orderCode) + '</b><span>' + esc(order.customerName) + '</span></div>' +
+      '<form id="mPaymentForm" class="m-payment-form"><h3>Thu tiền đơn giao</h3><label>Tiền mặt<input name="cash" type="number" min="0" value="' + esc(amount(order, 'cash')) + '"></label><label>Chuyển khoản<input name="bank" type="number" min="0" value="' + esc(amount(order, 'bank')) + '"></label><label>Trả thưởng<input name="reward" type="number" min="0" value="' + esc(amount(order, 'reward')) + '"></label><button type="submit">Lưu thu tiền</button></form>';
+    el('mPaymentForm').addEventListener('submit', savePayment);
+  }
+
+  function collectReturnItems(forceZero) {
+    var byIdx = {};
+    document.querySelectorAll('[data-m-return-field]').forEach(function (input) {
+      var idx = input.getAttribute('data-idx');
+      var field = input.getAttribute('data-m-return-field');
+      byIdx[idx] = byIdx[idx] || {};
+      byIdx[idx][field] = (forceZero && field === 'returnQty') ? 0 : input.value;
+    });
+    return Object.keys(byIdx).map(function (idx) { return byIdx[idx]; });
+  }
+
+  async function saveReturn(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    try {
+      msg('Đang lưu hàng trả...');
+      await window.DeliveryCore.saveReturn(currentOrder(), collectReturnItems(event && event.forceZero));
+      msg('Đã lưu hàng trả vào returnOrders');
+      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      state.tab = 'payment';
+      render();
+    } catch (err) { msg(err.message, true); }
+  }
+
+
+  async function savePayment(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    var form = new FormData(event.target);
+    try {
+      msg('Đang lưu thu tiền...');
+      await window.DeliveryCore.savePayment(currentOrder(), { cash: form.get('cash'), bank: form.get('bank'), reward: form.get('reward') });
+      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      msg('Đã lưu thu tiền và xác nhận giao');
+      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      state.tab = 'orders';
+      render();
+    } catch (err) { msg(err.message, true); }
+  }
+
+  async function confirmDelivery() {
+    try {
+      msg('Đang xác nhận giao...');
+      await window.DeliveryCore.confirmDelivery(currentOrder(), { deliveryStatus: 'delivered' });
+      msg('Đã xác nhận giao');
+      state.selectedKey = keyOf(window.DeliveryCore.state.selectedOrder);
+      state.tab = 'orders';
+      render();
+    } catch (err) { msg(err.message, true); }
+  }
+
+  async function loadSelectedReturnsDirect() {
+    var order = currentOrder();
+    if (!order || !window.DeliveryCore || !window.DeliveryCore.loadReturnsForOrder) return;
+    try {
+      msg('Đang tải hàng trả trực tiếp từ returnOrders...');
+      await window.DeliveryCore.loadReturnsForOrder(order);
+      msg('');
+      render();
+    } catch (err) {
+      msg('Không tải trực tiếp được hàng trả: ' + err.message, true);
+    }
+  }
+
+  function select(key) {
+    state.selectedKey = key;
+    window.DeliveryCore.selectOrder(key);
+    state.tab = 'products';
+    render();
+    loadSelectedReturnsDirect();
+  }
+
+  async function load() {
+    if (!requireDeliveryLogin()) return;
+    if (
+      state.tab === 'debt' &&
+      state.debtFormDirty &&
+      !window.confirm('Bạn đang có phiếu thu chưa gửi. Tải lại sẽ xóa dữ liệu đang nhập.')
+    ) {
+      return;
+    }
+    if (state.tab === 'debt') state.debtFormDirty = false;
+    if (!el('mBody')) renderShell();
+    el('mBody').innerHTML = '<div class="m-empty">Đang tải...</div>';
+    try {
+      await window.DeliveryCore.loadOrders(filters());
+      await window.DeliveryCore.loadReturns(filters());
+      if (!state.selectedKey && window.DeliveryCore.state.orders[0]) state.selectedKey = keyOf(window.DeliveryCore.state.orders[0]);
+      if (state.selectedKey) window.DeliveryCore.selectOrder(state.selectedKey);
+      if (state.tab === 'returns') {
+        await loadSelectedReturnsDirect();
+      } else if (state.tab === 'debt') {
+        state.debtLoaded = false;
+        await loadDeliveryDebts(true);
+      } else {
+        render();
+        msg('');
+      }
+    } catch (err) { el('mBody').innerHTML = '<div class="m-empty danger">' + esc(err.message) + '</div>'; msg(err.message, true); }
+  }
+
+  window.DeliveryMobileView = { load: load, select: select, renderShell: renderShell };
+  window.loadDeliveryOrders = function () { return load(); };
+  document.addEventListener('DOMContentLoaded', load);
+}());

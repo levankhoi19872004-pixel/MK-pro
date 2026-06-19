@@ -1,0 +1,495 @@
+  const canonical = deliveryFinance.buildCanonicalDeliveryOrder(order, { returnItems, returnAmountOverride: returnAmount });
+  const amounts = canonical.amounts || {};
+  return {
+    ...canonical,
+    orderId: orderIdOf(order),
+    orderCode: orderCodeOf(order),
+    salesOrderId: text(order.salesOrderId || order.id || order._id),
+    salesOrderCode: text(order.salesOrderCode || order.orderCode || order.code || orderCodeOf(order)),
+    customerCode: text(order.customerCode),
+    customerName: text(order.customerName),
+    deliveryDate: text(order.deliveryDate || order.date || order.documentDate),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_ENGINE_DISPLAY_STAFF_START =====
+    // DeliveryEngine không suy luận NVBH từ staffCode/staffName vì các field đó có thể là NVGH.
+    salesStaffCode: text(order.salesStaffCode || order.salesmanCode),
+    salesStaffName: text(order.salesStaffName || order.salesmanName),
+    // ===== SCOPED FIX: ORDER_DATA_LINEAGE_DELIVERY_ENGINE_DISPLAY_STAFF_END =====
+    deliveryStaffCode: text(order.deliveryStaffCode),
+    deliveryStaffName: text(order.deliveryStaffName),
+    items: canonical.items,
+    returnItems,
+    returnOrders: relatedReturnOrders,
+    amounts: {
+      receivable: toNumber(amounts.receivable ?? amounts.totalReceivable),
+      cash: toNumber(amounts.cash ?? amounts.cashAmount),
+      bank: toNumber(amounts.bank ?? amounts.bankAmount),
+      reward: toNumber(amounts.reward ?? amounts.rewardAmount),
+      returnAmount: toNumber(amounts.returnAmount),
+      processed: toNumber(amounts.processed),
+      debt: normalizeDebtAmount(amounts.debt ?? amounts.debtAmount)
+    },
+    reconciliation: buildOrderReconciliation(amounts),
+    status: {
+      deliveryStatus: text(order.deliveryStatus || order.status || 'pending'),
+      paymentStatus: normalizeDebtAmount(amounts.debt ?? amounts.debtAmount) <= 0 ? 'paid' : ((amounts.processed || 0) > 0 ? 'partial' : 'unpaid'),
+      returnStatus: (amounts.returnAmount || 0) > 0 ? 'has_return' : 'none',
+      accountingStatus: text(order.accountingStatus || '')
+    }
+  };
+}
+
+function buildOrderReconciliation(amounts = {}) {
+  const receivable = toNumber(amounts.receivable ?? amounts.totalReceivable);
+  const cash = toNumber(amounts.cash ?? amounts.cashAmount);
+  const bank = toNumber(amounts.bank ?? amounts.bankAmount);
+  const reward = toNumber(amounts.reward ?? amounts.rewardAmount);
+  const returnAmount = toNumber(amounts.returnAmount);
+  const debt = normalizeDebtAmount(amounts.debt ?? amounts.debtAmount);
+  const processed = cash + bank + reward + returnAmount + debt;
+  const difference = Math.round(receivable - processed);
+  return {
+    receivable,
+    cash,
+    bank,
+    reward,
+    returnAmount,
+    debt,
+    processed,
+    difference,
+    balanced: Math.abs(difference) <= 1000,
+    message: Math.abs(difference) <= 1000 ? 'Đối soát OK' : `Chênh lệch ${difference.toLocaleString('vi-VN')}`
+  };
+}
+
+function summarizeOrders(rows = []) {
+  return rows.reduce((acc, order) => {
+    const a = order.amounts || {};
+    acc.receivable += toNumber(a.receivable);
+    acc.cash += toNumber(a.cash);
+    acc.bank += toNumber(a.bank);
+    acc.reward += toNumber(a.reward);
+    acc.returnAmount += toNumber(a.returnAmount);
+    acc.debt += normalizeDebtAmount(a.debt);
+    return acc;
+  }, { receivable: 0, cash: 0, bank: 0, reward: 0, returnAmount: 0, debt: 0 });
+}
+
+function deliveryStatusOf(row = {}) {
+  const status = row.status && typeof row.status === 'object' ? row.status : {};
+  return lower(status.deliveryStatus || row.deliveryStatus || row.status || 'pending');
+}
+
+function isDeliveredOrder(row = {}) {
+  return ['delivered', 'success', 'done', 'completed'].includes(deliveryStatusOf(row));
+}
+
+function applyDeliveryStatusFilter(rows = [], query = {}) {
+  const statusFilter = lower(query.statusFilter || query.deliveryStatusFilter || query.orderStatusFilter || 'all');
+  if (!statusFilter || ['all', 'tat ca', 'tất cả', '*'].includes(statusFilter)) return rows;
+
+  if (['delivered', 'da giao', 'đã giao'].includes(statusFilter)) {
+    return rows.filter(isDeliveredOrder);
+  }
+
+  if (['pending', 'not_delivered', 'not-delivered', 'chua giao', 'chưa giao'].includes(statusFilter)) {
+    return rows.filter((row) => !isDeliveredOrder(row));
+  }
+
+  if (['return', 'returns', 'has_return', 'tra hang', 'trả hàng'].includes(statusFilter)) {
+    return rows.filter((row) => toNumber(row.amounts && row.amounts.returnAmount) > 0 || toNumber(row.returnAmount || row.returnTotal || row.totalReturnAmount) > 0);
+  }
+
+  if (['debt', 'cong no', 'công nợ'].includes(statusFilter)) {
+    return rows.filter((row) => normalizeDebtAmount((row.amounts && row.amounts.debt) ?? row.debtAmount ?? row.debt) > 0);
+  }
+
+  return rows;
+}
+
+class DeliveryEngine {
+  constructor(models = {}) {
+    this.SalesOrder = models.SalesOrder;
+    this.MasterOrder = models.MasterOrder;
+    this.ReturnOrder = models.ReturnOrder;
+    this.StockTransaction = models.StockTransaction;
+    this.ArLedger = models.ArLedger;
+    this.User = models.User;
+  }
+
+
+  staffCodeOf(user = {}, type = 'sales') {
+    return type === 'delivery'
+      ? text(pickDeliveryStaffCode(user) || pickUserAccountDeliveryStaffCode(user))
+      : text(pickSalesStaffCode(user) || pickUserAccountSalesStaffCode(user));
+  }
+
+  staffNameOf(user = {}, type = 'sales') {
+    return type === 'delivery'
+      ? text(pickDeliveryStaffName(user))
+      : text(pickSalesStaffName(user));
+  }
+
+  staffRoleOk(user = {}, type = '') {
+    const roleText = norm([user.role, user.type, user.position, user.department, user.roleLabel].filter(Boolean).join(' '));
+    const boolOk = type === 'delivery'
+      ? Boolean(user.isDelivery || user.isDeliveryStaff || user.deliveryStaff)
+      : Boolean(user.isSalesman || user.isSalesStaff || user.salesStaff);
+    if (boolOk) return true;
+    if (type === 'delivery') return ['delivery', 'shipper', 'nvgh', 'giao hang', 'giaohang'].some((key) => roleText.includes(norm(key)));
+    return ['sales', 'sale', 'nvbh', 'ban hang', 'banhang', 'salesman'].some((key) => roleText.includes(norm(key)));
+  }
+
+  orderStaffCode(order = {}, type = '') {
+    if (type === 'delivery') return text(order.deliveryStaffCode || order.shipperCode || order.driverCode || order.staffDeliveryCode);
+    return text(order.salesStaffCode || order.salesmanCode || order.nvbhCode || order.saleCode || order.sellerCode);
+  }
+
+  orderStaffName(order = {}, type = '') {
+    if (type === 'delivery') return text(order.deliveryStaffName || order.shipperName || order.driverName || order.staffDeliveryName);
+    return text(order.salesStaffName || order.salesmanName || order.nvbhName || order.saleName || order.sellerName);
+  }
+
+  async buildStaffSystemIndex(orders = []) {
+    const empty = { byCode: new Map(), byName: new Map() };
+    if (!this.User || !orders.length) return empty;
+    const keys = unique(orders.flatMap((order) => [
+      this.orderStaffCode(order, 'sales'),
+      this.orderStaffName(order, 'sales'),
+      this.orderStaffCode(order, 'delivery'),
+      this.orderStaffName(order, 'delivery')
+    ])).filter(Boolean);
+    if (!keys.length) return empty;
+    const regexes = keys.map((key) => new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+    const users = await this.User.find({
+      isActive: { $ne: false },
+      $or: [
+        ...USER_ACCOUNT_SALES_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...USER_ACCOUNT_DELIVERY_STAFF_CODE_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...SALES_STAFF_NAME_FIELDS.map((field) => ({ [field]: { $in: regexes } })),
+        ...DELIVERY_STAFF_NAME_FIELDS.map((field) => ({ [field]: { $in: regexes } }))
+      ]
+    }).select('id code staffCode employeeCode salesStaffCode salesStaffName salesmanCode salesmanName deliveryStaffCode deliveryStaffName shipperCode shipperName maNhanVien name fullName role type position department roleLabel isSalesman isSalesStaff salesStaff isDelivery isDeliveryStaff deliveryStaff isActive').lean().catch(() => []);
+    const byCode = new Map();
+    const byName = new Map();
+    for (const user of users || []) {
+      const salesCode = this.staffCodeOf(user, 'sales');
+      const deliveryCode = this.staffCodeOf(user, 'delivery');
+      const salesName = this.staffNameOf(user, 'sales');
+      const deliveryName = this.staffNameOf(user, 'delivery');
+      const codeKeys = unique([salesCode, deliveryCode]).map(compact).filter(Boolean);
+      const nameKeys = unique([salesName, deliveryName]).map(norm).filter(Boolean);
+      for (const key of codeKeys) byCode.set(key, user);
+      for (const key of nameKeys) byName.set(key, user);
+    }
+    return { byCode, byName };
+  }
+
+  verifyAssignedStaff(order = {}, staffIndex = { byCode: new Map(), byName: new Map() }, type = '') {
+    const assignedCode = this.orderStaffCode(order, type);
+    const assignedName = this.orderStaffName(order, type);
+    const label = type === 'delivery' ? 'NVGH' : 'NVBH';
+    let systemUser = assignedCode ? staffIndex.byCode.get(compact(assignedCode)) : null;
+    if (!systemUser && assignedName) systemUser = staffIndex.byName.get(norm(assignedName));
+    const systemCode = systemUser ? this.staffCodeOf(systemUser, type) : '';
+    const systemName = systemUser ? this.staffNameOf(systemUser, type) : '';
+    const codeMatches = Boolean(systemUser && assignedCode && compact(systemCode) === compact(assignedCode));
+    const nameMatches = Boolean(systemUser && assignedName && norm(systemName) === norm(assignedName));
+    const roleOk = Boolean(systemUser && this.staffRoleOk(systemUser, type));
+    const ok = Boolean(systemUser && roleOk && (codeMatches || (!assignedCode && nameMatches)));
+    let message = `${label} đúng mã hệ thống`;
+    if (!assignedCode && !assignedName) message = `Thiếu ${label}`;
+    else if (!systemUser) message = `${label} không tồn tại trong mục Tài khoản/Hệ thống`;
+    else if (!roleOk) message = `${label} có mã hệ thống nhưng sai vai trò`;
+    else if (!codeMatches && assignedCode) message = `${label} không khớp mã hệ thống`;
+    return {
+      type,
+      label,
+      ok,
+      exists: Boolean(systemUser),
+      roleOk,
+      codeMatches,
+      nameMatches,
+      assignedCode,
+      assignedName,
+      systemCode,
+      systemName,
+      message
+    };
+  }
+
+  async enrichStaffAssignment(rows = []) {
+    const staffIndex = await this.buildStaffSystemIndex(rows);
+    return rows.map((row) => {
+      const sales = this.verifyAssignedStaff(row, staffIndex, 'sales');
+      const delivery = this.verifyAssignedStaff(row, staffIndex, 'delivery');
+      const ok = sales.ok && delivery.ok;
+      return {
+        ...row,
+        staffAssignment: { ok, sales, delivery },
+        staffAssignmentStatus: ok ? 'valid' : 'warning',
+        staffAssignmentMessage: ok ? 'Đơn đã gán đúng NVBH/NVGH theo mã hệ thống' : [sales, delivery].filter((item) => !item.ok).map((item) => item.message).join('; ')
+      };
+    });
+  }
+
+
+  async execSalesOrderFind(filter = {}, { select = DELIVERY_ORDER_SELECT, sort = {}, limit = 1000 } = {}) {
+    let query = this.SalesOrder.find(filter);
+
+    if (query && typeof query.select === 'function') {
+      query = query.select(select);
+    }
+
+    if (query && typeof query.sort === 'function') {
+      query = query.sort(sort);
+    }
+
+    if (query && typeof query.limit === 'function') {
+      query = query.limit(limit);
+    }
+
+    if (query && typeof query.lean === 'function') {
+      return query.lean();
+    }
+
+    return query;
+  }
+
+  async findOrders(query = {}) {
+    const date = text(query.date || query.deliveryDate || today());
+    const status = norm(query.status || query.deliveryStatus);
+    const q = norm(query.q || query.keyword);
+
+    const makeBaseFilter = () => {
+      const filter = {};
+      if (date) filter.deliveryDate = date;
+      if (status && !['all', 'tat ca', 'tất cả', '*'].includes(status)) {
+        filter.deliveryStatus = text(query.status || query.deliveryStatus);
+      }
+      return filter;
+    };
+
+    const applyKeywordToAnd = (and = []) => {
+      if (!q) return;
+      const rx = new RegExp(escapeRegex(query.q || query.keyword), 'i');
+      and.push({ $or: [
+        { code: rx },
+        { orderCode: rx },
+        { salesOrderCode: rx },
+        { customerCode: rx },
+        { customerName: rx }
+      ] });
+    };
+
+    let orders = [];
+
+    // Fast path cho app giao hàng: token đã bind deliveryStaffCode chính xác.
+    // Tránh $or regex trên nhiều alias không index, nguyên nhân làm /api/delivery/orders và /returns chậm.
+    if (shouldTryFastDeliveryCodeQuery(query)) {
+      const deliveryCode = directDeliveryCodeFromQuery(query);
+      const and = [
+        masterAssignmentMongoClause(),
+        { deliveryStaffCode: { $in: staffCodeVariantsForMongo(deliveryCode) } }
+      ];
+      applyKeywordToAnd(and);
+      const fastFilter = { ...makeBaseFilter(), $and: and };
+      orders = await this.execSalesOrderFind(fastFilter, {
+        sort: { deliveryDate: -1, deliveryStaffCode: 1, customerName: 1, code: 1 },
+        limit: 300
+      });
+    }
+
+    if (!orders.length) {
+      const filter = makeBaseFilter();
+      const and = [masterAssignmentMongoClause()];
+      pushStaffMongoFilters(and, query);
+      applyKeywordToAnd(and);
+      if (and.length) filter.$and = and;
+
+      orders = await this.execSalesOrderFind(filter, {
+        sort: { deliveryStaffCode: 1, customerName: 1, code: 1 },
+        limit: 1000
+      });
+    }
+
+    if (!orders.length && date && this.MasterOrder) {
+      const masters = await this.MasterOrder.find({ deliveryDate: date })
+        .select('id code deliveryDate deliveryStaffCode deliveryStaffName childOrderIds children')
+        .lean();
+      const filteredMasters = applyStaffFilters(masters, query);
+      const childIds = unique(filteredMasters.flatMap((m) => Array.isArray(m.childOrderIds) ? m.childOrderIds : []));
+      if (childIds.length) {
+        orders = await this.execSalesOrderFind(
+          { $or: [{ id: { $in: childIds } }, { code: { $in: childIds } }] },
+          { limit: 1000 }
+        );
+      }
+    }
+
+    orders = applyStaffFilters(orders, query);
+
+    if (q) {
+      orders = orders.filter((o) => [
+        o.code,
+        o.orderCode,
+        o.salesOrderCode,
+        o.customerCode,
+        o.customerName,
+        o.salesStaffCode,
+        o.salesStaffName,
+        o.staffCode,
+        o.staffName,
+        o.deliveryStaffCode,
+        o.deliveryStaffName
+      ].some((v) => norm(v).includes(q)));
+    }
+
+    // DELIVERY_DEDUP_SALES_ORDER_START
+    // Mongo có thể đang tồn tại nhiều salesOrders cùng mã đơn do import/retry cũ.
+    // Màn giao hàng là màn nghiệp vụ theo mã đơn bán, nên luôn trả 1 dòng cho 1 mã đơn.
+    return dedupeDeliveryOrders(orders);
+    // DELIVERY_DEDUP_SALES_ORDER_END
+  }
+
+
+  async findReturnOrdersFor(orders = [], options = {}) {
+    const ids = unique(orders.flatMap((o) => [orderIdOf(o), o.id, o._id, o.salesOrderId, o.orderId, o.sourceOrderId, o.deliveryOrderId]));
+    const codes = unique(orders.flatMap((o) => [orderCodeOf(o), o.code, o.orderCode, o.salesOrderCode, o.sourceOrderCode, o.deliveryOrderCode]));
+    const idVariants = unique(ids.flatMap(keyVariants));
+    const codeVariants = unique(codes.flatMap(keyVariants));
+    const or = [];
+    if (idVariants.length) {
+      or.push(
+        { salesOrderId: { $in: idVariants } }, { orderId: { $in: idVariants } },
+        { sourceOrderId: { $in: idVariants } }, { deliveryOrderId: { $in: idVariants } },
+        { id: { $in: idVariants } }
+      );
+    }
+    if (codeVariants.length) {
+      or.push(
+        { salesOrderCode: { $in: codeVariants } }, { orderCode: { $in: codeVariants } },
+        { sourceOrderCode: { $in: codeVariants } }, { deliveryOrderCode: { $in: codeVariants } },
+        { code: { $in: codeVariants } }, { id: { $in: codeVariants } }
+      );
+    }
+    if (!or.length) return [];
+    let query = this.ReturnOrder.find({ ...activeReturnFilter(), $or: or });
+    query = applyQuerySession(query, options.session);
+    const docs = await query.lean();
+    return docs.map(canonicalizeReturnDocument).filter(hasPositiveReturnDocument);
+  }
+
+  async getCanonicalOrderByKey(key, options = {}) {
+    const lookup = buildOrderLookup(key);
+    if (!lookup) return null;
+    let query = this.SalesOrder.findOne(lookup);
+    query = applyQuerySession(query, options.session);
+    const order = await query.lean();
+    if (!order) return null;
+    const returns = await this.findReturnOrdersFor([order], options);
+    return buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order)));
+  }
+
+  async listOrders(query = {}) {
+    const orders = dedupeDeliveryOrders(await this.findOrders(query));
+    const returns = await this.findReturnOrdersFor(orders);
+    let rows = orders.map((order) => buildCanonicalOrder(order, returns.filter((ret) => returnMatchesOrder(ret, order))));
+    rows = dedupeDeliveryOrders(applyDeliveryStatusFilter(rows, query));
+    if (truthy(query.checkStaffAssignment) || truthy(query.checkStaff) || truthy(query.staffCheck)) {
+      rows = await this.enrichStaffAssignment(rows);
+    }
+    return { rows, summary: summarizeOrders(rows), reconciliation: this.reconcileRows(rows) };
+  }
+
+  normalizeReturnItems(sourceItems = [], order = {}) {
+    const soldByCode = orderItemIndex(order);
+    return (Array.isArray(sourceItems) ? sourceItems : [])
+      .map((item) => {
+        const productCode = productCodeOf(item);
+        const orderLine = soldByCode.get(productCode) || {};
+        return resolveReturnItemWithOrderLine(item, orderLine);
+      })
+      .filter((item) => item.productCode && item.returnQty > 0);
+  }
+
+  async saveReturn(body = {}) {
+    const options = arguments[1] || {};
+    const key = text(body.salesOrderId || body.orderId || body.salesOrderCode || body.orderCode);
+    let query = this.SalesOrder.findOne(buildOrderLookup(key));
+    query = applyQuerySession(query, options.session);
+    const order = await query.lean();
+    if (!order) {
+      const err = new Error('Không tìm thấy đơn giao hàng');
+      err.status = 404;
+      throw err;
+    }
+    assertDeliveryOwnership(order, body);
+
+    const items = this.normalizeReturnItems(body.items, order);
+    const totalAmount = items.reduce((sum, item) => sum + toNumber(item.returnAmount || item.amount), 0);
+    const stableId = `RO-${orderCodeOf(order).replace(/^RO[-_]?/i, '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
+    const patch = {
+      id: stableId,
+      code: stableId,
+      salesOrderId: orderIdOf(order),
+      salesOrderCode: orderCodeOf(order),
+      orderId: orderIdOf(order),
+      orderCode: orderCodeOf(order),
+      customerId: text(order.customerId),
+      customerCode: text(order.customerCode),
+      customerName: text(order.customerName),
+      deliveryDate: text(order.deliveryDate || body.deliveryDate || today()),
+      date: text(body.date || order.deliveryDate || today()),
+      documentDate: text(body.documentDate || body.date || order.deliveryDate || today()),
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_ENGINE_RETURN_SNAPSHOT_STAFF_START =====
+      deliveryStaffCode: text(order.deliveryStaffCode || body.deliveryStaffCode),
+      deliveryStaffName: text(order.deliveryStaffName || body.deliveryStaffName),
+      salesStaffCode: text(order.salesStaffCode || order.salesmanCode || body.salesStaffCode),
+      salesStaffName: text(order.salesStaffName || order.salesmanName || body.salesStaffName),
+      salesmanCode: text(order.salesmanCode || order.salesStaffCode || body.salesmanCode),
+      salesmanName: text(order.salesmanName || order.salesStaffName || body.salesmanName),
+      staffCode: text(order.deliveryStaffCode || body.deliveryStaffCode),
+      staffName: text(order.deliveryStaffName || body.deliveryStaffName),
+      // ===== SCOPED FIX: ORDER_DATA_LINEAGE_ENGINE_RETURN_SNAPSHOT_STAFF_END =====
+      source: 'canonical_delivery_engine',
+      refType: items.length ? 'canonicalDeliveryReturn' : 'canonicalDeliveryReturnClear',
+      returnType: text(body.returnType || 'partial') || 'partial',
+      returnStatus: items.length ? 'waiting_receive' : 'cancelled',
+      status: items.length ? 'waiting_receive' : 'cancelled',
+      accountingConfirmed: false,
+      accountingStatus: items.length ? 'pending' : 'cancelled',
+      items,
+      totalQuantity: items.reduce((sum, item) => sum + toNumber(item.returnQty), 0),
+      totalAmount,
+      totalReturnAmount: totalAmount,
+      amount: totalAmount,
+      debtReduction: totalAmount,
+      note: text(body.note) || (items.length ? 'Cập nhật hàng trả từ DeliveryEngine' : 'Xóa hàng trả về 0 từ DeliveryEngine'),
+      updatedAt: new Date().toISOString(),
+      clearedAt: items.length ? '' : new Date().toISOString()
+    };
+
+    const result = options.session
+      ? await getReturnLifecycleService().createPendingReturn(patch, options)
+      : await getReturnLifecycleService().createPendingReturn(patch);
+    if (result && result.error) {
+      const err = new Error(result.error);
+      err.status = result.status || 400;
+      throw err;
+    }
+    const returnOrder = (result && result.returnOrder) || result;
+
+    // V46 rule: returnOrders is the single source of truth for return goods.
+    // Do not mirror returnAmount/returnItems into salesOrders. All delivery views must reload/overlay from returnOrders.
+    const canonical = await this.getCanonicalOrderByKey(orderIdOf(order), options);
+    const returnRows = flattenReturnOrderRows(returnOrder, canonical || order);
+    return {
+      order: canonical,
+      returnOrder,
+      returns: returnRows,
+      returnOrders: returnRows,
+      rows: returnRows,
+      message: items.length ? 'Đã lưu hàng trả' : 'Đã xóa hàng trả về 0'
+    };
+  }
+

@@ -1,0 +1,122 @@
+/* GENERATED FILE — edit public/js/app/05-sales-orders.source/part-01.jsfrag, public/js/app/05-sales-orders.source/part-02.jsfrag, public/js/app/05-sales-orders.source/part-03.jsfrag, public/js/app/05-sales-orders.source/part-04.jsfrag and run npm run build:source-bundles. */
+const escapeSalesHtml=window.V45Common&&window.V45Common.escapeHtml||((value="")=>String(value).replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"
+}[ch])));const PRICING_DIRECT_PRICE="DIRECT_PRICE";const PRICING_PROMOTION="PROMOTION";function normalizePricingModeClient(value){const raw=String(value||"").trim().toUpperCase()
+;return raw==="PROMOTION"||raw==="PROMO"||raw==="KM"||raw.includes("KHUYEN")?PRICING_PROMOTION:PRICING_DIRECT_PRICE}let editingSalesOrderId=""
+;function getSalesOrderSourceText(order){
+return[order?.source,order?.orderSource,order?.orderSourceName,order?.sourceType,order?.origin,order?.channel,order?.createdFrom,order?.importSource].filter(v=>v!==undefined&&v!==null).join(" ").toUpperCase()
+}function isAppSalesOrder(order){const source=getSalesOrderSourceText(order)
+;return source.includes("APP")||source.includes("MOBILE")||source.includes("MOBILE_SALES")||source.includes("NVBH")}function isImportSalesOrder(order){
+const source=getSalesOrderSourceText(order);return source.includes("DMS")||source.includes("IMPORT")||source.includes("EXCEL")}function getExplicitPricingModeForEdit(order){
+const explicit=order?.saleMode||order?.pricingMode||order?.orderPricingMode;if(explicit)return normalizePricingModeClient(explicit)
+;if(!isAppSalesOrder(order)&&order?.saleMethod)return normalizePricingModeClient(order.saleMethod);return""}function resolveSalesOrderEditMode(order){
+const explicitMode=getExplicitPricingModeForEdit(order);if(explicitMode)return explicitMode;if(isAppSalesOrder(order))return PRICING_PROMOTION
+;if(isImportSalesOrder(order))return PRICING_DIRECT_PRICE;return PRICING_PROMOTION}function getSalesProductCatalog(){
+if(window.UnifiedProductSearch)return window.UnifiedProductSearch.getCatalog()
+;const catalog=Array.isArray(salesProductsCache)&&salesProductsCache.length?salesProductsCache:productsCache;return Array.isArray(catalog)?catalog:[]}
+async function loadSalesProductCatalog(){try{if(window.UnifiedProductSearch){salesProductsCache=await window.UnifiedProductSearch.preload({force:false});renderSalesProductSelect()
+;return salesProductsCache}const res=await fetch(`/api/catalog/products/search?q=&limit=50&includeStock=1&activeOnly=1&_t=${Date.now()}`);const json=await res.json()
+;if(!json.ok)throw new Error(json.message||"Không tải được danh mục sản phẩm bán hàng");salesProductsCache=(json.products||json.items||[]).map(p=>({...p}))
+;renderSalesProductSelect();return salesProductsCache}catch(err){console.warn("Không tải được catalog sản phẩm bán hàng:",err.message||err)
+;salesProductsCache=Array.isArray(productsCache)?productsCache:[];renderSalesProductSelect();return salesProductsCache}}function getSalesCustomerMatches(){
+const q=salesCustomerSearch?salesCustomerSearch.value.trim():"";if(window.UnifiedSearchEngine)return window.UnifiedSearchEngine.searchCustomer(q,{limit:20,minChars:0,
+allowEmpty:"1",showOnFocus:"1"});return customersCache.filter(c=>c.isActive!==false).filter(c=>matchSearch(q,[c.code,c.name,c.phone,c.address,c.area,c.route]))}
+function selectSalesCustomer(c){if(!c)return;salesCustomerSelect.value=c.id||"";if(salesCustomerSearch){salesCustomerSearch.value=customerSuggestionLabel(c)
+;salesCustomerSearch.dataset.selectedId=c.id||"";salesCustomerSearch.dataset.targetHidden="salesCustomerSelect"}hideSuggestions(salesCustomerSuggestions)}
+function renderSalesCustomerSelect(){if(!salesCustomerSearch)return;salesCustomerSearch.disabled=false
+;salesCustomerSearch.placeholder="Bấm để chọn hoặc gõ mã/tên/sđt/tuyến khách hàng..."}async function getSalesStaffMatches(){
+const q=salesStaffSearch?salesStaffSearch.value.trim():"";if(window.UnifiedSearchEngine)return window.UnifiedSearchEngine.searchSalesStaff(q,{limit:20,minChars:0,allowEmpty:"1",
+showOnFocus:"1"});return(usersCache||window.__usersCache||[]).filter(u=>{const role=String(u.role||u.roleLabel||"").toLowerCase()
+;return u.isActive!==false&&(u.isSalesman===true||u.isSalesStaff===true||["sales","admin","nvbh","salesstaff","sales_staff"].includes(role)||role.includes("ban hang")||role.includes("sales"))
+}).filter(u=>matchSearch(q,[u.salesStaffCode,u.staffCode,u.code,u.employeeCode,u.salesStaffName,u.name,u.fullName,u.phone,u.roleLabel,u.role]))}function selectSalesStaff(u){
+if(!u)return;const code=u.salesStaffCode||u.staffCode||u.code||"";const name=u.salesStaffName||u.fullName||u.name||"";if(salesStaffSelect)salesStaffSelect.value=code
+;if(salesStaffName)salesStaffName.value=name;if(salesStaffSearch){salesStaffSearch.value=staffSuggestionLabel(u);salesStaffSearch.dataset.selectedId=code}
+hideSuggestions(salesStaffSuggestions)}function renderSalesStaffSelect(){if(!salesStaffSearch)return
+;const has=(usersCache||window.__usersCache||[]).some(u=>u.isActive!==false&&["sales","admin","nvbh"].includes(String(u.role||"").toLowerCase()));salesStaffSearch.disabled=false
+;salesStaffSearch.placeholder=has?"Gõ mã/tên/tài khoản NV bán hàng...":"Gõ để tìm NV bán hàng từ Tài khoản"}function selectSalesProduct(p){if(!p)return
+;salesProductSelect.value=getProductKey(p);if(salesProductSearch){salesProductSearch.value=productSuggestionLabel(p);salesProductSearch.dataset.selectedId=getProductKey(p)
+;salesProductSearch.dataset.targetHidden="salesProductSelect"}if(salesPrice)salesPrice.value=Number(p.salePrice||0);hideSuggestions(salesProductSuggestions)}
+function renderSalesProductSelect(){if(!salesProductSearch)return;const has=getSalesProductCatalog().some(p=>p.isActive!==false);salesProductSearch.disabled=false
+;salesProductSearch.placeholder=has?"Gõ mã/tên/barcode sản phẩm...":"Đang tải sản phẩm, bấm vào để tải lại..."}function syncSalesPrice(){
+const p=findProductByKey(salesProductSelect.value);if(p&&salesPrice)salesPrice.value=Number(p.salePrice||0)}function getSelectedSalesProduct(){
+const keys=[salesProductSelect?.value,salesProductSearch?.dataset?.selectedId,salesProductSearch?.value];for(const key of keys){const found=findProductByKey(key);if(found){
+const productKey=getProductKey(found);if(salesProductSelect)salesProductSelect.value=productKey;if(salesProductSearch)salesProductSearch.dataset.selectedId=productKey;return found}
+}const picked=window.__selectedSalesProduct;if(picked){const pickedKey=getProductKey(picked);const inputCode=extractProductCodeFromInput(salesProductSearch?.value||"")
+;const selectedKey=String(salesProductSearch?.dataset?.selectedId||salesProductSelect?.value||"").trim()
+;if(pickedKey&&(!inputCode||inputCode===pickedKey||selectedKey===pickedKey)){
+if(window.UnifiedProductSearch&&typeof window.UnifiedProductSearch.sync==="function")window.UnifiedProductSearch.sync([picked])
+;if(salesProductSelect)salesProductSelect.value=pickedKey;if(salesProductSearch)salesProductSearch.dataset.selectedId=pickedKey;return picked}}
+const code=extractProductCodeFromInput(salesProductSearch?.value||"");const byCode=code?findProductByKey(code):null;if(byCode){const productKey=getProductKey(byCode)
+;if(salesProductSelect)salesProductSelect.value=productKey;if(salesProductSearch)salesProductSearch.dataset.selectedId=productKey;return byCode}return null}function getSalesMode(){
+const checked=salesForm?.querySelector('input[name="saleMode"]:checked');return checked&&checked.value==="promotion"?PRICING_PROMOTION:PRICING_DIRECT_PRICE}
+function setSalesMode(mode){const normalized=normalizePricingModeClient(mode)
+;const input=salesForm?.querySelector(`input[name="saleMode"][value="${normalized===PRICING_PROMOTION?"promotion":"direct"}"]`);if(input)input.checked=true}
+function isDirectSaleMode(){return getSalesMode()===PRICING_DIRECT_PRICE}function recalcSalesItem(index){const item=salesItems[index];if(!item)return
+;item.quantity=Number(item.quantity||0);item.salePrice=Number(item.salePrice||0);item.price=item.salePrice;item.amount=item.quantity*item.salePrice}
+async function recalculateSalesPromotionPrices(){if(!salesItems.length)return;if(getSalesMode()!==PRICING_PROMOTION)return;try{const res=await fetch("/api/promotions/calculate",{
+method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items:salesItems.map(i=>({productCode:i.productCode,quantity:i.quantity}))})})
+;const json=await res.json();if(!json.ok)throw new Error(json.message||"Không tính được khuyến mại");const lines=json.result&&json.result.lines||[]
+;const byCode=new Map(lines.map(line=>[String(line.productCode||"").trim(),line]));salesItems=salesItems.map(item=>{const line=byCode.get(String(item.productCode||"").trim())||{}
+;const quantity=Number(item.quantity||0);const grossPrice=Number(line.catalogSalePrice||item.grossPrice||item.salePrice||item.price||0)
+;const grossAmount=Math.round(quantity*grossPrice);const directDiscountAmount=Number(line.directDiscountAmount||0);const groupDiscountAmount=Number(line.groupDiscountAmount||0)
+;const discountAmount=Math.min(grossAmount,directDiscountAmount+groupDiscountAmount);const amount=Math.max(0,grossAmount-discountAmount)
+;const finalPrice=quantity>0?Math.round(amount/quantity):0;return{...item,grossPrice:grossPrice,catalogSalePrice:grossPrice,grossAmount:grossAmount,
+directDiscountPercent:Number(line.directDiscountPercent||0),groupDiscountPercent:Number(line.groupDiscountPercent||0),
+discountPercent:grossAmount>0?discountAmount/grossAmount*100:0,directDiscountAmount:directDiscountAmount,groupDiscountAmount:groupDiscountAmount,discountAmount:discountAmount,
+totalDiscountAmount:discountAmount,finalPrice:finalPrice,salePrice:finalPrice,price:finalPrice,amount:amount,saleMethod:PRICING_PROMOTION,saleMode:PRICING_PROMOTION,
+pricingMode:PRICING_PROMOTION,priceLocked:true,promotionCalculated:true}})}catch(err){showMessage(salesMessage,err.message||"Không tính được khuyến mại",true)}}
+async function updateSalesItemQuantity(index,value){const item=salesItems[index];if(!item)return;const next=Number(value||0);if(next<0)return;item.quantity=next
+;const rate=normalizePackingRate(item);const split=splitCaseLoose(item.quantity,rate);item.caseQty=split.caseQty;item.looseQty=split.looseQty;recalcSalesItem(index)
+;await recalculateSalesPromotionPrices();renderSalesItems()}async function rebuildSalesItemQuantity(index){const item=salesItems[index];if(!item)return
+;const rate=normalizePackingRate(item);let caseQty=Math.max(0,Number(item.caseQty||0));let looseQty=Math.max(0,Number(item.looseQty||0));if(looseQty>=rate){
+caseQty+=Math.floor(looseQty/rate);looseQty=looseQty%rate}item.caseQty=caseQty;item.looseQty=looseQty;item.quantity=caseQty*rate+looseQty;recalcSalesItem(index)
+;await recalculateSalesPromotionPrices();renderSalesItems()}function updateSalesItemCase(index,value){const item=salesItems[index];if(!item)return;item.caseQty=Number(value||0)
+;rebuildSalesItemQuantity(index)}function updateSalesItemLoose(index,value){const item=salesItems[index];if(!item)return;item.looseQty=Number(value||0)
+;rebuildSalesItemQuantity(index)}function updateSalesItemPrice(index,value){if(!isDirectSaleMode())return;const item=salesItems[index];if(!item)return;const next=Number(value||0)
+;if(next<0)return;item.salePrice=next;item.price=next;recalcSalesItem(index);renderSalesItems()}function syncSalesModeUi(){const direct=isDirectSaleMode();if(salesPrice){
+salesPrice.readOnly=!direct;salesPrice.title=direct?"Được sửa giá bán khi bán thẳng":"Giá khóa theo chương trình khuyến mại";salesPrice.classList.toggle("readonly-price",!direct)}
+renderSalesItems()}window.updateSalesItemQuantity=updateSalesItemQuantity;window.updateSalesItemCase=updateSalesItemCase;window.updateSalesItemLoose=updateSalesItemLoose
+;window.rebuildSalesItemQuantity=rebuildSalesItemQuantity;window.updateSalesItemPrice=updateSalesItemPrice;function ensureSalesItemCaseLoose(item){if(!item)return
+;const rate=normalizePackingRate(item);const hasCaseLoose=item.caseQty!==undefined||item.looseQty!==undefined;if(!hasCaseLoose){const split=splitCaseLoose(item.quantity,rate)
+;item.caseQty=split.caseQty;item.looseQty=split.looseQty}}function renderSalesItems(){const direct=isDirectSaleMode();salesItems.forEach(ensureSalesItemCaseLoose)
+;const tq=salesItems.reduce((s,i)=>s+Number(i.quantity||0),0);const ta=salesItems.reduce((s,i)=>s+Number(i.amount||0),0);salesTotalQuantity.textContent=money(tq)
+;salesTotalAmount.textContent=money(ta);if(!salesItems.length){salesItemsTable.innerHTML='<tr><td colspan="7">Chưa có dòng hàng</td></tr>';return}
+salesItemsTable.innerHTML=salesItems.map((i,idx)=>`<tr>\n    <td><strong>${escapeSalesHtml(i.productCode||"")}</strong></td>\n    <td class="sales-product-name-cell"><span class="sales-product-name-text">${escapeSalesHtml(i.productName||"")}</span></td>\n    <td><input class="sales-line-input qty-case" type="number" min="0" value="${Number(i.caseQty||0)}" onchange="updateSalesItemCase(${idx}, this.value)"></td>\n    <td><input class="sales-line-input qty-loose" type="number" min="0" value="${Number(i.looseQty||0)}" onchange="updateSalesItemLoose(${idx}, this.value)"></td>\n    <td class="price"><input class="sales-line-input price" type="number" min="0" step="any" value="${Number(i.salePrice||0)}" ${direct?"":"readonly"} onchange="updateSalesItemPrice(${idx}, this.value)"></td>\n    <td class="price">${money(i.amount)}</td>\n    <td><button type="button" class="small danger" onclick="removeSalesItem(${idx})">Xóa</button></td>\n  </tr>`).join("")
+}window.removeSalesItem=async index=>{salesItems.splice(index,1);await recalculateSalesPromotionPrices();renderSalesItems()};async function addSalesItem(){
+const p=getSelectedSalesProduct();if(!p){showMessage(salesMessage,"Bạn chưa chọn sản phẩm. Hãy gõ mã/tên rồi nhấn Enter hoặc chọn gợi ý.",true);return}
+const caseQty=Number(salesQuantityCase?.value||0);const looseQty=Number(salesQuantityLoose?.value||0);const packingRate=Number(p.conversionRate||p.unitsPerCase||0)
+;const quantity=(caseQty>0&&packingRate>0?caseQty*packingRate:0)+looseQty+(salesQuantity&&!salesQuantityCase&&!salesQuantityLoose?Number(salesQuantity.value||0):0)
+;const salePrice=Number(salesPrice.value||0);if(quantity<=0){showMessage(salesMessage,"Số lượng bán phải lớn hơn 0",true);return}const availableQty=productAvailableQty(p)
+;if(availableQty<=0){showMessage(salesMessage,`Sản phẩm ${p.code||""} hiện hết tồn mở bán. Vui lòng nhập kho/rebuild tồn kho trước khi bán.`,true);return}if(quantity>availableQty){
+showMessage(salesMessage,`Số lượng bán vượt tồn mở bán. Tồn mở bán hiện tại: ${displayQtyTL(availableQty,p)}.`,true);return}if(salePrice<0){
+showMessage(salesMessage,"Giá bán không được âm",true);return}const lineMode=getSalesMode()
+;const existed=salesItems.find(i=>i.productCode===p.code&&i.salePrice===salePrice&&normalizePricingModeClient(i.saleMode)===lineMode);const meta=productLineMeta(p)
+;const split=splitCaseLoose(quantity,meta.conversionRate);if(existed){existed.quantity+=quantity;const existedSplit=splitCaseLoose(existed.quantity,normalizePackingRate(existed))
+;existed.caseQty=existedSplit.caseQty;existed.looseQty=existedSplit.looseQty;existed.amount=existed.quantity*existed.salePrice}else salesItems.push({productId:getProductKey(p),
+productCode:p.code,productName:p.name,...meta,quantity:quantity,caseQty:split.caseQty,looseQty:split.looseQty,grossPrice:salePrice,salePrice:salePrice,price:salePrice,
+finalPrice:salePrice,discountPercent:0,discountAmount:0,amount:quantity*salePrice,saleMethod:lineMode,saleMode:lineMode,pricingMode:lineMode,priceLocked:true})
+;await recalculateSalesPromotionPrices();if(salesQuantity)salesQuantity.value=1;if(salesQuantityCase)salesQuantityCase.value="";if(salesQuantityLoose)salesQuantityLoose.value=""
+;salesProductSelect.value="";window.__selectedSalesProduct=null;if(salesProductSearch){salesProductSearch.value="";salesProductSearch.dataset.selectedId=""}
+showMessage(salesMessage,"");renderSalesItems()}window.applyPastedSalesItems=async function applyPastedSalesItems(rows=[],products=[]){const productMap=new Map
+;const addKey=(key,product)=>{const normalized=String(key||"").trim().toLowerCase();if(normalized&&!productMap.has(normalized))productMap.set(normalized,product)}
+;(products||[]).forEach(product=>[product.code,product.productCode,product.sku,product.barcode,product.id].forEach(key=>addKey(key,product)));const errors=[];let added=0
+;const lineMode=getSalesMode();(Array.isArray(rows)?rows:[]).forEach((row,index)=>{const rowNo=Number(row.__rowNo||index+1);const code=String(row.productCode||"").trim()
+;const product=productMap.get(code.toLowerCase());if(!product){errors.push({rowNo:rowNo,key:"productCode",message:`Không tìm thấy mã sản phẩm ${code||"(trống)"}`});return}
+const rate=Math.max(1,Number(product.conversionRate||product.unitsPerCase||1));const caseQty=Number(row.cartonQty||0);const looseQty=Number(row.unitQty||0)
+;if(!Number.isFinite(caseQty)||!Number.isFinite(looseQty)||caseQty<0||looseQty<0){errors.push({rowNo:rowNo,key:"cartonQty",message:"Số lượng thùng/lẻ phải là số không âm"});return}
+const quantity=caseQty*rate+looseQty;if(!(quantity>0)){errors.push({rowNo:rowNo,key:"unitQty",message:"Số lượng bán phải lớn hơn 0"});return}
+const availableQty=productAvailableQty(product);if(availableQty>0&&quantity>availableQty){errors.push({rowNo:rowNo,key:"unitQty",
+message:`Vượt tồn mở bán ${displayQtyTL(availableQty,product)}`});return}if(availableQty<=0){errors.push({rowNo:rowNo,key:"productCode",message:"Sản phẩm hiện hết tồn mở bán"})
+;return}const rawPrice=String(row.salePrice??"").trim();const salePrice=rawPrice===""?Number(product.salePrice||0):Number(rawPrice);if(!Number.isFinite(salePrice)||salePrice<0){
+errors.push({rowNo:rowNo,key:"salePrice",message:"Giá bán không hợp lệ"});return}const productCode=product.code||product.productCode||product.sku||code
+;const meta=productLineMeta(product)
+;const existed=salesItems.find(item=>item.productCode===productCode&&Number(item.salePrice||0)===salePrice&&normalizePricingModeClient(item.saleMode)===lineMode);if(existed){
+existed.quantity=Number(existed.quantity||0)+quantity;const split=splitCaseLoose(existed.quantity,normalizePackingRate(existed));existed.caseQty=split.caseQty
+;existed.looseQty=split.looseQty;existed.amount=existed.quantity*salePrice}else{const split=splitCaseLoose(quantity,meta.conversionRate);salesItems.push({
+productId:getProductKey(product),productCode:productCode,productName:product.name||product.productName||"",...meta,quantity:quantity,caseQty:split.caseQty,looseQty:split.looseQty,
+grossPrice:salePrice,salePrice:salePrice,price:salePrice,finalPrice:salePrice,discountPercent:0,discountAmount:0,amount:quantity*salePrice,saleMethod:lineMode,saleMode:lineMode,
+pricingMode:lineMode,priceLocked:true})}added+=1});if(added)await recalculateSalesPromotionPrices();renderSalesItems()
+;if(added)showMessage(salesMessage,`Đã thêm ${added} dòng từ Excel${errors.length?`, ${errors.length} dòng lỗi`:""}`,false);return{added:added,errors:errors}}
+;function getCurrentWebRole(){try{const user=JSON.parse(localStorage.getItem("mk_web_user")||"{}");return String(user.role||"").toLowerCase()}catch(_err){return""}}
+function canManageVatInvoiceSetting(){return["admin","accountant"].includes(getCurrentWebRole())}function syncVatPermissionUi(){if(!salesForm)return
+;const allowed=canManageVatInvoiceSetting();salesForm.querySelectorAll('input[name="vatInvoiceRequired"]').forEach(input=>{input.disabled=!allowed})
+;if(salesForm.elements.vatInvoiceNote)salesForm.elements.vatInvoiceNote.disabled=!allowed;if(!allowed&&!editingSalesOrderId)setVatInvoiceRequired(true);syncVatConditionalUi()}
