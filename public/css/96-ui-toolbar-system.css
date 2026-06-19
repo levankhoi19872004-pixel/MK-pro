@@ -1,0 +1,131 @@
+/* Shared list-toolbar foundation. Adopted incrementally per screen. */
+:root{
+  --toolbar-control-height:36px;
+  --toolbar-control-height-comfortable:40px;
+  --toolbar-gap:8px;
+  --toolbar-group-gap:16px;
+  --search-width-sm:280px;
+  --search-width-md:320px;
+  --search-width-lg:360px;
+  --filter-width-sm:160px;
+  --filter-width-md:220px;
+  --filter-width-lg:260px;
+}
+
+.ui-list-toolbar{
+  display:grid;
+  gap:12px;
+  margin-bottom:10px;
+  padding:12px;
+  border:1px solid #dbe5f3;
+  border-radius:14px;
+  background:#fff;
+}
+.ui-page-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:var(--toolbar-group-gap);
+  min-width:0;
+}
+.ui-page-title{min-width:0;}
+.ui-page-title h2{margin:0;line-height:1.2;}
+.ui-page-meta{margin:3px 0 0;}
+.ui-page-actions,
+.ui-toolbar-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:var(--toolbar-gap);
+}
+.ui-page-actions{flex-wrap:wrap;}
+.ui-search-filter-bar{
+  display:grid;
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-md))
+    minmax(200px,var(--filter-width-md))
+    minmax(150px,var(--filter-width-sm))
+    minmax(150px,var(--filter-width-sm))
+    minmax(140px,var(--filter-width-sm))
+    max-content;
+  gap:var(--toolbar-gap);
+  align-items:end;
+  min-width:0;
+}
+.ui-toolbar-field{
+  display:grid;
+  gap:4px;
+  min-width:0;
+  margin:0;
+  color:#64748b;
+  font-size:11px;
+  font-weight:800;
+  line-height:1;
+}
+.ui-toolbar-field > input,
+.ui-toolbar-field > select,
+.ui-toolbar-field > .autocomplete,
+.ui-toolbar-field > .autocomplete > input{
+  width:100%;
+  min-width:0;
+  max-width:none;
+  box-sizing:border-box;
+}
+.ui-list-toolbar :is(input,select,button){
+  min-height:var(--toolbar-control-height)!important;
+  height:var(--toolbar-control-height)!important;
+  margin:0!important;
+}
+.ui-list-toolbar button{white-space:nowrap;}
+.ui-button-ghost{
+  border:1px solid transparent!important;
+  background:transparent!important;
+  color:#475569!important;
+  box-shadow:none!important;
+}
+.ui-list-toolbar button[aria-busy="true"]{cursor:wait;opacity:.72;}
+
+/* Sales is the first adopter; the data grid contract remains untouched. */
+#salesTab .ui-list-toolbar{position:relative;z-index:30;}
+#salesTab .ui-page-meta{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  color:#475569;
+}
+#salesTab .ui-page-meta span{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:3px 8px;
+  border:1px solid #e2e8f0;
+  border-radius:999px;
+  background:#f8fafc;
+}
+#salesTab .sales-order-list-head{top:0!important;}
+
+@media(max-width:1199px) and (min-width:768px){
+  .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
+  .ui-field-search{grid-column:span 3;}
+  .ui-field-staff{grid-column:span 3;}
+  .ui-toolbar-actions{grid-column:span 3;justify-content:flex-end;}
+}
+
+@media(max-width:767px){
+  .ui-page-header{align-items:stretch;flex-direction:column;}
+  .ui-page-actions{display:grid;grid-template-columns:1fr 1fr;}
+  .ui-page-actions button{width:100%;}
+  .ui-search-filter-bar{grid-template-columns:1fr;}
+  .ui-toolbar-actions{display:grid;grid-template-columns:1fr 1fr;justify-content:stretch;}
+  .ui-toolbar-actions button{width:100%;}
+  .ui-toolbar-actions .ui-action-primary{grid-column:1/-1;grid-row:1;}
+  .ui-list-toolbar :is(input,select,button){
+    min-height:var(--toolbar-control-height-comfortable)!important;
+    height:var(--toolbar-control-height-comfortable)!important;
+  }
+}
+
+@media(max-width:420px){
+  .ui-page-actions{grid-template-columns:1fr;}
+}
