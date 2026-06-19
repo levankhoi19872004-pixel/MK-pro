@@ -169,6 +169,15 @@ test('sales-order preview imports both grouping helpers used at runtime', () => 
   assert.match(source, /makeSalesOrderGroupKey/);
 });
 
+test('sales-order commit imports the grouping helper used at runtime', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'src/services/import/operations/salesImport.impl.js'), 'utf8');
+  assert.match(
+    source,
+    /const\s*\{[\s\S]*?makeSalesOrderGroupKey[\s\S]*?\}\s*=\s*rows;/
+  );
+  assert.match(source, /groupRows\(rows,\s*makeSalesOrderGroupKey\)/);
+});
+
 test('worker registers fatal handlers and sends structured terminal messages', () => {
   const source = fs.readFileSync(path.join(ROOT, 'src/jobs/importPreview.worker.js'), 'utf8');
   assert.match(source, /process\.on\('uncaughtException'/);
