@@ -15,6 +15,7 @@ const PUBLIC_ROUTES = [
   ['GET', /^\/api\/system\/health\/db$/],
   ['GET', /^\/api\/health$/],
   ['GET', /^\/api\/health\/db$/],
+  ['GET', /^\/api\/health\/readiness$/],
 
   // Swagger tự có docsAuthGuard riêng
   ['GET', /^\/api\/docs(?:\/openapi\.json)?$/]

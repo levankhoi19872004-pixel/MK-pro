@@ -37,8 +37,10 @@ const { startOutboxJob, stopOutboxJob } = require('./jobs/outboxJob');
 const { startIntegrationJob, stopIntegrationJob } = require('./jobs/integrationJob');
 const { registerDefaultOutboxHandlers } = require('./services/outbox/registerDefaultHandlers');
 const { startReportingProjectionJob, stopReportingProjectionJob } = require('./jobs/reportingProjectionJob');
+const startupState = require('./services/startupState');
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
+const BIND_HOST = String(process.env.BIND_HOST || '0.0.0.0').trim() || '0.0.0.0';
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
@@ -63,6 +65,36 @@ function inputSanitizer(req, res, next) {
   sanitizeObject(req.query);
   sanitizeObject(req.params);
   next();
+}
+
+function startupReadinessGuard(req, res, next) {
+  if (!startupState.isGateEnabled() || startupState.isReady()) return next();
+
+  const requestPath = String(req.originalUrl || req.url || '').split('?')[0];
+  const healthPaths = new Set([
+    '/api/health',
+    '/api/health/db',
+    '/api/health/readiness',
+    '/api/system/status',
+    '/api/system/health',
+    '/api/system/health/db'
+  ]);
+
+  if (!requestPath.startsWith('/api') || healthPaths.has(requestPath)) return next();
+
+  const snapshot = startupState.snapshot();
+  res.set('Retry-After', '5');
+  return res.status(503).json({
+    ok: false,
+    success: false,
+    code: 'APP_STARTING',
+    message: 'Hệ thống đang khởi động, vui lòng thử lại sau ít giây',
+    startup: {
+      phase: snapshot.phase,
+      currentStep: snapshot.currentStep,
+      startedAt: snapshot.startedAt
+    }
+  });
 }
 
 function responseFormatter(req, res, next) {
@@ -154,6 +186,7 @@ function createApp() {
   app.use(securityInputGuard);
   app.use(inputSanitizer);
   app.use(responseFormatter);
+  app.use(startupReadinessGuard);
   app.use(apiPerformanceProbe);
 
   // GLOBAL_API_SECURITY_BOUNDARY_APPLY_START
@@ -258,46 +291,153 @@ function installGracefulShutdown(server, options = {}) {
   return shutdown;
 }
 
-async function startServer() {
-  registerDefaultOutboxHandlers();
-  await connectDB();
+function startupTimeoutMs(envName, fallbackMs) {
+  const value = Number(process.env[envName] || fallbackMs);
+  return Number.isFinite(value) && value > 0 ? value : fallbackMs;
+}
 
-  if (process.env.AUTO_ENSURE_MONGO_INDEXES !== 'false') {
-    const indexResults = await ensureMongoIndexes({ logger });
-    console.log(`✅ Mongo indexes ready: ${indexResults.length} indexes checked/created`);
-  } else {
-    console.log('⏭️ Bỏ qua tạo/check index Mongo khi khởi động (AUTO_ENSURE_MONGO_INDEXES=false)');
+async function runStartupStep(name, task, timeoutMs) {
+  const startedAt = Date.now();
+  startupState.markStepStarted(name);
+  let timeoutId;
+
+  try {
+    const result = await Promise.race([
+      Promise.resolve().then(task),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const error = new Error(`Startup step "${name}" exceeded ${timeoutMs}ms`);
+          error.code = 'STARTUP_STEP_TIMEOUT';
+          error.step = name;
+          reject(error);
+        }, timeoutMs);
+      })
+    ]);
+    startupState.markStepCompleted(name, startedAt);
+    return result;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function listenHttpServer() {
+  if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535) {
+    const error = new Error(`PORT không hợp lệ: ${process.env.PORT}`);
+    error.code = 'INVALID_PORT';
+    return Promise.reject(error);
   }
 
-  if (process.env.AUTO_BACKFILL_ARLEDGERS === 'true') {
-    const arBackfill = await ensureArLedgersBackfillFromJournals({ logger });
-    if (!arBackfill.skipped) console.log(`✅ Backfill arLedgers từ journals: ${arBackfill.inserted || 0} dòng`);
-  }
-
-  if (process.env.AUTO_RECOVER_STALE_IMPORTS !== 'false') {
-    const recoveredImports = await importSessionService.recoverStaleImportSessions();
-    if (recoveredImports.recovered) {
-      console.warn(`⚠️ Đã đánh dấu thất bại ${recoveredImports.recovered} import bị gián đoạn`);
-    }
-  }
-
-  const outboxJob = startOutboxJob();
-  if (outboxJob.started) console.log(`✅ Outbox worker enabled: intervalMs=${outboxJob.intervalMs}`);
-  const integrationJob = startIntegrationJob();
-  if (integrationJob.started) console.log(`✅ Integration worker enabled: intervalMs=${integrationJob.intervalMs}`);
-  const reportingProjectionJob = startReportingProjectionJob();
-  if (reportingProjectionJob.started) console.log(`✅ Reporting projection job enabled: intervalMs=${reportingProjectionJob.intervalMs}`);
-
-  const reconciliationJob = startReconciliationJob();
-  if (reconciliationJob.started) {
-    console.log(`✅ Reconciliation job enabled: intervalMs=${reconciliationJob.intervalMs}`);
-  }
-
-  const server = app.listen(PORT, () => {
-    console.log(`Server V45 Mongo-only shell đang chạy tại http://localhost:${PORT}`);
+  return new Promise((resolve, reject) => {
+    const server = app.listen(PORT, BIND_HOST);
+    const onError = (error) => reject(error);
+    server.once('error', onError);
+    server.once('listening', () => {
+      server.off('error', onError);
+      resolve(server);
+    });
   });
+}
+
+async function closeServerAfterStartupFailure(server) {
+  if (!server || !server.listening) return;
+  await new Promise((resolve) => server.close(resolve));
+}
+
+async function startServer() {
+  startupState.begin();
+  startupState.markStepStarted('http-listen');
+  const listenStartedAt = Date.now();
+  let server;
+
+  try {
+    server = await listenHttpServer();
+    startupState.markStepCompleted('http-listen', listenStartedAt);
+  } catch (error) {
+    startupState.markFailed(error);
+    throw error;
+  }
+
   installGracefulShutdown(server);
-  return server;
+  console.log(`✅ HTTP server listening on http://${BIND_HOST}:${PORT}; application bootstrap is starting`);
+
+  try {
+    registerDefaultOutboxHandlers();
+
+    await runStartupStep(
+      'mongodb-connect',
+      () => connectDB(),
+      startupTimeoutMs('STARTUP_DB_TIMEOUT_MS', 30000)
+    );
+
+    if (process.env.AUTO_ENSURE_MONGO_INDEXES !== 'false') {
+      const indexResults = await runStartupStep(
+        'mongodb-indexes',
+        () => ensureMongoIndexes({ logger }),
+        startupTimeoutMs('STARTUP_INDEX_TIMEOUT_MS', 180000)
+      );
+      console.log(`✅ Mongo indexes ready: ${indexResults.length} indexes checked/created`);
+    } else {
+      startupState.markStepSkipped('mongodb-indexes', 'AUTO_ENSURE_MONGO_INDEXES=false');
+      console.log('⏭️ Bỏ qua tạo/check index Mongo khi khởi động (AUTO_ENSURE_MONGO_INDEXES=false)');
+    }
+
+    if (process.env.AUTO_BACKFILL_ARLEDGERS === 'true') {
+      const arBackfill = await runStartupStep(
+        'ar-ledger-backfill',
+        () => ensureArLedgersBackfillFromJournals({ logger }),
+        startupTimeoutMs('STARTUP_BACKFILL_TIMEOUT_MS', 180000)
+      );
+      if (!arBackfill.skipped) console.log(`✅ Backfill arLedgers từ journals: ${arBackfill.inserted || 0} dòng`);
+    } else {
+      startupState.markStepSkipped('ar-ledger-backfill', 'AUTO_BACKFILL_ARLEDGERS!=true');
+    }
+
+    if (process.env.AUTO_RECOVER_STALE_IMPORTS !== 'false') {
+      const recoveredImports = await runStartupStep(
+        'stale-import-recovery',
+        () => importSessionService.recoverStaleImportSessions(),
+        startupTimeoutMs('STARTUP_IMPORT_RECOVERY_TIMEOUT_MS', 60000)
+      );
+      if (recoveredImports.recovered) {
+        console.warn(`⚠️ Đã đánh dấu thất bại ${recoveredImports.recovered} import bị gián đoạn`);
+      }
+    } else {
+      startupState.markStepSkipped('stale-import-recovery', 'AUTO_RECOVER_STALE_IMPORTS=false');
+    }
+
+    startupState.markStepStarted('background-jobs');
+    const jobsStartedAt = Date.now();
+    const outboxJob = startOutboxJob();
+    if (outboxJob.started) console.log(`✅ Outbox worker enabled: intervalMs=${outboxJob.intervalMs}`);
+    const integrationJob = startIntegrationJob();
+    if (integrationJob.started) console.log(`✅ Integration worker enabled: intervalMs=${integrationJob.intervalMs}`);
+    const reportingProjectionJob = startReportingProjectionJob();
+    if (reportingProjectionJob.started) console.log(`✅ Reporting projection job enabled: intervalMs=${reportingProjectionJob.intervalMs}`);
+
+    const reconciliationJob = startReconciliationJob();
+    if (reconciliationJob.started) {
+      console.log(`✅ Reconciliation job enabled: intervalMs=${reconciliationJob.intervalMs}`);
+    }
+    startupState.markStepCompleted('background-jobs', jobsStartedAt);
+
+    startupState.markReady();
+    console.log(`✅ Application ready on http://${BIND_HOST}:${PORT}`);
+    return server;
+  } catch (error) {
+    startupState.markFailed(error);
+    logger.fatal({ err: error, startup: startupState.snapshot() }, 'Application bootstrap failed');
+    stopReconciliationJob();
+    stopOutboxJob();
+    stopIntegrationJob();
+    stopReportingProjectionJob();
+    await closeServerAfterStartupFailure(server);
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect().catch((disconnectError) => {
+        logger.error({ err: disconnectError }, 'Mongo disconnect after startup failure failed');
+      });
+    }
+    throw error;
+  }
 }
 
 module.exports = {
@@ -308,6 +448,7 @@ module.exports = {
   securityInputGuard,
   maintenanceWriteGuard,
   responseFormatter,
+  startupReadinessGuard,
   csrfProtection,
   configureTrustProxy,
   installGracefulShutdown

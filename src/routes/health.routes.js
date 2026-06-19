@@ -2,16 +2,42 @@
 
 function registerHealthRoutes(app) {
   const EnterpriseStatusService = require('../services/EnterpriseStatusService');
+  const startupState = require('../services/startupState');
 
   app.get('/api/health/readiness', async (req, res) => {
+    const startup = startupState.snapshot();
+    if (!startupState.isReady()) {
+      return res.status(503).json({
+        ok: false,
+        checks: {
+          bootstrap: false,
+          database: false
+        },
+        startup: {
+          phase: startup.phase,
+          currentStep: startup.currentStep,
+          startedAt: startup.startedAt,
+          error: startup.error
+        }
+      });
+    }
+
     try {
       const result = await EnterpriseStatusService.readiness({ tenantId: req.tenantId });
-      res.status(result.ok ? 200 : 503).json({
+      return res.status(result.ok ? 200 : 503).json({
         ok: result.ok,
-        checks: result.checks
+        checks: { bootstrap: true, ...result.checks },
+        startup: {
+          phase: startup.phase,
+          readyAt: startup.readyAt
+        }
       });
     } catch (error) {
-      res.status(503).json({ ok: false, checks: { database: false } });
+      return res.status(503).json({
+        ok: false,
+        checks: { bootstrap: true, database: false },
+        startup: { phase: startup.phase, readyAt: startup.readyAt }
+      });
     }
   });
 
