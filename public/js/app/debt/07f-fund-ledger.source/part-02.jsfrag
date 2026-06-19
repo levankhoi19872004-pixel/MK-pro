@@ -34,8 +34,9 @@ function renderDeliverySubmissionRows(rows,{fundType='cash'}={}){
   }).join('');
 }
 
-async function loadDeliveryCashSubmissions(){
-  if(!deliveryCashSubmissionTable&&!deliveryBankSubmissionTable)return;
+function loadDeliveryCashSubmissions(){
+  if(!deliveryCashSubmissionTable&&!deliveryBankSubmissionTable)return Promise.resolve();
+  return runFundListRequest('delivery',async()=>{
   try{
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
@@ -50,10 +51,12 @@ async function loadDeliveryCashSubmissions(){
     if(deliveryCashSubmissionTable)deliveryCashSubmissionTable.innerHTML=`<tr><td colspan="9">${message}</td></tr>`;
     if(deliveryBankSubmissionTable)deliveryBankSubmissionTable.innerHTML=`<tr><td colspan="9">${message}</td></tr>`;
   }
+  });
 }
 
-async function loadExpenseVouchers(){
-  if(!expenseVoucherTable)return;
+function loadExpenseVouchers(){
+  if(!expenseVoucherTable)return Promise.resolve();
+  return runFundListRequest('expense',async()=>{
   try{
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
@@ -61,14 +64,16 @@ async function loadExpenseVouchers(){
     const json=await fundReadJsonResponse(res,'Không tải được phiếu chi');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu chi');
     const rows=json.vouchers||[];
-    expenseVoucherTable.innerHTML=rows.length?rows.map(r=>{const key=String(r.code||r.id||''); fundRowCache.expense[key]=r; return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td>${escapeHtml(r.expenseType||'')}</td><td>${escapeHtml(r.receiverName||'')}</td><td class="price cash-out">${money(r.amount||0)}</td><td>${escapeHtml(fundStatusText(r))}</td><td>${fundActionButtons('expense',r)}</td></tr>`;}).join(''):'<tr><td colspan="8">Chưa có phiếu chi.</td></tr>';
+    expenseVoucherTable.innerHTML=rows.length?rows.map(r=>{const key=String(r.code||r.id||''); fundRowCache.expense[key]=r; return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td>${escapeHtml(r.expenseType||'')}</td><td>${escapeHtml(r.receiverName||'')}</td><td class="price cash-out">${money(r.amount||0)}</td><td>${escapeHtml(fundStatusText(r))}</td><td><span class="fund-row-actions">${fundActionButtons('expense',r)}</span></td></tr>`;}).join(''):'<tr><td colspan="8">Chưa có phiếu chi.</td></tr>';
   }catch(err){
     expenseVoucherTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Lỗi tải phiếu chi')}</td></tr>`;
   }
+  });
 }
 
-async function loadFundTransfers(){
-  if(!fundTransferTable)return;
+function loadFundTransfers(){
+  if(!fundTransferTable)return Promise.resolve();
+  return runFundListRequest('transfer',async()=>{
   try{
     const params=new URLSearchParams({limit:'500'});
     const q=fundSearchInput?fundSearchInput.value.trim():''; if(q)params.set('q',q);
@@ -76,10 +81,11 @@ async function loadFundTransfers(){
     const json=await fundReadJsonResponse(res,'Không tải được phiếu chuyển quỹ');
     if(!json.ok)throw new Error(json.message||'Không tải được phiếu chuyển quỹ');
     const rows=json.transfers||[];
-    fundTransferTable.innerHTML=rows.length?rows.map(r=>{const key=String(r.code||r.id||''); fundRowCache.transfer[key]=r; return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(fundTypeName(r.fromFund))}</td><td>${escapeHtml(fundTypeName(r.toFund))}</td><td>${escapeHtml(r.bankName||'')}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(fundStatusText(r))}</td><td>${fundActionButtons('transfer',r)}</td></tr>`;}).join(''):'<tr><td colspan="8">Chưa có phiếu chuyển quỹ.</td></tr>';
+    fundTransferTable.innerHTML=rows.length?rows.map(r=>{const key=String(r.code||r.id||''); fundRowCache.transfer[key]=r; return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.date||'')}</td><td>${escapeHtml(fundTypeName(r.fromFund))}</td><td>${escapeHtml(fundTypeName(r.toFund))}</td><td>${escapeHtml(r.bankName||'')}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(fundStatusText(r))}</td><td><span class="fund-row-actions">${fundActionButtons('transfer',r)}</span></td></tr>`;}).join(''):'<tr><td colspan="8">Chưa có phiếu chuyển quỹ.</td></tr>';
   }catch(err){
     fundTransferTable.innerHTML=`<tr><td colspan="8">${escapeHtml(err.message||'Lỗi tải phiếu chuyển quỹ')}</td></tr>`;
   }
+  });
 }
 
 async function submitDeliveryCashSubmission(event){
@@ -149,7 +155,7 @@ async function executeDeliveryCashSubmissionConfirmation(code,payload={}){
   return json;
 }
 
-async function confirmDeliveryCashSubmission(code){
+async function confirmDeliveryCashSubmission(code,triggerButton){
   if(!code)return;
   const row=fundRowCache.delivery[code];
   if(!row){alert('Không tìm thấy dữ liệu phiếu để xác nhận');return;}
@@ -159,8 +165,9 @@ async function confirmDeliveryCashSubmission(code){
     return;
   }
   if(!confirm(`Xác nhận phiếu nộp quỹ ${code} và ghi vào fundLedgers?`))return;
+  const actionKey=`confirm:delivery:${code}`;
   try{
-    const json=await executeDeliveryCashSubmissionConfirmation(code,{});
+    const json=await runFundActionRequest(actionKey,triggerButton,()=>executeDeliveryCashSubmissionConfirmation(code,{}));
     alert(json.message||'Đã ghi sổ quỹ');
   }catch(err){alert(err.message||'Không xác nhận được phiếu nộp quỹ')}
 }
@@ -245,9 +252,10 @@ async function loadDeliveryShortageHistory(shortageId){
   repayments.forEach(r=>{fundRowCache.repayment[String(r.code||r.id||'')]=r;});
   if(deliveryShortageRepaymentTable){
     deliveryShortageRepaymentTable.innerHTML=repayments.length?repayments.map(r=>{
-      const code=fundSafeCode(r.code||r.id);
+      const rawCode=String(r.code||r.id||'');
+      const code=fundSafeCode(rawCode);
       const pending=String(r.status||'').toLowerCase()==='pending'&&!r.fundPosted;
-      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.repaymentDate||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td><td>${pending?`<button type="button" class="secondary compact-action" onclick="confirmDeliveryShortageRepayment('${code}')">Xác nhận</button>`:'<span class="muted">Đã ghi quỹ</span>'}</td></tr>`;
+      return `<tr><td><strong>${escapeHtml(r.code||'')}</strong></td><td>${escapeHtml(r.repaymentDate||'')}</td><td>${escapeHtml(fundTypeName(r.fundType))}</td><td class="price">${money(r.amount||0)}</td><td>${escapeHtml(r.status||'')}</td><td>${pending?`<span class="fund-row-actions"><button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:repayment:${rawCode}`)}" onclick="confirmDeliveryShortageRepayment('${code}',this)">Xác nhận</button></span>`:'<span class="muted">Đã ghi quỹ</span>'}</td></tr>`;
     }).join(''):'<tr><td colspan="6">Chưa có phiếu nộp bù.</td></tr>';
   }
   return json;
@@ -279,16 +287,20 @@ async function submitDeliveryShortageRepayment(event){
   }catch(err){showMessage(deliveryShortageRepaymentMessage,err.message,true)}
 }
 
-async function confirmDeliveryShortageRepayment(code){
+async function confirmDeliveryShortageRepayment(code,triggerButton){
   if(!code)return;
   if(!confirm(`Xác nhận phiếu nộp bù ${code} và ghi vào fundLedgers?`))return;
+  const actionKey=`confirm:repayment:${code}`;
   try{
-    const res=await fetch(`/api/funds/delivery-shortage-repayments/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const json=await fundReadJsonResponse(res,'Không xác nhận được phiếu nộp bù');
-    if(!json.ok)throw new Error(json.message||'Không xác nhận được phiếu nộp bù');
-    await loadDeliveryShortageHistory(activeDeliveryShortageId);
-    await loadDeliveryCashSubmissions();
-    await loadFundLedger();
+    const json=await runFundActionRequest(actionKey,triggerButton,async()=>{
+      const res=await fetch(`/api/funds/delivery-shortage-repayments/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const payload=await fundReadJsonResponse(res,'Không xác nhận được phiếu nộp bù');
+      if(!payload.ok)throw new Error(payload.message||'Không xác nhận được phiếu nộp bù');
+      await loadDeliveryShortageHistory(activeDeliveryShortageId);
+      await loadDeliveryCashSubmissions();
+      await loadFundLedger();
+      return payload;
+    });
     alert(json.message||'Đã xác nhận nộp bù');
   }catch(err){alert(err.message||'Không xác nhận được phiếu nộp bù')}
 }
@@ -314,19 +326,23 @@ function editFundVoucher(type,code){
 }
 window.editFundVoucher=editFundVoucher;
 
-async function confirmFundVoucher(type,code){
-  if(type==='delivery')return confirmDeliveryCashSubmission(code);
+async function confirmFundVoucher(type,code,triggerButton){
+  if(type==='delivery')return confirmDeliveryCashSubmission(code,triggerButton);
   const label=type==='expense'?'phiếu chi':'phiếu chuyển quỹ';
   const base=type==='expense'?'/api/funds/expenses':'/api/funds/transfers';
   if(!code)return;
   if(!confirm(`Xác nhận ${label} ${code} và ghi vào fundLedgers?`))return;
+  const actionKey=`confirm:${type}:${code}`;
   try{
-    const res=await fetch(`${base}/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    const json=await fundReadJsonResponse(res,`Không xác nhận được ${label}`);
-    if(!json.ok)throw new Error(json.message||`Không xác nhận được ${label}`);
-    await loadExpenseVouchers();
-    await loadFundTransfers();
-    await loadFundLedger();
+    const json=await runFundActionRequest(actionKey,triggerButton,async()=>{
+      const res=await fetch(`${base}/${encodeURIComponent(code)}/confirm`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const payload=await fundReadJsonResponse(res,`Không xác nhận được ${label}`);
+      if(!payload.ok)throw new Error(payload.message||`Không xác nhận được ${label}`);
+      if(type==='expense')await loadExpenseVouchers();
+      else await loadFundTransfers();
+      await loadFundLedger();
+      return payload;
+    });
     alert(json.message||'Đã xác nhận và ghi sổ quỹ');
   }catch(err){alert(err.message||`Không xác nhận được ${label}`)}
 }

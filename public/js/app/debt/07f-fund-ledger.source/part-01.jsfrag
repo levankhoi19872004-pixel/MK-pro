@@ -29,6 +29,51 @@ let fundEditing={type:'',id:''};
 const fundRowCache={delivery:{},expense:{},transfer:{},shortage:{},repayment:{}};
 let shortageResolutionContext={mode:'',submissionCode:''};
 let activeDeliveryShortageId='';
+const fundListRequests={ledger:null,delivery:null,expense:null,transfer:null};
+const fundActionRequests=new Map();
+let fundToolbarPendingCount=0;
+
+function setFundToolbarLoading(loading){
+  fundToolbarPendingCount=Math.max(0,fundToolbarPendingCount+(loading?1:-1));
+  const busy=fundToolbarPendingCount>0;
+  [fundSearchInput,fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter,applyFundFiltersButton,clearFundFiltersButton,reloadFundLedgerButton].forEach(control=>{
+    if(!control)return;
+    control.disabled=busy;
+    if(control.tagName==='BUTTON')control.setAttribute('aria-busy',busy?'true':'false');
+  });
+}
+
+function runFundListRequest(key,task){
+  if(fundListRequests[key])return fundListRequests[key];
+  setFundToolbarLoading(true);
+  const request=Promise.resolve().then(task).finally(()=>{
+    fundListRequests[key]=null;
+    setFundToolbarLoading(false);
+  });
+  fundListRequests[key]=request;
+  return request;
+}
+
+function setFundRowActionLoading(key,loading,triggerButton){
+  const buttons=[...document.querySelectorAll('[data-fund-action-key]')].filter(button=>button.dataset.fundActionKey===key);
+  if(triggerButton&&!buttons.includes(triggerButton))buttons.push(triggerButton);
+  buttons.forEach(button=>{
+    if(!button)return;
+    button.disabled=loading;
+    button.setAttribute('aria-busy',loading?'true':'false');
+  });
+}
+
+function runFundActionRequest(key,triggerButton,task){
+  if(fundActionRequests.has(key))return fundActionRequests.get(key);
+  setFundRowActionLoading(key,true,triggerButton);
+  const request=Promise.resolve().then(task).finally(()=>{
+    fundActionRequests.delete(key);
+    setFundRowActionLoading(key,false,triggerButton);
+  });
+  fundActionRequests.set(key,request);
+  return request;
+}
 function fundStatusText(row){
   const status=String(row&&row.status||'pending').toLowerCase();
   if(status==='confirmed')return 'confirmed';
@@ -45,10 +90,11 @@ function fundCanConfirm(row){
   return !row.fundPosted && !['confirmed','cancelled','canceled','void','deleted'].includes(status);
 }
 function fundActionButtons(type,row){
-  const code=fundSafeCode(row.code||row.id);
+  const rawCode=String(row.code||row.id||'');
+  const code=fundSafeCode(rawCode);
   const actions=[];
-  if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" onclick="editFundVoucher('${type}','${code}')">Sửa</button>`);
-  if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action" onclick="confirmFundVoucher('${type}','${code}')">Xác nhận</button>`);
+  if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" onclick="editFundVoucher('${type}','${code}')">Sửa</button>`);
+  if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" onclick="confirmFundVoucher('${type}','${code}',this)">Xác nhận</button>`);
   if(!actions.length)return '<span class="muted">Đã xác nhận</span>';
   return actions.join(' ');
 }
@@ -88,7 +134,7 @@ function deliverySubmissionActions(row,{fundType='cash',baseActions=''}={}){
     actions.push(`<button type="button" class="secondary compact-action" onclick="openDeliveryShortageRepayment('${shortageKey}')">${label}</button>`);
   }
   if(!actions.length)return '<span class="muted">Đã xác nhận</span>';
-  return actions.join(' ');
+  return `<span class="fund-row-actions">${actions.join(' ')}</span>`;
 }
 function fundSetSubmitLabel(form,label){const btn=form&&form.querySelector('button[type="submit"]'); if(btn)btn.textContent=label;}
 function fundResetEditing(type){
@@ -327,12 +373,16 @@ function scheduleDeliveryCashSubmissionPreview({syncSubmitted=fundEditing.type!=
 
 function setActiveFundTab(tab){
   activeFundTab=tab||'fundLedger';
-  if(fundTabButtons)fundTabButtons.forEach(btn=>btn.classList.toggle('active',btn.dataset.fundTab===activeFundTab));
+  if(fundTabButtons)fundTabButtons.forEach(btn=>{
+    const active=btn.dataset.fundTab===activeFundTab;
+    btn.classList.toggle('active',active);
+    btn.setAttribute('aria-selected',active?'true':'false');
+  });
   if(fundTabPanels)fundTabPanels.forEach(panel=>panel.classList.toggle('active',panel.dataset.fundPanel===activeFundTab));
-  if(activeFundTab==='fundLedger')loadFundLedger();
-  if(activeFundTab==='deliverySubmission')loadDeliveryCashSubmissions();
-  if(activeFundTab==='expenseVoucher')loadExpenseVouchers();
-  if(activeFundTab==='bankTransfer')loadFundTransfers();
+  const showLedgerFilters=activeFundTab==='fundLedger';
+  if(fundLedgerOnlyFields)fundLedgerOnlyFields.forEach(field=>{field.hidden=!showLedgerFilters;});
+  if(fundToolbarGrid)fundToolbarGrid.classList.toggle('fund-toolbar-compact',!showLedgerFilters);
+  reloadActiveFundTab();
 }
 
 function buildFundLedgerParams(){
@@ -347,8 +397,9 @@ function buildFundLedgerParams(){
   return params;
 }
 
-async function loadFundLedger(){
-  if(!fundLedgerTable && !fundSummary)return;
+function loadFundLedger(){
+  if(!fundLedgerTable && !fundSummary)return Promise.resolve();
+  return runFundListRequest('ledger',async()=>{
   try{
     const res=await fetch(`/api/funds/ledger?${buildFundLedgerParams().toString()}`);
     const json=await fundReadJsonResponse(res,'Không tải được fundLedgers');
@@ -380,4 +431,5 @@ async function loadFundLedger(){
     if(fundSummary)fundSummary.textContent='Lỗi tải sổ quỹ fundLedgers';
     if(fundLedgerTable)fundLedgerTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||'Lỗi tải fundLedgers')}</td></tr>`;
   }
+  });
 }

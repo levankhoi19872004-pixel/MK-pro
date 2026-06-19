@@ -223,22 +223,56 @@
     <section id="fundsTab" class="tab-content">
       <main class="funds-tabs-layout">
         <section class="card full-width funds-v2-shell">
-          <div class="toolbar funds-v2-header">
-            <div>
+          <div class="ui-page-header funds-v2-header">
+            <div class="ui-page-title">
               <h2>Quỹ tiền</h2>
-              <p id="fundSummary" class="muted">Nguồn chuẩn: fundLedgers. Tách rõ tiền mặt, ngân hàng, thu giao hàng, phiếu chi và chuyển quỹ.</p>
-            </div>
-            <div class="form-actions compact-actions">
-              <input id="fundSearchInput" placeholder="Tìm mã phiếu / NVGH / khách / ghi chú" />
-              <button id="reloadFundLedgerButton" class="secondary" type="button">Tải lại</button>
+              <p id="fundSummary" class="muted ui-page-meta">Nguồn chuẩn: fundLedgers. Tách rõ tiền mặt, ngân hàng, thu giao hàng, phiếu chi và chuyển quỹ.</p>
             </div>
           </div>
 
           <div class="fund-tab-nav" role="tablist" aria-label="Quỹ tiền">
-            <button type="button" class="fund-tab-button active" data-fund-tab="fundLedger">Sổ quỹ</button>
-            <button type="button" class="fund-tab-button" data-fund-tab="deliverySubmission">Nộp quỹ giao hàng</button>
-            <button type="button" class="fund-tab-button" data-fund-tab="expenseVoucher">Phiếu chi</button>
-            <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer">Nộp ngân hàng</button>
+            <button type="button" class="fund-tab-button active" data-fund-tab="fundLedger" role="tab" aria-selected="true">Sổ quỹ</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="deliverySubmission" role="tab" aria-selected="false">Nộp quỹ giao hàng</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="expenseVoucher" role="tab" aria-selected="false">Phiếu chi</button>
+            <button type="button" class="fund-tab-button" data-fund-tab="bankTransfer" role="tab" aria-selected="false">Nộp ngân hàng</button>
+          </div>
+
+          <div class="ui-list-toolbar fund-module-toolbar">
+            <div class="ui-search-filter-bar fund-toolbar-grid" role="search" aria-label="Tìm và lọc dữ liệu quỹ tiền">
+              <label class="ui-toolbar-field ui-field-search">
+                <span>Tìm kiếm</span>
+                <input id="fundSearchInput" type="search" placeholder="Mã phiếu, NVGH, khách hàng, ghi chú" autocomplete="off" />
+              </label>
+              <label class="ui-toolbar-field fund-ledger-only-field fund-type-field">
+                <span>Loại quỹ</span>
+                <select id="fundTypeFilter">
+                  <option value="all">Tất cả</option>
+                  <option value="cash">Tiền mặt</option>
+                  <option value="bank">Ngân hàng</option>
+                </select>
+              </label>
+              <label class="ui-toolbar-field fund-ledger-only-field fund-direction-field">
+                <span>Thu/Chi</span>
+                <select id="fundDirectionFilter">
+                  <option value="all">Tất cả</option>
+                  <option value="in">Thu</option>
+                  <option value="out">Chi</option>
+                </select>
+              </label>
+              <label class="ui-toolbar-field ui-field-date fund-ledger-only-field">
+                <span>Từ ngày</span>
+                <input id="fundDateFrom" type="date" />
+              </label>
+              <label class="ui-toolbar-field ui-field-date fund-ledger-only-field">
+                <span>Đến ngày</span>
+                <input id="fundDateTo" type="date" />
+              </label>
+              <div class="ui-toolbar-actions fund-toolbar-actions">
+                <button id="applyFundFiltersButton" class="ui-action-primary" type="button">Tìm kiếm</button>
+                <button id="clearFundFiltersButton" class="secondary" type="button">Xóa lọc</button>
+                <button id="reloadFundLedgerButton" class="secondary ui-button-ghost" type="button">Tải lại</button>
+              </div>
+            </div>
           </div>
 
           <div class="fund-tab-panel active" data-fund-panel="fundLedger">
@@ -247,24 +281,6 @@
               <div><span>Tồn ngân hàng</span><b id="fundBankBalanceKpi">0</b></div>
               <div><span>Tổng thu</span><b id="fundTotalInKpi">0</b></div>
               <div><span>Tổng chi</span><b id="fundTotalOutKpi">0</b></div>
-            </div>
-            <div class="fund-filter-row">
-              <label>Từ ngày<input id="fundDateFrom" type="date" /></label>
-              <label>Đến ngày<input id="fundDateTo" type="date" /></label>
-              <label>Loại quỹ
-                <select id="fundTypeFilter">
-                  <option value="all">Tất cả</option>
-                  <option value="cash">Tiền mặt</option>
-                  <option value="bank">Ngân hàng</option>
-                </select>
-              </label>
-              <label>Thu/Chi
-                <select id="fundDirectionFilter">
-                  <option value="all">Tất cả</option>
-                  <option value="in">Thu</option>
-                  <option value="out">Chi</option>
-                </select>
-              </label>
             </div>
             <div class="table-scroll funds-main-table-scroll">
               <table>
@@ -276,12 +292,14 @@
 
           <div class="fund-tab-panel" data-fund-panel="deliverySubmission">
             <section class="fund-list-card fund-list-card-full">
-              <div class="toolbar compact-toolbar fund-list-toolbar">
-                <div>
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
                   <h3>Danh sách phiếu nộp quỹ</h3>
-                  <span class="muted">Đối soát riêng tiền mặt và chuyển khoản; xác nhận phiếu mới ghi fundLedgers</span>
+                  <span class="muted ui-page-meta">Đối soát riêng tiền mặt và chuyển khoản; xác nhận phiếu mới ghi fundLedgers</span>
                 </div>
-                <button id="createDeliveryCashSubmissionButton" type="button">+ Tạo phiếu nộp quỹ</button>
+                <div class="ui-page-actions">
+                  <button id="createDeliveryCashSubmissionButton" class="ui-action-primary" type="button">Tạo phiếu nộp quỹ</button>
+                </div>
               </div>
 
               <div class="delivery-subtab-nav" role="tablist" aria-label="Đối soát phiếu nộp quỹ giao hàng">
@@ -311,12 +329,14 @@
 
           <div class="fund-tab-panel" data-fund-panel="expenseVoucher">
             <section class="fund-list-card fund-list-card-full">
-              <div class="toolbar compact-toolbar fund-list-toolbar">
-                <div>
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
                   <h3>Danh sách phiếu chi</h3>
-                  <span class="muted">Nguồn EXPENSE_VOUCHER</span>
+                  <span class="muted ui-page-meta">Nguồn EXPENSE_VOUCHER</span>
                 </div>
-                <button id="createExpenseVoucherButton" type="button">+ Tạo phiếu chi</button>
+                <div class="ui-page-actions">
+                  <button id="createExpenseVoucherButton" class="ui-action-primary" type="button">Tạo phiếu chi</button>
+                </div>
               </div>
               <div class="table-scroll funds-sub-table-scroll">
                 <table>
@@ -329,12 +349,14 @@
 
           <div class="fund-tab-panel" data-fund-panel="bankTransfer">
             <section class="fund-list-card fund-list-card-full">
-              <div class="toolbar compact-toolbar fund-list-toolbar">
-                <div>
+              <div class="ui-page-header fund-list-toolbar">
+                <div class="ui-page-title">
                   <h3>Danh sách nộp ngân hàng</h3>
-                  <span class="muted">Nguồn FUND_TRANSFER</span>
+                  <span class="muted ui-page-meta">Nguồn FUND_TRANSFER</span>
                 </div>
-                <button id="createFundTransferButton" type="button">+ Tạo phiếu nộp ngân hàng</button>
+                <div class="ui-page-actions">
+                  <button id="createFundTransferButton" class="ui-action-primary" type="button">Tạo phiếu nộp ngân hàng</button>
+                </div>
               </div>
               <div class="table-scroll funds-sub-table-scroll">
                 <table>

@@ -198,6 +198,32 @@
 }
 #debtCollectionsTab .debt-collection-row-actions .danger{margin-left:4px;}
 
+/* Fund module adopter: shared page header, active-tab filters and safe row actions. */
+#fundsTab .fund-module-toolbar{margin:0 0 12px;}
+#fundsTab .fund-toolbar-grid{
+  grid-template-columns:
+    minmax(var(--search-width-sm),var(--search-width-lg))
+    minmax(140px,180px)
+    minmax(140px,180px)
+    minmax(150px,170px)
+    minmax(150px,170px)
+    max-content;
+}
+#fundsTab .fund-toolbar-grid.fund-toolbar-compact{
+  grid-template-columns:minmax(var(--search-width-sm),var(--search-width-lg)) max-content;
+}
+#fundsTab .fund-ledger-only-field[hidden]{display:none!important;}
+#fundsTab .fund-list-toolbar{margin-bottom:12px;}
+#fundsTab .fund-list-toolbar .ui-page-title h3{margin:0;line-height:1.25;}
+#fundsTab .fund-row-actions{
+  display:inline-flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:var(--toolbar-gap);
+  white-space:nowrap;
+}
+#fundsTab .fund-row-actions button[aria-busy="true"]{cursor:wait;opacity:.72;}
+
 @media(max-width:1199px) and (min-width:768px){
   .ui-search-filter-bar{grid-template-columns:repeat(6,minmax(0,1fr));}
   #debtTab .debt-toolbar-grid,
@@ -212,6 +238,15 @@
   #debtCollectionsTab .debt-collection-toolbar-grid .debt-collection-source-field,
   #debtCollectionsTab .debt-collection-toolbar-grid .ui-field-date{grid-column:span 2;}
   #debtCollectionsTab .debt-collection-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
+  #fundsTab .fund-toolbar-grid,
+  #fundsTab .fund-toolbar-grid.fund-toolbar-compact{grid-template-columns:repeat(12,minmax(0,1fr));}
+  #fundsTab .fund-toolbar-grid .ui-field-search{grid-column:span 4;}
+  #fundsTab .fund-toolbar-grid .fund-type-field,
+  #fundsTab .fund-toolbar-grid .fund-direction-field,
+  #fundsTab .fund-toolbar-grid .ui-field-date{grid-column:span 2;}
+  #fundsTab .fund-toolbar-actions{grid-column:1/-1;justify-content:flex-end;}
+  #fundsTab .fund-toolbar-grid.fund-toolbar-compact .ui-field-search{grid-column:span 8;}
+  #fundsTab .fund-toolbar-grid.fund-toolbar-compact .fund-toolbar-actions{grid-column:span 4;}
   .ui-field-search{grid-column:span 3;}
   .ui-field-staff{grid-column:span 3;}
   .ui-toolbar-actions{grid-column:span 3;justify-content:flex-end;}
@@ -258,6 +293,11 @@
   #debtCollectionsTab .debt-collection-toolbar-grid .ui-toolbar-field,
   #debtCollectionsTab .debt-collection-toolbar-actions{grid-column:1/-1;}
   #debtCollectionsTab .debt-collection-row-actions{gap:12px;}
+  #fundsTab .fund-toolbar-grid,
+  #fundsTab .fund-toolbar-grid.fund-toolbar-compact{grid-template-columns:1fr;}
+  #fundsTab .fund-toolbar-grid .ui-toolbar-field,
+  #fundsTab .fund-toolbar-actions{grid-column:1/-1;}
+  #fundsTab .fund-row-actions{white-space:normal;}
   #masterReturnOrdersTab .master-return-batch-actions{display:grid;grid-template-columns:1fr 1fr;}
   #masterReturnOrdersTab .master-return-batch-actions .ui-action-sensitive{grid-column:1/-1;}
   .ui-list-toolbar :is(input,select,button){

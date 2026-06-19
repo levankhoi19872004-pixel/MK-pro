@@ -7,13 +7,25 @@ async function fundReadJsonResponse(res,fallbackMessage){const contentType=Strin
 }}const preview=String(text||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim().slice(0,180)
 ;throw new Error(`${fallbackMessage||"API không trả JSON"} (HTTP ${res.status}). Có thể server Render chưa deploy đúng backend/route API. ${preview?"Nội dung trả về: "+preview:""}`)
 }function fundSafeCode(value){return String(value||"").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g," ")}let fundEditing={type:"",id:""};const fundRowCache={delivery:{},
-expense:{},transfer:{},shortage:{},repayment:{}};let shortageResolutionContext={mode:"",submissionCode:""};let activeDeliveryShortageId="";function fundStatusText(row){
+expense:{},transfer:{},shortage:{},repayment:{}};let shortageResolutionContext={mode:"",submissionCode:""};let activeDeliveryShortageId="";const fundListRequests={ledger:null,
+delivery:null,expense:null,transfer:null};const fundActionRequests=new Map;let fundToolbarPendingCount=0;function setFundToolbarLoading(loading){
+fundToolbarPendingCount=Math.max(0,fundToolbarPendingCount+(loading?1:-1));const busy=fundToolbarPendingCount>0
+;[fundSearchInput,fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter,applyFundFiltersButton,clearFundFiltersButton,reloadFundLedgerButton].forEach(control=>{
+if(!control)return;control.disabled=busy;if(control.tagName==="BUTTON")control.setAttribute("aria-busy",busy?"true":"false")})}function runFundListRequest(key,task){
+if(fundListRequests[key])return fundListRequests[key];setFundToolbarLoading(true);const request=Promise.resolve().then(task).finally(()=>{fundListRequests[key]=null
+;setFundToolbarLoading(false)});fundListRequests[key]=request;return request}function setFundRowActionLoading(key,loading,triggerButton){
+const buttons=[...document.querySelectorAll("[data-fund-action-key]")].filter(button=>button.dataset.fundActionKey===key)
+;if(triggerButton&&!buttons.includes(triggerButton))buttons.push(triggerButton);buttons.forEach(button=>{if(!button)return;button.disabled=loading
+;button.setAttribute("aria-busy",loading?"true":"false")})}function runFundActionRequest(key,triggerButton,task){if(fundActionRequests.has(key))return fundActionRequests.get(key)
+;setFundRowActionLoading(key,true,triggerButton);const request=Promise.resolve().then(task).finally(()=>{fundActionRequests.delete(key)
+;setFundRowActionLoading(key,false,triggerButton)});fundActionRequests.set(key,request);return request}function fundStatusText(row){
 const status=String(row&&row.status||"pending").toLowerCase();if(status==="confirmed")return"confirmed";if(status==="matched")return"matched"
 ;if(status==="mismatch")return"mismatch";return status||"pending"}function fundCanEdit(row){const status=String(row&&row.status||"").toLowerCase()
 ;return!row.fundPosted&&["pending","draft","submitted","mismatch",""].includes(status)}function fundCanConfirm(row){const status=String(row&&row.status||"").toLowerCase()
-;return!row.fundPosted&&!["confirmed","cancelled","canceled","void","deleted"].includes(status)}function fundActionButtons(type,row){const code=fundSafeCode(row.code||row.id)
-;const actions=[];if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" onclick="editFundVoucher('${type}','${code}')">Sửa</button>`)
-;if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action" onclick="confirmFundVoucher('${type}','${code}')">Xác nhận</button>`)
+;return!row.fundPosted&&!["confirmed","cancelled","canceled","void","deleted"].includes(status)}function fundActionButtons(type,row){const rawCode=String(row.code||row.id||"")
+;const code=fundSafeCode(rawCode);const actions=[]
+;if(fundCanEdit(row))actions.push(`<button type="button" class="secondary compact-action" data-fund-action-key="${escapeHtml(`edit:${type}:${rawCode}`)}" onclick="editFundVoucher('${type}','${code}')">Sửa</button>`)
+;if(fundCanConfirm(row))actions.push(`<button type="button" class="secondary compact-action fund-confirm-action" data-fund-action-key="${escapeHtml(`confirm:${type}:${rawCode}`)}" onclick="confirmFundVoucher('${type}','${code}',this)">Xác nhận</button>`)
 ;if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return actions.join(" ")}function deliveryShortageStatusText(shortage,row,diff){if(Number(diff||0)>=0)return""
 ;if(!shortage){
 return String(row&&row.status||"").toLowerCase()==="confirmed"?'<span class="fund-shortage-state needs-classification">Chưa phân loại</span>':'<span class="fund-shortage-state pending">Chờ xác nhận</span>'
@@ -27,7 +39,7 @@ function deliverySubmissionActions(row,{fundType:fundType="cash",baseActions:bas
 ;if(shortage){const shortageKey=fundSafeCode(shortage.id||shortage.code);fundRowCache.shortage[shortageKey]=shortage
 ;const label=String(shortage.responsibleType||"")==="delivery_staff"&&Number(shortage.outstandingAmount||0)>0?"Nộp bù / Lịch sử":"Chi tiết thiếu"
 ;actions.push(`<button type="button" class="secondary compact-action" onclick="openDeliveryShortageRepayment('${shortageKey}')">${label}</button>`)}
-if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return actions.join(" ")}function fundSetSubmitLabel(form,label){
+if(!actions.length)return'<span class="muted">Đã xác nhận</span>';return`<span class="fund-row-actions">${actions.join(" ")}</span>`}function fundSetSubmitLabel(form,label){
 const btn=form&&form.querySelector('button[type="submit"]');if(btn)btn.textContent=label}function fundResetEditing(type){if(!type||type==="delivery"){
 fundSetSubmitLabel(deliveryCashSubmissionForm,"Tạo phiếu nộp quỹ")}if(!type||type==="expense"){fundSetSubmitLabel(expenseVoucherForm,"Ghi phiếu chi")}if(!type||type==="transfer"){
 fundSetSubmitLabel(fundTransferForm,"Ghi chuyển quỹ")}if(!type||fundEditing.type===type)fundEditing={type:"",id:""}}function fundFillForm(form,row,keys){if(!form||!row)return
@@ -112,16 +124,18 @@ if(requestSeq===deliveryCashPreviewRequestSeq)deliveryCashPreviewAbortController
 function scheduleDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted=fundEditing.type!=="delivery",immediate:immediate=false}={}){
 if(deliveryCashPreviewTimer)clearTimeout(deliveryCashPreviewTimer);if(immediate)return loadDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted})
 ;deliveryCashPreviewTimer=setTimeout(()=>{deliveryCashPreviewTimer=null;loadDeliveryCashSubmissionPreview({syncSubmitted:syncSubmitted})},350)}function setActiveFundTab(tab){
-activeFundTab=tab||"fundLedger";if(fundTabButtons)fundTabButtons.forEach(btn=>btn.classList.toggle("active",btn.dataset.fundTab===activeFundTab))
-;if(fundTabPanels)fundTabPanels.forEach(panel=>panel.classList.toggle("active",panel.dataset.fundPanel===activeFundTab));if(activeFundTab==="fundLedger")loadFundLedger()
-;if(activeFundTab==="deliverySubmission")loadDeliveryCashSubmissions();if(activeFundTab==="expenseVoucher")loadExpenseVouchers()
-;if(activeFundTab==="bankTransfer")loadFundTransfers()}function buildFundLedgerParams(){const params=new URLSearchParams;const q=fundSearchInput?fundSearchInput.value.trim():""
-;if(q)params.set("q",q);if(fundDateFrom&&fundDateFrom.value)params.set("dateFrom",fundDateFrom.value);if(fundDateTo&&fundDateTo.value)params.set("dateTo",fundDateTo.value)
+activeFundTab=tab||"fundLedger";if(fundTabButtons)fundTabButtons.forEach(btn=>{const active=btn.dataset.fundTab===activeFundTab;btn.classList.toggle("active",active)
+;btn.setAttribute("aria-selected",active?"true":"false")});if(fundTabPanels)fundTabPanels.forEach(panel=>panel.classList.toggle("active",panel.dataset.fundPanel===activeFundTab))
+;const showLedgerFilters=activeFundTab==="fundLedger";if(fundLedgerOnlyFields)fundLedgerOnlyFields.forEach(field=>{field.hidden=!showLedgerFilters})
+;if(fundToolbarGrid)fundToolbarGrid.classList.toggle("fund-toolbar-compact",!showLedgerFilters);reloadActiveFundTab()}function buildFundLedgerParams(){
+const params=new URLSearchParams;const q=fundSearchInput?fundSearchInput.value.trim():"";if(q)params.set("q",q)
+;if(fundDateFrom&&fundDateFrom.value)params.set("dateFrom",fundDateFrom.value);if(fundDateTo&&fundDateTo.value)params.set("dateTo",fundDateTo.value)
 ;if(fundTypeFilter&&fundTypeFilter.value&&fundTypeFilter.value!=="all")params.set("fundType",fundTypeFilter.value)
 ;if(fundDirectionFilter&&fundDirectionFilter.value&&fundDirectionFilter.value!=="all")params.set("direction",fundDirectionFilter.value);params.set("limit","1000");return params}
-async function loadFundLedger(){if(!fundLedgerTable&&!fundSummary)return;try{const res=await fetch(`/api/funds/ledger?${buildFundLedgerParams().toString()}`)
-;const json=await fundReadJsonResponse(res,"Không tải được fundLedgers");if(!json.ok)throw new Error(json.message||"Không tải được fundLedgers");const rows=json.fundLedgers||[]
-;const s=json.summary||{};if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(s.cashBalance||0);if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(s.bankBalance||0)
+function loadFundLedger(){if(!fundLedgerTable&&!fundSummary)return Promise.resolve();return runFundListRequest("ledger",async()=>{try{
+const res=await fetch(`/api/funds/ledger?${buildFundLedgerParams().toString()}`);const json=await fundReadJsonResponse(res,"Không tải được fundLedgers")
+;if(!json.ok)throw new Error(json.message||"Không tải được fundLedgers");const rows=json.fundLedgers||[];const s=json.summary||{}
+;if(fundCashBalanceKpi)fundCashBalanceKpi.textContent=money(s.cashBalance||0);if(fundBankBalanceKpi)fundBankBalanceKpi.textContent=money(s.bankBalance||0)
 ;if(fundTotalInKpi)fundTotalInKpi.textContent=money(s.totalIn||0);if(fundTotalOutKpi)fundTotalOutKpi.textContent=money(s.totalOut||0)
 ;if(fundSummary)fundSummary.textContent=`Tiền mặt: thu ${money(s.cashIn||0)} · chi ${money(s.cashOut||0)} · tồn ${money(s.cashBalance||0)} | Ngân hàng: thu ${money(s.bankIn||0)} · chi ${money(s.bankOut||0)} · tồn ${money(s.bankBalance||0)}`
 ;const balances={cash:0,bank:0};const balanceAfter={};[...rows].reverse().forEach(e=>{const fund=String(e.fundType)==="bank"?"bank":"cash";const amount=Number(e.amount||0)
@@ -130,4 +144,4 @@ fundLedgerTable.innerHTML=rows.length?rows.map(e=>{const isIn=String(e.direction
 ;const counterpartyLabel=canonicalFundCounterpartyLabel(e)
 ;return`<tr><td>${escapeHtml(e.date||"")}</td><td><strong>${escapeHtml(e.code||"")}</strong></td><td>${escapeHtml(fundTypeName(e.fundType))}</td><td class="price cash-in">${isIn?money(e.amount):""}</td><td class="price cash-out">${!isIn?money(e.amount):""}</td><td class="price">${money(balanceAfter[key]||0)}</td><td>${escapeHtml(e.sourceType||e.refType||"")}</td><td>${escapeHtml(counterpartyLabel)}</td><td>${escapeHtml(e.note||"")}</td></tr>`
 }).join(""):'<tr><td colspan="9">Chưa có phát sinh fundLedgers.</td></tr>'}}catch(err){if(fundSummary)fundSummary.textContent="Lỗi tải sổ quỹ fundLedgers"
-;if(fundLedgerTable)fundLedgerTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||"Lỗi tải fundLedgers")}</td></tr>`}}
+;if(fundLedgerTable)fundLedgerTable.innerHTML=`<tr><td colspan="9">${escapeHtml(err.message||"Lỗi tải fundLedgers")}</td></tr>`}})}

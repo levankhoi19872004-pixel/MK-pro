@@ -37,10 +37,20 @@ async function submitFundTransfer(event){
 }
 
 function reloadActiveFundTab(){
-  if(activeFundTab==='fundLedger')loadFundLedger();
-  else if(activeFundTab==='deliverySubmission')loadDeliveryCashSubmissions();
-  else if(activeFundTab==='expenseVoucher')loadExpenseVouchers();
-  else if(activeFundTab==='bankTransfer')loadFundTransfers();
+  if(activeFundTab==='fundLedger')return loadFundLedger();
+  if(activeFundTab==='deliverySubmission')return loadDeliveryCashSubmissions();
+  if(activeFundTab==='expenseVoucher')return loadExpenseVouchers();
+  if(activeFundTab==='bankTransfer')return loadFundTransfers();
+  return Promise.resolve();
+}
+
+function resetFundFilters(){
+  if(fundSearchInput)fundSearchInput.value='';
+  if(fundDateFrom)fundDateFrom.value='';
+  if(fundDateTo)fundDateTo.value='';
+  if(fundTypeFilter)fundTypeFilter.value='all';
+  if(fundDirectionFilter)fundDirectionFilter.value='all';
+  return reloadActiveFundTab();
 }
 if(fundTabButtons)fundTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveFundTab(btn.dataset.fundTab)));
 if(deliverySubmissionTabButtons)deliverySubmissionTabButtons.forEach(btn=>btn.addEventListener('click',()=>setActiveDeliverySubmissionTab(btn.dataset.deliverySubtab)));
@@ -53,9 +63,14 @@ document.addEventListener('keydown',event=>{
   if(deliveryShortageRepaymentModal&&deliveryShortageRepaymentModal.classList.contains('show'))return closeDeliveryShortageRepaymentModal();
   if(activeFundVoucherModalType)closeFundVoucherModal(activeFundVoucherModalType);
 });
-if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',()=>{loadFundLedger();loadDeliveryCashSubmissions();loadExpenseVouchers();loadFundTransfers();});
-if(fundSearchInput)fundSearchInput.addEventListener('input',debounce(reloadActiveFundTab,300));
-[fundDateFrom,fundDateTo,fundTypeFilter,fundDirectionFilter].forEach(el=>{if(el)el.addEventListener('change',loadFundLedger)});
+if(applyFundFiltersButton)applyFundFiltersButton.addEventListener('click',reloadActiveFundTab);
+if(clearFundFiltersButton)clearFundFiltersButton.addEventListener('click',resetFundFilters);
+if(reloadFundLedgerButton)reloadFundLedgerButton.addEventListener('click',reloadActiveFundTab);
+if(fundSearchInput)fundSearchInput.addEventListener('keydown',event=>{
+  if(event.key!=='Enter')return;
+  event.preventDefault();
+  reloadActiveFundTab();
+});
 if(deliveryCashSubmissionDate)deliveryCashSubmissionDate.addEventListener('change',()=>scheduleDeliveryCashSubmissionPreview({immediate:true}));
 if(deliveryCashSubmissionStaffCode){
   deliveryCashSubmissionStaffCode.addEventListener('input',()=>scheduleDeliveryCashSubmissionPreview());
