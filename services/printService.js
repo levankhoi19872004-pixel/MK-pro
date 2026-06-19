@@ -53,7 +53,7 @@ function previewActions() {
     function exportCurrentPrintToExcel(){
       var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page, .dmsx-page'));
       var html = pages.length ? pages.map(function(page){ return page.outerHTML; }).join('') : document.body.innerHTML;
-      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}</style></head><body>' + html + '</body></html>';
+      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}.excel-only-column{display:table-cell!important}</style></head><body>' + html + '</body></html>';
       var blob = new Blob(['\\ufeff' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

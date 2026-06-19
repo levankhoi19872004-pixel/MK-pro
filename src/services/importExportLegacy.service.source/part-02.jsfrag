@@ -8,7 +8,7 @@
   appendAoaSheetToWorkbook(workbook, 'Sheet1', sheetRows, { autoFilter: true });
 
   const auditHeaders = [
-    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSoThue', 'DiaChiHoaDon', 'MaSanPham', 'SanPham',
+    'MaDon', 'MaKhachHang', 'TenKhachHang', 'MaSoThue', 'DiaChiHoaDon', 'MaSanPham', 'SanPham', 'Quy cách', 'Giá bán',
     'SoLuongBan', 'SoLuongTra', 'SoLuongTraAnToan', 'SoLuongXuatHoaDon',
     'GiaSauKhuyenMaiCoVAT', 'DonGiaTruocVAT', 'ThanhTienTruocVAT', 'ReturnOrderCode', 'ReturnOrderId', 'ReturnQtySource', 'LyDoBoDong'
   ];
@@ -115,6 +115,8 @@ async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
         'Mã đơn': code,
         'Mã sản phẩm': pcode,
         'Tên sản phẩm': productNameOf(item) || cleanText(product.name || product.productName),
+        'Quy cách': ProductExcelEnrichmentService.catalogPackingQty(product),
+        'Giá bán': ProductExcelEnrichmentService.catalogSalePrice(product),
         'Số lượng bán': soldQty,
         'Số lượng trả': returnQty,
         'Số lượng còn lại': remainingQty,
@@ -148,7 +150,7 @@ async function buildVatNonInvoiceOrdersWorkbook(query = {}) {
 
   const workbook = createWorkbook();
   const orderHeaders = ['STT', 'Ngày bán', 'Mã đơn', 'Mã khách hàng', 'Tên khách hàng', 'NVBH', 'Nguồn đơn', 'Giá trị đơn', 'Tiền đã thu', 'Công nợ', 'Lý do không xuất', 'Người thay đổi', 'Thời gian thay đổi'];
-  const detailHeaders = ['Mã đơn', 'Mã sản phẩm', 'Tên sản phẩm', 'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Đơn giá', 'Thành tiền'];
+  const detailHeaders = ['Mã đơn', 'Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'Giá bán', 'Số lượng bán', 'Số lượng trả', 'Số lượng còn lại', 'Đơn giá', 'Thành tiền'];
   appendAoaSheet(workbook, 'DanhSachDon', orderHeaders, orderRows);
   appendAoaSheet(workbook, 'ChiTietHang', detailHeaders, detailRows);
   appendAoaSheetToWorkbook(workbook, 'ThongTin', [
@@ -218,16 +220,25 @@ function reportBusinessRule(type = '') {
 }
 
 async function reportWorkbook(type, sheetName, headers, rows, query = {}) {
+  const enriched = await ProductExcelEnrichmentService.enrichRows(rows, {
+    packingKey: 'Quy cách',
+    salePriceKey: 'Giá bán'
+  });
+  const exportHeaders = [...headers];
+  if (enriched.hasProducts) {
+    if (!exportHeaders.includes('Quy cách')) exportHeaders.push('Quy cách');
+    if (!exportHeaders.includes('Giá bán')) exportHeaders.push('Giá bán');
+  }
   const workbook = createWorkbook();
-  appendAoaSheet(workbook, sheetName, headers, rows);
+  appendAoaSheet(workbook, sheetName, exportHeaders, enriched.rows);
   const { from, to } = reportDateRange(query);
   appendAoaSheetToWorkbook(workbook, 'ThongTin', [
-    ['Mẫu báo cáo', sheetName], ['Từ ngày', from], ['Đến ngày', to], ['Số dòng', rows.length], ['Thời gian xuất', new Date().toISOString()],
+    ['Mẫu báo cáo', sheetName], ['Từ ngày', from], ['Đến ngày', to], ['Số dòng', enriched.rows.length], ['Thời gian xuất', new Date().toISOString()],
     ['Quy tắc nghiệp vụ', reportBusinessRule(type)]
   ]);
   const safeType = String(type || 'report').replace(/[^a-zA-Z0-9_-]/g, '-');
   const suffix = `${from || 'all'}_${to || dateUtil.todayVN()}`;
-  return { buffer: writeWorkbook(workbook), rows: rows.length, fileName: `${safeType}_${suffix}.xlsx` };
+  return { buffer: writeWorkbook(workbook), rows: enriched.rows.length, fileName: `${safeType}_${suffix}.xlsx` };
 }
 
 
@@ -242,7 +253,7 @@ function staffName(order = {}, kind = 'sales') { return kind === 'delivery' ? cl
 function staffCode(order = {}, kind = 'sales') { return kind === 'delivery' ? cleanText(pickDeliveryStaffCode(order)) : cleanText(pickSalesStaffCode(order)); }
 
 async function loadProductMap() {
-  const products = await Product.find({}).select('code name salePrice baseUnit unit brand category').lean();
+  const products = await Product.find({}).select('code name salePrice conversionRate baseUnit unit brand category').lean();
   return new Map(products.map((p) => [cleanText(p.code), p]));
 }
 

@@ -505,6 +505,7 @@ function normalizeOneItem(item, index, sourceOrder = null) {
     caseDisplay: `${caseInfo.cases}/${caseInfo.units}`,
     price: priceAfterTaxBeforePromotion,
     salePrice: priceAfterTaxBeforePromotion,
+    catalogSalePrice: priceAfterTaxBeforePromotion,
     priceBeforeTax,
     priceBeforeVat: priceBeforeTax,
     listPriceBeforeVat: priceBeforeTax,

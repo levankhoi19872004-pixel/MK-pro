@@ -13,6 +13,10 @@ function money(data, value) {
   return data.formatMoney ? data.formatMoney(value) : Number(value || 0).toLocaleString('vi-VN');
 }
 
+function optionalMoney(data, value) {
+  return value === '' || value === null || value === undefined ? '' : money(data, value);
+}
+
 function text(value, fallback = '') {
   return escapeHtml(value || fallback);
 }
@@ -378,13 +382,15 @@ function renderGenericItemsTable(data) {
         <td class="center">${item.stt}</td>
         <td class="mono">${text(item.code)}</td>
         <td>${text(item.name)}</td>
+        <td class="right excel-only-column">${optionalMoney(data, item.catalogPackingQty)}</td>
         <td class="center">${text(item.unit)}</td>
         <td class="center">${text(item.caseDisplay)}</td>
         <td class="right">${money(data, item.qty)}</td>
+        <td class="right excel-only-column">${optionalMoney(data, item.catalogSalePrice)}</td>
         <td class="right">${money(data, item.price)}</td>
         <td class="right">${money(data, item.amount)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="8" class="center">Chưa có dòng hàng</td></tr>';
+    : '<tr><td colspan="10" class="center">Chưa có dòng hàng</td></tr>';
 
   return `
     <table class="print-table">
@@ -393,17 +399,18 @@ function renderGenericItemsTable(data) {
           <th style="width:8mm">STT</th>
           <th style="width:24mm">Mã hàng</th>
           <th>Tên hàng</th>
+          <th class="excel-only-column" style="width:16mm">Quy cách</th>
           <th style="width:16mm">ĐVT</th>
           <th style="width:18mm">Thùng/Lẻ</th>
           <th style="width:18mm">SL lẻ</th>
-          <th style="width:24mm">Đơn giá</th>
+          <th class="excel-only-column" style="width:24mm">Giá bán</th>
+          <th style="width:24mm">Đơn giá chứng từ</th>
           <th style="width:28mm">Thành tiền</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
-
 
 
 function renderMasterKpiTable(data) {
@@ -473,6 +480,8 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
   const isPromo = Boolean(options.isPromo);
   const priceLabel = options.priceLabel || 'Giá bán';
   const amountLabel = options.amountLabel || 'Thành tiền';
+  const showCatalogPriceColumn = String(priceLabel).trim().toLowerCase() !== 'giá bán';
+  const columnCount = showCatalogPriceColumn ? 9 : 8;
   const rows = items.length
     ? items.map((item, index) => {
         const lineAmount = getMasterPrintLineAmount(item);
@@ -481,16 +490,19 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
           <td class="center">${index + 1}</td>
           <td class="mono">${text(item.code)}</td>
           <td>${text(item.name)}${isPromo ? '<div class="muted">Xuất khuyến mại</div>' : ''}</td>
+          <td class="right excel-only-column">${optionalMoney(data, item.catalogPackingQty)}</td>
           <td class="center">${text(item.caseDisplay)}</td>
           <td class="right">${money(data, item.qty)}</td>
+          ${showCatalogPriceColumn ? `<td class="right excel-only-column">${optionalMoney(data, item.catalogSalePrice)}</td>` : ''}
           <td class="right">${money(data, item.price)}</td>
           <td class="right">${money(data, lineAmount)}</td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="7" class="center">${isPromo ? 'Không có hàng khuyến mại' : 'Không có hàng bán'}</td></tr>`;
+    : `<tr><td colspan="${columnCount}" class="center">${isPromo ? 'Không có hàng khuyến mại' : 'Không có hàng bán'}</td></tr>`;
 
   const totalQty = items.reduce((sum, item) => sum + Number(item.qty || 0), 0);
   const totalAmount = items.reduce((sum, item) => sum + getMasterPrintLineAmount(item), 0);
+  const totalLabelColspan = 5;
 
   return `
     <div class="master-line-section ${isPromo ? 'promo-section' : 'sale-section'}">
@@ -501,8 +513,10 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
             <th style="width:4%">STT</th>
             <th style="width:13%">Mã sản phẩm</th>
             <th style="width:39%">Tên sản phẩm</th>
+            <th class="excel-only-column" style="width:8%">Quy cách</th>
             <th style="width:10%">Thùng/Lẻ</th>
             <th style="width:8%">SL lẻ</th>
+            ${showCatalogPriceColumn ? '<th class="excel-only-column" style="width:11%">Giá bán</th>' : ''}
             <th style="width:11%">${text(priceLabel)}</th>
             <th style="width:15%">${text(amountLabel)}</th>
           </tr>
@@ -510,8 +524,9 @@ function renderMasterWarehouseLineSection(data, title, items = [], options = {})
         <tbody>
           ${rows}
           <tr class="invoice-total-row">
-            <td colspan="4" class="right">Tổng ${text(title)}</td>
+            <td colspan="${totalLabelColspan}" class="right">Tổng ${text(title)}</td>
             <td class="right">${money(data, totalQty)}</td>
+            ${showCatalogPriceColumn ? '<td></td>' : ''}
             <td></td>
             <td class="right">${money(data, totalAmount)}</td>
           </tr>
@@ -557,7 +572,7 @@ function printPreviewActionsScript() {
     function exportCurrentPrintToExcel(){
       var pages = Array.prototype.slice.call(document.querySelectorAll('.print-page, .dms-print-page'));
       var html = pages.length ? pages.map(function(page){ return page.outerHTML; }).join('') : document.body.innerHTML;
-      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}</style></head><body>' + html + '</body></html>';
+      var fullHtml = '<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}.excel-only-column{display:table-cell!important}</style></head><body>' + html + '</body></html>';
       var blob = new Blob(['\ufeff' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

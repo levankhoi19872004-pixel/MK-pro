@@ -4,6 +4,7 @@ const { toNumber } = require('../../../utils/common.util');
 const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText, uniqueText } = require('../PrintContract');
 const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
+const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
 
 function buildImportPicking(importOrders = [], context = {}) {
   const productMap = context.productMap || new Map();
@@ -12,11 +13,12 @@ function buildImportPicking(importOrders = [], context = {}) {
   for (const order of importOrders) {
     for (const item of Array.isArray(order.items) ? order.items : []) {
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
-      rawLines.push(normalizeLine(item, {
-        parent: order,
-        product: productMap.get(productCode) || {},
-        mode: 'import'
-      }));
+      const product = productMap.get(productCode) || {};
+      rawLines.push({
+        ...normalizeLine(item, { parent: order, product, mode: 'import' }),
+        catalogPackingQty: ProductCatalogExportPolicy.packingQty(product),
+        catalogSalePrice: ProductCatalogExportPolicy.salePrice(product)
+      });
     }
   }
 
@@ -81,8 +83,10 @@ function buildImportPicking(importOrders = [], context = {}) {
       qty: line.quantity,
       conversionRate: line.conversionRate,
       packingQty: line.conversionRate,
+      catalogPackingQty: line.catalogPackingQty,
       warehouseCode: line.warehouseCode,
       warehouseName: line.warehouseName,
+      catalogSalePrice: line.catalogSalePrice,
       costPrice: line.costPrice,
       salePrice: line.costPrice,
       price: line.costPrice,

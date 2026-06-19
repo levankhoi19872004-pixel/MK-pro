@@ -381,3 +381,8 @@ body.dms-print-body .dms-detail-table .dms-total-row th {
   font-weight: 700 !important;
 }
 
+
+/* Phase80B: cột chỉ phục vụ file Excel xuất từ bản in; không làm thay đổi mẫu in giấy. */
+.excel-only-column {
+  display: none !important;
+}

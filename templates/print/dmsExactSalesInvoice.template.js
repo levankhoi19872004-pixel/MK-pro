@@ -24,6 +24,10 @@ function money(value) {
   return Math.round(number(value)).toLocaleString('vi-VN');
 }
 
+function optionalMoney(value) {
+  return value === '' || value === null || value === undefined ? '' : money(value);
+}
+
 function percent(value) {
   return number(value).toLocaleString('vi-VN', {
     minimumFractionDigits: 2,
@@ -114,7 +118,22 @@ function previewActions() {
   <div class="print-preview-actions dmsx-preview-actions">
     <button type="button" onclick="window.close()">Bỏ qua</button>
     <button type="button" onclick="window.print()">In đơn</button>
-  </div>`;
+    <button type="button" onclick="exportCurrentPrintToExcel()">Xuất Excel</button>
+  </div>
+  <script>
+    function exportCurrentPrintToExcel(){
+      var pages=Array.prototype.slice.call(document.querySelectorAll('.dmsx-page'));
+      var html=pages.length?pages.map(function(page){return page.outerHTML;}).join(''):document.body.innerHTML;
+      var fullHtml='<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse}td,th{border:1px solid #999;padding:4px}.excel-only-column{display:table-cell!important}</style></head><body>'+html+'</body></html>';
+      var blob=new Blob(['\ufeff'+fullHtml],{type:'application/vnd.ms-excel;charset=utf-8;'});
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      var safe=(document.title||'don-con').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')||'don-con';
+      a.download=safe+'.xls';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+    }
+  <\/script>`;
 }
 
 function renderHeader(data, copyLabel, pageNo, pageCount) {
@@ -164,9 +183,11 @@ function renderItemTable(items, summary, showTotal) {
       <td class="dmsx-center">${text(item.lineNo)}</td>
       <td class="dmsx-code">${text(item.productCode)}</td>
       <td class="dmsx-product">${text(item.productName)}</td>
+      <td class="dmsx-right excel-only-column">${optionalMoney(item.catalogPackingQty)}</td>
       <td class="dmsx-center">${text(item.quantityCsSu)}</td>
       <td class="dmsx-right">${money(item.quantity)}</td>
       <td class="dmsx-right">${money(item.priceBeforeTaxBeforePromotion)}</td>
+      <td class="dmsx-right excel-only-column">${optionalMoney(item.currentCatalogSalePrice)}</td>
       <td class="dmsx-right">${money(item.priceAfterTaxBeforePromotion)}</td>
       <td class="dmsx-right">${money(item.priceAfterTaxAfterPromotion)}</td>
       <td class="dmsx-right">${money(item.vatAmount)}</td>
@@ -186,25 +207,27 @@ function renderItemTable(items, summary, showTotal) {
           <th>STT</th>
           <th>Mã hàng</th>
           <th>Tên sản phẩm</th>
+          <th class="excel-only-column">Quy cách</th>
           <th>Số lượng<br/>(CS/SU)</th>
           <th>Số<br/>lượng<br/>(lẻ)</th>
           <th>Đơn Giá<br/>(Trước<br/>Thuế/KM)</th>
+          <th class="excel-only-column">Giá bán</th>
           <th>Đơn Giá (Sau<br/>Thuế, Trước<br/>KM)</th>
           <th>Đơn giá<br/>(Sau Thuế/<br/>KM&amp;CK)</th>
           <th>Thuế<br/>GTGT</th>
           <th>Thành tiền<br/>(Sau Thuế/<br/>KM&amp;CK)</th>
         </tr>
         <tr class="dmsx-items-head-formula">
-          <th></th><th></th><th>A</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+          <th></th><th></th><th>A</th><th class="excel-only-column">QC</th><th>1</th><th>2</th><th>3</th><th class="excel-only-column">GB</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
         </tr>
       </thead>
       <tbody>
         ${rows}
         ${showTotal ? `
         <tr class="dmsx-total-row">
-          <td></td><td></td><td class="dmsx-center"><b>Tổng cộng (A)</b></td><td></td>
+          <td></td><td></td><td class="dmsx-center"><b>Tổng cộng (A)</b></td><td class="excel-only-column"></td><td></td>
           <td class="dmsx-right"><b>${money(summary.totalQty)}</b></td>
-          <td></td><td></td><td></td><td></td>
+          <td></td><td class="excel-only-column"></td><td></td><td></td><td></td>
           <td class="dmsx-right"><b>${money(summary.goodsAmountAfterPromotion)}</b></td>
         </tr>` : ''}
       </tbody>

@@ -9,6 +9,7 @@ const SalesOrder = require('../models/SalesOrder');
 const ReturnOrder = require('../models/ReturnOrder');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
+const ProductExcelEnrichmentService = require('./excel/ProductExcelEnrichmentService');
 const models = require('../models');
 const reportService = require('./reportService');
 const {
@@ -41,14 +42,48 @@ function rowsToSheetRows(rows = []) {
   return { headers, body };
 }
 
+function productCodeKeysForExportType(type = '') {
+  const normalized = cleanText(type).toLowerCase();
+  if (normalized === 'products') return ['productCode', 'code', 'sku', 'barcode'];
+  return ProductExcelEnrichmentService.PRODUCT_CODE_KEYS;
+}
+
 async function buildWorkbook({ type, rows }) {
-  const { headers, body } = rowsToSheetRows(rows);
+  const productCodeKeys = productCodeKeysForExportType(type);
+  const enriched = await ProductExcelEnrichmentService.enrichRows(rows, {
+    productCodeKeys,
+    packingKey: 'Quy cách',
+    salePriceKey: 'Giá bán'
+  });
+  const { headers, body } = rowsToSheetRows(enriched.rows);
   const workbook = createWorkbook();
   appendAoaSheetToWorkbook(workbook, 'Export', [headers, ...body]);
+
+  const productLines = ProductExcelEnrichmentService.documentProductLines(rows);
+  if (productLines.length) {
+    const detail = await ProductExcelEnrichmentService.enrichRows(productLines, {
+      packingKey: 'Quy cách',
+      salePriceKey: 'Giá bán'
+    });
+    const detailRows = detail.rows.map((line) => ({
+      MaChungTu: line.documentCode,
+      MaSP: productCodeOf(line),
+      SanPham: productNameOf(line),
+      'Quy cách': line['Quy cách'],
+      'Giá bán': line['Giá bán'],
+      SoLuong: qtyOf(line),
+      GiaSauKM: toNumber(line.finalPrice ?? line.priceAfterPromotion ?? line.discountedPrice ?? ''),
+      ThanhTien: amountInclVatOf(line)
+    }));
+    const detailHeaders = ['MaChungTu', 'MaSP', 'SanPham', 'Quy cách', 'Giá bán', 'SoLuong', 'GiaSauKM', 'ThanhTien'];
+    appendAoaSheetToWorkbook(workbook, 'ChiTietSanPham', [detailHeaders, ...detailRows.map((row) => detailHeaders.map((header) => row[header] ?? ''))]);
+  }
+
   appendAoaSheetToWorkbook(workbook, 'ThongTin', [
     ['Loại dữ liệu', type],
     ['Số dòng', rows.length],
-    ['Thời gian xuất', new Date().toISOString()]
+    ['Thời gian xuất', new Date().toISOString()],
+    ['Quy tắc sản phẩm', 'Nếu có sản phẩm: Quy cách là số lượng đóng gói; Giá bán lấy từ danh mục sản phẩm. Đơn con giữ thêm Giá sau KM.']
   ]);
   return writeWorkbook(workbook);
 }
@@ -433,6 +468,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
           TenKhachHang: ci.name,
           MaSanPham: pcode,
           SanPham: productName,
+          'Quy cách': ProductExcelEnrichmentService.catalogPackingQty(product),
+          'Giá bán': ProductExcelEnrichmentService.catalogSalePrice(product),
           SoLuongBan: soldQty,
           SoLuongTra: returnQty,
           SoLuongTraAnToan: safeReturnQty,
@@ -454,6 +491,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         productCode: pcode,
         productName,
         unit: unitOf(item, product),
+        catalogPackingQty: ProductExcelEnrichmentService.catalogPackingQty(product),
+        catalogSalePrice: ProductExcelEnrichmentService.catalogSalePrice(product),
         soldQty,
         returnQty,
         safeReturnQty,
@@ -490,8 +529,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         MaSanPham: line.productCode,
         SanPham: line.productName,
         DonViTinh: line.unit,
-        Extra1SP: '',
-        Extra2SP: '',
+        Extra1SP: line.catalogPackingQty,
+        Extra2SP: line.catalogSalePrice,
         SoLuong: line.invoiceQty,
         DonGia: line.unitPriceBeforeVat,
         TyLeChietKhauHienThi: '',
@@ -516,6 +555,8 @@ function buildVatInvoiceRows({ orders, returnOrders, customers, products, query 
         DiaChiHoaDon: ci.address,
         MaSanPham: line.productCode,
         SanPham: line.productName,
+        'Quy cách': line.catalogPackingQty,
+        'Giá bán': line.catalogSalePrice,
         SoLuongBan: line.soldQty,
         SoLuongTra: line.returnQty,
         SoLuongTraAnToan: line.safeReturnQty,

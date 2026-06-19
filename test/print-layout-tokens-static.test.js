@@ -42,7 +42,9 @@ test('warehouse picking column widths use the shared seven-column 100 percent co
   const start = templates.indexOf('<table class="print-table master-picking-table">');
   const end = templates.indexOf('</thead>', start);
   const block = templates.slice(start, end);
-  const widths = [...block.matchAll(/width:(\d+)%/g)].map((match) => Number(match[1]));
+  const visibleHeaders = [...block.matchAll(/<th(?![^>]*excel-only-column)[^>]*style="[^"]*width:(\d+)%[^"]*"[^>]*>/g)];
+  const widths = visibleHeaders.map((match) => Number(match[1]));
   assert.deepEqual(widths, [4, 13, 39, 10, 8, 11, 15]);
   assert.equal(widths.reduce((sum, value) => sum + value, 0), 100);
+  assert.match(block, /class="excel-only-column"[^>]*>Quy cách<\/th>/);
 });

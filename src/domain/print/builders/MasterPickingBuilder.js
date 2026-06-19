@@ -5,6 +5,7 @@ const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText, un
 const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
 const { pickingZoneLabel, PICKING_ZONES } = require('../../../utils/pickingZone.util');
+const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
 
 
 function compareMasterPickingLines(a = {}, b = {}) {
@@ -78,11 +79,12 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
 
     for (const item of Array.isArray(child.items) ? child.items : []) {
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
-      rawLines.push(normalizeLine(item, {
-        parent: child,
-        product: productMap.get(productCode) || {},
-        mode: 'sale'
-      }));
+      const product = productMap.get(productCode) || {};
+      rawLines.push({
+        ...normalizeLine(item, { parent: child, product, mode: 'sale' }),
+        catalogPackingQty: ProductCatalogExportPolicy.packingQty(product),
+        catalogSalePrice: ProductCatalogExportPolicy.salePrice(product)
+      });
     }
   }
 
@@ -97,9 +99,11 @@ function buildMasterPicking(masterOrders = [], children = [], context = {}) {
     qty: line.quantity,
     conversionRate: line.conversionRate,
     packingQty: line.conversionRate,
+    catalogPackingQty: line.catalogPackingQty,
     pickingZone: line.pickingZone,
     warehouseCode: line.warehouseCode,
     warehouseName: pickingZoneLabel(line.pickingZone),
+    catalogSalePrice: line.catalogSalePrice,
     salePrice: line.catalogPrice,
     price: line.catalogPrice,
     finalPrice: line.finalPrice,

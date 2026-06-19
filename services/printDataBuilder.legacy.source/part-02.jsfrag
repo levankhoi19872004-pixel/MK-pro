@@ -185,6 +185,9 @@ function parseCsSu(csSu) {
 function normalizeInvoiceItem(item, index) {
   const csSu = parseCsSu(item.csSu || item.quantityCsSu || item.caseDisplay);
   const quantity = toNumber(pick(item.quantity, item.qty, item.totalQty, item.csSuUnitQty, item.unitQty));
+  const conversionRate = Math.max(1, toNumber(pick(
+    item.conversionRate, item.pack, item.packingQty, item.unitsPerCase, item.qtyPerCase, 1
+  )) || 1);
   const priceAfterTaxBeforePromotion = pickPositive(
     item.priceAfterTaxBeforePromotion,
     item.priceAfterVatBeforeDiscount,
@@ -236,6 +239,7 @@ function normalizeInvoiceItem(item, index) {
     lineNo: item.lineNo || item.stt || index + 1,
     productCode: String(pick(item.productCode, item.code, item.sku, item.maHang)).trim(),
     productName: String(pick(item.productName, item.name, item.tenHang)).trim(),
+    conversionRate,
     quantityCsSu: item.csSu || item.quantityCsSu || item.caseDisplay || `${csSu.cartonQty}/${csSu.csSuUnitQty}`,
     cartonQty: toNumber(pick(item.cartonQty, item.caseQty, csSu.cartonQty)),
     unitQtyFromCsSu: toNumber(pick(item.unitQtyFromCsSu, item.unitQty, csSu.csSuUnitQty)),
@@ -245,6 +249,7 @@ function normalizeInvoiceItem(item, index) {
     priceBeforeTaxBeforePromotion,
     priceBeforeTax: priceBeforeTaxBeforePromotion,
     priceAfterTaxBeforePromotion,
+    catalogSalePrice: priceAfterTaxBeforePromotion,
     priceAfterTaxAfterPromotion,
     priceAfterPromotion: priceAfterTaxAfterPromotion,
     discountPercent,

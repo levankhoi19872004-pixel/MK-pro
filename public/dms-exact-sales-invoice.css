@@ -287,3 +287,8 @@ body.dms-exact-body {
   }
   .dmsx-page:last-child { break-after: auto; page-break-after: auto; }
 }
+
+/* Phase80B: cột chỉ phục vụ file Excel xuất từ bản in; không làm thay đổi mẫu in giấy. */
+.excel-only-column {
+  display: none !important;
+}

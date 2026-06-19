@@ -1,0 +1,252 @@
+{
+  "phase": "PHASE80B",
+  "title": "Excel product catalog rule",
+  "createdAt": "2026-06-19",
+  "sourceArtifact": "MK-pro-phase80A-render-case-path-fix-patched(1).zip",
+  "rules": {
+    "packing": "Numeric packing quantity from product catalog",
+    "salePrice": "Current Product.salePrice from product catalog",
+    "childOrder": "Retain separate post-promotion price column"
+  },
+  "databaseMigration": false,
+  "apiContractChanged": false,
+  "quality": {
+    "tests": {
+      "total": 665,
+      "passed": 665,
+      "failed": 0,
+      "skipped": 0
+    },
+    "javascriptFiles": 804,
+    "pathChecks": 1284,
+    "sourceBundles": "18/18",
+    "openApiOperations": 303,
+    "productionVulnerabilities": 0
+  },
+  "files": [
+    {
+      "path": "PHASE80B_COMPLETE_REPORT.md",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "8cc709726ccfe9f3efa90e771a9434c39ceeb12d72fabba0b9d36cc4154ece60",
+      "sizeBytes": 1389
+    },
+    {
+      "path": "PHASE80B_DEPLOYMENT_CHECKLIST.md",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "a2dd04e1fdf3925268aa0fe71b1a637a43aa88b915d92a69504b0098d1446086",
+      "sizeBytes": 1393
+    },
+    {
+      "path": "PHASE80B_STEP1_RULE_SCOPE_REPORT.md",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "f03b6c626f536174f09a46069daa913f2b012ae9c5b74f2ba05c2cfa90b62e29",
+      "sizeBytes": 1717
+    },
+    {
+      "path": "PHASE80B_STEP2_IMPLEMENTATION_REPORT.md",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "1dee25ae7a1a4dfac66b7bdcd124e48d49a35d8de7d89d3551fa3632523092ff",
+      "sizeBytes": 2481
+    },
+    {
+      "path": "PHASE80B_STEP3_VALIDATION_REPORT.md",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "d7eec43c8d3f4393abad8b511e0d8faf342a7f5caf22b78325fa373b68f92919",
+      "sizeBytes": 1359
+    },
+    {
+      "path": "QUALITY_GATE_RESULTS_PHASE80B.txt",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "e2d9fb74860b4f0e3f5cda3495f01e3afbd6e89f40e4fa99b09ac6d7eebe003b",
+      "sizeBytes": 449
+    },
+    {
+      "path": "config/source-bundles.json",
+      "status": "modified",
+      "oldSha256": "97d2b83fd57e50e5c9079edcaca460244c906ea157b2964aa6ec0d5c7afeb175",
+      "newSha256": "88eee87c84075f5cc5747fffec77e6c5d2c7b0adda6c208098dd5dfdf5078bbe",
+      "sizeBytes": 7886
+    },
+    {
+      "path": "public/dms-exact-sales-invoice.css",
+      "status": "modified",
+      "oldSha256": "5162602000490e7d733a0b47053f021392fc0be1e1f4127dff9575de92c17233",
+      "newSha256": "38cb40484d46d677071e3de3fd4a9ae965654f5a454cf66c24dc53f5c1ce9bcb",
+      "sizeBytes": 6587
+    },
+    {
+      "path": "public/js/app/05-sales-orders.part02.js",
+      "status": "modified",
+      "oldSha256": "6004fe86fe8d4694f856425042dd0372d2d805d396dbe1958d0ededcd057dd34",
+      "newSha256": "e7126eb86b887a5836969ebaa005b4c959afbe1c0d40ee7e3b15aefeb099864e",
+      "sizeBytes": 20228
+    },
+    {
+      "path": "public/js/app/05-sales-orders.source/part-02.jsfrag",
+      "status": "modified",
+      "oldSha256": "4da83b5d353f818b8274931f79093a35a82e38cf9e896c99c0f37f943c532c23",
+      "newSha256": "e5d932fb7b472481236a6d194a53a6d008d7483b01a8f0fcb84354dbab692b95",
+      "sizeBytes": 21808
+    },
+    {
+      "path": "public/print.source/print-02.css",
+      "status": "modified",
+      "oldSha256": "e723768d393d52e5080196a060f2d4d0d890b590fe4166072048199e82b61641",
+      "newSha256": "91d9a696e7a17213ca479a8d7a89d959073031bfac5e15f323845ef775ecfb34",
+      "sizeBytes": 9178
+    },
+    {
+      "path": "services/printDataBuilder.legacy.js",
+      "status": "modified",
+      "oldSha256": "b300da7ffbce05e4888f9267594de03d37f29b93d2d6968ca6f5d1c183aceb0b",
+      "newSha256": "65ac97ed2cfbac9336d55c9c6d6b596b952f4f3020a3234c12a7739a124789cd",
+      "sizeBytes": 28669
+    },
+    {
+      "path": "services/printDataBuilder.legacy.source/part-01.jsfrag",
+      "status": "modified",
+      "oldSha256": "e3a3610d1cc1b98fd5756ec6aedc74efde421441201640400bf1603c019b7306",
+      "newSha256": "e29052624caab3369053b783cf85933c24b29b2421c867e19c27a23c0935bfeb",
+      "sizeBytes": 22046
+    },
+    {
+      "path": "services/printDataBuilder.legacy.source/part-02.jsfrag",
+      "status": "modified",
+      "oldSha256": "47deea3b7cfbfbc4c974068bea0530a49f571e3cfab87120149841f00300a15b",
+      "newSha256": "662e2814f136da34f219c3963e606a8263e6297e2e8a6de6676a3cdf9dc0da25",
+      "sizeBytes": 22171
+    },
+    {
+      "path": "services/printService.js",
+      "status": "modified",
+      "oldSha256": "14f85e454d1e412a27535ffd1cdfecd05b9c0aee57e9af6a5a9f5e7ebbe57b27",
+      "newSha256": "011ce25aaa024cbb9241467b59a48e38995f8df0dd437634847bd9accffeb2aa",
+      "sizeBytes": 4389
+    },
+    {
+      "path": "src/domain/catalog/ProductCatalogExportPolicy.js",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "1273c2385176fa202d0fffd6cec381bf1de165108b7644172f4d645c46f7e4bc",
+      "sizeBytes": 1034
+    },
+    {
+      "path": "src/domain/print/builders/DmsExactSalesInvoiceBuilder.js",
+      "status": "modified",
+      "oldSha256": "030d8b67bec81b00c924cbb2691277527929749812da9f37125cb402d577b5a3",
+      "newSha256": "9de378a076444caf3013819f39aeb69e525df802cb8acb4710d322d02b99392f",
+      "sizeBytes": 13121
+    },
+    {
+      "path": "src/domain/print/builders/ImportPickingBuilder.js",
+      "status": "modified",
+      "oldSha256": "6b907734912f8ed5328aaa7ccd8ebab081abbf4a7da417bcd38445e3f721261f",
+      "newSha256": "b97e65fef0d0f81b575f0788a04ff58c2c7f088d0f0621e23da2597de6d7bce7",
+      "sizeBytes": 4234
+    },
+    {
+      "path": "src/domain/print/builders/MasterPickingBuilder.js",
+      "status": "modified",
+      "oldSha256": "29c5a321ea8256b69dc393cc32e5dd1c0188a8a54441a1291f9bb212b740f7c5",
+      "newSha256": "b265cb8d02559101338e9f951fe4aac59a039dcdc74215dd346353974208fa6f",
+      "sizeBytes": 8668
+    },
+    {
+      "path": "src/domain/print/builders/ReturnPickingBuilder.js",
+      "status": "modified",
+      "oldSha256": "e5c50f487a19d34c6cf4087692a12c256da0d94a0dc7fc769e7a1bf3c001ae23",
+      "newSha256": "a2ed5e053a7444dbb6ea36b38fd75a437080c5885963192e14883641d77db598",
+      "sizeBytes": 5678
+    },
+    {
+      "path": "src/services/excel/ExcelInteractionService.js",
+      "status": "modified",
+      "oldSha256": "f938a0a75877a65962c925373b73ca7d50f7def2a62ec520e3884ecfa179773f",
+      "newSha256": "64fc3799a450a052b94a2ef42748cb333d9733f5f90634e58603a4b00de8c8bf",
+      "sizeBytes": 33299
+    },
+    {
+      "path": "src/services/excel/ProductExcelEnrichmentService.js",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "0de403aee67a5a6d12f3b2b8e4eceee9a5304447d1afd88c2fc66a9481d13e65",
+      "sizeBytes": 4489
+    },
+    {
+      "path": "src/services/importExportLegacy.service.js",
+      "status": "modified",
+      "oldSha256": "f856a059a7b278df1cd7290c17993430b239894570a08e309cc8518d106f7577",
+      "newSha256": "70f3fdb4334564b9de38793cf52122652f6925462f73c5b024b7772e8d2200e0",
+      "sizeBytes": 39732
+    },
+    {
+      "path": "src/services/importExportLegacy.service.source/part-01.jsfrag",
+      "status": "modified",
+      "oldSha256": "0386c6f4feb29088e9600ed26359e65bb2678dec2f4ca3eb3de9217d1ac12f1b",
+      "newSha256": "9ded88c0453461c1f646f4a035e81221c006dbeef3821f58f7b035b6c1b38803",
+      "sizeBytes": 24131
+    },
+    {
+      "path": "src/services/importExportLegacy.service.source/part-02.jsfrag",
+      "status": "modified",
+      "oldSha256": "64830af2c39bdcccec0a8345e96e70c3a7a1112e62e0e9770775f94a00f63583",
+      "newSha256": "5d4110d4276d50b6332a02bcaef1f0aa46af4b525f88182a0095d4a5f53e5915",
+      "sizeBytes": 22623
+    },
+    {
+      "path": "src/services/importExportLegacy.service.source/part-03.jsfrag",
+      "status": "modified",
+      "oldSha256": "f11561654e5f3bf05e368e07b842e22a21bf7e7192589946048c0e70890a92bd",
+      "newSha256": "061e8bbe71046d78a04b717db4415bd4354e2755d41c03e58f0b7917a9ec8924",
+      "sizeBytes": 19857
+    },
+    {
+      "path": "templates/print/dmsExactSalesInvoice.template.js",
+      "status": "modified",
+      "oldSha256": "e294bb86865fd140479768818d286405d9a834f0a849044dba3f68437637856a",
+      "newSha256": "27864a5433d4d7be2ef55f0ec0649a82e11781418f797935a76c81bb8cb03260",
+      "sizeBytes": 16366
+    },
+    {
+      "path": "templates/printTemplates.js",
+      "status": "modified",
+      "oldSha256": "519a69975e375d3b77cdc2d02bfa7a8ece4ea367990429bbf9197f59f6f82d43",
+      "newSha256": "34b23e738d2ce7f0fde59c6acc572b2e4ab314a75df00b790e3f2f1f0d6206e5",
+      "sizeBytes": 36032
+    },
+    {
+      "path": "templates/printTemplates.source/part-01.jsfrag",
+      "status": "modified",
+      "oldSha256": "470c364961ae76cb41c2a627f55be7ee9d65b8bce425b647b99f92690125ebb0",
+      "newSha256": "f737972e5fc8d0ffa1af2a1a0b1c8a1104bcc952e9ce22213a1ab10194a3b88b",
+      "sizeBytes": 23194
+    },
+    {
+      "path": "templates/printTemplates.source/part-02.jsfrag",
+      "status": "modified",
+      "oldSha256": "196d48ee44c0505a3811dfb198f5614e9566fbe919f7507c8ff444f116a152e7",
+      "newSha256": "8051a2d57f215370284e30c5e2ec9356cf30382576f3400fff6ac3c54ce56ba6",
+      "sizeBytes": 22101
+    },
+    {
+      "path": "test/excel-product-catalog-rule.test.js",
+      "status": "added",
+      "oldSha256": null,
+      "newSha256": "52d8eecf153ac4072c96af79838cdd3eaf07409c37ab9120d2375caac6c66be9",
+      "sizeBytes": 6920
+    },
+    {
+      "path": "test/print-layout-tokens-static.test.js",
+      "status": "modified",
+      "oldSha256": "c55227a77bbf292d339ae16316b9bf487a6766cd220051fd1dde6d49106405dc",
+      "newSha256": "7dc998dd3975757839d7819c79417fa03e3db61fbab6a86bc202583ce723693e",
+      "sizeBytes": 2510
+    }
+  ]
+}

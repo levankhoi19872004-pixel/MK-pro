@@ -4,6 +4,7 @@ const { toNumber } = require('../../../utils/common.util');
 const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText } = require('../PrintContract');
 const { normalizeLine } = require('../PrintLineNormalizer');
 const PrintPromotionPolicy = require('../PrintPromotionPolicy');
+const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
 
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
@@ -94,6 +95,7 @@ function distributor(order = {}, context = {}) {
 
 function exactLine(item = {}, order = {}, product = {}) {
   const line = normalizeLine(item, { parent: order, product, mode: 'sale' });
+  const catalogExcel = ProductCatalogExportPolicy.metadata(product);
   const quantity = toNumber(line.quantity);
   const finalPrice = firstPositive(
     item.finalPriceAtOrder,
@@ -142,6 +144,8 @@ function exactLine(item = {}, order = {}, product = {}) {
   return {
     ...line,
     catalogPrice,
+    catalogPackingQty: catalogExcel.packingQty,
+    currentCatalogSalePrice: catalogExcel.salePrice,
     finalPrice,
     priceBeforeTaxBeforePromotion: priceBeforeTax,
     priceAfterTaxBeforePromotion: catalogPrice,
@@ -174,6 +178,7 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
     conversionRate: line.conversionRate,
     conversionRateAtOrder: line.conversionRate,
     packingQty: line.conversionRate,
+    catalogPackingQty: line.catalogPackingQty,
     cartonQty: line.cartonQty,
     unitQty: line.looseQty,
     caseDisplay: line.cartonUnitDisplay,
@@ -183,6 +188,7 @@ function buildDmsExactSalesInvoice(order = {}, context = {}) {
     lineType: line.lineType,
     isPromo: line.lineType === 'PROMO',
     catalogSalePrice: line.catalogPrice,
+    currentCatalogSalePrice: line.currentCatalogSalePrice,
     catalogSalePriceAtOrder: line.catalogPrice,
     catalogSalePriceSource: line.raw?.catalogSalePriceSource || line.raw?.catalogPriceSource || '',
     priceAfterTaxBeforePromotionSource: line.raw?.priceAfterTaxBeforePromotionSource || '',

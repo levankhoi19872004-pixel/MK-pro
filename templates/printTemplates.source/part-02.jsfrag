@@ -210,6 +210,7 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
         <td class="center">${text(item.lineNo)}</td>
         <td class="mono">${text(item.productCode)}</td>
         <td class="dms-product-name">${text(item.productName)}</td>
+        <td class="right excel-only-column">${money(data, item.conversionRate)}</td>
         <td class="center">${text(item.quantityCsSu)}</td>
         <td class="right">${money(data, item.quantity)}</td>
         <td class="right">${money(data, item.priceBeforeTaxBeforePromotion)}</td>
@@ -218,7 +219,7 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
         <td class="right">${money(data, item.vatAmount)}</td>
         <td class="right">${money(data, item.lineAmount)}</td>
       </tr>`).join('')
-    : '<tr><td colspan="10" class="center">Chưa có dòng hàng</td></tr>';
+    : '<tr><td colspan="11" class="center">Chưa có dòng hàng</td></tr>';
 
   return `
     <table class="dms-invoice-table">
@@ -226,23 +227,24 @@ function renderDmsInvoiceItemsTable(data, itemsOverride = null, options = {}) {
         <tr>
           <th style="width:4%">STT</th>
           <th style="width:9%">Mã hàng</th>
-          <th style="width:31%">Tên sản phẩm</th>
+          <th style="width:27%">Tên sản phẩm</th>
+          <th class="excel-only-column" style="width:6%">Quy cách</th>
           <th style="width:7%">Số lượng<br/>(CS/SU)</th>
           <th style="width:6%">Số<br/>lượng<br/>(lẻ)</th>
           <th style="width:9%">Đơn Giá<br/>(Trước Thuế/KM)</th>
-          <th style="width:9%">Đơn Giá (Sau<br/>Thuế, Trước KM)</th>
+          <th style="width:9%">Giá bán<br/>(Sau Thuế,<br/>Trước KM)</th>
           <th style="width:9%">Đơn giá<br/>(Sau Thuế/<br/>KM&CK)</th>
           <th style="width:7%">Thuế<br/>GTGT</th>
           <th style="width:9%">Thành tiền<br/>(Sau Thuế/<br/>KM&CK)</th>
         </tr>
         <tr class="dms-formula-row">
-          <th>A</th><th></th><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
+          <th>A</th><th></th><th></th><th class="excel-only-column">QC</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7=(5*2)</th>
         </tr>
       </thead>
       <tbody>
         ${rows}
         ${showTotal ? `<tr class="dms-total-row">
-          <td colspan="4" class="center">Tổng cộng (A)</td>
+          <td colspan="5" class="center">Tổng cộng (A)</td>
           <td class="right">${dmsMoney(data, summary.totalQty)}</td>
           <td></td><td></td><td></td>
           <td></td>

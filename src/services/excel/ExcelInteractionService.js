@@ -12,6 +12,7 @@ const productRepository = require('../../repositories/productRepository');
 const importSessionService = require('../importSessionService');
 const auditService = require('../auditService');
 const inventoryStockService = require('../inventoryStock.service');
+const ProductExcelEnrichmentService = require('./ProductExcelEnrichmentService');
 
 const DEFAULT_MAX_EXPORT_ROWS = 50000;
 const MAX_SELECTED_IDS = 2000;
@@ -139,7 +140,10 @@ function appendObjectSheet(workbook, name, columns, rows, options = {}) {
   const headers = columns.map((column) => column.label);
   const values = safeRows.map((row) => columns.map((column) => {
     const value = typeof column.value === 'function' ? column.value(row) : row?.[column.key];
-    if (column.type === 'number' || column.type === 'money') return toNumber(value);
+    if (column.type === 'number' || column.type === 'money') {
+      if (column.preserveBlank && (value === '' || value === null || value === undefined)) return '';
+      return toNumber(value);
+    }
     if (column.type === 'date') return sanitizeExcelValue(formatDate(value));
     return sanitizeExcelValue(value);
   }));
@@ -187,20 +191,32 @@ const SALES_ITEM_COLUMNS = [
   { label: 'Mã NVBH', key: 'salesStaffCode', width: 14 },
   { label: 'Mã SP', key: 'productCode', width: 16 },
   { label: 'Tên sản phẩm', key: 'productName', width: 45 },
-  { label: 'Quy cách', key: 'conversionRate', type: 'number', width: 12 },
+  { label: 'Quy cách', key: 'catalogPackingQty', type: 'number', preserveBlank: true, width: 12 },
   { label: 'Thùng', key: 'cartonQty', type: 'number', width: 10 },
   { label: 'Lẻ', key: 'unitQty', type: 'number', width: 10 },
   { label: 'Tổng lẻ', key: 'baseQty', type: 'number', width: 12 },
-  { label: 'Giá bán', key: 'salePrice', type: 'money', width: 16 },
+  { label: 'Giá bán', key: 'catalogSalePrice', type: 'money', preserveBlank: true, width: 16 },
+  // Đơn con bắt buộc giữ giá giao dịch sau khuyến mại bên cạnh giá bán danh mục.
   { label: 'Giá sau KM', key: 'finalPrice', type: 'money', width: 16 },
   { label: 'Khuyến mại', key: 'promotionValue', type: 'money', width: 16 },
   { label: 'Thành tiền', key: 'amount', type: 'money', width: 18 }
 ];
 
-function salesItemRows(orders = []) {
+function catalogLineMeta(item = {}, productMap = null) {
+  if (productMap instanceof Map) return ProductExcelEnrichmentService.catalogMeta(productMap, item);
+  return {
+    found: false,
+    packingQty: itemConversionRate(item),
+    salePrice: itemPrice(item, 'sale')
+  };
+}
+
+function salesItemRows(orders = [], productMap = null) {
   return orders.flatMap((order) => orderItems(order).map((item) => {
-    const salePrice = itemPrice(item, 'sale');
-    const finalPrice = toNumber(firstValue(item, ['finalPrice', 'discountedPrice', 'netPrice'], salePrice));
+    const catalog = catalogLineMeta(item, productMap);
+    const transactionSalePrice = itemPrice(item, 'sale');
+    const calculationSalePrice = catalog.salePrice === '' ? transactionSalePrice : toNumber(catalog.salePrice);
+    const finalPrice = toNumber(firstValue(item, ['finalPrice', 'discountedPrice', 'netPrice'], transactionSalePrice || calculationSalePrice));
     const baseQty = itemBaseQty(item);
     return {
       orderCode: firstValue(order, ['code', 'id', 'orderCode', 'documentCode']),
@@ -210,13 +226,13 @@ function salesItemRows(orders = []) {
       salesStaffCode: salesStaffCode(order),
       productCode: itemProductCode(item),
       productName: itemProductName(item),
-      conversionRate: itemConversionRate(item),
+      catalogPackingQty: catalog.packingQty,
       cartonQty: itemCaseQty(item),
       unitQty: itemLooseQty(item),
       baseQty,
-      salePrice,
+      catalogSalePrice: catalog.salePrice,
       finalPrice,
-      promotionValue: Math.max(0, (salePrice - finalPrice) * baseQty),
+      promotionValue: Math.max(0, (calculationSalePrice - finalPrice) * baseQty),
       amount: itemAmount(item, 'sale') || finalPrice * baseQty
     };
   }));
@@ -270,7 +286,12 @@ async function exportSalesOrders(params = {}) {
   const workbook = createWorkbook();
   appendFilterSheet(workbook, 'Đơn con', params.filters, { 'Phạm vi': scope, 'Số đơn': orders.length });
   appendObjectSheet(workbook, 'DanhSachDon', SALES_COLUMNS, orders);
-  if (params.includeDetails !== false) appendObjectSheet(workbook, 'ChiTietSanPham', SALES_ITEM_COLUMNS, salesItemRows(orders));
+  if (params.includeDetails !== false) {
+    const productMap = await ProductExcelEnrichmentService.loadProductMapForRows(
+      ProductExcelEnrichmentService.documentProductLines(orders)
+    );
+    appendObjectSheet(workbook, 'ChiTietSanPham', SALES_ITEM_COLUMNS, salesItemRows(orders, productMap));
+  }
   return {
     buffer: writeWorkbook(workbook),
     rowCount: orders.length,
@@ -317,20 +338,23 @@ const MASTER_CHILD_COLUMNS = [
   { label: 'Trạng thái', key: 'status', width: 18 }
 ];
 
-function masterItemRows(masters = []) {
+function masterItemRows(masters = [], productMap = null) {
   return masters.flatMap((master) => (Array.isArray(master.children) ? master.children : []).flatMap((order) =>
-    orderItems(order).map((item) => ({
-      masterOrderCode: firstValue(master, ['code', 'id']),
-      orderCode: firstValue(order, ['code', 'id', 'orderCode']),
-      productCode: itemProductCode(item),
-      productName: itemProductName(item),
-      conversionRate: itemConversionRate(item),
-      cartonQty: itemCaseQty(item),
-      unitQty: itemLooseQty(item),
-      baseQty: itemBaseQty(item),
-      salePrice: itemPrice(item, 'sale'),
-      amount: itemAmount(item, 'sale')
-    }))
+    orderItems(order).map((item) => {
+      const catalog = catalogLineMeta(item, productMap);
+      return {
+        masterOrderCode: firstValue(master, ['code', 'id']),
+        orderCode: firstValue(order, ['code', 'id', 'orderCode']),
+        productCode: itemProductCode(item),
+        productName: itemProductName(item),
+        catalogPackingQty: catalog.packingQty,
+        cartonQty: itemCaseQty(item),
+        unitQty: itemLooseQty(item),
+        baseQty: itemBaseQty(item),
+        catalogSalePrice: catalog.salePrice,
+        amount: itemAmount(item, 'sale')
+      };
+    })
   ));
 }
 
@@ -339,11 +363,11 @@ const MASTER_ITEM_COLUMNS = [
   { label: 'Mã đơn con', key: 'orderCode', width: 20 },
   { label: 'Mã SP', key: 'productCode', width: 16 },
   { label: 'Tên sản phẩm', key: 'productName', width: 45 },
-  { label: 'Quy cách', key: 'conversionRate', type: 'number', width: 12 },
+  { label: 'Quy cách', key: 'catalogPackingQty', type: 'number', preserveBlank: true, width: 12 },
   { label: 'Thùng', key: 'cartonQty', type: 'number', width: 10 },
   { label: 'Lẻ', key: 'unitQty', type: 'number', width: 10 },
   { label: 'Tổng lẻ', key: 'baseQty', type: 'number', width: 12 },
-  { label: 'Giá bán', key: 'salePrice', type: 'money', width: 16 },
+  { label: 'Giá bán', key: 'catalogSalePrice', type: 'money', preserveBlank: true, width: 16 },
   { label: 'Thành tiền', key: 'amount', type: 'money', width: 18 }
 ];
 
@@ -373,7 +397,11 @@ async function exportMasterOrders(params = {}) {
   appendObjectSheet(workbook, 'DonTong', MASTER_COLUMNS, masters);
   if (params.includeDetails !== false) {
     appendObjectSheet(workbook, 'DonCon', MASTER_CHILD_COLUMNS, masterChildRows(masters));
-    appendObjectSheet(workbook, 'SanPham', MASTER_ITEM_COLUMNS, masterItemRows(masters));
+    const productLines = masters.flatMap((master) =>
+      ProductExcelEnrichmentService.documentProductLines(Array.isArray(master.children) ? master.children : [])
+    );
+    const productMap = await ProductExcelEnrichmentService.loadProductMapForRows(productLines);
+    appendObjectSheet(workbook, 'SanPham', MASTER_ITEM_COLUMNS, masterItemRows(masters, productMap));
   }
   return {
     buffer: writeWorkbook(workbook),
@@ -399,27 +427,32 @@ const IMPORT_ORDER_ITEM_COLUMNS = [
   { label: 'Ngày nhập', key: 'date', type: 'date', width: 14 },
   { label: 'Mã SP', key: 'productCode', width: 16 },
   { label: 'Tên sản phẩm', key: 'productName', width: 45 },
-  { label: 'Quy cách', key: 'conversionRate', type: 'number', width: 12 },
+  { label: 'Quy cách', key: 'catalogPackingQty', type: 'number', preserveBlank: true, width: 12 },
   { label: 'Thùng', key: 'cartonQty', type: 'number', width: 10 },
   { label: 'Lẻ', key: 'unitQty', type: 'number', width: 10 },
   { label: 'Tổng lẻ', key: 'baseQty', type: 'number', width: 12 },
+  { label: 'Giá bán', key: 'catalogSalePrice', type: 'money', preserveBlank: true, width: 16 },
   { label: 'Giá nhập', key: 'costPrice', type: 'money', width: 16 },
   { label: 'Thành tiền', key: 'amount', type: 'money', width: 18 }
 ];
 
-function importOrderItemRows(orders = []) {
-  return orders.flatMap((order) => orderItems(order).map((item) => ({
-    importOrderCode: firstValue(order, ['code', 'id']),
-    date: firstValue(order, ['date', 'documentDate', 'importDate']),
-    productCode: itemProductCode(item),
-    productName: itemProductName(item),
-    conversionRate: itemConversionRate(item),
-    cartonQty: itemCaseQty(item),
-    unitQty: itemLooseQty(item),
-    baseQty: itemBaseQty(item),
-    costPrice: itemPrice(item, 'cost'),
-    amount: itemAmount(item, 'cost')
-  })));
+function importOrderItemRows(orders = [], productMap = null) {
+  return orders.flatMap((order) => orderItems(order).map((item) => {
+    const catalog = catalogLineMeta(item, productMap);
+    return {
+      importOrderCode: firstValue(order, ['code', 'id']),
+      date: firstValue(order, ['date', 'documentDate', 'importDate']),
+      productCode: itemProductCode(item),
+      productName: itemProductName(item),
+      catalogPackingQty: catalog.packingQty,
+      cartonQty: itemCaseQty(item),
+      unitQty: itemLooseQty(item),
+      baseQty: itemBaseQty(item),
+      catalogSalePrice: catalog.salePrice,
+      costPrice: itemPrice(item, 'cost'),
+      amount: itemAmount(item, 'cost')
+    };
+  }));
 }
 
 async function loadImportOrders(params = {}) {
@@ -449,7 +482,12 @@ async function exportImportOrders(params = {}) {
   const workbook = createWorkbook();
   appendFilterSheet(workbook, 'Phiếu nhập', params.filters, { 'Phạm vi': scope, 'Số phiếu': orders.length });
   appendObjectSheet(workbook, 'PhieuNhap', IMPORT_ORDER_COLUMNS, orders);
-  if (params.includeDetails !== false) appendObjectSheet(workbook, 'ChiTietHangNhap', IMPORT_ORDER_ITEM_COLUMNS, importOrderItemRows(orders));
+  if (params.includeDetails !== false) {
+    const productMap = await ProductExcelEnrichmentService.loadProductMapForRows(
+      ProductExcelEnrichmentService.documentProductLines(orders)
+    );
+    appendObjectSheet(workbook, 'ChiTietHangNhap', IMPORT_ORDER_ITEM_COLUMNS, importOrderItemRows(orders, productMap));
+  }
   return {
     buffer: writeWorkbook(workbook),
     rowCount: orders.length,
@@ -486,6 +524,27 @@ async function loadImportSessionRows(sessionId) {
   return { session, rows: rows.slice(0, DEFAULT_MAX_EXPORT_ROWS) };
 }
 
+function ensureProductCatalogColumns(columns = [], hasProducts = false) {
+  if (!hasProducts) return columns;
+  const output = columns.map((column) => ({ ...column }));
+  const packingIndex = output.findIndex((column) => cleanText(column.label).toLowerCase() === 'quy cách');
+  const salePriceIndex = output.findIndex((column) => cleanText(column.label).toLowerCase() === 'giá bán');
+  const packingColumn = { label: 'Quy cách', key: 'catalogPackingQty', type: 'number', preserveBlank: true, width: 12 };
+  const salePriceColumn = { label: 'Giá bán', key: 'catalogSalePrice', type: 'money', preserveBlank: true, width: 16 };
+  if (packingIndex >= 0) output[packingIndex] = packingColumn;
+  else output.push(packingColumn);
+  if (salePriceIndex >= 0) output[salePriceIndex] = salePriceColumn;
+  else output.push(salePriceColumn);
+  return output;
+}
+
+async function enrichProductRows(rows = []) {
+  return ProductExcelEnrichmentService.enrichRows(rows, {
+    packingKey: 'catalogPackingQty',
+    salePriceKey: 'catalogSalePrice'
+  });
+}
+
 async function exportImportPreview(params = {}) {
   const sessionId = cleanText(params.sessionId);
   const { session, rows: allRows } = await loadImportSessionRows(sessionId);
@@ -495,8 +554,19 @@ async function exportImportPreview(params = {}) {
     : allRows;
   const validRows = rows.filter((row) => row.valid !== false && (!Array.isArray(row.errors) || row.errors.length === 0));
   const invalidRows = rows.filter((row) => !validRows.includes(row));
-  const keys = collectDynamicKeys(rows);
-  const columns = keys.map((key) => ({ label: key, key, width: key.length > 20 ? 35 : 18 }));
+  const enrichedAll = await enrichProductRows(rows);
+  const enrichedValid = enrichedAll.hasProducts
+    ? ProductExcelEnrichmentService.enrichRowsWithProductCatalog(validRows, enrichedAll.productMap)
+    : validRows;
+  const enrichedInvalid = enrichedAll.hasProducts
+    ? ProductExcelEnrichmentService.enrichRowsWithProductCatalog(invalidRows, enrichedAll.productMap)
+    : invalidRows;
+  const keys = collectDynamicKeys(enrichedAll.rows);
+  const columns = ensureProductCatalogColumns(
+    keys.filter((key) => !['catalogPackingQty', 'catalogSalePrice'].includes(key))
+      .map((key) => ({ label: key, key, width: key.length > 20 ? 35 : 18 })),
+    enrichedAll.hasProducts
+  );
   const workbook = createWorkbook();
   appendFilterSheet(workbook, 'Kết quả import', {
     sessionId,
@@ -508,9 +578,9 @@ async function exportImportPreview(params = {}) {
     'Hợp lệ': validRows.length,
     'Lỗi': invalidRows.length
   });
-  appendObjectSheet(workbook, 'TatCa', columns, rows);
-  appendObjectSheet(workbook, 'HopLe', columns, validRows);
-  appendObjectSheet(workbook, 'Loi', columns, invalidRows);
+  appendObjectSheet(workbook, 'TatCa', columns, enrichedAll.rows);
+  appendObjectSheet(workbook, 'HopLe', columns, enrichedValid);
+  appendObjectSheet(workbook, 'Loi', columns, enrichedInvalid);
   return {
     buffer: writeWorkbook(workbook),
     rowCount: rows.length,
@@ -540,19 +610,20 @@ async function exportReport(params = {}, user = {}) {
     if (indexes.length) payload.rows = indexes.map((index) => payload.rows?.[index]).filter(Boolean);
   }
   const definition = payload.definition || ReportCenterService.assertAccess(code, user);
-  const columns = (definition.columns || []).map((column) => ({
+  const productEnrichment = await enrichProductRows(payload.rows || []);
+  const columns = ensureProductCatalogColumns((definition.columns || []).map((column) => ({
     label: column.label,
     key: column.key,
     type: ['money', 'number'].includes(column.type) ? column.type : (column.type === 'date' ? 'date' : 'text'),
     width: column.type === 'money' ? 18 : 22
-  }));
+  })), productEnrichment.hasProducts);
   const workbook = createWorkbook();
   appendFilterSheet(workbook, definition.title || code, filters, {
     'Phạm vi': scope,
     'Nguồn': payload.source || '',
     'Số dòng': (payload.rows || []).length
   });
-  appendObjectSheet(workbook, 'BaoCao', columns, payload.rows || []);
+  appendObjectSheet(workbook, 'BaoCao', columns, productEnrichment.rows);
   const summaryRows = Object.entries(payload.summary || {}).map(([key, value]) => [key, sanitizeExcelValue(value)]);
   if (summaryRows.length) appendAoaSheet(workbook, 'TongHop', [['Chỉ số', 'Giá trị'], ...summaryRows], { widths: [35, 24] });
   return {
@@ -673,6 +744,8 @@ module.exports = {
     masterChildRows,
     masterItemRows,
     importOrderItemRows,
+    ensureProductCatalogColumns,
+    enrichProductRows,
     normalizeScope,
     uniqueStrings
   }

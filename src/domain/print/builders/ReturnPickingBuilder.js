@@ -4,6 +4,7 @@ const { toNumber } = require('../../../utils/common.util');
 const { PRINT_PROFILES, PRINT_DOCUMENT_TYPES, createPrintDocument, cleanText, uniqueText } = require('../PrintContract');
 const { normalizeLine } = require('../PrintLineNormalizer');
 const { mergeLines } = require('../PrintMergeService');
+const ProductCatalogExportPolicy = require('../../catalog/ProductCatalogExportPolicy');
 
 function buildReturnKpis(children = [], productMap = new Map()) {
   const rows = children.map((child) => {
@@ -38,11 +39,12 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
   for (const child of children) {
     for (const item of Array.isArray(child.items) ? child.items : []) {
       const productCode = cleanText(item.productCode || item.code || item.sku || item.productId);
-      rawLines.push(normalizeLine(item, {
-        parent: child,
-        product: productMap.get(productCode) || {},
-        mode: 'return'
-      }));
+      const product = productMap.get(productCode) || {};
+      rawLines.push({
+        ...normalizeLine(item, { parent: child, product, mode: 'return' }),
+        catalogPackingQty: ProductCatalogExportPolicy.packingQty(product),
+        catalogSalePrice: ProductCatalogExportPolicy.salePrice(product)
+      });
     }
   }
 
@@ -110,8 +112,10 @@ function buildReturnPicking(masterReturnOrder = {}, children = [], context = {})
       qty: line.quantity,
       conversionRate: line.conversionRate,
       packingQty: line.conversionRate,
+      catalogPackingQty: line.catalogPackingQty,
       warehouseCode: line.warehouseCode,
       warehouseName: line.warehouseName,
+      catalogSalePrice: line.catalogSalePrice,
       salePrice: line.finalPrice,
       price: line.finalPrice,
       finalPrice: line.finalPrice,
